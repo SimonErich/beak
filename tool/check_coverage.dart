@@ -14,10 +14,10 @@ const int defaultThresholdPct = 85;
 
 /// Per-package threshold overrides, keyed by package directory name.
 ///
-/// Phase 00 scaffolds empty skeletons, so every package starts at zero.
-/// Later phases raise these as real code lands (`beak_core` targets 100).
+/// Phase 00 scaffolds empty skeletons, so packages start at zero and later
+/// phases raise them as real code lands. `beak_core` is pure and holds 100.
 const Map<String, int> thresholdOverridesPct = {
-  'beak_core': 0,
+  'beak_core': 100,
   'beak_storage_s3': 0,
   'beak_storage_ftp': 0,
   'beak_backend': 0,

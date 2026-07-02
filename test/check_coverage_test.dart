@@ -64,9 +64,12 @@ end_of_record
     expect(defaultThresholdPct, 85);
   });
 
+  test('beak_core is pure Dart and gates at full coverage', () {
+    expect(thresholdFor('beak_core'), 100);
+  });
+
   test('phase-00 skeleton packages start at a zero threshold', () {
     for (final package in const [
-      'beak_core',
       'beak_storage_s3',
       'beak_storage_ftp',
       'beak_backend',
