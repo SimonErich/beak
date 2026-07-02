@@ -12,7 +12,7 @@ once more and, if green, create the `BUILD_COMPLETE` sentinel and stop.
 
 | # | Phase | Status | Commit | Notes |
 |---|-------|--------|--------|-------|
-| 00 | Foundation & guardrails | ✅ DONE | — | Full gate green 2026-07-02 22:43 UTC. Melos pinned to 6.3.3 (last melos.yaml-based line; 7+ moved config into pubspec). Vendored worm* excluded from melos scope (consumed as path deps; their mysql/mongo suites need unprovisioned services). obers_ui present, all path deps resolve. Docker host ports remapped to 25432/29000/29001/28081 (defaults occupied on this host); createbuckets one-shot profiled so `--wait` stays green. Vendored drop had an embedded git repo at packages/.git (worm dev history, no remotes) — preserved as packages/.worm-repo.git (gitignored) so beak can track the files. |
+| 00 | Foundation & guardrails | ✅ DONE | d2f4d96 | Full gate green 2026-07-02 22:43 UTC. Melos pinned to 6.3.3 (last melos.yaml-based line; 7+ moved config into pubspec). Vendored worm* excluded from melos scope (consumed as path deps; their mysql/mongo suites need unprovisioned services). obers_ui present, all path deps resolve. Docker host ports remapped to 25432/29000/29001/28081 (defaults occupied on this host); createbuckets one-shot profiled so `--wait` stays green. Vendored drop had an embedded git repo at packages/.git (worm dev history, no remotes) — preserved as packages/.worm-repo.git (gitignored) so beak can track the files. |
 | 01 | beak_core: types, enums, errors | ⬜ TODO | — | — |
 | 02 | beak_core: column system + rules | ⬜ TODO | — | — |
 | 03 | beak_core: model + relationships | ⬜ TODO | — | — |
