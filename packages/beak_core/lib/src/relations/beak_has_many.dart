@@ -1,0 +1,34 @@
+part of 'beak_relationship.dart';
+
+/// A parent-side to-many relationship: records in [relatedTable] hold
+/// [foreignKey] pointing back at this model.
+///
+/// Renders as a badge list of related records; in forms the frontend maps
+/// the intent to a relation manager/repeater.
+final class BeakHasMany extends BeakRelationship {
+  /// Creates a has-many relationship resolved via [foreignKey].
+  const BeakHasMany({
+    required super.key,
+    required super.label,
+    required super.relatedTable,
+    required super.displayColumnKey,
+    required this.foreignKey,
+    super.searchColumnKeys,
+    this.onDelete = BeakOnDelete.restrict,
+  });
+
+  /// The column on the related table pointing back at this model's id.
+  final String foreignKey;
+
+  /// What happens to the related rows when a record of this model is
+  /// deleted. Defaults to [BeakOnDelete.restrict] — never orphan or drop
+  /// child rows unless the model opts in.
+  final BeakOnDelete onDelete;
+
+  @override
+  BeakRenderConfig get renderConfig =>
+      const BeakRenderConfig.uniform(BeakRenderIntent.relationBadges);
+
+  @override
+  BeakRelationCardinality get cardinality => BeakRelationCardinality.many;
+}

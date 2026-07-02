@@ -12,7 +12,11 @@ export 'src/common/beak_exception.dart';
 export 'src/common/beak_result.dart';
 export 'src/context/beak_context.dart';
 export 'src/context/beak_render_intent.dart';
+export 'src/model/beak_model.dart';
+export 'src/model/beak_model_registry.dart';
 export 'src/query/beak_operator.dart';
+export 'src/relations/beak_on_delete.dart';
+export 'src/relations/beak_relationship.dart';
 export 'src/rules/beak_rule.dart';
 
 /// The version of the `beak_core` package.
