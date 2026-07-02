@@ -1,0 +1,1 @@
+{"$and":[{"$or":[{"name":"Alice"},{"name":"Bob"}]},{"age":{"$gte":18}}]}

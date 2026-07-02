@@ -1,0 +1,19 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "or",
+    "left": {
+      "type": "leaf",
+      "field": "name",
+      "operator": "eq",
+      "value": "Alice"
+    },
+    "right": {
+      "type": "leaf",
+      "field": "name",
+      "operator": "eq",
+      "value": "Bob"
+    }
+  }
+}

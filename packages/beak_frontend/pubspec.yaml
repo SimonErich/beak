@@ -1,0 +1,27 @@
+name: beak_frontend
+description: >-
+  Beak admin-panel Flutter widgets — panel shell, data table, forms, detail
+  views, actions, and dashboards built on obers_ui.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  beak_core:
+    path: ../beak_core
+  flutter:
+    sdk: flutter
+  obers_ui:
+    path: ../../../obers_ui
+  obers_ui_autoforms:
+    path: ../../../obers_ui/packages/obers_ui_autoforms
+  obers_ui_charts:
+    path: ../../../obers_ui/packages/obers_ui_charts
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0

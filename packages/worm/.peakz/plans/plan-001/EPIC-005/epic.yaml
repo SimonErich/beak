@@ -1,0 +1,18 @@
+{
+  "epicId": "EPIC-005",
+  "title": "Strictness, Scopes, and Spec API Aliases",
+  "status": "done",
+  "epicType": "feature",
+  "goal": "Make strict mode genuinely enforceable: auto-apply @GlobalScope on every QueryBuilder via codegen extensions, generate typed scope extension methods (not just List<String>), throw on lazy-loading in strict mode, enforce preventFullTableScans on .get() without .where(), unify preventFullTableScans/preventDestructiveWithoutWhere overlap, and provide spec-name aliases (Operator.equals, whereIn, table.id(), cursorPaginate(after:)) so spec examples compile literally. Schema facade compatibility (Migration.up accepting Schema) is delivered by EPIC-004 W8 and is a prerequisite for this epic.",
+  "acceptanceCriteria": [
+    "AC-1: every QueryBuilder<User> automatically applies User's @GlobalScope-tagged scopes; bypass with withoutGlobalScope<X>()",
+    "AC-2: generator emits query.published() for a PublishedScope LocalScope; calling it adds the scope's where clause",
+    "AC-3: accessing user.posts when not eager-loaded throws LazyLoadingException in strict mode and returns lazy load in non-strict mode",
+    "AC-4: User.query().get() (no .where()) throws DangerousQueryException in strict mode",
+    "AC-5: Worm.unsafe wraps a callback that performs an otherwise-blocked .get() and succeeds",
+    "AC-6: Operator.equals === Operator.eq (identical instance, compile-time alias)",
+    "AC-7: field.whereIn([1,2,3]) and field.inList([1,2,3]) both compile and produce same query",
+    "AC-8: blueprint.id() declares UUID primary key; blueprint.intId() declares auto-incr int primary key",
+    "AC-9: cursorPaginate(perPage: 10, after: 'abc') returns CursorPage<T> identical to cursorPaginate(perPage: 10, cursor: 'abc')"
+  ]
+}

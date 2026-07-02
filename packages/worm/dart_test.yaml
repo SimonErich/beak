@@ -1,0 +1,64 @@
+# Explicit test discovery paths.
+#
+# Excludes only files that are deliberately pending — currently:
+#   - test/src/config/worm_config_test.dart (uses scaffold APIs not
+#     yet implemented: ConnectionConfig.driver,
+#     StrictnessConfig.warnOnMissingIndex)
+#   - test/src/adapter/contract/*.pending_adapter_contract_rewrite
+#     (contract harness needs rewrite for post-EPIC-004 API)
+paths:
+  - test/annotation_test.dart
+  - test/enum_test.dart
+  - test/exception_test.dart
+  - test/worm_test.dart
+  - test/src/adapter/in_memory_adapter_agg_test.dart
+  - test/src/adapter/in_memory_adapter_crud_test.dart
+  - test/src/adapter/in_memory_adapter_filter_test.dart
+  - test/src/adapter/in_memory_adapter_sort_page_test.dart
+  - test/src/adapter/in_memory_adapter_txn_test.dart
+  - test/src/cast/
+  - test/src/cli/
+  - test/src/codegen/
+  - test/src/config/config_test.dart
+  - test/src/epic_003/
+  - test/src/exception/
+  - test/src/factory/
+  - test/src/logging/
+  - test/src/migration/
+  - test/src/model/
+  - test/src/naming/
+  - test/src/pagination/
+  - test/src/performance/
+  - test/src/query/adapter_gates_test.dart
+  - test/src/query/aggregate_terminals_test.dart
+  - test/src/query/boolean_composition_test.dart
+  - test/src/query/bulk_ops_test.dart
+  - test/src/query/descriptor/golden_snapshot_test.dart
+  - test/src/query/field_operators_test.dart
+  - test/src/query/field_test.dart
+  - test/src/query/fluent_qb_goldens_test.dart
+  - test/src/query/get_strict_guard_test.dart
+  - test/src/query/predicate_tree_test.dart
+  - test/src/query/query_builder_descriptors_test.dart
+  - test/src/query/query_builder_exec_test.dart
+  - test/src/query/query_inspection_test.dart
+  - test/src/query/streaming_terminals_test.dart
+  - test/src/query/typed_without_scope_test.dart
+  - test/src/query/where_overloads_test.dart
+  - test/src/registry/
+  - test/src/relation/
+  - test/src/schema/
+  - test/src/scope/
+  - test/src/seeder/
+  - test/src/serialization/
+  - test/src/validation/
+
+# Tag-driven test selection.
+#
+# The 'performance' tag covers benchmark assertions that exercise
+# wall-clock latency, query counts at scale, and RSS growth. The
+# tag is declared so `dart test --tags performance` runs only
+# them; CI can exclude them from regular runs with
+# `dart test --exclude-tags performance`.
+tags:
+  performance:

@@ -1,0 +1,66 @@
+---
+title: Worm
+description: A type-safe, Eloquent-inspired ORM for server-side Dart.
+template: splash
+hero:
+  tagline: The early bird's data layer. A type-safe, Eloquent-inspired ORM for server-side Dart.
+---
+
+import { CardGrid, LinkButton, LinkCard } from '@astrojs/starlight/components';
+
+Worm maps Dart classes to database tables and gives you typed queries over them. Field references are constants, not strings, so a typo is a compile error instead of a runtime surprise. The bird gets the worm; your app gets its data.
+
+```dart
+await Worm.initialize(
+  config: const WormConfig(),
+  adapters: {'default': InMemoryAdapter()},
+);
+
+await Worm.adapter().executeSchema(
+  const SchemaDescriptor.createTable(table: 'users'),
+);
+
+await User(id: 'u1', name: 'Ada', age: 36).save();
+
+final adults = await User.query()
+    .where(User$.age.gte(18))
+    .orderBy(User$.name)
+    .get();
+```
+
+One query API, five backends: PostgreSQL, MySQL, SQLite, MongoDB, and an in-memory adapter for tests.
+
+<LinkButton href="./start-here/quickstart.md">Run this in five minutes</LinkButton>
+
+<CardGrid>
+  <LinkCard
+    title="Quickstart"
+    href="./start-here/quickstart.md"
+    description="One file, zero setup: from empty project to a passing typed query."
+  />
+  <LinkCard
+    title="Tutorial: Nestwatch"
+    href="./tutorial/overview.md"
+    description="Build a bird-sighting journal on SQLite: models, relations, seeds, queries."
+  />
+  <LinkCard
+    title="Cheatsheet"
+    href="./reference/cheatsheet.md"
+    description="Every command, operator, and skeleton on one page. Copy, paste, fly."
+  />
+  <LinkCard
+    title="Choosing a database"
+    href="./drivers/choosing-a-database.mdx"
+    description="PostgreSQL, MySQL, SQLite, MongoDB, or in-memory: the honest comparison."
+  />
+  <LinkCard
+    title="Contributing"
+    href="./contributing/contributing.md"
+    description="Monorepo tour, test matrix, and how to write your own database driver."
+  />
+  <LinkCard
+    title="For AI agents"
+    href="./guides/ai-agents.md"
+    description="How agents should navigate these docs, plus the llms.txt export."
+  />
+</CardGrid>

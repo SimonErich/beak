@@ -1,0 +1,16 @@
+{
+  "type": "query",
+  "table": "users",
+  "columns": [
+    "name",
+    "email"
+  ],
+  "orderBy": [
+    {
+      "field": "created_at",
+      "direction": "desc"
+    }
+  ],
+  "limit": 10,
+  "offset": 20
+}

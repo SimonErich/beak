@@ -1,0 +1,28 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "and",
+    "left": {
+      "type": "leaf",
+      "field": "age",
+      "operator": "gte",
+      "value": 18
+    },
+    "right": {
+      "type": "leaf",
+      "field": "role",
+      "operator": "eq",
+      "value": "admin"
+    }
+  },
+  "orderBy": [
+    {
+      "field": "age",
+      "direction": "desc"
+    }
+  ],
+  "limit": 5,
+  "offset": 10,
+  "distinct": true
+}

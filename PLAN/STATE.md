@@ -1,0 +1,40 @@
+# PLAN/STATE.md — Beak build ledger
+
+This is the single source of truth for build progress. The loop reads it to find the
+next phase, and updates it after finishing one. Status legend:
+
+- `⬜ TODO` — not started
+- `🔶 IN-PROGRESS` — started this phase; see the "resume" note
+- `✅ DONE` — gate fully green, committed (SHA recorded)
+
+**Do the first phase that is not `✅ DONE`.** When all are `✅ DONE`, run the full gate
+once more and, if green, create the `BUILD_COMPLETE` sentinel and stop.
+
+| # | Phase | Status | Commit | Notes |
+|---|-------|--------|--------|-------|
+| 00 | Foundation & guardrails | ✅ DONE | — | Full gate green 2026-07-02 22:43 UTC. Melos pinned to 6.3.3 (last melos.yaml-based line; 7+ moved config into pubspec). Vendored worm* excluded from melos scope (consumed as path deps; their mysql/mongo suites need unprovisioned services). obers_ui present, all path deps resolve. Docker host ports remapped to 25432/29000/29001/28081 (defaults occupied on this host); createbuckets one-shot profiled so `--wait` stays green. Vendored drop had an embedded git repo at packages/.git (worm dev history, no remotes) — preserved as packages/.worm-repo.git (gitignored) so beak can track the files. |
+| 01 | beak_core: types, enums, errors | ⬜ TODO | — | — |
+| 02 | beak_core: column system + rules | ⬜ TODO | — | — |
+| 03 | beak_core: model + relationships | ⬜ TODO | — | — |
+| 04 | beak_core: serializable query spec | ⬜ TODO | — | — |
+| 05 | beak_core: storage abstraction + file rules | ⬜ TODO | — | — |
+| 06 | beak_storage_s3 + beak_storage_ftp | ⬜ TODO | — | — |
+| 07 | beak_backend: Shelf foundation + DataSource | ⬜ TODO | — | — |
+| 08 | beak_backend: auto CRUD endpoints | ⬜ TODO | — | — |
+| 09 | beak_backend: file upload endpoints | ⬜ TODO | — | — |
+| 10 | beak_backend: auth + search + export | ⬜ TODO | — | — |
+| 11 | beak_frontend: panel foundation + client | ⬜ TODO | — | — |
+| 12 | beak_frontend: BeakDataTable | ⬜ TODO | — | — |
+| 13 | beak_frontend: BeakDataForm + DetailView | ⬜ TODO | — | — |
+| 14 | beak_frontend: actions + filters + dashboard | ⬜ TODO | — | — |
+| 15 | reference app + beak_cli + E2E | ⬜ TODO | — | — |
+
+## Resume notes
+
+<!-- The loop appends per-phase running notes here when a phase is IN-PROGRESS, so a
+     fresh invocation can continue exactly where the previous one stopped. Format:
+
+### Phase NN — IN-PROGRESS (updated <UTC timestamp>)
+- done: <what's finished + which tests pass>
+- next: <the exact next step to resume>
+-->

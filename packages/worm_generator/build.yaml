@@ -1,0 +1,12 @@
+builders:
+  worm_generator:
+    import: 'package:worm_generator/worm_generator.dart'
+    builder_factories:
+      - wormBuilder
+    build_extensions:
+      '.dart':
+        - '.worm.dart'
+    auto_apply: dependents
+    build_to: source
+    applies_builders:
+      - source_gen:combining_builder

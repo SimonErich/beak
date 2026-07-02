@@ -1,0 +1,74 @@
+name: beak
+
+packages:
+  - packages/**
+  - apps/**
+
+# The worm ORM and its drivers are vendored ("given") — they are consumed as
+# path dependencies but not gated: their mysql/mongodb test suites need
+# services this repo does not provision.
+ignore:
+  - packages/worm
+  - packages/worm/**
+  - packages/worm_*
+  - packages/worm_*/**
+
+command:
+  bootstrap:
+    runPubGetInParallel: true
+
+scripts:
+  analyze:
+    run: >-
+      melos run analyze-dart &&
+      melos run analyze-flutter &&
+      melos run analyze-root &&
+      melos run guard-material
+    description: Static analysis across all packages (0 issues required).
+  analyze-dart:
+    run: melos exec -- "dart analyze --fatal-infos --fatal-warnings ."
+    description: Static analysis for pure-Dart packages.
+    packageFilters: { flutter: false }
+  analyze-flutter:
+    run: melos exec -- "flutter analyze --fatal-infos --fatal-warnings"
+    description: Static analysis for Flutter packages.
+    packageFilters: { flutter: true }
+  analyze-root:
+    run: >-
+      dart analyze --fatal-infos --fatal-warnings tool &&
+      dart analyze --fatal-infos --fatal-warnings test
+    description: Static analysis for the workspace tooling (tool/ and its tests).
+  guard-material:
+    run: dart run tool/check_no_material.dart
+    description: >-
+      FAIL on any package:flutter/material.dart or package:flutter/cupertino.dart
+      import in Beak code (CLAUDE.md §2.1).
+  format-check:
+    run: dart format --output=none --set-exit-if-changed .
+    description: Formatting must be clean.
+  test:
+    run: >-
+      melos run test-dart &&
+      melos run test-flutter &&
+      melos run test-root
+    description: Run every package's tests (pure Dart + Flutter + workspace tooling).
+  test-dart:
+    run: melos exec --fail-fast -- "dart test --coverage=coverage"
+    description: Run pure-Dart package tests with coverage.
+    packageFilters: { flutter: false, dirExists: test }
+  test-flutter:
+    run: melos exec --fail-fast -- "flutter test --coverage"
+    description: Run Flutter package tests with coverage.
+    packageFilters: { flutter: true, dirExists: test }
+  test-root:
+    run: dart test
+    description: Run the workspace tooling self-checks (coverage gate, guards).
+  coverage:
+    run: dart run tool/check_coverage.dart
+    description: Enforce per-package line-coverage thresholds.
+  up:
+    run: docker compose up -d --wait && docker compose run --rm createbuckets
+    description: Start Postgres + MinIO, wait for health, and init the upload bucket.
+  down:
+    run: docker compose down -v
+    description: Stop Postgres + MinIO and drop their volumes.

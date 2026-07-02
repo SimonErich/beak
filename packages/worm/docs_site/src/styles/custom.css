@@ -1,0 +1,7 @@
+/* Worm brand accent. Placeholder values — tune with
+   https://starlight.astro.build/guides/css-and-tailwind/#color-theme-editor */
+:root {
+  --sl-color-accent: #b34a6e;
+  --sl-color-accent-high: #f2b8ca;
+  --sl-color-accent-low: #3b1220;
+}

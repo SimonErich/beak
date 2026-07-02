@@ -1,0 +1,10 @@
+{
+  "type": "query",
+  "table": "users",
+  "orderBy": [
+    {
+      "field": "age",
+      "direction": "desc"
+    }
+  ]
+}

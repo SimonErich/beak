@@ -1,0 +1,17 @@
+{
+  "epicId": "EPIC-000",
+  "title": "Foundation: Adapter Alignment, Codegen Foundation, and Dead Code Removal",
+  "status": "done",
+  "epicType": "foundation",
+  "goal": "Unblock all downstream work by aligning worm_postgres and worm_mongodb adapters to the post-EPIC-004 query/schema API, extending the build_runner generator to emit typed relation constants and process annotations, and deleting the duplicate Worm registry class so subsequent epics can build on a clean foundation.",
+  "acceptanceCriteria": [
+    "AC-1: dart analyze is clean in packages/worm_postgres and packages/worm_mongodb against current main",
+    "AC-2: runAdapterContractTests passes against InMemoryAdapter, worm_postgres, worm_mongodb in CI",
+    "AC-3: both adapter packages mix in ExplainCapable and respond to explain() calls",
+    "AC-4: build_runner emits User$.posts and User$.profile as typed RelationField constants for at least one test model, verified by a generated-code snapshot test",
+    "AC-5: generator output contains zero ' as ' casts (verified by string scan in generator test)",
+    "AC-6: lib/src/registry/worm_registry.dart and its test are deleted; only one final class Worm exists in lib/",
+    "AC-7: dart format / dart analyze / dart test pass cleanly in all four packages",
+    "AC-8: audit Executive Summary table flips Status from ⚠ to ✓ for EPIC-010, EPIC-023, EPIC-016 rows in same PR set"
+  ]
+}

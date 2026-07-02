@@ -1,0 +1,19 @@
+{
+  "epicId": "EPIC-001",
+  "title": "Model Lifecycle Finish-Out and Top-Level Transactions",
+  "status": "done",
+  "epicType": "feature",
+  "goal": "Complete the Active Record lifecycle by adding update/forceDelete/replicate/withoutEvents, auto-firing validation inside save(), wiring beforeRestore/afterRestore hooks, switching validation to typed Map<Field, List<ValidationRule>>, and shipping Worm.transaction with an adapter-state callback queue so afterCommit fires only on commit.",
+  "acceptanceCriteria": [
+    "AC-1: Model.update(map) persists changes and fires Save lifecycle hooks in expected order",
+    "AC-2: Model.forceDelete() exists on every Model and hard-deletes regardless of SoftDeletes mixin presence",
+    "AC-3: Model.replicate(except:[Field]) returns unsaved copy with new ID and excluded fields cleared",
+    "AC-4: Model.withoutEvents([User], callback) suppresses only User-typed hooks for callback duration",
+    "AC-5: Validator.validate fires automatically in save() between beforeValidate and afterValidate, proven by hook-order test",
+    "AC-6: rules getter returns Map<Field, List<ValidationRule>> on a sample model; old Validatable interface removed",
+    "AC-7: beforeRestore and afterRestore dispatch in correct order during SoftDeletes.restore()",
+    "AC-8: Model.relations / injectedFields / state are @internal or package-private; consumer code outside lib/ cannot access them",
+    "AC-9: Worm.transaction commits on success, rolls back on exception, supports nesting, drains afterCommit only on outermost commit (proven by 4 separate tests)",
+    "AC-10: Model.save(transaction: txn) routes all SQL through txn and is visible only after commit"
+  ]
+}

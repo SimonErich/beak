@@ -1,0 +1,1 @@
+{"$exists":{"from":"posts","pipeline":[{"$match":{"user_id":1}},{"$limit":1}],"negated":false}}

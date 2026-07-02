@@ -1,0 +1,10 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "leaf",
+    "field": "name",
+    "operator": "eq",
+    "value": "Alice"
+  }
+}
