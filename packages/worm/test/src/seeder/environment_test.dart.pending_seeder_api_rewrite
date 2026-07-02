@@ -1,0 +1,145 @@
+import 'package:test/test.dart';
+import 'package:worm/worm.dart';
+
+class _CallCountSeeder extends Seeder {
+  _CallCountSeeder({required this.declaredName, required this.env});
+
+  final String declaredName;
+  final Environment env;
+  int callCount = 0;
+
+  @override
+  String get name => declaredName;
+
+  @override
+  Environment get environment => env;
+
+  @override
+  Future<void> run() async {
+    callCount++;
+  }
+}
+
+Future<InMemoryAdapter> _connected() async {
+  final adapter = InMemoryAdapter();
+  await adapter.connect();
+  return adapter;
+}
+
+void main() {
+  group('Environment enum', () {
+    test('exposes the five constitution-defined values in order', () {
+      expect(Environment.values, <Environment>[
+        Environment.development,
+        Environment.staging,
+        Environment.production,
+        Environment.testing,
+        Environment.all,
+      ]);
+    });
+
+    test('Seeder.shouldRun matches declared environment exactly', () {
+      final dev = _CallCountSeeder(
+        declaredName: 'Dev',
+        env: Environment.development,
+      );
+      expect(dev.shouldRun(Environment.development), isTrue);
+      expect(dev.shouldRun(Environment.production), isFalse);
+      expect(dev.shouldRun(Environment.staging), isFalse);
+      expect(dev.shouldRun(Environment.testing), isFalse);
+    });
+
+    test('Seeder.shouldRun with Environment.all matches every env', () {
+      final everywhere = _CallCountSeeder(
+        declaredName: 'All',
+        env: Environment.all,
+      );
+      for (final env in Environment.values) {
+        expect(
+          everywhere.shouldRun(env),
+          isTrue,
+          reason: 'Environment.all should match $env',
+        );
+      }
+    });
+  });
+
+  group('SeederRunner environment filtering', () {
+    test('development-only seeder does NOT run when env=production '
+        '(simulating WORM_ENV=production via WormConfig)', () async {
+      // Simulate Worm.initialize having resolved WORM_ENV=production.
+      // We pass the resolved Environment directly into the runner; the
+      // Worm.environment static reads WORM_ENV at runtime — bypassing
+      // it here keeps the test hermetic.
+      const productionEnv = Environment.production;
+
+      final adapter = await _connected();
+      final devSeeder = _CallCountSeeder(
+        declaredName: 'DevOnly',
+        env: Environment.development,
+      );
+      final runner = SeederRunner(
+        seeders: <Seeder>[devSeeder],
+        adapter: adapter,
+        environment: productionEnv,
+      );
+
+      final result = await runner.run();
+      expect(result.applied, isEmpty);
+      expect(result.skipped, hasLength(1));
+      expect(result.skipped.single.reason, SeederSkipReason.environment);
+      expect(devSeeder.callCount, 0);
+    });
+
+    test('Worm.environment drives the runner — env=production hides '
+        'development-only seeders end-to-end', () async {
+      // Closer to the AC wording: pass Worm.environment through after
+      // Worm.initialize. WORM_ENV is not set in this process, so the
+      // WormConfig.environment value flows through unchanged.
+      addTearDown(Worm.reset);
+      final adapter = await _connected();
+      await Worm.initialize(
+        config: const WormConfig(environment: Environment.production),
+        adapters: <String, DatabaseAdapter>{'default': adapter},
+      );
+
+      final devSeeder = _CallCountSeeder(
+        declaredName: 'DevOnly',
+        env: Environment.development,
+      );
+      final runner = SeederRunner(
+        seeders: <Seeder>[devSeeder],
+        adapter: adapter,
+        environment: Worm.environment,
+      );
+
+      final result = await runner.run();
+      expect(Worm.environment, Environment.production);
+      expect(result.applied, isEmpty);
+      expect(devSeeder.callCount, 0);
+    });
+
+    test('seeder with environment=all runs in every environment', () async {
+      for (final currentEnv in Environment.values) {
+        if (currentEnv == Environment.all) continue;
+        final adapter = await _connected();
+        final everywhere = _CallCountSeeder(
+          declaredName: 'Everywhere',
+          env: Environment.all,
+        );
+        final runner = SeederRunner(
+          seeders: <Seeder>[everywhere],
+          adapter: adapter,
+          environment: currentEnv,
+        );
+        final result = await runner.run();
+        expect(
+          result.applied.map((r) => r.name),
+          <String>['Everywhere'],
+          reason: 'Environment.all should run in $currentEnv',
+        );
+        expect(everywhere.callCount, 1);
+      }
+    });
+  });
+}

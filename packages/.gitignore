@@ -1,0 +1,38 @@
+# Monorepo-level gitignore.
+#
+# Dart pub state is per-package and never committed:
+#   - .dart_tool/ : generated artifacts (package_config.json, etc.)
+#   - build/      : build_runner output
+#   - pubspec.lock: only committed for application packages; all
+#                   packages in this monorepo are libraries.
+
+**/.dart_tool/
+**/build/
+**/pubspec.lock
+
+# IDE state
+.idea/
+.vscode/
+*.iml
+
+# Editor scratch
+*.swp
+*~
+.DS_Store
+
+# peakz orchestrator runtime artifacts — package-level .peakz/ files
+# also honor their own .gitignore, but mirror the rules here so a
+# git-clean -fxd doesn't strip what we want kept.
+**/.peakz/runtime/
+**/.peakz/plans/**/*-pipeline.json
+**/.peakz/plans/**/retrieval-snapshot.json
+**/.peakz/plans/**/compiled-dispatch/
+**/.peakz/reports/
+# peakz worktrees: ephemeral checkouts created per epic, never tracked.
+**/.peakz/worktrees/
+
+# CodeGraphContext auto-generated ignore file.
+worm/.cgcignore
+
+# custom_lint log output — regenerated on every run.
+**/custom_lint.log

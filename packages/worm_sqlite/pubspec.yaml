@@ -1,0 +1,16 @@
+name: worm_sqlite
+description: SQLite adapter and SQL compiler for the worm ORM.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  sqlite3: ^2.4.0
+  worm:
+    path: ../worm
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

@@ -1,0 +1,25 @@
+name: worm_generator
+description: >
+  Build-runner code generation for the worm ORM. Emits
+  *.worm.dart companion files for @Table-annotated models.
+version: 0.1.0
+publish_to: none
+
+executables:
+  worm_gen: worm_gen
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  analyzer: ^6.0.0
+  build: ^2.4.0
+  source_gen: ^1.5.0
+  worm:
+    path: ../worm
+
+dev_dependencies:
+  build_runner: ^2.4.0
+  build_test: ^2.2.0
+  lints: ^6.0.0
+  test: ^1.25.0

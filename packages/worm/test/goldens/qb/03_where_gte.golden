@@ -1,0 +1,10 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "leaf",
+    "field": "age",
+    "operator": "gte",
+    "value": 18
+  }
+}

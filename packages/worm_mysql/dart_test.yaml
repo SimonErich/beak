@@ -1,0 +1,5 @@
+# Declares the `performance` tag so the complex/perf suite's @Tags is clean.
+# Run everything except benchmarks:   dart test --exclude-tags performance
+# Run only benchmarks:                dart test --tags performance
+tags:
+  performance:

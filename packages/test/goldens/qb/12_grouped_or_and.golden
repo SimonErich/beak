@@ -1,0 +1,31 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "and",
+    "left": {
+      "type": "group",
+      "child": {
+        "type": "or",
+        "left": {
+          "type": "leaf",
+          "field": "name",
+          "operator": "eq",
+          "value": "Alice"
+        },
+        "right": {
+          "type": "leaf",
+          "field": "name",
+          "operator": "eq",
+          "value": "Bob"
+        }
+      }
+    },
+    "right": {
+      "type": "leaf",
+      "field": "age",
+      "operator": "gte",
+      "value": 18
+    }
+  }
+}

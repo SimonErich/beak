@@ -1,0 +1,19 @@
+{
+  "epicId": "EPIC-006",
+  "title": "Exception Hierarchy Completion and Internal Reference Cleanup",
+  "status": "done",
+  "epicType": "quality",
+  "goal": "Round out the exception hierarchy with missing types (ConnectionTimeout, Authentication, CheckConstraint, Syntax, LazyLoading, MigrationLock, IrreversibleMigration, UnsupportedOperation, OperationCancelled), add umbrella types (ModelException, AdapterException), alias FullTableScanException ↔ DangerousQueryException, standardize error-context fields, and strip every WI-XXX / AC-N comment from lib/ and test/ while adding a lint rule preventing reintroduction. SPLIT DELIVERY: W1–W4 and W7 (exception type definitions) must ship before EPIC-001 through EPIC-005 so those epics throw properly-typed exceptions from day one; W5–W6 (comment sweep and lint rule) and W8 (ConfigurationException migration) run after all feature epics are complete.",
+  "acceptanceCriteria": [
+    "AC-1: each new exception subtype has a construction-and-context test passing",
+    "AC-2: ModelException is base of ValidationException, MassAssignmentException, others; AdapterException is base of ConnectionTimeoutException, AuthenticationException, etc.",
+    "AC-3: catch (e) where e is ModelException catches every model-layer exception",
+    "AC-4: FullTableScanException and DangerousQueryException are mutually catchable",
+    "AC-5: every exception's toString includes table/model/migration context when set",
+    "AC-6: grep for 'WI-' or 'AC-[0-9]' in lib/ and test/ returns zero results (or only allowed lint-test fixtures)",
+    "AC-7: custom lint rule fires on a deliberately-bad sample file; CI fails on its presence",
+    "AC-8: no UnsupportedOperationException sites still throw ConfigurationException for the same condition",
+    "AC-9: dart format / dart analyze / dart test pass cleanly post-cleanup",
+    "AC-10: audit row for EPIC-021 and EPIC-017 flipped to ✓ in same PR"
+  ]
+}

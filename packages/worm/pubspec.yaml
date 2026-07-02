@@ -1,0 +1,29 @@
+name: worm
+description: The worm package for the beak project.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  args: ^2.5.0
+  # TODO(peakz:WI-010): faker_dart pinned to ^0.2.3 instead of AC ^1.0.0
+  #   Issue: pubspec dependency does not match AC literal
+  #          "faker_dart: ^1.0.0".
+  #   Spec: AC criterion 9 requires "faker_dart: ^1.0.0" in
+  #         the worm pubspec dependencies (not devDependencies).
+  #   Why: faker_dart v1.0.0 is not published on pub.dev — the
+  #        latest published version is 0.2.3. Pinning to ^1.0.0
+  #        prevents `dart pub get` from resolving and breaks the
+  #        build. Either the AC needs a corrected version
+  #        constraint or faker_dart 1.0.0 must be published.
+  faker_dart: ^0.2.3
+  meta: ^1.16.0
+  test: ^1.25.6
+
+dev_dependencies:
+  custom_lint: 0.8.1
+  lints: ^6.0.0
+  worm_lints:
+    path: ../worm_lints

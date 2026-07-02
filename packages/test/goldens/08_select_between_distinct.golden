@@ -1,0 +1,17 @@
+{
+  "type": "query",
+  "table": "users",
+  "columns": [
+    "name"
+  ],
+  "where": {
+    "type": "leaf",
+    "field": "score",
+    "operator": "between",
+    "value": {
+      "lower": 80,
+      "upper": 100
+    }
+  },
+  "distinct": true
+}

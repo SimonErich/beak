@@ -1,0 +1,13 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  errors:
+    # custom_lint_builder still exposes ErrorReporter / ErrorSeverity
+    # rather than the analyzer's renamed DiagnosticReporter /
+    # DiagnosticSeverity, so this deprecation only resolves once
+    # custom_lint upgrades.
+    deprecated_member_use: ignore
+
+linter:
+  rules:
+    omit_local_variable_types: false

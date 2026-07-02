@@ -1,0 +1,19 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "or",
+    "left": {
+      "type": "leaf",
+      "field": "role",
+      "operator": "eq",
+      "value": "admin"
+    },
+    "right": {
+      "type": "leaf",
+      "field": "role",
+      "operator": "eq",
+      "value": "mod"
+    }
+  }
+}

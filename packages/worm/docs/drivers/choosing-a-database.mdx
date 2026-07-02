@@ -1,0 +1,243 @@
+---
+title: Choosing a database
+description: Compare the five worm backends and pick the right driver for your project.
+---
+
+import { Tabs, TabItem, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Worm runs on five backends: the bundled in-memory adapter plus four driver packages for SQLite, PostgreSQL, MySQL, and MongoDB. This page compares them so you can pick one and move on. For how adapters work under the hood, see [how drivers work](./how-drivers-work.md).
+
+## The short answer
+
+```mermaid
+flowchart TD
+    Q1{Tests or prototyping?} -->|yes| MEM[InMemoryAdapter, ships with worm]
+    Q1 -->|no| Q2{Data lives on the same machine?}
+    Q2 -->|yes| SQLITE[worm_sqlite]
+    Q2 -->|no| Q3{Relational schema?}
+    Q3 -->|yes| Q4{Existing MySQL or MariaDB infra?}
+    Q4 -->|yes| MYSQL[worm_mysql]
+    Q4 -->|no| PG[worm_postgres]
+    Q3 -->|no, documents| MONGO[worm_mongodb]
+```
+
+If you're still unsure: start with `InMemoryAdapter`, ship on `worm_postgres`. Every adapter speaks the same descriptor contract, so switching later means changing construction code, not queries.
+
+## Install and construct
+
+The worm packages live in the beak monorepo and are not on pub.dev yet (`publish_to: none`), so depend on them by path. Adjust the paths to your checkout. `Worm.initialize` calls `connect()` on every adapter you register, so you don't connect by hand.
+
+<Tabs syncKey="driver">
+<TabItem label="In-memory">
+
+No extra package. The adapter ships inside worm core.
+
+```yaml title="pubspec.yaml"
+dependencies:
+  worm:
+    path: ../beak/packages/worm
+```
+
+```dart
+import 'package:worm/worm.dart';
+
+Future<void> main() async {
+  await Worm.initialize(
+    config: const WormConfig(),
+    adapters: {'default': InMemoryAdapter()},
+  );
+}
+```
+
+</TabItem>
+<TabItem label="SQLite">
+
+```yaml title="pubspec.yaml"
+dependencies:
+  worm:
+    path: ../beak/packages/worm
+  worm_sqlite:
+    path: ../beak/packages/worm_sqlite
+```
+
+```dart
+import 'package:worm/worm.dart';
+import 'package:worm_sqlite/worm_sqlite.dart';
+
+Future<void> main() async {
+  final adapter = SqliteAdapter.open('app.db');
+  // Or SqliteAdapter.memory() for a throwaway database.
+
+  await Worm.initialize(
+    config: const WormConfig(),
+    adapters: {'default': adapter},
+  );
+}
+```
+
+</TabItem>
+<TabItem label="PostgreSQL">
+
+```yaml title="pubspec.yaml"
+dependencies:
+  worm:
+    path: ../beak/packages/worm
+  worm_postgres:
+    path: ../beak/packages/worm_postgres
+```
+
+```dart
+import 'package:worm/worm.dart';
+import 'package:worm_postgres/worm_postgres.dart';
+
+Future<void> main() async {
+  final pool = PostgresConnectionPool.fromConfig(const ConnectionConfig(
+    driver: 'postgres',
+    host: 'localhost',
+    port: 5432,
+    database: 'app',
+    username: 'app',
+    password: 'secret',
+    poolSize: 4,
+  ));
+
+  await Worm.initialize(
+    config: const WormConfig(),
+    adapters: {'default': PostgresAdapter(pool: pool)},
+  );
+}
+```
+
+</TabItem>
+<TabItem label="MySQL">
+
+```yaml title="pubspec.yaml"
+dependencies:
+  worm:
+    path: ../beak/packages/worm
+  worm_mysql:
+    path: ../beak/packages/worm_mysql
+```
+
+```dart
+import 'package:worm/worm.dart';
+import 'package:worm_mysql/worm_mysql.dart';
+
+Future<void> main() async {
+  final pool = MysqlConnectionPool.fromUri(
+    'mysql://app:secret@127.0.0.1:3306/app',
+  );
+  // Or MysqlConnectionPool.fromConfig(config) with a ConnectionConfig.
+
+  await Worm.initialize(
+    config: const WormConfig(),
+    adapters: {'default': MysqlAdapter(pool: pool)},
+  );
+}
+```
+
+</TabItem>
+<TabItem label="MongoDB">
+
+```yaml title="pubspec.yaml"
+dependencies:
+  worm:
+    path: ../beak/packages/worm
+  worm_mongodb:
+    path: ../beak/packages/worm_mongodb
+```
+
+```dart
+import 'package:worm/worm.dart';
+import 'package:worm_mongodb/worm_mongodb.dart';
+
+Future<void> main() async {
+  final adapter = MongoAdapter(
+    connection: MongoConnection.fromUri('mongodb://localhost:27017/app'),
+  );
+
+  await Worm.initialize(
+    config: const WormConfig(),
+    adapters: {'default': adapter},
+  );
+}
+```
+
+</TabItem>
+</Tabs>
+
+:::caution[MongoDB has no multi-document transactions]
+`MongoAdapter.transaction()` always throws `TransactionException`, by design: the underlying `mongo_dart` client has no session API, so atomic multi-document transactions are impossible. Single-document writes are still atomic. Don't pick MongoDB if you need `Worm.transaction`.
+:::
+
+## Capability matrix
+
+These are the declared `AdapterCapabilities` flags, taken verbatim from each package. All 11 flags default to false; adapters opt in. "yes" means the flag is set to true in the adapter's capability const.
+
+| Capability flag | In-memory | SQLite | PostgreSQL | MySQL | MongoDB |
+| --- | --- | --- | --- | --- | --- |
+| `supportsTransactions` | yes | yes | yes | yes | no |
+| `supportsSavepoints` | yes | yes | yes | yes | no |
+| `supportsStreaming` | yes | yes | yes | yes | yes |
+| `supportsRawQuery` | no | yes | yes | yes | no |
+| `supportsReturning` | yes | no | yes | no | yes |
+| `supportsJoins` | no | yes | yes | yes | no |
+| `supportsPreparedStatements` | no | no | yes | yes | no |
+| `supportsPartialIndexes` | no | no | yes | no | no |
+| `supportsAggregations` | yes | yes | yes | yes | yes |
+| `supportsSchemaIntrospection` | yes | yes | yes | yes | yes |
+| `supportsExplain` | yes | yes | yes | yes | yes |
+
+:::note[Flags describe declared support, not raw behavior]
+Flags are conservative. SQLite maintains a real prepared-statement LRU cache and MySQL echoes inserted rows back, yet both declare `supportsPreparedStatements: false` and `supportsReturning: false` respectively where the guarantee is weaker than the flag promises. The per-driver pages explain each nuance.
+:::
+
+## Practical differences
+
+| | In-memory | SQLite | PostgreSQL | MySQL | MongoDB |
+| --- | --- | --- | --- | --- | --- |
+| Backing package | none | `sqlite3 ^2.4.0` | `postgres ^3.0.0` | `mysql_client_plus ^0.1.3` | `mongo_dart ^0.9.0` |
+| Model | Dart maps in RAM | embedded SQL, single connection | client-server SQL, pooled | client-server SQL, pooled | document store, single connection |
+| Insert returns | full row echo | echo of supplied values | native `RETURNING` | echo plus `id` from `LAST_INSERT_ID()` | stored document |
+| Streaming | materialized rows | buffered | buffered | buffered | live cursor |
+| EXPLAIN source | synthetic plan | `EXPLAIN QUERY PLAN` | `EXPLAIN (FORMAT JSON)` | `EXPLAIN FORMAT=JSON` | `explain` command |
+| `IN` list chunk size | n/a | 900 | 1000 | 1000 | n/a |
+| Pooling | n/a | n/a | `poolSize`, `maxTotalConnections` cap | same as PostgreSQL | one `Db` handle |
+| Best for | tests, prototypes | on-device and embedded storage | production SQL workloads | existing MySQL or MariaDB infra | document backends, single-document atomicity |
+
+## Platform support
+
+No database driver runs on Flutter Web. Plan your architecture around that.
+
+- **In-memory**: pure Dart with no native or socket dependencies. It still ships inside worm core, which currently imports `dart:io` (CLI, file logging), so in practice it runs on server-side Dart and Flutter native like everything else.
+- **SQLite**: uses the ffi-backed `sqlite3` library. Works on server-side Dart and Flutter native (mobile and desktop), not on web via the default barrel.
+- **PostgreSQL, MySQL, MongoDB**: use `dart:io` sockets. Server-side Dart and Flutter native only; in practice these are server drivers.
+
+## The worm package family
+
+Drivers are one axis of the package family. Here is the full split:
+
+| Package | Role | When you need it |
+| --- | --- | --- |
+| `worm` | Core runtime: models, query builder, migrations, seeding, transactions, CLI, and `InMemoryAdapter` | Always |
+| `worm_generator` | `build_runner` codegen. Emits `.g.dart` part files (the typed `User$` companion, hydration) for annotated models | Whenever you define models with annotations, which is the recommended path |
+| `worm_lints` | `custom_lint` rules that enforce worm conventions during analysis | Optional, dev-time only |
+| `worm_sqlite`, `worm_postgres`, `worm_mysql`, `worm_mongodb` | `DatabaseAdapter` implementations for real databases | One per backend you talk to |
+
+`worm` is the only required package. `worm_generator` and `worm_lints` are dev dependencies; the drivers are runtime dependencies you pick per connection. See [installation](../start-here/installation.md) for the full pubspec wiring.
+
+## Driver pages
+
+<CardGrid>
+  <LinkCard title="In-memory" href="./in-memory.md" description="The bundled adapter for tests and prototypes." />
+  <LinkCard title="SQLite" href="./sqlite.md" description="Embedded, file-backed SQL with zero setup." />
+  <LinkCard title="PostgreSQL" href="./postgresql.md" description="The most capable production SQL driver." />
+  <LinkCard title="MySQL" href="./mysql.md" description="Pooled SQL driver for MySQL and MariaDB." />
+  <LinkCard title="MongoDB" href="./mongodb.md" description="Document store driver, no multi-document transactions." />
+</CardGrid>
+
+## Continue reading
+
+- [How drivers work](./how-drivers-work.md): the descriptor contract behind every backend.
+- [Multiple connections](../database/multiple-connections.md): run several adapters side by side.
+- [Installation](../start-here/installation.md): full project setup including codegen and lints.

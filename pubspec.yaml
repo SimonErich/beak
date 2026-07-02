@@ -1,0 +1,14 @@
+name: beak_workspace
+description: >-
+  Workspace root for the Beak monorepo. Holds the build tooling (coverage gate,
+  material-import guard) and pins the Melos version — no product code lives here.
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  coverage: ^1.11.1
+  lints: ^6.0.0
+  melos: 6.3.3
+  test: ^1.25.6

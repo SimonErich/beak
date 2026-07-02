@@ -1,0 +1,13 @@
+name: beak_core
+description: >-
+  Pure-Dart core for Beak — typed columns, relationships, serializable query
+  specs, and the source-agnostic storage abstraction.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

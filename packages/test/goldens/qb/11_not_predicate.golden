@@ -1,0 +1,13 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "not",
+    "child": {
+      "type": "leaf",
+      "field": "age",
+      "operator": "gte",
+      "value": 18
+    }
+  }
+}

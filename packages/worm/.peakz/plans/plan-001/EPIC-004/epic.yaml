@@ -1,0 +1,20 @@
+{
+  "epicId": "EPIC-004",
+  "title": "Factory, Seeder, and CLI/Migration Enhancements",
+  "status": "done",
+  "epicType": "feature",
+  "goal": "Round out the developer experience layer: expose faker on Factory base, add count/create/has/for_/sequence methods, persist factory results, implement seeder tracking via worm_seeders table, add Worm.beginTestTransaction/rollbackTestTransaction, wire DiffEngine into worm make:migration --auto, enforce migration dependsOn ordering, honor schema:dump --prune, extend IndexDefinition with composite FKs and partial-unique indexes, and introduce the user-facing Schema facade so Migration.up accepts Schema rather than DatabaseAdapter.",
+  "acceptanceCriteria": [
+    "AC-1: UserFactory().count(5).create() persists 5 rows and returns List<User>",
+    "AC-2: UserFactory().has(PostFactory().count(3), User$.posts).create() persists 1 user + 3 posts with FKs set",
+    "AC-3: UserFactory().sequence([{name:'a'},{name:'b'}]).count(4).create() produces 4 users alternating names a,b,a,b",
+    "AC-4: factory.faker.firstName() returns deterministic value when Worm.seedRandom(42) is set",
+    "AC-5: running same seeder twice records 1 row in worm_seeders and skips on second invocation",
+    "AC-6: DatabaseSeeder.run() calls its child seeders in declared order; verified by recording order in a fake",
+    "AC-7: Worm.beginTestTransaction + rollbackTestTransaction leaves database in pre-test state; verified by row count",
+    "AC-8: worm make:migration --auto generates migration file matching detected diff; round-trips back to clean diff after running",
+    "AC-9: dependsOn cycle is rejected with both migration names in the error",
+    "AC-10: composite FK and partial-unique index appear in generated DDL for at least one adapter test",
+    "AC-11: Migration.up(Schema) compiles and executes correctly; legacy Migration.up(DatabaseAdapter) overload still accepted without deprecation warning"
+  ]
+}

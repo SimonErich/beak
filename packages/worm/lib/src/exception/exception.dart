@@ -1,0 +1,32 @@
+/// Typed exception classes for the worm ORM.
+library;
+
+export 'adapter_exception.dart';
+export 'adapter_mismatch_exception.dart';
+export 'authentication_exception.dart';
+export 'cast_exception.dart';
+export 'check_constraint_exception.dart';
+export 'configuration_exception.dart';
+export 'connection_exception.dart';
+export 'connection_timeout_exception.dart';
+export 'dangerous_query_exception.dart';
+export 'factory_exception.dart';
+export 'foreign_key_exception.dart';
+export 'full_table_scan_exception.dart';
+export 'irreversible_migration_exception.dart';
+export 'lazy_loading_exception.dart';
+export 'mass_assignment_exception.dart';
+export 'migration_exception.dart';
+export 'migration_lock_exception.dart';
+export 'model_exception.dart';
+export 'model_not_found_exception.dart';
+export 'operation_cancelled_exception.dart';
+export 'query_exception.dart';
+export 'relation_not_loaded_exception.dart';
+export 'syntax_exception.dart';
+export 'transaction_exception.dart';
+export 'uninitialized_field_exception.dart';
+export 'unique_constraint_exception.dart';
+export 'unsupported_operation_exception.dart';
+export 'validation_exception.dart';
+export 'worm_exception.dart';

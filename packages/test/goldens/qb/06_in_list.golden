@@ -1,0 +1,14 @@
+{
+  "type": "query",
+  "table": "users",
+  "where": {
+    "type": "leaf",
+    "field": "id",
+    "operator": "inList",
+    "value": [
+      1,
+      2,
+      3
+    ]
+  }
+}

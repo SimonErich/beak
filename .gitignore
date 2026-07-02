@@ -1,0 +1,21 @@
+# Secrets & local environment
+.env
+
+# Dart / Flutter artifacts
+.dart_tool/
+build/
+coverage/
+pubspec_overrides.yaml
+
+# Build-loop artifacts
+BUILD_COMPLETE
+NEEDS_HUMAN.md
+build.log
+
+# IDE
+.idea/
+*.iml
+
+# Preserved history of the vendored worm drop (was packages/.git; renamed so
+# the beak monorepo can track the package files — `mv` back to restore).
+/packages/.worm-repo.git/

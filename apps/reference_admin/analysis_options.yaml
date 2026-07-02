@@ -1,0 +1,13 @@
+include: ../../analysis_options.yaml
+
+# Layer the Flutter-specific rules on top of the shared root options. The
+# material/cupertino import ban is enforced by `melos run guard-material`.
+linter:
+  rules:
+    - avoid_unnecessary_containers
+    - avoid_web_libraries_in_flutter
+    - no_logic_in_create_state
+    - sized_box_for_whitespace
+    - use_build_context_synchronously
+    - use_full_hex_values_for_flutter_colors
+    - use_key_in_widget_constructors

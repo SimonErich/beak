@@ -1,0 +1,14 @@
+{
+  "type": "update",
+  "table": "users",
+  "values": {
+    "name": "Bob",
+    "age": 31
+  },
+  "where": {
+    "type": "leaf",
+    "field": "id",
+    "operator": "eq",
+    "value": "abc-123"
+  }
+}
