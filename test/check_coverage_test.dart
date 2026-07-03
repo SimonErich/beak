@@ -82,9 +82,12 @@ end_of_record
     expect(thresholdFor('beak_backend'), 90);
   });
 
+  test('beak_frontend gates at the phase-11 threshold', () {
+    expect(thresholdFor('beak_frontend'), 85);
+  });
+
   test('phase-00 skeleton packages start at a zero threshold', () {
     for (final package in const [
-      'beak_frontend',
       'beak_cli',
       'reference_admin',
       'reference_admin_server',

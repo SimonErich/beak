@@ -1,7 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 
 import '../common/uuid_v4.dart';
-import '../data/beak_data_source.dart';
 import 'validation_service.dart';
 
 /// The per-model logic layer between the generated handlers and the data

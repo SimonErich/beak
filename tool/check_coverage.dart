@@ -19,7 +19,7 @@ const int defaultThresholdPct = 85;
 const Map<String, int> thresholdOverridesPct = {
   'beak_core': 100,
   'beak_backend': 90,
-  'beak_frontend': 0,
+  'beak_frontend': 85,
   'beak_cli': 0,
   'reference_admin': 0,
   'reference_admin_server': 0,

@@ -1,10 +1,14 @@
-import 'package:beak_core/beak_core.dart';
+import '../query/beak_aggregate_spec.dart';
+import '../query/beak_page.dart';
+import '../query/beak_query_spec.dart';
+import '../query/beak_record.dart';
 
-/// The source-agnostic data boundary of a Beak backend.
+/// The source-agnostic data boundary both sides of Beak speak.
 ///
-/// Handlers and services speak only this interface; `WormDataSource` is the
-/// default implementation and a future `beak_serverpod` package can supply
-/// another without touching `beak_core` or the handlers. Implementations
+/// Backend handlers and services speak only this interface (`WormDataSource`
+/// is the default implementation, `beak_frontend`'s HTTP client another,
+/// and a future `beak_serverpod` package can supply one more without
+/// touching `beak_core`). Implementations
 /// throw typed `BeakException`s (`BeakNotFoundException` for missing
 /// records, `BeakConfigurationException` for unknown tables/relations) and
 /// never leak ORM types.
