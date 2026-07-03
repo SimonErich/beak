@@ -2,8 +2,6 @@ import 'dart:convert';
 
 import 'package:beak_core/beak_core.dart';
 
-import '../data/beak_data_source.dart';
-
 /// Streams query results as CSV — the engine behind
 /// `POST /api/{table}/export`.
 final class CsvExportService {

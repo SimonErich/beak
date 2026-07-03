@@ -1,7 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
-import '../beak_data_source.dart';
 import 'column_type_mapper.dart';
 import 'query_translator.dart';
 import 'worm_record_model.dart';

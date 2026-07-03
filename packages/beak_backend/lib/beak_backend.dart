@@ -9,7 +9,6 @@ export 'src/auth/token_session_store.dart';
 export 'src/common/uuid_v4.dart';
 export 'src/config/beak_backend_config.dart';
 export 'src/config/env_loader.dart';
-export 'src/data/beak_data_source.dart';
 export 'src/data/worm/column_type_mapper.dart';
 export 'src/data/worm/query_translator.dart';
 export 'src/data/worm/worm_bootstrap.dart';
