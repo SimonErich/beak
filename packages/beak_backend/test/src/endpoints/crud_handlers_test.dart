@@ -359,6 +359,49 @@ void main() {
     });
   });
 
+  group('aggregate', () {
+    test('computes count and sum over the posted spec', () async {
+      await call(
+        'POST',
+        '/api/notes',
+        body: {'id': 'n1', 'title': 'One', 'rating': 2},
+      );
+      await call(
+        'POST',
+        '/api/notes',
+        body: {'id': 'n2', 'title': 'Two', 'rating': 3},
+      );
+
+      final countResponse = await call(
+        'POST',
+        '/api/notes/aggregate',
+        body: const BeakAggregateSpec.count(table: 'notes').toJson(),
+      );
+      expect(countResponse.statusCode, 200);
+      expect(await bodyOf(countResponse), {'value': 2});
+
+      final sumResponse = await call(
+        'POST',
+        '/api/notes/aggregate',
+        body: BeakAggregateSpec.sum(
+          table: 'notes',
+          column: NoteColumns.rating,
+        ).toJson(),
+      );
+      expect(await bodyOf(sumResponse), {'value': 5});
+    });
+
+    test('a spec for another table is a 422', () async {
+      final response = await call(
+        'POST',
+        '/api/notes/aggregate',
+        body: const BeakAggregateSpec.count(table: 'labels').toJson(),
+      );
+
+      expect(response.statusCode, 422);
+    });
+  });
+
   group('query counts', () {
     test(
       'a paged list with a pivot relation load stays at four queries',

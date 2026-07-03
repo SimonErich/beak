@@ -14,6 +14,10 @@ final class BeakResourceRepository {
   Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
       _guard(() => dataSource.query(spec));
 
+  /// Computes an aggregate, capturing failures as [BeakErr].
+  Future<BeakResult<num>> aggregate(BeakAggregateSpec spec) =>
+      _guard(() => dataSource.aggregate(spec));
+
   /// Fetches one record; a missing id is a [BeakErr] with a not-found.
   Future<BeakResult<BeakRecord>> getOne(String table, Object id) => _guard(
     () async =>

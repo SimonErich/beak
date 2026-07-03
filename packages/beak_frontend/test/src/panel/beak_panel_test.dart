@@ -74,10 +74,7 @@ void main() {
       await tester.tap(find.text('Notes'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('The Notes list page arrives in Phases 12–14.'),
-        findsOneWidget,
-      );
+      expect(find.byType(BeakResourceListPage), findsOneWidget);
     });
   });
 
@@ -88,35 +85,21 @@ void main() {
       await pumpPanel(tester);
 
       await go(tester, '/notes');
-      expect(
-        find.text('The Notes list page arrives in Phases 12–14.'),
-        findsOneWidget,
-      );
+      expect(find.byType(BeakResourceListPage), findsOneWidget);
 
       await go(tester, '/notes/create');
-      expect(
-        find.text('The Notes create page arrives in Phases 12–14.'),
-        findsOneWidget,
-      );
+      expect(find.byType(BeakResourceCreatePage), findsOneWidget);
 
       await go(tester, '/notes/n1');
       expect(find.text('Notes n1'), findsOneWidget);
-      expect(
-        find.text('The Notes show page arrives in Phases 12–14.'),
-        findsOneWidget,
-      );
+      expect(find.byType(BeakResourceShowPage), findsOneWidget);
 
       await go(tester, '/notes/n1/edit');
-      expect(
-        find.text('The Notes edit page arrives in Phases 12–14.'),
-        findsOneWidget,
-      );
+      expect(find.byType(BeakResourceEditPage), findsOneWidget);
 
       await go(tester, '/labels');
-      expect(
-        find.text('The Tags list page arrives in Phases 12–14.'),
-        findsOneWidget,
-      );
+      expect(find.byType(BeakResourceListPage), findsOneWidget);
+      expect(find.text('Tags'), findsWidgets);
     });
 
     testWidgets('the login route renders the auth page outside the shell', (

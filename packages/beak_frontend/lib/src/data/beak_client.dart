@@ -77,6 +77,17 @@ final class BeakClient {
     _ensureSuccess(response);
   }
 
+  /// Computes an aggregate via `POST /api/{table}/aggregate`.
+  Future<num> aggregate(String table, BeakAggregateSpec spec) async {
+    final response = await _postJson('/api/$table/aggregate', spec.toJson());
+    return switch (_decodeObject(response.body)['value']) {
+      final num value => value,
+      final Object? other => throw BeakConfigurationException(
+        'Aggregate response must carry a numeric "value", got $other.',
+      ),
+    };
+  }
+
   /// Fetches many records in one round trip via `POST /api/{table}/batch`.
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
     final response = await _postJson('/api/$table/batch', {'ids': ids});

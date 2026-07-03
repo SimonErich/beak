@@ -61,9 +61,6 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
   ) => client.upload(table, columnKey, file);
 
   @override
-  Future<num> aggregate(BeakAggregateSpec spec) {
-    throw UnsupportedError(
-      'Aggregates arrive with the dashboard endpoints in Phase 14.',
-    );
-  }
+  Future<num> aggregate(BeakAggregateSpec spec) =>
+      client.aggregate(spec.table, spec);
 }

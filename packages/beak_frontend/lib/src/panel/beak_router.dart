@@ -1,15 +1,19 @@
+import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../dashboard/beak_dashboard.dart';
+import '../di/beak_locator.dart';
+import '../pages/beak_resource_pages.dart';
 import 'beak_panel_config.dart';
 
-/// Builds the panel's router: a shell route wrapping every resource's
-/// list/create/show/edit pages (plus the dashboard at `/`), a `/login`
+/// Builds the panel's router: a shell route wrapping the dashboard at `/`
+/// and every resource's generated list/create/show/edit pages, a `/login`
 /// route outside the shell, and a typed not-found fallback.
 ///
-/// The pages are `OiResourcePage` scaffolds — Phases 12–14 fill in the
-/// table, form, and detail content.
+/// The pages resolve their data source from the Beak locator, registered
+/// by `BeakPanel` before the router is created.
 GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
   routes: [
     ShellRoute(
@@ -18,46 +22,52 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => const OiResourcePage(
+          builder: (context, state) => OiResourcePage(
             label: 'Dashboard',
             title: 'Dashboard',
-            actions: [],
-            child: OiLabel.body('Dashboard widgets arrive in Phase 14.'),
+            actions: const [],
+            child: BeakDashboard(
+              stats: config.dashboardStats,
+              charts: config.dashboardCharts,
+              dataSource: beakLocator<BeakDataSource>(),
+            ),
           ),
         ),
-        for (final resource in config.resources)
+        // Flat routes on purpose: nested routes would keep the list page
+        // alive under create/show/edit, so returning to it would show
+        // stale data instead of re-querying.
+        for (final resource in config.resources) ...[
           GoRoute(
             path: resource.route,
-            builder: (context, state) =>
-                _resourcePlaceholder(resource, OiResourcePageVariant.list),
-            routes: [
-              GoRoute(
-                path: 'create',
-                builder: (context, state) => _resourcePlaceholder(
-                  resource,
-                  OiResourcePageVariant.create,
-                ),
-              ),
-              GoRoute(
-                path: ':id',
-                builder: (context, state) => _resourcePlaceholder(
-                  resource,
-                  OiResourcePageVariant.show,
-                  recordId: state.pathParameters['id'],
-                ),
-                routes: [
-                  GoRoute(
-                    path: 'edit',
-                    builder: (context, state) => _resourcePlaceholder(
-                      resource,
-                      OiResourcePageVariant.edit,
-                      recordId: state.pathParameters['id'],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            builder: (context, state) => BeakResourceListPage(
+              resource: resource,
+              dataSource: beakLocator<BeakDataSource>(),
+            ),
           ),
+          GoRoute(
+            path: '${resource.route}/create',
+            builder: (context, state) => BeakResourceCreatePage(
+              resource: resource,
+              dataSource: beakLocator<BeakDataSource>(),
+            ),
+          ),
+          GoRoute(
+            path: '${resource.route}/:id/edit',
+            builder: (context, state) => BeakResourceEditPage(
+              resource: resource,
+              dataSource: beakLocator<BeakDataSource>(),
+              recordId: state.pathParameters['id'] ?? '',
+            ),
+          ),
+          GoRoute(
+            path: '${resource.route}/:id',
+            builder: (context, state) => BeakResourceShowPage(
+              resource: resource,
+              dataSource: beakLocator<BeakDataSource>(),
+              recordId: state.pathParameters['id'] ?? '',
+            ),
+          ),
+        ],
       ],
     ),
     GoRoute(
@@ -69,22 +79,6 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
     description: 'No panel page at "${state.uri.path}".',
     actionLabel: 'Back to dashboard',
     onAction: () => context.go('/'),
-  ),
-);
-
-OiResourcePage _resourcePlaceholder(
-  BeakResource resource,
-  OiResourcePageVariant variant, {
-  String? recordId,
-}) => OiResourcePage(
-  label: resource.effectiveLabel,
-  title: recordId == null
-      ? resource.effectiveLabel
-      : '${resource.effectiveLabel} $recordId',
-  variant: variant,
-  child: OiLabel.body(
-    'The ${resource.effectiveLabel} ${variant.name} page arrives in '
-    'Phases 12–14.',
   ),
 );
 

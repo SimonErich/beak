@@ -285,6 +285,12 @@ base class FakeDataSource implements BeakDataSource {
   /// Every `update` invocation, as `(table, id, data)` triples.
   final List<(String, Object, BeakRecord)> updateCalls = [];
 
+  /// Every `aggregate` invocation.
+  final List<BeakAggregateSpec> aggregateCalls = [];
+
+  /// Canned aggregate results; unmatched specs resolve to `0`.
+  num Function(BeakAggregateSpec spec)? aggregateHandler;
+
   /// Every `attach` invocation, as `(table, id, relationKey, ids)` tuples.
   final List<(String, Object, String, List<Object>)> attachCalls = [];
 
@@ -307,10 +313,26 @@ base class FakeDataSource implements BeakDataSource {
   Future<BeakRecord?> getOne(String table, Object id) async =>
       _recordsByTable[table]?[id];
 
+  int _mintedIds = 0;
+
   @override
   Future<BeakRecord> create(String table, BeakRecord data) async {
     createCalls.add((table, data));
-    return data;
+    // Mirror the backend: mint an id when the caller supplies none.
+    final stored = switch (data['id']?.raw) {
+      Object() => data,
+      null => BeakRecord(
+        values: {
+          ...data.values,
+          'id': BeakStringValue('minted-${++_mintedIds}'),
+        },
+        relations: data.relations,
+      ),
+    };
+    if (stored['id']?.raw case final Object id) {
+      _recordsByTable.putIfAbsent(table, () => {})[id] = stored;
+    }
+    return stored;
   }
 
   @override
@@ -355,5 +377,8 @@ base class FakeDataSource implements BeakDataSource {
   }
 
   @override
-  Future<num> aggregate(BeakAggregateSpec spec) async => 0;
+  Future<num> aggregate(BeakAggregateSpec spec) async {
+    aggregateCalls.add(spec);
+    return aggregateHandler?.call(spec) ?? 0;
+  }
 }

@@ -23,6 +23,7 @@ Router beakResourceRouter(
   final handlers = BeakCrudHandlers(service, policy: policy);
   return Router()
     ..post('/query', handlers.query)
+    ..post('/aggregate', handlers.aggregate)
     ..post('/batch', handlers.batch)
     ..post('/', handlers.create)
     ..get('/<id>', handlers.getOne)

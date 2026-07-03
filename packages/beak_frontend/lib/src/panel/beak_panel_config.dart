@@ -2,6 +2,11 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../actions/beak_action.dart';
+import '../dashboard/beak_chart.dart';
+import '../dashboard/beak_stat.dart';
+import '../filters/beak_filter_widget.dart';
+
 /// A typed icon reference for panel navigation — a zero-cost wrapper so
 /// resource declarations stay expressive (`BeakIconToken(OiIcons.package)`)
 /// without leaking raw icon plumbing into Beak's config surface.
@@ -12,7 +17,15 @@ extension type const BeakIconToken(IconData icon) {}
 final class BeakResource {
   /// Creates a panel resource for [model], shown with [icon] and [label]
   /// (defaults to the title-cased table name).
-  const BeakResource({required this.model, required this.icon, this.label});
+  const BeakResource({
+    required this.model,
+    required this.icon,
+    this.label,
+    this.recordActions = const [],
+    this.bulkActions = const [],
+    this.globalActions = const [],
+    this.filters = const [],
+  });
 
   /// The model this resource exposes.
   final BeakModel model;
@@ -22,6 +35,19 @@ final class BeakResource {
 
   /// The navigation label override.
   final String? label;
+
+  /// Extra per-row actions on the list page (view/edit/delete are built
+  /// in).
+  final List<BeakRecordAction> recordActions;
+
+  /// Actions over the list page's selection.
+  final List<BeakBulkAction> bulkActions;
+
+  /// Extra page-level list actions (create is built in).
+  final List<BeakGlobalAction> globalActions;
+
+  /// The list page's filter controls.
+  final List<BeakFilterDef> filters;
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
@@ -49,6 +75,8 @@ final class BeakPanelConfig {
     required this.apiBaseUrl,
     this.theme,
     this.darkTheme,
+    this.dashboardStats = const [],
+    this.dashboardCharts = const [],
   });
 
   /// The panel title, shown in the shell and the login screen.
@@ -65,6 +93,12 @@ final class BeakPanelConfig {
 
   /// The dark theme (defaults to `OiThemeData.dark()`).
   final OiThemeData? darkTheme;
+
+  /// The dashboard's metric cards, in order.
+  final List<BeakStat> dashboardStats;
+
+  /// The dashboard's charts, in order.
+  final List<BeakChart> dashboardCharts;
 
   /// A registry over every resource model, in declaration order.
   BeakModelRegistry buildRegistry() {

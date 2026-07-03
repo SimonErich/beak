@@ -33,6 +33,14 @@ final class BeakCrudHandlers {
     return _json(200, page.toJson((record) => record.toJson()));
   }
 
+  /// `POST /aggregate` — computes a posted [BeakAggregateSpec].
+  Future<Response> aggregate(Request request) async {
+    _requireView(request);
+    final spec = BeakAggregateSpec.fromJson(await readJsonObject(request));
+    final num value = await service.aggregate(spec);
+    return _json(200, {'value': value});
+  }
+
   /// `GET /<id>` — fetches one record.
   Future<Response> getOne(Request request, String id) async {
     _requireView(request);

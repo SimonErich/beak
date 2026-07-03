@@ -48,6 +48,17 @@ void main() {
     );
   });
 
+  test('aggregate wraps values and failures alike', () async {
+    dataSource.aggregateHandler = (spec) => 42;
+    final result = await repository.aggregate(
+      const BeakAggregateSpec.count(table: 'notes'),
+    );
+    expect(result, isA<BeakOk<num>>());
+    if (result case BeakOk(:final value)) {
+      expect(value, 42);
+    }
+  });
+
   test('a missing record surfaces as a typed not-found error', () async {
     final result = await repository.getOne('notes', 'ghost');
     expect(result, isA<BeakErr<BeakRecord>>());
