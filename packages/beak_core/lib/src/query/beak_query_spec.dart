@@ -1,0 +1,288 @@
+import 'package:meta/meta.dart';
+
+import '../columns/beak_column.dart';
+import '../common/beak_exception.dart';
+import '../common/list_equality.dart';
+import '../relations/beak_relationship.dart';
+import 'beak_filter.dart';
+import 'beak_pagination.dart';
+import 'beak_relation_load.dart';
+import 'beak_sort.dart';
+import 'json_support.dart';
+
+/// Beak's wire contract: a typed, losslessly JSON-serializable description
+/// of a query.
+///
+/// The frontend composes a spec through the immutable copy-builders
+/// ([withFilter], [orderBy], [withRelation], [searching], [paginate]) using
+/// typed column and relationship constants — never key strings — and ships
+/// it as JSON; the backend decodes it with [fromJson] and translates it to
+/// the ORM's query builder. The spec references column and relation *keys*
+/// only, keeping it ORM-neutral.
+@immutable
+final class BeakQuerySpec {
+  /// Creates a query over [table].
+  const BeakQuerySpec({
+    required this.table,
+    this.filter,
+    this.sorts = const [],
+    this.search,
+    this.relationLoads = const [],
+    this.pagination = const BeakPagination(),
+    this.withTrashed = false,
+  });
+
+  /// Decodes [json] (produced by [toJson]).
+  ///
+  /// Throws a [BeakConfigurationException] on malformed input.
+  static BeakQuerySpec fromJson(Map<String, Object?> json) {
+    final String table = requireJsonString(json, 'table', 'BeakQuerySpec');
+    if (table.isEmpty) {
+      throw const BeakConfigurationException(
+        'BeakQuerySpec JSON key "table" must not be empty.',
+      );
+    }
+    final BeakFilter? filter = switch (requireJsonKey(
+      json,
+      'filter',
+      'BeakQuerySpec',
+    )) {
+      null => null,
+      final Map<String, Object?> map => BeakFilter.fromJson(map),
+      final Object? other => throw BeakConfigurationException(
+        'BeakQuerySpec JSON key "filter" must be a JSON object or null, '
+        'got $other.',
+      ),
+    };
+    final BeakSearch? search = switch (requireJsonKey(
+      json,
+      'search',
+      'BeakQuerySpec',
+    )) {
+      null => null,
+      final Map<String, Object?> map => BeakSearch.fromJson(map),
+      final Object? other => throw BeakConfigurationException(
+        'BeakQuerySpec JSON key "search" must be a JSON object or null, '
+        'got $other.',
+      ),
+    };
+    final BeakPagination pagination = switch (requireJsonKey(
+      json,
+      'pagination',
+      'BeakQuerySpec',
+    )) {
+      final Map<String, Object?> map => BeakPagination.fromJson(map),
+      final Object? other => throw BeakConfigurationException(
+        'BeakQuerySpec JSON key "pagination" must be a JSON object, '
+        'got $other.',
+      ),
+    };
+    return BeakQuerySpec(
+      table: table,
+      filter: filter,
+      sorts: [
+        for (final sort in requireJsonMapList(
+          requireJsonKey(json, 'sorts', 'BeakQuerySpec'),
+          'sorts',
+          'BeakQuerySpec',
+        ))
+          BeakSort.fromJson(sort),
+      ],
+      search: search,
+      relationLoads: [
+        for (final load in requireJsonMapList(
+          requireJsonKey(json, 'relations', 'BeakQuerySpec'),
+          'relations',
+          'BeakQuerySpec',
+        ))
+          BeakRelationLoad.fromJson(load),
+      ],
+      pagination: pagination,
+      withTrashed: requireJsonBool(json, 'withTrashed', 'BeakQuerySpec'),
+    );
+  }
+
+  /// Physical table/collection name of the queried model.
+  final String table;
+
+  /// The predicate records must satisfy, if any.
+  final BeakFilter? filter;
+
+  /// Ordering directives, applied in order.
+  final List<BeakSort> sorts;
+
+  /// The full-text search directive, if any.
+  final BeakSearch? search;
+
+  /// Relations to eager-load with the results.
+  final List<BeakRelationLoad> relationLoads;
+
+  /// The paging window of the results.
+  final BeakPagination pagination;
+
+  /// Whether soft-deleted records are included.
+  final bool withTrashed;
+
+  /// This spec as a plain JSON-encodable object.
+  Map<String, Object?> toJson() => {
+    'table': table,
+    'filter': filter?.toJson(),
+    'sorts': [for (final sort in sorts) sort.toJson()],
+    'search': search?.toJson(),
+    'relations': [for (final load in relationLoads) load.toJson()],
+    'pagination': pagination.toJson(),
+    'withTrashed': withTrashed,
+  };
+
+  /// Returns a copy with [filter] AND-merged into the existing predicate:
+  /// the first filter is taken as-is, later ones join an ever-growing
+  /// conjunction.
+  BeakQuerySpec withFilter(BeakFilter filter) => _copy(
+    filter: switch (this.filter) {
+      null => filter,
+      final BeakAndFilter existing => BeakAndFilter([
+        ...existing.filters,
+        filter,
+      ]),
+      final BeakFilter existing => BeakAndFilter([existing, filter]),
+    },
+  );
+
+  /// Returns a copy additionally ordered by [column].
+  BeakQuerySpec orderBy(BeakColumn column, {bool descending = false}) => _copy(
+    sorts: [
+      ...sorts,
+      BeakSort(column.key, descending: descending),
+    ],
+  );
+
+  /// Returns a copy additionally eager-loading [relation], optionally
+  /// constrained by [constraint].
+  BeakQuerySpec withRelation(
+    BeakRelationship relation, {
+    BeakFilter? constraint,
+  }) => _copy(
+    relationLoads: [
+      ...relationLoads,
+      BeakRelationLoad(relation.key, filter: constraint),
+    ],
+  );
+
+  /// Returns a copy searching for [term] across [columns].
+  BeakQuerySpec searching(String term, List<BeakColumn> columns) => _copy(
+    search: BeakSearch(term, [for (final column in columns) column.key]),
+  );
+
+  /// Returns a copy with an updated paging window; either half keeps its
+  /// current value when omitted.
+  BeakQuerySpec paginate({int? page, int? perPage}) => _copy(
+    pagination: BeakPagination(
+      page: page ?? pagination.page,
+      perPage: perPage ?? pagination.perPage,
+    ),
+  );
+
+  BeakQuerySpec _copy({
+    BeakFilter? filter,
+    List<BeakSort>? sorts,
+    BeakSearch? search,
+    List<BeakRelationLoad>? relationLoads,
+    BeakPagination? pagination,
+  }) => BeakQuerySpec(
+    table: table,
+    filter: filter ?? this.filter,
+    sorts: sorts ?? this.sorts,
+    search: search ?? this.search,
+    relationLoads: relationLoads ?? this.relationLoads,
+    pagination: pagination ?? this.pagination,
+    withTrashed: withTrashed,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is BeakQuerySpec &&
+      other.table == table &&
+      other.filter == filter &&
+      listEquals(other.sorts, sorts) &&
+      other.search == search &&
+      listEquals(other.relationLoads, relationLoads) &&
+      other.pagination == pagination &&
+      other.withTrashed == withTrashed;
+
+  @override
+  int get hashCode => Object.hash(
+    table,
+    filter,
+    Object.hashAll(sorts),
+    search,
+    Object.hashAll(relationLoads),
+    pagination,
+    withTrashed,
+  );
+
+  @override
+  String toString() =>
+      'BeakQuerySpec($table, filter: $filter, sorts: $sorts, '
+      'search: $search, relations: $relationLoads, pagination: $pagination, '
+      'withTrashed: $withTrashed)';
+}
+
+/// A full-text search directive: a [term] matched against the columns named
+/// by [columnKeys].
+///
+/// User code obtains searches through the spec's typed `searching` builder,
+/// which reads the keys from column constants.
+@immutable
+final class BeakSearch {
+  /// Creates a search for [term] across [columnKeys].
+  const BeakSearch(this.term, this.columnKeys);
+
+  /// Decodes [json] (produced by [toJson]).
+  ///
+  /// Throws a [BeakConfigurationException] on malformed input.
+  static BeakSearch fromJson(Map<String, Object?> json) {
+    final columnKeys = switch (requireJsonKey(json, 'columns', 'BeakSearch')) {
+      final List<Object?> values => [
+        for (final value in values)
+          if (value is String)
+            value
+          else
+            throw BeakConfigurationException(
+              'BeakSearch JSON key "columns" must contain only strings, '
+              'got $value.',
+            ),
+      ],
+      final Object? other => throw BeakConfigurationException(
+        'BeakSearch JSON key "columns" must be a list, got $other.',
+      ),
+    };
+    return BeakSearch(
+      requireJsonString(json, 'term', 'BeakSearch'),
+      columnKeys,
+    );
+  }
+
+  /// The text being searched for.
+  final String term;
+
+  /// Keys of the columns the term is matched against.
+  final List<String> columnKeys;
+
+  /// This search as a plain JSON-encodable object.
+  Map<String, Object?> toJson() => {
+    'term': term,
+    'columns': [...columnKeys],
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is BeakSearch &&
+      other.term == term &&
+      listEquals(other.columnKeys, columnKeys);
+
+  @override
+  int get hashCode => Object.hash(term, Object.hashAll(columnKeys));
+
+  @override
+  String toString() => 'BeakSearch($term in $columnKeys)';
+}
