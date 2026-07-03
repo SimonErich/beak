@@ -1,6 +1,5 @@
 import 'package:meta/meta.dart';
 
-import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
 import 'beak_filter.dart';
 import '../common/json_support.dart';
@@ -27,18 +26,14 @@ final class BeakRelationLoad {
   ///
   /// Throws a [BeakConfigurationException] on malformed input.
   static BeakRelationLoad fromJson(Map<String, Object?> json) {
-    final BeakFilter? filter = switch (requireJsonKey(
+    final Map<String, Object?>? filterJson = requireJsonMapOrNull(
       json,
       'filter',
       'BeakRelationLoad',
-    )) {
-      null => null,
-      final Map<String, Object?> map => BeakFilter.fromJson(map),
-      final Object? other => throw BeakConfigurationException(
-        'BeakRelationLoad JSON key "filter" must be a JSON object or null, '
-        'got $other.',
-      ),
-    };
+    );
+    final BeakFilter? filter = filterJson == null
+        ? null
+        : BeakFilter.fromJson(filterJson);
     return BeakRelationLoad(
       requireJsonString(json, 'relation', 'BeakRelationLoad'),
       filter: filter,

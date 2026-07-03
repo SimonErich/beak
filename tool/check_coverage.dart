@@ -18,7 +18,7 @@ const int defaultThresholdPct = 85;
 /// phases raise them as real code lands. `beak_core` is pure and holds 100.
 const Map<String, int> thresholdOverridesPct = {
   'beak_core': 100,
-  'beak_backend': 0,
+  'beak_backend': 90,
   'beak_frontend': 0,
   'beak_cli': 0,
   'reference_admin': 0,

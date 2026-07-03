@@ -78,9 +78,12 @@ end_of_record
     }
   });
 
+  test('beak_backend gates at the phase-07 threshold', () {
+    expect(thresholdFor('beak_backend'), 90);
+  });
+
   test('phase-00 skeleton packages start at a zero threshold', () {
     for (final package in const [
-      'beak_backend',
       'beak_frontend',
       'beak_cli',
       'reference_admin',
