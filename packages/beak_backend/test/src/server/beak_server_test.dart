@@ -97,8 +97,7 @@ void main() {
         config: config(),
         registry: createTestRegistry(),
         dataSource: WormDataSource(createTestRegistry(), adapter: adapter),
-        authGuard: (request) =>
-            throw const BeakAuthorizationException('members only'),
+        authGuard: const _MembersOnlyGuard(),
         onRequest: entries.add,
       );
       final response = await guarded.handler(
@@ -138,4 +137,13 @@ void main() {
       }
     });
   });
+}
+
+/// A guard denying every request as an authorization failure.
+final class _MembersOnlyGuard implements BeakAuthGuard {
+  const _MembersOnlyGuard();
+
+  @override
+  Future<BeakPrincipal?> authenticate(Request request) async =>
+      throw const BeakAuthorizationException('members only');
 }

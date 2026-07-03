@@ -5,15 +5,23 @@ import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_multipart/shelf_multipart.dart';
 
+import '../auth/beak_policy.dart';
+import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
 import 'upload_service.dart';
 
-/// The thin Shelf handlers behind one model's upload surface: they parse
-/// the multipart body into a typed [BeakUpload] (bounded by the column's
-/// size limit before buffering the whole part) and delegate to the service.
+/// The thin Shelf handlers behind one model's upload surface: they consult
+/// the [policy], parse the multipart body into a typed [BeakUpload]
+/// (bounded by the column's size limit before buffering the whole part),
+/// and delegate to the service.
 final class BeakUploadHandlers {
-  /// Creates upload handlers for [model] delegating to [service].
-  const BeakUploadHandlers({required this.model, required this.service});
+  /// Creates upload handlers for [model] delegating to [service], gated by
+  /// [policy].
+  const BeakUploadHandlers({
+    required this.model,
+    required this.service,
+    this.policy = const BeakAllowAllPolicy(),
+  });
 
   /// The model whose file columns these handlers serve.
   final BeakModel model;
@@ -21,11 +29,21 @@ final class BeakUploadHandlers {
   /// The upload service the handlers delegate to.
   final UploadService service;
 
+  /// The authorization gate consulted before storing or removing files.
+  final BeakPolicy policy;
+
   /// The multipart field the file must arrive under.
   static const String fileFieldName = 'file';
 
-  /// `POST /<columnKey>/upload` — stores a validated upload.
+  /// `POST /<columnKey>/upload` — stores a validated upload (allowed for
+  /// principals that may create records of this model).
   Future<Response> upload(Request request, String columnKey) async {
+    enforcePolicyDecision(
+      allowed: policy.canCreate(beakPrincipal(request), model.table),
+      principal: beakPrincipal(request),
+      action: 'upload to',
+      table: model.table,
+    );
     final upload = await _readUpload(request, _sizeLimitFor(columnKey));
     final stored = await service.handle(
       table: model.table,
@@ -36,7 +54,8 @@ final class BeakUploadHandlers {
   }
 
   /// `DELETE /<columnKey>/upload` — removes the stored file named by the
-  /// posted `{"key": ...}`.
+  /// posted `{"key": ...}` (allowed for principals that may delete records
+  /// of this model).
   Future<Response> remove(Request request, String columnKey) async {
     final body = await readJsonObject(request);
     final String key = switch (body['key']) {
@@ -45,6 +64,12 @@ final class BeakUploadHandlers {
         'Request body must carry a "key" string, got $other.',
       ),
     };
+    enforcePolicyDecision(
+      allowed: policy.canDelete(beakPrincipal(request), model.table, key),
+      principal: beakPrincipal(request),
+      action: 'delete uploads of',
+      table: model.table,
+    );
     await service.remove(model.table, columnKey, key);
     return Response(204);
   }

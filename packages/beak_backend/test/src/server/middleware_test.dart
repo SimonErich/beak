@@ -274,25 +274,64 @@ void main() {
       expect(response.statusCode, 200);
     });
 
-    test(
-      'runs an async guard before the handler and maps its denial',
-      () async {
-        final handler = const Pipeline()
-            .addMiddleware(beakErrorMappingMiddleware())
-            .addMiddleware(
-              beakAuthMiddleware(
-                guard: (request) async =>
-                    throw const BeakAuthorizationException('no way'),
-              ),
-            )
-            .addHandler((request) => Response.ok('ok'));
+    test('stores the resolved principal in the request context', () async {
+      final handler = const Pipeline()
+          .addMiddleware(
+            beakAuthMiddleware(
+              guard: const _FixedGuard(BeakPrincipal(id: 'u1')),
+            ),
+          )
+          .addHandler(
+            (request) => Response.ok(beakPrincipal(request)?.id ?? 'none'),
+          );
 
-        final response = await handler(_get('products'));
+      final response = await handler(_get('products'));
 
-        expect(response.statusCode, 403);
-        final body = _bodyJson(await response.readAsString());
-        expect(body['code'], 'authorization');
-      },
-    );
+      expect(await response.readAsString(), 'u1');
+    });
+
+    test('leaves guardless anonymous requests without a principal', () async {
+      final handler = const Pipeline()
+          .addMiddleware(beakAuthMiddleware(guard: const _FixedGuard(null)))
+          .addHandler(
+            (request) => Response.ok(beakPrincipal(request)?.id ?? 'none'),
+          );
+
+      final response = await handler(_get('products'));
+
+      expect(await response.readAsString(), 'none');
+    });
+
+    test('maps a guard denial through the error middleware', () async {
+      final handler = const Pipeline()
+          .addMiddleware(beakErrorMappingMiddleware())
+          .addMiddleware(beakAuthMiddleware(guard: const _ThrowingGuard()))
+          .addHandler((request) => Response.ok('ok'));
+
+      final response = await handler(_get('products'));
+
+      expect(response.statusCode, 401);
+      final body = _bodyJson(await response.readAsString());
+      expect(body['code'], 'authentication');
+    });
   });
+}
+
+/// A guard resolving every request to a fixed principal (or anonymous).
+final class _FixedGuard implements BeakAuthGuard {
+  const _FixedGuard(this.principal);
+
+  final BeakPrincipal? principal;
+
+  @override
+  Future<BeakPrincipal?> authenticate(Request request) async => principal;
+}
+
+/// A guard rejecting every request as unauthenticated.
+final class _ThrowingGuard implements BeakAuthGuard {
+  const _ThrowingGuard();
+
+  @override
+  Future<BeakPrincipal?> authenticate(Request request) async =>
+      throw const BeakAuthenticationException('no way');
 }

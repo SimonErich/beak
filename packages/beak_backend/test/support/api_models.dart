@@ -173,7 +173,12 @@ final class LabelModel extends BeakModel {
   @override
   List<BeakColumn> get columns => const [
     BeakStringColumn(key: 'id', label: 'Id'),
-    BeakStringColumn(key: 'name', label: 'Name', rules: [BeakRequired()]),
+    BeakStringColumn(
+      key: 'name',
+      label: 'Name',
+      searchable: true,
+      rules: [BeakRequired()],
+    ),
   ];
 }
 

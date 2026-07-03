@@ -6,6 +6,9 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 
 import 'package:beak_image/beak_image.dart';
 
+import '../auth/auth_router.dart';
+import '../auth/beak_auth_guard.dart';
+import '../auth/beak_policy.dart';
 import '../config/beak_backend_config.dart';
 import '../data/beak_data_source.dart';
 import '../endpoints/beak_resource_router.dart';
@@ -24,8 +27,10 @@ import 'middleware/request_log_middleware.dart';
 /// [storage] carries the configured storage driver for the upload
 /// endpoints arriving in Phase 09.
 final class BeakServer {
-  /// Creates a server serving [router] (default: the generated API, with
-  /// upload endpoints when [storage] is configured) with [config].
+  /// Creates a server serving [router] (default: the generated API — with
+  /// upload endpoints when [storage] is configured, the auth surface when
+  /// [authSessions] is, and every operation gated by [policy]) with
+  /// [config].
   ///
   /// [transformRunner] overrides the image pipeline (default: the real
   /// `beak_image` runner).
@@ -35,6 +40,8 @@ final class BeakServer {
     required this.registry,
     this.storage,
     BeakTransformRunner? transformRunner,
+    BeakPolicy policy = const BeakAllowAllPolicy(),
+    BeakAuthSessions? authSessions,
     Handler? router,
     BeakAuthGuard? authGuard,
     BeakRequestLogger? onRequest,
@@ -44,6 +51,8 @@ final class BeakServer {
            beakApiRouter(
              registry: registry,
              dataSource: dataSource,
+             policy: policy,
+             auth: authSessions,
              uploads: storage == null
                  ? null
                  : UploadService(

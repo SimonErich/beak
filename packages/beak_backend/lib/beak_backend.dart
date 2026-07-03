@@ -2,6 +2,10 @@
 /// top of the source-agnostic data layer.
 library;
 
+export 'src/auth/auth_router.dart';
+export 'src/auth/beak_auth_guard.dart';
+export 'src/auth/beak_policy.dart';
+export 'src/auth/token_session_store.dart';
 export 'src/common/uuid_v4.dart';
 export 'src/config/beak_backend_config.dart';
 export 'src/config/env_loader.dart';
@@ -13,6 +17,10 @@ export 'src/data/worm/worm_data_source.dart';
 export 'src/data/worm/worm_record_model.dart';
 export 'src/endpoints/beak_resource_router.dart';
 export 'src/endpoints/crud_handlers.dart';
+export 'src/export/csv_export_service.dart';
+export 'src/export/export_router.dart';
+export 'src/search/global_search_service.dart';
+export 'src/search/search_router.dart';
 export 'src/server/beak_server.dart';
 export 'src/server/middleware/auth_middleware.dart';
 export 'src/server/storage_wiring.dart';

@@ -44,6 +44,14 @@ final class BeakNotFoundException extends BeakException {
     : super(code: 'not_found', message: message);
 }
 
+/// Raised when a request carries no valid identity (missing, invalid, or
+/// expired credentials) — the 401 counterpart to authorization's 403.
+final class BeakAuthenticationException extends BeakException {
+  /// Creates an authentication failure described by [message].
+  const BeakAuthenticationException(String message)
+    : super(code: 'authentication', message: message);
+}
+
 /// Raised when the current user is not allowed to perform an operation.
 final class BeakAuthorizationException extends BeakException {
   /// Creates an authorization failure described by [message].
