@@ -18,7 +18,12 @@ final class NoteModel extends BeakModel {
   @override
   List<BeakColumn> get columns => const [
     BeakStringColumn(key: 'id', label: 'Id'),
-    BeakStringColumn(key: 'title', label: 'Title', searchable: true),
+    BeakStringColumn(
+      key: 'title',
+      label: 'Title',
+      searchable: true,
+      sortable: true,
+    ),
   ];
 }
 
@@ -56,6 +61,9 @@ base class FakeDataSource implements BeakDataSource {
   /// Every `query` invocation.
   final List<BeakQuerySpec> queryCalls = [];
 
+  /// Every `delete` invocation, as `(table, id)` pairs.
+  final List<(String, Object)> deleteCalls = [];
+
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     queryCalls.add(spec);
@@ -80,7 +88,10 @@ base class FakeDataSource implements BeakDataSource {
       data;
 
   @override
-  Future<void> delete(String table, Object id, {bool force = false}) async {}
+  Future<void> delete(String table, Object id, {bool force = false}) async {
+    deleteCalls.add((table, id));
+    _recordsByTable[table]?.remove(id);
+  }
 
   @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
