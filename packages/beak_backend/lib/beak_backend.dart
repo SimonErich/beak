@@ -15,12 +15,16 @@ export 'src/endpoints/beak_resource_router.dart';
 export 'src/endpoints/crud_handlers.dart';
 export 'src/server/beak_server.dart';
 export 'src/server/middleware/auth_middleware.dart';
+export 'src/server/storage_wiring.dart';
 export 'src/server/middleware/cors_middleware.dart';
 export 'src/server/middleware/error_mapping_middleware.dart';
 export 'src/server/middleware/json_middleware.dart';
 export 'src/server/middleware/request_log_middleware.dart';
 export 'src/service/beak_resource_service.dart';
 export 'src/service/validation_service.dart';
+export 'src/uploads/upload_handler.dart';
+export 'src/uploads/upload_router.dart';
+export 'src/uploads/upload_service.dart';
 
 /// The version of the `beak_backend` package.
 const String beakBackendVersion = '0.0.1';

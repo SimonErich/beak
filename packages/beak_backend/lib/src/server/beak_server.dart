@@ -4,9 +4,12 @@ import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
+import 'package:beak_image/beak_image.dart';
+
 import '../config/beak_backend_config.dart';
 import '../data/beak_data_source.dart';
 import '../endpoints/beak_resource_router.dart';
+import '../uploads/upload_service.dart';
 import 'middleware/auth_middleware.dart';
 import 'middleware/cors_middleware.dart';
 import 'middleware/error_mapping_middleware.dart';
@@ -21,19 +24,35 @@ import 'middleware/request_log_middleware.dart';
 /// [storage] carries the configured storage driver for the upload
 /// endpoints arriving in Phase 09.
 final class BeakServer {
-  /// Creates a server serving [router] (default: the generated API) with
-  /// [config].
+  /// Creates a server serving [router] (default: the generated API, with
+  /// upload endpoints when [storage] is configured) with [config].
+  ///
+  /// [transformRunner] overrides the image pipeline (default: the real
+  /// `beak_image` runner).
   BeakServer({
     required this.config,
     required this.dataSource,
     required this.registry,
     this.storage,
+    BeakTransformRunner? transformRunner,
     Handler? router,
     BeakAuthGuard? authGuard,
     BeakRequestLogger? onRequest,
     BeakUnexpectedErrorListener? onUnexpectedError,
   }) : _router =
-           router ?? beakApiRouter(registry: registry, dataSource: dataSource),
+           router ??
+           beakApiRouter(
+             registry: registry,
+             dataSource: dataSource,
+             uploads: storage == null
+                 ? null
+                 : UploadService(
+                     registry: registry,
+                     storage: storage,
+                     transformRunner:
+                         transformRunner ?? const ImageTransformRunner(),
+                   ),
+           ),
        _authGuard = authGuard,
        _onRequest = onRequest ?? _logToStderr,
        _onUnexpectedError = onUnexpectedError ?? _reportToStderr;
