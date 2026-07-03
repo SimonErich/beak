@@ -2,6 +2,7 @@
 /// top of the source-agnostic data layer.
 library;
 
+export 'src/common/uuid_v4.dart';
 export 'src/config/beak_backend_config.dart';
 export 'src/config/env_loader.dart';
 export 'src/data/beak_data_source.dart';
@@ -10,12 +11,16 @@ export 'src/data/worm/query_translator.dart';
 export 'src/data/worm/worm_bootstrap.dart';
 export 'src/data/worm/worm_data_source.dart';
 export 'src/data/worm/worm_record_model.dart';
+export 'src/endpoints/beak_resource_router.dart';
+export 'src/endpoints/crud_handlers.dart';
 export 'src/server/beak_server.dart';
 export 'src/server/middleware/auth_middleware.dart';
 export 'src/server/middleware/cors_middleware.dart';
 export 'src/server/middleware/error_mapping_middleware.dart';
 export 'src/server/middleware/json_middleware.dart';
 export 'src/server/middleware/request_log_middleware.dart';
+export 'src/service/beak_resource_service.dart';
+export 'src/service/validation_service.dart';
 
 /// The version of the `beak_backend` package.
 const String beakBackendVersion = '0.0.1';
