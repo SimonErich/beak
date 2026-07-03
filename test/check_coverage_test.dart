@@ -68,10 +68,18 @@ end_of_record
     expect(thresholdFor('beak_core'), 100);
   });
 
-  test('phase-00 skeleton packages start at a zero threshold', () {
+  test('the phase-06 packages gate at the default threshold', () {
     for (final package in const [
       'beak_storage_s3',
       'beak_storage_ftp',
+      'beak_image',
+    ]) {
+      expect(thresholdFor(package), defaultThresholdPct, reason: package);
+    }
+  });
+
+  test('phase-00 skeleton packages start at a zero threshold', () {
+    for (final package in const [
       'beak_backend',
       'beak_frontend',
       'beak_cli',
