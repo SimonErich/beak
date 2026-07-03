@@ -2,10 +2,11 @@ import 'package:beak_core/beak_core.dart';
 
 import 'beak_client.dart';
 
-/// The frontend's [BeakDataSource]: every operation delegates to the typed
-/// HTTP client — widgets and view models stay transport-blind, and the
-/// interface stays identical to the backend's worm-backed implementation.
-final class HttpBeakDataSource implements BeakDataSource {
+/// The frontend's [BeakDataSource] (and [BeakUploadClient]): every
+/// operation delegates to the typed HTTP client — widgets and view models
+/// stay transport-blind, and the interface stays identical to the
+/// backend's worm-backed implementation.
+final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
@@ -51,6 +52,13 @@ final class HttpBeakDataSource implements BeakDataSource {
     String relationKey,
     List<Object> relatedIds,
   ) => client.detach(table, id, relationKey, relatedIds);
+
+  @override
+  Future<BeakStoredFile> upload(
+    String table,
+    String columnKey,
+    BeakUpload file,
+  ) => client.upload(table, columnKey, file);
 
   @override
   Future<num> aggregate(BeakAggregateSpec spec) {

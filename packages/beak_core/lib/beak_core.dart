@@ -12,6 +12,7 @@ export 'src/common/beak_result.dart';
 export 'src/context/beak_context.dart';
 export 'src/context/beak_render_intent.dart';
 export 'src/data/beak_data_source.dart';
+export 'src/data/beak_upload_client.dart';
 export 'src/model/beak_model.dart';
 export 'src/model/beak_model_registry.dart';
 export 'src/query/beak_aggregate_spec.dart';
