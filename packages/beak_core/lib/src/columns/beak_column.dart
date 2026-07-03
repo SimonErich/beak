@@ -4,9 +4,11 @@ import '../common/beak_color.dart';
 import '../context/beak_context.dart';
 import '../context/beak_render_intent.dart';
 import '../rules/beak_rule.dart';
+import '../storage/file_rules/beak_dimensions.dart';
+import '../storage/file_rules/beak_file_type.dart';
+import '../storage/transforms/beak_image_transform.dart';
 import 'beak_json.dart';
 import 'beak_render_config.dart';
-import 'file_support.dart';
 
 part 'beak_bool_column.dart';
 part 'beak_color_column.dart';

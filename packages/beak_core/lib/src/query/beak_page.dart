@@ -2,7 +2,7 @@ import 'package:meta/meta.dart';
 
 import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
-import 'json_support.dart';
+import '../common/json_support.dart';
 
 /// One page of query results plus its paging envelope — what the backend
 /// returns for a query spec.

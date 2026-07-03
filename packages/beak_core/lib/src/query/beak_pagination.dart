@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../common/beak_exception.dart';
-import 'json_support.dart';
+import '../common/json_support.dart';
 
 /// The paging window of a query spec: a 1-based [page] of [perPage] records.
 @immutable

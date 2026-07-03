@@ -3,7 +3,7 @@ import 'package:meta/meta.dart';
 import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
 import 'beak_filter.dart';
-import 'json_support.dart';
+import '../common/json_support.dart';
 
 /// An eager-load directive: which relation to load with the main query,
 /// optionally constrained and with nested loads of its own.

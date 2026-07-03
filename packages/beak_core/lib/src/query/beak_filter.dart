@@ -5,7 +5,7 @@ import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
 import 'beak_operator.dart';
 import 'beak_value.dart';
-import 'json_support.dart';
+import '../common/json_support.dart';
 
 /// A typed, losslessly JSON-serializable predicate tree.
 ///

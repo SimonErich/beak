@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-import 'json_support.dart';
+import '../common/json_support.dart';
 
 /// A single ordering directive of a query spec.
 ///
