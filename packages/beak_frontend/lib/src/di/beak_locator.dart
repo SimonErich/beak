@@ -2,7 +2,6 @@ import 'package:beak_core/beak_core.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 
-import '../data/beak_client.dart';
 import '../data/http_beak_data_source.dart';
 import '../data/reference_cache.dart';
 import '../panel/beak_panel_config.dart';

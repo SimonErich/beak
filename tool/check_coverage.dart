@@ -20,9 +20,9 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_core': 100,
   'beak_backend': 90,
   'beak_frontend': 85,
-  'beak_cli': 0,
-  'reference_admin': 0,
-  'reference_admin_server': 0,
+  'beak_cli': 85,
+  'reference_admin': 85,
+  'reference_admin_server': 85,
 };
 
 /// Directories that hold gated packages, relative to the repo root.

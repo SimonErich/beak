@@ -1,8 +1,16 @@
 import 'dart:convert';
 
-import 'package:beak_core/beak_core.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+
+import '../common/beak_exception.dart';
+import '../query/beak_aggregate_spec.dart';
+import '../query/beak_page.dart';
+import '../query/beak_query_spec.dart';
+import '../query/beak_record.dart';
+import '../search/beak_search_hit.dart';
+import '../storage/beak_stored_file.dart';
+import '../storage/beak_upload.dart';
 
 /// The thin typed transport over Beak's REST surface: it serializes the
 /// shared `beak_core` wire types to the backend's endpoints and maps error
@@ -143,6 +151,12 @@ final class BeakClient {
     final response = await http.Response.fromStream(await _http.send(request));
     _ensureSuccess(response);
     return BeakStoredFile.fromJson(_decodeObject(response.body));
+  }
+
+  /// Exports [spec]'s rows as CSV via `POST /api/{table}/export`.
+  Future<String> export(String table, BeakQuerySpec spec) async {
+    final response = await _postJson('/api/$table/export', spec.toJson());
+    return response.body;
   }
 
   /// Searches every searchable model via `GET /api/search`, flattening the

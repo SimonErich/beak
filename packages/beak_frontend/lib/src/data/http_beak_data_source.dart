@@ -1,7 +1,5 @@
 import 'package:beak_core/beak_core.dart';
 
-import 'beak_client.dart';
-
 /// The frontend's [BeakDataSource] (and [BeakUploadClient]): every
 /// operation delegates to the typed HTTP client — widgets and view models
 /// stay transport-blind, and the interface stays identical to the

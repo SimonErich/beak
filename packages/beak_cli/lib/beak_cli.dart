@@ -1,5 +1,7 @@
-/// Scaffolding CLI for Beak projects (`make:resource` and friends).
+/// Beak scaffolding CLI: `make:resource` and friends generate
+/// convention-following worm models, migrations, and Beak definitions.
 library;
 
-/// The version of the `beak_cli` package.
-const String beakCliVersion = '0.0.1';
+export 'src/cli_runner.dart';
+export 'src/field_spec.dart';
+export 'src/templates.dart';

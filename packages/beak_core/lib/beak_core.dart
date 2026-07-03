@@ -3,6 +3,7 @@
 /// abstractions.
 library;
 
+export 'src/client/beak_client.dart';
 export 'src/columns/beak_column.dart';
 export 'src/columns/beak_json.dart';
 export 'src/columns/beak_render_config.dart';

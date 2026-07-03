@@ -1,5 +1,7 @@
-/// Library backing the reference admin server binary.
+/// The Beak reference admin backend: shared models wired into a
+/// `BeakServer`, with worm migrations and seeders for the catalog schema.
 library;
 
-/// The version of the reference admin server skeleton.
-const String referenceAdminServerVersion = '0.0.1';
+export 'src/migrations/reference_migrations.dart';
+export 'src/seeders/reference_seeder.dart';
+export 'src/server_builder.dart';

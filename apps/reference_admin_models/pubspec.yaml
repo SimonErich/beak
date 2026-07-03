@@ -1,0 +1,17 @@
+name: reference_admin_models
+description: >-
+  Shared Beak model definitions of the reference admin — defined once, consumed
+  by both the Shelf server and the Flutter panel.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  beak_core:
+    path: ../../packages/beak_core
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

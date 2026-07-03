@@ -8,7 +8,6 @@ export 'src/common/hex_color.dart';
 export 'src/dashboard/beak_chart.dart';
 export 'src/dashboard/beak_dashboard.dart';
 export 'src/dashboard/beak_stat.dart';
-export 'src/data/beak_client.dart';
 export 'src/data/beak_resource_repository.dart';
 export 'src/data/beak_upload_repository.dart';
 export 'src/data/http_beak_data_source.dart';
