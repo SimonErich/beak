@@ -35,6 +35,7 @@ Response _exceptionResponse(BeakException exception, Request request) {
   final int statusCode = switch (exception) {
     BeakValidationException() => 422,
     BeakNotFoundException() => 404,
+    BeakAuthenticationException() => 401,
     BeakAuthorizationException() => 403,
     BeakConflictException() => 409,
     BeakConfigurationException() => 500,

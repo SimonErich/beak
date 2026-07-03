@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 String expectedCodeOf(BeakException exception) => switch (exception) {
   BeakValidationException() => 'validation',
   BeakNotFoundException() => 'not_found',
+  BeakAuthenticationException() => 'authentication',
   BeakAuthorizationException() => 'authorization',
   BeakConfigurationException() => 'configuration',
   BeakStorageException() => 'storage',
@@ -18,6 +19,10 @@ void main() {
     (
       BeakNotFoundException('Product 42 does not exist.'),
       'Product 42 does not exist.',
+    ),
+    (
+      BeakAuthenticationException('Sign in to continue.'),
+      'Sign in to continue.',
     ),
     (BeakAuthorizationException('Admins only.'), 'Admins only.'),
     (

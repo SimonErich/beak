@@ -1,19 +1,31 @@
-import 'dart:async';
-
 import 'package:shelf/shelf.dart';
 
-/// Inspects a request before it reaches any handler; throws a
-/// `BeakException` (typically authorization) to deny it.
-///
-/// Phase 10 supplies the real guard; without one the slot passes through.
-typedef BeakAuthGuard = FutureOr<void> Function(Request request);
+import '../../auth/beak_auth_guard.dart';
 
-/// Runs [guard] before the downstream handler; a thrown failure is mapped by
-/// the error-mapping middleware.
+const String _principalContextKey = 'beak.principal';
+
+/// The principal the auth middleware resolved for [request], or `null` for
+/// anonymous requests (or when no guard is installed).
+BeakPrincipal? beakPrincipal(Request request) =>
+    switch (request.context[_principalContextKey]) {
+      final BeakPrincipal principal => principal,
+      _ => null,
+    };
+
+/// Resolves the request's identity through [guard] and stores it in the
+/// request context for handlers and policies; without a guard every
+/// request stays anonymous.
+///
+/// Invalid credentials throw inside the guard and are mapped to 401 by the
+/// error-mapping middleware.
 Middleware beakAuthMiddleware({BeakAuthGuard? guard}) =>
     (Handler inner) => (Request request) async {
-      if (guard != null) {
-        await guard(request);
+      if (guard == null) {
+        return inner(request);
       }
-      return inner(request);
+      final principal = await guard.authenticate(request);
+      if (principal == null) {
+        return inner(request);
+      }
+      return inner(request.change(context: {_principalContextKey: principal}));
     };

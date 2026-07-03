@@ -17,6 +17,7 @@ dependencies:
     path: ../beak_storage_ftp
   beak_storage_s3:
     path: ../beak_storage_s3
+  crypto: ^3.0.7
   meta: ^1.16.0
   shelf: ^1.4.2
   shelf_multipart: ^2.0.1
