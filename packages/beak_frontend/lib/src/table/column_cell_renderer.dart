@@ -4,6 +4,8 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../common/hex_color.dart';
+
 /// Renders a custom-column cell — the escape hatch consumers register per
 /// [BeakColumnTag].
 typedef BeakCustomCellBuilder =
@@ -214,7 +216,7 @@ Widget _relationBadges(Object raw) {
 }
 
 Widget _colorSwatch(String hex) {
-  final Color? parsed = _parseHexColor(hex);
+  final Color? parsed = parseBeakHexColor(hex);
   return Wrap(
     spacing: 6,
     crossAxisAlignment: WrapCrossAlignment.center,
@@ -231,15 +233,6 @@ Widget _colorSwatch(String hex) {
       OiLabel.code(hex, maxLines: 1),
     ],
   );
-}
-
-Color? _parseHexColor(String hex) {
-  final String digits = hex.startsWith('#') ? hex.substring(1) : hex;
-  if (digits.length != 6) {
-    return null;
-  }
-  final int? rgb = int.tryParse(digits, radix: 16);
-  return rgb == null ? null : Color(0xFF000000 | rgb);
 }
 
 String _jsonText(Object raw) {

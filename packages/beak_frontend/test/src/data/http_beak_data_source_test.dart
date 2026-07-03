@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
@@ -34,6 +35,15 @@ void main() {
             ('POST', '/api/notes/batch') => [
               recordJson({'id': 'n1'}),
             ],
+            ('POST', '/api/notes/avatar/upload') => {
+              'key': 'notes/avatars/a.png',
+              'url': 'https://cdn.test/a.png',
+              'sizeInBytes': 3,
+              'mimeType': 'image/png',
+              'widthInPixels': null,
+              'heightInPixels': null,
+              'variants': <String, Object?>{},
+            },
             ('DELETE', _) => null,
             (_, final String path) when path.contains('/relations/') => null,
             _ => recordJson({'id': 'n1'}),
@@ -67,6 +77,16 @@ void main() {
       await dataSource.batchGet('notes', const ['n1']);
       await dataSource.attach('notes', 'n1', 'labels', const ['l1']);
       await dataSource.detach('notes', 'n1', 'labels', const ['l1']);
+      final stored = await dataSource.upload(
+        'notes',
+        'avatar',
+        BeakUpload(
+          filename: 'a.png',
+          mimeType: 'image/png',
+          bytes: Uint8List(3),
+        ),
+      );
+      expect(stored.key, 'notes/avatars/a.png');
 
       expect(
         [
@@ -82,6 +102,7 @@ void main() {
           'POST /api/notes/batch',
           'POST /api/notes/n1/relations/labels/attach',
           'POST /api/notes/n1/relations/labels/detach',
+          'POST /api/notes/avatar/upload',
         ],
       );
     },
