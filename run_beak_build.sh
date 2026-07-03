@@ -68,9 +68,29 @@ fi
 printf '[run_beak_build] Starting Beak autonomous build @ %s\n' "$(date)" | tee -a "$LOG_FILE"
 printf '[run_beak_build] model=%s sleep=%ss max=%s\n' "$MODEL" "$SLEEP_SECONDS" "$MAX_INVOCATIONS" | tee -a "$LOG_FILE"
 
-state_hash() { md5sum PLAN/STATE.md 2>/dev/null | awk '{print $1}'; }
+# A leftover NEEDS_HUMAN.md is a PER-RUN stop-signal from a previous run. If we don't
+# clear it, the very next invocation of THIS run trips the check below and aborts —
+# even when that invocation made real progress. Re-running the script is itself the
+# human's acknowledgment; Claude re-creates the file (and we stop) only if a genuine
+# external blocker recurs this run. BUILD_COMPLETE is deliberately NOT cleared — if it
+# exists the build is finished and the loop should not start.
+if [ -f "$NEEDS_HUMAN" ]; then
+  printf '[run_beak_build] Clearing stale %s left by a previous run.\n' "$NEEDS_HUMAN" | tee -a "$LOG_FILE"
+  rm -f "$NEEDS_HUMAN"
+fi
 
-prev_hash="$(state_hash)"
+# Progress = the ledger advanced OR a new commit landed. Watching STATE.md's hash alone
+# false-stalls on big, multi-invocation phases: Claude can commit partial work for
+# several invocations before it flips the ledger row to ✅ DONE. Folding the HEAD SHA and
+# commit count in means genuine forward motion resets the stall counter.
+progress_signature() {
+  printf '%s|%s|%s' \
+    "$(md5sum PLAN/STATE.md 2>/dev/null | awk '{print $1}')" \
+    "$(git rev-parse HEAD 2>/dev/null)" \
+    "$(git rev-list --count HEAD 2>/dev/null)"
+}
+
+prev_sig="$(progress_signature)"
 stall=0
 i=0
 
@@ -102,11 +122,11 @@ while [ ! -f "$SENTINEL" ]; do
     exit 2
   fi
 
-  # Stall detection: if STATE.md hasn't advanced, count it.
-  cur_hash="$(state_hash)"
-  if [ "$cur_hash" = "$prev_hash" ]; then
+  # Stall detection: if neither the ledger nor the commit graph advanced, count it.
+  cur_sig="$(progress_signature)"
+  if [ "$cur_sig" = "$prev_sig" ]; then
     stall=$((stall + 1))
-    printf '[run_beak_build] No STATE.md progress this invocation (stall %s/%s). exit=%s\n' "$stall" "$STALL_LIMIT" "$status" | tee -a "$LOG_FILE"
+    printf '[run_beak_build] No STATE.md/commit progress this invocation (stall %s/%s). exit=%s\n' "$stall" "$STALL_LIMIT" "$status" | tee -a "$LOG_FILE"
     if [ "$stall" -ge "$STALL_LIMIT" ]; then
       {
         echo "# Build stalled"
@@ -119,7 +139,7 @@ while [ ! -f "$SENTINEL" ]; do
     fi
   else
     stall=0
-    prev_hash="$cur_hash"
+    prev_sig="$cur_sig"
   fi
 
   printf '[run_beak_build] Sleeping %ss before next phase/retry...\n' "$SLEEP_SECONDS" | tee -a "$LOG_FILE"
