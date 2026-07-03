@@ -3,6 +3,15 @@ import '../common/beak_exception.dart';
 /// Builds and validates the relative, `/`-separated storage keys shared by
 /// every `BeakStorageDriver`.
 abstract final class BeakStorageKeys {
+  /// Appends [key]'s segments to [baseUrl]'s path — the one way every
+  /// storage driver turns a base URL plus a storage key into a public URL.
+  static Uri appendToBaseUrl(Uri baseUrl, String key) => baseUrl.replace(
+    pathSegments: [
+      ...baseUrl.pathSegments.where((segment) => segment.isNotEmpty),
+      ...key.split('/'),
+    ],
+  );
+
   /// Joins a [path] prefix and a [filename] into a validated key, trimming
   /// redundant slashes around [path] (an empty [path] stores at the root).
   ///

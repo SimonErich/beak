@@ -23,8 +23,8 @@ import 'middleware/request_log_middleware.dart';
 /// default the generated per-model CRUD surface over [registry] and
 /// [dataSource].
 ///
-/// [storage] carries the configured storage driver for the upload
-/// endpoints arriving in Phase 09.
+/// [storage] carries the configured storage driver behind the generated
+/// upload endpoints.
 final class BeakServer {
   /// Creates a server serving [router] (default: the generated API — with
   /// upload endpoints when [storage] is configured, the auth surface when

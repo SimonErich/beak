@@ -280,4 +280,17 @@ void main() {
       expect(const BeakOrFilter([]).toString(), 'BeakOrFilter([])');
     });
   });
+
+  group('allOf', () {
+    test('collapses lists into null, the single filter, or an AND', () {
+      const single = BeakFieldFilter.forKey('a', BeakOperator.eq);
+      const other = BeakFieldFilter.forKey('b', BeakOperator.eq);
+      expect(BeakFilter.allOf(const []), isNull);
+      expect(BeakFilter.allOf(const [single]), same(single));
+      expect(
+        BeakFilter.allOf(const [single, other]),
+        const BeakAndFilter([single, other]),
+      );
+    });
+  });
 }

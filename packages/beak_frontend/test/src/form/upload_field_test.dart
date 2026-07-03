@@ -130,8 +130,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Choose file'));
-    await tester.pumpAndSettle();
+    final OiButton button = tester.widget(
+      find.widgetWithText(OiButton, 'Choose file'),
+    );
+    expect(button.onTap, isNull, reason: 'no uploader — the pick is off');
     expect(find.byType(OiImage), findsNothing);
   });
 }

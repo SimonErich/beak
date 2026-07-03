@@ -7,9 +7,9 @@ final class BeakViewAction extends BeakRecordAction {
     : super(key: 'view', label: 'View', icon: OiIcons.eye, onExecute: _run);
 
   static Future<void> _run(BeakRecord record, BeakActionContext context) async {
-    final Object? id = record[context.model.primaryKey.key]?.raw;
+    final Object? id = context.model.primaryKeyOf(record);
     if (id != null) {
-      context.router.go('/${context.model.table}/$id');
+      context.router.go(BeakRoutes.show(context.model.table, id));
     }
   }
 }
@@ -21,9 +21,9 @@ final class BeakEditAction extends BeakRecordAction {
     : super(key: 'edit', label: 'Edit', icon: OiIcons.pencil, onExecute: _run);
 
   static Future<void> _run(BeakRecord record, BeakActionContext context) async {
-    final Object? id = record[context.model.primaryKey.key]?.raw;
+    final Object? id = context.model.primaryKeyOf(record);
     if (id != null) {
-      context.router.go('/${context.model.table}/$id/edit');
+      context.router.go(BeakRoutes.edit(context.model.table, id));
     }
   }
 }
@@ -41,7 +41,7 @@ final class BeakCreateAction extends BeakGlobalAction {
       );
 
   static Future<void> _run(BeakActionContext context) async {
-    context.router.go('/${context.model.table}/create');
+    context.router.go(BeakRoutes.create(context.model.table));
   }
 }
 
@@ -59,7 +59,7 @@ final class BeakDeleteAction extends BeakRecordAction {
       );
 
   static Future<void> _run(BeakRecord record, BeakActionContext context) async {
-    final Object? id = record[context.model.primaryKey.key]?.raw;
+    final Object? id = context.model.primaryKeyOf(record);
     if (id == null) {
       return;
     }
@@ -70,7 +70,7 @@ final class BeakDeleteAction extends BeakRecordAction {
       commit: () async {
         await context.dataSource.delete(context.model.table, id);
         await context.refresh?.call();
-        context.router.go('/${context.model.table}');
+        context.router.go(BeakRoutes.list(context.model.table));
       },
       message: 'Record deleted',
     );

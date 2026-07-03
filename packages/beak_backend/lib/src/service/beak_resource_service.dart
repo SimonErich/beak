@@ -42,12 +42,7 @@ final class BeakResourceService {
   /// Throws a [BeakValidationException] when the spec targets another table
   /// than this service's model.
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) {
-    if (spec.table != model.table) {
-      throw BeakValidationException(
-        'Query spec targets "${spec.table}" but this endpoint serves '
-        '"${model.table}".',
-      );
-    }
+    _requireSpecTargets(spec.table, 'Query');
     return dataSource.query(spec);
   }
 
@@ -56,13 +51,19 @@ final class BeakResourceService {
   /// Throws a [BeakValidationException] when the spec targets another table
   /// than this service's model.
   Future<num> aggregate(BeakAggregateSpec spec) {
-    if (spec.table != model.table) {
+    _requireSpecTargets(spec.table, 'Aggregate');
+    return dataSource.aggregate(spec);
+  }
+
+  /// Rejects specs aimed at another table than this service's model — the
+  /// one wording every spec-accepting endpoint shares.
+  void _requireSpecTargets(String table, String specKind) {
+    if (table != model.table) {
       throw BeakValidationException(
-        'Aggregate spec targets "${spec.table}" but this endpoint serves '
+        '$specKind spec targets "$table" but this endpoint serves '
         '"${model.table}".',
       );
     }
-    return dataSource.aggregate(spec);
   }
 
   /// The record with primary key [id].
@@ -134,16 +135,22 @@ final class BeakResourceService {
   BeakRecord _withCreateDefaults(BeakRecord input) {
     final values = {...input.values};
     final primaryKey = model.primaryKey;
-    if (primaryKey is BeakStringColumn && values[primaryKey.key] == null) {
+    if (primaryKey is BeakStringColumn && _isUnset(values[primaryKey.key])) {
       values[primaryKey.key] = BeakStringValue(_generateId());
     }
     final stamp = BeakDateTimeValue(_now());
     for (final columnKey in const [createdAtColumnKey, updatedAtColumnKey]) {
       if (model.columnByKey(columnKey) is BeakDateTimeColumn &&
-          values[columnKey] == null) {
+          _isUnset(values[columnKey])) {
         values[columnKey] = stamp;
       }
     }
     return BeakRecord(values: values, relations: input.relations);
   }
+
+  /// Whether the caller provided no usable value: absent entirely, or an
+  /// explicit JSON `null` ([BeakNullValue]) — e.g. an empty create-form
+  /// field — which must not defeat id minting or timestamp stamping.
+  static bool _isUnset(BeakValue? value) =>
+      value == null || value is BeakNullValue;
 }

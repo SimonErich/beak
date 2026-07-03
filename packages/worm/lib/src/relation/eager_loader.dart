@@ -9,6 +9,7 @@ import '../query/aggregate_descriptor.dart';
 import '../query/eager_load.dart';
 import '../query/field.dart';
 import '../query/field_operators.dart';
+import '../query/predicate_tree.dart';
 import '../query/query_context.dart';
 import '../query/query_descriptor.dart';
 import '../registry/worm.dart';
@@ -20,11 +21,13 @@ import 'relation_definition.dart';
 /// Resolver that turns [EagerLoad] paths into batched
 /// queries that mutate parent models in place.
 ///
-/// Executes exactly N+1 queries for N relationship
-/// paths (one parent query + one query per relation),
-/// avoiding the classic N+1 query explosion. Morph
-/// and pivot relations are the only allowed
-/// exceptions, documented in their implementations.
+/// Executes one query per distinct relation path
+/// segment (one parent query + one query per relation
+/// level, with paths sharing a head merged into a
+/// single load), avoiding the classic N+1 query
+/// explosion. Morph and pivot relations are the only
+/// allowed exceptions, documented in their
+/// implementations.
 abstract final class EagerLoader {
   /// Run every entry in [loads] and [aggregates]
   /// against [parents].
@@ -37,16 +40,22 @@ abstract final class EagerLoader {
     if (parents.isEmpty) return 0;
     final modelParents = <Model>[...parents];
 
-    // Each top-level relation load and aggregate is independent — it
-    // reads its own child table and writes a distinct key on every
-    // parent — so they can run concurrently. We only do so outside a
-    // transaction: inside one, every operation shares a single
-    // connection that cannot service overlapping queries.
-    Future<int> loadTask(EagerLoad load) => _loadOne(
+    // Paths sharing a head (e.g. 'items.product' and 'items.tax') must
+    // resolve through ONE load of that head: independent loads would each
+    // re-fetch fresh child instances and overwrite the parents' relation
+    // slot, silently dropping every sibling's nested data but the last.
+    final groups = _groupByHead(loads);
+
+    // Each merged head-group and aggregate is independent — it reads its
+    // own child table and writes a distinct key on every parent — so they
+    // can run concurrently. We only do so outside a transaction: inside
+    // one, every operation shares a single connection that cannot service
+    // overlapping queries.
+    Future<int> loadTask(_HeadLoad group) => _loadGroup(
       adapter: context.adapter,
       relations: context.relations,
       parents: modelParents,
-      load: load,
+      load: group,
     );
     Future<int> aggregateTask(AggregateInjection aggregate) => _injectAggregate(
       adapter: context.adapter,
@@ -55,23 +64,50 @@ abstract final class EagerLoader {
       aggregate: aggregate,
     );
 
-    final taskCount = loads.length + aggregates.length;
+    final taskCount = groups.length + aggregates.length;
     if (taskCount > 1 && Worm.currentTransaction == null) {
       final counts = await Future.wait(<Future<int>>[
-        for (final load in loads) loadTask(load),
+        for (final group in groups) loadTask(group),
         for (final aggregate in aggregates) aggregateTask(aggregate),
       ]);
       return counts.fold<int>(0, (sum, count) => sum + count);
     }
 
     var queries = 0;
-    for (final load in loads) {
-      queries += await loadTask(load);
+    for (final group in groups) {
+      queries += await loadTask(group);
     }
     for (final aggregate in aggregates) {
       queries += await aggregateTask(aggregate);
     }
     return queries;
+  }
+
+  /// Merges [loads] so every unconstrained head is loaded exactly once,
+  /// carrying all of its sibling tails.
+  ///
+  /// Constrained loads keep their own entry: merging two different
+  /// constraints under one head would change which child rows are
+  /// selected. First-seen order is preserved.
+  static List<_HeadLoad> _groupByHead(List<EagerLoad> loads) {
+    final groups = <_HeadLoad>[];
+    final byHead = <String, _HeadLoad>{};
+    for (final load in loads) {
+      final tail = load.tail;
+      if (load.constrain != null) {
+        groups.add(
+          _HeadLoad(head: load.head, constrain: load.constrain, tails: [?tail]),
+        );
+        continue;
+      }
+      final group = byHead.putIfAbsent(load.head, () {
+        final created = _HeadLoad(head: load.head, tails: []);
+        groups.add(created);
+        return created;
+      });
+      if (tail != null) group.tails.add(tail);
+    }
+    return groups;
   }
 
   /// Batch-load the morph-to references for [children]
@@ -139,11 +175,11 @@ abstract final class EagerLoader {
     return queries;
   }
 
-  static Future<int> _loadOne({
+  static Future<int> _loadGroup({
     required DatabaseAdapter adapter,
     required Map<String, Relation<Model, Model>> relations,
     required List<Model> parents,
-    required EagerLoad load,
+    required _HeadLoad load,
   }) async {
     final relation = _requireRelation(relations, load.head);
     final result = await relation.loadWithFilter(
@@ -155,19 +191,22 @@ abstract final class EagerLoader {
     for (final parent in parents) {
       result.setOnParent(parent);
     }
-    final tail = load.tail;
-    if (tail != null) {
-      final children = <Model>[
-        for (final parent in parents) ...?_childrenOf(parent, load.head),
-      ];
-      if (children.isNotEmpty) {
-        queries += await _loadOne(
-          adapter: adapter,
-          relations: relations,
-          parents: children,
-          load: EagerLoad(tail),
-        );
-      }
+    if (load.tails.isEmpty) return queries;
+    final children = <Model>[
+      for (final parent in parents) ...?_childrenOf(parent, load.head),
+    ];
+    if (children.isEmpty) return queries;
+    // Sibling tails write distinct keys onto the SAME child instances the
+    // head-load just installed, so every nested relation survives.
+    for (final nested in _groupByHead([
+      for (final tail in load.tails) EagerLoad(tail),
+    ])) {
+      queries += await _loadGroup(
+        adapter: adapter,
+        relations: relations,
+        parents: children,
+        load: nested,
+      );
     }
     return queries;
   }
@@ -262,6 +301,16 @@ abstract final class EagerLoader {
     }
     return found;
   }
+}
+
+/// One merged relation load: a single fetch of [head] (optionally
+/// [constrain]ed) plus every sibling nested path under it, so all
+/// tails attach to the same loaded child instances.
+final class _HeadLoad {
+  _HeadLoad({required this.head, required this.tails, this.constrain});
+  final String head;
+  final PredicateTree? constrain;
+  final List<String> tails;
 }
 
 final class _AggregateRelationSpec {

@@ -97,8 +97,7 @@ class BeakDataTable extends HookWidget {
       return () => tableController.removeListener(syncSelection);
     }, [tableController]);
 
-    final String primaryKeyColumn = model.primaryKey.key;
-    Object? idOf(BeakRecord record) => record[primaryKeyColumn]?.raw;
+    Object? idOf(BeakRecord record) => model.primaryKeyOf(record);
 
     return SignalBuilder(
       builder: (context) {
@@ -129,7 +128,13 @@ class BeakDataTable extends HookWidget {
             if (bulkActions.isNotEmpty && selectedKeys.value.isNotEmpty)
               _BulkActionBar(
                 actions: bulkActions,
-                selectedKeys: selectedKeys.value,
+                // Raw primary keys, honoring the onRun contract — the
+                // controller only knows stringified row keys.
+                selectedIds: [
+                  for (final record in rows)
+                    if (selectedKeys.value.contains(idOf(record)?.toString()))
+                      if (idOf(record) case final Object id) id,
+                ],
               ),
             // OiTable virtualizes its rows and must own the remaining
             // height.
@@ -183,17 +188,16 @@ class BeakDataTable extends HookWidget {
   }
 
   List<OiTableColumn<BeakRecord>> _columns(TableViewModel viewModel) => [
-    for (final column in model.columns)
-      if (column.visibleOn.contains(BeakContext.table))
-        OiTableColumn<BeakRecord>(
-          id: column.key,
-          header: column.label,
-          sortable: column.sortable,
-          filterable: column.filterable,
-          valueGetter: (record) => record[column.key]?.raw?.toString() ?? '',
-          cellBuilder: (context, record, rowIndex) =>
-              renderBeakCell(context, column: column, record: record),
-        ),
+    for (final column in model.columnsFor(BeakContext.table))
+      OiTableColumn<BeakRecord>(
+        id: column.key,
+        header: column.label,
+        sortable: column.sortable,
+        filterable: column.filterable,
+        valueGetter: (record) => record[column.key]?.raw?.toString() ?? '',
+        cellBuilder: (context, record, rowIndex) =>
+            renderBeakCell(context, column: column, record: record),
+      ),
     if (actions.isNotEmpty || enableDelete)
       OiTableColumn<BeakRecord>(
         id: '_actions',
@@ -212,7 +216,7 @@ class BeakDataTable extends HookWidget {
     TableViewModel viewModel,
     BeakRecord record,
   ) {
-    final Object? id = record[model.primaryKey.key]?.raw;
+    final Object? id = model.primaryKeyOf(record);
     return OiRow(
       breakpoint: context.breakpoint,
       mainAxisAlignment: MainAxisAlignment.end,
@@ -262,7 +266,7 @@ class BeakDataTable extends HookWidget {
     Object? editedValue,
   ) async {
     final column = model.columnByKey(columnId);
-    final Object? id = record[model.primaryKey.key]?.raw;
+    final Object? id = model.primaryKeyOf(record);
     if (column == null || id == null) {
       return;
     }
@@ -307,37 +311,33 @@ class BeakDataTable extends HookWidget {
             BeakStringValue(value.trim()),
           ),
     ];
-    return switch (leaves.length) {
-      0 => null,
-      1 => leaves.single,
-      _ => BeakAndFilter(leaves),
-    };
+    return BeakFilter.allOf(leaves);
   }
 }
 
 /// The bulk-action bar shown above the table while rows are selected.
 final class _BulkActionBar extends StatelessWidget {
-  const _BulkActionBar({required this.actions, required this.selectedKeys});
+  const _BulkActionBar({required this.actions, required this.selectedIds});
 
   final List<BeakTableAction> actions;
-  final Set<String> selectedKeys;
+  final List<Object> selectedIds;
 
   @override
   Widget build(BuildContext context) => OiRow(
     breakpoint: context.breakpoint,
     gap: const OiResponsive<double>(8),
     children: [
-      OiLabel.smallStrong('${selectedKeys.length} selected'),
+      OiLabel.smallStrong('${selectedIds.length} selected'),
       for (final action in actions)
         if (action.destructive)
           OiButton.destructive(
             label: action.label,
-            onTap: () => action.onRun([...selectedKeys]),
+            onTap: () => action.onRun([...selectedIds]),
           )
         else
           OiButton.secondary(
             label: action.label,
-            onTap: () => action.onRun([...selectedKeys]),
+            onTap: () => action.onRun([...selectedIds]),
           ),
     ],
   );

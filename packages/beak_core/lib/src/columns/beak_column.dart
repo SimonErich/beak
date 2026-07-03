@@ -81,3 +81,36 @@ sealed class BeakColumn {
   /// The Dart type this column's values take (for typed form/data access).
   Type get valueType;
 }
+
+/// Shared shape of the upload-backed columns ([BeakImageColumn],
+/// [BeakFileColumn]): where uploads land and which size/type rules gate
+/// them — consumers of upload rules match this one type instead of the
+/// two leaves.
+sealed class BeakUploadColumn extends BeakColumn {
+  /// Creates an upload-backed column storing files under [storagePath].
+  const BeakUploadColumn({
+    required super.key,
+    required super.label,
+    required this.storagePath,
+    super.visibleOn,
+    super.sortable,
+    super.searchable,
+    super.filterable,
+    super.rules,
+    this.maxSizeInBytes,
+    this.allowedTypes = const [],
+  });
+
+  /// Storage subfolder uploads of this column land in.
+  final String storagePath;
+
+  /// Highest accepted upload size in bytes, if bounded.
+  final int? maxSizeInBytes;
+
+  /// Accepted upload types; empty means unrestricted.
+  final List<BeakFileType> allowedTypes;
+
+  /// Values are stored file keys/URLs.
+  @override
+  Type get valueType => String;
+}

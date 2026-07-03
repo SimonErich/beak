@@ -8,7 +8,7 @@ import 'beak_image_transform.dart';
 /// Executes an image column's transform pipeline on upload.
 ///
 /// `beak_core` deliberately ships no pixel codec: implementations live in
-/// driver-level packages (Phase 06) that bring an image library. The upload
+/// driver-level packages that bring an image library. The upload
 /// endpoint decodes, runs the configured pipeline through this interface and
 /// stores the results via the configured `BeakStorageDriver`.
 abstract interface class BeakTransformRunner {

@@ -20,19 +20,37 @@ final class CsvExportService {
   /// Streams the CSV for [spec] over [table]: a header from the model's
   /// table-context column labels, then one row per matching record
   /// (paged through [pageSizeInRows] at a time).
-  Stream<List<int>> exportCsv(String table, BeakQuerySpec spec) async* {
+  ///
+  /// Spec validation AND the first page's query run eagerly — before the
+  /// returned stream exists — so their typed exceptions surface inside
+  /// the handler and map to proper error responses. Failures on later
+  /// pages truncate the already-streaming body: once the 200 status and
+  /// header bytes are on the wire, no error envelope can follow.
+  Future<Stream<List<int>>> exportCsv(String table, BeakQuerySpec spec) async {
     final model = registry.byTableOrThrow(table);
-    final columns = [
-      for (final column in model.columns)
-        if (column.visibleOn.contains(BeakContext.table)) column,
-    ];
+    if (spec.table != model.table) {
+      throw BeakValidationException(
+        'Export spec targets "${spec.table}" but this endpoint serves '
+        '"${model.table}".',
+      );
+    }
+    final firstPage = await dataSource.query(
+      spec.paginate(page: 1, perPage: pageSizeInRows),
+    );
+    return _stream(model, spec, firstPage);
+  }
+
+  Stream<List<int>> _stream(
+    BeakModel model,
+    BeakQuerySpec spec,
+    BeakPage<BeakRecord> firstPage,
+  ) async* {
+    final columns = model.columnsFor(BeakContext.table);
     yield utf8.encode(_csvRow([for (final column in columns) column.label]));
 
     var page = 1;
+    var result = firstPage;
     while (true) {
-      final result = await dataSource.query(
-        spec.paginate(page: page, perPage: pageSizeInRows),
-      );
       for (final record in result.items) {
         yield utf8.encode(
           _csvRow([
@@ -45,6 +63,9 @@ final class CsvExportService {
         break;
       }
       page += 1;
+      result = await dataSource.query(
+        spec.paginate(page: page, perPage: pageSizeInRows),
+      );
     }
   }
 

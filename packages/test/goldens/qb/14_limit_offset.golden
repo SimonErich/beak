@@ -1,6 +1,0 @@
-{
-  "type": "query",
-  "table": "users",
-  "limit": 10,
-  "offset": 20
-}

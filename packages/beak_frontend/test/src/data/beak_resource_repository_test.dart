@@ -57,6 +57,13 @@ void main() {
     if (result case BeakOk(:final value)) {
       expect(value, 42);
     }
+
+    dataSource.aggregateHandler = (spec) =>
+        throw const BeakStorageException('backend unreachable');
+    final failed = await repository.aggregate(
+      const BeakAggregateSpec.count(table: 'notes'),
+    );
+    expect(failed, isA<BeakErr<num>>());
   });
 
   test('a missing record surfaces as a typed not-found error', () async {

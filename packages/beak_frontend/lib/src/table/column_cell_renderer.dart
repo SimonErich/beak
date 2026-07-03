@@ -45,7 +45,7 @@ OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
 
 /// Renders [column]'s value from [record] by its render intent for
 /// [renderContext] — the single place intents become widgets, shared by
-/// the table (Phase 12) and the detail view (Phase 13).
+/// the table and the detail view.
 ///
 /// [intentOverride] substitutes the column's own intent — relationship
 /// fields render through it (relation intents live on relationships, not

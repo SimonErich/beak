@@ -114,14 +114,8 @@ final class FtpStorageDriver implements BeakStorageDriver {
     }
   }
 
-  Uri _urlFor(String key) => _config.publicBaseUrl.replace(
-    pathSegments: [
-      ..._config.publicBaseUrl.pathSegments.where(
-        (segment) => segment.isNotEmpty,
-      ),
-      ...key.split('/'),
-    ],
-  );
+  Uri _urlFor(String key) =>
+      BeakStorageKeys.appendToBaseUrl(_config.publicBaseUrl, key);
 }
 
 /// Registers the FTP driver factory under `'ftp'` so [BeakStorageRegistry]

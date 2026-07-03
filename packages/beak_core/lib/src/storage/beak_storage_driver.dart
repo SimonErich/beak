@@ -8,8 +8,9 @@ import 'beak_upload.dart';
 /// register them with a `BeakStorageRegistry`.
 ///
 /// Keys are relative, `/`-separated paths (see `BeakStorageKeys`); every
-/// method throws a `BeakStorageException` for malformed keys and for
-/// operations on missing files.
+/// method throws a `BeakStorageException` for malformed keys, and `get` and
+/// `delete` throw one for missing files (`exists` reports `false` and
+/// `url` builds addresses without probing storage).
 abstract interface class BeakStorageDriver {
   /// Stable driver identifier matching `BeakStorageConfig.driverId`
   /// (`'s3'`, `'ftp'`, `'memory'`, `'local'`).

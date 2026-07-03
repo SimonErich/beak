@@ -280,6 +280,48 @@ void main() {
       },
     );
 
+    test('sibling nested loads under one relation all survive', () async {
+      await seedRelatedWorld();
+      logger.clear();
+
+      final page = await dataSource.query(
+        const BeakQuerySpec(
+          table: 'categories',
+          relationLoads: [
+            BeakRelationLoad(
+              'products',
+              nested: [BeakRelationLoad('reviews'), BeakRelationLoad('tags')],
+            ),
+          ],
+        ),
+      );
+
+      // 1 count + 1 parent select + 1 merged products load + 1 has-many
+      // reviews + 2 for the tags pivot hop. The shared 'products' head is
+      // loaded exactly once so BOTH nested siblings land on its records.
+      expect(logger.entries, hasLength(6));
+
+      final toys = page.items.single;
+      final products = toys.relations['products'];
+      expect(products, hasLength(2));
+      final laser = products!.firstWhere(
+        (item) => item['id'] == const BeakIntValue(1),
+      );
+      expect(
+        laser.relations['reviews']?.single['body'],
+        const BeakStringValue('Cat approved'),
+        reason: 'the first sibling nested load must survive',
+      );
+      expect(
+        {
+          for (final tag in laser.relations['tags'] ?? const <BeakRecord>[])
+            tag['name'],
+        },
+        {const BeakStringValue('toys'), const BeakStringValue('lasers')},
+        reason: 'the second sibling nested load must survive',
+      );
+    });
+
     test('a belongs-to with a null foreign key loads as empty', () async {
       await dataSource.create('products', product(id: 1, name: 'Orphan'));
 

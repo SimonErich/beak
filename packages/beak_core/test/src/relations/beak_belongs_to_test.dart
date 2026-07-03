@@ -44,4 +44,39 @@ void main() {
       );
     }
   });
+
+  test('effectiveSearchColumnKeys falls back to the display column', () {
+    const bare = BeakBelongsTo(
+      key: 'category',
+      label: 'Category',
+      relatedTable: 'categories',
+      displayColumnKey: 'name',
+      foreignKey: 'category_id',
+    );
+    const searched = BeakBelongsTo(
+      key: 'category',
+      label: 'Category',
+      relatedTable: 'categories',
+      displayColumnKey: 'name',
+      foreignKey: 'category_id',
+      searchColumnKeys: ['name', 'slug'],
+    );
+    expect(bare.effectiveSearchColumnKeys, ['name']);
+    expect(searched.effectiveSearchColumnKeys, ['name', 'slug']);
+  });
+
+  test('displayLabelOf reads the display column, empty when absent', () {
+    const relation = BeakBelongsTo(
+      key: 'category',
+      label: 'Category',
+      relatedTable: 'categories',
+      displayColumnKey: 'name',
+      foreignKey: 'category_id',
+    );
+    expect(
+      relation.displayLabelOf(BeakRecord.fromRow(const {'name': 'News'})),
+      'News',
+    );
+    expect(relation.displayLabelOf(BeakRecord.fromRow(const {})), '');
+  });
 }

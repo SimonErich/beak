@@ -1,9 +1,0 @@
-{
-  "type": "query",
-  "table": "users",
-  "columns": [
-    "name",
-    "age"
-  ],
-  "distinct": true
-}

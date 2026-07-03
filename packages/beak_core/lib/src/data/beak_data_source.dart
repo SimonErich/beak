@@ -42,9 +42,10 @@ abstract interface class BeakDataSource {
   /// a single query (the reference-deduplication path).
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids);
 
-  /// Adds pivot rows linking the record of [table] with primary key [id] to
-  /// [relatedIds] through the belongs-to-many relation [relationKey],
-  /// skipping links that already exist.
+  /// Links [relatedIds] to the record of [table] with primary key [id]
+  /// through the to-many relation [relationKey]: belongs-to-many inserts
+  /// pivot rows (skipping links that already exist), has-many re-parents
+  /// the related rows' foreign keys.
   Future<void> attach(
     String table,
     Object id,
@@ -52,9 +53,9 @@ abstract interface class BeakDataSource {
     List<Object> relatedIds,
   );
 
-  /// Removes the pivot rows linking the record of [table] with primary key
-  /// [id] to [relatedIds] through the belongs-to-many relation
-  /// [relationKey].
+  /// Unlinks [relatedIds] from the record of [table] with primary key [id]
+  /// through the to-many relation [relationKey]: belongs-to-many removes
+  /// the pivot rows, has-many clears the related rows' foreign keys.
   Future<void> detach(
     String table,
     Object id,

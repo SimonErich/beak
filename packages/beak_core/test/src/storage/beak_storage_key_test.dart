@@ -80,4 +80,26 @@ void main() {
       );
     });
   });
+
+  group('appendToBaseUrl', () {
+    test('appends key segments to the base path', () {
+      expect(
+        BeakStorageKeys.appendToBaseUrl(
+          Uri.parse('https://cdn.test/assets/'),
+          'products/a.png',
+        ).toString(),
+        'https://cdn.test/assets/products/a.png',
+      );
+    });
+
+    test('works from a bare origin', () {
+      expect(
+        BeakStorageKeys.appendToBaseUrl(
+          Uri.parse('http://localhost:29000'),
+          'bucket/key.bin',
+        ).toString(),
+        'http://localhost:29000/bucket/key.bin',
+      );
+    });
+  });
 }

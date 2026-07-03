@@ -233,7 +233,7 @@ final class WormDataSource implements BeakDataSource {
     List<Object> relatedIds,
   ) => LeafNode(
     Predicate(
-      fieldName: registry.byTable(relatedTable)?.primaryKey.key ?? 'id',
+      fieldName: _translator.primaryKeyKeyOf(relatedTable),
       operator: Operator.inList,
       value: [...relatedIds],
     ),
@@ -299,10 +299,10 @@ final class WormDataSource implements BeakDataSource {
       );
 
   BeakRelationship _relationshipOf(String table, String relationKey) =>
-      registry.byTableOrThrow(table).relationshipByKey(relationKey) ??
-      (throw BeakConfigurationException(
-        'Model "$table" has no relation "$relationKey".',
-      ));
+      _translator.relationshipOrThrow(
+        registry.byTableOrThrow(table),
+        relationKey,
+      );
 
   Never _throwNotToMany(
     String table,

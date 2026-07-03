@@ -95,10 +95,6 @@ final class BeakLocalDiskStorageDriver implements BeakStorageDriver {
     return File('$_rootDir/$key');
   }
 
-  Uri _urlFor(String key) => publicBaseUrl.replace(
-    pathSegments: [
-      ...publicBaseUrl.pathSegments.where((segment) => segment.isNotEmpty),
-      ...key.split('/'),
-    ],
-  );
+  Uri _urlFor(String key) =>
+      BeakStorageKeys.appendToBaseUrl(publicBaseUrl, key);
 }

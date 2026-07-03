@@ -35,6 +35,17 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn {
   /// The display label of [value]: [labelOf] when set, else `value.name`.
   String labelFor(T value) => labelOf?.call(value) ?? value.name;
 
+  /// The declared value whose `name` is [name], or `null` when unknown —
+  /// the one way wire names decode back into enum values.
+  T? valueByName(String name) {
+    for (final option in values) {
+      if (option.name == name) {
+        return option;
+      }
+    }
+    return null;
+  }
+
   @override
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.badge);

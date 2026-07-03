@@ -13,10 +13,12 @@ void main() {
   late Handler handler;
 
   final fixedNow = DateTime.utc(2026, 7, 3, 12);
+  var currentNow = DateTime.utc(2026, 7, 3, 12);
   var mintedIds = 0;
 
   setUp(() async {
     Worm.seedRandom(42);
+    currentNow = fixedNow;
     final inner = await createApiTestDatabase();
     logger = InMemoryQueryLogger();
     final registry = createApiRegistry();
@@ -35,9 +37,9 @@ void main() {
                 strictness: const StrictnessConfig(),
                 adapterName: 'InMemory',
               ),
-              now: () => fixedNow,
+              now: () => currentNow,
             ),
-            now: () => fixedNow,
+            now: () => currentNow,
             generateId: () => 'minted-${++mintedIds}',
           ),
         );
@@ -217,9 +219,11 @@ void main() {
       );
     });
 
-    test('updates only the provided fields and stamps updated_at', () async {
+    test('updates only the provided fields and re-stamps updated_at', () async {
+      // Advance the injected clock past the create so a missing re-stamp
+      // (updated_at still at the create time) fails the assertion.
       final later = fixedNow.add(const Duration(hours: 1));
-      // The router's clock is fixed; assert semantics with the shared clock.
+      currentNow = later;
       final response = await call(
         'PATCH',
         '/api/notes/n1',
@@ -232,9 +236,8 @@ void main() {
       expect(values['rating'], 5);
       expect(values['updated_at'], {
         'type': 'dateTime',
-        'value': fixedNow.toIso8601String(),
+        'value': later.toIso8601String(),
       });
-      expect(later, isNot(fixedNow));
     });
 
     test('validates provided fields', () async {

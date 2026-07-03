@@ -74,4 +74,14 @@ void main() {
     );
     expect(preset.defaultValue, _OrderStatus.pending);
   });
+
+  test('valueByName decodes wire names and rejects unknowns', () {
+    const column = BeakEnumColumn<_OrderStatus>(
+      key: 'status',
+      label: 'Status',
+      values: _OrderStatus.values,
+    );
+    expect(column.valueByName('paid'), _OrderStatus.paid);
+    expect(column.valueByName('ghost'), isNull);
+  });
 }

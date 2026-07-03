@@ -43,7 +43,7 @@ final class GlobalSearchService {
         hits.add(
           BeakSearchHit(
             table: model.table,
-            id: record[model.primaryKey.key]?.raw ?? '',
+            id: model.primaryKeyOf(record) ?? '',
             displayLabel: record[model.displayColumnKey]?.raw?.toString() ?? '',
             matchedColumnKey: _matchedColumnKey(
               record,

@@ -2,9 +2,11 @@ import 'package:test/test.dart';
 import 'package:worm/src/adapter/in_memory_adapter.dart';
 import 'package:worm/src/exception/unsupported_operation_exception.dart';
 import 'package:worm/src/model/model.dart';
+import 'package:worm/src/query/eager_load.dart';
 import 'package:worm/src/query/query_builder.dart';
 import 'package:worm/src/query/query_context.dart';
 import 'package:worm/src/query/query_descriptor.dart';
+import 'package:worm/src/relation/belongs_to.dart';
 import 'package:worm/src/relation/eager_loader.dart';
 import 'package:worm/src/relation/has_many.dart';
 import 'package:worm/src/relation/relation_base.dart';
@@ -178,6 +180,75 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('Shared-head nested paths', () {
+    QueryContext<TestUser> nestedContext(InMemoryAdapter adapter) =>
+        QueryContext<TestUser>(
+          adapter: adapter,
+          table: 'users',
+          hydrate: TestUser.fromRow,
+          relations: <String, Relation<Model, Model>>{
+            'posts': userPostsRelation(),
+            'user': postUserRelation(),
+            'author': const BelongsToRelation<Model, Model>(
+              name: 'author',
+              parentTable: 'users',
+              foreignKey: 'user_id',
+              hydrateParent: TestUser.fromRow,
+            ),
+          },
+        );
+
+    test('sibling nested paths under one head all survive', () async {
+      final adapter = await seededAdapter();
+      final ctx = nestedContext(adapter);
+      final parents = await QueryBuilder<TestUser>.from(ctx).get();
+      final queries = await EagerLoader.run(
+        context: ctx,
+        parents: parents,
+        loads: const [EagerLoad('posts.user'), EagerLoad('posts.author')],
+        aggregates: const [],
+      );
+
+      // One merged 'posts' load + one query per sibling tail — NOT two
+      // independent 'posts' loads clobbering each other's instances.
+      expect(queries, 3);
+      final alice = parents.firstWhere((u) => u.name == 'Alice');
+      final posts = alice.relations['posts'];
+      if (posts case final List<Model> list) {
+        expect(list, hasLength(2));
+        for (final post in list) {
+          expect(
+            post.relations['user'],
+            isA<TestUser>().having((u) => u.name, 'name', 'Alice'),
+            reason: 'the first sibling nested load must survive',
+          );
+          expect(
+            post.relations['author'],
+            isA<TestUser>().having((u) => u.name, 'name', 'Alice'),
+            reason: 'the second sibling nested load must survive',
+          );
+        }
+      } else {
+        fail('Expected posts to be eager-loaded as List<Model>');
+      }
+    });
+
+    test('duplicate paths for one head load it exactly once', () async {
+      final adapter = await seededAdapter();
+      final ctx = nestedContext(adapter);
+      final parents = await QueryBuilder<TestUser>.from(ctx).get();
+      final queries = await EagerLoader.run(
+        context: ctx,
+        parents: parents,
+        loads: const [EagerLoad('posts'), EagerLoad('posts')],
+        aggregates: const [],
+      );
+      expect(queries, 1);
+      final alice = parents.firstWhere((u) => u.name == 'Alice');
+      expect(alice.relations['posts'], isA<List<Model>>());
     });
   });
 }

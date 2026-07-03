@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../data/optimistic.dart';
+import '../panel/beak_routes.dart';
 
 part 'built_in_actions.dart';
 

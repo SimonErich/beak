@@ -28,6 +28,7 @@ export 'src/pages/beak_resource_pages.dart';
 export 'src/panel/beak_panel.dart';
 export 'src/panel/beak_panel_config.dart';
 export 'src/panel/beak_router.dart';
+export 'src/panel/beak_routes.dart';
 export 'src/state/beak_view_model.dart';
 export 'src/table/beak_data_table.dart';
 export 'src/table/beak_table_action.dart';

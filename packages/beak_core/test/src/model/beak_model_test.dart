@@ -133,4 +133,53 @@ void main() {
   test('primaryKey can be overridden with a non-id column', () {
     expect(const _CustomKeyModel().primaryKey, same(_ProductColumns.name));
   });
+
+  group('primaryKeyOf', () {
+    test('extracts the raw primary-key value of a record', () {
+      const model = _ProductModel();
+      expect(
+        model.primaryKeyOf(BeakRecord.fromRow(const {'id': 7, 'name': 'x'})),
+        7,
+      );
+      expect(
+        model.primaryKeyOf(BeakRecord.fromRow(const {'name': 'x'})),
+        isNull,
+      );
+    });
+  });
+
+  group('columnsFor', () {
+    test('projects the columns visible in a context, in order', () {
+      const model = _ContextModel();
+      expect(model.columnsFor(BeakContext.table), [_ContextModel.everywhere]);
+      expect(model.columnsFor(BeakContext.form), [
+        _ContextModel.everywhere,
+        _ContextModel.formOnly,
+      ]);
+    });
+  });
+}
+
+/// A model with one context-restricted column for projection tests.
+final class _ContextModel extends BeakModel {
+  const _ContextModel();
+
+  /// Visible in every context.
+  static const everywhere = BeakStringColumn(key: 'id', label: 'Id');
+
+  /// Visible only on forms.
+  static const formOnly = BeakStringColumn(
+    key: 'draft',
+    label: 'Draft',
+    visibleOn: {BeakContext.form},
+  );
+
+  @override
+  String get table => 'contexts';
+
+  @override
+  String get displayColumnKey => 'id';
+
+  @override
+  List<BeakColumn> get columns => const [everywhere, formOnly];
 }
