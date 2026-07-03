@@ -75,6 +75,27 @@ abstract final class NoteColumns {
     label: 'Updated at',
   );
 
+  /// Cover image with rules and a thumbnail rendition.
+  static const avatar = BeakImageColumn(
+    key: 'avatar',
+    label: 'Avatar',
+    storagePath: 'avatars',
+    maxSizeInBytes: 64 * 1024,
+    maxDimensions: BeakDimensions.square(64),
+    transforms: [
+      BeakThumbnailTransform(size: BeakDimensions.square(2), name: 'thumb'),
+    ],
+  );
+
+  /// PDF attachment with a tight size cap.
+  static const attachment = BeakFileColumn(
+    key: 'attachment',
+    label: 'Attachment',
+    storagePath: 'files',
+    maxSizeInBytes: 1024,
+    allowedTypes: [BeakFileType.pdf],
+  );
+
   /// All columns, in display order.
   static const List<BeakColumn> values = [
     id,
@@ -87,6 +108,8 @@ abstract final class NoteColumns {
     authorId,
     createdAt,
     updatedAt,
+    avatar,
+    attachment,
   ];
 }
 
@@ -213,6 +236,8 @@ const List<SchemaDescriptor> apiSchema = [
       SchemaColumn(name: 'author_id', type: ColumnType.text),
       SchemaColumn(name: 'created_at', type: ColumnType.dateTime),
       SchemaColumn(name: 'updated_at', type: ColumnType.dateTime),
+      SchemaColumn(name: 'avatar', type: ColumnType.text),
+      SchemaColumn(name: 'attachment', type: ColumnType.text),
       SchemaColumn(name: 'deleted_at', type: ColumnType.dateTime),
     ],
   ),

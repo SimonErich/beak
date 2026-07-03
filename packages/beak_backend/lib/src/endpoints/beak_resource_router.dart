@@ -5,6 +5,8 @@ import 'package:shelf_router/shelf_router.dart';
 import '../data/beak_data_source.dart';
 import '../service/beak_resource_service.dart';
 import '../service/validation_service.dart';
+import '../uploads/upload_router.dart';
+import '../uploads/upload_service.dart';
 import 'crud_handlers.dart';
 
 /// The generated routes of one model's REST surface, relative to its mount
@@ -24,7 +26,8 @@ Router beakResourceRouter(BeakResourceService service) {
 
 /// The full generated API: one resource router per registered model,
 /// mounted under `/api/{table}` — registering a model is all it takes to
-/// get its CRUD surface.
+/// get its CRUD surface, and configuring [uploads] adds the per-column
+/// upload endpoints alongside it.
 ///
 /// [validation], [now], and [generateId] configure every model's service
 /// (the latter two inject the clock and id mint for tests).
@@ -32,6 +35,7 @@ Handler beakApiRouter({
   required BeakModelRegistry registry,
   required BeakDataSource dataSource,
   ValidationService validation = const ValidationService(),
+  UploadService? uploads,
   DateTime Function()? now,
   String Function()? generateId,
 }) {
@@ -48,7 +52,11 @@ Handler beakApiRouter({
       now: now,
       generateId: generateId,
     );
-    router.mount('/api/${model.table}', beakResourceRouter(service).call);
+    final resourceRouter = beakResourceRouter(service);
+    if (uploads != null) {
+      registerUploadRoutes(resourceRouter, model: model, service: uploads);
+    }
+    router.mount('/api/${model.table}', resourceRouter.call);
   }
   return router.call;
 }

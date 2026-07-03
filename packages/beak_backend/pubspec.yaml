@@ -11,8 +11,15 @@ environment:
 dependencies:
   beak_core:
     path: ../beak_core
+  beak_image:
+    path: ../beak_image
+  beak_storage_ftp:
+    path: ../beak_storage_ftp
+  beak_storage_s3:
+    path: ../beak_storage_s3
   meta: ^1.16.0
   shelf: ^1.4.2
+  shelf_multipart: ^2.0.1
   shelf_router: ^1.1.4
   worm:
     path: ../worm
@@ -20,5 +27,6 @@ dependencies:
     path: ../worm_postgres
 
 dev_dependencies:
+  image: ^4.9.1
   lints: ^6.0.0
   test: ^1.25.6
