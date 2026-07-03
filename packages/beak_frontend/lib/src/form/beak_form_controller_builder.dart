@@ -192,6 +192,13 @@ final class BeakFormController
   BeakFormSlot slotOfForeignKey(BeakBelongsTo relation) =>
       _slotOfKey(relation.foreignKey);
 
+  /// Whether a form field exists for the column stored under [columnKey] —
+  /// the single eligibility source the form widget renders from.
+  bool hasFieldForKey(String columnKey) => _slotByKey.containsKey(columnKey);
+
+  /// Whether a form field exists for [column].
+  bool hasFieldFor(BeakColumn column) => hasFieldForKey(column.key);
+
   /// The current typed value of [column]'s field.
   T? valueOf<T>(BeakColumn column) => get<T>(slotOf(column));
 
@@ -262,9 +269,8 @@ final class BeakFormController
     };
     final String primaryKeyKey = model.primaryKey.key;
 
-    for (final column in model.columns) {
-      if (!column.visibleOn.contains(BeakContext.form) ||
-          column.key == primaryKeyKey) {
+    for (final column in model.columnsFor(BeakContext.form)) {
+      if (column.key == primaryKeyKey) {
         continue;
       }
       final BeakFormSection? section = sectionByColumnKey[column.key];
@@ -296,8 +302,7 @@ final class BeakFormController
       case BeakStringColumn() ||
           BeakTextColumn() ||
           BeakJsonColumn() ||
-          BeakImageColumn() ||
-          BeakFileColumn():
+          BeakUploadColumn():
         addTextField(
           _claim(column.key, column: column),
           validators: _mirrors<String>(column.rules),
@@ -467,8 +472,7 @@ final class BeakFormController
       BeakTextColumn() ||
       BeakRichTextColumn() ||
       BeakJsonColumn() ||
-      BeakImageColumn() ||
-      BeakFileColumn() => switch (get<String>(slot)) {
+      BeakUploadColumn() => switch (get<String>(slot)) {
         final String text => BeakStringValue(text),
         null => null,
       },
@@ -511,15 +515,13 @@ final class BeakFormController
       BeakTextColumn() ||
       BeakRichTextColumn() ||
       BeakJsonColumn() ||
-      BeakImageColumn() ||
-      BeakFileColumn() => raw.toString(),
+      BeakUploadColumn() => raw.toString(),
       BeakIntColumn() || BeakDecimalColumn() => switch (raw) {
         final num number => number,
         _ => null,
       },
       BeakBoolColumn() => raw == true,
-      final BeakEnumColumn<Enum> enumColumn => _enumByName(
-        enumColumn,
+      final BeakEnumColumn<Enum> enumColumn => enumColumn.valueByName(
         raw.toString(),
       ),
       BeakDateTimeColumn() => switch (raw) {
@@ -533,14 +535,5 @@ final class BeakFormController
       },
       BeakCustomColumn() => null,
     };
-  }
-
-  Enum? _enumByName(BeakEnumColumn<Enum> column, String name) {
-    for (final option in column.values) {
-      if (option.name == name) {
-        return option;
-      }
-    }
-    return null;
   }
 }

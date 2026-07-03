@@ -12,6 +12,9 @@ BUILD_COMPLETE
 NEEDS_HUMAN.md
 build.log
 
+# CodeGraph index (local, per-machine knowledge graph — not for committing)
+.codegraph/
+
 # IDE
 .idea/
 *.iml

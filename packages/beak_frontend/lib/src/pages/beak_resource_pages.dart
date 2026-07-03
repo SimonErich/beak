@@ -12,6 +12,7 @@ import '../detail/relation_manager.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_data_form.dart';
 import '../panel/beak_panel_config.dart';
+import '../panel/beak_routes.dart';
 import '../table/beak_data_table.dart';
 import '../table/beak_table_action.dart';
 import 'beak_page_scaffold.dart';
@@ -119,9 +120,9 @@ class BeakResourceListPage extends HookWidget {
         dataSource: dataSource,
         initialSpec: spec,
         onRowTap: (record) {
-          final Object? id = record[model.primaryKey.key]?.raw;
+          final Object? id = model.primaryKeyOf(record);
           if (id != null) {
-            router.go('/${model.table}/$id');
+            router.go(BeakRoutes.show(model.table, id));
           }
         },
         actions: [
@@ -263,7 +264,7 @@ class BeakResourceCreatePage extends HookWidget {
       child: BeakDataForm(
         model: resource.model,
         dataSource: dataSource,
-        onSaved: (_) => router.go(resource.route),
+        onSaved: (_) => router.go(BeakRoutes.list(resource.model.table)),
       ),
     );
   }
@@ -300,7 +301,8 @@ class BeakResourceEditPage extends HookWidget {
         model: resource.model,
         dataSource: dataSource,
         recordId: recordId,
-        onSaved: (_) => router.go('${resource.route}/$recordId'),
+        onSaved: (_) =>
+            router.go(BeakRoutes.show(resource.model.table, recordId)),
       ),
     );
   }

@@ -23,7 +23,7 @@ final class FormViewModel extends BeakViewModel {
   /// The model this form edits.
   final BeakModel model;
 
-  /// The record under edit, or `null` for create mode.
+  /// Primary key of the record under edit, or `null` for create mode.
   final Object? recordId;
 
   final BeakResourceRepository _repository;

@@ -35,20 +35,26 @@ final class BeakExportHandlers {
       action: 'export',
       table: model.table,
     );
-    final spec = BeakQuerySpec.fromJson(await readJsonObject(request));
-    if (spec.table != model.table) {
-      throw BeakValidationException(
-        'Export spec targets "${spec.table}" but this endpoint serves '
-        '"${model.table}".',
-      );
-    }
+    final spec = _readSpec(await readJsonObject(request));
     return Response.ok(
-      service.exportCsv(model.table, spec),
+      await service.exportCsv(model.table, spec),
       headers: {
         'content-type': 'text/csv; charset=utf-8',
         'content-disposition': 'attachment; filename="${model.table}.csv"',
       },
     );
+  }
+
+  /// Decodes the posted spec; malformed specs are user errors (422),
+  /// never internal ones.
+  BeakQuerySpec _readSpec(Map<String, Object?> body) {
+    try {
+      return BeakQuerySpec.fromJson(body);
+    } on BeakConfigurationException catch (exception) {
+      throw BeakValidationException(
+        'Malformed spec body: ${exception.message}',
+      );
+    }
   }
 }
 

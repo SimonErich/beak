@@ -5,21 +5,32 @@ import 'package:obers_ui/obers_ui.dart';
 import 'package:reference_admin_models/reference_admin_models.dart';
 
 /// Duplicates a product — the custom-action escape hatch: plain typed code
-/// over the data source, surfaced as a row action.
+/// over the data source, surfaced as a row action. Fields are addressed
+/// through the shared column constants, never string literals.
 Future<void> duplicateProduct(
   BeakRecord record,
   BeakActionContext context,
 ) async {
-  final String name = record['name']?.raw?.toString() ?? 'Product';
+  final String? name = switch (record[ProductColumns.name.key]?.raw) {
+    final String value => value,
+    _ => null,
+  };
+  if (name == null) {
+    throw const BeakConfigurationException(
+      'Cannot duplicate a product that has no name.',
+    );
+  }
   await context.dataSource.create(
-    'products',
+    context.model.table,
     BeakRecord(
       values: {
-        'name': BeakStringValue('$name (copy)'),
-        if (record['price'] case final BeakValue price) 'price': price,
-        if (record['status'] case final BeakValue status) 'status': status,
-        if (record['category_id'] case final BeakValue category)
-          'category_id': category,
+        ProductColumns.name.key: BeakStringValue('$name (copy)'),
+        if (record[ProductColumns.price.key] case final BeakValue price)
+          ProductColumns.price.key: price,
+        if (record[ProductColumns.status.key] case final BeakValue status)
+          ProductColumns.status.key: status,
+        if (record[ProductColumns.categoryId.key] case final BeakValue category)
+          ProductColumns.categoryId.key: category,
       },
     ),
   );
@@ -30,8 +41,8 @@ Future<void> duplicateProduct(
 List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
-      label: record['name']?.raw?.toString() ?? '',
-      value: switch (record['stock']?.raw) {
+      label: record[ProductColumns.name.key]?.raw?.toString() ?? '',
+      value: switch (record[ProductColumns.stock.key]?.raw) {
         final num stock => stock.toDouble(),
         _ => 0,
       },

@@ -15,8 +15,6 @@ dependencies:
     path: ../reference_admin_models
   worm:
     path: ../../packages/worm
-  worm_postgres:
-    path: ../../packages/worm_postgres
 
 dev_dependencies:
   http: ^1.6.0

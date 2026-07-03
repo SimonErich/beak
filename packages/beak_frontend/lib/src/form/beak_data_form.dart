@@ -43,7 +43,7 @@ class BeakDataForm extends HookWidget {
   /// The source loads and submits run against.
   final BeakDataSource dataSource;
 
-  /// The record under edit, or `null` for create mode.
+  /// Primary key of the record under edit, or `null` for create mode.
   final Object? recordId;
 
   /// Field grouping with optional conditional visibility; `null` renders
@@ -165,13 +165,13 @@ class BeakDataForm extends HookWidget {
     final List<Widget> body = [];
     final List<BeakFormSection>? declared = sections;
     if (declared == null) {
-      final String primaryKeyKey = model.primaryKey.key;
+      // The controller is the single source of field eligibility — the
+      // form only renders what it registered, so the two can never drift.
       final Set<String> columnKeys = {
         for (final column in model.columns) column.key,
       };
       for (final column in model.columns) {
-        if (!column.visibleOn.contains(BeakContext.form) ||
-            column.key == primaryKeyKey) {
+        if (!controller.hasFieldFor(column)) {
           continue;
         }
         final Widget? field = fieldFor(column);
@@ -180,7 +180,8 @@ class BeakDataForm extends HookWidget {
         }
       }
       for (final relation in relationByForeignKey.values) {
-        if (!columnKeys.contains(relation.foreignKey)) {
+        if (controller.hasFieldForKey(relation.foreignKey) &&
+            !columnKeys.contains(relation.foreignKey)) {
           body.add(
             BeakBelongsToField(
               controller: controller,
@@ -205,7 +206,8 @@ class BeakDataForm extends HookWidget {
                 children: [
                   OiLabel.smallStrong(section.title),
                   for (final column in section.columns)
-                    if (fieldFor(column) case final Widget field) field,
+                    if (controller.hasFieldFor(column))
+                      if (fieldFor(column) case final Widget field) field,
                 ],
               );
             },

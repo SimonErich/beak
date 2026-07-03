@@ -28,11 +28,7 @@ final class BeakUploadRepository {
       int? maxSizeInBytes,
       List<BeakFileType> allowedTypes,
     ) = switch (column) {
-      BeakImageColumn(:final maxSizeInBytes, :final allowedTypes) => (
-        maxSizeInBytes,
-        allowedTypes,
-      ),
-      BeakFileColumn(:final maxSizeInBytes, :final allowedTypes) => (
+      BeakUploadColumn(:final maxSizeInBytes, :final allowedTypes) => (
         maxSizeInBytes,
         allowedTypes,
       ),

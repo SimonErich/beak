@@ -29,6 +29,14 @@ final class _AdminOnlyWrites implements BeakPolicy {
   @override
   bool canDelete(BeakPrincipal? principal, String table, Object id) =>
       _isAdmin(principal);
+
+  @override
+  bool canDeleteUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  ) => _isAdmin(principal);
 }
 
 void main() {

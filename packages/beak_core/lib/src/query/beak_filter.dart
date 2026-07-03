@@ -16,6 +16,16 @@ import '../common/json_support.dart';
 sealed class BeakFilter {
   const BeakFilter();
 
+  /// Collapses [filters] into one predicate: `null` when empty, the single
+  /// element alone, otherwise a [BeakAndFilter] — the one way filter lists
+  /// combine.
+  static BeakFilter? allOf(List<BeakFilter> filters) =>
+      switch (filters.length) {
+        0 => null,
+        1 => filters.single,
+        _ => BeakAndFilter(filters),
+      };
+
   /// Decodes [json] (produced by [toJson]) back into a predicate tree.
   ///
   /// Throws a [BeakConfigurationException] on malformed input.

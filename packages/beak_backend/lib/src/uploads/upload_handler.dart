@@ -65,7 +65,12 @@ final class BeakUploadHandlers {
       ),
     };
     enforcePolicyDecision(
-      allowed: policy.canDelete(beakPrincipal(request), model.table, key),
+      allowed: policy.canDeleteUpload(
+        beakPrincipal(request),
+        model.table,
+        columnKey,
+        key,
+      ),
       principal: beakPrincipal(request),
       action: 'delete uploads of',
       table: model.table,

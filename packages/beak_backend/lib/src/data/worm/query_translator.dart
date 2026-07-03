@@ -242,7 +242,7 @@ final class WormQueryTranslator {
   ) {
     var result = builder;
     for (final load in loads) {
-      final relationship = _relationshipOrThrow(model, load.relationKey);
+      final relationship = relationshipOrThrow(model, load.relationKey);
       if (load.filter != null) {
         if (load.nested.isNotEmpty) {
           throw BeakConfigurationException(
@@ -266,7 +266,7 @@ final class WormQueryTranslator {
   }
 
   List<String> _pathsFor(BeakModel owner, BeakRelationLoad load) {
-    final relationship = _relationshipOrThrow(owner, load.relationKey);
+    final relationship = relationshipOrThrow(owner, load.relationKey);
     if (load.filter != null) {
       throw BeakConfigurationException(
         'Nested relation load "${load.relationKey}" cannot carry a '
@@ -284,7 +284,12 @@ final class WormQueryTranslator {
     ];
   }
 
-  BeakRelationship _relationshipOrThrow(BeakModel model, String relationKey) =>
+  /// The relationship named [relationKey] on [model].
+  ///
+  /// Throws a [BeakConfigurationException] when the model declares none —
+  /// the single relation-or-throw lookup both the translator and the data
+  /// source use.
+  BeakRelationship relationshipOrThrow(BeakModel model, String relationKey) =>
       model.relationshipByKey(relationKey) ??
       (throw BeakConfigurationException(
         'Model "${model.table}" has no relation "$relationKey".',
@@ -331,7 +336,7 @@ final class WormQueryTranslator {
         parentTable: relatedTable,
         foreignKey: foreignKey,
         hydrateParent: _hydratorForTable(relatedTable),
-        ownerKey: _primaryKeyOfTable(relatedTable),
+        ownerKey: primaryKeyKeyOf(relatedTable),
       ),
     BeakHasOne(:final key, :final relatedTable, :final foreignKey) =>
       HasOneRelation<Model, Model>(
@@ -364,17 +369,19 @@ final class WormQueryTranslator {
         relatedPivotKey: relatedPivotKey,
         hydrateRelated: _hydratorForTable(relatedTable),
         parentKey: owner.primaryKey.key,
-        relatedKey: _primaryKeyOfTable(relatedTable),
+        relatedKey: primaryKeyKeyOf(relatedTable),
       ),
   };
 
   WormRecordModel Function(Map<String, Object?> row) _hydratorForTable(
     String table,
   ) {
-    final String primaryKeyColumn = _primaryKeyOfTable(table);
+    final String primaryKeyColumn = primaryKeyKeyOf(table);
     return (row) => WormRecordModel.fromRow(table, primaryKeyColumn, row);
   }
 
-  String _primaryKeyOfTable(String table) =>
+  /// The primary-key column of [table], `'id'` for unregistered tables —
+  /// the single pk-name lookup both the translator and the data source use.
+  String primaryKeyKeyOf(String table) =>
       registry.byTable(table)?.primaryKey.key ?? 'id';
 }

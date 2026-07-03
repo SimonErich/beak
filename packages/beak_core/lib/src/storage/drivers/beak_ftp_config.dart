@@ -1,7 +1,7 @@
 part of '../beak_storage_config.dart';
 
 /// Configures the FTP storage driver; consumed by `beak_storage_ftp`
-/// (Phase 06). `beak_core` owns the config surface so apps configure
+/// package. `beak_core` owns the config surface so apps configure
 /// storage without importing driver packages.
 final class BeakFtpConfig extends BeakStorageConfig {
   /// Creates an FTP storage configuration.

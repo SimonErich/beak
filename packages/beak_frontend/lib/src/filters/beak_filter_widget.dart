@@ -78,12 +78,7 @@ class BeakFilterBar extends HookWidget {
         nextControls[def.column.key] = controlValue;
       }
       controls.value = nextControls;
-      final parts = nextActive.values.toList();
-      onChanged(switch (parts.length) {
-        0 => null,
-        1 => parts.single,
-        _ => BeakAndFilter(parts),
-      });
+      onChanged(BeakFilter.allOf(nextActive.values.toList()));
     }
 
     return Wrap(

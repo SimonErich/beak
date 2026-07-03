@@ -6,6 +6,7 @@ import '../actions/beak_action.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../filters/beak_filter_widget.dart';
+import 'beak_routes.dart';
 
 /// A typed icon reference for panel navigation — a zero-cost wrapper so
 /// resource declarations stay expressive (`BeakIconToken(OiIcons.package)`)
@@ -53,7 +54,7 @@ final class BeakResource {
   String get effectiveLabel => label ?? _titleCase(model.table);
 
   /// The list route of this resource.
-  String get route => '/${model.table}';
+  String get route => BeakRoutes.list(model.table);
 
   static String _titleCase(String table) => table
       .split('_')
@@ -107,15 +108,5 @@ final class BeakPanelConfig {
       registry.register(resource.model);
     }
     return registry;
-  }
-
-  /// The resource behind [table], or `null` when none is registered.
-  BeakResource? resourceByTable(String table) {
-    for (final resource in resources) {
-      if (resource.model.table == table) {
-        return resource;
-      }
-    }
-    return null;
   }
 }

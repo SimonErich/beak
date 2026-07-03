@@ -2,6 +2,8 @@ import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
+import '../context/beak_context.dart';
+import '../query/beak_record.dart';
 import '../relations/beak_relationship.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
@@ -62,6 +64,16 @@ abstract base class BeakModel {
     }
     return column;
   }
+
+  /// The primary-key value of [record], or `null` when the record does not
+  /// carry it — the single way Beak extracts a record's id.
+  Object? primaryKeyOf(BeakRecord record) => record[primaryKey.key]?.raw;
+
+  /// The columns visible in [context], in declaration order.
+  List<BeakColumn> columnsFor(BeakContext context) => [
+    for (final column in columns)
+      if (column.visibleOn.contains(context)) column,
+  ];
 
   /// The first column stored under [key], or `null` when none matches.
   BeakColumn? columnByKey(String key) {

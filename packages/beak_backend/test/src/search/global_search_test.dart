@@ -169,4 +169,12 @@ final class _NotesOnlyPolicy implements BeakPolicy {
 
   @override
   bool canDelete(BeakPrincipal? principal, String table, Object id) => false;
+
+  @override
+  bool canDeleteUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  ) => false;
 }

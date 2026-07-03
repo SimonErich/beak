@@ -1,7 +1,7 @@
 part of '../beak_storage_config.dart';
 
 /// Configures the S3-compatible storage driver (AWS S3, MinIO, ...);
-/// consumed by `beak_storage_s3` (Phase 06). `beak_core` owns the config
+/// consumed by `beak_storage_s3`. `beak_core` owns the config
 /// surface so apps configure storage without importing driver packages.
 final class BeakS3Config extends BeakStorageConfig {
   /// Creates an S3 storage configuration.

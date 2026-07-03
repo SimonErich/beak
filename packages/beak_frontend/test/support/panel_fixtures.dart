@@ -205,43 +205,6 @@ final class ArticleModel extends BeakModel {
   ];
 }
 
-/// The categories fixture model (belongs-to target).
-final class CategoryModel extends BeakModel {
-  /// Creates the categories model.
-  const CategoryModel();
-
-  @override
-  String get table => 'categories';
-
-  @override
-  String get displayColumnKey => 'name';
-
-  @override
-  List<BeakColumn> get columns => const [
-    BeakStringColumn(key: 'id', label: 'Id'),
-    BeakStringColumn(key: 'name', label: 'Name', searchable: true),
-  ];
-}
-
-/// The comments fixture model (has-many target).
-final class CommentModel extends BeakModel {
-  /// Creates the comments model.
-  const CommentModel();
-
-  @override
-  String get table => 'comments';
-
-  @override
-  String get displayColumnKey => 'text';
-
-  @override
-  List<BeakColumn> get columns => const [
-    BeakStringColumn(key: 'id', label: 'Id'),
-    BeakStringColumn(key: 'text', label: 'Text'),
-    BeakStringColumn(key: 'article_id', label: 'Article id'),
-  ];
-}
-
 /// The labels fixture model.
 final class LabelModel extends BeakModel {
   /// Creates the labels model.

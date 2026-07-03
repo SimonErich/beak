@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-/// A typed row or bulk action surfaced on a [BeakDataTable] — Phase 14
-/// grows this into the full action system; the shape stays source-typed
-/// (no stringly callbacks).
+/// A typed row or bulk action surfaced on a [BeakDataTable] — the table
+/// widget's raw hook. The resource-level action system (`BeakAction` and
+/// friends) adapts onto it in the generated pages; use this directly only
+/// when composing a table without `BeakResource`.
 final class BeakTableAction {
   /// Creates an action.
   const BeakTableAction({
@@ -25,6 +26,8 @@ final class BeakTableAction {
   /// Whether the action destroys data (rendered destructively).
   final bool destructive;
 
-  /// Runs the action over the target records' primary keys.
+  /// Runs the action over the target records' raw primary keys (row and
+  /// bulk invocations both deliver the typed key values, never
+  /// stringified row keys).
   final Future<void> Function(List<Object> recordIds) onRun;
 }

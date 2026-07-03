@@ -59,8 +59,7 @@ final class UploadService {
   /// path of `table.columnKey`.
   Future<void> remove(String table, String columnKey, String key) async {
     final String storagePath = switch (_columnOf(table, columnKey)) {
-      BeakFileColumn(:final storagePath) => storagePath,
-      BeakImageColumn(:final storagePath) => storagePath,
+      BeakUploadColumn(:final storagePath) => storagePath,
       final BeakColumn other => throw BeakValidationException(
         'Column "$columnKey" of "$table" is a ${other.runtimeType}; '
         'uploads need a file or image column.',

@@ -62,7 +62,7 @@ enum _RunnerFormat {
 }
 
 /// Executes `BeakImageTransform` pipelines with `package:image` — the
-/// concrete [BeakTransformRunner] the upload endpoint registers (Phase 09).
+/// concrete [BeakTransformRunner] the upload endpoint registers.
 ///
 /// Sources must be one of the raster formats image columns accept (PNG,
 /// JPEG, WebP, GIF); anything else throws a [BeakValidationException].

@@ -58,7 +58,7 @@ Widget? beakFormFieldFor({
     ),
     BeakColorColumn() => OiAfColorInput(field: slot(), label: column.label),
     BeakRichTextColumn() => OiAfRichEditor(field: slot(), label: column.label),
-    BeakImageColumn() || BeakFileColumn() => BeakUploadField(
+    BeakUploadColumn() => BeakUploadField(
       controller: controller,
       column: column,
       uploader: uploader,

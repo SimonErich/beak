@@ -1,9 +1,0 @@
-{
-  "type": "query",
-  "table": "users",
-  "where": {
-    "type": "leaf",
-    "field": "deleted_at",
-    "operator": "isNull"
-  }
-}

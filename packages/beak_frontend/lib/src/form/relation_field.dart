@@ -27,6 +27,32 @@ Future<List<BeakRecord>> beakSearchRelated(
   };
 }
 
+/// Loads the records currently attached through [relation] on the
+/// [parentId] record of [parentModel] (one relation-loaded parent query);
+/// empty on failure or when the parent is missing.
+Future<List<BeakRecord>> beakLoadAttachedRecords(
+  BeakResourceRepository repository, {
+  required BeakModel parentModel,
+  required Object parentId,
+  required BeakBelongsToMany relation,
+}) async {
+  final spec = BeakQuerySpec(table: parentModel.table)
+      .withFilter(
+        BeakFieldFilter.forKey(
+          parentModel.primaryKey.key,
+          BeakOperator.eq,
+          BeakValue.of(parentId),
+        ),
+      )
+      .withRelation(relation);
+  final result = await repository.query(spec);
+  return switch (result) {
+    BeakOk(:final value) when value.items.isNotEmpty =>
+      value.items.first.relations[relation.key] ?? const [],
+    BeakOk() || BeakErr() => const [],
+  };
+}
+
 /// The form picker for a [BeakBelongsTo] relationship: an async-searching
 /// combobox over the related table (searching the relation's search
 /// columns, showing its display column) whose selection stores the related
@@ -86,20 +112,15 @@ class BeakBelongsToField extends HookWidget {
       return () => cancelled = true;
     }, [repository, slot]);
 
-    final List<String> searchKeys = relation.searchColumnKeys.isEmpty
-        ? [relation.displayColumnKey]
-        : relation.searchColumnKeys;
-
     return OiComboBox<BeakRecord>(
       label: relation.label,
-      labelOf: (record) =>
-          record[relation.displayColumnKey]?.raw?.toString() ?? '',
+      labelOf: relation.displayLabelOf,
       value: selected.value,
       error: controller.getError(slot),
       search: (query) => beakSearchRelated(
         repository,
         table: relation.relatedTable,
-        columnKeys: searchKeys,
+        columnKeys: relation.effectiveSearchColumnKeys,
         term: query,
       ),
       onSelect: (record) {
@@ -152,22 +173,14 @@ class BeakBelongsToManyField extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final spec = BeakQuerySpec(table: model.table)
-            .withFilter(
-              BeakFieldFilter.forKey(
-                model.primaryKey.key,
-                BeakOperator.eq,
-                BeakValue.of(parentId),
-              ),
-            )
-            .withRelation(relation);
-        final result = await repository.query(spec);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value) when value.items.isNotEmpty) {
-          attached.value =
-              value.items.first.relations[relation.key] ?? const [];
+        final records = await beakLoadAttachedRecords(
+          repository,
+          parentModel: model,
+          parentId: parentId,
+          relation: relation,
+        );
+        if (!cancelled) {
+          attached.value = records;
         }
       }
 
@@ -201,20 +214,15 @@ class BeakBelongsToManyField extends HookWidget {
       }
     }
 
-    final List<String> searchKeys = relation.searchColumnKeys.isEmpty
-        ? [relation.displayColumnKey]
-        : relation.searchColumnKeys;
-
     return OiComboBox<BeakRecord>(
       label: relation.label,
-      labelOf: (record) =>
-          record[relation.displayColumnKey]?.raw?.toString() ?? '',
+      labelOf: relation.displayLabelOf,
       multiSelect: true,
       selectedValues: attached.value,
       search: (query) => beakSearchRelated(
         repository,
         table: relation.relatedTable,
-        columnKeys: searchKeys,
+        columnKeys: relation.effectiveSearchColumnKeys,
         term: query,
       ),
       onMultiSelect: sync,

@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 import '../columns/beak_render_config.dart';
 import '../context/beak_context.dart';
 import '../context/beak_render_intent.dart';
+import '../query/beak_record.dart';
 import 'beak_on_delete.dart';
 
 part 'beak_belongs_to.dart';
@@ -52,6 +53,16 @@ sealed class BeakRelationship {
 
   /// Keys of related-model columns searched when picking a record.
   final List<String> searchColumnKeys;
+
+  /// The keys pickers actually search: [searchColumnKeys], falling back to
+  /// the display column when none are declared.
+  List<String> get effectiveSearchColumnKeys =>
+      searchColumnKeys.isEmpty ? [displayColumnKey] : searchColumnKeys;
+
+  /// The display label of a related [record] (its display column's value,
+  /// empty when absent).
+  String displayLabelOf(BeakRecord record) =>
+      record[displayColumnKey]?.raw?.toString() ?? '';
 
   /// The per-context render configuration of this relationship.
   BeakRenderConfig get renderConfig;

@@ -19,6 +19,19 @@ abstract interface class BeakPolicy {
 
   /// Whether [principal] may delete the record of [table] with [id].
   bool canDelete(BeakPrincipal? principal, String table, Object id);
+
+  /// Whether [principal] may delete the stored upload under [storageKey]
+  /// held by [table]'s file column [columnKey].
+  ///
+  /// A dedicated hook: upload removal identifies the file by its storage
+  /// key, not by a record id, so it must never flow through [canDelete]'s
+  /// record-id parameter.
+  bool canDeleteUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  );
 }
 
 /// The default policy: everything is allowed — panels stay open until an
@@ -38,6 +51,14 @@ final class BeakAllowAllPolicy implements BeakPolicy {
 
   @override
   bool canDelete(BeakPrincipal? principal, String table, Object id) => true;
+
+  @override
+  bool canDeleteUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  ) => true;
 }
 
 /// Fails a denied policy decision with the status-correct typed exception:

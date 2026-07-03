@@ -97,7 +97,7 @@ class BeakRelationManager extends HookWidget {
             children: [
               Expanded(
                 child: OiLabel.body(
-                  record[relationship.displayColumnKey]?.raw?.toString() ?? '',
+                  relationship.displayLabelOf(record),
                   maxLines: 1,
                 ),
               ),
@@ -144,17 +144,13 @@ class BeakRelationManager extends HookWidget {
     BeakBelongsToMany manyToMany,
     VoidCallback reload,
   ) {
-    final List<String> searchKeys = manyToMany.searchColumnKeys.isEmpty
-        ? [manyToMany.displayColumnKey]
-        : manyToMany.searchColumnKeys;
     return OiComboBox<BeakRecord>(
       label: 'Attach ${manyToMany.label.toLowerCase()}',
-      labelOf: (record) =>
-          record[manyToMany.displayColumnKey]?.raw?.toString() ?? '',
+      labelOf: manyToMany.displayLabelOf,
       search: (query) => beakSearchRelated(
         repository,
         table: manyToMany.relatedTable,
-        columnKeys: searchKeys,
+        columnKeys: manyToMany.effectiveSearchColumnKeys,
         term: query,
       ),
       onSelect: (record) {
@@ -187,21 +183,12 @@ class BeakRelationManager extends HookWidget {
           BeakErr() => const [],
         };
       case final BeakBelongsToMany manyToMany:
-        final spec = BeakQuerySpec(table: parentModel.table)
-            .withFilter(
-              BeakFieldFilter.forKey(
-                parentModel.primaryKey.key,
-                BeakOperator.eq,
-                BeakValue.of(parentId),
-              ),
-            )
-            .withRelation(manyToMany);
-        final result = await repository.query(spec);
-        return switch (result) {
-          BeakOk(:final value) when value.items.isNotEmpty =>
-            value.items.first.relations[manyToMany.key] ?? const [],
-          BeakOk() || BeakErr() => const [],
-        };
+        return beakLoadAttachedRecords(
+          repository,
+          parentModel: parentModel,
+          parentId: parentId,
+          relation: manyToMany,
+        );
       case BeakBelongsTo() || BeakHasOne():
         return const [];
     }

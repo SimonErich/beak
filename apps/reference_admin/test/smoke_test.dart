@@ -108,6 +108,29 @@ void main() {
       expect(copy['name'], const BeakStringValue('Beans (copy)'));
       expect(copy['price'], const BeakDoubleValue(12.5));
     });
+
+    testWidgets('duplicating a record without a name is a typed failure', (
+      tester,
+    ) async {
+      final source = _EmptyDataSource();
+      await tester.pumpWidget(ReferenceAdminApp(dataSource: source));
+      await tester.pumpAndSettle();
+      final BuildContext context = tester.element(find.byType(OiAppShell));
+
+      await expectLater(
+        duplicateProduct(
+          BeakRecord.fromRow(const {'id': 'p1'}),
+          BeakActionContext(
+            buildContext: context,
+            model: const ProductModel(),
+            dataSource: source,
+            router: GoRouter.of(context),
+          ),
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+      expect(source.created, isEmpty);
+    });
   });
 }
 

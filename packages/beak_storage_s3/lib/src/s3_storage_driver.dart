@@ -130,24 +130,20 @@ final class S3StorageDriver implements BeakStorageDriver {
   Uri _publicUrlFor(String key) {
     final Uri? publicBaseUrl = _config.publicBaseUrl;
     if (publicBaseUrl != null) {
-      return _appendKey(publicBaseUrl, key);
+      return BeakStorageKeys.appendToBaseUrl(publicBaseUrl, key);
     }
     if (_config.usePathStyle) {
-      return _appendKey(_config.endpoint, '${_config.bucket}/$key');
+      return BeakStorageKeys.appendToBaseUrl(
+        _config.endpoint,
+        '${_config.bucket}/$key',
+      );
     }
     final Uri endpoint = _config.endpoint;
-    return _appendKey(
+    return BeakStorageKeys.appendToBaseUrl(
       endpoint.replace(host: '${_config.bucket}.${endpoint.host}'),
       key,
     );
   }
-
-  static Uri _appendKey(Uri base, String key) => base.replace(
-    pathSegments: [
-      ...base.pathSegments.where((segment) => segment.isNotEmpty),
-      ...key.split('/'),
-    ],
-  );
 }
 
 /// Registers the S3 driver factory under `'s3'` so [BeakStorageRegistry]

@@ -4,35 +4,27 @@ part of 'beak_column.dart';
 /// and the full image in detail views. Values are stored file keys/URLs.
 ///
 /// Upload rules (size, types, dimensions) and the [transforms] pipeline are
-/// enforced server-side on upload; Phase 05 implements the storage layer.
-final class BeakImageColumn extends BeakColumn {
-  /// Creates an image column storing uploads under [storagePath].
+/// enforced server-side on upload (and mirrored client-side for fast
+/// feedback).
+final class BeakImageColumn extends BeakUploadColumn {
+  /// Creates an image column storing uploads under [storagePath]
+  /// (e.g. `products/covers`); [allowedTypes] defaults to raster images.
   const BeakImageColumn({
     required super.key,
     required super.label,
-    required this.storagePath,
+    required super.storagePath,
     super.visibleOn,
     super.sortable,
     super.searchable,
     super.filterable,
     super.rules,
-    this.maxSizeInBytes,
-    this.allowedTypes = BeakFileType.images,
+    super.maxSizeInBytes,
+    super.allowedTypes = BeakFileType.images,
     this.maxDimensions,
     this.aspectRatio,
     this.thumbnail,
     this.transforms = const [],
   });
-
-  /// Storage subfolder uploads of this column land in
-  /// (e.g. `products/covers`).
-  final String storagePath;
-
-  /// Highest accepted upload size in bytes, if bounded.
-  final int? maxSizeInBytes;
-
-  /// Accepted upload types; defaults to raster images.
-  final List<BeakFileType> allowedTypes;
 
   /// Largest accepted source dimensions, if bounded.
   final BeakDimensions? maxDimensions;
@@ -55,8 +47,4 @@ final class BeakImageColumn extends BeakColumn {
     // hatch when needed.
     filter: BeakRenderIntent.custom,
   );
-
-  /// Values are stored file keys/URLs.
-  @override
-  Type get valueType => String;
 }
