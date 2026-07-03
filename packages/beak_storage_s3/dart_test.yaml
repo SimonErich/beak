@@ -1,0 +1,4 @@
+tags:
+  # Needs the Docker MinIO service (`melos run up`).
+  integration:
+    timeout: 2x

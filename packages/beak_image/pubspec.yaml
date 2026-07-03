@@ -1,0 +1,18 @@
+name: beak_image
+description: >-
+  Image transform runner for Beak — executes BeakImageTransform pipelines
+  (resize, format re-encode, thumbnails) using package:image.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  beak_core:
+    path: ../beak_core
+  image: 4.9.1
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
