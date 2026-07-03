@@ -9,7 +9,17 @@ environment:
 dependencies:
   beak_backend:
     path: ../../packages/beak_backend
+  beak_core:
+    path: ../../packages/beak_core
+  reference_admin_models:
+    path: ../reference_admin_models
+  worm:
+    path: ../../packages/worm
+  worm_postgres:
+    path: ../../packages/worm_postgres
 
 dev_dependencies:
+  http: ^1.6.0
+  image: ^4.9.1
   lints: ^6.0.0
   test: ^1.25.6

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:flutter_test/flutter_test.dart';
+
+import 'package:test/test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -167,6 +167,29 @@ void main() {
       expect(stored.key, 'avatars/a.png');
     });
 
+    test('export posts the spec and returns the CSV body', () async {
+      requests = [];
+      final exporting = BeakClient(
+        baseUrl: 'http://api.test',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            'Id,Title\r\nn1,One\r\n',
+            200,
+            headers: {'content-type': 'text/csv; charset=utf-8'},
+          );
+        }),
+      );
+
+      final String csv = await exporting.export(
+        'notes',
+        const BeakQuerySpec(table: 'notes'),
+      );
+
+      expect(requests.single.url.path, '/api/notes/export');
+      expect(csv, 'Id,Title\r\nn1,One\r\n');
+    });
+
     test('search flattens grouped hits in order', () async {
       final hits = await client({
         'results': {
@@ -267,6 +290,77 @@ void main() {
     test('an unparsable error body still maps by status', () {
       expect(
         () => client(null, statusCode: 500).delete('notes', 'n1'),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('a non-object JSON error body degrades to configuration', () {
+      expect(
+        () => client(const [1, 2], statusCode: 404).delete('notes', 'n1'),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (exception) => exception.message,
+            'message',
+            'HTTP 404.',
+          ),
+        ),
+      );
+    });
+  });
+
+  group('response shape guards', () {
+    test('a real HTTP client constructs by default and closes cleanly', () {
+      BeakClient(baseUrl: 'http://localhost:1').close();
+    });
+
+    test('aggregate returns the numeric value', () async {
+      expect(
+        await client(const {
+          'value': 7,
+        }).aggregate('notes', const BeakAggregateSpec.count(table: 'notes')),
+        7,
+      );
+    });
+
+    test('a non-numeric aggregate value is a configuration error', () {
+      expect(
+        () => client(const {
+          'value': 'seven',
+        }).aggregate('notes', const BeakAggregateSpec.count(table: 'notes')),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('a search response without a results object is rejected', () {
+      expect(
+        () => client(const {'results': 3}).search('x'),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+      expect(
+        () => client(const <String, Object?>{}).search('x'),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('search groups that are not lists are rejected', () {
+      expect(
+        () => client(const {
+          'results': {'notes': 'nope'},
+        }).search('x'),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('a non-array batch response is rejected', () {
+      expect(
+        () => client(const {'items': 1}).batchGet('notes', const ['n1']),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('non-object records in responses are rejected', () {
+      expect(
+        () => client(const [1, 2]).batchGet('notes', const ['n1']),
         throwsA(isA<BeakConfigurationException>()),
       );
     });

@@ -86,13 +86,14 @@ end_of_record
     expect(thresholdFor('beak_frontend'), 85);
   });
 
-  test('phase-00 skeleton packages start at a zero threshold', () {
+  test('the reference packages gate at the default threshold', () {
     for (final package in const [
       'beak_cli',
       'reference_admin',
       'reference_admin_server',
+      'reference_admin_models',
     ]) {
-      expect(thresholdFor(package), 0, reason: package);
+      expect(thresholdFor(package), 85, reason: package);
     }
   });
 }

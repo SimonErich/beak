@@ -1,0 +1,4 @@
+tags:
+  # Needs Docker Postgres + MinIO (`melos run up`).
+  e2e:
+    timeout: 4x
