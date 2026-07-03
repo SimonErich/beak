@@ -6,6 +6,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 
 import '../config/beak_backend_config.dart';
 import '../data/beak_data_source.dart';
+import '../endpoints/beak_resource_router.dart';
 import 'middleware/auth_middleware.dart';
 import 'middleware/cors_middleware.dart';
 import 'middleware/error_mapping_middleware.dart';
@@ -13,13 +14,15 @@ import 'middleware/json_middleware.dart';
 import 'middleware/request_log_middleware.dart';
 
 /// The composed Beak backend: the full middleware stack (request log →
-/// CORS → JSON → error mapping → auth) around the resource [router].
+/// CORS → JSON → error mapping → auth) around the resource [router] — by
+/// default the generated per-model CRUD surface over [registry] and
+/// [dataSource].
 ///
-/// Phase 08 supplies the auto-CRUD router; without one every request maps
-/// to a JSON 404. [storage] carries the configured storage driver for the
-/// upload endpoints arriving in Phase 09.
+/// [storage] carries the configured storage driver for the upload
+/// endpoints arriving in Phase 09.
 final class BeakServer {
-  /// Creates a server serving [router] with [config].
+  /// Creates a server serving [router] (default: the generated API) with
+  /// [config].
   BeakServer({
     required this.config,
     required this.dataSource,
@@ -29,7 +32,8 @@ final class BeakServer {
     BeakAuthGuard? authGuard,
     BeakRequestLogger? onRequest,
     BeakUnexpectedErrorListener? onUnexpectedError,
-  }) : _router = router ?? _notFound,
+  }) : _router =
+           router ?? beakApiRouter(registry: registry, dataSource: dataSource),
        _authGuard = authGuard,
        _onRequest = onRequest ?? _logToStderr,
        _onUnexpectedError = onUnexpectedError ?? _reportToStderr;
@@ -65,10 +69,6 @@ final class BeakServer {
   /// Binds [handler] on the configured host and port.
   Future<HttpServer> start() =>
       shelf_io.serve(handler, config.host, config.port);
-
-  static Response _notFound(Request request) => throw BeakNotFoundException(
-    'No handler for ${request.method} /${request.url.path}.',
-  );
 
   static void _logToStderr(BeakRequestLogEntry entry) => stderr.writeln(entry);
 

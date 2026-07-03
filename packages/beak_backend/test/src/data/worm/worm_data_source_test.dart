@@ -359,7 +359,7 @@ void main() {
       );
     });
 
-    test('attach rejects relations that are not belongs-to-many', () {
+    test('attach rejects relations that are not to-many', () {
       expect(
         () => dataSource.attach('products', 1, 'category', const [7]),
         throwsA(isA<BeakConfigurationException>()),

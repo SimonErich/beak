@@ -133,10 +133,75 @@ final class WormDataSource implements BeakDataSource {
     String relationKey,
     List<Object> relatedIds,
   ) async {
-    final relation = _pivotRelation(table, relationKey);
-    if (relatedIds.isEmpty) {
-      return;
+    switch (_relationshipOf(table, relationKey)) {
+      case final BeakBelongsToMany pivot:
+        if (relatedIds.isEmpty) {
+          return;
+        }
+        await _attachThroughPivot(pivot, id, relatedIds);
+      case final BeakHasMany children:
+        if (relatedIds.isEmpty) {
+          return;
+        }
+        await _adapter.update(
+          UpdateDescriptor(
+            table: children.relatedTable,
+            values: {children.foreignKey: id},
+            where: _relatedIdsPredicate(children.relatedTable, relatedIds),
+          ),
+        );
+      case final BeakRelationship other:
+        _throwNotToMany(table, relationKey, other);
     }
+  }
+
+  @override
+  Future<void> detach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) async {
+    switch (_relationshipOf(table, relationKey)) {
+      case final BeakBelongsToMany pivot:
+        if (relatedIds.isEmpty) {
+          return;
+        }
+        await _adapter.delete(
+          DeleteDescriptor(
+            table: pivot.pivotTable,
+            where: _pivotPredicate(pivot, id, relatedIds),
+          ),
+        );
+      case final BeakHasMany children:
+        if (relatedIds.isEmpty) {
+          return;
+        }
+        await _adapter.update(
+          UpdateDescriptor(
+            table: children.relatedTable,
+            values: {children.foreignKey: null},
+            where: _relatedIdsPredicate(children.relatedTable, relatedIds).and(
+              LeafNode(
+                Predicate(
+                  fieldName: children.foreignKey,
+                  operator: Operator.eq,
+                  value: id,
+                ),
+              ),
+            ),
+          ),
+        );
+      case final BeakRelationship other:
+        _throwNotToMany(table, relationKey, other);
+    }
+  }
+
+  Future<void> _attachThroughPivot(
+    BeakBelongsToMany relation,
+    Object id,
+    List<Object> relatedIds,
+  ) async {
     final existingRows = await _adapter.select(
       QueryDescriptor(
         table: relation.pivotTable,
@@ -164,24 +229,16 @@ final class WormDataSource implements BeakDataSource {
     );
   }
 
-  @override
-  Future<void> detach(
-    String table,
-    Object id,
-    String relationKey,
+  PredicateTree _relatedIdsPredicate(
+    String relatedTable,
     List<Object> relatedIds,
-  ) async {
-    final relation = _pivotRelation(table, relationKey);
-    if (relatedIds.isEmpty) {
-      return;
-    }
-    await _adapter.delete(
-      DeleteDescriptor(
-        table: relation.pivotTable,
-        where: _pivotPredicate(relation, id, relatedIds),
-      ),
-    );
-  }
+  ) => LeafNode(
+    Predicate(
+      fieldName: registry.byTable(relatedTable)?.primaryKey.key ?? 'id',
+      operator: Operator.inList,
+      value: [...relatedIds],
+    ),
+  );
 
   @override
   Future<num> aggregate(BeakAggregateSpec spec) async {
@@ -242,19 +299,20 @@ final class WormDataSource implements BeakDataSource {
         ),
       );
 
-  BeakBelongsToMany _pivotRelation(String table, String relationKey) {
-    final model = registry.byTableOrThrow(table);
-    return switch (model.relationshipByKey(relationKey)) {
-      final BeakBelongsToMany pivot => pivot,
-      null => throw BeakConfigurationException(
+  BeakRelationship _relationshipOf(String table, String relationKey) =>
+      registry.byTableOrThrow(table).relationshipByKey(relationKey) ??
+      (throw BeakConfigurationException(
         'Model "$table" has no relation "$relationKey".',
-      ),
-      final BeakRelationship other => throw BeakConfigurationException(
-        'Relation "$relationKey" of "$table" is a ${other.runtimeType}; '
-        'attach/detach need a belongs-to-many relation.',
-      ),
-    };
-  }
+      ));
+
+  Never _throwNotToMany(
+    String table,
+    String relationKey,
+    BeakRelationship found,
+  ) => throw BeakConfigurationException(
+    'Relation "$relationKey" of "$table" is a ${found.runtimeType}; '
+    'attach/detach need a to-many relation.',
+  );
 
   Field<num> _numericField(BeakModel model, BeakAggregateSpec spec) {
     final String columnKey =

@@ -13,6 +13,7 @@ dependencies:
     path: ../beak_core
   meta: ^1.16.0
   shelf: ^1.4.2
+  shelf_router: ^1.1.4
   worm:
     path: ../worm
   worm_postgres:
