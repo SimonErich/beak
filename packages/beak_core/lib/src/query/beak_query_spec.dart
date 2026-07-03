@@ -8,7 +8,7 @@ import 'beak_filter.dart';
 import 'beak_pagination.dart';
 import 'beak_relation_load.dart';
 import 'beak_sort.dart';
-import 'json_support.dart';
+import '../common/json_support.dart';
 
 /// Beak's wire contract: a typed, losslessly JSON-serializable description
 /// of a query.

@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-import '../columns/file_support.dart';
+import '../storage/file_rules/beak_file_type.dart';
 
 part 'beak_allowed_file_types.dart';
 part 'beak_email.dart';

@@ -1,12 +1,12 @@
-/// Internal strict-decoding helpers shared by the query spec's `fromJson`
-/// constructors. Not exported by the barrel.
+/// Internal strict-decoding helpers shared by `fromJson` constructors across
+/// the package. Not exported by the barrel.
 ///
 /// Every helper throws a [BeakConfigurationException] naming the decoding
 /// `context` (the Beak type being decoded) so malformed wire input fails
 /// loudly and precisely.
 library;
 
-import '../common/beak_exception.dart';
+import 'beak_exception.dart';
 
 /// Returns the value stored under [key] in [json], throwing when the key is
 /// absent.
@@ -51,6 +51,33 @@ int requireJsonInt(Map<String, Object?> json, String key, String context) =>
         '$context JSON key "$key" must be an integer, got $other.',
       ),
     };
+
+/// Returns the integer stored under [key] in [json], throwing when the key
+/// is absent or holds neither an integer nor `null`.
+int? requireJsonIntOrNull(
+  Map<String, Object?> json,
+  String key,
+  String context,
+) => switch (requireJsonKey(json, key, context)) {
+  null => null,
+  final int value => value,
+  final Object other => throw BeakConfigurationException(
+    '$context JSON key "$key" must be an integer or null, got $other.',
+  ),
+};
+
+/// Returns the JSON object stored under [key] in [json], throwing when the
+/// key is absent or not a JSON object.
+Map<String, Object?> requireJsonMap(
+  Map<String, Object?> json,
+  String key,
+  String context,
+) => switch (requireJsonKey(json, key, context)) {
+  final Map<String, Object?> value => value,
+  final Object? other => throw BeakConfigurationException(
+    '$context JSON key "$key" must be a JSON object, got $other.',
+  ),
+};
 
 /// Validates that [value] (stored under [key] in a [context] JSON object) is
 /// a list of JSON objects and returns it typed.

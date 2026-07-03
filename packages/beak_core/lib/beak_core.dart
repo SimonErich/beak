@@ -6,7 +6,6 @@ library;
 export 'src/columns/beak_column.dart';
 export 'src/columns/beak_json.dart';
 export 'src/columns/beak_render_config.dart';
-export 'src/columns/file_support.dart';
 export 'src/common/beak_color.dart';
 export 'src/common/beak_exception.dart';
 export 'src/common/beak_result.dart';
@@ -25,6 +24,19 @@ export 'src/query/beak_value.dart';
 export 'src/relations/beak_on_delete.dart';
 export 'src/relations/beak_relationship.dart';
 export 'src/rules/beak_rule.dart';
+export 'src/storage/beak_storage_config.dart';
+export 'src/storage/beak_storage_driver.dart';
+export 'src/storage/beak_storage_key.dart';
+export 'src/storage/beak_storage_registry.dart';
+export 'src/storage/beak_stored_file.dart';
+export 'src/storage/beak_upload.dart';
+export 'src/storage/beak_upload_validator.dart';
+export 'src/storage/drivers/beak_local_disk_storage_driver.dart';
+export 'src/storage/drivers/beak_memory_storage_driver.dart';
+export 'src/storage/file_rules/beak_dimensions.dart';
+export 'src/storage/file_rules/beak_file_type.dart';
+export 'src/storage/transforms/beak_image_transform.dart';
+export 'src/storage/transforms/beak_transform_runner.dart';
 
 /// The version of the `beak_core` package.
 const String beakCoreVersion = '0.0.1';
