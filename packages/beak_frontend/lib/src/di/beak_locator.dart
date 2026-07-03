@@ -15,17 +15,19 @@ final GetIt beakLocator = GetIt.asNewInstance();
 /// registry, the typed client, the data source (overridable with a fake
 /// via [dataSource]), and the reference cache.
 ///
-/// Existing registrations are reset first, so tests and hot restarts can
-/// call this repeatedly.
-Future<void> registerBeakDependencies({
+/// Registration is synchronous — the router built right after it reads
+/// the locator during its first frame. Re-registration replaces the
+/// previous panel's entries, so tests and hot restarts can call this
+/// repeatedly.
+void registerBeakDependencies({
   required BeakPanelConfig config,
   GetIt? locator,
   BeakDataSource? dataSource,
   http.Client? httpClient,
   String? Function()? tokenProvider,
-}) async {
+}) {
   final container = locator ?? beakLocator;
-  await container.reset();
+  container.allowReassignment = true;
   final registry = config.buildRegistry();
   final client = BeakClient(
     baseUrl: config.apiBaseUrl,

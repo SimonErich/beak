@@ -51,6 +51,20 @@ final class BeakResourceService {
     return dataSource.query(spec);
   }
 
+  /// Computes [spec]'s aggregate against the data source.
+  ///
+  /// Throws a [BeakValidationException] when the spec targets another table
+  /// than this service's model.
+  Future<num> aggregate(BeakAggregateSpec spec) {
+    if (spec.table != model.table) {
+      throw BeakValidationException(
+        'Aggregate spec targets "${spec.table}" but this endpoint serves '
+        '"${model.table}".',
+      );
+    }
+    return dataSource.aggregate(spec);
+  }
+
   /// The record with primary key [id].
   ///
   /// Throws a [BeakNotFoundException] when it does not exist.

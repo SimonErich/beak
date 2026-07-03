@@ -35,6 +35,7 @@ void main() {
             ('POST', '/api/notes/batch') => [
               recordJson({'id': 'n1'}),
             ],
+            ('POST', '/api/notes/aggregate') => {'value': 7},
             ('POST', '/api/notes/avatar/upload') => {
               'key': 'notes/avatars/a.png',
               'url': 'https://cdn.test/a.png',
@@ -77,6 +78,10 @@ void main() {
       await dataSource.batchGet('notes', const ['n1']);
       await dataSource.attach('notes', 'n1', 'labels', const ['l1']);
       await dataSource.detach('notes', 'n1', 'labels', const ['l1']);
+      final num total = await dataSource.aggregate(
+        const BeakAggregateSpec.count(table: 'notes'),
+      );
+      expect(total, 7);
       final stored = await dataSource.upload(
         'notes',
         'avatar',
@@ -102,16 +107,30 @@ void main() {
           'POST /api/notes/batch',
           'POST /api/notes/n1/relations/labels/attach',
           'POST /api/notes/n1/relations/labels/detach',
+          'POST /api/notes/aggregate',
           'POST /api/notes/avatar/upload',
         ],
       );
     },
   );
 
-  test('aggregates stay unsupported until the dashboard phase', () {
-    expect(
-      () => dataSource.aggregate(const BeakAggregateSpec.count(table: 'notes')),
-      throwsUnsupportedError,
+  test('a malformed aggregate response is a configuration error', () async {
+    final broken = HttpBeakDataSource(
+      BeakClient(
+        baseUrl: 'http://api.test',
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode({'value': 'seven'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      broken.aggregate(const BeakAggregateSpec.count(table: 'notes')),
+      throwsA(isA<BeakConfigurationException>()),
     );
   });
 }
