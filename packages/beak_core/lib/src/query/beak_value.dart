@@ -62,6 +62,11 @@ sealed class BeakValue {
     return parsed;
   }
 
+  /// This value as plain Dart (the inverse of [BeakValue.of]) — unlike
+  /// [toJson], a [BeakDateTimeValue] unwraps to a [DateTime], not a tagged
+  /// object.
+  Object? get raw;
+
   /// This value as a plain JSON-encodable structure.
   Object? toJson();
 }
@@ -73,6 +78,9 @@ final class BeakStringValue extends BeakValue {
 
   /// The wrapped string.
   final String value;
+
+  @override
+  Object? get raw => value;
 
   @override
   Object? toJson() => value;
@@ -97,6 +105,9 @@ final class BeakIntValue extends BeakValue {
   final int value;
 
   @override
+  Object? get raw => value;
+
+  @override
   Object? toJson() => value;
 
   @override
@@ -117,6 +128,9 @@ final class BeakDoubleValue extends BeakValue {
 
   /// The wrapped double.
   final double value;
+
+  @override
+  Object? get raw => value;
 
   @override
   Object? toJson() => value;
@@ -141,6 +155,9 @@ final class BeakBoolValue extends BeakValue {
   final bool value;
 
   @override
+  Object? get raw => value;
+
+  @override
   Object? toJson() => value;
 
   @override
@@ -163,6 +180,9 @@ final class BeakDateTimeValue extends BeakValue {
   final DateTime value;
 
   @override
+  Object? get raw => value;
+
+  @override
   Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
 
   @override
@@ -180,6 +200,9 @@ final class BeakDateTimeValue extends BeakValue {
 final class BeakNullValue extends BeakValue {
   /// Creates the null operand.
   const BeakNullValue();
+
+  @override
+  Object? get raw => null;
 
   @override
   Object? toJson() => null;
@@ -201,6 +224,9 @@ final class BeakListValue extends BeakValue {
 
   /// The wrapped elements, in order.
   final List<BeakValue> values;
+
+  @override
+  List<Object?> get raw => [for (final value in values) value.raw];
 
   @override
   Object? toJson() => [for (final value in values) value.toJson()];

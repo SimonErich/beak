@@ -42,30 +42,22 @@ final class BeakQuerySpec {
         'BeakQuerySpec JSON key "table" must not be empty.',
       );
     }
-    final BeakFilter? filter = switch (requireJsonKey(
+    final Map<String, Object?>? filterJson = requireJsonMapOrNull(
       json,
       'filter',
       'BeakQuerySpec',
-    )) {
-      null => null,
-      final Map<String, Object?> map => BeakFilter.fromJson(map),
-      final Object? other => throw BeakConfigurationException(
-        'BeakQuerySpec JSON key "filter" must be a JSON object or null, '
-        'got $other.',
-      ),
-    };
-    final BeakSearch? search = switch (requireJsonKey(
+    );
+    final BeakFilter? filter = filterJson == null
+        ? null
+        : BeakFilter.fromJson(filterJson);
+    final Map<String, Object?>? searchJson = requireJsonMapOrNull(
       json,
       'search',
       'BeakQuerySpec',
-    )) {
-      null => null,
-      final Map<String, Object?> map => BeakSearch.fromJson(map),
-      final Object? other => throw BeakConfigurationException(
-        'BeakQuerySpec JSON key "search" must be a JSON object or null, '
-        'got $other.',
-      ),
-    };
+    );
+    final BeakSearch? search = searchJson == null
+        ? null
+        : BeakSearch.fromJson(searchJson);
     final BeakPagination pagination = switch (requireJsonKey(
       json,
       'pagination',

@@ -32,6 +32,20 @@ String requireJsonString(
   ),
 };
 
+/// Returns the string stored under [key] in [json], throwing when the key
+/// is absent or holds neither a string nor `null`.
+String? requireJsonStringOrNull(
+  Map<String, Object?> json,
+  String key,
+  String context,
+) => switch (requireJsonKey(json, key, context)) {
+  null => null,
+  final String value => value,
+  final Object other => throw BeakConfigurationException(
+    '$context JSON key "$key" must be a string or null, got $other.',
+  ),
+};
+
 /// Returns the boolean stored under [key] in [json], throwing when the key
 /// is absent or not a boolean.
 bool requireJsonBool(Map<String, Object?> json, String key, String context) =>
@@ -76,6 +90,20 @@ Map<String, Object?> requireJsonMap(
   final Map<String, Object?> value => value,
   final Object? other => throw BeakConfigurationException(
     '$context JSON key "$key" must be a JSON object, got $other.',
+  ),
+};
+
+/// Returns the JSON object stored under [key] in [json], throwing when the
+/// key is absent or holds neither a JSON object nor `null`.
+Map<String, Object?>? requireJsonMapOrNull(
+  Map<String, Object?> json,
+  String key,
+  String context,
+) => switch (requireJsonKey(json, key, context)) {
+  null => null,
+  final Map<String, Object?> value => value,
+  final Object other => throw BeakConfigurationException(
+    '$context JSON key "$key" must be a JSON object or null, got $other.',
   ),
 };
 

@@ -11,8 +11,12 @@ environment:
 dependencies:
   beak_core:
     path: ../beak_core
+  meta: ^1.16.0
+  shelf: ^1.4.2
   worm:
     path: ../worm
+  worm_postgres:
+    path: ../worm_postgres
 
 dev_dependencies:
   lints: ^6.0.0

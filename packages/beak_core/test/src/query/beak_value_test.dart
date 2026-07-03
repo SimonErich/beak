@@ -59,6 +59,30 @@ void main() {
     });
   });
 
+  group('raw', () {
+    test('each variant unwraps to its plain Dart value', () {
+      expect(const BeakNullValue().raw, isNull);
+      expect(const BeakBoolValue(true).raw, true);
+      expect(const BeakIntValue(7).raw, 7);
+      expect(const BeakDoubleValue(1.5).raw, 1.5);
+      expect(const BeakStringValue('x').raw, 'x');
+      expect(BeakDateTimeValue(utcInstant).raw, utcInstant);
+    });
+
+    test('lists unwrap recursively', () {
+      expect(
+        const BeakListValue([
+          BeakIntValue(1),
+          BeakListValue([BeakStringValue('a')]),
+        ]).raw,
+        [
+          1,
+          ['a'],
+        ],
+      );
+    });
+  });
+
   group('toJson', () {
     test('serializes primitives as raw JSON values', () {
       expect(const BeakNullValue().toJson(), isNull);
