@@ -11,6 +11,20 @@ import '../form/relation_field.dart';
 /// matching mutations — attach/detach through the pivot for
 /// [BeakBelongsToMany], delete for [BeakHasMany], plus an optional
 /// create hook.
+///
+/// A [BeakBelongsTo] or [BeakHasOne] [relationship] renders an informational
+/// caption instead of a manager (only to-many relations are managed here).
+/// [BeakDataForm] embeds one per has-many relation in edit mode.
+///
+/// ```dart
+/// BeakRelationManager(
+///   parentModel: const OrderModel(),
+///   parentId: orderId,
+///   relationship: OrderRelations.lineItems, // a BeakHasMany
+///   dataSource: dataSource,
+///   onCreateRequested: () => context.go('/line-items/new?order=$orderId'),
+/// )
+/// ```
 class BeakRelationManager extends HookWidget {
   /// Creates the manager of [relationship] on the [parentId] record of
   /// [parentModel].

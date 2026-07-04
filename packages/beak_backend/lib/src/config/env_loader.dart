@@ -57,6 +57,14 @@ abstract final class BeakEnv {
   /// The effective environment: the dotenv file at [filePath] overlaid by
   /// [processEnvironment] (defaults to [Platform.environment]), so real
   /// environment variables always win over file values.
+  ///
+  /// Feed the result straight into [BeakBackendConfig.fromEnv]:
+  ///
+  /// ```dart
+  /// final config = BeakBackendConfig.fromEnv(
+  ///   environment: BeakEnv.resolve(),
+  /// );
+  /// ```
   static Map<String, String> resolve({
     String filePath = '.env',
     Map<String, String>? processEnvironment,

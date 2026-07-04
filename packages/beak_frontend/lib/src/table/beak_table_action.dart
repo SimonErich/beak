@@ -4,6 +4,26 @@ import 'package:flutter/widgets.dart';
 /// widget's raw hook. The resource-level action system (`BeakAction` and
 /// friends) adapts onto it in the generated pages; use this directly only
 /// when composing a table without `BeakResource`.
+///
+/// The same type serves both surfaces: passed in [BeakDataTable.actions] it
+/// renders one icon button per row (invoked with that single row's key), and
+/// in [BeakDataTable.bulkActions] it renders in the selection bar (invoked
+/// with every selected key). [onRun] always receives the raw primary-key
+/// values, never stringified row keys.
+///
+/// ```dart
+/// BeakTableAction(
+///   id: 'archive',
+///   label: 'Archive',
+///   icon: OiIcons.archive,
+///   destructive: true,
+///   onRun: (recordIds) async {
+///     for (final id in recordIds) {
+///       await dataSource.delete('products', id);
+///     }
+///   },
+/// )
+/// ```
 final class BeakTableAction {
   /// Creates an action.
   const BeakTableAction({

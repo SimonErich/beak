@@ -5,7 +5,25 @@ part of 'beak_column.dart';
 ///
 /// Upload rules (size, types, dimensions) and the [transforms] pipeline are
 /// enforced server-side on upload (and mirrored client-side for fast
-/// feedback).
+/// feedback). [transforms] run in order; a [thumbnail] rendition is generated
+/// automatically when set.
+///
+/// ```dart
+/// static const image = BeakImageColumn(
+///   key: 'image',
+///   label: 'Image',
+///   storagePath: 'products',
+///   maxSizeInBytes: 5 * 1024 * 1024,
+///   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
+///   thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
+///   transforms: [
+///     BeakThumbnailTransform(
+///       size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
+///     ),
+///     BeakFormatTransform.webp(),
+///   ],
+/// );
+/// ```
 final class BeakImageColumn extends BeakUploadColumn {
   /// Creates an image column storing uploads under [storagePath]
   /// (e.g. `products/covers`); [allowedTypes] defaults to raster images.

@@ -15,6 +15,24 @@ part 'drivers/beak_s3_config.dart';
 ///
 /// The hierarchy is sealed so driver factories narrow with exhaustive
 /// pattern matching. Configs carrying secrets redact them in [toString].
+///
+/// Pick the variant for your environment and hand it to
+/// [BeakStorageRegistry.resolve]:
+///
+/// ```dart
+/// final BeakStorageConfig config = isProduction
+///     ? BeakS3Config(
+///         endpoint: Uri.parse('https://s3.eu-central-1.amazonaws.com'),
+///         bucket: 'uploads',
+///         accessKey: env.s3AccessKey,
+///         secretKey: env.s3SecretKey,
+///         region: 'eu-central-1',
+///       )
+///     : BeakLocalDiskStorageConfig(
+///         rootDir: 'storage/uploads',
+///         publicBaseUrl: Uri.parse('http://localhost:8080/uploads'),
+///       );
+/// ```
 @immutable
 sealed class BeakStorageConfig {
   const BeakStorageConfig();

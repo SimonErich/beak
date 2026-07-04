@@ -4,6 +4,19 @@ import 'package:beak_core/beak_core.dart';
 
 /// Streams query results as CSV — the engine behind
 /// `POST /api/{table}/export`.
+///
+/// It reuses a [BeakQuerySpec] (the same filter/sort a table view builds), so
+/// an export honours exactly what the user is looking at. Rows stream in
+/// pages of [pageSizeInRows], keeping memory flat for large tables.
+///
+/// ```dart
+/// final service = CsvExportService(registry, dataSource);
+/// final csv = await service.exportCsv(
+///   'products',
+///   BeakQuerySpec(table: 'products'),
+/// );
+/// await response.addStream(csv); // stream straight to the client
+/// ```
 final class CsvExportService {
   /// Creates an export service over [registry] and [dataSource].
   const CsvExportService(this.registry, this.dataSource);

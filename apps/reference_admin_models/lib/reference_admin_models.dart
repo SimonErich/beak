@@ -20,6 +20,12 @@ export 'src/tag.dart';
 export 'src/user.dart';
 
 /// Every reference model, in registration order.
+///
+/// This is the single source of truth for the demo catalog's shape:
+/// [buildReferenceRegistry] registers exactly these, in this order, and
+/// both the backend (auto CRUD) and the Flutter panel (resource pages)
+/// derive their behavior from them. Order here becomes the default
+/// resource/navigation order.
 const List<BeakModel> referenceModels = [
   ProductModel(),
   CategoryModel(),
@@ -29,8 +35,22 @@ const List<BeakModel> referenceModels = [
   OrderItemModel(),
 ];
 
-/// Builds the registry over [referenceModels] — the single index both the
-/// server and the panel hand to Beak.
+/// Builds a [BeakModelRegistry] populated with every model in
+/// [referenceModels] — the single index both the server and the panel hand
+/// to Beak.
+///
+/// The returned registry is the seam between "define once" and "drives
+/// everything": the backend wraps it in a data source and the panel reads
+/// it to render pages.
+///
+/// ```dart
+/// final registry = buildReferenceRegistry();
+/// final server = BeakServer(
+///   config: config,
+///   registry: registry,
+///   dataSource: WormDataSource(registry, adapter: adapter),
+/// );
+/// ```
 BeakModelRegistry buildReferenceRegistry() {
   final registry = BeakModelRegistry();
   for (final model in referenceModels) {

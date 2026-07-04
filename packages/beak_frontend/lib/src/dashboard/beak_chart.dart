@@ -39,11 +39,40 @@ final class BeakChartPoint {
 }
 
 /// Maps a query's records onto typed chart points.
+///
+/// Implementations read fields through the shared column constants, never
+/// string literals:
+///
+/// ```dart
+/// List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
+///   for (final record in records)
+///     BeakChartPoint(
+///       label: record[ProductColumns.name.key]?.raw?.toString() ?? '',
+///       value: switch (record[ProductColumns.stock.key]?.raw) {
+///         final num stock => stock.toDouble(),
+///         _ => 0,
+///       },
+///     ),
+/// ];
+/// ```
 typedef BeakChartMapper =
     List<BeakChartPoint> Function(List<BeakRecord> records);
 
 /// A dashboard chart: a query, a typed record→point mapping, and the
 /// chart family to render with (`obers_ui_charts`).
+///
+/// List these on [BeakPanelConfig.dashboardCharts]. The [query] runs
+/// through the repository, [map] turns the returned records into typed
+/// [BeakChartPoint]s, and [type] picks the chart family.
+///
+/// ```dart
+/// const BeakChart(
+///   title: 'Stock per product',
+///   type: BeakChartType.bar,
+///   query: BeakQuerySpec(table: 'products'),
+///   map: stockPerProduct,
+/// );
+/// ```
 final class BeakChart {
   /// Creates a chart titled [title] rendering [query] through [map].
   const BeakChart({
@@ -70,8 +99,13 @@ final class BeakChart {
   final double heightInPixels;
 }
 
-/// Renders one [BeakChart]: runs its query through the repository, maps
-/// the records to typed points, and draws the configured chart family.
+/// Renders one [BeakChart]: runs its query through a
+/// [BeakResourceRepository], maps the records to typed points via
+/// [BeakChart.map], and draws the configured chart family.
+///
+/// The dashboard builds these from [BeakPanelConfig.dashboardCharts]; the
+/// card re-queries whenever its `dataSource` or `chart` changes and drops
+/// the result if it unmounts mid-load. Query failures leave it empty.
 class BeakChartCard extends HookWidget {
   /// Creates the card for [chart] over [dataSource].
   const BeakChartCard({

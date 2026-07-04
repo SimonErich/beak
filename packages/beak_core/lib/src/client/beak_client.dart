@@ -16,6 +16,28 @@ import '../storage/beak_upload.dart';
 /// shared `beak_core` wire types to the backend's endpoints and maps error
 /// bodies back onto the typed exception family — user code never sees
 /// HTTP.
+///
+/// It is the raw REST escape hatch; most app code should go through a
+/// `BeakDataSource` (which wraps this client) instead. Reach for it directly
+/// only when you need one-off access to an endpoint.
+///
+/// ```dart
+/// final client = BeakClient(
+///   baseUrl: 'http://localhost:8080',
+///   tokenProvider: () => session.bearerToken, // null while logged out
+/// );
+///
+/// final page = await client.query(
+///   'products',
+///   const BeakQuerySpec(table: 'products'),
+/// );
+///
+/// client.close(); // release the underlying HTTP client when done
+/// ```
+///
+/// Every call throws a typed [BeakException] (for example
+/// [BeakValidationException] or [BeakNotFoundException]) decoded from the
+/// backend's error body.
 final class BeakClient {
   /// Creates a client against [baseUrl] (e.g. `http://localhost:8080`).
   ///

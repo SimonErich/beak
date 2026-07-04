@@ -6,6 +6,29 @@ import 'package:obers_ui/obers_ui.dart';
 import '../data/beak_resource_repository.dart';
 
 /// A dashboard metric: a typed aggregate over a table, rendered as a card.
+///
+/// List these on [BeakPanelConfig.dashboardStats]. The [aggregate] runs
+/// through the repository and its result is shown with [prefix]/[suffix]
+/// around the formatted number.
+///
+/// ```dart
+/// const BeakStat(
+///   label: 'Products',
+///   aggregate: BeakAggregateSpec.count(table: 'products'),
+///   icon: OiIcons.package,
+/// );
+///
+/// // A currency total: sum a column and prefix the symbol.
+/// BeakStat(
+///   label: 'Catalog value',
+///   aggregate: BeakAggregateSpec.sum(
+///     table: 'products',
+///     column: ProductColumns.price,
+///   ),
+///   icon: OiIcons.euro,
+///   prefix: '€',
+/// );
+/// ```
 final class BeakStat {
   /// Creates a stat computing [aggregate], labelled [label].
   const BeakStat({
@@ -32,8 +55,12 @@ final class BeakStat {
   final String suffix;
 }
 
-/// Renders one [BeakStat]: fetches its aggregate through the repository
-/// and shows the formatted value (an em dash while loading or on failure).
+/// Renders one [BeakStat]: fetches its aggregate through a
+/// [BeakResourceRepository] and shows the formatted value.
+///
+/// While the aggregate is loading, and on failure, the card shows an em
+/// dash. Integer results render without decimals, fractional results with
+/// two. The dashboard builds these from [BeakPanelConfig.dashboardStats].
 class BeakStatCard extends HookWidget {
   /// Creates the card for [stat] over [dataSource].
   const BeakStatCard({required this.stat, required this.dataSource, super.key});

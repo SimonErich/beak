@@ -16,6 +16,11 @@ import 'crud_handlers.dart';
 
 /// The generated routes of one model's REST surface, relative to its mount
 /// point (`/api/{table}`).
+///
+/// Wires the [BeakCrudHandlers] for [service] onto the query, aggregate,
+/// batch, CRUD, and relation attach/detach routes, each gated by [policy].
+/// [beakApiRouter] mounts one of these per registered model; call it
+/// directly only to compose a single resource's surface by hand.
 Router beakResourceRouter(
   BeakResourceService service, {
   BeakPolicy policy = const BeakAllowAllPolicy(),
@@ -41,6 +46,23 @@ Router beakResourceRouter(
 ///
 /// [validation], [now], and [generateId] configure every model's service
 /// (the latter two inject the clock and id mint for tests).
+///
+/// The result is a Shelf [Handler]; wrap it in a [Pipeline] with Beak's JSON
+/// and error-mapping middleware so typed exceptions become HTTP/JSON.
+///
+/// ```dart
+/// final registry = buildReferenceRegistry();
+/// final handler = const Pipeline()
+///     .addMiddleware(beakJsonMiddleware())
+///     .addMiddleware(beakErrorMappingMiddleware())
+///     .addHandler(
+///       beakApiRouter(
+///         registry: registry,
+///         dataSource: WormDataSource(registry, adapter: adapter),
+///       ),
+///     );
+/// // POST /api/products/query, GET /api/products/<id>, ... are now live.
+/// ```
 Handler beakApiRouter({
   required BeakModelRegistry registry,
   required BeakDataSource dataSource,

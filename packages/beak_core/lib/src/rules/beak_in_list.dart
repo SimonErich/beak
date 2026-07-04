@@ -1,6 +1,18 @@
 part of 'beak_rule.dart';
 
 /// Requires a value to be one of [allowed].
+///
+/// `null` passes (leave presence to [BeakRequired]); any non-null value
+/// outside [allowed] fails. The type parameter [T] keeps the accepted set
+/// type-safe.
+///
+/// ```dart
+/// static const size = BeakStringColumn(
+///   key: 'size',
+///   label: 'Size',
+///   rules: [BeakInList<String>(['S', 'M', 'L'])],
+/// );
+/// ```
 final class BeakInList<T> extends BeakRule {
   /// Creates a rule accepting only values from [allowed].
   const BeakInList(this.allowed);

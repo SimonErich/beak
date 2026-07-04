@@ -1,5 +1,10 @@
 # Beak
 
+[![CI](https://github.com/marqably/beak/actions/workflows/ci.yaml/badge.svg)](https://github.com/marqably/beak/actions/workflows/ci.yaml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+![Dart](https://img.shields.io/badge/Dart-%5E3.11-0175C2?logo=dart)
+![Flutter](https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter)
+
 A **low-code, configuration-driven admin-panel framework** for Dart/Flutter.
 Define a model once — columns, validation, relationships, storage — and compose
 obers_ui widgets that auto-wire to a Shelf backend: no hand-written endpoints,
@@ -126,6 +131,33 @@ server over HTTP with the real client against live Postgres + MinIO: paged
 and searched queries with eager-loaded relations, validated creates, a real
 PNG upload with a retrievable thumbnail variant, soft/force deletes, pivot
 attach/detach, global search, CSV export, and aggregates.
+
+## Documentation
+
+- [**Architecture**](docs/architecture.md) — the package graph, the backend and
+  frontend layer flows, the `BeakDataSource` seam, and the storage-driver system.
+- **Package guides** — each package ships its own README with a usage snippet and
+  its key types:
+  [beak_core](packages/beak_core), [beak_backend](packages/beak_backend),
+  [beak_frontend](packages/beak_frontend), [beak_cli](packages/beak_cli),
+  [beak_image](packages/beak_image),
+  [beak_storage_s3](packages/beak_storage_s3),
+  [beak_storage_ftp](packages/beak_storage_ftp).
+- [**Reference admin**](apps/reference_admin) — the worked example that consumes
+  every package.
+- Every public API carries dartdoc with usage examples; run `dart doc` in any
+  package to browse it.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the
+four-command gate, and the code guardrails, and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Report vulnerabilities privately per
+[SECURITY.md](SECURITY.md).
+
+## License
+
+[Apache-2.0](LICENSE) © Marqably GmbH.
 
 ---
 

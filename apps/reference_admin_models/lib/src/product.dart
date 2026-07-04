@@ -155,6 +155,12 @@ abstract final class ProductRelations {
 }
 
 /// The products resource — the catalog's centerpiece.
+///
+/// The showcase model: it exposes every major column kind via
+/// [ProductColumns], a belongs-to [ProductRelations.category] and a
+/// belongs-to-many [ProductRelations.tags], and opts into soft deletes.
+/// Registering it (see [referenceModels]) is all it takes to get a full
+/// CRUD API and a table/detail/form panel page.
 final class ProductModel extends BeakModel {
   /// Creates the products model.
   const ProductModel();

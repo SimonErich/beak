@@ -6,9 +6,13 @@ import 'package:obers_ui/obers_ui.dart';
 import 'beak_chart.dart';
 import 'beak_stat.dart';
 
-/// The generated dashboard: a row of aggregate stat cards over the data
-/// source followed by the configured charts — zero per-panel dashboard
-/// code.
+/// The generated dashboard: a wrapping row of [BeakStatCard]s over the data
+/// source followed by the configured [BeakChartCard]s — zero per-panel
+/// dashboard code.
+///
+/// The router mounts this at `/` from [BeakPanelConfig.dashboardStats] and
+/// [BeakPanelConfig.dashboardCharts]; you declare the stats and charts, not
+/// this widget. Each card fetches its own data independently.
 class BeakDashboard extends HookWidget {
   /// Creates the dashboard rendering [stats] and [charts] over
   /// [dataSource].

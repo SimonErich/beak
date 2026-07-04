@@ -4,6 +4,19 @@ import 'package:beak_core/beak_core.dart';
 /// operation delegates to the typed HTTP client — widgets and view models
 /// stay transport-blind, and the interface stays identical to the
 /// backend's worm-backed implementation.
+///
+/// This is the production source [registerBeakDependencies] wires up over a
+/// [BeakClient] pointed at `apiBaseUrl`; tests inject a fake
+/// [BeakDataSource] instead. Because it is source-agnostic, a future
+/// transport (e.g. Serverpod) can replace it without touching the rest of
+/// the frontend.
+///
+/// ```dart
+/// final source = HttpBeakDataSource(
+///   BeakClient(baseUrl: 'http://localhost:8080'),
+/// );
+/// final page = await source.query(const BeakQuerySpec(table: 'products'));
+/// ```
 final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);

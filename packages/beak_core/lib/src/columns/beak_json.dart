@@ -4,9 +4,19 @@ import 'package:meta/meta.dart';
 
 /// A typed, immutable JSON value tree.
 ///
-/// Beak never exposes `Map<String, dynamic>`: JSON-valued columns carry this
-/// sealed tree instead, so every consumer pattern-matches variants and the
-/// type system rules out non-JSON payloads.
+/// Beak never exposes `Map<String, dynamic>`. [BeakJsonColumn] stores its
+/// document as JSON text; decode that text into this sealed tree with
+/// [BeakJson.decode] (or an already-decoded structure with
+/// [BeakJson.fromEncodable]) to pattern-match variants with the type system
+/// ruling out non-JSON payloads:
+///
+/// ```dart
+/// final tree = BeakJson.decode('{"tags": ["a", "b"], "count": 2}');
+/// final count = switch (tree) {
+///   BeakJsonObject(:final entries) => entries['count'],
+///   _ => null,
+/// };
+/// ```
 @immutable
 sealed class BeakJson {
   const BeakJson();

@@ -6,6 +6,15 @@ import 'beak_model.dart';
 /// A single instance is created by the application and handed to
 /// `beak_backend` and `beak_frontend`, which resolve models by table when
 /// serving or rendering resources.
+///
+/// ```dart
+/// final registry = BeakModelRegistry()
+///   ..register(const ProductModel())
+///   ..register(const OrderModel())
+///   ..register(const TagModel());
+///
+/// final products = registry.byTableOrThrow('products');
+/// ```
 final class BeakModelRegistry {
   /// Creates an empty registry.
   BeakModelRegistry();

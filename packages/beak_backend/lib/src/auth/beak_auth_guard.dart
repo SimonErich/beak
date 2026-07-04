@@ -46,7 +46,25 @@ final class BeakPrincipal {
 /// Implementations return `null` for anonymous requests (no credentials at
 /// all) and throw a [BeakAuthenticationException] for credentials that are
 /// present but invalid, so forged tokens never demote silently to
-/// anonymous.
+/// anonymous. Implement this to plug in an alternative scheme (JWT, an API
+/// gateway header, …); [TokenSessionAuthGuard] is the built-in Bearer-token
+/// implementation. Install it via [beakAuthMiddleware] or [BeakServer]'s
+/// `authGuard` parameter:
+///
+/// ```dart
+/// final class ApiKeyGuard implements BeakAuthGuard {
+///   const ApiKeyGuard(this.keys);
+///   final Map<String, BeakPrincipal> keys;
+///
+///   @override
+///   Future<BeakPrincipal?> authenticate(Request request) async {
+///     final key = request.headers['x-api-key'];
+///     if (key == null) return null; // anonymous
+///     return keys[key] ??
+///         (throw const BeakAuthenticationException('Unknown API key.'));
+///   }
+/// }
+/// ```
 abstract interface class BeakAuthGuard {
   /// The principal behind [request], or `null` when it carries no
   /// credentials.
@@ -55,6 +73,19 @@ abstract interface class BeakAuthGuard {
 
 /// The default guard: opaque `Bearer` tokens looked up in a server-side
 /// [TokenSessionStore].
+///
+/// A missing `Authorization` header is anonymous; a header that is not a
+/// `Bearer` token, or a token the store does not recognise (unknown or
+/// expired), throws a [BeakAuthenticationException] rather than falling back
+/// to anonymous. Pair it with the same store [BeakAuthSessions] mints tokens
+/// into:
+///
+/// ```dart
+/// final store = InMemoryTokenSessionStore();
+/// final handler = const Pipeline()
+///     .addMiddleware(beakAuthMiddleware(guard: TokenSessionAuthGuard(store)))
+///     .addHandler(router);
+/// ```
 final class TokenSessionAuthGuard implements BeakAuthGuard {
   /// Creates a guard resolving tokens through [store].
   const TokenSessionAuthGuard(this.store);

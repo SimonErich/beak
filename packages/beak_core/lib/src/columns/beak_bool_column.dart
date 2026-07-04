@@ -1,6 +1,18 @@
 part of 'beak_column.dart';
 
 /// A boolean column: a toggle in forms, a yes/no indicator elsewhere.
+///
+/// [trueLabel]/[falseLabel] override the default state text (e.g. show
+/// "In stock"/"Sold out" instead of "Yes"/"No").
+///
+/// ```dart
+/// static const active = BeakBoolColumn(
+///   key: 'active',
+///   label: 'Active',
+///   trueLabel: 'In stock',
+///   falseLabel: 'Sold out',
+/// );
+/// ```
 final class BeakBoolColumn extends BeakColumn {
   /// Creates a boolean column with optional state labels.
   const BeakBoolColumn({

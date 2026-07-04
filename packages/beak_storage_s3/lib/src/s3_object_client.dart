@@ -7,7 +7,18 @@ import 'package:minio/minio.dart';
 /// driver behavior is unit-testable against a fake.
 ///
 /// Implementations expose raw S3 object operations and surface their own
-/// transport errors; the driver maps them to `BeakStorageException`.
+/// transport errors; the driver maps them to [BeakStorageException]. The
+/// production implementation is [MinioS3ObjectClient]; a test supplies its own
+/// in-memory implementation via the `S3StorageDriver` `client` parameter.
+///
+/// ```dart
+/// final class FakeS3ObjectClient implements S3ObjectClient {
+///   final Map<String, Uint8List> objects = {};
+///   // ... implement putObject/getObject/... against `objects`.
+/// }
+///
+/// final driver = S3StorageDriver(config, client: FakeS3ObjectClient());
+/// ```
 abstract interface class S3ObjectClient {
   /// Uploads [bytes] to [bucket] under [key] with [contentType] set.
   Future<void> putObject({
@@ -39,8 +50,27 @@ abstract interface class S3ObjectClient {
 
 /// The production [S3ObjectClient], speaking the S3 API (AWS, MinIO, ...)
 /// via `package:minio`.
+///
+/// [S3StorageDriver] constructs one of these from its [BeakS3Config] when no
+/// test client is injected, so application code rarely instantiates it
+/// directly.
+///
+/// ```dart
+/// final client = MinioS3ObjectClient(BeakS3Config(
+///   endpoint: Uri.parse('http://localhost:29000'),
+///   bucket: 'uploads',
+///   accessKey: 'minioadmin',
+///   secretKey: 'minioadmin',
+///   region: 'us-east-1',
+///   usePathStyle: true,
+/// ));
+/// ```
 final class MinioS3ObjectClient implements S3ObjectClient {
   /// Creates a client for the endpoint and credentials in [config].
+  ///
+  /// The endpoint's scheme selects TLS (`https` → SSL), its host and optional
+  /// port address the server, and [BeakS3Config.usePathStyle] chooses
+  /// path-style vs. virtual-host bucket addressing (MinIO needs path-style).
   MinioS3ObjectClient(BeakS3Config config)
     : _minio = Minio(
         endPoint: config.endpoint.host,

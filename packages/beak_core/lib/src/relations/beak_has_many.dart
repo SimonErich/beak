@@ -5,6 +5,17 @@ part of 'beak_relationship.dart';
 ///
 /// Renders as a badge list of related records; in forms the frontend maps
 /// the intent to a relation manager/repeater.
+///
+/// ```dart
+/// // An order's line items, each carrying `order_items.order_id`.
+/// static const items = BeakHasMany(
+///   key: 'items',
+///   label: 'Items',
+///   relatedTable: 'order_items',
+///   displayColumnKey: 'label',
+///   foreignKey: 'order_id',
+/// );
+/// ```
 final class BeakHasMany extends BeakRelationship {
   /// Creates a has-many relationship resolved via [foreignKey].
   const BeakHasMany({

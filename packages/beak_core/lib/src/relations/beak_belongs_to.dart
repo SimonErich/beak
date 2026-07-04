@@ -5,6 +5,18 @@ part of 'beak_relationship.dart';
 ///
 /// Renders as a link to the related record; in forms the frontend maps the
 /// intent to a searchable single-select.
+///
+/// ```dart
+/// // A product filed under one category, joined via `products.category_id`.
+/// static const category = BeakBelongsTo(
+///   key: 'category',
+///   label: 'Category',
+///   relatedTable: 'categories',
+///   displayColumnKey: 'name',
+///   foreignKey: 'category_id',
+///   searchColumnKeys: ['name'],
+/// );
+/// ```
 final class BeakBelongsTo extends BeakRelationship {
   /// Creates a belongs-to relationship stored via [foreignKey].
   const BeakBelongsTo({

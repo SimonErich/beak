@@ -9,6 +9,18 @@ import '../table/column_cell_renderer.dart';
 /// rendered as labelled rows, with every value formatted by the shared
 /// intent renderer — badges, images, dates, swatches, and custom cells all
 /// match the table exactly.
+///
+/// Only columns whose `visibleOn` includes [BeakContext.detail] render, each
+/// drawn by [renderBeakCell] with the detail render context. The caller
+/// supplies an already-loaded [record]; this widget performs no fetching.
+///
+/// ```dart
+/// final BeakRecord? record = await dataSource.getOne('products', id);
+/// if (record == null) {
+///   return const OiEmptyState(title: 'Not found');
+/// }
+/// return BeakDetailView(model: const ProductModel(), record: record);
+/// ```
 class BeakDetailView extends HookWidget {
   /// Creates the detail view of [record] described by [model].
   const BeakDetailView({required this.model, required this.record, super.key});

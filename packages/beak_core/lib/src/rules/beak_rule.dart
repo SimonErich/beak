@@ -22,6 +22,23 @@ part 'beak_url.dart';
 /// value it receives: a rule that does not apply to the value's type reports
 /// it as valid, so rules compose freely and presence stays [BeakRequired]'s
 /// job alone.
+///
+/// Attach rules to a column's `rules` list; they run in order and the first
+/// non-null message wins:
+///
+/// ```dart
+/// static const email = BeakStringColumn(
+///   key: 'email',
+///   label: 'Email',
+///   rules: [BeakRequired(), BeakEmail(), BeakMaxLength(255)],
+/// );
+///
+/// // Because non-applicable types pass, the value's own type decides which
+/// // rules bite:
+/// const rule = BeakMaxLength(3);
+/// rule.validate('abcd'); // 'Must be at most 3 characters.'
+/// rule.validate(42);     // null (not a string)
+/// ```
 @immutable
 sealed class BeakRule {
   const BeakRule();

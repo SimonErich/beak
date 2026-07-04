@@ -6,11 +6,29 @@ import 'ftp_transport.dart';
 
 /// Stores files on an FTP server configured by a [BeakFtpConfig], serving
 /// them from the configured public base URL (an HTTP server is expected to
-/// front the FTP directory — FTP itself has no expiring links, so `url`
-/// ignores `expiresIn`).
+/// front the FTP directory — FTP itself has no expiring links, so [url]
+/// ignores its `expiresIn`).
+///
+/// Every method validates the key and wraps any transport failure in a
+/// [BeakStorageException] so no raw socket or [FtpProtocolException] escapes.
+/// Prefer [registerFtpStorage] + a `BeakStorageRegistry` to build one from
+/// config; construct directly only when injecting a test [FtpTransport]:
+///
+/// ```dart
+/// final driver = FtpStorageDriver(BeakFtpConfig(
+///   host: 'ftp.example.com',
+///   user: 'uploads',
+///   password: '...',
+///   baseDir: '/var/www/uploads',
+///   publicBaseUrl: Uri.parse('https://cdn.example.com/uploads'),
+/// ));
+///
+/// final stored = await driver.put(upload, path: 'products/42');
+/// final publicUrl = await driver.url(stored.key);
+/// ```
 final class FtpStorageDriver implements BeakStorageDriver {
   /// Creates a driver for [config]; [transport] overrides the wire transport
-  /// for tests.
+  /// for tests (default: a [SocketFtpTransport] built from [config]).
   FtpStorageDriver(BeakFtpConfig config, {FtpTransport? transport})
     : _config = config,
       _transport = transport ?? SocketFtpTransport(config);
@@ -18,7 +36,8 @@ final class FtpStorageDriver implements BeakStorageDriver {
   /// Creates the driver from its [BeakFtpConfig].
   ///
   /// Throws a [BeakConfigurationException] for any other config type; the
-  /// signature is registry-compatible on purpose.
+  /// signature matches [BeakStorageRegistry.register] on purpose, which is how
+  /// [registerFtpStorage] wires this factory in.
   factory FtpStorageDriver.fromConfig(BeakStorageConfig config) =>
       switch (config) {
         BeakFtpConfig() => FtpStorageDriver(config),
@@ -49,6 +68,10 @@ final class FtpStorageDriver implements BeakStorageDriver {
     );
   }
 
+  /// Downloads the bytes stored under [key].
+  ///
+  /// Throws a [BeakStorageException] when [key] is invalid or the server
+  /// reports no such file (a `550` reply).
   @override
   Future<Uint8List> get(String key) async {
     BeakStorageKeys.validate(key);
@@ -60,6 +83,10 @@ final class FtpStorageDriver implements BeakStorageDriver {
     );
   }
 
+  /// Deletes the file stored under [key].
+  ///
+  /// Throws a [BeakStorageException] when [key] is invalid or the server
+  /// reports no such file (a `550` reply).
   @override
   Future<void> delete(String key) async {
     BeakStorageKeys.validate(key);
@@ -120,6 +147,14 @@ final class FtpStorageDriver implements BeakStorageDriver {
 
 /// Registers the FTP driver factory under `'ftp'` so [BeakStorageRegistry]
 /// resolves [BeakFtpConfig]s to an [FtpStorageDriver].
+///
+/// Call once during startup, before resolving any storage config:
+///
+/// ```dart
+/// final registry = BeakStorageRegistry();
+/// registerFtpStorage(registry);
+/// final driver = registry.resolve(ftpConfig); // -> FtpStorageDriver
+/// ```
 void registerFtpStorage(BeakStorageRegistry registry) {
   registry.register('ftp', FtpStorageDriver.fromConfig);
 }

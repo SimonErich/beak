@@ -5,6 +5,18 @@ import 'package:beak_core/beak_core.dart';
 /// Coalesces reference lookups into batched fetches and caches the results
 /// — many cells resolving the same or sibling references within a frame
 /// cost one `batchGet` per table, never N `getOne`s.
+///
+/// Registered as a singleton by [registerBeakDependencies]; table cells
+/// rendering a foreign key (e.g. a product's category name) call [resolve]
+/// and the cache batches every request made in the same microtask window
+/// into one round-trip. After a mutation, [invalidate] the touched id (or
+/// [invalidateTable]) so the next resolve refetches.
+///
+/// ```dart
+/// final category = await referenceCache.resolve('categories', categoryId);
+/// // ...after editing that category:
+/// referenceCache.invalidate('categories', categoryId);
+/// ```
 final class ReferenceCache {
   /// Creates a cache resolving through [dataSource], using [registry] for
   /// primary-key metadata.

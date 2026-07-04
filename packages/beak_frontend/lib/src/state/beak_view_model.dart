@@ -5,7 +5,27 @@ import 'package:signals/signals.dart';
 /// [ReadonlySignal]s, and disposes them together.
 ///
 /// View models never `try/catch` — repositories are the catch boundary;
-/// a view model only turns intents into repository calls and state.
+/// a view model only turns intents into repository calls and state. Create
+/// state with [ownedSignal] so it is released on [dispose], and expose it
+/// upward as a [ReadonlySignal] so widgets read but never write it.
+///
+/// ```dart
+/// final class ProductListViewModel extends BeakViewModel {
+///   ProductListViewModel(this._repository);
+///
+///   final BeakResourceRepository _repository;
+///   late final Signal<List<BeakRecord>> _products = ownedSignal(const []);
+///
+///   ReadonlySignal<List<BeakRecord>> get products => _products;
+///
+///   Future<void> load() async {
+///     final result = await _repository.query(
+///       const BeakQuerySpec(table: 'products'),
+///     );
+///     if (result case BeakOk(:final value)) _products.value = value.items;
+///   }
+/// }
+/// ```
 abstract base class BeakViewModel {
   final List<void Function()> _cleanups = [];
   bool _isDisposed = false;

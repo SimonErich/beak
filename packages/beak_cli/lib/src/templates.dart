@@ -1,9 +1,21 @@
 import 'field_spec.dart';
 
-/// Generates the canonical worm model for [resourceName] — `tableName`
-/// override, typed getters, `toRow`, `fromRow` hydration, the `static
-/// query()` builder, and the `$` field-companion class — following every
-/// convention in CLAUDE.md, no codegen required.
+/// Returns the Dart source of the canonical worm model for [resourceName].
+///
+/// The generated `final class extends Model` follows every worm convention
+/// by hand (no codegen `part`): the [tableNameOf]-derived `tableName`
+/// override, a typed constructor and `fromRow` hydration factory, a typed
+/// getter per field in [fields], `toRow`, the `static query()` builder, and
+/// the `$` field-companion class exposing worm `Field` constants. Pair it
+/// with [generateMigration] and [generateBeakColumns] for a full resource.
+///
+/// ```dart
+/// final specs = BeakFieldSpec.parseList('name:string,price:decimal');
+/// final source = generateWormModel('Product', specs);
+/// // source declares `final class Product extends Model`,
+/// // `static QueryBuilder<Product> query()`, and `abstract final class
+/// // Product$` with typed field constants.
+/// ```
 String generateWormModel(String resourceName, List<BeakFieldSpec> fields) {
   final String table = tableNameOf(resourceName);
   final String companion = '$resourceName\$';
@@ -97,7 +109,26 @@ String generateWormModel(String resourceName, List<BeakFieldSpec> fields) {
   return out.toString();
 }
 
-/// Generates the worm migration creating [resourceName]'s table.
+/// Returns the Dart source of the worm migration that creates
+/// [resourceName]'s table.
+///
+/// The generated `Migration` subclass creates the [tableNameOf] table with
+/// a UUID primary key, one blueprint column per field in [fields], and
+/// `timestamps()`, and drops it on `downSchema`. The [timestamp] prefixes
+/// the migration's `name` (worm applies migrations in name order), so pass
+/// a stable, sortable value such as `20260703_120000`. Register the class in
+/// `bin/worm.dart` — migrations are never auto-applied.
+///
+/// ```dart
+/// final specs = BeakFieldSpec.parseList('name:string,price:decimal');
+/// final source = generateMigration(
+///   'Product',
+///   specs,
+///   timestamp: '20260703_120000',
+/// );
+/// // source declares `final class CreateProductsTable extends Migration`
+/// // with name '20260703_120000_create_products_table'.
+/// ```
 String generateMigration(
   String resourceName,
   List<BeakFieldSpec> fields, {
@@ -134,9 +165,23 @@ String generateMigration(
   return out.toString();
 }
 
-/// Generates the Beak columns class and `BeakModel` for [resourceName] —
-/// the define-once definition both apps consume. Ends with the
-/// `BeakResource` registration snippet as documentation.
+/// Returns the Dart source of the Beak columns class and `BeakModel` for
+/// [resourceName] — the define-once definition both the server and the
+/// Flutter panel consume.
+///
+/// The generated `abstract final class <Name>Columns` exposes a typed
+/// `BeakColumn` constant per field in [fields] (plus a detail-only `id`) and
+/// a `values` list; the accompanying `<Name>Model extends BeakModel` wires
+/// up the [tableNameOf] table, uses the first field (or `id` when [fields]
+/// is empty) as the display column, and carries those columns. The class
+/// doc includes the `BeakResource` snippet to register it in a panel.
+///
+/// ```dart
+/// final specs = BeakFieldSpec.parseList('name:string,price:decimal');
+/// final source = generateBeakColumns('Product', specs);
+/// // source declares `abstract final class ProductColumns` and
+/// // `final class ProductModel extends BeakModel`.
+/// ```
 String generateBeakColumns(String resourceName, List<BeakFieldSpec> fields) {
   final String table = tableNameOf(resourceName);
   final String displayKey = fields.isEmpty ? 'id' : fields.first.name;

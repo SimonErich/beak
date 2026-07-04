@@ -7,13 +7,32 @@ import 's3_object_client.dart';
 /// Stores files in an S3-compatible bucket (AWS S3, MinIO, ...) configured
 /// by a [BeakS3Config] — Beak's production storage driver.
 ///
-/// Public URLs prefer the configured `publicBaseUrl` (e.g. a CDN); without
-/// one they address the bucket directly, path-style
+/// Public URLs prefer the configured [BeakS3Config.publicBaseUrl] (e.g. a
+/// CDN); without one they address the bucket directly, path-style
 /// (`endpoint/bucket/key`, as MinIO requires) or virtual-host style
-/// (`bucket.endpoint/key`) per `usePathStyle`.
+/// (`bucket.endpoint/key`) per [BeakS3Config.usePathStyle]. Every method
+/// validates the key and wraps any client/transport failure in a
+/// [BeakStorageException] so no raw S3 error escapes.
+///
+/// Prefer [registerS3Storage] + a `BeakStorageRegistry` to build one from
+/// config; construct directly only when injecting a test [S3ObjectClient]:
+///
+/// ```dart
+/// final driver = S3StorageDriver(BeakS3Config(
+///   endpoint: Uri.parse('http://localhost:29000'),
+///   bucket: 'uploads',
+///   accessKey: 'minioadmin',
+///   secretKey: 'minioadmin',
+///   region: 'us-east-1',
+///   usePathStyle: true,
+/// ));
+///
+/// final stored = await driver.put(upload, path: 'products/42');
+/// final signed = await driver.url(stored.key, expiresIn: Duration(hours: 1));
+/// ```
 final class S3StorageDriver implements BeakStorageDriver {
   /// Creates a driver for [config]; [client] overrides the wire client for
-  /// tests.
+  /// tests (default: a [MinioS3ObjectClient] built from [config]).
   S3StorageDriver(BeakS3Config config, {S3ObjectClient? client})
     : _config = config,
       _client = client ?? MinioS3ObjectClient(config);
@@ -21,7 +40,8 @@ final class S3StorageDriver implements BeakStorageDriver {
   /// Creates the driver from its [BeakS3Config].
   ///
   /// Throws a [BeakConfigurationException] for any other config type; the
-  /// signature is registry-compatible on purpose.
+  /// signature matches [BeakStorageRegistry.register] on purpose, which is how
+  /// [registerS3Storage] wires this factory in.
   factory S3StorageDriver.fromConfig(BeakStorageConfig config) =>
       switch (config) {
         BeakS3Config() => S3StorageDriver(config),
@@ -59,6 +79,10 @@ final class S3StorageDriver implements BeakStorageDriver {
     );
   }
 
+  /// Downloads the bytes stored under [key].
+  ///
+  /// Throws a [BeakStorageException] when [key] is invalid or no object is
+  /// stored under it.
   @override
   Future<Uint8List> get(String key) async {
     BeakStorageKeys.validate(key);
@@ -71,6 +95,11 @@ final class S3StorageDriver implements BeakStorageDriver {
     return bytes;
   }
 
+  /// Deletes the object stored under [key].
+  ///
+  /// Throws a [BeakStorageException] when [key] is invalid or no object is
+  /// stored under it, so deleting an absent file is an error (unlike the
+  /// idempotent underlying S3 delete).
   @override
   Future<void> delete(String key) async {
     BeakStorageKeys.validate(key);
@@ -148,6 +177,14 @@ final class S3StorageDriver implements BeakStorageDriver {
 
 /// Registers the S3 driver factory under `'s3'` so [BeakStorageRegistry]
 /// resolves [BeakS3Config]s to an [S3StorageDriver].
+///
+/// Call once during startup, before resolving any storage config:
+///
+/// ```dart
+/// final registry = BeakStorageRegistry();
+/// registerS3Storage(registry);
+/// final driver = registry.resolve(s3Config); // -> S3StorageDriver
+/// ```
 void registerS3Storage(BeakStorageRegistry registry) {
   registry.register('s3', S3StorageDriver.fromConfig);
 }

@@ -17,6 +17,34 @@ import 'upload_field.dart';
 /// column rules, belongs-to pickers, upload fields, sectioning with
 /// conditional visibility, edit-mode prefill from `getOne`, and 422
 /// responses mapped back onto the fields — zero per-resource form code.
+///
+/// A `null` [recordId] renders the create form; any other value loads that
+/// record and switches to edit mode (prefilling fields and revealing the
+/// to-many relation surfaces). Declaring [sections] both subsets and orders
+/// the fields and gates each group behind its `visibleWhen` predicate.
+///
+/// ```dart
+/// BeakDataForm(
+///   model: const ProductModel(),
+///   dataSource: dataSource,
+///   recordId: editingId, // null → create, otherwise → edit
+///   filePicker: pickImageFromDisk,
+///   onSaved: (record) => context.go('/products/${record['id']?.raw}'),
+///   sections: [
+///     const BeakFormSection(
+///       title: 'Basics',
+///       columns: [ProductColumns.name, ProductColumns.onSale],
+///     ),
+///     BeakFormSection(
+///       title: 'Pricing',
+///       columns: const [ProductColumns.salePrice],
+///       // Only shown while the "on sale" switch is on.
+///       visibleWhen: (values) =>
+///           values.valueOf<bool>(ProductColumns.onSale) ?? false,
+///     ),
+///   ],
+/// )
+/// ```
 class BeakDataForm extends HookWidget {
   /// Creates the form for [model] over [dataSource].
   ///

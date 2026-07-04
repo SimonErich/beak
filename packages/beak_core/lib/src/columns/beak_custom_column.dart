@@ -23,6 +23,18 @@ final class BeakColumnTag {
 
 /// The escape hatch: a column rendered by a custom builder registered in
 /// `beak_frontend` under [tag].
+///
+/// Auto-forms skip custom columns; use this for bespoke cells (a sparkline,
+/// a status pill) that no built-in column kind covers. The same [tag] value
+/// must be registered on the frontend so the renderer can be located.
+///
+/// ```dart
+/// static const badge = BeakCustomColumn(
+///   key: 'badge',
+///   label: 'Badge',
+///   tag: BeakColumnTag('badge'),
+/// );
+/// ```
 final class BeakCustomColumn extends BeakColumn {
   /// Creates a custom column rendered by the builder registered under [tag].
   const BeakCustomColumn({

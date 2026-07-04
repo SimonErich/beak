@@ -2,6 +2,13 @@ part of 'beak_column.dart';
 
 /// A color column holding hex strings (e.g. `#663399`), rendered as a
 /// swatch with a color picker in forms.
+///
+/// ```dart
+/// static const brandColor = BeakColorColumn(
+///   key: 'brand_color',
+///   label: 'Brand color',
+/// );
+/// ```
 final class BeakColorColumn extends BeakColumn {
   /// Creates a color column.
   const BeakColorColumn({

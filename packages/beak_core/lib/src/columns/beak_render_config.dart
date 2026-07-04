@@ -7,9 +7,25 @@ import '../context/beak_render_intent.dart';
 /// column resolves to in a table cell, a form input, a detail entry, and a
 /// filter control.
 ///
-/// This is the "define once, render everywhere" pivot: a `BeakColumn`
+/// This is the "define once, render everywhere" pivot: a [BeakColumn]
 /// declares one config, and `beak_frontend` maps each intent to the matching
-/// obers_ui widget per surface.
+/// obers_ui widget per surface. Use [BeakRenderConfig.uniform] when every
+/// surface renders the same way, or the default constructor to differ by
+/// surface (as [BeakDateTimeColumn] does — a relative timestamp in tables but
+/// an absolute picker in forms):
+///
+/// ```dart
+/// // Same widget everywhere.
+/// const config = BeakRenderConfig.uniform(BeakRenderIntent.text);
+///
+/// // A picker in forms, a thumbnail in tables.
+/// const imageConfig = BeakRenderConfig(
+///   table: BeakRenderIntent.thumbnail,
+///   form: BeakRenderIntent.image,
+///   detail: BeakRenderIntent.image,
+///   filter: BeakRenderIntent.custom,
+/// );
+/// ```
 @immutable
 final class BeakRenderConfig {
   /// Creates a config with an explicit intent per context.

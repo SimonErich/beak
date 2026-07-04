@@ -68,8 +68,8 @@ sealed class BeakRelationship {
   BeakRenderConfig get renderConfig;
 
   /// The rendering hint for a given [context]. The frontend refines it per
-  /// concrete relationship type (e.g. a form-context [BeakRenderIntent
-  /// .relationLink] becomes a searchable single-select).
+  /// concrete relationship type (e.g. a form-context
+  /// [BeakRenderIntent.relationLink] becomes a searchable single-select).
   BeakRenderIntent intentFor(BeakContext context) =>
       renderConfig.intentFor(context);
 

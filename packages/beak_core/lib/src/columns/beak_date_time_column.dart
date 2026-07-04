@@ -23,6 +23,16 @@ enum BeakDateFormat {
 /// Tables and detail views follow [format] (rendering relatively for
 /// [BeakDateFormat.relative]); forms and filters always use an absolute
 /// date picker.
+///
+/// ```dart
+/// static const updatedAt = BeakDateTimeColumn(
+///   key: 'updated_at',
+///   label: 'Updated',
+///   format: BeakDateFormat.relative,
+///   sortable: true,
+///   visibleOn: {BeakContext.table, BeakContext.detail},
+/// );
+/// ```
 final class BeakDateTimeColumn extends BeakColumn {
   /// Creates a date/time column displayed with [format].
   const BeakDateTimeColumn({
@@ -39,7 +49,8 @@ final class BeakDateTimeColumn extends BeakColumn {
   /// Display format used in tables and detail views.
   final BeakDateFormat format;
 
-  /// Returns a copy of this column displaying with [format] instead.
+  /// Returns a copy of this column displaying with [format] instead, keeping
+  /// every other property (key, label, visibility, rules) unchanged.
   BeakDateTimeColumn withFormat(BeakDateFormat format) => BeakDateTimeColumn(
     key: key,
     label: label,

@@ -45,6 +45,22 @@ BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
 /// Assembles the reference [BeakServer]: the shared model registry over a
 /// worm-backed data source on [adapter], with uploads enabled when
 /// [storage] is configured — the whole backend from one call.
+///
+/// [config] carries host/port and other backend settings, [adapter] is the
+/// live worm database connection, and [storage] (optional) enables file
+/// uploads for image columns; pass `null` to serve without uploads. Call
+/// [BeakServer.start] on the result to bind the HTTP listener.
+///
+/// ```dart
+/// final config = BeakBackendConfig.fromEnv(environment: env);
+/// await initializeWormPostgres(config);
+/// final server = buildReferenceServer(
+///   config: config,
+///   adapter: Worm.adapter(),
+///   storage: resolveStorage(referenceStorageConfig(env)!),
+/// );
+/// await server.start();
+/// ```
 BeakServer buildReferenceServer({
   required BeakBackendConfig config,
   required DatabaseAdapter adapter,

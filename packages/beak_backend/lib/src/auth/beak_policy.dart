@@ -6,7 +6,42 @@ import 'beak_auth_guard.dart';
 /// handler before it acts.
 ///
 /// A `null` principal is an anonymous request; denials surface as 401
-/// (anonymous) or 403 (authenticated) through the handlers.
+/// (anonymous) or 403 (authenticated) through the handlers. Implement this
+/// to gate the generated API by role, then pass the instance to
+/// [BeakServer]'s `policy` parameter. The methods receive the [BeakPrincipal]
+/// resolved by the auth guard and the target `table` (plus the record `id` or
+/// upload `storageKey` for the mutating hooks).
+///
+/// ```dart
+/// final class AdminOnlyWrites implements BeakPolicy {
+///   const AdminOnlyWrites();
+///
+///   bool _isAdmin(BeakPrincipal? p) => p?.hasRole('admin') ?? false;
+///
+///   @override
+///   bool canView(BeakPrincipal? principal, String table) => principal != null;
+///
+///   @override
+///   bool canCreate(BeakPrincipal? principal, String table) =>
+///       _isAdmin(principal);
+///
+///   @override
+///   bool canUpdate(BeakPrincipal? principal, String table, Object id) =>
+///       _isAdmin(principal);
+///
+///   @override
+///   bool canDelete(BeakPrincipal? principal, String table, Object id) =>
+///       _isAdmin(principal);
+///
+///   @override
+///   bool canDeleteUpload(
+///     BeakPrincipal? principal,
+///     String table,
+///     String columnKey,
+///     String storageKey,
+///   ) => _isAdmin(principal);
+/// }
+/// ```
 abstract interface class BeakPolicy {
   /// Whether [principal] may read records of [table].
   bool canView(BeakPrincipal? principal, String table);
@@ -61,8 +96,23 @@ final class BeakAllowAllPolicy implements BeakPolicy {
   ) => true;
 }
 
-/// Fails a denied policy decision with the status-correct typed exception:
-/// 401 for anonymous requests, 403 for authenticated ones.
+/// Throws the status-correct typed exception when a policy decision denied
+/// access, and does nothing when it allowed it.
+///
+/// A denied `null` [principal] raises a [BeakAuthenticationException] (401);
+/// a denied authenticated principal raises a [BeakAuthorizationException]
+/// (403). [action] and [table] are woven into the human-readable message
+/// (e.g. `Sign in to update "products".`). Call it right after evaluating a
+/// [BeakPolicy] method in a handler:
+///
+/// ```dart
+/// enforcePolicyDecision(
+///   allowed: policy.canCreate(beakPrincipal(request), model.table),
+///   principal: beakPrincipal(request),
+///   action: 'create',
+///   table: model.table,
+/// );
+/// ```
 void enforcePolicyDecision({
   required bool allowed,
   required BeakPrincipal? principal,

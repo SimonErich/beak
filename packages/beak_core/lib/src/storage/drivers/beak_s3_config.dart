@@ -3,6 +3,19 @@ part of '../beak_storage_config.dart';
 /// Configures the S3-compatible storage driver (AWS S3, MinIO, ...);
 /// consumed by `beak_storage_s3`. `beak_core` owns the config
 /// surface so apps configure storage without importing driver packages.
+///
+/// ```dart
+/// // Local MinIO: path-style addressing, served through a public gateway.
+/// final config = BeakS3Config(
+///   endpoint: Uri.parse('http://localhost:29000'),
+///   bucket: 'uploads',
+///   accessKey: 'minioadmin',
+///   secretKey: 'minioadmin',
+///   region: 'us-east-1',
+///   usePathStyle: true,
+///   publicBaseUrl: Uri.parse('http://localhost:29000/uploads'),
+/// );
+/// ```
 final class BeakS3Config extends BeakStorageConfig {
   /// Creates an S3 storage configuration.
   const BeakS3Config({

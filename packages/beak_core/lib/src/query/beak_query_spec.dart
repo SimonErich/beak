@@ -19,6 +19,35 @@ import '../common/json_support.dart';
 /// it as JSON; the backend decodes it with [fromJson] and translates it to
 /// the ORM's query builder. The spec references column and relation *keys*
 /// only, keeping it ORM-neutral.
+///
+/// Each copy-builder returns a new spec, so they chain fluently and the
+/// original is never mutated:
+///
+/// ```dart
+/// const status = BeakStringColumn(key: 'status', label: 'Status');
+/// const createdAt =
+///     BeakDateTimeColumn(key: 'created_at', label: 'Created at');
+/// const author = BeakBelongsTo(
+///   key: 'author',
+///   label: 'Author',
+///   relatedTable: 'users',
+///   displayColumnKey: 'name',
+///   foreignKey: 'author_id',
+/// );
+///
+/// final spec = const BeakQuerySpec(table: 'posts')
+///     .withRelation(author)
+///     .withFilter(BeakFieldFilter(
+///       column: status,
+///       operator: BeakOperator.eq,
+///       value: BeakValue.of('published'),
+///     ))
+///     .orderBy(createdAt, descending: true)
+///     .paginate(page: 2, perPage: 50);
+///
+/// // Ship it across the wire, then rebuild it losslessly on the backend.
+/// final BeakQuerySpec decoded = BeakQuerySpec.fromJson(spec.toJson());
+/// ```
 @immutable
 final class BeakQuerySpec {
   /// Creates a query over [table].

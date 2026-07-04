@@ -12,6 +12,22 @@ import 'beak_router.dart';
 /// The Beak admin panel: give it a [BeakPanelConfig] and it stands up the
 /// whole app — obers_ui theming, a go_router over every resource, the
 /// generated shell navigation, and the data layer in GetIt.
+///
+/// This is the root widget of a Beak app; hand it to `runApp`. On first
+/// build it registers the panel's dependencies (see
+/// [registerBeakDependencies]) and builds the router, both memoized on
+/// [config].
+///
+/// ```dart
+/// void main() => runApp(
+///   BeakPanel(config: buildPanelConfig()),
+/// );
+///
+/// // In a widget test, inject a fake source so no HTTP is issued:
+/// await tester.pumpWidget(
+///   BeakPanel(config: buildPanelConfig(), dataSource: fakeSource),
+/// );
+/// ```
 class BeakPanel extends HookWidget {
   /// Creates the panel for [config].
   ///

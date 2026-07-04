@@ -5,14 +5,34 @@ import 'package:args/command_runner.dart';
 import 'field_spec.dart';
 import 'templates.dart';
 
-/// Reachability probe over host/port, injectable for tests.
+/// A TCP reachability probe over a host and port.
+///
+/// Returns `true` when a connection to `host:port` succeeds within the
+/// probe's timeout. Injected into [BeakCliEnvironment] so `beak doctor` can
+/// be tested without touching the network — production uses
+/// [BeakCliEnvironment.production], which probes with a real socket.
 typedef BeakPortProbe = Future<bool> Function(String host, int port);
 
-/// The seams every command runs against — output sink, target directory,
-/// clock, and network probe are all injectable so tests never touch the
-/// real world.
+/// The injectable seams every command runs against — the output sink, the
+/// target directory, the clock behind migration timestamps, and the network
+/// probe behind `beak doctor`.
+///
+/// Injecting these keeps commands deterministic and side-effect-free under
+/// test; production wiring lives in [BeakCliEnvironment.production].
+///
+/// ```dart
+/// final env = BeakCliEnvironment(
+///   out: StringBuffer(),
+///   rootDirectory: Directory.systemTemp.createTempSync('beak'),
+///   now: () => DateTime.utc(2026, 7, 3, 12),
+///   probe: (host, port) async => false,
+/// );
+/// await createBeakRunner(env).run(['make:model', 'Product']);
+/// ```
 final class BeakCliEnvironment {
-  /// Creates the environment commands run in.
+  /// Creates an environment from explicit seams.
+  ///
+  /// Prefer [BeakCliEnvironment.production] outside tests.
   BeakCliEnvironment({
     required this.out,
     required this.rootDirectory,
@@ -20,20 +40,28 @@ final class BeakCliEnvironment {
     required this.probe,
   });
 
-  /// Where command output goes.
+  /// The sink command progress and generated-file logs are written to.
   final StringSink out;
 
-  /// The project directory files are generated into.
+  /// The project directory generated files are written under, and the root
+  /// `beak doctor` inspects.
   final Directory rootDirectory;
 
-  /// The clock behind migration timestamps.
+  /// The clock read once per command to build the migration timestamp
+  /// prefix, so scaffolded migration names are reproducible under test.
   final DateTime Function() now;
 
-  /// The reachability probe behind `beak doctor`.
+  /// The reachability probe `beak doctor` uses to check Postgres and MinIO.
   final BeakPortProbe probe;
 
-  /// The default environment: stdout, the current directory, the wall
-  /// clock, and real TCP probes.
+  /// Creates the default environment: writes to `stdout`, generates under
+  /// the current directory, reads the wall clock, and probes ports with a
+  /// real 2-second TCP connect.
+  ///
+  /// ```dart
+  /// final runner = createBeakRunner(BeakCliEnvironment.production());
+  /// await runner.run(args);
+  /// ```
   factory BeakCliEnvironment.production() => BeakCliEnvironment(
     out: stdout,
     rootDirectory: Directory.current,
@@ -53,8 +81,9 @@ final class BeakCliEnvironment {
     },
   );
 
-  /// Writes [content] to [relativePath] under the root, creating parent
-  /// directories, and logs the path.
+  /// Writes [content] to [relativePath] resolved under [rootDirectory],
+  /// creating any missing parent directories, and logs a `created` line
+  /// naming the path to [out]. Overwrites an existing file at that path.
   void writeFile(String relativePath, String content) {
     final file = File('${rootDirectory.path}/$relativePath');
     file.parent.createSync(recursive: true);
@@ -63,7 +92,23 @@ final class BeakCliEnvironment {
   }
 }
 
-/// The `beak` command runner with every scaffolding command registered.
+/// Builds the `beak` [CommandRunner] with every scaffolding command
+/// (`make:resource`, `make:model`, `make:columns`, `make:migration`) and
+/// `doctor` registered against [environment].
+///
+/// The returned runner's `run` completes with the process exit code (or
+/// `null` for `--help`); it throws [UsageException] on bad input, which the
+/// `bin/beak.dart` entry point catches to exit `64`.
+///
+/// ```dart
+/// final runner = createBeakRunner(BeakCliEnvironment.production());
+/// final int code = await runner.run([
+///   'make:resource',
+///   'Product',
+///   '--fields',
+///   'name:string,price:decimal',
+/// ]) ?? 0;
+/// ```
 CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
     CommandRunner<int>(
         'beak',
@@ -124,10 +169,21 @@ abstract base class _MakeCommand extends Command<int> {
   }
 }
 
-/// `beak make:resource Name --fields ...` — the full scaffold: worm model,
-/// migration, and the Beak columns + model definition.
+/// The `beak make:resource Name --fields ...` command — the full scaffold.
+///
+/// Writes three files under [BeakCliEnvironment.rootDirectory]: the worm
+/// model (`lib/src/models/<snake>.dart`), the Beak columns + model
+/// (`lib/src/models/<snake>_columns.dart`), and the create-table migration
+/// (`lib/src/migrations/create_<table>_table.dart`), then prints the manual
+/// registration steps. Registered on the runner by [createBeakRunner]; run
+/// it rather than constructing it directly.
+///
+/// ```console
+/// $ beak make:resource Product \
+///     --fields name:string,price:decimal,active:bool
+/// ```
 final class MakeResourceCommand extends _MakeCommand {
-  /// Creates the command.
+  /// Creates the command bound to [environment].
   MakeResourceCommand(super.environment);
 
   @override
@@ -165,9 +221,12 @@ final class MakeResourceCommand extends _MakeCommand {
   }
 }
 
-/// `beak make:model Name --fields ...` — the worm model only.
+/// The `beak make:model Name --fields ...` command — generates only the
+/// canonical worm model (`lib/src/models/<snake>.dart`), leaving columns
+/// and migration untouched. The narrow counterpart of
+/// [MakeResourceCommand].
 final class MakeModelCommand extends _MakeCommand {
-  /// Creates the command.
+  /// Creates the command bound to [environment].
   MakeModelCommand(super.environment);
 
   @override
@@ -187,9 +246,13 @@ final class MakeModelCommand extends _MakeCommand {
   }
 }
 
-/// `beak make:columns Name --fields ...` — the Beak columns + model only.
+/// The `beak make:columns Name --fields ...` command — generates only the
+/// Beak columns class and `BeakModel`
+/// (`lib/src/models/<snake>_columns.dart`), the define-once definition both
+/// the server and the Flutter panel consume. The narrow counterpart of
+/// [MakeResourceCommand].
 final class MakeColumnsCommand extends _MakeCommand {
-  /// Creates the command.
+  /// Creates the command bound to [environment].
   MakeColumnsCommand(super.environment);
 
   @override
@@ -209,9 +272,13 @@ final class MakeColumnsCommand extends _MakeCommand {
   }
 }
 
-/// `beak make:migration Name --fields ...` — the worm migration only.
+/// The `beak make:migration Name --fields ...` command — generates only the
+/// create-table worm migration (`lib/src/migrations/create_<table>_table.dart`),
+/// its name prefixed with a timestamp from [BeakCliEnvironment.now]. The
+/// narrow counterpart of [MakeResourceCommand]; remember to register the
+/// migration in `bin/worm.dart`.
 final class MakeMigrationCommand extends _MakeCommand {
-  /// Creates the command.
+  /// Creates the command bound to [environment].
   MakeMigrationCommand(super.environment);
 
   @override
@@ -231,13 +298,27 @@ final class MakeMigrationCommand extends _MakeCommand {
   }
 }
 
-/// `beak doctor` — checks the vendored paths, env file, and Docker
-/// services this repo expects.
+/// The `beak doctor` command — verifies the local dev setup this repo
+/// expects.
+///
+/// Reports on the vendored `packages/worm`, a reachable `obers_ui`, a
+/// present `.env`, and the Postgres (`:25432`) and MinIO (`:29000`) services
+/// via [BeakCliEnvironment.probe]. Prints one `OK`/`FAIL` line per check and
+/// exits `0` only when every check passes, `1` otherwise.
+///
+/// ```console
+/// $ beak doctor
+///   OK   worm vendored
+///   FAIL postgres :25432
+/// Some checks failed.
+/// ```
 final class DoctorCommand extends Command<int> {
-  /// Creates the command.
+  /// Creates the command bound to [environment].
   DoctorCommand(this.environment);
 
-  /// The seams this command runs against.
+  /// The seams this command runs against — its [BeakCliEnvironment.probe]
+  /// checks the service ports and its [BeakCliEnvironment.rootDirectory]
+  /// anchors the path checks.
   final BeakCliEnvironment environment;
 
   @override

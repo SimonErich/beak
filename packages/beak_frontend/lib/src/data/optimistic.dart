@@ -8,9 +8,20 @@ abstract final class BeakOptimistic {
   /// Applies a mutation optimistically.
   ///
   /// [apply] updates local state immediately; [rollback] must restore it
-  /// exactly; [commit] performs the backend call after the undo window.
-  /// Resolves to `true` when the mutation committed, `false` when it was
-  /// undone or the commit failed (after rolling back).
+  /// exactly; [commit] performs the backend call after the undo window
+  /// ([undoDuration], default 5s). Resolves to `true` when the mutation
+  /// committed, `false` when it was undone or the commit failed (after
+  /// rolling back). [message] labels the undo toast.
+  ///
+  /// ```dart
+  /// await BeakOptimistic.mutate(
+  ///   context,
+  ///   apply: () => rows.remove(record),
+  ///   rollback: () => rows.add(record),
+  ///   commit: () => dataSource.delete('products', id),
+  ///   message: 'Product deleted',
+  /// );
+  /// ```
   static Future<bool> mutate(
     BuildContext context, {
     required VoidCallback apply,
