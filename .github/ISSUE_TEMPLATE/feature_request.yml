@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an enhancement or new capability for Beak.
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and where does Beak get in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would the ideal API or behavior look like? A code sketch helps.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: guardrails
+    attributes:
+      label: Fit with Beak's guardrails
+      options:
+        - label: This keeps the type-safety promise (no user-facing `dynamic` or string field references).
+        - label: This respects the obers_ui-only / no-Material UI rule (if it touches the frontend).
