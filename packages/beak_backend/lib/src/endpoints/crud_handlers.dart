@@ -38,7 +38,10 @@ final class BeakCrudHandlers {
   /// `POST /query` — runs a posted [BeakQuerySpec].
   Future<Response> query(Request request) async {
     _requireView(request);
-    final spec = await _readSpec(request, BeakQuerySpec.fromJson);
+    final spec = readBeakSpec(
+      await readJsonObject(request),
+      BeakQuerySpec.fromJson,
+    );
     final page = await service.query(spec);
     return _json(200, page.toJson((record) => record.toJson()));
   }
@@ -46,7 +49,10 @@ final class BeakCrudHandlers {
   /// `POST /aggregate` — computes a posted [BeakAggregateSpec].
   Future<Response> aggregate(Request request) async {
     _requireView(request);
-    final spec = await _readSpec(request, BeakAggregateSpec.fromJson);
+    final spec = readBeakSpec(
+      await readJsonObject(request),
+      BeakAggregateSpec.fromJson,
+    );
     final num value = await service.aggregate(spec);
     return _json(200, {'value': value});
   }
@@ -164,23 +170,6 @@ final class BeakCrudHandlers {
     } on BeakConfigurationException catch (exception) {
       throw BeakValidationException(
         'Malformed record body: ${exception.message}',
-      );
-    }
-  }
-
-  /// Decodes a posted spec body via [decode]; malformed specs are user
-  /// errors (422), never internal ones — mirroring [_readRecord] so the
-  /// decoder's [BeakConfigurationException] never surfaces as a 500.
-  Future<T> _readSpec<T>(
-    Request request,
-    T Function(Map<String, Object?> json) decode,
-  ) async {
-    final body = await readJsonObject(request);
-    try {
-      return decode(body);
-    } on BeakConfigurationException catch (exception) {
-      throw BeakValidationException(
-        'Malformed spec body: ${exception.message}',
       );
     }
   }
