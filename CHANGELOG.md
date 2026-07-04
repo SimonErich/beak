@@ -41,3 +41,11 @@ change without notice.
   dumping a stack trace.
 - **Storage (FTP):** MKD directory-creation paths share the transfer path's
   rooting, so relative `baseDir`s work on non-chrooted servers.
+- **Core:** `BeakJsonColumn`'s contract now matches its behavior — it carries
+  its JSON document as text (`valueType` is `String`), with `BeakJson`
+  documented as the typed tree you decode that text into.
+
+### Changed
+
+- Extracted the malformed-spec decode-and-map-to-422 logic into a shared
+  `readBeakSpec` helper, reused by the query, aggregate, and export handlers.

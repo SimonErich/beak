@@ -46,3 +46,26 @@ Future<Map<String, Object?>> readJsonObject(Request request) async {
     ),
   };
 }
+
+/// Decodes an already-read JSON [body] into a typed spec via [decode],
+/// turning the decoder's [BeakConfigurationException] into a
+/// [BeakValidationException] so a malformed client spec maps to a 422 — never
+/// an opaque 500. Shared by every spec-accepting handler (query, aggregate,
+/// export):
+///
+/// ```dart
+/// final spec = readBeakSpec(
+///   await readJsonObject(request),
+///   BeakQuerySpec.fromJson,
+/// );
+/// ```
+T readBeakSpec<T>(
+  Map<String, Object?> body,
+  T Function(Map<String, Object?> json) decode,
+) {
+  try {
+    return decode(body);
+  } on BeakConfigurationException catch (exception) {
+    throw BeakValidationException('Malformed spec body: ${exception.message}');
+  }
+}
