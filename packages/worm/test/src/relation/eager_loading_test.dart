@@ -250,5 +250,75 @@ void main() {
       final alice = parents.firstWhere((u) => u.name == 'Alice');
       expect(alice.relations['posts'], isA<List<Model>>());
     });
+
+    test('a shared TWO-segment head loads once with both deep siblings '
+        'surviving', () async {
+      // Guards the RECURSIVE head-merge (only exercised at depth 3+): the
+      // paths share the two-segment prefix 'posts.author', so 'author' must
+      // be loaded exactly once and both of its deep children attach to the
+      // same author instances. A flattened (non-recursive) loader would load
+      // 'author' twice and drop the first deep sibling.
+      final adapter = await seededAdapter();
+      final ctx = QueryContext<TestUser>(
+        adapter: adapter,
+        table: 'users',
+        hydrate: TestUser.fromRow,
+        relations: <String, Relation<Model, Model>>{
+          'posts': userPostsRelation(),
+          'author': const BelongsToRelation<Model, Model>(
+            name: 'author',
+            parentTable: 'users',
+            foreignKey: 'user_id',
+            hydrateParent: TestUser.fromRow,
+          ),
+          'writtenPosts': const HasManyRelation<Model, Model>(
+            name: 'writtenPosts',
+            childTable: 'posts',
+            foreignKey: 'user_id',
+            hydrateChild: TestPost.fromRow,
+          ),
+          'recentPosts': const HasManyRelation<Model, Model>(
+            name: 'recentPosts',
+            childTable: 'posts',
+            foreignKey: 'user_id',
+            hydrateChild: TestPost.fromRow,
+          ),
+        },
+      );
+      final parents = await QueryBuilder<TestUser>.from(ctx).get();
+      final queries = await EagerLoader.run(
+        context: ctx,
+        parents: parents,
+        loads: const [
+          EagerLoad('posts.author.writtenPosts'),
+          EagerLoad('posts.author.recentPosts'),
+        ],
+        aggregates: const [],
+      );
+
+      // posts + ONE merged author + the two distinct leaf loads.
+      expect(queries, 4);
+
+      final alice = parents.firstWhere((u) => u.name == 'Alice');
+      if (alice.relations['posts'] case final List<Model> posts) {
+        final author = posts.first.relations['author'];
+        if (author is TestUser) {
+          expect(
+            author.relations['writtenPosts'],
+            isA<List<Model>>().having((l) => l.length, 'length', 2),
+            reason: 'the first depth-3 sibling must survive',
+          );
+          expect(
+            author.relations['recentPosts'],
+            isA<List<Model>>().having((l) => l.length, 'length', 2),
+            reason: 'the second depth-3 sibling must survive',
+          );
+        } else {
+          fail('Expected the shared "author" head to be loaded once');
+        }
+      } else {
+        fail('Expected posts to be eager-loaded as List<Model>');
+      }
+    });
   });
 }
