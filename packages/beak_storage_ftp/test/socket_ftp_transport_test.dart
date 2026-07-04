@@ -47,6 +47,35 @@ void main() {
       },
     );
 
+    test('a relative baseDir keeps MKD and STOR paths relative and '
+        'consistent', () async {
+      final relative = SocketFtpTransport(
+        BeakFtpConfig(
+          host: '127.0.0.1',
+          port: server.port,
+          user: 'beak',
+          password: 'secret',
+          baseDir: 'uploads',
+          publicBaseUrl: Uri.parse('https://static.example.com/uploads'),
+        ),
+      );
+
+      await relative.store('products/photo.png', bytes);
+
+      final mkdPaths = [
+        for (final command in server.commands)
+          if (command.startsWith('MKD ')) command.substring(4),
+      ];
+      final storPath = server.commands
+          .firstWhere((command) => command.startsWith('STOR '))
+          .substring(5);
+
+      // The created directories are rooted exactly where STOR writes —
+      // relative to the login directory, not the filesystem root.
+      expect(mkdPaths, ['uploads', 'uploads/products']);
+      expect(storPath, 'uploads/products/photo.png');
+    });
+
     test('store overwrites an existing file', () async {
       await transport.store('a.bin', Uint8List.fromList([1]));
       await transport.store('a.bin', bytes);

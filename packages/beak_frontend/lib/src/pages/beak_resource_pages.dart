@@ -65,13 +65,23 @@ class BeakResourceListPage extends HookWidget {
       destructive: action.color == BeakColor.error,
       onRun: (ids) async {
         for (final id in ids) {
-          final BeakRecord? record = await recordOf(id);
-          if (record != null) {
-            await executeBeakAction(
-              action: action,
-              context: actionContext,
-              record: record,
-            );
+          // The built-in view/edit actions only navigate by id — the row
+          // already rendered from the full record, so re-fetching it
+          // before dispatch would be a wasted round-trip.
+          switch (action) {
+            case BeakViewAction():
+              router.go(BeakRoutes.show(model.table, id));
+            case BeakEditAction():
+              router.go(BeakRoutes.edit(model.table, id));
+            default:
+              final BeakRecord? record = await recordOf(id);
+              if (record != null) {
+                await executeBeakAction(
+                  action: action,
+                  context: actionContext,
+                  record: record,
+                );
+              }
           }
         }
       },
@@ -119,6 +129,7 @@ class BeakResourceListPage extends HookWidget {
         model: model,
         dataSource: dataSource,
         initialSpec: spec,
+        baseFilter: filter.value,
         onRowTap: (record) {
           final Object? id = model.primaryKeyOf(record);
           if (id != null) {

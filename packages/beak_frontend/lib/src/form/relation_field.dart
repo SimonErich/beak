@@ -57,6 +57,19 @@ Future<List<BeakRecord>> beakLoadAttachedRecords(
 /// combobox over the related table (searching the relation's search
 /// columns, showing its display column) whose selection stores the related
 /// record's id in the foreign-key field.
+///
+/// [BeakDataForm] wires one automatically for each belongs-to relationship;
+/// build it directly only in a hand-composed form. In edit mode it resolves
+/// the prefilled foreign key into a labelled record so the picker opens on
+/// the current selection.
+///
+/// ```dart
+/// BeakBelongsToField(
+///   controller: controller,
+///   relation: ProductRelations.category, // a BeakBelongsTo
+///   dataSource: dataSource,
+/// )
+/// ```
 class BeakBelongsToField extends HookWidget {
   /// Creates the picker for [relation] bound to [controller].
   const BeakBelongsToField({
@@ -135,6 +148,20 @@ class BeakBelongsToField extends HookWidget {
 /// multi-select combobox seeded with the currently attached records that
 /// attaches newly selected ids and detaches removed ones as the selection
 /// changes.
+///
+/// Requires a saved [parentId] (a many-to-many pivot needs both keys), so
+/// [BeakDataForm] renders it only in edit mode. Each selection change diffs
+/// against the attached set and issues just the `attach`/`detach` calls
+/// needed; a rejected mutation reverts the optimistic selection.
+///
+/// ```dart
+/// BeakBelongsToManyField(
+///   model: const ProductModel(),
+///   parentId: productId,
+///   relation: ProductRelations.tags, // a BeakBelongsToMany
+///   dataSource: dataSource,
+/// )
+/// ```
 class BeakBelongsToManyField extends HookWidget {
   /// Creates the picker for [relation] on the [parentId] record of [model].
   const BeakBelongsToManyField({
@@ -205,12 +232,24 @@ class BeakBelongsToManyField extends HookWidget {
         for (final id in currentIds)
           if (!nextIds.contains(id)) id,
       ];
+      final List<BeakRecord> previous = attached.value;
       attached.value = next;
-      if (added.isNotEmpty) {
-        await repository.attach(model.table, parentId, relation.key, added);
-      }
-      if (removed.isNotEmpty) {
-        await repository.detach(model.table, parentId, relation.key, removed);
+      final results = <BeakResult<void>>[
+        if (added.isNotEmpty)
+          await repository.attach(model.table, parentId, relation.key, added),
+        if (removed.isNotEmpty)
+          await repository.detach(model.table, parentId, relation.key, removed),
+      ];
+      final bool failed = results.any(
+        (result) => switch (result) {
+          BeakErr() => true,
+          BeakOk() => false,
+        },
+      );
+      if (failed) {
+        // A rejected mutation must not leave the optimistic selection in
+        // place — revert so the UI keeps matching the server's pivot rows.
+        attached.value = previous;
       }
     }
 

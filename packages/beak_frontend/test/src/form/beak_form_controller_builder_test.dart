@@ -92,6 +92,24 @@ void main() {
         'Must be at most 20 characters.',
       ]);
     });
+
+    test('content rules validate a submitted whitespace string, matching '
+        'the server', () async {
+      // Absent (null) still passes — presence is BeakRequired's job.
+      expect(await controller(const _EmailModel()).validate(), isTrue);
+
+      // A whitespace-only string is a *submitted* value the server would
+      // reject, so the client mirror must reject it too (byte-identical).
+      final form = controller(const _EmailModel())
+        ..setValue(_emailColumn, '   ');
+      expect(await form.validate(), isFalse);
+      expect(
+        form.getErrors(form.slotOf(_emailColumn)),
+        const BeakEmail().validate('   ') == null
+            ? anything
+            : [const BeakEmail().validate('   ')],
+      );
+    });
   });
 
   group('buildData', () {
@@ -230,6 +248,32 @@ void main() {
       expect(form.isFieldVisible(form.slotOf(ArticleColumns.price)), isTrue);
     });
   });
+}
+
+/// An optional string column carrying only a content rule (no
+/// [BeakRequired]) — the shape that surfaced the client/server whitespace
+/// mismatch.
+const _emailColumn = BeakStringColumn(
+  key: 'email',
+  label: 'Email',
+  rules: [BeakEmail()],
+);
+
+/// A one-field model over [_emailColumn].
+final class _EmailModel extends BeakModel {
+  const _EmailModel();
+
+  @override
+  String get table => 'contacts';
+
+  @override
+  String get displayColumnKey => 'email';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    _emailColumn,
+  ];
 }
 
 /// A model with more form columns than the slot enum offers.

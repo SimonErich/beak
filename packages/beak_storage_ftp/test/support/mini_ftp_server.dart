@@ -25,6 +25,10 @@ final class MiniFtpServer {
   /// When true, every STOR is refused with a `451` reply.
   bool refuseStores = false;
 
+  /// Every raw command line received, in order — lets tests assert the
+  /// exact (un-normalized) paths the transport sent.
+  final List<String> commands = [];
+
   late ServerSocket _listener;
   StreamSubscription<Socket>? _connections;
 
@@ -53,6 +57,7 @@ final class MiniFtpServer {
     try {
       final lines = const LineSplitter().bind(utf8.decoder.bind(control));
       await for (final line in lines) {
+        commands.add(line);
         final space = line.indexOf(' ');
         final verb = (space < 0 ? line : line.substring(0, space))
             .toUpperCase();

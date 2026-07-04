@@ -42,28 +42,33 @@ Request multipartRequest(
 void main() {
   late Handler handler;
   late BeakStorageDriver storage;
+  late BeakModelRegistry registry;
+  late WormDataSource dataSource;
+  late UploadService uploads;
 
   setUp(() async {
     Worm.seedRandom(42);
     final adapter = await createApiTestDatabase();
-    final registry = createApiRegistry();
+    registry = createApiRegistry();
     storage = BeakMemoryStorageDriver.fromConfig(
       const BeakMemoryStorageConfig(),
     );
     var mintedKeys = 0;
+    dataSource = WormDataSource(registry, adapter: adapter);
+    uploads = UploadService(
+      registry: registry,
+      storage: storage,
+      transformRunner: const ImageTransformRunner(),
+      generateKeyId: () => 'minted-${++mintedKeys}',
+    );
     handler = const Pipeline()
         .addMiddleware(beakJsonMiddleware())
         .addMiddleware(beakErrorMappingMiddleware())
         .addHandler(
           beakApiRouter(
             registry: registry,
-            dataSource: WormDataSource(registry, adapter: adapter),
-            uploads: UploadService(
-              registry: registry,
-              storage: storage,
-              transformRunner: const ImageTransformRunner(),
-              generateKeyId: () => 'minted-${++mintedKeys}',
-            ),
+            dataSource: dataSource,
+            uploads: uploads,
           ),
         );
   });
@@ -194,6 +199,42 @@ void main() {
       );
       expect(response.statusCode, 422);
     });
+
+    test('consults canDeleteUpload with the storage key, '
+        'never canDelete', () async {
+      final uploaded = await handler(
+        multipartRequest(
+          '/api/notes/avatar/upload',
+          bytes: pngBytes(width: 4, height: 4),
+        ),
+      );
+      final stored = BeakStoredFile.fromJson(
+        decodeObject(await uploaded.readAsString()),
+      );
+
+      final policy = _RecordingUploadPolicy();
+      final gated = const Pipeline()
+          .addMiddleware(beakJsonMiddleware())
+          .addMiddleware(beakErrorMappingMiddleware())
+          .addHandler(
+            beakApiRouter(
+              registry: registry,
+              dataSource: dataSource,
+              uploads: uploads,
+              policy: policy,
+            ),
+          );
+      final response = await gated(
+        Request(
+          'DELETE',
+          Uri.parse('http://localhost/api/notes/avatar/upload'),
+          body: jsonEncode({'key': stored.key}),
+        ),
+      );
+
+      expect(response.statusCode, 204);
+      expect(policy.uploadDeleteChecks, [('notes', 'avatar', stored.key)]);
+    });
   });
 
   group('BeakServer wiring', () {
@@ -247,4 +288,38 @@ void main() {
       expect(response.statusCode, 404);
     });
   });
+}
+
+/// Allows everything but records every upload-delete check; consulting the
+/// record-id [BeakPolicy.canDelete] for an upload removal is the regression
+/// this fake pins down, so it throws there.
+final class _RecordingUploadPolicy implements BeakPolicy {
+  _RecordingUploadPolicy();
+
+  /// Every `(table, columnKey, storageKey)` triple `canDeleteUpload` saw.
+  final List<(String, String, String)> uploadDeleteChecks = [];
+
+  @override
+  bool canView(BeakPrincipal? principal, String table) => true;
+
+  @override
+  bool canCreate(BeakPrincipal? principal, String table) => true;
+
+  @override
+  bool canUpdate(BeakPrincipal? principal, String table, Object id) => true;
+
+  @override
+  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
+      throw StateError('Upload removal must consult canDeleteUpload.');
+
+  @override
+  bool canDeleteUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  ) {
+    uploadDeleteChecks.add((table, columnKey, storageKey));
+    return true;
+  }
 }
