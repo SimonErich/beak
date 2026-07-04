@@ -555,7 +555,7 @@ packages:
     source: path
     version: "0.1.0"
   worm_postgres:
-    dependency: "direct main"
+    dependency: transitive
     description:
       path: "../../packages/worm_postgres"
       relative: true

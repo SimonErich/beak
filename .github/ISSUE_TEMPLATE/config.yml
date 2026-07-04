@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/marqably/beak/discussions
+    about: Ask usage questions or propose ideas in Discussions.
+  - name: Security vulnerability
+    url: https://github.com/marqably/beak/security/advisories/new
+    about: Report vulnerabilities privately — please do not open a public issue.

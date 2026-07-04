@@ -72,3 +72,8 @@ scripts:
   down:
     run: docker compose down -v
     description: Stop Postgres + MinIO and drop their volumes.
+  license-sync:
+    run: >-
+      for pkg in packages/beak_*; do cp LICENSE "$pkg/LICENSE"; done &&
+      echo "Synced the Apache-2.0 LICENSE into every publishable package."
+    description: Copy the root LICENSE into each publishable beak_* package.
