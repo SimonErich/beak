@@ -3,6 +3,25 @@ part of 'beak_column.dart';
 /// A fractional-number column with fixed [precision]; a [prefix] or
 /// [suffix] (e.g. a currency symbol or unit) switches its rendering from a
 /// plain number to a decorated currency-style amount.
+///
+/// ```dart
+/// // Currency amount: "€19.99".
+/// static const price = BeakDecimalColumn(
+///   key: 'price',
+///   label: 'Price',
+///   prefix: '€',
+///   sortable: true,
+///   filterable: true,
+///   rules: [BeakRequired(), BeakMin(0)],
+/// );
+///
+/// // Plain number with a trailing unit: "1.50 kg".
+/// static const weight = BeakDecimalColumn(
+///   key: 'weight',
+///   label: 'Weight',
+///   suffix: 'kg',
+/// );
+/// ```
 final class BeakDecimalColumn extends BeakColumn {
   /// Creates a decimal column displaying [precision] fraction digits.
   const BeakDecimalColumn({

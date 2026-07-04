@@ -8,12 +8,16 @@ import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
 import 'beak_panel_config.dart';
 
-/// Builds the panel's router: a shell route wrapping the dashboard at `/`
-/// and every resource's generated list/create/show/edit pages, a `/login`
-/// route outside the shell, and a typed not-found fallback.
+/// Builds the panel's router from [config]: a shell route wrapping the
+/// dashboard at `/` and every resource's generated list/create/show/edit
+/// pages, a `/login` route outside the shell, and a typed not-found
+/// fallback.
 ///
-/// The pages resolve their data source from the Beak locator, registered
-/// by `BeakPanel` before the router is created.
+/// [BeakPanel] calls this after [registerBeakDependencies], so the pages
+/// resolve their [BeakDataSource] from [beakLocator] on their first frame.
+/// Resource routes are intentionally flat rather than nested: nesting would
+/// keep a list page alive under its create/show/edit children, so returning
+/// to the list would show stale rows instead of re-querying.
 GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
   routes: [
     ShellRoute(

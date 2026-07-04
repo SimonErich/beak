@@ -1,4 +1,10 @@
-/// The column kinds `--fields` specs can declare.
+/// The column kinds a `--fields` token can declare.
+///
+/// Each kind maps to a Dart type, a worm blueprint column, and a Beak
+/// column in the generated code (for example [string] becomes a Dart
+/// `String`, a `table.string(...)` migration column, and a
+/// `BeakStringColumn`). Tokens are matched by [parse], which also accepts a
+/// few aliases (`int`, `datetime`, `date`, `double`).
 enum BeakFieldKind {
   /// Single-line string.
   string,
@@ -18,8 +24,17 @@ enum BeakFieldKind {
   /// Date and time.
   dateTime;
 
-  /// Parses the spec token for this kind (`int` and `datetime` aliases
-  /// included), or `null` for an unknown token.
+  /// Returns the kind named by [token], or `null` if it is unrecognized.
+  ///
+  /// Accepts the canonical name of each kind plus common aliases: `int`
+  /// for [integer], `double` for [decimal], `boolean` for [boolean], and
+  /// `datetime`/`date` for [dateTime]. Callers that want a hard failure
+  /// instead of `null` should go through [BeakFieldSpec.parse].
+  ///
+  /// ```dart
+  /// BeakFieldKind.parse('int'); // BeakFieldKind.integer
+  /// BeakFieldKind.parse('blob'); // null
+  /// ```
   static BeakFieldKind? parse(String token) => switch (token) {
     'string' => string,
     'text' => text,
@@ -31,16 +46,38 @@ enum BeakFieldKind {
   };
 }
 
-/// One typed field of a scaffolded resource, parsed from a
-/// `name:kind` token.
+/// One typed field of a scaffolded resource, parsed from a `name:kind`
+/// token such as `price:decimal`.
+///
+/// A field carries its snake-case column [name] and its [kind]; the
+/// generators read both to emit the Dart getter, migration column, and
+/// Beak column for it. The camel-case Dart identifier is derived on demand
+/// via [camelName].
+///
+/// ```dart
+/// final specs = BeakFieldSpec.parseList(
+///   'name:string,price:decimal,released_at:datetime',
+/// );
+/// specs.last.name; // 'released_at'
+/// specs.last.camelName; // 'releasedAt'
+/// specs.last.kind; // BeakFieldKind.dateTime
+/// ```
 final class BeakFieldSpec {
-  /// Creates a field named [name] of [kind].
+  /// Creates a field named [name] (lower_snake_case) of the given [kind].
   const BeakFieldSpec({required this.name, required this.kind});
 
-  /// Parses a single `name:kind` token.
+  /// Parses a single `name:kind` token into a [BeakFieldSpec].
   ///
-  /// Throws a [FormatException] naming the offending token on malformed
-  /// input.
+  /// The token must be exactly `name:kind` where `name` is
+  /// lower_snake_case and `kind` is a token accepted by
+  /// [BeakFieldKind.parse]. Throws a [FormatException] whose message names
+  /// the offending token when the shape, the name casing, or the kind is
+  /// invalid.
+  ///
+  /// ```dart
+  /// BeakFieldSpec.parse('title:string'); // ok
+  /// BeakFieldSpec.parse('nameonly'); // throws FormatException
+  /// ```
   factory BeakFieldSpec.parse(String token) {
     final List<String> parts = token.split(':');
     if (parts.length != 2 || parts.first.isEmpty) {
@@ -62,19 +99,33 @@ final class BeakFieldSpec {
     return BeakFieldSpec(name: name, kind: kind);
   }
 
-  /// Parses a comma-separated `--fields` value.
+  /// Parses a comma-separated `--fields` value into an ordered list.
+  ///
+  /// Whitespace around each token is trimmed and empty tokens are skipped,
+  /// so a trailing comma or an empty [spec] yields the surviving fields (or
+  /// an empty list). Each non-empty token is delegated to
+  /// [BeakFieldSpec.parse], so a malformed token still throws a
+  /// [FormatException].
+  ///
+  /// ```dart
+  /// BeakFieldSpec.parseList('name:string, price:decimal');
+  /// // [BeakFieldSpec(name), BeakFieldSpec(price)]
+  /// ```
   static List<BeakFieldSpec> parseList(String spec) => [
     for (final token in spec.split(','))
       if (token.trim().isNotEmpty) BeakFieldSpec.parse(token.trim()),
   ];
 
-  /// Snake-case column name.
+  /// The lower_snake_case column and attribute name (e.g. `released_at`).
   final String name;
 
-  /// The typed column kind.
+  /// The typed column kind that drives type and column generation.
   final BeakFieldKind kind;
 
-  /// The field name in lowerCamelCase (for Dart identifiers).
+  /// The [name] rewritten to lowerCamelCase for use as a Dart identifier.
+  ///
+  /// Splits on underscores and upper-cases each subsequent segment, so
+  /// `released_at` becomes `releasedAt`.
   String get camelName {
     final List<String> parts = name.split('_');
     return [
@@ -85,7 +136,14 @@ final class BeakFieldSpec {
   }
 }
 
-/// Converts a `UpperCamelCase` resource name to `lower_snake_case`.
+/// Converts an `UpperCamelCase` resource name to `lower_snake_case`.
+///
+/// Used to derive file names and the singular table stem from a resource
+/// name (for example `OrderItem` becomes `order_item`).
+///
+/// ```dart
+/// snakeCaseOf('OrderItem'); // 'order_item'
+/// ```
 String snakeCaseOf(String resourceName) => resourceName
     .replaceAllMapped(
       RegExp('(?<=[a-z0-9])[A-Z]'),
@@ -93,8 +151,18 @@ String snakeCaseOf(String resourceName) => resourceName
     )
     .toLowerCase();
 
-/// The plural table name of a resource (naive `s`/`es` pluralization —
-/// rename in the generated files when irregular).
+/// Returns the plural, snake-case table name for [resourceName].
+///
+/// Pluralization is deliberately naive: `s`/`x`/`ch` endings take `es`, a
+/// trailing `y` becomes `ies`, and everything else takes `s`. It is right
+/// often enough to scaffold from; rename the generated `tableName` and
+/// migration when a resource pluralizes irregularly.
+///
+/// ```dart
+/// tableNameOf('Product'); // 'products'
+/// tableNameOf('Category'); // 'categories'
+/// tableNameOf('Box'); // 'boxes'
+/// ```
 String tableNameOf(String resourceName) {
   final String snake = snakeCaseOf(resourceName);
   if (snake.endsWith('s') || snake.endsWith('x') || snake.endsWith('ch')) {

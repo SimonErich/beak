@@ -12,6 +12,35 @@ import '../common/json_support.dart';
 /// The frontend composes filters from typed column constants; the backend
 /// decodes them with [fromJson] and translates each node to the ORM's query
 /// builder. The hierarchy is sealed so translators switch exhaustively.
+///
+/// Build predicates from column constants and combine them with
+/// [BeakAndFilter]/[BeakOrFilter]; a backend translator walks the tree with an
+/// exhaustive switch:
+///
+/// ```dart
+/// const price = BeakDecimalColumn(key: 'price', label: 'Price');
+/// const inStock = BeakBoolColumn(key: 'in_stock', label: 'In stock');
+///
+/// final BeakFilter predicate = BeakAndFilter([
+///   BeakFieldFilter(
+///     column: price,
+///     operator: BeakOperator.lte,
+///     value: BeakValue.of(100.0),
+///   ),
+///   BeakFieldFilter(
+///     column: inStock,
+///     operator: BeakOperator.eq,
+///     value: BeakValue.of(true),
+///   ),
+/// ]);
+///
+/// String describe(BeakFilter filter) => switch (filter) {
+///   BeakFieldFilter(:final columnKey, :final operator) =>
+///     '$columnKey ${operator.name}',
+///   BeakAndFilter(:final filters) => filters.map(describe).join(' AND '),
+///   BeakOrFilter(:final filters) => filters.map(describe).join(' OR '),
+/// };
+/// ```
 @immutable
 sealed class BeakFilter {
   const BeakFilter();

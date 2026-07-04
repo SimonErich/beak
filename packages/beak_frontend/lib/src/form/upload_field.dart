@@ -12,6 +12,21 @@ import 'beak_form_controller_builder.dart';
 /// Platform pickers surface names only; Beak needs bytes to validate and
 /// upload, so the app injects the picking strategy (the reference app wires
 /// a `file_picker`-based one).
+///
+/// ```dart
+/// Future<BeakUpload?> pickImageFromDisk() async {
+///   final result = await FilePicker.platform.pickFiles(withData: true);
+///   final file = result?.files.single;
+///   if (file == null || file.bytes == null) {
+///     return null;
+///   }
+///   return BeakUpload(
+///     filename: file.name,
+///     mimeType: 'image/png',
+///     bytes: file.bytes!,
+///   );
+/// }
+/// ```
 typedef BeakFilePicker = Future<BeakUpload?> Function();
 
 /// The form field for [BeakImageColumn]/[BeakFileColumn]: picking a file
@@ -19,6 +34,19 @@ typedef BeakFilePicker = Future<BeakUpload?> Function();
 /// to the backend), uploads through the configured [BeakUploadClient], and
 /// stores the returned storage key as the field value — with a thumbnail
 /// preview for images.
+///
+/// [BeakDataForm] wires one automatically for each upload column; construct
+/// it directly only in a hand-composed form. Without both an [uploader] and
+/// a [filePicker] it renders read-only.
+///
+/// ```dart
+/// BeakUploadField(
+///   controller: controller,
+///   column: ProductColumns.heroImage, // a BeakImageColumn
+///   uploader: dataSource, // an HTTP data source is also a BeakUploadClient
+///   filePicker: pickImageFromDisk,
+/// )
+/// ```
 class BeakUploadField extends HookWidget {
   /// Creates the upload field for [column] bound to [controller].
   ///

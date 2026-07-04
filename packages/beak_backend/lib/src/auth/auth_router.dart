@@ -12,6 +12,18 @@ import 'token_session_store.dart';
 
 /// Hashes [password] with HMAC-SHA256 under [secret] — what
 /// [BeakUserAccount]s store instead of plaintext.
+///
+/// The same [secret] must be supplied to [BeakAuthSessions] so login can
+/// recompute and compare the hash. Keep it out of source (load it from the
+/// environment):
+///
+/// ```dart
+/// final account = BeakUserAccount(
+///   username: 'admin',
+///   passwordHash: hashBeakPassword('s3cret', secret: authSecret),
+///   principal: const BeakPrincipal(id: 'admin', roles: {'admin'}),
+/// );
+/// ```
 String hashBeakPassword(String password, {required String secret}) =>
     Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(password)).toString();
 
@@ -37,6 +49,24 @@ final class BeakUserAccount {
 
 /// Configuration of the generated `/api/auth` surface: the session store,
 /// the login-capable accounts, and the password-hashing secret.
+///
+/// Pass this to [BeakServer] (its `authSessions` parameter) or to
+/// [beakAuthRouter] to mount `POST /login`, `POST /logout`, and `GET /me`.
+/// The same [secret] must have hashed every account's password:
+///
+/// ```dart
+/// final auth = BeakAuthSessions(
+///   store: InMemoryTokenSessionStore(),
+///   secret: authSecret,
+///   users: [
+///     BeakUserAccount(
+///       username: 'admin',
+///       passwordHash: hashBeakPassword('s3cret', secret: authSecret),
+///       principal: const BeakPrincipal(id: 'admin', roles: {'admin'}),
+///     ),
+///   ],
+/// );
+/// ```
 final class BeakAuthSessions {
   /// Creates the auth-surface configuration.
   const BeakAuthSessions({
@@ -120,7 +150,11 @@ final class BeakAuthHandlers {
       };
 }
 
-/// The routes of the generated auth surface, relative to `/api/auth`.
+/// Builds the auth [Router] over [sessions]: `POST /login`, `POST /logout`,
+/// and `GET /me`, mounted under `/api/auth` by the generated API.
+///
+/// Usually you configure [BeakServer] with `authSessions` instead of calling
+/// this directly; reach for it when composing the router by hand.
 Router beakAuthRouter(BeakAuthSessions sessions) {
   final handlers = BeakAuthHandlers(sessions);
   return Router()

@@ -11,6 +11,23 @@ import '../common/json_support.dart';
 /// front through directives like this one (reference-dedup happens in the
 /// backend). User code obtains loads through the spec's typed `withRelation`
 /// builder, which reads the key from a relationship constant.
+///
+/// A directive can carry a [filter] to constrain which related rows load and
+/// [nested] directives to eager-load the related model's own relations:
+///
+/// ```dart
+/// // Load an order's line items that are still pending, and each item's
+/// // product in turn.
+/// const load = BeakRelationLoad(
+///   'items',
+///   filter: BeakFieldFilter.forKey(
+///     'status',
+///     BeakOperator.eq,
+///     BeakStringValue('pending'),
+///   ),
+///   nested: [BeakRelationLoad('product')],
+/// );
+/// ```
 @immutable
 final class BeakRelationLoad {
   /// Creates an eager-load directive for the relation named [relationKey],

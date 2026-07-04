@@ -4,6 +4,11 @@ import 'beak_auth_guard.dart';
 
 /// Server-side storage for opaque session tokens — swappable so a
 /// database-backed implementation can replace the in-memory default.
+///
+/// [BeakAuthSessions] mints tokens into a store on login and
+/// [TokenSessionAuthGuard] reads them back on every request; implement this
+/// interface to persist sessions across restarts (e.g. in Redis or a table)
+/// instead of the process-memory [InMemoryTokenSessionStore].
 abstract interface class TokenSessionStore {
   /// Mints a new opaque token for [principal] and stores the session.
   Future<String> createSession(BeakPrincipal principal);
@@ -18,10 +23,26 @@ abstract interface class TokenSessionStore {
 
 /// The default [TokenSessionStore]: sessions in process memory with a
 /// fixed time-to-live.
+///
+/// Sessions vanish on restart — fine for local development and tests, but a
+/// production deployment behind more than one instance wants a shared,
+/// persistent [TokenSessionStore]. `sessionFor` treats an expired session as
+/// unknown and evicts it lazily.
+///
+/// ```dart
+/// final store = InMemoryTokenSessionStore(sessionTtl: Duration(hours: 8));
+/// final token = await store.createSession(
+///   const BeakPrincipal(id: 'admin', roles: {'admin'}),
+/// );
+/// final principal = await store.sessionFor(token); // the admin principal
+/// await store.revoke(token); // subsequent lookups return null
+/// ```
 final class InMemoryTokenSessionStore implements TokenSessionStore {
   /// Creates a store whose sessions live for [sessionTtl].
   ///
-  /// [now] and [generateToken] inject the clock and token mint for tests.
+  /// [now] and [generateToken] inject the clock and token mint for tests;
+  /// production leaves them at their defaults (the system clock and 256 bits
+  /// of secure randomness per token).
   InMemoryTokenSessionStore({
     this.sessionTtl = const Duration(hours: 12),
     DateTime Function()? now,

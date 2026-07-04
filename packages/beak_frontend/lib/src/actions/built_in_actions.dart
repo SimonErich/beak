@@ -47,6 +47,12 @@ final class BeakCreateAction extends BeakGlobalAction {
 
 /// Deletes the record optimistically with an undo window, then returns to
 /// the resource's list.
+///
+/// Renders destructively ([BeakColor.error]) and commits through
+/// [BeakOptimistic.mutate]: the delete is offered with an undo toast and
+/// only hits the data source once the undo window passes, after which the
+/// list refreshes and the router navigates back. Included on every
+/// resource's show page — you rarely construct it yourself.
 final class BeakDeleteAction extends BeakRecordAction {
   /// Creates the built-in delete action.
   const BeakDeleteAction()

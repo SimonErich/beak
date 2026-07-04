@@ -6,6 +6,22 @@ import 'package:obers_ui/obers_ui.dart';
 /// A typed filter control declared once per resource — the sealed family
 /// fixes how each renders and which predicate it contributes, so the bar
 /// switches exhaustively and no `Map<String, dynamic>` ever appears.
+///
+/// Each variant binds to a [BeakColumn] and produces a specific control and
+/// [BeakOperator]: [BeakSelectFilter] (enum equality), [BeakBoolFilter]
+/// (on/off), [BeakTextFilter] (contains), [BeakDateRangeFilter] (between).
+/// List them on a [BeakResource] to add the list page's filter bar:
+///
+/// ```dart
+/// BeakResource(
+///   model: const ProductModel(),
+///   icon: const BeakIconToken(OiIcons.package),
+///   filters: const [
+///     BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
+///     BeakTextFilter(column: ProductColumns.name, label: 'Name'),
+///   ],
+/// );
+/// ```
 sealed class BeakFilterDef {
   /// Creates a filter over [column] labelled [label].
   const BeakFilterDef({required this.column, required this.label});
@@ -18,26 +34,38 @@ sealed class BeakFilterDef {
 }
 
 /// An equality filter over a [BeakEnumColumn], rendered as an `OiSelect`.
+///
+/// The [BeakFilterDef.column] must be a [BeakEnumColumn]; its options
+/// populate the dropdown. Selecting a value constrains the column to it
+/// (`eq`); clearing it removes the predicate.
 final class BeakSelectFilter extends BeakFilterDef {
   /// Creates the select filter.
   const BeakSelectFilter({required super.column, required super.label});
 }
 
-/// An on/off filter rendered as an `OiSwitch`; enabled it constrains the
-/// column to `true`, disabled it contributes nothing.
+/// An on/off filter rendered as an `OiSwitch`.
+///
+/// Enabled, it constrains the column to `true` (`eq`); disabled, it
+/// contributes no predicate at all (rather than constraining to `false`).
 final class BeakBoolFilter extends BeakFilterDef {
   /// Creates the boolean filter.
   const BeakBoolFilter({required super.column, required super.label});
 }
 
-/// A contains filter rendered as a text input.
+/// A substring filter rendered as a text input.
+///
+/// A non-empty, trimmed value constrains the column with `contains`; an
+/// empty value contributes no predicate.
 final class BeakTextFilter extends BeakFilterDef {
   /// Creates the text filter.
   const BeakTextFilter({required super.column, required super.label});
 }
 
-/// A between filter over a date column, rendered as an
+/// A `between` filter over a date column, rendered as an
 /// `OiDateRangePickerField`.
+///
+/// Picking a start/end range constrains the column to it; clearing the
+/// field removes the predicate.
 final class BeakDateRangeFilter extends BeakFilterDef {
   /// Creates the date-range filter.
   const BeakDateRangeFilter({required super.column, required super.label});
@@ -46,6 +74,16 @@ final class BeakDateRangeFilter extends BeakFilterDef {
 /// Renders a resource's filters and emits the combined predicate: each
 /// active control contributes one typed [BeakFilter], AND-ed together
 /// (`null` when nothing is active).
+///
+/// The list page builds this from `resource.filters` and re-queries on
+/// every [onChanged]; hand-composing a page you wire it the same way:
+///
+/// ```dart
+/// BeakFilterBar(
+///   filters: resource.filters,
+///   onChanged: (combined) => filter.value = combined,
+/// );
+/// ```
 class BeakFilterBar extends HookWidget {
   /// Creates the bar over [filters], reporting changes through
   /// [onChanged].

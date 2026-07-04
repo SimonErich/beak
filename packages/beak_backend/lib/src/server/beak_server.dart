@@ -25,6 +25,22 @@ import 'middleware/request_log_middleware.dart';
 ///
 /// [storage] carries the configured storage driver behind the generated
 /// upload endpoints.
+///
+/// Construct it once at startup and call [start] to bind the socket:
+///
+/// ```dart
+/// final config = BeakBackendConfig.fromEnv();
+/// final registry = buildReferenceRegistry();
+/// final server = BeakServer(
+///   config: config,
+///   registry: registry,
+///   dataSource: WormDataSource(registry, adapter: adapter),
+///   storage: resolveStorage(const BeakMemoryStorageConfig()),
+///   policy: const BeakAllowAllPolicy(),
+/// );
+/// final http = await server.start();
+/// print('Listening on http://${http.address.host}:${http.port}');
+/// ```
 final class BeakServer {
   /// Creates a server serving [router] (default: the generated API — with
   /// upload endpoints when [storage] is configured, the auth surface when
@@ -82,7 +98,10 @@ final class BeakServer {
   final BeakRequestLogger _onRequest;
   final BeakUnexpectedErrorListener _onUnexpectedError;
 
-  /// The composed Shelf handler.
+  /// The full request pipeline as a single Shelf [Handler]: the middleware
+  /// stack (request log → CORS → JSON → error mapping → auth) wrapped around
+  /// the resource router, outermost first. Mount this directly to compose
+  /// Beak inside a larger Shelf app instead of calling [start].
   Handler get handler => const Pipeline()
       .addMiddleware(beakRequestLogMiddleware(onRequest: _onRequest))
       .addMiddleware(beakCorsMiddleware())
@@ -93,7 +112,9 @@ final class BeakServer {
       .addMiddleware(beakAuthMiddleware(guard: _authGuard))
       .addHandler(_router);
 
-  /// Binds [handler] on the configured host and port.
+  /// Binds [handler] on the configured host and port and starts serving.
+  ///
+  /// Returns the live [HttpServer]; close it to stop accepting connections.
   Future<HttpServer> start() =>
       shelf_io.serve(handler, config.host, config.port);
 

@@ -6,10 +6,26 @@ import 'validation_service.dart';
 /// The per-model logic layer between the generated handlers and the data
 /// source: validation, create-time defaults (minted uuid ids, timestamps),
 /// and relation-kind gating — handlers stay parse-and-route thin.
+///
+/// [beakApiRouter] builds one service per registered model; construct one
+/// directly only to drive a resource without the HTTP surface.
+///
+/// ```dart
+/// final service = BeakResourceService(productModel, dataSource);
+///
+/// // Omitting the string primary key lets the service mint a uuid, and it
+/// // stamps created_at/updated_at when the model declares them.
+/// final created = await service.create(
+///   BeakRecord(values: {'name': BeakValue.of('Keyboard')}),
+/// );
+/// ```
 final class BeakResourceService {
   /// Creates the service for [model] over [dataSource].
   ///
-  /// [now] and [generateId] inject the clock and id mint for tests.
+  /// [validation] is the boundary run before every write. [now] and
+  /// [generateId] inject the clock and id mint so tests can pin the stamped
+  /// timestamps and minted primary keys; both default to real
+  /// implementations ([DateTime.now] and a v4 uuid generator).
   BeakResourceService(
     this.model,
     this.dataSource, {

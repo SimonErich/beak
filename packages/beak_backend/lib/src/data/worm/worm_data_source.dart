@@ -8,11 +8,29 @@ import 'worm_record_model.dart';
 /// The default [BeakDataSource]: translates every operation to worm against
 /// an injected adapter, honoring model metadata (primary keys, soft
 /// deletes, relationships) without any per-model code.
+///
+/// This is the concrete implementation Beak ships; a future
+/// `ServerpodDataSource` would satisfy the same [BeakDataSource] interface
+/// without touching `beak_core` or `beak_backend`. Wire one over any worm
+/// [DatabaseAdapter] — an [InMemoryAdapter] in tests, a Postgres adapter in
+/// production — and hand it to [beakApiRouter] or a [BeakResourceService].
+///
+/// ```dart
+/// final registry = buildReferenceRegistry();
+/// final adapter = InMemoryAdapter();
+/// final dataSource = WormDataSource(registry, adapter: adapter);
+///
+/// final page = await dataSource.query(
+///   BeakQuerySpec(table: 'products'),
+/// );
+/// ```
 final class WormDataSource implements BeakDataSource {
   /// Creates a data source over [registry] executing on [adapter].
   ///
-  /// [now] injects the clock stamped into soft-delete markers (defaults to
-  /// [DateTime.now]).
+  /// [registry] resolves every table name to its [BeakModel] metadata, so one
+  /// instance serves every registered model. [now] injects the clock stamped
+  /// into soft-delete markers (defaults to [DateTime.now]) — override it for
+  /// deterministic tests.
   WormDataSource(
     this.registry, {
     required DatabaseAdapter adapter,

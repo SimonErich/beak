@@ -10,6 +10,24 @@ import 'file_rules/beak_file_type.dart';
 /// Dimension and aspect-ratio rules need decoded pixel sizes; the caller
 /// (the upload endpoint) decodes the image and passes them as
 /// `actualDimensions`, keeping the validator free of image codecs.
+///
+/// ```dart
+/// const validator = BeakUploadValidator();
+/// final result = validator.validate(
+///   upload,
+///   maxSizeInBytes: 5 * 1024 * 1024,
+///   allowedTypes: BeakFileType.images,
+///   maxDimensions: const BeakDimensions.square(4096),
+///   actualDimensions: decodedSize, // pass null for non-images
+/// );
+/// switch (result) {
+///   case BeakOk(:final value):
+///     await driver.put(value, path: 'products');
+///   case BeakErr(:final error):
+///     // error.fieldErrors keyed by 'size' | 'type' | 'dimensions' | 'aspectRatio'
+///     return respondUnprocessable(error);
+/// }
+/// ```
 final class BeakUploadValidator {
   /// Creates an upload validator.
   const BeakUploadValidator();

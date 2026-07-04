@@ -20,6 +20,16 @@ sealed class BeakValue {
   /// Supports `null`, [bool], [int], [double], [String], [DateTime], and
   /// [List] (recursively); an existing [BeakValue] passes through unchanged.
   /// Throws a [BeakConfigurationException] for any other type.
+  ///
+  /// This is the ergonomic way to build filter operands from plain Dart
+  /// without naming a variant by hand:
+  ///
+  /// ```dart
+  /// BeakValue.of('active');          // BeakStringValue
+  /// BeakValue.of(42);                // BeakIntValue
+  /// BeakValue.of([1, 2, 3]);         // BeakListValue of BeakIntValues
+  /// BeakValue.of(DateTime.utc(2026)); // BeakDateTimeValue
+  /// ```
   static BeakValue of(Object? raw) => switch (raw) {
     null => const BeakNullValue(),
     final BeakValue value => value,

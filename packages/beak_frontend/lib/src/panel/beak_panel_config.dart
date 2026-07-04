@@ -8,13 +8,40 @@ import '../dashboard/beak_stat.dart';
 import '../filters/beak_filter_widget.dart';
 import 'beak_routes.dart';
 
-/// A typed icon reference for panel navigation — a zero-cost wrapper so
-/// resource declarations stay expressive (`BeakIconToken(OiIcons.package)`)
-/// without leaking raw icon plumbing into Beak's config surface.
+/// A typed icon reference for panel navigation.
+///
+/// A zero-cost wrapper over [IconData] so resource declarations stay
+/// expressive (`BeakIconToken(OiIcons.package)`) without leaking raw icon
+/// plumbing into Beak's config surface. Wrap any obers_ui `OiIcons` value.
 extension type const BeakIconToken(IconData icon) {}
 
 /// One resource surfaced in the panel: a registered [BeakModel] plus its
-/// navigation presentation.
+/// navigation presentation and the typed actions and filters its generated
+/// pages expose.
+///
+/// Declaring a resource is all it takes to get a full list/create/show/edit
+/// CRUD surface — no per-page code. The built-in view, edit, delete and
+/// create actions are always present; [recordActions], [bulkActions],
+/// [globalActions] and [filters] add to them.
+///
+/// ```dart
+/// BeakResource(
+///   model: const ProductModel(),
+///   icon: const BeakIconToken(OiIcons.package),
+///   filters: const [
+///     BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
+///     BeakTextFilter(column: ProductColumns.name, label: 'Name'),
+///   ],
+///   recordActions: const [
+///     BeakRecordAction(
+///       key: 'duplicate',
+///       label: 'Duplicate',
+///       icon: OiIcons.copy,
+///       onExecute: duplicateProduct,
+///     ),
+///   ],
+/// );
+/// ```
 final class BeakResource {
   /// Creates a panel resource for [model], shown with [icon] and [label]
   /// (defaults to the title-cased table name).
@@ -68,6 +95,45 @@ final class BeakResource {
 
 /// Everything a Beak panel needs at startup: the resources, the backend
 /// origin, and optional theming.
+///
+/// This is the single declarative entry point of a Beak admin app — hand it
+/// to a [BeakPanel] and the whole UI (navigation, routing, generated CRUD
+/// pages, dashboard) is stood up from it. Compose it once, typically in a
+/// builder so tests can vary the API origin.
+///
+/// ```dart
+/// BeakPanelConfig buildPanelConfig({
+///   String apiBaseUrl = 'http://localhost:8080',
+/// }) => BeakPanelConfig(
+///   title: 'Beak Admin',
+///   apiBaseUrl: apiBaseUrl,
+///   resources: const [
+///     BeakResource(
+///       model: ProductModel(),
+///       icon: BeakIconToken(OiIcons.package),
+///     ),
+///     BeakResource(
+///       model: UserModel(),
+///       icon: BeakIconToken(OiIcons.users),
+///     ),
+///   ],
+///   dashboardStats: const [
+///     BeakStat(
+///       label: 'Products',
+///       aggregate: BeakAggregateSpec.count(table: 'products'),
+///       icon: OiIcons.package,
+///     ),
+///   ],
+///   dashboardCharts: const [
+///     BeakChart(
+///       title: 'Stock per product',
+///       type: BeakChartType.bar,
+///       query: BeakQuerySpec(table: 'products'),
+///       map: stockPerProduct,
+///     ),
+///   ],
+/// );
+/// ```
 final class BeakPanelConfig {
   /// Creates a panel configuration.
   const BeakPanelConfig({
@@ -101,7 +167,12 @@ final class BeakPanelConfig {
   /// The dashboard's charts, in order.
   final List<BeakChart> dashboardCharts;
 
-  /// A registry over every resource model, in declaration order.
+  /// Builds a [BeakModelRegistry] over every resource model, in declaration
+  /// order.
+  ///
+  /// Called once at startup so the data layer can resolve a table name back
+  /// to its model (primary-key metadata, relations). Registering the same
+  /// table twice is a configuration error surfaced by the registry.
   BeakModelRegistry buildRegistry() {
     final registry = BeakModelRegistry();
     for (final resource in resources) {

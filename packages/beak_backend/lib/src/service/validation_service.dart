@@ -5,17 +5,28 @@ import 'package:beak_core/beak_core.dart';
 /// service (never by handlers).
 ///
 /// Semantics: unknown keys are rejected; a mistyped value fails its type
-/// check and skips the column's rules; `BeakRequired` columns must be
+/// check and skips the column's rules; [BeakRequired] columns must be
 /// present on create, while updates validate only the provided fields
 /// (partial semantics — an explicit `null` still runs the rules).
+///
+/// ```dart
+/// const validation = ValidationService();
+/// try {
+///   validation.validate(model, record, isCreate: true);
+/// } on BeakValidationException catch (error) {
+///   // error.fieldErrors maps each offending column key to its messages.
+/// }
+/// ```
 final class ValidationService {
   /// Creates the stateless validation boundary.
   const ValidationService();
 
   /// Validates [input] against [model]'s columns.
   ///
-  /// Throws a [BeakValidationException] aggregating every violation under
-  /// its column key.
+  /// Set [isCreate] to enforce [BeakRequired] presence (create) or to
+  /// validate only the provided fields (update). Throws a
+  /// [BeakValidationException] whose `fieldErrors` aggregates every
+  /// violation under its column key; returns normally when [input] is valid.
   void validate(BeakModel model, BeakRecord input, {required bool isCreate}) {
     final fieldErrors = <String, List<String>>{};
     void report(String columnKey, String message) {

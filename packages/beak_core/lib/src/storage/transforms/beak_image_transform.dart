@@ -41,6 +41,17 @@ enum BeakImageFormat {
 ///
 /// The hierarchy is sealed and losslessly JSON-serializable so runners
 /// switch exhaustively and pipelines can travel over the wire.
+///
+/// Compose steps with the named factories and attach them to an image column;
+/// they run in order on upload:
+///
+/// ```dart
+/// const pipeline = <BeakImageTransform>[
+///   BeakImageTransform.resize(widthInPixels: 1280, fit: BeakImageFit.contain),
+///   BeakImageTransform.webp(quality: 80),
+///   BeakImageTransform.thumbnail(size: BeakDimensions.square(160)),
+/// ];
+/// ```
 @immutable
 sealed class BeakImageTransform {
   const BeakImageTransform();

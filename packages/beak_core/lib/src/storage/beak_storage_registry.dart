@@ -17,6 +17,22 @@ typedef BeakStorageDriverFactory =
 /// packages add theirs at app init (`registry.register('s3', ...)`) and the
 /// backend resolves the driver matching the configured
 /// [BeakStorageConfig.driverId].
+///
+/// ```dart
+/// final registry = BeakStorageRegistry()
+///   ..register('s3', BeakS3StorageDriver.fromConfig); // from beak_storage_s3
+///
+/// // Later, build the driver the config selects:
+/// final BeakStorageDriver driver = registry.resolve(
+///   BeakS3Config(
+///     endpoint: Uri.parse('https://s3.eu-central-1.amazonaws.com'),
+///     bucket: 'uploads',
+///     accessKey: accessKey,
+///     secretKey: secretKey,
+///     region: 'eu-central-1',
+///   ),
+/// );
+/// ```
 final class BeakStorageRegistry {
   /// Creates a registry with the built-in `memory` and `local` drivers
   /// registered.

@@ -23,9 +23,27 @@ enum BeakAggregateFunction {
 /// A typed, losslessly JSON-serializable description of a single aggregate
 /// (for dashboard stats and friends).
 ///
-/// User code builds specs through the typed constructors ([count], [sum],
-/// [avg]) using column constants — never key strings; the backend decodes
-/// them with [fromJson] and translates them to the ORM.
+/// User code builds specs through the typed constructors ([BeakAggregateSpec.count],
+/// [BeakAggregateSpec.sum], [BeakAggregateSpec.avg]) using column constants —
+/// never key strings; the backend decodes them with [fromJson] and translates
+/// them to the ORM.
+///
+/// ```dart
+/// const price = BeakDecimalColumn(key: 'price', label: 'Price');
+///
+/// // "How many products are in stock?"
+/// final activeCount = BeakAggregateSpec.count(
+///   table: 'products',
+///   filter: BeakFieldFilter(
+///     column: const BeakBoolColumn(key: 'in_stock', label: 'In stock'),
+///     operator: BeakOperator.eq,
+///     value: BeakValue.of(true),
+///   ),
+/// );
+///
+/// // "What is the average product price?"
+/// final avgPrice = BeakAggregateSpec.avg(table: 'products', column: price);
+/// ```
 @immutable
 final class BeakAggregateSpec {
   /// Counts the rows of [table] matching [filter].

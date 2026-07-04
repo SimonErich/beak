@@ -15,6 +15,18 @@ import 'beak_value.dart';
 /// declares what loads — a record never lazy-loads). Round-trips both to
 /// plain Dart rows ([fromRow]/[toRow], the ORM boundary) and to JSON
 /// ([fromJson]/[toJson], the wire boundary).
+///
+/// ```dart
+/// // Wrap a raw ORM row, then read typed values back out by column key.
+/// final record = BeakRecord.fromRow({
+///   'id': 7,
+///   'title': 'Hello',
+///   'published': true,
+/// });
+///
+/// final BeakValue? title = record['title']; // BeakStringValue('Hello')
+/// final Object? id = record['id']?.raw;      // 7
+/// ```
 @immutable
 final class BeakRecord {
   /// Creates a record over typed [values] and eager-loaded [relations].

@@ -13,7 +13,8 @@ import '../relations/beak_relationship.dart';
 /// backend pairs it with a `BeakDataSource`, which is the seam that lets
 /// worm today and other ORMs later both drive the same Beak panels.
 ///
-/// Subclass it once per resource:
+/// Subclass it once per resource, wiring up its columns, relationships, and
+/// delete semantics:
 ///
 /// ```dart
 /// final class ProductModel extends BeakModel {
@@ -27,8 +28,20 @@ import '../relations/beak_relationship.dart';
 ///
 ///   @override
 ///   List<BeakColumn> get columns => ProductColumns.values;
+///
+///   @override
+///   List<BeakRelationship> get relationships => const [
+///     ProductRelations.category,
+///     ProductRelations.tags,
+///   ];
+///
+///   @override
+///   bool get softDeletes => true;
 /// }
 /// ```
+///
+/// Register the instance in a [BeakModelRegistry] so the backend and frontend
+/// can resolve it by [table].
 @immutable
 abstract base class BeakModel {
   /// Enables `const` construction by subclasses.

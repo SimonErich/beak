@@ -8,7 +8,27 @@ import '../common/uuid_v4.dart';
 ///
 /// Handlers stay parse-thin; this service throws typed exceptions only
 /// (not-found for unknown columns/keys, validation for rule violations and
-/// non-file columns).
+/// non-file columns). [BeakServer] builds one for you when `storage` is
+/// configured; construct it directly only to compose the upload routes by
+/// hand.
+///
+/// ```dart
+/// final service = UploadService(
+///   registry: registry,
+///   storage: resolveStorage(const BeakMemoryStorageConfig()),
+///   transformRunner: const ImageTransformRunner(),
+/// );
+/// final stored = await service.handle(
+///   table: 'products',
+///   columnKey: 'thumbnail',
+///   upload: BeakUpload(
+///     filename: 'photo.png',
+///     mimeType: 'image/png',
+///     bytes: pngBytes,
+///   ),
+/// );
+/// print(stored.url); // the public URL of the stored file
+/// ```
 final class UploadService {
   /// Creates an upload service over [registry], [storage], and
   /// [transformRunner].

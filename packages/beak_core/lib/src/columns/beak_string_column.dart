@@ -1,6 +1,20 @@
 part of 'beak_column.dart';
 
 /// A single-line string column, rendered as plain text everywhere.
+///
+/// The workhorse column for names, references, and foreign keys. [maxLength]
+/// caps typing in the form; [placeholder] hints an empty input.
+///
+/// ```dart
+/// static const name = BeakStringColumn(
+///   key: 'name',
+///   label: 'Name',
+///   placeholder: 'A headline',
+///   searchable: true,
+///   sortable: true,
+///   rules: [BeakRequired(), BeakMaxLength(255)],
+/// );
+/// ```
 final class BeakStringColumn extends BeakColumn {
   /// Creates a single-line string column.
   const BeakStringColumn({

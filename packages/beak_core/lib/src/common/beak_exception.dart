@@ -6,6 +6,22 @@ import 'package:meta/meta.dart';
 /// `beak_backend`'s Shelf handlers) can be an exhaustive switch. Every
 /// exception carries a stable machine-readable [code] for wire formats and a
 /// human-readable [message].
+///
+/// Because the type is sealed, a translator switch is checked for
+/// completeness at compile time — adding a new variant forces every mapper to
+/// handle it:
+///
+/// ```dart
+/// int httpStatus(BeakException exception) => switch (exception) {
+///   BeakValidationException() => 422,
+///   BeakNotFoundException() => 404,
+///   BeakAuthenticationException() => 401,
+///   BeakAuthorizationException() => 403,
+///   BeakConflictException() => 409,
+///   BeakConfigurationException() => 500,
+///   BeakStorageException() => 500,
+/// };
+/// ```
 @immutable
 sealed class BeakException implements Exception {
   /// Creates an exception carrying a stable [code] and a [message].
@@ -22,6 +38,19 @@ sealed class BeakException implements Exception {
 }
 
 /// Raised when user-supplied data violates one or more column rules.
+///
+/// [fieldErrors] maps a column key to its messages, so a form can highlight
+/// the offending inputs individually:
+///
+/// ```dart
+/// throw const BeakValidationException(
+///   'The product could not be saved.',
+///   fieldErrors: {
+///     'price': ['Must be greater than 0'],
+///     'sku': ['Already taken'],
+///   },
+/// );
+/// ```
 final class BeakValidationException extends BeakException {
   /// Creates a validation failure with an overall [message] and optional
   /// per-field [fieldErrors].

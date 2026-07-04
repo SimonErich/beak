@@ -6,6 +6,20 @@ part of 'beak_relationship.dart';
 ///
 /// Renders as a badge list of related records; in forms the frontend maps
 /// the intent to a searchable multi-select.
+///
+/// ```dart
+/// // Products and tags joined through the `product_tag` pivot table.
+/// static const tags = BeakBelongsToMany(
+///   key: 'tags',
+///   label: 'Tags',
+///   relatedTable: 'tags',
+///   displayColumnKey: 'name',
+///   pivotTable: 'product_tag',
+///   foreignPivotKey: 'product_id',
+///   relatedPivotKey: 'tag_id',
+///   searchColumnKeys: ['name'],
+/// );
+/// ```
 final class BeakBelongsToMany extends BeakRelationship {
   /// Creates a belongs-to-many relationship joined through [pivotTable].
   const BeakBelongsToMany({

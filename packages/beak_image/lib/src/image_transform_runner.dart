@@ -61,7 +61,7 @@ enum _RunnerFormat {
   };
 }
 
-/// Executes `BeakImageTransform` pipelines with `package:image` — the
+/// Executes [BeakImageTransform] pipelines with `package:image` — the
 /// concrete [BeakTransformRunner] the upload endpoint registers.
 ///
 /// Sources must be one of the raster formats image columns accept (PNG,
@@ -70,13 +70,50 @@ enum _RunnerFormat {
 /// with the format state at their point in the pipeline. WebP output uses
 /// `package:image`'s lossless encoder, so a format step's quality applies to
 /// JPEG only.
+///
+/// It is stateless and `const`-constructible; register one instance with the
+/// backend and reuse it for every upload:
+///
+/// ```dart
+/// const runner = ImageTransformRunner();
+/// final result = await runner.run(sourceBytes, const [
+///   BeakImageTransform.resize(
+///     widthInPixels: 800,
+///     heightInPixels: 800,
+///     fit: BeakImageFit.cover,
+///   ),
+///   BeakImageTransform.format(format: BeakImageFormat.jpg, quality: 85),
+/// ]);
+/// print(result.mimeType); // image/jpeg
+/// print(result.dimensions); // 800x800
+/// ```
 final class ImageTransformRunner implements BeakTransformRunner {
   /// Creates a transform runner.
   const ImageTransformRunner();
 
-  /// JPEG quality applied when the pipeline sets no format step.
+  /// JPEG quality (0–100) applied when the pipeline includes no format step.
   static const int defaultQualityPercent = 80;
 
+  /// Runs [pipeline] over the encoded [source] image in declaration order.
+  ///
+  /// Returns the transformed primary image plus any thumbnail variants keyed
+  /// by name. An empty [pipeline] passes [source] through untouched (same
+  /// bytes, same MIME type). Throws a [BeakValidationException] when [source]
+  /// is not a decodable PNG/JPEG/WebP/GIF, and a [BeakConfigurationException]
+  /// when two thumbnail steps share a variant name.
+  ///
+  /// ```dart
+  /// final transformed = await const ImageTransformRunner().run(
+  ///   bytes,
+  ///   const [
+  ///     BeakImageTransform.thumbnail(
+  ///       size: BeakDimensions(widthInPixels: 64, heightInPixels: 64),
+  ///       name: 'avatar',
+  ///     ),
+  ///   ],
+  /// );
+  /// final avatarBytes = transformed.variants['avatar']!.bytes;
+  /// ```
   @override
   Future<BeakTransformedImage> run(
     Uint8List source,

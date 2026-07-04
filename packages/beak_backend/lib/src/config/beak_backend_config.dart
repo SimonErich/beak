@@ -5,7 +5,19 @@ import 'package:beak_core/beak_core.dart';
 /// Typed, validated runtime configuration for a Beak backend.
 ///
 /// Built once at startup — usually with [fromEnv] over `BeakEnv.resolve()` —
-/// and passed to the server; nothing else reads environment variables.
+/// and passed to the server; nothing else reads environment variables. Its
+/// [toString] redacts the [databaseUrl] credentials so it is safe to log.
+///
+/// ```dart
+/// final config = BeakBackendConfig.fromEnv(
+///   environment: BeakEnv.resolve(), // .env overlaid by the real environment
+/// );
+/// final server = BeakServer(
+///   config: config,
+///   registry: registry,
+///   dataSource: dataSource,
+/// );
+/// ```
 final class BeakBackendConfig {
   /// Creates a configuration from already-validated parts.
   const BeakBackendConfig({

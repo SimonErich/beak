@@ -5,6 +5,17 @@ part of 'beak_relationship.dart';
 ///
 /// Renders as a link to the related record; in forms the frontend maps the
 /// intent to a searchable single-select.
+///
+/// ```dart
+/// // A user's one profile row, which carries `profiles.user_id`.
+/// static const profile = BeakHasOne(
+///   key: 'profile',
+///   label: 'Profile',
+///   relatedTable: 'profiles',
+///   displayColumnKey: 'headline',
+///   foreignKey: 'user_id',
+/// );
+/// ```
 final class BeakHasOne extends BeakRelationship {
   /// Creates a has-one relationship resolved via [foreignKey].
   const BeakHasOne({

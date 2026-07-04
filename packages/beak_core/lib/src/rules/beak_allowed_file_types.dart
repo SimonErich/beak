@@ -5,6 +5,13 @@ part of 'beak_rule.dart';
 /// Validates [BeakFileType] values directly, and strings either as file
 /// names (matched by extension, case-insensitively) or as exact MIME types.
 /// An empty [allowedTypes] list allows everything.
+///
+/// ```dart
+/// const rule = BeakAllowedFileTypes([BeakFileType.jpeg, BeakFileType.png]);
+/// rule.validate('photo.PNG');       // null (extension matches)
+/// rule.validate('image/jpeg');      // null (MIME matches)
+/// rule.validate('notes.pdf');       // 'File type must be one of: jpg, png.'
+/// ```
 final class BeakAllowedFileTypes extends BeakRule {
   /// Creates a rule accepting only uploads of [allowedTypes].
   const BeakAllowedFileTypes(this.allowedTypes);

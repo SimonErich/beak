@@ -11,6 +11,15 @@ import 'beak_upload.dart';
 /// method throws a `BeakStorageException` for malformed keys, and `get` and
 /// `delete` throw one for missing files (`exists` reports `false` and
 /// `url` builds addresses without probing storage).
+///
+/// ```dart
+/// final BeakStorageDriver driver = registry.resolve(config);
+/// final stored = await driver.put(
+///   BeakUpload(filename: 'photo.png', mimeType: 'image/png', bytes: bytes),
+///   path: 'products', // key becomes 'products/photo.png'
+/// );
+/// final link = await driver.url(stored.key, expiresIn: Duration(hours: 1));
+/// ```
 abstract interface class BeakStorageDriver {
   /// Stable driver identifier matching `BeakStorageConfig.driverId`
   /// (`'s3'`, `'ftp'`, `'memory'`, `'local'`).

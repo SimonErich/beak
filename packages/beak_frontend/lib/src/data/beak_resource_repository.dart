@@ -3,6 +3,24 @@ import 'package:beak_core/beak_core.dart';
 /// The frontend's catch boundary: every data-source call is wrapped into a
 /// typed [BeakResult], so view models switch on outcomes and never
 /// `try/catch` themselves.
+///
+/// A thin, stateless wrapper over a [BeakDataSource]: each method mirrors a
+/// source operation but returns `BeakResult<T>` instead of throwing, so a
+/// thrown [BeakException] surfaces as [BeakErr] and any other error still
+/// propagates.
+///
+/// ```dart
+/// final repository = BeakResourceRepository(dataSource);
+/// final result = await repository.query(
+///   const BeakQuerySpec(table: 'products'),
+/// );
+/// switch (result) {
+///   case BeakOk(:final value):
+///     print('${value.items.length} products');
+///   case BeakErr(:final error):
+///     print('load failed: ${error.message}');
+/// }
+/// ```
 final class BeakResourceRepository {
   /// Creates a repository over [dataSource].
   const BeakResourceRepository(this.dataSource);

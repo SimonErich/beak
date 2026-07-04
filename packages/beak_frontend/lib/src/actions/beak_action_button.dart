@@ -5,9 +5,15 @@ import 'package:obers_ui/obers_ui.dart';
 
 import 'beak_action.dart';
 
-/// Runs [action] against its targets: shows the confirmation dialog first
-/// when the action asks for one (cancelling aborts), then dispatches by
-/// action kind — [record] for record actions, [records] for bulk actions.
+/// Runs [action] against its targets.
+///
+/// Shows the confirmation dialog first when
+/// [BeakAction.requiresConfirmation] is set (cancelling aborts without
+/// running), then dispatches by action kind — [record] for a
+/// [BeakRecordAction], [records] for a [BeakBulkAction], neither for a
+/// [BeakGlobalAction]. A record action with a null [record] is a no-op.
+/// This is the single execution path both [BeakActionButton] and the table
+/// row/bulk actions route through.
 Future<void> executeBeakAction({
   required BeakAction action,
   required BeakActionContext context,
@@ -47,7 +53,18 @@ Future<void> executeBeakAction({
 
 /// Renders one [BeakAction] as the matching obers_ui button — prominent
 /// for [BeakColor.primary], destructive for [BeakColor.error], compact
-/// icon-only inside table rows — and executes it on tap.
+/// icon-only inside table rows — and executes it on tap via
+/// [executeBeakAction].
+///
+/// The generated pages build these for you; construct one directly only
+/// when hand-composing a page:
+///
+/// ```dart
+/// BeakActionButton(
+///   action: const BeakCreateAction(),
+///   actionContext: actionContext,
+/// );
+/// ```
 class BeakActionButton extends HookWidget {
   /// Creates the button for [action].
   ///

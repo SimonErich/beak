@@ -5,8 +5,28 @@ import 'package:obers_ui/obers_ui.dart';
 import 'package:reference_admin_models/reference_admin_models.dart';
 
 /// Duplicates a product — the custom-action escape hatch: plain typed code
-/// over the data source, surfaced as a row action. Fields are addressed
-/// through the shared column constants, never string literals.
+/// over the data source, surfaced as a row action.
+///
+/// Reads the source [record] through the shared [ProductColumns] constants
+/// (never string literals), writes a `"(copy)"` clone via
+/// `context.dataSource`, then triggers `context.refresh` so the table
+/// reloads. Throws [BeakConfigurationException] when the record has no name.
+///
+/// Wire it into a resource as the `onExecute` of a [BeakRecordAction]:
+///
+/// ```dart
+/// BeakResource(
+///   model: const ProductModel(),
+///   recordActions: [
+///     BeakRecordAction(
+///       key: 'duplicate',
+///       label: 'Duplicate',
+///       icon: OiIcons.copy,
+///       onExecute: duplicateProduct,
+///     ),
+///   ],
+/// )
+/// ```
 Future<void> duplicateProduct(
   BeakRecord record,
   BeakActionContext context,
@@ -37,7 +57,12 @@ Future<void> duplicateProduct(
   await context.refresh?.call();
 }
 
-/// Maps a product page onto stock-per-product chart points.
+/// Maps a page of product records onto stock-per-product chart points.
+///
+/// Used as the `map` callback of a dashboard [BeakChart]: each record
+/// becomes one bar labelled by product name and sized by its stock count.
+/// Records with a missing or non-numeric stock contribute a zero-height bar
+/// rather than being dropped.
 List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
@@ -52,6 +77,13 @@ List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
 /// The whole reference panel from the shared model definitions: six
 /// resources, a dashboard, and the filter/action escape hatches — no
 /// endpoints, no per-page code.
+///
+/// [apiBaseUrl] points the panel's HTTP data source at the running
+/// reference server (`reference_admin_server`); override it to target a
+/// non-local backend. The
+/// result is handed straight to a [BeakPanel], which renders navigation, a
+/// table/detail/form page per [BeakResource], and the dashboard stats and
+/// charts.
 BeakPanelConfig buildReferencePanelConfig({
   String apiBaseUrl = 'http://localhost:8080',
 }) => BeakPanelConfig(
@@ -139,4 +171,5 @@ final class ReferenceAdminApp extends StatelessWidget {
       BeakPanel(config: buildReferencePanelConfig(), dataSource: dataSource);
 }
 
+/// Boots the Flutter reference admin against the default local backend.
 void main() => runApp(const ReferenceAdminApp());

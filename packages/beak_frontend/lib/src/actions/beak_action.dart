@@ -12,6 +12,22 @@ part 'built_in_actions.dart';
 /// data source, the router for navigation, the build context for overlays
 /// (confirmations, optimistic undo), and a hook to refresh the surface the
 /// action ran from.
+///
+/// Beak constructs this and hands it to every action's `onExecute`; custom
+/// actions read from it rather than capturing widget state:
+///
+/// ```dart
+/// Future<void> archive(BeakRecord record, BeakActionContext context) async {
+///   final Object? id = context.model.primaryKeyOf(record);
+///   if (id == null) return;
+///   await context.dataSource.update(
+///     context.model.table,
+///     id,
+///     BeakRecord(values: {'archived': const BeakBoolValue(true)}),
+///   );
+///   await context.refresh?.call();
+/// }
+/// ```
 final class BeakActionContext {
   /// Creates the execution context handed to every action.
   const BeakActionContext({
@@ -39,9 +55,13 @@ final class BeakActionContext {
 }
 
 /// A typed panel action: what it is called, how it renders, and whether it
-/// asks before running. The sealed hierarchy fixes the three target shapes
-/// — one record, the selection, or the page — so surfaces switch
-/// exhaustively.
+/// asks before running.
+///
+/// The sealed hierarchy fixes the three target shapes — one record
+/// ([BeakRecordAction]), the current selection ([BeakBulkAction]), or the
+/// page ([BeakGlobalAction]) — so surfaces switch over them exhaustively.
+/// The built-in view/edit/delete/create actions subclass these; declare
+/// custom ones on a [BeakResource] to extend the generated pages.
 sealed class BeakAction {
   /// Creates an action identified by [key] and labelled [label].
   const BeakAction({
@@ -70,6 +90,22 @@ sealed class BeakAction {
 }
 
 /// An action over one record (a table row or the record on a show page).
+///
+/// [onExecute] receives the target [BeakRecord] and the [BeakActionContext].
+/// Set [BeakAction.requiresConfirmation] to gate it behind a dialog, and
+/// [BeakAction.color] to `BeakColor.error` to render it destructively.
+///
+/// ```dart
+/// BeakRecordAction(
+///   key: 'duplicate',
+///   label: 'Duplicate',
+///   icon: OiIcons.copy,
+///   onExecute: (record, context) async {
+///     await context.dataSource.create(context.model.table, record);
+///     await context.refresh?.call();
+///   },
+/// );
+/// ```
 final class BeakRecordAction extends BeakAction {
   /// Creates a record action running [onExecute].
   const BeakRecordAction({
@@ -87,6 +123,10 @@ final class BeakRecordAction extends BeakAction {
 }
 
 /// An action over the currently selected records.
+///
+/// [onExecute] receives every selected [BeakRecord] at once, so bulk work
+/// (mass update, export) runs in a single pass. Surfaced through a
+/// [BeakResource]'s `bulkActions`.
 final class BeakBulkAction extends BeakAction {
   /// Creates a bulk action running [onExecute].
   const BeakBulkAction({
@@ -106,7 +146,12 @@ final class BeakBulkAction extends BeakAction {
   onExecute;
 }
 
-/// A page-level action (e.g. "Create"), independent of any record.
+/// A page-level action (e.g. "Create" or "Export all"), independent of any
+/// record.
+///
+/// [onExecute] receives only the [BeakActionContext]. Surfaced through a
+/// [BeakResource]'s `globalActions` alongside the built-in
+/// [BeakCreateAction].
 final class BeakGlobalAction extends BeakAction {
   /// Creates a global action running [onExecute].
   const BeakGlobalAction({

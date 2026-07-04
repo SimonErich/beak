@@ -12,6 +12,27 @@ import 'worm_record_model.dart';
 /// groups, relation loads become batched eager-load paths, and soft-deleting
 /// models are scoped with worm's [SoftDeleteScope] (lifted by
 /// `withTrashed`).
+///
+/// It is the engine behind [WormDataSource]; you rarely construct it
+/// directly, but it is exported for tools that need to inspect the worm
+/// query a spec produces.
+///
+/// ```dart
+/// final translator = WormQueryTranslator(registry);
+/// final builder = translator.builderFor(
+///   BeakQuerySpec(
+///     table: 'products',
+///     filter: BeakFieldFilter.forKey(
+///       'price',
+///       BeakOperator.gte,
+///       BeakValue.of(10),
+///     ),
+///     relationLoads: [BeakRelationLoad('category')],
+///   ),
+///   adapter,
+/// );
+/// final rows = await builder.get();
+/// ```
 final class WormQueryTranslator {
   /// Creates a translator resolving tables through [registry].
   const WormQueryTranslator(this.registry);

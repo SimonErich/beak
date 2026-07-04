@@ -12,6 +12,23 @@ import '../query/beak_record.dart';
 /// throw typed `BeakException`s (`BeakNotFoundException` for missing
 /// records, `BeakConfigurationException` for unknown tables/relations) and
 /// never leak ORM types.
+///
+/// ```dart
+/// // Query a page with a filter, eager-loading a relation.
+/// final page = await source.query(
+///   const BeakQuerySpec(
+///     table: 'products',
+///     relationLoads: [BeakRelationLoad('category')],
+///   ),
+/// );
+/// for (final record in page.items) {
+///   print(record['name']?.raw);
+/// }
+///
+/// // Create, then attach tags through a to-many relation.
+/// final created = await source.create('products', newProduct);
+/// await source.attach('products', created['id']!.raw!, 'tags', [tagId]);
+/// ```
 abstract interface class BeakDataSource {
   /// Runs [spec] and returns the requested page of typed records, with
   /// every relation load in the spec eagerly resolved (Beak never

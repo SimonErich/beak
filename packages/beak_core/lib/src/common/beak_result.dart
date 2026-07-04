@@ -8,6 +8,23 @@ import 'beak_exception.dart';
 /// Use this for value-level composition where a failure should travel with
 /// the data instead of unwinding the stack. Exceptions remain the mechanism
 /// at layer boundaries (Shelf handlers, repositories) per the layering rule.
+///
+/// Collapse both cases with [fold], or transform only the success value with
+/// [map]:
+///
+/// ```dart
+/// BeakResult<int> parseQuantity(String raw) {
+///   final int? value = int.tryParse(raw);
+///   return value == null
+///       ? BeakErr(BeakValidationException('"$raw" is not a number'))
+///       : BeakOk(value);
+/// }
+///
+/// final String label = parseQuantity('12').fold(
+///   onOk: (value) => 'quantity: $value',
+///   onErr: (error) => 'invalid: ${error.message}',
+/// );
+/// ```
 @immutable
 sealed class BeakResult<T> {
   const BeakResult();

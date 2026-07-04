@@ -53,6 +53,16 @@ ConnectionConfig postgresConnectionConfig(
 }
 
 /// Builds a lazily connecting Postgres adapter from a `DATABASE_URL`.
+///
+/// The returned [PostgresAdapter] opens a pool of at most [poolSize]
+/// connections on first use; hand it straight to a [WormDataSource].
+///
+/// ```dart
+/// final adapter = postgresAdapterFromUrl(
+///   Uri.parse('postgres://user:pass@localhost:5432/beak'),
+/// );
+/// final dataSource = WormDataSource(registry, adapter: adapter);
+/// ```
 PostgresAdapter postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
     PostgresAdapter(
       pool: PostgresConnectionPool.fromConfig(
@@ -62,6 +72,19 @@ PostgresAdapter postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
 
 /// Initializes worm once at startup on the Postgres database [config]
 /// points at; pair with `Worm.reset()` on shutdown.
+///
+/// Registers a single `'default'` adapter derived from
+/// [BeakBackendConfig.databaseUrl]. Call once before serving requests;
+/// calling it twice without a [Worm.reset] in between throws.
+///
+/// ```dart
+/// await initializeWormPostgres(config);
+/// try {
+///   await serve(handler, config.host, config.port);
+/// } finally {
+///   await Worm.reset();
+/// }
+/// ```
 Future<void> initializeWormPostgres(BeakBackendConfig config) =>
     Worm.initialize(
       config: const WormConfig(),

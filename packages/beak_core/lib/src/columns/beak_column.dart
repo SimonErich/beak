@@ -31,6 +31,33 @@ part 'beak_text_column.dart';
 /// filter control. The hierarchy is sealed so consumers — the frontend
 /// renderer, the backend mapper — switch exhaustively and are forced to
 /// handle new column types at compile time.
+///
+/// Never construct [BeakColumn] directly; pick the leaf that matches the
+/// field's type ([BeakStringColumn], [BeakDecimalColumn], [BeakEnumColumn],
+/// …). Group a resource's columns as `static const` fields so each is a
+/// single, reusable, type-safe reference — users never write a string field
+/// name:
+///
+/// ```dart
+/// abstract final class ProductColumns {
+///   static const name = BeakStringColumn(
+///     key: 'name',
+///     label: 'Name',
+///     searchable: true,
+///     sortable: true,
+///     rules: [BeakRequired(), BeakMaxLength(255)],
+///   );
+///   static const price = BeakDecimalColumn(
+///     key: 'price',
+///     label: 'Price',
+///     prefix: '€',
+///     filterable: true,
+///     rules: [BeakRequired(), BeakMin(0)],
+///   );
+///
+///   static const List<BeakColumn> values = [name, price];
+/// }
+/// ```
 @immutable
 sealed class BeakColumn {
   /// Creates a column stored under [key] and labelled [label].
@@ -55,7 +82,9 @@ sealed class BeakColumn {
   /// Human-readable label shown in tables, forms, and detail views.
   final String label;
 
-  /// The contexts this column appears in.
+  /// The surfaces this column appears on. Defaults to table, form, and
+  /// detail (but not filter); narrow it to hide a field from a surface — e.g.
+  /// `{BeakContext.detail}` for a read-only primary key.
   final Set<BeakContext> visibleOn;
 
   /// Whether table views may sort by this column.
@@ -73,8 +102,9 @@ sealed class BeakColumn {
   /// The per-context render configuration of this column.
   BeakRenderConfig get renderConfig;
 
-  /// The rendering hint for a given [context] (the frontend maps each intent
-  /// to an obers_ui widget).
+  /// Returns the rendering hint this column resolves to in [context] (the
+  /// frontend maps each [BeakRenderIntent] to an obers_ui widget). A
+  /// convenience shortcut for `renderConfig.intentFor(context)`.
   BeakRenderIntent intentFor(BeakContext context) =>
       renderConfig.intentFor(context);
 

@@ -9,6 +9,19 @@ import '../common/json_support.dart';
 ///
 /// The envelope is generic over the item type and serializes through caller
 /// supplied item (de)serializers, so it never exposes `dynamic`.
+///
+/// ```dart
+/// // Decode a page of records the backend returned for a query spec.
+/// final BeakPage<BeakRecord> page = BeakPage.fromJson(
+///   json,
+///   (itemJson) => switch (itemJson) {
+///     final Map<String, Object?> map => BeakRecord.fromJson(map),
+///     _ => throw const BeakConfigurationException('expected a record'),
+///   },
+/// );
+///
+/// final bool hasMore = page.page * page.perPage < page.total;
+/// ```
 @immutable
 final class BeakPage<T> {
   /// Creates a page of [items] out of [total] matching records, at 1-based

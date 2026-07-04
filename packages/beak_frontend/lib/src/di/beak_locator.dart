@@ -8,16 +8,32 @@ import '../panel/beak_panel_config.dart';
 
 /// The panel's dependency container — package-scoped so Beak never
 /// collides with an app's own `GetIt.instance` registrations.
+///
+/// [registerBeakDependencies] populates it and the generated pages resolve
+/// their dependencies from it, e.g. `beakLocator<BeakDataSource>()`.
 final GetIt beakLocator = GetIt.asNewInstance();
 
-/// Registers Beak's infrastructure for [config] in [locator]: the model
-/// registry, the typed client, the data source (overridable with a fake
-/// via [dataSource]), and the reference cache.
+/// Registers Beak's infrastructure for [config] into [locator] (defaults to
+/// [beakLocator]): the [BeakModelRegistry], the [BeakClient], the
+/// [BeakDataSource], and the [ReferenceCache].
 ///
-/// Registration is synchronous — the router built right after it reads
-/// the locator during its first frame. Re-registration replaces the
-/// previous panel's entries, so tests and hot restarts can call this
-/// repeatedly.
+/// [dataSource] overrides the HTTP-backed source with a fake for tests;
+/// [httpClient] swaps only the transport under the real client;
+/// [tokenProvider] supplies the bearer token per request. Registration is
+/// synchronous — the router built right after reads the locator on its
+/// first frame — and re-registration replaces the previous panel's entries,
+/// so tests and hot restarts can call it repeatedly.
+///
+/// [BeakPanel] calls this for you; call it directly only when driving the
+/// router without the panel widget:
+///
+/// ```dart
+/// registerBeakDependencies(
+///   config: buildPanelConfig(),
+///   dataSource: fakeSource, // omit in production to talk HTTP
+/// );
+/// final source = beakLocator<BeakDataSource>();
+/// ```
 void registerBeakDependencies({
   required BeakPanelConfig config,
   GetIt? locator,
