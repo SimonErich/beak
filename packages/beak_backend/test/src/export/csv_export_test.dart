@@ -164,4 +164,91 @@ void main() {
     );
     expect(rendered, '12.50');
   });
+
+  test('a malformed export spec returns 422, not 500', () async {
+    final response = await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/api/notes/export'),
+        body: jsonEncode(const <String, Object?>{}),
+      ),
+    );
+    expect(response.statusCode, 422);
+  });
+
+  test('a first-page query failure maps through the error boundary', () async {
+    final failing = const Pipeline()
+        .addMiddleware(beakJsonMiddleware())
+        .addMiddleware(beakErrorMappingMiddleware())
+        .addHandler(
+          beakApiRouter(
+            registry: registry,
+            dataSource: const _FailingDataSource(),
+          ),
+        );
+
+    final response = await failing(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/api/notes/export'),
+        body: jsonEncode(const BeakQuerySpec(table: 'notes').toJson()),
+      ),
+    );
+
+    expect(
+      response.statusCode,
+      500,
+      reason: 'a mapped error envelope, never a 200 with a truncated CSV',
+    );
+    expect(await response.readAsString(), contains('"code":"storage"'));
+  });
+}
+
+/// A data source whose queries always fail — pins that export failures
+/// surface before the 200 status and CSV header hit the wire.
+final class _FailingDataSource implements BeakDataSource {
+  const _FailingDataSource();
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
+      throw const BeakStorageException('The notes store is unavailable.');
+
+  @override
+  Future<BeakRecord?> getOne(String table, Object id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<BeakRecord> create(String table, BeakRecord data) =>
+      throw UnimplementedError();
+
+  @override
+  Future<BeakRecord> update(String table, Object id, BeakRecord data) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> delete(String table, Object id, {bool force = false}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<BeakRecord>> batchGet(String table, List<Object> ids) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> attach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<void> detach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<num> aggregate(BeakAggregateSpec spec) => throw UnimplementedError();
 }

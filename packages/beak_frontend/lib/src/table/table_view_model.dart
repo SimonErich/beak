@@ -12,11 +12,17 @@ import '../state/beak_view_model.dart';
 final class TableViewModel extends BeakViewModel {
   /// Creates the view model for [model] over [dataSource], starting from
   /// [initial] (default: an unfiltered first page).
+  ///
+  /// [baseFilter] is a persistent predicate outside the table's control
+  /// (the filter bar's) that every in-table filter change AND-merges with
+  /// instead of replacing.
   TableViewModel(
     this.model,
     BeakDataSource dataSource, {
     BeakQuerySpec? initial,
-  }) : _repository = BeakResourceRepository(dataSource) {
+    BeakFilter? baseFilter,
+  }) : _repository = BeakResourceRepository(dataSource),
+       _baseFilter = baseFilter {
     _spec = ownedSignal(initial ?? BeakQuerySpec(table: model.table));
     _page = ownedSignal<BeakPage<BeakRecord>?>(null);
     _loading = ownedSignal(false);
@@ -27,6 +33,9 @@ final class TableViewModel extends BeakViewModel {
   final BeakModel model;
 
   final BeakResourceRepository _repository;
+  final BeakFilter? _baseFilter;
+
+  int _latestRequestId = 0;
 
   late final Signal<BeakQuerySpec> _spec;
   late final Signal<BeakPage<BeakRecord>?> _page;
@@ -57,8 +66,9 @@ final class TableViewModel extends BeakViewModel {
     );
   }
 
-  /// Replaces the filter tree ([filter] `null` clears it) and refetches
-  /// from the first page.
+  /// Replaces the table's own filter tree ([filter] `null` clears it back
+  /// to the base filter), AND-merging a provided [filter] with the base
+  /// filter, and refetches from the first page.
   void setFilter(BeakFilter? filter) {
     _mutateSpec(
       (spec) => _rebuild(
@@ -174,10 +184,17 @@ final class TableViewModel extends BeakViewModel {
   }
 
   /// Refetches the current spec.
+  ///
+  /// Concurrent calls resolve latest-wins: a response belonging to a
+  /// superseded request never overwrites newer page/error/loading state.
   Future<void> refresh() async {
+    final int requestId = ++_latestRequestId;
     _loading.value = true;
     _error.value = null;
     final result = await _repository.query(_spec.value);
+    if (requestId != _latestRequestId) {
+      return;
+    }
     switch (result) {
       case BeakOk(:final value):
         _page.value = value;
@@ -193,7 +210,8 @@ final class TableViewModel extends BeakViewModel {
   }
 
   /// Rebuilds a spec with replaced parts — the core spec builders only
-  /// append, while table interactions replace.
+  /// append, while table interactions replace (a provided [filter] still
+  /// AND-merges with the persistent base filter).
   BeakQuerySpec _rebuild(
     BeakQuerySpec spec, {
     List<BeakSort>? sorts,
@@ -204,7 +222,9 @@ final class TableViewModel extends BeakViewModel {
     bool firstPage = false,
   }) => BeakQuerySpec(
     table: spec.table,
-    filter: clearFilter ? null : (filter ?? spec.filter),
+    filter: clearFilter
+        ? _baseFilter
+        : (filter == null ? spec.filter : _withBase(filter)),
     sorts: sorts ?? spec.sorts,
     search: clearSearch ? null : (search ?? spec.search),
     relationLoads: spec.relationLoads,
@@ -213,4 +233,11 @@ final class TableViewModel extends BeakViewModel {
         : spec.pagination,
     withTrashed: spec.withTrashed,
   );
+
+  /// AND-merges the table's own [filter] with the persistent base filter
+  /// so the filter bar and the column filters never clobber each other.
+  BeakFilter _withBase(BeakFilter filter) => switch (_baseFilter) {
+    null => filter,
+    final BeakFilter base => BeakAndFilter([base, filter]),
+  };
 }

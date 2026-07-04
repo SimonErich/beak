@@ -176,5 +176,80 @@ void main() {
       expect(ids, ['t1']);
       expect(dataSource.attachCalls, isEmpty);
     });
+
+    testWidgets('a rejected detach reverts the optimistic selection', (
+      tester,
+    ) async {
+      final failing = _DetachFailsSource(
+        records: {
+          'tags': {
+            't1': BeakRecord.fromRow(const {'id': 't1', 'name': 'hot'}),
+          },
+          'articles': {
+            'a1': const BeakRecord(
+              values: {'id': BeakStringValue('a1')},
+              relations: {
+                'tags': [
+                  BeakRecord(
+                    values: {
+                      'id': BeakStringValue('t1'),
+                      'name': BeakStringValue('hot'),
+                    },
+                  ),
+                ],
+              },
+            ),
+          },
+        },
+      );
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakBelongsToManyField(
+            model: const ArticleModel(),
+            parentId: 'a1',
+            relation: ArticleRelations.tags,
+            dataSource: failing,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final picker = tester.widget<OiComboBox<BeakRecord>>(
+        find.byType(OiComboBox<BeakRecord>),
+      );
+      picker.onMultiSelect!(const []);
+      await tester.pumpAndSettle();
+
+      final reverted = tester.widget<OiComboBox<BeakRecord>>(
+        find.byType(OiComboBox<BeakRecord>),
+      );
+      expect(failing.detachCalls, hasLength(1));
+      expect(
+        reverted.selectedValues,
+        hasLength(1),
+        reason: 'a rejected detach must not leave the row visually detached',
+      );
+      expect(
+        reverted.selectedValues.single['name'],
+        const BeakStringValue('hot'),
+      );
+    });
   });
+}
+
+/// A fake whose detach always fails, to pin optimistic-revert behavior.
+final class _DetachFailsSource extends FakeDataSource {
+  _DetachFailsSource({super.records});
+
+  @override
+  Future<void> detach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) async {
+    detachCalls.add((table, id, relationKey, relatedIds));
+    throw const BeakStorageException('detach rejected');
+  }
 }

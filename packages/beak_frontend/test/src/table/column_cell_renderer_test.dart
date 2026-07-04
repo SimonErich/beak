@@ -64,6 +64,25 @@ void main() {
     expect(find.text('€12.50'), findsOneWidget);
   });
 
+  testWidgets('prefix-less decimals honor precision in the number intent', (
+    tester,
+  ) async {
+    await pumpCell(
+      tester,
+      column: const BeakDecimalColumn(
+        key: 'rating',
+        label: 'Rating',
+        precision: 1,
+      ),
+      record: BeakRecord.fromRow(const {'rating': 4.666}),
+    );
+    expect(
+      find.text('4.7'),
+      findsOneWidget,
+      reason: 'a unitless decimal formats at its precision, as CSV export does',
+    );
+  });
+
   testWidgets('enum badges use the configured BeakColor and label', (
     tester,
   ) async {

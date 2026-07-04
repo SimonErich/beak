@@ -170,4 +170,24 @@ void main() {
       expect(out.toString(), contains('All checks passed.'));
     });
   });
+
+  group('entry point', () {
+    test('misuse exits 64 with the usage message, not a stack trace', () async {
+      final result = await Process.run(Platform.resolvedExecutable, const [
+        'run',
+        'bin/beak.dart',
+        'make:model',
+        'lowercase',
+      ]);
+
+      expect(result.exitCode, 64, reason: 'EX_USAGE for bad input');
+      final String stderr = result.stderr.toString();
+      expect(stderr, contains('UpperCamelCase'));
+      expect(
+        stderr,
+        isNot(contains('Unhandled exception')),
+        reason: 'the crafted usage message replaces the raw stack trace',
+      );
+    });
+  });
 }

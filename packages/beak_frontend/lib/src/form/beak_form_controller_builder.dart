@@ -136,7 +136,21 @@ final class BeakFormValues {
 /// holds over the current values.
 ///
 /// When a form declares sections, only the columns they list get fields —
-/// sections are the way to subset and order a large model's form.
+/// sections are the way to subset and order a large model's form. Columns
+/// omitted from every section carry no field at all. The [visibleWhen]
+/// predicate reads other fields through [BeakFormValues], so the section
+/// re-evaluates automatically whenever a value it read changes.
+///
+/// ```dart
+/// BeakFormSection(
+///   title: 'Shipping',
+///   columns: const [OrderColumns.address, OrderColumns.courier],
+///   // Hidden until the buyer picks physical delivery.
+///   visibleWhen: (values) =>
+///       values.valueOf<Fulfilment>(OrderColumns.fulfilment) ==
+///       Fulfilment.ship,
+/// )
+/// ```
 final class BeakFormSection {
   /// Creates a section titled [title] over [columns].
   const BeakFormSection({
@@ -160,6 +174,21 @@ final class BeakFormSection {
 /// mirroring the column's [BeakRule]s verbatim (identical messages to the
 /// backend), belongs-to foreign keys as picker slots, and typed
 /// [BeakRecord] output.
+///
+/// [BeakDataForm] constructs and disposes one of these for you; instantiate
+/// it directly only when hand-composing a form. Address fields through
+/// column constants — never the underlying [BeakFormSlot]s — via
+/// [valueOf], [setValue], and [slotOf].
+///
+/// ```dart
+/// final controller = BeakFormController(model: const ProductModel())
+///   ..prefill(loadedRecord); // seed edit-mode values without dirtying
+///
+/// final String? name = controller.valueOf<String>(ProductColumns.name);
+/// controller.setValue<bool>(ProductColumns.onSale, true);
+///
+/// final BeakRecord submission = controller.buildData();
+/// ```
 final class BeakFormController
     extends OiAfController<BeakFormSlot, BeakRecord> {
   /// Creates the controller for [model], optionally restricted and grouped
@@ -447,13 +476,12 @@ final class BeakFormController
     ),
   };
 
-  /// Runs a content [rule] the way the backend does: absent values pass —
-  /// presence is [BeakRequired]'s job alone.
+  /// Runs a content [rule] the way the backend does: only a genuinely
+  /// absent (`null`) value passes — presence is [BeakRequired]'s job
+  /// alone. A submitted empty or whitespace string IS validated, exactly
+  /// as `ValidationService` validates every provided value server-side.
   String? _mirrorContent(BeakRule rule, Object? value) {
     if (value == null) {
-      return null;
-    }
-    if (value case final String text when text.trim().isEmpty) {
       return null;
     }
     return rule.validate(value);

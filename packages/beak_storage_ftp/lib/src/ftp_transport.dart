@@ -23,13 +23,25 @@ final class FtpProtocolException implements Exception {
   String toString() => 'FtpProtocolException($replyCode): $message';
 }
 
-/// The thin seam between `FtpStorageDriver` logic and the FTP wire protocol,
+/// The thin seam between [FtpStorageDriver] logic and the FTP wire protocol,
 /// so driver behavior is unit-testable against a fake.
 ///
 /// Keys are validated, `/`-separated storage keys; implementations resolve
 /// them under the configured base directory. Failures surface as
 /// [FtpProtocolException]s (or raw socket errors); the driver maps them to
-/// `BeakStorageException`.
+/// [BeakStorageException]. The production implementation is
+/// [SocketFtpTransport]; a test supplies its own via the `FtpStorageDriver`
+/// `transport` parameter.
+///
+/// ```dart
+/// final class FakeFtpTransport implements FtpTransport {
+///   final Map<String, Uint8List> files = {};
+///   // ... implement store/retrieve/remove/exists against `files`,
+///   //     throwing FtpProtocolException(550, ...) for a missing key.
+/// }
+///
+/// final driver = FtpStorageDriver(config, transport: FakeFtpTransport());
+/// ```
 abstract interface class FtpTransport {
   /// Uploads [bytes] under [key], creating missing parent directories.
   Future<void> store(String key, Uint8List bytes);
@@ -47,6 +59,18 @@ abstract interface class FtpTransport {
 /// The production [FtpTransport]: a minimal RFC 959 client over `dart:io`
 /// sockets (binary type, passive mode), opening one fresh, cleanly closed
 /// control connection per operation.
+///
+/// Each call connects, logs in ([BeakFtpConfig.user]/[BeakFtpConfig.password]),
+/// switches to binary type, runs the operation under [BeakFtpConfig.baseDir]
+/// and tears the connection down — there is no pooling or persistent session.
+/// [FtpStorageDriver] builds one of these from its config; application code
+/// rarely instantiates it directly.
+///
+/// ```dart
+/// final transport = SocketFtpTransport(config);
+/// await transport.store('products/42/photo.jpg', bytes);
+/// final exists = await transport.exists('products/42/photo.jpg');
+/// ```
 final class SocketFtpTransport implements FtpTransport {
   /// Creates a transport connecting per [config].
   SocketFtpTransport(BeakFtpConfig config)
@@ -160,14 +184,23 @@ final class SocketFtpTransport implements FtpTransport {
   /// Creates the base directory and the key's parent chain with MKD;
   /// already-existing directories reply `550` and are skipped. A directory
   /// that truly cannot be created fails the subsequent STOR instead.
+  ///
+  /// The MKD targets share [_remotePathFor]'s rooting — absolute when the
+  /// base directory is absolute (or empty), relative otherwise — so the
+  /// directories created are exactly the ones STOR/RETR resolve against,
+  /// including on non-chrooted servers whose login directory is not the
+  /// filesystem root.
   Future<void> _ensureParentDirectories(_FtpSession session, String key) async {
     final segments = [
       ..._baseDir.split('/').where((segment) => segment.isNotEmpty),
       ...key.split('/')..removeLast(),
     ];
+    final bool absolute = _baseDir.isEmpty || _baseDir.startsWith('/');
     var path = '';
     for (final segment in segments) {
-      path = '$path/$segment';
+      path = path.isEmpty
+          ? (absolute ? '/$segment' : segment)
+          : '$path/$segment';
       try {
         await session.command('MKD $path', expecting: const {257});
       } on FtpProtocolException {

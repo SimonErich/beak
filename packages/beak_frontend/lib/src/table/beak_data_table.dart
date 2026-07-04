@@ -15,6 +15,36 @@ import 'table_view_model.dart';
 /// `OiTable` with server-side sort/filter/pagination through
 /// [BeakQuerySpec], per-row and bulk actions, optimistic delete with undo,
 /// and inline edit — zero per-resource table code.
+///
+/// Every column's cell is drawn by [renderBeakCell] from its table-context
+/// render intent, so badges, dates, thumbnails, and custom cells match the
+/// detail view exactly. Sort, filter, and page changes rewrite the spec on
+/// the internal [TableViewModel] and refetch (latest-wins); a fetch failure
+/// renders a retryable error state.
+///
+/// ```dart
+/// BeakDataTable(
+///   model: const ProductModel(),
+///   dataSource: dataSource,
+///   onRowTap: (record) => context.go('/products/${record['id']?.raw}'),
+///   actions: [
+///     BeakTableAction(
+///       id: 'duplicate',
+///       label: 'Duplicate',
+///       icon: OiIcons.copy,
+///       onRun: (ids) async => duplicate(ids.single),
+///     ),
+///   ],
+///   bulkActions: [
+///     BeakTableAction(
+///       id: 'archive',
+///       label: 'Archive',
+///       destructive: true,
+///       onRun: (ids) async => archiveAll(ids),
+///     ),
+///   ],
+/// )
+/// ```
 class BeakDataTable extends HookWidget {
   /// Creates the table for [model] over [dataSource].
   ///
@@ -29,6 +59,7 @@ class BeakDataTable extends HookWidget {
     this.bulkActions = const [],
     this.onRowTap,
     this.initialSpec,
+    this.baseFilter,
     this.controller,
     this.enableDelete = true,
     super.key,
@@ -52,6 +83,11 @@ class BeakDataTable extends HookWidget {
   /// The spec the first fetch runs (default: unfiltered first page).
   final BeakQuerySpec? initialSpec;
 
+  /// A persistent predicate outside the table's control (e.g. the filter
+  /// bar's); in-table column filters AND-merge with it instead of
+  /// replacing it.
+  final BeakFilter? baseFilter;
+
   /// Test seam for driving selection and pagination programmatically.
   final OiTableController? controller;
 
@@ -61,8 +97,13 @@ class BeakDataTable extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = useMemoized(
-      () => TableViewModel(model, dataSource, initial: initialSpec),
-      [model, dataSource, initialSpec],
+      () => TableViewModel(
+        model,
+        dataSource,
+        initial: initialSpec,
+        baseFilter: baseFilter,
+      ),
+      [model, dataSource, initialSpec, baseFilter],
     );
     useEffect(() {
       viewModel.refresh();

@@ -129,6 +129,28 @@ void main() {
       );
       expect(response.statusCode, 422);
     });
+
+    test('an explicit null id still mints one, and null timestamps '
+        'still stamp', () async {
+      final response = await call(
+        'POST',
+        '/api/notes',
+        body: {
+          'id': null,
+          'title': 'Blank pk field',
+          'rating': 3,
+          'created_at': null,
+        },
+      );
+
+      expect(response.statusCode, 201);
+      final values = valuesOf(await bodyOf(response));
+      expect(values['id'], 'minted-1');
+      expect(values['created_at'], {
+        'type': 'dateTime',
+        'value': fixedNow.toIso8601String(),
+      });
+    });
   });
 
   group('getOne', () {
@@ -207,6 +229,16 @@ void main() {
         body: const BeakQuerySpec(table: 'labels').toJson(),
       );
       expect(response.statusCode, 422);
+    });
+
+    test('a malformed query spec returns 422, not 500', () async {
+      final response = await call(
+        'POST',
+        '/api/notes/query',
+        body: const <String, Object?>{},
+      );
+      expect(response.statusCode, 422);
+      expect((await bodyOf(response))['code'], 'validation');
     });
   });
 
@@ -402,6 +434,16 @@ void main() {
       );
 
       expect(response.statusCode, 422);
+    });
+
+    test('a malformed aggregate spec returns 422, not 500', () async {
+      final response = await call(
+        'POST',
+        '/api/notes/aggregate',
+        body: const <String, Object?>{},
+      );
+      expect(response.statusCode, 422);
+      expect((await bodyOf(response))['code'], 'validation');
     });
   });
 

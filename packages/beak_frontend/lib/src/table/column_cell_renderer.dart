@@ -15,7 +15,19 @@ typedef BeakCustomCellBuilder =
 ///
 /// Register builders at panel startup; [renderBeakCell] falls back to a
 /// muted placeholder for unregistered tags so a missing builder is visible,
-/// never a crash.
+/// never a crash. Tags let the same builder back a [BeakCustomColumn]
+/// wherever it appears (table or detail).
+///
+/// ```dart
+/// void registerRenderers() {
+///   BeakCustomRenderers.register(
+///     const BeakColumnTag('sparkline'),
+///     (context, column, record) => Sparkline(
+///       points: record[column.key]?.raw,
+///     ),
+///   );
+/// }
+/// ```
 abstract final class BeakCustomRenderers {
   static final Map<BeakColumnTag, BeakCustomCellBuilder> _buildersByTag = {};
 
@@ -50,7 +62,17 @@ OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
 /// [intentOverride] substitutes the column's own intent — relationship
 /// fields render through it (relation intents live on relationships, not
 /// columns). [onOpenRelation] makes relation links tappable; [now] injects
-/// the clock behind relative timestamps.
+/// the clock behind relative timestamps. A `null` cell value renders a muted
+/// em dash placeholder.
+///
+/// ```dart
+/// OiTableColumn<BeakRecord>(
+///   id: column.key,
+///   header: column.label,
+///   cellBuilder: (context, record, rowIndex) =>
+///       renderBeakCell(context, column: column, record: record),
+/// )
+/// ```
 Widget renderBeakCell(
   BuildContext context, {
   required BeakColumn column,
@@ -67,7 +89,10 @@ Widget renderBeakCell(
   }
   return switch (intentOverride ?? column.intentFor(renderContext)) {
     BeakRenderIntent.text => OiLabel.body(raw.toString(), maxLines: 1),
-    BeakRenderIntent.number => OiLabel.body(raw.toString(), maxLines: 1),
+    BeakRenderIntent.number => OiLabel.body(
+      _numberText(column, raw),
+      maxLines: 1,
+    ),
     BeakRenderIntent.currency => OiLabel.body(
       _currencyText(column, raw),
       maxLines: 1,
@@ -92,6 +117,14 @@ Widget renderBeakCell(
     BeakRenderIntent.custom => _custom(context, column, record),
   };
 }
+
+/// Formats a numeric cell: decimal columns honor their configured
+/// precision (matching the CSV export), everything else renders raw.
+String _numberText(BeakColumn column, Object raw) => switch ((column, raw)) {
+  (BeakDecimalColumn(:final precision), final num number) =>
+    number.toStringAsFixed(precision),
+  _ => raw.toString(),
+};
 
 String _currencyText(BeakColumn column, Object raw) {
   final (int precision, String prefix, String suffix) = switch (column) {

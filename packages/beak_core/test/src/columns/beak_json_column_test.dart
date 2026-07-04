@@ -10,7 +10,11 @@ void main() {
     }
   });
 
-  test('holds typed BeakJson values, never raw maps', () {
-    expect(column.valueType, BeakJson);
+  test('carries its JSON document as text, decodable into a BeakJson tree', () {
+    expect(column.valueType, String);
+    expect(
+      BeakJson.decode('{"a": 1}'),
+      const BeakJsonObject({'a': BeakJsonNumber(1)}),
+    );
   });
 }
