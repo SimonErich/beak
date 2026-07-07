@@ -37,8 +37,10 @@ gated commit per phase.
   upload/export for all models), `bin/worm.dart` (migrate/seed CLI).
 - **Panel** — 17 resources grouped into Store/People/Projects/Content
   sections with filters + kanban/calendar view-modes; a custom analytics
-  dashboard at `/` (KPIs, sales chart, source donut, world map, tables); and
-  email / profile / pricing / FAQ app pages.
+  dashboard at `/` (KPIs, sales chart, source donut, world map, tables); plus
+  **14 custom pages** — email, chat, file-manager, invoice-detail, profile,
+  pricing, FAQ, and a **Showcase** section (charts gallery, media
+  gallery/carousel, UI-elements, typography, icons, starter).
 - **Validated on live Postgres** via an E2E suite (paged queries, aggregates,
   eager loads, a self-referential folder tree, revenue reconciliation, CRUD).
 
@@ -52,18 +54,39 @@ dart run bin/server.dart              # backend on :8080
 flutter run                           # the panel
 ```
 
-## Not yet built (candidates for a follow-up session)
-- Dedicated **chat** and **file-manager** pages (the module blocks exist;
-  chat needs a sender-name binding, file-manager assumes a single
-  folder/file table vs. this schema's split).
-- A **UI-kit showcase** section (alerts/buttons/badges/progress/rating/
-  gallery/lightbox/video/carousel/radial-slider demos), **icon galleries**,
-  a **forms/charts gallery**, and a **layout/theme variant switcher**.
-- Dedicated **starter / terms / coming-soon / lock-screen** content pages
-  (auth + maintenance routes already exist via config).
+## Remaining Tocly parity gaps (deliberately out of scope, documented here)
+These need framework work that isn't Beak- or app-specific enough to justify
+building now; each is recorded in the matching `*_MISSING_FEATURES.md`.
+- **Chart families beyond the five** (line/area/bar/pie/donut are done):
+  column/radialBar/radar/scatter/bubble/heatmap/candlestick etc. would extend
+  `BeakChartType` + the obers_ui_charts render switch — a generic
+  `beak_frontend`/`obers_ui_charts` change, not app work.
+- **Google/tile maps** (the vector world map is done) — a second obers_ui
+  widget (`OiTileMap`) behind `BeakMapBlock.tile`.
+- **Session-timeout / idle-lock** capability — a small `beak_frontend`
+  idle-timer wired to `OiAuthMode.lock` + `BeakConfirm`.
+- **Rich-text / advanced form plugins gallery** — the resource create/edit
+  forms already demonstrate every column type, validation, and the wizard;
+  a standalone "form plugins" page adds no framework capability.
 
 ## Action required from you
 The four **obers_ui** widgets are built and green in `~/Flutters/obers_ui`
-but **uncommitted** (that repo has unrelated in-flight doc edits, so nothing
-there was committed). Commit them there to make `flutter run`/CI reproducible
-on a clean checkout. `OBERS_MISSING_FEATURES.md` documents each.
+but **uncommitted** — that repo has ~54 unrelated in-flight doc edits, so I
+committed nothing there. Commit my code files to make `flutter run`/CI
+reproducible on a clean checkout (`OBERS_MISSING_FEATURES.md` documents each).
+The additions, cleanly separable from your doc churn:
+
+```
+# new files
+lib/src/components/display/oi_carousel.dart
+lib/src/components/inputs/oi_radial_slider.dart
+packages/obers_ui_charts/lib/src/composites/oi_vector_map/
+test/src/components/display/oi_carousel_test.dart
+test/src/components/inputs/oi_radial_slider_test.dart
+packages/obers_ui_charts/test/src/composites/oi_vector_map_test.dart
+# modified (barrel exports + auth lock-mode)
+lib/obers_ui.dart
+lib/src/modules/oi_auth_page.dart
+test/src/modules/oi_auth_page_test.dart
+packages/obers_ui_charts/lib/obers_ui_charts.dart
+```
