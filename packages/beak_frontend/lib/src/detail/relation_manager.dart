@@ -35,6 +35,7 @@ class BeakRelationManager extends HookWidget {
     required this.dataSource,
     this.onCreateRequested,
     this.relatedPrimaryKeyKey = 'id',
+    this.maxHeightInPixels = 360,
     super.key,
   });
 
@@ -56,6 +57,9 @@ class BeakRelationManager extends HookWidget {
 
   /// Primary-key column key of the related table.
   final String relatedPrimaryKeyKey;
+
+  /// The maximum height of the scrollable related-rows list, in pixels.
+  final double maxHeightInPixels;
 
   @override
   Widget build(BuildContext context) {
@@ -99,54 +103,71 @@ class BeakRelationManager extends HookWidget {
           breakpoint: context.breakpoint,
           children: [
             Expanded(child: OiLabel.smallStrong(relationship.label)),
+            if (related.value.isNotEmpty)
+              OiBadge.soft(label: '${related.value.length}'),
             if (onCreateRequested != null)
               OiButton.secondary(label: 'Create', onTap: onCreateRequested),
           ],
         ),
         if (relationship case final BeakBelongsToMany manyToMany)
           _attachPicker(repository, manyToMany, reload),
-        for (final record in related.value)
-          OiRow(
-            breakpoint: context.breakpoint,
-            children: [
-              Expanded(
-                child: OiLabel.body(
-                  relationship.displayLabelOf(record),
-                  maxLines: 1,
-                ),
-              ),
-              switch (relationship) {
-                final BeakBelongsToMany manyToMany => OiButton.icon(
-                  icon: OiIcons.unlink,
-                  label: 'Detach',
-                  onTap: () => _withRecordId(record, (relatedId) {
-                    mutate(
-                      () => repository.detach(
-                        parentModel.table,
-                        parentId,
-                        manyToMany.key,
-                        [relatedId],
+        // The related rows scroll within a bounded box, so a record with many
+        // relations never overflows the surrounding form or detail layout.
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeightInPixels),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final record in related.value)
+                  OiRow(
+                    breakpoint: context.breakpoint,
+                    children: [
+                      Expanded(
+                        child: OiLabel.body(
+                          relationship.displayLabelOf(record),
+                          maxLines: 1,
+                        ),
                       ),
-                    );
-                  }),
-                ),
-                _ => OiButton.icon(
-                  icon: OiIcons.trash2,
-                  label: 'Delete',
-                  onTap: () => _withRecordId(record, (relatedId) {
-                    mutate(
-                      () => repository.delete(
-                        relationship.relatedTable,
-                        relatedId,
-                      ),
-                    );
-                  }),
-                ),
-              },
-            ],
+                      switch (relationship) {
+                        final BeakBelongsToMany manyToMany => OiButton.icon(
+                          icon: OiIcons.unlink,
+                          label: 'Detach',
+                          onTap: () => _withRecordId(record, (relatedId) {
+                            mutate(
+                              () => repository.detach(
+                                parentModel.table,
+                                parentId,
+                                manyToMany.key,
+                                [relatedId],
+                              ),
+                            );
+                          }),
+                        ),
+                        _ => OiButton.icon(
+                          icon: OiIcons.trash2,
+                          label: 'Delete',
+                          onTap: () => _withRecordId(record, (relatedId) {
+                            mutate(
+                              () => repository.delete(
+                                relationship.relatedTable,
+                                relatedId,
+                              ),
+                            );
+                          }),
+                        ),
+                      },
+                    ],
+                  ),
+                if (related.value.isEmpty)
+                  OiLabel.caption(
+                    'No ${relationship.label.toLowerCase()} yet.',
+                  ),
+              ],
+            ),
           ),
-        if (related.value.isEmpty)
-          OiLabel.caption('No ${relationship.label.toLowerCase()} yet.'),
+        ),
       ],
     );
   }

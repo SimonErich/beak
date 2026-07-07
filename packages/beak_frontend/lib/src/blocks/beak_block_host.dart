@@ -11,6 +11,9 @@ import '../data/beak_resource_repository.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
+import '../form/beak_form_scope.dart';
+import '../form/field_widget_mapper.dart';
+import '../form/relation_field.dart';
 import '../table/beak_data_table.dart';
 import '../table/column_cell_renderer.dart';
 import 'beak_block.dart';
@@ -241,9 +244,13 @@ class BeakBlockHost extends StatelessWidget {
     rightColumnWidth: block.rightWidthInPixels,
   );
 
-  /// Renders one record field (label + formatted value) from the enclosing
-  /// [BeakRecordScope]; renders nothing when composed outside a detail layout.
+  /// Renders one field: an editable input inside a [BeakFormScope], otherwise
+  /// the read-only value from a [BeakRecordScope]; nothing outside both.
   Widget _field(BuildContext context, BeakFieldBlock block) {
+    final form = BeakFormScope.of(context);
+    if (form != null) {
+      return _fieldInput(form, block.column);
+    }
     final scope = BeakRecordScope.of(context);
     if (scope == null) {
       return const SizedBox.shrink();
@@ -274,6 +281,32 @@ class BeakBlockHost extends StatelessWidget {
     };
   }
 
+  /// The editable input for [column] in a form scope: a belongs-to picker for
+  /// a foreign key, the type-mapped field otherwise; nothing for a column the
+  /// form did not register (e.g. the id or a detail-only field).
+  Widget _fieldInput(BeakFormScope form, BeakColumn column) {
+    final controller = form.controller;
+    if (!controller.hasFieldFor(column)) {
+      return const SizedBox.shrink();
+    }
+    for (final relation in form.model.relationships) {
+      if (relation is BeakBelongsTo && relation.foreignKey == column.key) {
+        return BeakBelongsToField(
+          controller: controller,
+          relation: relation,
+          dataSource: form.dataSource,
+        );
+      }
+    }
+    return beakFormFieldFor(
+          controller: controller,
+          column: column,
+          uploader: form.uploader,
+          filePicker: form.filePicker,
+        ) ??
+        const SizedBox.shrink();
+  }
+
   Widget _fieldGroup(BuildContext context, BeakFieldGroupBlock block) => OiGrid(
     breakpoint: context.breakpoint,
     columns: OiResponsive<int>(block.columnCount),
@@ -285,6 +318,23 @@ class BeakBlockHost extends StatelessWidget {
   );
 
   Widget _relation(BuildContext context, BeakRelationBlock block) {
+    final form = BeakFormScope.of(context);
+    if (form != null) {
+      // In a form, a to-many relation can only be managed once the parent
+      // exists — create mode has no id to attach to yet.
+      final Object? editingId = form.recordId;
+      if (editingId == null) {
+        return OiLabel.caption(
+          'Save first to manage ${block.relationship.label.toLowerCase()}.',
+        );
+      }
+      return BeakRelationManager(
+        parentModel: form.model,
+        parentId: editingId,
+        relationship: block.relationship,
+        dataSource: form.dataSource,
+      );
+    }
     final scope = BeakRecordScope.of(context);
     if (scope == null) {
       return const SizedBox.shrink();

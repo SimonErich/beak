@@ -345,6 +345,7 @@ class BeakResourceCreatePage extends HookWidget {
         model: resource.model,
         dataSource: dataSource,
         steps: resource.formSteps,
+        layout: resource.formLayout,
         onSaved: (_) => router.go(BeakRoutes.list(resource.model.table)),
       ),
     );
@@ -383,6 +384,7 @@ class BeakResourceEditPage extends HookWidget {
         dataSource: dataSource,
         recordId: recordId,
         steps: resource.formSteps,
+        layout: resource.formLayout,
         onSaved: (_) =>
             router.go(BeakRoutes.show(resource.model.table, recordId)),
       ),
