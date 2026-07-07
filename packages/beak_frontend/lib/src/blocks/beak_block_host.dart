@@ -17,6 +17,7 @@ part 'views/beak_chart_block_view.dart';
 part 'views/beak_chat_block_view.dart';
 part 'views/beak_faq_block_view.dart';
 part 'views/beak_file_manager_block_view.dart';
+part 'views/beak_gallery_block_view.dart';
 part 'views/beak_inbox_block_view.dart';
 part 'views/beak_invoice_block_view.dart';
 part 'views/beak_kanban_block_view.dart';
@@ -29,6 +30,7 @@ part 'views/beak_radial_slider_block_view.dart';
 part 'views/beak_profile_block_view.dart';
 part 'views/beak_record_readers.dart';
 part 'views/beak_table_block_view.dart';
+part 'views/beak_timeline_block_view.dart';
 
 /// Renders a [BeakBlock] tree onto obers_ui widgets — the single renderer
 /// behind custom pages, resource view modes, and overlay bodies.
@@ -82,6 +84,12 @@ class BeakBlockHost extends StatelessWidget {
     final BeakMasonryBlock masonry => _masonry(context, masonry),
     final BeakWizardBlock wizard => _wizard(wizard),
     final BeakThreePaneBlock panes => _threePane(panes),
+    final BeakAlertBlock alert => _alert(alert),
+    final BeakBadgeBlock badge => _badge(badge),
+    final BeakProgressBlock progress => _progress(progress),
+    final BeakRatingBlock rating => _rating(rating),
+    final BeakGalleryBlock gallery => _BeakGalleryBlockView(block: gallery),
+    final BeakTimelineBlock timeline => _BeakTimelineBlockView(block: timeline),
     final BeakTextBlock text => _text(text),
     final BeakImageBlock image => _image(image),
     final BeakMarkdownBlock markdown => OiMarkdown(data: markdown.source),
@@ -224,6 +232,36 @@ class BeakBlockHost extends StatelessWidget {
     showRightColumn: block.right != null,
     leftColumnWidth: block.leftWidthInPixels,
     rightColumnWidth: block.rightWidthInPixels,
+  );
+
+  Widget _alert(BeakAlertBlock block) => switch (block.level) {
+    BeakAlertLevel.info => OiBanner.info(message: block.message),
+    BeakAlertLevel.success => OiBanner.success(message: block.message),
+    BeakAlertLevel.warning => OiBanner.warning(message: block.message),
+    BeakAlertLevel.error => OiBanner.error(message: block.message),
+  };
+
+  Widget _badge(BeakBadgeBlock block) =>
+      OiBadge.soft(label: block.label, color: _badgeColor(block.color));
+
+  OiBadgeColor _badgeColor(BeakColor color) => switch (color) {
+    BeakColor.primary => OiBadgeColor.primary,
+    BeakColor.secondary => OiBadgeColor.accent,
+    BeakColor.success => OiBadgeColor.success,
+    BeakColor.warning => OiBadgeColor.warning,
+    BeakColor.error => OiBadgeColor.error,
+    BeakColor.info => OiBadgeColor.info,
+    BeakColor.muted => OiBadgeColor.neutral,
+  };
+
+  Widget _progress(BeakProgressBlock block) =>
+      OiProgress.linear(value: block.value, label: block.label);
+
+  Widget _rating(BeakRatingBlock block) => OiStarRating(
+    value: block.value,
+    maxStars: block.maxStars,
+    readOnly: block.readOnly,
+    allowHalf: true,
   );
 
   Widget _text(BeakTextBlock block) => switch (block.variant) {
