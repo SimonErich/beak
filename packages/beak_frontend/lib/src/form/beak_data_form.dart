@@ -7,6 +7,7 @@ import 'package:signals/signals_flutter.dart';
 
 import '../detail/relation_manager.dart';
 import 'beak_form_controller_builder.dart';
+import 'beak_form_step.dart';
 import 'field_widget_mapper.dart';
 import 'form_view_model.dart';
 import 'relation_field.dart';
@@ -59,6 +60,7 @@ class BeakDataForm extends HookWidget {
     required this.dataSource,
     this.recordId,
     this.sections,
+    this.steps,
     this.onSaved,
     this.uploader,
     this.filePicker,
@@ -75,8 +77,15 @@ class BeakDataForm extends HookWidget {
   final Object? recordId;
 
   /// Field grouping with optional conditional visibility; `null` renders
-  /// one implicit section over every form column.
+  /// one implicit section over every form column. Ignored when [steps] is
+  /// set.
   final List<BeakFormSection>? sections;
+
+  /// When set (and non-empty), the form renders as an `OiWizard`: one page
+  /// per step, each entering its own columns, with per-step validation
+  /// gating advance and the final step submitting. Takes precedence over
+  /// [sections].
+  final List<BeakFormStep>? steps;
 
   /// Invoked with the stored record after a successful submit.
   final void Function(BeakRecord record)? onSaved;
@@ -94,10 +103,15 @@ class BeakDataForm extends HookWidget {
       () => FormViewModel(model, dataSource, recordId: recordId),
       [model, dataSource, recordId],
     );
-    final controller = useMemoized(
-      () => BeakFormController(model: model, sections: sections),
-      [model, sections],
-    );
+    final controller = useMemoized(() {
+      final List<BeakFormSection>? effectiveSections = steps == null
+          ? sections
+          : [
+              for (final step in steps!)
+                BeakFormSection(title: step.title, columns: step.columns),
+            ];
+      return BeakFormController(model: model, sections: effectiveSections);
+    }, [model, sections, steps]);
     useEffect(() {
       viewModel.load();
       return viewModel.dispose;
@@ -111,6 +125,16 @@ class BeakDataForm extends HookWidget {
       }),
       [viewModel, controller],
     );
+    // Validate up front in wizard mode so a step's sync gate can read accurate
+    // field validity (empty required fields are already known-invalid);
+    // display stays clean because manual validation does not reveal errors.
+    useEffect(() {
+      if (steps != null && steps!.isNotEmpty) {
+        controller.validate();
+      }
+      return null;
+    }, [controller]);
+    final blockedStep = useState<String?>(null);
 
     final BeakUploadClient? effectiveUploader =
         uploader ??
@@ -127,20 +151,123 @@ class BeakDataForm extends HookWidget {
         return OiAfForm<BeakFormSlot, BeakRecord>(
           controller: controller,
           onSubmit: (data, _) => _submit(data, viewModel, controller),
-          child: OiColumn(
-            breakpoint: context.breakpoint,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ..._fieldSections(controller, effectiveUploader),
-              const OiAfErrorSummary<BeakFormSlot>(showOnlyAfterSubmit: true),
-              OiAfSubmitButton<BeakFormSlot, BeakRecord>(
-                label: recordId == null ? 'Create' : 'Save',
-                loadingLabel: 'Saving…',
+          child: switch (steps) {
+            final List<BeakFormStep> declared when declared.isNotEmpty =>
+              _wizard(
+                context,
+                controller: controller,
+                steps: declared,
+                uploader: effectiveUploader,
+                blockedStep: blockedStep,
               ),
-            ],
-          ),
+            _ => OiColumn(
+              breakpoint: context.breakpoint,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ..._fieldSections(controller, effectiveUploader),
+                const OiAfErrorSummary<BeakFormSlot>(showOnlyAfterSubmit: true),
+                OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+                  label: recordId == null ? 'Create' : 'Save',
+                  loadingLabel: 'Saving…',
+                ),
+              ],
+            ),
+          },
         );
       },
+    );
+  }
+
+  /// Renders the form as an `OiWizard` — one page per [steps] entry. Each
+  /// step shows its explanation and fields; advancing runs the step's
+  /// validation (revealing a blocked notice when incomplete); the final step
+  /// submits through the shared controller.
+  Widget _wizard(
+    BuildContext context, {
+    required BeakFormController controller,
+    required List<BeakFormStep> steps,
+    required BeakUploadClient? uploader,
+    required ValueNotifier<String?> blockedStep,
+  }) {
+    return OiWizard(
+      onComplete: (_) => controller.submit(),
+      steps: [
+        for (final step in steps)
+          OiWizardStep(
+            title: step.title,
+            subtitle: step.subtitle,
+            icon: step.icon,
+            validate: (_) {
+              final bool ok = _isStepValid(controller, step);
+              blockedStep.value = ok ? null : step.title;
+              return ok;
+            },
+            builder: (_) => ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) => OiColumn(
+                breakpoint: context.breakpoint,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (step.description case final String description)
+                    OiBanner.info(message: description, dismissible: false),
+                  if (blockedStep.value == step.title)
+                    const OiBanner.warning(
+                      message:
+                          'Please complete the required fields on this step '
+                          'before continuing.',
+                      dismissible: false,
+                    ),
+                  for (final column in step.columns)
+                    if (controller.hasFieldFor(column))
+                      if (_buildField(controller, column, uploader)
+                          case final Widget field)
+                        field,
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Whether every field on [step] currently validates — the sync gate the
+  /// wizard reads before advancing.
+  bool _isStepValid(BeakFormController controller, BeakFormStep step) {
+    var valid = true;
+    for (final column in step.columns) {
+      if (!controller.hasFieldFor(column)) {
+        continue;
+      }
+      if (!controller.isFieldValid(controller.slotOf(column))) {
+        valid = false;
+      }
+    }
+    return valid;
+  }
+
+  /// Builds the input widget for [column] — a belongs-to picker for a foreign
+  /// key, otherwise the type-mapped field.
+  Widget? _buildField(
+    BeakFormController controller,
+    BeakColumn column,
+    BeakUploadClient? uploader,
+  ) {
+    final BeakBelongsTo? relation = {
+      for (final relation in model.relationships)
+        if (relation is BeakBelongsTo) relation.foreignKey: relation,
+    }[column.key];
+    if (relation != null) {
+      return BeakBelongsToField(
+        controller: controller,
+        relation: relation,
+        dataSource: dataSource,
+      );
+    }
+    return beakFormFieldFor(
+      controller: controller,
+      column: column,
+      uploader: uploader,
+      filePicker: filePicker,
     );
   }
 
