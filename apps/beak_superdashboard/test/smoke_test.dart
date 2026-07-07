@@ -25,6 +25,11 @@ void main() {
           '/profile',
           '/pricing',
           '/faq',
+          '/charts',
+          '/gallery',
+          '/ui-kit',
+          '/typography',
+          '/starter',
         ]),
       );
       expect(config.auth, isNotNull);
@@ -67,6 +72,11 @@ void main() {
         '/profile',
         '/pricing',
         '/faq',
+        '/charts',
+        '/gallery',
+        '/ui-kit',
+        '/typography',
+        '/starter',
       ]) {
         router.go(path);
         await tester.pumpAndSettle();

@@ -1,13 +1,18 @@
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../screens/charts_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/email_screen.dart';
 import '../screens/faq_screen.dart';
 import '../screens/files_screen.dart';
+import '../screens/gallery_screen.dart';
 import '../screens/invoice_screen.dart';
 import '../screens/pricing_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/starter_screen.dart';
+import '../screens/typography_screen.dart';
+import '../screens/ui_kit_screen.dart';
 import 'dashboard.dart';
 import 'resources.dart';
 
@@ -33,6 +38,11 @@ BeakPanelConfig buildSuperdashboardConfig({
     buildProfileScreen(),
     buildPricingScreen(),
     buildFaqScreen(),
+    buildChartsScreen(),
+    buildGalleryScreen(),
+    buildUiKitScreen(),
+    buildTypographyScreen(),
+    buildStarterScreen(),
   ],
   auth: BeakAuthConfig(
     // Demo sign-in is cosmetic — the panel is not guarded.
