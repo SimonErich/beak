@@ -2,9 +2,10 @@
 
 A single-package Beak demo that reproduces a full admin dashboard theme —
 dashboard, apps (email, chat, calendar, file manager, invoices, kanban),
-content pages (profile, pricing, FAQ), auth/utility pages, forms, tables,
-every chart type, and a UI-kit showcase — **entirely from seeded data**, using
-only declarative Beak-style widgets (no hand-written custom widgets).
+content pages (profile, pricing, FAQ), auth/utility pages, forms, tables, a
+charts gallery, media gallery/carousel, typography, icons, and a UI-elements
+showcase — **entirely from seeded data**, using only declarative Beak-style
+widgets (no hand-written custom widgets).
 
 Everything lives in one package:
 

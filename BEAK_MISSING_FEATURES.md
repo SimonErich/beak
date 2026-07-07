@@ -12,11 +12,15 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
   section, tabs, accordion, breadcrumbs (router-aware), masonry, three-pane.
 - **Display leaves**: text (9 variants), image, markdown, divider, spacer,
   and `BeakWidgetBlock` (the raw-widget escape hatch).
+- **UI-kit leaves**: `BeakAlertBlock` (OiBanner, four levels), `BeakBadgeBlock`
+  (OiBadge), `BeakProgressBlock` (OiProgress), `BeakRatingBlock` (OiStarRating),
+  and `BeakIconGalleryBlock` (a design-system icon cheat-sheet over OiIcon).
 - **Data-bound**: `BeakKpiBlock` (OiKpiCard + delta), `BeakChartBlock` +
   every `BeakChartType`, `BeakTableBlock` (reuses BeakDataTable),
   `BeakMetricBlock`, `BeakMapBlock` (OiVectorMap), `BeakCarouselBlock`
-  (OiCarousel), `BeakRadialSliderBlock` (OiRadialSlider). All resolve the
-  data source from DI and fetch via `BeakResourceRepository`.
+  (OiCarousel), `BeakRadialSliderBlock` (OiRadialSlider), `BeakGalleryBlock`
+  (OiGallery), `BeakTimelineBlock` (OiTimeline). All resolve the data source
+  from DI and fetch via `BeakResourceRepository`.
 - **Module blocks**: calendar, kanban, chat, inbox (composed), file-manager,
   invoice (composed), profile, pricing, faq.
 
@@ -37,9 +41,16 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
 - `BeakFormStep` + `BeakWizardBlock` (OiWizard) for multi-step flows.
 
 ## Not yet added (would live here)
-- UI-kit leaf blocks for alerts/badges/progress/rating/gallery/lightbox/video
-  (the obers widgets exist; thin Beak wrappers would complete the showcase).
-- A `BeakCommandBar` (OiCommandBar) and `BeakNotificationSource`
-  (OiNotificationCenter) — deferred from Phase 7.
-- Chat sender-name binding (currently binds a single author field) and a
-  file-manager block that spans a folder table + file table.
+- A `BeakCommandBar` (OiCommandBar, Ctrl+K) and `BeakNotificationSource`
+  (OiNotificationCenter) — deferred from Phase 7; both are generic shell
+  capabilities every panel would want.
+- **Chart families beyond five**: `BeakChartType` covers line/area/bar/pie/
+  donut; extending it to column/radialBar/radar/scatter/bubble/heatmap/
+  candlestick means widening the enum and the `obers_ui_charts` render switch.
+- A lightbox/video leaf pair (OiLightbox/OiVideoPlayer) — the gallery block
+  already opens a lightbox on tap, so these are incremental.
+- A session-timeout / idle-lock capability wired to `OiAuthMode.lock`.
+
+Design note: the chat block binds a single author field by design; this demo
+denormalizes `sender_name` onto `chat_messages` in the seeder rather than
+teaching the generic block to join — keeping the block source-agnostic.
