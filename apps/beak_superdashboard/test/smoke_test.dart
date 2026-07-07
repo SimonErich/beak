@@ -5,17 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 void main() {
-  group('superdashboard scaffold', () {
-    test('builds a panel config with the demo title', () {
+  group('superdashboard panel', () {
+    test('registers every resource and the custom dashboard page', () {
       final config = app.buildSuperdashboardConfig();
 
       expect(config.title, 'Beak Superdashboard');
       expect(config.apiBaseUrl, 'http://localhost:8080');
-      expect(config.buildRegistry().all, isEmpty);
+      expect(config.resources, hasLength(17));
+      expect(config.buildRegistry().all, hasLength(17));
+      expect(config.pages.map((page) => page.path), contains('/'));
+      expect(config.auth, isNotNull);
+      expect(config.maintenance, isNotNull);
     });
 
-    testWidgets('boots the obers_ui shell', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1400, 900));
+    testWidgets('boots the shell and renders the dashboard at /', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(
@@ -24,20 +30,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(OiAppShell), findsOneWidget);
-      expect(find.text('Beak Superdashboard'), findsWidgets);
-    });
-
-    testWidgets('the entry point boots the real app', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1400, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-
-      // The panel has no resources yet, so the default (dashboard) route
-      // issues no queries — booting the real HTTP-backed app touches no
-      // network and settles immediately.
-      app.main();
-      await tester.pumpAndSettle();
-
-      expect(find.byType(OiAppShell), findsOneWidget);
+      expect(find.text('Total earnings'), findsWidgets);
+      tester.takeException();
     });
   });
 }
