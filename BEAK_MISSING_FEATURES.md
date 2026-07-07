@@ -34,6 +34,17 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
   grids of field + relation blocks); `null` falls back to an upgraded default
   definition grid. Replaces the old flat label→value dump.
 
+## Structured forms via dual-mode blocks — `lib/src/form/`, `lib/src/blocks/`
+- `BeakFieldBlock`/`BeakFieldGroupBlock`/`BeakRelationBlock` are dual-mode:
+  inside a `BeakFormScope` they render **editable inputs** (belongs-to picker,
+  upload, type-mapped field, bounded relation manager); inside a
+  `BeakRecordScope` they render read-only values. So one block tree drives both
+  the show page and the create/edit form.
+- `BeakDataForm.layout` + `BeakResource.formLayout` render the form through a
+  layout; `beakFormColumnsOf` walks it so the form registers exactly the
+  columns it addresses. `BeakRelationManager` caps its list height, fixing the
+  form overflow.
+
 ## Multi-step forms (wizard) — `lib/src/form/`
 - `BeakFormStep {title, subtitle?, icon?, description?, columns}` +
   `BeakDataForm.steps` render the create/edit form as an `OiWizard`, reusing

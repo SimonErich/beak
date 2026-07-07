@@ -41,6 +41,13 @@ gated commit per phase.
   **14 custom pages** — email, chat, file-manager, invoice-detail, profile,
   pricing, FAQ, and a **Showcase** section (charts gallery, media
   gallery/carousel, UI-elements, typography, icons, starter).
+- **Structured forms = structured detail** — Product and Order share one
+  block layout for the show page *and* the create/edit form (dual-mode blocks:
+  values on one, inputs on the other), so the form has the same cards/tabs
+  structure as the detail. Both are enriched with real sub-entities — Product
+  gains variants, a gallery, reviews, and price rules; Order gains a lifecycle
+  history and internal comments — each a tab of an inline, bounded relation
+  manager (46 models total).
 - **Structured detail screens** — every resource has a bespoke show-page
   layout (headline card + two-column attribute groups + tabbed/inline
   relations) via the new record-scoped `BeakFieldBlock`/`BeakFieldGroupBlock`/
