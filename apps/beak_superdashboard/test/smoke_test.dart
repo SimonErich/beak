@@ -29,6 +29,7 @@ void main() {
           '/gallery',
           '/ui-kit',
           '/typography',
+          '/icons',
           '/starter',
         ]),
       );
@@ -76,6 +77,7 @@ void main() {
         '/gallery',
         '/ui-kit',
         '/typography',
+        '/icons',
         '/starter',
       ]) {
         router.go(path);
