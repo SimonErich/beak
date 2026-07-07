@@ -1,17 +1,25 @@
+import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
+
+import '../dashboard/beak_chart.dart';
+import '../table/beak_table_action.dart';
 
 part 'beak_accordion_block.dart';
 part 'beak_breadcrumbs_block.dart';
 part 'beak_card_block.dart';
+part 'beak_chart_block.dart';
 part 'beak_column_block.dart';
 part 'beak_divider_block.dart';
 part 'beak_grid_block.dart';
 part 'beak_image_block.dart';
+part 'beak_kpi_block.dart';
 part 'beak_markdown_block.dart';
 part 'beak_masonry_block.dart';
+part 'beak_metric_block.dart';
 part 'beak_row_block.dart';
 part 'beak_section_block.dart';
 part 'beak_spacer_block.dart';
+part 'beak_table_block.dart';
 part 'beak_tabs_block.dart';
 part 'beak_text_block.dart';
 part 'beak_three_pane_block.dart';

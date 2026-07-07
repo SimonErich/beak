@@ -6,16 +6,23 @@ import 'package:obers_ui_charts/obers_ui_charts.dart';
 
 import '../data/beak_resource_repository.dart';
 
-/// The chart families a [BeakChart] can render as.
+/// The chart families a [BeakChart] or [BeakChartBlock] can render as.
+///
+/// Every family here maps from the same `List<BeakChartPoint>` shape; richer
+/// shapes (scatter, bubble, candlestick, heatmap…) are the domain of the
+/// showcase charts, added as they are wired.
 enum BeakChartType {
   /// A line chart over the mapped points.
   line,
 
-  /// A bar chart, one category per point.
+  /// A vertical bar chart, one category per point.
   bar,
 
   /// A pie chart, one segment per point.
   pie,
+
+  /// A donut (ring) chart, one segment per point.
+  donut,
 
   /// An area chart over the mapped points.
   area,
@@ -145,53 +152,70 @@ class BeakChartCard extends HookWidget {
       title: OiLabel.smallStrong(chart.title),
       child: SizedBox(
         height: chart.heightInPixels,
-        child: _chartOf(points.value),
+        child: beakChartWidget(chart.type, chart.title, points.value),
       ),
     );
   }
-
-  Widget _chartOf(List<BeakChartPoint> points) => switch (chart.type) {
-    BeakChartType.line => OiLineChart(
-      label: chart.title,
-      series: [
-        OiLineSeries(
-          label: chart.title,
-          points: [
-            for (final (index, point) in points.indexed)
-              OiLinePoint(
-                x: point.x ?? index.toDouble(),
-                y: point.value,
-                label: point.label,
-              ),
-          ],
-        ),
-      ],
-    ),
-    BeakChartType.bar => OiBarChart(
-      label: chart.title,
-      categories: [
-        for (final point in points)
-          OiBarCategory(label: point.label, values: [point.value]),
-      ],
-    ),
-    BeakChartType.pie => OiPieChart(
-      label: chart.title,
-      segments: [
-        for (final point in points)
-          OiPieSegment(label: point.label, value: point.value),
-      ],
-    ),
-    BeakChartType.area => OiAreaChart<BeakChartPoint>(
-      label: chart.title,
-      series: [
-        OiAreaSeries<BeakChartPoint>(
-          id: chart.title,
-          label: chart.title,
-          data: points,
-          xMapper: (point) => point.x ?? points.indexOf(point).toDouble(),
-          yMapper: (point) => point.value,
-        ),
-      ],
-    ),
-  };
 }
+
+/// Renders [points] as the [type] chart family from `obers_ui_charts`,
+/// titled [title].
+///
+/// The single mapping from typed [BeakChartPoint]s to obers chart widgets —
+/// shared by the dashboard's [BeakChartCard] and the composable
+/// `BeakChartBlock` so both draw identical charts.
+Widget beakChartWidget(
+  BeakChartType type,
+  String title,
+  List<BeakChartPoint> points,
+) => switch (type) {
+  BeakChartType.line => OiLineChart(
+    label: title,
+    series: [
+      OiLineSeries(
+        label: title,
+        points: [
+          for (final (index, point) in points.indexed)
+            OiLinePoint(
+              x: point.x ?? index.toDouble(),
+              y: point.value,
+              label: point.label,
+            ),
+        ],
+      ),
+    ],
+  ),
+  BeakChartType.bar => OiBarChart(
+    label: title,
+    categories: [
+      for (final point in points)
+        OiBarCategory(label: point.label, values: [point.value]),
+    ],
+  ),
+  BeakChartType.pie => OiPieChart(
+    label: title,
+    segments: [
+      for (final point in points)
+        OiPieSegment(label: point.label, value: point.value),
+    ],
+  ),
+  BeakChartType.donut => OiDonutChart(
+    label: title,
+    segments: [
+      for (final point in points)
+        OiPieSegment(label: point.label, value: point.value),
+    ],
+  ),
+  BeakChartType.area => OiAreaChart<BeakChartPoint>(
+    label: title,
+    series: [
+      OiAreaSeries<BeakChartPoint>(
+        id: title,
+        label: title,
+        data: points,
+        xMapper: (point) => point.x ?? points.indexOf(point).toDouble(),
+        yMapper: (point) => point.value,
+      ),
+    ],
+  ),
+};

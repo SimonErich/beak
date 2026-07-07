@@ -1,9 +1,21 @@
+import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:obers_ui_charts/obers_ui_charts.dart';
 
+import '../dashboard/beak_chart.dart';
+import '../dashboard/beak_stat.dart';
+import '../data/beak_resource_repository.dart';
+import '../di/beak_locator.dart';
+import '../table/beak_data_table.dart';
 import 'beak_block.dart';
+
+part 'views/beak_chart_block_view.dart';
+part 'views/beak_kpi_block_view.dart';
+part 'views/beak_metric_block_view.dart';
+part 'views/beak_table_block_view.dart';
 
 /// Renders a [BeakBlock] tree onto obers_ui widgets — the single renderer
 /// behind custom pages, resource view modes, and overlay bodies.
@@ -34,6 +46,10 @@ class BeakBlockHost extends StatelessWidget {
     final BeakCardBlock card => _card(card),
     final BeakSectionBlock section => _section(context, section),
     final BeakTabsBlock tabs => _BeakTabsHost(block: tabs),
+    final BeakKpiBlock kpi => _BeakKpiBlockView(block: kpi),
+    final BeakChartBlock chart => _BeakChartBlockView(block: chart),
+    final BeakTableBlock table => _BeakTableBlockView(block: table),
+    final BeakMetricBlock metric => _BeakMetricBlockView(block: metric),
     final BeakAccordionBlock accordion => _accordion(accordion),
     final BeakBreadcrumbsBlock crumbs => _breadcrumbs(context, crumbs),
     final BeakMasonryBlock masonry => _masonry(context, masonry),
