@@ -12,9 +12,19 @@ import '../di/beak_locator.dart';
 import '../table/beak_data_table.dart';
 import 'beak_block.dart';
 
+part 'views/beak_calendar_block_view.dart';
 part 'views/beak_chart_block_view.dart';
+part 'views/beak_chat_block_view.dart';
+part 'views/beak_faq_block_view.dart';
+part 'views/beak_file_manager_block_view.dart';
+part 'views/beak_inbox_block_view.dart';
+part 'views/beak_invoice_block_view.dart';
+part 'views/beak_kanban_block_view.dart';
 part 'views/beak_kpi_block_view.dart';
 part 'views/beak_metric_block_view.dart';
+part 'views/beak_pricing_block_view.dart';
+part 'views/beak_profile_block_view.dart';
+part 'views/beak_record_readers.dart';
 part 'views/beak_table_block_view.dart';
 
 /// Renders a [BeakBlock] tree onto obers_ui widgets — the single renderer
@@ -50,6 +60,15 @@ class BeakBlockHost extends StatelessWidget {
     final BeakChartBlock chart => _BeakChartBlockView(block: chart),
     final BeakTableBlock table => _BeakTableBlockView(block: table),
     final BeakMetricBlock metric => _BeakMetricBlockView(block: metric),
+    final BeakCalendarBlock calendar => _BeakCalendarBlockView(block: calendar),
+    final BeakKanbanBlock kanban => _BeakKanbanBlockView(block: kanban),
+    final BeakChatBlock chat => _BeakChatBlockView(block: chat),
+    final BeakInboxBlock inbox => _BeakInboxBlockView(block: inbox),
+    final BeakFileManagerBlock files => _BeakFileManagerBlockView(block: files),
+    final BeakInvoiceBlock invoice => _BeakInvoiceBlockView(block: invoice),
+    final BeakProfileBlock profile => _BeakProfileBlockView(block: profile),
+    final BeakPricingBlock pricing => _BeakPricingBlockView(block: pricing),
+    final BeakFaqBlock faq => _BeakFaqBlockView(block: faq),
     final BeakAccordionBlock accordion => _accordion(accordion),
     final BeakBreadcrumbsBlock crumbs => _breadcrumbs(context, crumbs),
     final BeakMasonryBlock masonry => _masonry(context, masonry),

@@ -33,6 +33,7 @@ export 'src/panel/beak_auth_config.dart';
 export 'src/panel/beak_maintenance_config.dart';
 export 'src/panel/beak_panel.dart';
 export 'src/panel/beak_panel_config.dart';
+export 'src/panel/beak_resource_view.dart';
 export 'src/panel/beak_router.dart';
 export 'src/panel/beak_routes.dart';
 export 'src/panel/beak_screen.dart';

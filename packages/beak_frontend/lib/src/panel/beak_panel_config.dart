@@ -8,6 +8,7 @@ import '../dashboard/beak_stat.dart';
 import '../filters/beak_filter_widget.dart';
 import 'beak_auth_config.dart';
 import 'beak_maintenance_config.dart';
+import 'beak_resource_view.dart';
 import 'beak_routes.dart';
 import 'beak_screen.dart';
 
@@ -57,6 +58,7 @@ final class BeakResource {
     this.bulkActions = const [],
     this.globalActions = const [],
     this.filters = const [],
+    this.viewModes = const [BeakTableView()],
   });
 
   /// The model this resource exposes.
@@ -83,6 +85,11 @@ final class BeakResource {
 
   /// The list page's filter controls.
   final List<BeakFilterDef> filters;
+
+  /// The list page's selectable presentations; defaults to a single table
+  /// view. Declaring more than one adds a view-mode switcher to the list
+  /// page.
+  final List<BeakResourceView> viewModes;
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
