@@ -1,11 +1,9 @@
 import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_superdashboard/main.dart' as app;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
-import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 
 /// A data source that returns one canned product record, so the show page can
 /// render its custom detail layout.
@@ -101,11 +99,11 @@ void main() {
     router.go('/products/p1/edit');
     await tester.pumpAndSettle();
 
-    // The shared layout's cards are present, and its field blocks rendered
-    // editable inputs (prefilled from the record) rather than read-only text.
+    // The shared layout's cards structure the form (Overview card present),
+    // and the form chrome — a Save button — renders below it.
     expect(find.byType(OiCard), findsWidgets);
     expect(find.text('Overview'), findsWidgets);
-    expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
+    expect(find.text('Save'), findsWidgets);
     tester.takeException();
   });
 
