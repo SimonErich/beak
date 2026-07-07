@@ -6,9 +6,11 @@ import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
 import '../actions/beak_action_button.dart';
+import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
 import '../data/beak_resource_repository.dart';
 import '../detail/beak_detail_view.dart';
+import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_data_form.dart';
@@ -286,21 +288,30 @@ class BeakResourceShowPage extends HookWidget {
           description: error.message,
         ),
         (final BeakRecord value, _) => SingleChildScrollView(
-          child: OiColumn(
-            breakpoint: context.breakpoint,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              BeakDetailView(model: model, record: value),
-              for (final relationship in model.relationships)
-                if (relationship.cardinality == BeakRelationCardinality.many)
-                  BeakRelationManager(
-                    parentModel: model,
-                    parentId: recordId,
-                    relationship: relationship,
-                    dataSource: dataSource,
-                  ),
-            ],
-          ),
+          child: switch (resource.detail) {
+            // A resource may declare a bespoke, record-bound layout; render it
+            // inside the loaded record's scope so its field blocks resolve.
+            final BeakBlock layout => BeakRecordScope(
+              model: model,
+              record: value,
+              child: BeakBlockHost(block: layout),
+            ),
+            null => OiColumn(
+              breakpoint: context.breakpoint,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BeakDetailView(model: model, record: value),
+                for (final relationship in model.relationships)
+                  if (relationship.cardinality == BeakRelationCardinality.many)
+                    BeakRelationManager(
+                      parentModel: model,
+                      parentId: recordId,
+                      relationship: relationship,
+                      dataSource: dataSource,
+                    ),
+              ],
+            ),
+          },
         ),
       },
     );

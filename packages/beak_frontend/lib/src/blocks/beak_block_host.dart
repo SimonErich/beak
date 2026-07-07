@@ -8,8 +8,11 @@ import 'package:obers_ui_charts/obers_ui_charts.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../data/beak_resource_repository.dart';
+import '../detail/beak_record_scope.dart';
+import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
 import '../table/beak_data_table.dart';
+import '../table/column_cell_renderer.dart';
 import 'beak_block.dart';
 
 part 'views/beak_calendar_block_view.dart';
@@ -91,6 +94,9 @@ class BeakBlockHost extends StatelessWidget {
     final BeakGalleryBlock gallery => _BeakGalleryBlockView(block: gallery),
     final BeakTimelineBlock timeline => _BeakTimelineBlockView(block: timeline),
     final BeakIconGalleryBlock icons => _iconGallery(context, icons),
+    final BeakFieldBlock field => _field(context, field),
+    final BeakFieldGroupBlock group => _fieldGroup(context, group),
+    final BeakRelationBlock relation => _relation(context, relation),
     final BeakTextBlock text => _text(text),
     final BeakImageBlock image => _image(image),
     final BeakMarkdownBlock markdown => OiMarkdown(data: markdown.source),
@@ -234,6 +240,66 @@ class BeakBlockHost extends StatelessWidget {
     leftColumnWidth: block.leftWidthInPixels,
     rightColumnWidth: block.rightWidthInPixels,
   );
+
+  /// Renders one record field (label + formatted value) from the enclosing
+  /// [BeakRecordScope]; renders nothing when composed outside a detail layout.
+  Widget _field(BuildContext context, BeakFieldBlock block) {
+    final scope = BeakRecordScope.of(context);
+    if (scope == null) {
+      return const SizedBox.shrink();
+    }
+    final String label = block.label ?? block.column.label;
+    final Widget value = renderBeakCell(
+      context,
+      column: block.column,
+      record: scope.record,
+      renderContext: BeakContext.detail,
+    );
+    return switch (block.layout) {
+      BeakFieldLayout.stacked => OiColumn(
+        breakpoint: context.breakpoint,
+        gap: const OiResponsive<double>(4),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [OiLabel.caption(label), value],
+      ),
+      BeakFieldLayout.inline => OiRow(
+        breakpoint: context.breakpoint,
+        gap: const OiResponsive<double>(12),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 160, child: OiLabel.smallStrong(label)),
+          Expanded(child: value),
+        ],
+      ),
+    };
+  }
+
+  Widget _fieldGroup(BuildContext context, BeakFieldGroupBlock block) => OiGrid(
+    breakpoint: context.breakpoint,
+    columns: OiResponsive<int>(block.columnCount),
+    gap: const OiResponsive<double>(16),
+    children: [
+      for (final column in block.columns)
+        _field(context, BeakFieldBlock(column)),
+    ],
+  );
+
+  Widget _relation(BuildContext context, BeakRelationBlock block) {
+    final scope = BeakRecordScope.of(context);
+    if (scope == null) {
+      return const SizedBox.shrink();
+    }
+    final Object? id = scope.model.primaryKeyOf(scope.record);
+    if (id == null) {
+      return const SizedBox.shrink();
+    }
+    return BeakRelationManager(
+      parentModel: scope.model,
+      parentId: id,
+      relationship: block.relationship,
+      dataSource: beakLocator<BeakDataSource>(),
+    );
+  }
 
   Widget _iconGallery(BuildContext context, BeakIconGalleryBlock block) =>
       OiGrid(
