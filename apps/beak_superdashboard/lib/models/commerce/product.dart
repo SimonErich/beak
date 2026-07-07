@@ -159,6 +159,42 @@ abstract final class ProductRelations {
     displayColumnKey: 'label',
     foreignKey: 'product_id',
   );
+
+  /// The purchasable variations of this product.
+  static const variants = BeakHasMany(
+    key: 'variants',
+    label: 'Variants',
+    relatedTable: 'product_variants',
+    displayColumnKey: 'name',
+    foreignKey: 'product_id',
+  );
+
+  /// The gallery images of this product.
+  static const images = BeakHasMany(
+    key: 'images',
+    label: 'Gallery',
+    relatedTable: 'product_images',
+    displayColumnKey: 'alt',
+    foreignKey: 'product_id',
+  );
+
+  /// The customer reviews of this product.
+  static const reviews = BeakHasMany(
+    key: 'reviews',
+    label: 'Reviews',
+    relatedTable: 'product_reviews',
+    displayColumnKey: 'title',
+    foreignKey: 'product_id',
+  );
+
+  /// The conditional pricing rules on this product.
+  static const priceRules = BeakHasMany(
+    key: 'price_rules',
+    label: 'Price rules',
+    relatedTable: 'price_rules',
+    displayColumnKey: 'name',
+    foreignKey: 'product_id',
+  );
 }
 
 /// The products resource — the showcase model (soft-deleting, every column
@@ -181,6 +217,10 @@ final class ProductModel extends BeakModel {
     ProductRelations.category,
     ProductRelations.tags,
     ProductRelations.items,
+    ProductRelations.variants,
+    ProductRelations.images,
+    ProductRelations.reviews,
+    ProductRelations.priceRules,
   ];
 
   @override

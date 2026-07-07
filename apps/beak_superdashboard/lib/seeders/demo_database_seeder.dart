@@ -5,6 +5,7 @@ import 'calendar_seeder.dart';
 import 'chat_seeder.dart';
 import 'commerce_seeder.dart';
 import 'content_seeder.dart';
+import 'engagement_seeder.dart';
 import 'email_seeder.dart';
 import 'files_seeder.dart';
 import 'invoices_seeder.dart';
@@ -31,6 +32,7 @@ final class DemoDatabaseSeeder extends Seeder {
     final ctx = SeedContext(adapter);
     await const PeopleSeeder().seed(ctx);
     await const CommerceSeeder().seed(ctx);
+    await const EngagementSeeder().seed(ctx);
     await const AnalyticsSeeder().seed(ctx);
     await const EmailSeeder().seed(ctx);
     await const ChatSeeder().seed(ctx);

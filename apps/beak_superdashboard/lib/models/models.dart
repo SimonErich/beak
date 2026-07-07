@@ -16,8 +16,14 @@ import 'chat/conversation.dart';
 import 'chat/conversation_participant.dart';
 import 'commerce/category.dart';
 import 'commerce/order.dart';
+import 'commerce/order_comment.dart';
+import 'commerce/order_event.dart';
 import 'commerce/order_item.dart';
+import 'commerce/price_rule.dart';
 import 'commerce/product.dart';
+import 'commerce/product_image.dart';
+import 'commerce/product_review.dart';
+import 'commerce/product_variant.dart';
 import 'commerce/tag.dart';
 import 'commerce/transaction.dart';
 import 'email/email.dart';
@@ -57,8 +63,14 @@ export 'chat/conversation.dart';
 export 'chat/conversation_participant.dart';
 export 'commerce/category.dart';
 export 'commerce/order.dart';
+export 'commerce/order_comment.dart';
+export 'commerce/order_event.dart';
 export 'commerce/order_item.dart';
+export 'commerce/price_rule.dart';
 export 'commerce/product.dart';
+export 'commerce/product_image.dart';
+export 'commerce/product_review.dart';
+export 'commerce/product_variant.dart';
 export 'commerce/tag.dart';
 export 'commerce/transaction.dart';
 export 'email/email.dart';
@@ -105,8 +117,14 @@ const List<BeakModel> demoModels = [
   CategoryModel(),
   TagModel(),
   ProductModel(),
+  ProductVariantModel(),
+  ProductImageModel(),
+  ProductReviewModel(),
+  PriceRuleModel(),
   OrderModel(),
   OrderItemModel(),
+  OrderEventModel(),
+  OrderCommentModel(),
   TransactionModel(),
   // Analytics
   TimeSeriesPointModel(),
