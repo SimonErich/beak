@@ -24,6 +24,23 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
 - **Module blocks**: calendar, kanban, chat, inbox (composed), file-manager,
   invoice (composed), profile, pricing, faq.
 
+## Record-scoped detail layouts — `lib/src/detail/`, `lib/src/blocks/`
+- `BeakRecordScope` (InheritedWidget) carries the loaded record down to
+  record-bound blocks, so a resource's `detail` layout is a `const` block tree.
+- `BeakFieldBlock` (one labelled, formatted field — reuses the cell renderer),
+  `BeakFieldGroupBlock` (a responsive definition grid), `BeakRelationBlock`
+  (a to-many relation inline via the relation manager).
+- `BeakResource.detail` — a bespoke show-page layout (cards/sections/tabs/
+  grids of field + relation blocks); `null` falls back to an upgraded default
+  definition grid. Replaces the old flat label→value dump.
+
+## Multi-step forms (wizard) — `lib/src/form/`
+- `BeakFormStep {title, subtitle?, icon?, description?, columns}` +
+  `BeakDataForm.steps` render the create/edit form as an `OiWizard`, reusing
+  the form controller and validation; per-step gating blocks Next on an
+  incomplete required step; the final step submits. `BeakResource.formSteps`
+  threads it into the generated pages.
+
 ## Pages, routing, shell — `lib/src/panel/`
 - `BeakScreen` — a custom non-resource page (route + nav + `BeakBlock` body,
   framed or full-bleed) on `BeakPanelConfig.pages`. A screen at `/` replaces
