@@ -51,6 +51,9 @@ final class MorphOneRelation<Parent extends Model, Child extends Model>
   String get morphIdColumn => '${parentMorphName}_id';
 
   @override
+  String get targetTable => childTable;
+
+  @override
   Future<RelationLoadResult<Parent>> load(
     DatabaseAdapter adapter,
     List<Parent> parents,
