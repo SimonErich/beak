@@ -6,7 +6,7 @@ export 'board_detail.dart';
 export 'calendar_event_detail.dart';
 export 'card_detail.dart';
 export 'category_detail.dart';
-export 'commerce_details.dart';
+export 'commerce_layouts.dart';
 export 'faq_detail.dart';
 export 'media_asset_detail.dart';
 export 'notification_detail.dart';

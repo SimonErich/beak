@@ -14,7 +14,8 @@ List<BeakResource> buildResources() => const [
     model: ProductModel(),
     icon: BeakIconToken(OiIcons.package),
     section: 'Store',
-    detail: productDetail,
+    detail: productLayout,
+    formLayout: productLayout,
     filters: [
       BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
       BeakTextFilter(column: ProductColumns.name, label: 'Name'),
@@ -36,7 +37,8 @@ List<BeakResource> buildResources() => const [
     model: OrderModel(),
     icon: BeakIconToken(OiIcons.shoppingCart),
     section: 'Store',
-    detail: orderDetail,
+    detail: orderLayout,
+    formLayout: orderLayout,
     filters: [
       BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
       BeakSelectFilter(column: OrderColumns.source, label: 'Source'),
