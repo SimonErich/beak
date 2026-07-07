@@ -100,19 +100,29 @@ final class WormQueryTranslator {
   /// The worm query context for [model]: generic hydration into
   /// [WormRecordModel], the model's primary key, its soft-delete scope, and
   /// every relation reachable from it (so nested dot-paths resolve).
+  ///
+  /// Relations are handed over twice: once flat (compatibility fallback)
+  /// and once scoped by owning table, so the eager loader resolves each
+  /// nested path segment against the table it actually belongs to — two
+  /// models sharing a relation key (e.g. two self-referential `parent`
+  /// relations) can never cross-wire.
   QueryContext<WormRecordModel> contextFor(
     BeakModel model,
     DatabaseAdapter adapter,
-  ) => QueryContext<WormRecordModel>(
-    adapter: adapter,
-    table: model.table,
-    primaryKey: model.primaryKey.key,
-    hydrate: _hydratorForTable(model.table),
-    globalScopes: model.softDeletes
-        ? const [SoftDeleteScope<Model>()]
-        : const [],
-    relations: _relationsFor(model),
-  );
+  ) {
+    final relations = _relationsFor(model);
+    return QueryContext<WormRecordModel>(
+      adapter: adapter,
+      table: model.table,
+      primaryKey: model.primaryKey.key,
+      hydrate: _hydratorForTable(model.table),
+      globalScopes: model.softDeletes
+          ? const [SoftDeleteScope<Model>()]
+          : const [],
+      relations: relations.flat,
+      relationsByTable: relations.byTable,
+    );
+  }
 
   /// Translates [filter] into a worm predicate tree for [model], or `null`
   /// for an absent/empty filter.
@@ -324,18 +334,28 @@ final class WormQueryTranslator {
         BeakBelongsToMany(:final foreignPivotKey) => foreignPivotKey,
       };
 
-  Map<String, Relation<Model, Model>> _relationsFor(BeakModel root) {
-    final relations = <String, Relation<Model, Model>>{};
+  ({
+    Map<String, Relation<Model, Model>> flat,
+    Map<String, Map<String, Relation<Model, Model>>> byTable,
+  })
+  _relationsFor(BeakModel root) {
+    final flat = <String, Relation<Model, Model>>{};
+    final byTable = <String, Map<String, Relation<Model, Model>>>{};
     final visitedTables = <String>{};
     void collect(BeakModel model) {
       if (!visitedTables.add(model.table)) {
         return;
       }
+      final scoped = byTable.putIfAbsent(
+        model.table,
+        () => <String, Relation<Model, Model>>{},
+      );
       for (final relationship in model.relationships) {
-        relations.putIfAbsent(
-          relationship.key,
-          () => _wormRelationFor(model, relationship),
-        );
+        final relation = _wormRelationFor(model, relationship);
+        scoped[relationship.key] = relation;
+        // First-wins fallback only: scoped resolution above takes
+        // precedence whenever the owning table is known.
+        flat.putIfAbsent(relationship.key, () => relation);
         final related = registry.byTable(relationship.relatedTable);
         if (related != null) {
           collect(related);
@@ -344,7 +364,7 @@ final class WormQueryTranslator {
     }
 
     collect(root);
-    return relations;
+    return (flat: flat, byTable: byTable);
   }
 
   Relation<Model, Model> _wormRelationFor(

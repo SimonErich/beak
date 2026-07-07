@@ -49,22 +49,36 @@ empty lists, and non-positive weight tables.
 
 ---
 
-## 2. Self-referential eager loading — status: verified in Phase 3
+## 2. Self-referential + scoped eager loading — ✅ IMPLEMENTED
 
-**Where:** worm eager loader + `beak_backend` `WormDataSource`.
+**Files:** `packages/worm/lib/src/relation/relation_base.dart` (+ each
+relation type), `packages/worm/lib/src/query/query_context.dart`,
+`packages/worm/lib/src/relation/eager_loader.dart`,
+`packages/beak_backend/lib/src/data/worm/query_translator.dart`.
+**Tests:** `packages/worm/test/src/relation/scoped_relation_resolution_test.dart`,
+`packages/beak_backend/test/src/data/worm/self_referential_relations_test.dart`.
 
 **Why worm:** trees are ordinary relational shapes (folders, comment replies,
-org charts). A has-many/belongs-to whose `relatedTable` equals the owning
-table must eager-load like any other relation.
+org charts), and the underlying defect was generic: the eager loader resolved
+every nested path segment from the context's ONE flat name→relation map, so
+two tables declaring the same relation name with different targets (e.g. two
+self-referential `parent` relations) silently loaded rows from whichever
+table registered the name first — wrong data, no error.
 
-**Brief:** verify (and fix if broken) that a relation pointing at its own
-table — `file_folders.children` via `parent_id`, `activities.replies` via
-`parent_id` — loads correctly through `withRelations` and the Beak data
-source, with no infinite recursion and correct row→parent grouping when
-parent and child rows share the table. Note: commit `676cfea` already guards
-the depth-3 shared-head eager-load merge; the self-reference case needs its
-own regression test at the `WormDataSource` layer. See Phase 3 notes below
-once executed.
+**What was verified:** plain self-reference (has-many `children` /
+belongs-to `parent` on the owning table, nested two levels) already worked —
+regression tests now guard it at both the worm and `WormDataSource` layers.
+
+**What was fixed (backwards compatible):**
+- `Relation.targetTable` — the loaded side's table when statically known
+  (childTable / parentTable / relatedTable; `null` for polymorphic MorphTo).
+- `QueryContext.relationsByTable` — optional per-owning-table relation maps.
+- `EagerLoader` resolves each path level against the previous segment's
+  target table first, falling back to the flat map; an empty
+  `relationsByTable` preserves the old behavior exactly.
+- `beak_backend`'s translator now hands relations over both ways (scoped
+  precedence, flat first-wins fallback), so Beak model graphs with repeated
+  relation keys can never cross-wire.
 
 ---
 
