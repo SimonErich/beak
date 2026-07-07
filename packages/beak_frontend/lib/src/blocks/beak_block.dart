@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../dashboard/beak_chart.dart';
+import '../panel/beak_panel_config.dart';
 import '../table/beak_table_action.dart';
 
 part 'beak_accordion_block.dart';
@@ -19,6 +20,7 @@ part 'beak_faq_block.dart';
 part 'beak_file_manager_block.dart';
 part 'beak_gallery_block.dart';
 part 'beak_grid_block.dart';
+part 'beak_icon_gallery_block.dart';
 part 'beak_image_block.dart';
 part 'beak_inbox_block.dart';
 part 'beak_invoice_block.dart';

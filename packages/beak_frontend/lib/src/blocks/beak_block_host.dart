@@ -90,6 +90,7 @@ class BeakBlockHost extends StatelessWidget {
     final BeakRatingBlock rating => _rating(rating),
     final BeakGalleryBlock gallery => _BeakGalleryBlockView(block: gallery),
     final BeakTimelineBlock timeline => _BeakTimelineBlockView(block: timeline),
+    final BeakIconGalleryBlock icons => _iconGallery(context, icons),
     final BeakTextBlock text => _text(text),
     final BeakImageBlock image => _image(image),
     final BeakMarkdownBlock markdown => OiMarkdown(data: markdown.source),
@@ -233,6 +234,26 @@ class BeakBlockHost extends StatelessWidget {
     leftColumnWidth: block.leftWidthInPixels,
     rightColumnWidth: block.rightWidthInPixels,
   );
+
+  Widget _iconGallery(BuildContext context, BeakIconGalleryBlock block) =>
+      OiGrid(
+        breakpoint: context.breakpoint,
+        columns: OiResponsive<int>(block.columns),
+        gap: const OiResponsive<double>(12),
+        children: [
+          for (final item in block.items)
+            OiCard(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OiIcon.decorative(icon: item.icon.icon, size: 26),
+                  const SizedBox(height: 8),
+                  OiLabel.caption(item.label),
+                ],
+              ),
+            ),
+        ],
+      );
 
   Widget _alert(BeakAlertBlock block) => switch (block.level) {
     BeakAlertLevel.info => OiBanner.info(message: block.message),

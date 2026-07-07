@@ -157,4 +157,29 @@ void main() {
       tester.takeException();
     });
   });
+
+  group('icon gallery', () {
+    testWidgets('renders one OiIcon per entry with its label', (tester) async {
+      await pump(
+        tester,
+        const BeakIconGalleryBlock(
+          columns: 3,
+          items: [
+            BeakIconGalleryItem(
+              icon: BeakIconToken(OiIcons.home),
+              label: 'Home',
+            ),
+            BeakIconGalleryItem(
+              icon: BeakIconToken(OiIcons.user),
+              label: 'User',
+            ),
+          ],
+        ),
+      );
+
+      expect(find.byType(OiIcon), findsNWidgets(2));
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('User'), findsOneWidget);
+    });
+  });
 }
