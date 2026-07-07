@@ -1,6 +1,10 @@
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../screens/email_screen.dart';
+import '../screens/faq_screen.dart';
+import '../screens/pricing_screen.dart';
+import '../screens/profile_screen.dart';
 import 'dashboard.dart';
 import 'resources.dart';
 
@@ -17,7 +21,13 @@ BeakPanelConfig buildSuperdashboardConfig({
   apiBaseUrl: apiBaseUrl,
   initialThemeMode: OiThemeMode.light,
   resources: buildResources(),
-  pages: [buildDashboardScreen()],
+  pages: [
+    buildDashboardScreen(),
+    buildEmailScreen(),
+    buildProfileScreen(),
+    buildPricingScreen(),
+    buildFaqScreen(),
+  ],
   auth: BeakAuthConfig(
     // Demo sign-in is cosmetic — the panel is not guarded.
     onLogin: (email, password) async => true,

@@ -2,6 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:beak_superdashboard/main.dart' as app;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 void main() {
@@ -13,7 +14,10 @@ void main() {
       expect(config.apiBaseUrl, 'http://localhost:8080');
       expect(config.resources, hasLength(17));
       expect(config.buildRegistry().all, hasLength(17));
-      expect(config.pages.map((page) => page.path), contains('/'));
+      expect(
+        config.pages.map((page) => page.path),
+        containsAll(<String>['/', '/email', '/profile', '/pricing', '/faq']),
+      );
       expect(config.auth, isNotNull);
       expect(config.maintenance, isNotNull);
     });
@@ -32,6 +36,26 @@ void main() {
       expect(find.byType(OiAppShell), findsOneWidget);
       expect(find.text('Total earnings'), findsWidgets);
       tester.takeException();
+    });
+
+    testWidgets('navigates to every custom app page without crashing', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 2000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        app.SuperdashboardApp(dataSource: _EmptyDataSource()),
+      );
+      await tester.pumpAndSettle();
+      final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
+
+      for (final path in const ['/email', '/profile', '/pricing', '/faq']) {
+        router.go(path);
+        await tester.pumpAndSettle();
+        expect(find.byType(OiAppShell), findsOneWidget, reason: 'at $path');
+        tester.takeException();
+      }
     });
   });
 }
