@@ -35,6 +35,13 @@ final class ChatSeeder {
     final messageRows = <Map<String, Object?>>[];
     final attachmentRows = <Map<String, Object?>>[];
 
+    // Read the seeded users so each message carries a denormalized sender
+    // name (chat bubbles render without a per-message lookup).
+    final users = await ctx.selectAll('users');
+    final nameById = <Object?, String>{
+      for (final user in users) user['id']: user['name']! as String,
+    };
+
     void seedConversation({
       required String id,
       required ConversationType type,
@@ -49,10 +56,12 @@ final class ChatSeeder {
           lastAt = sentAt;
         }
         final messageId = ctx.uuid();
+        final senderId = ctx.pick(members);
         messageRows.add({
           'id': messageId,
           'conversation_id': id,
-          'sender_id': ctx.pick(members),
+          'sender_id': senderId,
+          'sender_name': nameById[senderId],
           'body': ctx.pick(_snippets),
           'sent_at': sentAt,
           'is_read': ctx.chance(0.7),

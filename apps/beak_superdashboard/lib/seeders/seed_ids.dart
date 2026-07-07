@@ -43,4 +43,7 @@ abstract final class SeedIds {
 
   /// The featured pricing plan.
   static const featuredPlan = '00000000-0000-4000-8000-0000000000f2';
+
+  /// The invoice the detail page opens.
+  static const invoice = '00000000-0000-4000-8000-0000000000c1';
 }

@@ -1,8 +1,11 @@
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../screens/chat_screen.dart';
 import '../screens/email_screen.dart';
 import '../screens/faq_screen.dart';
+import '../screens/files_screen.dart';
+import '../screens/invoice_screen.dart';
 import '../screens/pricing_screen.dart';
 import '../screens/profile_screen.dart';
 import 'dashboard.dart';
@@ -24,6 +27,9 @@ BeakPanelConfig buildSuperdashboardConfig({
   pages: [
     buildDashboardScreen(),
     buildEmailScreen(),
+    buildChatScreen(),
+    buildFilesScreen(),
+    buildInvoiceScreen(),
     buildProfileScreen(),
     buildPricingScreen(),
     buildFaqScreen(),
