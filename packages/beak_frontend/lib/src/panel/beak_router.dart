@@ -28,19 +28,22 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
       builder: (context, state, child) =>
           _BeakShell(config: config, currentPath: state.uri.path, child: child),
       routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => OiResourcePage(
-            label: 'Dashboard',
-            title: 'Dashboard',
-            actions: const [],
-            child: BeakDashboard(
-              stats: config.dashboardStats,
-              charts: config.dashboardCharts,
-              dataSource: beakLocator<BeakDataSource>(),
+        // The built-in stats/charts dashboard is mounted only when no custom
+        // page claims `/`; a `BeakScreen(path: '/')` replaces it wholesale.
+        if (!_hasHomePage(config))
+          GoRoute(
+            path: '/',
+            builder: (context, state) => OiResourcePage(
+              label: 'Dashboard',
+              title: 'Dashboard',
+              actions: const [],
+              child: BeakDashboard(
+                stats: config.dashboardStats,
+                charts: config.dashboardCharts,
+                dataSource: beakLocator<BeakDataSource>(),
+              ),
             ),
           ),
-        ),
         // Flat routes on purpose: nested routes would keep the list page
         // alive under create/show/edit, so returning to it would show
         // stale data instead of re-querying.
@@ -93,6 +96,11 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
     onAction: () => context.go('/'),
   ),
 );
+
+/// Whether a custom page claims the home route `/`, in which case it
+/// replaces the built-in dashboard.
+bool _hasHomePage(BeakPanelConfig config) =>
+    config.pages.any((screen) => screen.path == '/');
 
 List<RouteBase> _authRoutes(BeakPanelConfig config) {
   final BeakAuthConfig? auth = config.auth;
@@ -203,11 +211,12 @@ final class _BeakShell extends StatelessWidget {
         ),
       ],
       navigation: [
-        const OiNavItem(
-          label: 'Dashboard',
-          icon: OiIcons.layoutDashboard,
-          route: '/',
-        ),
+        if (!_hasHomePage(config))
+          const OiNavItem(
+            label: 'Dashboard',
+            icon: OiIcons.layoutDashboard,
+            route: '/',
+          ),
         for (final resource in config.resources)
           OiNavItem(
             label: resource.effectiveLabel,
