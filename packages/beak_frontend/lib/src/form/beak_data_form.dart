@@ -5,8 +5,12 @@ import 'package:obers_ui/obers_ui.dart';
 import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 import 'package:signals/signals_flutter.dart';
 
+import '../blocks/beak_block.dart';
+import '../blocks/beak_block_host.dart';
 import '../detail/relation_manager.dart';
+import 'beak_form_columns.dart';
 import 'beak_form_controller_builder.dart';
+import 'beak_form_scope.dart';
 import 'beak_form_step.dart';
 import 'field_widget_mapper.dart';
 import 'form_view_model.dart';
@@ -61,6 +65,7 @@ class BeakDataForm extends HookWidget {
     this.recordId,
     this.sections,
     this.steps,
+    this.layout,
     this.onSaved,
     this.uploader,
     this.filePicker,
@@ -87,6 +92,13 @@ class BeakDataForm extends HookWidget {
   /// [sections].
   final List<BeakFormStep>? steps;
 
+  /// A record-bound layout (cards/tabs/columns of `BeakFieldBlock`/
+  /// `BeakRelationBlock`) that structures the form exactly like the detail
+  /// screen — the same block tree renders inputs here and values there. The
+  /// form registers precisely the columns the layout addresses. Takes
+  /// precedence over [sections] (but not [steps]).
+  final BeakBlock? layout;
+
   /// Invoked with the stored record after a successful submit.
   final void Function(BeakRecord record)? onSaved;
 
@@ -104,14 +116,21 @@ class BeakDataForm extends HookWidget {
       [model, dataSource, recordId],
     );
     final controller = useMemoized(() {
-      final List<BeakFormSection>? effectiveSections = steps == null
-          ? sections
-          : [
-              for (final step in steps!)
-                BeakFormSection(title: step.title, columns: step.columns),
-            ];
+      final List<BeakFormSection>? effectiveSections = switch ((
+        steps,
+        layout,
+      )) {
+        (final List<BeakFormStep> declared, _) => [
+          for (final step in declared)
+            BeakFormSection(title: step.title, columns: step.columns),
+        ],
+        (_, final BeakBlock declared) => [
+          BeakFormSection(title: '', columns: beakFormColumnsOf(declared)),
+        ],
+        _ => sections,
+      };
       return BeakFormController(model: model, sections: effectiveSections);
-    }, [model, sections, steps]);
+    }, [model, sections, steps, layout]);
     useEffect(() {
       viewModel.load();
       return viewModel.dispose;
@@ -151,8 +170,8 @@ class BeakDataForm extends HookWidget {
         return OiAfForm<BeakFormSlot, BeakRecord>(
           controller: controller,
           onSubmit: (data, _) => _submit(data, viewModel, controller),
-          child: switch (steps) {
-            final List<BeakFormStep> declared when declared.isNotEmpty =>
+          child: switch ((steps, layout)) {
+            (final List<BeakFormStep> declared, _) when declared.isNotEmpty =>
               _wizard(
                 context,
                 controller: controller,
@@ -160,23 +179,65 @@ class BeakDataForm extends HookWidget {
                 uploader: effectiveUploader,
                 blockedStep: blockedStep,
               ),
-            _ => OiColumn(
-              breakpoint: context.breakpoint,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ..._fieldSections(controller, effectiveUploader),
-                const OiAfErrorSummary<BeakFormSlot>(showOnlyAfterSubmit: true),
-                OiAfSubmitButton<BeakFormSlot, BeakRecord>(
-                  label: recordId == null ? 'Create' : 'Save',
-                  loadingLabel: 'Saving…',
-                ),
-              ],
+            (_, final BeakBlock declared) => _layoutForm(
+              context,
+              controller: controller,
+              layout: declared,
+              uploader: effectiveUploader,
+            ),
+            _ => SingleChildScrollView(
+              child: OiColumn(
+                breakpoint: context.breakpoint,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ..._fieldSections(controller, effectiveUploader),
+                  const OiAfErrorSummary<BeakFormSlot>(
+                    showOnlyAfterSubmit: true,
+                  ),
+                  OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+                    label: recordId == null ? 'Create' : 'Save',
+                    loadingLabel: 'Saving…',
+                  ),
+                ],
+              ),
             ),
           },
         );
       },
     );
   }
+
+  /// Renders the form through a record-bound [layout]: the same block tree
+  /// used by the show page, wrapped in a [BeakFormScope] so its field and
+  /// relation blocks render editable inputs. The submit button and error
+  /// summary sit below, and the whole thing scrolls.
+  Widget _layoutForm(
+    BuildContext context, {
+    required BeakFormController controller,
+    required BeakBlock layout,
+    required BeakUploadClient? uploader,
+  }) => SingleChildScrollView(
+    child: OiColumn(
+      breakpoint: context.breakpoint,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BeakFormScope(
+          controller: controller,
+          model: model,
+          dataSource: dataSource,
+          recordId: recordId,
+          uploader: uploader,
+          filePicker: filePicker,
+          child: BeakBlockHost(block: layout),
+        ),
+        const OiAfErrorSummary<BeakFormSlot>(showOnlyAfterSubmit: true),
+        OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+          label: recordId == null ? 'Create' : 'Save',
+          loadingLabel: 'Saving…',
+        ),
+      ],
+    ),
+  );
 
   /// Renders the form as an `OiWizard` — one page per [steps] entry. Each
   /// step shows its explanation and fields; advancing runs the step's

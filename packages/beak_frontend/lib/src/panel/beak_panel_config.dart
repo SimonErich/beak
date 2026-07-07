@@ -63,6 +63,7 @@ final class BeakResource {
     this.viewModes = const [BeakTableView()],
     this.detail,
     this.formSteps,
+    this.formLayout,
   });
 
   /// The model this resource exposes.
@@ -105,6 +106,12 @@ final class BeakResource {
   /// When set, the create/edit form renders as a multi-step wizard over these
   /// steps instead of a single scrolling form — for long, complex entities.
   final List<BeakFormStep>? formSteps;
+
+  /// When set, the create/edit form renders through this record-bound block
+  /// layout — giving the form the same cards/tabs/columns structure as the
+  /// show page (pass the same block tree to [detail] and here). Ignored when
+  /// [formSteps] is set.
+  final BeakBlock? formLayout;
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
