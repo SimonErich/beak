@@ -41,8 +41,20 @@ gated commit per phase.
   **14 custom pages** — email, chat, file-manager, invoice-detail, profile,
   pricing, FAQ, and a **Showcase** section (charts gallery, media
   gallery/carousel, UI-elements, typography, icons, starter).
+- **Structured detail screens** — every resource has a bespoke show-page
+  layout (headline card + two-column attribute groups + tabbed/inline
+  relations) via the new record-scoped `BeakFieldBlock`/`BeakFieldGroupBlock`/
+  `BeakRelationBlock` + `BeakResource.detail`; simple resources get an upgraded
+  responsive definition-grid default.
+- **A stepped create wizard** — Calendar Events opts into `formSteps`, so its
+  create/edit form is a four-step `OiWizard` (Details → Schedule → Place →
+  Organize) spanning the widest input variety in the app, with per-step
+  validation.
 - **Validated on live Postgres** via an E2E suite (paged queries, aggregates,
   eager loads, a self-referential folder tree, revenue reconciliation, CRUD).
+  Note: this suite runs `MigrationRunner.fresh()` against the dev Postgres, so
+  running the app tests **replaces** the seeded demo data — re-run
+  `dart run bin/worm.dart migrate && db:seed` afterward to restore it.
 
 ## Running it
 ```bash
