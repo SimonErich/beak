@@ -23,6 +23,9 @@ part 'views/beak_kanban_block_view.dart';
 part 'views/beak_kpi_block_view.dart';
 part 'views/beak_metric_block_view.dart';
 part 'views/beak_pricing_block_view.dart';
+part 'views/beak_carousel_block_view.dart';
+part 'views/beak_map_block_view.dart';
+part 'views/beak_radial_slider_block_view.dart';
 part 'views/beak_profile_block_view.dart';
 part 'views/beak_record_readers.dart';
 part 'views/beak_table_block_view.dart';
@@ -60,6 +63,11 @@ class BeakBlockHost extends StatelessWidget {
     final BeakChartBlock chart => _BeakChartBlockView(block: chart),
     final BeakTableBlock table => _BeakTableBlockView(block: table),
     final BeakMetricBlock metric => _BeakMetricBlockView(block: metric),
+    final BeakMapBlock map => _BeakMapBlockView(block: map),
+    final BeakCarouselBlock carousel => _BeakCarouselBlockView(block: carousel),
+    final BeakRadialSliderBlock slider => _BeakRadialSliderBlockView(
+      block: slider,
+    ),
     final BeakCalendarBlock calendar => _BeakCalendarBlockView(block: calendar),
     final BeakKanbanBlock kanban => _BeakKanbanBlockView(block: kanban),
     final BeakChatBlock chat => _BeakChatBlockView(block: chat),
