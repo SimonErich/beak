@@ -18,6 +18,15 @@ abstract final class ChatMessageColumns {
     visibleOn: {BeakContext.form},
   );
 
+  /// Denormalized sender name, for rendering message bubbles without an
+  /// extra lookup.
+  static const senderName = BeakStringColumn(
+    key: 'sender_name',
+    label: 'From',
+    searchable: true,
+    visibleOn: {BeakContext.table, BeakContext.detail},
+  );
+
   /// Message text.
   static const body = BeakTextColumn(
     key: 'body',
@@ -46,6 +55,7 @@ abstract final class ChatMessageColumns {
     SharedColumns.id,
     conversationId,
     senderId,
+    senderName,
     body,
     sentAt,
     isRead,

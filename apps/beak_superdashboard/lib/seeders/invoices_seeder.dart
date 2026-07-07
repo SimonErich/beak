@@ -24,7 +24,9 @@ final class InvoicesSeeder {
     final itemRows = <Map<String, Object?>>[];
 
     for (var index = 0; index < 14; index++) {
-      final id = ctx.uuid();
+      // The first invoice has a fixed id so the invoice-detail page opens a
+      // stable record.
+      final id = index == 0 ? SeedIds.invoice : ctx.uuid();
       final issueDate = ctx.daysAgo(120);
 
       var subtotal = 0.0;

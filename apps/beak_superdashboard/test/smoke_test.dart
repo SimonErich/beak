@@ -16,7 +16,16 @@ void main() {
       expect(config.buildRegistry().all, hasLength(17));
       expect(
         config.pages.map((page) => page.path),
-        containsAll(<String>['/', '/email', '/profile', '/pricing', '/faq']),
+        containsAll(<String>[
+          '/',
+          '/email',
+          '/chat',
+          '/files',
+          '/invoice',
+          '/profile',
+          '/pricing',
+          '/faq',
+        ]),
       );
       expect(config.auth, isNotNull);
       expect(config.maintenance, isNotNull);
@@ -50,7 +59,15 @@ void main() {
       await tester.pumpAndSettle();
       final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
 
-      for (final path in const ['/email', '/profile', '/pricing', '/faq']) {
+      for (final path in const [
+        '/email',
+        '/chat',
+        '/files',
+        '/invoice',
+        '/profile',
+        '/pricing',
+        '/faq',
+      ]) {
         router.go(path);
         await tester.pumpAndSettle();
         expect(find.byType(OiAppShell), findsOneWidget, reason: 'at $path');
