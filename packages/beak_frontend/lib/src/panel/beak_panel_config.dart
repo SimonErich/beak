@@ -6,7 +6,10 @@ import '../actions/beak_action.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../filters/beak_filter_widget.dart';
+import 'beak_auth_config.dart';
+import 'beak_maintenance_config.dart';
 import 'beak_routes.dart';
+import 'beak_screen.dart';
 
 /// A typed icon reference for panel navigation.
 ///
@@ -49,6 +52,7 @@ final class BeakResource {
     required this.model,
     required this.icon,
     this.label,
+    this.section,
     this.recordActions = const [],
     this.bulkActions = const [],
     this.globalActions = const [],
@@ -63,6 +67,9 @@ final class BeakResource {
 
   /// The navigation label override.
   final String? label;
+
+  /// Optional sidebar group heading this resource is filed under.
+  final String? section;
 
   /// Extra per-row actions on the list page (view/edit/delete are built
   /// in).
@@ -140,8 +147,14 @@ final class BeakPanelConfig {
     required this.title,
     required this.resources,
     required this.apiBaseUrl,
+    this.pages = const [],
+    this.auth,
+    this.maintenance,
     this.theme,
     this.darkTheme,
+    this.initialThemeMode = OiThemeMode.system,
+    this.sidebarCollapsible = true,
+    this.sidebarDefaultCollapsed = false,
     this.dashboardStats = const [],
     this.dashboardCharts = const [],
   });
@@ -155,11 +168,29 @@ final class BeakPanelConfig {
   /// Origin of the `beak_backend` server (e.g. `http://localhost:8080`).
   final String apiBaseUrl;
 
+  /// Custom, non-resource screens, in navigation order.
+  final List<BeakScreen> pages;
+
+  /// Authentication routes; `null` mounts only a default `/login`.
+  final BeakAuthConfig? auth;
+
+  /// Maintenance / coming-soon routes; `null` mounts neither.
+  final BeakMaintenanceConfig? maintenance;
+
   /// The light theme (defaults to `OiThemeData.light()`).
   final OiThemeData? theme;
 
   /// The dark theme (defaults to `OiThemeData.dark()`).
   final OiThemeData? darkTheme;
+
+  /// The theme mode the panel starts in; toggled live from the shell.
+  final OiThemeMode initialThemeMode;
+
+  /// Whether the sidebar can collapse to an icon rail.
+  final bool sidebarCollapsible;
+
+  /// Whether the sidebar starts collapsed (an icon-only rail).
+  final bool sidebarDefaultCollapsed;
 
   /// The dashboard's metric cards, in order.
   final List<BeakStat> dashboardStats;

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../data/http_beak_data_source.dart';
 import '../data/reference_cache.dart';
 import '../panel/beak_panel_config.dart';
+import '../panel/beak_theme_controller.dart';
 
 /// The panel's dependency container — package-scoped so Beak never
 /// collides with an app's own `GetIt.instance` registrations.
@@ -55,5 +56,8 @@ void registerBeakDependencies({
     ..registerSingleton<BeakModelRegistry>(registry)
     ..registerSingleton<BeakClient>(client)
     ..registerSingleton<BeakDataSource>(source)
-    ..registerSingleton<ReferenceCache>(ReferenceCache(source, registry));
+    ..registerSingleton<ReferenceCache>(ReferenceCache(source, registry))
+    ..registerSingleton<BeakThemeController>(
+      BeakThemeController(config.initialThemeMode),
+    );
 }
