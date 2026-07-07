@@ -53,6 +53,7 @@ class BeakBlockHost extends StatelessWidget {
     final BeakAccordionBlock accordion => _accordion(accordion),
     final BeakBreadcrumbsBlock crumbs => _breadcrumbs(context, crumbs),
     final BeakMasonryBlock masonry => _masonry(context, masonry),
+    final BeakWizardBlock wizard => _wizard(wizard),
     final BeakThreePaneBlock panes => _threePane(panes),
     final BeakTextBlock text => _text(text),
     final BeakImageBlock image => _image(image),
@@ -164,6 +165,25 @@ class BeakBlockHost extends StatelessWidget {
     columns: OiResponsive<int>(block.columns),
     gap: OiResponsive<double>(block.gapInPixels),
     children: [for (final child in block.children) BeakBlockHost(block: child)],
+  );
+
+  Widget _wizard(BeakWizardBlock block) => OiWizard(
+    stepperStyle: block.stepperStyle,
+    onComplete: block.onComplete == null
+        ? null
+        : (_) => block.onComplete!.call(),
+    steps: [
+      for (final step in block.steps)
+        OiWizardStep(
+          title: step.title,
+          subtitle: step.subtitle,
+          icon: step.icon,
+          validate: step.canAdvance == null
+              ? null
+              : (_) => step.canAdvance!.call(),
+          builder: (_) => BeakBlockHost(block: step.body),
+        ),
+    ],
   );
 
   Widget _threePane(BeakThreePaneBlock block) => OiThreeColumnLayout(
