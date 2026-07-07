@@ -1,0 +1,36 @@
+import 'package:beak_frontend/beak_frontend.dart';
+import 'package:obers_ui/obers_ui.dart';
+
+import 'dashboard.dart';
+import 'resources.dart';
+
+/// Builds the whole superdashboard panel: a custom analytics dashboard at
+/// `/`, every model as a navigable resource, and config-driven auth and
+/// maintenance routes — the single declarative entry point of the demo.
+///
+/// [apiBaseUrl] points the panel's HTTP data source at the running
+/// superdashboard server (`bin/server.dart`).
+BeakPanelConfig buildSuperdashboardConfig({
+  String apiBaseUrl = 'http://localhost:8080',
+}) => BeakPanelConfig(
+  title: 'Beak Superdashboard',
+  apiBaseUrl: apiBaseUrl,
+  initialThemeMode: OiThemeMode.light,
+  resources: buildResources(),
+  pages: [buildDashboardScreen()],
+  auth: BeakAuthConfig(
+    // Demo sign-in is cosmetic — the panel is not guarded.
+    onLogin: (email, password) async => true,
+    onRegister: (name, email, password) async => true,
+    onRecover: (email) async => true,
+  ),
+  maintenance: BeakMaintenanceConfig(
+    maintenanceTitle: 'Under maintenance',
+    maintenanceDescription:
+        'We are performing scheduled maintenance and will be back shortly.',
+    estimatedReturn: DateTime.utc(2026, 7, 8, 12),
+    comingSoonTitle: 'Coming soon',
+    comingSoonDescription: 'Something great is on the way.',
+    launchAt: DateTime.utc(2026, 8, 1),
+  ),
+);
