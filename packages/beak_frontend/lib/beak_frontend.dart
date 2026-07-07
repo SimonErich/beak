@@ -23,6 +23,7 @@ export 'src/overlays/beak_overlays.dart';
 export 'src/filters/beak_filter_widget.dart';
 export 'src/form/beak_data_form.dart';
 export 'src/form/beak_form_controller_builder.dart';
+export 'src/form/beak_form_step.dart';
 export 'src/form/field_widget_mapper.dart';
 export 'src/form/form_view_model.dart';
 export 'src/form/relation_field.dart';

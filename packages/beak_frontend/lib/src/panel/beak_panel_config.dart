@@ -7,6 +7,7 @@ import '../blocks/beak_block.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../filters/beak_filter_widget.dart';
+import '../form/beak_form_step.dart';
 import 'beak_auth_config.dart';
 import 'beak_maintenance_config.dart';
 import 'beak_resource_view.dart';
@@ -61,6 +62,7 @@ final class BeakResource {
     this.filters = const [],
     this.viewModes = const [BeakTableView()],
     this.detail,
+    this.formSteps,
   });
 
   /// The model this resource exposes.
@@ -99,6 +101,10 @@ final class BeakResource {
   /// `null`, the show page falls back to the generated definition-grid detail
   /// view plus the record's to-many relation managers.
   final BeakBlock? detail;
+
+  /// When set, the create/edit form renders as a multi-step wizard over these
+  /// steps instead of a single scrolling form — for long, complex entities.
+  final List<BeakFormStep>? formSteps;
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
