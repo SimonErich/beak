@@ -29,6 +29,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   go_router: ^17.3.0
+  http: ^1.6.0
+  image: ^4.9.1
   lints: ^6.0.0
 
 # This package is the first to combine the panel (beak_frontend) and the

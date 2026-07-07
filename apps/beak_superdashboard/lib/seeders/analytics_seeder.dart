@@ -49,8 +49,13 @@ final class AnalyticsSeeder {
     await _seedCountryStats(ctx, orders, users);
   }
 
-  double _totalOf(Map<String, Object?> order) =>
-      (order['total']! as num).toDouble();
+  // Postgres returns `decimal` columns as strings, the in-memory adapter as
+  // numbers — parse both so the roll-up works against either backend.
+  double _totalOf(Map<String, Object?> order) => switch (order['total']) {
+    final num value => value.toDouble(),
+    final String value => double.tryParse(value) ?? 0,
+    _ => 0,
+  };
 
   Future<void> _seedTimeSeries(
     SeedContext ctx,
