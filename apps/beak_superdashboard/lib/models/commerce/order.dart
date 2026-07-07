@@ -175,6 +175,24 @@ abstract final class OrderRelations {
     displayColumnKey: 'reference',
     foreignKey: 'order_id',
   );
+
+  /// The order's lifecycle/history timeline.
+  static const events = BeakHasMany(
+    key: 'events',
+    label: 'History',
+    relatedTable: 'order_events',
+    displayColumnKey: 'description',
+    foreignKey: 'order_id',
+  );
+
+  /// Internal and customer-facing notes on the order.
+  static const comments = BeakHasMany(
+    key: 'comments',
+    label: 'Comments',
+    relatedTable: 'order_comments',
+    displayColumnKey: 'body',
+    foreignKey: 'order_id',
+  );
 }
 
 /// The orders resource — a customer's purchase.
@@ -196,5 +214,7 @@ final class OrderModel extends BeakModel {
     OrderRelations.user,
     OrderRelations.items,
     OrderRelations.transaction,
+    OrderRelations.events,
+    OrderRelations.comments,
   ];
 }
