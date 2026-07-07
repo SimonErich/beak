@@ -1,9 +1,11 @@
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_superdashboard/main.dart' as app;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 
 /// A data source that returns one canned product record, so the show page can
 /// render its custom detail layout.
@@ -82,11 +84,28 @@ void main() {
     router.go('/products/p1');
     await tester.pumpAndSettle();
 
-    // The headline card and grouped field labels/values from productDetail.
+    // The headline card, grouped field labels/values, and the tabbed
+    // relations section from the shared product layout.
     expect(find.text('Product'), findsWidgets);
     expect(find.text('Name'), findsWidgets);
     expect(find.text('Wireless mouse'), findsWidgets);
-    expect(find.text('Details'), findsWidgets);
+    expect(find.text('Overview'), findsWidgets);
+    expect(find.text('Variants'), findsWidgets);
+    tester.takeException();
+  });
+
+  testWidgets('a product edit page renders the same layout as a form', (
+    tester,
+  ) async {
+    final router = await boot(tester);
+    router.go('/products/p1/edit');
+    await tester.pumpAndSettle();
+
+    // The shared layout's cards are present, and its field blocks rendered
+    // editable inputs (prefilled from the record) rather than read-only text.
+    expect(find.byType(OiCard), findsWidgets);
+    expect(find.text('Overview'), findsWidgets);
+    expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
     tester.takeException();
   });
 
