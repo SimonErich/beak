@@ -18,6 +18,7 @@ export 'src/data/reference_cache.dart';
 export 'src/detail/beak_detail_view.dart';
 export 'src/detail/relation_manager.dart';
 export 'src/di/beak_locator.dart';
+export 'src/overlays/beak_overlays.dart';
 export 'src/filters/beak_filter_widget.dart';
 export 'src/form/beak_data_form.dart';
 export 'src/form/beak_form_controller_builder.dart';
