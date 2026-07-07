@@ -21,20 +21,12 @@ Future<void> executeBeakAction({
   List<BeakRecord> records = const [],
 }) async {
   if (action.requiresConfirmation) {
-    final bool? confirmed = await showOiDialog<bool>(
-      context.buildContext,
-      builder: (dialogContext, close) => OiDialog.confirm(
-        label: action.label,
-        title: '${action.label}?',
-        content: const OiLabel.body('Please confirm this action.'),
-        actions: [
-          OiButton.ghost(label: 'Cancel', onTap: () => close(false)),
-          OiButton.destructive(label: action.label, onTap: () => close(true)),
-        ],
-        onClose: close,
-      ),
+    final bool confirmed = await context.overlays.confirm(
+      title: '${action.label}?',
+      confirmLabel: action.label,
+      destructive: action.color == BeakColor.error,
     );
-    if (confirmed != true) {
+    if (!confirmed) {
       return;
     }
   }
