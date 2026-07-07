@@ -44,6 +44,16 @@ abstract class Relation<Parent extends Model, Child extends Model> {
   /// Stable name of this relation on the parent.
   final String name;
 
+  /// The table the loaded side's rows live in, when statically known.
+  ///
+  /// The eager loader uses it to scope nested relation-name
+  /// resolution: after loading this relation, the next path
+  /// segment resolves against the target table's entry in
+  /// `QueryContext.relationsByTable` before falling back to the
+  /// flat relation map. Polymorphic relations without a single
+  /// target return `null`.
+  String? get targetTable => null;
+
   /// Eager-load this relation for every parent in [parents], using
   /// [adapter].
   ///

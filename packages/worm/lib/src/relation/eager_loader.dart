@@ -54,12 +54,16 @@ abstract final class EagerLoader {
     Future<int> loadTask(_HeadLoad group) => _loadGroup(
       adapter: context.adapter,
       relations: context.relations,
+      relationsByTable: context.relationsByTable,
+      table: context.table,
       parents: modelParents,
       load: group,
     );
     Future<int> aggregateTask(AggregateInjection aggregate) => _injectAggregate(
       adapter: context.adapter,
       relations: context.relations,
+      relationsByTable: context.relationsByTable,
+      table: context.table,
       parents: modelParents,
       aggregate: aggregate,
     );
@@ -178,10 +182,17 @@ abstract final class EagerLoader {
   static Future<int> _loadGroup({
     required DatabaseAdapter adapter,
     required Map<String, Relation<Model, Model>> relations,
+    required Map<String, Map<String, Relation<Model, Model>>> relationsByTable,
+    required String? table,
     required List<Model> parents,
     required _HeadLoad load,
   }) async {
-    final relation = _requireRelation(relations, load.head);
+    final relation = _requireRelation(
+      relations,
+      relationsByTable,
+      table,
+      load.head,
+    );
     final result = await relation.loadWithFilter(
       adapter,
       parents,
@@ -197,13 +208,17 @@ abstract final class EagerLoader {
     ];
     if (children.isEmpty) return queries;
     // Sibling tails write distinct keys onto the SAME child instances the
-    // head-load just installed, so every nested relation survives.
+    // head-load just installed, so every nested relation survives. The next
+    // level resolves against the loaded side's table so same-named
+    // relations on different tables cannot cross-wire.
     for (final nested in _groupByHead([
       for (final tail in load.tails) EagerLoad(tail),
     ])) {
       queries += await _loadGroup(
         adapter: adapter,
         relations: relations,
+        relationsByTable: relationsByTable,
+        table: relation.targetTable,
         parents: children,
         load: nested,
       );
@@ -222,10 +237,17 @@ abstract final class EagerLoader {
   static Future<int> _injectAggregate({
     required DatabaseAdapter adapter,
     required Map<String, Relation<Model, Model>> relations,
+    required Map<String, Map<String, Relation<Model, Model>>> relationsByTable,
+    required String? table,
     required List<Model> parents,
     required AggregateInjection aggregate,
   }) async {
-    final relation = _requireRelation(relations, aggregate.relationName);
+    final relation = _requireRelation(
+      relations,
+      relationsByTable,
+      table,
+      aggregate.relationName,
+    );
     final spec = _aggregateSpecFor(relation, aggregate);
     final parentIds = <Object?>{for (final p in parents) p.id}.toList();
     if (parentIds.isEmpty) return 0;
@@ -290,9 +312,12 @@ abstract final class EagerLoader {
 
   static Relation<Model, Model> _requireRelation(
     Map<String, Relation<Model, Model>> relations,
+    Map<String, Map<String, Relation<Model, Model>>> relationsByTable,
+    String? table,
     String name,
   ) {
-    final found = relations[name];
+    final scoped = table == null ? null : relationsByTable[table]?[name];
+    final found = scoped ?? relations[name];
     if (found == null) {
       throw ConfigurationException(
         key: 'relation.unknown',

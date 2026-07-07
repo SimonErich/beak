@@ -64,6 +64,9 @@ final class MorphToManyRelation<Parent extends Model, Related extends Model>
   String get morphIdColumn => '${parentMorphName}_id';
 
   @override
+  String get targetTable => relatedTable;
+
+  @override
   Future<RelationLoadResult<Parent>> load(
     DatabaseAdapter adapter,
     List<Parent> parents,
