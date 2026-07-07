@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
+import 'package:obers_ui/obers_ui.dart';
 
 import '../dashboard/beak_chart.dart';
 import '../table/beak_table_action.dart';
@@ -24,6 +25,7 @@ part 'beak_tabs_block.dart';
 part 'beak_text_block.dart';
 part 'beak_three_pane_block.dart';
 part 'beak_widget_block.dart';
+part 'beak_wizard_block.dart';
 
 /// A declarative, composable content node — the building block of every
 /// non-CRUD Beak surface.
