@@ -1,0 +1,76 @@
+import 'package:flutter/widgets.dart';
+
+part 'beak_accordion_block.dart';
+part 'beak_breadcrumbs_block.dart';
+part 'beak_card_block.dart';
+part 'beak_column_block.dart';
+part 'beak_divider_block.dart';
+part 'beak_grid_block.dart';
+part 'beak_image_block.dart';
+part 'beak_markdown_block.dart';
+part 'beak_masonry_block.dart';
+part 'beak_row_block.dart';
+part 'beak_section_block.dart';
+part 'beak_spacer_block.dart';
+part 'beak_tabs_block.dart';
+part 'beak_text_block.dart';
+part 'beak_three_pane_block.dart';
+part 'beak_widget_block.dart';
+
+/// A declarative, composable content node — the building block of every
+/// non-CRUD Beak surface.
+///
+/// One sealed union drives three consumers with the same descriptors: a
+/// custom page's body, a resource's alternate view mode, and an overlay's
+/// content. `BeakBlockHost` renders the union exhaustively onto obers_ui
+/// widgets, so a new block type is a compile error until every renderer
+/// handles it.
+///
+/// Blocks are pure `const` configuration — no widget code, no callbacks
+/// except where an interaction is the feature (and [BeakWidgetBlock], the
+/// documented raw-widget escape hatch).
+///
+/// ```dart
+/// const body = BeakColumnBlock(
+///   children: [
+///     BeakTextBlock('Welcome back', variant: BeakTextVariant.h1),
+///     BeakGridBlock(
+///       columns: 12,
+///       children: [
+///         BeakCardBlock(
+///           span: BeakSpan(columns: 6),
+///           child: BeakTextBlock('Half width'),
+///         ),
+///         BeakCardBlock(
+///           span: BeakSpan(columns: 6),
+///           child: BeakTextBlock('Other half'),
+///         ),
+///       ],
+///     ),
+///   ],
+/// );
+/// ```
+@immutable
+sealed class BeakBlock {
+  /// Creates a block, optionally sized by [span] inside grid parents.
+  const BeakBlock({this.span});
+
+  /// How many grid tracks this block occupies when it is a direct child
+  /// of a [BeakGridBlock]; ignored elsewhere.
+  final BeakSpan? span;
+}
+
+/// Grid placement of a block inside a [BeakGridBlock].
+@immutable
+final class BeakSpan {
+  /// Creates a span covering [columns] × [rows] grid tracks.
+  const BeakSpan({this.columns = 1, this.rows = 1})
+    : assert(columns >= 1, 'columns must be >= 1'),
+      assert(rows >= 1, 'rows must be >= 1');
+
+  /// Number of grid columns covered.
+  final int columns;
+
+  /// Number of grid rows covered.
+  final int rows;
+}

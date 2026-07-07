@@ -4,6 +4,8 @@ library;
 
 export 'src/actions/beak_action.dart';
 export 'src/actions/beak_action_button.dart';
+export 'src/blocks/beak_block.dart';
+export 'src/blocks/beak_block_host.dart';
 export 'src/common/hex_color.dart';
 export 'src/dashboard/beak_chart.dart';
 export 'src/dashboard/beak_dashboard.dart';
