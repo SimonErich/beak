@@ -6,12 +6,16 @@ import 'package:obers_ui/obers_ui.dart';
 import '../dashboard/beak_dashboard.dart';
 import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
+import '../pages/beak_screen_view.dart';
+import 'beak_auth_config.dart';
+import 'beak_maintenance_config.dart';
 import 'beak_panel_config.dart';
+import 'beak_theme_controller.dart';
 
 /// Builds the panel's router from [config]: a shell route wrapping the
-/// dashboard at `/` and every resource's generated list/create/show/edit
-/// pages, a `/login` route outside the shell, and a typed not-found
-/// fallback.
+/// dashboard at `/`, every resource's generated list/create/show/edit pages,
+/// and every custom [BeakPage]; plus auth, error, and maintenance routes
+/// mounted outside the shell.
 ///
 /// [BeakPanel] calls this after [registerBeakDependencies], so the pages
 /// resolve their [BeakDataSource] from [beakLocator] on their first frame.
@@ -72,12 +76,16 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
             ),
           ),
         ],
+        for (final screen in config.pages)
+          GoRoute(
+            path: screen.path,
+            builder: (context, state) => BeakScreenView(screen: screen),
+          ),
       ],
     ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => OiAuthPage.login(label: config.title),
-    ),
+    ..._authRoutes(config),
+    ..._maintenanceRoutes(config.maintenance),
+    ..._errorRoutes(),
   ],
   errorBuilder: (context, state) => OiErrorPage.notFound(
     description: 'No panel page at "${state.uri.path}".',
@@ -86,8 +94,82 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
   ),
 );
 
+List<RouteBase> _authRoutes(BeakPanelConfig config) {
+  final BeakAuthConfig? auth = config.auth;
+  return [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) =>
+          OiAuthPage.login(label: config.title, onLogin: auth?.onLogin),
+    ),
+    if (auth != null && auth.register)
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => OiAuthPage.register(
+          label: config.title,
+          onRegister: auth.onRegister,
+        ),
+      ),
+    if (auth != null && auth.recover)
+      GoRoute(
+        path: '/recover',
+        builder: (context, state) => OiAuthPage(
+          label: config.title,
+          initialMode: OiAuthMode.forgotPassword,
+          onForgotPassword: auth.onRecover,
+        ),
+      ),
+  ];
+}
+
+List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
+  if (maintenance == null) {
+    return const [];
+  }
+  return [
+    GoRoute(
+      path: '/maintenance',
+      builder: (context, state) => OiMaintenancePage(
+        label: maintenance.maintenanceTitle,
+        title: maintenance.maintenanceTitle,
+        description: maintenance.maintenanceDescription,
+        estimatedReturn: maintenance.estimatedReturn,
+        showCountdown: maintenance.estimatedReturn != null,
+      ),
+    ),
+    GoRoute(
+      path: '/coming-soon',
+      builder: (context, state) => OiMaintenancePage(
+        label: maintenance.comingSoonTitle,
+        title: maintenance.comingSoonTitle,
+        description: maintenance.comingSoonDescription,
+        estimatedReturn: maintenance.launchAt,
+        showCountdown: maintenance.launchAt != null,
+      ),
+    ),
+  ];
+}
+
+List<RouteBase> _errorRoutes() => [
+  GoRoute(
+    path: '/403',
+    builder: (context, state) => OiErrorPage.forbidden(
+      actionLabel: 'Back to dashboard',
+      onAction: () => context.go('/'),
+    ),
+  ),
+  GoRoute(
+    path: '/500',
+    builder: (context, state) => OiErrorPage.serverError(
+      actionLabel: 'Back to dashboard',
+      onAction: () => context.go('/'),
+    ),
+  ),
+];
+
 /// The panel chrome around every routed page: an `OiAppShell` whose
-/// navigation is generated from the configured resources.
+/// navigation is generated from the configured resources and pages, grouped
+/// by their optional sections, with a live theme toggle in the top bar.
 final class _BeakShell extends StatelessWidget {
   const _BeakShell({
     required this.config,
@@ -100,24 +182,49 @@ final class _BeakShell extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => OiAppShell(
-    label: config.title,
-    title: config.title,
-    navigation: [
-      const OiNavItem(
-        label: 'Dashboard',
-        icon: OiIcons.layoutDashboard,
-        route: '/',
-      ),
-      for (final resource in config.resources)
-        OiNavItem(
-          label: resource.effectiveLabel,
-          icon: resource.icon.icon,
-          route: resource.route,
+  Widget build(BuildContext context) {
+    final themeController = beakLocator<BeakThemeController>();
+    return OiAppShell(
+      label: config.title,
+      title: config.title,
+      sidebarCollapsible: config.sidebarCollapsible,
+      sidebarDefaultCollapsed: config.sidebarDefaultCollapsed,
+      currentRoute: currentPath,
+      onNavigate: (route) => context.go(route),
+      actions: [
+        // Listens directly to the controller: go_router preserves the shell
+        // across navigations, so it would not otherwise see mode changes.
+        ValueListenableBuilder<OiThemeMode>(
+          valueListenable: themeController,
+          builder: (context, mode, _) => OiThemeToggle(
+            currentMode: mode,
+            onModeChange: (next) => themeController.value = next,
+          ),
         ),
-    ],
-    currentRoute: currentPath,
-    onNavigate: (route) => context.go(route),
-    child: child,
-  );
+      ],
+      navigation: [
+        const OiNavItem(
+          label: 'Dashboard',
+          icon: OiIcons.layoutDashboard,
+          route: '/',
+        ),
+        for (final resource in config.resources)
+          OiNavItem(
+            label: resource.effectiveLabel,
+            icon: resource.icon.icon,
+            route: resource.route,
+            section: resource.section,
+          ),
+        for (final screen in config.pages)
+          if (screen.showInNav)
+            OiNavItem(
+              label: screen.effectiveLabel,
+              icon: screen.icon.icon,
+              route: screen.path,
+              section: screen.section,
+            ),
+      ],
+      child: child,
+    );
+  }
 }
