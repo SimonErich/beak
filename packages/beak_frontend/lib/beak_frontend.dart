@@ -16,6 +16,7 @@ export 'src/data/http_beak_data_source.dart';
 export 'src/data/optimistic.dart';
 export 'src/data/reference_cache.dart';
 export 'src/detail/beak_detail_view.dart';
+export 'src/detail/beak_record_scope.dart';
 export 'src/detail/relation_manager.dart';
 export 'src/di/beak_locator.dart';
 export 'src/overlays/beak_overlays.dart';

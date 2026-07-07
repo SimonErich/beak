@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
+import '../blocks/beak_block.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../filters/beak_filter_widget.dart';
@@ -59,6 +60,7 @@ final class BeakResource {
     this.globalActions = const [],
     this.filters = const [],
     this.viewModes = const [BeakTableView()],
+    this.detail,
   });
 
   /// The model this resource exposes.
@@ -90,6 +92,13 @@ final class BeakResource {
   /// view. Declaring more than one adds a view-mode switcher to the list
   /// page.
   final List<BeakResourceView> viewModes;
+
+  /// A custom show-page layout: a record-bound [BeakBlock] tree (cards,
+  /// sections, tabs, grids composed of `BeakFieldBlock`/`BeakFieldGroupBlock`/
+  /// `BeakRelationBlock`) rendered inside the loaded record's scope. When
+  /// `null`, the show page falls back to the generated definition-grid detail
+  /// view plus the record's to-many relation managers.
+  final BeakBlock? detail;
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
