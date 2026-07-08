@@ -1,9 +1,9 @@
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 
-/// The user show page: an identity strip, an about/contact column beside a
-/// stats sidebar, and a tab per relation (orders, invoices, activity,
-/// skills) — everything about one person in one readable screen.
+/// The user layout, shared by the show page and the create/edit form: an
+/// identity strip, an about/contact column beside a stats sidebar, and a tab
+/// per relation (orders, invoices, activity, skills).
 const BeakBlock userDetail = BeakColumnBlock(
   gapInPixels: 20,
   children: [
@@ -42,6 +42,7 @@ const BeakBlock userDetail = BeakColumnBlock(
           child: BeakColumnBlock(
             children: [
               BeakFieldBlock(UserColumns.avatar),
+              BeakFieldBlock(UserColumns.cover),
               BeakFieldGroupBlock([
                 UserColumns.balance,
                 UserColumns.tasksDone,

@@ -1,9 +1,10 @@
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 
-/// The kanban card show page: a headline strip of title, priority, due date and
-/// owning column, a two-column body splitting the write-up and counts from the
-/// cover image, and tabs for the card's labels and assigned members.
+/// The kanban card layout, shared by the show page and the create/edit form:
+/// a headline strip (title, priority, due date, owning column), a two-column
+/// body splitting the write-up and counts from the cover image, and tabs for
+/// the card's labels and assigned members.
 const BeakBlock cardDetail = BeakColumnBlock(
   gapInPixels: 20,
   children: [
