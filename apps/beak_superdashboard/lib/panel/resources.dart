@@ -57,6 +57,7 @@ List<BeakResource> buildResources() => const [
     icon: BeakIconToken(OiIcons.creditCard),
     section: 'Store',
     detail: transactionDetail,
+    formLayout: transactionDetail,
     filters: [
       BeakSelectFilter(column: TransactionColumns.status, label: 'Status'),
     ],
@@ -68,6 +69,7 @@ List<BeakResource> buildResources() => const [
     icon: BeakIconToken(OiIcons.users),
     section: 'People',
     detail: userDetail,
+    formLayout: userDetail,
     filters: [
       BeakSelectFilter(column: UserColumns.role, label: 'Role'),
       BeakSelectFilter(column: UserColumns.status, label: 'Status'),
@@ -114,6 +116,7 @@ List<BeakResource> buildResources() => const [
     icon: BeakIconToken(OiIcons.trello),
     section: 'Projects',
     detail: cardDetail,
+    formLayout: cardDetail,
     filters: [
       BeakSelectFilter(column: CardColumns.priority, label: 'Priority'),
     ],
@@ -136,6 +139,7 @@ List<BeakResource> buildResources() => const [
     icon: BeakIconToken(OiIcons.fileText),
     section: 'Projects',
     detail: invoiceDetail,
+    formLayout: invoiceDetail,
     filters: [BeakSelectFilter(column: InvoiceColumns.status, label: 'Status')],
   ),
 

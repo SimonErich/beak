@@ -1,8 +1,9 @@
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 
-/// The invoice show page: status and dates up top, the bill-to and the money
-/// breakdown side by side, and the line items in their own card.
+/// The invoice layout, shared by the show page and the create/edit form:
+/// status and dates up top, the bill-to and the money breakdown side by side,
+/// and the line items in their own card.
 const BeakBlock invoiceDetail = BeakColumnBlock(
   gapInPixels: 20,
   children: [
