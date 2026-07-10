@@ -30,6 +30,7 @@ void main() {
           '/ui-kit',
           '/typography',
           '/icons',
+          '/maps',
           '/starter',
         ]),
       );
@@ -78,6 +79,7 @@ void main() {
         '/ui-kit',
         '/typography',
         '/icons',
+        '/maps',
         '/starter',
       ]) {
         router.go(path);

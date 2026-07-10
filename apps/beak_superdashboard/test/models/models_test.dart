@@ -4,9 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('demo model catalog', () {
-    test('registers 46 models across every domain', () {
-      expect(demoModels, hasLength(46));
-      expect(buildDemoRegistry().all, hasLength(46));
+    test('registers 49 models across every domain', () {
+      expect(demoModels, hasLength(49));
+      expect(buildDemoRegistry().all, hasLength(49));
     });
 
     test('every table name is unique', () {
