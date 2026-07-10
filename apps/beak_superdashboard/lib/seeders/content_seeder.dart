@@ -206,16 +206,27 @@ final class ContentSeeder {
     await ctx.insertMany('faqs', faqRows);
   }
 
+  /// Public sample videos (Google's gtv bucket) so the video showcase plays a
+  /// real clip rather than a placeholder image.
+  static const List<String> _sampleVideos = [
+    'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  ];
+
   Future<void> _seedMedia(SeedContext ctx) async {
     final rows = <Map<String, Object?>>[];
     void add(MediaCollection collection, int count, int width, int height) {
       for (var index = 0; index < count; index++) {
+        final bool isVideo = collection == MediaCollection.video;
         rows.add({
           'id': ctx.uuid(),
           'collection': collection.name,
           'title': '${collection.name} ${index + 1}',
           'caption': ctx.faker.sentence(wordCount: 6),
-          'url': ctx.faker.imageUrl(width: width, height: height),
+          'url': isVideo
+              ? _sampleVideos[index % _sampleVideos.length]
+              : ctx.faker.imageUrl(width: width, height: height),
           'sort_index': index,
         });
       }
