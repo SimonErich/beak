@@ -108,9 +108,11 @@ The additions, cleanly separable from your doc churn:
 lib/src/components/display/oi_carousel.dart
 lib/src/components/inputs/oi_radial_slider.dart
 packages/obers_ui_charts/lib/src/composites/oi_vector_map/
+packages/obers_ui_charts/lib/src/composites/oi_tile_map/
 test/src/components/display/oi_carousel_test.dart
 test/src/components/inputs/oi_radial_slider_test.dart
 packages/obers_ui_charts/test/src/composites/oi_vector_map_test.dart
+packages/obers_ui_charts/test/src/composites/oi_tile_map_test.dart
 # modified (barrel exports + auth lock-mode)
 lib/obers_ui.dart
 lib/src/modules/oi_auth_page.dart
