@@ -105,6 +105,22 @@ void main() {
     tester.takeException();
   });
 
+  testWidgets('video plays the first row on OiVideoPlayer', (tester) async {
+    await pump(
+      tester,
+      const BeakVideoBlock(
+        query: BeakQuerySpec(table: 'regions'),
+        urlField: BeakStringColumn(key: 'url', label: 'Url'),
+        title: 'Clip',
+      ),
+    );
+
+    final player = tester.widget<OiVideoPlayer>(find.byType(OiVideoPlayer));
+    expect(player.src, 'https://example.com/a.png');
+    expect(player.label, 'Clip');
+    tester.takeException();
+  });
+
   testWidgets('radial slider updates its value on change', (tester) async {
     await pump(
       tester,

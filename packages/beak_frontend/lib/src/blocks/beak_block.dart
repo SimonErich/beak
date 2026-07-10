@@ -43,6 +43,7 @@ part 'beak_table_block.dart';
 part 'beak_tabs_block.dart';
 part 'beak_text_block.dart';
 part 'beak_timeline_block.dart';
+part 'beak_video_block.dart';
 part 'beak_carousel_block.dart';
 part 'beak_map_block.dart';
 part 'beak_radial_slider_block.dart';

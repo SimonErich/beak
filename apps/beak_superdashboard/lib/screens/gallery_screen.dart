@@ -45,6 +45,18 @@ BeakScreen buildGalleryScreen() => BeakScreen(
           captionField: MediaAssetColumns.title,
         ),
       ),
+      BeakCardBlock(
+        title: 'Video',
+        child: BeakVideoBlock(
+          title: 'Featured video',
+          query: BeakQuerySpec(
+            table: 'media_assets',
+            filter: _inCollection(MediaCollection.video),
+            sorts: const [BeakSort('sort_index')],
+          ),
+          urlField: MediaAssetColumns.url,
+        ),
+      ),
     ],
   ),
 );

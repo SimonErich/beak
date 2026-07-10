@@ -37,6 +37,7 @@ part 'views/beak_profile_block_view.dart';
 part 'views/beak_record_readers.dart';
 part 'views/beak_table_block_view.dart';
 part 'views/beak_timeline_block_view.dart';
+part 'views/beak_video_block_view.dart';
 
 /// Renders a [BeakBlock] tree onto obers_ui widgets — the single renderer
 /// behind custom pages, resource view modes, and overlay bodies.
@@ -95,6 +96,7 @@ class BeakBlockHost extends StatelessWidget {
     final BeakProgressBlock progress => _progress(progress),
     final BeakRatingBlock rating => _rating(rating),
     final BeakGalleryBlock gallery => _BeakGalleryBlockView(block: gallery),
+    final BeakVideoBlock video => _BeakVideoBlockView(block: video),
     final BeakTimelineBlock timeline => _BeakTimelineBlockView(block: timeline),
     final BeakIconGalleryBlock icons => _iconGallery(context, icons),
     final BeakFieldBlock field => _field(context, field),
