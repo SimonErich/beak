@@ -63,6 +63,27 @@ BeakScreen buildChartsScreen() => BeakScreen(
         query: BeakQuerySpec(table: 'purchase_sources'),
         map: purchaseSourcePoints,
       ),
+      const BeakBubbleChartBlock(
+        title: 'Catalog: price × stock, sized by cost',
+        query: BeakQuerySpec(table: 'products'),
+        map: productBubblePoints,
+      ),
+      const BeakCandlestickChartBlock(
+        span: BeakSpan(columns: 2),
+        title: 'Price history (candlestick)',
+        query: BeakQuerySpec(
+          table: 'price_candles',
+          sorts: [BeakSort('sort_index')],
+        ),
+        map: priceCandles,
+      ),
+      const BeakHeatmapChartBlock(
+        span: BeakSpan(columns: 2),
+        title: 'Orders by weekday & month',
+        query: BeakQuerySpec(table: 'activity_heatmap'),
+        map: activityHeatCells,
+        rowLabels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      ),
     ],
   ),
 );

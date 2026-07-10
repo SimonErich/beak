@@ -5,7 +5,10 @@ library;
 
 import 'package:beak_core/beak_core.dart';
 
+import 'analytics/activity_heat_cell.dart';
 import 'analytics/country_stat.dart';
+import 'analytics/office_location.dart';
+import 'analytics/price_candle.dart';
 import 'analytics/purchase_source.dart';
 import 'analytics/time_series_point.dart';
 import 'calendar/calendar_event.dart';
@@ -52,7 +55,10 @@ import 'pricing/pricing_plan.dart';
 import 'showcase/media_asset.dart';
 import 'showcase/notification.dart';
 
+export 'analytics/activity_heat_cell.dart';
 export 'analytics/country_stat.dart';
+export 'analytics/office_location.dart';
+export 'analytics/price_candle.dart';
 export 'analytics/purchase_source.dart';
 export 'analytics/time_series_point.dart';
 export 'calendar/calendar_event.dart';
@@ -130,6 +136,9 @@ const List<BeakModel> demoModels = [
   TimeSeriesPointModel(),
   PurchaseSourceModel(),
   CountryStatModel(),
+  PriceCandleModel(),
+  ActivityHeatCellModel(),
+  OfficeLocationModel(),
   // Email
   MailFolderModel(),
   MailLabelModel(),

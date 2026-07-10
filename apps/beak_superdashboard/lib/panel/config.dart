@@ -10,6 +10,7 @@ import '../screens/files_screen.dart';
 import '../screens/gallery_screen.dart';
 import '../screens/icons_screen.dart';
 import '../screens/invoice_screen.dart';
+import '../screens/maps_screen.dart';
 import '../screens/pricing_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/starter_screen.dart';
@@ -53,6 +54,7 @@ BeakPanelConfig buildSuperdashboardConfig({
     buildUiKitScreen(),
     buildTypographyScreen(),
     buildIconsScreen(),
+    buildMapsScreen(),
     buildStarterScreen(),
   ],
   auth: BeakAuthConfig(

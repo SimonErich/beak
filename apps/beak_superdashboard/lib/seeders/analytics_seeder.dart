@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:beak_superdashboard/models/models.dart';
 
 import 'seed_context.dart';
@@ -47,7 +49,169 @@ final class AnalyticsSeeder {
     await _seedTimeSeries(ctx, orders);
     await _seedPurchaseSources(ctx, orders);
     await _seedCountryStats(ctx, orders, users);
+    await _seedPriceCandles(ctx);
+    await _seedHeatmap(ctx, orders);
+    await _seedOffices(ctx);
   }
+
+  static const List<String> _weekdays = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+
+  static const List<String> _monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  static const List<
+    ({String name, String city, String country, double lat, double lng})
+  >
+  _offices = [
+    (
+      name: 'HQ',
+      city: 'Vienna',
+      country: 'Austria',
+      lat: 48.2082,
+      lng: 16.3738,
+    ),
+    (
+      name: 'West',
+      city: 'San Francisco',
+      country: 'USA',
+      lat: 37.7749,
+      lng: -122.4194,
+    ),
+    (
+      name: 'East',
+      city: 'New York',
+      country: 'USA',
+      lat: 40.7128,
+      lng: -74.006,
+    ),
+    (name: 'EU', city: 'Berlin', country: 'Germany', lat: 52.52, lng: 13.405),
+    (name: 'UK', city: 'London', country: 'UK', lat: 51.5074, lng: -0.1278),
+    (
+      name: 'APAC',
+      city: 'Singapore',
+      country: 'Singapore',
+      lat: 1.3521,
+      lng: 103.8198,
+    ),
+    (
+      name: 'AU',
+      city: 'Sydney',
+      country: 'Australia',
+      lat: -33.8688,
+      lng: 151.2093,
+    ),
+  ];
+
+  /// Seeds a 30-day OHLC price series as a deterministic random walk.
+  Future<void> _seedPriceCandles(SeedContext ctx) async {
+    final rows = <Map<String, Object?>>[];
+    var previousClose = 120.0;
+    for (var day = 0; day < 30; day++) {
+      final open = previousClose;
+      final close = double.parse(
+        (open + ctx.money(-8, 8)).clamp(60, 220).toStringAsFixed(2),
+      );
+      final high = double.parse(
+        (math.max(open, close) + ctx.money(0, 5)).toStringAsFixed(2),
+      );
+      final low = double.parse(
+        (math.min(open, close) - ctx.money(0, 5)).toStringAsFixed(2),
+      );
+      rows.add({
+        'id': ctx.uuid(),
+        'label': 'Day ${day + 1}',
+        'open': open,
+        'high': high,
+        'low': low,
+        'close': close,
+        'sort_index': day,
+      });
+      previousClose = close;
+    }
+    await ctx.insertMany('price_candles', rows);
+  }
+
+  /// Seeds the orders-by-weekday-and-month heatmap over the last six months.
+  Future<void> _seedHeatmap(
+    SeedContext ctx,
+    List<Map<String, Object?>> orders,
+  ) async {
+    final months = <DateTime>[
+      for (var back = 5; back >= 0; back--)
+        DateTime.utc(SeedContext.now.year, SeedContext.now.month - back),
+    ];
+    final columnLabels = [for (final m in months) _monthNames[m.month - 1]];
+    final columnByKey = {
+      for (final m in months) '${m.year}-${m.month}': _monthNames[m.month - 1],
+    };
+    final counts = <String, int>{};
+    for (final order in orders) {
+      final placedAt = _dateOf(order['placed_at']);
+      if (placedAt == null) {
+        continue;
+      }
+      final column = columnByKey['${placedAt.year}-${placedAt.month}'];
+      if (column == null) {
+        continue;
+      }
+      final row = _weekdays[placedAt.weekday - 1];
+      counts['$row|$column'] = (counts['$row|$column'] ?? 0) + 1;
+    }
+    final rows = <Map<String, Object?>>[
+      for (final weekday in _weekdays)
+        for (final month in columnLabels)
+          {
+            'id': ctx.uuid(),
+            'row_label': weekday,
+            'column_label': month,
+            'value': counts['$weekday|$month'] ?? 0,
+          },
+    ];
+    await ctx.insertMany('activity_heatmap', rows);
+  }
+
+  /// Seeds the office locations pinned on the tile map.
+  Future<void> _seedOffices(SeedContext ctx) async {
+    final rows = <Map<String, Object?>>[
+      for (final office in _offices)
+        {
+          'id': ctx.uuid(),
+          'name': '${office.name} — ${office.city}',
+          'city': office.city,
+          'country': office.country,
+          'latitude': office.lat,
+          'longitude': office.lng,
+          'headcount': ctx.between(8, 240),
+        },
+    ];
+    await ctx.insertMany('office_locations', rows);
+  }
+
+  DateTime? _dateOf(Object? raw) => switch (raw) {
+    final DateTime value => value,
+    final String value => DateTime.tryParse(value),
+    _ => null,
+  };
 
   // Postgres returns `decimal` columns as strings, the in-memory adapter as
   // numbers — parse both so the roll-up works against either backend.

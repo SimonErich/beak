@@ -26,11 +26,26 @@ final class CreateAnalyticsTables extends Migration {
       'country_stats',
       (table) => defineModelColumns(table, const CountryStatModel()),
     );
+    await schema.create(
+      'price_candles',
+      (table) => defineModelColumns(table, const PriceCandleModel()),
+    );
+    await schema.create(
+      'activity_heatmap',
+      (table) => defineModelColumns(table, const ActivityHeatCellModel()),
+    );
+    await schema.create(
+      'office_locations',
+      (table) => defineModelColumns(table, const OfficeLocationModel()),
+    );
   }
 
   @override
   Future<void> downSchema(Schema schema) async {
     for (final table in const [
+      'office_locations',
+      'activity_heatmap',
+      'price_candles',
       'country_stats',
       'purchase_sources',
       'time_series_points',
