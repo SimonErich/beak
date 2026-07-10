@@ -26,6 +26,12 @@ enum BeakChartType {
 
   /// An area chart over the mapped points.
   area,
+
+  /// A radar chart — one axis per point, a single series of their values.
+  radar,
+
+  /// A funnel chart — one stage per point.
+  funnel,
 }
 
 /// One typed chart data point — the shape [BeakChartMapper]s produce, so
@@ -216,6 +222,23 @@ Widget beakChartWidget(
         xMapper: (point) => point.x ?? points.indexOf(point).toDouble(),
         yMapper: (point) => point.value,
       ),
+    ],
+  ),
+  BeakChartType.radar => OiRadarChart(
+    label: title,
+    axes: [for (final point in points) point.label],
+    series: [
+      OiRadarSeries(
+        label: title,
+        values: [for (final point in points) point.value],
+      ),
+    ],
+  ),
+  BeakChartType.funnel => OiFunnelChart(
+    label: title,
+    stages: [
+      for (final point in points)
+        OiFunnelStage(label: point.label, value: point.value),
     ],
   ),
 };

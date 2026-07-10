@@ -51,6 +51,18 @@ BeakScreen buildChartsScreen() => BeakScreen(
         query: BeakQuerySpec(table: 'purchase_sources'),
         map: purchaseSourcePoints,
       ),
+      const BeakChartBlock(
+        title: 'Source of purchases (radar)',
+        type: BeakChartType.radar,
+        query: BeakQuerySpec(table: 'purchase_sources'),
+        map: purchaseSourcePoints,
+      ),
+      const BeakChartBlock(
+        title: 'Source of purchases (funnel)',
+        type: BeakChartType.funnel,
+        query: BeakQuerySpec(table: 'purchase_sources'),
+        map: purchaseSourcePoints,
+      ),
     ],
   ),
 );
