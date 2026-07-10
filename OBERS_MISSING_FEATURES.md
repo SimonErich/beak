@@ -26,6 +26,10 @@ A choropleth + bubble world map with bundled geometry.
 ## 4. OiAuthMode.lock — additive on `OiAuthPage`
 New `OiAuthMode.lock` value + `OiAuthPage.lock({required label, Future<bool> Function(String password)? onUnlock, String? userName, Widget? avatar, ...})` and matching fields on the default ctor. Existing modes untouched. 4 tests.
 
+## 5. OiTileMap — charts package (`composites/oi_tile_map`)
+A raster **slippy tile map** (the counterpart to the vector `OiVectorMap`):
+`OiTileMap({required OiLatLng center, required String label, int zoom, List<OiMapMarker> markers, String tileUrlTemplate = OSM, String attribution, bool interactive, int minZoom/maxZoom, double heightInPixels})`. Web-Mercator projection, `{z}/{x}/{y}` tiles fetched with `Image.network`, lat/lng marker pins, drag-to-pan and +/− zoom, horizontal world-wrap. Reuses the existing `OiMapMarker`; adds the `OiLatLng` value type. 3 tests. (The bubble/candlestick/heatmap chart widgets Beak now wraps — `OiBubbleChart`/`OiCandlestickChart`/`OiHeatmap` — already existed in the charts package.)
+
 ## Gate status (in ~/Flutters/obers_ui)
 - charts: `flutter analyze` 0 issues, `flutter test` 770 passing (22 new).
 - main: touched files analyze clean; 46 new tests pass. (Pre-existing 55
