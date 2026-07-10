@@ -100,6 +100,48 @@ void main() {
       final chart = tester.widget<OiDonutChart>(find.byType(OiDonutChart));
       expect(chart.segments.map((segment) => segment.label), ['Alpha', 'Beta']);
     });
+
+    testWidgets('maps records to a radar chart', (tester) async {
+      await pump(
+        tester,
+        BeakChartBlock(
+          title: 'Notes',
+          type: BeakChartType.radar,
+          query: const BeakQuerySpec(table: 'notes'),
+          map: (records) => [
+            for (final record in records)
+              BeakChartPoint(
+                label: record['title']?.raw?.toString() ?? '',
+                value: 3,
+              ),
+          ],
+        ),
+      );
+
+      final chart = tester.widget<OiRadarChart>(find.byType(OiRadarChart));
+      expect(chart.axes, ['Alpha', 'Beta']);
+    });
+
+    testWidgets('maps records to a funnel chart', (tester) async {
+      await pump(
+        tester,
+        BeakChartBlock(
+          title: 'Notes',
+          type: BeakChartType.funnel,
+          query: const BeakQuerySpec(table: 'notes'),
+          map: (records) => [
+            for (final record in records)
+              BeakChartPoint(
+                label: record['title']?.raw?.toString() ?? '',
+                value: 5,
+              ),
+          ],
+        ),
+      );
+
+      final chart = tester.widget<OiFunnelChart>(find.byType(OiFunnelChart));
+      expect(chart.stages.map((stage) => stage.label), ['Alpha', 'Beta']);
+    });
   });
 
   group('BeakMetricBlock', () {
