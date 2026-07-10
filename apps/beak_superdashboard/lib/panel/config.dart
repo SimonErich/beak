@@ -1,4 +1,5 @@
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak_superdashboard/models/models.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../screens/charts_screen.dart';
@@ -30,6 +31,14 @@ BeakPanelConfig buildSuperdashboardConfig({
   apiBaseUrl: apiBaseUrl,
   initialThemeMode: OiThemeMode.light,
   resources: buildResources(),
+  notifications: const BeakNotificationSource(
+    model: NotificationModel(),
+    titleField: NotificationColumns.title,
+    bodyField: NotificationColumns.body,
+    timeField: NotificationColumns.createdAt,
+    readField: NotificationColumns.isRead,
+    categoryField: NotificationColumns.level,
+  ),
   pages: [
     buildDashboardScreen(),
     buildEmailScreen(),
