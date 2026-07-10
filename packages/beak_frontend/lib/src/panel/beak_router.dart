@@ -11,6 +11,7 @@ import '../pages/beak_screen_view.dart';
 import 'beak_auth_config.dart';
 import 'beak_command_bar.dart';
 import 'beak_maintenance_config.dart';
+import 'beak_notifications.dart';
 import 'beak_panel_config.dart';
 import 'beak_theme_controller.dart';
 
@@ -217,6 +218,8 @@ final class _BeakShell extends StatelessWidget {
               label: 'Search (Ctrl-K)',
               onTap: openCommandBar,
             ),
+            if (config.notifications case final BeakNotificationSource source)
+              BeakNotificationBell(source: source),
             // Listens directly to the controller: go_router preserves the
             // shell across navigations, so it would not otherwise see mode
             // changes.

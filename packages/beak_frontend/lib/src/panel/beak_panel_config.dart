@@ -10,6 +10,7 @@ import '../filters/beak_filter_widget.dart';
 import '../form/beak_form_step.dart';
 import 'beak_auth_config.dart';
 import 'beak_maintenance_config.dart';
+import 'beak_notifications.dart';
 import 'beak_resource_view.dart';
 import 'beak_routes.dart';
 import 'beak_screen.dart';
@@ -186,6 +187,7 @@ final class BeakPanelConfig {
     this.sidebarDefaultCollapsed = false,
     this.dashboardStats = const [],
     this.dashboardCharts = const [],
+    this.notifications,
   });
 
   /// The panel title, shown in the shell and the login screen.
@@ -226,6 +228,10 @@ final class BeakPanelConfig {
 
   /// The dashboard's charts, in order.
   final List<BeakChart> dashboardCharts;
+
+  /// Binds a model's rows to the shell's notification bell; `null` shows no
+  /// bell.
+  final BeakNotificationSource? notifications;
 
   /// Builds a [BeakModelRegistry] over every resource model, in declaration
   /// order.
