@@ -19,7 +19,10 @@ import '../table/column_cell_renderer.dart';
 import 'beak_block.dart';
 
 part 'views/beak_calendar_block_view.dart';
+part 'views/beak_bubble_chart_block_view.dart';
+part 'views/beak_candlestick_chart_block_view.dart';
 part 'views/beak_chart_block_view.dart';
+part 'views/beak_heatmap_chart_block_view.dart';
 part 'views/beak_chat_block_view.dart';
 part 'views/beak_faq_block_view.dart';
 part 'views/beak_file_manager_block_view.dart';
@@ -36,6 +39,7 @@ part 'views/beak_radial_slider_block_view.dart';
 part 'views/beak_profile_block_view.dart';
 part 'views/beak_record_readers.dart';
 part 'views/beak_table_block_view.dart';
+part 'views/beak_tile_map_block_view.dart';
 part 'views/beak_timeline_block_view.dart';
 part 'views/beak_video_block_view.dart';
 
@@ -70,9 +74,19 @@ class BeakBlockHost extends StatelessWidget {
     final BeakTabsBlock tabs => _BeakTabsHost(block: tabs),
     final BeakKpiBlock kpi => _BeakKpiBlockView(block: kpi),
     final BeakChartBlock chart => _BeakChartBlockView(block: chart),
+    final BeakBubbleChartBlock bubble => _BeakBubbleChartBlockView(
+      block: bubble,
+    ),
+    final BeakCandlestickChartBlock candles => _BeakCandlestickChartBlockView(
+      block: candles,
+    ),
+    final BeakHeatmapChartBlock heatmap => _BeakHeatmapChartBlockView(
+      block: heatmap,
+    ),
     final BeakTableBlock table => _BeakTableBlockView(block: table),
     final BeakMetricBlock metric => _BeakMetricBlockView(block: metric),
     final BeakMapBlock map => _BeakMapBlockView(block: map),
+    final BeakTileMapBlock tileMap => _BeakTileMapBlockView(block: tileMap),
     final BeakCarouselBlock carousel => _BeakCarouselBlockView(block: carousel),
     final BeakRadialSliderBlock slider => _BeakRadialSliderBlockView(
       block: slider,

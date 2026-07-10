@@ -71,6 +71,87 @@ final class BeakChartPoint {
 typedef BeakChartMapper =
     List<BeakChartPoint> Function(List<BeakRecord> records);
 
+/// One point of a bubble chart: a position ([x], [y]) plus a magnitude
+/// ([size], the third dimension), optionally [label]led.
+final class BeakBubblePoint {
+  /// Creates a bubble at ([x], [y]) sized by [size].
+  const BeakBubblePoint({
+    required this.x,
+    required this.y,
+    required this.size,
+    this.label,
+  });
+
+  /// The horizontal position.
+  final double x;
+
+  /// The vertical position.
+  final double y;
+
+  /// The bubble's magnitude (its area encodes this).
+  final double size;
+
+  /// An optional label for the point.
+  final String? label;
+}
+
+/// Produces a bubble chart's points from a query's records.
+typedef BeakBubbleMapper =
+    List<BeakBubblePoint> Function(List<BeakRecord> records);
+
+/// One candle of an OHLC chart at position [x] (a time or index).
+final class BeakCandle {
+  /// Creates a candle at [x] with the four prices.
+  const BeakCandle({
+    required this.x,
+    required this.open,
+    required this.high,
+    required this.low,
+    required this.close,
+  });
+
+  /// The horizontal position (e.g. a day index or epoch millis).
+  final double x;
+
+  /// The opening price.
+  final double open;
+
+  /// The session high.
+  final double high;
+
+  /// The session low.
+  final double low;
+
+  /// The closing price.
+  final double close;
+}
+
+/// Produces a candlestick chart's candles from a query's records.
+typedef BeakCandleMapper = List<BeakCandle> Function(List<BeakRecord> records);
+
+/// One cell of a heatmap matrix: a [value] at ([row], [column]).
+final class BeakMatrixCell {
+  /// Creates a heatmap cell.
+  const BeakMatrixCell({
+    required this.row,
+    required this.column,
+    required this.value,
+  });
+
+  /// The row key.
+  final String row;
+
+  /// The column key.
+  final String column;
+
+  /// The cell's magnitude.
+  final double value;
+}
+
+/// Produces a heatmap's cells from a query's records.
+typedef BeakMatrixMapper =
+    List<BeakMatrixCell> Function(List<BeakRecord> records);
+
 /// A dashboard chart: a query, a typed record→point mapping, and the
 /// chart family to render with (`obers_ui_charts`).
 ///
