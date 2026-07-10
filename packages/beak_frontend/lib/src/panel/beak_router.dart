@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
@@ -130,6 +133,22 @@ List<RouteBase> _authRoutes(BeakPanelConfig config) {
           onForgotPassword: auth.onRecover,
         ),
       ),
+    GoRoute(
+      path: '/lock',
+      builder: (context, state) => OiAuthPage.lock(
+        label: config.title,
+        userName: auth?.lockUserName ?? config.title,
+        onUnlock: (password) async {
+          final bool unlocked =
+              await (auth?.onUnlock?.call(password) ??
+                  Future<bool>.value(true));
+          if (unlocked && context.mounted) {
+            context.go('/');
+          }
+          return unlocked;
+        },
+      ),
+    ),
   ];
 }
 
@@ -196,7 +215,7 @@ final class _BeakShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeController = beakLocator<BeakThemeController>();
     void openCommandBar() => openBeakCommandBar(context, config);
-    return CallbackShortcuts(
+    final Widget shell = CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyK, control: true):
             openCommandBar,
@@ -257,6 +276,47 @@ final class _BeakShell extends StatelessWidget {
           child: child,
         ),
       ),
+    );
+    return switch (config.auth?.idleLockTimeout) {
+      final Duration timeout => _BeakIdleLock(timeout: timeout, child: shell),
+      null => shell,
+    };
+  }
+}
+
+/// Locks the panel to `/lock` after [timeout] of no pointer activity inside
+/// the shell. Any pointer event resets the countdown; the timer is torn down
+/// when the shell unmounts (e.g. once navigation reaches the lock screen), so
+/// it never fires in a loop.
+class _BeakIdleLock extends HookWidget {
+  const _BeakIdleLock({required this.timeout, required this.child});
+
+  final Duration timeout;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final router = GoRouter.of(context);
+    final reset = useRef<VoidCallback>(() {});
+
+    useEffect(() {
+      Timer? timer;
+      void schedule() {
+        timer?.cancel();
+        timer = Timer(timeout, () => router.go('/lock'));
+      }
+
+      reset.value = schedule;
+      schedule();
+      return () => timer?.cancel();
+    }, [timeout, router]);
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => reset.value(),
+      onPointerMove: (_) => reset.value(),
+      onPointerSignal: (_) => reset.value(),
+      child: child,
     );
   }
 }

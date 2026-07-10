@@ -60,6 +60,10 @@ BeakPanelConfig buildSuperdashboardConfig({
     onLogin: (email, password) async => true,
     onRegister: (name, email, password) async => true,
     onRecover: (email) async => true,
+    // Auto-lock after inactivity; the lock screen is also always at /lock.
+    idleLockTimeout: const Duration(minutes: 10),
+    lockUserName: 'Aisha Rahman',
+    onUnlock: (password) async => true,
   ),
   maintenance: BeakMaintenanceConfig(
     maintenanceTitle: 'Under maintenance',

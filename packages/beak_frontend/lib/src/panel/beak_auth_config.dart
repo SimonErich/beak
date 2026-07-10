@@ -22,6 +22,9 @@ final class BeakAuthConfig {
     this.onLogin,
     this.onRegister,
     this.onRecover,
+    this.idleLockTimeout,
+    this.lockUserName,
+    this.onUnlock,
   });
 
   /// Whether a `/register` route is mounted.
@@ -39,4 +42,15 @@ final class BeakAuthConfig {
 
   /// Handles a password-recovery request; returns `true` on success.
   final Future<bool> Function(String email)? onRecover;
+
+  /// When set, the panel locks to `/lock` after this much inactivity inside
+  /// the shell; `null` never auto-locks.
+  final Duration? idleLockTimeout;
+
+  /// The name shown on the lock screen (defaults to the panel title).
+  final String? lockUserName;
+
+  /// Validates the unlock password; returns `true` to unlock. `null` accepts
+  /// any password (demo-friendly).
+  final Future<bool> Function(String password)? onUnlock;
 }

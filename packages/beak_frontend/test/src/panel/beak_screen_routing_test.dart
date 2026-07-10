@@ -172,4 +172,35 @@ void main() {
       expect(rebuilt.currentMode, OiThemeMode.dark);
     });
   });
+
+  group('idle lock', () {
+    testWidgets('the lock route renders the lock screen', (tester) async {
+      await pump(tester, config(auth: const BeakAuthConfig()));
+      GoRouter.of(tester.element(find.byType(OiAppShell))).go('/lock');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OiAppShell), findsNothing);
+      expect(find.byType(OiAuthPage), findsOneWidget);
+    });
+
+    testWidgets('the panel auto-locks after the idle timeout', (tester) async {
+      await pump(
+        tester,
+        config(
+          auth: const BeakAuthConfig(
+            idleLockTimeout: Duration(seconds: 1),
+            lockUserName: 'Aisha',
+          ),
+        ),
+      );
+      expect(find.byType(OiAppShell), findsOneWidget);
+
+      // No activity → the idle timer fires and navigates to the lock screen.
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OiAppShell), findsNothing);
+      expect(find.byType(OiAuthPage), findsOneWidget);
+    });
+  });
 }
