@@ -76,19 +76,24 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
 - `BeakFormStep` + `BeakWizardBlock` (OiWizard) for multi-step flows.
 
 ## Charts + media
-- `BeakChartType` now covers line/area/bar/pie/donut/radar/funnel, each fed by
-  the `BeakChartPoint` mapper.
+- `BeakChartType` covers line/area/bar/pie/donut/radar/funnel via the
+  `BeakChartPoint` mapper. Beyond the single-value point, the typed shapes
+  `BeakBubblePoint` (x/y/size), `BeakCandle` (OHLC), and `BeakMatrixCell`
+  (row/column/value) drive `BeakBubbleChartBlock`, `BeakCandlestickChartBlock`,
+  and `BeakHeatmapChartBlock` (over OiBubbleChart/OiCandlestickChart/OiHeatmap).
 - `BeakVideoBlock` (OiVideoPlayer); the gallery block already opens a lightbox
   on tap.
 
-## Not yet added (genuinely larger — need new obers widgets or data shapes)
-- **Google/tile maps**: `OiTileMap` does not exist in obers_ui; the vector
-  choropleth (`OiVectorMap`/`BeakMapBlock`) is done, a slippy tile map is a
-  new generic widget.
-- **Multi-dimensional chart families** (bubble/candlestick/heatmap): these
-  need a typed `BeakChartData` beyond the single-value `BeakChartPoint` (x/y/z,
-  OHLC, matrix) — and demo data that has those shapes, which the seeded
-  analytics does not.
+## Maps
+- `BeakMapBlock` → `OiVectorMap` (vector choropleth) and `BeakTileMapBlock` →
+  `OiTileMap` (a raster OSM slippy map built in obers_ui_charts, with lat/lng
+  markers and pan/zoom). Both bind markers/values from a query.
+
+## Not yet added
+- Nothing outstanding from the Tocly parity set. Further chart families
+  (radialBar, scatter density, sankey, treemap, sunburst) can be added the
+  same way — a `BeakChartType`/typed-data + a thin data-bound block — as apps
+  need them; obers_ui_charts already ships the widgets.
 
 Design note: the chat block binds a single author field by design; this demo
 denormalizes `sender_name` onto `chat_messages` in the seeder rather than

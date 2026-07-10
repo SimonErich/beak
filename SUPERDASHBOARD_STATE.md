@@ -41,6 +41,10 @@ gated commit per phase.
   **14 custom pages** — email, chat, file-manager, invoice-detail, profile,
   pricing, FAQ, and a **Showcase** section (charts gallery, media
   gallery/carousel, UI-elements, typography, icons, starter).
+- **Maps & advanced charts** — a `/maps` page pairs the vector choropleth
+  with a real OSM **tile map** (`OiTileMap`, offices pinned by lat/lng); the
+  charts gallery adds **bubble** (catalog price × stock), **candlestick** (a
+  seeded 30-day OHLC series), and a **heatmap** (orders by weekday × month).
 - **Shell power-ups** — a Ctrl/⌘-K command bar (jump to any resource/page), a
   notification bell (unread badge + mark-as-read over the seeded notifications),
   radar & funnel added to the charts gallery, a data-bound video player, and
