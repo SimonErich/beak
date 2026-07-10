@@ -61,6 +61,13 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
 - `BeakAuthConfig` (login/register/recover routes), `BeakMaintenanceConfig`
   (maintenance/coming-soon), typed error routes (403/500).
 - `BeakThemeController` — live light/dark/system toggle in the shell.
+- Command bar (`openBeakCommandBar` / `beakNavigationCommands`, Ctrl/⌘-K) — a
+  fuzzy palette over every resource/page, in the shell's Search action.
+- Notifications (`BeakNotificationSource` + `BeakNotificationBell`) — a shell
+  bell with an unread badge over `OiNotificationCenter`, mark-as-read writing
+  back through the data source.
+- Session idle-lock: `BeakAuthConfig.idleLockTimeout` locks the shell to a
+  `/lock` screen (`OiAuthPage.lock`) after inactivity.
 
 ## Overlays + forms
 - `BeakOverlays` (on `BeakActionContext.overlays`): `confirm`, `modal`,
@@ -68,16 +75,20 @@ they belong in `packages/beak_frontend`. All are **built and committed** on
   action-confirmation path routes through `confirm`.
 - `BeakFormStep` + `BeakWizardBlock` (OiWizard) for multi-step flows.
 
-## Not yet added (would live here)
-- A `BeakCommandBar` (OiCommandBar, Ctrl+K) and `BeakNotificationSource`
-  (OiNotificationCenter) — deferred from Phase 7; both are generic shell
-  capabilities every panel would want.
-- **Chart families beyond five**: `BeakChartType` covers line/area/bar/pie/
-  donut; extending it to column/radialBar/radar/scatter/bubble/heatmap/
-  candlestick means widening the enum and the `obers_ui_charts` render switch.
-- A lightbox/video leaf pair (OiLightbox/OiVideoPlayer) — the gallery block
-  already opens a lightbox on tap, so these are incremental.
-- A session-timeout / idle-lock capability wired to `OiAuthMode.lock`.
+## Charts + media
+- `BeakChartType` now covers line/area/bar/pie/donut/radar/funnel, each fed by
+  the `BeakChartPoint` mapper.
+- `BeakVideoBlock` (OiVideoPlayer); the gallery block already opens a lightbox
+  on tap.
+
+## Not yet added (genuinely larger — need new obers widgets or data shapes)
+- **Google/tile maps**: `OiTileMap` does not exist in obers_ui; the vector
+  choropleth (`OiVectorMap`/`BeakMapBlock`) is done, a slippy tile map is a
+  new generic widget.
+- **Multi-dimensional chart families** (bubble/candlestick/heatmap): these
+  need a typed `BeakChartData` beyond the single-value `BeakChartPoint` (x/y/z,
+  OHLC, matrix) — and demo data that has those shapes, which the seeded
+  analytics does not.
 
 Design note: the chat block binds a single author field by design; this demo
 denormalizes `sender_name` onto `chat_messages` in the seeder rather than

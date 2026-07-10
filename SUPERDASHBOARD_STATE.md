@@ -41,6 +41,10 @@ gated commit per phase.
   **14 custom pages** — email, chat, file-manager, invoice-detail, profile,
   pricing, FAQ, and a **Showcase** section (charts gallery, media
   gallery/carousel, UI-elements, typography, icons, starter).
+- **Shell power-ups** — a Ctrl/⌘-K command bar (jump to any resource/page), a
+  notification bell (unread badge + mark-as-read over the seeded notifications),
+  radar & funnel added to the charts gallery, a data-bound video player, and
+  session idle-lock (auto-locks to `/lock` after 10 min; reachable anytime).
 - **Structured forms = structured detail** — Product and Order share one
   block layout for the show page *and* the create/edit form (dual-mode blocks:
   values on one, inputs on the other), so the form has the same cards/tabs
