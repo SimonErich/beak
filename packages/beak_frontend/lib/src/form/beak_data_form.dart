@@ -116,11 +116,16 @@ class BeakDataForm extends HookWidget {
       [model, dataSource, recordId],
     );
     final controller = useMemoized(() {
+      // Guard the wizard arm with `isNotEmpty` so empty `steps` (`const []`)
+      // falls through to the flat sections exactly like the render switch
+      // below — otherwise the controller would register zero fields while the
+      // flat form still renders every input, and submit would post nothing.
+      // The layout arm stays unguarded to mirror the render switch precisely.
       final List<BeakFormSection>? effectiveSections = switch ((
         steps,
         layout,
       )) {
-        (final List<BeakFormStep> declared, _) => [
+        (final List<BeakFormStep> declared, _) when declared.isNotEmpty => [
           for (final step in declared)
             BeakFormSection(title: step.title, columns: step.columns),
         ],
