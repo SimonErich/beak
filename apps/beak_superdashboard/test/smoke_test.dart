@@ -11,7 +11,7 @@ void main() {
       final config = app.buildSuperdashboardConfig();
 
       expect(config.title, 'Beak Superdashboard');
-      expect(config.apiBaseUrl, 'http://localhost:8080');
+      expect(config.apiBaseUrl, 'http://localhost:8180');
       expect(config.resources, hasLength(17));
       expect(config.buildRegistry().all, hasLength(17));
       expect(

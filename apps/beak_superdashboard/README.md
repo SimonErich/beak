@@ -25,6 +25,6 @@ Everything lives in one package:
 melos run up                                 # Postgres + MinIO
 dart run bin/worm.dart migrate               # create the schema
 dart run bin/worm.dart db:seed               # seed all domains
-dart run bin/server.dart                     # start the backend on :8080
+dart run bin/server.dart                     # start the backend on :8180
 flutter run                                  # start the panel
 ```
