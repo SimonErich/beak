@@ -12,9 +12,9 @@ gated commit per phase.
   `Random`, unique emails); **table-scoped relation resolution** fixing
   self-referential eager loading (folders/replies) at both worm and
   `beak_backend` layers. Design record: `WORM_MISSING_FEATURES.md`.
-- **obers_ui** (built directly, **uncommitted** in `~/Flutters/obers_ui`) —
-  four generic widgets: `OiVectorMap` (+ bundled world data), `OiCarousel`,
-  `OiRadialSlider`, and `OiAuthMode.lock`. Design record:
+- **obers_ui** (committed + pushed to `SimonErich/obers_ui`) — five generic
+  widgets: `OiVectorMap` (+ bundled world data), `OiTileMap` (raster slippy
+  map), `OiCarousel`, `OiRadialSlider`, and `OiAuthMode.lock`. Design record:
   `OBERS_MISSING_FEATURES.md`.
 - **beak_frontend** — the declarative surface: sealed `BeakBlock` union +
   `BeakBlockHost` (layout + display + data-bound + module blocks), custom
@@ -76,45 +76,24 @@ melos run up                          # Postgres + MinIO
 cd apps/beak_superdashboard
 dart run bin/worm.dart migrate        # create the 46-table schema
 dart run bin/worm.dart db:seed        # seed all 12 domains
-dart run bin/server.dart              # backend on :8080
+dart run bin/server.dart              # backend on :8180 (PORT in .env)
 flutter run                           # the panel
 ```
 
-## Remaining Tocly parity gaps (deliberately out of scope, documented here)
-These need framework work that isn't Beak- or app-specific enough to justify
-building now; each is recorded in the matching `*_MISSING_FEATURES.md`.
-- **Chart families beyond the five** (line/area/bar/pie/donut are done):
-  column/radialBar/radar/scatter/bubble/heatmap/candlestick etc. would extend
-  `BeakChartType` + the obers_ui_charts render switch — a generic
-  `beak_frontend`/`obers_ui_charts` change, not app work.
-- **Google/tile maps** (the vector world map is done) — a second obers_ui
-  widget (`OiTileMap`) behind `BeakMapBlock.tile`.
-- **Session-timeout / idle-lock** capability — a small `beak_frontend`
-  idle-timer wired to `OiAuthMode.lock` + `BeakConfirm`.
-- **Rich-text / advanced form plugins gallery** — the resource create/edit
-  forms already demonstrate every column type, validation, and the wizard;
-  a standalone "form plugins" page adds no framework capability.
+## Remaining Tocly parity gaps
+None. Every earlier deferral has since landed: radar/funnel + bubble/
+candlestick/heatmap chart families, the raster tile map (`OiTileMap` +
+`BeakTileMapBlock` + `/maps`), session idle-lock, the command bar, and the
+notification center. The `*_MISSING_FEATURES.md` records track what lives
+where.
 
-## Action required from you
-The four **obers_ui** widgets are built and green in `~/Flutters/obers_ui`
-but **uncommitted** — that repo has ~54 unrelated in-flight doc edits, so I
-committed nothing there. Commit my code files to make `flutter run`/CI
-reproducible on a clean checkout (`OBERS_MISSING_FEATURES.md` documents each).
-The additions, cleanly separable from your doc churn:
-
-```
-# new files
-lib/src/components/display/oi_carousel.dart
-lib/src/components/inputs/oi_radial_slider.dart
-packages/obers_ui_charts/lib/src/composites/oi_vector_map/
-packages/obers_ui_charts/lib/src/composites/oi_tile_map/
-test/src/components/display/oi_carousel_test.dart
-test/src/components/inputs/oi_radial_slider_test.dart
-packages/obers_ui_charts/test/src/composites/oi_vector_map_test.dart
-packages/obers_ui_charts/test/src/composites/oi_tile_map_test.dart
-# modified (barrel exports + auth lock-mode)
-lib/obers_ui.dart
-lib/src/modules/oi_auth_page.dart
-test/src/modules/oi_auth_page_test.dart
-packages/obers_ui_charts/lib/obers_ui_charts.dart
-```
+## Publication state
+- **obers_ui** — the five widgets (`OiVectorMap`, `OiTileMap`, `OiCarousel`,
+  `OiRadialSlider`, `OiAuthMode.lock`) are committed and pushed to
+  `SimonErich/obers_ui` `main`, together with a fix dropping the broken
+  `win32: 6.0.0` override (file_picker 11 targets the win32 5.x API).
+- **beak** — pushed to `SimonErich/beak` (private); PR #1 tracks
+  `feat/superdashboard` → `main`.
+- **Known caveat** — beak references obers_ui by local path
+  (`~/Flutters/obers_ui`), so a fresh clone needs the two repos checked out
+  side by side; GitHub CI would need a two-repo checkout or a git dependency.

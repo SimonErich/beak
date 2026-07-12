@@ -26,7 +26,7 @@ import 'resources.dart';
 /// [apiBaseUrl] points the panel's HTTP data source at the running
 /// superdashboard server (`bin/server.dart`).
 BeakPanelConfig buildSuperdashboardConfig({
-  String apiBaseUrl = 'http://localhost:8080',
+  String apiBaseUrl = 'http://localhost:8180',
 }) => BeakPanelConfig(
   title: 'Beak Superdashboard',
   apiBaseUrl: apiBaseUrl,

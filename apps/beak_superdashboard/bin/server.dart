@@ -8,7 +8,12 @@ import 'package:worm/worm.dart';
 /// resolves the configured storage driver, and serves the generated API for
 /// every registered model.
 Future<void> main() async {
-  final Map<String, String> environment = BeakEnv.resolve();
+  // The demo defaults to :8180 (the panel's apiBaseUrl); 8080-8082 are commonly
+  // taken. A .env or real environment PORT still wins.
+  final Map<String, String> environment = {
+    'PORT': '8180',
+    ...BeakEnv.resolve(),
+  };
   final config = BeakBackendConfig.fromEnv(environment: environment);
   await initializeWormPostgres(config);
   final storageConfig = demoStorageConfig(environment);
