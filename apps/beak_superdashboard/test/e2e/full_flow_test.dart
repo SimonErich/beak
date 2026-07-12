@@ -13,11 +13,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:worm/worm.dart';
 
 /// Docker-compose defaults, overridable via the environment.
+///
+/// The suite targets a dedicated `beak_e2e` database (created on demand), so
+/// its fresh-migrate never wipes the seeded demo data in the default `beak`
+/// database.
 final Map<String, String> e2eEnvironment = {
-  'DATABASE_URL': 'postgres://beak:beak@localhost:25432/beak',
+  'DATABASE_URL': 'postgres://beak:beak@localhost:25432/beak_e2e',
   'BEAK_STORAGE_DRIVER': 'memory',
   ...Platform.environment,
 };
+
+/// Creates [databaseUrl]'s database when it does not exist yet, via a
+/// maintenance connection to the compose stack's always-present `beak`
+/// database. `CREATE DATABASE` has no `IF NOT EXISTS`, so probe first.
+Future<void> _ensureDatabase(Uri databaseUrl) async {
+  final String name = databaseUrl.pathSegments.first;
+  final maintenance = postgresAdapterFromUrl(databaseUrl.replace(path: 'beak'));
+  await maintenance.connect();
+  try {
+    final rows = await maintenance.rawQuery(
+      r'SELECT 1 FROM pg_database WHERE datname = $1',
+      [name],
+    );
+    if (rows.isEmpty) {
+      await maintenance.rawQuery('CREATE DATABASE "$name"', const []);
+    }
+  } finally {
+    await maintenance.disconnect();
+  }
+}
 
 Future<bool> _reachable(String host, int port) async {
   try {
@@ -47,6 +71,7 @@ void main() {
       return;
     }
 
+    await _ensureDatabase(databaseUrl);
     final connected = postgresAdapterFromUrl(databaseUrl);
     await connected.connect();
     adapter = connected;

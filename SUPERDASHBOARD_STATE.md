@@ -67,9 +67,8 @@ gated commit per phase.
   validation.
 - **Validated on live Postgres** via an E2E suite (paged queries, aggregates,
   eager loads, a self-referential folder tree, revenue reconciliation, CRUD).
-  Note: this suite runs `MigrationRunner.fresh()` against the dev Postgres, so
-  running the app tests **replaces** the seeded demo data — re-run
-  `dart run bin/worm.dart migrate && db:seed` afterward to restore it.
+  The suite targets a dedicated `beak_e2e` database (created on demand), so
+  running the app tests never touches the seeded demo data in `beak`.
 
 ## Running it
 ```bash
