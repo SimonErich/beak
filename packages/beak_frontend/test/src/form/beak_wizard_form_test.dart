@@ -85,4 +85,26 @@ void main() {
     // Step two's numeric fields are now mounted.
     expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsWidgets);
   });
+
+  testWidgets(
+    'empty steps fall through to a full flat form, not an empty one',
+    (tester) async {
+      // `steps: const []` must not produce a wizard *or* a field-less form: the
+      // controller and the render switch both treat empty steps as "no wizard",
+      // so every model field is registered and rendered flat with a submit CTA.
+      await pump(
+        tester,
+        BeakDataForm(
+          model: const ArticleModel(),
+          dataSource: dataSource,
+          steps: const [],
+        ),
+      );
+
+      expect(find.byType(OiWizard), findsNothing);
+      expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
+      expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsWidgets);
+      expect(find.text('Create'), findsOneWidget);
+    },
+  );
 }
