@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -149,15 +151,6 @@ class BeakDataForm extends HookWidget {
       }),
       [viewModel, controller],
     );
-    // Validate up front in wizard mode so a step's sync gate can read accurate
-    // field validity (empty required fields are already known-invalid);
-    // display stays clean because manual validation does not reveal errors.
-    useEffect(() {
-      if (steps != null && steps!.isNotEmpty) {
-        controller.validate();
-      }
-      return null;
-    }, [controller]);
     final blockedStep = useState<String?>(null);
 
     final BeakUploadClient? effectiveUploader =
@@ -266,6 +259,18 @@ class BeakDataForm extends HookWidget {
             validate: (_) {
               final bool ok = _isStepValid(controller, step);
               blockedStep.value = ok ? null : step.title;
+              if (!ok) {
+                // The user asked to advance: now (and only now) run the real
+                // validators on this step's fields so they paint their
+                // specific errors — later steps stay pristine.
+                for (final column in step.columns) {
+                  if (controller.hasFieldFor(column)) {
+                    unawaited(
+                      controller.validate(field: controller.slotOf(column)),
+                    );
+                  }
+                }
+              }
               return ok;
             },
             builder: (_) => ListenableBuilder(
@@ -296,15 +301,14 @@ class BeakDataForm extends HookWidget {
     );
   }
 
-  /// Whether every field on [step] currently validates — the sync gate the
-  /// wizard reads before advancing.
+  /// Whether every field on [step] currently passes its typed rules — the
+  /// sync gate the wizard reads before advancing. Evaluated silently
+  /// ([BeakFormController.passesRules]), so a pristine form never shows
+  /// validation errors the user hasn't earned.
   bool _isStepValid(BeakFormController controller, BeakFormStep step) {
     var valid = true;
     for (final column in step.columns) {
-      if (!controller.hasFieldFor(column)) {
-        continue;
-      }
-      if (!controller.isFieldValid(controller.slotOf(column))) {
+      if (!controller.passesRules(column)) {
         valid = false;
       }
     }
