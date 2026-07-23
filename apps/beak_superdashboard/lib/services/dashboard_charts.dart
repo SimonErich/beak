@@ -1,6 +1,11 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 
+/// The page size for analytics-bound blocks: comfortably above every seeded
+/// analytics table, so a chart never renders a silently truncated page
+/// (`BeakQuerySpec` defaults to 25 rows per page).
+const BeakPagination analyticsPage = BeakPagination(perPage: 500);
+
 /// Parses a value that may arrive as a number (in-memory) or a string
 /// (Postgres decimals over HTTP).
 double _asDouble(Object? raw) => switch (raw) {

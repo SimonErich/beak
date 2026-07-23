@@ -27,12 +27,22 @@ abstract final class ActivityHeatCellColumns {
     sortable: true,
   );
 
+  /// Deterministic cell order: weekday-major, months chronological — the
+  /// heatmap sorts by this so its first-seen column order is stable.
+  static const sortIndex = BeakIntColumn(
+    key: 'sort_index',
+    label: 'Order',
+    min: 0,
+    sortable: true,
+  );
+
   /// All columns, in display order.
   static const List<BeakColumn> values = [
     SharedColumns.id,
     rowLabel,
     columnLabel,
     value,
+    sortIndex,
   ];
 }
 
