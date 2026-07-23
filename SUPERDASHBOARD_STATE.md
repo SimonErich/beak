@@ -82,6 +82,26 @@ dart run bin/server.dart              # backend on :8180 (PORT in .env)
 flutter run                           # the panel
 ```
 
+## Post-build hardening (2026-07-23)
+
+Three adversarial multi-agent review rounds over the finished build, every
+confirmed finding fixed and regression-tested:
+- **E2E isolation** — both live-Postgres suites target dedicated derived
+  databases (`beak_e2e`, `beak_reference_e2e`) that no environment override
+  can redirect at demo data.
+- **Data completeness** — every data-bound block fetches explicitly-paged,
+  deterministically-sorted data (the 25-row default page had silently
+  truncated charts, kanban, chat, and inbox); rendered relations are
+  eager-loaded (pricing features, invoice bill-to, inbox folders).
+- **Wired interactions** — kanban drops and calendar drags persist and
+  update optimistically (drag-and-drop landed in obers_ui's `OiCalendar`);
+  chat sends persist; inbox folders filter; profile edits save; auth
+  success navigates; the idle lock hears the keyboard.
+- **Formatting** — Postgres wire-string numerics/timestamps render through
+  the shared cell formatter (currency precision, clean dates) everywhere.
+- **worm** — migration records decode SQL adapters' `DateTime` timestamps,
+  so incremental `migrate` works against a live Postgres database.
+
 ## Remaining Tocly parity gaps
 None. Every earlier deferral has since landed: radar/funnel + bubble/
 candlestick/heatmap chart families, the raster tile map (`OiTileMap` +

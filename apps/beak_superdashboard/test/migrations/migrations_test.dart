@@ -64,8 +64,8 @@ void main() {
   });
 
   group('migration set', () {
-    test('has ten domain migrations with unique, ordered names', () {
-      expect(demoMigrations, hasLength(10));
+    test('has eleven migrations with unique, ordered names', () {
+      expect(demoMigrations, hasLength(11));
       final names = demoMigrations.map((m) => m.name).toList();
       expect(names.toSet(), hasLength(names.length));
       final sorted = [...names]..sort();
@@ -78,9 +78,10 @@ void main() {
 
     test('every up/down schema builds without error in-memory', () async {
       // The in-memory adapter is schemaless, so this proves every migration's
-      // upSchema (column building, index/FK declarations) executes cleanly and
-      // the dependency sorter accepts all ten; real constraint enforcement is
-      // covered by the Postgres E2E.
+      // upSchema (column building, index/FK declarations) executes cleanly —
+      // including the raw-SQL companion migration degrading to a no-op — and
+      // the dependency sorter accepts all eleven; real constraint enforcement
+      // is covered by the Postgres E2E.
       final adapter = InMemoryAdapter();
       await adapter.connect();
       addTearDown(adapter.disconnect);
@@ -91,7 +92,7 @@ void main() {
       );
       await runner.fresh();
 
-      expect(runner.migrations, hasLength(10));
+      expect(runner.migrations, hasLength(11));
     });
   });
 }
