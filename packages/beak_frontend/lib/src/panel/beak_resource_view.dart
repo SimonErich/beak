@@ -131,6 +131,8 @@ final class BeakKanbanView extends BeakResourceView {
     required this.groupField,
     required this.titleField,
     this.subtitleField,
+    this.sortField,
+    this.sortDescending = false,
     this.label = 'Board',
   });
 
@@ -142,6 +144,12 @@ final class BeakKanbanView extends BeakResourceView {
 
   /// Column supplying each card's subtitle, when bound.
   final BeakColumn? subtitleField;
+
+  /// Column ordering the cards within each column, when bound.
+  final BeakColumn? sortField;
+
+  /// Whether [sortField] orders descending.
+  final bool sortDescending;
 
   @override
   final String label;
@@ -158,6 +166,8 @@ final class BeakKanbanView extends BeakResourceView {
     groupField: groupField,
     titleField: titleField,
     subtitleField: subtitleField,
+    sortField: sortField,
+    sortDescending: sortDescending,
     label: label,
   );
 }

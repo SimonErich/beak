@@ -113,15 +113,35 @@ List<RouteBase> _authRoutes(BeakPanelConfig config) {
   return [
     GoRoute(
       path: '/login',
-      builder: (context, state) =>
-          OiAuthPage.login(label: config.title, onLogin: auth?.onLogin),
+      // Successful sign-in navigates into the panel — OiAuthPage itself only
+      // clears its spinner, so without this the login is a dead end.
+      builder: (context, state) => OiAuthPage.login(
+        label: config.title,
+        onLogin: (email, password) async {
+          final bool signedIn =
+              await (auth?.onLogin?.call(email, password) ??
+                  Future<bool>.value(true));
+          if (signedIn && context.mounted) {
+            context.go('/');
+          }
+          return signedIn;
+        },
+      ),
     ),
     if (auth != null && auth.register)
       GoRoute(
         path: '/register',
         builder: (context, state) => OiAuthPage.register(
           label: config.title,
-          onRegister: auth.onRegister,
+          onRegister: (name, email, password) async {
+            final bool registered =
+                await (auth.onRegister?.call(name, email, password) ??
+                    Future<bool>.value(true));
+            if (registered && context.mounted) {
+              context.go('/');
+            }
+            return registered;
+          },
         ),
       ),
     if (auth != null && auth.recover)
@@ -130,7 +150,16 @@ List<RouteBase> _authRoutes(BeakPanelConfig config) {
         builder: (context, state) => OiAuthPage(
           label: config.title,
           initialMode: OiAuthMode.forgotPassword,
-          onForgotPassword: auth.onRecover,
+          // Recovery "success" means the reset email went out — return to
+          // the sign-in form rather than into the panel.
+          onForgotPassword: (email) async {
+            final bool sent =
+                await (auth.onRecover?.call(email) ?? Future<bool>.value(true));
+            if (sent && context.mounted) {
+              context.go('/login');
+            }
+            return sent;
+          },
         ),
       ),
     GoRoute(
@@ -306,9 +335,21 @@ class _BeakIdleLock extends HookWidget {
         timer = Timer(timeout, () => router.go('/lock'));
       }
 
+      // Keyboard events travel the focus pipeline, not the pointer pipeline
+      // — without this hook, typing continuously in a form still locks the
+      // panel mid-keystroke and destroys the unsaved input.
+      bool onKey(KeyEvent event) {
+        schedule();
+        return false;
+      }
+
       reset.value = schedule;
       schedule();
-      return () => timer?.cancel();
+      HardwareKeyboard.instance.addHandler(onKey);
+      return () {
+        HardwareKeyboard.instance.removeHandler(onKey);
+        timer?.cancel();
+      };
     }, [timeout, router]);
 
     return Listener(

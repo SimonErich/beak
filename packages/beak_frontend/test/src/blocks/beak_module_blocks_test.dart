@@ -489,6 +489,334 @@ void main() {
       expect(center.showContact, isFalse);
     });
   });
+
+  group('module hardening (audit regressions)', () {
+    testWidgets('kanban fetches one full sorted page', (tester) async {
+      await pump(
+        tester,
+        const BeakKanbanBlock(
+          model: TaskModel(),
+          groupField: TaskColumns.status,
+          titleField: TaskColumns.title,
+          sortField: TaskColumns.title,
+        ),
+      );
+
+      final spec = dataSource.queryCalls.single;
+      expect(spec.pagination.perPage, 500);
+      expect(spec.sorts.single.columnKey, TaskColumns.title.key);
+    });
+
+    testWidgets('a dropped kanban card stays in its new column', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const BeakKanbanBlock(
+          model: TaskModel(),
+          groupField: TaskColumns.status,
+          titleField: TaskColumns.title,
+        ),
+      );
+
+      final board = tester.widget<OiKanban<BeakRecord>>(
+        find.byType(OiKanban<BeakRecord>),
+      );
+      final BeakRecord card = board.columns
+          .firstWhere((c) => c.key == 'todo')
+          .items
+          .single;
+      board.onCardMove!(card, 'todo', 'done', 0);
+      await tester.pumpAndSettle();
+
+      // The rendered board mirrors the persisted move instead of snapping
+      // the card back to its old column.
+      final rebuilt = tester.widget<OiKanban<BeakRecord>>(
+        find.byType(OiKanban<BeakRecord>),
+      );
+      expect(rebuilt.columns.firstWhere((c) => c.key == 'todo').items, isEmpty);
+      expect(
+        rebuilt.columns.firstWhere((c) => c.key == 'done').items,
+        hasLength(1),
+      );
+    });
+
+    testWidgets('pricing requests the feature relation and sort', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const BeakPricingBlock(
+          model: PlanModel(),
+          nameField: PlanColumns.name,
+          priceField: PlanColumns.monthlyPrice,
+          featuresRelation: PlanRelations.features,
+          featureLabelField: FeatureColumns.label,
+          sortField: PlanColumns.monthlyPrice,
+        ),
+      );
+
+      final spec = dataSource.queryCalls.single;
+      expect(spec.relationLoads.single.relationKey, PlanRelations.features.key);
+      expect(spec.sorts.single.columnKey, PlanColumns.monthlyPrice.key);
+      expect(spec.pagination.perPage, 500);
+    });
+
+    testWidgets('chat is a read-only transcript without composeRecord', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const BeakChatBlock(
+          model: MessageModel(),
+          authorField: MessageColumns.author,
+          bodyField: MessageColumns.body,
+          timeField: MessageColumns.sentAt,
+        ),
+      );
+
+      // No composer: typed text could never be persisted.
+      expect(find.byType(EditableText), findsNothing);
+      // The fetch page is newest-first so overflow drops old messages.
+      final spec = dataSource.queryCalls.single;
+      expect(spec.sorts.single.columnKey, MessageColumns.sentAt.key);
+      expect(spec.sorts.single.descending, isTrue);
+    });
+
+    testWidgets('a sent chat message persists and appears', (tester) async {
+      await pump(
+        tester,
+        BeakChatBlock(
+          model: const MessageModel(),
+          authorField: MessageColumns.author,
+          bodyField: MessageColumns.body,
+          timeField: MessageColumns.sentAt,
+          composeRecord: (body) => BeakRecord.fromRow({
+            'author': 'Me',
+            'body': body,
+            'sent_at': DateTime(2026, 7, 6, 10),
+            'from_me': true,
+          }),
+        ),
+      );
+
+      await tester.enterText(find.byType(EditableText), 'Hello there, again');
+      await tester.tap(find.bySemanticsLabel('Send message'));
+      await tester.pumpAndSettle();
+
+      final (table, data) = dataSource.createCalls.single;
+      expect(table, 'messages');
+      expect(data[MessageColumns.body.key]?.raw, 'Hello there, again');
+      expect(find.text('Hello there, again'), findsWidgets);
+    });
+
+    testWidgets('inbox filters by the selected data-driven folder', (
+      tester,
+    ) async {
+      const folderRelation = BeakBelongsTo(
+        key: 'folder',
+        label: 'Folder',
+        relatedTable: 'mail_folders',
+        displayColumnKey: 'label',
+        foreignKey: 'folder_id',
+      );
+      const folderLabel = BeakStringColumn(key: 'label', label: 'Folder');
+      BeakRecord mail(
+        String id,
+        String subject,
+        String folder, {
+        required bool unread,
+      }) => BeakRecord(
+        values: {
+          'id': BeakStringValue(id),
+          'sender': const BeakStringValue('a@b.test'),
+          'subject': BeakStringValue(subject),
+          'unread': BeakBoolValue(unread),
+        },
+        relations: {
+          'folder': [
+            BeakRecord.fromRow({'id': 'f-$folder', 'label': folder}),
+          ],
+        },
+      );
+      final inboxSource = FakeDataSource(
+        records: {
+          'mail': {
+            'e1': mail('e1', 'Invoice due', 'Inbox', unread: true),
+            'e2': mail('e2', 'Old newsletter', 'Archive', unread: false),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: MailModel(),
+              icon: BeakIconToken(OiIcons.inbox),
+            ),
+          ],
+        ),
+        dataSource: inboxSource,
+      );
+
+      await pump(
+        tester,
+        const BeakInboxBlock(
+          model: MailModel(),
+          senderField: MailColumns.sender,
+          subjectField: MailColumns.subject,
+          unreadField: MailColumns.unread,
+          folderRelation: folderRelation,
+          folderLabelField: folderLabel,
+        ),
+      );
+
+      // The relation is requested and both folders' mail is listed.
+      expect(
+        inboxSource.queryCalls.single.relationLoads.single.relationKey,
+        'folder',
+      );
+      expect(find.text('Invoice due'), findsOneWidget);
+      expect(find.text('Old newsletter'), findsOneWidget);
+      // Exactly the unread row carries the dot marker.
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is OiIcon && widget.icon == OiIcons.circleSmall,
+        ),
+        findsOneWidget,
+      );
+
+      // Selecting a data-driven folder narrows the list to it.
+      await tester.tap(find.text('Archive').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Old newsletter'), findsOneWidget);
+      expect(find.text('Invoice due'), findsNothing);
+    });
+
+    testWidgets('profile field edits persist through the data source', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        const BeakProfileBlock(
+          model: ProfileModel(),
+          recordId: 'p1',
+          nameField: ProfileColumns.name,
+          emailField: ProfileColumns.email,
+        ),
+      );
+
+      final page = tester.widget<OiProfilePage>(find.byType(OiProfilePage));
+      final bool saved = await page.onFieldSave!('name', 'Amazing Grace');
+      expect(saved, isTrue);
+      final (table, id, data) = dataSource.updateCalls.single;
+      expect(table, 'profiles');
+      expect(id, 'p1');
+      expect(data[ProfileColumns.name.key]?.raw, 'Amazing Grace');
+      // A field without a bound column reports failure, not a silent drop.
+      expect(await page.onFieldSave!('phone', '555-1234'), isFalse);
+    });
+
+    testWidgets('invoice renders details, related bill-to, and formatted '
+        'totals', (tester) async {
+      const money = BeakDecimalColumn(
+        key: 'total',
+        label: 'Total',
+        prefix: r'$',
+      );
+      const billedParty = BeakBelongsTo(
+        key: 'user',
+        label: 'Bill to',
+        relatedTable: 'profiles',
+        displayColumnKey: 'name',
+        foreignKey: 'user_id',
+      );
+      final invoiceSource = FakeDataSource(
+        records: {
+          'invoices': {
+            'inv1': BeakRecord(
+              values: const {
+                'id': BeakStringValue('inv1'),
+                'from_name': BeakStringValue('Acme Inc'),
+                'subtotal': BeakStringValue('100.00'),
+                'tax': BeakStringValue('19.00'),
+                'total': BeakStringValue('119.0'),
+              },
+              relations: {
+                'user': [
+                  BeakRecord.fromRow(const {
+                    'id': 'p1',
+                    'name': 'Grace Hopper',
+                    'email': 'grace@navy.test',
+                  }),
+                ],
+              },
+            ),
+          },
+          'invoice_lines': const {},
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: InvoiceModel(),
+              icon: BeakIconToken(OiIcons.receipt),
+            ),
+            BeakResource(
+              model: InvoiceLineModel(),
+              icon: BeakIconToken(OiIcons.list),
+            ),
+          ],
+        ),
+        dataSource: invoiceSource,
+      );
+
+      await pump(
+        tester,
+        const BeakInvoiceBlock(
+          model: InvoiceModel(),
+          recordId: 'inv1',
+          metaFields: [InvoiceColumns.fromName],
+          toRelation: billedParty,
+          toPartyFields: [ProfileColumns.name, ProfileColumns.email],
+          lineItemsModel: InvoiceLineModel(),
+          lineItemsForeignKey: InvoiceLineColumns.invoiceId,
+          totalField: money,
+        ),
+      );
+
+      // Invoice meta sits under "Details", the billed party under "To".
+      expect(find.text('Details'), findsOneWidget);
+      expect(find.text('To'), findsOneWidget);
+      expect(find.text('Grace Hopper'), findsWidgets);
+      // Postgres string numerics format with the currency prefix/precision.
+      expect(find.text(r'$119.00'), findsOneWidget);
+      // The relation arrived through an eager-loading primary-key query.
+      final spec = invoiceSource.queryCalls.first;
+      expect(spec.relationLoads.single.relationKey, 'user');
+    });
+
+    testWidgets('faq fetch carries the configured sort', (tester) async {
+      await pump(
+        tester,
+        const BeakFaqBlock(
+          model: FaqModel(),
+          questionField: FaqColumns.question,
+          answerField: FaqColumns.answer,
+          sortField: FaqColumns.question,
+        ),
+      );
+
+      final spec = dataSource.queryCalls.single;
+      expect(spec.sorts.single.columnKey, FaqColumns.question.key);
+      expect(spec.pagination.perPage, 500);
+    });
+  });
 }
 
 /// Board / meeting status with badge colors, exercising the enum-driven

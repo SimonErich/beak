@@ -25,6 +25,8 @@ final class BeakKanbanBlock extends BeakBlock {
     required this.groupField,
     required this.titleField,
     this.subtitleField,
+    this.sortField,
+    this.sortDescending = false,
     this.label = 'Board',
     this.onCardMove,
     super.span,
@@ -41,6 +43,13 @@ final class BeakKanbanBlock extends BeakBlock {
 
   /// Column supplying each card's subtitle, when bound.
   final BeakColumn? subtitleField;
+
+  /// Column ordering the cards within each column, when bound — without it
+  /// the card order is whatever the data source returns.
+  final BeakColumn? sortField;
+
+  /// Whether [sortField] orders descending.
+  final bool sortDescending;
 
   /// Accessibility label for the board.
   final String label;

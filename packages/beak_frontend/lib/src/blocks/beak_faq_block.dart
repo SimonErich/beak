@@ -23,6 +23,7 @@ final class BeakFaqBlock extends BeakBlock {
     required this.questionField,
     required this.answerField,
     this.categoryField,
+    this.sortField,
     this.label = 'Help',
     super.span,
   });
@@ -38,6 +39,9 @@ final class BeakFaqBlock extends BeakBlock {
 
   /// Column grouping entries into categories, when bound.
   final BeakColumn? categoryField;
+
+  /// Column ordering the entries, when bound.
+  final BeakColumn? sortField;
 
   /// Accessibility label for the help center.
   final String label;

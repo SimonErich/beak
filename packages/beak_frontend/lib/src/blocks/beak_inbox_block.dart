@@ -4,11 +4,16 @@ part of 'beak_block.dart';
 /// detail pane bound to the selected row — composed from
 /// `OiThreeColumnLayout`, `OiListView`, and `OiListTile`.
 ///
-/// [folders] labels the left rail. Each record is one message row:
-/// [senderField] and [subjectField] head it, [previewField] and [timeField]
-/// trail it, and [unreadField] (when bound) marks it unread. Selecting a row
-/// fills the right pane with that record's fields; selection is local widget
-/// state.
+/// The left rail: bind [folderRelation] + [folderLabelField] and the rail is
+/// built from the data — one entry per distinct related folder label, and
+/// selecting one filters the list to that folder's rows. Without the
+/// relation, [folders] labels a static (non-filtering) rail.
+///
+/// Each record is one message row: [senderField] and [subjectField] head it,
+/// [previewField] and [timeField] trail it, and rows are marked unread when
+/// [unreadField] is `true` (or [readField] is `false` — bind whichever your
+/// model stores, not both). Selecting a row fills the right pane; selection
+/// is local widget state.
 ///
 /// ```dart
 /// BeakInboxBlock(
@@ -17,8 +22,9 @@ part of 'beak_block.dart';
 ///   subjectField: MailColumns.subject,
 ///   previewField: MailColumns.preview,
 ///   timeField: MailColumns.receivedAt,
-///   unreadField: MailColumns.unread,
-///   folders: ['Inbox', 'Sent', 'Archive'],
+///   readField: MailColumns.isRead,
+///   folderRelation: MailRelationships.folder,
+///   folderLabelField: FolderColumns.label,
 /// );
 /// ```
 final class BeakInboxBlock extends BeakBlock {
@@ -30,12 +36,19 @@ final class BeakInboxBlock extends BeakBlock {
     this.previewField,
     this.timeField,
     this.unreadField,
+    this.readField,
+    this.folderRelation,
+    this.folderLabelField,
     this.folders = const ['Inbox'],
     this.label = 'Inbox',
     this.leftWidthInPixels = 220,
     this.rightWidthInPixels = 360,
     super.span,
-  });
+  }) : assert(
+         unreadField == null || readField == null,
+         'Bind unreadField (true = unread) or readField (true = read), '
+         'not both.',
+       );
 
   /// The model whose records become message rows.
   final BeakModel model;
@@ -52,10 +65,23 @@ final class BeakInboxBlock extends BeakBlock {
   /// Column supplying each row's received time, when bound.
   final BeakColumn? timeField;
 
-  /// Boolean column marking unread rows, when bound.
+  /// Boolean column that is `true` on unread rows, when bound.
   final BeakColumn? unreadField;
 
-  /// The folder labels shown in the left rail.
+  /// Boolean column that is `true` on read rows, when bound — the inverse
+  /// convention of [unreadField], for models that store `is_read`.
+  final BeakColumn? readField;
+
+  /// The belongs-to relation from a message to its folder; when bound (with
+  /// [folderLabelField]) the rail is data-driven and filters the list.
+  final BeakBelongsTo? folderRelation;
+
+  /// The related folder model's label column backing the rail entries.
+  final BeakColumn? folderLabelField;
+
+  /// The folder labels shown in the left rail when [folderRelation] is
+  /// unbound (static, non-filtering) — or, when it is bound, the preferred
+  /// ordering of the data-driven rail.
   final List<String> folders;
 
   /// Accessibility label for the layout.
