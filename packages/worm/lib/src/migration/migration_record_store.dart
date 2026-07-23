@@ -100,17 +100,20 @@ final class MigrationRecordStore {
   MigrationRecord _fromRow(Map<String, Object?> row) {
     final name = row['name'];
     final batch = row['batch'];
-    final applied = row['applied_at'];
-    if (name is! String || batch is! int || applied is! String) {
+    // Adapters differ on timestamp decoding: the in-memory adapter returns
+    // the inserted ISO string verbatim, while SQL drivers (PostgreSQL)
+    // decode timestamp columns to DateTime — accept both.
+    final appliedAt = switch (row['applied_at']) {
+      final DateTime value => value,
+      final String value => DateTime.tryParse(value),
+      _ => null,
+    };
+    if (name is! String || batch is! int || appliedAt == null) {
       throw MigrationException(
         migration: name is String ? name : 'unknown',
         message: 'Corrupt $migrationsTable row: $row',
       );
     }
-    return MigrationRecord(
-      name: name,
-      batch: batch,
-      appliedAt: DateTime.parse(applied),
-    );
+    return MigrationRecord(name: name, batch: batch, appliedAt: appliedAt);
   }
 }
