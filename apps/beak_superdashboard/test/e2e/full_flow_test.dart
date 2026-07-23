@@ -12,23 +12,46 @@ import 'package:beak_superdashboard/server/server_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worm/worm.dart';
 
-/// Docker-compose defaults, overridable via the environment.
-///
-/// The suite targets a dedicated `beak_e2e` database (created on demand), so
-/// its fresh-migrate never wipes the seeded demo data in the default `beak`
-/// database.
+/// The connection base, taken from `DATABASE_URL` (compose default) so the
+/// host/port/credentials stay overridable.
+final Uri _databaseBase = Uri.parse(
+  Platform.environment['DATABASE_URL'] ??
+      'postgres://beak:beak@localhost:25432/beak',
+);
+
+/// The dedicated E2E database: the base database name with an `_e2e` suffix.
+/// Derived — never taken verbatim from the environment — so an exported
+/// `DATABASE_URL` pointing at the demo `beak` database can vary the connection
+/// but can **never** aim the suite's fresh-migrate at real demo data.
+String get _e2eDatabaseName {
+  final String db = _databaseBase.pathSegments.isEmpty
+      ? 'beak'
+      : _databaseBase.pathSegments.first;
+  return db.endsWith('_e2e') ? db : '${db}_e2e';
+}
+
+Uri get _e2eDatabaseUrl =>
+    _databaseBase.replace(pathSegments: [_e2eDatabaseName]);
+
+/// The suite always targets a dedicated `<db>_e2e` database with in-memory
+/// storage — both forced *after* the environment spread — so its
+/// fresh-migrate can never wipe the seeded demo data (`beak`) nor write to a
+/// real object store, even when `DATABASE_URL` / `BEAK_STORAGE_DRIVER` are
+/// exported (this repo's `.env` ships `DATABASE_URL` pointing at `beak`).
 final Map<String, String> e2eEnvironment = {
-  'DATABASE_URL': 'postgres://beak:beak@localhost:25432/beak_e2e',
-  'BEAK_STORAGE_DRIVER': 'memory',
   ...Platform.environment,
+  'DATABASE_URL': _e2eDatabaseUrl.toString(),
+  'BEAK_STORAGE_DRIVER': 'memory',
 };
 
 /// Creates [databaseUrl]'s database when it does not exist yet, via a
-/// maintenance connection to the compose stack's always-present `beak`
-/// database. `CREATE DATABASE` has no `IF NOT EXISTS`, so probe first.
+/// maintenance connection to the always-present `postgres` database.
+/// `CREATE DATABASE` has no `IF NOT EXISTS`, so probe first.
 Future<void> _ensureDatabase(Uri databaseUrl) async {
   final String name = databaseUrl.pathSegments.first;
-  final maintenance = postgresAdapterFromUrl(databaseUrl.replace(path: 'beak'));
+  final maintenance = postgresAdapterFromUrl(
+    databaseUrl.replace(pathSegments: const ['postgres']),
+  );
   await maintenance.connect();
   try {
     final rows = await maintenance.rawQuery(
@@ -69,6 +92,16 @@ void main() {
     servicesUp = await _reachable(databaseUrl.host, databaseUrl.port);
     if (!servicesUp) {
       return;
+    }
+
+    // Defense in depth: never run the destructive reset against anything but a
+    // dedicated *_e2e database, whatever the environment resolved to.
+    final String dbName = databaseUrl.pathSegments.first;
+    if (!dbName.endsWith('_e2e')) {
+      throw StateError(
+        'Refusing to reset non-e2e database "$dbName": the E2E suite only ever '
+        'drops a *_e2e database.',
+      );
     }
 
     await _ensureDatabase(databaseUrl);
