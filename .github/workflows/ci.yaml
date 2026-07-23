@@ -29,7 +29,7 @@ jobs:
       - name: Checkout obers_ui (sibling path dependency)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.OBERS_UI_REPO || 'marqably/obers_ui' }}
+          repository: ${{ vars.OBERS_UI_REPO || 'SimonErich/obers_ui' }}
           token: ${{ secrets.OBERS_UI_TOKEN || github.token }}
           path: obers_ui
       - name: Set up Flutter
@@ -67,7 +67,7 @@ jobs:
       - name: Checkout obers_ui (sibling path dependency)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.OBERS_UI_REPO || 'marqably/obers_ui' }}
+          repository: ${{ vars.OBERS_UI_REPO || 'SimonErich/obers_ui' }}
           token: ${{ secrets.OBERS_UI_TOKEN || github.token }}
           path: obers_ui
       - name: Set up Flutter
