@@ -16,9 +16,35 @@ import 'package:worm/worm.dart';
 /// the transform pipeline.
 final Uint8List testPng = img.encodePng(img.Image(width: 8, height: 8));
 
-/// Docker-compose defaults, overridable via the environment.
+/// The connection base, taken from `DATABASE_URL` (compose default) so the
+/// host/port/credentials stay overridable.
+final Uri _databaseBase = Uri.parse(
+  Platform.environment['DATABASE_URL'] ??
+      'postgres://beak:beak@localhost:25432/beak',
+);
+
+/// The dedicated E2E database: the base database name with a
+/// `_reference_e2e` suffix. Derived — never taken verbatim from the
+/// environment — so an exported `DATABASE_URL` pointing at the shared demo
+/// `beak` database can vary the connection but can **never** aim this
+/// suite's table drops and fresh-migrate at real demo data. The suffix also
+/// differs from beak_superdashboard's `_e2e`, so the two suites cannot
+/// clobber each other when the full gate runs them concurrently.
+String get _e2eDatabaseName {
+  final String db = _databaseBase.pathSegments.isEmpty
+      ? 'beak'
+      : _databaseBase.pathSegments.first;
+  return db.endsWith('_reference_e2e') ? db : '${db}_reference_e2e';
+}
+
+Uri get _e2eDatabaseUrl =>
+    _databaseBase.replace(pathSegments: [_e2eDatabaseName]);
+
+/// Docker-compose defaults, overridable via the environment — except
+/// `DATABASE_URL`, forced *after* the spread onto the dedicated
+/// `_reference_e2e` database so no environment can redirect the suite's
+/// destructive setup at shared data.
 final Map<String, String> e2eEnvironment = {
-  'DATABASE_URL': 'postgres://beak:beak@localhost:25432/beak',
   'BEAK_STORAGE_DRIVER': 's3',
   'BEAK_S3_ENDPOINT': 'http://localhost:29000',
   'BEAK_S3_BUCKET': 'beak-uploads',
@@ -27,7 +53,30 @@ final Map<String, String> e2eEnvironment = {
   'BEAK_S3_REGION': 'us-east-1',
   'BEAK_S3_USE_PATH_STYLE': 'true',
   ...Platform.environment,
+  'DATABASE_URL': _e2eDatabaseUrl.toString(),
 };
+
+/// Creates [databaseUrl]'s database when it does not exist yet, via a
+/// maintenance connection to the always-present `postgres` database.
+/// `CREATE DATABASE` has no `IF NOT EXISTS`, so probe first.
+Future<void> _ensureDatabase(Uri databaseUrl) async {
+  final String name = databaseUrl.pathSegments.first;
+  final maintenance = postgresAdapterFromUrl(
+    databaseUrl.replace(pathSegments: const ['postgres']),
+  );
+  await maintenance.connect();
+  try {
+    final rows = await maintenance.rawQuery(
+      r'SELECT 1 FROM pg_database WHERE datname = $1',
+      [name],
+    );
+    if (rows.isEmpty) {
+      await maintenance.rawQuery('CREATE DATABASE "$name"', const []);
+    }
+  } finally {
+    await maintenance.disconnect();
+  }
+}
 
 Future<bool> _reachable(String host, int port) async {
   try {
@@ -59,6 +108,18 @@ void main() {
     if (!servicesUp) {
       return;
     }
+
+    // Defense in depth: never run the destructive table drops and
+    // fresh-migrate against anything but a dedicated *_e2e database,
+    // whatever the environment resolved to.
+    final String dbName = databaseUrl.pathSegments.first;
+    if (!dbName.endsWith('_e2e')) {
+      throw StateError(
+        'Refusing to reset non-e2e database "$dbName": the E2E suite only '
+        'ever drops tables in a *_e2e database.',
+      );
+    }
+    await _ensureDatabase(databaseUrl);
 
     // The full gate runs every suite concurrently; under that load the
     // first pooled connection can miss its request timeout — retry it.
