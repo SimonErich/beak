@@ -247,6 +247,30 @@ final class BeakFormController
     rebase(values);
   }
 
+  /// Whether [column]'s current value passes every one of its validation
+  /// rules — evaluated directly against the typed rules, **without** running
+  /// the autoforms validation pipeline, so no error text is revealed on
+  /// fields the user hasn't touched. The wizard's synchronous step gate
+  /// reads this; hidden and unregistered fields pass vacuously.
+  bool passesRules(BeakColumn column) {
+    final BeakFormSlot? slot = _slotByKey[column.key];
+    if (slot == null || !isFieldVisible(slot)) {
+      return true;
+    }
+    final Object? value = get<Object>(slot);
+    for (final rule in column.rules) {
+      final String? error = switch (rule) {
+        BeakRequired() => rule.validate(value),
+        BeakMaxFileSize() || BeakAllowedFileTypes() => null,
+        _ => _mirrorContent(rule, value),
+      };
+      if (error != null) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// Whether [section] is currently visible — its predicate holds, read
   /// through the first of its columns carrying a field.
   bool isSectionVisible(BeakFormSection section) {

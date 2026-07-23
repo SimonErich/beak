@@ -56,6 +56,17 @@ void main() {
     expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsNothing);
   });
 
+  testWidgets('opens with pristine fields — no premature required errors', (
+    tester,
+  ) async {
+    await pump(tester, articleWizard());
+
+    // The step-gate needs field validity up front, but that must never paint
+    // validation errors on fields the user hasn't touched or submitted.
+    expect(find.textContaining('required'), findsNothing);
+    expect(find.textContaining('Required'), findsNothing);
+  });
+
   testWidgets('blocks advancing past a step with an empty required field', (
     tester,
   ) async {
