@@ -1,6 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_superdashboard/models/models.dart';
+import 'package:beak_superdashboard/services/dashboard_charts.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 /// The maps showcase — the two kinds of map Beak can drive from seeded data:
@@ -18,7 +19,10 @@ BeakScreen buildMapsScreen() => const BeakScreen(
         title: 'Vector map — live users by country',
         child: BeakMapBlock(
           title: 'Active users',
-          query: BeakQuerySpec(table: 'country_stats'),
+          query: BeakQuerySpec(
+            table: 'country_stats',
+            pagination: analyticsPage,
+          ),
           regionCodeField: CountryStatColumns.countryCode,
           valueField: CountryStatColumns.activeUsers,
           valueLabel: 'Active users',
@@ -28,7 +32,10 @@ BeakScreen buildMapsScreen() => const BeakScreen(
         title: 'Tile map — offices',
         child: BeakTileMapBlock(
           title: 'Offices',
-          query: BeakQuerySpec(table: 'office_locations'),
+          query: BeakQuerySpec(
+            table: 'office_locations',
+            pagination: analyticsPage,
+          ),
           latitudeField: OfficeLocationColumns.latitude,
           longitudeField: OfficeLocationColumns.longitude,
           labelField: OfficeLocationColumns.name,

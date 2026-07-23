@@ -178,13 +178,14 @@ final class AnalyticsSeeder {
       counts['$row|$column'] = (counts['$row|$column'] ?? 0) + 1;
     }
     final rows = <Map<String, Object?>>[
-      for (final weekday in _weekdays)
-        for (final month in columnLabels)
+      for (final (int rowIndex, String weekday) in _weekdays.indexed)
+        for (final (int columnIndex, String month) in columnLabels.indexed)
           {
             'id': ctx.uuid(),
             'row_label': weekday,
             'column_label': month,
             'value': counts['$weekday|$month'] ?? 0,
+            'sort_index': rowIndex * columnLabels.length + columnIndex,
           },
     ];
     await ctx.insertMany('activity_heatmap', rows);

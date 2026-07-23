@@ -23,6 +23,7 @@ Everything lives in one package:
 
 ```bash
 melos run up                                 # Postgres + MinIO
+cp .env.example .env                         # local connection defaults
 dart run bin/worm.dart migrate               # create the schema
 dart run bin/worm.dart db:seed               # seed all domains
 dart run bin/server.dart                     # start the backend on :8180

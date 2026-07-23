@@ -18,54 +18,82 @@ BeakScreen buildChartsScreen() => BeakScreen(
       BeakChartBlock(
         title: 'Revenue (area)',
         type: BeakChartType.area,
-        query: const BeakQuerySpec(table: 'time_series_points'),
+        query: const BeakQuerySpec(
+          table: 'time_series_points',
+          sorts: [BeakSort('sort_index')],
+          pagination: analyticsPage,
+        ),
         map: seriesPoints('sales_revenue'),
       ),
       BeakChartBlock(
         title: 'Orders (line)',
         type: BeakChartType.line,
-        query: const BeakQuerySpec(table: 'time_series_points'),
+        query: const BeakQuerySpec(
+          table: 'time_series_points',
+          sorts: [BeakSort('sort_index')],
+          pagination: analyticsPage,
+        ),
         map: seriesPoints('sales_orders'),
       ),
       BeakChartBlock(
         title: 'Organic audience (bar)',
         type: BeakChartType.bar,
-        query: const BeakQuerySpec(table: 'time_series_points'),
+        query: const BeakQuerySpec(
+          table: 'time_series_points',
+          sorts: [BeakSort('sort_index')],
+          pagination: analyticsPage,
+        ),
         map: seriesPoints('audience_organic'),
       ),
       BeakChartBlock(
         title: 'Social audience (bar)',
         type: BeakChartType.bar,
-        query: const BeakQuerySpec(table: 'time_series_points'),
+        query: const BeakQuerySpec(
+          table: 'time_series_points',
+          sorts: [BeakSort('sort_index')],
+          pagination: analyticsPage,
+        ),
         map: seriesPoints('audience_social'),
       ),
       const BeakChartBlock(
         title: 'Source of purchases (pie)',
         type: BeakChartType.pie,
-        query: BeakQuerySpec(table: 'purchase_sources'),
+        query: BeakQuerySpec(
+          table: 'purchase_sources',
+          pagination: analyticsPage,
+        ),
         map: purchaseSourcePoints,
       ),
       const BeakChartBlock(
         title: 'Source of purchases (donut)',
         type: BeakChartType.donut,
-        query: BeakQuerySpec(table: 'purchase_sources'),
+        query: BeakQuerySpec(
+          table: 'purchase_sources',
+          pagination: analyticsPage,
+        ),
         map: purchaseSourcePoints,
       ),
       const BeakChartBlock(
         title: 'Source of purchases (radar)',
         type: BeakChartType.radar,
-        query: BeakQuerySpec(table: 'purchase_sources'),
+        query: BeakQuerySpec(
+          table: 'purchase_sources',
+          pagination: analyticsPage,
+        ),
         map: purchaseSourcePoints,
       ),
       const BeakChartBlock(
         title: 'Source of purchases (funnel)',
         type: BeakChartType.funnel,
-        query: BeakQuerySpec(table: 'purchase_sources'),
+        query: BeakQuerySpec(
+          table: 'purchase_sources',
+          pagination: analyticsPage,
+        ),
         map: purchaseSourcePoints,
       ),
       const BeakBubbleChartBlock(
         title: 'Catalog: price × stock, sized by cost',
-        query: BeakQuerySpec(table: 'products'),
+        query: BeakQuerySpec(table: 'products', pagination: analyticsPage),
         map: productBubblePoints,
       ),
       const BeakCandlestickChartBlock(
@@ -74,13 +102,18 @@ BeakScreen buildChartsScreen() => BeakScreen(
         query: BeakQuerySpec(
           table: 'price_candles',
           sorts: [BeakSort('sort_index')],
+          pagination: analyticsPage,
         ),
         map: priceCandles,
       ),
       const BeakHeatmapChartBlock(
         span: BeakSpan(columns: 2),
         title: 'Orders by weekday & month',
-        query: BeakQuerySpec(table: 'activity_heatmap'),
+        query: BeakQuerySpec(
+          table: 'activity_heatmap',
+          sorts: [BeakSort('sort_index')],
+          pagination: analyticsPage,
+        ),
         map: activityHeatCells,
         rowLabels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       ),

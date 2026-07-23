@@ -27,10 +27,10 @@ gated commit per phase.
   `BEAK_MISSING_FEATURES.md`.
 
 ### The app
-- **Models** — 40 `BeakModel`s across 12 domains over a DRY shared spine.
-- **Migrations** — 46 tables via a parity-guaranteeing `defineModelColumns`
+- **Models** — 49 `BeakModel`s across 12 domains over a DRY shared spine.
+- **Migrations** — 55 tables via a parity-guaranteeing `defineModelColumns`
   helper; FK constraints, self-referential FKs, indexes, pivots.
-- **Seeders** — 10 coherent domain seeders (analytics rolled up from the
+- **Seeders** — 11 coherent domain seeders (analytics rolled up from the
   exact seeded orders; folder-unread and last-message counts derived);
   byte-identical reproducibility.
 - **Server** — `bin/server.dart` (auto CRUD/relations/aggregate/search/
@@ -55,7 +55,7 @@ gated commit per phase.
   structure as the detail. Both are enriched with real sub-entities — Product
   gains variants, a gallery, reviews, and price rules; Order gains a lifecycle
   history and internal comments — each a tab of an inline, bounded relation
-  manager (46 models total).
+  manager (49 models total).
 - **Structured detail screens** — every resource has a bespoke show-page
   layout (headline card + two-column attribute groups + tabbed/inline
   relations) via the new record-scoped `BeakFieldBlock`/`BeakFieldGroupBlock`/
@@ -68,13 +68,15 @@ gated commit per phase.
 - **Validated on live Postgres** via an E2E suite (paged queries, aggregates,
   eager loads, a self-referential folder tree, revenue reconciliation, CRUD).
   The suite targets a dedicated `beak_e2e` database (created on demand), so
-  running the app tests never touches the seeded demo data in `beak`.
+  running the app tests never touches the seeded demo data in `beak`; the
+  reference_admin_server E2E is isolated the same way onto
+  `beak_reference_e2e`.
 
 ## Running it
 ```bash
 melos run up                          # Postgres + MinIO
 cd apps/beak_superdashboard
-dart run bin/worm.dart migrate        # create the 46-table schema
+dart run bin/worm.dart migrate        # create the 55-table schema
 dart run bin/worm.dart db:seed        # seed all 12 domains
 dart run bin/server.dart              # backend on :8180 (PORT in .env)
 flutter run                           # the panel
