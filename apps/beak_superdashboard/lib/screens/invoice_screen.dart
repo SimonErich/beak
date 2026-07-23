@@ -16,11 +16,18 @@ BeakScreen buildInvoiceScreen() => const BeakScreen(
     recordId: SeedIds.invoice,
     lineItemsModel: InvoiceItemModel(),
     lineItemsForeignKey: InvoiceItemColumns.invoiceId,
-    toFields: [
+    metaFields: [
       InvoiceColumns.number,
       InvoiceColumns.status,
       InvoiceColumns.issueDate,
       InvoiceColumns.dueDate,
+    ],
+    toRelation: InvoiceRelations.user,
+    toPartyFields: [
+      UserColumns.name,
+      UserColumns.email,
+      UserColumns.city,
+      UserColumns.country,
     ],
     subtotalField: InvoiceColumns.subtotal,
     discountField: InvoiceColumns.discount,

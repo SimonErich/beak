@@ -111,6 +111,8 @@ BeakBlock _timeline() => const BeakCardBlock(
   child: BeakTimelineBlock(
     query: BeakQuerySpec(
       table: 'activities',
+      // Newest-first at the source, so the 12 shown really are the latest.
+      sorts: [BeakSort('created_at', descending: true)],
       pagination: BeakPagination(perPage: 12),
     ),
     titleField: ActivityColumns.body,

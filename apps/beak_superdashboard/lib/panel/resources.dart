@@ -49,6 +49,8 @@ List<BeakResource> buildResources() => const [
         groupField: OrderColumns.status,
         titleField: OrderColumns.reference,
         subtitleField: OrderColumns.total,
+        sortField: OrderColumns.placedAt,
+        sortDescending: true,
       ),
     ],
   ),
@@ -125,6 +127,7 @@ List<BeakResource> buildResources() => const [
       BeakKanbanView(
         groupField: CardColumns.priority,
         titleField: CardColumns.title,
+        sortField: CardColumns.sortIndex,
       ),
     ],
   ),

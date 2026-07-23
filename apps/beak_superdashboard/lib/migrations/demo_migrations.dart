@@ -29,4 +29,5 @@ const List<Migration> demoMigrations = [
   CreateInvoicesTables(),
   CreateKanbanTables(),
   CreateContentTables(),
+  AddSortIndexToActivityHeatmap(),
 ];
