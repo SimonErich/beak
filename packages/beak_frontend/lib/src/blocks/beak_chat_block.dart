@@ -25,6 +25,7 @@ final class BeakChatBlock extends BeakBlock {
     required this.bodyField,
     required this.timeField,
     this.isMineField,
+    this.composeRecord,
     this.label = 'Chat',
     super.span,
   });
@@ -43,6 +44,11 @@ final class BeakChatBlock extends BeakBlock {
 
   /// Boolean column marking outgoing (own) messages, when bound.
   final BeakColumn? isMineField;
+
+  /// Builds the record persisted when the user sends [body] from the
+  /// composer — fill in the FKs and defaults a new message needs. When
+  /// unbound the transcript is read-only and no composer is shown.
+  final BeakRecord Function(String body)? composeRecord;
 
   /// Accessibility label for the transcript.
   final String label;

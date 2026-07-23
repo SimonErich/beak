@@ -16,9 +16,16 @@ class _BeakFaqBlockView extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(BeakQuerySpec(table: block.model.table));
+        final result = await BeakResourceRepository(dataSource).query(
+          BeakQuerySpec(
+            table: block.model.table,
+            sorts: [
+              if (block.sortField case final BeakColumn column)
+                BeakSort(column.key),
+            ],
+            pagination: _modulePage,
+          ),
+        );
         if (cancelled) {
           return;
         }

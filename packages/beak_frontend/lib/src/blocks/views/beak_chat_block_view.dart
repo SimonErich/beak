@@ -19,9 +19,15 @@ class _BeakChatBlockView extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(BeakQuerySpec(table: block.model.table));
+        // Fetch newest-first so that if the transcript ever exceeds the page,
+        // it is the oldest messages that fall off — never the latest.
+        final result = await BeakResourceRepository(dataSource).query(
+          BeakQuerySpec(
+            table: block.model.table,
+            sorts: [BeakSort(block.timeField.key, descending: true)],
+            pagination: _modulePage,
+          ),
+        );
         if (cancelled) {
           return;
         }
@@ -51,6 +57,20 @@ class _BeakChatBlockView extends HookWidget {
         for (final (index, record) in ordered.indexed)
           _messageOf(index, record),
       ],
+      onSend: block.composeRecord == null
+          ? null
+          : (text) async {
+              final body = text.trim();
+              if (body.isEmpty) {
+                return;
+              }
+              final result = await BeakResourceRepository(
+                dataSource,
+              ).create(block.model.table, block.composeRecord!(body));
+              if (result case BeakOk(:final value)) {
+                records.value = [...records.value, value];
+              }
+            },
     );
   }
 

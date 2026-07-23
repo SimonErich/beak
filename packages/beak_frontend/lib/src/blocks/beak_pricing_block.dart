@@ -32,6 +32,7 @@ final class BeakPricingBlock extends BeakBlock {
     this.ctaField,
     this.featuresRelation,
     this.featureLabelField,
+    this.sortField,
     this.label = 'Pricing',
     this.currencySymbol = r'$',
     super.span,
@@ -63,6 +64,9 @@ final class BeakPricingBlock extends BeakBlock {
 
   /// Column read for each feature record's bullet label.
   final BeakColumn? featureLabelField;
+
+  /// Column ordering the plans left-to-right, when bound.
+  final BeakColumn? sortField;
 
   /// Accessibility label for the table.
   final String label;

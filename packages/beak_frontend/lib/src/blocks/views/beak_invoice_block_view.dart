@@ -16,9 +16,35 @@ class _BeakInvoiceBlockView extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).getOne(block.model.table, block.recordId);
+        final repository = BeakResourceRepository(dataSource);
+        // With a billed-party relation bound, fetch through a primary-key
+        // query so the relation arrives eager-loaded; getOne cannot load
+        // relations.
+        if (block.toRelation case final BeakBelongsTo relation) {
+          final result = await repository.query(
+            BeakQuerySpec(
+              table: block.model.table,
+              filter: BeakFieldFilter(
+                column: block.model.primaryKey,
+                operator: BeakOperator.eq,
+                value: BeakValue.of(block.recordId),
+              ),
+              relationLoads: [BeakRelationLoad(relation.key)],
+              pagination: const BeakPagination(perPage: 1),
+            ),
+          );
+          if (cancelled) {
+            return;
+          }
+          if (result case BeakOk(:final value) when value.items.isNotEmpty) {
+            record.value = value.items.first;
+          }
+          return;
+        }
+        final result = await repository.getOne(
+          block.model.table,
+          block.recordId,
+        );
         if (cancelled) {
           return;
         }
@@ -60,11 +86,27 @@ class _BeakInvoiceBlockView extends HookWidget {
       if (block.logoField case final BeakColumn column)
         if (_readString(invoice, column) case final String url)
           OiImage(src: url, alt: '${block.title} logo', height: 48),
+      if (block.metaFields.isNotEmpty)
+        _party('Details', invoice, block.metaFields),
       if (block.fromFields.isNotEmpty)
         _party('From', invoice, block.fromFields),
       if (block.toFields.isNotEmpty) _party('To', invoice, block.toFields),
+      if (_billedParty(invoice) case final BeakRecord party)
+        if (block.toPartyFields.isNotEmpty)
+          _party('To', party, block.toPartyFields),
     ],
   );
+
+  /// The eager-loaded billed-party record, when [BeakInvoiceBlock.toRelation]
+  /// is bound and arrived with the invoice.
+  BeakRecord? _billedParty(BeakRecord invoice) {
+    final BeakBelongsTo? relation = block.toRelation;
+    if (relation == null) {
+      return null;
+    }
+    final related = invoice.relations[relation.key] ?? const <BeakRecord>[];
+    return related.isEmpty ? null : related.first;
+  }
 
   Widget _party(String title, BeakRecord invoice, List<BeakColumn> fields) =>
       SizedBox(
@@ -75,7 +117,7 @@ class _BeakInvoiceBlockView extends HookWidget {
             for (final column in fields)
               OiKeyValue(
                 label: column.label,
-                value: _readString(invoice, column),
+                value: beakCellText(column, invoice[column.key]?.raw),
               ),
           ],
         ),
@@ -99,19 +141,19 @@ class _BeakInvoiceBlockView extends HookWidget {
   }
 
   Widget _totals(BeakRecord invoice) {
+    // Through the shared cell formatter so decimal columns keep their
+    // configured currency prefix and precision — Postgres numerics arrive
+    // over the wire as strings.
+    OiKeyValue row(BeakColumn column) => OiKeyValue(
+      label: column.label,
+      value: beakCellText(column, invoice[column.key]?.raw),
+    );
     final rows = <OiKeyValue>[
-      if (block.subtotalField case final BeakColumn column)
-        OiKeyValue(label: column.label, value: _readString(invoice, column)),
-      if (block.discountField case final BeakColumn column)
-        OiKeyValue(label: column.label, value: _readString(invoice, column)),
-      if (block.shippingField case final BeakColumn column)
-        OiKeyValue(label: column.label, value: _readString(invoice, column)),
-      if (block.taxField case final BeakColumn column)
-        OiKeyValue(label: column.label, value: _readString(invoice, column)),
-      OiKeyValue(
-        label: block.totalField.label,
-        value: _readString(invoice, block.totalField),
-      ),
+      if (block.subtotalField case final BeakColumn column) row(column),
+      if (block.discountField case final BeakColumn column) row(column),
+      if (block.shippingField case final BeakColumn column) row(column),
+      if (block.taxField case final BeakColumn column) row(column),
+      row(block.totalField),
     ];
     return OiKeyValue.group(title: 'Totals', children: rows);
   }

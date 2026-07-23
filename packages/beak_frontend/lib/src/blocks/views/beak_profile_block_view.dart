@@ -47,6 +47,30 @@ class _BeakProfileBlockView extends HookWidget {
         role: _readString(profile, block.roleField),
         bio: _readString(profile, block.bioField),
       ),
+      // Persist identity-field edits back onto the bound columns; fields
+      // without a bound column (e.g. phone) report failure rather than
+      // pretending to save.
+      onFieldSave: (field, value) async {
+        final BeakColumn? column = switch (field) {
+          'name' => block.nameField,
+          'email' => block.emailField,
+          'bio' => block.bioField,
+          _ => null,
+        };
+        if (column == null) {
+          return false;
+        }
+        final result = await BeakResourceRepository(dataSource).update(
+          block.model.table,
+          block.recordId,
+          BeakRecord(values: {column.key: BeakStringValue(value)}),
+        );
+        if (result case BeakOk(:final value)) {
+          record.value = value;
+          return true;
+        }
+        return false;
+      },
     );
   }
 }

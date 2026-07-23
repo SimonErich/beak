@@ -33,6 +33,9 @@ final class BeakInvoiceBlock extends BeakBlock {
     this.logoField,
     this.fromFields = const [],
     this.toFields = const [],
+    this.metaFields = const [],
+    this.toRelation,
+    this.toPartyFields = const [],
     this.lineItemsForeignKey,
     this.subtotalField,
     this.discountField,
@@ -62,6 +65,17 @@ final class BeakInvoiceBlock extends BeakBlock {
 
   /// Columns rendered in the "to" (recipient) block, in order.
   final List<BeakColumn> toFields;
+
+  /// Invoice columns rendered in a "Details" block (number, status, dates)
+  /// — distinct from the recipient, which [toFields]/[toPartyFields] name.
+  final List<BeakColumn> metaFields;
+
+  /// The belongs-to relation to the billed party; when bound (with
+  /// [toPartyFields]) the "To" block renders the related record's fields.
+  final BeakBelongsTo? toRelation;
+
+  /// The related party model's columns rendered in the "To" block.
+  final List<BeakColumn> toPartyFields;
 
   /// The line-items foreign key scoping the itemized table to this invoice,
   /// when bound.

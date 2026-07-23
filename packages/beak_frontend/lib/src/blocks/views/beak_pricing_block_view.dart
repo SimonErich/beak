@@ -15,9 +15,22 @@ class _BeakPricingBlockView extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(BeakQuerySpec(table: block.model.table));
+        final result = await BeakResourceRepository(dataSource).query(
+          BeakQuerySpec(
+            table: block.model.table,
+            sorts: [
+              if (block.sortField case final BeakColumn column)
+                BeakSort(column.key),
+            ],
+            relationLoads: [
+              // Without this the plans arrive relation-less and every card
+              // renders an empty feature list.
+              if (block.featuresRelation case final BeakRelationship relation)
+                BeakRelationLoad(relation.key),
+            ],
+            pagination: _modulePage,
+          ),
+        );
         if (cancelled) {
           return;
         }

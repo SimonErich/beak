@@ -15,9 +15,16 @@ class _BeakKanbanBlockView extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(BeakQuerySpec(table: block.model.table));
+        final result = await BeakResourceRepository(dataSource).query(
+          BeakQuerySpec(
+            table: block.model.table,
+            sorts: [
+              if (block.sortField case final BeakColumn column)
+                BeakSort(column.key, descending: block.sortDescending),
+            ],
+            pagination: _modulePage,
+          ),
+        );
         if (cancelled) {
           return;
         }
@@ -54,11 +61,28 @@ class _BeakKanbanBlockView extends HookWidget {
         final Enum? target = groupField.valueByName(to.toString());
         final Object? id = block.model.primaryKeyOf(record);
         if (target != null && id != null) {
-          await dataSource.update(
+          final result = await BeakResourceRepository(dataSource).update(
             block.model.table,
             id,
             BeakRecord(values: {groupField.key: BeakStringValue(target.name)}),
           );
+          // Mirror a successful write into the rendered records so the card
+          // stays in its new column; on failure it visibly snaps back.
+          if (result case BeakOk()) {
+            records.value = [
+              for (final row in records.value)
+                if (identical(row, record))
+                  BeakRecord(
+                    values: {
+                      ...row.values,
+                      groupField.key: BeakStringValue(target.name),
+                    },
+                    relations: row.relations,
+                  )
+                else
+                  row,
+            ];
+          }
         }
         block.onCardMove?.call(record);
       },

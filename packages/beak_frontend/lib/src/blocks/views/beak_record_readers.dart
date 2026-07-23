@@ -4,6 +4,11 @@ part of '../beak_block_host.dart';
 /// a bound [BeakColumn] against a [BeakRecord] by the column's key, so a view
 /// never touches a raw field string.
 
+/// The page module views fetch: comfortably above any bounded module dataset,
+/// so a board, transcript, inbox, or plan grid never renders a silently
+/// truncated page (`BeakQuerySpec` defaults to 25 rows per page).
+const BeakPagination _modulePage = BeakPagination(perPage: 500);
+
 /// The string value of [column] in [record], or `null` when unbound or empty.
 String? _readString(BeakRecord record, BeakColumn? column) {
   if (column == null) {

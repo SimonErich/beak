@@ -16,9 +16,9 @@ class _BeakCalendarBlockView extends HookWidget {
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(BeakQuerySpec(table: block.model.table));
+        final result = await BeakResourceRepository(dataSource).query(
+          BeakQuerySpec(table: block.model.table, pagination: _modulePage),
+        );
         if (cancelled) {
           return;
         }
@@ -56,7 +56,7 @@ class _BeakCalendarBlockView extends HookWidget {
         if (record == null) {
           return;
         }
-        await dataSource.update(
+        final result = await BeakResourceRepository(dataSource).update(
           block.model.table,
           event.key,
           BeakRecord(
@@ -67,6 +67,25 @@ class _BeakCalendarBlockView extends HookWidget {
             },
           ),
         );
+        // Mirror a successful write into the rendered records so the event
+        // stays on its new day; on failure it visibly snaps back.
+        if (result case BeakOk()) {
+          records.value = [
+            for (final row in records.value)
+              if (identical(row, record))
+                BeakRecord(
+                  values: {
+                    ...row.values,
+                    block.startField.key: BeakDateTimeValue(start),
+                    if (block.endField case final BeakColumn column)
+                      column.key: BeakDateTimeValue(end),
+                  },
+                  relations: row.relations,
+                )
+              else
+                row,
+          ];
+        }
         block.onEventMove?.call(record, start, end);
       },
     );

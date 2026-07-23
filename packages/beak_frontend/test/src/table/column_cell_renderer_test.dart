@@ -271,4 +271,31 @@ void main() {
     );
     expect(offenders, isEmpty);
   });
+
+  group('beakCellText', () {
+    test('formats Postgres string numerics with currency precision', () {
+      const column = BeakDecimalColumn(
+        key: 'total',
+        label: 'Total',
+        prefix: r'$',
+      );
+      // Postgres numerics arrive over the wire as JSON strings.
+      expect(beakCellText(column, '233.0'), r'$233.00');
+      expect(beakCellText(column, '16.7'), r'$16.70');
+      expect(beakCellText(column, 233.0), r'$233.00');
+      expect(beakCellText(column, null), '—');
+    });
+
+    test('formats DateTime and ISO-string dates without toString noise', () {
+      const column = BeakDateTimeColumn(key: 'due', label: 'Due');
+      expect(
+        beakCellText(column, DateTime(2026, 6, 9, 21)),
+        '2026-06-09 21:00',
+      );
+      expect(
+        beakCellText(column, '2026-06-09T21:00:00.000Z'),
+        '2026-06-09 21:00',
+      );
+    });
+  });
 }
