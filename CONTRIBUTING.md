@@ -96,7 +96,7 @@ These are enforced by review (and partly by lints/`melos run analyze`):
   Every public member has a doc comment (`public_member_api_docs` is on).
 - **Layering.** Backend: `Handler → Service → DataSource` (the handler is the
   catch boundary that maps typed exceptions to HTTP). Frontend:
-  `Widget → ViewModel → UseCase → Repository → DataSource` (ViewModels expose
+  `Widget → ViewModel → Repository → DataSource` (ViewModels expose
   `ReadonlySignal` and never `try/catch`; the Repository is the catch boundary).
 - **Source-agnostic data.** `BeakDataSource` is the seam; keep worm and obers
   types from leaking across package boundaries.

@@ -58,7 +58,7 @@ law. When in doubt, prefer the stricter reading.
 - **beak_backend flow:** `Handler (Shelf) → Service → DataSource`. The Handler is the
   catch boundary and maps typed exceptions to HTTP/JSON. Services hold logic and throw
   typed exceptions. DataSources do raw I/O only and let exceptions propagate.
-- **beak_frontend flow:** `Widget → ViewModel → UseCase → Repository → DataSource
+- **beak_frontend flow:** `Widget → ViewModel → Repository → DataSource
   (HTTP client)`. Widgets render state + forward intent; ViewModels expose
   `ReadonlySignal` and never `try/catch`; Repository is the catch boundary.
 - **Source-agnostic data:** `BeakDataSource` is an interface. `WormDataSource` is the

@@ -1,0 +1,220 @@
+site_name: Beak
+site_description: "Beak is a low-code, configuration-driven admin-panel framework for Dart and Flutter. Define a model once, get a whole dashboard."
+site_url: https://simonerich.github.io/beak/
+repo_url: https://github.com/SimonErich/beak
+repo_name: SimonErich/beak
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+# Authoring aids that ship in the repo but are not part of the built site.
+exclude_docs: |
+  _internal/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - assets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/SimonErich/beak
+
+nav:
+  - Home: index.md
+  - "Cheatsheet": reference/cheatsheet.md
+  - "Start here":
+      - start-here/index.md
+      - "What is Beak?": start-here/what-is-beak.md
+      - "Why Beak?": start-here/why-beak.md
+      - "Installation": start-here/installation.md
+      - "Quickstart": start-here/quickstart.md
+      - "Project structure": start-here/project-structure.md
+  - "Tutorial: First Flight":
+      - tutorial/index.md
+      - "1. Hatch the project": tutorial/01-hatch-the-project.md
+      - "2. Your first model and migration": tutorial/02-first-model-and-migration.md
+      - "3. The panel comes alive": tutorial/03-the-panel-comes-alive.md
+      - "4. Relationships and rich columns": tutorial/04-relationships-and-rich-columns.md
+      - "5. Seeding a flock of data": tutorial/05-seeding-a-flock-of-data.md
+      - "6. Filters, actions, and view modes": tutorial/06-filters-actions-and-view-modes.md
+      - "7. A custom dashboard": tutorial/07-a-custom-dashboard.md
+      - "8. Forms, wizards, and dual-mode detail": tutorial/08-forms-wizards-and-dual-mode-detail.md
+      - "9. Auth, theming, and polish": tutorial/09-auth-theming-and-polish.md
+      - "10. Wrap-up and where to fly next": tutorial/10-wrap-up.md
+  - "Core concepts":
+      - concepts/index.md
+      - "The one-definition promise": concepts/the-one-definition-promise.md
+      - "The type-safety promise": concepts/the-type-safety-promise.md
+      - "The four layers": concepts/the-four-layers.md
+      - "How data flows": concepts/how-data-flows.md
+      - "Rendering per surface": concepts/rendering-per-surface.md
+      - "The block system": concepts/the-block-system.md
+      - "Results and errors": concepts/results-and-errors.md
+  - "Models and data":
+      - models/index.md
+      - "Defining models": models/defining-models.md
+      - "Column basics": models/column-basics.md
+      - "Column types": models/column-types.md
+      - "Validation rules": models/validation-rules.md
+      - "Relationships": models/relationships.md
+      - "The model registry": models/the-registry.md
+      - "Files and storage columns": models/files-and-storage-columns.md
+  - "The backend":
+      - backend/index.md
+      - "Running the server": backend/running-the-server.md
+      - "The generated API": backend/the-generated-api.md
+      - "Migrations": backend/migrations.md
+      - "Seeding": backend/seeding.md
+      - "Auth and policies": backend/auth-and-policies.md
+      - "Search and export": backend/search-and-export.md
+      - "Uploads and storage wiring": backend/uploads-and-storage-wiring.md
+      - "The data source seam": backend/the-data-source-seam.md
+      - "Middleware": backend/middleware.md
+  - "The panel":
+      - panel/index.md
+      - "Resources": panel/resources.md
+      - "Tables and filters": panel/tables-and-filters.md
+      - "View modes": panel/view-modes.md
+      - "Forms": panel/forms.md
+      - "Multi-step forms": panel/multi-step-forms.md
+      - "Detail views and dual-mode blocks": panel/detail-and-dual-mode.md
+      - "Actions": panel/actions.md
+      - "Overlays": panel/overlays.md
+      - "Dashboards": panel/dashboards.md
+      - "Custom screens": panel/custom-screens.md
+      - "The navigation shell": panel/the-navigation-shell.md
+      - "Auth and idle-lock": panel/auth-and-idle-lock.md
+      - "Maintenance and coming soon": panel/maintenance-and-coming-soon.md
+  - "Blocks":
+      - blocks/index.md
+      - "Layout blocks": blocks/layout-blocks.md
+      - "Display blocks": blocks/display-blocks.md
+      - "UI-kit blocks": blocks/ui-kit-blocks.md
+      - "Data blocks": blocks/data-blocks.md
+      - "Record blocks": blocks/record-blocks.md
+      - "Module blocks": blocks/module-blocks.md
+      - "The widget escape hatch": blocks/the-widget-escape-hatch.md
+  - "Charts and maps":
+      - charts/index.md
+      - "Chart basics": charts/chart-basics.md
+      - "Advanced charts": charts/advanced-charts.md
+      - "Maps": charts/maps.md
+  - "Styling and theming":
+      - theming/index.md
+      - "Theming basics": theming/theming-basics.md
+      - "Colors and tokens": theming/colors-and-tokens.md
+      - "Typography and icons": theming/typography-and-icons.md
+      - "The shell": theming/the-shell.md
+  - "Extending Beak":
+      - extending/index.md
+      - "Custom columns": extending/custom-columns.md
+      - "Custom blocks and widgets": extending/custom-blocks-and-widgets.md
+      - "Custom screens and pages": extending/custom-screens-and-pages.md
+      - "Custom data sources": extending/custom-data-sources.md
+      - "Custom storage drivers": extending/custom-storage-drivers.md
+      - "Using Beak widgets standalone": extending/using-beak-widgets-standalone.md
+  - "Deployment":
+      - deployment/index.md
+      - "Environment and config": deployment/environment-and-config.md
+      - "Dev infrastructure": deployment/dev-infrastructure.md
+      - "Going to production": deployment/going-to-production.md
+      - "The obers_ui sibling caveat": deployment/the-obers-ui-sibling-caveat.md
+  - "Guides":
+      - guides/index.md
+      - "Testing": guides/testing.md
+      - "Working with AI agents": guides/working-with-ai-agents.md
+      - "Performance": guides/performance.md
+      - "Security": guides/security.md
+      - "Common recipes": guides/common-recipes.md
+  - "Reference":
+      - reference/index.md
+      - "Column types reference": reference/column-types.md
+      - "Validation rules reference": reference/validation-rules.md
+      - "Blocks index": reference/blocks-index.md
+      - "CLI commands": reference/cli-commands.md
+      - "REST API": reference/rest-api.md
+      - "Configuration options": reference/configuration-options.md
+      - "Exceptions": reference/exceptions.md
+      - "Glossary": reference/glossary.md
+      - "Packages": reference/packages.md
+  - "Architecture deep dive":
+      - architecture/index.md
+      - "Principles": architecture/principles.md
+      - "Package graph": architecture/package-graph.md
+      - "Backend flow": architecture/backend-flow.md
+      - "Frontend flow": architecture/frontend-flow.md
+      - "The query contract": architecture/query-contract.md
+      - "The data source seam": architecture/data-source-seam.md
+      - "Block system internals": architecture/block-system-internals.md
+      - "Storage internals": architecture/storage-internals.md
+      - "How Beak was built": architecture/how-beak-was-built.md
+  - "Contributing":
+      - contributing/index.md
+      - "Code guardrails": contributing/code-guardrails.md
+      - "Conventions": contributing/conventions.md
+      - "Writing a storage driver": contributing/writing-a-storage-driver.md
+      - "Writing tests": contributing/writing-tests.md
