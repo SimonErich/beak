@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+# Beak backend server image.
+#
+# The backend is pure Dart: it depends on beak_backend/beak_core/worm and never
+# on Flutter or obers_ui, so it AOT-compiles to a single native executable and
+# runs from a slim Debian base. Build from the REPO ROOT as context (Beak uses
+# path dependencies, so the whole packages/ + apps/ tree must be present):
+#
+#   docker build -f deploy/Dockerfile.server -t beak-server .
+#
+# The .dockerignore at the repo root trims artifacts and the melos-managed
+# pubspec_overrides.yaml, so resolution comes from each committed pubspec.yaml.
+
+FROM dart:stable AS build
+
+WORKDIR /app
+COPY . .
+
+# Resolve and compile the reference server. Swap this app path for your own
+# server package when you deploy your project.
+WORKDIR /app/apps/reference_admin_server
+RUN dart pub get
+RUN dart compile exe bin/reference_admin_server.dart -o /app/beak-server
+# The worm CLI (migrate / db:seed) as a second executable, so schema and seed
+# steps run from the same image (see the migrate service in the compose file).
+RUN dart compile exe bin/worm.dart -o /app/beak-migrate
+
+# --- Runtime image: just glibc + CA roots for HTTPS to Postgres/S3 ---
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/beak-server /usr/local/bin/beak-server
+COPY --from=build /app/beak-migrate /usr/local/bin/beak-migrate
+
+# BeakBackendConfig defaults to host 0.0.0.0; PORT is read from the environment.
+ENV PORT=8080
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/beak-server"]

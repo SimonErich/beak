@@ -1,0 +1,102 @@
+# Production-style stack for Beak: Postgres, MinIO, the backend server, and the
+# Flutter web panel. Run from the repo root:
+#
+#   # 1. Build images and start data services
+#   docker compose -f deploy/docker-compose.prod.yml up -d --build postgres minio
+#   # 2. One-time setup: create the bucket, run migrations, seed demo data
+#   docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm createbuckets
+#   docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm migrate
+#   docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm migrate db:seed
+#   # 3. Start the app
+#   docker compose -f deploy/docker-compose.prod.yml up -d --build server web
+#
+# The panel (host :8090) calls the API at http://localhost:8080 (the panel's
+# built-in apiBaseUrl), which is where the server is published below. Change the
+# credentials in deploy/.env.prod before running anywhere real.
+
+name: beak-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: beak
+      POSTGRES_PASSWORD: beak
+      POSTGRES_DB: beak
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beak"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: beak
+      MINIO_ROOT_PASSWORD: beaksecret
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes: ["miniodata:/data"]
+    restart: unless-stopped
+
+  # One-shot bucket init. Behind the "setup" profile so `up` never runs it.
+  createbuckets:
+    image: minio/mc:latest
+    profiles: ["setup"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 beak beaksecret &&
+      mc mb -p local/beak-uploads &&
+      mc anonymous set download local/beak-uploads || true"
+
+  # Schema + seed via the worm CLI baked into the server image. Behind "setup".
+  #   ... run --rm migrate            -> creates the schema
+  #   ... run --rm migrate db:seed    -> seeds demo data
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    image: beak-server
+    profiles: ["setup"]
+    env_file: [.env.prod]
+    entrypoint: ["/usr/local/bin/beak-migrate"]
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    image: beak-server
+    env_file: [.env.prod]
+    ports: ["8080:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: beak-web
+    ports: ["8090:80"]
+    depends_on: [server]
+    restart: unless-stopped
+
+volumes:
+  pgdata: {}
+  miniodata: {}

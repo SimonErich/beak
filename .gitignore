@@ -22,3 +22,4 @@ build.log
 # Preserved history of the vendored worm drop (was packages/.git; renamed so
 # the beak monorepo can track the package files — `mv` back to restore).
 /packages/.worm-repo.git/
+deploy/.env.prod

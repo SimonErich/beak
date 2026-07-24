@@ -134,19 +134,25 @@ attach/detach, global search, CSV export, and aggregates.
 
 ## Documentation
 
-- [**Architecture**](docs/architecture.md) — the package graph, the backend and
-  frontend layer flows, the `BeakDataSource` seam, and the storage-driver system.
-- **Package guides** — each package ships its own README with a usage snippet and
-  its key types:
-  [beak_core](packages/beak_core), [beak_backend](packages/beak_backend),
-  [beak_frontend](packages/beak_frontend), [beak_cli](packages/beak_cli),
-  [beak_image](packages/beak_image),
-  [beak_storage_s3](packages/beak_storage_s3),
-  [beak_storage_ftp](packages/beak_storage_ftp).
-- [**Reference admin**](apps/reference_admin) — the worked example that consumes
-  every package.
-- Every public API carries dartdoc with usage examples; run `dart doc` in any
-  package to browse it.
+The full documentation lives in [`docs/`](docs/) and is published as a
+searchable site (MkDocs Material, deployed to GitHub Pages). Good places to start:
+
+- [**Start here**](docs/start-here/index.md): what Beak is, why it exists, and a
+  quickstart.
+- [**Tutorial: First Flight**](docs/tutorial/index.md): build the reference store
+  admin one concept at a time.
+- [**Core concepts**](docs/concepts/index.md): the one-definition promise, the
+  four layers, the block system.
+- [**Reference**](docs/reference/index.md): every column, rule, block, config
+  field, REST route, and CLI command, plus a [cheatsheet](docs/reference/cheatsheet.md).
+- [**Architecture deep dive**](docs/architecture/index.md): the package graph,
+  the layer flows, and the `BeakDataSource` seam.
+- [**Deployment**](docs/deployment/index.md): the real Docker setup under
+  [`deploy/`](deploy/).
+
+Preview the site locally with
+`pip install mkdocs-material mkdocs-minify-plugin && mkdocs serve`. Every public
+API also carries dartdoc; run `dart doc` in any package to browse it.
 
 ## Contributing
 

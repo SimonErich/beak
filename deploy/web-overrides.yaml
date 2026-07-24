@@ -1,0 +1,24 @@
+# Injected into the panel app as pubspec_overrides.yaml during the web image
+# build (see deploy/Dockerfile.web). Locally the panel resolves obers_ui by a
+# sibling path (../../../obers_ui) for live editing. Inside a container there is
+# no sibling checkout, so we point the three obers_ui packages at their git
+# source. dependency_overrides apply to the whole resolution, so the transitive
+# path dep declared in beak_frontend is redirected here too.
+#
+# Pin `ref:` to a tag or commit for reproducible builds instead of `main`.
+
+dependency_overrides:
+  obers_ui:
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      ref: main
+  obers_ui_autoforms:
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_autoforms
+      ref: main
+  obers_ui_charts:
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_charts
+      ref: main
