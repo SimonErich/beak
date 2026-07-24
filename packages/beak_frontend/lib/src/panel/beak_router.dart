@@ -1,17 +1,27 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../dashboard/beak_dashboard.dart';
 import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
+import '../pages/beak_screen_view.dart';
+import 'beak_auth_config.dart';
+import 'beak_command_bar.dart';
+import 'beak_maintenance_config.dart';
+import 'beak_notifications.dart';
 import 'beak_panel_config.dart';
+import 'beak_theme_controller.dart';
 
 /// Builds the panel's router from [config]: a shell route wrapping the
-/// dashboard at `/` and every resource's generated list/create/show/edit
-/// pages, a `/login` route outside the shell, and a typed not-found
-/// fallback.
+/// dashboard at `/`, every resource's generated list/create/show/edit pages,
+/// and every custom [BeakPage]; plus auth, error, and maintenance routes
+/// mounted outside the shell.
 ///
 /// [BeakPanel] calls this after [registerBeakDependencies], so the pages
 /// resolve their [BeakDataSource] from [beakLocator] on their first frame.
@@ -24,19 +34,22 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
       builder: (context, state, child) =>
           _BeakShell(config: config, currentPath: state.uri.path, child: child),
       routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => OiResourcePage(
-            label: 'Dashboard',
-            title: 'Dashboard',
-            actions: const [],
-            child: BeakDashboard(
-              stats: config.dashboardStats,
-              charts: config.dashboardCharts,
-              dataSource: beakLocator<BeakDataSource>(),
+        // The built-in stats/charts dashboard is mounted only when no custom
+        // page claims `/`; a `BeakScreen(path: '/')` replaces it wholesale.
+        if (!_hasHomePage(config))
+          GoRoute(
+            path: '/',
+            builder: (context, state) => OiResourcePage(
+              label: 'Dashboard',
+              title: 'Dashboard',
+              actions: const [],
+              child: BeakDashboard(
+                stats: config.dashboardStats,
+                charts: config.dashboardCharts,
+                dataSource: beakLocator<BeakDataSource>(),
+              ),
             ),
           ),
-        ),
         // Flat routes on purpose: nested routes would keep the list page
         // alive under create/show/edit, so returning to it would show
         // stale data instead of re-querying.
@@ -72,12 +85,16 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
             ),
           ),
         ],
+        for (final screen in config.pages)
+          GoRoute(
+            path: screen.path,
+            builder: (context, state) => BeakScreenView(screen: screen),
+          ),
       ],
     ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => OiAuthPage.login(label: config.title),
-    ),
+    ..._authRoutes(config),
+    ..._maintenanceRoutes(config.maintenance),
+    ..._errorRoutes(),
   ],
   errorBuilder: (context, state) => OiErrorPage.notFound(
     description: 'No panel page at "${state.uri.path}".',
@@ -86,8 +103,132 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
   ),
 );
 
+/// Whether a custom page claims the home route `/`, in which case it
+/// replaces the built-in dashboard.
+bool _hasHomePage(BeakPanelConfig config) =>
+    config.pages.any((screen) => screen.path == '/');
+
+List<RouteBase> _authRoutes(BeakPanelConfig config) {
+  final BeakAuthConfig? auth = config.auth;
+  return [
+    GoRoute(
+      path: '/login',
+      // Successful sign-in navigates into the panel — OiAuthPage itself only
+      // clears its spinner, so without this the login is a dead end.
+      builder: (context, state) => OiAuthPage.login(
+        label: config.title,
+        onLogin: (email, password) async {
+          final bool signedIn =
+              await (auth?.onLogin?.call(email, password) ??
+                  Future<bool>.value(true));
+          if (signedIn && context.mounted) {
+            context.go('/');
+          }
+          return signedIn;
+        },
+      ),
+    ),
+    if (auth != null && auth.register)
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => OiAuthPage.register(
+          label: config.title,
+          onRegister: (name, email, password) async {
+            final bool registered =
+                await (auth.onRegister?.call(name, email, password) ??
+                    Future<bool>.value(true));
+            if (registered && context.mounted) {
+              context.go('/');
+            }
+            return registered;
+          },
+        ),
+      ),
+    if (auth != null && auth.recover)
+      GoRoute(
+        path: '/recover',
+        builder: (context, state) => OiAuthPage(
+          label: config.title,
+          initialMode: OiAuthMode.forgotPassword,
+          // Recovery "success" means the reset email went out — return to
+          // the sign-in form rather than into the panel.
+          onForgotPassword: (email) async {
+            final bool sent =
+                await (auth.onRecover?.call(email) ?? Future<bool>.value(true));
+            if (sent && context.mounted) {
+              context.go('/login');
+            }
+            return sent;
+          },
+        ),
+      ),
+    GoRoute(
+      path: '/lock',
+      builder: (context, state) => OiAuthPage.lock(
+        label: config.title,
+        userName: auth?.lockUserName ?? config.title,
+        onUnlock: (password) async {
+          final bool unlocked =
+              await (auth?.onUnlock?.call(password) ??
+                  Future<bool>.value(true));
+          if (unlocked && context.mounted) {
+            context.go('/');
+          }
+          return unlocked;
+        },
+      ),
+    ),
+  ];
+}
+
+List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
+  if (maintenance == null) {
+    return const [];
+  }
+  return [
+    GoRoute(
+      path: '/maintenance',
+      builder: (context, state) => OiMaintenancePage(
+        label: maintenance.maintenanceTitle,
+        title: maintenance.maintenanceTitle,
+        description: maintenance.maintenanceDescription,
+        estimatedReturn: maintenance.estimatedReturn,
+        showCountdown: maintenance.estimatedReturn != null,
+      ),
+    ),
+    GoRoute(
+      path: '/coming-soon',
+      builder: (context, state) => OiMaintenancePage(
+        label: maintenance.comingSoonTitle,
+        title: maintenance.comingSoonTitle,
+        description: maintenance.comingSoonDescription,
+        estimatedReturn: maintenance.launchAt,
+        showCountdown: maintenance.launchAt != null,
+      ),
+    ),
+  ];
+}
+
+List<RouteBase> _errorRoutes() => [
+  GoRoute(
+    path: '/403',
+    builder: (context, state) => OiErrorPage.forbidden(
+      actionLabel: 'Back to dashboard',
+      onAction: () => context.go('/'),
+    ),
+  ),
+  GoRoute(
+    path: '/500',
+    builder: (context, state) => OiErrorPage.serverError(
+      actionLabel: 'Back to dashboard',
+      onAction: () => context.go('/'),
+    ),
+  ),
+];
+
 /// The panel chrome around every routed page: an `OiAppShell` whose
-/// navigation is generated from the configured resources.
+/// navigation is generated from the configured resources and pages, grouped
+/// by their optional sections, with a live theme toggle in the top bar.
 final class _BeakShell extends StatelessWidget {
   const _BeakShell({
     required this.config,
@@ -100,24 +241,123 @@ final class _BeakShell extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => OiAppShell(
-    label: config.title,
-    title: config.title,
-    navigation: [
-      const OiNavItem(
-        label: 'Dashboard',
-        icon: OiIcons.layoutDashboard,
-        route: '/',
-      ),
-      for (final resource in config.resources)
-        OiNavItem(
-          label: resource.effectiveLabel,
-          icon: resource.icon.icon,
-          route: resource.route,
+  Widget build(BuildContext context) {
+    final themeController = beakLocator<BeakThemeController>();
+    void openCommandBar() => openBeakCommandBar(context, config);
+    final Widget shell = CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            openCommandBar,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            openCommandBar,
+      },
+      child: Focus(
+        autofocus: true,
+        child: OiAppShell(
+          label: config.title,
+          title: config.title,
+          sidebarCollapsible: config.sidebarCollapsible,
+          sidebarDefaultCollapsed: config.sidebarDefaultCollapsed,
+          currentRoute: currentPath,
+          onNavigate: (route) => context.go(route),
+          actions: [
+            OiButton.icon(
+              icon: OiIcons.search,
+              label: 'Search (Ctrl-K)',
+              onTap: openCommandBar,
+            ),
+            if (config.notifications case final BeakNotificationSource source)
+              BeakNotificationBell(source: source),
+            // Listens directly to the controller: go_router preserves the
+            // shell across navigations, so it would not otherwise see mode
+            // changes.
+            ValueListenableBuilder<OiThemeMode>(
+              valueListenable: themeController,
+              builder: (context, mode, _) => OiThemeToggle(
+                currentMode: mode,
+                onModeChange: (next) => themeController.value = next,
+              ),
+            ),
+          ],
+          navigation: [
+            if (!_hasHomePage(config))
+              const OiNavItem(
+                label: 'Dashboard',
+                icon: OiIcons.layoutDashboard,
+                route: '/',
+              ),
+            for (final resource in config.resources)
+              OiNavItem(
+                label: resource.effectiveLabel,
+                icon: resource.icon.icon,
+                route: resource.route,
+                section: resource.section,
+              ),
+            for (final screen in config.pages)
+              if (screen.showInNav)
+                OiNavItem(
+                  label: screen.effectiveLabel,
+                  icon: screen.icon.icon,
+                  route: screen.path,
+                  section: screen.section,
+                ),
+          ],
+          child: child,
         ),
-    ],
-    currentRoute: currentPath,
-    onNavigate: (route) => context.go(route),
-    child: child,
-  );
+      ),
+    );
+    return switch (config.auth?.idleLockTimeout) {
+      final Duration timeout => _BeakIdleLock(timeout: timeout, child: shell),
+      null => shell,
+    };
+  }
+}
+
+/// Locks the panel to `/lock` after [timeout] of no pointer activity inside
+/// the shell. Any pointer event resets the countdown; the timer is torn down
+/// when the shell unmounts (e.g. once navigation reaches the lock screen), so
+/// it never fires in a loop.
+class _BeakIdleLock extends HookWidget {
+  const _BeakIdleLock({required this.timeout, required this.child});
+
+  final Duration timeout;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final router = GoRouter.of(context);
+    final reset = useRef<VoidCallback>(() {});
+
+    useEffect(() {
+      Timer? timer;
+      void schedule() {
+        timer?.cancel();
+        timer = Timer(timeout, () => router.go('/lock'));
+      }
+
+      // Keyboard events travel the focus pipeline, not the pointer pipeline
+      // — without this hook, typing continuously in a form still locks the
+      // panel mid-keystroke and destroys the unsaved input.
+      bool onKey(KeyEvent event) {
+        schedule();
+        return false;
+      }
+
+      reset.value = schedule;
+      schedule();
+      HardwareKeyboard.instance.addHandler(onKey);
+      return () {
+        HardwareKeyboard.instance.removeHandler(onKey);
+        timer?.cancel();
+      };
+    }, [timeout, router]);
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => reset.value(),
+      onPointerMove: (_) => reset.value(),
+      onPointerSignal: (_) => reset.value(),
+      child: child,
+    );
+  }
 }

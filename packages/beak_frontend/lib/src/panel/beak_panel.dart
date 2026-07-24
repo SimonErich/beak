@@ -8,6 +8,7 @@ import 'package:obers_ui/obers_ui.dart';
 import '../di/beak_locator.dart';
 import 'beak_panel_config.dart';
 import 'beak_router.dart';
+import 'beak_theme_controller.dart';
 
 /// The Beak admin panel: give it a [BeakPanelConfig] and it stands up the
 /// whole app — obers_ui theming, a go_router over every resource, the
@@ -60,12 +61,17 @@ class BeakPanel extends HookWidget {
       return createBeakRouter(config);
     }, [config]);
     useEffect(() => router.dispose, [router]);
-    return OiApp.router(
-      routerConfig: router,
-      title: config.title,
-      theme: config.theme ?? OiThemeData.light(),
-      darkTheme: config.darkTheme ?? OiThemeData.dark(),
-      debugShowCheckedModeBanner: false,
+    final themeController = beakLocator<BeakThemeController>();
+    return ValueListenableBuilder<OiThemeMode>(
+      valueListenable: themeController,
+      builder: (context, themeMode, _) => OiApp.router(
+        routerConfig: router,
+        title: config.title,
+        theme: config.theme ?? OiThemeData.light(),
+        darkTheme: config.darkTheme ?? OiThemeData.dark(),
+        themeMode: themeMode,
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }

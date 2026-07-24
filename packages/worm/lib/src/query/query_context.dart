@@ -22,6 +22,8 @@ final class QueryContext<T extends Model> {
     this.primaryKey = 'id',
     this.globalScopes = const <GlobalScope<Model>>[],
     this.relations = const <String, Relation<Model, Model>>{},
+    this.relationsByTable =
+        const <String, Map<String, Relation<Model, Model>>>{},
   });
 
   /// Adapter executing the queries.
@@ -41,4 +43,14 @@ final class QueryContext<T extends Model> {
 
   /// Declared relations keyed by name.
   final Map<String, Relation<Model, Model>> relations;
+
+  /// Relations scoped by their owning table, consulted first when the
+  /// eager loader resolves a nested path segment whose owning table is
+  /// known (via the previous segment's [Relation.targetTable]).
+  ///
+  /// This disambiguates graphs where two tables declare the same
+  /// relation name with different targets (e.g. two self-referential
+  /// `parent` relations). Missing entries fall back to the flat
+  /// [relations] map, so existing contexts keep their behavior.
+  final Map<String, Map<String, Relation<Model, Model>>> relationsByTable;
 }

@@ -29,7 +29,7 @@ jobs:
       - name: Checkout obers_ui (sibling path dependency)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.OBERS_UI_REPO || 'marqably/obers_ui' }}
+          repository: ${{ vars.OBERS_UI_REPO || 'SimonErich/obers_ui' }}
           token: ${{ secrets.OBERS_UI_TOKEN || github.token }}
           path: obers_ui
       - name: Set up Flutter
@@ -47,6 +47,12 @@ jobs:
         run: dart pub global activate melos 6.3.3
       - name: Bootstrap
         run: melos bootstrap
+      # melos bootstrap only resolves packages/** and apps/**; the workspace
+      # tooling in tool/ and test/ lives under the root pubspec (dev_dependencies:
+      # test, lints), which `dart analyze` needs pre-resolved (unlike `dart test`
+      # / `dart run`, it does not fetch packages on its own).
+      - name: Pub get (workspace tooling)
+        run: dart pub get
       - name: Analyze (includes material-import guard)
         run: melos run analyze
       - name: Format check
@@ -67,7 +73,7 @@ jobs:
       - name: Checkout obers_ui (sibling path dependency)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.OBERS_UI_REPO || 'marqably/obers_ui' }}
+          repository: ${{ vars.OBERS_UI_REPO || 'SimonErich/obers_ui' }}
           token: ${{ secrets.OBERS_UI_TOKEN || github.token }}
           path: obers_ui
       - name: Set up Flutter

@@ -51,6 +51,9 @@ final class HasOneThroughRelation<Parent extends Model, Child extends Model>
   final Child Function(Map<String, Object?>) hydrateChild;
 
   @override
+  String get targetTable => childTable;
+
+  @override
   Future<RelationLoadResult<Parent>> load(
     DatabaseAdapter adapter,
     List<Parent> parents,

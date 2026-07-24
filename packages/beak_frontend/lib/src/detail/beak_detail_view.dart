@@ -32,29 +32,35 @@ class BeakDetailView extends HookWidget {
   final BeakRecord record;
 
   @override
-  Widget build(BuildContext context) => OiCard(
-    child: OiColumn(
-      breakpoint: context.breakpoint,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final column in model.columns)
-          if (column.visibleOn.contains(BeakContext.detail))
-            OiRow(
+  Widget build(BuildContext context) {
+    final detailColumns = [
+      for (final column in model.columns)
+        if (column.visibleOn.contains(BeakContext.detail)) column,
+    ];
+    return OiCard(
+      title: const OiLabel.h4('Details'),
+      child: OiGrid(
+        breakpoint: context.breakpoint,
+        minColumnWidth: const OiResponsive<double>(240),
+        gap: const OiResponsive<double>(16),
+        children: [
+          for (final column in detailColumns)
+            OiColumn(
               breakpoint: context.breakpoint,
+              gap: const OiResponsive<double>(4),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: 160, child: OiLabel.smallStrong(column.label)),
-                Expanded(
-                  child: renderBeakCell(
-                    context,
-                    column: column,
-                    record: record,
-                    renderContext: BeakContext.detail,
-                  ),
+                OiLabel.caption(column.label),
+                renderBeakCell(
+                  context,
+                  column: column,
+                  record: record,
+                  renderContext: BeakContext.detail,
                 ),
               ],
             ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

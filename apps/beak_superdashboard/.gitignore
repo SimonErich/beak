@@ -1,0 +1,10 @@
+# Dart / Flutter build artifacts
+.dart_tool/
+build/
+coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+*.iml
+.idea/

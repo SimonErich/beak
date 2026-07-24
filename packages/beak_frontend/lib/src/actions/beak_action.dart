@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../data/optimistic.dart';
+import '../overlays/beak_overlays.dart';
 import '../panel/beak_routes.dart';
 
 part 'built_in_actions.dart';
@@ -52,6 +53,10 @@ final class BeakActionContext {
 
   /// Reloads the surface the action ran from (e.g. the list), if any.
   final Future<void> Function()? refresh;
+
+  /// The declarative overlay handle — confirmations, modals, sheets, and
+  /// toasts — bound to this action's [buildContext].
+  BeakOverlays get overlays => BeakOverlays(buildContext);
 }
 
 /// A typed panel action: what it is called, how it renders, and whether it

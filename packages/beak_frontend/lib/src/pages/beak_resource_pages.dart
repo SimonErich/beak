@@ -6,12 +6,16 @@ import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
 import '../actions/beak_action_button.dart';
+import '../blocks/beak_block.dart';
+import '../blocks/beak_block_host.dart';
 import '../data/beak_resource_repository.dart';
 import '../detail/beak_detail_view.dart';
+import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_data_form.dart';
 import '../panel/beak_panel_config.dart';
+import '../panel/beak_resource_view.dart';
 import '../panel/beak_routes.dart';
 import '../table/beak_data_table.dart';
 import '../table/beak_table_action.dart';
@@ -107,6 +111,28 @@ class BeakResourceListPage extends HookWidget {
       spec = spec.withFilter(active);
     }
 
+    final Widget table = BeakDataTable(
+      key: ValueKey((filter.value, generation.value)),
+      model: model,
+      dataSource: dataSource,
+      initialSpec: spec,
+      baseFilter: filter.value,
+      onRowTap: (record) {
+        final Object? id = model.primaryKeyOf(record);
+        if (id != null) {
+          router.go(BeakRoutes.show(model.table, id));
+        }
+      },
+      actions: [
+        rowAction(const BeakViewAction()),
+        rowAction(const BeakEditAction()),
+        for (final action in resource.recordActions) rowAction(action),
+      ],
+      bulkActions: [
+        for (final action in resource.bulkActions) bulkAction(action),
+      ],
+    );
+
     return BeakPageScaffold(
       resource: resource,
       variant: OiResourcePageVariant.list,
@@ -124,27 +150,61 @@ class BeakResourceListPage extends HookWidget {
               filters: resource.filters,
               onChanged: (combined) => filter.value = combined,
             ),
-      child: BeakDataTable(
-        key: ValueKey((filter.value, generation.value)),
-        model: model,
-        dataSource: dataSource,
-        initialSpec: spec,
-        baseFilter: filter.value,
-        onRowTap: (record) {
-          final Object? id = model.primaryKeyOf(record);
-          if (id != null) {
-            router.go(BeakRoutes.show(model.table, id));
-          }
-        },
-        actions: [
-          rowAction(const BeakViewAction()),
-          rowAction(const BeakEditAction()),
-          for (final action in resource.recordActions) rowAction(action),
-        ],
-        bulkActions: [
-          for (final action in resource.bulkActions) bulkAction(action),
-        ],
-      ),
+      child: resource.viewModes.length <= 1
+          ? table
+          : _ViewModeSwitcher(
+              viewModes: resource.viewModes,
+              model: model,
+              table: table,
+            ),
+    );
+  }
+}
+
+/// The list page's view-mode switcher: an `OiSegmentedControl` over a
+/// resource's [viewModes], rendering the selected mode's block (or the
+/// full [table] for the table view) beneath it.
+class _ViewModeSwitcher extends HookWidget {
+  const _ViewModeSwitcher({
+    required this.viewModes,
+    required this.model,
+    required this.table,
+  });
+
+  final List<BeakResourceView> viewModes;
+  final BeakModel model;
+  final Widget table;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = useState(0);
+    final int index = selected.value.clamp(0, viewModes.length - 1);
+    final BeakResourceView current = viewModes[index];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: OiSegmentedControl<int>(
+            segments: [
+              for (var i = 0; i < viewModes.length; i++)
+                OiSegment(
+                  value: i,
+                  label: viewModes[i].label,
+                  icon: viewModes[i].icon,
+                ),
+            ],
+            selected: index,
+            onChanged: (value) => selected.value = value,
+          ),
+        ),
+        Expanded(
+          child: switch (current) {
+            BeakTableView() => table,
+            _ => BeakBlockHost(block: current.build(model)),
+          },
+        ),
+      ],
     );
   }
 }
@@ -228,21 +288,30 @@ class BeakResourceShowPage extends HookWidget {
           description: error.message,
         ),
         (final BeakRecord value, _) => SingleChildScrollView(
-          child: OiColumn(
-            breakpoint: context.breakpoint,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              BeakDetailView(model: model, record: value),
-              for (final relationship in model.relationships)
-                if (relationship.cardinality == BeakRelationCardinality.many)
-                  BeakRelationManager(
-                    parentModel: model,
-                    parentId: recordId,
-                    relationship: relationship,
-                    dataSource: dataSource,
-                  ),
-            ],
-          ),
+          child: switch (resource.detail) {
+            // A resource may declare a bespoke, record-bound layout; render it
+            // inside the loaded record's scope so its field blocks resolve.
+            final BeakBlock layout => BeakRecordScope(
+              model: model,
+              record: value,
+              child: BeakBlockHost(block: layout),
+            ),
+            null => OiColumn(
+              breakpoint: context.breakpoint,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BeakDetailView(model: model, record: value),
+                for (final relationship in model.relationships)
+                  if (relationship.cardinality == BeakRelationCardinality.many)
+                    BeakRelationManager(
+                      parentModel: model,
+                      parentId: recordId,
+                      relationship: relationship,
+                      dataSource: dataSource,
+                    ),
+              ],
+            ),
+          },
         ),
       },
     );
@@ -275,6 +344,8 @@ class BeakResourceCreatePage extends HookWidget {
       child: BeakDataForm(
         model: resource.model,
         dataSource: dataSource,
+        steps: resource.formSteps,
+        layout: resource.formLayout,
         onSaved: (_) => router.go(BeakRoutes.list(resource.model.table)),
       ),
     );
@@ -312,6 +383,8 @@ class BeakResourceEditPage extends HookWidget {
         model: resource.model,
         dataSource: dataSource,
         recordId: recordId,
+        steps: resource.formSteps,
+        layout: resource.formLayout,
         onSaved: (_) =>
             router.go(BeakRoutes.show(resource.model.table, recordId)),
       ),

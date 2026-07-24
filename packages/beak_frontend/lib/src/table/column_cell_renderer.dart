@@ -118,13 +118,55 @@ Widget renderBeakCell(
   };
 }
 
+/// The formatted display text of [column]'s [raw] value for text-shaped
+/// intents (number, currency, date, relative date, plain text) — the same
+/// formatting [renderBeakCell] applies, exposed for surfaces that need a
+/// string rather than a widget (invoice totals, inbox timestamps, …).
+String beakCellText(
+  BeakColumn column,
+  Object? raw, {
+  BeakContext renderContext = BeakContext.detail,
+  DateTime Function()? now,
+}) {
+  if (raw == null) {
+    return '—';
+  }
+  return switch (column.intentFor(renderContext)) {
+    BeakRenderIntent.number => _numberText(column, raw),
+    BeakRenderIntent.currency => _currencyText(column, raw),
+    BeakRenderIntent.date => _dateText(column, raw),
+    BeakRenderIntent.relativeDate => _relativeText(
+      raw,
+      (now ?? DateTime.now)(),
+    ),
+    _ => raw.toString(),
+  };
+}
+
+/// Coerces a wire value to a number when possible: Postgres numeric/decimal
+/// columns arrive over HTTP as JSON strings, so string decimals must format
+/// exactly like native nums.
+num? _asNum(Object raw) => switch (raw) {
+  final num number => number,
+  final String text => num.tryParse(text),
+  _ => null,
+};
+
+/// Coerces a wire value to a [DateTime] when possible, parsing ISO strings.
+DateTime? _asDateTime(Object raw) => switch (raw) {
+  final DateTime value => value,
+  final String text => DateTime.tryParse(text),
+  _ => null,
+};
+
 /// Formats a numeric cell: decimal columns honor their configured
 /// precision (matching the CSV export), everything else renders raw.
-String _numberText(BeakColumn column, Object raw) => switch ((column, raw)) {
-  (BeakDecimalColumn(:final precision), final num number) =>
-    number.toStringAsFixed(precision),
-  _ => raw.toString(),
-};
+String _numberText(BeakColumn column, Object raw) =>
+    switch ((column, _asNum(raw))) {
+      (BeakDecimalColumn(:final precision), final num number) =>
+        number.toStringAsFixed(precision),
+      _ => raw.toString(),
+    };
 
 String _currencyText(BeakColumn column, Object raw) {
   final (int precision, String prefix, String suffix) = switch (column) {
@@ -135,9 +177,9 @@ String _currencyText(BeakColumn column, Object raw) {
     ),
     _ => (2, '', ''),
   };
-  final String amount = switch (raw) {
+  final String amount = switch (_asNum(raw)) {
     final num number => number.toStringAsFixed(precision),
-    final Object other => other.toString(),
+    null => raw.toString(),
   };
   return '$prefix$amount$suffix';
 }
@@ -174,7 +216,8 @@ Widget _booleanBadge(BeakColumn column, Object raw) {
 }
 
 String _dateText(BeakColumn column, Object raw) {
-  if (raw is! DateTime) {
+  final DateTime? instant = _asDateTime(raw);
+  if (instant == null) {
     return raw.toString();
   }
   final BeakDateFormat format = switch (column) {
@@ -182,19 +225,21 @@ String _dateText(BeakColumn column, Object raw) {
     _ => BeakDateFormat.standard,
   };
   String two(int part) => part.toString().padLeft(2, '0');
-  final String date = '${raw.year}-${two(raw.month)}-${two(raw.day)}';
-  final String time = '${two(raw.hour)}:${two(raw.minute)}';
+  final String date =
+      '${instant.year}-${two(instant.month)}-${two(instant.day)}';
+  final String time = '${two(instant.hour)}:${two(instant.minute)}';
   return switch (format) {
     BeakDateFormat.dateOnly => date,
     BeakDateFormat.timeOnly => time,
-    BeakDateFormat.iso => raw.toIso8601String(),
+    BeakDateFormat.iso => instant.toIso8601String(),
     BeakDateFormat.standard || BeakDateFormat.relative => '$date $time',
   };
 }
 
-String _relativeText(Object raw, DateTime now) {
-  if (raw is! DateTime) {
-    return raw.toString();
+String _relativeText(Object rawValue, DateTime now) {
+  final DateTime? raw = _asDateTime(rawValue);
+  if (raw == null) {
+    return rawValue.toString();
   }
   final Duration elapsed = now.difference(raw);
   if (elapsed.isNegative) {

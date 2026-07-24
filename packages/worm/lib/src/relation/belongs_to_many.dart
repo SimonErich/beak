@@ -54,6 +54,9 @@ final class BelongsToManyRelation<Parent extends Model, Related extends Model>
   final Related Function(Map<String, Object?>) hydrateRelated;
 
   @override
+  String get targetTable => relatedTable;
+
+  @override
   Future<RelationLoadResult<Parent>> load(
     DatabaseAdapter adapter,
     List<Parent> parents,
