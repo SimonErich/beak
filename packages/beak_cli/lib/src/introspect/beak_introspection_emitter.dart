@@ -1,0 +1,365 @@
+import '../field_spec.dart';
+import '../project/beak_emitters.dart';
+import 'beak_schema_introspection.dart';
+
+/// One generated model file, and anything worth telling the user about it.
+final class IntrospectedSchemaFile {
+  /// Creates a generated file description.
+  const IntrospectedSchemaFile({
+    required this.path,
+    required this.contents,
+    required this.className,
+    required this.table,
+    this.notes = const [],
+  });
+
+  /// Path relative to the output directory.
+  final String path;
+
+  /// The Dart source.
+  final String contents;
+
+  /// The generated schema class name.
+  final String className;
+
+  /// The table it describes.
+  final String table;
+
+  /// Warnings: omitted secrets, guesses worth reviewing.
+  final List<String> notes;
+}
+
+/// Turns an introspected database into the same schema classes a human writes.
+///
+/// Emitting the *authoring* surface rather than a parallel one is the whole
+/// trick: an introspected project is not a second-class citizen with its own
+/// dialect, it is an ordinary Beak project whose first draft happened to be
+/// written by reading a database. Edit the output and it stays yours.
+abstract final class BeakIntrospectionEmitter {
+  /// The schema files [tables] generate.
+  ///
+  /// Pivot tables are folded into the relationships they represent rather
+  /// than becoming resources of their own.
+  static List<IntrospectedSchemaFile> emitAll(List<IntrospectedTable> tables) {
+    final resources = [
+      for (final table in tables)
+        if (!table.isPivot && !introspectionSkipTables.contains(table.name))
+          table,
+    ];
+    final pivots = [
+      for (final table in tables)
+        if (table.isPivot) table,
+    ];
+    final byTable = {for (final table in resources) table.name: table};
+
+    return [
+      for (final table in resources)
+        emit(table, byTable: byTable, pivots: pivots),
+    ];
+  }
+
+  /// The schema file for one [table].
+  static IntrospectedSchemaFile emit(
+    IntrospectedTable table, {
+    required Map<String, IntrospectedTable> byTable,
+    required List<IntrospectedTable> pivots,
+  }) {
+    final notes = <String>[];
+    final String className = classNameOf(table.name);
+    final buffer = StringBuffer()
+      ..writeln("import 'package:beak_core/beak_core.dart';")
+      ..writeln("import 'package:beak_core/schema.dart';");
+
+    final relatedImports = <String>{
+      for (final fk in table.foreignKeys)
+        if (byTable.containsKey(fk.referencedTable))
+          '${fileNameOf(fk.referencedTable)}.dart',
+      for (final pivot in _pivotsFor(table, pivots))
+        if (_otherSideOf(pivot, table) case final String other)
+          if (byTable.containsKey(other)) '${fileNameOf(other)}.dart',
+    }..remove('${fileNameOf(table.name)}.dart');
+    if (relatedImports.isNotEmpty) {
+      buffer.writeln();
+      for (final import in relatedImports.toList()..sort()) {
+        buffer.writeln("import '$import';");
+      }
+    }
+
+    buffer
+      ..writeln()
+      ..writeln("part '${fileNameOf(table.name)}.beak.dart';")
+      ..writeln()
+      ..writeln('/// The ${table.name} resource, read from the database.')
+      ..writeln('@BeakResource(');
+    if (table.name != tableNameOf(className)) {
+      buffer.writeln("  table: '${table.name}',");
+    }
+    if (table.softDeletes) {
+      buffer.writeln('  softDeletes: true,');
+    }
+    if (table.timestamps) {
+      buffer.writeln('  timestamps: true,');
+    }
+    buffer
+      ..writeln(')')
+      ..writeln('final class $className extends BeakSchema {');
+
+    final foreignKeyColumns = {for (final fk in table.foreignKeys) fk.column};
+    var wroteDisplay = false;
+    for (final column in table.columns) {
+      if (column.name == table.primaryKey ||
+          foreignKeyColumns.contains(column.name) ||
+          const {
+            'created_at',
+            'updated_at',
+            'deleted_at',
+          }.contains(column.name)) {
+        continue;
+      }
+      if (introspectionSecretColumns.contains(column.name)) {
+        notes.add(
+          '${table.name}.${column.name} looks like a secret and was omitted; '
+          'add it deliberately if the panel really should show it',
+        );
+        continue;
+      }
+      final String? type = _dartTypeOf(column);
+      if (type == null) {
+        notes.add(
+          '${table.name}.${column.name} is ${column.dataType}, which has no '
+          'Beak column; it was omitted',
+        );
+        continue;
+      }
+      final bool isDisplay = !wroteDisplay && _isDisplayCandidate(column);
+      wroteDisplay = wroteDisplay || isDisplay;
+
+      buffer.writeln('  /// ${_labelOf(column.name)}.');
+      if (isDisplay) {
+        buffer.writeln('  @Display()');
+      }
+      buffer.writeln('  @Column(${_columnOptionsOf(column).join(', ')})');
+      final bool nullable = column.isNullable || column.hasDefault;
+      buffer
+        ..writeln(
+          '  late final $type${nullable ? '?' : ''} '
+          '${camelCaseOf(column.name)};',
+        )
+        ..writeln();
+    }
+
+    for (final fk in table.foreignKeys) {
+      final IntrospectedTable? related = byTable[fk.referencedTable];
+      if (related == null) {
+        notes.add(
+          '${table.name}.${fk.column} points at ${fk.referencedTable}, which '
+          'was not introspected; the relationship was omitted',
+        );
+        continue;
+      }
+      final String field = camelCaseOf(
+        fk.column.endsWith('_id')
+            ? fk.column.substring(0, fk.column.length - 3)
+            : fk.column,
+      );
+      final IntrospectedColumn? column = _columnNamed(table, fk.column);
+      buffer
+        ..writeln('  /// The ${_labelOf(fk.referencedTable)} this belongs to.')
+        ..writeln(
+          '  @BelongsTo('
+          "${fk.column == '${_snake(field)}_id' ? '' : "foreignKey: '${fk.column}'"}"
+          ')',
+        )
+        ..writeln(
+          '  late final ${classNameOf(related.name)}'
+          '${column?.isNullable ?? true ? '?' : ''} $field;',
+        )
+        ..writeln();
+    }
+
+    for (final pivot in _pivotsFor(table, pivots)) {
+      final String? other = _otherSideOf(pivot, table);
+      final IntrospectedTable? related = other == null ? null : byTable[other];
+      if (related == null) {
+        continue;
+      }
+      final String field = camelCaseOf(related.name);
+      buffer
+        ..writeln('  /// The ${_labelOf(related.name)} linked to this record.')
+        ..writeln("  @BelongsToMany(pivotTable: '${pivot.name}')")
+        ..writeln('  late final List<${classNameOf(related.name)}> $field;')
+        ..writeln();
+    }
+
+    buffer.writeln('}');
+
+    return IntrospectedSchemaFile(
+      path: '${fileNameOf(table.name)}.dart',
+      contents: BeakEmitters.format(buffer.toString()),
+      className: className,
+      table: table.name,
+      notes: notes,
+    );
+  }
+
+  /// The `@Column` options a described column implies.
+  static List<String> _columnOptionsOf(IntrospectedColumn column) => [
+    if (_isDisplayCandidate(column) || column.dataType == 'text')
+      'searchable: true',
+    if (_isSortable(column)) 'sortable: true',
+    if (column.enumValues.isNotEmpty || column.dataType == 'boolean')
+      'filterable: true',
+    if (column.maxLength case final int length) 'maxLength: $length',
+    if (_extraRulesOf(column) case final String rules) 'rules: [$rules]',
+  ];
+
+  /// Rules a column name or type implies beyond required-ness.
+  static String? _extraRulesOf(IntrospectedColumn column) {
+    final rules = <String>[];
+    if (column.name.contains('email')) {
+      rules.add('BeakEmail()');
+    }
+    if (RegExp(r'url|link|website').hasMatch(column.name)) {
+      rules.add('BeakUrl()');
+    }
+    if (column.maxLength case final int length) {
+      rules.add('BeakMaxLength($length)');
+    }
+    return rules.isEmpty ? null : rules.join(', ');
+  }
+
+  static bool _isDisplayCandidate(IntrospectedColumn column) =>
+      const {
+        'name',
+        'title',
+        'label',
+        'email',
+        'subject',
+      }.contains(column.name) &&
+      _dartTypeOf(column) == 'String';
+
+  static bool _isSortable(IntrospectedColumn column) => const {
+    'integer',
+    'bigint',
+    'smallint',
+    'numeric',
+    'decimal',
+    'real',
+    'double precision',
+    'timestamp with time zone',
+    'timestamp without time zone',
+    'date',
+  }.contains(column.dataType);
+
+  /// The authoring Dart type a described column maps to, or `null` when Beak
+  /// has no column for it.
+  static String? _dartTypeOf(IntrospectedColumn column) {
+    if (column.enumValues.isNotEmpty) {
+      return classNameOf(column.enumTypeName ?? column.name);
+    }
+    return switch (column.dataType) {
+      'text' => 'BeakText',
+      'character varying' ||
+      'varchar' ||
+      'character' ||
+      'uuid' ||
+      'citext' => 'String',
+      'integer' || 'bigint' || 'smallint' => 'int',
+      'numeric' || 'decimal' || 'real' || 'double precision' => 'double',
+      'boolean' => 'bool',
+      'timestamp with time zone' ||
+      'timestamp without time zone' ||
+      'date' => 'DateTime',
+      'json' || 'jsonb' => 'BeakJson',
+      _ => null,
+    };
+  }
+
+  static IntrospectedColumn? _columnNamed(
+    IntrospectedTable table,
+    String name,
+  ) {
+    for (final column in table.columns) {
+      if (column.name == name) {
+        return column;
+      }
+    }
+    return null;
+  }
+
+  /// Pivot tables one side of which is [table].
+  static List<IntrospectedTable> _pivotsFor(
+    IntrospectedTable table,
+    List<IntrospectedTable> pivots,
+  ) => [
+    for (final pivot in pivots)
+      if (pivot.foreignKeys.any((fk) => fk.referencedTable == table.name))
+        pivot,
+  ];
+
+  /// The table on the far side of [pivot] from [table].
+  static String? _otherSideOf(
+    IntrospectedTable pivot,
+    IntrospectedTable table,
+  ) {
+    for (final fk in pivot.foreignKeys) {
+      if (fk.referencedTable != table.name) {
+        return fk.referencedTable;
+      }
+    }
+    return null;
+  }
+
+  static String _labelOf(String name) {
+    final words = name.split('_').where((word) => word.isNotEmpty);
+    return words
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+  }
+
+  static String _snake(String camel) => camel
+      .replaceAllMapped(
+        RegExp('([a-z0-9])([A-Z])'),
+        (match) => '${match[1]}_${match[2]}',
+      )
+      .toLowerCase();
+}
+
+/// `order_items` -> `OrderItem`, the conventional schema class name.
+String classNameOf(String table) {
+  final singular = _singularOf(table);
+  return singular
+      .split('_')
+      .where((word) => word.isNotEmpty)
+      .map((word) => word[0].toUpperCase() + word.substring(1))
+      .join();
+}
+
+/// `order_items` -> `order_item`, the conventional file name.
+String fileNameOf(String table) => _singularOf(table);
+
+/// `created_at` -> `createdAt`.
+String camelCaseOf(String snake) {
+  final parts = snake.split('_').where((part) => part.isNotEmpty).toList();
+  if (parts.isEmpty) {
+    return snake;
+  }
+  return parts.first +
+      parts
+          .skip(1)
+          .map((part) => part[0].toUpperCase() + part.substring(1))
+          .join();
+}
+
+String _singularOf(String table) {
+  if (table.endsWith('ies')) {
+    return '${table.substring(0, table.length - 3)}y';
+  }
+  if (table.endsWith('ses') ||
+      table.endsWith('xes') ||
+      table.endsWith('ches') ||
+      table.endsWith('shes')) {
+    return table.substring(0, table.length - 2);
+  }
+  return table.endsWith('s') ? table.substring(0, table.length - 1) : table;
+}

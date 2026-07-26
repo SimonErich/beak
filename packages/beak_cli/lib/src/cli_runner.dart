@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
 import 'commands/doctor_command.dart';
+import 'commands/introspect_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
 import 'project/beak_emitters.dart';
@@ -161,6 +162,7 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(CreateCommand(environment))
       ..addCommand(PrepareCommand(environment))
       ..addCommand(DevCommand(environment))
+      ..addCommand(IntrospectCommand(environment))
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
