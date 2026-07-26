@@ -213,9 +213,47 @@ final class SqliteCompiler {
     final ifNotExists = descriptor.ifNotExists ? 'IF NOT EXISTS ' : '';
     final defs = <String>[
       for (final column in descriptor.columns) _columnDefinition(column),
+      // Unique indexes and foreign keys become table constraints rather than
+      // separate statements, so the table is correct the moment it exists.
+      for (final index in descriptor.indexes)
+        if (index.unique) _uniqueConstraint(index),
+      for (final key in descriptor.foreignKeys) _foreignKeyConstraint(key),
     ];
     return 'CREATE TABLE $ifNotExists$table (${defs.join(', ')})';
   }
+
+  String _uniqueConstraint(SchemaIndex index) {
+    final columns = index.columns.map(_quoteIdent).join(', ');
+    return 'CONSTRAINT ${_quoteIdent(index.name)} UNIQUE ($columns)';
+  }
+
+  String _foreignKeyConstraint(SchemaForeignKey key) {
+    final locals = key.columns.map(_quoteIdent).join(', ');
+    final remotes = key.referencedColumns.map(_quoteIdent).join(', ');
+    final buffer = StringBuffer();
+    if (key.name case final String name) {
+      buffer.write('CONSTRAINT ${_quoteIdent(name)} ');
+    }
+    buffer
+      ..write('FOREIGN KEY ($locals) REFERENCES ')
+      ..write('${_quoteIdent(key.referencedTable)} ($remotes)')
+      ..write(' ON DELETE ${_onDeleteSql(key.onDelete)}');
+    return buffer.toString();
+  }
+
+  /// The `ON DELETE` action for [onDelete].
+  ///
+  /// [OnDelete.ormCascade] deliberately renders as `NO ACTION`: the ORM walks
+  /// and deletes the children itself so lifecycle hooks and soft-delete
+  /// scopes run, and a database-level cascade would remove the rows behind
+  /// its back.
+  String _onDeleteSql(OnDelete onDelete) => switch (onDelete) {
+    OnDelete.cascade => 'CASCADE',
+    OnDelete.restrict => 'RESTRICT',
+    OnDelete.setNull => 'SET NULL',
+    OnDelete.setDefault => 'SET DEFAULT',
+    OnDelete.noAction || OnDelete.ormCascade => 'NO ACTION',
+  };
 
   String _columnDefinition(SchemaColumn column) {
     final buffer = StringBuffer(_quoteIdent(column.name))

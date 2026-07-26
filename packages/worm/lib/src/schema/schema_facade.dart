@@ -7,6 +7,8 @@ import '../adapter/database_adapter.dart';
 import '../query/schema_descriptor.dart';
 import 'blueprint.dart';
 import 'column_definition.dart';
+import 'foreign_key_definition.dart';
+import 'index_definition.dart';
 
 /// Fluent schema facade exposed to `Migration.upSchema` and
 /// `Migration.downSchema`.
@@ -76,12 +78,16 @@ final class Schema {
       SchemaDescriptor.createTable(
         table: blueprint.tableName,
         columns: _toSchemaColumns(blueprint.table.columns),
+        indexes: _toSchemaIndexes(blueprint.table.indexes),
+        foreignKeys: _toSchemaForeignKeys(blueprint.table.foreignKeys),
       );
 
   SchemaDescriptor _toAlterDescriptor(Blueprint blueprint) => SchemaDescriptor(
     table: blueprint.tableName,
     operation: SchemaOperation.alter,
     columns: _toSchemaColumns(blueprint.table.columns),
+    indexes: _toSchemaIndexes(blueprint.table.indexes),
+    foreignKeys: _toSchemaForeignKeys(blueprint.table.foreignKeys),
   );
 
   List<SchemaColumn> _toSchemaColumns(List<ColumnDefinition> columns) =>
@@ -95,4 +101,27 @@ final class Schema {
             defaultValue: col.defaultValue,
           ),
       ];
+
+  List<SchemaIndex> _toSchemaIndexes(List<IndexDefinition> indexes) =>
+      <SchemaIndex>[
+        for (final index in indexes)
+          SchemaIndex(
+            name: index.name,
+            columns: index.columns,
+            unique: index.unique,
+          ),
+      ];
+
+  List<SchemaForeignKey> _toSchemaForeignKeys(
+    List<ForeignKeyDefinition> foreignKeys,
+  ) => <SchemaForeignKey>[
+    for (final key in foreignKeys)
+      SchemaForeignKey(
+        columns: key.columns,
+        referencedTable: key.referencedTable,
+        referencedColumns: key.referencedColumns,
+        onDelete: key.onDelete,
+        name: key.name,
+      ),
+  ];
 }

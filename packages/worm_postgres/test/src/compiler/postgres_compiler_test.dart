@@ -240,6 +240,160 @@ void main() {
   });
 
   group('PostgresCompiler — DDL', () {
+    test('create table renders foreign keys as table constraints', () {
+      // Previously dropped: the descriptor carried no foreign keys and the
+      // builder rendered columns only, so every table.foreign(...) in every
+      // migration silently vanished against a real database.
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'products',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'id', type: ColumnType.uuid, isPrimaryKey: true),
+            SchemaColumn(
+              name: 'category_id',
+              type: ColumnType.uuid,
+              nullable: true,
+            ),
+          ],
+          foreignKeys: <SchemaForeignKey>[
+            SchemaForeignKey(
+              columns: <String>['category_id'],
+              referencedTable: 'categories',
+              referencedColumns: <String>['id'],
+              onDelete: OnDelete.setNull,
+            ),
+          ],
+        ),
+      );
+      expect(
+        result.sql,
+        'CREATE TABLE "products"'
+        ' ("id" UUID NOT NULL PRIMARY KEY,'
+        ' "category_id" UUID,'
+        ' FOREIGN KEY ("category_id") REFERENCES "categories" ("id")'
+        ' ON DELETE SET NULL)',
+      );
+    });
+
+    test('create table renders a unique index as a constraint', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'product_tag',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'product_id', type: ColumnType.uuid),
+            SchemaColumn(name: 'tag_id', type: ColumnType.uuid),
+          ],
+          indexes: <SchemaIndex>[
+            SchemaIndex(
+              name: 'product_tag_pair_idx',
+              columns: <String>['product_id', 'tag_id'],
+              unique: true,
+            ),
+          ],
+        ),
+      );
+      expect(
+        result.sql,
+        contains(
+          'CONSTRAINT "product_tag_pair_idx" UNIQUE ("product_id", "tag_id")',
+        ),
+      );
+    });
+
+    test('a non-unique index is not inlined as a constraint', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'products',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'status', type: ColumnType.string),
+          ],
+          indexes: <SchemaIndex>[
+            SchemaIndex(
+              name: 'products_status_idx',
+              columns: <String>['status'],
+            ),
+          ],
+        ),
+      );
+      expect(result.sql, isNot(contains('products_status_idx')));
+    });
+
+    test('a named foreign key keeps its constraint name', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'orders',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'user_id', type: ColumnType.uuid),
+          ],
+          foreignKeys: <SchemaForeignKey>[
+            SchemaForeignKey(
+              columns: <String>['user_id'],
+              referencedTable: 'users',
+              referencedColumns: <String>['id'],
+              name: 'orders_user_fk',
+            ),
+          ],
+        ),
+      );
+      expect(result.sql, contains('CONSTRAINT "orders_user_fk" FOREIGN KEY'));
+    });
+
+    test('composite foreign keys align both column lists', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'lines',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'order_id', type: ColumnType.uuid),
+            SchemaColumn(name: 'tenant_id', type: ColumnType.uuid),
+          ],
+          foreignKeys: <SchemaForeignKey>[
+            SchemaForeignKey(
+              columns: <String>['order_id', 'tenant_id'],
+              referencedTable: 'orders',
+              referencedColumns: <String>['id', 'tenant_id'],
+            ),
+          ],
+        ),
+      );
+      expect(
+        result.sql,
+        contains(
+          'FOREIGN KEY ("order_id", "tenant_id") REFERENCES '
+          '"orders" ("id", "tenant_id")',
+        ),
+      );
+    });
+
+    test('every OnDelete action renders, ormCascade as NO ACTION', () {
+      String sqlFor(OnDelete action) => compiler
+          .compileDdl(
+            SchemaDescriptor.createTable(
+              table: 'children',
+              columns: const <SchemaColumn>[
+                SchemaColumn(name: 'parent_id', type: ColumnType.uuid),
+              ],
+              foreignKeys: <SchemaForeignKey>[
+                SchemaForeignKey(
+                  columns: const <String>['parent_id'],
+                  referencedTable: 'parents',
+                  referencedColumns: const <String>['id'],
+                  onDelete: action,
+                ),
+              ],
+            ),
+          )
+          .sql;
+
+      expect(sqlFor(OnDelete.cascade), contains('ON DELETE CASCADE'));
+      expect(sqlFor(OnDelete.restrict), contains('ON DELETE RESTRICT'));
+      expect(sqlFor(OnDelete.setNull), contains('ON DELETE SET NULL'));
+      expect(sqlFor(OnDelete.setDefault), contains('ON DELETE SET DEFAULT'));
+      expect(sqlFor(OnDelete.noAction), contains('ON DELETE NO ACTION'));
+      // The ORM walks the children itself so hooks and scopes run; a
+      // database cascade would delete them behind its back.
+      expect(sqlFor(OnDelete.ormCascade), contains('ON DELETE NO ACTION'));
+    });
+
     test('create table with typed columns emits CREATE TABLE', () {
       final result = compiler.compileDdl(
         const SchemaDescriptor.createTable(

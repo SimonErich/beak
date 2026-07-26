@@ -2,6 +2,7 @@
 library;
 
 import '../schema/column_type.dart';
+import '../schema/on_delete.dart';
 
 /// The type of schema operation.
 enum SchemaOperation {
@@ -34,6 +35,7 @@ base class SchemaDescriptor {
     required this.operation,
     this.columns = const <SchemaColumn>[],
     this.indexes = const <SchemaIndex>[],
+    this.foreignKeys = const <SchemaForeignKey>[],
     this.ifNotExists = false,
     this.ifExists = false,
   });
@@ -43,12 +45,14 @@ base class SchemaDescriptor {
     required String table,
     List<SchemaColumn> columns = const <SchemaColumn>[],
     List<SchemaIndex> indexes = const <SchemaIndex>[],
+    List<SchemaForeignKey> foreignKeys = const <SchemaForeignKey>[],
     bool ifNotExists = false,
   }) : this(
          table: table,
          operation: SchemaOperation.create,
          columns: columns,
          indexes: indexes,
+         foreignKeys: foreignKeys,
          ifNotExists: ifNotExists,
        );
 
@@ -74,6 +78,12 @@ base class SchemaDescriptor {
   /// Index definitions for create/alter.
   final List<SchemaIndex> indexes;
 
+  /// Foreign-key constraints for create/alter.
+  ///
+  /// Adapters that cannot express referential integrity (the in-memory one,
+  /// Mongo) ignore these; SQL adapters render them as table constraints.
+  final List<SchemaForeignKey> foreignKeys;
+
   /// Whether `IF NOT EXISTS` semantics apply.
   final bool ifNotExists;
 
@@ -89,6 +99,10 @@ base class SchemaDescriptor {
       'columns': <Map<String, Object?>>[for (final col in columns) col.toMap()],
     if (indexes.isNotEmpty)
       'indexes': <Map<String, Object?>>[for (final idx in indexes) idx.toMap()],
+    if (foreignKeys.isNotEmpty)
+      'foreignKeys': <Map<String, Object?>>[
+        for (final key in foreignKeys) key.toMap(),
+      ],
   };
 }
 
@@ -151,5 +165,45 @@ final class SchemaIndex {
     'name': name,
     'columns': columns,
     if (unique) 'unique': unique,
+  };
+}
+
+/// An abstract foreign-key constraint in a schema.
+///
+/// The adapter-neutral counterpart of the schema builder's
+/// `ForeignKeyDefinition`: it carries what every SQL dialect needs to render
+/// a constraint, and nothing dialect-specific.
+final class SchemaForeignKey {
+  /// Creates a [SchemaForeignKey].
+  const SchemaForeignKey({
+    required this.columns,
+    required this.referencedTable,
+    required this.referencedColumns,
+    this.onDelete = OnDelete.restrict,
+    this.name,
+  });
+
+  /// Local columns carrying the key, aligned with [referencedColumns].
+  final List<String> columns;
+
+  /// The parent table.
+  final String referencedTable;
+
+  /// Parent columns, aligned with [columns] by index.
+  final List<String> referencedColumns;
+
+  /// Referential action on parent deletion.
+  final OnDelete onDelete;
+
+  /// Explicit constraint name, when one was given.
+  final String? name;
+
+  /// Serializes to a map for golden snapshots.
+  Map<String, Object?> toMap() => <String, Object?>{
+    'columns': columns,
+    'referencedTable': referencedTable,
+    'referencedColumns': referencedColumns,
+    'onDelete': onDelete.name,
+    if (name != null) 'name': name,
   };
 }
