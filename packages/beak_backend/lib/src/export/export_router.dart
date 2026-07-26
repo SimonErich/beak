@@ -5,6 +5,7 @@ import 'package:shelf_router/shelf_router.dart';
 import '../auth/beak_policy.dart';
 import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
+import '../service/beak_resource_service.dart';
 import 'csv_export_service.dart';
 
 /// The thin handler behind one model's `POST /export`: policy check, spec
@@ -39,8 +40,16 @@ final class BeakExportHandlers {
       await readJsonObject(request),
       BeakQuerySpec.fromJson,
     );
+    // Export is a query that returns a file. A row scope that held for
+    // `/query` but not here would be the easiest bypass in the API.
     return Response.ok(
-      await service.exportCsv(model.table, spec),
+      await service.exportCsv(
+        model.table,
+        BeakResourceService.scopedQuery(
+          spec,
+          beakRowScope(policy, beakPrincipal(request), model.table),
+        ),
+      ),
       headers: {
         'content-type': 'text/csv; charset=utf-8',
         'content-disposition': 'attachment; filename="${model.table}.csv"',

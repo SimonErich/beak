@@ -312,6 +312,51 @@ void runBeakDataSourceContract(
           final page = await source.query(model.query(withTrashed: true));
           expect(page.items.map(model.primaryKeyOf), isNot(contains(id)));
         });
+
+        test(
+          'restore brings a soft-deleted record back into the query',
+          () async {
+            final Object id = idOf(seeded.first);
+            await source.delete(model.table, id);
+            expect(await source.getOne(model.table, id), isNull);
+
+            final restored = await source.restore(model.table, id);
+
+            expect(model.primaryKeyOf(restored), id);
+            expect(await source.getOne(model.table, id), isNotNull);
+            final page = await source.query(model.query());
+            expect(page.items.map(model.primaryKeyOf), contains(id));
+          },
+        );
+
+        test(
+          'restoring a live record is not found, not a silent success',
+          () async {
+            expect(
+              () => source.restore(model.table, idOf(seeded.first)),
+              throwsA(isA<BeakNotFoundException>()),
+            );
+          },
+        );
+
+        test('restoring an unknown id is not found', () async {
+          expect(
+            () => source.restore(model.table, 'no-such-id'),
+            throwsA(isA<BeakNotFoundException>()),
+          );
+        });
+      } else {
+        test(
+          'restore is rejected on a model that does not soft-delete',
+          () async {
+            // Reporting success would claim a row came back that was never
+            // recoverable in the first place.
+            expect(
+              () => source.restore(model.table, idOf(seeded.first)),
+              throwsA(isA<BeakValidationException>()),
+            );
+          },
+        );
       }
     });
 

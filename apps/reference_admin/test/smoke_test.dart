@@ -163,6 +163,10 @@ final class _EmptyDataSource implements BeakDataSource {
   Future<void> delete(String table, Object id, {bool force = false}) async {}
 
   @override
+  Future<BeakRecord> restore(String table, Object id) async =>
+      const BeakRecord(values: {});
+
+  @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async =>
       const [];
 

@@ -13,6 +13,7 @@ import '../service/validation_service.dart';
 import '../uploads/upload_router.dart';
 import '../uploads/upload_service.dart';
 import 'crud_handlers.dart';
+import 'health_router.dart';
 
 /// The generated routes of one model's REST surface, relative to its mount
 /// point (`/api/{table}`).
@@ -34,6 +35,7 @@ Router beakResourceRouter(
     ..get('/<id>', handlers.getOne)
     ..patch('/<id>', handlers.update)
     ..delete('/<id>', handlers.delete)
+    ..post('/<id>/restore', handlers.restore)
     ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
     ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
 }
@@ -77,6 +79,12 @@ Handler beakApiRouter({
     notFoundHandler: (Request request) => throw BeakNotFoundException(
       'No handler for ${request.method} /${request.url.path}.',
     ),
+  );
+  // Outside `/api`, and mounted first: a platform's probes must not be
+  // subject to the auth middleware that guards the API.
+  router.mount(
+    '/',
+    beakHealthRouter(registry: registry, dataSource: dataSource).call,
   );
   if (auth != null) {
     router.mount('/api/auth', beakAuthRouter(auth).call);

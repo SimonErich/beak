@@ -230,6 +230,10 @@ final class _FailingDataSource implements BeakDataSource {
       throw UnimplementedError();
 
   @override
+  Future<BeakRecord> restore(String table, Object id) =>
+      throw UnimplementedError();
+
+  @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) =>
       throw UnimplementedError();
 

@@ -310,6 +310,15 @@ base class FakeDataSource implements BeakDataSource {
     _recordsByTable[table]?.remove(id);
   }
 
+  /// Every `restore` invocation, as `(table, id)` pairs.
+  final List<(String, Object)> restoreCalls = [];
+
+  @override
+  Future<BeakRecord> restore(String table, Object id) async {
+    restoreCalls.add((table, id));
+    return _recordsByTable[table]?[id] ?? const BeakRecord(values: {});
+  }
+
   @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
     batchGetCalls.add((table, ids));

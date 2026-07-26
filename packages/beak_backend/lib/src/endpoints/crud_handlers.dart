@@ -35,6 +35,14 @@ final class BeakCrudHandlers {
   /// The authorization gate consulted before every operation.
   final BeakPolicy policy;
 
+  /// The row scope [policy] applies to this model for [request]'s principal.
+  ///
+  /// Read once per handler and handed to the service, which is where it is
+  /// enforced — a handler that forgot to pass it would be a hole, so no
+  /// handler decides whether to.
+  BeakFilter? _scope(Request request) =>
+      beakRowScope(policy, beakPrincipal(request), service.model.table);
+
   /// `POST /query` — runs a posted [BeakQuerySpec].
   Future<Response> query(Request request) async {
     _requireView(request);
@@ -42,7 +50,7 @@ final class BeakCrudHandlers {
       await readJsonObject(request),
       BeakQuerySpec.fromJson,
     );
-    final page = await service.query(spec);
+    final page = await service.query(spec, scope: _scope(request));
     return _json(200, page.toJson((record) => record.toJson()));
   }
 
@@ -53,14 +61,14 @@ final class BeakCrudHandlers {
       await readJsonObject(request),
       BeakAggregateSpec.fromJson,
     );
-    final num value = await service.aggregate(spec);
+    final num value = await service.aggregate(spec, scope: _scope(request));
     return _json(200, {'value': value});
   }
 
   /// `GET /<id>` — fetches one record.
   Future<Response> getOne(Request request, String id) async {
     _requireView(request);
-    final record = await service.getOne(_coerceId(id));
+    final record = await service.getOne(_coerceId(id), scope: _scope(request));
     return _json(200, record.toJson());
   }
 
@@ -85,7 +93,12 @@ final class BeakCrudHandlers {
       'update',
     );
     final record = await _readRecord(request);
-    final updated = await service.update(recordId, record);
+    final updated = await service.update(
+      recordId,
+      record,
+      scope: _scope(request),
+      expectedUpdatedAt: _expectedUpdatedAt(request),
+    );
     return _json(200, updated.toJson());
   }
 
@@ -98,15 +111,53 @@ final class BeakCrudHandlers {
       'delete',
     );
     final force = request.url.queryParameters['force'] == 'true';
-    await service.delete(recordId, force: force);
+    await service.delete(recordId, force: force, scope: _scope(request));
     return Response(204);
+  }
+
+  /// The `updated_at` an `If-Unmodified-Since` header claims the caller read.
+  ///
+  /// Opt-in: a request that sends no header updates unconditionally, which is
+  /// what a script or a one-writer panel wants. The header is the HTTP way of
+  /// spelling "only if nobody beat me to it", so a browser cache, a proxy and
+  /// a human all read it the same way.
+  DateTime? _expectedUpdatedAt(Request request) {
+    final String? raw = request.headers['if-unmodified-since'];
+    if (raw == null) {
+      return null;
+    }
+    final DateTime? parsed = DateTime.tryParse(raw);
+    if (parsed == null) {
+      throw BeakValidationException(
+        '"if-unmodified-since" must be an ISO-8601 timestamp, got "$raw".',
+      );
+    }
+    return parsed;
+  }
+
+  /// `POST /<id>/restore` — clears a record's soft-delete marker.
+  Future<Response> restore(Request request, String id) async {
+    final Object recordId = _coerceId(id);
+    // Restoring is an update of the row's lifecycle, so it needs update
+    // rights rather than delete rights: bringing a record back is not the
+    // inverse permission of removing it.
+    _require(
+      request,
+      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      'restore',
+    );
+    final restored = await service.restore(recordId, scope: _scope(request));
+    return _json(200, restored.toJson());
   }
 
   /// `POST /batch` — fetches the records named by `{"ids": [...]}` in one
   /// query.
   Future<Response> batch(Request request) async {
     _requireView(request);
-    final records = await service.batchGet(await _readIds(request));
+    final records = await service.batchGet(
+      await _readIds(request),
+      scope: _scope(request),
+    );
     return _json(200, [for (final record in records) record.toJson()]);
   }
 
@@ -122,7 +173,12 @@ final class BeakCrudHandlers {
       policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
       'update',
     );
-    await service.attach(recordId, relationKey, await _readIds(request));
+    await service.attach(
+      recordId,
+      relationKey,
+      await _readIds(request),
+      scope: _scope(request),
+    );
     return Response(204);
   }
 
@@ -138,7 +194,12 @@ final class BeakCrudHandlers {
       policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
       'update',
     );
-    await service.detach(recordId, relationKey, await _readIds(request));
+    await service.detach(
+      recordId,
+      relationKey,
+      await _readIds(request),
+      scope: _scope(request),
+    );
     return Response(204);
   }
 

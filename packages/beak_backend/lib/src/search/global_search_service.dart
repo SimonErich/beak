@@ -1,5 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 
+import '../service/beak_resource_service.dart';
+
 /// Searches every registered model's `searchable` columns for a term —
 /// the engine behind `GET /api/search`, producing the shared
 /// [BeakSearchHit] wire type from `beak_core`.
@@ -37,6 +39,7 @@ final class GlobalSearchService {
     String term, {
     int perModel = 5,
     List<String>? tables,
+    Map<String, BeakFilter>? scopes,
   }) async {
     final hits = <BeakSearchHit>[];
     for (final model in registry.all) {
@@ -51,9 +54,12 @@ final class GlobalSearchService {
         continue;
       }
       final page = await dataSource.query(
-        BeakQuerySpec(table: model.table)
-            .searching(term, searchableColumns)
-            .paginate(page: 1, perPage: perModel),
+        BeakResourceService.scopedQuery(
+          BeakQuerySpec(table: model.table)
+              .searching(term, searchableColumns)
+              .paginate(page: 1, perPage: perModel),
+          scopes?[model.table],
+        ),
       );
       for (final record in page.items) {
         hits.add(

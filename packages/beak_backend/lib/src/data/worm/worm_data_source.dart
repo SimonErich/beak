@@ -102,6 +102,39 @@ final class WormDataSource implements BeakDataSource {
   }
 
   @override
+  Future<BeakRecord> restore(String table, Object id) async {
+    final model = registry.byTableOrThrow(table);
+    if (!model.softDeletes) {
+      throw BeakValidationException(
+        'Model "$table" does not soft-delete, so there is nothing to restore.',
+      );
+    }
+    final int affected = await _adapter.update(
+      UpdateDescriptor(
+        table: table,
+        values: const {softDeleteColumnKey: null},
+        // Deliberately the trashed rows only: restoring a live record would
+        // report success for something that never happened.
+        where: _primaryKeyPredicate(model, id).and(
+          const LeafNode(
+            Predicate(
+              fieldName: softDeleteColumnKey,
+              operator: Operator.isNotNull,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (affected == 0) {
+      throw BeakNotFoundException(
+        'No soft-deleted record of "$table" with id "$id".',
+      );
+    }
+    return await getOne(table, id) ??
+        (throw BeakNotFoundException(_missingRecord(model, id)));
+  }
+
+  @override
   Future<void> delete(String table, Object id, {bool force = false}) async {
     final model = registry.byTableOrThrow(table);
     final int affected;

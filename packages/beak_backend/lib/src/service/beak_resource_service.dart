@@ -53,23 +53,68 @@ final class BeakResourceService {
   /// The column key the service stamps on create and update.
   static const String updatedAtColumnKey = 'updated_at';
 
-  /// Runs [spec] against the data source.
+  /// Runs [spec] against the data source, narrowed by [scope].
+  ///
+  /// [scope] comes from a [BeakRowPolicy] and is intersected with whatever
+  /// filter the client sent — never replaced by it, and never optional at the
+  /// endpoint's discretion. That is the whole point: the filter in the spec
+  /// is attacker-controlled.
   ///
   /// Throws a [BeakValidationException] when the spec targets another table
   /// than this service's model.
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) {
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec, {BeakFilter? scope}) {
     _requireSpecTargets(spec.table, 'Query');
-    return dataSource.query(spec);
+    return dataSource.query(scopedQuery(spec, scope));
   }
 
-  /// Computes [spec]'s aggregate against the data source.
+  /// Computes [spec]'s aggregate against the data source, narrowed by
+  /// [scope] — so a count cannot report rows a query would not return.
   ///
   /// Throws a [BeakValidationException] when the spec targets another table
   /// than this service's model.
-  Future<num> aggregate(BeakAggregateSpec spec) {
+  Future<num> aggregate(BeakAggregateSpec spec, {BeakFilter? scope}) {
     _requireSpecTargets(spec.table, 'Aggregate');
-    return dataSource.aggregate(spec);
+    return dataSource.aggregate(
+      scope == null
+          ? spec
+          : BeakAggregateSpec.forKey(
+              table: spec.table,
+              function: spec.function,
+              columnKey: spec.columnKey,
+              filter: intersect(spec.filter, scope),
+              withTrashed: spec.withTrashed,
+            ),
+    );
   }
+
+  /// [spec] narrowed by [scope], or [spec] unchanged when there is none.
+  static BeakQuerySpec scopedQuery(BeakQuerySpec spec, BeakFilter? scope) =>
+      scope == null
+      ? spec
+      : BeakQuerySpec(
+          table: spec.table,
+          filter: intersect(spec.filter, scope),
+          sorts: spec.sorts,
+          search: spec.search,
+          relationLoads: spec.relationLoads,
+          pagination: spec.pagination,
+          withTrashed: spec.withTrashed,
+        );
+
+  /// [left] and [right] as one filter, dropping either when it is absent.
+  ///
+  /// Nesting two ANDs would still be correct, but flattening keeps the SQL —
+  /// and anything reading a logged spec — legible.
+  static BeakFilter? intersect(BeakFilter? left, BeakFilter? right) => switch ((
+    left,
+    right,
+  )) {
+    (null, final BeakFilter? only) || (final BeakFilter? only, null) => only,
+    (final BeakFilter a, final BeakFilter b) => BeakAndFilter([
+      if (a case final BeakAndFilter and) ...and.filters else a,
+      if (b case final BeakAndFilter and) ...and.filters else b,
+    ]),
+  };
 
   /// Rejects specs aimed at another table than this service's model — the
   /// one wording every spec-accepting endpoint shares.
@@ -82,14 +127,40 @@ final class BeakResourceService {
     }
   }
 
-  /// The record with primary key [id].
+  /// The record with primary key [id], within [scope].
+  ///
+  /// A record outside the scope reports as missing rather than forbidden:
+  /// telling an unauthorised caller that a record exists is itself a leak,
+  /// and "not found" is the honest answer for a row they cannot address.
   ///
   /// Throws a [BeakNotFoundException] when it does not exist.
-  Future<BeakRecord> getOne(Object id) async =>
-      await dataSource.getOne(model.table, id) ??
+  Future<BeakRecord> getOne(Object id, {BeakFilter? scope}) async =>
+      await _findInScope(id, scope) ??
       (throw BeakNotFoundException(
         'No record of "${model.table}" with id "$id".',
       ));
+
+  /// The record with primary key [id] if [scope] admits it, else `null`.
+  Future<BeakRecord?> _findInScope(Object id, BeakFilter? scope) async {
+    if (scope == null) {
+      return dataSource.getOne(model.table, id);
+    }
+    final page = await dataSource.query(
+      BeakQuerySpec(
+        table: model.table,
+        filter: intersect(
+          BeakFieldFilter.forKey(
+            model.primaryKey.key,
+            BeakOperator.eq,
+            BeakValue.of(id),
+          ),
+          scope,
+        ),
+        pagination: const BeakPagination(perPage: 1),
+      ),
+    );
+    return page.items.isEmpty ? null : page.items.first;
+  }
 
   /// Validates and stores [input], minting a uuid primary key (for
   /// string-keyed models) and stamping `created_at`/`updated_at` when the
@@ -102,7 +173,19 @@ final class BeakResourceService {
 
   /// Validates the provided fields of [input] (partial semantics), stamps
   /// `updated_at` when the model declares it, and applies the update.
-  Future<BeakRecord> update(Object id, BeakRecord input) {
+  Future<BeakRecord> update(
+    Object id,
+    BeakRecord input, {
+    BeakFilter? scope,
+    DateTime? expectedUpdatedAt,
+  }) async {
+    // Read first when scoped or when checking the version: an update whose
+    // WHERE the client controls is the same hole as a query whose filter it
+    // controls.
+    await _requireInScope(id, scope);
+    if (expectedUpdatedAt != null) {
+      _requireUnchangedSince(expectedUpdatedAt, await getOne(id), id);
+    }
     validation.validate(model, input, isCreate: false);
     var values = input.values;
     if (model.columnByKey(updatedAtColumnKey) is BeakDateTimeColumn) {
@@ -111,24 +194,149 @@ final class BeakResourceService {
     return dataSource.update(model.table, id, BeakRecord(values: values));
   }
 
+  /// Throws a [BeakConflictException] when the stored `updated_at` has moved
+  /// past [expected].
+  ///
+  /// Two people editing the same record is normal in an admin panel, and the
+  /// default — last write wins, silently — is how the first person's work
+  /// disappears. A 409 lets the panel say so instead.
+  void _requireUnchangedSince(
+    DateTime expected,
+    BeakRecord current,
+    Object id,
+  ) {
+    final DateTime? stored = switch (current[updatedAtColumnKey]) {
+      final BeakDateTimeValue value => value.value,
+      _ => null,
+    };
+    if (stored == null) {
+      throw BeakValidationException(
+        'Model "${model.table}" does not stamp "$updatedAtColumnKey", so a '
+        'record cannot be updated conditionally.',
+      );
+    }
+    // Compared at whole-second precision: the wire format is ISO-8601 and
+    // some databases store fewer sub-second digits than Dart carries, so
+    // exact equality would reject an unmodified record.
+    if (stored.toUtc().millisecondsSinceEpoch ~/ 1000 !=
+        expected.toUtc().millisecondsSinceEpoch ~/ 1000) {
+      throw BeakConflictException(
+        'Record "$id" of "${model.table}" changed since it was read '
+        '(expected $expected, found $stored).',
+      );
+    }
+  }
+
   /// Deletes the record with primary key [id] — softly for soft-deleting
-  /// models unless [force].
-  Future<void> delete(Object id, {bool force = false}) =>
-      dataSource.delete(model.table, id, force: force);
+  /// models unless [force], and only if [scope] admits it.
+  Future<void> delete(
+    Object id, {
+    bool force = false,
+    BeakFilter? scope,
+  }) async {
+    // A force delete may target an already soft-deleted record — that is the
+    // whole point of emptying a trash — so the scope check reads through it.
+    await _requireInScope(id, scope, withTrashed: force);
+    return dataSource.delete(model.table, id, force: force);
+  }
 
-  /// The records whose primary keys appear in [ids], in one query.
-  Future<List<BeakRecord>> batchGet(List<Object> ids) =>
-      dataSource.batchGet(model.table, ids);
+  /// Clears the soft-delete marker on the record with primary key [id],
+  /// if [scope] admits it.
+  ///
+  /// The scope check reads through the trash, since a scoped principal must
+  /// still be able to restore their own deleted rows.
+  Future<BeakRecord> restore(Object id, {BeakFilter? scope}) async {
+    await _requireInScope(id, scope, withTrashed: true);
+    return dataSource.restore(model.table, id);
+  }
 
-  /// Links [relatedIds] through the to-many relation [relationKey].
-  Future<void> attach(Object id, String relationKey, List<Object> relatedIds) {
+  /// Throws a [BeakNotFoundException] when [scope] excludes the record with
+  /// primary key [id]. Does nothing when there is no scope.
+  ///
+  /// Deliberately a no-op rather than a read when unscoped: an unscoped write
+  /// must not pay for a lookup, and — the reason this exists at all — must
+  /// not inherit the soft-delete visibility rules of one. Force-deleting an
+  /// already-trashed record is legitimate, and a `getOne` in the way of it is
+  /// a 404 for something that plainly exists.
+  Future<void> _requireInScope(
+    Object id,
+    BeakFilter? scope, {
+    bool withTrashed = false,
+  }) async {
+    if (scope == null) {
+      return;
+    }
+    final page = await dataSource.query(
+      BeakQuerySpec(
+        table: model.table,
+        filter: intersect(
+          BeakFieldFilter.forKey(
+            model.primaryKey.key,
+            BeakOperator.eq,
+            BeakValue.of(id),
+          ),
+          scope,
+        ),
+        pagination: const BeakPagination(perPage: 1),
+        withTrashed: withTrashed,
+      ),
+    );
+    if (page.items.isEmpty) {
+      throw BeakNotFoundException(
+        'No record of "${model.table}" with id "$id".',
+      );
+    }
+  }
+
+  /// The records whose primary keys appear in [ids], in one query, narrowed
+  /// by [scope].
+  Future<List<BeakRecord>> batchGet(
+    List<Object> ids, {
+    BeakFilter? scope,
+  }) async {
+    if (scope == null) {
+      return dataSource.batchGet(model.table, ids);
+    }
+    final page = await dataSource.query(
+      BeakQuerySpec(
+        table: model.table,
+        filter: intersect(
+          BeakFieldFilter.forKey(
+            model.primaryKey.key,
+            BeakOperator.inList,
+            BeakValue.of(ids),
+          ),
+          scope,
+        ),
+        pagination: BeakPagination(perPage: ids.length.clamp(1, 1000)),
+      ),
+    );
+    return page.items;
+  }
+
+  /// Links [relatedIds] through the to-many relation [relationKey], if
+  /// [scope] admits the owning record.
+  Future<void> attach(
+    Object id,
+    String relationKey,
+    List<Object> relatedIds, {
+    BeakFilter? scope,
+  }) async {
     _attachableRelation(relationKey);
+    await _requireInScope(id, scope);
     return dataSource.attach(model.table, id, relationKey, relatedIds);
   }
 
-  /// Unlinks [relatedIds] from the to-many relation [relationKey].
-  Future<void> detach(Object id, String relationKey, List<Object> relatedIds) {
+  /// Unlinks [relatedIds] from the to-many relation [relationKey], if [scope]
+  /// admits the owning record.
+  Future<void> detach(
+    Object id,
+    String relationKey,
+    List<Object> relatedIds, {
+    BeakFilter? scope,
+  }) async {
     _attachableRelation(relationKey);
+    await _requireInScope(id, scope);
     return dataSource.detach(model.table, id, relationKey, relatedIds);
   }
 

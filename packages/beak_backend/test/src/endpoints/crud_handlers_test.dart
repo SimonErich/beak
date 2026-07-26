@@ -330,6 +330,42 @@ void main() {
       );
       expect(trashed['total'], 0);
     });
+
+    test('force also empties the trash — a soft delete then a hard one', () {
+      // Emptying a trash is the whole reason force exists, and it targets
+      // records the ordinary read path deliberately cannot see.
+      expect(() async {
+        await call('DELETE', '/api/notes/n1');
+        final response = await call('DELETE', '/api/notes/n1?force=true');
+        expect(response.statusCode, 204);
+        final trashed = await bodyOf(
+          await call(
+            'POST',
+            '/api/notes/query',
+            body: const BeakQuerySpec(
+              table: 'notes',
+              withTrashed: true,
+            ).toJson(),
+          ),
+        );
+        expect(trashed['total'], 0);
+      }(), completes);
+    });
+
+    test('restore brings a soft-deleted record back', () async {
+      await call('DELETE', '/api/notes/n1');
+      expect((await call('GET', '/api/notes/n1')).statusCode, 404);
+
+      final response = await call('POST', '/api/notes/n1/restore');
+
+      expect(response.statusCode, 200);
+      expect((await bodyOf(response))['values'], containsPair('id', 'n1'));
+      expect((await call('GET', '/api/notes/n1')).statusCode, 200);
+    });
+
+    test('restoring a live record is a 404, not a silent success', () async {
+      expect((await call('POST', '/api/notes/n1/restore')).statusCode, 404);
+    });
   });
 
   group('batch', () {

@@ -194,6 +194,28 @@ final class InMemoryBeakDataSource implements BeakDataSource {
   }
 
   @override
+  Future<BeakRecord> restore(String table, Object id) async {
+    final BeakModel model = registry.byTableOrThrow(table);
+    if (!model.softDeletes) {
+      throw BeakValidationException(
+        'Model "$table" does not soft-delete, so there is nothing to restore.',
+      );
+    }
+    final BeakRecord? existing = _rows[table]?['$id'];
+    if (existing == null || !_isTrashed(model, existing)) {
+      throw BeakNotFoundException(
+        'No soft-deleted $table record with id "$id".',
+      );
+    }
+    final restored = BeakRecord(
+      values: {...existing.values}..remove(softDeleteColumnKey),
+      relations: existing.relations,
+    );
+    _rows[table]!['$id'] = restored;
+    return restored;
+  }
+
+  @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
     final BeakModel model = registry.byTableOrThrow(table);
     final rows = _rows[table] ?? const <String, BeakRecord>{};

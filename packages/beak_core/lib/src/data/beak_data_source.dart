@@ -55,6 +55,20 @@ abstract interface class BeakDataSource {
   /// Throws a `BeakNotFoundException` when no such record exists.
   Future<void> delete(String table, Object id, {bool force = false});
 
+  /// Clears the soft-delete marker on the record with primary key [id],
+  /// returning it as it now reads.
+  ///
+  /// A deletion the user can walk back is the difference between a panel
+  /// people trust and one they are afraid of, and it only works if the row
+  /// is still there — so this is the one operation that deliberately reaches
+  /// past the soft-delete scope.
+  ///
+  /// Throws a [BeakNotFoundException] when no soft-deleted record has that
+  /// id, and a [BeakValidationException] when the model does not soft-delete
+  /// at all — restoring a hard-deleted row is not a thing that can be done,
+  /// and reporting success would be a lie.
+  Future<BeakRecord> restore(String table, Object id);
+
   /// The records of [table] whose primary keys appear in [ids], fetched in
   /// a single query (the reference-deduplication path).
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids);

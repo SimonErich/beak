@@ -116,6 +116,19 @@ void main() {
       expect(requests.single.url.queryParameters, {'force': 'true'});
     });
 
+    test(
+      'restore posts /api/{table}/{id}/restore and parses the record',
+      () async {
+        final record = await client(
+          recordJson({'id': 'n1'}),
+        ).restore('notes', 'n1');
+
+        expect(requests.single.method, 'POST');
+        expect(requests.single.url.path, '/api/notes/n1/restore');
+        expect(record['id']?.raw, 'n1');
+      },
+    );
+
     test('batchGet posts ids and parses the list', () async {
       final records = await client([
         recordJson({'id': 'n1'}),

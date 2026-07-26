@@ -107,6 +107,13 @@ final class BeakClient {
     _ensureSuccess(response);
   }
 
+  /// Restores a soft-deleted record via `POST /api/{table}/{id}/restore`.
+  Future<BeakRecord> restore(String table, Object id) async {
+    final response = await _postJson('/api/$table/$id/restore', const {});
+    _ensureSuccess(response);
+    return BeakRecord.fromJson(_decodeObject(response.body));
+  }
+
   /// Computes an aggregate via `POST /api/{table}/aggregate`.
   Future<num> aggregate(String table, BeakAggregateSpec spec) async {
     final response = await _postJson('/api/$table/aggregate', spec.toJson());

@@ -45,6 +45,10 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
       client.delete(table, id, force: force);
 
   @override
+  Future<BeakRecord> restore(String table, Object id) =>
+      client.restore(table, id);
+
+  @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) =>
       client.batchGet(table, ids);
 
