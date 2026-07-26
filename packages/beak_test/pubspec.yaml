@@ -1,0 +1,23 @@
+name: beak_test
+description: >-
+  Testing toolkit for Beak: a complete in-memory data source, the executable
+  BeakDataSource contract, record factories, and schema-parity assertions.
+version: 0.0.1
+publish_to: none
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_test
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
+topics: [admin-panel, testing, fakes]
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  beak_core:
+    path: ../beak_core
+  # A `test` dependency in a testing package is the point, not an accident:
+  # runBeakDataSourceContract declares real groups and expectations.
+  test: ^1.25.6
+
+dev_dependencies:
+  lints: ^6.0.0

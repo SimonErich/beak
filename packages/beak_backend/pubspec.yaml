@@ -32,6 +32,9 @@ dev_dependencies:
   # Deliberately NOT a real dependency — see storage_wiring.dart.
   beak_storage_s3:
     path: ../beak_storage_s3
+  # The shared BeakDataSource contract, run against WormDataSource.
+  beak_test:
+    path: ../beak_test
   image: ^4.9.1
   lints: ^6.0.0
   test: ^1.25.6

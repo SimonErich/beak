@@ -21,6 +21,8 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_backend': 90,
   'beak_frontend': 85,
   'beak_cli': 85,
+  // A testing toolkit whose own tests are thin would be a poor advert.
+  'beak_test': 90,
   'reference_admin': 85,
   'reference_admin_server': 85,
 };
