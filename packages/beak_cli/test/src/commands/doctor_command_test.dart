@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:beak_cli/beak_cli.dart';
@@ -39,6 +40,10 @@ BeakCliEnvironment environmentFor(
   now: () => DateTime.utc(2026, 7, 26, 12),
   probe: (host, port) async => databaseUp,
 );
+
+/// Every check for a project seeded with [files].
+Future<List<BeakCheck>> checksFor(Map<String, String> files) =>
+    diagnose(environmentFor(projectWith(files)));
 
 /// The check whose label contains [needle].
 BeakCheck checkMatching(List<BeakCheck> checks, String needle) =>
@@ -173,6 +178,46 @@ final class NoteModel extends BeakModel {
     });
   });
 
+  group('web safety', () {
+    test('a panel file importing the server fails, naming the file', () async {
+      // The exact failure the library split exists to prevent: it compiles,
+      // then dies in a browser — or takes the server's AOT build with it.
+      final checks = await checksFor({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
+        'lib/screens/reports.dart': "import 'package:beak/server.dart';\n",
+      });
+
+      final check = checkMatching(checks, 'lib/screens/reports.dart');
+      expect(check.status, BeakCheckStatus.fail);
+      expect(check.label, contains('package:beak/server.dart'));
+      expect(check.remedy, contains('lib/server.dart'));
+    });
+
+    test('lib/server.dart and the migrations may import it', () async {
+      final checks = await checksFor({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
+        'lib/server.dart': "import 'package:beak/server.dart';\n",
+        'lib/migrations/create_notes.dart':
+            "import 'package:beak/migrations.dart';\n",
+      });
+
+      expect(
+        checkMatching(checks, 'no panel file imports the server').status,
+        BeakCheckStatus.ok,
+      );
+    });
+
+    test('a missing web/ warns rather than fails', () async {
+      final checks = await checksFor({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
+      });
+
+      final check = checkMatching(checks, 'web/');
+      expect(check.status, BeakCheckStatus.warn);
+      expect(check.remedy, contains('flutter create'));
+    });
+  });
+
   group('database', () {
     test('an absent DATABASE_URL warns, it does not fail', () async {
       final check = checkMatching(
@@ -229,6 +274,42 @@ final class NoteModel extends BeakModel {
       expect(code, 1);
       expect(out.toString(), contains('Some checks failed.'));
       expect(out.toString(), contains('→ beak prepare'));
+    });
+  });
+
+  group('--json', () {
+    test('reports the same verdict as a machine-readable document', () async {
+      final out = StringBuffer();
+      final code = await createBeakRunner(
+        environmentFor(preparedProject(), out: out),
+      ).run(['doctor', '--json']);
+
+      final Object? decoded = jsonDecode(out.toString());
+      expect(decoded, isA<Map<String, Object?>>());
+      if (decoded case {
+        'healthy': final bool healthy,
+        'checks': final List<Object?> checks,
+      }) {
+        expect(healthy, isTrue);
+        expect(code, 0);
+        expect(checks, isNotEmpty);
+        expect(
+          checks.whereType<Map<String, Object?>>().map((c) => c['status']),
+          everyElement(isIn(['ok', 'warn', 'fail'])),
+        );
+      } else {
+        fail('expected {healthy, checks}, got $decoded');
+      }
+    });
+
+    test('prints nothing but the document', () async {
+      final out = StringBuffer();
+      await createBeakRunner(
+        environmentFor(preparedProject(), out: out),
+      ).run(['doctor', '--json']);
+
+      expect(out.toString(), isNot(contains('All checks passed.')));
+      expect(out.toString().trimLeft(), startsWith('{'));
     });
   });
 }

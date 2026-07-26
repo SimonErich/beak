@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -32,6 +33,13 @@ final class BeakCheck {
 
   /// The command or edit that fixes it, when a fix exists.
   final String? remedy;
+
+  /// This check as JSON, for `beak doctor --json`.
+  Map<String, Object?> toJson() => {
+    'status': status.name,
+    'label': label,
+    if (remedy case final String remedy) 'remedy': remedy,
+  };
 }
 
 /// Diagnoses a Beak project.
@@ -42,7 +50,13 @@ final class BeakCheck {
 /// This one checks the project it is actually run in.
 final class DoctorCommand extends Command<int> {
   /// Creates the command bound to [environment].
-  DoctorCommand(this.environment);
+  DoctorCommand(this.environment) {
+    argParser.addFlag(
+      'json',
+      help: 'Report as JSON, for CI.',
+      negatable: false,
+    );
+  }
 
   /// The seams this command runs against.
   final BeakCliEnvironment environment;
@@ -56,6 +70,18 @@ final class DoctorCommand extends Command<int> {
   @override
   Future<int> run() async {
     final checks = await diagnose(environment);
+    final bool healthy = checks.every(
+      (check) => check.status != BeakCheckStatus.fail,
+    );
+    if (argResults?['json'] == true) {
+      environment.out.writeln(
+        const JsonEncoder.withIndent('  ').convert({
+          'healthy': healthy,
+          'checks': [for (final check in checks) check.toJson()],
+        }),
+      );
+      return healthy ? 0 : 1;
+    }
     for (final check in checks) {
       final String badge = switch (check.status) {
         BeakCheckStatus.ok => 'OK  ',
@@ -67,9 +93,6 @@ final class DoctorCommand extends Command<int> {
         environment.out.writeln('       → $remedy');
       }
     }
-    final bool healthy = checks.every(
-      (check) => check.status != BeakCheckStatus.fail,
-    );
     environment.out.writeln(
       healthy ? 'All checks passed.' : 'Some checks failed.',
     );
@@ -194,8 +217,92 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
     );
   }
 
+  checks.add(_webScaffoldCheck(root));
+  checks.addAll(serverImportChecks(root));
   checks.add(await _databaseCheck(environment, root));
   return checks;
+}
+
+/// Whether Flutter's `web/` scaffold exists.
+///
+/// `beak create` delegates it to `flutter create`, which can fail — offline,
+/// or behind a proxy — leaving a project that runs everywhere but the web.
+BeakCheck _webScaffoldCheck(Directory root) {
+  final bool present = File('${root.path}/web/index.html').existsSync();
+  return BeakCheck(
+    status: present ? BeakCheckStatus.ok : BeakCheckStatus.warn,
+    label: present ? 'web/ scaffold present' : 'no web/ scaffold',
+    remedy: present ? null : 'flutter create --platforms=web .',
+  );
+}
+
+/// Panel files that reach the server, one check each.
+///
+/// This is the failure the library split exists to prevent: the panel runs in
+/// a browser and the server half imports `dart:io` and a database driver, so
+/// one such import compiles fine and then fails at runtime — or takes the
+/// server's ahead-of-time build down with it when the file is also reachable
+/// from `bin/serve.dart`.
+List<BeakCheck> serverImportChecks(Directory root) {
+  const serverLibraries = {
+    'package:beak/server.dart',
+    'package:beak/migrations.dart',
+  };
+  // Where server-side code legitimately lives.
+  const allowed = {
+    'lib/server.dart',
+    'lib/beak/server.g.dart',
+    'lib/${BeakProjectScanner.migrationsDir}/',
+    'lib/${BeakProjectScanner.seedersDir}/',
+  };
+
+  final lib = Directory('${root.path}/lib');
+  if (!lib.existsSync()) {
+    return const [];
+  }
+  final offenders = <String, String>{};
+  for (final entity in lib.listSync(recursive: true, followLinks: false)) {
+    if (entity is! File || !entity.path.endsWith('.dart')) {
+      continue;
+    }
+    final String relative = entity.path
+        .substring(root.path.length + 1)
+        .replaceAll(r'\', '/');
+    if (allowed.any(
+      (path) =>
+          path.endsWith('/') ? relative.startsWith(path) : relative == path,
+    )) {
+      continue;
+    }
+    final String source = entity.readAsStringSync();
+    for (final library in serverLibraries) {
+      if (source.contains("import '$library'")) {
+        offenders[relative] = library;
+        break;
+      }
+    }
+  }
+  if (offenders.isEmpty) {
+    return const [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label: 'no panel file imports the server',
+      ),
+    ];
+  }
+  return [
+    for (final entry
+        in offenders.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+      BeakCheck(
+        status: BeakCheckStatus.fail,
+        label:
+            '${entry.key} imports ${entry.value}, which cannot run on the '
+            'web',
+        remedy:
+            'move the server-side part to lib/server.dart, or import '
+            'package:beak/beak.dart instead',
+      ),
+  ];
 }
 
 /// Whether the configured database is reachable.
