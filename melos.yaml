@@ -41,7 +41,12 @@ scripts:
     description: Static analysis for Flutter packages.
     packageFilters: { flutter: true }
   analyze-root:
+    # `melos bootstrap` resolves packages/** and apps/**, not the workspace
+    # root — and `dart analyze`, unlike `dart test`/`dart run`, does not fetch
+    # on its own. Resolving here (a no-op once resolved) is what makes
+    # `melos run analyze` work on a fresh clone with no extra step.
     run: >-
+      dart pub get &&
       dart analyze --fatal-infos --fatal-warnings tool &&
       dart analyze --fatal-infos --fatal-warnings test
     description: Static analysis for the workspace tooling (tool/ and its tests).

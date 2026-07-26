@@ -34,12 +34,8 @@ jobs:
         run: dart pub global activate melos 6.3.3
       - name: Bootstrap
         run: melos bootstrap
-      # melos bootstrap only resolves packages/** and apps/**; the workspace
-      # tooling in tool/ and test/ lives under the root pubspec (dev_dependencies:
-      # test, lints), which `dart analyze` needs pre-resolved (unlike `dart test`
-      # / `dart run`, it does not fetch packages on its own).
-      - name: Pub get (workspace tooling)
-        run: dart pub get
+      # No separate workspace-tooling `pub get`: `melos run analyze-root`
+      # resolves the root itself, so a fresh clone needs no extra step.
       - name: Analyze (includes the material and web-safety guards)
         run: melos run analyze
       - name: Format check
