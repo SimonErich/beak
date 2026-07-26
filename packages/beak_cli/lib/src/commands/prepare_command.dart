@@ -66,7 +66,7 @@ final class BeakPrepareResult {
 /// before doing their own work without going through the runner.
 BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   final Directory root = environment.rootDirectory;
-  final String packageName = _packageNameOf(root);
+  final String packageName = BeakProjectConfig.packageNameOf(root);
   final BeakProjectConfig config = BeakProjectConfig.load(
     root,
     packageName: packageName,
@@ -116,22 +116,4 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     written: written,
     unchanged: unchanged,
   );
-}
-
-/// The `name:` from the project's pubspec, or a fallback.
-///
-/// Read with a line scan rather than a YAML parse: the pubspec may not be
-/// valid YAML mid-edit, and a missing name should not stop generation.
-String _packageNameOf(Directory root) {
-  final file = File('${root.path}/pubspec.yaml');
-  if (!file.existsSync()) {
-    return 'beak_app';
-  }
-  for (final line in file.readAsLinesSync()) {
-    final match = RegExp(r'^name:\s*(\S+)\s*$').firstMatch(line);
-    if (match != null) {
-      return match.group(1)!;
-    }
-  }
-  return 'beak_app';
 }

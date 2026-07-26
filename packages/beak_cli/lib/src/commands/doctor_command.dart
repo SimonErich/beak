@@ -109,9 +109,10 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
   );
 
   // beak.yaml is optional, but a malformed one stops generation dead.
-  final String packageName = _packageNameOf(pubspecSource);
+  final String packageName = BeakProjectConfig.packageNameIn(pubspecSource);
+  final BeakProjectConfig config;
   try {
-    BeakProjectConfig.load(root, packageName: packageName);
+    config = BeakProjectConfig.load(root, packageName: packageName);
     checks.add(
       const BeakCheck(status: BeakCheckStatus.ok, label: 'beak.yaml parses'),
     );
@@ -157,7 +158,7 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
   if (discovery.issues.isEmpty) {
     for (final generated in BeakEmitters.all(
       packageName: packageName,
-      config: BeakProjectConfig.load(root, packageName: packageName),
+      config: config,
       discovery: discovery,
     )) {
       final file = File('${root.path}/${generated.path}');
@@ -233,15 +234,4 @@ Uri? _databaseUrlOf(Directory root) {
     }
   }
   return null;
-}
-
-/// The `name:` declared in [pubspecSource].
-String _packageNameOf(String pubspecSource) {
-  for (final line in pubspecSource.split('\n')) {
-    final match = RegExp(r'^name:\s*(\S+)\s*$').firstMatch(line);
-    if (match != null) {
-      return match.group(1)!;
-    }
-  }
-  return 'beak_app';
 }

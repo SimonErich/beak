@@ -73,7 +73,7 @@ final class BeakProjectConfig {
   /// Deleting the file is a supported state: the panel is titled after the
   /// package and everything else falls back.
   factory BeakProjectConfig.defaults({required String packageName}) =>
-      BeakProjectConfig(name: _titleCase(packageName));
+      BeakProjectConfig(name: titleCase(packageName));
 
   /// Parses [yamlSource].
   ///
@@ -132,7 +132,7 @@ final class BeakProjectConfig {
     }
 
     return BeakProjectConfig(
-      name: _optionalString(root['name'], 'name') ?? _titleCase(packageName),
+      name: _optionalString(root['name'], 'name') ?? titleCase(packageName),
       api: BeakApiSettings(
         baseUrl:
             _optionalString(api?['baseUrl'], 'api.baseUrl') ??
@@ -233,8 +233,31 @@ final class BeakProjectConfig {
     }
   }
 
+  /// The `name:` a project's pubspec declares, or `beak_app` when it has
+  /// none.
+  ///
+  /// Read with a line scan rather than a YAML parse: a pubspec may not be
+  /// valid YAML mid-edit, and a missing name should not stop generation.
+  static String packageNameOf(Directory projectRoot) {
+    final file = File('${projectRoot.path}/pubspec.yaml');
+    return file.existsSync()
+        ? packageNameIn(file.readAsStringSync())
+        : 'beak_app';
+  }
+
+  /// The `name:` declared in [pubspecSource].
+  static String packageNameIn(String pubspecSource) {
+    for (final line in pubspecSource.split('\n')) {
+      final match = RegExp(r'^name:\s*(\S+)\s*$').firstMatch(line);
+      if (match != null) {
+        return match.group(1)!;
+      }
+    }
+    return 'beak_app';
+  }
+
   /// `acme_admin` -> `Acme Admin`.
-  static String _titleCase(String snake) => snake
+  static String titleCase(String snake) => snake
       .split(RegExp('[_-]'))
       .where((word) => word.isNotEmpty)
       .map((word) => word[0].toUpperCase() + word.substring(1))
