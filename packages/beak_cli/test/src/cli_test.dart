@@ -146,6 +146,53 @@ void main() {
     });
   });
 
+  group('writeFile', () {
+    late BeakCliEnvironment environment;
+
+    setUp(
+      () => environment = BeakCliEnvironment(
+        out: out,
+        rootDirectory: root,
+        now: () => DateTime.utc(2026),
+        probe: (host, port) async => false,
+      ),
+    );
+
+    test('resolves a relative path under the project root', () {
+      environment.writeFile('lib/models/note.dart', 'const int x = 1;');
+
+      expect(File('${root.path}/lib/models/note.dart').existsSync(), isTrue);
+    });
+
+    test('writes an absolute path where it says, not under the root', () {
+      // `beak introspect --out /somewhere/else` used to land in
+      // `<project>/somewhere/else`, which is a silently wrong answer.
+      final elsewhere = Directory.systemTemp.createTempSync('beak_absolute');
+      addTearDown(() => elsewhere.deleteSync(recursive: true));
+      final target = '${elsewhere.path}/models/note.dart';
+
+      environment.writeFile(target, 'const int x = 1;');
+
+      expect(File(target).existsSync(), isTrue);
+      expect(Directory('${root.path}${elsewhere.path}').existsSync(), isFalse);
+    });
+
+    test('creates missing parent directories', () {
+      environment.writeFile('a/b/c/deep.txt', 'hello');
+
+      expect(File('${root.path}/a/b/c/deep.txt').readAsStringSync(), 'hello');
+    });
+
+    test('formats Dart output but leaves other files byte-for-byte', () {
+      environment
+        ..writeFile('ugly.dart', 'const int   x=1;')
+        ..writeFile('ugly.txt', 'const int   x=1;');
+
+      expect(read('ugly.dart'), 'const int x = 1;\n');
+      expect(read('ugly.txt'), 'const int   x=1;');
+    });
+  });
+
   group('formatting', () {
     test('every scaffolded Dart file is already formatted', () async {
       // A scaffold that needs `dart format` afterwards hands the user a diff

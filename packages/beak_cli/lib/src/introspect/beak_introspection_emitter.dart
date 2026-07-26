@@ -39,7 +39,8 @@ abstract final class BeakIntrospectionEmitter {
   /// The schema files [tables] generate.
   ///
   /// Pivot tables are folded into the relationships they represent rather
-  /// than becoming resources of their own.
+  /// than becoming resources of their own, and each database enum becomes one
+  /// Dart enum file the resources that use it import.
   static List<IntrospectedSchemaFile> emitAll(List<IntrospectedTable> tables) {
     final resources = [
       for (final table in tables)
@@ -53,9 +54,57 @@ abstract final class BeakIntrospectionEmitter {
     final byTable = {for (final table in resources) table.name: table};
 
     return [
+      ...emitEnums(resources),
       for (final table in resources)
         emit(table, byTable: byTable, pivots: pivots),
     ];
+  }
+
+  /// One Dart enum file per database enum the [resources] actually use.
+  ///
+  /// Two tables sharing `order_status` share the one declaration, so the
+  /// generated project has a single source of truth for the labels — the same
+  /// thing a human would have written.
+  static List<IntrospectedSchemaFile> emitEnums(
+    List<IntrospectedTable> resources,
+  ) {
+    final byType = <String, List<String>>{};
+    for (final table in resources) {
+      for (final column in table.columns) {
+        if (column.enumTypeName case final String type
+            when column.enumValues.isNotEmpty && _isRepresentable(column)) {
+          byType[type] ??= column.enumValues;
+        }
+      }
+    }
+    return [
+      for (final entry
+          in byType.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+        _emitEnum(entry.key, entry.value),
+    ];
+  }
+
+  static IntrospectedSchemaFile _emitEnum(String type, List<String> values) {
+    final String className = pascalCaseOf(type);
+    final buffer = StringBuffer()
+      ..writeln('/// The values the `$type` database enum defines.')
+      ..writeln('///')
+      ..writeln('/// Stored by name, so renaming a value here renames it in')
+      ..writeln('/// every row — change the database with a migration first.')
+      ..writeln('enum $className {');
+    for (final value in values) {
+      buffer
+        ..writeln('  /// `$value`.')
+        ..writeln('  $value,')
+        ..writeln();
+    }
+    buffer.writeln('}');
+    return IntrospectedSchemaFile(
+      path: '${_snake(type)}.dart',
+      contents: BeakEmitters.format(buffer.toString()),
+      className: className,
+      table: type,
+    );
   }
 
   /// The schema file for one [table].
@@ -77,6 +126,10 @@ abstract final class BeakIntrospectionEmitter {
       for (final pivot in _pivotsFor(table, pivots))
         if (_otherSideOf(pivot, table) case final String other)
           if (byTable.containsKey(other)) '${fileNameOf(other)}.dart',
+      for (final column in table.columns)
+        if (column.enumTypeName case final String type
+            when _isRepresentable(column))
+          '${_snake(type)}.dart',
     }..remove('${fileNameOf(table.name)}.dart');
     if (relatedImports.isNotEmpty) {
       buffer.writeln();
@@ -130,6 +183,14 @@ abstract final class BeakIntrospectionEmitter {
           'Beak column; it was omitted',
         );
         continue;
+      }
+      if (column.enumValues.isNotEmpty && !_isRepresentable(column)) {
+        notes.add(
+          '${table.name}.${column.name} is the '
+          '${column.enumTypeName} enum, but '
+          '${column.enumValues.where((v) => !_isDartIdentifier(v)).join(', ')} '
+          'cannot be a Dart enum value; it was read as text',
+        );
       }
       final bool isDisplay = !wroteDisplay && _isDisplayCandidate(column);
       wroteDisplay = wroteDisplay || isDisplay;
@@ -209,9 +270,16 @@ abstract final class BeakIntrospectionEmitter {
     if (_isSortable(column)) 'sortable: true',
     if (column.enumValues.isNotEmpty || column.dataType == 'boolean')
       'filterable: true',
-    if (column.maxLength case final int length) 'maxLength: $length',
+    if (_lengthOf(column) case final int length) 'maxLength: $length',
     if (_extraRulesOf(column) case final String rules) 'rules: [$rules]',
   ];
+
+  /// The declared length, when it constrains something the user types.
+  ///
+  /// An upload column's `varchar` holds a storage key Beak writes, not text
+  /// the user enters, so its length says nothing about valid input.
+  static int? _lengthOf(IntrospectedColumn column) =>
+      _isUploadType(_dartTypeOf(column)) ? null : column.maxLength;
 
   /// Rules a column name or type implies beyond required-ness.
   static String? _extraRulesOf(IntrospectedColumn column) {
@@ -222,11 +290,47 @@ abstract final class BeakIntrospectionEmitter {
     if (RegExp(r'url|link|website').hasMatch(column.name)) {
       rules.add('BeakUrl()');
     }
-    if (column.maxLength case final int length) {
+    if (_lengthOf(column) case final int length) {
       rules.add('BeakMaxLength($length)');
     }
     return rules.isEmpty ? null : rules.join(', ');
   }
+
+  /// Whether [dartType] is one of the upload marker types.
+  static bool _isUploadType(String? dartType) =>
+      const {'BeakImageRef', 'BeakFileRef'}.contains(dartType);
+
+  /// Whether a column's enum labels can each be a Dart enum constant.
+  ///
+  /// Beak stores an enum value by its Dart `name`, so a label the language
+  /// cannot spell — `in progress`, `2xl`, `class` — has no representation
+  /// that round-trips. Those columns stay `String`, which is correct and
+  /// editable, rather than becoming a file that does not compile.
+  static bool _isRepresentable(IntrospectedColumn column) =>
+      column.enumValues.every(_isDartIdentifier);
+
+  static bool _isDartIdentifier(String value) =>
+      RegExp(r'^[a-z_][A-Za-z0-9_]*$').hasMatch(value) &&
+      !_dartReservedWords.contains(value);
+
+  /// The reserved words that cannot be an enum constant name.
+  static const Set<String> _dartReservedWords = {
+    'assert', 'break', 'case', 'catch', 'class', 'const', 'continue',
+    'default', 'do', 'else', 'enum', 'extends', 'false', 'final', 'finally',
+    'for', 'if', 'in', 'is', 'new', 'null', 'rethrow', 'return', 'super',
+    'switch', 'this', 'throw', 'true', 'try', 'var', 'void', 'while', 'with',
+    // Not reserved, but every enum already declares them.
+    'index', 'values', 'hashCode', 'runtimeType', 'toString', 'noSuchMethod',
+  };
+
+  /// Whether [dataType] is a string column, and so could be a storage key.
+  static bool _isTextual(String dataType) => const {
+    'text',
+    'character varying',
+    'varchar',
+    'character',
+    'citext',
+  }.contains(dataType);
 
   static bool _isDisplayCandidate(IntrospectedColumn column) =>
       const {
@@ -255,7 +359,27 @@ abstract final class BeakIntrospectionEmitter {
   /// has no column for it.
   static String? _dartTypeOf(IntrospectedColumn column) {
     if (column.enumValues.isNotEmpty) {
-      return classNameOf(column.enumTypeName ?? column.name);
+      // An enum whose labels Dart cannot spell still holds text, and reading
+      // it as text keeps the column — and the panel — rather than dropping a
+      // field the database plainly has.
+      return _isRepresentable(column)
+          ? pascalCaseOf(column.enumTypeName ?? column.name)
+          : 'String';
+    }
+    if (_isTextual(column.dataType)) {
+      // A `varchar` holding a storage key is still a `varchar` to the
+      // database, so the column name is the only signal there is. Guessing
+      // here is worth it: an image column rendered as a text field is the
+      // single most obvious thing wrong with a freshly introspected panel,
+      // and correcting a wrong guess is one word in a file the user owns.
+      if (RegExp(
+        'image|photo|picture|avatar|thumbnail',
+      ).hasMatch(column.name)) {
+        return 'BeakImageRef';
+      }
+      if (RegExp('file|attachment|document').hasMatch(column.name)) {
+        return 'BeakFileRef';
+      }
     }
     return switch (column.dataType) {
       'text' => 'BeakText',
@@ -326,14 +450,18 @@ abstract final class BeakIntrospectionEmitter {
 }
 
 /// `order_items` -> `OrderItem`, the conventional schema class name.
-String classNameOf(String table) {
-  final singular = _singularOf(table);
-  return singular
-      .split('_')
-      .where((word) => word.isNotEmpty)
-      .map((word) => word[0].toUpperCase() + word.substring(1))
-      .join();
-}
+String classNameOf(String table) => pascalCaseOf(_singularOf(table));
+
+/// `product_status` -> `ProductStatus`, without singularizing.
+///
+/// A table name is plural and its class is singular; a type name — a Postgres
+/// enum, say — is already singular, and running it through the singularizer
+/// turns `product_status` into `ProductStatu`.
+String pascalCaseOf(String snake) => snake
+    .split('_')
+    .where((word) => word.isNotEmpty)
+    .map((word) => word[0].toUpperCase() + word.substring(1))
+    .join();
 
 /// `order_items` -> `order_item`, the conventional file name.
 String fileNameOf(String table) => _singularOf(table);
@@ -360,6 +488,11 @@ String _singularOf(String table) {
       table.endsWith('ches') ||
       table.endsWith('shes')) {
     return table.substring(0, table.length - 2);
+  }
+  // `status`, `address`, `class` and friends end in `s` but are already
+  // singular — stripping it produces `statu`, which no user would ever type.
+  if (table.endsWith('ss') || table.endsWith('us') || table.endsWith('is')) {
+    return table;
   }
   return table.endsWith('s') ? table.substring(0, table.length - 1) : table;
 }

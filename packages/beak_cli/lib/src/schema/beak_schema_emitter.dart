@@ -54,7 +54,7 @@ abstract final class BeakSchemaEmitter {
         )
         ..writeln("    key: '${column.columnKey}',")
         ..writeln("    label: '${_escape(column.label)}',");
-      for (final entry in _columnArgumentsOf(column).entries) {
+      for (final entry in _columnArgumentsOf(column, schema).entries) {
         buffer.writeln('    ${entry.key}: ${entry.value},');
       }
       buffer.writeln('  );');
@@ -103,8 +103,17 @@ abstract final class BeakSchemaEmitter {
       );
     }
 
+    // An explicit declaration always wins over the inverse that would have
+    // been synthesized for it: `beak introspect` writes both sides of a
+    // relationship, and two identical constants is a compile error rather
+    // than a redundancy the user can ignore.
+    final taken = {for (final relation in schema.relations) relation.fieldName};
     for (final (owner, relation) in inverses) {
       final String name = _inverseNameOf(owner, relation);
+      if (!taken.add(name) ||
+          schema.relations.any((r) => r.relatedSchema == owner.className)) {
+        continue;
+      }
       _writeDoc(
         buffer,
         'The ${owner.table} on the other side of '
@@ -277,6 +286,10 @@ abstract final class BeakSchemaEmitter {
       ..writeln('}');
   }
 
+  /// Whether [kind] is an upload column, which needs a storage path.
+  static bool _isUploadKind(BeakColumnKind kind) =>
+      kind == BeakColumnKind.image || kind == BeakColumnKind.file;
+
   /// The column constructor, with its type argument for an enum column.
   static String _columnTypeOf(BeakColumnIr column) =>
       column.kind == BeakColumnKind.enumeration
@@ -284,8 +297,17 @@ abstract final class BeakSchemaEmitter {
       : column.kind.columnType;
 
   /// The named arguments a column constant carries, rules included.
-  static Map<String, String> _columnArgumentsOf(BeakColumnIr column) {
+  static Map<String, String> _columnArgumentsOf(
+    BeakColumnIr column,
+    BeakSchemaIr schema,
+  ) {
     final declared = <String, String>{...column.arguments};
+    // An upload column must say where its files go. `@Image()` on its own is
+    // the common case, and the conventional answer — one folder per table —
+    // is one the generator can give without the user writing it.
+    if (_isUploadKind(column.kind)) {
+      declared.putIfAbsent('storagePath', () => "'${schema.table}'");
+    }
     final String? rules = declared.remove('rules');
     // Non-nullable means required; the rule is derived, never written twice.
     final String required = column.isRequired ? 'BeakRequired()' : '';

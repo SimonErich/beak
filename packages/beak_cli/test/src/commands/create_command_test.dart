@@ -71,12 +71,15 @@ void main() {
       expect(ignored, isNot(contains('lib/beak/')));
     });
 
-    test('delegates web/ to flutter create', () async {
+    test('delegates web/ to flutter create, without resolving', () async {
+      // `--no-pub`: only the web assets are wanted, and resolving here would
+      // make scaffolding fail offline for a step that needs no network.
       await create(['acme_admin']);
       expect(spawned.single, [
         'flutter',
         'create',
         '--platforms=web',
+        '--no-pub',
         '--project-name',
         'acme_admin',
         '.',

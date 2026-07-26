@@ -69,9 +69,15 @@ final class CreateCommand extends Command<int> {
     // change between releases, so scaffolding a copy here would rot. Failure
     // is not fatal: the project still builds for every other platform, and
     // `beak doctor` reports the gap.
+    //
+    // `--no-pub` matters: only the `web/` assets are wanted here, and letting
+    // `flutter create` resolve first makes scaffolding fail whenever the
+    // dependencies cannot be fetched yet — offline, or behind a proxy — for a
+    // step that never needed the network.
     final int webExit = await environment.runProcess('flutter', [
       'create',
       '--platforms=web',
+      '--no-pub',
       '--project-name',
       name,
       '.',

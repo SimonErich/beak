@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
@@ -121,19 +122,25 @@ final class BeakCliEnvironment {
     },
   );
 
-  /// Writes [content] to [relativePath] resolved under [rootDirectory],
-  /// creating any missing parent directories, and logs a `created` line
-  /// naming the path to [out]. Overwrites an existing file at that path.
-  void writeFile(String relativePath, String content) {
-    final file = File('${rootDirectory.path}/$relativePath');
+  /// Writes [content] to [path], creating any missing parent directories, and
+  /// logs a `created` line naming the path to [out]. Overwrites an existing
+  /// file at that path.
+  ///
+  /// A relative [path] resolves under [rootDirectory]; an absolute one is used
+  /// as given, so `--out /somewhere/else` means what it says rather than
+  /// quietly landing inside the project.
+  void writeFile(String path, String content) {
+    final file = File(
+      p.isAbsolute(path) ? path : p.join(rootDirectory.path, path),
+    );
     file.parent.createSync(recursive: true);
     // Dart output goes through the same formatter the emitters use, so
     // `dart format --set-exit-if-changed` on a scaffolded project is a no-op
     // rather than a diff the user did not write.
     file.writeAsStringSync(
-      relativePath.endsWith('.dart') ? BeakEmitters.format(content) : content,
+      path.endsWith('.dart') ? BeakEmitters.format(content) : content,
     );
-    out.writeln('  created $relativePath');
+    out.writeln('  created $path');
   }
 }
 

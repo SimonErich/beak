@@ -80,6 +80,8 @@ FakeDatabase shopDatabase() => FakeDatabase(
       nullable: false,
       udt: 'product_status',
     ),
+    column('products', 'image', 'character varying', maxLength: 255),
+    column('products', 'spec_file', 'character varying', maxLength: 255),
     column('products', 'category_id', 'uuid'),
     column('products', 'created_at', 'timestamp with time zone'),
     column('products', 'updated_at', 'timestamp with time zone'),
@@ -190,11 +192,43 @@ void main() {
       files = {for (final file in emitted) file.table: file};
     });
 
-    test('emits one resource per non-pivot table', () {
+    test('emits one resource per non-pivot table, plus its enums', () {
       expect(
         files.keys,
-        unorderedEquals(['categories', 'products', 'tags', 'users']),
+        unorderedEquals([
+          'categories',
+          'products',
+          'product_status',
+          'tags',
+          'users',
+        ]),
       );
+    });
+
+    test('declares the database enum so the emitted type resolves', () {
+      final status = files['product_status']!;
+      expect(status.path, 'product_status.dart');
+      expect(status.className, 'ProductStatus');
+      expect(status.contents, contains('enum ProductStatus {'));
+      expect(status.contents, contains('  draft,'));
+      expect(status.contents, contains('  published,'));
+    });
+
+    test('a resource using an enum imports it', () {
+      expect(
+        files['products']!.contents,
+        contains("import 'product_status.dart';"),
+      );
+      expect(
+        files['products']!.contents,
+        contains('late final ProductStatus status'),
+      );
+    });
+
+    test('an enum type name is not singularized', () {
+      // `product_status` is already singular; the table singularizer would
+      // turn it into `ProductStatu`.
+      expect(files['product_status']!.className, isNot(endsWith('Statu')));
     });
 
     test('folds a pivot into the relationship rather than a resource', () {
@@ -242,6 +276,22 @@ void main() {
       expect(files['products']!.contents, contains('late final int? stock'));
     });
 
+    test('reads an upload column from its name, not its varchar type', () {
+      // The database sees a varchar either way; the name is the only signal
+      // that the value is a storage key rather than text.
+      final source = files['products']!.contents;
+      expect(source, contains('late final BeakImageRef? image'));
+      expect(source, contains('late final BeakFileRef? specFile'));
+    });
+
+    test('an upload column carries no length rule', () {
+      // The length bounds the storage key Beak writes, not user input.
+      final image = files['products']!.contents
+          .split('\n')
+          .lastWhere((line) => line.contains('@Column'), orElse: () => '');
+      expect(image, isNot(contains('maxLength')));
+    });
+
     test('picks a display column by convention', () {
       expect(files['products']!.contents, contains('@Display()'));
       expect(files['users']!.contents, contains('@Display()'));
@@ -265,6 +315,53 @@ void main() {
       expect(users.contents, isNot(contains('passwordHash')));
       expect(users.notes.single, contains('password_hash'));
       expect(users.notes.single, contains('secret'));
+    });
+
+    test('an unspellable enum label falls back to text, with a note', () async {
+      // Beak stores an enum by its Dart name, so `in progress` has no
+      // representation that round-trips; text is the honest answer.
+      final database = FakeDatabase(
+        columns: [
+          column('jobs', 'id', 'uuid', nullable: false),
+          column(
+            'jobs',
+            'state',
+            'USER-DEFINED',
+            nullable: false,
+            udt: 'job_state',
+          ),
+        ],
+        primaryKeys: [
+          {'table_name': 'jobs', 'column_name': 'id'},
+        ],
+        enums: [
+          {'enum_name': 'job_state', 'enum_value': 'queued'},
+          {'enum_name': 'job_state', 'enum_value': 'in progress'},
+        ],
+      );
+      final emitted = BeakIntrospectionEmitter.emitAll(
+        await PostgresIntrospector(database.query).read(),
+      );
+
+      expect(emitted.map((file) => file.table), ['jobs']);
+      expect(emitted.single.contents, contains('late final String state'));
+      expect(emitted.single.notes.single, contains('in progress'));
+      expect(emitted.single.notes.single, contains('read as text'));
+    });
+
+    test('a reserved word is never emitted as an enum value', () async {
+      final database = FakeDatabase(
+        columns: [column('rooms', 'kind', 'USER-DEFINED', udt: 'room_kind')],
+        enums: [
+          {'enum_name': 'room_kind', 'enum_value': 'class'},
+          {'enum_name': 'room_kind', 'enum_value': 'lab'},
+        ],
+      );
+      final emitted = BeakIntrospectionEmitter.emitAll(
+        await PostgresIntrospector(database.query).read(),
+      );
+
+      expect(emitted.single.contents, contains('late final String? kind'));
     });
 
     test('output is formatted', () {

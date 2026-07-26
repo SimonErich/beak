@@ -17,6 +17,8 @@ dependencies:
   args: ^2.7.0
   # Formats emitted code so `dart format` on a generated project is a no-op.
   dart_style: ^3.1.0
+  # Joins generated-file paths without assuming a separator.
+  path: ^1.9.0
   pub_semver: ^2.1.4
   # `beak introspect` reads a live Postgres schema.
   worm:
