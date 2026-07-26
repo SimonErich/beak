@@ -2,7 +2,7 @@
 
 S3/MinIO storage driver for Beak's storage abstraction.
 
-Part of [**Beak**](https://github.com/marqably/beak), a low-code,
+Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
 [architecture guide](../../docs/architecture.md) for how the packages fit
 together.

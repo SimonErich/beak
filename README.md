@@ -1,6 +1,6 @@
 # Beak
 
-[![CI](https://github.com/marqably/beak/actions/workflows/ci.yaml/badge.svg)](https://github.com/marqably/beak/actions/workflows/ci.yaml)
+[![CI](https://github.com/SimonErich/beak/actions/workflows/ci.yaml/badge.svg)](https://github.com/SimonErich/beak/actions/workflows/ci.yaml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Dart](https://img.shields.io/badge/Dart-%5E3.11-0175C2?logo=dart)
 ![Flutter](https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter)

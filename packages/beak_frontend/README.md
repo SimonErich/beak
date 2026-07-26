@@ -3,7 +3,7 @@
 The Flutter admin panel for Beak: `BeakPanel` (shell + router) and generated
 tables, forms, detail views, actions, filters, and dashboards on obers_ui.
 
-Part of [**Beak**](https://github.com/marqably/beak), a low-code,
+Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
 [architecture guide](../../docs/architecture.md) for how the packages fit
 together.

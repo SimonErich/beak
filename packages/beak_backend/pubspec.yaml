@@ -4,9 +4,9 @@ description: >-
   of the source-agnostic data layer.
 version: 0.0.1
 publish_to: none
-repository: https://github.com/marqably/beak/tree/main/packages/beak_backend
-homepage: https://github.com/marqably/beak
-issue_tracker: https://github.com/marqably/beak/issues
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_backend
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, backend, shelf, rest]
 
 environment:

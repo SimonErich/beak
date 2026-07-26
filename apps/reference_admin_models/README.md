@@ -3,7 +3,7 @@
 The shared model definitions of Beak's reference admin — defined once,
 consumed by both the Shelf server and the Flutter panel.
 
-Part of [**Beak**](https://github.com/marqably/beak), a low-code,
+Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
 [architecture guide](../../docs/architecture.md) for how the packages fit
 together.
