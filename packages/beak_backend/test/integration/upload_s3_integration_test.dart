@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_image/beak_image.dart';
+import 'package:beak_storage_s3/beak_storage_s3.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
@@ -86,6 +87,10 @@ void main() {
       Worm.seedRandom(42);
       final adapter = await createApiTestDatabase();
       final registry = createApiRegistry();
+      // `s3` is a plug-in driver: beak_backend no longer depends on
+      // beak_storage_s3, so the app registers it itself.
+      final storageRegistry = createDefaultStorageRegistry();
+      registerS3Storage(storageRegistry);
       handler = const Pipeline()
           .addMiddleware(beakJsonMiddleware())
           .addMiddleware(beakErrorMappingMiddleware())
@@ -95,7 +100,7 @@ void main() {
               dataSource: WormDataSource(registry, adapter: adapter),
               uploads: UploadService(
                 registry: registry,
-                storage: resolveStorage(s3Config),
+                storage: resolveStorage(s3Config, registry: storageRegistry),
                 transformRunner: const ImageTransformRunner(),
               ),
             ),

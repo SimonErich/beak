@@ -16,6 +16,12 @@ ignore:
 command:
   bootstrap:
     runPubGetInParallel: true
+    # NOTE: deliberately no `dependencyOverridePaths` for obers_ui. Melos 6
+    # applies those overrides to *every* workspace package, which drags the
+    # Flutter SDK into the pure-Dart ones (beak_core, beak_cli, beak_image,
+    # beak_storage_*) and makes `dart pub get` there require Flutter.
+    # Beak pins obers_ui by git commit instead; to work against a local
+    # checkout, run `melos run link-obers-ui`.
 
 scripts:
   analyze:
@@ -23,7 +29,8 @@ scripts:
       melos run analyze-dart &&
       melos run analyze-flutter &&
       melos run analyze-root &&
-      melos run guard-material
+      melos run guard-material &&
+      melos run guard-web
     description: Static analysis across all packages (0 issues required).
   analyze-dart:
     run: melos exec -- "dart analyze --fatal-infos --fatal-warnings ."
@@ -43,6 +50,18 @@ scripts:
     description: >-
       FAIL on any package:flutter/material.dart or package:flutter/cupertino.dart
       import in Beak code (CLAUDE.md §2.1).
+  guard-web:
+    run: dart run tool/check_web_safe.dart
+    description: >-
+      FAIL when the panel-side import graph (beak_core, beak_frontend) reaches
+      dart:io or server-side packages. dart:io compiles on web and throws at
+      runtime, so only this guard catches it.
+  link-obers-ui:
+    run: dart run tool/link_obers_ui.dart && melos bootstrap
+    description: >-
+      Point the obers_ui git deps at a sibling ../obers_ui checkout, for
+      working on both repos at once. `melos run link-obers-ui -- --unlink`
+      restores the pinned commits.
   format-check:
     run: dart format --output=none --set-exit-if-changed .
     description: Formatting must be clean.

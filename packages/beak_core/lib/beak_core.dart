@@ -37,7 +37,8 @@ export 'src/storage/beak_storage_registry.dart';
 export 'src/storage/beak_stored_file.dart';
 export 'src/storage/beak_upload.dart';
 export 'src/storage/beak_upload_validator.dart';
-export 'src/storage/drivers/beak_local_disk_storage_driver.dart';
+// The local-disk driver imports dart:io and lives in `package:beak_core/io.dart`
+// so this barrel — and every Flutter panel that imports it — stays web-safe.
 export 'src/storage/drivers/beak_memory_storage_driver.dart';
 export 'src/storage/file_rules/beak_dimensions.dart';
 export 'src/storage/file_rules/beak_file_type.dart';

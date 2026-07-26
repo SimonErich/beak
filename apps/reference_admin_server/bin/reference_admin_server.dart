@@ -15,7 +15,9 @@ Future<void> main() async {
   final server = buildReferenceServer(
     config: config,
     adapter: Worm.adapter(),
-    storage: storageConfig == null ? null : resolveStorage(storageConfig),
+    storage: storageConfig == null
+        ? null
+        : resolveStorage(storageConfig, registry: referenceStorageRegistry()),
   );
   final HttpServer httpServer = await server.start();
   stderr.writeln(

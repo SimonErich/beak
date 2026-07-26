@@ -13,8 +13,11 @@ dependencies:
     path: ../../packages/beak_core
   beak_frontend:
     path: ../../packages/beak_frontend
+  # See packages/beak_frontend/pubspec.yaml for why this is pinned by commit.
   obers_ui:
-    path: ../../../obers_ui
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   reference_admin_models:
     path: ../reference_admin_models
   flutter:

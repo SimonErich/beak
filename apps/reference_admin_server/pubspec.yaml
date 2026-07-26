@@ -11,6 +11,8 @@ dependencies:
     path: ../../packages/beak_backend
   beak_core:
     path: ../../packages/beak_core
+  beak_storage_s3:
+    path: ../../packages/beak_storage_s3
   reference_admin_models:
     path: ../reference_admin_models
   worm:
@@ -22,9 +24,10 @@ dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.6
 
-# beak_backend transitively depends on beak_storage_s3, whose minio 3.5.8
-# pins xml ^6, but this package's image dev-dependency needs xml ^7; minio's
-# xml use is xml-7-compatible (proven by beak_backend's MinIO integration
-# suite). Mirrors the override in beak_backend and beak_superdashboard.
+# This app opts into S3 uploads, so it depends on beak_storage_s3 directly
+# (beak_backend no longer does). minio 3.5.8 pins xml ^6 while this package's
+# image dev-dependency needs xml ^7; minio's xml use is xml-7-compatible,
+# proven by beak_backend's MinIO integration suite. Apps that do not use S3
+# need no override at all.
 dependency_overrides:
   xml: ^7.0.1

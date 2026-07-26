@@ -62,15 +62,8 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
-  beak_storage_ftp:
-    dependency: "direct overridden"
-    description:
-      path: "../../packages/beak_storage_ftp"
-      relative: true
-    source: path
-    version: "0.0.1"
   beak_storage_s3:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../../packages/beak_storage_s3"
       relative: true

@@ -69,15 +69,8 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
-  beak_storage_ftp:
-    dependency: "direct overridden"
-    description:
-      path: "../../packages/beak_storage_ftp"
-      relative: true
-    source: path
-    version: "0.0.1"
   beak_storage_s3:
-    dependency: "direct overridden"
+    dependency: "direct main"
     description:
       path: "../../packages/beak_storage_s3"
       relative: true
@@ -437,23 +430,29 @@ packages:
   obers_ui:
     dependency: "direct main"
     description:
-      path: "../../../obers_ui"
-      relative: true
-    source: path
+      path: "."
+      ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
+      resolved-ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
+      url: "https://github.com/SimonErich/obers_ui.git"
+    source: git
     version: "0.1.2"
   obers_ui_autoforms:
     dependency: transitive
     description:
-      path: "../../../obers_ui/packages/obers_ui_autoforms"
-      relative: true
-    source: path
+      path: "packages/obers_ui_autoforms"
+      ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
+      resolved-ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
+      url: "https://github.com/SimonErich/obers_ui.git"
+    source: git
     version: "0.1.0"
   obers_ui_charts:
     dependency: transitive
     description:
-      path: "../../../obers_ui/packages/obers_ui_charts"
-      relative: true
-    source: path
+      path: "packages/obers_ui_charts"
+      ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
+      resolved-ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
+      url: "https://github.com/SimonErich/obers_ui.git"
+    source: git
     version: "0.1.0"
   package_config:
     dependency: transitive

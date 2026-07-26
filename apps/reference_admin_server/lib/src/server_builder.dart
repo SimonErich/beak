@@ -1,7 +1,19 @@
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_storage_s3/beak_storage_s3.dart';
 import 'package:reference_admin_models/reference_admin_models.dart';
 import 'package:worm/worm.dart';
+
+/// The storage registry this app resolves drivers from: Beak's in-box
+/// `memory` and `local` drivers plus the `s3` plug-in that `.env` selects.
+///
+/// `beak_backend` deliberately does not depend on any driver package, so an
+/// app that uploads to S3 declares `beak_storage_s3` and registers it here.
+BeakStorageRegistry referenceStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
+  registerS3Storage(registry);
+  return registry;
+}
 
 /// Reads the storage driver selection from [environment]
 /// (`BEAK_STORAGE_DRIVER`): `s3` builds a [BeakS3Config] from the

@@ -175,6 +175,7 @@ void main() {
       storage: resolveStorage(
         referenceStorageConfig(e2eEnvironment) ??
             (throw StateError('e2e requires a storage driver')),
+        registry: referenceStorageRegistry(),
       ),
     );
     httpServer = await server.start();
