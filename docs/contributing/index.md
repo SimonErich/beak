@@ -30,14 +30,14 @@ dart pub global activate melos 6.3.3
     `pubspec.yaml`. This repo is on the `melos.yaml`-based `6.3.3` line and will
     not bootstrap under 7.
 
-## The obers_ui sibling
+## The obers_ui dependency
 
-`beak_frontend` and the demo apps reference **`obers_ui`** by a relative path one
-level above the repo root (`../obers_ui`), mirroring the `~/Flutters` layout.
-Check `obers_ui` out as a sibling of this repo *before* bootstrapping, or the
-resolve fails with a missing path dependency. The
-[obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) covers
-what breaks when it is missing.
+`beak_frontend` and the demo apps reference **`obers_ui`** by pinned git commit,
+so `melos bootstrap` fetches it for you and a plain clone of this repo is all
+you need. If your change spans both repositories, clone obers_ui beside this one
+and run `melos run link-obers-ui` to swap the pin for your working copy —
+[Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md) has the
+details.
 
 ## Setup
 

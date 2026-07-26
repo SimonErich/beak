@@ -71,7 +71,6 @@ files; Beak generates the rest of the behavior at runtime.
 
 ```text
 Flutters/
-  obers_ui/                         # sibling checkout Beak draws its widgets from
   beak/
     packages/                       # beak_core, beak_backend, beak_frontend, worm, ...
     apps/

@@ -1,13 +1,13 @@
 ---
 title: 1. Hatch the project
-description: Set up the Beak workspace, clone the sibling obers_ui checkout, and bring Postgres and MinIO up healthy before writing any code.
+description: Set up the Beak workspace and bring Postgres and MinIO up healthy before writing any code.
 ---
 
 # 1. Hatch the project
 
-By the end of this chapter you have a resolved Beak workspace, the sibling
-obers_ui checkout in place, and Postgres plus MinIO running and healthy. No
-roastery code yet: this is the nest. The next chapter lays the first egg.
+By the end of this chapter you have a resolved Beak workspace and Postgres plus
+MinIO running and healthy. No roastery code yet: this is the nest. The next
+chapter lays the first egg.
 
 ## The three-package layout
 
@@ -53,39 +53,32 @@ dart pub global activate melos 6.3.3
     bootstrap under 7. If `melos --version` prints anything but `6.3.3`, re-run
     the `activate` command above.
 
-## The obers_ui sibling checkout
+## The obers_ui dependency
 
 Beak's UI is `obers_ui`, never Material. `beak_frontend` and both demo apps
-depend on the obers_ui trio by a relative path that climbs one level above the
-repo root:
+depend on the obers_ui trio by pinned git commit:
 
 ```yaml title="packages/beak_frontend/pubspec.yaml"
   obers_ui:
-    path: ../../../obers_ui
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   obers_ui_autoforms:
-    path: ../../../obers_ui/packages/obers_ui_autoforms
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_autoforms
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   obers_ui_charts:
-    path: ../../../obers_ui/packages/obers_ui_charts
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_charts
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
 ```
 
-From `packages/beak_frontend/`, `../../../obers_ui` resolves to a folder named
-`obers_ui` sitting next to your `beak` clone. So check obers_ui out as a
-**sibling** of the repo before you bootstrap:
-
-```text
-Flutters/
-  beak/        # this repository
-  obers_ui/    # the sibling checkout, cloned next to it
-```
-
-```bash
-# from the folder that contains your beak/ clone
-git clone https://github.com/SimonErich/obers_ui.git
-```
-
-If obers_ui is missing or lives elsewhere, `melos bootstrap` cannot resolve the
-path dependencies. The [obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md)
-covers the CI and deployment version of this rule.
+obers_ui is not on pub.dev yet, so it is pinned to an exact commit. There is
+nothing for you to do about it: `melos bootstrap` fetches it into your pub cache
+along with everything else. [Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md)
+covers bumping the pin and developing against a local checkout.
 
 ## Bootstrap the workspace
 
@@ -187,9 +180,9 @@ When you are done for the day, `melos run down` stops the services and drops
 their volumes.
 
 !!! note "What just happened"
-    - You installed the pinned Melos and cloned obers_ui as a sibling of the
-      repo, so Beak's UI dependencies resolve.
-    - `melos bootstrap` ran `pub get` across every Beak package and demo app.
+    - You installed the pinned Melos.
+    - `melos bootstrap` ran `pub get` across every Beak package and demo app,
+      fetching the pinned obers_ui commit into your pub cache along the way.
     - You gave the reference server its own `.env`, tuned to port `8080`.
     - `melos run up` brought Postgres and MinIO up healthy and created the
       upload bucket, so the backend has somewhere to store rows and files.
@@ -205,5 +198,5 @@ and give it a table to live in.
   reference, with the full port map and the melos gate.
 - [Dev infrastructure](../deployment/dev-infrastructure.md) what the
   docker-compose stack provides and how the health checks work.
-- [The obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) why
-  obers_ui lives outside the repo, and how CI checks it out.
+- [Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md) how the
+  obers_ui pin works, and how to develop against a local checkout.

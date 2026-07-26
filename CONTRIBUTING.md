@@ -30,14 +30,16 @@ Beak is a Melos monorepo:
   gated here. **Do not send Beak PRs that change vendored worm code** — report
   those upstream.
 
-`beak_frontend` and the apps reference **`obers_ui`** by a relative path one
-level above the repo root (`../obers_ui`), mirroring the `~/Flutters` layout.
-Check `obers_ui` out as a sibling of this repo before bootstrapping.
+`beak_frontend` and the apps reference **`obers_ui`** by pinned git commit, so
+`melos bootstrap` fetches it and a plain clone of this repo is all you need. If
+your change spans both repositories, clone obers_ui beside this one and run
+`melos run link-obers-ui` to swap the pin for your working copy (and
+`melos run link-obers-ui -- --unlink` to switch back).
 
 ## Setup
 
 ```bash
-# 1. Sibling checkout of obers_ui (see above), then from the repo root:
+# 1. From the repo root — nothing else needs checking out first:
 melos bootstrap                      # resolve every package
 
 # 2. Local services (Postgres + MinIO) — waits for health, inits the bucket:

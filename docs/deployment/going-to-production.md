@@ -14,9 +14,8 @@ Build everything from the repo root. Beak uses path dependencies, so the whole `
 | File | What it builds |
 | --- | --- |
 | `Dockerfile.server` | The backend as one AOT-compiled native executable, plus the `beak-migrate` CLI. No obers_ui, no Flutter. |
-| `Dockerfile.web` | The Flutter web panel, served by nginx, with obers_ui resolved from git. |
+| `Dockerfile.web` | The Flutter web panel, served by nginx. obers_ui is pinned by git commit in the pubspecs, so no build-time override is needed. |
 | `nginx.conf` | Static serving with a SPA fallback for go_router routes. |
-| `web-overrides.yaml` | Redirects the three obers_ui packages to git during the web build. |
 | `docker-compose.prod.yml` | postgres + minio + createbuckets + migrate + server + web. |
 | `.env.prod.example` | Copy to `.env.prod` and change the credentials. |
 
@@ -65,9 +64,6 @@ FROM ghcr.io/cirruslabs/flutter:stable AS build
 WORKDIR /app
 COPY . .
 
-# Redirect obers_ui to its git source.
-COPY deploy/web-overrides.yaml apps/reference_admin/pubspec_overrides.yaml
-
 # Flutter refuses to touch a repo it does not "own" (root user in CI images).
 RUN git config --global --add safe.directory '*'
 
@@ -83,7 +79,7 @@ COPY --from=build /app/apps/reference_admin/build/web /usr/share/nginx/html
 EXPOSE 80
 ```
 
-The one non-obvious line copies `deploy/web-overrides.yaml` into the app as `pubspec_overrides.yaml`. Locally the panel resolves obers_ui by a sibling path, but there is no sibling checkout inside a container, so the override points the three obers_ui packages at their public git source and the image builds on its own. The [obers_ui sibling caveat](the-obers-ui-sibling-caveat.md) covers that trade in full.
+There is nothing non-obvious left in this file: because obers_ui is pinned by git commit in the pubspecs themselves, the image resolves exactly what your machine resolves, with no injected overrides. [Working with obers_ui](the-obers-ui-sibling-caveat.md) covers how that pin works and how to develop against a local checkout.
 
 nginx serves the static bundle with a single fallback so a hard refresh on a client-side route still lands on the app:
 
@@ -161,6 +157,6 @@ The stack builds and runs, but a demo compose file is not a hardened deployment.
 ## Continue reading
 
 - [Environment and config](environment-and-config.md) the variables `.env.prod` sets.
-- [The obers_ui sibling caveat](the-obers-ui-sibling-caveat.md) why the web image redirects obers_ui to git.
+- [Working with obers_ui](the-obers-ui-sibling-caveat.md) how the pinned commit makes the web image build with no overrides.
 - [Migrations](../backend/migrations.md) what `beak-migrate` runs, and how migrations are registered.
 - [Seeding](../backend/seeding.md) what `migrate db:seed` puts in the database.

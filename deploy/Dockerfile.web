@@ -2,11 +2,10 @@
 
 # Beak panel (Flutter web) image.
 #
-# The panel is a normal Flutter web app. It depends on obers_ui, which locally
-# resolves by a sibling path (../../../obers_ui). There is no sibling checkout
-# inside a container, so we inject deploy/web-overrides.yaml to resolve the three
-# obers_ui packages from git, and the image builds standalone. Build from the
-# repo root:
+# The panel is a normal Flutter web app. It depends on obers_ui by pinned git
+# commit, so it resolves identically inside a container and on a developer's
+# machine — no injected overrides, no sibling checkout. Build from the repo
+# root:
 #
 #   docker build -f deploy/Dockerfile.web -t beak-web .
 #
@@ -19,9 +18,6 @@ FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 COPY . .
-
-# Redirect obers_ui to its git source (see the file's header for pinning).
-COPY deploy/web-overrides.yaml apps/reference_admin/pubspec_overrides.yaml
 
 # Flutter refuses to touch a repo it does not "own" (root user in CI images).
 RUN git config --global --add safe.directory '*'

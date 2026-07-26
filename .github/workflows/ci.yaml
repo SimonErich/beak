@@ -15,23 +15,10 @@ jobs:
     name: Analyze & format
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: beak
     steps:
-      - name: Checkout beak
-        uses: actions/checkout@v4
-        with:
-          path: beak
-      # beak_frontend and the apps reference obers_ui by relative path one level
-      # above the repo root (../obers_ui), mirroring the local ~/Flutters layout.
-      # Override the repository via the OBERS_UI_REPO repo variable if it moves.
-      - name: Checkout obers_ui (sibling path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.OBERS_UI_REPO || 'SimonErich/obers_ui' }}
-          token: ${{ secrets.OBERS_UI_TOKEN || github.token }}
-          path: obers_ui
+      # A single-repo checkout is the whole point: obers_ui is pinned by git
+      # commit in the pubspecs, so nothing has to be placed beside this repo.
+      - uses: actions/checkout@v4
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -41,7 +28,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('beak/**/pubspec.yaml') }}
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
@@ -53,29 +40,20 @@ jobs:
       # / `dart run`, it does not fetch packages on its own).
       - name: Pub get (workspace tooling)
         run: dart pub get
-      - name: Analyze (includes material-import guard)
+      - name: Analyze (includes the material and web-safety guards)
         run: melos run analyze
       - name: Format check
         run: melos run format-check
 
-  test:
-    name: Test & coverage
+  web:
+    name: Web build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: beak
+    timeout-minutes: 25
     steps:
-      - name: Checkout beak
-        uses: actions/checkout@v4
-        with:
-          path: beak
-      - name: Checkout obers_ui (sibling path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.OBERS_UI_REPO || 'SimonErich/obers_ui' }}
-          token: ${{ secrets.OBERS_UI_TOKEN || github.token }}
-          path: obers_ui
+      # The guard in `melos run analyze` is static; this job is the empirical
+      # half. dart:io compiles on web and only fails at runtime, so a real
+      # build is what proves the panel graph stayed server-free.
+      - uses: actions/checkout@v4
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -85,7 +63,35 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('beak/**/pubspec.yaml') }}
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      - name: Activate melos
+        run: dart pub global activate melos 6.3.3
+      - name: Bootstrap
+        run: melos bootstrap
+      - name: Build the reference panel for web
+        run: flutter build web --release
+        working-directory: apps/reference_admin
+      - name: Build the superdashboard panel for web
+        run: flutter build web --release
+        working-directory: apps/beak_superdashboard
+
+  test:
+    name: Test & coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
@@ -103,8 +109,8 @@ jobs:
         with:
           name: coverage
           path: |
-            beak/packages/*/coverage/lcov.info
-            beak/apps/*/coverage/lcov.info
+            packages/*/coverage/lcov.info
+            apps/*/coverage/lcov.info
           retention-days: 7
       - name: Tear down services
         if: always()

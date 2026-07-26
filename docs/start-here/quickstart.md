@@ -10,7 +10,7 @@ backend serving a generated API on port `8080`, seeded with sample data, and a
 Flutter panel in Chrome talking to it. Roughly five minutes of copy-paste.
 
 This page assumes you finished [Installation](installation.md): Melos `6.3.3`,
-the obers_ui sibling checkout, `melos bootstrap`, and the ability to run the
+`melos bootstrap`, and the ability to run the
 Docker services. It uses the **reference admin** (a small coffee-roastery store:
 products, categories, tags, users, orders), whose server runs on port `8080`.
 

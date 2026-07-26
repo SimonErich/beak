@@ -21,7 +21,7 @@ Beak splits cleanly along a dependency line, and the deployment follows that lin
 | `beak-server` | The backend as one AOT-compiled native executable, plus the `beak-migrate` CLI for schema and seed. | `beak_backend`, `beak_core`, `worm`. No Flutter, no obers_ui. | `debian:bookworm-slim` | ~103 MB |
 | `beak-web` | The Flutter web panel: static files served by nginx with a SPA fallback. | Flutter, obers_ui. | `nginx:alpine` | ~106 MB |
 
-The backend is pure Dart. It never imports Flutter or obers_ui, so it compiles to a single binary and boots on a slim Debian base with nothing but glibc and CA roots. Only the panel needs obers_ui, and only the panel needs a Flutter toolchain to build. Keeping the two apart is what lets the server image stay small and the web image build on its own. The [obers_ui sibling caveat](the-obers-ui-sibling-caveat.md) explains the one wrinkle that split introduces.
+The backend is pure Dart. It never imports Flutter or obers_ui, so it compiles to a single binary and boots on a slim Debian base with nothing but glibc and CA roots. Only the panel needs obers_ui, and only the panel needs a Flutter toolchain to build. Keeping the two apart is what lets the server image stay small and the web image build on its own. [Working with obers_ui](the-obers-ui-sibling-caveat.md) explains how the panel resolves obers_ui without any build-time override.
 
 ## A starting point, not a platform
 
@@ -37,4 +37,4 @@ They are a reference you copy and adapt, not a managed platform. Beak does not r
 - [Environment and config](environment-and-config.md) the `.env` surface and how it resolves at boot.
 - [Dev infrastructure](dev-infrastructure.md) the local Postgres and MinIO stack for running the apps and tests.
 - [Going to production](going-to-production.md) the real `deploy/` setup, walked through file by file.
-- [The obers_ui sibling caveat](the-obers-ui-sibling-caveat.md) why a fresh clone needs a sibling checkout, and the two ways to fix it.
+- [Working with obers_ui](the-obers-ui-sibling-caveat.md) how obers_ui is pinned by commit, and how to develop against a local checkout.

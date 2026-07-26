@@ -69,9 +69,9 @@ lives in `beak_core`.
 | `packages/worm*` | The vendored worm ORM and its drivers. Consumed as path dependencies, not gated here; do not send Beak changes to worm code. |
 
 The obers_ui trio (`obers_ui`, `obers_ui_autoforms`, `obers_ui_charts`) is not in
-this tree at all: it is referenced by a relative path to a
-[sibling checkout](installation.md#the-obers_ui-sibling-checkout) one level above
-the repo root. Beak never draws a Material widget of its own.
+this tree at all: it is fetched from git at a
+[pinned commit](installation.md#the-obers_ui-dependency) into your pub cache.
+Beak never draws a Material widget of its own.
 
 ## The two-app split
 

@@ -72,7 +72,7 @@ The worm ORM (and its `worm_postgres` driver) appears in exactly one place: `bea
 
 ### Only beak_frontend imports obers_ui
 
-`beak_frontend` is the sole Flutter package in the framework, and the only one that imports `obers_ui`, `obers_ui_autoforms`, and `obers_ui_charts` (all path dependencies from the sibling `obers_ui` repo). It never imports `dart:io` or Shelf. The panel, table, form, detail view, actions, and dashboard all live here, built entirely on obers_ui widgets.
+`beak_frontend` is the sole Flutter package in the framework, and the only one that imports `obers_ui`, `obers_ui_autoforms`, and `obers_ui_charts` (all pinned to one commit of the `obers_ui` repo). It never imports `dart:io` or Shelf. The panel, table, form, detail view, actions, and dashboard all live here, built entirely on obers_ui widgets.
 
 !!! note "beak_cli stands apart"
     The scaffolding CLI depends only on `args`. It emits models, columns, and migrations as generated text, so it has no need to link `beak_core` at all. That is why it hangs off the graph on its own.

@@ -1,13 +1,13 @@
 ---
 title: Installation
-description: Get the Beak toolchain, the sibling obers_ui checkout, and local Postgres and MinIO in place before you build.
+description: Get the Beak toolchain and local Postgres and MinIO in place before you build.
 ---
 
 # Installation
 
 After this page you have a resolved Beak workspace: the right Dart and Flutter,
-the pinned Melos, the obers_ui checkout Beak draws its widgets from, and Postgres
-plus MinIO running locally. The [Quickstart](quickstart.md) picks up from here.
+the pinned Melos, and Postgres plus MinIO running locally. The
+[Quickstart](quickstart.md) picks up from here.
 
 ## Prerequisites
 
@@ -34,40 +34,35 @@ dart pub global activate melos 6.3.3
     workspace root `pubspec.yaml`) and will not bootstrap under 7. If `melos
     --version` prints anything but `6.3.3`, re-run the `activate` command above.
 
-## The obers_ui sibling checkout
+## The obers_ui dependency
 
-Beak's UI is obers_ui, never Material. `beak_frontend` and both demo apps depend
-on the obers_ui trio by a relative path that climbs one level above the repo
-root:
+Beak's UI is obers_ui, never Material. obers_ui is not on pub.dev yet, so
+`beak_frontend` and both demo apps depend on it by **pinned git commit**:
 
 ```yaml title="packages/beak_frontend/pubspec.yaml"
   obers_ui:
-    path: ../../../obers_ui
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   obers_ui_autoforms:
-    path: ../../../obers_ui/packages/obers_ui_autoforms
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_autoforms
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   obers_ui_charts:
-    path: ../../../obers_ui/packages/obers_ui_charts
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_charts
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
 ```
 
-From `packages/beak_frontend/`, `../../../obers_ui` resolves to a folder named
-`obers_ui` sitting next to the `beak` repo. So check obers_ui out as a **sibling
-of this repo** before you bootstrap. The layout Beak expects:
+There is **nothing to check out beside the repo**: `melos bootstrap` fetches
+obers_ui into your pub cache like any other dependency. Cloning Beak on its own
+is enough.
 
-```text
-Flutters/
-  beak/        # this repository
-  obers_ui/    # the sibling checkout, cloned next to it
-```
-
-```bash
-# from the folder that contains your beak/ clone
-git clone https://github.com/SimonErich/obers_ui.git
-```
-
-If obers_ui is missing or lives somewhere else, `melos bootstrap` fails to
-resolve the path dependencies. See
-[The obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) for
-the CI and deployment version of this rule.
+If you intend to change obers_ui and Beak together, see
+[Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md) — one
+command points the pin at a local checkout and back.
 
 ## Bootstrap the workspace
 
@@ -176,7 +171,7 @@ here:
 - [Quickstart](quickstart.md) migrate, seed, serve on port 8080, open the panel.
 - [Project structure](project-structure.md) the monorepo layout and the two-app
   split.
-- [The obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) why
-  obers_ui lives outside the repo, and how CI checks it out.
+- [Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md) how the
+  obers_ui pin works, and how to develop against a local checkout.
 - [Contributing](../contributing/index.md) the four-command gate a change must
   pass.
