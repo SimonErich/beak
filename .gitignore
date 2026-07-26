@@ -37,3 +37,6 @@ deploy/.env.prod
 /OBERS_MISSING_FEATURES.md
 /WORM_MISSING_FEATURES.md
 .flutter-plugins-dependencies
+
+# MkDocs build output.
+/site/

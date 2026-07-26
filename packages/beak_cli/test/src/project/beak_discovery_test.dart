@@ -224,6 +224,60 @@ final class DemoSeeder extends Seeder {
       expect(discovery.migrations.single.name, 'CreateNotesTable');
       expect(discovery.seeders.single.name, 'DemoSeeder');
     });
+
+    test('migrations register in declared-name order, not file order', () {
+      // worm runs migrations in registration order, and the timestamp lives
+      // in the `name` getter. By path, `create_order_items_table.dart` sorts
+      // before `create_orders_table.dart` and its foreign key would reference
+      // a table that does not exist yet.
+      String migration(String className, String name) =>
+          '''
+import 'package:worm/worm.dart';
+
+final class $className extends Migration {
+  const $className();
+
+  @override
+  String get name => '$name';
+}
+''';
+
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_order_items_table.dart': migration(
+            'CreateOrderItemsTable',
+            '20260726_120200_create_order_items_table',
+          ),
+          'lib/migrations/create_orders_table.dart': migration(
+            'CreateOrdersTable',
+            '20260726_120100_create_orders_table',
+          ),
+        }),
+      ).scan();
+
+      expect(discovery.migrations.map((m) => m.name), [
+        'CreateOrdersTable',
+        'CreateOrderItemsTable',
+      ]);
+    });
+
+    test('a migration with no declared name still sorts by path', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/b.dart':
+              "import 'package:worm/worm.dart';\n"
+              'final class BMigration extends Migration { const BMigration(); }',
+          'lib/migrations/a.dart':
+              "import 'package:worm/worm.dart';\n"
+              'final class AMigration extends Migration { const AMigration(); }',
+        }),
+      ).scan();
+
+      expect(discovery.migrations.map((m) => m.name), [
+        'AMigration',
+        'BMigration',
+      ]);
+    });
   });
 
   group('summary', () {

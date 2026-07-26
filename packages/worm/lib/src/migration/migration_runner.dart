@@ -36,7 +36,12 @@ final class MigrationRunner {
   /// Adapter the runner targets.
   final DatabaseAdapter adapter;
 
-  /// Migrations in canonical (sorted by name) execution order.
+  /// Migrations in execution order.
+  ///
+  /// [MigrationDependencySorter] honours every `dependsOn` declaration and
+  /// otherwise keeps the order they were registered in — it does **not**
+  /// re-sort by [Migration.name]. A caller that relies on timestamp ordering
+  /// must register them in that order.
   final List<Migration> migrations;
 
   /// Seeders consulted by [fresh] when `seed: true`. Empty by

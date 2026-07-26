@@ -36,7 +36,7 @@ dart pub global activate melos 6.3.3
 so `melos bootstrap` fetches it for you and a plain clone of this repo is all
 you need. If your change spans both repositories, clone obers_ui beside this one
 and run `melos run link-obers-ui` to swap the pin for your working copy —
-[Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md) has the
+[Working with obers_ui](../deployment/working-with-obers-ui.md) has the
 details.
 
 ## Setup

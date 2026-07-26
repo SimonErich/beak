@@ -183,7 +183,7 @@ nav:
       - "Environment and config": deployment/environment-and-config.md
       - "Dev infrastructure": deployment/dev-infrastructure.md
       - "Going to production": deployment/going-to-production.md
-      - "Working with obers_ui": deployment/the-obers-ui-sibling-caveat.md
+      - "Working with obers_ui": deployment/working-with-obers-ui.md
   - "Guides":
       - guides/index.md
       - "Testing": guides/testing.md

@@ -77,7 +77,7 @@ depend on the obers_ui trio by pinned git commit:
 
 obers_ui is not on pub.dev yet, so it is pinned to an exact commit. There is
 nothing for you to do about it: `melos bootstrap` fetches it into your pub cache
-along with everything else. [Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md)
+along with everything else. [Working with obers_ui](../deployment/working-with-obers-ui.md)
 covers bumping the pin and developing against a local checkout.
 
 ## Bootstrap the workspace
@@ -198,5 +198,5 @@ and give it a table to live in.
   reference, with the full port map and the melos gate.
 - [Dev infrastructure](../deployment/dev-infrastructure.md) what the
   docker-compose stack provides and how the health checks work.
-- [Working with obers_ui](../deployment/the-obers-ui-sibling-caveat.md) how the
+- [Working with obers_ui](../deployment/working-with-obers-ui.md) how the
   obers_ui pin works, and how to develop against a local checkout.

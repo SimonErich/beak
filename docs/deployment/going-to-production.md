@@ -79,7 +79,7 @@ COPY --from=build /app/apps/reference_admin/build/web /usr/share/nginx/html
 EXPOSE 80
 ```
 
-There is nothing non-obvious left in this file: because obers_ui is pinned by git commit in the pubspecs themselves, the image resolves exactly what your machine resolves, with no injected overrides. [Working with obers_ui](the-obers-ui-sibling-caveat.md) covers how that pin works and how to develop against a local checkout.
+There is nothing non-obvious left in this file: because obers_ui is pinned by git commit in the pubspecs themselves, the image resolves exactly what your machine resolves, with no injected overrides. [Working with obers_ui](working-with-obers-ui.md) covers how that pin works and how to develop against a local checkout.
 
 nginx serves the static bundle with a single fallback so a hard refresh on a client-side route still lands on the app:
 
@@ -157,6 +157,6 @@ The stack builds and runs, but a demo compose file is not a hardened deployment.
 ## Continue reading
 
 - [Environment and config](environment-and-config.md) the variables `.env.prod` sets.
-- [Working with obers_ui](the-obers-ui-sibling-caveat.md) how the pinned commit makes the web image build with no overrides.
+- [Working with obers_ui](working-with-obers-ui.md) how the pinned commit makes the web image build with no overrides.
 - [Migrations](../backend/migrations.md) what `beak-migrate` runs, and how migrations are registered.
 - [Seeding](../backend/seeding.md) what `migrate db:seed` puts in the database.

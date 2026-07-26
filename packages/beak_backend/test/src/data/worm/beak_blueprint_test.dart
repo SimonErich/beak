@@ -93,6 +93,27 @@ final class _WidgetModel extends BeakModel {
   bool get softDeletes => softDeleting;
 }
 
+/// A soft-deleting model that also declares the marker column, exactly as a
+/// generated model does.
+final class _SoftDeleteDeclaringModel extends BeakModel {
+  const _SoftDeleteDeclaringModel();
+
+  @override
+  String get table => 'widgets';
+
+  @override
+  String get displayColumnKey => 'name';
+
+  @override
+  List<BeakColumn> get columns => const [
+    ..._WidgetColumns.values,
+    BeakDateTimeColumn(key: 'deleted_at', label: 'Deleted at'),
+  ];
+
+  @override
+  bool get softDeletes => true;
+}
+
 final class _RestrictedModel extends BeakModel {
   const _RestrictedModel();
 
@@ -222,6 +243,18 @@ void main() {
       expect(
         table.columns.map((column) => column.name),
         contains('deleted_at'),
+      );
+    });
+
+    test('emits deleted_at once when the model declares it too', () {
+      // Every generated model of a soft-deleting resource carries a
+      // deleted_at column; naming it again made Postgres reject the table.
+      final declaring = BlueprintTable('widgets');
+      BeakBlueprint.defineColumns(declaring, const _SoftDeleteDeclaringModel());
+
+      expect(
+        declaring.columns.where((column) => column.name == 'deleted_at'),
+        hasLength(1),
       );
     });
 

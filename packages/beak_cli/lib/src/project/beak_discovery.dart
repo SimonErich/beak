@@ -13,6 +13,7 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
     required this.name,
     required this.importPath,
     required this.isConstructible,
+    this.sortKey,
   });
 
   /// The Dart identifier: a class name, or a top-level variable/function name.
@@ -27,6 +28,15 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
   /// which the emitter references directly instead.
   final bool isConstructible;
 
+  /// What this symbol sorts by ahead of its path, when it declares one.
+  ///
+  /// A migration's `name` getter carries its timestamp, and worm runs
+  /// migrations in the order they are registered. Sorting by path instead
+  /// would put `create_order_items_table.dart` before
+  /// `create_orders_table.dart` and the foreign key would reference a table
+  /// that does not exist yet.
+  final String? sortKey;
+
   /// A Dart expression evaluating to this symbol.
   String get expression => isConstructible ? 'const $name()' : name;
 
@@ -36,6 +46,14 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
 
   @override
   int compareTo(BeakDiscoveredSymbol other) {
+    final String? key = sortKey;
+    final String? otherKey = other.sortKey;
+    if (key != null && otherKey != null) {
+      final int byKey = key.compareTo(otherKey);
+      if (byKey != 0) {
+        return byKey;
+      }
+    }
     final int byPath = importPath.compareTo(other.importPath);
     return byPath != 0 ? byPath : name.compareTo(other.name);
   }
@@ -249,6 +267,7 @@ final class BeakProjectScanner {
               name: name,
               importPath: path,
               isConstructible: true,
+              sortKey: _declaredNameOf(declaration),
             ),
           );
         }
@@ -256,6 +275,25 @@ final class BeakProjectScanner {
     }
     found.sort();
     return found;
+  }
+
+  /// The string a class's `String get name => '...';` returns, when it has
+  /// one — a migration's timestamped identity.
+  static String? _declaredNameOf(ClassDeclaration declaration) {
+    for (final member in declaration.members) {
+      if (member is! MethodDeclaration || !member.isGetter) {
+        continue;
+      }
+      if (member.name.lexeme != 'name') {
+        continue;
+      }
+      if (member.body case final ExpressionFunctionBody body) {
+        if (body.expression case final SimpleStringLiteral literal) {
+          return literal.value;
+        }
+      }
+    }
+    return null;
   }
 
   /// `BeakScreen` declarations: a top-level variable of that type, or a

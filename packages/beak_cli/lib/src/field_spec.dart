@@ -163,13 +163,24 @@ String snakeCaseOf(String resourceName) => resourceName
 /// tableNameOf('Category'); // 'categories'
 /// tableNameOf('Box'); // 'boxes'
 /// ```
-String tableNameOf(String resourceName) {
-  final String snake = snakeCaseOf(resourceName);
-  if (snake.endsWith('s') || snake.endsWith('x') || snake.endsWith('ch')) {
-    return '${snake}es';
+String tableNameOf(String resourceName) => pluralOf(snakeCaseOf(resourceName));
+
+/// `category` -> `categories`, `box` -> `boxes`, `product` -> `products`.
+///
+/// The one pluraliser: a table name and the migration class naming it must
+/// agree, and appending a bare `s` gave `CreateCategorysTable` beside a
+/// `categories` table.
+///
+/// ```dart
+/// pluralOf('Category'); // 'Categories'
+/// pluralOf('product');  // 'products'
+/// ```
+String pluralOf(String word) {
+  if (word.endsWith('s') || word.endsWith('x') || word.endsWith('ch')) {
+    return '${word}es';
   }
-  if (snake.endsWith('y')) {
-    return '${snake.substring(0, snake.length - 1)}ies';
+  if (word.endsWith('y')) {
+    return '${word.substring(0, word.length - 1)}ies';
   }
-  return '${snake}s';
+  return '${word}s';
 }

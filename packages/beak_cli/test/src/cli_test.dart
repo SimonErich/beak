@@ -193,6 +193,67 @@ void main() {
     });
   });
 
+  group('pluralisation', () {
+    test('the migration class agrees with the table it creates', () async {
+      // `CreateCategorysTable` beside a `categories` table was the tell that
+      // two pluralisers were in play.
+      await runner.run(['make:migration', 'Category', '--from-model']);
+
+      final source = read('lib/migrations/create_categories_table.dart');
+      expect(source, contains('class CreateCategoriesTable'));
+      expect(source, contains("schema.create('categories'"));
+      expect(source, isNot(contains('Categorys')));
+    });
+
+    test('handles the s/x/ch and y endings the table name does', () {
+      expect(pluralOf('Box'), 'Boxes');
+      expect(pluralOf('Class'), 'Classes');
+      expect(pluralOf('Batch'), 'Batches');
+      expect(pluralOf('Category'), 'Categories');
+      expect(pluralOf('Product'), 'Products');
+    });
+  });
+
+  group('make:migration --from-model', () {
+    test('derives the table from the model instead of restating it', () async {
+      await runner.run(['make:migration', 'Product', '--from-model']);
+
+      final source = read('lib/migrations/create_products_table.dart');
+      expect(source, contains("import '../models/product.dart';"));
+      expect(
+        source,
+        contains('BeakBlueprint.defineColumns(table, const ProductModel())'),
+      );
+      expect(
+        source,
+        contains(
+          'BeakBlueprint.defineForeignKeys(table, const ProductModel())',
+        ),
+      );
+      // No hand-restated columns to drift from the model.
+      expect(source, isNot(contains('table.string(')));
+    });
+
+    test('says why it is better, so the choice is informed', () async {
+      await runner.run(['make:migration', 'Product', '--from-model']);
+
+      expect(out.toString(), contains('derived from ProductModel'));
+    });
+
+    test('without the flag it still writes explicit columns', () async {
+      await runner.run([
+        'make:migration',
+        'Product',
+        '--fields',
+        'name:string',
+      ]);
+
+      final source = read('lib/migrations/create_products_table.dart');
+      expect(source, contains("table.string('name')"));
+      expect(source, isNot(contains('BeakBlueprint')));
+    });
+  });
+
   group('formatting', () {
     test('every scaffolded Dart file is already formatted', () async {
       // A scaffold that needs `dart format` afterwards hands the user a diff

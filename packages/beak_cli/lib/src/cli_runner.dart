@@ -334,7 +334,15 @@ final class MakeColumnsCommand extends _MakeCommand {
 /// migration in `bin/worm.dart`.
 final class MakeMigrationCommand extends _MakeCommand {
   /// Creates the command bound to [environment].
-  MakeMigrationCommand(super.environment);
+  MakeMigrationCommand(super.environment) {
+    argParser.addFlag(
+      'from-model',
+      help:
+          'Derive the columns from the model of the same name instead of '
+          'restating them with --fields.',
+      negatable: false,
+    );
+  }
 
   @override
   String get name => 'make:migration';
@@ -345,8 +353,28 @@ final class MakeMigrationCommand extends _MakeCommand {
   @override
   Future<int> run() async {
     final String resource = resourceName();
+    final String path =
+        'lib/migrations/create_${tableNameOf(resource)}_table'
+        '.dart';
+    if (argResults?['from-model'] == true) {
+      environment
+        ..writeFile(
+          path,
+          generateModelMigration(
+            resource,
+            modelClass: '${resource}Model',
+            importPath: '../models/${snakeCaseOf(resource)}.dart',
+            timestamp: timestamp(),
+          ),
+        )
+        ..out.writeln(
+          'The table is derived from ${resource}Model, so adding a column to '
+          'the schema class changes the DDL with no second edit.',
+        );
+      return 0;
+    }
     environment.writeFile(
-      'lib/migrations/create_${tableNameOf(resource)}_table.dart',
+      path,
       generateMigration(resource, fields(), timestamp: timestamp()),
     );
     return 0;

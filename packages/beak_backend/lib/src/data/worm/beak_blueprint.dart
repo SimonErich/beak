@@ -1,6 +1,8 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
+import 'worm_data_source.dart';
+
 /// Derives a worm schema from a [BeakModel]'s typed columns and relationships.
 ///
 /// A migration that spells its columns out by hand is a second declaration of
@@ -61,7 +63,9 @@ abstract final class BeakBlueprint {
   /// [columnDefaults] supplies defaults the model has no way to express —
   /// keyed by column key, applied instead of making the column nullable.
   ///
-  /// `softDeletes()` is appended for a model that soft-deletes.
+  /// `softDeletes()` is appended for a model that soft-deletes, and owns the
+  /// marker column: a model that also declares `deleted_at` among its columns
+  /// has it emitted once, not twice.
   ///
   /// Every column the model declares is emitted, timestamps included. If
   /// `created_at`/`updated_at` are among them, do **not** also call
@@ -82,6 +86,13 @@ abstract final class BeakBlueprint {
     for (final column in model.columns) {
       if (column.key == model.primaryKey.key) {
         table.idUuid();
+        continue;
+      }
+      // `softDeletes()` below owns the marker column. A model that declares
+      // it — every generated model of a soft-deleting resource does — would
+      // otherwise name it twice and the database would reject the table.
+      if (model.softDeletes &&
+          column.key == WormDataSource.softDeleteColumnKey) {
         continue;
       }
       if (foreignKeys.contains(column.key)) {

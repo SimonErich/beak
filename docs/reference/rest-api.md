@@ -58,8 +58,9 @@ These hold for every route on the page. The examples use the tutorial store
 
 | Convention | Detail |
 | --- | --- |
-| Base path | Every route is under `/api`. Resource routes are under `/api/{table}` (the model's `table`). |
+| Base path | Every route is under `/api`, except the `/healthz` and `/readyz` probes. Resource routes are under `/api/{table}` (the model's `table`). |
 | Request bodies | JSON objects. `POST`/`PATCH` bodies are read with `readJsonObject`: a body that is not valid JSON, or not a JSON object, is a `422`. |
+| Spec bodies | A query spec needs only `table`; an aggregate spec needs `table` and `function`. Every other key falls back to its default, so `{"table": "products"}` is a valid query. Responses still carry every key. |
 | Response bodies | JSON, `content-type: application/json; charset=utf-8` (set by the JSON middleware). Exports and file downloads carry their own content type. |
 | Auth header | `Authorization: Bearer <token>` when the server has an auth guard installed. A missing or invalid token is anonymous, not an error, until a policy denies the action. |
 | Request id | Every response echoes `x-request-id` (reusing an incoming one), and error bodies carry the same value as `requestId`. |
@@ -76,6 +77,7 @@ These hold for every route on the page. The examples use the tutorial store
 | `GET` | `/api/{table}/<id>` | Fetch one record | `200` |
 | `PATCH` | `/api/{table}/<id>` | Partially update a record | `200` |
 | `DELETE` | `/api/{table}/<id>` | Soft-delete (or force-delete) a record | `204` |
+| `POST` | `/api/{table}/<id>/restore` | Clear a record's soft-delete marker | `200` |
 | `POST` | `/api/{table}/<id>/relations/<relationKey>/attach` | Link related ids | `204` |
 | `POST` | `/api/{table}/<id>/relations/<relationKey>/detach` | Unlink related ids | `204` |
 | `POST` | `/api/{table}/export` | Stream matching rows as CSV | `200` |
@@ -85,10 +87,57 @@ These hold for every route on the page. The examples use the tutorial store
 | `POST` | `/api/auth/login` | Exchange credentials for a session token | `200` |
 | `POST` | `/api/auth/logout` | Revoke the presented token | `204` |
 | `GET` | `/api/auth/me` | The authenticated principal | `200` |
+| `GET` | `/healthz` | Liveness — is the process serving? | `200` |
+| `GET` | `/readyz` | Readiness — does the data source answer? | `200` / `503` |
 
 The upload routes exist only when the server is built with an `UploadService`
 (storage wired); the auth routes only when it is built with `BeakAuthSessions`.
 The rest are always present for every registered model.
+
+The two probes sit **outside `/api`** on purpose: a container platform's probe
+arrives with no credentials, so it must not pass through the auth middleware.
+`/healthz` never touches the database — a liveness probe decides whether to
+*restart* the process, and a database blip must move traffic away rather than
+kill it. `/readyz` is the one that answers `503`, with the cause:
+
+```json
+{"status": "unavailable", "detail": "connection refused"}
+```
+
+## Conditional updates
+
+`PATCH` honours `If-Unmodified-Since` against the record's stored `updated_at`
+and answers `409 Conflict` when it has moved:
+
+```bash
+curl -X PATCH localhost:8080/api/products/p1 \
+  -H 'content-type: application/json' \
+  -H 'if-unmodified-since: 2026-07-26T20:24:56.910652Z' \
+  -d '{"name": "Chisel v2"}'
+```
+
+It is opt-in: a request without the header updates unconditionally, which is
+what a script or a single-writer panel wants. With two people editing the same
+record, the default — last write wins, silently — is how the first one's work
+disappears; the header is how the panel notices instead.
+
+An unparseable header is a `422`, never a silent unconditional write.
+
+## Row-level scoping
+
+A `BeakPolicy` answers "may this principal read orders". That is not the same
+question as "may they read *these* orders", and a filter in a query spec comes
+from the client — so a policy meaning "a customer sees only their own" is
+bypassed by asking for everything.
+
+Implement `BeakRowPolicy` instead and its `scopeFor(principal, table)` filter is
+intersected with **every** read and write of that table: query, aggregate,
+get-one, batch, update, delete, attach, detach, restore, CSV export and global
+search. It is enforced in the service layer rather than per endpoint, so there
+is no route left to forget.
+
+A record outside the scope reports as `404`, not `403`: telling an
+unauthorised caller that a record exists is itself a leak.
 
 ## Wire types
 

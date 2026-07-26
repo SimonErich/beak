@@ -15,6 +15,14 @@ every snippet you copy is code that compiles and ships.
 The bird has to leave the nest sometime. This is that flight, taken in short
 hops.
 
+!!! note "This tutorial builds the demo inside the Beak monorepo"
+    It predates `beak create` and walks the layout the reference admin uses —
+    a models package, a server package and a panel package — because that is
+    what the repository ships and what the feature pages refer to. Every
+    concept transfers, but a project of your own is one package, not three:
+    start from the [Quickstart](../start-here/quickstart.md) if you want the
+    shortest path, and read this for the ideas underneath.
+
 ## What you build
 
 Picture the finished panel. A navigation rail down the left lists six resources:

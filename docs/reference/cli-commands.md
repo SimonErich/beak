@@ -23,9 +23,11 @@ on your `PATH`).
 | `create` | `<name>` | Scaffolds a new project. |
 | `prepare` | (none) | Regenerates the wiring from what the project declares. |
 | `dev` | (none) | Regenerates, then serves the API. |
+| `introspect` | `<database-url>` | Writes models for the tables a database already has. |
+| `eject` | `<target>` | Writes a Beak default out as a file you own. |
 | `migrate` | `[subcommand]` | Applies pending migrations. |
 | `seed` | (none) | Runs the project seeders. |
-| `doctor` | (none) | Diagnoses the project. |
+| `doctor` | (none) | Diagnoses the project. `--json` for CI. |
 | `make:resource` | `Name` | worm model + Beak columns/model + migration. |
 | `make:model` | `Name` | worm model only. |
 | `make:columns` | `Name` | Beak columns + `BeakModel` only. |
@@ -237,38 +239,111 @@ Writes `lib/src/models/<snake>_columns.dart`. The first field becomes the model'
 
 ## `make:migration`
 
-Writes only the create-table worm migration, its `name` prefixed with a timestamp so worm applies migrations in order.
+Writes only the create-table migration, its `name` prefixed with a timestamp.
 
 ```console
 $ beak make:migration Tag --fields name:string
-  created lib/src/migrations/create_tags_table.dart
+  created lib/migrations/create_tags_table.dart
 ```
 
-Writes `lib/src/migrations/create_<table>_table.dart`. The timestamp prefix comes from the clock (`20260703_120000_create_tags_table`). Register the class in `bin/worm.dart`; migrations are never auto-applied.
+There is nothing to register: `beak prepare` discovers `lib/migrations/` and lists what it finds on the generated host, ordered by each migration's declared `name` — which is why the timestamp prefix matters. Migrations are still never auto-applied; run `beak migrate`.
+
+### `--from-model`
+
+Derives the columns from the model of the same name instead of restating them:
+
+```console
+$ beak make:migration Product --from-model
+  created lib/migrations/create_products_table.dart
+```
+
+```dart title="lib/migrations/create_products_table.dart"
+await schema.create('products', (table) {
+  BeakBlueprint.defineColumns(table, const ProductModel());
+  BeakBlueprint.defineForeignKeys(table, const ProductModel());
+});
+```
+
+`BeakBlueprint` reads the same `BeakModel` the API and the panel read, so the table and the resource cannot drift: adding a column to the schema class changes the DDL with no second edit. Nullability, string lengths, enum defaults and the `ON DELETE` of every belongs-to come across with it.
+
+## `beak introspect <database-url>`
+
+Reads an existing Postgres schema and writes the same annotated model classes you would have written by hand.
+
+```console
+$ beak introspect postgres://user:pass@localhost:5432/shop
+  read 7 tables, 32 columns, 6 foreign keys
+  created lib/models/product.dart
+  created lib/models/category.dart
+  ! users.password_hash looks like a secret and was omitted
+  skipped worm_migrations (migration bookkeeping)
+
+  run `beak prepare` to wire them up
+```
+
+| Option | Effect |
+| --- | --- |
+| `--out <dir>` | Where the models go. Defaults to `lib/models`. An absolute path is honoured as given. |
+| `--schema <name>` | The Postgres schema to read. Defaults to `public`. |
+| `--only a,b` | Only these tables. |
+| `--except a,b` | Every table but these. |
+| `--dry-run` | Report what would be written without writing it. |
+
+What it infers: types, nullability, string lengths and defaults; a foreign key becomes `@BelongsTo` plus the inverse; a table whose non-id columns are exactly two foreign keys folds into a `@BelongsToMany` rather than becoming a resource; `deleted_at` sets `softDeletes`; a `name`/`title`/`label` column becomes the display column; a name matching `image`/`photo`/`avatar` becomes an upload column; `password`/`token`/`api_key` columns are omitted with a warning. A Postgres enum becomes a Dart enum in its own file — unless a label cannot be a Dart identifier (`in progress`, `class`), in which case the column is read as text and a note says so.
+
+The output is an ordinary Beak project. Edit it and it stays yours.
+
+## `beak eject <target>`
+
+Writes a Beak default out as a file this project owns, pre-filled so it compiles and changes nothing until your first edit.
+
+```console
+$ beak eject theme
+  created lib/theme.dart
+
+  run `beak prepare` to wire it up
+```
+
+| Target | Writes |
+| --- | --- |
+| `main` | Nothing — it stops `.gitignore` ignoring `lib/main.dart` and `bin/*.dart`. |
+| `panel` | `lib/panel.dart` — the last word on the panel config. |
+| `theme` | `lib/theme.dart` — the light and dark themes. |
+| `auth` | `lib/auth.dart` — which auth routes exist. |
+| `dashboard` | `lib/dashboard.dart` — the screen at `/`. |
+| `server` | `lib/server.dart` — middleware, extra routes, the policy. |
+
+It refuses to overwrite an existing file; pass `--force` when you mean to.
 
 ## `doctor`
 
-Checks the local dev setup this repo expects and prints one line per check. It probes Postgres on `:25432` and MinIO on `:29000` with a 2-second TCP connect.
+Diagnoses the project it is run in and prints one line per check.
 
 ```console
 $ beak doctor
-  OK   worm vendored
-  OK   obers_ui reachable
-  FAIL .env present (.env.example to copy)
-  OK   postgres :25432
-  OK   minio :29000
-Some checks failed.
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 6 models · 1 screen · 2 overrides
+  OK   generated files up to date
+  OK   web/ scaffold present
+  OK   no panel file imports the server
+  WARN no DATABASE_URL in .env
+       → add DATABASE_URL to .env before running `beak migrate`
+All checks passed.
 ```
 
-| Check | Passes when |
-| --- | --- |
-| `worm vendored` | `packages/worm` exists under the root. |
-| `obers_ui reachable` | `../obers_ui` or `packages/obers_ui` exists. |
-| `.env present` | An `.env` file exists at the root (copy `.env.example`). |
-| `postgres :25432` | A TCP connect to `localhost:25432` succeeds. |
-| `minio :29000` | A TCP connect to `localhost:29000` succeeds. |
+| Check | Status when it fails | Why it matters |
+| --- | --- | --- |
+| Depends on Beak | FAIL | Nothing else can work. |
+| `beak.yaml` parses | FAIL | A bad key stops generation dead. |
+| Models discovered | WARN | An empty panel is legal, just probably not intended. |
+| Generated files up to date | FAIL | The one failure the hidden-entrypoint design introduces. `beak prepare` fixes it. |
+| `web/` scaffold present | WARN | `flutter create --platforms=web .` can fail offline, leaving a project that runs everywhere but the web. |
+| No panel file imports the server | FAIL | It compiles, then fails in a browser — or takes the server's ahead-of-time build with it. |
+| Database reachable | WARN | The panel and the generator work fine without one. |
 
-The two service ports are the remapped Docker Compose ports Beak uses locally; bring them up with `docker compose up -d`. `doctor` exits `0` only when every check passes and `1` when any fails, so it is safe to gate a script on it.
+Warnings do not fail the command; only a FAIL does. `--json` prints
+`{"healthy": bool, "checks": [...]}` instead, so CI can gate on it.
 
 ## Exit codes
 

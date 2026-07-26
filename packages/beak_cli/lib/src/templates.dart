@@ -140,9 +140,11 @@ String generateMigration(
     ..writeln("import 'package:beak/migrations.dart';")
     ..writeln()
     ..writeln('/// Creates the $table table.')
-    ..writeln('final class Create${resourceName}sTable extends Migration {')
+    ..writeln(
+      'final class Create${pluralOf(resourceName)}Table extends Migration {',
+    )
     ..writeln('  /// Creates the migration.')
-    ..writeln('  const Create${resourceName}sTable();')
+    ..writeln('  const Create${pluralOf(resourceName)}Table();')
     ..writeln()
     ..writeln('  @override')
     ..writeln("  String get name => '${timestamp}_create_${table}_table';")
@@ -164,6 +166,61 @@ String generateMigration(
     ..writeln("      schema.drop('$table', ifExists: true);")
     ..writeln('}');
   return out.toString();
+}
+
+/// The create-table migration for [resourceName], derived from its model
+/// rather than restated field by field.
+///
+/// `BeakBlueprint.defineColumns` reads the same `BeakModel` the API and the
+/// panel read, so the table and the resource cannot drift: adding a column to
+/// the schema class changes the DDL with no second edit. That is the argument
+/// for `--from` over `--fields`.
+///
+/// [modelClass] is the generated model (`ProductModel`) and [importPath] the
+/// library declaring the schema class, relative to `lib/migrations/`.
+///
+/// ```dart
+/// final source = generateModelMigration(
+///   'Product',
+///   modelClass: 'ProductModel',
+///   importPath: '../models/product.dart',
+///   timestamp: '20260703_120000',
+/// );
+/// ```
+String generateModelMigration(
+  String resourceName, {
+  required String modelClass,
+  required String importPath,
+  required String timestamp,
+}) {
+  final String table = tableNameOf(resourceName);
+  return '''
+import 'package:beak/migrations.dart';
+
+import '$importPath';
+
+/// Creates the $table table.
+final class Create${pluralOf(resourceName)}Table extends Migration {
+  /// Creates the migration.
+  const Create${pluralOf(resourceName)}Table();
+
+  @override
+  String get name => '${timestamp}_create_${table}_table';
+
+  @override
+  Future<void> upSchema(Schema schema) async {
+    // Derived from the model, so the table and the resource cannot drift.
+    await schema.create('$table', (table) {
+      BeakBlueprint.defineColumns(table, const $modelClass());
+      BeakBlueprint.defineForeignKeys(table, const $modelClass());
+    });
+  }
+
+  @override
+  Future<void> downSchema(Schema schema) async =>
+      schema.drop('$table', ifExists: true);
+}
+''';
 }
 
 /// Returns the Dart source of the Beak columns class and `BeakModel` for
