@@ -102,6 +102,16 @@ void main() {
     });
   });
 
+  group('gitignore', () {
+    test('ignores the default SQLite database', () async {
+      // The zero-setup default writes a file beside the project; committing
+      // it would put a developer's scratch data in everyone's checkout.
+      await create(['acme_admin']);
+
+      expect(read('acme_admin/.gitignore'), contains('/*.db'));
+    });
+  });
+
   group('dependencies', () {
     test('default to git, so a project resolves anywhere', () async {
       await create(['acme_admin']);

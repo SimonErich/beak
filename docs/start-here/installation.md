@@ -99,8 +99,8 @@ beak dev
 ```
 
 `beak dev` regenerates, starts the API, and runs the panel. With no
-`DATABASE_URL` it uses SQLite, so there is nothing to install and nothing to
-start.
+`DATABASE_URL` it uses a SQLite file (`beak.db`, git-ignored) beside the
+project, so there is nothing to install and nothing to start.
 
 ## A real database
 

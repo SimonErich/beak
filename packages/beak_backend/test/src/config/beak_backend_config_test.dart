@@ -27,9 +27,42 @@ void main() {
       expect(config.host, '0.0.0.0');
     });
 
-    test('rejects a missing DATABASE_URL', () {
+    test('falls back to a SQLite file when DATABASE_URL is absent', () {
+      // The first `beak dev` must need no Docker, no credentials and no .env:
+      // requiring a database to see anything at all loses more first-time
+      // users than any other step.
+      final config = BeakBackendConfig.fromEnv(
+        environment: const <String, String>{},
+      );
+
+      expect(config.databaseUrl.toString(), 'sqlite:beak.db');
+      expect(isSqliteUrl(config.databaseUrl), isTrue);
+      expect(sqliteFilePathOf(config.databaseUrl), 'beak.db');
+    });
+
+    test('reads the sqlite path, and :memory: as no path at all', () {
+      String? pathOf(String url) => sqliteFilePathOf(
+        BeakBackendConfig.fromEnv(
+          environment: {'DATABASE_URL': url},
+        ).databaseUrl,
+      );
+
+      expect(pathOf('sqlite:beak.db'), 'beak.db');
+      expect(pathOf('sqlite:///tmp/beak.db'), '/tmp/beak.db');
+      expect(pathOf('sqlite::memory:'), isNull);
+    });
+
+    test('a sqlite URL needs no host, a postgres URL still does', () {
       expect(
-        () => BeakBackendConfig.fromEnv(environment: const <String, String>{}),
+        () => BeakBackendConfig.fromEnv(
+          environment: {'DATABASE_URL': 'sqlite:beak.db'},
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => BeakBackendConfig.fromEnv(
+          environment: {'DATABASE_URL': 'postgres:///beak'},
+        ),
         throwsA(isA<BeakConfigurationException>()),
       );
     });
@@ -74,11 +107,12 @@ void main() {
     });
 
     test('reads the real process environment when none is injected', () {
-      // The test process has no DATABASE_URL, so the validated read throws —
-      // proving fromEnv falls back to Platform.environment.
+      // The test process has no DATABASE_URL, so this lands on the default —
+      // proving fromEnv falls back to Platform.environment rather than to an
+      // empty map.
       expect(
-        BeakBackendConfig.fromEnv,
-        throwsA(isA<BeakConfigurationException>()),
+        BeakBackendConfig.fromEnv().databaseUrl.toString(),
+        BeakBackendConfig.defaultDatabaseUrl,
       );
     });
   });

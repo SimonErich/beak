@@ -340,7 +340,7 @@ All checks passed.
 | Generated files up to date | FAIL | The one failure the hidden-entrypoint design introduces. `beak prepare` fixes it. |
 | `web/` scaffold present | WARN | `flutter create --platforms=web .` can fail offline, leaving a project that runs everywhere but the web. |
 | No panel file imports the server | FAIL | It compiles, then fails in a browser — or takes the server's ahead-of-time build with it. |
-| Database reachable | WARN | The panel and the generator work fine without one. |
+| Database reachable | WARN | Only for a server database. No `DATABASE_URL` is the supported SQLite default and passes. |
 
 Warnings do not fail the command; only a FAIL does. `--json` prints
 `{"healthy": bool, "checks": [...]}` instead, so CI can gate on it.

@@ -333,6 +333,11 @@ pubspec.lock
 
 # Secrets
 .env
+
+# The default SQLite database, so the first `beak dev` needs no setup. A real
+# deployment sets DATABASE_URL and this file never appears.
+/*.db
+/*.db-journal
 ''';
 
   static const String _analysisOptions = '''

@@ -219,12 +219,25 @@ final class NoteModel extends BeakModel {
   });
 
   group('database', () {
-    test('an absent DATABASE_URL warns, it does not fail', () async {
-      final check = checkMatching(
-        await diagnose(environmentFor(preparedProject())),
-        'no DATABASE_URL',
+    test('a SQLite URL passes without probing anything', () async {
+      final checks = await checksFor({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
+        '.env': 'DATABASE_URL=sqlite:beak.db\n',
+      });
+
+      final check = checkMatching(checks, 'SQLite');
+      expect(check.status, BeakCheckStatus.ok);
+    });
+
+    test('an absent DATABASE_URL is the supported default, not a problem', () {
+      // Warning about a working zero-setup project trains people to ignore
+      // this output.
+      expect(
+        diagnose(
+          environmentFor(preparedProject()),
+        ).then((checks) => checkMatching(checks, 'no DATABASE_URL').status),
+        completion(BeakCheckStatus.ok),
       );
-      expect(check.status, BeakCheckStatus.warn);
     });
 
     test('an unreachable database warns with the two possible fixes', () async {

@@ -26,6 +26,9 @@ dependencies:
     path: ../worm
   worm_postgres:
     path: ../worm_postgres
+  # The zero-setup default: a DATABASE_URL-less project runs on a file.
+  worm_sqlite:
+    path: ../worm_sqlite
 
 dev_dependencies:
   # Dev-only: the MinIO integration suite exercises the `s3` plug-in driver.

@@ -204,7 +204,7 @@ final class BeakServeHost {
       environment: Worm.environment,
       now: _now,
       adapterFactory: () async {
-        final adapter = postgresAdapterFromUrl(config.databaseUrl);
+        final adapter = adapterFromUrl(config.databaseUrl);
         await adapter.connect();
         return adapter;
       },

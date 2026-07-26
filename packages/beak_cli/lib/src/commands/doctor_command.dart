@@ -315,10 +315,19 @@ Future<BeakCheck> _databaseCheck(
 ) async {
   final Uri? url = _databaseUrlOf(root);
   if (url == null) {
+    // Not a warning: no DATABASE_URL is the supported zero-setup default, and
+    // telling someone their working project is misconfigured trains them to
+    // ignore this output.
     return const BeakCheck(
-      status: BeakCheckStatus.warn,
-      label: 'no DATABASE_URL in .env',
-      remedy: 'add DATABASE_URL to .env before running `beak migrate`',
+      status: BeakCheckStatus.ok,
+      label: 'no DATABASE_URL — using the default SQLite file',
+    );
+  }
+  if (url.scheme == 'sqlite' || url.scheme == 'file') {
+    return BeakCheck(
+      status: BeakCheckStatus.ok,
+      label:
+          'database is SQLite (${url.path.isEmpty ? url.toString() : url.path})',
     );
   }
   final bool reachable = await environment.probe(

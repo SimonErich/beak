@@ -1,6 +1,8 @@
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
+import 'package:worm/worm.dart';
+import 'package:worm_postgres/worm_postgres.dart';
 
 void main() {
   group('postgresConnectionConfig', () {
@@ -52,6 +54,45 @@ void main() {
       expect(
         () => postgresConnectionConfig(Uri.parse('postgres://u:p@h')),
         throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+  });
+
+  group('adapterFromUrl', () {
+    test('picks the driver from the scheme', () {
+      // One place maps a URL to a driver, so `beak dev`, the migration CLI
+      // and a hand-built server cannot disagree about what DATABASE_URL means.
+      expect(
+        adapterFromUrl(Uri.parse('sqlite::memory:')).adapterType,
+        AdapterType.sql,
+      );
+      expect(
+        adapterFromUrl(Uri.parse('postgres://u:p@localhost:5432/beak')),
+        isA<PostgresAdapter>(),
+      );
+    });
+
+    test('an in-memory sqlite adapter answers a query', () async {
+      final adapter = adapterFromUrl(Uri.parse('sqlite::memory:'));
+      addTearDown(adapter.disconnect);
+      await adapter.connect();
+
+      await adapter.executeSchema(
+        const SchemaDescriptor.createTable(
+          table: 'notes',
+          columns: <SchemaColumn>[
+            SchemaColumn(
+              name: 'id',
+              type: ColumnType.integer,
+              isPrimaryKey: true,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        await adapter.select(const QueryDescriptor(table: 'notes')),
+        isEmpty,
       );
     });
   });
