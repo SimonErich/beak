@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
+import 'commands/eject_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/introspect_command.dart';
 import 'commands/prepare_command.dart';
@@ -170,6 +171,7 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(PrepareCommand(environment))
       ..addCommand(DevCommand(environment))
       ..addCommand(IntrospectCommand(environment))
+      ..addCommand(EjectCommand(environment))
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))

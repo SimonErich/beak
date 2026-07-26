@@ -156,6 +156,18 @@ abstract final class BeakEmitters {
     if (themeOverride != null) {
       buffer.writeln("import '../${themeOverride.importPath}' as theme;");
     }
+    final BeakDiscoveredSymbol? authOverride =
+        discovery.overrides[BeakOverrideKind.auth];
+    if (authOverride != null) {
+      buffer.writeln("import '../${authOverride.importPath}' as auth;");
+    }
+    final BeakDiscoveredSymbol? dashboardOverride =
+        discovery.overrides[BeakOverrideKind.dashboard];
+    if (dashboardOverride != null) {
+      buffer.writeln(
+        "import '../${dashboardOverride.importPath}' as dashboard;",
+      );
+    }
 
     buffer
       ..writeln()
@@ -178,13 +190,21 @@ abstract final class BeakEmitters {
         ..writeln('    theme: theme.beakLightTheme(),')
         ..writeln('    darkTheme: theme.beakDarkTheme(),');
     }
+    if (authOverride != null) {
+      buffer.writeln('    auth: auth.beakAuth(),');
+    }
     buffer.writeln('    resources: [');
     for (final model in discovery.models) {
       buffer.writeln('      ${_resourceFor(model, config)},');
     }
     buffer.writeln('    ],');
-    if (discovery.screens.isNotEmpty) {
+    // A `lib/dashboard.dart` replaces the generated `/` screen, so it goes
+    // first: the panel routes to whichever page declares `/`.
+    if (discovery.screens.isNotEmpty || dashboardOverride != null) {
       buffer.writeln('    pages: [');
+      if (dashboardOverride != null) {
+        buffer.writeln('      dashboard.beakDashboard(),');
+      }
       for (final screen in discovery.screens) {
         buffer.writeln('      ${screen.expression},');
       }
