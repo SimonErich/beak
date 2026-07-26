@@ -301,7 +301,7 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
       expect(
-        () => BeakQuerySpec.fromJson(valid()..['pagination'] = null),
+        () => BeakQuerySpec.fromJson(valid()..['pagination'] = 7),
         throwsA(isA<BeakConfigurationException>()),
       );
       expect(
@@ -310,7 +310,21 @@ void main() {
       );
     });
 
-    test('rejects a missing section key', () {
+    test('only the table is required; every section has a default', () {
+      // A request written by hand — curl, an agent, another language — sends
+      // just what it means to change. `toJson` still writes every key.
+      final spec = BeakQuerySpec.fromJson(<String, Object?>{'table': 'posts'});
+
+      expect(spec.table, 'posts');
+      expect(spec.filter, isNull);
+      expect(spec.sorts, isEmpty);
+      expect(spec.search, isNull);
+      expect(spec.relationLoads, isEmpty);
+      expect(spec.pagination, const BeakPagination());
+      expect(spec.withTrashed, isFalse);
+    });
+
+    test('an omitted section decodes exactly as an explicit null', () {
       for (final key in const [
         'filter',
         'sorts',
@@ -320,11 +334,19 @@ void main() {
         'withTrashed',
       ]) {
         expect(
-          () => BeakQuerySpec.fromJson(valid()..remove(key)),
-          throwsA(isA<BeakConfigurationException>()),
-          reason: 'missing "$key" must be rejected',
+          BeakQuerySpec.fromJson(valid()..remove(key)),
+          BeakQuerySpec.fromJson(valid()..[key] = null),
+          reason: '"$key"',
         );
       }
+    });
+
+    test('a defaulted decode round-trips back to the full encoded form', () {
+      // Accepting less on the way in must not change what goes out.
+      expect(
+        BeakQuerySpec.fromJson(<String, Object?>{'table': 'posts'}).toJson(),
+        const BeakQuerySpec(table: 'posts').toJson(),
+      );
     });
   });
 

@@ -156,6 +156,30 @@ void main() {
       );
     });
 
+    test('fromJson needs only the table and the function', () {
+      final spec = BeakAggregateSpec.fromJson(<String, Object?>{
+        'table': 'products',
+        'function': 'count',
+      });
+
+      expect(spec.table, 'products');
+      expect(spec.function, BeakAggregateFunction.count);
+      expect(spec.columnKey, isNull);
+      expect(spec.filter, isNull);
+      expect(spec.withTrashed, isFalse);
+    });
+
+    test('fromJson rejects a non-boolean withTrashed', () {
+      expect(
+        () => BeakAggregateSpec.fromJson({
+          'table': 'products',
+          'function': 'count',
+          'withTrashed': 'yes',
+        }),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
     test('fromJson rejects a non-string column', () {
       expect(
         () => BeakAggregateSpec.fromJson({

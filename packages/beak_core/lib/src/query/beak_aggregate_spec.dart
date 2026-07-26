@@ -118,9 +118,13 @@ final class BeakAggregateSpec {
 
   /// Decodes [json] (produced by [toJson]).
   ///
+  /// Only `table` and `function` are required; `column`, `filter` and
+  /// `withTrashed` fall back to their defaults when absent, so a request can
+  /// send just what it means. [toJson] still writes every key.
+  ///
   /// Throws a [BeakConfigurationException] on malformed input.
   static BeakAggregateSpec fromJson(Map<String, Object?> json) {
-    final Map<String, Object?>? filterJson = requireJsonMapOrNull(
+    final Map<String, Object?>? filterJson = optionalJsonMap(
       json,
       'filter',
       _context,
@@ -128,9 +132,20 @@ final class BeakAggregateSpec {
     return BeakAggregateSpec.forKey(
       table: requireJsonString(json, 'table', _context),
       function: _functionByName(requireJsonString(json, 'function', _context)),
-      columnKey: requireJsonStringOrNull(json, 'column', _context),
+      columnKey: switch (json['column']) {
+        null => null,
+        final String value => value,
+        final Object other => throw BeakConfigurationException(
+          '$_context JSON key "column" must be a string or null, got $other.',
+        ),
+      },
       filter: filterJson == null ? null : BeakFilter.fromJson(filterJson),
-      withTrashed: requireJsonBool(json, 'withTrashed', _context),
+      withTrashed: optionalJsonBool(
+        json,
+        'withTrashed',
+        _context,
+        orElse: false,
+      ),
     );
   }
 

@@ -63,6 +63,11 @@ final class BeakQuerySpec {
 
   /// Decodes [json] (produced by [toJson]).
   ///
+  /// Only `table` is required: every other key falls back to the same default
+  /// the constructor declares, so `{"table": "products"}` is a valid request
+  /// body. [toJson] still writes every key, leaving the encoded form — and
+  /// every consumer of it — unchanged.
+  ///
   /// Throws a [BeakConfigurationException] on malformed input.
   static BeakQuerySpec fromJson(Map<String, Object?> json) {
     final String table = requireJsonString(json, 'table', 'BeakQuerySpec');
@@ -71,55 +76,46 @@ final class BeakQuerySpec {
         'BeakQuerySpec JSON key "table" must not be empty.',
       );
     }
-    final Map<String, Object?>? filterJson = requireJsonMapOrNull(
+    final Map<String, Object?>? filterJson = optionalJsonMap(
       json,
       'filter',
       'BeakQuerySpec',
     );
-    final BeakFilter? filter = filterJson == null
-        ? null
-        : BeakFilter.fromJson(filterJson);
-    final Map<String, Object?>? searchJson = requireJsonMapOrNull(
+    final Map<String, Object?>? searchJson = optionalJsonMap(
       json,
       'search',
       'BeakQuerySpec',
     );
-    final BeakSearch? search = searchJson == null
-        ? null
-        : BeakSearch.fromJson(searchJson);
-    final BeakPagination pagination = switch (requireJsonKey(
+    final Map<String, Object?>? paginationJson = optionalJsonMap(
       json,
       'pagination',
       'BeakQuerySpec',
-    )) {
-      final Map<String, Object?> map => BeakPagination.fromJson(map),
-      final Object? other => throw BeakConfigurationException(
-        'BeakQuerySpec JSON key "pagination" must be a JSON object, '
-        'got $other.',
-      ),
-    };
+    );
     return BeakQuerySpec(
       table: table,
-      filter: filter,
+      filter: filterJson == null ? null : BeakFilter.fromJson(filterJson),
       sorts: [
-        for (final sort in requireJsonMapList(
-          requireJsonKey(json, 'sorts', 'BeakQuerySpec'),
-          'sorts',
-          'BeakQuerySpec',
-        ))
+        for (final sort in optionalJsonMapList(json, 'sorts', 'BeakQuerySpec'))
           BeakSort.fromJson(sort),
       ],
-      search: search,
+      search: searchJson == null ? null : BeakSearch.fromJson(searchJson),
       relationLoads: [
-        for (final load in requireJsonMapList(
-          requireJsonKey(json, 'relations', 'BeakQuerySpec'),
+        for (final load in optionalJsonMapList(
+          json,
           'relations',
           'BeakQuerySpec',
         ))
           BeakRelationLoad.fromJson(load),
       ],
-      pagination: pagination,
-      withTrashed: requireJsonBool(json, 'withTrashed', 'BeakQuerySpec'),
+      pagination: paginationJson == null
+          ? const BeakPagination()
+          : BeakPagination.fromJson(paginationJson),
+      withTrashed: optionalJsonBool(
+        json,
+        'withTrashed',
+        'BeakQuerySpec',
+        orElse: false,
+      ),
     );
   }
 
