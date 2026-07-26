@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Files domain: the folder tree, files, cloud accounts, and
 /// shares.
@@ -15,7 +14,7 @@ final class CreateFilesTables extends Migration {
   @override
   Future<void> upSchema(Schema schema) async {
     await schema.create('file_folders', (table) {
-      defineModelColumns(table, const FileFolderModel());
+      BeakBlueprint.defineColumns(table, const FileFolderModel());
       table.foreign(
         column: 'parent_id',
         references: 'id',
@@ -30,7 +29,7 @@ final class CreateFilesTables extends Migration {
       );
     });
     await schema.create('files', (table) {
-      defineModelColumns(
+      BeakBlueprint.defineColumns(
         table,
         const ManagedFileModel(),
         bigIntColumns: {'size'},
@@ -51,14 +50,14 @@ final class CreateFilesTables extends Migration {
     });
     await schema.create(
       'storage_accounts',
-      (table) => defineModelColumns(
+      (table) => BeakBlueprint.defineColumns(
         table,
         const StorageAccountModel(),
         bigIntColumns: {'used_bytes', 'total_bytes'},
       ),
     );
     await schema.create('file_shares', (table) {
-      defineModelColumns(table, const FileShareModel());
+      BeakBlueprint.defineColumns(table, const FileShareModel());
       table.foreign(
         column: 'file_id',
         references: 'id',

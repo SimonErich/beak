@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the People domain: users (the identity spine) and everything that
 /// hangs off them.
@@ -15,17 +14,17 @@ final class CreatePeopleTables extends Migration {
   @override
   Future<void> upSchema(Schema schema) async {
     await schema.create('users', (table) {
-      defineModelColumns(table, const UserModel());
+      BeakBlueprint.defineColumns(table, const UserModel());
       table.unique(['email']);
       table.index(['status']);
       table.index(['role']);
     });
     await schema.create(
       'skills',
-      (table) => defineModelColumns(table, const SkillModel()),
+      (table) => BeakBlueprint.defineColumns(table, const SkillModel()),
     );
     await schema.create('team_members', (table) {
-      defineModelColumns(table, const TeamMemberModel());
+      BeakBlueprint.defineColumns(table, const TeamMemberModel());
       table.foreign(
         column: 'user_id',
         references: 'id',
@@ -34,7 +33,7 @@ final class CreatePeopleTables extends Migration {
       );
     });
     await schema.create('activities', (table) {
-      defineModelColumns(table, const ActivityModel());
+      BeakBlueprint.defineColumns(table, const ActivityModel());
       table.foreign(
         column: 'user_id',
         references: 'id',
@@ -49,7 +48,7 @@ final class CreatePeopleTables extends Migration {
       );
     });
     await schema.create('user_attachments', (table) {
-      defineModelColumns(table, const UserAttachmentModel());
+      BeakBlueprint.defineColumns(table, const UserAttachmentModel());
       table.foreign(
         column: 'user_id',
         references: 'id',
@@ -59,7 +58,7 @@ final class CreatePeopleTables extends Migration {
     });
     await schema.create(
       'user_skill',
-      (table) => definePivotTable(
+      (table) => BeakBlueprint.definePivot(
         table,
         leftColumn: 'user_id',
         leftTable: 'users',

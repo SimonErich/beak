@@ -26,10 +26,23 @@ final class BeakBelongsTo extends BeakRelationship {
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    this.onDelete = BeakOnDelete.setNull,
   });
 
   /// The column on this model's table holding the related record's id.
   final String foreignKey;
+
+  /// What happens to this row when the related record is deleted.
+  ///
+  /// The foreign-key constraint lives on *this* side, so this is where the
+  /// rule belongs — `BeakBlueprint.defineForeignKeys` reads it instead of
+  /// making every migration restate it.
+  ///
+  /// Defaults to [BeakOnDelete.setNull], which matches the nullable foreign-key
+  /// column the blueprint generates. Choose [BeakOnDelete.restrict] to refuse
+  /// the parent delete instead, or [BeakOnDelete.cascade] to remove this row
+  /// with it.
+  final BeakOnDelete onDelete;
 
   @override
   BeakRenderConfig get renderConfig =>

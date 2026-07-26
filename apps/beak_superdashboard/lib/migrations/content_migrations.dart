@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Pricing, FAQ, and showcase-content domains — small,
 /// leaf-only tables.
@@ -16,10 +15,10 @@ final class CreateContentTables extends Migration {
   Future<void> upSchema(Schema schema) async {
     await schema.create(
       'pricing_plans',
-      (table) => defineModelColumns(table, const PricingPlanModel()),
+      (table) => BeakBlueprint.defineColumns(table, const PricingPlanModel()),
     );
     await schema.create('plan_features', (table) {
-      defineModelColumns(table, const PlanFeatureModel());
+      BeakBlueprint.defineColumns(table, const PlanFeatureModel());
       table.foreign(
         column: 'plan_id',
         references: 'id',
@@ -29,10 +28,10 @@ final class CreateContentTables extends Migration {
     });
     await schema.create(
       'faq_categories',
-      (table) => defineModelColumns(table, const FaqCategoryModel()),
+      (table) => BeakBlueprint.defineColumns(table, const FaqCategoryModel()),
     );
     await schema.create('faqs', (table) {
-      defineModelColumns(table, const FaqModel());
+      BeakBlueprint.defineColumns(table, const FaqModel());
       table.foreign(
         column: 'category_id',
         references: 'id',
@@ -42,11 +41,11 @@ final class CreateContentTables extends Migration {
     });
     await schema.create(
       'media_assets',
-      (table) => defineModelColumns(table, const MediaAssetModel()),
+      (table) => BeakBlueprint.defineColumns(table, const MediaAssetModel()),
     );
     await schema.create(
       'notifications',
-      (table) => defineModelColumns(table, const NotificationModel()),
+      (table) => BeakBlueprint.defineColumns(table, const NotificationModel()),
     );
   }
 

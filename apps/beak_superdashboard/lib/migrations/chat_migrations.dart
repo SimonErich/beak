@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Chat domain: conversations, memberships, messages, and
 /// attachments.
@@ -16,10 +15,10 @@ final class CreateChatTables extends Migration {
   Future<void> upSchema(Schema schema) async {
     await schema.create(
       'conversations',
-      (table) => defineModelColumns(table, const ConversationModel()),
+      (table) => BeakBlueprint.defineColumns(table, const ConversationModel()),
     );
     await schema.create('chat_messages', (table) {
-      defineModelColumns(table, const ChatMessageModel());
+      BeakBlueprint.defineColumns(table, const ChatMessageModel());
       table.index(['conversation_id']);
       table.foreign(
         column: 'conversation_id',
@@ -35,7 +34,7 @@ final class CreateChatTables extends Migration {
       );
     });
     await schema.create('conversation_participants', (table) {
-      defineModelColumns(table, const ConversationParticipantModel());
+      BeakBlueprint.defineColumns(table, const ConversationParticipantModel());
       table.unique(['conversation_id', 'user_id']);
       table.foreign(
         column: 'conversation_id',
@@ -51,7 +50,7 @@ final class CreateChatTables extends Migration {
       );
     });
     await schema.create('chat_attachments', (table) {
-      defineModelColumns(table, const ChatAttachmentModel());
+      BeakBlueprint.defineColumns(table, const ChatAttachmentModel());
       table.foreign(
         column: 'message_id',
         references: 'id',

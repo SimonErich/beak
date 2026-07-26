@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Email domain: folders, labels, messages, and attachments.
 final class CreateEmailTables extends Migration {
@@ -15,14 +14,14 @@ final class CreateEmailTables extends Migration {
   Future<void> upSchema(Schema schema) async {
     await schema.create(
       'mail_folders',
-      (table) => defineModelColumns(table, const MailFolderModel()),
+      (table) => BeakBlueprint.defineColumns(table, const MailFolderModel()),
     );
     await schema.create(
       'mail_labels',
-      (table) => defineModelColumns(table, const MailLabelModel()),
+      (table) => BeakBlueprint.defineColumns(table, const MailLabelModel()),
     );
     await schema.create('emails', (table) {
-      defineModelColumns(table, const EmailModel());
+      BeakBlueprint.defineColumns(table, const EmailModel());
       table.index(['folder_id']);
       table.index(['is_read']);
       table.foreign(
@@ -39,7 +38,7 @@ final class CreateEmailTables extends Migration {
       );
     });
     await schema.create('email_attachments', (table) {
-      defineModelColumns(table, const EmailAttachmentModel());
+      BeakBlueprint.defineColumns(table, const EmailAttachmentModel());
       table.foreign(
         column: 'email_id',
         references: 'id',
@@ -49,7 +48,7 @@ final class CreateEmailTables extends Migration {
     });
     await schema.create(
       'email_mail_label',
-      (table) => definePivotTable(
+      (table) => BeakBlueprint.definePivot(
         table,
         leftColumn: 'email_id',
         leftTable: 'emails',

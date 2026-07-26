@@ -1,3 +1,5 @@
+import 'package:beak_backend/beak_backend.dart';
+import 'package:reference_admin_models/reference_admin_models.dart';
 import 'package:worm/worm.dart';
 
 /// Creates the categories lookup table.
@@ -77,23 +79,18 @@ final class CreateProductsTable extends Migration {
   @override
   Future<void> upSchema(Schema schema) async {
     await schema.create('products', (table) {
-      table.idUuid();
-      table.string('name');
-      table.text('description').makeNullable();
-      table.decimal('price');
-      table.integer('stock').withDefault(0);
-      table.string('status', length: 20).withDefault('draft');
-      table.string('image').makeNullable();
-      table.uuid('category_id').makeNullable();
-      table.timestamps();
-      table.softDeletes();
-      table.index(['status']);
-      table.foreign(
-        column: 'category_id',
-        references: 'id',
-        onTable: 'categories',
-        onDelete: OnDelete.setNull,
+      // Columns, nullability, soft deletes and the category foreign key are
+      // all derived from ProductModel, so this migration cannot drift from it.
+      BeakBlueprint.defineColumns(
+        table,
+        const ProductModel(),
+        // Stock has no model-level default to derive from; state it here.
+        columnDefaults: {ProductColumns.stock.key: 0},
       );
+      // No table.timestamps() here: ProductColumns declares created_at and
+      // updated_at, so defineColumns already emitted them.
+      table.index(['status']);
+      BeakBlueprint.defineForeignKeys(table, const ProductModel());
     });
   }
 
@@ -112,25 +109,14 @@ final class CreateProductTagTable extends Migration {
 
   @override
   Future<void> upSchema(Schema schema) async {
-    await schema.create('product_tag', (table) {
-      // Pure join data: no surrogate key — the pair is the identity, and
-      // pivot inserts ship only the two foreign keys.
-      table.uuid('product_id');
-      table.uuid('tag_id');
-      table.unique(['product_id', 'tag_id']);
-      table.foreign(
-        column: 'product_id',
-        references: 'id',
-        onTable: 'products',
-        onDelete: OnDelete.cascade,
-      );
-      table.foreign(
-        column: 'tag_id',
-        references: 'id',
-        onTable: 'tags',
-        onDelete: OnDelete.cascade,
-      );
-    });
+    // Pure join data: no surrogate key — the pair is the identity, and pivot
+    // inserts ship only the two foreign keys. Both sides come from the
+    // relationship declaration.
+    await BeakBlueprint.createPivot(
+      schema,
+      ProductRelations.tags,
+      ownerTable: const ProductModel().table,
+    );
   }
 
   @override

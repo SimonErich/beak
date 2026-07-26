@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Invoices domain: invoices and their line items.
 final class CreateInvoicesTables extends Migration {
@@ -14,7 +13,7 @@ final class CreateInvoicesTables extends Migration {
   @override
   Future<void> upSchema(Schema schema) async {
     await schema.create('invoices', (table) {
-      defineModelColumns(table, const InvoiceModel());
+      BeakBlueprint.defineColumns(table, const InvoiceModel());
       table.unique(['number']);
       table.index(['status']);
       table.foreign(
@@ -25,7 +24,7 @@ final class CreateInvoicesTables extends Migration {
       );
     });
     await schema.create('invoice_items', (table) {
-      defineModelColumns(table, const InvoiceItemModel());
+      BeakBlueprint.defineColumns(table, const InvoiceItemModel());
       table.foreign(
         column: 'invoice_id',
         references: 'id',

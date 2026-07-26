@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Commerce domain: catalog, orders, and transactions.
 final class CreateCommerceTables extends Migration {
@@ -15,14 +14,14 @@ final class CreateCommerceTables extends Migration {
   Future<void> upSchema(Schema schema) async {
     await schema.create(
       'categories',
-      (table) => defineModelColumns(table, const CategoryModel()),
+      (table) => BeakBlueprint.defineColumns(table, const CategoryModel()),
     );
     await schema.create(
       'tags',
-      (table) => defineModelColumns(table, const TagModel()),
+      (table) => BeakBlueprint.defineColumns(table, const TagModel()),
     );
     await schema.create('products', (table) {
-      defineModelColumns(table, const ProductModel());
+      BeakBlueprint.defineColumns(table, const ProductModel());
       table.unique(['sku']);
       table.index(['status']);
       table.foreign(
@@ -34,7 +33,7 @@ final class CreateCommerceTables extends Migration {
     });
     await schema.create(
       'product_tag',
-      (table) => definePivotTable(
+      (table) => BeakBlueprint.definePivot(
         table,
         leftColumn: 'product_id',
         leftTable: 'products',
@@ -43,7 +42,7 @@ final class CreateCommerceTables extends Migration {
       ),
     );
     await schema.create('orders', (table) {
-      defineModelColumns(table, const OrderModel());
+      BeakBlueprint.defineColumns(table, const OrderModel());
       table.unique(['reference']);
       table.index(['status']);
       table.index(['source']);
@@ -55,7 +54,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('order_items', (table) {
-      defineModelColumns(table, const OrderItemModel());
+      BeakBlueprint.defineColumns(table, const OrderItemModel());
       table.foreign(
         column: 'order_id',
         references: 'id',
@@ -70,7 +69,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('transactions', (table) {
-      defineModelColumns(table, const TransactionModel());
+      BeakBlueprint.defineColumns(table, const TransactionModel());
       table.index(['status']);
       table.index(['occurred_at']);
       table.foreign(
@@ -87,7 +86,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('product_variants', (table) {
-      defineModelColumns(table, const ProductVariantModel());
+      BeakBlueprint.defineColumns(table, const ProductVariantModel());
       table.foreign(
         column: 'product_id',
         references: 'id',
@@ -96,7 +95,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('product_images', (table) {
-      defineModelColumns(table, const ProductImageModel());
+      BeakBlueprint.defineColumns(table, const ProductImageModel());
       table.foreign(
         column: 'product_id',
         references: 'id',
@@ -105,7 +104,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('product_reviews', (table) {
-      defineModelColumns(table, const ProductReviewModel());
+      BeakBlueprint.defineColumns(table, const ProductReviewModel());
       table.index(['rating']);
       table.foreign(
         column: 'product_id',
@@ -121,7 +120,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('price_rules', (table) {
-      defineModelColumns(table, const PriceRuleModel());
+      BeakBlueprint.defineColumns(table, const PriceRuleModel());
       table.foreign(
         column: 'product_id',
         references: 'id',
@@ -130,7 +129,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('order_events', (table) {
-      defineModelColumns(table, const OrderEventModel());
+      BeakBlueprint.defineColumns(table, const OrderEventModel());
       table.index(['kind']);
       table.foreign(
         column: 'order_id',
@@ -140,7 +139,7 @@ final class CreateCommerceTables extends Migration {
       );
     });
     await schema.create('order_comments', (table) {
-      defineModelColumns(table, const OrderCommentModel());
+      BeakBlueprint.defineColumns(table, const OrderCommentModel());
       table.foreign(
         column: 'order_id',
         references: 'id',

@@ -1,6 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_superdashboard/migrations/demo_migrations.dart';
-import 'package:beak_superdashboard/migrations/model_schema.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worm/worm.dart';
@@ -11,7 +11,7 @@ void main() {
       for (final model in demoModels) {
         final blueprint = Blueprint.create(
           model.table,
-          (table) => defineModelColumns(table, model),
+          (table) => BeakBlueprint.defineColumns(table, model),
         );
         final columnNames = {
           for (final column in blueprint.table.columns) column.name,
@@ -32,7 +32,7 @@ void main() {
       for (final model in demoModels.where((model) => model.softDeletes)) {
         final blueprint = Blueprint.create(
           model.table,
-          (table) => defineModelColumns(table, model),
+          (table) => BeakBlueprint.defineColumns(table, model),
         );
         final columnNames = {
           for (final column in blueprint.table.columns) column.name,
@@ -45,7 +45,7 @@ void main() {
       for (final model in demoModels) {
         final blueprint = Blueprint.create(
           model.table,
-          (table) => defineModelColumns(table, model),
+          (table) => BeakBlueprint.defineColumns(table, model),
         );
         final columnNames = {
           for (final column in blueprint.table.columns) column.name,

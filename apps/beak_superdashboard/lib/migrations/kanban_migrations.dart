@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Kanban domain: boards, columns, cards, labels, and their
 /// pivots.
@@ -15,7 +14,7 @@ final class CreateKanbanTables extends Migration {
   @override
   Future<void> upSchema(Schema schema) async {
     await schema.create('boards', (table) {
-      defineModelColumns(table, const BoardModel());
+      BeakBlueprint.defineColumns(table, const BoardModel());
       table.foreign(
         column: 'owner_id',
         references: 'id',
@@ -24,7 +23,7 @@ final class CreateKanbanTables extends Migration {
       );
     });
     await schema.create('board_columns', (table) {
-      defineModelColumns(table, const BoardColumnModel());
+      BeakBlueprint.defineColumns(table, const BoardColumnModel());
       table.index(['board_id']);
       table.foreign(
         column: 'board_id',
@@ -35,10 +34,10 @@ final class CreateKanbanTables extends Migration {
     });
     await schema.create(
       'card_labels',
-      (table) => defineModelColumns(table, const CardLabelModel()),
+      (table) => BeakBlueprint.defineColumns(table, const CardLabelModel()),
     );
     await schema.create('cards', (table) {
-      defineModelColumns(table, const CardModel());
+      BeakBlueprint.defineColumns(table, const CardModel());
       table.index(['column_id']);
       table.foreign(
         column: 'column_id',
@@ -49,7 +48,7 @@ final class CreateKanbanTables extends Migration {
     });
     await schema.create(
       'card_card_label',
-      (table) => definePivotTable(
+      (table) => BeakBlueprint.definePivot(
         table,
         leftColumn: 'card_id',
         leftTable: 'cards',
@@ -59,7 +58,7 @@ final class CreateKanbanTables extends Migration {
     );
     await schema.create(
       'card_user',
-      (table) => definePivotTable(
+      (table) => BeakBlueprint.definePivot(
         table,
         leftColumn: 'card_id',
         leftTable: 'cards',

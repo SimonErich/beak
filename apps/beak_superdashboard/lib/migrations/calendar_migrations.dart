@@ -1,7 +1,6 @@
+import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_superdashboard/models/models.dart';
 import 'package:worm/worm.dart';
-
-import 'model_schema.dart';
 
 /// Creates the Calendar domain: categories, events, and guest memberships.
 final class CreateCalendarTables extends Migration {
@@ -15,10 +14,10 @@ final class CreateCalendarTables extends Migration {
   Future<void> upSchema(Schema schema) async {
     await schema.create(
       'event_categories',
-      (table) => defineModelColumns(table, const EventCategoryModel()),
+      (table) => BeakBlueprint.defineColumns(table, const EventCategoryModel()),
     );
     await schema.create('calendar_events', (table) {
-      defineModelColumns(table, const CalendarEventModel());
+      BeakBlueprint.defineColumns(table, const CalendarEventModel());
       table.index(['start_at']);
       table.foreign(
         column: 'category_id',
@@ -35,7 +34,7 @@ final class CreateCalendarTables extends Migration {
     });
     await schema.create(
       'event_user',
-      (table) => definePivotTable(
+      (table) => BeakBlueprint.definePivot(
         table,
         leftColumn: 'event_id',
         leftTable: 'calendar_events',
