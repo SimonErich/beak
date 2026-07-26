@@ -123,12 +123,9 @@ void main() {
     final int port = probe.port;
     await probe.close();
 
-    final server = buildDemoServer(
-      config: BeakBackendConfig.fromEnv(
-        environment: {...e2eEnvironment, 'PORT': '$port', 'HOST': '127.0.0.1'},
-      ),
-      adapter: connected,
-    );
+    final server = demoHost(
+      environment: {...e2eEnvironment, 'PORT': '$port', 'HOST': '127.0.0.1'},
+    ).buildServer(adapter: connected);
     httpServer = await server.start();
     source = HttpBeakDataSource(BeakClient(baseUrl: 'http://127.0.0.1:$port'));
   });

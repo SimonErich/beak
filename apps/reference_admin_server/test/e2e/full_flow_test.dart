@@ -167,16 +167,14 @@ void main() {
     final int port = probe.port;
     await probe.close();
 
-    final server = buildReferenceServer(
-      config: BeakBackendConfig.fromEnv(
-        environment: {...e2eEnvironment, 'PORT': '$port', 'HOST': '127.0.0.1'},
-      ),
+    final host = referenceHost(
+      environment: {...e2eEnvironment, 'PORT': '$port', 'HOST': '127.0.0.1'},
+    );
+    final server = host.buildServer(
       adapter: connected,
-      storage: resolveStorage(
-        referenceStorageConfig(e2eEnvironment) ??
-            (throw StateError('e2e requires a storage driver')),
-        registry: referenceStorageRegistry(),
-      ),
+      storage:
+          host.resolveStorageDriver() ??
+          (throw StateError('e2e requires a storage driver')),
     );
     httpServer = await server.start();
     client = BeakClient(baseUrl: 'http://127.0.0.1:$port');

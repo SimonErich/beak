@@ -105,64 +105,19 @@ void main() {
     });
   });
 
-  group('storage config', () {
-    test('reads the s3 selection from the environment', () {
-      final config = referenceStorageConfig(const {
-        'BEAK_STORAGE_DRIVER': 's3',
-        'BEAK_S3_ENDPOINT': 'http://localhost:29000',
-        'BEAK_S3_BUCKET': 'beak-uploads',
-        'BEAK_S3_ACCESS_KEY': 'beak',
-        'BEAK_S3_SECRET_KEY': 'beaksecret',
-        'BEAK_S3_REGION': 'us-east-1',
-        'BEAK_S3_USE_PATH_STYLE': 'true',
-      });
-
-      expect(config, isA<BeakS3Config>());
-      if (config case final BeakS3Config s3) {
-        expect(s3.bucket, 'beak-uploads');
-        expect(s3.usePathStyle, isTrue);
-      }
-    });
-
-    test('memory and absent selections resolve accordingly', () {
-      expect(
-        referenceStorageConfig(const {'BEAK_STORAGE_DRIVER': 'memory'}),
-        isA<BeakMemoryStorageConfig>(),
-      );
-      expect(referenceStorageConfig(const {}), isNull);
-    });
-
-    test('a missing s3 variable is a configuration error', () {
-      expect(
-        () => referenceStorageConfig(const {'BEAK_STORAGE_DRIVER': 's3'}),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-    });
-
-    test('an unknown driver is a configuration error', () {
-      expect(
-        () => referenceStorageConfig(const {'BEAK_STORAGE_DRIVER': 'carrier'}),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-    });
-  });
-
   group('server builder', () {
     test('assembles a bootable server over the shared registry', () async {
       final probe = await ServerSocket.bind('127.0.0.1', 0);
       final int freePort = probe.port;
       await probe.close();
 
-      final server = buildReferenceServer(
-        config: BeakBackendConfig.fromEnv(
-          environment: {
-            'DATABASE_URL': 'postgres://beak:beak@localhost:25432/beak',
-            'PORT': '$freePort',
-            'HOST': '127.0.0.1',
-          },
-        ),
-        adapter: adapter,
-      );
+      final server = referenceHost(
+        environment: {
+          'DATABASE_URL': 'postgres://beak:beak@localhost:25432/beak',
+          'PORT': '$freePort',
+          'HOST': '127.0.0.1',
+        },
+      ).buildServer(adapter: adapter);
 
       final httpServer = await server.start();
       addTearDown(() => httpServer.close(force: true));

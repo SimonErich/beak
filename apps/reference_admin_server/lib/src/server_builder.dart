@@ -2,7 +2,29 @@ import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_storage_s3/beak_storage_s3.dart';
 import 'package:reference_admin_models/reference_admin_models.dart';
-import 'package:worm/worm.dart';
+
+import 'migrations/reference_migrations.dart';
+import 'seeders/reference_seeder.dart';
+
+/// The reference backend, whole: models, migrations, seeders, and the `s3`
+/// upload driver this app opts into.
+///
+/// Everything else — reading `.env`, connecting worm, resolving the storage
+/// config, assembling the router, and the migrate/seed CLI — comes from
+/// [BeakServeHost]. `bin/reference_admin_server.dart` and `bin/worm.dart` are
+/// one line each because of it.
+///
+/// ```dart
+/// Future<void> main() async => referenceHost().serve();
+/// ```
+BeakServeHost referenceHost({Map<String, String>? environment}) =>
+    BeakServeHost(
+      registry: buildReferenceRegistry(),
+      migrations: referenceMigrations,
+      seeders: const [ReferenceSeeder()],
+      storageRegistry: referenceStorageRegistry,
+      environment: environment,
+    );
 
 /// The storage registry this app resolves drivers from: Beak's in-box
 /// `memory` and `local` drivers plus the `s3` plug-in that `.env` selects.
@@ -13,76 +35,4 @@ BeakStorageRegistry referenceStorageRegistry() {
   final registry = createDefaultStorageRegistry();
   registerS3Storage(registry);
   return registry;
-}
-
-/// Reads the storage driver selection from [environment]
-/// (`BEAK_STORAGE_DRIVER`): `s3` builds a [BeakS3Config] from the
-/// `BEAK_S3_*` variables, `memory` selects the in-memory driver (tests),
-/// anything absent disables uploads.
-///
-/// Throws a [BeakConfigurationException] when `s3` is selected but a
-/// required variable is missing.
-BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
-  switch (environment['BEAK_STORAGE_DRIVER']) {
-    case 's3':
-      String require(String key) {
-        final String? value = environment[key];
-        if (value == null || value.isEmpty) {
-          throw BeakConfigurationException(
-            '$key is required when BEAK_STORAGE_DRIVER=s3.',
-          );
-        }
-        return value;
-      }
-
-      return BeakS3Config(
-        endpoint: Uri.parse(require('BEAK_S3_ENDPOINT')),
-        bucket: require('BEAK_S3_BUCKET'),
-        accessKey: require('BEAK_S3_ACCESS_KEY'),
-        secretKey: require('BEAK_S3_SECRET_KEY'),
-        region: require('BEAK_S3_REGION'),
-        usePathStyle: environment['BEAK_S3_USE_PATH_STYLE'] == 'true',
-      );
-    case 'memory':
-      return const BeakMemoryStorageConfig();
-    case null || '':
-      return null;
-    case final String other:
-      throw BeakConfigurationException(
-        'Unsupported BEAK_STORAGE_DRIVER "$other" (use "s3" or "memory").',
-      );
-  }
-}
-
-/// Assembles the reference [BeakServer]: the shared model registry over a
-/// worm-backed data source on [adapter], with uploads enabled when
-/// [storage] is configured — the whole backend from one call.
-///
-/// [config] carries host/port and other backend settings, [adapter] is the
-/// live worm database connection, and [storage] (optional) enables file
-/// uploads for image columns; pass `null` to serve without uploads. Call
-/// [BeakServer.start] on the result to bind the HTTP listener.
-///
-/// ```dart
-/// final config = BeakBackendConfig.fromEnv(environment: env);
-/// await initializeWormPostgres(config);
-/// final server = buildReferenceServer(
-///   config: config,
-///   adapter: Worm.adapter(),
-///   storage: resolveStorage(referenceStorageConfig(env)!),
-/// );
-/// await server.start();
-/// ```
-BeakServer buildReferenceServer({
-  required BeakBackendConfig config,
-  required DatabaseAdapter adapter,
-  BeakStorageDriver? storage,
-}) {
-  final BeakModelRegistry registry = buildReferenceRegistry();
-  return BeakServer(
-    config: config,
-    registry: registry,
-    dataSource: WormDataSource(registry, adapter: adapter),
-    storage: storage,
-  );
 }
