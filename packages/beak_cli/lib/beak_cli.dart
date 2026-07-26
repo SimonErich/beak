@@ -35,6 +35,8 @@ library;
 
 export 'src/cli_runner.dart';
 export 'src/commands/create_command.dart';
+export 'src/commands/dev_command.dart';
+export 'src/commands/doctor_command.dart';
 export 'src/commands/prepare_command.dart';
 export 'src/field_spec.dart';
 export 'src/project/beak_discovery.dart';

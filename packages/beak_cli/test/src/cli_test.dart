@@ -155,19 +155,10 @@ void main() {
   });
 
   group('doctor', () {
-    test('fails when nothing is reachable, passes when healthy', () async {
+    test('a directory that is not a Dart project fails with the fix', () async {
       expect(await runner.run(['doctor']), 1);
-      expect(out.toString(), contains('FAIL postgres :25432'));
-
-      Directory('${root.path}/packages/worm').createSync(recursive: true);
-      Directory('${root.path}/packages/obers_ui').createSync(recursive: true);
-      File('${root.path}/.env').writeAsStringSync('');
-      reachable[('localhost', 25432)] = true;
-      reachable[('localhost', 29000)] = true;
-      out.clear();
-
-      expect(await runner.run(['doctor']), 0);
-      expect(out.toString(), contains('All checks passed.'));
+      expect(out.toString(), contains('not a Dart project'));
+      expect(out.toString(), contains('beak create'));
     });
   });
 

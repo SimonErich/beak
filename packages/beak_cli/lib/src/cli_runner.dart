@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import 'commands/create_command.dart';
+import 'commands/dev_command.dart';
+import 'commands/doctor_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
 import 'templates.dart';
@@ -152,6 +154,9 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       )
       ..addCommand(CreateCommand(environment))
       ..addCommand(PrepareCommand(environment))
+      ..addCommand(DevCommand(environment))
+      ..addCommand(MigrateCommand(environment))
+      ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
       ..addCommand(MakeModelCommand(environment))
       ..addCommand(MakeColumnsCommand(environment))
@@ -333,63 +338,5 @@ final class MakeMigrationCommand extends _MakeCommand {
       generateMigration(resource, fields(), timestamp: timestamp()),
     );
     return 0;
-  }
-}
-
-/// The `beak doctor` command — verifies the local dev setup this repo
-/// expects.
-///
-/// Reports on the vendored `packages/worm`, a reachable `obers_ui`, a
-/// present `.env`, and the Postgres (`:25432`) and MinIO (`:29000`) services
-/// via [BeakCliEnvironment.probe]. Prints one `OK`/`FAIL` line per check and
-/// exits `0` only when every check passes, `1` otherwise.
-///
-/// ```console
-/// $ beak doctor
-///   OK   worm vendored
-///   FAIL postgres :25432
-/// Some checks failed.
-/// ```
-final class DoctorCommand extends Command<int> {
-  /// Creates the command bound to [environment].
-  DoctorCommand(this.environment);
-
-  /// The seams this command runs against — its [BeakCliEnvironment.probe]
-  /// checks the service ports and its [BeakCliEnvironment.rootDirectory]
-  /// anchors the path checks.
-  final BeakCliEnvironment environment;
-
-  @override
-  String get name => 'doctor';
-
-  @override
-  String get description =>
-      'Check worm/obers_ui paths, the env file, and Docker services.';
-
-  @override
-  Future<int> run() async {
-    var healthy = true;
-    void report(String label, bool ok) {
-      environment.out.writeln('  ${ok ? 'OK  ' : 'FAIL'} $label');
-      healthy = healthy && ok;
-    }
-
-    final String root = environment.rootDirectory.path;
-    report('worm vendored', Directory('$root/packages/worm').existsSync());
-    report(
-      'obers_ui reachable',
-      Directory('$root/../obers_ui').existsSync() ||
-          Directory('$root/packages/obers_ui').existsSync(),
-    );
-    report(
-      '.env present (.env.example to copy)',
-      File('$root/.env').existsSync(),
-    );
-    report('postgres :25432', await environment.probe('localhost', 25432));
-    report('minio :29000', await environment.probe('localhost', 29000));
-    environment.out.writeln(
-      healthy ? 'All checks passed.' : 'Some checks failed.',
-    );
-    return healthy ? 0 : 1;
   }
 }
