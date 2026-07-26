@@ -34,5 +34,10 @@
 library;
 
 export 'src/cli_runner.dart';
+export 'src/commands/create_command.dart';
+export 'src/commands/prepare_command.dart';
 export 'src/field_spec.dart';
+export 'src/project/beak_discovery.dart';
+export 'src/project/beak_emitters.dart';
+export 'src/project/beak_project_config.dart';
 export 'src/templates.dart';

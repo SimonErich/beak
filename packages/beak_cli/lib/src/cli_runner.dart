@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import 'commands/create_command.dart';
+import 'commands/prepare_command.dart';
 import 'field_spec.dart';
 import 'templates.dart';
 
@@ -12,6 +14,18 @@ import 'templates.dart';
 /// be tested without touching the network — production uses
 /// [BeakCliEnvironment.production], which probes with a real socket.
 typedef BeakPortProbe = Future<bool> Function(String host, int port);
+
+/// Runs an external command, returning its exit code.
+///
+/// Injected so commands that shell out — `beak create` calling
+/// `flutter create` for the web scaffold, `beak dev` starting the server —
+/// stay unit-testable without spawning real processes.
+typedef BeakProcessRunner =
+    Future<int> Function(
+      String executable,
+      List<String> arguments, {
+      String? workingDirectory,
+    });
 
 /// The injectable seams every command runs against — the output sink, the
 /// target directory, the clock behind migration timestamps, and the network
@@ -38,7 +52,8 @@ final class BeakCliEnvironment {
     required this.rootDirectory,
     required this.now,
     required this.probe,
-  });
+    BeakProcessRunner? runProcess,
+  }) : runProcess = runProcess ?? _neverRunsProcesses;
 
   /// The sink command progress and generated-file logs are written to.
   final StringSink out;
@@ -54,6 +69,18 @@ final class BeakCliEnvironment {
   /// The reachability probe `beak doctor` uses to check Postgres and MinIO.
   final BeakPortProbe probe;
 
+  /// Spawns external commands. Defaults to a runner that refuses to spawn
+  /// anything, so a test that does not opt in cannot start a real process by
+  /// accident.
+  final BeakProcessRunner runProcess;
+
+  /// The default runner: reports the command it declined to run.
+  static Future<int> _neverRunsProcesses(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+  }) async => 127;
+
   /// Creates the default environment: writes to `stdout`, generates under
   /// the current directory, reads the wall clock, and probes ports with a
   /// real 2-second TCP connect.
@@ -66,6 +93,15 @@ final class BeakCliEnvironment {
     out: stdout,
     rootDirectory: Directory.current,
     now: DateTime.now,
+    runProcess: (executable, arguments, {workingDirectory}) async {
+      final result = await Process.run(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        runInShell: true,
+      );
+      return result.exitCode;
+    },
     probe: (host, port) async {
       try {
         final socket = await Socket.connect(
@@ -112,8 +148,10 @@ final class BeakCliEnvironment {
 CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
     CommandRunner<int>(
         'beak',
-        'Beak scaffolding — generate models, columns, and migrations.',
+        'Beak — scaffold, generate, and diagnose admin panels.',
       )
+      ..addCommand(CreateCommand(environment))
+      ..addCommand(PrepareCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
       ..addCommand(MakeModelCommand(environment))
       ..addCommand(MakeColumnsCommand(environment))
