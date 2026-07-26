@@ -17,7 +17,7 @@ import '../storage/transforms/beak_image_transform.dart';
 /// obvious at the declaration site.
 ///
 /// ```dart
-/// @BeakResource(softDeletes: true, timestamps: true)
+/// @Resource(softDeletes: true, timestamps: true)
 /// final class Product extends BeakSchema {
 ///   @Display()
 ///   @Column(searchable: true, rules: [BeakMaxLength(255)])
@@ -43,10 +43,15 @@ abstract base class BeakSchema {
 ///
 /// The class name drives the defaults: `Product` becomes the `products`
 /// table and the `ProductModel`/`ProductColumns` symbols.
+///
+/// Named without the `Beak` prefix, like every annotation in this library:
+/// a model file's imports are `package:beak/beak.dart` for the generated part
+/// and `package:beak/schema.dart` for the annotations, and `BeakResource` is
+/// already the panel-side resource config in the first of those.
 @immutable
-final class BeakResource {
+final class Resource {
   /// Declares the annotated class a resource.
-  const BeakResource({
+  const Resource({
     this.table,
     this.softDeletes = false,
     this.timestamps = false,

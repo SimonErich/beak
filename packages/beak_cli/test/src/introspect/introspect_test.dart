@@ -252,8 +252,8 @@ void main() {
 
     test('emits the annotated authoring surface, not a parallel dialect', () {
       final source = files['products']!.contents;
-      expect(source, contains("import 'package:beak_core/schema.dart';"));
-      expect(source, contains('@BeakResource('));
+      expect(source, contains("import 'package:beak/schema.dart';"));
+      expect(source, contains('@Resource('));
       expect(source, contains('final class Product extends BeakSchema'));
       expect(source, contains("part 'product.beak.dart';"));
     });

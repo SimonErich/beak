@@ -110,13 +110,16 @@ void main() {
       for (final package in CreateCommand.beakPackages) {
         expect(pubspec, contains('  $package:'));
       }
-      expect(pubspec, contains('obers_ui:'));
+      // One line, not five: the umbrella re-exports the panel, the server,
+      // the migration DSL, the testing toolkit and obers_ui.
+      expect(CreateCommand.beakPackages, ['beak']);
+      expect(pubspec, isNot(contains('obers_ui:')));
     });
 
     test('--beak-path points at a local checkout instead', () async {
       await create(['acme_admin', '--beak-path', '/opt/beak']);
       final pubspec = read('acme_admin/pubspec.yaml');
-      expect(pubspec, contains('path: /opt/beak/packages/beak_core'));
+      expect(pubspec, contains('path: /opt/beak/packages/beak'));
       expect(pubspec, isNot(contains('github.com/SimonErich/beak.git')));
     });
   });

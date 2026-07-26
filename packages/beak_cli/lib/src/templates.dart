@@ -20,7 +20,7 @@ String generateWormModel(String resourceName, List<BeakFieldSpec> fields) {
   final String table = tableNameOf(resourceName);
   final String companion = '$resourceName\$';
   final StringBuffer out = StringBuffer()
-    ..writeln("import 'package:worm/worm.dart';")
+    ..writeln("import 'package:beak/migrations.dart';")
     ..writeln()
     ..writeln('/// The $table worm model (canonical shape, no codegen).')
     ..writeln("@Table(name: '$table')")
@@ -137,7 +137,7 @@ String generateMigration(
 }) {
   final String table = tableNameOf(resourceName);
   final StringBuffer out = StringBuffer()
-    ..writeln("import 'package:worm/worm.dart';")
+    ..writeln("import 'package:beak/migrations.dart';")
     ..writeln()
     ..writeln('/// Creates the $table table.')
     ..writeln('final class Create${resourceName}sTable extends Migration {')
@@ -187,7 +187,7 @@ String generateBeakColumns(String resourceName, List<BeakFieldSpec> fields) {
   final String table = tableNameOf(resourceName);
   final String displayKey = fields.isEmpty ? 'id' : fields.first.name;
   final StringBuffer out = StringBuffer()
-    ..writeln("import 'package:beak_core/beak_core.dart';")
+    ..writeln("import 'package:beak/beak.dart';")
     ..writeln()
     ..writeln('/// Typed column constants of the $table resource.')
     ..writeln('abstract final class ${resourceName}Columns {')

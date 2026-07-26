@@ -53,7 +53,7 @@ BeakCheck checkMatching(List<BeakCheck> checks, String needle) =>
 /// A minimal but complete project: pubspec, model, generated wiring.
 Directory preparedProject() {
   final root = projectWith({
-    'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak_core: ^0.9.0\n',
+    'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
     'lib/models/note.dart': noteModel,
   });
   runPrepare(environmentFor(root));
@@ -76,7 +76,7 @@ void main() {
         environmentFor(projectWith({'pubspec.yaml': 'name: acme_admin\n'})),
       );
       expect(
-        checkMatching(checks, 'does not depend on beak_core').status,
+        checkMatching(checks, 'does not depend on beak').status,
         BeakCheckStatus.fail,
       );
     });
@@ -93,7 +93,7 @@ void main() {
   group('beak.yaml', () {
     test('a malformed file fails, and stops further checks', () async {
       final root = projectWith({
-        'pubspec.yaml': 'name: acme_admin\nbeak_core:\n',
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
         'beak.yaml': 'colour: blue\n',
       });
       final checks = await diagnose(environmentFor(root));
@@ -109,7 +109,7 @@ void main() {
   group('models', () {
     test('an empty project warns rather than failing', () async {
       final root = projectWith({
-        'pubspec.yaml': 'name: acme_admin\nbeak_core:\n',
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
       });
       final checks = await diagnose(environmentFor(root));
       final check = checkMatching(checks, 'no models found');
@@ -119,7 +119,7 @@ void main() {
 
     test('a discovery issue is surfaced as a failure', () async {
       final root = projectWith({
-        'pubspec.yaml': 'name: acme_admin\nbeak_core:\n',
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
         'lib/models/note.dart': '''
 import 'package:beak_core/beak_core.dart';
 

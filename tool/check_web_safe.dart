@@ -50,14 +50,22 @@ const List<String> webUnsafePackagePrefixes = [
 /// The panel-side entrypoints whose import graphs must stay web-safe,
 /// relative to the repo root.
 const List<String> panelEntrypoints = [
+  'packages/beak/lib/beak.dart',
+  'packages/beak/lib/panel.dart',
+  'packages/beak/lib/ui.dart',
+  'packages/beak/lib/charts.dart',
   'packages/beak_core/lib/beak_core.dart',
   'packages/beak_frontend/lib/beak_frontend.dart',
 ];
 
-/// Package name prefixes whose sources this tool walks into.
+/// Packages whose sources this tool walks into: the umbrella and everything
+/// named `beak_*`.
 ///
 /// Third-party packages are boundary nodes: their URI is still checked, but
 /// their sources are pana's problem, not ours.
+const List<String> walkedPackages = ['beak'];
+
+/// The prefix matching every first-party package beside the umbrella.
 const String walkedPackagePrefix = 'beak_';
 
 /// Returns why [uri] is unsafe for a web build, or `null` when it is fine.
@@ -116,7 +124,8 @@ String? resolveWalkableUri(String uri, {required String fromFilePath}) {
     }
     final String package = withoutScheme.substring(0, slash);
     final String path = withoutScheme.substring(slash + 1);
-    if (!package.startsWith(walkedPackagePrefix)) {
+    if (!package.startsWith(walkedPackagePrefix) &&
+        !walkedPackages.contains(package)) {
       return null;
     }
     return 'packages/$package/lib/$path';

@@ -116,8 +116,8 @@ abstract final class BeakIntrospectionEmitter {
     final notes = <String>[];
     final String className = classNameOf(table.name);
     final buffer = StringBuffer()
-      ..writeln("import 'package:beak_core/beak_core.dart';")
-      ..writeln("import 'package:beak_core/schema.dart';");
+      ..writeln("import 'package:beak/beak.dart';")
+      ..writeln("import 'package:beak/schema.dart';");
 
     final relatedImports = <String>{
       for (final fk in table.foreignKeys)
@@ -143,7 +143,7 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln("part '${fileNameOf(table.name)}.beak.dart';")
       ..writeln()
       ..writeln('/// The ${table.name} resource, read from the database.')
-      ..writeln('@BeakResource(');
+      ..writeln('@Resource(');
     if (table.name != tableNameOf(className)) {
       buffer.writeln("  table: '${table.name}',");
     }

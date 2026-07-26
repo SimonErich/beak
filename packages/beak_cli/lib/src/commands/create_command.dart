@@ -150,7 +150,7 @@ final class CreateCommand extends Command<int> {
   ];
 
   static const String _smokeTest = '''
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/panel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:_PACKAGE_/beak/app.g.dart';
@@ -220,12 +220,11 @@ void main() {
 ''';
 
   /// The Beak packages a generated project depends on.
-  static const List<String> beakPackages = [
-    'beak_backend',
-    'beak_core',
-    'beak_frontend',
-    'worm',
-  ];
+  ///
+  /// One: the umbrella re-exports the panel, the server, the migration DSL,
+  /// the testing toolkit and obers_ui as separate libraries, so a project
+  /// never has to keep five version constraints in step by hand.
+  static const List<String> beakPackages = ['beak'];
 
   static String _pubspec(String name, {String? beakPath}) {
     final buffer = StringBuffer('''
@@ -251,13 +250,7 @@ dependencies:
           ..writeln('      path: packages/$package');
       }
     }
-    // The generated panel names OiIcons directly, so obers_ui is a direct
-    // dependency of the project, not just a transitive one.
     buffer.write('''
-  obers_ui:
-    git:
-      url: https://github.com/SimonErich/obers_ui.git
-      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   flutter:
     sdk: flutter
 
@@ -289,8 +282,8 @@ resources:
 ''';
 
   static const String _exampleModel = '''
-import 'package:beak_core/beak_core.dart';
-import 'package:beak_core/schema.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
 part 'note.beak.dart';
 
@@ -299,7 +292,7 @@ part 'note.beak.dart';
 /// Declared once. `beak prepare` generates the typed columns, the model, the
 /// relationships (both sides), and a typed record view into `note.beak.dart`
 /// — there is no registry to edit and no resource to register.
-@BeakResource(timestamps: true)
+@Resource(timestamps: true)
 final class Note extends BeakSchema {
   /// What the note is called.
   ///
@@ -360,7 +353,7 @@ API, the router, the tables, the forms and the detail views.
 
 | What | Where |
 | --- | --- |
-| A resource | `lib/models/<name>.dart` — one `@BeakResource` class per file |
+| A resource | `lib/models/<name>.dart` — one `@Resource` class per file |
 | A custom page | `lib/screens/<name>.dart` — a top-level `BeakScreen` |
 | Panel title, icons, sections | `beak.yaml` |
 | Theme / auth / dashboard / server overrides | `lib/{theme,auth,dashboard,server}.dart` |

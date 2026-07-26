@@ -4,8 +4,10 @@ import 'package:beak_cli/beak_cli.dart';
 import 'package:test/test.dart';
 
 /// The Definition-of-Done proof: `beak make:resource Widget` output must
-/// compile and pass the repo's strict analysis inside a fresh package
-/// depending only on worm and beak_core.
+/// compile and pass the repo's strict analysis inside a fresh project that
+/// depends on Beak the way a user's project does — the umbrella, and nothing
+/// else. Anything narrower would let a `depend_on_referenced_packages` info
+/// through, which is a failure the monorepo can never reproduce.
 void main() {
   test(
     'a generated resource compiles and passes strict analyze',
@@ -36,11 +38,12 @@ name: generated_probe
 publish_to: none
 environment:
   sdk: ^3.11.0
+  flutter: '>=3.41.0'
 dependencies:
-  beak_core:
-    path: ${repoRoot.path}/packages/beak_core
-  worm:
-    path: ${repoRoot.path}/packages/worm
+  beak:
+    path: ${repoRoot.path}/packages/beak
+  flutter:
+    sdk: flutter
 dev_dependencies:
   lints: ^6.0.0
 ''');
@@ -54,7 +57,7 @@ dev_dependencies:
         workingDirectory: temp.path,
       );
 
-      final ProcessResult pubGet = await run(['dart', 'pub', 'get']);
+      final ProcessResult pubGet = await run(['flutter', 'pub', 'get']);
       expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}\n${pubGet.stderr}');
 
       final ProcessResult format = await run(['dart', 'format', '.']);

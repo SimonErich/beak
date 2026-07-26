@@ -7,7 +7,7 @@ import '../field_spec.dart';
 import '../project/beak_discovery.dart';
 import 'beak_schema_ir.dart';
 
-/// Reads `@BeakResource` schema classes into the generator's IR.
+/// Reads `@Resource` schema classes into the generator's IR.
 ///
 /// Works on an *unresolved* parse, which is the whole reason generation stays
 /// in the millisecond range. That is possible because everything the emitter
@@ -75,7 +75,7 @@ final class BeakSchemaReader {
         }
         final Annotation? resource = _annotation(
           declaration.metadata,
-          'BeakResource',
+          'Resource',
         );
         if (resource == null) {
           continue;
@@ -433,7 +433,7 @@ final class BeakSchemaReader {
               path: 'lib/${schema.libraryPath}',
               message:
                   '${schema.className}.${relation.fieldName} points at '
-                  '${relation.relatedSchema}, which is not a @BeakResource '
+                  '${relation.relatedSchema}, which is not a @Resource '
                   'under lib/models/.',
             ),
     ];

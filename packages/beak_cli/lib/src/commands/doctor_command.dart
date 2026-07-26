@@ -97,14 +97,20 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
   }
 
   final String pubspecSource = pubspec.readAsStringSync();
-  final bool dependsOnBeak = pubspecSource.contains('beak_core');
+  // The umbrella is the supported dependency, but a project that predates it
+  // — or that deliberately depends on the parts — is not broken, so accept
+  // either rather than telling a working project it is wrong.
+  final bool dependsOnBeak = RegExp(
+    r'^\s{2}beak(_core|_frontend|_backend)?\s*:',
+    multiLine: true,
+  ).hasMatch(pubspecSource);
   checks.add(
     BeakCheck(
       status: dependsOnBeak ? BeakCheckStatus.ok : BeakCheckStatus.fail,
       label: dependsOnBeak
           ? 'project depends on Beak'
-          : 'project does not depend on beak_core',
-      remedy: dependsOnBeak ? null : 'add beak_core to pubspec.yaml',
+          : 'project does not depend on beak',
+      remedy: dependsOnBeak ? null : 'add beak to pubspec.yaml',
     ),
   );
 

@@ -100,7 +100,7 @@ abstract final class BeakEmitters {
     final buffer = StringBuffer(header)
       ..writeln('library;')
       ..writeln()
-      ..writeln("import 'package:beak_core/beak_core.dart';");
+      ..writeln("import 'package:beak/beak.dart';");
     for (final path in _importPathsOf(discovery.models)) {
       buffer.writeln("import '../$path';");
     }
@@ -135,11 +135,11 @@ abstract final class BeakEmitters {
     final buffer = StringBuffer(header)
       ..writeln('library;')
       ..writeln()
-      ..writeln("import 'package:beak_frontend/beak_frontend.dart';");
+      ..writeln("import 'package:beak/panel.dart';")
+      ..writeln("import 'package:beak/ui.dart';");
     if (config.api.isAuto) {
       buffer.writeln("import 'package:flutter/foundation.dart';");
     }
-    buffer.writeln("import 'package:obers_ui/obers_ui.dart';");
     for (final path in _importPathsOf([
       ...discovery.models,
       ...discovery.screens,
@@ -206,8 +206,7 @@ abstract final class BeakEmitters {
 $header
 library;
 
-import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:flutter/widgets.dart';
 
 import 'panel.g.dart';
@@ -234,7 +233,7 @@ final class BeakApp extends StatelessWidget {
     final buffer = StringBuffer(header)
       ..writeln('library;')
       ..writeln()
-      ..writeln("import 'package:beak_backend/beak_backend.dart';");
+      ..writeln("import 'package:beak/server.dart';");
     for (final path in _importPathsOf([
       ...discovery.migrations,
       ...discovery.seeders,

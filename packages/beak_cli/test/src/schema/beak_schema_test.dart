@@ -23,7 +23,7 @@ import 'package:beak_core/schema.dart';
 part 'category.beak.dart';
 
 /// A product category.
-@BeakResource()
+@Resource()
 final class Category extends BeakSchema {
   /// Display name.
   @Display()
@@ -39,7 +39,7 @@ import 'package:beak_core/schema.dart';
 part 'product.beak.dart';
 
 /// The catalog's centerpiece.
-@BeakResource(softDeletes: true, timestamps: true)
+@Resource(softDeletes: true, timestamps: true)
 final class Product extends BeakSchema {
   /// Display name.
   @Display()
@@ -163,7 +163,7 @@ void main() {
       final (_, issues) = readSchemas({'product.dart': productSchema});
       expect(issues, hasLength(1));
       expect(issues.single.message, contains('Category'));
-      expect(issues.single.message, contains('not a @BeakResource'));
+      expect(issues.single.message, contains('not a @Resource'));
     });
 
     test('an unmappable field type is reported by name', () {
@@ -172,7 +172,7 @@ void main() {
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/schema.dart';
 
-@BeakResource()
+@Resource()
 final class Thing extends BeakSchema {
   @Column()
   late final Uri link;
@@ -190,7 +190,7 @@ final class Thing extends BeakSchema {
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/schema.dart';
 
-@BeakResource()
+@Resource()
 final class Thing extends BeakSchema {
   @Display()
   @Column()
@@ -211,7 +211,7 @@ final class Thing extends BeakSchema {
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/schema.dart';
 
-@BeakResource()
+@Resource()
 final class Empty extends BeakSchema {}
 ''',
       });
@@ -343,7 +343,7 @@ final class Empty extends BeakSchema {}
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/schema.dart';
 
-@BeakResource()
+@Resource()
 final class Tag extends BeakSchema {
   @Display()
   @Column()
@@ -356,7 +356,7 @@ import 'package:beak_core/schema.dart';
 
 import 'tag.dart';
 
-@BeakResource()
+@Resource()
 final class Product extends BeakSchema {
   @Display()
   @Column()
@@ -384,7 +384,7 @@ final class Product extends BeakSchema {
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/schema.dart';
 
-@BeakResource()
+@Resource()
 final class Tag extends BeakSchema {
   @Display()
   @Column()
@@ -397,7 +397,7 @@ import 'package:beak_core/schema.dart';
 
 import 'tag.dart';
 
-@BeakResource()
+@Resource()
 final class Product extends BeakSchema {
   @Display()
   @Column()

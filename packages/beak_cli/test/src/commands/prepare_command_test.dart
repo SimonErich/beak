@@ -76,7 +76,7 @@ void main() {
       // Assert on the pieces, not the layout: the emitter formats its output,
       // so line breaks are the formatter's business, not this test's.
       final panel = read(root, 'lib/beak/panel.g.dart');
-      expect(panel, contains('BeakResource('));
+      expect(panel, contains('Resource('));
       expect(panel, contains('model: const NoteModel()'));
       expect(panel, contains("title: 'Acme Admin'"));
     });
