@@ -5,6 +5,29 @@ description: Boot the reference admin end to end: migrate, seed, serve the gener
 
 # Quickstart
 
+## The fastest path: a new project
+
+If you want your *own* panel rather than a tour of this repo's demo, skip
+straight to the CLI. It needs no Docker, no `.env`, and no monorepo:
+
+```bash
+dart pub global activate --source path packages/beak_cli
+beak create acme_admin
+cd acme_admin && beak dev
+```
+
+`beak create` writes six files you own — a pubspec, a `beak.yaml`, one example
+model, a `.gitignore`, analysis options, and an `AGENTS.md` — and generates the
+registry, the panel config, the app widget, the server host and the three
+entrypoints. Add a `BeakModel` subclass under `lib/models/` and it appears in
+the panel; there is nothing to register.
+
+See [CLI commands](../reference/cli-commands.md) for the full surface.
+
+The rest of this page runs the **reference admin** demo that ships in this
+repository, which is what the tutorial and the feature pages refer to.
+
+
 After this page you have the reference admin running on your machine: a Shelf
 backend serving a generated API on port `8080`, seeded with sample data, and a
 Flutter panel in Chrome talking to it. Roughly five minutes of copy-paste.

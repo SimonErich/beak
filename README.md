@@ -39,7 +39,50 @@ the REST validation, and the CSV export column.
 | `packages/beak_cli` | Scaffolding: `beak make:resource` and friends, `beak doctor` |
 | `apps/reference_admin*` | The reference admin (Products/Categories/Tags/Users/Orders) — shared models, server binary, Flutter panel, and the E2E acceptance suite |
 
-## Quickstart (the reference admin)
+## Quickstart
+
+```bash
+dart pub global activate --source path packages/beak_cli   # until Beak is published
+beak create acme_admin
+cd acme_admin && beak dev
+```
+
+That is the whole setup. `beak create` writes six files — a pubspec, a
+`beak.yaml`, one example model, a `.gitignore`, analysis options, and an
+`AGENTS.md` — and generates everything else.
+
+## What a Beak project contains
+
+```
+acme_admin/
+├── pubspec.yaml          one dependency line per Beak package
+├── beak.yaml             optional: title, icons, sections, API origin
+├── lib/
+│   ├── models/           ← you write these
+│   ├── screens/          ← optional custom pages
+│   ├── {theme,auth,dashboard,server,panel}.dart   ← optional overrides
+│   ├── beak/*.g.dart     generated wiring (committed)
+│   └── main.dart         generated entrypoint (git-ignored)
+└── bin/{serve,migrate}.dart                       generated (git-ignored)
+```
+
+Nothing needs registering. `beak prepare` — which every other command runs
+first — discovers what you declare and writes the registry, the panel config,
+the app widget, the server host, and the three entrypoints. The entrypoints sit
+at their canonical paths so `flutter run`, `flutter build web`, IDE run buttons
+and `dart compile exe` all work with no flags.
+
+| Command | What it does |
+| --- | --- |
+| `beak create <name>` | Scaffold a project. |
+| `beak dev` | Regenerate, then serve the API. |
+| `beak prepare` | Regenerate the wiring only. |
+| `beak migrate` / `beak seed` | Apply migrations / run seeders. |
+| `beak doctor` | Diagnose the project. |
+
+## Running the demos
+
+The two example apps in this repo run the traditional way:
 
 ```bash
 # 0. One-time: Dart ^3.11, Flutter stable, Docker, melos 6.3.3
@@ -65,24 +108,15 @@ flutter run -d chrome
 
 ## Defining a resource
 
-1. **Columns + model** (shared, pure Dart — see
-   `apps/reference_admin_models/`): a namespaced `XxxColumns` class of
-   `const` column definitions and an `XxxModel extends BeakModel` naming the
-   table, display column, and relationships.
-2. **Schema**: a worm migration (registered in your `bin/worm.dart`).
-3. **Server**: register the model in the `BeakModelRegistry` you hand to
-   `BeakServer` — every endpoint is generated.
-4. **Panel**: add a `BeakResource(model: XxxModel(), icon: …)` to your
-   `BeakPanelConfig` — list/create/show/edit pages, filters, actions, and
-   dashboard cards are generated.
+1. **Columns + model** — a namespaced `XxxColumns` class of `const` column
+   definitions and an `XxxModel extends BeakModel` naming the table, display
+   column, and relationships. Drop it in `lib/models/`.
+2. **Schema** — a worm migration in `lib/migrations/`. `BeakBlueprint.defineColumns`
+   derives the DDL from the model, so a migration cannot drift from it.
 
-Or scaffold all of it:
-
-```bash
-dart run beak_cli:beak make:resource Widget \
-  --fields name:string,price:decimal,active:bool
-dart run beak_cli:beak doctor   # checks paths, .env, and Docker services
-```
+That is it. Discovery finds both; the API, the panel pages, the filters and the
+dashboard cards follow. `beak make:resource Widget --fields name:string,price:decimal`
+scaffolds all of it.
 
 ## Storage drivers & file rules
 
