@@ -13,7 +13,7 @@ part of 'beak_column.dart';
 ///   falseLabel: 'Sold out',
 /// );
 /// ```
-final class BeakBoolColumn extends BeakColumn {
+final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
   /// Creates a boolean column with optional state labels.
   const BeakBoolColumn({
     required super.key,
@@ -37,6 +37,7 @@ final class BeakBoolColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.boolean);
 
+  /// Reads [value] as a bool value.
   @override
-  Type get valueType => bool;
+  bool? readValue(BeakValue? value) => _readBool(value);
 }

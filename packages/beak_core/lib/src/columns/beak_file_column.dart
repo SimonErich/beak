@@ -16,7 +16,8 @@ part of 'beak_column.dart';
 ///   allowedTypes: [BeakFileType.pdf],
 /// );
 /// ```
-final class BeakFileColumn extends BeakUploadColumn {
+final class BeakFileColumn extends BeakUploadColumn
+    with BeakTypedColumn<String> {
   /// Creates a file column storing uploads under [storagePath].
   const BeakFileColumn({
     required super.key,
@@ -34,4 +35,8 @@ final class BeakFileColumn extends BeakUploadColumn {
   @override
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.custom);
+
+  /// Reads [value] as a string value.
+  @override
+  String? readValue(BeakValue? value) => _readText(value);
 }

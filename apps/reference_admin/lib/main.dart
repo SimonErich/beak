@@ -31,15 +31,9 @@ Future<void> duplicateProduct(
   BeakRecord record,
   BeakActionContext context,
 ) async {
-  final String? name = switch (record[ProductColumns.name.key]?.raw) {
-    final String value => value,
-    _ => null,
-  };
-  if (name == null) {
-    throw const BeakConfigurationException(
-      'Cannot duplicate a product that has no name.',
-    );
-  }
+  // `require` throws a BeakRecordShapeException naming the column when the
+  // record has no readable name, so no hand-written null check is needed.
+  final String name = ProductColumns.name.require(record);
   await context.dataSource.create(
     context.model.table,
     BeakRecord(
@@ -66,11 +60,8 @@ Future<void> duplicateProduct(
 List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
-      label: record[ProductColumns.name.key]?.raw?.toString() ?? '',
-      value: switch (record[ProductColumns.stock.key]?.raw) {
-        final num stock => stock.toDouble(),
-        _ => 0,
-      },
+      label: ProductColumns.name.readFrom(record) ?? '',
+      value: (ProductColumns.stock.readFrom(record) ?? 0).toDouble(),
     ),
 ];
 
@@ -127,32 +118,30 @@ BeakPanelConfig buildReferencePanelConfig({
       icon: BeakIconToken(OiIcons.listOrdered),
     ),
   ],
+  // Every aggregate and query is derived from its model — no table strings.
   dashboardStats: [
-    const BeakStat(
+    BeakStat(
       label: 'Products',
-      aggregate: BeakAggregateSpec.count(table: 'products'),
+      aggregate: const ProductModel().count(),
       icon: OiIcons.package,
     ),
-    const BeakStat(
+    BeakStat(
       label: 'Customers',
-      aggregate: BeakAggregateSpec.count(table: 'users'),
+      aggregate: const UserModel().count(),
       icon: OiIcons.users,
     ),
     BeakStat(
       label: 'Catalog value',
-      aggregate: BeakAggregateSpec.sum(
-        table: 'products',
-        column: ProductColumns.price,
-      ),
+      aggregate: const ProductModel().sum(ProductColumns.price),
       icon: OiIcons.euro,
       prefix: '€',
     ),
   ],
   dashboardCharts: [
-    const BeakChart(
+    BeakChart(
       title: 'Stock per product',
       type: BeakChartType.bar,
-      query: BeakQuerySpec(table: 'products'),
+      query: const ProductModel().query(),
       map: stockPerProduct,
     ),
   ],

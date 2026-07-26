@@ -33,7 +33,8 @@ enum BeakDateFormat {
 ///   visibleOn: {BeakContext.table, BeakContext.detail},
 /// );
 /// ```
-final class BeakDateTimeColumn extends BeakColumn {
+final class BeakDateTimeColumn extends BeakColumn
+    with BeakTypedColumn<DateTime> {
   /// Creates a date/time column displayed with [format].
   const BeakDateTimeColumn({
     required super.key,
@@ -74,6 +75,7 @@ final class BeakDateTimeColumn extends BeakColumn {
     filter: BeakRenderIntent.date,
   );
 
+  /// Reads [value] as a datetime value.
   @override
-  Type get valueType => DateTime;
+  DateTime? readValue(BeakValue? value) => _readDateTime(value);
 }

@@ -25,7 +25,8 @@ part of 'beak_column.dart';
 ///   },
 /// );
 /// ```
-final class BeakEnumColumn<T extends Enum> extends BeakColumn {
+final class BeakEnumColumn<T extends Enum> extends BeakColumn
+    with BeakTypedColumn<T> {
   /// Creates an enum column offering [values].
   const BeakEnumColumn({
     required super.key,
@@ -75,6 +76,13 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.badge);
 
+  /// Reads [value] as one of [values], matching on the stored enum name.
+  ///
+  /// A name that is not declared reads as `null` rather than throwing, so a
+  /// row written before a value was removed degrades instead of crashing.
   @override
-  Type get valueType => T;
+  T? readValue(BeakValue? value) => switch (value?.raw) {
+    final String name => valueByName(name),
+    _ => null,
+  };
 }

@@ -1,8 +1,11 @@
 import 'package:meta/meta.dart';
 
 import '../common/beak_color.dart';
+import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
 import '../context/beak_render_intent.dart';
+import '../query/beak_record.dart';
+import '../query/beak_value.dart';
 import '../rules/beak_rule.dart';
 import '../storage/file_rules/beak_dimensions.dart';
 import '../storage/file_rules/beak_file_type.dart';
@@ -112,6 +115,89 @@ sealed class BeakColumn {
   Type get valueType;
 }
 
+/// A [BeakColumn] whose values are statically known to be [V].
+///
+/// This is what makes a column a *typed* reference rather than a labelled
+/// string: given a column constant, Beak can hand back a real `String`,
+/// `int`, `DateTime` or enum value instead of an `Object?` the caller has to
+/// pattern-match. Every column leaf mixes it in, so
+/// `ProductColumns.price.readFrom(record)` is a `double?` at compile time.
+///
+/// ```dart
+/// final double price = ProductColumns.price.require(record);
+/// final String? note = ProductColumns.note.readFrom(record);
+/// ```
+///
+/// Implementations tolerate the wire shapes a data source may legitimately
+/// produce — Postgres, for instance, returns numerics and timestamps as
+/// strings over the wire — and return `null` for anything they cannot read,
+/// so a malformed value never becomes a wrong value.
+/// Declared without an `on BeakColumn` clause on purpose. A mixin *on* a
+/// sealed type becomes an inhabitable subtype of it, which knocks out
+/// exhaustiveness for every `switch` over [BeakColumn] in the codebase.
+/// Requiring [key] as an interface member instead keeps the sealed hierarchy
+/// exactly 13 leaves wide, and every leaf still satisfies it.
+mixin BeakTypedColumn<V extends Object> {
+  /// Storage/DB column name — supplied by [BeakColumn].
+  String get key;
+
+  /// The Dart type this column's values take (for typed form/data access).
+  Type get valueType => V;
+
+  /// Reads [value] as [V], or `null` when it cannot be represented as one.
+  ///
+  /// The single place a column decides how a stored value maps onto its Dart
+  /// type. [readFrom] is the usual entry point; call this directly only when
+  /// you already hold a [BeakValue].
+  V? readValue(BeakValue? value);
+
+  /// This column's value in [record], or `null` when the record does not
+  /// carry a readable one.
+  V? readFrom(BeakRecord record) => readValue(record[key]);
+
+  /// This column's value in [record].
+  ///
+  /// Throws a [BeakRecordShapeException] naming the column when the record
+  /// carries no readable value — use it for columns declaring
+  /// [BeakRequired], and [readFrom] everywhere else.
+  V require(BeakRecord record) =>
+      readFrom(record) ??
+      (throw BeakRecordShapeException(columnKey: key, expectedType: V));
+}
+
+/// Reads [value] as text, accepting any scalar a source may store.
+String? _readText(BeakValue? value) => value?.raw?.toString();
+
+/// Reads [value] as an integer, accepting wire strings and wider numerics.
+int? _readInt(BeakValue? value) => switch (value?.raw) {
+  final int raw => raw,
+  final num raw => raw.toInt(),
+  final String raw => int.tryParse(raw),
+  _ => null,
+};
+
+/// Reads [value] as a double, accepting wire strings and integers.
+double? _readDouble(BeakValue? value) => switch (value?.raw) {
+  final num raw => raw.toDouble(),
+  final String raw => double.tryParse(raw),
+  _ => null,
+};
+
+/// Reads [value] as a boolean, accepting the canonical wire strings.
+bool? _readBool(BeakValue? value) => switch (value?.raw) {
+  final bool raw => raw,
+  'true' => true,
+  'false' => false,
+  _ => null,
+};
+
+/// Reads [value] as an instant, accepting ISO-8601 wire strings.
+DateTime? _readDateTime(BeakValue? value) => switch (value?.raw) {
+  final DateTime raw => raw,
+  final String raw => DateTime.tryParse(raw),
+  _ => null,
+};
+
 /// Shared shape of the upload-backed columns ([BeakImageColumn],
 /// [BeakFileColumn]): where uploads land and which size/type rules gate
 /// them — consumers of upload rules match this one type instead of the
@@ -139,8 +225,4 @@ sealed class BeakUploadColumn extends BeakColumn {
 
   /// Accepted upload types; empty means unrestricted.
   final List<BeakFileType> allowedTypes;
-
-  /// Values are stored file keys/URLs.
-  @override
-  Type get valueType => String;
 }

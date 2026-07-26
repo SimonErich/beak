@@ -24,7 +24,8 @@ part of 'beak_column.dart';
 ///   ],
 /// );
 /// ```
-final class BeakImageColumn extends BeakUploadColumn {
+final class BeakImageColumn extends BeakUploadColumn
+    with BeakTypedColumn<String> {
   /// Creates an image column storing uploads under [storagePath]
   /// (e.g. `products/covers`); [allowedTypes] defaults to raster images.
   const BeakImageColumn({
@@ -65,4 +66,8 @@ final class BeakImageColumn extends BeakUploadColumn {
     // hatch when needed.
     filter: BeakRenderIntent.custom,
   );
+
+  /// Reads [value] as a string value.
+  @override
+  String? readValue(BeakValue? value) => _readText(value);
 }

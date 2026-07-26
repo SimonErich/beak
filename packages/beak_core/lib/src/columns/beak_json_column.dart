@@ -16,7 +16,7 @@ part of 'beak_column.dart';
 ///   _ => const BeakJsonNull(),
 /// };
 /// ```
-final class BeakJsonColumn extends BeakColumn {
+final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a JSON column.
   const BeakJsonColumn({
     required super.key,
@@ -32,6 +32,7 @@ final class BeakJsonColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.json);
 
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

@@ -35,7 +35,7 @@ final class BeakColumnTag {
 ///   tag: BeakColumnTag('badge'),
 /// );
 /// ```
-final class BeakCustomColumn extends BeakColumn {
+final class BeakCustomColumn extends BeakColumn with BeakTypedColumn<Object> {
   /// Creates a custom column rendered by the builder registered under [tag].
   const BeakCustomColumn({
     required super.key,
@@ -55,7 +55,7 @@ final class BeakCustomColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.custom);
 
-  /// Custom columns carry opaque values; the registered builder decides.
+  /// Reads [value] as-is: a custom column carries an opaque payload.
   @override
-  Type get valueType => Object;
+  Object? readValue(BeakValue? value) => value?.raw;
 }

@@ -3,7 +3,14 @@ import 'package:meta/meta.dart';
 import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
+import '../query/beak_aggregate_spec.dart';
+import '../query/beak_filter.dart';
 import '../query/beak_record.dart';
+import '../query/beak_pagination.dart';
+import '../query/beak_query_spec.dart';
+import '../query/beak_relation_load.dart';
+import '../query/beak_sort.dart';
+import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
@@ -77,6 +84,77 @@ abstract base class BeakModel {
     }
     return column;
   }
+
+  /// A typed reference to this model's [table].
+  ///
+  /// Hand this to any API that needs to name the table, so the name is
+  /// derived from the model instead of retyped as a string.
+  BeakTableRef get ref => BeakTableRef.raw(table);
+
+  /// A query over this model's table.
+  ///
+  /// The typed entry point into [BeakQuerySpec]: chain the copy-builders from
+  /// here and no table string is ever written.
+  ///
+  /// ```dart
+  /// const ProductModel().query()
+  ///     .orderBy(ProductColumns.price, descending: true)
+  ///     .paginate(perPage: 10);
+  /// ```
+  ///
+  /// Mirrors [BeakQuerySpec]'s own parameters, so anything expressible there
+  /// is expressible here without naming the table.
+  BeakQuerySpec query({
+    BeakFilter? filter,
+    List<BeakSort> sorts = const [],
+    BeakSearch? search,
+    List<BeakRelationLoad> relationLoads = const [],
+    BeakPagination pagination = const BeakPagination(),
+    bool withTrashed = false,
+  }) => BeakQuerySpec(
+    table: table,
+    filter: filter,
+    sorts: sorts,
+    search: search,
+    relationLoads: relationLoads,
+    pagination: pagination,
+    withTrashed: withTrashed,
+  );
+
+  /// Counts this model's rows, optionally narrowed by [filter].
+  BeakAggregateSpec count({BeakFilter? filter, bool withTrashed = false}) =>
+      BeakAggregateSpec.count(
+        table: table,
+        filter: filter,
+        withTrashed: withTrashed,
+      );
+
+  /// Sums [column] over this model's rows.
+  ///
+  /// [column] should be numeric ([BeakIntColumn] or [BeakDecimalColumn]);
+  /// the data source rejects anything else.
+  BeakAggregateSpec sum(
+    BeakColumn column, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.sum(
+    table: table,
+    column: column,
+    filter: filter,
+    withTrashed: withTrashed,
+  );
+
+  /// Averages [column] over this model's rows.
+  BeakAggregateSpec avg(
+    BeakColumn column, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.avg(
+    table: table,
+    column: column,
+    filter: filter,
+    withTrashed: withTrashed,
+  );
 
   /// The primary-key value of [record], or `null` when the record does not
   /// carry it — the single way Beak extracts a record's id.

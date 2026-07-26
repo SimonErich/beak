@@ -25,6 +25,7 @@ export 'src/query/beak_query_spec.dart';
 export 'src/query/beak_record.dart';
 export 'src/query/beak_relation_load.dart';
 export 'src/query/beak_sort.dart';
+export 'src/query/beak_table_ref.dart';
 export 'src/query/beak_value.dart';
 export 'src/relations/beak_on_delete.dart';
 export 'src/relations/beak_relationship.dart';

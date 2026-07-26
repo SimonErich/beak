@@ -9,7 +9,7 @@ part of 'beak_column.dart';
 ///   label: 'Brand color',
 /// );
 /// ```
-final class BeakColorColumn extends BeakColumn {
+final class BeakColorColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a color column.
   const BeakColorColumn({
     required super.key,
@@ -25,7 +25,7 @@ final class BeakColorColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.color);
 
-  /// Values are hex color strings.
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

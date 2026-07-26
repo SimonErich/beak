@@ -2,7 +2,7 @@ part of 'beak_column.dart';
 
 /// A multiline text column: a textarea in forms, truncated text in table
 /// cells, and the full text in detail views.
-final class BeakTextColumn extends BeakColumn {
+final class BeakTextColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a multiline text column.
   const BeakTextColumn({
     required super.key,
@@ -18,6 +18,7 @@ final class BeakTextColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.text);
 
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

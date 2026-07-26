@@ -22,7 +22,7 @@ part of 'beak_column.dart';
 ///   suffix: 'kg',
 /// );
 /// ```
-final class BeakDecimalColumn extends BeakColumn {
+final class BeakDecimalColumn extends BeakColumn with BeakTypedColumn<double> {
   /// Creates a decimal column displaying [precision] fraction digits.
   const BeakDecimalColumn({
     required super.key,
@@ -53,6 +53,7 @@ final class BeakDecimalColumn extends BeakColumn {
         : BeakRenderIntent.number,
   );
 
+  /// Reads [value] as a double value.
   @override
-  Type get valueType => double;
+  double? readValue(BeakValue? value) => _readDouble(value);
 }

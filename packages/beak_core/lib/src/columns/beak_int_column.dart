@@ -14,7 +14,7 @@ part of 'beak_column.dart';
 ///   rules: [BeakMin(0)],
 /// );
 /// ```
-final class BeakIntColumn extends BeakColumn {
+final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
   /// Creates an integer column, optionally bounded by [min]/[max].
   const BeakIntColumn({
     required super.key,
@@ -38,6 +38,7 @@ final class BeakIntColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.number);
 
+  /// Reads [value] as a int value.
   @override
-  Type get valueType => int;
+  int? readValue(BeakValue? value) => _readInt(value);
 }

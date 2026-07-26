@@ -110,3 +110,28 @@ final class BeakConflictException extends BeakException {
   const BeakConflictException(String message)
     : super(code: 'conflict', message: message);
 }
+
+/// Raised when a record does not carry the value a column requires — the
+/// column is absent, null, or holds a shape the column cannot read.
+///
+/// Thrown by `BeakTypedColumn.require`, which is the strict counterpart of
+/// `readFrom`. Reach for `readFrom` when absence is legitimate; `require`
+/// exists so a column carrying [BeakRequired] fails loudly and namefully
+/// instead of yielding `null` far from the cause.
+final class BeakRecordShapeException extends BeakConfigurationException {
+  /// Creates a shape failure for [columnKey], which expected [expectedType].
+  BeakRecordShapeException({
+    required this.columnKey,
+    required this.expectedType,
+  }) : super(
+         'Column "$columnKey" has no readable $expectedType value on this '
+         'record. It is absent, null, or of an unexpected shape — check that '
+         'the query selected it and that the row supplies it.',
+       );
+
+  /// Key of the column whose value could not be read.
+  final String columnKey;
+
+  /// The Dart type the column reads its values as.
+  final Type expectedType;
+}
