@@ -284,62 +284,32 @@ resources:
 
   static const String _exampleModel = '''
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
 
-/// Typed columns of the notes resource.
+part 'note.beak.dart';
+
+/// A note.
 ///
-/// Each constant is declared once and drives every surface: the table cell,
-/// the form input, the detail row, the filter, and the API's validation.
-abstract final class NoteColumns {
-  /// Primary key.
-  static const id = BeakStringColumn(
-    key: 'id',
-    label: 'Id',
-    visibleOn: {BeakContext.detail},
-  );
+/// Declared once. `beak prepare` generates the typed columns, the model, the
+/// relationships (both sides), and a typed record view into `note.beak.dart`
+/// — there is no registry to edit and no resource to register.
+@BeakResource(timestamps: true)
+final class Note extends BeakSchema {
+  /// What the note is called.
+  ///
+  /// Non-nullable, so it is required: the form validator, the API and the
+  /// schema all derive that from the type rather than restating it.
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(255)])
+  late final String title;
 
-  /// Note title.
-  static const title = BeakStringColumn(
-    key: 'title',
-    label: 'Title',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
-
-  /// Body text.
-  static const body = BeakTextColumn(
-    key: 'body',
-    label: 'Body',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  /// The note itself.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? body;
 
   /// Whether the note is pinned to the top of the list.
-  static const pinned = BeakBoolColumn(
-    key: 'pinned',
-    label: 'Pinned',
-    filterable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [id, title, body, pinned];
-}
-
-/// The notes resource.
-///
-/// Beak discovers this class under `lib/models/` — there is no registry to
-/// edit and no resource to register.
-final class NoteModel extends BeakModel {
-  /// Creates the notes model.
-  const NoteModel();
-
-  @override
-  String get table => 'notes';
-
-  @override
-  String get displayColumnKey => 'title';
-
-  @override
-  List<BeakColumn> get columns => NoteColumns.values;
+  @Column(filterable: true)
+  late final bool pinned;
 }
 ''';
 
@@ -384,13 +354,19 @@ API, the router, the tables, the forms and the detail views.
 
 | What | Where |
 | --- | --- |
-| A resource | `lib/models/<name>.dart` — one `BeakModel` subclass per file |
+| A resource | `lib/models/<name>.dart` — one `@BeakResource` class per file |
 | A custom page | `lib/screens/<name>.dart` — a top-level `BeakScreen` |
 | Panel title, icons, sections | `beak.yaml` |
 | Theme / auth / dashboard / server overrides | `lib/{theme,auth,dashboard,server}.dart` |
 | Generated wiring | `lib/beak/*.g.dart` — do not edit |
 
-Nothing needs registering. `beak prepare` discovers what you add.
+Nothing needs registering. `beak prepare` reads each schema class and
+generates its columns, model, relationships (both sides) and a typed record
+view into a `.beak.dart` part beside it, then wires everything up.
+
+A field's Dart type picks its column: `String`, `BeakText`, `BeakRichText`,
+`int`, `double`, `bool`, `DateTime`, an enum, `BeakHexColor`, `BeakImageRef`,
+`BeakFileRef`. Nullability decides whether it is required.
 
 ## Invariants
 
@@ -399,8 +375,9 @@ Nothing needs registering. `beak prepare` discovers what you add.
 - Never import `package:flutter/material.dart` or `cupertino.dart`. Beak's UI
   is obers_ui.
 - Widgets are `HookWidget`; `StatefulWidget` is not used.
-- Read record values through the column: `NoteColumns.title.readFrom(record)`
-  returns a `String?`, `require(record)` throws if absent.
+- Read record values through the generated record view: `record.asNote.title`
+  is a `String`, `record.asNote.body` a `String?` — matching what the schema
+  declared. `NoteColumns.title.readFrom(record)` is the lower-level form.
 
 ## Commands
 

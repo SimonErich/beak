@@ -209,7 +209,10 @@ final class BeakProjectScanner {
     final visited = <String>{};
     final units = <(String, CompilationUnit)>[
       for (final file in _dartFilesUnder(directory))
-        (_libRelativePath(file), _parse(file)),
+        // A generated `*.beak.dart` is a part of the library beside it, and a
+        // part cannot be imported. Attribute its declarations to that library
+        // so the generated import resolves.
+        (_owningLibraryPath(file), _parse(file)),
     ]..sort((a, b) => a.$1.compareTo(b.$1));
 
     for (var pass = 0; pass < 2; pass++) {
@@ -379,6 +382,18 @@ final class BeakProjectScanner {
     content: file.readAsStringSync(),
     throwIfDiagnostics: false,
   ).unit;
+
+  /// The import path declarations in [file] should be attributed to.
+  ///
+  /// For a generated part file, that is the library declaring it; for
+  /// anything else, the file itself.
+  String _owningLibraryPath(File file) {
+    final String path = _libRelativePath(file);
+    if (!path.endsWith('.beak.dart')) {
+      return path;
+    }
+    return path.replaceFirst(RegExp(r'\.beak\.dart$'), '.dart');
+  }
 
   String _libRelativePath(File file) {
     final String libPath = '${projectRoot.path}/lib/';

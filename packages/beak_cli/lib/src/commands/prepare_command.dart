@@ -6,6 +6,8 @@ import '../cli_runner.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../schema/beak_schema_emitter.dart';
+import '../schema/beak_schema_reader.dart';
 
 /// Regenerates the wiring a Beak project needs, from what it declares.
 ///
@@ -71,21 +73,41 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     root,
     packageName: packageName,
   );
-  final BeakDiscovery discovery = BeakProjectScanner(root).scan();
+  // Schema classes generate their own part files first, so the models they
+  // declare exist before discovery goes looking for them.
+  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  final schemaFiles = <String>[];
+  if (schemaIssues.isEmpty) {
+    for (final schema in schemas) {
+      final String path =
+          'lib/${_directoryOf(schema.libraryPath)}'
+          '${BeakSchemaEmitter.partFileNameOf(schema.libraryPath)}';
+      final String contents = BeakSchemaEmitter.emit(schema, schemas);
+      final file = File('${root.path}/$path');
+      if (!file.existsSync() || file.readAsStringSync() != contents) {
+        file.parent.createSync(recursive: true);
+        file.writeAsStringSync(contents);
+        schemaFiles.add(path);
+      }
+    }
+  }
 
-  if (discovery.issues.isNotEmpty) {
+  final BeakDiscovery discovery = BeakProjectScanner(root).scan();
+  final allIssues = [...schemaIssues, ...discovery.issues];
+
+  if (allIssues.isNotEmpty) {
     environment.out.writeln('Cannot generate — fix these first:');
-    for (final issue in discovery.issues) {
+    for (final issue in allIssues) {
       environment.out.writeln('  ${issue.path}: ${issue.message}');
     }
     return BeakPrepareResult(
-      discovery: discovery,
+      discovery: BeakDiscovery(issues: allIssues),
       written: const [],
       unchanged: const [],
     );
   }
 
-  final written = <String>[];
+  final written = <String>[...schemaFiles];
   final unchanged = <String>[];
   for (final generated in BeakEmitters.all(
     packageName: packageName,
@@ -116,4 +138,13 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     written: written,
     unchanged: unchanged,
   );
+}
+
+/// The directory part of [libraryPath], with a trailing slash.
+///
+/// A schema's part file sits beside the library that declares it, so the
+/// generated path keeps whatever nesting the author chose under `lib/models/`.
+String _directoryOf(String libraryPath) {
+  final int slash = libraryPath.lastIndexOf('/');
+  return slash < 0 ? '' : libraryPath.substring(0, slash + 1);
 }
