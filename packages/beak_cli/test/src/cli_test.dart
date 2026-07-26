@@ -78,7 +78,7 @@ void main() {
       ]);
 
       expect(code, 0);
-      final String wormModel = read('lib/src/models/widget.dart');
+      final String wormModel = read('lib/models/widget.dart');
       expect(wormModel, contains('final class Widget extends Model'));
       expect(
         wormModel,
@@ -87,21 +87,19 @@ void main() {
       expect(wormModel, contains('static QueryBuilder<Widget> query()'));
       expect(wormModel, contains("static const String tableName = 'widgets';"));
 
-      final String columns = read('lib/src/models/widget_columns.dart');
+      final String columns = read('lib/models/widget_columns.dart');
       expect(columns, contains('abstract final class WidgetColumns'));
       expect(columns, contains('final class WidgetModel extends BeakModel'));
       expect(columns, contains("String get table => 'widgets';"));
       expect(columns, contains("String get displayColumnKey => 'name';"));
 
-      final String migration = read(
-        'lib/src/migrations/create_widgets_table.dart',
-      );
+      final String migration = read('lib/migrations/create_widgets_table.dart');
       expect(
         migration,
         contains("String get name => '20260703_120000_create_widgets_table';"),
       );
       expect(migration, contains("table.decimal('price');"));
-      expect(out.toString(), contains('register the migration'));
+      expect(out.toString(), contains('beak prepare'));
     });
 
     test('rejects a lowercase resource name', () async {
@@ -122,22 +120,16 @@ void main() {
   group('narrow generators', () {
     test('make:model writes only the worm model', () async {
       await runner.run(['make:model', 'Gadget', '--fields', 'label:string']);
+      expect(File('${root.path}/lib/models/gadget.dart').existsSync(), isTrue);
       expect(
-        File('${root.path}/lib/src/models/gadget.dart').existsSync(),
-        isTrue,
-      );
-      expect(
-        File('${root.path}/lib/src/models/gadget_columns.dart').existsSync(),
+        File('${root.path}/lib/models/gadget_columns.dart').existsSync(),
         isFalse,
       );
     });
 
     test('make:columns writes only the Beak definition', () async {
       await runner.run(['make:columns', 'Gadget', '--fields', 'label:string']);
-      expect(
-        read('lib/src/models/gadget_columns.dart'),
-        contains('GadgetModel'),
-      );
+      expect(read('lib/models/gadget_columns.dart'), contains('GadgetModel'));
     });
 
     test('make:migration writes only the migration', () async {
@@ -148,7 +140,7 @@ void main() {
         'label:string',
       ]);
       expect(
-        read('lib/src/migrations/create_gadgets_table.dart'),
+        read('lib/migrations/create_gadgets_table.dart'),
         contains('CreateGadgetsTable'),
       );
     });

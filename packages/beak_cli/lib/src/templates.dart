@@ -116,8 +116,9 @@ String generateWormModel(String resourceName, List<BeakFieldSpec> fields) {
 /// a UUID primary key, one blueprint column per field in [fields], and
 /// `timestamps()`, and drops it on `downSchema`. The [timestamp] prefixes
 /// the migration's `name` (worm applies migrations in name order), so pass
-/// a stable, sortable value such as `20260703_120000`. Register the class in
-/// `bin/worm.dart` — migrations are never auto-applied.
+/// a stable, sortable value such as `20260703_120000`. `beak prepare`
+/// discovers the class under `lib/migrations/` and lists it on the generated
+/// host; migrations are still never auto-applied — run `beak migrate`.
 ///
 /// ```dart
 /// final specs = BeakFieldSpec.parseList('name:string,price:decimal');
@@ -213,12 +214,14 @@ String generateBeakColumns(String resourceName, List<BeakFieldSpec> fields) {
     ..writeln()
     ..writeln('/// The $table resource.')
     ..writeln('///')
-    ..writeln('/// Register it in the panel:')
-    ..writeln('/// ```dart')
-    ..writeln('/// BeakResource(')
-    ..writeln('///   model: ${resourceName}Model(),')
-    ..writeln('///   icon: BeakIconToken(OiIcons.box),')
-    ..writeln('/// )')
+    ..writeln('/// Discovered under `lib/models/` — there is no registry to')
+    ..writeln('/// edit and no resource to register. Set its icon and section')
+    ..writeln('/// in `beak.yaml`:')
+    ..writeln('///')
+    ..writeln('/// ```yaml')
+    ..writeln('/// resources:')
+    ..writeln('///   $table:')
+    ..writeln('///     icon: box')
     ..writeln('/// ```')
     ..writeln('final class ${resourceName}Model extends BeakModel {')
     ..writeln('  /// Creates the model.')

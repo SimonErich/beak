@@ -5,29 +5,138 @@ description: Every beak CLI command, its flags, the files it writes, and its exi
 
 # CLI commands
 
-`beak` is the scaffolding CLI. It writes convention-following worm models, migrations, and Beak column definitions so you define a resource once and get every layer wired. This page lists every command, the `--fields` grammar they share, the files each one writes, and the exit codes.
+`beak` drives a Beak project end to end: it scaffolds one, regenerates its
+wiring, serves it, migrates it, and diagnoses it. This page lists every command,
+what it writes, and its exit codes.
 
 ## Running the CLI
 
-The CLI lives in `packages/beak_cli`. Its entry point is `bin/beak.dart`, which forwards to `createBeakRunner(BeakCliEnvironment.production())`. From a project root you invoke it however your setup exposes it (`dart run beak_cli:beak …` or a compiled `beak` on your `PATH`), then pass a command and its arguments:
-
-```console
-$ beak make:resource Product --fields name:string,price:decimal,active:bool
-```
-
-Every generator writes under the current directory and prints one `created` line per file. `beak doctor` writes nothing; it only reports.
+The CLI lives in `packages/beak_cli`; its entry point is `bin/beak.dart`, which
+forwards to `createBeakRunner(BeakCliEnvironment.production())`. Invoke it
+however your setup exposes it (`dart run beak_cli:beak …`, or a compiled `beak`
+on your `PATH`).
 
 ## Command summary
 
-| Command | Argument | Writes |
+| Command | Argument | What it does |
 | --- | --- | --- |
-| `make:resource` | `Name` (UpperCamelCase) | worm model + Beak columns/model + migration (three files) |
-| `make:model` | `Name` | worm model only |
-| `make:columns` | `Name` | Beak columns + `BeakModel` only |
-| `make:migration` | `Name` | create-table migration only |
-| `doctor` | (none) | nothing; prints one `OK`/`FAIL` line per check |
+| `create` | `<name>` | Scaffolds a new project. |
+| `prepare` | (none) | Regenerates the wiring from what the project declares. |
+| `dev` | (none) | Regenerates, then serves the API. |
+| `migrate` | `[subcommand]` | Applies pending migrations. |
+| `seed` | (none) | Runs the project seeders. |
+| `doctor` | (none) | Diagnoses the project. |
+| `make:resource` | `Name` | worm model + Beak columns/model + migration. |
+| `make:model` | `Name` | worm model only. |
+| `make:columns` | `Name` | Beak columns + `BeakModel` only. |
+| `make:migration` | `Name` | create-table migration only. |
 
-The four `make:*` commands all accept the same `--fields` option. The resource `Name` is validated against `^[A-Z][A-Za-z0-9]*$`: pass exactly one UpperCamelCase word or the command exits with a usage error.
+Every command exits `0` on success, `1` on a failed check or a generation
+error, and `64` (`EX_USAGE`) on bad input.
+
+## `beak create <name>`
+
+Scaffolds a project whose visible content is only what you own:
+
+```console
+$ beak create acme_admin
+  created acme_admin/pubspec.yaml
+  created acme_admin/beak.yaml
+  created acme_admin/lib/models/note.dart
+  created acme_admin/.gitignore
+  created acme_admin/analysis_options.yaml
+  created acme_admin/AGENTS.md
+  1 model · 0 screens · 0 overrides
+  generated  7 of 7 files
+
+  cd acme_admin && beak dev
+```
+
+`--beak-path <path>` points the generated pubspec at a local Beak checkout
+instead of git; use it when developing Beak itself.
+
+`web/` is delegated to `flutter create --platforms=web`, because its contents
+(index.html, the manifest, the icon set) change between Flutter releases and a
+vendored copy would rot. If that fails, the command warns and still produces a
+working project.
+
+## `beak prepare`
+
+Scans `lib/models/`, `lib/screens/`, `lib/migrations/` and `lib/seeders/`, reads
+`beak.yaml`, and writes seven files:
+
+| File | Committed? | What it is |
+| --- | --- | --- |
+| `lib/beak/registry.g.dart` | yes | Every discovered model, and the registry over them. |
+| `lib/beak/panel.g.dart` | yes | The panel config: title, resources, screens. |
+| `lib/beak/app.g.dart` | yes | The root widget, keeping the `dataSource` test seam. |
+| `lib/beak/server.g.dart` | yes | The `BeakServeHost` wiring registry, migrations and seeders. |
+| `lib/main.dart` | no | Four lines: `runApp(const BeakApp())`. |
+| `bin/serve.dart` | no | One statement: serve the API. |
+| `bin/migrate.dart` | no | One statement: run the worm CLI. |
+
+The `lib/beak/*.g.dart` wiring is committed so a fresh clone analyzes before any
+`beak` command runs. The three entrypoints are git-ignored: they sit at the
+canonical paths so `flutter run`, `flutter build web`, IDE run buttons and
+`dart compile exe` all work with no flags, but nothing about them is worth
+reviewing. `beak doctor` reports when they are missing or stale.
+
+`prepare` is idempotent — a file whose contents are unchanged is not rewritten —
+and every other command runs it first.
+
+!!! note "What discovery can and cannot see"
+    Discovery is an unresolved parse, which is what makes it take milliseconds.
+    It finds a class extending `BeakModel` directly or one local hop away (the
+    shared-base pattern). A model it cannot instantiate is **reported**, not
+    skipped: a missing sidebar entry is a bad way to learn about a missing
+    `const` constructor.
+
+## `beak dev`
+
+Regenerates, prints the `flutter run` line for the panel, and serves the API.
+
+```console
+$ beak dev
+  1 model · 0 screens · 0 overrides
+  generated  up to date (7 files)
+  panel      run this in another terminal:
+               flutter run -d chrome
+  api        starting…
+```
+
+`-d, --device` selects the device in the printed line; `--no-serve` regenerates
+only. The panel is deliberately not spawned here — see the command's dartdoc for
+why.
+
+## `beak migrate` / `beak seed`
+
+Regenerate, then delegate to the project's generated `bin/migrate.dart`, which
+runs the worm CLI over the same host the server uses. `beak migrate` passes a
+subcommand through (`status`, `fresh`, `refresh`, …); `beak seed` runs
+`db:seed`.
+
+## `beak doctor`
+
+Diagnoses the project it is run in and exits `1` if any check failed. Warnings
+do not fail the command:
+
+```console
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 4 models · 1 screen · 2 overrides
+  FAIL generated files out of date (1 missing, 0 stale)
+       → beak prepare
+  WARN database unreachable at localhost:25432
+       → start it, or correct DATABASE_URL in .env
+  Some checks failed.
+```
+
+## The `make:*` commands
+
+The four `make:*` generators write a single file each and register nothing —
+with convention-based discovery there is nothing to register. They share the
+`--fields` option, and validate `Name` against `^[A-Z][A-Za-z0-9]*$`.
 
 ## The `--fields` grammar
 

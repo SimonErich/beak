@@ -215,9 +215,9 @@ abstract base class _MakeCommand extends Command<int> {
 /// The `beak make:resource Name --fields ...` command — the full scaffold.
 ///
 /// Writes three files under [BeakCliEnvironment.rootDirectory]: the worm
-/// model (`lib/src/models/<snake>.dart`), the Beak columns + model
-/// (`lib/src/models/<snake>_columns.dart`), and the create-table migration
-/// (`lib/src/migrations/create_<table>_table.dart`), then prints the manual
+/// model (`lib/models/<snake>.dart`), the Beak columns + model
+/// (`lib/models/<snake>_columns.dart`), and the create-table migration
+/// (`lib/migrations/create_<table>_table.dart`), then prints the manual
 /// registration steps. Registered on the runner by [createBeakRunner]; run
 /// it rather than constructing it directly.
 ///
@@ -244,28 +244,23 @@ final class MakeResourceCommand extends _MakeCommand {
     final String stamp = timestamp();
     environment
       ..out.writeln('Scaffolding $resource:')
+      ..writeFile('lib/models/$snake.dart', generateWormModel(resource, specs))
       ..writeFile(
-        'lib/src/models/$snake.dart',
-        generateWormModel(resource, specs),
-      )
-      ..writeFile(
-        'lib/src/models/${snake}_columns.dart',
+        'lib/models/${snake}_columns.dart',
         generateBeakColumns(resource, specs),
       )
       ..writeFile(
-        'lib/src/migrations/create_${tableNameOf(resource)}_table.dart',
+        'lib/migrations/create_${tableNameOf(resource)}_table.dart',
         generateMigration(resource, specs, timestamp: stamp),
       )
-      ..out.writeln(
-        'Next: register the migration in bin/worm.dart and the model in '
-        'your BeakModelRegistry / BeakPanelConfig.',
-      );
+      // Nothing to register: `beak prepare` discovers both directories.
+      ..out.writeln('Next: run `beak prepare` (or `beak dev`) to wire it up.');
     return 0;
   }
 }
 
 /// The `beak make:model Name --fields ...` command — generates only the
-/// canonical worm model (`lib/src/models/<snake>.dart`), leaving columns
+/// canonical worm model (`lib/models/<snake>.dart`), leaving columns
 /// and migration untouched. The narrow counterpart of
 /// [MakeResourceCommand].
 final class MakeModelCommand extends _MakeCommand {
@@ -282,7 +277,7 @@ final class MakeModelCommand extends _MakeCommand {
   Future<int> run() async {
     final String resource = resourceName();
     environment.writeFile(
-      'lib/src/models/${snakeCaseOf(resource)}.dart',
+      'lib/models/${snakeCaseOf(resource)}.dart',
       generateWormModel(resource, fields()),
     );
     return 0;
@@ -291,7 +286,7 @@ final class MakeModelCommand extends _MakeCommand {
 
 /// The `beak make:columns Name --fields ...` command — generates only the
 /// Beak columns class and `BeakModel`
-/// (`lib/src/models/<snake>_columns.dart`), the define-once definition both
+/// (`lib/models/<snake>_columns.dart`), the define-once definition both
 /// the server and the Flutter panel consume. The narrow counterpart of
 /// [MakeResourceCommand].
 final class MakeColumnsCommand extends _MakeCommand {
@@ -308,7 +303,7 @@ final class MakeColumnsCommand extends _MakeCommand {
   Future<int> run() async {
     final String resource = resourceName();
     environment.writeFile(
-      'lib/src/models/${snakeCaseOf(resource)}_columns.dart',
+      'lib/models/${snakeCaseOf(resource)}_columns.dart',
       generateBeakColumns(resource, fields()),
     );
     return 0;
@@ -316,7 +311,7 @@ final class MakeColumnsCommand extends _MakeCommand {
 }
 
 /// The `beak make:migration Name --fields ...` command — generates only the
-/// create-table worm migration (`lib/src/migrations/create_<table>_table.dart`),
+/// create-table worm migration (`lib/migrations/create_<table>_table.dart`),
 /// its name prefixed with a timestamp from [BeakCliEnvironment.now]. The
 /// narrow counterpart of [MakeResourceCommand]; remember to register the
 /// migration in `bin/worm.dart`.
@@ -334,7 +329,7 @@ final class MakeMigrationCommand extends _MakeCommand {
   Future<int> run() async {
     final String resource = resourceName();
     environment.writeFile(
-      'lib/src/migrations/create_${tableNameOf(resource)}_table.dart',
+      'lib/migrations/create_${tableNameOf(resource)}_table.dart',
       generateMigration(resource, fields(), timestamp: timestamp()),
     );
     return 0;
