@@ -1,6 +1,6 @@
 /// Material/Cupertino import guard (`melos run guard-material`).
 ///
-/// Beak UI is built exclusively with obers_ui (CLAUDE.md §2.1): importing
+/// Beak UI is built exclusively with obers_ui: importing
 /// `package:flutter/material.dart` or `package:flutter/cupertino.dart` is a
 /// blocking defect. This tool scans every Dart file of the gated packages
 /// (under `packages/` and `apps/`, vendored `worm*` excluded) and exits

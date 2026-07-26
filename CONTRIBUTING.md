@@ -105,7 +105,7 @@ These are enforced by review (and partly by lints/`melos run analyze`):
 - **Tests verify behavior**, prefer fakes over mocks, and every bug fix ships a
   regression test.
 
-See [`docs/architecture.md`](docs/architecture.md) and `CLAUDE.md` for the full
+See the [architecture docs](docs/architecture/index.md) for the full
 rationale.
 
 ## Commits & pull requests

@@ -32,7 +32,7 @@ exits non-zero listing each offending file:
     run: dart run tool/check_no_material.dart
     description: >-
       FAIL on any package:flutter/material.dart or package:flutter/cupertino.dart
-      import in Beak code (CLAUDE.md §2.1).
+      import in Beak code.
 ```
 
 Flutter's `widgets.dart` and `foundation.dart` stay allowed, but only for core

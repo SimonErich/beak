@@ -54,7 +54,7 @@ scripts:
     run: dart run tool/check_no_material.dart
     description: >-
       FAIL on any package:flutter/material.dart or package:flutter/cupertino.dart
-      import in Beak code (CLAUDE.md §2.1).
+      import in Beak code.
   guard-web:
     run: dart run tool/check_web_safe.dart
     description: >-

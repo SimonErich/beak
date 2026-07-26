@@ -23,3 +23,16 @@ build.log
 # the beak monorepo can track the package files — `mv` back to restore).
 /packages/.worm-repo.git/
 deploy/.env.prod
+
+# Local working notes and tooling config, not part of the published project.
+/CLAUDE.md
+/PROMPT.md
+/PLAN/
+/.claude/
+/run_beak_build.sh
+/BUILD_COMPLETE
+/build.log
+/BEAK_MISSING_FEATURES.md
+/SUPERDASHBOARD_STATE.md
+/OBERS_MISSING_FEATURES.md
+/WORM_MISSING_FEATURES.md

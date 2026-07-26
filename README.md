@@ -198,9 +198,3 @@ four-command gate, and the code guardrails, and
 ## License
 
 [Apache-2.0](LICENSE) © Marqably GmbH.
-
----
-
-*Built autonomously, test-first, by the Beak Build Kit (`PROMPT.md`,
-`PLAN/`, `run_beak_build.sh`) — one green-gated phase per invocation; the
-ledger with every phase's decisions lives in `PLAN/STATE.md`.*

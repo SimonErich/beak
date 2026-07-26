@@ -32,7 +32,6 @@ The pages build on each other, but each stands alone.
 
 ### The history
 
-- [How Beak was built](how-beak-was-built.md) the phased, test-first build and the ledger that tracked it.
 
 ## The shape in one picture
 
