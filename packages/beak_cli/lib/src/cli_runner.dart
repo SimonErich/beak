@@ -7,6 +7,7 @@ import 'commands/dev_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
+import 'project/beak_emitters.dart';
 import 'templates.dart';
 
 /// A TCP reachability probe over a host and port.
@@ -125,7 +126,12 @@ final class BeakCliEnvironment {
   void writeFile(String relativePath, String content) {
     final file = File('${rootDirectory.path}/$relativePath');
     file.parent.createSync(recursive: true);
-    file.writeAsStringSync(content);
+    // Dart output goes through the same formatter the emitters use, so
+    // `dart format --set-exit-if-changed` on a scaffolded project is a no-op
+    // rather than a diff the user did not write.
+    file.writeAsStringSync(
+      relativePath.endsWith('.dart') ? BeakEmitters.format(content) : content,
+    );
     out.writeln('  created $relativePath');
   }
 }

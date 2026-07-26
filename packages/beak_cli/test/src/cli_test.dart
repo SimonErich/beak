@@ -146,6 +146,33 @@ void main() {
     });
   });
 
+  group('formatting', () {
+    test('every scaffolded Dart file is already formatted', () async {
+      // A scaffold that needs `dart format` afterwards hands the user a diff
+      // they did not write, and breaks a --set-exit-if-changed gate.
+      await runner.run([
+        'make:resource',
+        'Invoice',
+        '--fields',
+        'number:string,total:decimal,paid:bool',
+      ]);
+
+      final generated = Directory(root.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'));
+      expect(generated, isNotEmpty);
+      for (final file in generated) {
+        final String source = file.readAsStringSync();
+        expect(
+          BeakEmitters.format(source),
+          source,
+          reason: '${file.path} is not formatted',
+        );
+      }
+    });
+  });
+
   group('doctor', () {
     test('a directory that is not a Dart project fails with the fix', () async {
       expect(await runner.run(['doctor']), 1);
