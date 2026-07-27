@@ -20,7 +20,7 @@ Each guide stands on its own. Read the one that matches the job in front of you.
 | [Working with AI agents](working-with-ai-agents.md) | Point a coding agent at the `AGENTS.md` `beak create` wrote, have it add a resource as one annotated class, and rely on the analyzer and `beak doctor` to catch what it gets wrong. |
 | [Performance](performance.md) | Keep pages fast: a list page and a show page each cost one query with their relations, aggregates run in the database, and relation managers page their rows. |
 | [Security](security.md) | Close the seams in `lib/server.dart`: the auth guard, the policy, a row scope that narrows which rows a principal sees, upload validation, and CORS. |
-| [Common recipes](common-recipes.md) | Grab a copy-paste answer to a recurring task (a row action, a KPI, a kanban board, a picker, a CSV export) without reading a whole concept page. |
+| [Recipes](../recipes/index.md) | Grab a copy-paste answer to a recurring task (a row action, a KPI, a kanban board, a picker, a CSV export) without reading a whole concept page. One page per recipe. |
 
 ## How the guides relate to the rest of the docs
 

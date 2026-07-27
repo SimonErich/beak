@@ -53,18 +53,29 @@ final class InMemoryStore {
     _schemas[table] = List<String>.of(columns);
   }
 
-  /// Declare a column on an existing table.
+  /// Declare a column on an existing table, and give it to every stored row.
   ///
-  /// Rows already stored keep their shape; a read of the new column yields
-  /// `null` until something writes it, which is what `ALTER TABLE ADD COLUMN`
-  /// does on every real database.
-  void addColumn(String table, String column, {bool ifNotExists = false}) {
+  /// Rows already stored gain the column holding [defaultValue], which is
+  /// what `ALTER TABLE ADD COLUMN` does on every real database.
+  void addColumn(
+    String table,
+    String column, {
+    bool ifNotExists = false,
+    Object? defaultValue,
+  }) {
     final columns = _schemas[_requireDeclared(table)]!;
     if (columns.contains(column)) {
       if (ifNotExists) return;
       throw StateError('Column "$column" of "$table" already exists');
     }
     columns.add(column);
+    // A database gives every existing row the new column, holding its
+    // default or null. Leaving the key absent here would make a row read
+    // back differently in memory than on a server — which is the one thing
+    // this store must never do.
+    for (final row in _requireTable(table)) {
+      row[column] = defaultValue;
+    }
   }
 
   /// Remove a column declaration and drop the value from every stored row.

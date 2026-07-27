@@ -21,6 +21,7 @@ void main() {
       supportsJoins: true,
       supportsAggregations: true,
       supportsSchemaIntrospection: true,
+      supportsColumnAlterations: true,
       supportsExplain: true,
     ),
     adapterFactory: SqliteAdapter.memory,

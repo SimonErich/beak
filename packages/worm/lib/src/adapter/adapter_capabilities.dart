@@ -26,6 +26,7 @@ final class AdapterCapabilities {
     this.supportsAggregations = false,
     this.supportsSchemaIntrospection = false,
     this.supportsExplain = false,
+    this.supportsColumnAlterations = false,
   });
 
   /// Whether the adapter supports transactions.
@@ -66,6 +67,13 @@ final class AdapterCapabilities {
   /// that cannot produce a plan.
   final bool supportsExplain;
 
+  /// Whether `ALTER TABLE` can add and drop columns.
+  ///
+  /// False for a schemaless store, where a column is not a declaration to
+  /// change: Mongo accepts the alteration and does nothing, correctly, so
+  /// asserting the column appeared would assert the wrong thing.
+  final bool supportsColumnAlterations;
+
   /// Safe existence check for a named capability.
   ///
   /// Returns the matching flag for recognised keys and `false` for
@@ -83,6 +91,7 @@ final class AdapterCapabilities {
     'aggregations' => supportsAggregations,
     'schemaIntrospection' => supportsSchemaIntrospection,
     'explain' => supportsExplain,
+    'columnAlterations' => supportsColumnAlterations,
     _ => false,
   };
 
@@ -99,6 +108,7 @@ final class AdapterCapabilities {
     bool? supportsAggregations,
     bool? supportsSchemaIntrospection,
     bool? supportsExplain,
+    bool? supportsColumnAlterations,
   }) => AdapterCapabilities(
     supportsTransactions: supportsTransactions ?? this.supportsTransactions,
     supportsSavepoints: supportsSavepoints ?? this.supportsSavepoints,
@@ -114,5 +124,7 @@ final class AdapterCapabilities {
     supportsSchemaIntrospection:
         supportsSchemaIntrospection ?? this.supportsSchemaIntrospection,
     supportsExplain: supportsExplain ?? this.supportsExplain,
+    supportsColumnAlterations:
+        supportsColumnAlterations ?? this.supportsColumnAlterations,
   );
 }

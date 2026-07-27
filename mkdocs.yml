@@ -97,6 +97,8 @@ plugins:
         tutorial/08-forms-wizards-and-dual-mode-detail.md: tutorial/05-shaping-the-panel.md
         tutorial/09-auth-theming-and-polish.md: tutorial/06-auth-tests-and-shipping.md
         tutorial/10-wrap-up.md: tutorial/06-auth-tests-and-shipping.md
+        # The recipe page became a section, one addressable page per recipe.
+        guides/common-recipes.md: recipes/index.md
   - minify:
       minify_html: true
 
@@ -205,7 +207,17 @@ nav:
       - "Working with AI agents": guides/working-with-ai-agents.md
       - "Performance": guides/performance.md
       - "Security": guides/security.md
-      - "Common recipes": guides/common-recipes.md
+      - "Recipes":
+          - recipes/index.md
+          - "Add a resource end-to-end": recipes/add-a-resource.md
+          - "An enum badge column": recipes/an-enum-badge-column.md
+          - "A belongs-to picker": recipes/a-belongs-to-picker.md
+          - "A custom row action": recipes/a-row-action.md
+          - "A kanban view": recipes/a-kanban-view.md
+          - "A KPI on the dashboard": recipes/a-dashboard-kpi.md
+          - "Split a long form into steps": recipes/a-multi-step-form.md
+          - "Hide a resource from the sidebar": recipes/hide-a-resource.md
+          - "Export to CSV": recipes/export-to-csv.md
   - "Deployment":
       - deployment/index.md
       - "Environment and config": deployment/environment-and-config.md

@@ -225,7 +225,12 @@ final class InMemoryAdapter extends DatabaseAdapter with ExplainCapable {
   void _applyAlteration(String table, SchemaAlteration alteration) {
     switch (alteration) {
       case SchemaAddColumn(:final column, :final ifNotExists):
-        _store.addColumn(table, column.name, ifNotExists: ifNotExists);
+        _store.addColumn(
+          table,
+          column.name,
+          ifNotExists: ifNotExists,
+          defaultValue: column.defaultValue,
+        );
       case SchemaDropColumn(:final column, :final ifExists):
         _store.dropColumn(table, column, ifExists: ifExists);
       case SchemaChangeColumn():

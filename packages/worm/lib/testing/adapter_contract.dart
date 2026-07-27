@@ -90,6 +90,9 @@ void runAdapterContractTests({
     _registerCompileToStringTests(current);
     _registerRawQueryTests(current, capabilities);
     _registerCapabilityGatingTests(current, capabilities);
+    if (capabilities.supportsColumnAlterations) {
+      _registerAlterationTests(current);
+    }
     if (capabilities.supportsTransactions) {
       _registerTransactionRollbackTests(current);
     }
@@ -585,6 +588,138 @@ void _registerSchemaTests(DatabaseAdapter Function() adapter) {
       );
       final schema = await adapter().introspectSchema();
       expect(schema.containsKey('products'), isFalse);
+    });
+  });
+}
+
+/// `ALTER TABLE`, on every adapter that has one.
+///
+/// This is the regression net for the change that gave worm alterations at
+/// all. Before it, adding a field to a shipped app had no migration path but
+/// `migrate:fresh` — and the only thing that proves an alteration was really
+/// applied, rather than merely compiled, is reading the table afterwards.
+void _registerAlterationTests(DatabaseAdapter Function() adapter) {
+  group('Alterations', () {
+    test('an added column is readable, and the rows survive', () async {
+      await adapter().executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[
+            SchemaAddColumn(
+              SchemaColumn(
+                name: 'nickname',
+                type: ColumnType.text,
+                nullable: true,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      final rows = await adapter().select(
+        const QueryDescriptor(
+          table: 'users',
+          orderBy: <SortClause>[SortClause('id')],
+        ),
+      );
+      expect(rows, hasLength(5), reason: 'the alteration dropped rows');
+      expect(rows.first['name'], 'Alice');
+      expect(rows.first.containsKey('nickname'), isTrue);
+      expect(rows.first['nickname'], isNull, reason: 'nullable, no backfill');
+    });
+
+    test('an added column accepts writes', () async {
+      await adapter().executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[
+            SchemaAddColumn(
+              SchemaColumn(
+                name: 'nickname',
+                type: ColumnType.text,
+                nullable: true,
+              ),
+            ),
+          ],
+        ),
+      );
+      await adapter().update(
+        const UpdateDescriptor(
+          table: 'users',
+          values: <String, Object?>{'nickname': 'Ali'},
+          where: LeafNode(
+            Predicate(fieldName: 'id', operator: Operator.eq, value: 1),
+          ),
+        ),
+      );
+
+      final row = await adapter().selectOne(
+        const QueryDescriptor(
+          table: 'users',
+          where: LeafNode(
+            Predicate(fieldName: 'id', operator: Operator.eq, value: 1),
+          ),
+        ),
+      );
+      expect(row?['nickname'], 'Ali');
+    });
+
+    test('a dropped column leaves the schema', () async {
+      await adapter().executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[
+            SchemaAddColumn(
+              SchemaColumn(
+                name: 'nickname',
+                type: ColumnType.text,
+                nullable: true,
+              ),
+            ),
+          ],
+        ),
+      );
+      await adapter().executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[SchemaDropColumn('nickname')],
+        ),
+      );
+
+      final schema = await adapter().introspectSchema();
+      expect(schema['users'], isNot(contains('nickname')));
+      expect(schema['users'], contains('name'));
+    });
+
+    test('an index can be created and then dropped by name', () async {
+      // Dropping without `ifExists` is the assertion: a database that never
+      // created the index refuses to drop it, so the pair proves the
+      // `CREATE INDEX` was executed rather than merely emitted.
+      await adapter().executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[
+            SchemaAddIndex(
+              SchemaIndex(
+                name: 'users_contract_email_idx',
+                columns: <String>['email'],
+              ),
+            ),
+          ],
+        ),
+      );
+
+      await expectLater(
+        adapter().executeSchema(
+          const SchemaDescriptor.alterTable(
+            table: 'users',
+            alterations: <SchemaAlteration>[
+              SchemaDropIndex('users_contract_email_idx'),
+            ],
+          ),
+        ),
+        completes,
+      );
     });
   });
 }
