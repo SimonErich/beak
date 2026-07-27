@@ -97,7 +97,7 @@ class BeakBelongsToField extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final BeakFormSlot slot = controller.slotOfForeignKey(relation);
+    final Enum slot = controller.slotOfForeignKey(relation);
     final repository = useMemoized(
       () => BeakResourceRepository(dataSource, referenceCache: referenceCache),
       [dataSource, referenceCache],

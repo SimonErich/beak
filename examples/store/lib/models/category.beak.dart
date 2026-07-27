@@ -67,6 +67,21 @@ final class CategoryModel extends BeakModel {
   List<BeakRelationship> get relationships => const [
     CategoryRelations.products,
   ];
+
+  @override
+  List<Enum> get formSlots => _CategoryModelFormSlot.values;
+}
+
+/// Form-field slots of CategoryModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field Category can put on a form.
+enum _CategoryModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
 }
 
 /// A typed, zero-cost view over a categories record.

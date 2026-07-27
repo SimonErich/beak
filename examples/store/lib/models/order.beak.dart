@@ -144,6 +144,29 @@ final class OrderModel extends BeakModel {
     OrderRelations.customer,
     OrderRelations.items,
   ];
+
+  @override
+  List<Enum> get formSlots => _OrderModelFormSlot.values;
+}
+
+/// Form-field slots of OrderModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field Order can put on a form.
+enum _OrderModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
+  s6,
+  s7,
+  s8,
+  s9,
+  s10,
 }
 
 /// A typed, zero-cost view over a orders record.

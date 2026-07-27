@@ -223,9 +223,46 @@ abstract final class BeakSchemaEmitter {
         ..writeln('  bool get softDeletes => true;');
     }
     buffer
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  List<Enum> get formSlots => ${_slotEnumOf(schema)}.values;')
+      ..writeln('}')
+      ..writeln();
+    _writeFormSlots(buffer, schema);
+  }
+
+  /// The private enum a model's forms claim field slots from.
+  ///
+  /// Auto forms key fields by an enum; Beak's columns are runtime values, so
+  /// a form takes one enum value per field it registers. Sizing the pool per
+  /// model is what removes the ceiling a shared pool imposes: a table with 60
+  /// columns gets 60 slots, and nobody has to know that is how it works.
+  ///
+  /// One slot per column plus one per relationship is an upper bound on what
+  /// `defineFields` can claim, and an unused enum value costs nothing.
+  static void _writeFormSlots(StringBuffer buffer, BeakSchemaIr schema) {
+    final int count = schema.columns.length + schema.relations.length;
+    buffer
+      ..writeln('/// Form-field slots of ${schema.modelClass}.')
+      ..writeln('///')
+      ..writeln('/// An implementation bridge, never shown and never stored:')
+      ..writeln('/// auto forms key their fields by an enum, and this supplies')
+      ..writeln(
+        '/// one value per field ${schema.className} can put on a form.',
+      )
+      ..writeln('enum ${_slotEnumOf(schema)} {')
+      ..writeln('  /// Bridge slots.')
+      ..writeln('  ${List.generate(count, _slotName).join(', ')},')
       ..writeln('}')
       ..writeln();
   }
+
+  /// `_ProductFormSlot`, private to the model's library.
+  static String _slotEnumOf(BeakSchemaIr schema) =>
+      '_${schema.modelClass}FormSlot';
+
+  /// `s0`, `s1`, … — deliberately meaningless, because they are.
+  static String _slotName(int index) => 's$index';
 
   static void _writeRecord(
     StringBuffer buffer,

@@ -282,6 +282,41 @@ final class ProductModel extends BeakModel {
 
   @override
   bool get softDeletes => true;
+
+  @override
+  List<Enum> get formSlots => _ProductModelFormSlot.values;
+}
+
+/// Form-field slots of ProductModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field Product can put on a form.
+enum _ProductModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
+  s6,
+  s7,
+  s8,
+  s9,
+  s10,
+  s11,
+  s12,
+  s13,
+  s14,
+  s15,
+  s16,
+  s17,
+  s18,
+  s19,
+  s20,
+  s21,
+  s22,
 }
 
 /// A typed, zero-cost view over a products record.

@@ -107,6 +107,26 @@ final class UserModel extends BeakModel {
 
   @override
   List<BeakRelationship> get relationships => const [UserRelations.orders];
+
+  @override
+  List<Enum> get formSlots => _UserModelFormSlot.values;
+}
+
+/// Form-field slots of UserModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field User can put on a form.
+enum _UserModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
+  s6,
+  s7,
 }
 
 /// A typed, zero-cost view over a users record.

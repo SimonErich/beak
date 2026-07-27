@@ -4,13 +4,16 @@ import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 
 import '../common/hex_color.dart';
 
-/// The fixed pool of autoforms field keys Beak bridges runtime columns onto.
+/// Beak's default pool of autoforms field keys.
 ///
 /// `obers_ui_autoforms` keys fields by a Dart enum for compile-time safety;
 /// Beak's columns are runtime values, so [BeakFormController] claims one
-/// slot per form column in declaration order. Users never touch slots —
-/// they address fields through column constants
-/// ([BeakFormController.slotOf], [BeakFormController.valueOf]).
+/// slot per form field in declaration order. Users never touch slots — they
+/// address fields through column constants ([BeakFormController.slotOf],
+/// [BeakFormController.valueOf]).
+///
+/// This pool is used by any model that does not supply its own through
+/// [BeakModel.formSlots]. Generated models always do, sized to themselves.
 enum BeakFormSlot {
   /// Bridge slot 0.
   s0,
@@ -121,13 +124,13 @@ typedef BeakFormPredicate = bool Function(BeakFormValues values);
 final class BeakFormValues {
   const BeakFormValues._(this._reader, this._slotByKey);
 
-  final OiAfReader<BeakFormSlot> _reader;
-  final Map<String, BeakFormSlot> _slotByKey;
+  final OiAfReader<Enum> _reader;
+  final Map<String, Enum> _slotByKey;
 
   /// The current typed value of [column], or `null` when the field is unset
   /// or the column carries no form field.
   T? valueOf<T>(BeakColumn column) {
-    final BeakFormSlot? slot = _slotByKey[column.key];
+    final Enum? slot = _slotByKey[column.key];
     return slot == null ? null : _reader.get<T>(slot);
   }
 }
@@ -177,7 +180,7 @@ final class BeakFormSection {
 ///
 /// [BeakDataForm] constructs and disposes one of these for you; instantiate
 /// it directly only when hand-composing a form. Address fields through
-/// column constants — never the underlying [BeakFormSlot]s — via
+/// column constants — never the underlying slot enums — via
 /// [valueOf], [setValue], and [slotOf].
 ///
 /// ```dart
@@ -189,8 +192,7 @@ final class BeakFormSection {
 ///
 /// final BeakRecord submission = controller.buildData();
 /// ```
-final class BeakFormController
-    extends OiAfController<BeakFormSlot, BeakRecord> {
+final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   /// Creates the controller for [model], optionally restricted and grouped
   /// by [sections].
   BeakFormController({required this.model, this.sections});
@@ -202,23 +204,26 @@ final class BeakFormController
   /// form column.
   final List<BeakFormSection>? sections;
 
-  final Map<String, BeakFormSlot> _slotByKey = {};
-  final Map<BeakFormSlot, BeakColumn> _columnBySlot = {};
-  final Map<BeakFormSlot, String> _keyBySlot = {};
+  final Map<String, Enum> _slotByKey = {};
+  final Map<Enum, BeakColumn> _columnBySlot = {};
+  final Map<Enum, String> _keyBySlot = {};
   int _claimedSlotCount = 0;
+
+  /// The pool this form claims slots from: the model's own when it has one.
+  late final List<Enum> _slots = model.formSlots ?? BeakFormSlot.values;
 
   /// The slot bridging [column]'s form field.
   ///
   /// Throws a [BeakConfigurationException] when the column has no form
   /// field (hidden from forms, the primary key, custom-rendered, or not
   /// listed in any section).
-  BeakFormSlot slotOf(BeakColumn column) => _slotOfKey(column.key);
+  Enum slotOf(BeakColumn column) => _slotOfKey(column.key);
 
   /// The slot bridging [relation]'s foreign-key picker.
   ///
   /// Throws a [BeakConfigurationException] when the relation's foreign key
   /// carries no form field.
-  BeakFormSlot slotOfForeignKey(BeakBelongsTo relation) =>
+  Enum slotOfForeignKey(BeakBelongsTo relation) =>
       _slotOfKey(relation.foreignKey);
 
   /// Whether a form field exists for the column stored under [columnKey] —
@@ -237,7 +242,7 @@ final class BeakFormController
   /// Seeds every field from [record] without marking the form dirty — the
   /// edit-mode prefill.
   void prefill(BeakRecord record) {
-    final values = <BeakFormSlot, Object?>{};
+    final values = <Enum, Object?>{};
     for (final MapEntry(key: slot, value: columnKey) in _keyBySlot.entries) {
       final BeakValue? value = record[columnKey];
       if (value != null) {
@@ -253,7 +258,7 @@ final class BeakFormController
   /// fields the user hasn't touched. The wizard's synchronous step gate
   /// reads this; hidden and unregistered fields pass vacuously.
   bool passesRules(BeakColumn column) {
-    final BeakFormSlot? slot = _slotByKey[column.key];
+    final Enum? slot = _slotByKey[column.key];
     if (slot == null || !isFieldVisible(slot)) {
       return true;
     }
@@ -275,7 +280,7 @@ final class BeakFormController
   /// through the first of its columns carrying a field.
   bool isSectionVisible(BeakFormSection section) {
     for (final column in section.columns) {
-      final BeakFormSlot? slot = _slotByKey[column.key];
+      final Enum? slot = _slotByKey[column.key];
       if (slot != null) {
         return isFieldVisible(slot);
       }
@@ -287,7 +292,7 @@ final class BeakFormController
   /// under unknown keys surface as global form errors.
   void applyServerErrors(Map<String, List<String>> errorsByColumnKey) {
     for (final MapEntry(:key, :value) in errorsByColumnKey.entries) {
-      final BeakFormSlot? slot = _slotByKey[key];
+      final Enum? slot = _slotByKey[key];
       if (slot != null) {
         setBackendErrors(slot, value);
       } else {
@@ -348,7 +353,7 @@ final class BeakFormController
   }
 
   void _registerColumn(BeakColumn column, {required BeakFormSection? section}) {
-    final OiAfVisibleWhen<BeakFormSlot>? visibility = _visibilityOf(section);
+    final OiAfVisibleWhen<Enum>? visibility = _visibilityOf(section);
     switch (column) {
       case BeakCustomColumn():
         return;
@@ -428,17 +433,18 @@ final class BeakFormController
     );
   }
 
-  BeakFormSlot _claim(String key, {required BeakColumn? column}) {
-    if (_claimedSlotCount >= BeakFormSlot.values.length) {
+  Enum _claim(String key, {required BeakColumn? column}) {
+    if (_claimedSlotCount >= _slots.length) {
       throw BeakConfigurationException(
-        'Auto forms support at most ${BeakFormSlot.values.length} fields; '
-        'model "${model.table}" declares more, counting one per form column '
-        'and one per belongs-to. Narrow the form with `visibleOn` on the '
-        'columns that do not belong on it. Splitting into more sections does '
-        'not help — every column listed in any section claims a field.',
+        'Model "${model.table}" needs more than ${_slots.length} form fields, '
+        'counting one per form column and one per belongs-to. Either narrow '
+        'the form with `visibleOn` on the columns that do not belong on it, '
+        'or give the model a larger slot pool by overriding `formSlots` — a '
+        'generated model already does. Splitting into more sections does not '
+        'help: every column listed in any section claims a field.',
       );
     }
-    final BeakFormSlot slot = BeakFormSlot.values[_claimedSlotCount];
+    final Enum slot = _slots[_claimedSlotCount];
     _claimedSlotCount += 1;
     _slotByKey[key] = slot;
     _keyBySlot[slot] = key;
@@ -448,8 +454,8 @@ final class BeakFormController
     return slot;
   }
 
-  BeakFormSlot _slotOfKey(String key) {
-    final BeakFormSlot? slot = _slotByKey[key];
+  Enum _slotOfKey(String key) {
+    final Enum? slot = _slotByKey[key];
     if (slot == null) {
       throw BeakConfigurationException(
         'Column "$key" of model "${model.table}" carries no form field '
@@ -460,7 +466,7 @@ final class BeakFormController
     return slot;
   }
 
-  OiAfVisibleWhen<BeakFormSlot>? _visibilityOf(BeakFormSection? section) {
+  OiAfVisibleWhen<Enum>? _visibilityOf(BeakFormSection? section) {
     final BeakFormPredicate? predicate = section?.visibleWhen;
     if (predicate == null) {
       return null;
@@ -470,9 +476,9 @@ final class BeakFormController
 
   /// Builds the client-side validators mirroring [rules] for a field whose
   /// autoforms value type is [T].
-  List<OiAfValidator<BeakFormSlot, T>> _mirrors<T>(List<BeakRule> rules) => [
+  List<OiAfValidator<Enum, T>> _mirrors<T>(List<BeakRule> rules) => [
     for (final rule in rules)
-      if (_mirror<T>(rule) case final OiAfValidator<BeakFormSlot, T> validator)
+      if (_mirror<T>(rule) case final OiAfValidator<Enum, T> validator)
         validator,
   ];
 
@@ -485,8 +491,8 @@ final class BeakFormController
   /// backend, which validates only submitted values); upload rules return
   /// `null` here because the upload field enforces them before the file
   /// leaves the client.
-  OiAfValidator<BeakFormSlot, T>? _mirror<T>(BeakRule rule) => switch (rule) {
-    BeakRequired() => OiAfValidators.custom<BeakFormSlot, T>(
+  OiAfValidator<Enum, T>? _mirror<T>(BeakRule rule) => switch (rule) {
+    BeakRequired() => OiAfValidators.custom<Enum, T>(
       (context) => rule.validate(context.value),
     ),
     BeakMaxFileSize() || BeakAllowedFileTypes() => null,
@@ -497,7 +503,7 @@ final class BeakFormController
     BeakPattern() ||
     BeakMin() ||
     BeakMax() ||
-    BeakInList() => OiAfValidators.custom<BeakFormSlot, T>(
+    BeakInList() => OiAfValidators.custom<Enum, T>(
       (context) => _mirrorContent(rule, context.value),
     ),
   };
@@ -515,7 +521,7 @@ final class BeakFormController
 
   /// Converts a form field's value into its wire [BeakValue], or `null`
   /// when the field is unset.
-  BeakValue? _wireValueOf(BeakFormSlot slot) {
+  BeakValue? _wireValueOf(Enum slot) {
     final BeakColumn? column = _columnBySlot[slot];
     if (column == null) {
       final Object? relatedId = get<Object>(slot);
@@ -556,7 +562,7 @@ final class BeakFormController
   }
 
   /// Converts a record's raw value into the type the slot's field holds.
-  Object? _fieldValueOf(BeakFormSlot slot, Object? raw) {
+  Object? _fieldValueOf(Enum slot, Object? raw) {
     if (raw == null) {
       return null;
     }

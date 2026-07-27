@@ -18,7 +18,7 @@ Widget? beakFormFieldFor({
   BeakUploadClient? uploader,
   BeakFilePicker? filePicker,
 }) {
-  BeakFormSlot slot() => controller.slotOf(column);
+  Enum slot() => controller.slotOf(column);
   return switch (column) {
     BeakCustomColumn() => null,
     BeakStringColumn(:final placeholder, :final maxLength) => OiAfTextInput(
@@ -44,7 +44,7 @@ Widget? beakFormFieldFor({
       decimalPlaces: precision,
     ),
     BeakBoolColumn() => OiAfSwitch(field: slot(), label: column.label),
-    final BeakEnumColumn<Enum> enumColumn => OiAfSelect<BeakFormSlot, Enum>(
+    final BeakEnumColumn<Enum> enumColumn => OiAfSelect<Enum, Enum>(
       field: slot(),
       label: column.label,
       options: [

@@ -73,7 +73,7 @@ class BeakUploadField extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final BeakFormSlot slot = controller.slotOf(column);
+    final Enum slot = controller.slotOf(column);
     useListenable(controller);
     final feedback = useState<String?>(null);
     final stored = useState<BeakStoredFile?>(null);

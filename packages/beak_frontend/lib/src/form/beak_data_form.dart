@@ -171,7 +171,7 @@ class BeakDataForm extends HookWidget {
         if (viewModel.loading.value) {
           return const OiLabel.body('Loading…');
         }
-        return OiAfForm<BeakFormSlot, BeakRecord>(
+        return OiAfForm<Enum, BeakRecord>(
           controller: controller,
           onSubmit: (data, _) => _submit(data, viewModel, controller),
           child: switch ((steps, layout)) {
@@ -195,10 +195,8 @@ class BeakDataForm extends HookWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ..._fieldSections(controller, effectiveUploader),
-                  const OiAfErrorSummary<BeakFormSlot>(
-                    showOnlyAfterSubmit: true,
-                  ),
-                  OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+                  const OiAfErrorSummary<Enum>(showOnlyAfterSubmit: true),
+                  OiAfSubmitButton<Enum, BeakRecord>(
                     label: recordId == null ? 'Create' : 'Save',
                     loadingLabel: 'Saving…',
                   ),
@@ -234,8 +232,8 @@ class BeakDataForm extends HookWidget {
           filePicker: filePicker,
           child: BeakBlockHost(block: layout),
         ),
-        const OiAfErrorSummary<BeakFormSlot>(showOnlyAfterSubmit: true),
-        OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+        const OiAfErrorSummary<Enum>(showOnlyAfterSubmit: true),
+        OiAfSubmitButton<Enum, BeakRecord>(
           label: recordId == null ? 'Create' : 'Save',
           loadingLabel: 'Saving…',
         ),

@@ -60,13 +60,10 @@ void main() {
     expect(find.text('Basics'), findsOneWidget);
     expect(find.text('Pricing'), findsOneWidget);
     // …and the field blocks rendered *inputs*, not read-only values.
-    expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
-    expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsNWidgets(2));
-    expect(
-      find.byType(OiAfSubmitButton<BeakFormSlot, BeakRecord>),
-      findsOneWidget,
-    );
+    expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
+    expect(find.byType(OiAfNumberInput<Enum>), findsNWidgets(2));
+    expect(find.byType(OiAfSubmitButton<Enum, BeakRecord>), findsOneWidget);
     // A column absent from the layout registered no field, so no select shows.
-    expect(find.byType(OiAfSelect<BeakFormSlot, Enum>), findsNothing);
+    expect(find.byType(OiAfSelect<Enum, Enum>), findsNothing);
   });
 }

@@ -57,6 +57,20 @@ final class TagModel extends BeakModel {
 
   @override
   List<BeakRelationship> get relationships => const [TagRelations.products];
+
+  @override
+  List<Enum> get formSlots => _TagModelFormSlot.values;
+}
+
+/// Form-field slots of TagModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field Tag can put on a form.
+enum _TagModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
 }
 
 /// A typed, zero-cost view over a tags record.

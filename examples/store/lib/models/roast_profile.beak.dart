@@ -91,6 +91,24 @@ final class RoastProfileModel extends BeakModel {
   List<BeakRelationship> get relationships => const [
     RoastProfileRelations.product,
   ];
+
+  @override
+  List<Enum> get formSlots => _RoastProfileModelFormSlot.values;
+}
+
+/// Form-field slots of RoastProfileModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field RoastProfile can put on a form.
+enum _RoastProfileModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
 }
 
 /// A typed, zero-cost view over a roast_profiles record.

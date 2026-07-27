@@ -51,9 +51,9 @@ void main() {
     expect(find.byType(OiWizard), findsOneWidget);
     // Step one's description and its field are visible…
     expect(find.text('Name the article.'), findsOneWidget);
-    expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
+    expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
     // …but step two's numeric fields are not yet mounted.
-    expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsNothing);
+    expect(find.byType(OiAfNumberInput<Enum>), findsNothing);
   });
 
   testWidgets('opens with pristine fields — no premature required errors', (
@@ -76,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Still on step one (its field present, step two's absent) with a notice.
-    expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsNothing);
+    expect(find.byType(OiAfNumberInput<Enum>), findsNothing);
     expect(find.textContaining('complete the required fields'), findsOneWidget);
   });
 
@@ -86,7 +86,7 @@ void main() {
     await pump(tester, articleWizard());
 
     await tester.enterText(
-      find.byType(OiAfTextInput<BeakFormSlot>).first,
+      find.byType(OiAfTextInput<Enum>).first,
       'My article',
     );
     await tester.pumpAndSettle();
@@ -94,7 +94,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Step two's numeric fields are now mounted.
-    expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsWidgets);
+    expect(find.byType(OiAfNumberInput<Enum>), findsWidgets);
   });
 
   testWidgets(
@@ -113,8 +113,8 @@ void main() {
       );
 
       expect(find.byType(OiWizard), findsNothing);
-      expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
-      expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsWidgets);
+      expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
+      expect(find.byType(OiAfNumberInput<Enum>), findsWidgets);
       expect(find.text('Create'), findsOneWidget);
     },
   );

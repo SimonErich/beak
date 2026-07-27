@@ -71,6 +71,29 @@ abstract base class BeakModel {
   /// instead of physical row removal. Defaults to `false`.
   bool get softDeletes => false;
 
+  /// The pool of enum values this model's forms take a field slot from, or
+  /// `null` for Beak's default pool.
+  ///
+  /// Auto forms key their fields by a Dart enum, for compile-time safety;
+  /// Beak's columns are runtime values. A form therefore claims one enum
+  /// value per field it registers, and the pool has to be at least as large
+  /// as the form. The default pool holds 32, which is more fields than a form
+  /// a person can read — but not more than a wide table has columns.
+  ///
+  /// A generated model supplies a pool sized to itself, so the question never
+  /// arises. Override this on a hand-written model that needs a bigger one:
+  ///
+  /// ```dart
+  /// enum _WideSlots { s0, s1, /* ...as many as the form needs... */ }
+  ///
+  /// @override
+  /// List<Enum> get formSlots => _WideSlots.values;
+  /// ```
+  ///
+  /// The values are never shown and never stored; only their count and their
+  /// distinctness matter.
+  List<Enum>? get formSlots => null;
+
   /// The primary-key column: by default the first column with key `'id'`.
   ///
   /// Throws a [BeakConfigurationException] when no such column exists and
