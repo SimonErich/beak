@@ -163,11 +163,14 @@ final class PostgresTransactionAdapter extends DatabaseAdapter
 
   @override
   Future<void> executeSchema(SchemaDescriptor d) async {
-    final compiled = _compiler.compileDdl(d);
-    await PostgresErrorMapper.wrap(
-      () => runAffected(_session, compiled.sql, compiled.parameters),
-      query: compiled.sql,
-    );
+    // One descriptor is several statements — a create with indexes, an alter
+    // with steps — and they are ordered, so they run in sequence.
+    for (final compiled in _compiler.compileDdl(d)) {
+      await PostgresErrorMapper.wrap(
+        () => runAffected(_session, compiled.sql, compiled.parameters),
+        query: compiled.sql,
+      );
+    }
   }
 
   @override

@@ -8,6 +8,7 @@ library;
 
 import 'package:test/test.dart';
 import 'package:worm/src/adapter/in_memory_adapter.dart';
+import 'package:worm/src/exception/schema_definition_exception.dart';
 import 'package:worm/src/query/schema_descriptor.dart';
 import 'package:worm/src/schema/column_type.dart';
 import 'package:worm/src/schema/on_delete.dart';
@@ -102,8 +103,50 @@ void main() {
     });
   });
 
+  group('Schema.create carries the column sizing', () {
+    test('a declared length and precision reach the descriptor', () async {
+      // A VARCHAR(120) that arrives as a bare VARCHAR is a column the
+      // database never got told about, and it looks identical in the
+      // migration source.
+      await schema.create('products', (table) {
+        table
+          ..string('sku', length: 40)
+          ..decimal('price', precision: 10, scale: 2);
+      });
+
+      final columns = {
+        for (final column in lastDescriptor().columns) column.name: column,
+      };
+      expect(columns['sku']!.length, 40);
+      expect(columns['price']!.precision, 10);
+      expect(columns['price']!.scale, 2);
+    });
+
+    test('a column-level unique becomes a unique index', () async {
+      // One representation downstream, so the compilers do not each have to
+      // know two ways of saying the same thing.
+      await schema.create(
+        'users',
+        (table) => table.string('email')..makeUnique(),
+      );
+
+      final index = lastDescriptor().indexes.single;
+      expect(index.unique, isTrue);
+      expect(index.columns, <String>['email']);
+    });
+
+    test('change() inside a create is rejected', () {
+      expect(
+        () => schema.create('products', (table) {
+          table.string('name').change();
+        }),
+        throwsA(isA<SchemaDefinitionException>()),
+      );
+    });
+  });
+
   group('Schema.alter', () {
-    test('carries added foreign keys through', () async {
+    test('carries added foreign keys through as an ordered step', () async {
       await schema.alter('products', (table) {
         table.foreign(
           column: 'brand_id',
@@ -114,7 +157,73 @@ void main() {
       });
 
       expect(lastDescriptor().operation, SchemaOperation.alter);
-      expect(lastDescriptor().foreignKeys.single.referencedTable, 'brands');
+      final step = lastDescriptor().alterations.single;
+      expect(step, isA<SchemaAddForeignKey>());
+      if (step case SchemaAddForeignKey(:final foreignKey)) {
+        expect(foreignKey.referencedTable, 'brands');
+      }
+    });
+
+    test(
+      'orders steps so nothing references what does not exist yet',
+      () async {
+        // Declaration order here is deliberately the wrong order.
+        await schema.alter('products', (table) {
+          table
+            ..index(<String>['status'], name: 'products_status_idx')
+            ..string('status', length: 20)
+            ..dropColumn('legacy')
+            ..dropIndex('products_legacy_idx');
+        });
+
+        expect(
+          lastDescriptor().alterations.map((a) => a.runtimeType.toString()),
+          <String>[
+            'SchemaDropIndex',
+            'SchemaDropColumn',
+            'SchemaAddColumn',
+            'SchemaAddIndex',
+          ],
+        );
+      },
+    );
+
+    test('carries dropColumn through — it used to be a silent no-op', () async {
+      await schema.alter('products', (table) => table.dropColumn('legacy'));
+
+      final step = lastDescriptor().alterations.single;
+      expect(step, isA<SchemaDropColumn>());
+      if (step case SchemaDropColumn(:final column)) {
+        expect(column, 'legacy');
+      }
+    });
+
+    test('change() becomes a change step carrying the end state', () async {
+      await schema.alter('products', (table) {
+        table.string('bio', length: 500)
+          ..makeNullable()
+          ..change();
+      });
+
+      final step = lastDescriptor().alterations.single;
+      expect(step, isA<SchemaChangeColumn>());
+      if (step case SchemaChangeColumn(:final column)) {
+        expect(column.length, 500);
+        expect(column.nullable, isTrue);
+      }
+    });
+
+    test('dropping and adding one column in one alter is rejected', () {
+      // No ordering makes that coherent, so it fails here rather than
+      // producing SQL whose meaning depends on the compiler.
+      expect(
+        () => schema.alter('products', (table) {
+          table
+            ..dropColumn('status')
+            ..string('status');
+        }),
+        throwsA(isA<SchemaDefinitionException>()),
+      );
     });
   });
 

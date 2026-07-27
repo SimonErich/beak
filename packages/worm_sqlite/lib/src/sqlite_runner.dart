@@ -167,10 +167,13 @@ final class SqliteRunner {
 
   Future<void> executeSchema(SchemaDescriptor d) =>
       SqliteErrorMapper.wrap(() async {
-        final compiled = compiler.compileDdl(d);
         // DDL is one-off and can invalidate cached statements that
-        // referenced an altered table — run it raw and drop the cache.
-        _db.execute(compiled.sql, _bind(compiled.parameters));
+        // referenced an altered table — run it raw and drop the cache. One
+        // descriptor is several ordered statements: a create with indexes,
+        // an alter with steps.
+        for (final compiled in compiler.compileDdl(d)) {
+          _db.execute(compiled.sql, _bind(compiled.parameters));
+        }
         _cache.clear();
       }, table: d.table);
 
@@ -210,7 +213,13 @@ final class SqliteRunner {
       final UpdateDescriptor d => compiler.compileUpdate(d),
       final DeleteDescriptor d => compiler.compileDelete(d),
       final AggregateDescriptor d => compiler.compileAggregate(d),
-      final SchemaDescriptor d => compiler.compileDdl(d),
+      // A schema descriptor can be several statements; this is a debug
+      // rendering, so joining them is right here and only here.
+      final SchemaDescriptor d => SqliteCompileResult(
+        sql: [
+          for (final compiled in compiler.compileDdl(d)) compiled.sql,
+        ].join(';\n'),
+      ),
       _ => SqliteCompileResult(sql: 'SQLite: ${descriptor.runtimeType}'),
     };
     return '${compiled.sql}\n-- Params: ${compiled.parameters}';
@@ -231,10 +240,25 @@ final class SqliteRunner {
           usesIndex:
               joined.contains('USING INDEX') ||
               joined.contains('USING COVERING INDEX'),
+          indexName: _plannedIndexName(joined),
           raw: joined,
           scannedTables: <String>[descriptor.table],
         );
       }, table: descriptor.table);
+
+  /// The index SQLite's planner picked, read out of the plan text.
+  ///
+  /// A plan line reads `SEARCH products USING INDEX products_status_idx
+  /// (status=?)`. Naming it is what turns "an index was used" into "the
+  /// index I declared was used" — the difference between a migration that
+  /// emitted a CREATE INDEX and one whose index the database actually reads
+  /// through.
+  static String? _plannedIndexName(String plan) {
+    final match = RegExp(
+      r'USING (?:COVERING )?INDEX ([^\s(]+)',
+    ).firstMatch(plan);
+    return match?.group(1);
+  }
 
   /// Run [body] inside `BEGIN … COMMIT`, rolling back on error.
   ///

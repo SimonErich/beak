@@ -102,7 +102,7 @@ void main() {
         ),
       );
       expect(
-        result.sql,
+        result.single.sql,
         contains(
           'FOREIGN KEY ("category_id") REFERENCES "categories" ("id") '
           'ON DELETE SET NULL',
@@ -132,12 +132,14 @@ void main() {
         ),
       );
       expect(
-        result.sql,
+        result.first.sql,
         contains(
           'CONSTRAINT "product_tag_pair_idx" UNIQUE ("product_id", "tag_id")',
         ),
       );
-      expect(result.sql, isNot(contains('product_tag_tag_idx')));
+      // Not inlined as a constraint — it is its own statement instead.
+      expect(result.first.sql, isNot(contains('product_tag_tag_idx')));
+      expect(result.last.sql, startsWith('CREATE INDEX'));
     });
 
     test('maps every ON DELETE action, ormCascade to NO ACTION', () {
@@ -158,6 +160,7 @@ void main() {
               ],
             ),
           )
+          .single
           .sql;
 
       expect(sqlFor(OnDelete.cascade), contains('ON DELETE CASCADE'));
@@ -186,7 +189,10 @@ void main() {
           ],
         ),
       );
-      expect(result.sql, contains('CONSTRAINT "orders_user_fk" FOREIGN KEY'));
+      expect(
+        result.single.sql,
+        contains('CONSTRAINT "orders_user_fk" FOREIGN KEY'),
+      );
     });
 
     test('maps column types and primary key', () {
@@ -205,9 +211,150 @@ void main() {
         ),
       );
       expect(
-        result.sql,
+        result.single.sql,
         'CREATE TABLE "users" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL, '
         '"bio" TEXT)',
+      );
+    });
+  });
+
+  group('SqliteCompiler — ALTER TABLE', () {
+    List<String> sqlFor(List<SchemaAlteration> alterations) => <String>[
+      for (final compiled in compiler.compileDdl(
+        SchemaDescriptor.alterTable(
+          table: 'products',
+          alterations: alterations,
+        ),
+      ))
+        compiled.sql,
+    ];
+
+    void expectRefused(List<SchemaAlteration> alterations, Matcher message) {
+      expect(
+        () => sqlFor(alterations),
+        throwsA(
+          isA<UnsupportedOperationException>()
+              .having((e) => e.adapter, 'adapter', 'SqliteAdapter')
+              .having((e) => e.message, 'message', message),
+        ),
+      );
+    }
+
+    test('adds a column and indexes it', () {
+      // SQLite does both natively, which is what makes the default SQLite
+      // project evolvable at all.
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaAddColumn(
+            SchemaColumn(
+              name: 'status',
+              type: ColumnType.string,
+              nullable: true,
+            ),
+          ),
+          SchemaAddIndex(
+            SchemaIndex(
+              name: 'products_status_idx',
+              columns: <String>['status'],
+            ),
+          ),
+        ]),
+        <String>[
+          'ALTER TABLE "products" ADD COLUMN "status" TEXT',
+          'CREATE INDEX "products_status_idx" ON "products" ("status")',
+        ],
+      );
+    });
+
+    test('refuses a NOT NULL column with no default, and says why', () {
+      // The existing rows would have no value for it. SQLite rejects this
+      // with a parse error; naming the cause first is more use.
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddColumn(SchemaColumn(name: 'sku', type: ColumnType.string)),
+      ], contains('NOT NULL column without a default'));
+    });
+
+    test('refuses a unique or primary-key column on an existing table', () {
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddColumn(
+          SchemaColumn(
+            name: 'sku',
+            type: ColumnType.string,
+            nullable: true,
+            unique: true,
+          ),
+        ),
+      ], contains('CREATE UNIQUE INDEX'));
+    });
+
+    test('refuses a column change and names the escape hatch', () {
+      // Rebuilding the table behind the caller would silently drop triggers,
+      // views and generated columns that introspectSchema cannot see.
+      expectRefused(const <SchemaAlteration>[
+        SchemaChangeColumn(SchemaColumn(name: 'sku', type: ColumnType.text)),
+      ], allOf(contains('rawExecute'), contains('Postgres')));
+    });
+
+    test('refuses a foreign key on an existing table', () {
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddForeignKey(
+          SchemaForeignKey(
+            columns: <String>['brand_id'],
+            referencedTable: 'brands',
+            referencedColumns: <String>['id'],
+          ),
+        ),
+      ], contains('only be declared in CREATE TABLE'));
+    });
+
+    test('refuses an IF NOT EXISTS it cannot express', () {
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddColumn(
+          SchemaColumn(name: 'sku', type: ColumnType.string, nullable: true),
+          ifNotExists: true,
+        ),
+      ], contains('no ADD COLUMN IF NOT EXISTS'));
+    });
+
+    test('refuses a non-btree index rather than silently building one', () {
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddIndex(
+          SchemaIndex(
+            name: 'products_search_idx',
+            columns: <String>['search'],
+            kind: IndexKind.gin,
+          ),
+        ),
+      ], contains('only b-tree indexes'));
+    });
+
+    test('drops a column and an index', () {
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaDropIndex('products_legacy_idx'),
+          SchemaDropColumn('legacy'),
+        ]),
+        <String>[
+          'DROP INDEX "products_legacy_idx"',
+          'ALTER TABLE "products" DROP COLUMN "legacy"',
+        ],
+      );
+    });
+
+    test('a partial index carries its predicate', () {
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaAddIndex(
+            SchemaIndex(
+              name: 'products_live_idx',
+              columns: <String>['status'],
+              where: "status = 'published'",
+            ),
+            ifNotExists: true,
+          ),
+        ]).single,
+        'CREATE INDEX IF NOT EXISTS "products_live_idx" ON "products" '
+        "(\"status\") WHERE status = 'published'",
       );
     });
   });

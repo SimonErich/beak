@@ -53,6 +53,40 @@ final class InMemoryStore {
     _schemas[table] = List<String>.of(columns);
   }
 
+  /// Declare a column on an existing table.
+  ///
+  /// Rows already stored keep their shape; a read of the new column yields
+  /// `null` until something writes it, which is what `ALTER TABLE ADD COLUMN`
+  /// does on every real database.
+  void addColumn(String table, String column, {bool ifNotExists = false}) {
+    final columns = _schemas[_requireDeclared(table)]!;
+    if (columns.contains(column)) {
+      if (ifNotExists) return;
+      throw StateError('Column "$column" of "$table" already exists');
+    }
+    columns.add(column);
+  }
+
+  /// Remove a column declaration and drop the value from every stored row.
+  void dropColumn(String table, String column, {bool ifExists = false}) {
+    final columns = _schemas[_requireDeclared(table)]!;
+    if (!columns.remove(column)) {
+      if (ifExists) return;
+      throw StateError('Column "$column" of "$table" does not exist');
+    }
+    for (final row in _requireTable(table)) {
+      row.remove(column);
+    }
+  }
+
+  /// The table name, after checking it is declared.
+  String _requireDeclared(String table) {
+    if (!_schemas.containsKey(table)) {
+      throw StateError('Table "$table" does not exist');
+    }
+    return table;
+  }
+
   /// Remove a table.
   void dropTable(String table, {bool ifExists = false}) {
     if (!_tables.containsKey(table)) {

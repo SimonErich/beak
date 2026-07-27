@@ -5,6 +5,7 @@ library;
 import 'package:test/test.dart';
 import 'package:worm/src/adapter/database_adapter.dart';
 import 'package:worm/src/adapter/in_memory_adapter.dart';
+import 'package:worm/src/exception/schema_definition_exception.dart';
 import 'package:worm/src/migration/migration_base.dart';
 import 'package:worm/src/migration/migration_runner.dart';
 import 'package:worm/src/query/query_descriptor.dart';
@@ -67,20 +68,25 @@ void main() {
       await schema.drop('temp', ifExists: true);
     });
 
-    test(
-      'alter() forwards to executeSchema with the alter operation',
-      () async {
-        final schema = Schema.forRunner(adapter);
-        await schema.create('orders', (table) => table.integer('id'));
-        // The in-memory adapter does not support alter — verify the
-        // descriptor reaches the adapter by catching the typed
-        // UnsupportedOperationException.
-        await expectLater(
-          () => schema.alter('orders', (table) => table.string('status')),
-          throwsA(isA<Exception>()),
-        );
-      },
-    );
+    test('alter() adds the column to the live schema', () async {
+      final schema = Schema.forRunner(adapter);
+      await schema.create('orders', (table) => table.integer('id'));
+
+      await schema.alter('orders', (table) => table.string('status'));
+
+      expect(
+        await adapter.introspectSchema(),
+        containsPair('orders', ['id', 'status']),
+      );
+    });
+
+    test('alter() with no changes is rejected, not sent', () {
+      final schema = Schema.forRunner(adapter);
+      expect(
+        () => schema.alter('orders', (table) {}),
+        throwsA(isA<SchemaDefinitionException>()),
+      );
+    });
 
     test('does not extend or implement DatabaseAdapter', () {
       final schema = Schema.forRunner(adapter);

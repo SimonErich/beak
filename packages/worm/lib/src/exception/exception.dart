@@ -23,6 +23,7 @@ export 'model_not_found_exception.dart';
 export 'operation_cancelled_exception.dart';
 export 'query_exception.dart';
 export 'relation_not_loaded_exception.dart';
+export 'schema_definition_exception.dart';
 export 'syntax_exception.dart';
 export 'transaction_exception.dart';
 export 'uninitialized_field_exception.dart';

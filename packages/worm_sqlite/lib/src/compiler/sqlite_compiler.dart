@@ -159,40 +159,134 @@ final class SqliteCompiler {
     return SqliteCompileResult(sql: sql.toString(), parameters: params);
   }
 
-  /// Compile a [SchemaDescriptor] into DDL.
-  SqliteCompileResult compileDdl(SchemaDescriptor descriptor) {
-    if (descriptor is SchemaIndexDescriptor) {
-      final unique = descriptor.unique ? 'UNIQUE ' : '';
-      final name = _quoteIdent(
-        'idx_${descriptor.collection}_${descriptor.field}',
-      );
-      return SqliteCompileResult(
-        sql:
-            'CREATE ${unique}INDEX IF NOT EXISTS $name ON '
-            '${_quoteIdent(descriptor.collection)} '
-            '(${_quoteIdent(descriptor.field)})',
-      );
-    }
+  /// Compile a [SchemaDescriptor] into one or more DDL statements.
+  ///
+  /// Returns a list because a create with non-unique indexes, and an alter
+  /// with several steps, are each more than one statement. `sqlite3` needs
+  /// them run individually, not joined.
+  List<SqliteCompileResult> compileDdl(SchemaDescriptor descriptor) {
     final table = _quoteIdent(descriptor.table);
     return switch (descriptor.operation) {
-      SchemaOperation.create => SqliteCompileResult(
-        sql: _buildCreateTable(descriptor, table),
-      ),
-      SchemaOperation.drop => SqliteCompileResult(
-        sql: 'DROP TABLE ${descriptor.ifExists ? 'IF EXISTS ' : ''}$table',
-      ),
-      SchemaOperation.truncate => SqliteCompileResult(
-        sql: 'DELETE FROM $table',
-      ),
-      SchemaOperation.alter => throw const QueryException(
-        query: '',
-        message: 'compileDdl(SchemaOperation.alter) is not implemented',
-      ),
-      SchemaOperation.createIndex => throw const QueryException(
-        query: '',
-        message: 'compileDdl(createIndex) requires a SchemaIndexDescriptor',
-      ),
+      SchemaOperation.create => <SqliteCompileResult>[
+        SqliteCompileResult(sql: _buildCreateTable(descriptor, table)),
+        for (final index in descriptor.indexes)
+          if (!index.unique)
+            SqliteCompileResult(sql: _createIndexSql(index, table)),
+      ],
+      SchemaOperation.drop => <SqliteCompileResult>[
+        SqliteCompileResult(
+          sql: 'DROP TABLE ${descriptor.ifExists ? 'IF EXISTS ' : ''}$table',
+        ),
+      ],
+      SchemaOperation.truncate => <SqliteCompileResult>[
+        SqliteCompileResult(sql: 'DELETE FROM $table'),
+      ],
+      SchemaOperation.alter => <SqliteCompileResult>[
+        for (final alteration in descriptor.alterations)
+          SqliteCompileResult(
+            sql: _alterSql(alteration, table, descriptor.table),
+          ),
+      ],
     };
+  }
+
+  /// The SQL one alteration compiles to.
+  ///
+  /// SQLite's `ALTER TABLE` is deliberately minimal, and the honest response
+  /// to the parts it lacks is to say so. Rebuilding the table behind the
+  /// caller's back — the usual workaround — silently drops triggers, views,
+  /// generated columns and custom collations that `introspectSchema` cannot
+  /// see, so a migration that looked like it added a column would quietly
+  /// destroy something else. A named refusal is better than a silent loss.
+  String _alterSql(SchemaAlteration alteration, String table, String rawTable) {
+    switch (alteration) {
+      case SchemaAddColumn(:final column, :final ifNotExists):
+        if (ifNotExists) {
+          throw _unsupported(
+            'alter.addColumn.ifNotExists',
+            'SQLite has no ADD COLUMN IF NOT EXISTS. Drop the flag, or '
+                'guard the migration on introspectSchema.',
+          );
+        }
+        if (column.isPrimaryKey || column.unique) {
+          throw _unsupported(
+            'alter.addColumn',
+            'SQLite cannot add a PRIMARY KEY or UNIQUE column to an existing '
+                'table. Add the column, then CREATE UNIQUE INDEX over it.',
+          );
+        }
+        if (!column.nullable && column.defaultValue == null) {
+          throw _unsupported(
+            'alter.addColumn',
+            'SQLite cannot add a NOT NULL column without a default — the '
+                'existing rows would have no value. Give it a default, or '
+                'make it nullable.',
+          );
+        }
+        return 'ALTER TABLE $table ADD COLUMN ${_columnDefinition(column)}';
+      case SchemaDropColumn(:final column, :final ifExists):
+        if (ifExists) {
+          throw _unsupported(
+            'alter.dropColumn.ifExists',
+            'SQLite has no DROP COLUMN IF EXISTS.',
+          );
+        }
+        return 'ALTER TABLE $table DROP COLUMN ${_quoteIdent(column)}';
+      case SchemaChangeColumn(:final column):
+        throw _unsupported(
+          'alter.changeColumn',
+          'SQLite cannot alter the type, nullability or default of an '
+              'existing column ("${column.name}" of "$rawTable"). Rebuild the '
+              'table with adapter.rawExecute, or point DATABASE_URL at '
+              'Postgres.',
+        );
+      case SchemaAddIndex(:final index, :final ifNotExists):
+        return _createIndexSql(index, table, ifNotExists: ifNotExists);
+      case SchemaDropIndex(:final name, :final ifExists):
+        return 'DROP INDEX ${ifExists ? 'IF EXISTS ' : ''}${_quoteIdent(name)}';
+      case SchemaAddForeignKey():
+      case SchemaDropForeignKey():
+        throw _unsupported(
+          'alter.foreignKey',
+          'SQLite cannot add or drop a foreign key on an existing table; a '
+              'constraint can only be declared in CREATE TABLE. Rebuild the '
+              'table with adapter.rawExecute, or point DATABASE_URL at '
+              'Postgres.',
+        );
+    }
+  }
+
+  UnsupportedOperationException _unsupported(
+    String operation,
+    String message,
+  ) => UnsupportedOperationException(
+    operation: operation,
+    adapter: 'SqliteAdapter',
+    message: message,
+  );
+
+  /// The `CREATE INDEX` statement for [index].
+  String _createIndexSql(
+    SchemaIndex index,
+    String table, {
+    bool ifNotExists = false,
+  }) {
+    if (index.kind != IndexKind.btree) {
+      throw _unsupported(
+        'createIndex.kind',
+        'SQLite has only b-tree indexes; it cannot build a '
+            '${index.kind.name} index.',
+      );
+    }
+    final columns = index.columns.map(_quoteIdent).join(', ');
+    final buffer = StringBuffer('CREATE ')
+      ..write(index.unique ? 'UNIQUE INDEX ' : 'INDEX ')
+      ..write(ifNotExists ? 'IF NOT EXISTS ' : '')
+      ..write('${_quoteIdent(index.name)} ON $table ($columns)');
+    if (index.where case final String predicate) {
+      buffer.write(' WHERE $predicate');
+    }
+    return buffer.toString();
   }
 
   /// Map a logical [ColumnType] to its SQLite storage class. SQLite

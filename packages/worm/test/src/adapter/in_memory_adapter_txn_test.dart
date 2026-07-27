@@ -7,6 +7,7 @@ import 'package:worm/src/query/insert_descriptor.dart';
 import 'package:worm/src/query/query_descriptor.dart';
 import 'package:worm/src/query/schema_descriptor.dart';
 import 'package:worm/src/query/sort_clause.dart';
+import 'package:worm/src/schema/column_type.dart';
 
 import '_fixtures.dart';
 
@@ -141,20 +142,59 @@ void main() {
       );
     });
 
-    test('executeSchema(alter) throws UnsupportedOperationException', () {
+    test('executeSchema(alter) adds and drops columns for real', () async {
+      // The store models columns and rows, so a test asserting that a
+      // migration added a column must be able to see it.
+      final adapter = InMemoryAdapter();
+      await adapter.executeSchema(
+        const SchemaDescriptor.createTable(
+          table: 'users',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'id', type: ColumnType.integer),
+            SchemaColumn(name: 'legacy', type: ColumnType.text),
+          ],
+        ),
+      );
+      await adapter.insert(
+        const InsertDescriptor(
+          table: 'users',
+          values: <String, Object?>{'id': 1, 'legacy': 'old'},
+        ),
+      );
+
+      await adapter.executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[
+            SchemaDropColumn('legacy'),
+            SchemaAddColumn(SchemaColumn(name: 'email', type: ColumnType.text)),
+            // Index and constraint steps have no storage engine to act on;
+            // accepting them keeps a migration runnable against the fake.
+            SchemaAddIndex(
+              SchemaIndex(name: 'users_email_idx', columns: <String>['email']),
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        await adapter.introspectSchema(),
+        containsPair('users', ['id', 'email']),
+      );
+      final rows = await adapter.select(const QueryDescriptor(table: 'users'));
+      expect(rows.single.containsKey('legacy'), isFalse);
+    });
+
+    test('executeSchema(alter) rejects an unknown column', () {
       final adapter = InMemoryAdapter();
       expect(
         () => adapter.executeSchema(
-          const SchemaDescriptor(
+          const SchemaDescriptor.alterTable(
             table: 'users',
-            operation: SchemaOperation.alter,
+            alterations: <SchemaAlteration>[SchemaDropColumn('nope')],
           ),
         ),
-        throwsA(
-          isA<UnsupportedOperationException>()
-              .having((e) => e.operation, 'operation', 'executeSchema.alter')
-              .having((e) => e.adapter, 'adapter', 'InMemoryAdapter'),
-        ),
+        throwsA(isA<StateError>()),
       );
     });
   });

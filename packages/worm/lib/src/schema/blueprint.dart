@@ -43,6 +43,24 @@ final class BlueprintTable {
   /// Columns marked for removal during ALTER.
   final List<String> droppedColumns = <String>[];
 
+  /// Index names marked for removal during ALTER.
+  final List<String> droppedIndexes = <String>[];
+
+  /// Foreign-key constraint names marked for removal during ALTER.
+  final List<String> droppedForeignKeys = <String>[];
+
+  /// Columns being added, in declaration order.
+  List<ColumnDefinition> get addedColumns => <ColumnDefinition>[
+    for (final column in columns)
+      if (!column.isChange) column,
+  ];
+
+  /// Columns being modified, in declaration order.
+  List<ColumnDefinition> get changedColumns => <ColumnDefinition>[
+    for (final column in columns)
+      if (column.isChange) column,
+  ];
+
   ColumnDefinition _add(ColumnDefinition column) {
     columns.add(column);
     return column;
@@ -210,6 +228,17 @@ final class BlueprintTable {
   /// Marks [columnName] for removal during ALTER.
   void dropColumn(String columnName) {
     droppedColumns.add(columnName);
+  }
+
+  /// Marks the index named [indexName] for removal during ALTER.
+  void dropIndex(String indexName) {
+    droppedIndexes.add(indexName);
+  }
+
+  /// Marks the foreign-key constraint named [constraintName] for removal
+  /// during ALTER.
+  void dropForeign(String constraintName) {
+    droppedForeignKeys.add(constraintName);
   }
 
   /// Adds an index over [columns].

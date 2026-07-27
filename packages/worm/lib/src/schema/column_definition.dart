@@ -73,6 +73,22 @@ final class ColumnDefinition {
   /// Generated-column expression.
   String? generatedAs;
 
+  /// Whether this definition modifies an existing column rather than adding
+  /// one. Only meaningful inside `Schema.alter`.
+  bool isChange = false;
+
+  /// Marks this definition as a modification of an existing column.
+  ///
+  /// Reuses the whole column builder, so changing a type reads the same way
+  /// as declaring one: `table.string('bio', length: 500)..change();`. The
+  /// definition is the column's complete end state, not a delta — MySQL's
+  /// `MODIFY COLUMN` cannot express a partial change.
+  ///
+  /// Valid only inside `Schema.alter`; `Schema.create` rejects it.
+  void change() {
+    isChange = true;
+  }
+
   /// Marks this column nullable.
   void makeNullable() {
     nullable = true;
