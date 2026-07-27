@@ -401,9 +401,20 @@ abstract final class BeakSchemaEmitter {
           "'${relation.relatedPivotKey ?? '${_singular(related.table)}_id'}'",
     } else
       'foreignKey': "'${relation.foreignKey}'",
-    "searchColumnKeys": "['${related.displayColumnKey}']",
+    'searchColumnKeys': _searchKeysOf(relation, related),
     ...relation.arguments,
   };
+
+  /// The columns a relationship's picker searches.
+  ///
+  /// The related model's display column, unless the relationship named
+  /// others: a person looks a customer up by email as readily as by name.
+  static String _searchKeysOf(BeakRelationIr relation, BeakSchemaIr related) {
+    final List<String> keys = relation.searchOn.isEmpty
+        ? [related.displayColumnKey]
+        : relation.searchOn;
+    return '[${keys.map((key) => "'$key'").join(', ')}]';
+  }
 
   /// The mirrored arguments for an inverse relationship.
   static Map<String, String> _inverseArgumentsOf(

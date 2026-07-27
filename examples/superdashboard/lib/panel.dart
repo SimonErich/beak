@@ -1,37 +1,31 @@
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:superdashboard/models/models.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
-import '../screens/charts_screen.dart';
-import '../screens/chat_screen.dart';
-import '../screens/email_screen.dart';
-import '../screens/faq_screen.dart';
-import '../screens/files_screen.dart';
-import '../screens/gallery_screen.dart';
-import '../screens/icons_screen.dart';
-import '../screens/invoice_screen.dart';
-import '../screens/maps_screen.dart';
-import '../screens/pricing_screen.dart';
-import '../screens/profile_screen.dart';
-import '../screens/starter_screen.dart';
-import '../screens/typography_screen.dart';
-import '../screens/ui_kit_screen.dart';
-import 'dashboard.dart';
-import 'resources.dart';
+import 'models/showcase/notification.dart';
+import 'screens/charts_screen.dart';
+import 'screens/chat_screen.dart';
+import 'screens/email_screen.dart';
+import 'screens/faq_screen.dart';
+import 'screens/files_screen.dart';
+import 'screens/gallery_screen.dart';
+import 'screens/icons_screen.dart';
+import 'screens/invoice_screen.dart';
+import 'screens/maps_screen.dart';
+import 'screens/pricing_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/starter_screen.dart';
+import 'screens/typography_screen.dart';
+import 'screens/ui_kit_screen.dart';
 
-/// Builds the whole superdashboard panel: a custom analytics dashboard at
-/// `/`, every model as a navigable resource, and config-driven auth and
-/// maintenance routes — the single declarative entry point of the demo.
+/// The last word on this panel's configuration.
 ///
-/// [apiBaseUrl] points the panel's HTTP data source at the running
-/// superdashboard server (`bin/server.dart`).
-BeakPanelConfig buildSuperdashboardConfig({
-  String apiBaseUrl = 'http://localhost:8180',
-}) => BeakPanelConfig(
-  title: 'Beak Superdashboard',
-  apiBaseUrl: apiBaseUrl,
+/// [defaults] already carries the 17 navigable resources, their icons and
+/// their sections from `beak.yaml`, each one adjusted by its own file under
+/// `lib/resources/`. What is added here is what `beak.yaml` deliberately does
+/// not describe: the app screens, the notification feed, and the auth and
+/// maintenance behaviour.
+BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
   initialThemeMode: OiThemeMode.light,
-  resources: buildResources(),
   notifications: const BeakNotificationSource(
     model: NotificationModel(),
     titleField: NotificationColumns.title,
@@ -40,8 +34,10 @@ BeakPanelConfig buildSuperdashboardConfig({
     readField: NotificationColumns.isRead,
     categoryField: NotificationColumns.level,
   ),
+  // The generated dashboard at `/` comes from `lib/dashboard.dart`; these are
+  // the fifteen app screens beside it.
   pages: [
-    buildDashboardScreen(),
+    ...defaults.pages,
     buildEmailScreen(),
     buildChatScreen(),
     buildFilesScreen(),

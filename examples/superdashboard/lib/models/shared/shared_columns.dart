@@ -1,4 +1,4 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
 
 /// Columns every model shares, declared once and reused from each model's
 /// `columns` list — the DRY spine of the schema.

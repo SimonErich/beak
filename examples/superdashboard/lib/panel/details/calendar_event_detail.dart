@@ -1,4 +1,4 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
 
 /// The calendar-event show page: a headline strip of the title and schedule,

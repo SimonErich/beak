@@ -1,186 +1,82 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import '../people/user.dart';
+import 'email_attachment.dart';
+import 'mail_folder.dart';
+import 'mail_label.dart';
 
-/// Typed columns of the emails resource.
-abstract final class EmailColumns {
+part 'email.beak.dart';
+
+/// The emails resource — a single message.
+@Resource()
+final class Email extends BeakSchema {
   /// The owning folder.
-  static const folderId = BeakStringColumn(
-    key: 'folder_id',
-    label: 'Folder',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo()
+  late final MailFolder? folder;
 
   /// The sender user, when internal.
-  static const senderId = BeakStringColumn(
-    key: 'sender_id',
-    label: 'Sender',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo(searchOn: ['name', 'email'])
+  late final User? sender;
 
   /// Sender display name.
-  static const senderName = BeakStringColumn(
-    key: 'sender_name',
-    label: 'From',
-    searchable: true,
-    rules: [BeakMaxLength(120)],
-  );
+  @Column(label: 'From', searchable: true, rules: [BeakMaxLength(120)])
+  late final String? senderName;
 
   /// Sender email address.
-  static const senderEmail = BeakStringColumn(
-    key: 'sender_email',
+  @Column(
     label: 'From email',
     visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  )
+  late final String? senderEmail;
 
   /// Sender avatar URL.
-  static const senderAvatar = BeakStringColumn(
-    key: 'sender_avatar',
-    label: 'Avatar',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(label: 'Avatar', visibleOn: {BeakContext.form, BeakContext.detail})
+  late final String? senderAvatar;
 
   /// Subject line.
-  static const subject = BeakStringColumn(
-    key: 'subject',
-    label: 'Subject',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(200)],
-  );
+  @Display()
+  @Column(searchable: true, rules: [BeakMaxLength(200)])
+  late final String subject;
 
   /// Snippet preview.
-  static const preview = BeakStringColumn(
-    key: 'preview',
-    label: 'Preview',
-    visibleOn: {BeakContext.table},
-    rules: [BeakMaxLength(255)],
-  );
+  @Column(visibleOn: {BeakContext.table}, rules: [BeakMaxLength(255)])
+  late final String? preview;
 
   /// Full body (rich text).
-  static const body = BeakRichTextColumn(
-    key: 'body',
-    label: 'Body',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakRichText? body;
 
   /// When the email was sent.
-  static const sentAt = BeakDateTimeColumn(
-    key: 'sent_at',
-    label: 'Sent',
-    format: BeakDateFormat.relative,
-    sortable: true,
-  );
+  @Column(label: 'Sent', sortable: true, format: BeakDateFormat.relative)
+  late final DateTime? sentAt;
 
   /// Whether the email has been read.
-  static const isRead = BeakBoolColumn(
-    key: 'is_read',
+  @Column(
     label: 'Read',
     filterable: true,
     trueLabel: 'Read',
     falseLabel: 'Unread',
-  );
+  )
+  late final bool? isRead;
 
   /// Whether the email is starred.
-  static const isStarred = BeakBoolColumn(
-    key: 'is_starred',
-    label: 'Starred',
-    filterable: true,
-  );
+  @Column(label: 'Starred', filterable: true)
+  late final bool? isStarred;
 
   /// Whether the email is flagged important.
-  static const isImportant = BeakBoolColumn(
-    key: 'is_important',
-    label: 'Important',
-    filterable: true,
-  );
+  @Column(label: 'Important', filterable: true)
+  late final bool? isImportant;
 
   /// Whether the email carries attachments.
-  static const hasAttachments = BeakBoolColumn(
-    key: 'has_attachments',
-    label: 'Attachments',
-    filterable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    folderId,
-    senderId,
-    senderName,
-    senderEmail,
-    senderAvatar,
-    subject,
-    preview,
-    body,
-    sentAt,
-    isRead,
-    isStarred,
-    isImportant,
-    hasAttachments,
-  ];
-}
-
-/// Typed relationships of the emails resource.
-abstract final class EmailRelations {
-  /// The owning folder.
-  static const folder = BeakBelongsTo(
-    key: 'folder',
-    label: 'Folder',
-    relatedTable: 'mail_folders',
-    displayColumnKey: 'label',
-    foreignKey: 'folder_id',
-  );
-
-  /// The sender user, when internal.
-  static const sender = BeakBelongsTo(
-    key: 'sender',
-    label: 'Sender',
-    relatedTable: 'users',
-    displayColumnKey: 'name',
-    foreignKey: 'sender_id',
-    searchColumnKeys: ['name', 'email'],
-  );
+  @Column(label: 'Attachments', filterable: true)
+  late final bool? hasAttachments;
 
   /// The labels applied to this email.
-  static const labels = BeakBelongsToMany(
-    key: 'labels',
-    label: 'Labels',
-    relatedTable: 'mail_labels',
-    displayColumnKey: 'name',
-    pivotTable: 'email_mail_label',
-    foreignPivotKey: 'email_id',
-    relatedPivotKey: 'mail_label_id',
-  );
+  @BelongsToMany()
+  late final List<MailLabel> labels;
 
   /// The email's attachments.
-  static const attachments = BeakHasMany(
-    key: 'attachments',
-    label: 'Attachments',
-    relatedTable: 'email_attachments',
-    displayColumnKey: 'name',
-    foreignKey: 'email_id',
-  );
-}
-
-/// The emails resource — a single message.
-final class EmailModel extends BeakModel {
-  /// Creates the emails model.
-  const EmailModel();
-
-  @override
-  String get table => 'emails';
-
-  @override
-  String get displayColumnKey => 'subject';
-
-  @override
-  List<BeakColumn> get columns => EmailColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    EmailRelations.folder,
-    EmailRelations.sender,
-    EmailRelations.labels,
-    EmailRelations.attachments,
-  ];
+  @HasMany()
+  late final List<EmailAttachment> attachments;
 }

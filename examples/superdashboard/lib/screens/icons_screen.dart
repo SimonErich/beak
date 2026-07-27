@@ -1,5 +1,5 @@
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
 /// One entry in the curated icon reference.
 typedef _Icon = (BeakIconToken, String);

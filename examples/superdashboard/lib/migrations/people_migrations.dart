@@ -1,6 +1,5 @@
-import 'package:beak_backend/beak_backend.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
 
 /// Creates the People domain: users (the identity spine) and everything that
 /// hangs off them.

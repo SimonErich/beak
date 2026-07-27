@@ -1,6 +1,5 @@
-import 'package:beak_backend/beak_backend.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
 
 /// Creates the Commerce domain: catalog, orders, and transactions.
 final class CreateCommerceTables extends Migration {

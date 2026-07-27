@@ -1,52 +1,22 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'email.dart';
 
-/// Typed columns of the mail-labels resource.
-abstract final class MailLabelColumns {
-  /// Label name.
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(40)],
-  );
-
-  /// Label color.
-  static const color = BeakColorColumn(key: 'color', label: 'Color');
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [SharedColumns.id, name, color];
-}
-
-/// Typed relationships of the mail-labels resource.
-abstract final class MailLabelRelations {
-  /// Emails carrying this label, via the `email_mail_label` pivot.
-  static const emails = BeakBelongsToMany(
-    key: 'emails',
-    label: 'Emails',
-    relatedTable: 'emails',
-    displayColumnKey: 'subject',
-    pivotTable: 'email_mail_label',
-    foreignPivotKey: 'mail_label_id',
-    relatedPivotKey: 'email_id',
-  );
-}
+part 'mail_label.beak.dart';
 
 /// The mail-labels resource — colored email tags.
-final class MailLabelModel extends BeakModel {
-  /// Creates the mail-labels model.
-  const MailLabelModel();
+@Resource()
+final class MailLabel extends BeakSchema {
+  /// Label name.
+  @Display()
+  @Column(searchable: true, rules: [BeakMaxLength(40)])
+  late final String name;
 
-  @override
-  String get table => 'mail_labels';
+  /// Label color.
+  late final BeakHexColor? color;
 
-  @override
-  String get displayColumnKey => 'name';
-
-  @override
-  List<BeakColumn> get columns => MailLabelColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [MailLabelRelations.emails];
+  /// Emails carrying this label, via the `email_mail_label` pivot.
+  @BelongsToMany()
+  late final List<Email> emails;
 }

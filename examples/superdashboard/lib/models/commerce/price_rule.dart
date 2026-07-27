@@ -1,6 +1,9 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'product.dart';
+
+part 'price_rule.beak.dart';
 
 /// How a [PriceRuleModel] adjusts a product's price.
 enum PriceRuleKind {
@@ -14,108 +17,43 @@ enum PriceRuleKind {
   override,
 }
 
-/// Typed columns of the price-rules resource — a conditional pricing
-/// adjustment on a product (bulk discount, sale window, member price).
-abstract final class PriceRuleColumns {
+/// The price-rules resource — a conditional pricing adjustment on a product.
+@Resource()
+final class PriceRule extends BeakSchema {
   /// Rule name, e.g. "Bulk 10+".
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Rule',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(120)],
-  );
+  @Display()
+  @Column(label: 'Rule', searchable: true, rules: [BeakMaxLength(120)])
+  late final String name;
 
   /// How the adjustment applies.
-  static const kind = BeakEnumColumn<PriceRuleKind>(
-    key: 'kind',
-    label: 'Kind',
-    values: PriceRuleKind.values,
-    defaultValue: PriceRuleKind.percentage,
-    filterable: true,
-    badgeColors: {
-      PriceRuleKind.percentage: BeakColor.info,
-      PriceRuleKind.fixed: BeakColor.secondary,
-      PriceRuleKind.override: BeakColor.warning,
-    },
-  );
+  @Column(defaultValue: PriceRuleKind.percentage, filterable: true)
+  @Badges({
+    PriceRuleKind.percentage: BeakColor.info,
+    PriceRuleKind.fixed: BeakColor.secondary,
+    PriceRuleKind.override: BeakColor.warning,
+  })
+  late final PriceRuleKind? kind;
 
   /// The adjustment value (percent, or dollars).
-  static const value = BeakDecimalColumn(
-    key: 'value',
-    label: 'Value',
-    rules: [BeakRequired(), BeakMin(0)],
-  );
+  @Column(rules: [BeakMin(0)])
+  late final double value;
 
   /// Minimum quantity for the rule to apply.
-  static const minQuantity = BeakIntColumn(
-    key: 'min_quantity',
-    label: 'Min qty',
-    min: 1,
-  );
+  @Column(label: 'Min qty', min: 1)
+  late final int? minQuantity;
 
   /// When the rule starts applying.
-  static const startsAt = BeakDateTimeColumn(
-    key: 'starts_at',
-    label: 'Starts',
-    sortable: true,
-  );
+  @Column(label: 'Starts', sortable: true)
+  late final DateTime? startsAt;
 
   /// When the rule stops applying.
-  static const endsAt = BeakDateTimeColumn(key: 'ends_at', label: 'Ends');
+  @Column(label: 'Ends')
+  late final DateTime? endsAt;
 
   /// Whether the rule is currently active.
-  static const active = BeakBoolColumn(key: 'active', label: 'Active');
+  late final bool? active;
 
   /// The owning product.
-  static const productId = BeakStringColumn(
-    key: 'product_id',
-    label: 'Product',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    name,
-    kind,
-    value,
-    minQuantity,
-    startsAt,
-    endsAt,
-    active,
-    productId,
-  ];
-}
-
-/// Typed relationships of the price-rules resource.
-abstract final class PriceRuleRelations {
-  /// The owning product.
-  static const product = BeakBelongsTo(
-    key: 'product',
-    label: 'Product',
-    relatedTable: 'products',
-    displayColumnKey: 'name',
-    foreignKey: 'product_id',
-    searchColumnKeys: ['name'],
-  );
-}
-
-/// The price-rules resource — a conditional pricing adjustment on a product.
-final class PriceRuleModel extends BeakModel {
-  /// Creates the price-rules model.
-  const PriceRuleModel();
-
-  @override
-  String get table => 'price_rules';
-
-  @override
-  String get displayColumnKey => 'name';
-
-  @override
-  List<BeakColumn> get columns => PriceRuleColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    PriceRuleRelations.product,
-  ];
+  @BelongsTo()
+  late final Product? product;
 }

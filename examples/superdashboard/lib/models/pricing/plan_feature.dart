@@ -1,76 +1,27 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'pricing_plan.dart';
 
-/// Typed columns of the plan-features resource.
-abstract final class PlanFeatureColumns {
-  /// The owning plan.
-  static const planId = BeakStringColumn(
-    key: 'plan_id',
-    label: 'Plan',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// Feature text.
-  static const label = BeakStringColumn(
-    key: 'label',
-    label: 'Feature',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(120)],
-  );
-
-  /// Whether the plan includes this feature (vs. crossed out).
-  static const included = BeakBoolColumn(
-    key: 'included',
-    label: 'Included',
-    filterable: true,
-  );
-
-  /// Ordering within the plan.
-  static const sortIndex = BeakIntColumn(
-    key: 'sort_index',
-    label: 'Order',
-    min: 0,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    planId,
-    label,
-    included,
-    sortIndex,
-  ];
-}
-
-/// Typed relationships of the plan-features resource.
-abstract final class PlanFeatureRelations {
-  /// The owning plan.
-  static const plan = BeakBelongsTo(
-    key: 'plan',
-    label: 'Plan',
-    relatedTable: 'pricing_plans',
-    displayColumnKey: 'name',
-    foreignKey: 'plan_id',
-    searchColumnKeys: ['name'],
-  );
-}
+part 'plan_feature.beak.dart';
 
 /// The plan-features resource — one bullet on a pricing plan.
-final class PlanFeatureModel extends BeakModel {
-  /// Creates the plan-features model.
-  const PlanFeatureModel();
+@Resource()
+final class PlanFeature extends BeakSchema {
+  /// The owning plan.
+  @BelongsTo()
+  late final PricingPlan? plan;
 
-  @override
-  String get table => 'plan_features';
+  /// Feature text.
+  @Display()
+  @Column(label: 'Feature', searchable: true, rules: [BeakMaxLength(120)])
+  late final String label;
 
-  @override
-  String get displayColumnKey => 'label';
+  /// Whether the plan includes this feature (vs. crossed out).
+  @Column(filterable: true)
+  late final bool? included;
 
-  @override
-  List<BeakColumn> get columns => PlanFeatureColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [PlanFeatureRelations.plan];
+  /// Ordering within the plan.
+  @Column(label: 'Order', min: 0, sortable: true)
+  late final int? sortIndex;
 }

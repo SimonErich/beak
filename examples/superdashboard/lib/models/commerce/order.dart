@@ -1,7 +1,14 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
+import '../people/user.dart';
 import '../shared/enums.dart';
-import '../shared/shared_columns.dart';
+import 'order_comment.dart';
+import 'order_event.dart';
+import 'order_item.dart';
+import 'transaction.dart';
+
+part 'order.beak.dart';
 
 /// Fulfilment state of an order.
 enum OrderStatus {
@@ -24,197 +31,88 @@ enum OrderStatus {
   refunded,
 }
 
-/// Typed columns of the orders resource.
-abstract final class OrderColumns {
+/// The orders resource — a customer's purchase.
+@Resource()
+final class Order extends BeakSchema {
   /// Human-readable order reference (unique).
-  static const reference = BeakStringColumn(
-    key: 'reference',
-    label: 'Reference',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(40)],
-  );
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(40)])
+  late final String reference;
 
-  /// The customer.
-  static const userId = BeakStringColumn(
-    key: 'user_id',
-    label: 'Customer',
-    visibleOn: {BeakContext.form},
-  );
+  /// The customer who placed the order.
+  @BelongsTo(label: 'Customer', searchOn: ['name', 'email'])
+  late final User? user;
 
   /// Fulfilment state, shown as a colored badge.
-  static const status = BeakEnumColumn<OrderStatus>(
-    key: 'status',
-    label: 'Status',
-    values: OrderStatus.values,
-    defaultValue: OrderStatus.pending,
-    filterable: true,
-    badgeColors: {
-      OrderStatus.pending: BeakColor.warning,
-      OrderStatus.processing: BeakColor.info,
-      OrderStatus.shipped: BeakColor.primary,
-      OrderStatus.delivered: BeakColor.success,
-      OrderStatus.cancelled: BeakColor.muted,
-      OrderStatus.refunded: BeakColor.error,
-    },
-  );
+  @Column(defaultValue: OrderStatus.pending, filterable: true)
+  @Badges({
+    OrderStatus.pending: BeakColor.warning,
+    OrderStatus.processing: BeakColor.info,
+    OrderStatus.shipped: BeakColor.primary,
+    OrderStatus.delivered: BeakColor.success,
+    OrderStatus.cancelled: BeakColor.muted,
+    OrderStatus.refunded: BeakColor.error,
+  })
+  late final OrderStatus? status;
 
   /// Payment settlement state.
-  static const paymentStatus = BeakEnumColumn<PaymentStatus>(
-    key: 'payment_status',
+  @Column(
     label: 'Payment',
-    values: PaymentStatus.values,
     defaultValue: PaymentStatus.pending,
     filterable: true,
-    badgeColors: {
-      PaymentStatus.pending: BeakColor.warning,
-      PaymentStatus.paid: BeakColor.success,
-      PaymentStatus.failed: BeakColor.error,
-      PaymentStatus.refunded: BeakColor.muted,
-    },
-  );
+  )
+  @Badges({
+    PaymentStatus.pending: BeakColor.warning,
+    PaymentStatus.paid: BeakColor.success,
+    PaymentStatus.failed: BeakColor.error,
+    PaymentStatus.refunded: BeakColor.muted,
+  })
+  late final PaymentStatus? paymentStatus;
 
   /// Where the purchase originated (feeds the dashboard donut).
-  static const source = BeakEnumColumn<PurchaseSource>(
-    key: 'source',
-    label: 'Source',
-    values: PurchaseSource.values,
-    defaultValue: PurchaseSource.direct,
-    filterable: true,
-    badgeColors: {
-      PurchaseSource.direct: BeakColor.primary,
-      PurchaseSource.social: BeakColor.info,
-      PurchaseSource.email: BeakColor.success,
-      PurchaseSource.affiliate: BeakColor.warning,
-      PurchaseSource.search: BeakColor.secondary,
-    },
-  );
+  @Column(defaultValue: PurchaseChannel.direct, filterable: true)
+  @Badges({
+    PurchaseChannel.direct: BeakColor.primary,
+    PurchaseChannel.social: BeakColor.info,
+    PurchaseChannel.email: BeakColor.success,
+    PurchaseChannel.affiliate: BeakColor.warning,
+    PurchaseChannel.search: BeakColor.secondary,
+  })
+  late final PurchaseChannel? source;
 
   /// Line-item subtotal.
-  static const subtotal = BeakDecimalColumn(
-    key: 'subtotal',
-    label: 'Subtotal',
-    prefix: r'$',
-    sortable: true,
-  );
+  @Column(prefix: r'$', sortable: true)
+  late final double? subtotal;
 
   /// Shipping charge.
-  static const shipping = BeakDecimalColumn(
-    key: 'shipping',
-    label: 'Shipping',
-    prefix: r'$',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(prefix: r'$', visibleOn: {BeakContext.form, BeakContext.detail})
+  late final double? shipping;
 
   /// Tax amount.
-  static const tax = BeakDecimalColumn(
-    key: 'tax',
-    label: 'Tax',
-    prefix: r'$',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(prefix: r'$', visibleOn: {BeakContext.form, BeakContext.detail})
+  late final double? tax;
 
   /// Grand total.
-  static const total = BeakDecimalColumn(
-    key: 'total',
-    label: 'Total',
-    prefix: r'$',
-    sortable: true,
-  );
+  @Column(prefix: r'$', sortable: true)
+  late final double? total;
 
   /// When the order was placed.
-  static const placedAt = BeakDateTimeColumn(
-    key: 'placed_at',
-    label: 'Placed',
-    format: BeakDateFormat.relative,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    reference,
-    userId,
-    status,
-    paymentStatus,
-    source,
-    subtotal,
-    shipping,
-    tax,
-    total,
-    placedAt,
-  ];
-}
-
-/// Typed relationships of the orders resource.
-abstract final class OrderRelations {
-  /// The customer who placed the order.
-  static const user = BeakBelongsTo(
-    key: 'user',
-    label: 'Customer',
-    relatedTable: 'users',
-    displayColumnKey: 'name',
-    foreignKey: 'user_id',
-    searchColumnKeys: ['name', 'email'],
-  );
+  @Column(label: 'Placed', format: BeakDateFormat.relative, sortable: true)
+  late final DateTime? placedAt;
 
   /// The line items on the order.
-  static const items = BeakHasMany(
-    key: 'items',
-    label: 'Items',
-    relatedTable: 'order_items',
-    displayColumnKey: 'label',
-    foreignKey: 'order_id',
-  );
+  @HasMany()
+  late final List<OrderItem> items;
 
   /// The settling transaction.
-  static const transaction = BeakHasOne(
-    key: 'transaction',
-    label: 'Transaction',
-    relatedTable: 'transactions',
-    displayColumnKey: 'reference',
-    foreignKey: 'order_id',
-  );
+  @HasOne()
+  late final Transaction? transaction;
 
   /// The order's lifecycle/history timeline.
-  static const events = BeakHasMany(
-    key: 'events',
-    label: 'History',
-    relatedTable: 'order_events',
-    displayColumnKey: 'description',
-    foreignKey: 'order_id',
-  );
+  @HasMany(label: 'History')
+  late final List<OrderEvent> events;
 
   /// Internal and customer-facing notes on the order.
-  static const comments = BeakHasMany(
-    key: 'comments',
-    label: 'Comments',
-    relatedTable: 'order_comments',
-    displayColumnKey: 'body',
-    foreignKey: 'order_id',
-  );
-}
-
-/// The orders resource — a customer's purchase.
-final class OrderModel extends BeakModel {
-  /// Creates the orders model.
-  const OrderModel();
-
-  @override
-  String get table => 'orders';
-
-  @override
-  String get displayColumnKey => 'reference';
-
-  @override
-  List<BeakColumn> get columns => OrderColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    OrderRelations.user,
-    OrderRelations.items,
-    OrderRelations.transaction,
-    OrderRelations.events,
-    OrderRelations.comments,
-  ];
+  @HasMany()
+  late final List<OrderComment> comments;
 }

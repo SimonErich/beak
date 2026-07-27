@@ -1,7 +1,6 @@
-import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/services/dashboard_charts.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 /// The charts gallery — every Beak chart family (area, line, bar, pie, donut)
 /// bound to the same seeded analytics tables the dashboard uses, so the whole

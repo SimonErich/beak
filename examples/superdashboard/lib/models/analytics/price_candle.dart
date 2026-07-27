@@ -1,72 +1,33 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
-
-/// Typed columns of the price-candles resource — one OHLC bar of a daily
-/// price series, feeding the candlestick chart.
-abstract final class PriceCandleColumns {
-  /// The bar's label (e.g. the day).
-  static const label = BeakStringColumn(
-    key: 'label',
-    label: 'Day',
-    searchable: true,
-  );
-
-  /// The opening price.
-  static const open = BeakDecimalColumn(
-    key: 'open',
-    label: 'Open',
-    prefix: r'$',
-  );
-
-  /// The session high.
-  static const high = BeakDecimalColumn(
-    key: 'high',
-    label: 'High',
-    prefix: r'$',
-  );
-
-  /// The session low.
-  static const low = BeakDecimalColumn(key: 'low', label: 'Low', prefix: r'$');
-
-  /// The closing price.
-  static const close = BeakDecimalColumn(
-    key: 'close',
-    label: 'Close',
-    prefix: r'$',
-  );
-
-  /// Ordering within the series.
-  static const sortIndex = BeakIntColumn(
-    key: 'sort_index',
-    label: 'Order',
-    min: 0,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    label,
-    open,
-    high,
-    low,
-    close,
-    sortIndex,
-  ];
-}
+part 'price_candle.beak.dart';
 
 /// The price-candles resource — the OHLC series behind the candlestick chart.
-final class PriceCandleModel extends BeakModel {
-  /// Creates the price-candles model.
-  const PriceCandleModel();
+@Resource()
+final class PriceCandle extends BeakSchema {
+  /// The bar's label (e.g. the day).
+  @Display()
+  @Column(label: 'Day', searchable: true)
+  late final String? label;
 
-  @override
-  String get table => 'price_candles';
+  /// The opening price.
+  @Column(prefix: r'$')
+  late final double? open;
 
-  @override
-  String get displayColumnKey => 'label';
+  /// The session high.
+  @Column(prefix: r'$')
+  late final double? high;
 
-  @override
-  List<BeakColumn> get columns => PriceCandleColumns.values;
+  /// The session low.
+  @Column(prefix: r'$')
+  late final double? low;
+
+  /// The closing price.
+  @Column(prefix: r'$')
+  late final double? close;
+
+  /// Ordering within the series.
+  @Column(label: 'Order', sortable: true, min: 0)
+  late final int? sortIndex;
 }

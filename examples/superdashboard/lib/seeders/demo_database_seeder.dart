@@ -1,4 +1,4 @@
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
 
 import 'analytics_seeder.dart';
 import 'calendar_seeder.dart';

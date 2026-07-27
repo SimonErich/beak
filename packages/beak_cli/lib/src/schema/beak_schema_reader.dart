@@ -427,7 +427,8 @@ final class BeakSchemaReader {
       BeakRelationIr(
         fieldName: fieldName,
         key: fieldName,
-        label: titleCaseOf(fieldName),
+        label: _unquote(options['label']) ?? titleCaseOf(fieldName),
+        searchOn: _stringList(options['searchOn']),
         kind: kind,
         relatedSchema: related,
         foreignKey:
@@ -443,10 +444,12 @@ final class BeakSchemaReader {
         arguments: {
           for (final entry in options.entries)
             if (!const {
+              'label',
               'foreignKey',
               'pivotTable',
               'foreignPivotKey',
               'relatedPivotKey',
+              'searchOn',
               'inverse',
             }.contains(entry.key))
               entry.key: entry.value,
@@ -455,6 +458,17 @@ final class BeakSchemaReader {
         generateInverse: options['inverse'] != 'false',
       ),
     );
+  }
+
+  /// The strings of a `['a', 'b']` literal, or empty.
+  static List<String> _stringList(String? source) {
+    if (source == null) {
+      return const [];
+    }
+    return [
+      for (final match in RegExp(r"'([^']*)'").allMatches(source))
+        match.group(1)!,
+    ];
   }
 
   /// The conventional foreign key for [kind].
@@ -469,13 +483,18 @@ final class BeakSchemaReader {
     BeakRelationKind.belongsToMany => null,
   };
 
-  /// Checks that every relationship points at a schema that exists.
+  /// Checks every relationship against the schema on the other side.
+  ///
+  /// Both checks are here rather than at the field, because both need a
+  /// schema this file has not read yet.
   List<BeakDiscoveryIssue> _validateRelations(List<BeakSchemaIr> schemas) {
     final byClass = {for (final schema in schemas) schema.className: schema};
-    return [
-      for (final schema in schemas)
-        for (final relation in schema.relations)
-          if (!byClass.containsKey(relation.relatedSchema))
+    final issues = <BeakDiscoveryIssue>[];
+    for (final schema in schemas) {
+      for (final relation in schema.relations) {
+        final BeakSchemaIr? related = byClass[relation.relatedSchema];
+        if (related == null) {
+          issues.add(
             BeakDiscoveryIssue(
               path: 'lib/${schema.libraryPath}',
               message:
@@ -483,7 +502,32 @@ final class BeakSchemaReader {
                   '${relation.relatedSchema}, which is not a @Resource '
                   'under lib/models/.',
             ),
-    ];
+          );
+          continue;
+        }
+        // `searchOn` is the one place a schema class names a column of
+        // another table by key. Checking it here is what keeps that from
+        // being a string that can be quietly wrong.
+        final Set<String> keys = {
+          for (final column in related.columns) column.columnKey,
+        };
+        for (final key in relation.searchOn) {
+          if (keys.contains(key)) {
+            continue;
+          }
+          issues.add(
+            BeakDiscoveryIssue(
+              path: 'lib/${schema.libraryPath}',
+              message:
+                  '${schema.className}.${relation.fieldName} searches '
+                  '"$key", which ${related.className} has no column for. '
+                  'Its columns are: ${(keys.toList()..sort()).join(', ')}.',
+            ),
+          );
+        }
+      }
+    }
+    return issues;
   }
 
   /// The `List<X>` element name, or `null` when [type] is not a list.

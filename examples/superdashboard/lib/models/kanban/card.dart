@@ -1,160 +1,69 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
+import '../people/user.dart';
 import '../shared/enums.dart';
-import '../shared/shared_columns.dart';
+import 'board_column.dart';
+import 'card_label.dart';
 
-/// Typed columns of the cards resource — kanban cards.
-abstract final class CardColumns {
+part 'card.beak.dart';
+
+/// The cards resource — a kanban card.
+@Resource()
+final class Card extends BeakSchema {
   /// The owning column.
-  static const columnId = BeakStringColumn(
-    key: 'column_id',
-    label: 'Column',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo()
+  late final BoardColumn? column;
 
   /// Card title.
-  static const title = BeakStringColumn(
-    key: 'title',
-    label: 'Title',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(200)],
-  );
+  @Display()
+  @Column(sortable: true, searchable: true, rules: [BeakMaxLength(200)])
+  late final String title;
 
   /// Card description.
-  static const description = BeakTextColumn(
-    key: 'description',
-    label: 'Description',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? description;
 
   /// Due date.
-  static const dueDate = BeakDateTimeColumn(
-    key: 'due_date',
-    label: 'Due',
-    format: BeakDateFormat.relative,
-    sortable: true,
-  );
+  @Column(label: 'Due', sortable: true, format: BeakDateFormat.relative)
+  late final DateTime? dueDate;
 
   /// Priority, shown as a colored badge.
-  static const priority = BeakEnumColumn<Priority>(
-    key: 'priority',
-    label: 'Priority',
-    values: Priority.values,
-    defaultValue: Priority.medium,
-    filterable: true,
-    badgeColors: {
-      Priority.low: BeakColor.muted,
-      Priority.medium: BeakColor.info,
-      Priority.high: BeakColor.warning,
-      Priority.urgent: BeakColor.error,
-    },
-  );
+  @Column(filterable: true, defaultValue: Priority.medium)
+  @Badges({
+    Priority.low: BeakColor.muted,
+    Priority.medium: BeakColor.info,
+    Priority.high: BeakColor.warning,
+    Priority.urgent: BeakColor.error,
+  })
+  late final Priority? priority;
 
   /// Optional cover image.
-  static const coverImage = BeakImageColumn(
-    key: 'cover_image',
-    label: 'Cover',
+  @Image(
     storagePath: 'kanban/covers',
     maxSizeInBytes: 5 * 1024 * 1024,
     allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  )
+  @Column(label: 'Cover', visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakImageRef? coverImage;
 
   /// Vertical ordering within a column.
-  static const sortIndex = BeakIntColumn(
-    key: 'sort_index',
-    label: 'Order',
-    min: 0,
-    sortable: true,
-  );
+  @Column(label: 'Order', sortable: true, min: 0)
+  late final int? sortIndex;
 
   /// Denormalized attachment count.
-  static const attachmentsCount = BeakIntColumn(
-    key: 'attachments_count',
-    label: 'Attachments',
-    min: 0,
-    visibleOn: {BeakContext.detail},
-  );
+  @Column(label: 'Attachments', visibleOn: {BeakContext.detail}, min: 0)
+  late final int? attachmentsCount;
 
   /// Denormalized comment count.
-  static const commentsCount = BeakIntColumn(
-    key: 'comments_count',
-    label: 'Comments',
-    min: 0,
-    visibleOn: {BeakContext.detail},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    columnId,
-    title,
-    description,
-    dueDate,
-    priority,
-    coverImage,
-    sortIndex,
-    attachmentsCount,
-    commentsCount,
-  ];
-}
-
-/// Typed relationships of the cards resource.
-abstract final class CardRelations {
-  /// The owning column.
-  static const column = BeakBelongsTo(
-    key: 'column',
-    label: 'Column',
-    relatedTable: 'board_columns',
-    displayColumnKey: 'name',
-    foreignKey: 'column_id',
-    searchColumnKeys: ['name'],
-  );
+  @Column(label: 'Comments', visibleOn: {BeakContext.detail}, min: 0)
+  late final int? commentsCount;
 
   /// The card's labels, via the `card_card_label` pivot.
-  static const labels = BeakBelongsToMany(
-    key: 'labels',
-    label: 'Labels',
-    relatedTable: 'card_labels',
-    displayColumnKey: 'name',
-    pivotTable: 'card_card_label',
-    foreignPivotKey: 'card_id',
-    relatedPivotKey: 'card_label_id',
-    searchColumnKeys: ['name'],
-  );
+  @BelongsToMany()
+  late final List<CardLabel> labels;
 
   /// The assigned members, via the `card_user` pivot.
-  static const members = BeakBelongsToMany(
-    key: 'members',
-    label: 'Members',
-    relatedTable: 'users',
-    displayColumnKey: 'name',
-    pivotTable: 'card_user',
-    foreignPivotKey: 'card_id',
-    relatedPivotKey: 'user_id',
-    searchColumnKeys: ['name'],
-  );
-}
-
-/// The cards resource — a kanban card.
-final class CardModel extends BeakModel {
-  /// Creates the cards model.
-  const CardModel();
-
-  @override
-  String get table => 'cards';
-
-  @override
-  String get displayColumnKey => 'title';
-
-  @override
-  List<BeakColumn> get columns => CardColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    CardRelations.column,
-    CardRelations.labels,
-    CardRelations.members,
-  ];
+  @BelongsToMany()
+  late final List<User> members;
 }

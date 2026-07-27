@@ -1,75 +1,31 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'faq.dart';
 
-/// Typed columns of the faq-categories resource.
-abstract final class FaqCategoryColumns {
-  /// Category name.
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(60)],
-  );
-
-  /// Icon name.
-  static const icon = BeakStringColumn(
-    key: 'icon',
-    label: 'Icon',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
-
-  /// Category description.
-  static const description = BeakTextColumn(
-    key: 'description',
-    label: 'Description',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
-
-  /// Ordering.
-  static const sortIndex = BeakIntColumn(
-    key: 'sort_index',
-    label: 'Order',
-    min: 0,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    name,
-    icon,
-    description,
-    sortIndex,
-  ];
-}
-
-/// Typed relationships of the faq-categories resource.
-abstract final class FaqCategoryRelations {
-  /// The questions in this category.
-  static const faqs = BeakHasMany(
-    key: 'faqs',
-    label: 'Questions',
-    relatedTable: 'faqs',
-    displayColumnKey: 'question',
-    foreignKey: 'category_id',
-  );
-}
+part 'faq_category.beak.dart';
 
 /// The faq-categories resource — help-center topic groups.
-final class FaqCategoryModel extends BeakModel {
-  /// Creates the faq-categories model.
-  const FaqCategoryModel();
+@Resource()
+final class FaqCategory extends BeakSchema {
+  /// Category name.
+  @Display()
+  @Column(searchable: true, rules: [BeakMaxLength(60)])
+  late final String name;
 
-  @override
-  String get table => 'faq_categories';
+  /// Icon name.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final String? icon;
 
-  @override
-  String get displayColumnKey => 'name';
+  /// Category description.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? description;
 
-  @override
-  List<BeakColumn> get columns => FaqCategoryColumns.values;
+  /// Ordering.
+  @Column(label: 'Order', min: 0, sortable: true)
+  late final int? sortIndex;
 
-  @override
-  List<BeakRelationship> get relationships => const [FaqCategoryRelations.faqs];
+  /// The questions in this category.
+  @HasMany(label: 'Questions', foreignKey: 'category_id')
+  late final List<Faq> faqs;
 }

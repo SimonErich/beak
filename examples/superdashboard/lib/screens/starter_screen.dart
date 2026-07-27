@@ -1,5 +1,5 @@
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
 /// A blank-canvas starter page — the Tocly `starter-page` reproduced as a
 /// single `BeakMarkdownBlock`, the documented starting point for a new screen.

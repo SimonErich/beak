@@ -1,6 +1,15 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'category.dart';
+import 'order_item.dart';
+import 'price_rule.dart';
+import 'product_image.dart';
+import 'product_review.dart';
+import 'product_variant.dart';
+import 'tag.dart';
+
+part 'product.beak.dart';
 
 /// Lifecycle state of a product.
 enum ProductStatus {
@@ -17,80 +26,51 @@ enum ProductStatus {
   inactive,
 }
 
-/// Typed columns of the products resource — the catalog's centerpiece.
-abstract final class ProductColumns {
+/// The products resource — the showcase model (soft-deleting, every column
+/// kind, belongs-to + belongs-to-many + has-many).
+@Resource(softDeletes: true, timestamps: true)
+final class Product extends BeakSchema {
   /// Display name.
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(255)])
+  late final String name;
 
   /// Stock-keeping unit.
-  static const sku = BeakStringColumn(
-    key: 'sku',
-    label: 'SKU',
-    searchable: true,
-    rules: [BeakMaxLength(40)],
-  );
+  @Column(label: 'SKU', searchable: true, rules: [BeakMaxLength(40)])
+  late final String? sku;
 
   /// Long-form description.
-  static const description = BeakTextColumn(
-    key: 'description',
-    label: 'Description',
-    searchable: true,
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(searchable: true, visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? description;
 
   /// Sale price in dollars.
-  static const price = BeakDecimalColumn(
-    key: 'price',
-    label: 'Price',
-    prefix: r'$',
-    sortable: true,
-    filterable: true,
-    rules: [BeakRequired(), BeakMin(0)],
-  );
+  @Column(prefix: r'$', sortable: true, filterable: true, rules: [BeakMin(0)])
+  late final double price;
 
   /// Unit cost in dollars.
-  static const cost = BeakDecimalColumn(
-    key: 'cost',
-    label: 'Cost',
+  @Column(
     prefix: r'$',
     visibleOn: {BeakContext.form, BeakContext.detail},
     rules: [BeakMin(0)],
-  );
+  )
+  late final double? cost;
 
   /// Units in stock.
-  static const stock = BeakIntColumn(
-    key: 'stock',
-    label: 'Stock',
-    min: 0,
-    sortable: true,
-    rules: [BeakMin(0)],
-  );
+  @Column(min: 0, sortable: true, rules: [BeakMin(0)])
+  late final int? stock;
 
   /// Lifecycle state, shown as a colored badge.
-  static const status = BeakEnumColumn<ProductStatus>(
-    key: 'status',
-    label: 'Status',
-    values: ProductStatus.values,
-    defaultValue: ProductStatus.draft,
-    filterable: true,
-    badgeColors: {
-      ProductStatus.draft: BeakColor.muted,
-      ProductStatus.published: BeakColor.success,
-      ProductStatus.scheduled: BeakColor.info,
-      ProductStatus.inactive: BeakColor.warning,
-    },
-  );
+  @Column(defaultValue: ProductStatus.draft, filterable: true)
+  @Badges({
+    ProductStatus.draft: BeakColor.muted,
+    ProductStatus.published: BeakColor.success,
+    ProductStatus.scheduled: BeakColor.info,
+    ProductStatus.inactive: BeakColor.warning,
+  })
+  late final ProductStatus? status;
 
   /// Product photo: max 5 MB, raster formats, thumbnail + webp on upload.
-  static const image = BeakImageColumn(
-    key: 'image',
-    label: 'Image',
+  @Image(
     storagePath: 'products',
     maxSizeInBytes: 5 * 1024 * 1024,
     allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
@@ -101,128 +81,34 @@ abstract final class ProductColumns {
       ),
       BeakFormatTransform.webp(),
     ],
-  );
+  )
+  late final BeakImageRef? image;
 
-  /// Foreign key owned by the `category` belongs-to relationship.
-  static const categoryId = BeakStringColumn(
-    key: 'category_id',
-    label: 'Category',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    name,
-    sku,
-    description,
-    price,
-    cost,
-    stock,
-    status,
-    image,
-    categoryId,
-    SharedColumns.createdAt,
-    SharedColumns.updatedAt,
-  ];
-}
-
-/// Typed relationships of the products resource.
-abstract final class ProductRelations {
   /// The category a product is filed under.
-  static const category = BeakBelongsTo(
-    key: 'category',
-    label: 'Category',
-    relatedTable: 'categories',
-    displayColumnKey: 'name',
-    foreignKey: 'category_id',
-    searchColumnKeys: ['name'],
-  );
+  @BelongsTo()
+  late final Category? category;
 
   /// The tags attached to a product.
-  static const tags = BeakBelongsToMany(
-    key: 'tags',
-    label: 'Tags',
-    relatedTable: 'tags',
-    displayColumnKey: 'name',
-    pivotTable: 'product_tag',
-    foreignPivotKey: 'product_id',
-    relatedPivotKey: 'tag_id',
-    searchColumnKeys: ['name'],
-  );
+  @BelongsToMany()
+  late final List<Tag> tags;
 
   /// The order line items referencing this product.
-  static const items = BeakHasMany(
-    key: 'items',
-    label: 'Order items',
-    relatedTable: 'order_items',
-    displayColumnKey: 'label',
-    foreignKey: 'product_id',
-  );
+  @HasMany(label: 'Order items')
+  late final List<OrderItem> items;
 
   /// The purchasable variations of this product.
-  static const variants = BeakHasMany(
-    key: 'variants',
-    label: 'Variants',
-    relatedTable: 'product_variants',
-    displayColumnKey: 'name',
-    foreignKey: 'product_id',
-  );
+  @HasMany()
+  late final List<ProductVariant> variants;
 
   /// The gallery images of this product.
-  static const images = BeakHasMany(
-    key: 'images',
-    label: 'Gallery',
-    relatedTable: 'product_images',
-    displayColumnKey: 'alt',
-    foreignKey: 'product_id',
-  );
+  @HasMany(label: 'Gallery')
+  late final List<ProductImage> images;
 
   /// The customer reviews of this product.
-  static const reviews = BeakHasMany(
-    key: 'reviews',
-    label: 'Reviews',
-    relatedTable: 'product_reviews',
-    displayColumnKey: 'title',
-    foreignKey: 'product_id',
-  );
+  @HasMany()
+  late final List<ProductReview> reviews;
 
   /// The conditional pricing rules on this product.
-  static const priceRules = BeakHasMany(
-    key: 'price_rules',
-    label: 'Price rules',
-    relatedTable: 'price_rules',
-    displayColumnKey: 'name',
-    foreignKey: 'product_id',
-  );
-}
-
-/// The products resource — the showcase model (soft-deleting, every column
-/// kind, belongs-to + belongs-to-many + has-many).
-final class ProductModel extends BeakModel {
-  /// Creates the products model.
-  const ProductModel();
-
-  @override
-  String get table => 'products';
-
-  @override
-  String get displayColumnKey => 'name';
-
-  @override
-  List<BeakColumn> get columns => ProductColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    ProductRelations.category,
-    ProductRelations.tags,
-    ProductRelations.items,
-    ProductRelations.variants,
-    ProductRelations.images,
-    ProductRelations.reviews,
-    ProductRelations.priceRules,
-  ];
-
-  @override
-  bool get softDeletes => true;
+  @HasMany(label: 'Price rules')
+  late final List<PriceRule> priceRules;
 }

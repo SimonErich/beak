@@ -1,4 +1,4 @@
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
 
 /// The shared toolkit every domain seeder builds on: a deterministically
 /// seeded faker, a fixed reference clock, a UUID minter, and thin insert

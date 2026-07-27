@@ -1,4 +1,4 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
 
 /// The skill show page: a headline card naming the competency, above a card

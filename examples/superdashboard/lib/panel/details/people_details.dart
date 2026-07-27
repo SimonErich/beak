@@ -1,4 +1,4 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
 
 /// The user layout, shared by the show page and the create/edit form: an

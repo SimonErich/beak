@@ -1,6 +1,6 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 /// A multi-step "new event" wizard over the calendar-event model: the long
 /// create form broken into four explained steps, each grouping a different

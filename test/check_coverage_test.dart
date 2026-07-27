@@ -96,4 +96,40 @@ end_of_record
       expect(thresholdFor(package), 85, reason: package);
     }
   });
+
+  group('generated code', () {
+    const mixedLcov = '''
+SF:lib/models/product.dart
+DA:1,1
+DA:2,0
+end_of_record
+SF:lib/models/product.beak.dart
+DA:1,0
+DA:2,0
+DA:3,0
+DA:4,0
+end_of_record
+SF:lib/beak/panel.g.dart
+DA:1,0
+DA:2,0
+end_of_record
+''';
+
+    test('is recognised by its file name', () {
+      expect(isGeneratedSource('lib/beak/panel.g.dart'), isTrue);
+      expect(isGeneratedSource('lib/models/product.beak.dart'), isTrue);
+      expect(isGeneratedSource('lib/models/product.dart'), isFalse);
+    });
+
+    test('is left out of the measurement entirely', () {
+      // Six generated lines, none of them run. Counting them would drag a
+      // package under its floor without one line a person wrote going
+      // untested — and the generator's own suite is what checks them.
+      final summary = parseLcov(mixedLcov);
+
+      expect(summary.linesFound, 2);
+      expect(summary.linesHit, 1);
+      expect(summary.percent, 50.0);
+    });
+  });
 }

@@ -1,92 +1,35 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'product.dart';
 
-/// Typed columns of the product-variants resource — a purchasable variation
-/// of a product (size/color/etc.) with its own SKU, price, and stock.
-abstract final class ProductVariantColumns {
-  /// Variant name, e.g. "500g · Whole bean".
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Variant',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(120)],
-  );
-
-  /// Stock-keeping unit.
-  static const sku = BeakStringColumn(
-    key: 'sku',
-    label: 'SKU',
-    rules: [BeakRequired(), BeakMaxLength(60)],
-  );
-
-  /// Variant price in dollars.
-  static const price = BeakDecimalColumn(
-    key: 'price',
-    label: 'Price',
-    prefix: r'$',
-    rules: [BeakRequired(), BeakMin(0)],
-  );
-
-  /// Units in stock.
-  static const stock = BeakIntColumn(
-    key: 'stock',
-    label: 'Stock',
-    min: 0,
-    sortable: true,
-  );
-
-  /// Whether this is the default variant shown first.
-  static const isDefault = BeakBoolColumn(key: 'is_default', label: 'Default');
-
-  /// The owning product.
-  static const productId = BeakStringColumn(
-    key: 'product_id',
-    label: 'Product',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    name,
-    sku,
-    price,
-    stock,
-    isDefault,
-    productId,
-  ];
-}
-
-/// Typed relationships of the product-variants resource.
-abstract final class ProductVariantRelations {
-  /// The owning product.
-  static const product = BeakBelongsTo(
-    key: 'product',
-    label: 'Product',
-    relatedTable: 'products',
-    displayColumnKey: 'name',
-    foreignKey: 'product_id',
-    searchColumnKeys: ['name'],
-  );
-}
+part 'product_variant.beak.dart';
 
 /// The product-variants resource — one purchasable variation of a product.
-final class ProductVariantModel extends BeakModel {
-  /// Creates the product-variants model.
-  const ProductVariantModel();
+@Resource()
+final class ProductVariant extends BeakSchema {
+  /// Variant name, e.g. "500g · Whole bean".
+  @Display()
+  @Column(label: 'Variant', searchable: true, rules: [BeakMaxLength(120)])
+  late final String name;
 
-  @override
-  String get table => 'product_variants';
+  /// Stock-keeping unit.
+  @Column(label: 'SKU', rules: [BeakMaxLength(60)])
+  late final String sku;
 
-  @override
-  String get displayColumnKey => 'name';
+  /// Variant price in dollars.
+  @Column(prefix: r'$', rules: [BeakMin(0)])
+  late final double price;
 
-  @override
-  List<BeakColumn> get columns => ProductVariantColumns.values;
+  /// Units in stock.
+  @Column(min: 0, sortable: true)
+  late final int? stock;
 
-  @override
-  List<BeakRelationship> get relationships => const [
-    ProductVariantRelations.product,
-  ];
+  /// Whether this is the default variant shown first.
+  @Column(label: 'Default')
+  late final bool? isDefault;
+
+  /// The owning product.
+  @BelongsTo()
+  late final Product? product;
 }

@@ -47,9 +47,9 @@ enum PaymentStatus {
   refunded,
 }
 
-/// Where a purchase originated, reused by orders and the analytics
-/// source-of-purchases breakdown.
-enum PurchaseSource {
+/// The channel a purchase came through, reused by orders and the
+/// analytics source-of-purchases breakdown.
+enum PurchaseChannel {
   /// A direct visit.
   direct,
 

@@ -1,5 +1,4 @@
-import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 
 /// The page size for analytics-bound blocks: comfortably above every seeded
 /// analytics table, so a chart never renders a silently truncated page

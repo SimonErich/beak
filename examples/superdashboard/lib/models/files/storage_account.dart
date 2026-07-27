@@ -1,6 +1,7 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+part 'storage_account.beak.dart';
 
 /// A connected cloud-storage provider.
 enum StorageProvider {
@@ -17,95 +18,41 @@ enum StorageProvider {
   box,
 }
 
-/// Typed columns of the storage-accounts resource — the file manager's
-/// external-storage widgets.
-abstract final class StorageAccountColumns {
+/// The storage-accounts resource — connected cloud drives.
+@Resource()
+final class StorageAccount extends BeakSchema {
   /// The provider.
-  static const provider = BeakEnumColumn<StorageProvider>(
-    key: 'provider',
-    label: 'Provider',
-    values: StorageProvider.values,
-    defaultValue: StorageProvider.googleDrive,
-    filterable: true,
-    badgeColors: {
-      StorageProvider.googleDrive: BeakColor.success,
-      StorageProvider.dropbox: BeakColor.primary,
-      StorageProvider.oneDrive: BeakColor.info,
-      StorageProvider.box: BeakColor.warning,
-    },
-  );
+  @Column(filterable: true, defaultValue: StorageProvider.googleDrive)
+  @Badges({
+    StorageProvider.googleDrive: BeakColor.success,
+    StorageProvider.dropbox: BeakColor.primary,
+    StorageProvider.oneDrive: BeakColor.info,
+    StorageProvider.box: BeakColor.warning,
+  })
+  late final StorageProvider? provider;
 
   /// Display label.
-  static const label = BeakStringColumn(
-    key: 'label',
-    label: 'Label',
-    rules: [BeakRequired(), BeakMaxLength(60)],
-  );
+  @Display()
+  @Column(rules: [BeakMaxLength(60)])
+  late final String label;
 
   /// Bytes used.
-  static const usedBytes = BeakIntColumn(
-    key: 'used_bytes',
-    label: 'Used',
-    min: 0,
-    sortable: true,
-  );
+  @Column(label: 'Used', min: 0, sortable: true)
+  late final int? usedBytes;
 
   /// Total capacity in bytes.
-  static const totalBytes = BeakIntColumn(
-    key: 'total_bytes',
-    label: 'Total',
-    min: 0,
-    sortable: true,
-  );
+  @Column(label: 'Total', min: 0, sortable: true)
+  late final int? totalBytes;
 
   /// Accent color.
-  static const color = BeakColorColumn(
-    key: 'color',
-    label: 'Color',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakHexColor? color;
 
   /// Icon name.
-  static const icon = BeakStringColumn(
-    key: 'icon',
-    label: 'Icon',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final String? icon;
 
   /// Whether the account is currently connected.
-  static const connected = BeakBoolColumn(
-    key: 'connected',
-    label: 'Connected',
-    filterable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    provider,
-    label,
-    usedBytes,
-    totalBytes,
-    color,
-    icon,
-    connected,
-  ];
-}
-
-/// The storage-accounts resource — connected cloud drives.
-final class StorageAccountModel extends BeakModel {
-  /// Creates the storage-accounts model.
-  const StorageAccountModel();
-
-  @override
-  String get table => 'storage_accounts';
-
-  @override
-  String get displayColumnKey => 'label';
-
-  @override
-  List<BeakColumn> get columns => StorageAccountColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [];
+  @Column(filterable: true)
+  late final bool? connected;
 }

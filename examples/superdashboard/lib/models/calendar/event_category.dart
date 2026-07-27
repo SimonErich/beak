@@ -1,59 +1,26 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'calendar_event.dart';
 
-/// Typed columns of the event-categories resource.
-abstract final class EventCategoryColumns {
-  /// Category key, e.g. `business`.
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(40)],
-  );
-
-  /// Display label.
-  static const label = BeakStringColumn(
-    key: 'label',
-    label: 'Label',
-    rules: [BeakRequired(), BeakMaxLength(40)],
-  );
-
-  /// Calendar color for events in this category.
-  static const color = BeakColorColumn(key: 'color', label: 'Color');
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [SharedColumns.id, name, label, color];
-}
-
-/// Typed relationships of the event-categories resource.
-abstract final class EventCategoryRelations {
-  /// Events in this category.
-  static const events = BeakHasMany(
-    key: 'events',
-    label: 'Events',
-    relatedTable: 'calendar_events',
-    displayColumnKey: 'title',
-    foreignKey: 'category_id',
-  );
-}
+part 'event_category.beak.dart';
 
 /// The event-categories resource — colored calendar buckets.
-final class EventCategoryModel extends BeakModel {
-  /// Creates the event-categories model.
-  const EventCategoryModel();
+@Resource()
+final class EventCategory extends BeakSchema {
+  /// Category key, e.g. `business`.
+  @Column(searchable: true, rules: [BeakMaxLength(40)])
+  late final String name;
 
-  @override
-  String get table => 'event_categories';
+  /// Display label.
+  @Display()
+  @Column(rules: [BeakMaxLength(40)])
+  late final String label;
 
-  @override
-  String get displayColumnKey => 'label';
+  /// Calendar color for events in this category.
+  late final BeakHexColor? color;
 
-  @override
-  List<BeakColumn> get columns => EventCategoryColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    EventCategoryRelations.events,
-  ];
+  /// Events in this category.
+  @HasMany(foreignKey: 'category_id')
+  late final List<CalendarEvent> events;
 }

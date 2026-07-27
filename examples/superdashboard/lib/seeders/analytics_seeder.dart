@@ -321,7 +321,7 @@ final class AnalyticsSeeder {
   ) async {
     final totals = <String, double>{};
     final counts = <String, int>{};
-    for (final source in PurchaseSource.values) {
+    for (final source in PurchaseChannel.values) {
       totals[source.name] = 0;
       counts[source.name] = 0;
     }
@@ -335,7 +335,7 @@ final class AnalyticsSeeder {
     }
 
     final rows = <Map<String, Object?>>[];
-    for (final source in PurchaseSource.values) {
+    for (final source in PurchaseChannel.values) {
       final total = totals[source.name]!;
       rows.add({
         'id': ctx.uuid(),

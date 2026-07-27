@@ -1,7 +1,7 @@
-import 'package:superdashboard/migrations/demo_migrations.dart';
 import 'package:superdashboard/seeders/demo_database_seeder.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
+import 'package:superdashboard/beak/server.g.dart';
 
 void main() {
   late InMemoryAdapter adapter;
@@ -15,7 +15,10 @@ void main() {
   setUpAll(() async {
     adapter = InMemoryAdapter();
     await adapter.connect();
-    await MigrationRunner(adapter: adapter, migrations: demoMigrations).fresh();
+    await MigrationRunner(
+      adapter: adapter,
+      migrations: beakHost().migrations,
+    ).fresh();
     await const DemoDatabaseSeeder().run(adapter);
   });
 
@@ -105,7 +108,7 @@ void main() {
       addTearDown(second.disconnect);
       await MigrationRunner(
         adapter: second,
-        migrations: demoMigrations,
+        migrations: beakHost().migrations,
       ).fresh();
       await const DemoDatabaseSeeder().run(second);
 

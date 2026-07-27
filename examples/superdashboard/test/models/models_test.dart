@@ -1,21 +1,21 @@
-import 'package:beak_core/beak_core.dart';
-import 'package:superdashboard/models/models.dart';
+import 'package:beak/beak.dart';
+import 'package:superdashboard/beak/registry.g.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('demo model catalog', () {
     test('registers 49 models across every domain', () {
-      expect(demoModels, hasLength(49));
-      expect(buildDemoRegistry().all, hasLength(49));
+      expect(beakModels, hasLength(49));
+      expect(buildBeakRegistry().all, hasLength(49));
     });
 
     test('every table name is unique', () {
-      final tables = demoModels.map((model) => model.table).toList();
+      final tables = beakModels.map((model) => model.table).toList();
       expect(tables.toSet(), hasLength(tables.length));
     });
 
     test('the identity spine and app domains are present', () {
-      final tables = {for (final model in demoModels) model.table};
+      final tables = {for (final model in beakModels) model.table};
       expect(
         tables,
         containsAll(<String>[
@@ -41,7 +41,7 @@ void main() {
 
   group('per-model integrity', () {
     test('every model exposes its display column', () {
-      for (final model in demoModels) {
+      for (final model in beakModels) {
         final keys = {for (final column in model.columns) column.key};
         expect(
           keys,
@@ -54,15 +54,15 @@ void main() {
     });
 
     test('every model carries a shared id column', () {
-      for (final model in demoModels) {
+      for (final model in beakModels) {
         final keys = {for (final column in model.columns) column.key};
         expect(keys, contains('id'), reason: '${model.table} has no id');
       }
     });
 
     test('every relation targets a registered table', () {
-      final tables = {for (final model in demoModels) model.table};
-      for (final model in demoModels) {
+      final tables = {for (final model in beakModels) model.table};
+      for (final model in beakModels) {
         for (final relation in model.relationships) {
           expect(
             tables,
@@ -76,7 +76,7 @@ void main() {
     });
 
     test('every belongs-to foreign key is a column on its owning model', () {
-      for (final model in demoModels) {
+      for (final model in beakModels) {
         final keys = {for (final column in model.columns) column.key};
         for (final relation in model.relationships) {
           if (relation is BeakBelongsTo) {
@@ -99,7 +99,7 @@ void main() {
         'file_folders': ['parent', 'children'],
       };
       for (final entry in selfRefs.entries) {
-        final model = demoModels.firstWhere((m) => m.table == entry.key);
+        final model = beakModels.firstWhere((m) => m.table == entry.key);
         final byKey = {for (final r in model.relationships) r.key: r};
         for (final key in entry.value) {
           expect(byKey, contains(key), reason: '${entry.key} lacks "$key"');

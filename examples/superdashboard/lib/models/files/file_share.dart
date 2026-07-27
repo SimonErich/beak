@@ -1,6 +1,10 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import '../people/user.dart';
+import 'managed_file.dart';
+
+part 'file_share.beak.dart';
 
 /// The access a file share grants.
 enum SharePermission {
@@ -14,95 +18,28 @@ enum SharePermission {
   edit,
 }
 
-/// Typed columns of the file-shares resource — who a file is shared with,
-/// carrying the granted permission.
-abstract final class FileShareColumns {
+/// The file-shares resource — a file granted to a user with a permission.
+@Resource()
+final class FileShare extends BeakSchema {
   /// The shared file.
-  static const fileId = BeakStringColumn(
-    key: 'file_id',
-    label: 'File',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo()
+  late final ManagedFile? file;
 
   /// The user the file is shared with.
-  static const sharedWithId = BeakStringColumn(
-    key: 'shared_with_id',
-    label: 'Shared with',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo(label: 'Shared with')
+  late final User? sharedWith;
 
   /// The granted permission.
-  static const permission = BeakEnumColumn<SharePermission>(
-    key: 'permission',
-    label: 'Permission',
-    values: SharePermission.values,
-    defaultValue: SharePermission.view,
-    filterable: true,
-    badgeColors: {
-      SharePermission.view: BeakColor.muted,
-      SharePermission.comment: BeakColor.info,
-      SharePermission.edit: BeakColor.success,
-    },
-  );
+  @Display()
+  @Column(filterable: true, defaultValue: SharePermission.view)
+  @Badges({
+    SharePermission.view: BeakColor.muted,
+    SharePermission.comment: BeakColor.info,
+    SharePermission.edit: BeakColor.success,
+  })
+  late final SharePermission? permission;
 
   /// When the file was shared.
-  static const sharedAt = BeakDateTimeColumn(
-    key: 'shared_at',
-    label: 'Shared',
-    format: BeakDateFormat.relative,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    fileId,
-    sharedWithId,
-    permission,
-    sharedAt,
-  ];
-}
-
-/// Typed relationships of the file-shares resource.
-abstract final class FileShareRelations {
-  /// The shared file.
-  static const file = BeakBelongsTo(
-    key: 'file',
-    label: 'File',
-    relatedTable: 'files',
-    displayColumnKey: 'name',
-    foreignKey: 'file_id',
-    searchColumnKeys: ['name'],
-  );
-
-  /// The user the file is shared with.
-  static const sharedWith = BeakBelongsTo(
-    key: 'shared_with',
-    label: 'Shared with',
-    relatedTable: 'users',
-    displayColumnKey: 'name',
-    foreignKey: 'shared_with_id',
-    searchColumnKeys: ['name'],
-  );
-}
-
-/// The file-shares resource — a file granted to a user with a permission.
-final class FileShareModel extends BeakModel {
-  /// Creates the file-shares model.
-  const FileShareModel();
-
-  @override
-  String get table => 'file_shares';
-
-  @override
-  String get displayColumnKey => 'permission';
-
-  @override
-  List<BeakColumn> get columns => FileShareColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    FileShareRelations.file,
-    FileShareRelations.sharedWith,
-  ];
+  @Column(label: 'Shared', format: BeakDateFormat.relative, sortable: true)
+  late final DateTime? sharedAt;
 }

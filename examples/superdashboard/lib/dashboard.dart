@@ -1,13 +1,14 @@
-import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 import 'package:superdashboard/models/models.dart';
 import 'package:superdashboard/services/dashboard_charts.dart';
-import 'package:obers_ui/obers_ui.dart';
 
-/// Builds the analytics dashboard — the Tocly landing page reproduced from
-/// seeded data: four KPI tiles, a sales chart, a source-of-purchases donut,
-/// a live-users world map, and three data tables. Nothing is hardcoded.
-BeakScreen buildDashboardScreen() => BeakScreen(
+/// The screen mounted at `/`, replacing the generated dashboard.
+///
+/// The Tocly landing page reproduced from seeded data: four KPI tiles, a sales
+/// chart, a source-of-purchases donut, a live-users world map, and three data
+/// tables. Nothing is hardcoded.
+BeakScreen beakDashboard() => BeakScreen(
   path: '/',
   title: 'Dashboard',
   icon: const BeakIconToken(OiIcons.layoutDashboard),

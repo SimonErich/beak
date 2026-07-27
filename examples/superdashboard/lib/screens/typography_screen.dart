@@ -1,5 +1,5 @@
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
 /// The typography specimen — the full `OiLabel` type ramp exposed through
 /// `BeakTextBlock`, from the display size down to the caption.

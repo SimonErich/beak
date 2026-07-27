@@ -14,14 +14,7 @@ const int defaultThresholdPct = 85;
 
 /// Per-package threshold overrides, keyed by package directory name.
 ///
-/// `beak_core` is pure and holds 100. The examples hold a lower bar on
-/// purpose: an example earns its keep by being read and run, and most of what
-/// it declares — a screen's block tree, a resource's actions — is data the
-/// widget suite instantiates without executing line by line. What has to work
-/// is checked directly instead: the API scenario exercises the models, the
-/// policy and the seeders end to end (outside the coverage run, since it
-/// binds a port), and the coverage matrices fail when a feature stops being
-/// demonstrated at all.
+/// `beak_core` is pure and holds 100.
 const Map<String, int> thresholdOverridesPct = {
   'beak_core': 100,
   'beak_backend': 90,
@@ -29,10 +22,15 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
+  // The examples earn their keep by being read and run, and much of what they
+  // declare is data a widget suite instantiates without executing line by
+  // line. What has to work is checked directly instead: the store's API
+  // scenario exercises its models, policy and seeders end to end, and the
+  // coverage matrices fail when a feature stops being demonstrated at all.
   'quickstart': 50,
-  'store': 50,
+  'store': 70,
   'superdashboard': 85,
-  'embedded': 50,
+  'embedded': 85,
 };
 
 /// Directories that hold gated packages, relative to the repo root.
@@ -55,14 +53,30 @@ final class LcovSummary {
   double get percent => linesFound == 0 ? 100 : linesHit / linesFound * 100;
 }
 
+/// Whether [sourcePath] is a file Beak generated rather than a person wrote.
+///
+/// Generated code is excluded from coverage. It is verified where it is
+/// produced — `beak_cli`'s own suite asserts what the emitters write — and
+/// measuring it here would say nothing about the package that contains it,
+/// while diluting the number that does: a project with 5,000 lines of
+/// generated columns could drop below its floor without one line of its own
+/// going untested.
+bool isGeneratedSource(String sourcePath) =>
+    sourcePath.endsWith('.g.dart') || sourcePath.endsWith('.beak.dart');
+
 /// Parses the `DA:<line>,<count>` entries of [lcovContent] into an
-/// [LcovSummary].
+/// [LcovSummary], skipping generated files.
 LcovSummary parseLcov(String lcovContent) {
   var linesFound = 0;
   var linesHit = 0;
+  var skipping = false;
   for (final line in lcovContent.split('\n')) {
     final trimmed = line.trim();
-    if (!trimmed.startsWith('DA:')) {
+    if (trimmed.startsWith('SF:')) {
+      skipping = isGeneratedSource(trimmed.substring('SF:'.length));
+      continue;
+    }
+    if (skipping || !trimmed.startsWith('DA:')) {
       continue;
     }
     linesFound += 1;

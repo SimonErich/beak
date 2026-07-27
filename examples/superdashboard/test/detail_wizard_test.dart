@@ -1,19 +1,18 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:beak_test/beak_test.dart';
-import 'package:superdashboard/main.dart' as app;
+import 'package:beak/testing.dart';
+import 'package:superdashboard/beak/app.g.dart';
+import 'package:superdashboard/beak/panel.g.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 /// The product the show and edit pages render, seeded into a real in-memory
 /// source so the pages' relation-loaded query answers the same way the API
 /// would.
 BeakDataSource productSource() {
-  final BeakModelRegistry registry = app
-      .buildSuperdashboardConfig()
-      .buildRegistry();
+  final BeakModelRegistry registry = buildBeakPanel().buildRegistry();
   return InMemoryBeakDataSource(registry: registry)
     ..seed(const ProductModel(), [
       BeakRecord.fromRow(const {
@@ -32,7 +31,7 @@ void main() {
   Future<GoRouter> boot(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(1600, 2200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(app.SuperdashboardApp(dataSource: productSource()));
+    await tester.pumpWidget(BeakApp(dataSource: productSource()));
     await tester.pumpAndSettle();
     return GoRouter.of(tester.element(find.byType(OiAppShell)));
   }

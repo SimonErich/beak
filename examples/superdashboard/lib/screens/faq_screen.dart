@@ -1,6 +1,6 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 /// The FAQ / help-center page — a searchable, categorized list built from the
 /// seeded `faqs`.

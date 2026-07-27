@@ -1,6 +1,6 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 /// The product layout, used for **both** the show page and the create/edit
 /// form (the dual-mode blocks render values on one and inputs on the other):

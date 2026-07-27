@@ -41,22 +41,29 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
-  beak_backend:
+  beak:
     dependency: "direct main"
+    description:
+      path: "../../packages/beak"
+      relative: true
+    source: path
+    version: "0.0.1"
+  beak_backend:
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_backend"
       relative: true
     source: path
     version: "0.0.1"
   beak_core:
-    dependency: "direct main"
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_core"
       relative: true
     source: path
     version: "0.0.1"
   beak_frontend:
-    dependency: "direct main"
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_frontend"
       relative: true
@@ -435,7 +442,7 @@ packages:
     source: hosted
     version: "2.0.2"
   obers_ui:
-    dependency: "direct main"
+    dependency: transitive
     description:
       path: "."
       ref: "9fad953d77e90d2aaf2399a7b1b2085c5dd504ca"
@@ -883,7 +890,7 @@ packages:
     source: hosted
     version: "5.15.0"
   worm:
-    dependency: "direct main"
+    dependency: transitive
     description:
       path: "../../packages/worm"
       relative: true

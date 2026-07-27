@@ -166,11 +166,11 @@ final class CommerceSeeder {
           status == OrderStatus.delivered.name ||
           status == OrderStatus.shipped.name;
       final source = ctx.weighted({
-        PurchaseSource.direct.name: 5,
-        PurchaseSource.search.name: 4,
-        PurchaseSource.social.name: 3,
-        PurchaseSource.email.name: 2,
-        PurchaseSource.affiliate.name: 1,
+        PurchaseChannel.direct.name: 5,
+        PurchaseChannel.search.name: 4,
+        PurchaseChannel.social.name: 3,
+        PurchaseChannel.email.name: 2,
+        PurchaseChannel.affiliate.name: 1,
       });
 
       orderRows.add({

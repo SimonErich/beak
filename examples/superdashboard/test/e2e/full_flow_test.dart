@@ -3,14 +3,11 @@ library;
 
 import 'dart:io';
 
-import 'package:beak_backend/beak_backend.dart';
-import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:superdashboard/migrations/demo_migrations.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/seeders/demo_database_seeder.dart';
-import 'package:superdashboard/server/server_builder.dart';
+import 'package:superdashboard/beak/server.g.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
 
 /// The connection base, taken from `DATABASE_URL` (compose default) so the
 /// host/port/credentials stay overridable.
@@ -115,7 +112,7 @@ void main() {
 
     await MigrationRunner(
       adapter: connected,
-      migrations: demoMigrations.toList(),
+      migrations: beakHost().migrations.toList(),
       seeders: const [DemoDatabaseSeeder()],
     ).fresh(seed: true);
 
@@ -123,7 +120,7 @@ void main() {
     final int port = probe.port;
     await probe.close();
 
-    final server = demoHost(
+    final server = beakHost(
       environment: {...e2eEnvironment, 'PORT': '$port', 'HOST': '127.0.0.1'},
     ).buildServer(adapter: connected);
     httpServer = await server.start();

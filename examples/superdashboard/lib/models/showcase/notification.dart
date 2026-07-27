@@ -1,6 +1,7 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+part 'notification.beak.dart';
 
 /// The severity of a notification.
 enum NotificationLevel {
@@ -17,87 +18,37 @@ enum NotificationLevel {
   error,
 }
 
-/// Typed columns of the notifications resource — the notification center and
-/// toast demos, seeded rather than hardcoded.
-abstract final class NotificationColumns {
+/// The notifications resource — seeded notification-center content.
+@Resource()
+final class Notification extends BeakSchema {
   /// Notification title.
-  static const title = BeakStringColumn(
-    key: 'title',
-    label: 'Title',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(120)],
-  );
+  @Display()
+  @Column(searchable: true, rules: [BeakMaxLength(120)])
+  late final String title;
 
   /// Notification body.
-  static const body = BeakStringColumn(
-    key: 'body',
-    label: 'Body',
-    rules: [BeakMaxLength(255)],
-  );
+  @Column(rules: [BeakMaxLength(255)])
+  late final String? body;
 
   /// Severity.
-  static const level = BeakEnumColumn<NotificationLevel>(
-    key: 'level',
-    label: 'Level',
-    values: NotificationLevel.values,
-    defaultValue: NotificationLevel.info,
-    filterable: true,
-    badgeColors: {
-      NotificationLevel.info: BeakColor.info,
-      NotificationLevel.success: BeakColor.success,
-      NotificationLevel.warning: BeakColor.warning,
-      NotificationLevel.error: BeakColor.error,
-    },
-  );
+  @Column(filterable: true, defaultValue: NotificationLevel.info)
+  @Badges({
+    NotificationLevel.info: BeakColor.info,
+    NotificationLevel.success: BeakColor.success,
+    NotificationLevel.warning: BeakColor.warning,
+    NotificationLevel.error: BeakColor.error,
+  })
+  late final NotificationLevel? level;
 
   /// Icon name.
-  static const icon = BeakStringColumn(
-    key: 'icon',
-    label: 'Icon',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final String? icon;
 
   /// Whether the notification has been read.
-  static const isRead = BeakBoolColumn(
-    key: 'is_read',
-    label: 'Read',
-    filterable: true,
-  );
+  @Column(label: 'Read', filterable: true)
+  late final bool? isRead;
 
   /// When the notification fired.
-  static const createdAt = BeakDateTimeColumn(
-    key: 'created_at',
-    label: 'When',
-    format: BeakDateFormat.relative,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    title,
-    body,
-    level,
-    icon,
-    isRead,
-    createdAt,
-  ];
-}
-
-/// The notifications resource — seeded notification-center content.
-final class NotificationModel extends BeakModel {
-  /// Creates the notifications model.
-  const NotificationModel();
-
-  @override
-  String get table => 'notifications';
-
-  @override
-  String get displayColumnKey => 'title';
-
-  @override
-  List<BeakColumn> get columns => NotificationColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [];
+  @Column(label: 'When', format: BeakDateFormat.relative, sortable: true)
+  late final DateTime? createdAt;
 }

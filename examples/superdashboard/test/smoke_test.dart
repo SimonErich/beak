@@ -1,19 +1,25 @@
-import 'package:beak_core/beak_core.dart';
-import 'package:superdashboard/main.dart' as app;
+import 'package:beak/beak.dart';
+import 'package:superdashboard/beak/app.g.dart';
+import 'package:superdashboard/beak/panel.g.dart';
+import 'package:superdashboard/beak/registry.g.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 void main() {
   group('superdashboard panel', () {
     test('registers every resource and the custom dashboard page', () {
-      final config = app.buildSuperdashboardConfig();
+      final config = buildBeakPanel();
 
       expect(config.title, 'Beak Superdashboard');
       expect(config.apiBaseUrl, 'http://localhost:8180');
+      // 17 of the 49 models earn a sidebar entry; the rest are reached
+      // through the resource or screen that owns them, and keep their API.
       expect(config.resources, hasLength(17));
       expect(config.buildRegistry().all, hasLength(17));
+      expect(beakModels, hasLength(49));
+      expect(buildBeakRegistry().all, hasLength(49));
       expect(
         config.pages.map((page) => page.path),
         containsAll(<String>[
@@ -44,9 +50,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1600, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-        app.SuperdashboardApp(dataSource: _EmptyDataSource()),
-      );
+      await tester.pumpWidget(BeakApp(dataSource: _EmptyDataSource()));
       await tester.pumpAndSettle();
 
       expect(find.byType(OiAppShell), findsOneWidget);
@@ -60,9 +64,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1600, 2000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-        app.SuperdashboardApp(dataSource: _EmptyDataSource()),
-      );
+      await tester.pumpWidget(BeakApp(dataSource: _EmptyDataSource()));
       await tester.pumpAndSettle();
       final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
 

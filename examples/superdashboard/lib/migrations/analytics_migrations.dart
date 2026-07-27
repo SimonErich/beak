@@ -1,6 +1,5 @@
-import 'package:beak_backend/beak_backend.dart';
 import 'package:superdashboard/models/models.dart';
-import 'package:worm/worm.dart';
+import 'package:beak/migrations.dart';
 
 /// Creates the Analytics domain: FK-free aggregate tables that back the
 /// dashboard charts and map.
@@ -53,50 +52,6 @@ final class CreateAnalyticsTables extends Migration {
       'time_series_points',
     ]) {
       await schema.drop(table, ifExists: true);
-    }
-  }
-}
-
-/// Companion upgrade for databases migrated before `activity_heatmap` gained
-/// `sort_index`: the create migration derives its columns from the model, so
-/// pre-existing databases (whose create already ran under the same name)
-/// would otherwise never receive the column and the heatmap's ORDER BY would
-/// fail with an undefined column.
-final class AddSortIndexToActivityHeatmap extends Migration {
-  /// Creates the migration.
-  const AddSortIndexToActivityHeatmap();
-
-  @override
-  String get name => '20260723_000100_add_sort_index_to_activity_heatmap';
-
-  @override
-  List<String> get dependsOn => const [
-    '20260707_000300_create_analytics_tables',
-  ];
-
-  @override
-  Future<void> up(DatabaseAdapter adapter) async {
-    try {
-      await adapter.rawExecute(
-        'ALTER TABLE "activity_heatmap" '
-        'ADD COLUMN IF NOT EXISTS "sort_index" integer NOT NULL DEFAULT 0',
-        const [],
-      );
-    } on UnsupportedOperationException {
-      // Non-SQL adapters (the in-memory test adapter) always create the
-      // table fresh from the model, which already includes sort_index.
-    }
-  }
-
-  @override
-  Future<void> down(DatabaseAdapter adapter) async {
-    try {
-      await adapter.rawExecute(
-        'ALTER TABLE "activity_heatmap" DROP COLUMN IF EXISTS "sort_index"',
-        const [],
-      );
-    } on UnsupportedOperationException {
-      // See up(): nothing to revert on non-SQL adapters.
     }
   }
 }

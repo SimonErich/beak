@@ -1,110 +1,36 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import '../people/user.dart';
+import 'managed_file.dart';
 
-/// Typed columns of the file-folders resource — a self-referential tree.
-abstract final class FileFolderColumns {
-  /// Folder name.
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(160)],
-  );
-
-  /// Parent folder (self-referential FK; null at the root).
-  static const parentId = BeakStringColumn(
-    key: 'parent_id',
-    label: 'Parent',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// Owning user.
-  static const ownerId = BeakStringColumn(
-    key: 'owner_id',
-    label: 'Owner',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// Folder accent color.
-  static const color = BeakColorColumn(
-    key: 'color',
-    label: 'Color',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    name,
-    parentId,
-    ownerId,
-    color,
-    SharedColumns.createdAt,
-    SharedColumns.updatedAt,
-  ];
-}
-
-/// Typed relationships of the file-folders resource.
-abstract final class FileFolderRelations {
-  /// The parent folder (self-referential).
-  static const parent = BeakBelongsTo(
-    key: 'parent',
-    label: 'Parent',
-    relatedTable: 'file_folders',
-    displayColumnKey: 'name',
-    foreignKey: 'parent_id',
-  );
-
-  /// Sub-folders (self-referential).
-  static const children = BeakHasMany(
-    key: 'children',
-    label: 'Sub-folders',
-    relatedTable: 'file_folders',
-    displayColumnKey: 'name',
-    foreignKey: 'parent_id',
-  );
-
-  /// Files directly inside this folder.
-  static const files = BeakHasMany(
-    key: 'files',
-    label: 'Files',
-    relatedTable: 'files',
-    displayColumnKey: 'name',
-    foreignKey: 'folder_id',
-  );
-
-  /// Owning user.
-  static const owner = BeakBelongsTo(
-    key: 'owner',
-    label: 'Owner',
-    relatedTable: 'users',
-    displayColumnKey: 'name',
-    foreignKey: 'owner_id',
-    searchColumnKeys: ['name'],
-  );
-}
+part 'file_folder.beak.dart';
 
 /// The file-folders resource — the file-manager folder tree.
-final class FileFolderModel extends BeakModel {
-  /// Creates the file-folders model.
-  const FileFolderModel();
+@Resource(timestamps: true)
+final class FileFolder extends BeakSchema {
+  /// Folder name.
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(160)])
+  late final String name;
 
-  @override
-  String get table => 'file_folders';
+  /// The parent folder (self-referential).
+  @BelongsTo()
+  late final FileFolder? parent;
 
-  @override
-  String get displayColumnKey => 'name';
+  /// Owning user.
+  @BelongsTo()
+  late final User? owner;
 
-  @override
-  List<BeakColumn> get columns => FileFolderColumns.values;
+  /// Folder accent color.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakHexColor? color;
 
-  @override
-  List<BeakRelationship> get relationships => const [
-    FileFolderRelations.parent,
-    FileFolderRelations.children,
-    FileFolderRelations.files,
-    FileFolderRelations.owner,
-  ];
+  /// Sub-folders (self-referential).
+  @HasMany(label: 'Sub-folders', foreignKey: 'parent_id')
+  late final List<FileFolder> children;
+
+  /// Files directly inside this folder.
+  @HasMany(foreignKey: 'folder_id')
+  late final List<ManagedFile> files;
 }

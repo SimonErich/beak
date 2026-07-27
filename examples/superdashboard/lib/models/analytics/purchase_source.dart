@@ -1,91 +1,42 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
 import '../shared/enums.dart';
-import '../shared/shared_columns.dart';
 
-/// Typed columns of the purchase-sources resource — the dashboard
-/// source-of-purchases donut, one row per acquisition channel.
-abstract final class PurchaseSourceColumns {
-  /// The acquisition channel.
-  static const source = BeakEnumColumn<PurchaseSource>(
-    key: 'source',
-    label: 'Source',
-    values: PurchaseSource.values,
-    defaultValue: PurchaseSource.direct,
-    filterable: true,
-    badgeColors: {
-      PurchaseSource.direct: BeakColor.primary,
-      PurchaseSource.social: BeakColor.info,
-      PurchaseSource.email: BeakColor.success,
-      PurchaseSource.affiliate: BeakColor.warning,
-      PurchaseSource.search: BeakColor.secondary,
-    },
-  );
-
-  /// Human-readable channel label.
-  static const label = BeakStringColumn(
-    key: 'label',
-    label: 'Label',
-    rules: [BeakRequired(), BeakMaxLength(40)],
-  );
-
-  /// Revenue from this channel.
-  static const total = BeakDecimalColumn(
-    key: 'total',
-    label: 'Total',
-    prefix: r'$',
-    sortable: true,
-  );
-
-  /// Order count from this channel.
-  static const count = BeakIntColumn(
-    key: 'count',
-    label: 'Orders',
-    min: 0,
-    sortable: true,
-  );
-
-  /// Share of total, 0..100.
-  static const percent = BeakDecimalColumn(
-    key: 'percent',
-    label: 'Share',
-    suffix: '%',
-    sortable: true,
-  );
-
-  /// Chart swatch color.
-  static const color = BeakColorColumn(
-    key: 'color',
-    label: 'Color',
-    visibleOn: {BeakContext.form, BeakContext.detail},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    source,
-    label,
-    total,
-    count,
-    percent,
-    color,
-  ];
-}
+part 'purchase_source.beak.dart';
 
 /// The purchase-sources resource — acquisition-channel breakdown.
-final class PurchaseSourceModel extends BeakModel {
-  /// Creates the purchase-sources model.
-  const PurchaseSourceModel();
+@Resource()
+final class PurchaseSource extends BeakSchema {
+  /// The acquisition channel.
+  @Column(filterable: true, defaultValue: PurchaseChannel.direct)
+  @Badges({
+    PurchaseChannel.direct: BeakColor.primary,
+    PurchaseChannel.social: BeakColor.info,
+    PurchaseChannel.email: BeakColor.success,
+    PurchaseChannel.affiliate: BeakColor.warning,
+    PurchaseChannel.search: BeakColor.secondary,
+  })
+  late final PurchaseChannel? source;
 
-  @override
-  String get table => 'purchase_sources';
+  /// Human-readable channel label.
+  @Display()
+  @Column(rules: [BeakMaxLength(40)])
+  late final String label;
 
-  @override
-  String get displayColumnKey => 'label';
+  /// Revenue from this channel.
+  @Column(sortable: true, prefix: r'$')
+  late final double? total;
 
-  @override
-  List<BeakColumn> get columns => PurchaseSourceColumns.values;
+  /// Order count from this channel.
+  @Column(label: 'Orders', sortable: true, min: 0)
+  late final int? count;
 
-  @override
-  List<BeakRelationship> get relationships => const [];
+  /// Share of total, 0..100.
+  @Column(label: 'Share', sortable: true, suffix: '%')
+  late final double? percent;
+
+  /// Chart swatch color.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakHexColor? color;
 }

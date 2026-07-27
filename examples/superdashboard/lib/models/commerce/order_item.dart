@@ -1,99 +1,32 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-import '../shared/shared_columns.dart';
+import 'order.dart';
+import 'product.dart';
 
-/// Typed columns of the order-items resource.
-abstract final class OrderItemColumns {
-  /// Line label, e.g. "2× Espresso Beans".
-  static const label = BeakStringColumn(
-    key: 'label',
-    label: 'Item',
-    searchable: true,
-    rules: [BeakRequired(), BeakMaxLength(160)],
-  );
-
-  /// Quantity ordered.
-  static const quantity = BeakIntColumn(
-    key: 'quantity',
-    label: 'Qty',
-    min: 1,
-    sortable: true,
-    rules: [BeakRequired(), BeakMin(1)],
-  );
-
-  /// Unit price in dollars.
-  static const unitPrice = BeakDecimalColumn(
-    key: 'unit_price',
-    label: 'Unit price',
-    prefix: r'$',
-    rules: [BeakRequired(), BeakMin(0)],
-  );
-
-  /// The owning order.
-  static const orderId = BeakStringColumn(
-    key: 'order_id',
-    label: 'Order',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// The product sold.
-  static const productId = BeakStringColumn(
-    key: 'product_id',
-    label: 'Product',
-    visibleOn: {BeakContext.form},
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    label,
-    quantity,
-    unitPrice,
-    orderId,
-    productId,
-  ];
-}
-
-/// Typed relationships of the order-items resource.
-abstract final class OrderItemRelations {
-  /// The owning order.
-  static const order = BeakBelongsTo(
-    key: 'order',
-    label: 'Order',
-    relatedTable: 'orders',
-    displayColumnKey: 'reference',
-    foreignKey: 'order_id',
-    searchColumnKeys: ['reference'],
-  );
-
-  /// The product sold.
-  static const product = BeakBelongsTo(
-    key: 'product',
-    label: 'Product',
-    relatedTable: 'products',
-    displayColumnKey: 'name',
-    foreignKey: 'product_id',
-    searchColumnKeys: ['name'],
-  );
-}
+part 'order_item.beak.dart';
 
 /// The order-items resource — one line of an order.
-final class OrderItemModel extends BeakModel {
-  /// Creates the order-items model.
-  const OrderItemModel();
+@Resource()
+final class OrderItem extends BeakSchema {
+  /// Line label, e.g. "2× Espresso Beans".
+  @Display()
+  @Column(label: 'Item', searchable: true, rules: [BeakMaxLength(160)])
+  late final String label;
 
-  @override
-  String get table => 'order_items';
+  /// Quantity ordered.
+  @Column(label: 'Qty', min: 1, sortable: true, rules: [BeakMin(1)])
+  late final int quantity;
 
-  @override
-  String get displayColumnKey => 'label';
+  /// Unit price in dollars.
+  @Column(label: 'Unit price', prefix: r'$', rules: [BeakMin(0)])
+  late final double unitPrice;
 
-  @override
-  List<BeakColumn> get columns => OrderItemColumns.values;
+  /// The owning order.
+  @BelongsTo()
+  late final Order? order;
 
-  @override
-  List<BeakRelationship> get relationships => const [
-    OrderItemRelations.order,
-    OrderItemRelations.product,
-  ];
+  /// The product sold.
+  @BelongsTo()
+  late final Product? product;
 }

@@ -1,7 +1,7 @@
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
 import 'package:superdashboard/seeders/seed_ids.dart';
-import 'package:obers_ui/obers_ui.dart';
+import 'package:beak/ui.dart';
 
 /// The invoice-detail page — a composed invoice document (header meta,
 /// bill-to, a line-item table, and a totals summary) for the fixed seeded

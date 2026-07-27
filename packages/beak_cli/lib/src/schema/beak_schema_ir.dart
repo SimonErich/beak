@@ -149,6 +149,7 @@ final class BeakRelationIr {
     required this.label,
     required this.kind,
     required this.relatedSchema,
+    this.searchOn = const <String>[],
     this.foreignKey,
     this.pivotTable,
     this.foreignPivotKey,
@@ -172,6 +173,12 @@ final class BeakRelationIr {
 
   /// Class name of the schema on the other side.
   final String relatedSchema;
+
+  /// Columns of the related table a picker searches, by key.
+  ///
+  /// Empty means "the related model's display column", which is what a
+  /// picker wants unless a person looks records up by something else.
+  final List<String> searchOn;
 
   /// Foreign-key column, when the kind has one.
   final String? foreignKey;

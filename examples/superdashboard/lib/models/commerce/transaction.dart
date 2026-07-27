@@ -1,7 +1,11 @@
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
+import '../people/user.dart';
 import '../shared/enums.dart';
-import '../shared/shared_columns.dart';
+import 'order.dart';
+
+part 'transaction.beak.dart';
 
 /// How a transaction was paid.
 enum PaymentMethod {
@@ -42,160 +46,68 @@ enum TxDirection {
   outgoing,
 }
 
-/// Typed columns of the transactions resource — feeds the dashboard
-/// latest-transactions table.
-abstract final class TransactionColumns {
+/// The transactions resource — a single payment event.
+@Resource()
+final class Transaction extends BeakSchema {
   /// Human-readable reference.
-  static const reference = BeakStringColumn(
-    key: 'reference',
-    label: 'Reference',
-    searchable: true,
-    rules: [BeakMaxLength(40)],
-  );
+  @Display()
+  @Column(searchable: true, rules: [BeakMaxLength(40)])
+  late final String? reference;
 
   /// The paying/receiving user.
-  static const userId = BeakStringColumn(
-    key: 'user_id',
-    label: 'User',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo(searchOn: ['name', 'email'])
+  late final User? user;
 
   /// The related order, if any.
-  static const orderId = BeakStringColumn(
-    key: 'order_id',
-    label: 'Order',
-    visibleOn: {BeakContext.form},
-  );
+  @BelongsTo()
+  late final Order? order;
 
   /// Payment method.
-  static const method = BeakEnumColumn<PaymentMethod>(
-    key: 'method',
-    label: 'Method',
-    values: PaymentMethod.values,
-    defaultValue: PaymentMethod.card,
-    filterable: true,
-    badgeColors: {
-      PaymentMethod.card: BeakColor.primary,
-      PaymentMethod.paypal: BeakColor.info,
-      PaymentMethod.bankTransfer: BeakColor.secondary,
-      PaymentMethod.wallet: BeakColor.success,
-    },
-  );
+  @Column(defaultValue: PaymentMethod.card, filterable: true)
+  @Badges({
+    PaymentMethod.card: BeakColor.primary,
+    PaymentMethod.paypal: BeakColor.info,
+    PaymentMethod.bankTransfer: BeakColor.secondary,
+    PaymentMethod.wallet: BeakColor.success,
+  })
+  late final PaymentMethod? method;
 
   /// Card network.
-  static const brand = BeakEnumColumn<CardBrand>(
-    key: 'brand',
-    label: 'Brand',
-    values: CardBrand.values,
+  @Column(
     defaultValue: CardBrand.visa,
     visibleOn: {BeakContext.form, BeakContext.detail},
-    badgeColors: {
-      CardBrand.visa: BeakColor.primary,
-      CardBrand.mastercard: BeakColor.warning,
-      CardBrand.amex: BeakColor.info,
-      CardBrand.paypal: BeakColor.secondary,
-    },
-  );
+  )
+  @Badges({
+    CardBrand.visa: BeakColor.primary,
+    CardBrand.mastercard: BeakColor.warning,
+    CardBrand.amex: BeakColor.info,
+    CardBrand.paypal: BeakColor.secondary,
+  })
+  late final CardBrand? brand;
 
   /// Transaction amount in dollars.
-  static const amount = BeakDecimalColumn(
-    key: 'amount',
-    label: 'Amount',
-    prefix: r'$',
-    sortable: true,
-  );
+  @Column(prefix: r'$', sortable: true)
+  late final double? amount;
 
   /// Settlement state.
-  static const status = BeakEnumColumn<PaymentStatus>(
-    key: 'status',
-    label: 'Status',
-    values: PaymentStatus.values,
-    defaultValue: PaymentStatus.paid,
-    filterable: true,
-    badgeColors: {
-      PaymentStatus.pending: BeakColor.warning,
-      PaymentStatus.paid: BeakColor.success,
-      PaymentStatus.failed: BeakColor.error,
-      PaymentStatus.refunded: BeakColor.muted,
-    },
-  );
+  @Column(defaultValue: PaymentStatus.paid, filterable: true)
+  @Badges({
+    PaymentStatus.pending: BeakColor.warning,
+    PaymentStatus.paid: BeakColor.success,
+    PaymentStatus.failed: BeakColor.error,
+    PaymentStatus.refunded: BeakColor.muted,
+  })
+  late final PaymentStatus? status;
 
   /// Money direction.
-  static const direction = BeakEnumColumn<TxDirection>(
-    key: 'direction',
-    label: 'Direction',
-    values: TxDirection.values,
-    defaultValue: TxDirection.incoming,
-    filterable: true,
-    badgeColors: {
-      TxDirection.incoming: BeakColor.success,
-      TxDirection.outgoing: BeakColor.error,
-    },
-  );
+  @Column(defaultValue: TxDirection.incoming, filterable: true)
+  @Badges({
+    TxDirection.incoming: BeakColor.success,
+    TxDirection.outgoing: BeakColor.error,
+  })
+  late final TxDirection? direction;
 
   /// When the transaction occurred.
-  static const occurredAt = BeakDateTimeColumn(
-    key: 'occurred_at',
-    label: 'When',
-    format: BeakDateFormat.relative,
-    sortable: true,
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    SharedColumns.id,
-    reference,
-    userId,
-    orderId,
-    method,
-    brand,
-    amount,
-    status,
-    direction,
-    occurredAt,
-  ];
-}
-
-/// Typed relationships of the transactions resource.
-abstract final class TransactionRelations {
-  /// The paying/receiving user.
-  static const user = BeakBelongsTo(
-    key: 'user',
-    label: 'User',
-    relatedTable: 'users',
-    displayColumnKey: 'name',
-    foreignKey: 'user_id',
-    searchColumnKeys: ['name', 'email'],
-  );
-
-  /// The related order, if any.
-  static const order = BeakBelongsTo(
-    key: 'order',
-    label: 'Order',
-    relatedTable: 'orders',
-    displayColumnKey: 'reference',
-    foreignKey: 'order_id',
-    searchColumnKeys: ['reference'],
-  );
-}
-
-/// The transactions resource — a single payment event.
-final class TransactionModel extends BeakModel {
-  /// Creates the transactions model.
-  const TransactionModel();
-
-  @override
-  String get table => 'transactions';
-
-  @override
-  String get displayColumnKey => 'reference';
-
-  @override
-  List<BeakColumn> get columns => TransactionColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    TransactionRelations.user,
-    TransactionRelations.order,
-  ];
+  @Column(label: 'When', format: BeakDateFormat.relative, sortable: true)
+  late final DateTime? occurredAt;
 }

@@ -519,4 +519,107 @@ final class Thing extends BeakSchema {
       );
     });
   });
+
+  group('relationship labels and picker search', () {
+    const files = {
+      'user.dart': """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'user.beak.dart';
+
+@Resource()
+final class User extends BeakSchema {
+  @Display()
+  late final String name;
+
+  @Column(searchable: true)
+  late final String email;
+}
+""",
+      'order.dart': """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+import 'user.dart';
+
+part 'order.beak.dart';
+
+@Resource()
+final class Order extends BeakSchema {
+  @Display()
+  late final String reference;
+
+  @BelongsTo(label: 'Customer', searchOn: ['name', 'email'])
+  late final User? user;
+}
+""",
+    };
+
+    test('a label names the relation and the key it owns', () {
+      final (schemas, issues) = readSchemas(files);
+      expect(issues, isEmpty);
+      final emitted = BeakSchemaEmitter.emit(
+        schemaNamed(schemas, 'Order'),
+        schemas,
+      );
+
+      // The relationship, and the foreign-key column it synthesises, are the
+      // same thing to a reader: both read "Customer".
+      expect(emitted, contains("label: 'Customer'"));
+      expect(
+        RegExp("label: 'Customer'").allMatches(emitted).length,
+        2,
+        reason: 'the relation and its foreign-key column both carry it',
+      );
+    });
+
+    test('searchOn widens what the picker looks through', () {
+      final (schemas, _) = readSchemas(files);
+      final emitted = BeakSchemaEmitter.emit(
+        schemaNamed(schemas, 'Order'),
+        schemas,
+      );
+
+      expect(emitted, contains("searchColumnKeys: ['name', 'email']"));
+    });
+
+    test('searchOn defaults to the related display column', () {
+      final (schemas, _) = readSchemas({
+        ...files,
+        'order.dart': files['order.dart']!.replaceAll(
+          "@BelongsTo(label: 'Customer', searchOn: ['name', 'email'])",
+          '@BelongsTo()',
+        ),
+      });
+      final emitted = BeakSchemaEmitter.emit(
+        schemaNamed(schemas, 'Order'),
+        schemas,
+      );
+
+      expect(emitted, contains("searchColumnKeys: ['name']"));
+    });
+
+    test('a searchOn key the other table has not is named, with the list', () {
+      // The one place a schema class names another table's column by key, so
+      // it is the one place that has to be checked.
+      final (_, issues) = readSchemas({
+        ...files,
+        'order.dart': files['order.dart']!.replaceAll(
+          "searchOn: ['name', 'email']",
+          "searchOn: ['naem']",
+        ),
+      });
+
+      expect(issues, hasLength(1));
+      expect(
+        issues.single.message,
+        allOf(
+          contains('Order.user'),
+          contains('"naem"'),
+          contains('email, id, name'),
+        ),
+      );
+    });
+  });
 }

@@ -279,10 +279,27 @@ final class Custom {
 final class BelongsTo {
   /// Declares the annotated field a belongs-to relationship.
   const BelongsTo({
+    this.label,
     this.foreignKey,
+    this.searchOn = const [],
     this.onDelete = BeakOnDelete.setNull,
     this.inverse = true,
   });
+
+  /// Human-readable label. Defaults to the title-cased field name.
+  ///
+  /// Also labels the foreign-key column this relationship owns, so a picker
+  /// reading "Customer" is not filed under "User".
+  final String? label;
+
+  /// Columns of the related table the picker searches, by key.
+  ///
+  /// Defaults to the related model's display column. Widen it when a person
+  /// looks a record up by something other than its name — an email, a
+  /// reference number. Each key is checked against the related schema, so a
+  /// typo is an error naming the field rather than a picker that finds
+  /// nothing.
+  final List<String> searchOn;
 
   /// Foreign-key column. Defaults to the snake-cased field name plus `_id`.
   final String? foreignKey;
@@ -301,7 +318,10 @@ final class BelongsTo {
 @immutable
 final class HasOne {
   /// Declares the annotated field a has-one relationship.
-  const HasOne({this.foreignKey});
+  const HasOne({this.label, this.foreignKey});
+
+  /// Human-readable label. Defaults to the title-cased field name.
+  final String? label;
 
   /// Foreign-key column on the related table. Defaults to this table's
   /// singular name plus `_id`.
@@ -312,7 +332,14 @@ final class HasOne {
 @immutable
 final class HasMany {
   /// Declares the annotated field a has-many relationship.
-  const HasMany({this.foreignKey, this.onDelete = BeakOnDelete.restrict});
+  const HasMany({
+    this.label,
+    this.foreignKey,
+    this.onDelete = BeakOnDelete.restrict,
+  });
+
+  /// Human-readable label. Defaults to the title-cased field name.
+  final String? label;
 
   /// Foreign-key column on the related table.
   final String? foreignKey;
@@ -329,14 +356,24 @@ final class HasMany {
 final class BelongsToMany {
   /// Declares the annotated field a many-to-many relationship.
   const BelongsToMany({
+    this.label,
     this.pivotTable,
     this.foreignPivotKey,
     this.relatedPivotKey,
+    this.searchOn = const [],
     this.allowCreate = false,
     this.maxAllowed,
     this.onDelete = BeakOnDelete.cascade,
     this.inverse = true,
   });
+
+  /// Human-readable label. Defaults to the title-cased field name.
+  final String? label;
+
+  /// Columns of the related table the picker searches, by key.
+  ///
+  /// Defaults to the related model's display column.
+  final List<String> searchOn;
 
   /// Join table. Defaults to the two singular table names, sorted, joined by
   /// an underscore.
