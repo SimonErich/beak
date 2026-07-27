@@ -16,6 +16,8 @@ final class BeakRichTextColumn extends BeakColumn with BeakTypedColumn<String> {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
 

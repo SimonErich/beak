@@ -30,7 +30,7 @@ abstract final class BeakSchemaEmitter {
 
     _writeColumns(buffer, schema);
     _writeRelations(buffer, schema, byClass, all);
-    _writeModel(buffer, schema);
+    _writeModel(buffer, schema, all);
     _writeRecord(buffer, schema, byClass);
     // Formatted here rather than by the caller, so any consumer of the
     // emitter gets source that `dart format --set-exit-if-changed` accepts.
@@ -103,17 +103,8 @@ abstract final class BeakSchemaEmitter {
       );
     }
 
-    // An explicit declaration always wins over the inverse that would have
-    // been synthesized for it: `beak introspect` writes both sides of a
-    // relationship, and two identical constants is a compile error rather
-    // than a redundancy the user can ignore.
-    final taken = {for (final relation in schema.relations) relation.fieldName};
-    for (final (owner, relation) in inverses) {
+    for (final (owner, relation) in _emittedInverses(schema, all)) {
       final String name = _inverseNameOf(owner, relation);
-      if (!taken.add(name) ||
-          schema.relations.any((r) => r.relatedSchema == owner.className)) {
-        continue;
-      }
       _writeDoc(
         buffer,
         'The ${owner.table} on the other side of '
@@ -134,6 +125,30 @@ abstract final class BeakSchemaEmitter {
     buffer
       ..writeln('}')
       ..writeln();
+  }
+
+  /// The inverse relationships this schema emits a constant for.
+  ///
+  /// An explicit declaration always wins over the inverse that would have
+  /// been synthesized for it: `beak introspect` writes both sides of a
+  /// relationship, and two identical constants is a compile error rather
+  /// than a redundancy the user can ignore.
+  ///
+  /// Shared by the relations class and the model's `relationships` list —
+  /// they were allowed to disagree once, and every synthesized inverse was
+  /// generated and then registered nowhere, so a `Category` show page had no
+  /// products tab and `BeakBlueprint` could not see the foreign key.
+  static List<(BeakSchemaIr, BeakRelationIr)> _emittedInverses(
+    BeakSchemaIr schema,
+    List<BeakSchemaIr> all,
+  ) {
+    final taken = {for (final relation in schema.relations) relation.fieldName};
+    return <(BeakSchemaIr, BeakRelationIr)>[
+      for (final (owner, relation) in _inversesTargeting(schema, all))
+        if (taken.add(_inverseNameOf(owner, relation)) &&
+            !schema.relations.any((r) => r.relatedSchema == owner.className))
+          (owner, relation),
+    ];
   }
 
   static void _writeRelationConstant(
@@ -159,7 +174,11 @@ abstract final class BeakSchemaEmitter {
       ..writeln();
   }
 
-  static void _writeModel(StringBuffer buffer, BeakSchemaIr schema) {
+  static void _writeModel(
+    StringBuffer buffer,
+    BeakSchemaIr schema,
+    List<BeakSchemaIr> all,
+  ) {
     _writeDoc(buffer, schema.docComment ?? 'The ${schema.table} resource.');
     buffer
       ..writeln('final class ${schema.modelClass} extends BeakModel {')
@@ -178,13 +197,22 @@ abstract final class BeakSchemaEmitter {
       ..writeln(
         '  List<BeakColumn> get columns => ${schema.columnsClass}.values;',
       );
-    if (schema.relations.isNotEmpty) {
+    // Both the declared relationships and the synthesized inverses: a
+    // constant the relations class emits and the model does not register is
+    // dead code the panel can never reach.
+    final inverses = _emittedInverses(schema, all);
+    if (schema.relations.isNotEmpty || inverses.isNotEmpty) {
       buffer
         ..writeln()
         ..writeln('  @override')
         ..writeln('  List<BeakRelationship> get relationships => const [');
       for (final relation in schema.relations) {
         buffer.writeln('    ${schema.relationsClass}.${relation.fieldName},');
+      }
+      for (final (owner, relation) in inverses) {
+        buffer.writeln(
+          '    ${schema.relationsClass}.${_inverseNameOf(owner, relation)},',
+        );
       }
       buffer.writeln('  ];');
     }

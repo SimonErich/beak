@@ -22,6 +22,8 @@ final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.trueLabel,
     this.falseLabel,

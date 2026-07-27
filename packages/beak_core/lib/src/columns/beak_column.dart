@@ -75,6 +75,8 @@ sealed class BeakColumn {
     this.sortable = false,
     this.searchable = false,
     this.filterable = false,
+    this.indexed = false,
+    this.unique = false,
     this.rules = const [],
   });
 
@@ -98,6 +100,22 @@ sealed class BeakColumn {
 
   /// Whether table views may filter by this column.
   final bool filterable;
+
+  /// Whether the database should index this column.
+  ///
+  /// A migration derived from the model creates the index, so declaring it
+  /// here is the whole of it. Beak indexes every belongs-to foreign key
+  /// without being asked — those are joined on every list page — so this is
+  /// for the columns a project sorts or filters by often.
+  final bool indexed;
+
+  /// Whether the database should enforce that this column's values are
+  /// distinct.
+  ///
+  /// A unique index, so it also serves as one: there is no reason to declare
+  /// both. Validation still happens at the API boundary; this is the
+  /// guarantee underneath it.
+  final bool unique;
 
   /// Declarative validation rules enforced on input, in order.
   final List<BeakRule> rules;
@@ -212,6 +230,8 @@ sealed class BeakUploadColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.maxSizeInBytes,
     this.allowedTypes = const [],

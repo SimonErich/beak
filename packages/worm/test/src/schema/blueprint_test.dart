@@ -108,7 +108,14 @@ void main() {
         table.uuid('id').primary();
         table.string('email');
         table.unique(<String>['email']);
-        table.index(<String>['email'], where: 'email IS NOT NULL');
+        // A partial index over the same column is a different index, so it
+        // needs its own name — both would otherwise auto-derive
+        // `users_email_idx` and no database accepts two under one name.
+        table.index(
+          <String>['email'],
+          name: 'users_email_present_idx',
+          where: 'email IS NOT NULL',
+        );
       });
       final sql = blueprint.toSql();
       expect(sql, contains('UNIQUE INDEX'));

@@ -6,6 +6,7 @@ import '../cli_runner.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_reader.dart';
 
@@ -115,12 +116,39 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     );
   }
 
-  final written = <String>[...schemaFiles];
+  // Migrations before the wiring: a migration Beak writes must be visible to
+  // the scan that lists them on the generated host. They are written once and
+  // never rewritten, so they deliberately sit outside BeakEmitters.all, whose
+  // every entry `beak doctor` byte-compares and would call stale.
+  final migrationFiles = <String>[];
+  for (final migration in BeakMigrationEmitter.missing(
+    models: discovery.models,
+    schemas: schemas,
+    coveredTables: discovery.migratedTables,
+    now: environment.now(),
+  )) {
+    final file = File('${root.path}/${migration.path}');
+    if (file.existsSync()) {
+      continue;
+    }
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(migration.contents);
+    migrationFiles.add(migration.path);
+  }
+  final BeakDiscovery withMigrations = migrationFiles.isEmpty
+      ? discovery
+      : BeakProjectScanner(root).scan(
+          tablesByModelClass: <String, String>{
+            for (final schema in schemas) schema.modelClass: schema.table,
+          },
+        );
+
+  final written = <String>[...schemaFiles, ...migrationFiles];
   final unchanged = <String>[];
   for (final generated in BeakEmitters.all(
     packageName: packageName,
     config: config,
-    discovery: discovery,
+    discovery: withMigrations,
   )) {
     final file = File('${root.path}/${generated.path}');
     final bool isCurrent =
@@ -134,7 +162,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     written.add(generated.path);
   }
 
-  environment.out.writeln('  ${discovery.summary}');
+  environment.out.writeln('  ${withMigrations.summary}');
   environment.out.writeln(
     written.isEmpty
         ? '  generated  up to date (${unchanged.length} files)'
@@ -142,7 +170,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
               '${written.length + unchanged.length} files',
   );
   return BeakPrepareResult(
-    discovery: discovery,
+    discovery: withMigrations,
     written: written,
     unchanged: unchanged,
   );

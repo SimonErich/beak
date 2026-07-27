@@ -90,6 +90,8 @@ final class Column {
     this.sortable = false,
     this.searchable = false,
     this.filterable = false,
+    this.indexed = false,
+    this.unique = false,
     this.rules = const [],
     this.prefix,
     this.suffix,
@@ -117,6 +119,17 @@ final class Column {
 
   /// Whether table views may filter by this column.
   final bool filterable;
+
+  /// Whether the database should index this column.
+  ///
+  /// The generated migration creates the index, so declaring it here is the
+  /// whole of it. Every belongs-to foreign key is indexed without being
+  /// asked, so this is for the columns a project sorts or filters by often.
+  final bool indexed;
+
+  /// Whether the database should enforce that this column's values are
+  /// distinct — a unique index, so it indexes too.
+  final bool unique;
 
   /// Validation rules, enforced on both the client and the API.
   final List<BeakRule> rules;

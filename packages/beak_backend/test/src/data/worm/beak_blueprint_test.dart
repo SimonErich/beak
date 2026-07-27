@@ -114,6 +114,24 @@ final class _SoftDeleteDeclaringModel extends BeakModel {
   bool get softDeletes => true;
 }
 
+/// A model whose columns declare their own indexing.
+final class _IndexedModel extends BeakModel {
+  const _IndexedModel();
+
+  @override
+  String get table => 'widgets';
+
+  @override
+  String get displayColumnKey => 'slug';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'slug', label: 'Slug', indexed: true),
+    BeakStringColumn(key: 'code', label: 'Code', unique: true),
+  ];
+}
+
 final class _RestrictedModel extends BeakModel {
   const _RestrictedModel();
 
@@ -258,6 +276,49 @@ void main() {
       );
     });
 
+    test('indexes every belongs-to foreign key without being asked', () {
+      // The panel joins on them to render a list page, so an unindexed one
+      // is a sequential scan per row on the most common query a Beak app
+      // makes. Nobody remembers to declare these.
+      expect(
+        table.indexes.map((index) => index.columns.join(',')),
+        contains('owner_id'),
+      );
+    });
+
+    test('a column declaring indexed gets one, unique gets a unique one', () {
+      final declared = BlueprintTable('widgets');
+      BeakBlueprint.defineColumns(declared, const _IndexedModel());
+
+      expect(
+        declared.indexes.map((index) => index.columns.join(',')),
+        contains('slug'),
+      );
+      expect(
+        declared.columns.firstWhere((c) => c.name == 'code').unique,
+        isTrue,
+      );
+    });
+
+    test('a pivot indexes both directions, not just the composite', () {
+      // The composite unique covers left-to-right; without a second index,
+      // listing a tag's products scans the whole pivot. A many-to-many is
+      // traversed from both sides by definition.
+      final pivot = BlueprintTable('product_tag');
+      BeakBlueprint.definePivot(
+        pivot,
+        leftColumn: 'product_id',
+        leftTable: 'products',
+        rightColumn: 'tag_id',
+        rightTable: 'tags',
+      );
+
+      expect(
+        pivot.indexes.map((index) => index.columns.join(',')),
+        containsAll(<String>['product_id,tag_id', 'tag_id']),
+      );
+    });
+
     test('omits deleted_at for a model that hard-deletes', () {
       final hard = BlueprintTable('widgets');
       BeakBlueprint.defineColumns(
@@ -338,8 +399,8 @@ void main() {
         table.columns.every((column) => column.type == ColumnType.uuid),
         isTrue,
       );
-      expect(table.indexes.single.columns, ['widget_id', 'tag_id']);
-      expect(table.indexes.single.unique, isTrue);
+      final composite = table.indexes.firstWhere((index) => index.unique);
+      expect(composite.columns, ['widget_id', 'tag_id']);
       expect(
         table.foreignKeys.map((fk) => fk.onDelete),
         everyElement(OnDelete.cascade),

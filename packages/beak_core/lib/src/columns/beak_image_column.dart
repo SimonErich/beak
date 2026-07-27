@@ -36,6 +36,8 @@ final class BeakImageColumn extends BeakUploadColumn
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     super.maxSizeInBytes,
     super.allowedTypes = BeakFileType.images,

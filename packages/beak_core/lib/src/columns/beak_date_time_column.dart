@@ -43,6 +43,8 @@ final class BeakDateTimeColumn extends BeakColumn
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.format = BeakDateFormat.standard,
   });

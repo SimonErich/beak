@@ -288,6 +288,24 @@ final class Empty extends BeakSchema {}
       expect(category, contains("relatedTable: 'products'"));
     });
 
+    test('registers the inverse on the model, not just the constant', () {
+      // The constant was emitted and then registered nowhere, so
+      // `CategoryModel().relationships` was empty: a Category show page had
+      // no products tab, and BeakBlueprint could not see the foreign key.
+      expect(
+        category,
+        contains('CategoryRelations.products,'),
+        reason: 'the synthesized inverse must reach the relationships list',
+      );
+      expect(category, contains('List<BeakRelationship> get relationships'));
+    });
+
+    test('a schema with only inverses still declares relationships', () {
+      // Category declares none of its own; without the inverses its model
+      // would have no relationships override at all.
+      expect(category, contains('get relationships => const ['));
+    });
+
     test('suppresses the inverse when the declaration opts out', () {
       final (opted, _) = readSchemas({
         'category.dart': categorySchema,

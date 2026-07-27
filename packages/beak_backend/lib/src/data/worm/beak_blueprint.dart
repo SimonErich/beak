@@ -128,6 +128,18 @@ abstract final class BeakBlueprint {
       } else if (!column.rules.any((rule) => rule is BeakRequired)) {
         definition.makeNullable();
       }
+      if (column.unique) {
+        definition.makeUnique();
+      } else if (column.indexed) {
+        table.index(<String>[column.key]);
+      }
+    }
+
+    // Every belongs-to foreign key, without being asked. The panel joins on
+    // them to render a list page, so an unindexed one is a sequential scan
+    // per row on the most common query a Beak app makes.
+    for (final key in foreignKeys) {
+      table.index(<String>[key]);
     }
 
     if (model.softDeletes) {
@@ -197,6 +209,11 @@ abstract final class BeakBlueprint {
     table.uuid(leftColumn);
     table.uuid(rightColumn);
     table.unique([leftColumn, rightColumn]);
+    // The composite unique already indexes left-to-right lookups, but not
+    // right-to-left: without this, listing a tag's products is a full scan of
+    // the pivot, and a many-to-many is traversed from both sides by
+    // definition.
+    table.index([rightColumn]);
     table.foreign(
       column: leftColumn,
       references: 'id',

@@ -338,6 +338,8 @@ pubspec.lock
 # deployment sets DATABASE_URL and this file never appears.
 /*.db
 /*.db-journal
+/*.db-wal
+/*.db-shm
 ''';
 
   static const String _analysisOptions = '''

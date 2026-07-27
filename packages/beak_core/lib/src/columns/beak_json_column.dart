@@ -25,6 +25,8 @@ final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
 

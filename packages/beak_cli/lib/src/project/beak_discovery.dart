@@ -98,7 +98,16 @@ final class BeakDiscovery {
     this.seeders = const [],
     this.overrides = const {},
     this.issues = const [],
+    this.migratedTables = const <String>{},
   });
+
+  /// Tables the discovered migrations create, read from the source.
+  ///
+  /// Read from the AST rather than inferred from file names, because one
+  /// migration legitimately creates several tables — a single
+  /// `CreateCommerceTables` builds six — and a name-based guess would decide
+  /// five of them were missing and write duplicates.
+  final Set<String> migratedTables;
 
   /// `BeakModel` subclasses under `lib/models/`, in path order.
   final List<BeakDiscoveredSymbol> models;
@@ -219,6 +228,7 @@ final class BeakProjectScanner {
       seeders: seeders,
       overrides: _scanOverrides(),
       issues: issues,
+      migratedTables: _scanMigratedTables(),
     );
   }
 
@@ -293,6 +303,55 @@ final class BeakProjectScanner {
     }
     found.sort();
     return found;
+  }
+
+  /// Every table the migrations under `lib/migrations/` create.
+  ///
+  /// Collects the string argument of every `schema.create('x', …)` and
+  /// `schema.alter('x', …)`, plus the `ownerTable:` and pivot of every
+  /// `BeakBlueprint.createPivot`. Unresolved AST, so it costs a parse and
+  /// nothing else.
+  Set<String> _scanMigratedTables() {
+    final tables = <String>{};
+    for (final file in _dartFilesUnder(migrationsDir)) {
+      _collectMigratedTables(_parse(file), tables);
+    }
+    return tables;
+  }
+
+  /// Walks [node] collecting the tables its schema calls name.
+  static void _collectMigratedTables(AstNode node, Set<String> into) {
+    if (node is MethodInvocation) {
+      const schemaCalls = <String>{'create', 'alter'};
+      final String method = node.methodName.name;
+      if (schemaCalls.contains(method) || method == 'createPivot') {
+        for (final argument in node.argumentList.arguments) {
+          if (argument case final SimpleStringLiteral literal) {
+            into.add(literal.value);
+          }
+          if (argument case NamedExpression(
+            name: Label(label: SimpleIdentifier(name: 'ownerTable')),
+            expression: final SimpleStringLiteral literal,
+          )) {
+            into.add(literal.value);
+          }
+          // A pivot names its table through a relation constant, which
+          // unresolved AST cannot follow. Record the constant itself; the
+          // emitter knows which pivot each one stands for.
+          if (argument case PrefixedIdentifier(
+            prefix: SimpleIdentifier(name: final String owner),
+            identifier: SimpleIdentifier(name: final String field),
+          ) when owner.endsWith('Relations')) {
+            into.add('$owner.$field');
+          }
+        }
+      }
+    }
+    for (final child in node.childEntities) {
+      if (child is AstNode) {
+        _collectMigratedTables(child, into);
+      }
+    }
   }
 
   /// The string a class's `String get name => '...';` returns, when it has

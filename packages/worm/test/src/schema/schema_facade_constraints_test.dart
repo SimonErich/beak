@@ -135,6 +135,33 @@ void main() {
       expect(index.columns, <String>['email']);
     });
 
+    test('declaring one index twice is the same index, not two', () async {
+      // Normal once anything derives indexes from a model: a migration may
+      // also name the index on a foreign key that BeakBlueprint adds.
+      await schema.create('products', (table) {
+        table
+          ..uuid('category_id')
+          ..index(<String>['category_id'])
+          ..index(<String>['category_id']);
+      });
+
+      expect(lastDescriptor().indexes, hasLength(1));
+    });
+
+    test('two different indexes under one derived name are rejected', () {
+      // A unique index and a partial index over the same column are
+      // different indexes, and no database accepts two under one name.
+      expect(
+        () => schema.create('users', (table) {
+          table
+            ..string('email')
+            ..unique(<String>['email'])
+            ..index(<String>['email'], where: 'email IS NOT NULL');
+        }),
+        throwsA(isA<SchemaDefinitionException>()),
+      );
+    });
+
     test('change() inside a create is rejected', () {
       expect(
         () => schema.create('products', (table) {

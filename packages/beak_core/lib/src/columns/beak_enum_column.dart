@@ -36,6 +36,8 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.defaultValue,
     this.badgeColors = const <Never, BeakColor>{},

@@ -45,6 +45,8 @@ final class BeakCustomColumn extends BeakColumn with BeakTypedColumn<Object> {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
 

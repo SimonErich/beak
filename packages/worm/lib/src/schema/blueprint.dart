@@ -1,6 +1,7 @@
 /// Fluent schema builder for migrations.
 library;
 
+import '../exception/schema_definition_exception.dart';
 import 'column_definition.dart';
 import 'column_type.dart';
 import 'foreign_key_definition.dart';
@@ -250,6 +251,32 @@ final class BlueprintTable {
     String? where,
   }) {
     final indexName = name ?? '${tableName}_${columns.join('_')}_idx';
+    // Declaring the same index twice is normal once anything derives indexes
+    // from a model: a migration may also name the one on a foreign key. Two
+    // definitions with one name is either the same index — in which case the
+    // second is redundant — or a mistake worth naming.
+    for (final existing in indexes) {
+      if (existing.name != indexName) {
+        continue;
+      }
+      final bool identical =
+          _sameColumns(existing.columns, columns) &&
+          existing.unique == unique &&
+          existing.kind == kind &&
+          existing.partialWhere == where;
+      if (identical) {
+        return existing;
+      }
+      throw SchemaDefinitionException(
+        table: tableName,
+        operation: 'index',
+        message:
+            'Two different indexes would both be named "$indexName". A '
+            'unique, partial or differently-typed index over the same '
+            'columns is a different index, and no database accepts two under '
+            'one name — give one of them an explicit name.',
+      );
+    }
     final def = IndexDefinition(
       name: indexName,
       columns: columns,
@@ -259,6 +286,19 @@ final class BlueprintTable {
     );
     indexes.add(def);
     return def;
+  }
+
+  /// Whether [a] and [b] cover the same columns in the same order.
+  static bool _sameColumns(List<String> a, List<String> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Adds a unique index over [columns].

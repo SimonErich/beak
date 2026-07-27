@@ -31,6 +31,8 @@ final class BeakDecimalColumn extends BeakColumn with BeakTypedColumn<double> {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.precision = 2,
     this.prefix,

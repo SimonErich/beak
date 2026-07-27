@@ -7,6 +7,8 @@ import '../cli_runner.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../schema/beak_migration_emitter.dart';
+import '../schema/beak_schema_reader.dart';
 
 /// How a single check came out.
 enum BeakCheckStatus {
@@ -217,10 +219,52 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
     );
   }
 
+  checks.add(_migrationCoverageCheck(root, config, discovery));
   checks.add(_webScaffoldCheck(root));
   checks.addAll(serverImportChecks(root));
   checks.add(await _databaseCheck(environment, root));
   return checks;
+}
+
+/// Whether every model Beak owns has a migration that creates its table.
+///
+/// A model with no table is a resource whose every endpoint fails, and the
+/// failure surfaces as a database error at request time rather than as
+/// anything a project could act on. Computed from the same emitter
+/// `beak prepare` writes with, so the check and the generator cannot report
+/// different things.
+BeakCheck _migrationCoverageCheck(
+  Directory root,
+  BeakProjectConfig config,
+  BeakDiscovery discovery,
+) {
+  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  if (schemaIssues.isNotEmpty) {
+    // A schema that does not parse is already a failure of its own.
+    return const BeakCheck(
+      status: BeakCheckStatus.ok,
+      label: 'migration coverage not checked — fix the schema issues first',
+    );
+  }
+  final missing = BeakMigrationEmitter.missing(
+    models: discovery.models,
+    schemas: schemas,
+    coveredTables: discovery.migratedTables,
+    now: DateTime.utc(2026),
+  );
+  if (missing.isEmpty) {
+    return const BeakCheck(
+      status: BeakCheckStatus.ok,
+      label: 'every model has a migration',
+    );
+  }
+  return BeakCheck(
+    status: BeakCheckStatus.fail,
+    label:
+        'no migration creates '
+        '${missing.map((file) => file.table).join(', ')}',
+    remedy: 'beak prepare',
+  );
 }
 
 /// Whether Flutter's `web/` scaffold exists.

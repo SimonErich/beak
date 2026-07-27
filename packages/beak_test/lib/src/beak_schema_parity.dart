@@ -32,6 +32,40 @@ void expectSchemaParity({
   Set<String> ignoreTables = const {},
   Set<String> ignoreColumns = const {},
 }) {
+  final problems = beakSchemaParityProblems(
+    registry: registry,
+    actual: actual,
+    ignoreTables: ignoreTables,
+    ignoreColumns: ignoreColumns,
+  );
+  if (problems.isNotEmpty) {
+    fail(
+      'Schema parity failed:\n${problems.map((line) => '  - $line').join('\n')}',
+    );
+  }
+}
+
+/// Every way [registry] and [actual] disagree, in reading order.
+///
+/// The pure half of [expectSchemaParity]: it returns the problems instead of
+/// failing on them, so a tool that is not a test — `beak doctor` reporting
+/// drift against a live database — can render them as its own diagnostics
+/// rather than calling `fail` from `package:test`.
+///
+/// ```dart
+/// for (final problem in beakSchemaParityProblems(
+///   registry: buildBeakRegistry(),
+///   actual: await adapter.introspectSchema(),
+/// )) {
+///   print(problem);
+/// }
+/// ```
+List<String> beakSchemaParityProblems({
+  required BeakModelRegistry registry,
+  required BeakSchemaColumns actual,
+  Set<String> ignoreTables = const {},
+  Set<String> ignoreColumns = const {},
+}) {
   final problems = <String>[];
 
   for (final model in registry.all) {
@@ -76,12 +110,7 @@ void expectSchemaParity({
       );
     }
   }
-
-  if (problems.isNotEmpty) {
-    fail(
-      'Schema parity failed:\n${problems.map((line) => '  - $line').join('\n')}',
-    );
-  }
+  return problems;
 }
 
 /// Asserts that every table in [actual] is claimed by a model in [registry].

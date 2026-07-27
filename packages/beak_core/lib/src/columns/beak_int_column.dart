@@ -23,6 +23,8 @@ final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.min,
     this.max,

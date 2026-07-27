@@ -178,6 +178,43 @@ final class NoteModel extends BeakModel {
     });
   });
 
+  group('migration coverage', () {
+    test('a model with no table fails, naming it', () async {
+      // `beak create x && beak dev` used to start a server whose every
+      // endpoint failed on a missing table, and doctor said all clear.
+      final checks = await checksFor({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
+        'lib/models/note.dart': """
+import 'package:beak/beak.dart';
+
+final class NoteModel extends BeakModel {
+  const NoteModel();
+  @override
+  String get table => 'notes';
+  @override
+  String get displayColumnKey => 'title';
+  @override
+  List<BeakColumn> get columns => const [];
+}
+""",
+      });
+
+      final check = checkMatching(checks, 'no migration creates');
+      expect(check.status, BeakCheckStatus.fail);
+      expect(check.label, contains('notes'));
+      expect(check.remedy, 'beak prepare');
+    });
+
+    test('a prepared project passes', () async {
+      final checks = await diagnose(environmentFor(preparedProject()));
+
+      expect(
+        checkMatching(checks, 'every model has a migration').status,
+        BeakCheckStatus.ok,
+      );
+    });
+  });
+
   group('web safety', () {
     test('a panel file importing the server fails, naming the file', () async {
       // The exact failure the library split exists to prevent: it compiles,
