@@ -432,8 +432,10 @@ final class BeakFormController
     if (_claimedSlotCount >= BeakFormSlot.values.length) {
       throw BeakConfigurationException(
         'Auto forms support at most ${BeakFormSlot.values.length} fields; '
-        'model "${model.table}" declares more. Split the form with sections '
-        'or hide columns from the form context.',
+        'model "${model.table}" declares more, counting one per form column '
+        'and one per belongs-to. Narrow the form with `visibleOn` on the '
+        'columns that do not belong on it. Splitting into more sections does '
+        'not help — every column listed in any section claims a field.',
       );
     }
     final BeakFormSlot slot = BeakFormSlot.values[_claimedSlotCount];

@@ -59,7 +59,10 @@ class BeakPanel extends HookWidget {
         httpClient: httpClient,
       );
       return createBeakRouter(config);
-    }, [config]);
+      // The seams are part of the key: swapping a fake on rebuild used to
+      // keep the previous one registered, so a test could not change source
+      // mid-flight and never learned it had not.
+    }, [config, dataSource, httpClient]);
     useEffect(() => router.dispose, [router]);
     final themeController = beakLocator<BeakThemeController>();
     return ValueListenableBuilder<OiThemeMode>(

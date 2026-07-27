@@ -97,6 +97,7 @@ final class BeakDiscovery {
     this.migrations = const [],
     this.seeders = const [],
     this.overrides = const {},
+    this.resourceOverrides = const {},
     this.issues = const [],
     this.migratedTables = const <String>{},
   });
@@ -123,6 +124,14 @@ final class BeakDiscovery {
 
   /// Convention override files present in the project, by kind.
   final Map<BeakOverrideKind, BeakDiscoveredSymbol> overrides;
+
+  /// `lib/resources/<table>.dart` files adjusting one generated resource,
+  /// keyed by the table their file name names.
+  ///
+  /// The narrow escape hatch between "the defaults are fine" and
+  /// `beak eject panel`: the file takes the generated [BeakResource] and
+  /// returns a changed copy, so every other resource stays generated.
+  final Map<String, BeakDiscoveredSymbol> resourceOverrides;
 
   /// Problems that must be fixed before generation can succeed.
   final List<BeakDiscoveryIssue> issues;
@@ -189,6 +198,12 @@ final class BeakProjectScanner {
   /// Directory holding seeders.
   static const String seedersDir = 'seeders';
 
+  /// Directory holding per-resource overrides, one file per table.
+  static const String resourcesDir = 'resources';
+
+  /// Top-level function a `lib/resources/<table>.dart` must declare.
+  static const String resourceOverrideSymbol = 'beakResource';
+
   /// Scans the project and returns what it found.
   ///
   /// A class counts as a model when it extends `BeakModel` — directly, or via
@@ -221,12 +236,17 @@ final class BeakProjectScanner {
 
     _rejectDuplicateNames(models, 'model', issues);
 
+    final tables = <String>{
+      for (final model in models)
+        if (model.table case final String table) table,
+    };
     return BeakDiscovery(
       models: models,
       screens: screens,
       migrations: migrations,
       seeders: seeders,
       overrides: _scanOverrides(),
+      resourceOverrides: _scanResourceOverrides(tables, issues),
       issues: issues,
       migratedTables: _scanMigratedTables(),
     );
@@ -460,6 +480,100 @@ final class BeakProjectScanner {
       }
     }
     return overrides;
+  }
+
+  /// `lib/resources/<table>.dart` files declaring [resourceOverrideSymbol].
+  ///
+  /// The file name *is* the key, so a typo would otherwise be a file that
+  /// silently does nothing; a name matching no known table is an issue.
+  Map<String, BeakDiscoveredSymbol> _scanResourceOverrides(
+    Set<String> tables,
+    List<BeakDiscoveryIssue> issues,
+  ) {
+    final overrides = <String, BeakDiscoveredSymbol>{};
+    for (final file in _dartFilesUnder(resourcesDir)) {
+      final String path = _libRelativePath(file);
+      final String table = path
+          .split('/')
+          .last
+          .replaceAll(RegExp(r'\.dart$'), '');
+      final bool declaresSymbol = _parse(file).declarations.any(
+        (declaration) =>
+            declaration is FunctionDeclaration &&
+            declaration.name.lexeme == resourceOverrideSymbol,
+      );
+      if (!declaresSymbol) {
+        issues.add(
+          BeakDiscoveryIssue(
+            path: 'lib/$path',
+            message:
+                'A resource override must declare '
+                '"BeakResource $resourceOverrideSymbol(BeakResource '
+                'generated)". Without it the file is never called.',
+          ),
+        );
+        continue;
+      }
+      if (!tables.contains(table)) {
+        issues.add(
+          BeakDiscoveryIssue(
+            path: 'lib/$path',
+            message:
+                'No model declares the table "$table". A resource override '
+                'is named after the table it adjusts'
+                '${_nearest(table, tables)}.',
+          ),
+        );
+        continue;
+      }
+      overrides[table] = BeakDiscoveredSymbol(
+        name: resourceOverrideSymbol,
+        importPath: path,
+        isConstructible: false,
+      );
+    }
+    return overrides;
+  }
+
+  /// `, did you mean "orders"?` when one candidate is close enough.
+  static String _nearest(String name, Set<String> candidates) {
+    for (final candidate in candidates) {
+      if (_isNear(name, candidate)) {
+        return ' — did you mean "$candidate"?';
+      }
+    }
+    return '';
+  }
+
+  /// Whether [a] and [b] differ by at most one edit, ignoring case.
+  static bool _isNear(String a, String b) {
+    final String left = a.toLowerCase();
+    final String right = b.toLowerCase();
+    if ((left.length - right.length).abs() > 1) {
+      return false;
+    }
+    var edits = 0;
+    var i = 0;
+    var j = 0;
+    while (i < left.length && j < right.length) {
+      if (left[i] == right[j]) {
+        i += 1;
+        j += 1;
+        continue;
+      }
+      if (++edits > 1) {
+        return false;
+      }
+      if (left.length > right.length) {
+        i += 1;
+      } else if (left.length < right.length) {
+        j += 1;
+      } else {
+        i += 1;
+        j += 1;
+      }
+    }
+    return edits + (left.length - i) + (right.length - j) <= 1;
   }
 
   void _rejectDuplicateNames(

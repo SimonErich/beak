@@ -17,6 +17,9 @@ enum BeakEjectTarget {
   /// `lib/panel.dart` — the last word on the whole panel config.
   panel('panel', 'lib/panel.dart'),
 
+  /// `lib/resources/<table>.dart` — one resource, without the whole panel.
+  resource('resource', 'lib/resources/<table>.dart (takes a table name)'),
+
   /// `lib/theme.dart` — the light and dark themes.
   theme('theme', 'lib/theme.dart'),
 
@@ -39,7 +42,7 @@ enum BeakEjectTarget {
 
   /// The override this target materialises, or `null` for [main].
   BeakOverrideKind? get override => switch (this) {
-    main => null,
+    main || resource => null,
     panel => BeakOverrideKind.panel,
     theme => BeakOverrideKind.theme,
     auth => BeakOverrideKind.auth,
@@ -92,17 +95,38 @@ final class EjectCommand extends Command<int> {
   @override
   Future<int> run() async {
     final List<String> rest = argResults?.rest ?? const [];
-    if (rest.length != 1) {
+    if (rest.isEmpty || rest.length > 2) {
       throw UsageException(
-        'Expected exactly one target.\n\n'
+        'Expected a target.\n\n'
         '${[for (final target in BeakEjectTarget.values) '  ${target.name.padRight(10)} ${target.describes}'].join('\n')}',
         invocation,
       );
     }
-    final BeakEjectTarget? target = BeakEjectTarget.byName(rest.single);
+    final BeakEjectTarget? target = BeakEjectTarget.byName(rest.first);
     if (target == null) {
       throw UsageException(
-        '"${rest.single}" is not a Beak eject target.',
+        '"${rest.first}" is not a Beak eject target.',
+        invocation,
+      );
+    }
+
+    if (target == BeakEjectTarget.resource) {
+      if (rest.length != 2) {
+        throw UsageException(
+          'Which resource? Name the table, e.g. `beak eject resource orders`.',
+          invocation,
+        );
+      }
+      return _write(
+        'lib/${BeakProjectScanner.resourcesDir}/${rest.last}.dart',
+        resourceSource(rest.last),
+      );
+    }
+    // Only `resource` takes an argument; a stray second word is a typo
+    // worth naming rather than ignoring.
+    if (rest.length == 2) {
+      throw UsageException(
+        '`beak eject ${target.name}` takes no arguments.',
         invocation,
       );
     }
@@ -112,7 +136,11 @@ final class EjectCommand extends Command<int> {
     }
 
     final BeakOverrideKind kind = target.override!;
-    final String path = 'lib/${kind.path}';
+    return _write('lib/${kind.path}', ejectedSource(kind));
+  }
+
+  /// Writes [source] to [path] unless it exists, and says what to do next.
+  int _write(String path, String source) {
     final file = File('${environment.rootDirectory.path}/$path');
     if (file.existsSync() && argResults?['force'] != true) {
       environment.out.writeln(
@@ -120,13 +148,26 @@ final class EjectCommand extends Command<int> {
       );
       return 1;
     }
-
-    environment.writeFile(path, ejectedSource(kind));
+    environment.writeFile(path, source);
     environment.out
       ..writeln()
       ..writeln('  run `beak prepare` to wire it up');
     return 0;
   }
+
+  /// The starter override for the resource of [table].
+  static String resourceSource(String table) =>
+      '''
+import 'package:beak/panel.dart';
+
+/// Adjusts the generated resource for the `$table` table.
+///
+/// [generated] is what Beak derived from the model and `beak.yaml`. Return it
+/// unchanged to change nothing, or `copyWith` the parts you want different —
+/// filters, actions, view modes, the detail layout. Every other resource in
+/// the panel stays generated.
+BeakResource beakResource(BeakResource generated) => generated;
+''';
 
   /// Un-ignores the generated entrypoints so the project commits them.
   int _ejectEntrypoints() {

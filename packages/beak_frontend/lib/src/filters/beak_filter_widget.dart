@@ -75,12 +75,13 @@ final class BeakDateRangeFilter extends BeakFilterDef {
 /// active control contributes one typed [BeakFilter], AND-ed together
 /// (`null` when nothing is active).
 ///
-/// The list page builds this from `resource.filters` and re-queries on
-/// every [onChanged]; hand-composing a page you wire it the same way:
+/// The list page builds this from `resource.effectiveFilters` — the declared
+/// ones, or the ones the model's `filterable` columns imply — and re-queries
+/// on every [onChanged]; hand-composing a page you wire it the same way:
 ///
 /// ```dart
 /// BeakFilterBar(
-///   filters: resource.filters,
+///   filters: resource.effectiveFilters,
 ///   onChanged: (combined) => filter.value = combined,
 /// );
 /// ```

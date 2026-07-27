@@ -146,6 +146,12 @@ abstract final class BeakEmitters {
     ])) {
       buffer.writeln("import '../$path';");
     }
+    for (final table in discovery.resourceOverrides.keys.toList()..sort()) {
+      buffer.writeln(
+        "import '../${discovery.resourceOverrides[table]!.importPath}' "
+        'as ${_resourceAlias(table)};',
+      );
+    }
     final BeakDiscoveredSymbol? panelOverride =
         discovery.overrides[BeakOverrideKind.panel];
     if (panelOverride != null) {
@@ -195,7 +201,12 @@ abstract final class BeakEmitters {
     }
     buffer.writeln('    resources: [');
     for (final model in discovery.models) {
-      buffer.writeln('      ${_resourceFor(model, config)},');
+      // A hidden resource keeps its API and stays reachable through a
+      // relationship; it just does not earn a sidebar entry.
+      if (config.resources[model.table]?.hidden ?? false) {
+        continue;
+      }
+      buffer.writeln('      ${_resourceFor(model, config, discovery)},');
     }
     buffer.writeln('    ],');
     // A `lib/dashboard.dart` replaces the generated `/` screen, so it goes
@@ -231,6 +242,12 @@ import 'package:flutter/widgets.dart';
 
 import 'panel.g.dart';
 
+/// The ${_escape(config.name)} panel's configuration.
+///
+/// Built once, at startup: the config holds closures and block trees, so a
+/// fresh one every frame would rebuild the router with it.
+final BeakPanelConfig beakPanelConfig = buildBeakPanel();
+
 /// The ${_escape(config.name)} panel.
 final class BeakApp extends StatelessWidget {
   /// Creates the app; [dataSource] injects a fake in widget tests.
@@ -241,7 +258,7 @@ final class BeakApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      BeakPanel(config: buildBeakPanel(), dataSource: dataSource);
+      BeakPanel(config: beakPanelConfig, dataSource: dataSource);
 }
 ''';
 
@@ -337,6 +354,7 @@ Future<void> main(List<String> args) async =>
   static String _resourceFor(
     BeakDiscoveredSymbol model,
     BeakProjectConfig config,
+    BeakDiscovery discovery,
   ) {
     // beak.yaml is keyed by table name, and discovery read the real one off
     // the declaration. Re-deriving it from the class name gave a second
@@ -350,8 +368,18 @@ Future<void> main(List<String> args) async =>
       if (override?.section != null)
         "section: '${_escape(override!.section!)}'",
     ];
-    return 'BeakResource(${parts.join(', ')})';
+    final String generated = 'BeakResource(${parts.join(', ')})';
+    // A `lib/resources/<table>.dart` gets the last word on its own resource:
+    // it receives what Beak derived and returns the copy it wants.
+    return discovery.resourceOverrides.containsKey(model.table)
+        ? '${_resourceAlias(model.table!)}'
+              '.${BeakProjectScanner.resourceOverrideSymbol}($generated)'
+        : generated;
   }
+
+  /// `order_items` -> `resource_order_items`, the import alias a per-resource
+  /// override is called through.
+  static String _resourceAlias(String table) => 'resource_$table';
 
   /// Unique import paths of [symbols], in path order.
   static List<String> _importPathsOf(List<BeakDiscoveredSymbol> symbols) {

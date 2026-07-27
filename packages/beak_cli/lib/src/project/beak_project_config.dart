@@ -43,7 +43,12 @@ final class BeakApiSettings {
 /// Per-resource presentation the panel reads before falling back to defaults.
 final class BeakResourceOverride {
   /// Creates an override for one table.
-  const BeakResourceOverride({this.icon, this.label, this.section});
+  const BeakResourceOverride({
+    this.icon,
+    this.label,
+    this.section,
+    this.hidden = false,
+  });
 
   /// `OiIcons` identifier to show in the navigation.
   final String? icon;
@@ -53,6 +58,16 @@ final class BeakResourceOverride {
 
   /// Navigation group this resource belongs to.
   final String? section;
+
+  /// Whether to keep this resource out of the navigation.
+  ///
+  /// The model is still registered, still has an API, and is still reachable
+  /// as the far side of a relationship — it simply does not earn a sidebar
+  /// entry. A real application has plenty of those: line items, pivots,
+  /// lookup tables, anything only ever opened from its parent.
+  ///
+  /// Navigability is presentation, which is what this file already decides.
+  final bool hidden;
 }
 
 /// The decoded `beak.yaml`.
@@ -122,14 +137,18 @@ final class BeakProjectConfig {
         'icon',
         'label',
         'section',
+        'hidden',
       }, 'resources.$table.');
       resources[table] = BeakResourceOverride(
-        icon: _optionalString(options['icon'], 'resources.$table.icon'),
+        icon: _optionalIcon(options['icon'], 'resources.$table.icon'),
         label: _optionalString(options['label'], 'resources.$table.label'),
         section: _optionalString(
           options['section'],
           'resources.$table.section',
         ),
+        hidden:
+            _optionalBool(options['hidden'], 'resources.$table.hidden') ??
+            false,
       );
     }
 
@@ -206,6 +225,26 @@ final class BeakProjectConfig {
       return raw;
     }
     throw BeakProjectConfigException('$key must be a string (got $raw).');
+  }
+
+  /// An `OiIcons` identifier, checked as far as this package can check it.
+  ///
+  /// The value is spliced straight into `OiIcons.<name>` in generated Dart,
+  /// and `beak_cli` is pure Dart so it cannot import obers_ui to confirm the
+  /// name exists. It can insist on a lowerCamelCase identifier, which turns
+  /// `icon: file-text` from a syntax error inside a generated file the header
+  /// tells you not to edit into a named error about the line you wrote.
+  static String? _optionalIcon(Object? value, String key) {
+    final String? name = _optionalString(value, key);
+    if (name == null) {
+      return null;
+    }
+    if (!RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(name)) {
+      throw BeakProjectConfigException(
+        '$key must be a lowerCamelCase OiIcons name (got "$name").',
+      );
+    }
+    return name;
   }
 
   static bool? _optionalBool(Object? value, String key) {

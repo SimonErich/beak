@@ -90,7 +90,7 @@ void main() {
       deleteButton.onTap!();
       await tester.pumpAndSettle();
 
-      expect(dataSource.deleteCalls, [('comments', 'k1')]);
+      expect(dataSource.deleteCalls, [('comments', 'k1', false)]);
       expect(find.text('First!'), findsNothing);
       expect(find.text('No comments yet.'), findsOneWidget);
     });

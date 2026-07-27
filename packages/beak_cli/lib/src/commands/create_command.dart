@@ -150,65 +150,20 @@ final class CreateCommand extends Command<int> {
   ];
 
   static const String _smokeTest = '''
-import 'package:beak/panel.dart';
+import 'package:beak/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:_PACKAGE_/beak/app.g.dart';
 import 'package:_PACKAGE_/beak/registry.g.dart';
 
-/// A data source with nothing in it, so the panel renders its empty states.
-final class _EmptyDataSource implements BeakDataSource {
-  const _EmptyDataSource();
-
-  @override
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async =>
-      const BeakPage(items: [], total: 0, page: 1, perPage: 25);
-
-  @override
-  Future<BeakRecord?> getOne(String table, Object id) async => null;
-
-  @override
-  Future<BeakRecord> create(String table, BeakRecord data) async => data;
-
-  @override
-  Future<BeakRecord> update(String table, Object id, BeakRecord data) async =>
-      data;
-
-  @override
-  Future<void> delete(String table, Object id, {bool force = false}) async {}
-
-  @override
-  Future<BeakRecord> restore(String table, Object id) async =>
-      const BeakRecord(values: {});
-
-  @override
-  Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async => [];
-
-  @override
-  Future<void> attach(
-    String table,
-    Object id,
-    String relationKey,
-    List<Object> relatedIds,
-  ) async {}
-
-  @override
-  Future<void> detach(
-    String table,
-    Object id,
-    String relationKey,
-    List<Object> relatedIds,
-  ) async {}
-
-  @override
-  Future<num> aggregate(BeakAggregateSpec spec) async => 0;
-}
-
 void main() {
   testWidgets('the panel boots with every declared model registered', (
     tester,
   ) async {
-    await tester.pumpWidget(const BeakApp(dataSource: _EmptyDataSource()));
+    // An empty in-memory source: the panel renders its empty states, and
+    // seeding one is `source.seed(const NoteModel(), [record])`.
+    final source = InMemoryBeakDataSource(registry: buildBeakRegistry());
+    await tester.pumpWidget(BeakApp(dataSource: source));
     await tester.pumpAndSettle();
 
     expect(beakModels, isNotEmpty, reason: 'no model was discovered');

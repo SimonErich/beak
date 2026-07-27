@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../dashboard/beak_dashboard.dart';
+import '../data/reference_cache.dart';
 import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
 import '../pages/beak_screen_view.dart';
@@ -66,6 +67,7 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
             builder: (context, state) => BeakResourceCreatePage(
               resource: resource,
               dataSource: beakLocator<BeakDataSource>(),
+              referenceCache: beakLocator<ReferenceCache>(),
             ),
           ),
           GoRoute(
@@ -73,6 +75,7 @@ GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
             builder: (context, state) => BeakResourceEditPage(
               resource: resource,
               dataSource: beakLocator<BeakDataSource>(),
+              referenceCache: beakLocator<ReferenceCache>(),
               recordId: state.pathParameters['id'] ?? '',
             ),
           ),

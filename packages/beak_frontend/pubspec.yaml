@@ -45,6 +45,10 @@ dependencies:
   signals: ^7.1.0
 
 dev_dependencies:
+  # The panel suites serve their widgets from the real in-memory source
+  # rather than a fake that ignores the query spec.
+  beak_test:
+    path: ../beak_test
   flutter_test:
     sdk: flutter
   lints: ^6.0.0

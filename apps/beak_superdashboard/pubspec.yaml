@@ -31,6 +31,8 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
+  beak_test:
+    path: ../../packages/beak_test
   flutter_test:
     sdk: flutter
   go_router: ^17.3.0

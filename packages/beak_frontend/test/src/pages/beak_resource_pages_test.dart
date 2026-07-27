@@ -31,9 +31,20 @@ void main() {
 
   setUp(() {
     dataSource = FakeDataSource(
+      models: const [NotePageModel()],
       records: {
         'notes': {
-          'n1': BeakRecord.fromRow(const {'id': 'n1', 'title': 'First note'}),
+          'n1': BeakRecord(
+            values: const {
+              'id': BeakStringValue('n1'),
+              'title': BeakStringValue('First note'),
+            },
+            relations: {
+              'comments': [
+                BeakRecord.fromRow(const {'id': 'k1', 'text': 'Nice one'}),
+              ],
+            },
+          ),
         },
       },
     )..aggregateHandler = (spec) => 41;
@@ -117,6 +128,33 @@ void main() {
     expect(find.text('Delete'), findsOneWidget);
   });
 
+  testWidgets('the show page costs one query, relations included', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+    await goToList(tester);
+    dataSource.clearRecordedCalls();
+
+    final OiTable<BeakRecord> table = tester.widget(
+      find.byType(OiTable<BeakRecord>),
+    );
+    table.onRowTap!(
+      BeakRecord.fromRow(const {'id': 'n1', 'title': 'First note'}),
+      0,
+    );
+    await tester.pumpAndSettle();
+
+    // The record and its comments arrive together: the relation manager
+    // renders its rows without a query of its own.
+    expect(find.text('Nice one'), findsOneWidget);
+    expect(dataSource.queryCalls, hasLength(1));
+    expect(dataSource.getOneCalls, isEmpty);
+    expect(
+      dataSource.queryCalls.single.relationLoads.single.relationKey,
+      'comments',
+    );
+  });
+
   testWidgets('the edit page prefills and saves back to the show page', (
     tester,
   ) async {
@@ -198,4 +236,21 @@ final class NotePageModel extends BeakModel {
 
   @override
   List<BeakColumn> get columns => NotePageColumns.values;
+
+  @override
+  List<BeakRelationship> get relationships => const [
+    NotePageRelations.comments,
+  ];
+}
+
+/// Typed relations of the [NotePageModel] fixture.
+abstract final class NotePageRelations {
+  /// The note's comments.
+  static const comments = BeakHasMany(
+    key: 'comments',
+    label: 'Comments',
+    relatedTable: 'comments',
+    displayColumnKey: 'text',
+    foreignKey: 'note_id',
+  );
 }

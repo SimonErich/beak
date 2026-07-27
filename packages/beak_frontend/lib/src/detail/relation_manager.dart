@@ -33,6 +33,7 @@ class BeakRelationManager extends HookWidget {
     required this.parentId,
     required this.relationship,
     required this.dataSource,
+    this.initialRecords,
     this.onCreateRequested,
     this.relatedPrimaryKeyKey = 'id',
     this.maxHeightInPixels = 360,
@@ -51,6 +52,13 @@ class BeakRelationManager extends HookWidget {
   /// The source related records load from and mutations run against.
   final BeakDataSource dataSource;
 
+  /// The related records the parent already loaded, if any.
+  ///
+  /// A detail page eager-loads every relation with the record it shows, so
+  /// passing them here means N managers cost zero extra queries on first
+  /// paint. Any mutation still refetches.
+  final List<BeakRecord>? initialRecords;
+
   /// Invoked when the user asks to create a related record (typically
   /// navigates to the related resource's create form).
   final VoidCallback? onCreateRequested;
@@ -66,10 +74,15 @@ class BeakRelationManager extends HookWidget {
     final repository = useMemoized(() => BeakResourceRepository(dataSource), [
       dataSource,
     ]);
-    final related = useState<List<BeakRecord>>(const []);
+    final related = useState<List<BeakRecord>>(initialRecords ?? const []);
     final reloadTick = useState(0);
 
     useEffect(() {
+      // Seeded by the parent: the first paint is already correct, so only a
+      // mutation (which bumps the tick) sends us back to the source.
+      if (initialRecords != null && reloadTick.value == 0) {
+        return null;
+      }
       var cancelled = false;
       Future<void> load() async {
         final List<BeakRecord> loaded = await _load(repository);

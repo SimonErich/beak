@@ -366,6 +366,51 @@ final class CreateEverything extends Migration {
     });
   });
 
+  group('beak.yaml hidden and icon', () {
+    test('a hidden resource leaves the sidebar but keeps its model', () async {
+      // A real application has plenty of these: line items, lookup tables,
+      // anything only ever opened from its parent. They still need an API.
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': '''
+resources:
+  notes:
+    hidden: true
+''',
+      });
+
+      runPrepare(environmentFor(root));
+
+      final panel = read(root, 'lib/beak/panel.g.dart');
+      expect(panel, contains('resources: []'));
+      expect(read(root, 'lib/beak/registry.g.dart'), contains('NoteModel()'));
+    });
+
+    test('an icon that is not an identifier fails, naming the line', () {
+      // It used to be spliced into `OiIcons.<name>` unchecked, so a typo
+      // became a compile error inside a file the header says not to edit.
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': '''
+resources:
+  notes:
+    icon: file-text
+''',
+      });
+
+      expect(
+        () => BeakProjectConfig.load(root, packageName: 'acme_admin'),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('resources.notes.icon'), contains('file-text')),
+          ),
+        ),
+      );
+    });
+  });
+
   group('the table name', () {
     const person = """
 import 'package:beak/beak.dart';
@@ -477,6 +522,54 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
 
       final panel = read(root, 'lib/beak/panel.g.dart');
       expect(panel, contains('return panel.beakPanel(config);'));
+    });
+
+    test('a resource override wraps just its own resource', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/resources/notes.dart': EjectCommand.resourceSource('notes'),
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isTrue);
+      expect(
+        read(root, 'lib/beak/panel.g.dart'),
+        allOf(
+          contains("import '../resources/notes.dart' as resource_notes;"),
+          contains('resource_notes.beakResource('),
+        ),
+      );
+    });
+
+    test('a resource override naming no table fails, with the near miss', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/resources/note.dart': EjectCommand.resourceSource('note'),
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        result.discovery.issues.single.message,
+        allOf(
+          contains('No model declares the table "note"'),
+          contains('notes'),
+        ),
+      );
+    });
+
+    test('a resource override missing its function fails, naming the file', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/resources/notes.dart': '// nothing here yet\n',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isFalse);
+      expect(result.discovery.issues.single.path, 'lib/resources/notes.dart');
     });
 
     test('a server override is threaded into the host', () {
