@@ -16,7 +16,7 @@ widget you give to `runApp`. `BeakPanelConfig` is the plain, `const`-friendly
 object that describes the whole panel. You compose the config once, usually in a
 builder so tests can vary the API origin, and Beak wires everything from it.
 
-```dart title="apps/beak_superdashboard/lib/main.dart"
+```dart title="examples/superdashboard/lib/main.dart"
 /// The superdashboard demo app: one [BeakPanel] over the shared models,
 /// reproducing a full admin theme entirely from seeded data.
 final class SuperdashboardApp extends StatelessWidget {
@@ -81,7 +81,7 @@ Beak plumbs.
 `BeakPanelConfig` is the single declarative entry point. Here is the top of the
 superdashboard's, which runs against the showcase server on port 8180:
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel/config.dart"
 BeakPanelConfig buildSuperdashboardConfig({
   String apiBaseUrl = 'http://localhost:8180',
 }) => BeakPanelConfig(
@@ -126,8 +126,8 @@ Every field is optional except the three that a panel cannot do without.
 | `notifications` | `BeakNotificationSource?` | `null` | Binds a model's rows to the shell's notification bell. |
 
 !!! warning "Match the port to the app"
-    Beak ships two demo apps. The tutorial store (`reference_admin`) talks to a
-    server on `http://localhost:8080`; the showcase (`beak_superdashboard`) talks
+    Beak ships two demo apps. The tutorial store (`store`) talks to a
+    server on `http://localhost:8080`; the showcase (`superdashboard`) talks
     to one on `http://localhost:8180`. Point `apiBaseUrl` at the server your app
     actually runs, or the panel loads and every query returns connection-refused.
 

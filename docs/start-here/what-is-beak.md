@@ -77,7 +77,7 @@ shared vocabulary that lives in `beak_core`.
 | [`beak_cli`](../reference/cli-commands.md) | Scaffolding. `beak make:resource` and friends, and `beak doctor` to check your paths, `.env`, and Docker services. |
 | `beak_storage_s3` / `beak_storage_ftp` | Pluggable storage drivers you register at startup. Memory and local disk ship inside `beak_core`. |
 | `beak_image` | The image transform runner (the pixel codec) that powers thumbnail and format transforms on upload. |
-| `apps/reference_admin*` | The reference admin: shared models, the server binary, the Flutter panel, and the end-to-end acceptance suite that drives all of it over real HTTP. |
+| `examples/store*` | The store example: shared models, the server binary, the Flutter panel, and the end-to-end acceptance suite that drives all of it over real HTTP. |
 
 The obers_ui trio (`obers_ui`, `obers_ui_autoforms`, `obers_ui_charts`) is
 referenced by path and supplies every widget the panel renders. Beak never draws

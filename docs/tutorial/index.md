@@ -5,18 +5,18 @@ description: Build the coffee-roastery reference admin from an empty workspace t
 
 # Tutorial: First Flight
 
-By the end of these ten chapters you will have built the reference admin: a
+By the end of these ten chapters you will have built the store example: a
 working admin panel for a small coffee roastery, grown from an empty workspace.
 Models defined once, a backend generated from them, and a Flutter panel that
 lists, filters, edits, and charts every resource. This is the real
-`apps/reference_admin*` app in the Beak repo, revealed one concept at a time, so
+`examples/store*` app in the Beak repo, revealed one concept at a time, so
 every snippet you copy is code that compiles and ships.
 
 The bird has to leave the nest sometime. This is that flight, taken in short
 hops.
 
 !!! note "This tutorial builds the demo inside the Beak monorepo"
-    It predates `beak create` and walks the layout the reference admin uses —
+    It predates `beak create` and walks the layout the store example uses —
     a models package, a server package and a panel package — because that is
     what the repository ships and what the feature pages refer to. Every
     concept transfers, but a project of your own is one package, not three:
@@ -45,26 +45,26 @@ models you define.
 
 ## How the three packages fit
 
-The reference admin is three packages, and the split is the whole point: you
+The store example is three packages, and the split is the whole point: you
 define each model once, and both the server and the panel read that one
 definition.
 
 ```mermaid
 flowchart LR
-  M["reference_admin_models<br/>(pure Dart: the models)"]
-  S["reference_admin_server<br/>(Shelf backend, port 8080)"]
-  P["reference_admin<br/>(Flutter panel)"]
+  M["store<br/>(pure Dart: the models)"]
+  S["store<br/>(Shelf backend, port 8080)"]
+  P["store<br/>(Flutter panel)"]
   M --> S
   M --> P
   P -- "HTTP :8080" --> S
 ```
 
-- **`reference_admin_models`** is pure Dart. It holds the `BeakModel` classes:
+- **`store`** is pure Dart. It holds the `BeakModel` classes:
   columns, rules, and relationships. It depends only on `beak_core`.
-- **`reference_admin_server`** wraps those models with `beak_backend` into a
+- **`store`** wraps those models with `beak_backend` into a
   generated REST API. It persists to Postgres and stores uploads in MinIO through
   the `worm` ORM, and listens on port **8080**. You never write an endpoint.
-- **`reference_admin`** is the Flutter app. It reads the same models with
+- **`store`** is the Flutter app. It reads the same models with
   `beak_frontend` and renders the panel on `obers_ui`, talking to the server over
   HTTP at `apiBaseUrl: 'http://localhost:8080'`.
 
@@ -82,9 +82,9 @@ Flutters/
   beak/
     packages/                       # beak_core, beak_backend, beak_frontend, worm, ...
     apps/
-      reference_admin_models/       # the models, defined once
+      store/       # the models, defined once
         lib/
-          reference_admin_models.dart   # referenceModels + buildReferenceRegistry
+          store.dart   # beakModels + buildBeakRegistry
           src/
             category.dart
             tag.dart
@@ -92,15 +92,15 @@ Flutters/
             user.dart
             order.dart
             order_item.dart
-      reference_admin_server/       # the generated Shelf backend, port 8080
+      store/       # the generated Shelf backend, port 8080
         bin/
-          reference_admin_server.dart   # boots the server
+          store.dart   # boots the server
           worm.dart                     # migrate / db:seed CLI
         lib/src/
           server_builder.dart
           migrations/reference_migrations.dart
           seeders/reference_seeder.dart
-      reference_admin/              # the Flutter panel
+      store/              # the Flutter panel
         lib/main.dart                   # buildReferencePanelConfig + BeakPanel
 ```
 

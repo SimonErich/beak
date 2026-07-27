@@ -28,11 +28,11 @@ You never wire both.
 
 ## Approach one: config-only stats and charts
 
-This is the teaching store (`reference_admin`, port 8080). You declare the metrics
+This is the teaching store (`examples/store`, port 8080). You declare the metrics
 and the charts as data on `BeakPanelConfig`, and Beak renders `BeakStatCard`s and
 `BeakChartCard`s that each fetch their own aggregate or query.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakPanelConfig buildReferencePanelConfig({
   String apiBaseUrl = 'http://localhost:8080',
 }) => BeakPanelConfig(
@@ -122,7 +122,7 @@ and query specs use.
 A `BeakChart` is three things: a `BeakQuerySpec` that fetches records, a `map` that
 turns those records into typed points, and a `type` that picks the chart family.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
@@ -164,9 +164,9 @@ Richer shapes (bubble, candlestick, heatmap) belong to the chart blocks. See
 
 When you want a designed landing page (a KPI grid, a chart beside a donut, a world
 map, a stack of tables), return a `BeakScreen` mounted at `/` and put it on
-`pages`. This is the showcase (`beak_superdashboard`, port 8180).
+`pages`. This is the showcase (`superdashboard`, port 8180).
 
-```dart title="apps/beak_superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/panel/dashboard.dart"
 BeakScreen buildDashboardScreen() => BeakScreen(
   path: '/',
   title: 'Dashboard',
@@ -182,7 +182,7 @@ Because `path` is `/`, this screen wins the home route and the generated
 stats-and-charts dashboard steps aside. The body is a plain block column; each
 child is a grid of data-bound blocks.
 
-```dart title="apps/beak_superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/panel/dashboard.dart"
 BeakBlock _kpis() => BeakGridBlock(
   columns: 4,
   children: [
@@ -233,7 +233,7 @@ The rest of the tree is more of the same, composed from data blocks: a
 `BeakChartBlock` next to a donut, a `BeakMapBlock` of live users by country, and
 `BeakTableBlock`s for the latest orders, top customers, and transactions.
 
-```dart title="apps/beak_superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/panel/dashboard.dart"
 BeakBlock _tables() => const BeakGridBlock(
   columns: 12,
   children: [

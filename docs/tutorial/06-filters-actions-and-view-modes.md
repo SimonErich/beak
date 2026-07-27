@@ -18,7 +18,7 @@ A filter is declared once, over a column you already have. The sealed
 so the filter bar switches over the variants exhaustively and no
 `Map<String, dynamic>` ever appears. Add two to the products resource:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
     BeakResource(
       model: ProductModel(),
       icon: BeakIconToken(OiIcons.package),
@@ -58,7 +58,7 @@ Here is the store's real Duplicate action. It reads the source record through th
 shared `ProductColumns` constants (never string literals), writes a `(copy)`
 clone through the data source, then refreshes the list.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 Future<void> duplicateProduct(
   BeakRecord record,
   BeakActionContext context,
@@ -98,7 +98,7 @@ the same function from a table row or a detail page.
 
 Wire it into the resource as a record action:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
       recordActions: [
         BeakRecordAction(
           key: 'duplicate',
@@ -123,7 +123,7 @@ here is how you would give orders a kanban board. First, give the order a status
 Add an enum and a `BeakEnumColumn` to the store's order model, exactly as you did
 for products:
 
-```dart title="apps/reference_admin_models/lib/src/order.dart"
+```dart
 /// Fulfilment state of an order.
 enum OrderStatus { pending, paid, shipped, delivered }
 
@@ -148,7 +148,7 @@ column to store it. Since these are your own new tables, extend the
 `CreateOrdersTable` migration with a defaulted status column, mirroring the
 products migration:
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
     await schema.create('orders', (table) {
       table.idUuid();
       table.string('reference', length: 40);
@@ -170,7 +170,7 @@ Now declare a `BeakKanbanView` on the orders resource. `groupField` is the enum
 whose values become the board's columns; `titleField` and `subtitleField` fill
 each card; `sortField` orders cards within a column.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
     BeakResource(
       model: OrderModel(),
       icon: BeakIconToken(OiIcons.shoppingCart),
@@ -194,7 +194,7 @@ constant on your store's model, which is what keeps the board type-safe.
 !!! warning "This is an add-on, not shipped code"
     The reference store's `Order` does not include a status column. The enum,
     the migration change, and the board above are the minimal correct way to add
-    one to your own store. The showcase app (`beak_superdashboard`) ships a
+    one to your own store. The showcase app (`superdashboard`) ships a
     fuller order status with six states; do not copy its column constants into
     the reference store.
 
@@ -204,18 +204,18 @@ If you added the order board, rebuild the schema so the new status column exists
 re-seeding as you go:
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/worm.dart migrate:fresh --seed
+cd examples/store
+dart run bin/migrate.dart migrate:fresh --seed
 ```
 
 `migrate:fresh` drops and re-applies every migration, then `--seed` runs the
-`ReferenceSeeder` again. Your seeded order has no explicit status, so it takes the
+`StoreSeeder` again. Your seeded order has no explicit status, so it takes the
 `pending` default.
 
 Then restart the backend and run the panel:
 
 ```bash
-cd apps/reference_admin
+cd examples/store
 flutter run -d chrome
 ```
 

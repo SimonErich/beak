@@ -72,6 +72,9 @@ That reads `lib/models/`, `lib/screens/` and `beak.yaml`, and writes:
 - `lib/models/product.beak.dart` — typed column constants, the `BeakModel`, the
   relationship constants on both sides, and a typed record view. Committed.
 - `lib/beak/{registry,panel,app,server}.g.dart` — the wiring. Committed.
+- `lib/migrations/create_products_table.dart` — the migration this resource
+  needs and does not have. Written once, then yours: Beak never rewrites a
+  migration it has written.
 - `lib/main.dart`, `bin/serve.dart`, `bin/migrate.dart` — the entrypoints, at
   the paths Flutter and Dart expect. Git-ignored, because nothing about them is
   a decision worth reviewing. `beak eject main` changes that.
@@ -81,32 +84,36 @@ You never register anything. A file under `lib/models/` is a resource.
 ## 4. Create the table
 
 ```bash
-beak make:migration CreateProductsTable
 beak migrate
 ```
 
-The generated migration derives the table from the model, so the schema and the
-API can never drift:
+The migration Beak wrote reads the model rather than repeating it, so the table
+and the API cannot drift:
 
-```dart title="lib/migrations/create_products_table.dart"
-import 'package:beak/migrations.dart';
-
-import '../models/product.dart';
-
-/// Creates the products table.
+```dart title="examples/store/lib/migrations/create_products_table.dart"
 final class CreateProductsTable extends Migration {
-  @override
-  Future<void> upSchema(Schema schema) => schema.create('products', (table) {
-    BeakBlueprint.defineColumns(table, const ProductModel());
-  });
+  /// Creates the migration.
+  const CreateProductsTable();
 
   @override
-  Future<void> downSchema(Schema schema) => schema.drop('products');
+  String get name => '20260727_152057_create_products_table';
+
+  @override
+  Future<void> upSchema(Schema schema) async {
+    await schema.create('products', (table) {
+      BeakBlueprint.defineColumns(table, const ProductModel());
+      BeakBlueprint.defineForeignKeys(table, const ProductModel());
+    });
+  }
+
+  @override
+  Future<void> downSchema(Schema schema) async =>
+      schema.drop('products', ifExists: true);
 }
 ```
 
-Migrations stay explicit and reviewable — Beak never silently alters your
-database.
+Applying it is still a decision you make. Beak never alters a database on
+boot.
 
 ## 5. Run it
 
@@ -142,7 +149,7 @@ default, so a request sends just what it means.
 | Nothing | The panel: list, detail, create, edit, filters, sort, pagination |
 | Nothing | The registry, the router, the server host, three entrypoints |
 
-## Next
+## Continue reading
 
 - [Project structure](project-structure.md) — what each folder is for, and the
   optional files that override a default.

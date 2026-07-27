@@ -11,7 +11,7 @@ After this page you can shade a world map by a per-country value with
 query-plus-fields shape as the [charts](chart-basics.md); the difference is they
 key on your column constants directly instead of a mapper function.
 
-Both examples come from the showcase's maps screen (`apps/beak_superdashboard`,
+Both examples come from the showcase's maps screen (`apps/superdashboard`,
 port 8180), which seeds a `country_stats` table and an `office_locations` table.
 
 ## Two kinds of map
@@ -50,7 +50,7 @@ The two `*Field` parameters take `BeakColumn` constants, not strings, so a
 renamed column is a compile error rather than a blank map. The showcase keys on
 `CountryStatColumns`:
 
-```dart title="apps/beak_superdashboard/lib/screens/maps_screen.dart"
+```dart title="examples/superdashboard/lib/screens/maps_screen.dart"
 BeakCardBlock(
   title: 'Vector map - live users by country',
   child: BeakMapBlock(
@@ -70,7 +70,7 @@ Those columns are ordinary typed columns on the `country_stats` model. The
 region code is a two-character string; note the `BeakMaxLength(2)` rule matching
 the ISO alpha-2 format the map expects:
 
-```dart title="apps/beak_superdashboard/lib/models/analytics/country_stat.dart"
+```dart title="examples/superdashboard/lib/models/analytics/country_stat.dart"
 /// ISO 3166-1 alpha-2 code, keying the map region.
 static const countryCode = BeakStringColumn(
   key: 'country_code',
@@ -122,7 +122,7 @@ final class BeakTileMapBlock extends BeakBlock {
 The showcase pins the office locations, labelling each pin by name and framing
 the map on the world with `centerLatitude`, `centerLongitude`, and `zoom`:
 
-```dart title="apps/beak_superdashboard/lib/screens/maps_screen.dart"
+```dart title="examples/superdashboard/lib/screens/maps_screen.dart"
 BeakCardBlock(
   title: 'Tile map - offices',
   child: BeakTileMapBlock(
@@ -144,7 +144,7 @@ BeakCardBlock(
 The coordinate columns are `BeakDecimalColumn`s with enough precision to place a
 pin accurately:
 
-```dart title="apps/beak_superdashboard/lib/models/analytics/office_location.dart"
+```dart title="examples/superdashboard/lib/models/analytics/office_location.dart"
 /// The office latitude.
 static const latitude = BeakDecimalColumn(
   key: 'latitude',
@@ -186,7 +186,7 @@ you host your own tiles or use a different provider.
 Both blocks are just blocks, so the screen is a `BeakColumnBlock` of two cards.
 Nothing here is map-specific plumbing; it reads like every other custom screen.
 
-```dart title="apps/beak_superdashboard/lib/screens/maps_screen.dart"
+```dart title="examples/superdashboard/lib/screens/maps_screen.dart"
 BeakScreen buildMapsScreen() => const BeakScreen(
   path: '/maps',
   title: 'Maps',

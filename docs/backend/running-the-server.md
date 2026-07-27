@@ -14,10 +14,10 @@ entrypoint does exactly that and nothing else.
 
 ## The whole entrypoint
 
-Here is `apps/reference_admin_server/bin/reference_admin_server.dart` in full. It is the
+Here is `examples/store/bin/serve.dart` in full. It is the
 tutorial store's server, and it fits on one screen.
 
-```dart title="apps/reference_admin_server/bin/reference_admin_server.dart"
+```dart title="examples/store/bin/serve.dart"
 Future<void> main() async {
   final Map<String, String> environment = BeakEnv.resolve();
   final config = BeakBackendConfig.fromEnv(environment: environment);
@@ -30,7 +30,7 @@ Future<void> main() async {
   );
   final HttpServer httpServer = await server.start();
   stderr.writeln(
-    'reference_admin_server listening on '
+    'store listening on '
     'http://${httpServer.address.host}:${httpServer.port}',
   );
 }
@@ -39,18 +39,18 @@ Future<void> main() async {
 Run it from the app directory:
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/reference_admin_server.dart
+cd examples/store
+dart run bin/store.dart
 ```
 
 You should see, on stderr:
 
 ```text
-reference_admin_server listening on http://0.0.0.0:8080
+store listening on http://0.0.0.0:8080
 ```
 
 The tutorial store binds `0.0.0.0` on port **8080** by default, so the panel reaches it
-at `http://localhost:8080`. (The kitchen-sink showcase, `beak_superdashboard`, runs its
+at `http://localhost:8080`. (The kitchen-sink showcase, `superdashboard`, runs its
 server on **8180** instead. Match the port to the app or a client hits
 connection-refused.)
 
@@ -165,17 +165,17 @@ BeakServer({
 });
 ```
 
-The reference app wraps this in a small builder so its `main()` reads cleanly. The
+The store example wraps this in a small builder so its `main()` reads cleanly. The
 builder is where the three pieces meet: the registry, a `WormDataSource` over it, and
 optional storage.
 
-```dart title="apps/reference_admin_server/lib/src/server_builder.dart"
+```dart title="examples/store/lib/server.dart"
 BeakServer buildReferenceServer({
   required BeakBackendConfig config,
   required DatabaseAdapter adapter,
   BeakStorageDriver? storage,
 }) {
-  final BeakModelRegistry registry = buildReferenceRegistry();
+  final BeakModelRegistry registry = buildBeakRegistry();
   return BeakServer(
     config: config,
     registry: registry,
@@ -201,13 +201,13 @@ Future<HttpServer> start() =>
 ## Migrations and seeds run separately
 
 The server binary does not touch your schema. Migrations are explicit and applied
-through a companion CLI, `bin/worm.dart`, that registers the same migrations and
+through a companion CLI, `bin/migrate.dart`, that registers the same migrations and
 seeders:
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/worm.dart migrate
-dart run bin/worm.dart db:seed
+cd examples/store
+dart run bin/migrate.dart migrate
+dart run bin/migrate.dart db:seed
 ```
 
 That keeps schema changes deliberate: the server assumes the tables already exist. See

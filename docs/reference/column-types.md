@@ -124,7 +124,7 @@ const BeakStringColumn({
 
 Value type `String`. Renders as `text` on every surface.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const name = BeakStringColumn(
   key: 'name',
   label: 'Name',
@@ -253,7 +253,7 @@ const BeakDecimalColumn({
 Value type `double`. Renders as `currency` when `prefix` or `suffix` is set,
 otherwise `number`, on every surface.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const price = BeakDecimalColumn(
   key: 'price',
   label: 'Price',
@@ -382,7 +382,7 @@ Value type `T`. Renders as `badge` on every surface. Helper methods:
 | `labelFor(T value)` | `String` | The display label of `value`: `labelOf` when set, else `value.name`. |
 | `valueByName(String name)` | `T?` | The declared value whose `name` matches `name`, or `null`. The one way stored rows and query params decode back into typed enum values without an `as` cast. |
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const status = BeakEnumColumn<ProductStatus>(
   key: 'status',
   label: 'Status',

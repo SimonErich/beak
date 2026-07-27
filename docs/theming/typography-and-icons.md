@@ -76,7 +76,7 @@ The variant defaults to `body`, so plain paragraph text is
 `BeakTextBlock('some copy')`. The superdashboard's typography screen shows the
 whole ramp in one card:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
 BeakScreen buildTypographyScreen() => const BeakScreen(
   path: '/typography',
   title: 'Typography',
@@ -184,7 +184,7 @@ final class BeakIconGalleryBlock extends BeakBlock {
 The superdashboard's icons screen builds a curated slice of the set from a list
 of token/label pairs:
 
-```dart title="apps/beak_superdashboard/lib/screens/icons_screen.dart"
+```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
 BeakScreen buildIconsScreen() => BeakScreen(
   path: '/icons',
   title: 'Icons',

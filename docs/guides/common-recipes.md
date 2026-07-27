@@ -9,19 +9,19 @@ A grab-bag of small, worked answers to "how do I do that one thing". Each recipe
 is a few lines of real code and a link to the page that covers it in depth. Skim
 for the one you need; every snippet is lifted from a running demo app.
 
-Unless a recipe says otherwise, the code is from the reference admin store
-(`reference_admin`, served on port 8080). The kanban recipe uses the showcase
-app (`beak_superdashboard`, port 8180); it is labelled where it appears.
+Unless a recipe says otherwise, the code is from the store example store
+(`examples/store`, served on port 8080). The kanban recipe uses the showcase
+app (`superdashboard`, port 8180); it is labelled where it appears.
 
 ## Add a resource end-to-end
 
 Once a model exists, two moves turn it into a full CRUD page. First register it,
 so both the backend and the panel know its shape:
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
-BeakModelRegistry buildReferenceRegistry() {
+```dart
+BeakModelRegistry buildBeakRegistry() {
   final registry = BeakModelRegistry();
-  for (final model in referenceModels) {
+  for (final model in beakModels) {
     registry.register(model);
   }
   return registry;
@@ -31,7 +31,7 @@ BeakModelRegistry buildReferenceRegistry() {
 Then declare a `BeakResource` for it in the panel config. That single line
 yields the list, detail, create, and edit pages, plus navigation:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakResource(
   model: CategoryModel(),
   icon: BeakIconToken(OiIcons.folderTree),
@@ -47,7 +47,7 @@ When a resource needs a verb the CRUD basics do not cover, write plain typed
 code over the data source and surface it as a `BeakRecordAction`. This one
 duplicates a product, reading fields through column constants and never strings:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 Future<void> duplicateProduct(
   BeakRecord record,
   BeakActionContext context,
@@ -73,7 +73,7 @@ Future<void> duplicateProduct(
 
 Wire it into the resource as an action:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 recordActions: [
   BeakRecordAction(
     key: 'duplicate',
@@ -91,7 +91,7 @@ recordActions: [
 A stat tile is an aggregate spec plus a label. The count runs in the database;
 no rows are loaded to produce the number:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 dashboardStats: [
   const BeakStat(
     label: 'Products',
@@ -116,9 +116,9 @@ dashboardStats: [
 
 A resource can offer more than a table. Add a `BeakKanbanView` alongside
 `BeakTableView` and it groups records into columns by an enum field. From the
-showcase app (`beak_superdashboard`, port 8180):
+showcase app (`superdashboard`, port 8180):
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 viewModes: [
   BeakTableView(),
   BeakKanbanView(
@@ -139,7 +139,7 @@ A `BeakEnumColumn` renders as a coloured badge when you give it `badgeColors`.
 Map each enum value to a `BeakColor`, and the badge shows up in the table, the
 detail row, and the filter without any per-surface code:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const status = BeakEnumColumn<ProductStatus>(
   key: 'status',
   label: 'Status',
@@ -162,7 +162,7 @@ Declare a `BeakBelongsTo` relationship and Beak gives you a searchable picker in
 the form and a linked label in the table and detail, all from the display column
 you name:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const category = BeakBelongsTo(
   key: 'category',
   label: 'Category',

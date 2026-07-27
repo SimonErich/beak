@@ -107,7 +107,7 @@ See [Record blocks](../blocks/record-blocks.md) for the full field list of each 
 
 Here is the part worth the page. The showcase app defines its product layout once and hands it to the resource as both `detail` and `formLayout`. On the show page the field blocks render values; on the create/edit form the same blocks render inputs. Each form column appears exactly once.
 
-```dart title="apps/beak_superdashboard/lib/panel/details/commerce_layouts.dart"
+```dart title="examples/superdashboard/lib/panel/details/commerce_layouts.dart"
 const BeakBlock productLayout = BeakColumnBlock(
   gapInPixels: 20,
   children: [
@@ -163,7 +163,7 @@ const BeakBlock productLayout = BeakColumnBlock(
 
 Wiring is one line each on the resource (superdashboard, port 8180):
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: ProductModel(),
   icon: BeakIconToken(OiIcons.package),

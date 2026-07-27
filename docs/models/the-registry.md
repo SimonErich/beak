@@ -79,63 +79,70 @@ BeakModel byTableOrThrow(String table) {
 order matters: it becomes the default order of resources in the panel's
 navigation. Register in the order you want the sidebar to read.
 
-## Building one from a model list
+## The one Beak builds
 
-You rarely call `register` in a long chain by hand. The reference app keeps its
-models in one `const` list and builds the registry from it in a loop, so the
-list is the single source of truth for the catalog's shape.
+You do not write this. `beak prepare` collects every model it discovered into
+`lib/beak/registry.g.dart`:
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
-const List<BeakModel> referenceModels = [
-  ProductModel(),
+```dart title="examples/store/lib/beak/registry.g.dart"
+/// Every model discovered under `lib/models/`, in path order.
+const List<BeakModel> beakModels = <BeakModel>[
   CategoryModel(),
-  TagModel(),
-  UserModel(),
   OrderModel(),
   OrderItemModel(),
+  ProductModel(),
+  RoastProfileModel(),
+  TagModel(),
+  UserModel(),
 ];
 
-BeakModelRegistry buildReferenceRegistry() {
+/// A registry populated with every model in [beakModels].
+BeakModelRegistry buildBeakRegistry() {
   final registry = BeakModelRegistry();
-  for (final model in referenceModels) {
+  for (final model in beakModels) {
     registry.register(model);
   }
   return registry;
 }
 ```
 
-!!! note "What just happened"
-    - `referenceModels` is declared in the shared `reference_admin_models`
-      package, so the server and the Flutter app import the exact same list.
-    - `buildReferenceRegistry` is the one function both sides call. Change the
-      list and both the API and the panel pick it up. No second place to edit.
+Adding a resource means adding a file. There is no list to keep in step, which
+is the list that used to be wrong.
 
 ## Who gets the registry
 
-The registry is the seam between defining models once and having them drive
-everything. The backend wraps it in a data source; a `WormDataSource` reads it to
-know which tables to serve, and the `BeakServer` takes it directly.
+The registry is the seam between defining a resource once and having it drive
+everything. The generated server host hands it to the data source and the
+server:
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
-final registry = buildReferenceRegistry();
-final server = BeakServer(
-  config: config,
-  registry: registry,
-  dataSource: WormDataSource(registry, adapter: adapter),
+```dart title="examples/store/lib/beak/server.g.dart"
+BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
+  environment: environment,
+  registry: buildBeakRegistry(),
+  migrations: const [/* ... */],
+  seeders: const [StoreSeeder()],
+  configure: server.beakServer,
 );
 ```
 
-On the panel side you do not usually build a registry yourself. You list your
-models as `BeakResource`s on the panel config, and the panel derives its own
-registry from them. Same models, same table keys, so the two ends resolve
-relations to the same tables. The registry is what keeps "the model for
+The panel derives its own registry from the resources on its config, so both
+ends resolve `categories` to the same model. That is what keeps "the model for
 `categories`" meaning one thing across the whole app.
+
+A test builds one directly, which is the other reason it is a plain function:
+
+```dart title="examples/store/test/widget_test.dart"
+final registry = buildBeakRegistry();
+final source = InMemoryBeakDataSource(registry: registry)
+  ..seed(const ProductModel(), [/* ... */]);
+```
 
 ```mermaid
 flowchart TD
-  L["referenceModels<br/>(const list)"] --> R["BeakModelRegistry"]
-  R --> B["BeakServer + WormDataSource<br/>(auto CRUD)"]
-  R2["panel resources"] --> P["BeakPanelConfig registry<br/>(resource pages)"]
+  M["lib/models/*.dart"] --> G["beak prepare"]
+  G --> R["buildBeakRegistry()"]
+  R --> B["BeakServeHost + WormDataSource<br/>(the API)"]
+  R --> P["BeakPanelConfig<br/>(the pages)"]
 ```
 
 ## Continue reading

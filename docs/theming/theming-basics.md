@@ -50,7 +50,7 @@ enum OiThemeMode {
 The default is `system`, which follows the operating system's brightness. The
 superdashboard demo pins itself to light instead:
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel/config.dart"
 BeakPanelConfig buildSuperdashboardConfig({
   String apiBaseUrl = 'http://localhost:8180',
 }) => BeakPanelConfig(

@@ -233,7 +233,7 @@ final BeakUploadClient? effectiveUploader =
     };
 ```
 
-The `filePicker` is yours to provide, because platform pickers surface names while Beak needs bytes to validate and upload. The reference app wires a `file_picker`-based one:
+The `filePicker` is yours to provide, because platform pickers surface names while Beak needs bytes to validate and upload. The store example wires a `file_picker`-based one:
 
 ```dart title="packages/beak_frontend/lib/src/form/upload_field.dart"
 Future<BeakUpload?> pickImageFromDisk() async {
@@ -254,9 +254,9 @@ See [Files and storage columns](../models/files-and-storage-columns.md) for the 
 
 ## The teaching store, end to end
 
-The reference admin app declares its Products resource with a filter and a custom action and gets create and edit forms for free, because a resource's form is generated from its model. This is the whole panel config for the store, on port 8080:
+The store example app declares its Products resource with a filter and a custom action and gets create and edit forms for free, because a resource's form is generated from its model. This is the whole panel config for the store, on port 8080:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakPanelConfig buildReferencePanelConfig({
   String apiBaseUrl = 'http://localhost:8080',
 }) => BeakPanelConfig(

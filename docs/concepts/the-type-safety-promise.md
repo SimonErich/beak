@@ -17,7 +17,7 @@ When you configure a table, a filter, or a form, you pass the column constant
 itself, not its key. The keys exist (a column has a `key: 'price'`), but they are
 an internal detail of talking to the database. You work with the typed object.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Display name.
 static const name = BeakStringColumn(
   key: 'name',
@@ -34,7 +34,7 @@ runtime. There is no `columns['naem']` to get wrong.
 
 Relationships are typed constants for the same reason:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// The category a product is filed under.
 static const category = BeakBelongsTo(
   key: 'category',

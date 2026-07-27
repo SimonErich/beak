@@ -101,7 +101,7 @@ explicitly if you need it.
 The products model's photo shows the full set: a 5 MB cap, raster formats only,
 a thumbnail, and a transform pipeline.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Product photo: max 5 MB, raster formats only, thumbnail + webp
 /// renditions generated on upload.
 static const image = BeakImageColumn(
@@ -120,10 +120,10 @@ static const image = BeakImageColumn(
 );
 ```
 
-The **beak_superdashboard** showcase uses the simpler form for avatars: rules
+The **superdashboard** showcase uses the simpler form for avatars: rules
 and a thumbnail, no transform pipeline.
 
-```dart title="apps/beak_superdashboard/lib/models/people/user.dart"
+```dart title="examples/superdashboard/lib/models/people/user.dart"
 static const avatar = BeakImageColumn(
   key: 'avatar',
   label: 'Avatar',

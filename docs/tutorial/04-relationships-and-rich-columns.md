@@ -20,7 +20,7 @@ detail row, the filter, and the API validator at once.
 Tags are the simplest model in the store, even simpler than categories: an id
 and a name. They exist to be attached to products, so define them first.
 
-```dart title="apps/reference_admin_models/lib/src/tag.dart"
+```dart
 import 'package:beak_core/beak_core.dart';
 
 /// Typed column constants of the tags resource.
@@ -72,7 +72,7 @@ Strings, text, and integers work exactly as they did on `Category`. The `id` is
 detail-only, the `name` is required and searchable, the `description` is a
 longer `BeakTextColumn`, and `stock` is a whole number that cannot go negative.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 import 'package:beak_core/beak_core.dart';
 
 abstract final class ProductColumns {
@@ -113,7 +113,7 @@ a real Dart enum, then hand it to a `BeakEnumColumn`. The generic keeps the
 whole column type-safe: `values`, `defaultValue`, and `badgeColors` all speak in
 `ProductStatus`, so there is no place for a stray string state to creep in.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 enum ProductStatus {
   draft,
   published,
@@ -144,7 +144,7 @@ three values. You will reach for `filterable: true` again in chapter 6.
 switches from a plain number to a currency-style amount, so `12.5` shows as
 `€12.50`.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
   static const price = BeakDecimalColumn(
     key: 'price',
     label: 'Price',
@@ -162,7 +162,7 @@ the full image on the detail page. The upload rules (max size, allowed types)
 and the `transforms` pipeline run server-side on upload, and Beak mirrors them
 on the client for fast feedback before the file ever leaves the browser.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
   static const image = BeakImageColumn(
     key: 'image',
     label: 'Image',
@@ -190,7 +190,7 @@ live (memory, local disk, S3, MinIO) is a storage-driver decision covered in
 form-only because the relationship (next section) is what appears on the table
 and detail pages. The two timestamps are stamped by the backend.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
   static const categoryId = BeakStringColumn(
     key: 'category_id',
     label: 'Category',
@@ -236,7 +236,7 @@ Columns describe a single row. Relationships connect rows across tables. A
 product belongs to one category and carries many tags, so it declares one of
 each.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 abstract final class ProductRelations {
   /// The category a product is filed under.
   static const category = BeakBelongsTo(
@@ -274,7 +274,7 @@ query. You declare the pivot's three names once and Beak reads and writes it.
 Both relationships hang off the model through the `relationships` override,
 alongside the columns:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 final class ProductModel extends BeakModel {
   const ProductModel();
 
@@ -317,11 +317,11 @@ parent side of a to-one link: one row over in the related table points back at
 this one.
 
 Your reference store has no natural has-one, so here is the labeled example from
-the **showcase app** (`beak_superdashboard`), where an order has exactly one
+the **showcase app** (`superdashboard`), where an order has exactly one
 settling transaction. Do not paste this into your store; it names the
 showcase's `transactions` table, which your store does not have.
 
-```dart title="apps/beak_superdashboard/lib/models/commerce/order.dart"
+```dart title="examples/superdashboard/lib/models/commerce/order.dart"
   /// The settling transaction.
   static const transaction = BeakHasOne(
     key: 'transaction',
@@ -342,7 +342,7 @@ Models describe the shape; migrations create the tables. Add three migration
 classes next to the categories migration you wrote in chapter 2: tags, products,
 and the pivot that joins them.
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
 /// Creates the tags lookup table.
 final class CreateTagsTable extends Migration {
   const CreateTagsTable();
@@ -436,12 +436,12 @@ The pivot has no id of its own: the `product_id` / `tag_id` pair is its identity
 kept unique so a tag cannot be attached twice. Both foreign keys cascade, so
 detaching a product cleans up its pivot rows.
 
-Register the three new migrations in `referenceMigrations`, after the categories
+Register the three new migrations in `the generated migration list`, after the categories
 migration. Your store's remaining tables (users, orders, order items) join this
 list in the next chapter.
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
-const List<Migration> referenceMigrations = [
+```dart
+const List<Migration> the generated migration list = [
   CreateCategoriesTable(),
   CreateTagsTable(),
   CreateProductsTable(),
@@ -452,11 +452,11 @@ const List<Migration> referenceMigrations = [
 ## Register the models
 
 The migrations build the tables; the model registry tells Beak what those tables
-mean. Add `ProductModel` and `TagModel` to the shared `referenceModels` list
+mean. Add `ProductModel` and `TagModel` to the shared `beakModels` list
 that both the server and the panel read.
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
-const List<BeakModel> referenceModels = [
+```dart
+const List<BeakModel> beakModels = [
   ProductModel(),
   CategoryModel(),
   TagModel(),
@@ -466,7 +466,7 @@ const List<BeakModel> referenceModels = [
 Then surface products and tags in the panel by adding a `BeakResource` for each.
 Filters and actions come in chapter 6, so keep these plain for now.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
   resources: const [
     BeakResource(
       model: ProductModel(),
@@ -486,8 +486,8 @@ Apply the new migrations from the server package, exactly as you did for
 categories.
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/worm.dart migrate
+cd examples/store
+dart run bin/migrate.dart migrate
 ```
 
 You should see the three pending migrations applied in order:
@@ -512,7 +512,7 @@ status a colored dropdown.
     - Two relationships (`BeakBelongsTo`, `BeakBelongsToMany`) turned two tables
       and a pivot into a category link and a tag badge list, with no join query
       in sight.
-    - Three migrations created the tables; adding the models to `referenceModels`
+    - Three migrations created the tables; adding the models to `beakModels`
       wired them into both the API and the panel.
 
 !!! question "What this skipped"

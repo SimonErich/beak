@@ -199,7 +199,7 @@ surfaces, and they can never drift apart because they are the same tree.
 With the backend from chapter 3 up on port 8080, launch the panel:
 
 ```bash
-cd apps/reference_admin
+cd examples/store
 flutter run -d chrome
 ```
 

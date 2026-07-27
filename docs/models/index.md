@@ -20,7 +20,7 @@ and that seam is what lets one definition drive both sides.
 
 Here is the whole shape, from the reference store's products resource:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 final class ProductModel extends BeakModel {
   /// Creates the products model.
   const ProductModel();

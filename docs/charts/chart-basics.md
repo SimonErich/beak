@@ -65,11 +65,11 @@ typedef BeakChartMapper =
     List<BeakChartPoint> Function(List<BeakRecord> records);
 ```
 
-Here is a real one from the tutorial store (`apps/reference_admin`, port 8080).
+Here is a real one from the tutorial store (`examples/store`, port 8080).
 It turns each product row into one bar, labelled by name and sized by stock,
 reading both fields through the shared `ProductColumns` constants:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
@@ -159,7 +159,7 @@ final class BeakChart {
 
 The tutorial store registers exactly one:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 dashboardCharts: [
   const BeakChart(
     title: 'Stock per product',
@@ -189,11 +189,11 @@ final class BeakChartBlock extends BeakBlock {
   });
 ```
 
-The showcase's charts screen (`apps/beak_superdashboard`, port 8180) is a grid of
+The showcase's charts screen (`apps/superdashboard`, port 8180) is a grid of
 these. Note the shared `analyticsPage` pagination so each chart reads the whole
 series, and the `sorts` that put the buckets in order:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 body: BeakGridBlock(
   columns: 2,
   gapInPixels: 20,
@@ -226,7 +226,7 @@ One tall `time_series_points` table backs every line, area, and bar chart. The
 `seriesPoints(...)` mapper is a factory: it keeps only the rows for one series,
 orders them, and returns the points.
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// A chart mapper that keeps only the `time_series_points` rows of [series]
 /// and turns them into ordered points - so one tall table feeds every chart.
 BeakChartMapper seriesPoints(String series) => (records) {
@@ -248,7 +248,7 @@ BeakChartMapper seriesPoints(String series) => (records) {
 
 The `purchaseSourcePoints` mapper is simpler still, one row per channel:
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `purchase_sources` rows onto donut segments sized by revenue.
 List<BeakChartPoint> purchaseSourcePoints(List<BeakRecord> records) => [
   for (final record in records)

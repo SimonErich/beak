@@ -54,7 +54,7 @@ You declare relationships as `static const` constants next to your columns, then
 list them on the model's `relationships` getter. Here is the products model's
 pair.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 @override
 List<BeakRelationship> get relationships => const [
   ProductRelations.category,
@@ -68,7 +68,7 @@ List<BeakRelationship> get relationships => const [
 column that names one record in `relatedTable`. A product belongs to one
 category through `products.category_id`.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// The category a product is filed under.
 static const category = BeakBelongsTo(
   key: 'category',
@@ -92,7 +92,7 @@ queries `categories` by `name`.
 key pointing back at this model. A user has many orders, each order row carrying
 `orders.user_id`.
 
-```dart title="apps/reference_admin_models/lib/src/user.dart"
+```dart
 /// The orders a user placed.
 static const orders = BeakHasMany(
   key: 'orders',
@@ -113,7 +113,7 @@ adds an `onDelete`, covered [below](#what-a-delete-does-beakondelete).
 in `pivotTable` pairs one of this model's ids (`foreignPivotKey`) with one
 related id (`relatedPivotKey`). Products and tags meet in `product_tag`.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// The tags attached to a product.
 static const tags = BeakBelongsToMany(
   key: 'tags',
@@ -135,10 +135,10 @@ attached. In a form this becomes a searchable multi-select.
 
 `BeakHasOne` is the one-record cousin of `BeakHasMany`: one record in
 `relatedTable` holds the foreign key back to this model. It is not part of the
-reference store, so this example is from the **beak_superdashboard** showcase,
+reference store, so this example is from the **superdashboard** showcase,
 where an order has a single settling transaction (`transactions.order_id`).
 
-```dart title="apps/beak_superdashboard/lib/models/commerce/order.dart"
+```dart title="examples/superdashboard/lib/models/commerce/order.dart"
 /// The settling transaction.
 static const transaction = BeakHasOne(
   key: 'transaction',

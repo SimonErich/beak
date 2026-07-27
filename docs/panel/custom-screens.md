@@ -46,7 +46,7 @@ const BeakScreen({
 You register screens on `BeakPanelConfig.pages`. Each becomes a `GoRoute` inside the
 panel shell, and (unless `showInNav` is false) an `OiNavItem` in the sidebar.
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel/config.dart"
 BeakPanelConfig buildSuperdashboardConfig({
   String apiBaseUrl = 'http://localhost:8180',
 }) => BeakPanelConfig(
@@ -68,7 +68,7 @@ BeakPanelConfig buildSuperdashboardConfig({
 The showcase's starter page is one screen with one block in its body, the smallest
 useful shape. Copy it when you begin a new page.
 
-```dart title="apps/beak_superdashboard/lib/screens/starter_screen.dart"
+```dart title="examples/superdashboard/lib/screens/starter_screen.dart"
 BeakScreen buildStarterScreen() => const BeakScreen(
   path: '/starter',
   title: 'Starter',
@@ -98,7 +98,7 @@ A screen whose `path` is `/` claims the home route and replaces Beak's built-in
 stats-and-charts dashboard. The showcase does exactly this to ship a designed
 landing page.
 
-```dart title="apps/beak_superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/panel/dashboard.dart"
 BeakScreen buildDashboardScreen() => BeakScreen(
   path: '/',
   title: 'Dashboard',
@@ -120,7 +120,7 @@ Some pages want the full viewport with no page chrome: a calendar, a kanban boar
 chat thread, an inbox. Set `framed: false` and Beak renders the body edge to edge.
 These "module" screens pair a single high-level block with a model.
 
-```dart title="apps/beak_superdashboard/lib/screens/chat_screen.dart"
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
 BeakScreen buildChatScreen() => const BeakScreen(
   path: '/chat',
   title: 'Chat',
@@ -141,7 +141,7 @@ The invoice screen shows the other reason to reach for a screen: a detail docume
 built from one module block, wired to a fixed record and its line items through
 column constants.
 
-```dart title="apps/beak_superdashboard/lib/screens/invoice_screen.dart"
+```dart title="examples/superdashboard/lib/screens/invoice_screen.dart"
 BeakScreen buildInvoiceScreen() => const BeakScreen(
   path: '/invoice',
   title: 'Invoice',

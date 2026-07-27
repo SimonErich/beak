@@ -55,7 +55,7 @@ The fields, in one table:
 
 The showcase app breaks its "new event" flow into four steps: free text, then the schedule with an all-day switch, then place and links, then category, organizer, and color. This is the whole definition, wired onto the Calendar Events resource in the superdashboard (port 8180):
 
-```dart title="apps/beak_superdashboard/lib/panel/forms/calendar_event_form.dart"
+```dart title="examples/superdashboard/lib/panel/forms/calendar_event_form.dart"
 const List<BeakFormStep> calendarEventFormSteps = [
   BeakFormStep(
     title: 'Details',
@@ -108,7 +108,7 @@ const List<BeakFormStep> calendarEventFormSteps = [
 
 Set `formSteps` on the resource. The generated create and edit pages pass it straight to the form, and `formSteps` takes precedence over a `formLayout`.
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: CalendarEventModel(),
   icon: BeakIconToken(OiIcons.calendar),

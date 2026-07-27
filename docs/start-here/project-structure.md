@@ -17,8 +17,9 @@ acme_admin/
   lib/
     models/             DISCOVERED one @Resource class per file
     screens/            optional   a top-level BeakScreen per file
-    migrations/         optional   hand-written, discovered and registered
-    seeders/            optional   hand-written, discovered and registered
+    migrations/         GENERATED first, then yours; discovered and registered
+    resources/          optional   one file per resource you want to adjust
+    seeders/            optional   discovered and registered
     beak/*.g.dart       GENERATED, committed
     main.dart           GENERATED, git-ignored
   bin/
@@ -44,6 +45,7 @@ miss is visible rather than silent.
 | `lib/screens/` | A top-level `BeakScreen`, or a zero-argument function returning one. Becomes a page in the sidebar. |
 | `lib/migrations/` | A class extending `Migration` with a `const` constructor. Registered on the host in **declared-name order**, so a timestamp prefix controls when it runs. |
 | `lib/seeders/` | A class extending `Seeder`. Registered for `beak seed`. |
+| `lib/resources/` | `BeakResource beakResource(BeakResource generated)`, in a file named after the table. Adjusts that one resource. |
 
 A class that cannot be used is reported by name and file — a model with no
 `const` constructor, a screen of the wrong type — rather than skipped.
@@ -148,7 +150,7 @@ file imports the server half by hand.
 | Change an icon or a sidebar section | `beak.yaml`, under `resources:`. |
 | Restyle the panel | `beak eject theme`. |
 | Add middleware or a policy | `beak eject server`. |
-| Change the schema | A migration in `lib/migrations/`, then `beak migrate`. |
+| Change the schema | Edit the schema class, `beak prepare`, then `beak migrate`. Beak writes the first migration for a resource; changing a table later is a migration you write. |
 | See what Beak sees | `beak doctor`. |
 
 ## Continue reading

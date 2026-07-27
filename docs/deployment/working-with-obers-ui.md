@@ -58,7 +58,7 @@ Three details worth knowing:
 ## Bumping obers_ui
 
 Update the `ref` in all three places — `packages/beak_frontend`,
-`apps/reference_admin`, and `apps/beak_superdashboard` — then re-bootstrap:
+`examples/store`, and `apps/superdashboard` — then re-bootstrap:
 
 ```bash
 melos bootstrap

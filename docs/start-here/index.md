@@ -17,12 +17,12 @@ the thing first, start with the two conceptual pages below.
 
 === "I want to see it work"
 
-    Run the reference admin against a real server on your machine, then read the
+    Run the store example against a real server on your machine, then read the
     code that made it. About five minutes of copy-paste.
 
     - [Installation](installation.md) gets the toolchain, Docker services, and
       `.env` in place.
-    - [Quickstart](quickstart.md) boots the reference admin: migrate, seed,
+    - [Quickstart](quickstart.md) boots the store example: migrate, seed,
       serve on port 8080, and open the Flutter panel.
 
 === "I want to learn it properly"
@@ -59,14 +59,14 @@ the thing first, start with the two conceptual pages below.
 | [What is Beak?](what-is-beak.md) | The elevator pitch, the name story, the package family table, and what Beak is (and is not) for. |
 | [Why Beak?](why-beak.md) | The case for configuration over hand-written code, and where that case stops. |
 | [Installation](installation.md) | Toolchain versions, Docker services, and the `.env` file the demos expect. |
-| [Quickstart](quickstart.md) | The reference admin running end to end: server on port 8080, panel in Chrome. |
+| [Quickstart](quickstart.md) | The store example running end to end: server on port 8080, panel in Chrome. |
 | [Project structure](project-structure.md) | How the monorepo is laid out and which folder does what. |
 
 !!! tip "Two demo apps, two ports"
     Beak ships two example apps. The **reference admin**
-    (`apps/reference_admin*`) is the small teaching store this section and the
+    (`examples/store*`) is the small teaching store this section and the
     tutorial use; its server runs on port 8080. The **superdashboard**
-    (`apps/beak_superdashboard`) is the kitchen-sink showcase the feature pages
+    (`apps/superdashboard`) is the kitchen-sink showcase the feature pages
     use; its server runs on port 8180. When you copy a snippet, match its
     `apiBaseUrl` port to the app it came from.
 

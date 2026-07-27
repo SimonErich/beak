@@ -16,7 +16,7 @@ Here is a real column from the coffee roastery's product model. It is a `const`,
 it is typed (`BeakDecimalColumn`), and it is the only place the notion of "price"
 is spelled out anywhere in the app.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Sale price in euros.
 static const price = BeakDecimalColumn(
   key: 'price',
@@ -72,7 +72,7 @@ A column does not have to feed all six mouths. `visibleOn` is a
 `Set<BeakContext>` that decides which surfaces show it. The default is table,
 form, and detail; narrow it when a field belongs to only some of them.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Primary key.
 static const id = BeakStringColumn(
   key: 'id',
@@ -85,7 +85,7 @@ The id shows on the detail view and nowhere else: no one edits it in a form, and
 it would clutter the table. The reverse case is the foreign key, which only makes
 sense as a form input:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Foreign key owned by the `category` belongs-to relationship.
 static const categoryId = BeakStringColumn(
   key: 'category_id',
@@ -105,7 +105,7 @@ The promise holds for the interesting column kinds too. An enum column carries
 its own values and the badge colors it renders with, so the table cell, the form
 dropdown, and the filter all agree on the allowed set:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Lifecycle state, rendered as a colored badge.
 static const status = BeakEnumColumn<ProductStatus>(
   key: 'status',
@@ -130,7 +130,7 @@ lifecycle once, as a Dart enum, and every surface inherited it.
 The model gathers its columns into one ordered list, and that is the entire
 contract the rest of Beak consumes:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 @override
 List<BeakColumn> get columns => ProductColumns.values;
 ```

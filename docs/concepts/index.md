@@ -11,7 +11,7 @@ through, and the way results and errors come back. Read the pages top to bottom
 the first time. After that, this hub is a map you can jump around in.
 
 Every page here quotes the tutorial store, a small coffee roastery
-(`apps/reference_admin`) whose server runs on port 8080. The models are small on
+(`examples/store`) whose server runs on port 8080. The models are small on
 purpose so the ideas stay in focus.
 
 !!! tip "Reading order"

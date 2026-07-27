@@ -92,7 +92,7 @@ OiBadgeColor _badgeColor(BeakColor color) => switch (color) {
 Because `BeakColor` is an enum, you can loop over `BeakColor.values` to show the
 whole palette, exactly as the UI-kit page does:
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakRowBlock(
   gapInPixels: 8,
   children: [
@@ -111,7 +111,7 @@ range 0 to 1, and `label` is an optional caption above the bar.
 const BeakProgressBlock({required this.value, this.label, super.span});
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakColumnBlock(
   gapInPixels: 12,
   children: [
@@ -136,7 +136,7 @@ const BeakRatingBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakRatingBlock(value: 3.5),
 ```
 
@@ -168,7 +168,7 @@ const BeakRadialSliderBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakCardBlock(
   title: 'Round slider',
   child: BeakRadialSliderBlock(label: 'Volume', initialValue: 65),

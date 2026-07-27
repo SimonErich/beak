@@ -58,7 +58,7 @@ const BeakKpiBlock({
 
 The showcase dashboard opens with four of them: an earnings sum and three counts.
 
-```dart title="apps/beak_superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/panel/dashboard.dart"
 BeakBlock _kpis() => BeakGridBlock(
   columns: 4,
   children: [
@@ -148,7 +148,7 @@ const BeakTableBlock({
 
 The dashboard's three listings are all the same block over different models:
 
-```dart title="apps/beak_superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/panel/dashboard.dart"
 BeakBlock _tables() => const BeakGridBlock(
   columns: 12,
   children: [

@@ -54,7 +54,7 @@ const BeakResource({
 declarations stay expressive without leaking raw icon plumbing into the config
 surface. Wrap any obers_ui `OiIcons` value:
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: ProductModel(),
   icon: BeakIconToken(OiIcons.package),
@@ -123,7 +123,7 @@ Give resources a `section` string and Beak groups them under that heading in the
 sidebar, in declaration order. The superdashboard files its 17 resources into
 Store, People, Projects, and Content:
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 List<BeakResource> buildResources() => const [
   // ── Store ─────────────────────────────────────────────────────────────────
   BeakResource(
@@ -153,7 +153,7 @@ List<BeakResource> buildResources() => const [
 Leave `section` off and the resource sits at the top level of the sidebar, which
 is how the tutorial store keeps its handful of models flat:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakResource(
   model: ProductModel(),
   icon: BeakIconToken(OiIcons.package),

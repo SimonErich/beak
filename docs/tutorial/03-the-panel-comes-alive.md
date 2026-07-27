@@ -20,13 +20,13 @@ model registry, wraps it in a `WormDataSource` (the worm-backed implementation o
 Beak's data-source interface), and hands both to a `BeakServer`, which mounts the
 full CRUD API for every registered model.
 
-```dart title="apps/reference_admin_server/lib/src/server_builder.dart"
+```dart title="examples/store/lib/server.dart"
 BeakServer buildReferenceServer({
   required BeakBackendConfig config,
   required DatabaseAdapter adapter,
   BeakStorageDriver? storage,
 }) {
-  final BeakModelRegistry registry = buildReferenceRegistry();
+  final BeakModelRegistry registry = buildBeakRegistry();
   return BeakServer(
     config: config,
     registry: registry,
@@ -36,7 +36,7 @@ BeakServer buildReferenceServer({
 }
 ```
 
-That registry is the same `buildReferenceRegistry()` you registered
+That registry is the same `buildBeakRegistry()` you registered
 `CategoryModel` in. Every model in it gets a set of routes: list, read, create,
 update, delete. The `WormDataSource` is the only thing that knows about worm or
 Postgres; nothing above it does, which is the seam that lets a different backing
@@ -45,7 +45,7 @@ store slot in later.
 The `bin/` entry point loads `.env`, connects worm to Postgres, resolves the
 storage driver, and starts the server:
 
-```dart title="apps/reference_admin_server/bin/reference_admin_server.dart"
+```dart title="examples/store/bin/serve.dart"
 Future<void> main() async {
   final Map<String, String> environment = BeakEnv.resolve();
   final config = BeakBackendConfig.fromEnv(environment: environment);
@@ -58,7 +58,7 @@ Future<void> main() async {
   );
   final HttpServer httpServer = await server.start();
   stderr.writeln(
-    'reference_admin_server listening on '
+    'store listening on '
     'http://${httpServer.address.host}:${httpServer.port}',
   );
 }
@@ -67,14 +67,14 @@ Future<void> main() async {
 Start it from the server folder, with the services from Chapter 1 still up:
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/reference_admin_server.dart
+cd examples/store
+dart run bin/store.dart
 ```
 
 You should see the listen line, on port `8080`:
 
 ```text
-reference_admin_server listening on http://0.0.0.0:8080
+store listening on http://0.0.0.0:8080
 ```
 
 Leave this terminal running. The backend is live. Open a second terminal for the
@@ -87,12 +87,12 @@ The Flutter app has no page code either. Its `main.dart` builds a
 and an icon; from that, Beak renders the list page, the detail page, the create
 form, and the edit form. For now the panel has one resource, `CategoryModel`:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
-import 'package:reference_admin_models/reference_admin_models.dart';
+import 'package:store/store.dart';
 
 BeakPanelConfig buildReferencePanelConfig({
   String apiBaseUrl = 'http://localhost:8080',
@@ -107,7 +107,7 @@ BeakPanelConfig buildReferencePanelConfig({
   ],
 );
 
-/// The reference admin app: one [BeakPanel] over the shared models.
+/// The store example app: one [BeakPanel] over the shared models.
 final class ReferenceAdminApp extends StatelessWidget {
   /// Creates the app; [dataSource] injects a fake in widget tests.
   const ReferenceAdminApp({this.dataSource, super.key});
@@ -142,7 +142,7 @@ A few things are load-bearing here.
 From a second terminal:
 
 ```bash
-cd apps/reference_admin
+cd examples/store
 flutter run -d chrome
 ```
 

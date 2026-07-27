@@ -49,7 +49,7 @@ final class BeakScreen {
 The body is a `BeakBlock`, so a screen is as simple or as deep as the tree you
 give it. A small one is a single module block:
 
-```dart title="apps/beak_superdashboard/lib/screens/faq_screen.dart"
+```dart title="examples/superdashboard/lib/screens/faq_screen.dart"
 BeakScreen buildFaqScreen() => const BeakScreen(
   path: '/faq',
   title: 'FAQ',
@@ -66,7 +66,7 @@ BeakScreen buildFaqScreen() => const BeakScreen(
 A larger one nests a grid of typed blocks. The charts gallery is one grid with a
 card per chart family, all bound to the same seeded tables:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 BeakScreen buildChartsScreen() => BeakScreen(
   path: '/charts',
   title: 'Charts',
@@ -123,7 +123,7 @@ the standard `OiResourcePage` header and padding, so the screen matches every
 resource page. Set it to `false` for a surface that wants the whole canvas: a
 calendar, a kanban board, a chat thread.
 
-```dart title="apps/beak_superdashboard/lib/screens/chat_screen.dart"
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
 BeakScreen buildChatScreen() => const BeakScreen(
   path: '/chat',
   title: 'Chat',
@@ -160,7 +160,7 @@ classic case: it needs a route, but not a permanent nav entry.
 Screens go on `BeakPanelConfig.pages`. The superdashboard registers all of its
 this way:
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel/config.dart"
   pages: [
     buildDashboardScreen(),
     buildEmailScreen(),

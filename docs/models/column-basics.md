@@ -73,7 +73,7 @@ The default is `{table, form, detail}`: shown everywhere a value is edited or
 read, but not offered as a filter. Narrow the set to hide a column from a
 surface. A primary key, for instance, is read-only detail only:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Primary key.
 static const id = BeakStringColumn(
   key: 'id',

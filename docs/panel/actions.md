@@ -106,7 +106,7 @@ Two members carry most of the weight. `dataSource` is the same source-agnostic i
 
 The reference store adds a Duplicate action to Products. It is plain typed code over the data source: read the source record through the shared column constants (never string literals), write a `"(copy)"` clone, then refresh so the table reloads.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 Future<void> duplicateProduct(
   BeakRecord record,
   BeakActionContext context,
@@ -140,7 +140,7 @@ Future<void> duplicateProduct(
 
 You wire it into the resource as the `onExecute` of a `BeakRecordAction`, on the store's panel config (port 8080):
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakResource(
   model: ProductModel(),
   icon: BeakIconToken(OiIcons.package),

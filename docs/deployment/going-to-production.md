@@ -29,11 +29,11 @@ FROM dart:stable AS build
 WORKDIR /app
 COPY . .
 
-WORKDIR /app/apps/reference_admin_server
+WORKDIR /app/examples/store
 RUN dart pub get
-RUN dart compile exe bin/reference_admin_server.dart -o /app/beak-server
+RUN dart compile exe bin/store.dart -o /app/beak-server
 # The worm CLI (migrate / db:seed) as a second executable.
-RUN dart compile exe bin/worm.dart -o /app/beak-migrate
+RUN dart compile exe bin/migrate.dart -o /app/beak-migrate
 
 # --- Runtime image: just glibc + CA roots for HTTPS to Postgres/S3 ---
 FROM debian:bookworm-slim AS runtime
@@ -50,9 +50,9 @@ EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/beak-server"]
 ```
 
-The second `dart compile exe` is the detail worth noticing. It compiles the app's `bin/worm.dart` into a second binary, `beak-migrate`, and copies it into the same image. So one image carries both the server and the tool that migrates and seeds its schema. The compose stack uses that second binary as its migrate step, which means schema and server can never drift onto different code.
+The second `dart compile exe` is the detail worth noticing. It compiles the app's `bin/migrate.dart` into a second binary, `beak-migrate`, and copies it into the same image. So one image carries both the server and the tool that migrates and seeds its schema. The compose stack uses that second binary as its migrate step, which means schema and server can never drift onto different code.
 
-To swap in your own project, change the app path from `apps/reference_admin_server` to your server package. Everything else stays the same.
+To swap in your own project, change the app path from `examples/store` to your server package. Everything else stays the same.
 
 ## The web image
 
@@ -67,7 +67,7 @@ COPY . .
 # Flutter refuses to touch a repo it does not "own" (root user in CI images).
 RUN git config --global --add safe.directory '*'
 
-WORKDIR /app/apps/reference_admin
+WORKDIR /app/examples/store
 RUN flutter pub get
 RUN flutter build web --release
 
@@ -75,7 +75,7 @@ RUN flutter build web --release
 FROM nginx:alpine AS runtime
 
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/reference_admin/build/web /usr/share/nginx/html
+COPY --from=build /app/examples/store/build/web /usr/share/nginx/html
 EXPOSE 80
 ```
 
@@ -152,7 +152,7 @@ The stack builds and runs, but a demo compose file is not a hardened deployment.
 - **Run migrations on every deploy.** Schema changes are explicit and never auto-applied. Before or during each rollout, run `docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm migrate`.
 - **Set the panel's `apiBaseUrl` before building the web image.** It is compiled into the bundle. The default `http://localhost:8080` only works for a local demo; a remote deploy needs your real API origin, set before `flutter build web`.
 - **Use durable storage and back it up.** The `pgdata` and `miniodata` volumes are local Docker volumes. For anything you care about, back them up or point `DATABASE_URL` and the `BEAK_S3_*` variables at managed Postgres and S3.
-- **Swap in your own server package.** `Dockerfile.server` compiles `apps/reference_admin_server`. Change that path to your project's server before you ship your own app.
+- **Swap in your own server package.** `Dockerfile.server` compiles `examples/store`. Change that path to your project's server before you ship your own app.
 
 ## Continue reading
 

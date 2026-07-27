@@ -54,7 +54,7 @@ wired. Everything below lives under those mounts.
 ## Conventions
 
 These hold for every route on the page. The examples use the tutorial store
-(`reference_admin`, `products` table) served on port `8080`.
+(`store`, `products` table) served on port `8080`.
 
 | Convention | Detail |
 | --- | --- |

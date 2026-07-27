@@ -68,7 +68,7 @@ pairs each enum value with a `BeakColor`, and the column renders as a colored
 badge in tables and a select control in forms. Here is the products model from
 the tutorial store, quoted verbatim:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Lifecycle states of a product.
 enum ProductStatus {
   /// Being drafted, not on sale.
@@ -148,7 +148,7 @@ final class BeakColorColumn extends BeakColumn {
 The superdashboard's calendar events use one so an organizer can override a
 category's color per event:
 
-```dart title="apps/beak_superdashboard/lib/models/calendar/calendar_event.dart"
+```dart title="examples/superdashboard/lib/models/calendar/calendar_event.dart"
 /// Event color (overrides the category color when set).
 static const color = BeakColorColumn(
   key: 'color',

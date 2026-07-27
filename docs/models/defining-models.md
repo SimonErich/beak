@@ -1,209 +1,145 @@
 ---
-title: Defining models
-description: Write a Beak resource with the columns/relations/model idiom and learn every BeakModel override.
+title: Defining a resource
+description: Declare a schema class, let beak prepare generate the columns, the model, the relationships and the migration, and know what each part decides.
 ---
 
-# Defining models
+# Defining a resource
 
-After this page you can write a complete `BeakModel` from scratch: its columns,
-its relationships, and the handful of getters that set its behavior. We build up
-the reference store's products resource, the showcase model that touches every
-major column kind.
+After this page you can declare any resource your app needs: its columns, its
+relationships, and the behaviour that follows from them. We build up the store
+example's products resource, the one that touches every column kind Beak has.
 
-## The three-part idiom
+## One class
 
-A Beak resource is three declarations that live side by side, usually in one file:
+A resource is a class annotated `@Resource`, extending `BeakSchema`, with a
+`part` directive beside it:
 
-1. A `XxxColumns` class of `static const` columns.
-2. A `XxxRelations` class of `static const` relationships.
-3. A `XxxModel` that references both.
+```dart title="examples/store/lib/models/category.dart"
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-The reason for splitting them is reuse. Each column is a single typed constant, so
-a filter, a form section, and a table can all point at
-`ProductColumns.price` instead of retyping `'price'` and hoping the strings match.
-The model just gathers them.
+part 'category.beak.dart';
 
-### Columns
+/// A shelf of the catalog.
+@Resource()
+final class Category extends BeakSchema {
+  /// What the category is called.
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
+  late final String name;
 
-Group a resource's columns as `static const` fields on an `abstract final class`.
-That class is never instantiated: it is a namespace of reusable references.
-
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-abstract final class ProductColumns {
-  /// Display name.
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
-
-  /// Sale price in euros.
-  static const price = BeakDecimalColumn(
-    key: 'price',
-    label: 'Price',
-    prefix: '€',
-    sortable: true,
-    filterable: true,
-    rules: [BeakRequired(), BeakMin(0)],
-  );
-
-  /// All columns, in display order.
-  static const List<BeakColumn> values = [
-    id,
-    name,
-    description,
-    price,
-    stock,
-    status,
-    image,
-    categoryId,
-    createdAt,
-    updatedAt,
-  ];
+  /// The one-line blurb shown above the product list.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? blurb;
 }
 ```
 
-The `values` list is the one the model hands to Beak, and its order is the order
-columns appear in tables, forms, and detail views. See
-[Column basics](column-basics.md) for the config every column shares and
-[Column types](column-types.md) for the full menu.
+`beak prepare` reads that and writes `category.beak.dart` next to it:
+`CategoryColumns`, `CategoryRelations`, `CategoryModel`, and a typed record
+view. It also writes the migration that creates the table. You register
+nothing: a file under `lib/models/` is a resource.
 
-### Relationships
+!!! note "Why `late final` and no constructor"
+    A schema class is a *description*, never an instance. Its fields are never
+    read at runtime; only the generator reads them, from the source. `late
+    final` with no initialiser is how Dart lets you write a field that is a
+    type, a name and some annotations, and nothing else.
 
-Relationships get the same treatment: `static const` constants on their own
-namespace class.
+## The type picks the column
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-abstract final class ProductRelations {
-  /// The category a product is filed under.
-  static const category = BeakBelongsTo(
-    key: 'category',
-    label: 'Category',
-    relatedTable: 'categories',
-    displayColumnKey: 'name',
-    foreignKey: 'category_id',
-    searchColumnKeys: ['name'],
-  );
+There is no `kind:` parameter. The field's Dart type decides:
 
-  /// The tags attached to a product.
-  static const tags = BeakBelongsToMany(
-    key: 'tags',
-    label: 'Tags',
-    relatedTable: 'tags',
-    displayColumnKey: 'name',
-    pivotTable: 'product_tag',
-    foreignPivotKey: 'product_id',
-    relatedPivotKey: 'tag_id',
-    searchColumnKeys: ['name'],
-  );
-}
-```
-
-[Relationships](relationships.md) covers all four kinds and how each renders.
-
-### The model
-
-The model ties the two together. It extends `BeakModel` (an `abstract base
-class`) with a `final class` and a `const` constructor, then overrides the
-getters that describe the resource.
-
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-final class ProductModel extends BeakModel {
-  /// Creates the products model.
-  const ProductModel();
-
-  @override
-  String get table => 'products';
-
-  @override
-  String get displayColumnKey => 'name';
-
-  @override
-  List<BeakColumn> get columns => ProductColumns.values;
-
-  @override
-  List<BeakRelationship> get relationships => const [
-    ProductRelations.category,
-    ProductRelations.tags,
-  ];
-
-  @override
-  bool get softDeletes => true;
-}
-```
-
-!!! note "What just happened"
-    - You declared columns and relationships as reusable typed constants, then
-      pointed a `const ProductModel()` at them.
-    - `table` and `displayColumnKey` are the only two getters you must always
-      set. `relationships`, `softDeletes`, and `primaryKey` have defaults.
-    - Registering this one instance (next section) gives you a CRUD API and a
-      table, detail, and form panel page. No endpoints, no widgets by hand.
-
-## The BeakModel overrides
-
-`BeakModel` exposes six getters. Two are required, the rest have sensible
-defaults you override only when a resource needs it.
-
-| Getter | Type | Required | Default | What it sets |
-| --- | --- | --- | --- | --- |
-| `table` | `String` | yes | n/a | The physical table or collection name backing the resource. |
-| `displayColumnKey` | `String` | yes | n/a | The column that represents a record in pickers and relation links. |
-| `columns` | `List<BeakColumn>` | yes | n/a | The columns, in display order. |
-| `relationships` | `List<BeakRelationship>` | no | `const []` | The resource's relationships. |
-| `softDeletes` | `bool` | no | `false` | Whether deletes set a marker the backend filters on instead of removing the row. |
-| `primaryKey` | `BeakColumn` | no | first column keyed `'id'` | The primary-key column Beak reads a record's id from. |
-
-### The primary key default
-
-You rarely override `primaryKey`. By default it finds the column whose key is
-`'id'` and throws a clear error if there is none:
-
-```dart title="packages/beak_core/lib/src/model/beak_model.dart"
-/// The primary-key column: by default the first column with key `'id'`.
-///
-/// Throws a [BeakConfigurationException] when no such column exists and
-/// the model does not override this getter with its actual key column.
-BeakColumn get primaryKey {
-  final column = columnByKey('id');
-  if (column == null) {
-    throw BeakConfigurationException(
-      'Model "$table" has no column with key "id"; add one or override '
-      'primaryKey.',
-    );
-  }
-  return column;
-}
-```
-
-If your table's key column is named something else (say `uuid`), add that column
-to `columns` and override `primaryKey` to return it. Everything downstream,
-including record links and delete calls, reads the id through this one getter.
-
-## Helpers the base class gives you
-
-`BeakModel` also carries a few read-only helpers so you never have to hunt
-through `columns` yourself. They matter mostly to the framework, but they are
-public and typed if you need them:
-
-| Method | Returns |
+| Field type | Column |
 | --- | --- |
-| `columnsFor(BeakContext context)` | The columns whose `visibleOn` includes `context`, in order. |
-| `columnByKey(String key)` | The first column with that key, or `null`. |
-| `relationshipByKey(String key)` | The first relationship with that key, or `null`. |
-| `primaryKeyOf(BeakRecord record)` | The record's id value, or `null` when it does not carry one. |
+| `String` | single-line text |
+| `BeakText` | multi-line text |
+| `BeakRichText` | rich text editor |
+| `int` | integer |
+| `double` | decimal |
+| `bool` | boolean |
+| `DateTime` | instant |
+| any `enum` | enum, with its values and a badge per value |
+| `BeakJson` | a JSON blob |
+| `BeakHexColor` | a colour swatch |
+| `BeakImageRef` / `BeakFileRef` | an upload |
+| `Object?` with `@Custom` | whatever your renderer draws |
 
-!!! question "What this skipped"
-    - The column config (`key`, `label`, `visibleOn`, and friends) is in
-      [Column basics](column-basics.md).
-    - Turning a model into a live server and panel is
-      [The model registry](the-registry.md).
+## Nullability picks required-ness
+
+`String name` is required. `BeakText? blurb` is not. That one fact drives the
+form validator, the API's validation and the column's `NOT NULL` together, so
+there is no way for the three to disagree.
+
+## What `@Column` adds
+
+Everything the type cannot express:
+
+```dart title="examples/store/lib/models/product.dart"
+/// Sale price in euros.
+@Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
+late final double price;
+
+/// Units in stock.
+@Column(suffix: ' pcs', min: 0, sortable: true)
+late final int stock;
+```
+
+`sortable`, `searchable` and `filterable` are what the list page reads: a
+sortable column gets a sortable header, a searchable one joins the search, and
+a filterable one contributes a filter control matched to its type. `indexed`
+and `unique` are what the migration reads. `rules` run in the form and again in
+the API. [Annotations](../reference/annotations.md) has the full table.
+
+## Relationships name the other class
+
+```dart title="examples/store/lib/models/product.dart"
+/// The category this product is filed under.
+@BelongsTo(onDelete: BeakOnDelete.setNull)
+late final Category? category;
+
+/// The tags attached to this product.
+@BelongsToMany(allowCreate: true)
+late final List<Tag> tags;
+```
+
+No foreign key, no pivot table, no key columns. Beak derives `category_id` from
+the field name, `product_tag` from the two table names, and generates the
+matching has-many on `Category`, so both sides exist without either being
+written twice. [Relationships](relationships.md) covers the four kinds and what
+you can override.
+
+## What the class decides
+
+| On `@Resource` | Effect |
+| --- | --- |
+| `table:` | the physical table name (default: the pluralised class name) |
+| `softDeletes: true` | deletes write `deleted_at`; the panel gains restore and a trashed view |
+| `timestamps: true` | `created_at` and `updated_at`, stamped by the API |
+| `managesSchema: false` | another system migrates this table; Beak writes no migration |
+
+`@Display()` on a field marks what a record is *called*: in a picker, a link, a
+page title, a search result. Exactly one per schema; without it Beak uses the
+first string field.
+
+## The primary key
+
+Beak adds an `id` column to every resource and reads a record's identity
+through it. You do not declare it, and a schema class cannot rename it. A table
+whose key column is named something else is a job for a hand-written model
+([Escape hatches](escape-hatches.md)).
+
+## Scaffolding one
+
+```bash
+beak make:resource Product --fields name:string!,price:decimal!
+```
+
+writes `lib/models/product.dart` with those fields and runs `beak prepare`. A
+trailing `!` means required, mirroring Dart's nullability.
 
 ## Continue reading
 
-- [Column basics](column-basics.md) the config every column shares.
-- [The model registry](the-registry.md) how registered models become a running
-  API and panel.
-- [Relationships](relationships.md) the four relationship kinds in full.
+- [Generated code](generated-code.md) what `beak prepare` writes, and how to read it.
+- [Column types](column-types.md) every column kind and its options.
+- [Relationships](relationships.md) the four kinds, and what Beak derives.
+- [Escape hatches](escape-hatches.md) for what a schema class cannot express.

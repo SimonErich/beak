@@ -13,7 +13,7 @@ Beak is a low-code, configuration-driven admin-panel framework. You define model
 
 A column is declared one time, as a typed constant, and that single declaration feeds every surface.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart (shape)"
+```dart
 abstract final class ProductColumns {
   static const name = BeakStringColumn(
     key: 'name', label: 'Name',

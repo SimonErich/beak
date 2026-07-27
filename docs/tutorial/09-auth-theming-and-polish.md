@@ -60,7 +60,7 @@ through the data source. It binds a model's columns to the bell: which column is
 title, the body, the timestamp, the read flag, and the category.
 
 The reference store has no notifications table yet, so add a small one. Create
-`apps/reference_admin_models/lib/src/store_notification.dart`:
+`examples/store/lib/models/store_notification.dart`:
 
 ```dart
 import 'package:beak_core/beak_core.dart';
@@ -180,7 +180,7 @@ coming-soon one. Navigate to either route to see the page.
 With the backend up on port 8080, launch the panel:
 
 ```bash
-cd apps/reference_admin
+cd examples/store
 flutter run -d chrome
 ```
 

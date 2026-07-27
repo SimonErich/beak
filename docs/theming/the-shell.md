@@ -102,7 +102,7 @@ return OiResourcePage(
 Here is a framed screen (the default), so the block body sits inside a titled,
 padded page:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
 BeakScreen buildTypographyScreen() => const BeakScreen(
   path: '/typography',
   title: 'Typography',

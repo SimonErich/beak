@@ -108,7 +108,7 @@ the bar renders a caption telling you so, rather than failing silently.
 
 List the filters on the resource and the list page grows a filter bar:
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: OrderModel(),
   icon: BeakIconToken(OiIcons.shoppingCart),
@@ -124,7 +124,7 @@ BeakResource(
 
 The tutorial store shows the boolean and text variants:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakResource(
   model: UserModel(),
   icon: BeakIconToken(OiIcons.users),

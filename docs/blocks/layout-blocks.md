@@ -48,7 +48,7 @@ const BeakColumnBlock({
 Here it holds a stack of text blocks inside a card, straight from the showcase's
 typography page:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
 body: BeakCardBlock(
   title: 'Type scale',
   child: BeakColumnBlock(
@@ -75,7 +75,7 @@ const BeakRowBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakRowBlock(
   gapInPixels: 8,
   children: [
@@ -107,7 +107,7 @@ const BeakGridBlock({
 Each child's `span` decides how many tracks it covers. A child with no span
 occupies one track. This two-up grid of cards comes from the UI-kit page:
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakGridBlock(
   columns: 2,
   gapInPixels: 20,
@@ -214,7 +214,7 @@ const BeakAccordionBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakAccordionBlock(
   items: [
     BeakAccordionBlockItem(
@@ -284,7 +284,7 @@ const BeakThreePaneBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/files_screen.dart"
+```dart title="examples/superdashboard/lib/screens/files_screen.dart"
 body: BeakThreePaneBlock(
   label: 'File manager',
   leftWidthInPixels: 260,
@@ -322,7 +322,7 @@ const BeakCarouselBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/gallery_screen.dart"
+```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
 BeakCarouselBlock(
   query: BeakQuerySpec(
     table: 'media_assets',
@@ -346,7 +346,7 @@ const BeakTimelineBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
 BeakTimelineBlock(
   query: BeakQuerySpec(
     table: 'activities',

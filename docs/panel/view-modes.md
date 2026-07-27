@@ -100,7 +100,7 @@ List the modes on the resource's `viewModes`. The first Store example gives orde
 a table and a board grouped by status; the Projects section gives calendar events
 a table and a month calendar:
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: OrderModel(),
   icon: BeakIconToken(OiIcons.shoppingCart),
@@ -124,7 +124,7 @@ BeakResource(
 ),
 ```
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: CalendarEventModel(),
   icon: BeakIconToken(OiIcons.calendar),

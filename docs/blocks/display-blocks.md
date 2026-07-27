@@ -51,7 +51,7 @@ Widget _text(BeakTextBlock block) => switch (block.variant) {
 The showcase's typography page walks the whole ramp. Here is the top of it,
 inside a card:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
 BeakCardBlock(
   title: 'Type scale',
   child: BeakColumnBlock(
@@ -153,7 +153,7 @@ const BeakVideoBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/gallery_screen.dart"
+```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
 BeakVideoBlock(
   title: 'Featured video',
   query: BeakQuerySpec(
@@ -186,7 +186,7 @@ const BeakIconGalleryBlock({
 
 The showcase's icons page builds one from a curated list of Lucide icons:
 
-```dart title="apps/beak_superdashboard/lib/screens/icons_screen.dart"
+```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
 BeakCardBlock(
   title: 'Lucide icons',
   child: BeakIconGalleryBlock(
@@ -201,7 +201,7 @@ BeakCardBlock(
 
 Where `_icons` is a plain list of token-and-label pairs:
 
-```dart title="apps/beak_superdashboard/lib/screens/icons_screen.dart"
+```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
 const List<_Icon> _icons = [
   (BeakIconToken(OiIcons.home), 'home'),
   (BeakIconToken(OiIcons.user), 'user'),

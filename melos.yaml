@@ -30,7 +30,8 @@ scripts:
       melos run analyze-flutter &&
       melos run analyze-root &&
       melos run guard-material &&
-      melos run guard-web
+      melos run guard-web &&
+      melos run check-docs
     description: Static analysis across all packages (0 issues required).
   analyze-dart:
     run: melos exec -- "dart analyze --fatal-infos --fatal-warnings ."
@@ -50,6 +51,11 @@ scripts:
       dart analyze --fatal-infos --fatal-warnings tool &&
       dart analyze --fatal-infos --fatal-warnings test
     description: Static analysis for the workspace tooling (tool/ and its tests).
+  check-docs:
+    run: dart run tool/check_docs.dart
+    description: >-
+      FAIL when a docs page claims a file that does not exist, has no front
+      matter, or uses a phrase the style guide bans.
   guard-material:
     run: dart run tool/check_no_material.dart
     description: >-

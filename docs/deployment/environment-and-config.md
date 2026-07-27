@@ -61,7 +61,7 @@ static Map<String, String> resolve({
 
 The resolved map feeds straight into `BeakBackendConfig.fromEnv`, which is the only thing that reads `DATABASE_URL`, `PORT`, and `HOST`. It validates each one and throws a `BeakConfigurationException` on anything missing or malformed, so a misconfigured server fails loudly at boot instead of halfway through a request.
 
-```dart title="apps/reference_admin_server/bin/reference_admin_server.dart"
+```dart title="examples/store/bin/serve.dart"
 final Map<String, String> environment = BeakEnv.resolve();
 final config = BeakBackendConfig.fromEnv(environment: environment);
 ```
@@ -89,8 +89,8 @@ Binding `0.0.0.0` by default is what makes the container reachable: inside Docke
 
 Two demo apps, two ports, and the reason is mundane.
 
-- **`reference_admin_server`** takes the framework default, `8080`. Its panel's `apiBaseUrl` defaults to `http://localhost:8080`.
-- **`beak_superdashboard`** forces `8180`, which is also what the root `.env.example` sets via `PORT=8180`. Ports 8080 to 8082 are commonly taken by Serverpod-style stacks on a dev machine, so the showcase steps aside.
+- **`store`** takes the framework default, `8080`. Its panel's `apiBaseUrl` defaults to `http://localhost:8080`.
+- **`superdashboard`** forces `8180`, which is also what the root `.env.example` sets via `PORT=8180`. Ports 8080 to 8082 are commonly taken by Serverpod-style stacks on a dev machine, so the showcase steps aside.
 
 The number that matters is the one the server actually listens on. If you change `PORT`, change the panel's `apiBaseUrl` to match, or the browser hits connection-refused.
 
@@ -98,7 +98,7 @@ The number that matters is the one the server actually listens on. If you change
 
 The panel is a Flutter web app, so it has no environment at runtime: whatever origin it should call is baked in at build time. The reference panel takes it as a parameter with a default.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakPanelConfig buildReferencePanelConfig({
   String apiBaseUrl = 'http://localhost:8080',
 }) => BeakPanelConfig(

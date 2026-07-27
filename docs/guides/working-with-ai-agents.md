@@ -105,7 +105,7 @@ the README, in order. Give it the requirements and point it at each step:
    `const` column per field, with its `rules`. Name the table, the display column,
    and any relationships on the `XxxModel`.
 2. **Schema.** Complete the generated migration so its columns match the model, then
-   register it in `bin/worm.dart`.
+   register it in `bin/migrate.dart`.
 3. **Server.** Register the model in the `BeakModelRegistry` you hand to
    `BeakServer`. Every endpoint is generated from there.
 4. **Panel.** Add a `BeakResource(model: XxxModel(), icon: ...)` to your
@@ -175,5 +175,5 @@ lists every rule the gate enforces.
   refuse the shortcuts an agent tends to take.
 - [Code guardrails](../contributing/code-guardrails.md) the full rule set the gate
   enforces.
-- [Quickstart](../start-here/quickstart.md) run the reference admin end to end before
+- [Quickstart](../start-here/quickstart.md) run the store example end to end before
   you generate your own.

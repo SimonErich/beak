@@ -11,7 +11,7 @@ candlestick chart (open, high, low, close), and a heatmap (a value at a row and
 column). Each is a block with its own typed point and mapper, and each follows
 the same query-plus-mapper shape as the [single-series charts](chart-basics.md).
 
-All three examples come from the showcase app (`apps/beak_superdashboard`, port
+All three examples come from the showcase app (`apps/superdashboard`, port
 8180), which seeds a small analytics table behind each one.
 
 ## Bubble charts
@@ -65,7 +65,7 @@ final class BeakBubblePoint {
 The mapper is a `BeakBubbleMapper` (`List<BeakBubblePoint> Function(List<BeakRecord>)`).
 The showcase reads the catalog: price on x, stock on y, cost as the bubble size.
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `products` rows onto bubble points: price × stock, sized by cost.
 List<BeakBubblePoint> productBubblePoints(List<BeakRecord> records) => [
   for (final record in records)
@@ -80,7 +80,7 @@ List<BeakBubblePoint> productBubblePoints(List<BeakRecord> records) => [
 
 Drop it into a grid like any block:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 const BeakBubbleChartBlock(
   title: 'Catalog: price × stock, sized by cost',
   query: BeakQuerySpec(table: 'products', pagination: analyticsPage),
@@ -142,7 +142,7 @@ The mapper is a `BeakCandleMapper`. Because a candlestick chart is meaningless
 out of order, the showcase sorts the rows by their `sort_index` before assigning
 each an x position:
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `price_candles` rows onto ordered OHLC candles.
 List<BeakCandle> priceCandles(List<BeakRecord> records) {
   final rows = [...records]
@@ -167,7 +167,7 @@ List<BeakCandle> priceCandles(List<BeakRecord> records) {
 The four price columns come from a typed model like any other. The
 `price_candles` resource declares them as `BeakDecimalColumn`s with a `$` prefix:
 
-```dart title="apps/beak_superdashboard/lib/models/analytics/price_candle.dart"
+```dart title="examples/superdashboard/lib/models/analytics/price_candle.dart"
 /// The opening price.
 static const open = BeakDecimalColumn(
   key: 'open',
@@ -178,7 +178,7 @@ static const open = BeakDecimalColumn(
 
 A candlestick is wide, so the showcase spans it across the whole grid:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 const BeakCandlestickChartBlock(
   span: BeakSpan(columns: 2),
   title: 'Price history (candlestick)',
@@ -240,7 +240,7 @@ final class BeakMatrixCell {
 The `BeakMatrixMapper` reads the row key, column key, and value straight off each
 record:
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `activity_heatmap` rows onto matrix cells.
 List<BeakMatrixCell> activityHeatCells(List<BeakRecord> records) => [
   for (final record in records)
@@ -255,7 +255,7 @@ List<BeakMatrixCell> activityHeatCells(List<BeakRecord> records) => [
 The showcase pins the weekday order explicitly with `rowLabels` so the rows read
 Monday to Sunday rather than alphabetically:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 const BeakHeatmapChartBlock(
   span: BeakSpan(columns: 2),
   title: 'Orders by weekday & month',

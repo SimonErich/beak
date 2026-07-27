@@ -30,7 +30,7 @@ The two screens share one config object but read different fields. The maintenan
 screen uses `maintenanceTitle`, `maintenanceDescription`, and `estimatedReturn`; the
 coming-soon screen uses `comingSoonTitle`, `comingSoonDescription`, and `launchAt`.
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel/config.dart"
 maintenance: BeakMaintenanceConfig(
   maintenanceTitle: 'Under maintenance',
   maintenanceDescription:

@@ -15,7 +15,7 @@ Uploads build on the [file and storage columns](../models/files-and-storage-colu
 you already defined. The reference store's product has an image column, and that
 is what wires into an endpoint here.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const image = BeakImageColumn(
   key: 'image',
   label: 'Image',
@@ -222,7 +222,7 @@ reference server does this in `referenceStorageConfig`: `s3` builds a
 `BeakS3Config` from the `BEAK_S3_*` variables, `memory` selects the in-memory
 driver (tests), and an absent value disables uploads entirely.
 
-```dart title="apps/reference_admin_server/lib/src/server_builder.dart"
+```dart title="examples/store/lib/server.dart"
 BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
   switch (environment['BEAK_STORAGE_DRIVER']) {
     case 's3':
@@ -282,7 +282,7 @@ The wiring meets at `BeakServer`. Pass a resolved `storage` driver and the serve
 builds the `UploadService` and registers the upload routes for every model with a
 file column. Pass `null` (the default) and there are no upload endpoints at all.
 
-```dart title="apps/reference_admin_server/bin/reference_admin_server.dart"
+```dart title="examples/store/bin/serve.dart"
 final storageConfig = referenceStorageConfig(environment);
 final server = buildReferenceServer(
   config: config,

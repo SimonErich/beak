@@ -26,7 +26,7 @@ Adding a resource is four declarations, not four codebases:
 1. **Columns and model.** A namespaced `XxxColumns` class of `const` column
    definitions and an `XxxModel extends BeakModel` naming the table, display
    column, and relationships.
-2. **Schema.** A worm migration, registered in your `bin/worm.dart`.
+2. **Schema.** A worm migration, registered in your `bin/migrate.dart`.
 3. **Server.** Register the model in the `BeakModelRegistry` you hand to
    `BeakServer`. Every endpoint is generated from it.
 4. **Panel.** Add a `BeakResource(model: XxxModel(), icon: …)` to your

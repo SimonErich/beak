@@ -72,7 +72,7 @@ in without touching core.
 You add worm as a direct dependency of your **server** app, because app authors
 touch it in exactly two places:
 
-- [Migrations](../backend/migrations.md), which `extend Migration` and register in `bin/worm.dart`.
+- [Migrations](../backend/migrations.md), which `extend Migration` and register in `bin/migrate.dart`.
 - [Seeders and factories](../backend/seeding.md), which insert demo and test data.
 
 Everything else about worm, the query building and record mapping, happens inside

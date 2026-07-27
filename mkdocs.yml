@@ -64,7 +64,13 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  # Quote source rather than copying it: `--8<-- "examples/store/lib/..."`
+  # reads the file at build time, and `check_paths` fails the build when the
+  # file moves instead of publishing an empty block.
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
+      dedent_subsections: true
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
@@ -115,15 +121,17 @@ nav:
       - "Rendering per surface": concepts/rendering-per-surface.md
       - "The block system": concepts/the-block-system.md
       - "Results and errors": concepts/results-and-errors.md
-  - "Models and data":
+  - "Schema":
       - models/index.md
-      - "Defining models": models/defining-models.md
+      - "Defining a resource": models/defining-models.md
+      - "Generated code": models/generated-code.md
       - "Column basics": models/column-basics.md
       - "Column types": models/column-types.md
       - "Validation rules": models/validation-rules.md
       - "Relationships": models/relationships.md
-      - "The model registry": models/the-registry.md
       - "Files and storage columns": models/files-and-storage-columns.md
+      - "Escape hatches": models/escape-hatches.md
+      - "The model registry": models/the-registry.md
   - "The backend":
       - backend/index.md
       - "Running the server": backend/running-the-server.md
@@ -193,6 +201,9 @@ nav:
       - "Common recipes": guides/common-recipes.md
   - "Reference":
       - reference/index.md
+      - "Annotations": reference/annotations.md
+      - "beak.yaml": reference/beak-yaml.md
+      - "Libraries": reference/libraries.md
       - "Column types reference": reference/column-types.md
       - "Validation rules reference": reference/validation-rules.md
       - "Blocks index": reference/blocks-index.md

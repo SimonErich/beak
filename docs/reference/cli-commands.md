@@ -189,7 +189,7 @@ Scaffolding Product:
   created lib/src/models/product.dart
   created lib/src/models/product_columns.dart
   created lib/src/migrations/create_products_table.dart
-Next: register the migration in bin/worm.dart and the model in your BeakModelRegistry / BeakPanelConfig.
+Next: register the migration in bin/migrate.dart and the model in your BeakModelRegistry / BeakPanelConfig.
 ```
 
 | File written | Contents |
@@ -213,7 +213,7 @@ The columns file even embeds the snippet to register the model in a panel:
 ```
 
 !!! warning "Registration is manual"
-    The generators never touch `bin/worm.dart`, your `BeakModelRegistry`, or your `BeakPanelConfig`. Migrations are never auto-applied. Wire the new migration and model in yourself, then run migrations. See [Migrations](../backend/migrations.md) and [The model registry](../models/the-registry.md).
+    The generators never touch `bin/migrate.dart`, your `BeakModelRegistry`, or your `BeakPanelConfig`. Migrations are never auto-applied. Wire the new migration and model in yourself, then run migrations. See [Migrations](../backend/migrations.md) and [The model registry](../models/the-registry.md).
 
 ## `make:model`
 

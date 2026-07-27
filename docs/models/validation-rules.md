@@ -19,7 +19,7 @@ runs the identical list before it writes a row. One list, both ends of the wire.
 Every column carries a `rules` list. Add the rules you want, in the order you
 want them checked.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 /// Display name.
 static const name = BeakStringColumn(
   key: 'name',
@@ -107,7 +107,7 @@ message column is the exact text a failing value produces.
 `BeakRequired` treats a whitespace-only string as empty, but keeps `false` and
 `0` as real, present values.
 
-```dart title="apps/reference_admin_models/lib/src/user.dart"
+```dart
 static const name = BeakStringColumn(
   key: 'name',
   label: 'Name',
@@ -126,7 +126,7 @@ with `BeakRequired` when you also need the field filled in.
 `BeakMin` and `BeakMax` are inclusive and only bite numbers. The products model
 floors price and stock at zero.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const stock = BeakIntColumn(
   key: 'stock',
   label: 'Stock',
@@ -157,7 +157,7 @@ static const slug = BeakStringColumn(
 
 The users model uses `BeakEmail` directly on the login field:
 
-```dart title="apps/reference_admin_models/lib/src/user.dart"
+```dart
 static const email = BeakStringColumn(
   key: 'email',
   label: 'Email',

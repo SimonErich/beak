@@ -13,7 +13,7 @@ and fetch their own records, bound to your model by typed `BeakColumn`, never by
 string.
 
 Every module below is built from real seeded data in the showcase app
-(`beak_superdashboard`, port 8180). The demo screens are `BeakScreen`s, so each
+(`superdashboard`, port 8180). The demo screens are `BeakScreen`s, so each
 one is a custom page in the panel's navigation. If a demo uses different app
 model constants than another, that is expected: the showcase has 49 models.
 
@@ -48,7 +48,7 @@ const BeakChatBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/chat_screen.dart"
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
 BeakScreen buildChatScreen() => const BeakScreen(
   path: '/chat',
   title: 'Chat',
@@ -94,7 +94,7 @@ const BeakInboxBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/email_screen.dart"
+```dart title="examples/superdashboard/lib/screens/email_screen.dart"
 body: BeakInboxBlock(
   model: EmailModel(),
   senderField: EmailColumns.senderName,
@@ -181,7 +181,7 @@ const BeakInvoiceBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/invoice_screen.dart"
+```dart title="examples/superdashboard/lib/screens/invoice_screen.dart"
 body: BeakInvoiceBlock(
   model: InvoiceModel(),
   recordId: SeedIds.invoice,
@@ -228,7 +228,7 @@ const BeakGalleryBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/gallery_screen.dart"
+```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
 BeakGalleryBlock(
   query: BeakQuerySpec(
     table: 'media_assets',
@@ -259,7 +259,7 @@ const BeakProfileBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/profile_screen.dart"
+```dart title="examples/superdashboard/lib/screens/profile_screen.dart"
 body: BeakProfileBlock(
   model: UserModel(),
   recordId: SeedIds.userAisha,
@@ -295,7 +295,7 @@ const BeakPricingBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/pricing_screen.dart"
+```dart title="examples/superdashboard/lib/screens/pricing_screen.dart"
 body: BeakPricingBlock(
   model: PricingPlanModel(),
   nameField: PricingPlanColumns.name,
@@ -326,7 +326,7 @@ const BeakFaqBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/faq_screen.dart"
+```dart title="examples/superdashboard/lib/screens/faq_screen.dart"
 body: BeakFaqBlock(
   model: FaqModel(),
   questionField: FaqColumns.question,

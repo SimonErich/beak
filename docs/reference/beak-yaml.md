@@ -1,0 +1,114 @@
+---
+title: beak.yaml
+description: Every key of the project file, what it decides, and what happens when you leave it out.
+---
+
+# beak.yaml
+
+`beak.yaml` holds the decisions that are presentation rather than code: what
+the panel is called, where it calls, and how each discovered resource appears
+in the sidebar. Every key is optional. Delete the file and Beak still boots,
+titling the panel after the package.
+
+```yaml title="examples/store/beak.yaml"
+name: Beak Store
+
+api:
+  baseUrl: http://localhost:8080
+
+resources:
+  products:
+    icon: package
+    section: Catalog
+  orders:
+    icon: receipt
+    section: Sales
+  order_items:
+    hidden: true
+```
+
+## Top level
+
+| Key | Default | What it decides |
+| --- | --- | --- |
+| `name` | the title-cased package name | The panel's title, in the shell and the browser tab |
+| `api` | see below | Where the panel sends its requests |
+| `resources` | `{}` | Per-resource presentation |
+| `sidebar` | see below | How the navigation behaves |
+
+## `api`
+
+```yaml
+api:
+  baseUrl: http://localhost:8080
+```
+
+`baseUrl` becomes a compile-time default the panel reads:
+
+```dart
+const String.fromEnvironment(
+  'BEAK_API_BASE_URL',
+  defaultValue: 'http://localhost:8080',
+)
+```
+
+So a build can point elsewhere without touching the file:
+
+```bash
+flutter build web --dart-define=BEAK_API_BASE_URL=https://api.example.com
+```
+
+Set `baseUrl: auto` and the panel calls the origin it was served from, which is
+what a single-host deployment wants.
+
+## `resources`
+
+Keyed by **table name**, which is what `@Resource(table:)` says or what Beak
+derived from the class name. A key matching no discovered table is an error
+naming the line, with a did-you-mean, rather than a setting that silently does
+nothing.
+
+| Key | What it decides |
+| --- | --- |
+| `icon` | The sidebar icon: any `OiIcons` name, in lowerCamelCase |
+| `label` | The navigation label (default: the title-cased table name) |
+| `section` | The sidebar group this resource is filed under |
+| `hidden` | `true` keeps it out of the sidebar |
+
+`hidden` does not remove anything. The model is still registered, still has an
+API, and is still reachable as the far side of a relationship. It simply does
+not earn a sidebar entry — which is what you want for a table like
+`order_items`, always reached through the order it belongs to.
+
+An icon that is not a lowerCamelCase identifier fails at `beak prepare` naming
+the line. That check exists because the value is spliced into generated code,
+and a typo would otherwise be a compile error inside a file you did not write.
+
+## `sidebar`
+
+```yaml
+sidebar:
+  collapsible: true
+  startCollapsed: false
+```
+
+## What does not live here
+
+Anything that is a decision about behaviour rather than appearance:
+
+- **A resource's filters, actions, view modes or layouts** live in
+  `lib/resources/<table>.dart`, in Dart, where they are type-checked. Run
+  `beak eject resource <table>` to start one.
+- **Auth, policy and middleware** live in `lib/server.dart`.
+- **The theme** lives in `lib/theme.dart`.
+- **The dashboard** lives in `lib/dashboard.dart`.
+
+Each of those is a file Beak notices by its path; `beak eject <part>` writes
+the starter, which returns Beak's own default so it compiles and changes
+nothing until your first edit.
+
+## Continue reading
+
+- [Annotations](annotations.md) the decisions that live on the schema class.
+- [CLI commands](cli-commands.md) `prepare`, `eject`, `doctor` and the rest.
+- [Project structure](../start-here/project-structure.md) what each folder is for.

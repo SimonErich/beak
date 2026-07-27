@@ -40,7 +40,7 @@ what each type *adds*.
 The workhorse: a single-line string, plain text everywhere. `maxLength` caps the
 form input and `placeholder` hints an empty one.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const name = BeakStringColumn(
   key: 'name',
   label: 'Name',
@@ -55,7 +55,7 @@ static const name = BeakStringColumn(
 Multiline text: a textarea in forms, truncated in table cells, and the full text
 in detail views.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const description = BeakTextColumn(
   key: 'description',
   label: 'Description',
@@ -70,7 +70,7 @@ A whole number, rendered locale-aware. `min` and `max` bound the form's stepper;
 pair them with `BeakMin`/`BeakMax` rules to reject out-of-range values on submit
 too.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const stock = BeakIntColumn(
   key: 'stock',
   label: 'Stock',
@@ -86,7 +86,7 @@ A fractional number with fixed `precision` (default `2`). Add a `prefix` or
 `suffix` and the render intent flips from a plain number to a currency-style
 amount: `€19.99`, or `1.50 kg`.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const price = BeakDecimalColumn(
   key: 'price',
   label: 'Price',
@@ -105,7 +105,7 @@ A boolean: a toggle in forms, a yes/no indicator elsewhere. `trueLabel` and
 `falseLabel` override the default state text. This example is from the showcase
 app's email model:
 
-```dart title="apps/beak_superdashboard/lib/models/email/email.dart"
+```dart title="examples/superdashboard/lib/models/email/email.dart"
 static const isRead = BeakBoolColumn(
   key: 'is_read',
   label: 'Read',
@@ -121,7 +121,7 @@ A column over a Dart enum, rendered as a colored badge in tables and a select in
 forms. The generic keeps the whole thing type-safe: `values`, `defaultValue`,
 and `badgeColors` all speak in `T`, so there are no stringly-typed states.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 enum ProductStatus { draft, published, archived }
 
 static const status = BeakEnumColumn<ProductStatus>(
@@ -152,7 +152,7 @@ A date/time value. `format` controls how tables and detail views render it
 (`standard`, `relative`, `dateOnly`, `timeOnly`, or `iso`); forms and filters
 always use an absolute date picker.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const updatedAt = BeakDateTimeColumn(
   key: 'updated_at',
   label: 'Updated',
@@ -172,7 +172,7 @@ property, when you want the same column shown two ways.
 A WYSIWYG editor in forms, rendered markup in tables and detail views. Values are
 stored as the raw markup source string. From the showcase email model:
 
-```dart title="apps/beak_superdashboard/lib/models/email/email.dart"
+```dart title="examples/superdashboard/lib/models/email/email.dart"
 static const body = BeakRichTextColumn(
   key: 'body',
   label: 'Body',
@@ -185,7 +185,7 @@ static const body = BeakRichTextColumn(
 Holds a hex string such as `#663399`, rendered as a swatch with a color picker in
 forms. From the showcase calendar model:
 
-```dart title="apps/beak_superdashboard/lib/models/calendar/calendar_event.dart"
+```dart title="examples/superdashboard/lib/models/calendar/calendar_event.dart"
 static const color = BeakColorColumn(
   key: 'color',
   label: 'Color',
@@ -219,7 +219,7 @@ both client and server. They get a page of their own; here is the shape.
 A thumbnail in table cells, an image picker in forms, the full image in detail
 views. Bound the upload and attach a transform pipeline that runs on upload.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const image = BeakImageColumn(
   key: 'image',
   label: 'Image',
@@ -241,7 +241,7 @@ static const image = BeakImageColumn(
 A generic file attachment. Same upload rules, but rendered through the custom
 download/preview cell instead of an image. From the showcase file manager:
 
-```dart title="apps/beak_superdashboard/lib/models/files/managed_file.dart"
+```dart title="examples/superdashboard/lib/models/files/managed_file.dart"
 static const file = BeakFileColumn(
   key: 'file',
   label: 'File',

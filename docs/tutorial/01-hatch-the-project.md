@@ -11,29 +11,29 @@ chapter lays the first egg.
 
 ## The three-package layout
 
-The reference admin is three small packages under `apps/`, plus the `beak_*`
+The store example is three small packages under `apps/`, plus the `beak_*`
 packages and the vendored `worm` ORM they build on. You will spend the tutorial
 editing files in the trio; everything under `packages/` is Beak itself.
 
 ```text
 apps/
-  reference_admin_models/   # pure Dart: the models, defined once
-  reference_admin_server/   # Shelf backend over beak_backend, port 8080
-  reference_admin/          # Flutter panel over beak_frontend
+  store/   # pure Dart: the models, defined once
+  store/   # Shelf backend over beak_backend, port 8080
+  store/          # Flutter panel over beak_frontend
 ```
 
 They depend inward. The models package knows nothing about HTTP or Flutter. The
 server and the panel both depend on the models package, and neither depends on
 the other: they meet only over the network, on port 8080.
 
-```dart title="apps/reference_admin_server/pubspec.yaml"
+```dart
 dependencies:
   beak_backend:
     path: ../../packages/beak_backend
   beak_core:
     path: ../../packages/beak_core
-  reference_admin_models:
-    path: ../reference_admin_models
+  store:
+    path: ../store
   worm:
     path: ../../packages/worm
 ```
@@ -112,14 +112,14 @@ folder, so give it a `.env` next to its `bin/`. Copy the committed template
 there:
 
 ```bash
-cp .env.example apps/reference_admin_server/.env
+cp .env.example examples/store/.env
 ```
 
 The template ships with `PORT=8180`, which is the showcase app's port. The
 roastery store serves on `8080`, the panel's default. Delete the `PORT` line so
 the store uses that default. The file should read:
 
-```bash title="apps/reference_admin_server/.env"
+```bash
 DATABASE_URL=postgres://beak:beak@localhost:25432/beak
 BEAK_STORAGE_DRIVER=s3
 BEAK_S3_ENDPOINT=http://localhost:29000

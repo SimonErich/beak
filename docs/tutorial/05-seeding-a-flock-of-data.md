@@ -20,7 +20,7 @@ The seeder writes customers and orders, so those tables need to exist. Add the
 last three migrations (users, orders, order items) alongside the ones from
 chapter 4, then register the complete list.
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
 /// Creates the users table.
 final class CreateUsersTable extends Migration {
   const CreateUsersTable();
@@ -111,11 +111,11 @@ final class CreateOrderItemsTable extends Migration {
 }
 ```
 
-Now the `referenceMigrations` list is complete, in dependency order (a table's
+Now the `the generated migration list` list is complete, in dependency order (a table's
 foreign keys always point at a table declared before it):
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
-const List<Migration> referenceMigrations = [
+```dart
+const List<Migration> the generated migration list = [
   CreateCategoriesTable(),
   CreateTagsTable(),
   CreateUsersTable(),
@@ -129,8 +129,8 @@ const List<Migration> referenceMigrations = [
 Apply the three new ones:
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/worm.dart migrate
+cd examples/store
+dart run bin/migrate.dart migrate
 ```
 
 ```text
@@ -145,7 +145,7 @@ Random ids make every run different and tests impossible. Declare the ids up
 front as constants. They are UUID-shaped (the columns are real `uuid` columns)
 but fixed, so any seeder or test can reference a record by name.
 
-```dart title="apps/reference_admin_server/lib/src/seeders/reference_seeder.dart"
+```dart title="examples/store/lib/seeders/store_seeder.dart"
 import 'package:worm/worm.dart';
 
 /// Deterministic primary keys of the seeded catalog.
@@ -171,13 +171,13 @@ A tiny local `insert` helper keeps each row to one readable line. The order of
 inserts matters: a product references a category, so categories go in first; an
 order references a user, so users go in first.
 
-```dart title="apps/reference_admin_server/lib/src/seeders/reference_seeder.dart"
+```dart title="examples/store/lib/seeders/store_seeder.dart"
 /// Seeds a small, deterministic catalog.
-final class ReferenceSeeder extends Seeder {
-  const ReferenceSeeder();
+final class StoreSeeder extends Seeder {
+  const StoreSeeder();
 
   @override
-  String get name => 'ReferenceSeeder';
+  String get name => 'StoreSeeder';
 
   @override
   Future<void> run(DatabaseAdapter adapter) async {
@@ -255,11 +255,11 @@ you declared earlier is what decodes that string back into a typed
 
 ## Register and run
 
-The project's worm CLI lives in `bin/worm.dart`. It already passes the store's
+The project's worm CLI lives in `bin/migrate.dart`. It already passes the store's
 migrations to the CLI context; add the seeder to the `seeders` list next to
 them.
 
-```dart title="apps/reference_admin_server/bin/worm.dart"
+```dart title="examples/store/bin/migrate.dart"
   final context = CliContext(
     out: stdout,
     err: stderr,
@@ -271,19 +271,19 @@ them.
       await adapter.connect();
       return adapter;
     },
-    migrations: referenceMigrations,
-    seeders: const [ReferenceSeeder()],
+    migrations: the generated migration list,
+    seeders: const [StoreSeeder()],
   );
 ```
 
 Run the seeders:
 
 ```bash
-dart run bin/worm.dart db:seed
+dart run bin/migrate.dart db:seed
 ```
 
 ```text
-seeded  ReferenceSeeder
+seeded  StoreSeeder
 ```
 
 Restart the panel and the tables are full: three products with prices and status
@@ -295,18 +295,18 @@ badges; the order links back to Ada.
       every foreign key resolves.
     - Fixed `ReferenceSeedIds` make the seed reproducible: the same database
       every run, safe to assert against in tests.
-    - Registering the seeder in `bin/worm.dart` is all `db:seed` needs to find
+    - Registering the seeder in `bin/migrate.dart` is all `db:seed` needs to find
       and run it.
 
 ## Leveling up: the factory toolkit
 
 Hand-writing rows is right for a teaching catalog. For a demo with hundreds of
 orders you want generated data that still reproduces byte-for-byte. The
-**showcase app** (`beak_superdashboard`) does this with a shared `SeedContext`:
+**showcase app** (`superdashboard`) does this with a shared `SeedContext`:
 a deterministically seeded faker, a fixed clock, a UUID minter, and batch insert
 helpers.
 
-```dart title="apps/beak_superdashboard/lib/seeders/seed_context.dart"
+```dart title="examples/superdashboard/lib/seeders/seed_context.dart"
 final class SeedContext {
   SeedContext(this.adapter) {
     faker.seed(seed);
@@ -340,7 +340,7 @@ Because the faker is seeded once, the whole stream of "random" values is fixed.
 A domain seeder then builds rows in batches and hands the context weighted odds
 instead of hard-coded values:
 
-```dart title="apps/beak_superdashboard/lib/seeders/commerce_seeder.dart"
+```dart title="examples/superdashboard/lib/seeders/commerce_seeder.dart"
 productRows.add({
   'id': id,
   'name': _productNames[index],
@@ -359,7 +359,7 @@ await ctx.insertMany('products', productRows);
 A master seeder builds one context and runs each domain seeder through it, so
 the whole database shares a single faker stream and reconciles across domains:
 
-```dart title="apps/beak_superdashboard/lib/seeders/demo_database_seeder.dart"
+```dart title="examples/superdashboard/lib/seeders/demo_database_seeder.dart"
   @override
   Future<void> run(DatabaseAdapter adapter) async {
     final ctx = SeedContext(adapter);

@@ -21,7 +21,7 @@ The columns themselves live in a companion `abstract final` class of `const`
 constants, so both the model and, later, your custom code refer to them by name
 and never by a string literal.
 
-```dart title="apps/reference_admin_models/lib/src/category.dart"
+```dart
 import 'package:beak_core/beak_core.dart';
 
 /// Typed column constants of the categories resource.
@@ -95,7 +95,7 @@ Each migration is a `final class` extending `Migration` with a `name`, an
 `upSchema` that builds the table, and a `downSchema` that drops it. Write the one
 that creates `categories`:
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
 import 'package:worm/worm.dart';
 
 /// Creates the categories lookup table.
@@ -120,7 +120,7 @@ final class CreateCategoriesTable extends Migration {
 }
 
 /// Every reference migration, in dependency order.
-const List<Migration> referenceMigrations = [
+const List<Migration> the generated migration list = [
   CreateCategoriesTable(),
 ];
 ```
@@ -128,17 +128,17 @@ const List<Migration> referenceMigrations = [
 `table.idUuid()` adds the UUID primary key that `CategoryColumns.id` reads.
 `table.string('name', length: 120)` mirrors the `BeakMaxLength(120)` rule on the
 column: the app validates it, and the database enforces it. The
-`referenceMigrations` list is the ordered set the CLI will apply. It has one
+`the generated migration list` list is the ordered set the CLI will apply. It has one
 entry today and grows as the store does.
 
 ## Register the model
 
 Migrations create tables; the model registry is how the server and panel know
-those tables exist as resources. `referenceModels` is the single ordered list of
-every model, and `buildReferenceRegistry` turns it into the registry both halves
+those tables exist as resources. `beakModels` is the single ordered list of
+every model, and `buildBeakRegistry` turns it into the registry both halves
 of the app read.
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
+```dart
 import 'package:beak_core/beak_core.dart';
 
 import 'src/category.dart';
@@ -146,16 +146,16 @@ import 'src/category.dart';
 export 'src/category.dart';
 
 /// Every reference model, in registration order.
-const List<BeakModel> referenceModels = [
+const List<BeakModel> beakModels = [
   CategoryModel(),
 ];
 
 /// Builds a [BeakModelRegistry] populated with every model in
-/// [referenceModels]: the single index both the server and the panel hand
+/// [beakModels]: the single index both the server and the panel hand
 /// to Beak.
-BeakModelRegistry buildReferenceRegistry() {
+BeakModelRegistry buildBeakRegistry() {
   final registry = BeakModelRegistry();
-  for (final model in referenceModels) {
+  for (final model in beakModels) {
     registry.register(model);
   }
   return registry;
@@ -164,15 +164,15 @@ BeakModelRegistry buildReferenceRegistry() {
 
 Order here becomes the default resource and navigation order in the panel. As you
 add models in later chapters, you add them to this list and to
-`referenceMigrations`, and everything downstream follows.
+`the generated migration list`, and everything downstream follows.
 
 ## Register the migration in the worm CLI
 
-The reference server ships a project-aware worm CLI at `bin/worm.dart`. It hands
-the runner your `referenceMigrations` (and, later, your seeders) and connects to
+The reference server ships a project-aware worm CLI at `bin/migrate.dart`. It hands
+the runner your `the generated migration list` (and, later, your seeders) and connects to
 the Postgres URL your `.env` points at.
 
-```dart title="apps/reference_admin_server/bin/worm.dart"
+```dart title="examples/store/bin/migrate.dart"
 Future<void> main(List<String> args) async {
   final config = BeakBackendConfig.fromEnv(environment: BeakEnv.resolve());
   final context = CliContext(
@@ -186,14 +186,14 @@ Future<void> main(List<String> args) async {
       await adapter.connect();
       return adapter;
     },
-    migrations: referenceMigrations,
-    seeders: const [ReferenceSeeder()],
+    migrations: the generated migration list,
+    seeders: const [StoreSeeder()],
   );
   exit(await WormCommandRunner(context).run(args) ?? 0);
 }
 ```
 
-The `migrations: referenceMigrations` line is the wiring: the CLI runs exactly
+The `migrations: the generated migration list` line is the wiring: the CLI runs exactly
 the migrations you registered, in order.
 
 ## Run the migration
@@ -202,8 +202,8 @@ Make sure the services from Chapter 1 are up (`melos run up`), then run the
 migration from the server's own folder so it picks up that folder's `.env`:
 
 ```bash
-cd apps/reference_admin_server
-dart run bin/worm.dart migrate
+cd examples/store
+dart run bin/migrate.dart migrate
 ```
 
 You should see one line, naming the migration it applied:
@@ -213,7 +213,7 @@ migrated  20260701_000100_create_categories_table
 ```
 
 !!! tip "Confirm it landed"
-    `dart run bin/worm.dart migrate:status` lists every migration with an
+    `dart run bin/migrate.dart migrate:status` lists every migration with an
     applied marker, so you can see the schema state at a glance:
 
     ```text
@@ -224,10 +224,10 @@ migrated  20260701_000100_create_categories_table
     - You defined `CategoryModel` and its typed columns once, in pure Dart, with
       validation rules attached to the `name` column.
     - You wrote a migration that creates the matching `categories` table, and
-      registered it in `referenceMigrations`.
-    - You added the model to `referenceModels`, the registry both the server and
+      registered it in `the generated migration list`.
+    - You added the model to `beakModels`, the registry both the server and
       panel read.
-    - `dart run bin/worm.dart migrate` created the table. The roastery now has a
+    - `dart run bin/migrate.dart migrate` created the table. The roastery now has a
       real place to keep its categories.
 
 The table exists, but nothing is serving it and nothing is showing it. The next
@@ -243,5 +243,5 @@ chapter turns this one model into a running backend and a live panel.
   surfaces it drives.
 - [Migrations](../backend/migrations.md) writing, registering, and running worm
   migrations.
-- [The model registry](../models/the-registry.md) how `referenceModels` becomes
+- [The model registry](../models/the-registry.md) how `beakModels` becomes
   the index the whole app reads.

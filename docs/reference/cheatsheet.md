@@ -7,7 +7,7 @@ description: One dense page with the minimal wiring, every column type, rule, an
 
 Everything you reach for while building, on one page. Skim it, pin it, or feed
 it to an AI agent. Each row links out to the page that explains it in full.
-Snippets are lifted from the reference admin (the coffee-roastery demo, served
+Snippets are lifted from the store example (the coffee-roastery demo, served
 on port 8080), so the ports and model names all line up.
 
 ## Minimal wiring
@@ -20,7 +20,7 @@ a server, and the panel config. No endpoints, no client plumbing.
 One columns class of `static const` [column](column-types.md) fields, then a
 `BeakModel` that lists them.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 abstract final class ProductColumns {
   static const name = BeakStringColumn(
     key: 'name',
@@ -58,8 +58,8 @@ final class ProductModel extends BeakModel {
 
 The registry is the single index both the server and the panel read.
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
-const List<BeakModel> referenceModels = [
+```dart
+const List<BeakModel> beakModels = [
   ProductModel(),
   CategoryModel(),
   TagModel(),
@@ -68,9 +68,9 @@ const List<BeakModel> referenceModels = [
   OrderItemModel(),
 ];
 
-BeakModelRegistry buildReferenceRegistry() {
+BeakModelRegistry buildBeakRegistry() {
   final registry = BeakModelRegistry();
-  for (final model in referenceModels) {
+  for (final model in beakModels) {
     registry.register(model);
   }
   return registry;
@@ -81,13 +81,13 @@ BeakModelRegistry buildReferenceRegistry() {
 
 Wrap the registry in a worm-backed data source and hand both to a `BeakServer`.
 
-```dart title="apps/reference_admin_server/lib/src/server_builder.dart"
+```dart title="examples/store/lib/server.dart"
 BeakServer buildReferenceServer({
   required BeakBackendConfig config,
   required DatabaseAdapter adapter,
   BeakStorageDriver? storage,
 }) {
-  final BeakModelRegistry registry = buildReferenceRegistry();
+  final BeakModelRegistry registry = buildBeakRegistry();
   return BeakServer(
     config: config,
     registry: registry,
@@ -101,7 +101,7 @@ BeakServer buildReferenceServer({
 
 Point a `BeakPanelConfig` at the running server and drop it into a `BeakPanel`.
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 BeakPanelConfig buildReferencePanelConfig({
   String apiBaseUrl = 'http://localhost:8080',
 }) => BeakPanelConfig(
@@ -187,10 +187,10 @@ share `key`, `label`, `relatedTable`, `displayColumnKey`, and `searchColumnKeys`
 
 `BeakOnDelete` values mirror worm 1:1: `cascade`, `ormCascade`, `restrict`,
 `setNull`, `setDefault`, `noAction`. `BeakHasOne` lives only in the showcase app
-(`beak_superdashboard`), not the reference store. See
+(`superdashboard`), not the reference store. See
 [Relationships](../models/relationships.md).
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart
 static const category = BeakBelongsTo(
   key: 'category',
   label: 'Category',
@@ -321,7 +321,7 @@ Run `beak <command>` from the project root. Every `make:*` command takes
 | `beak make:migration Name --fields ...` | the create-table migration only |
 | `beak doctor` | checks worm/obers_ui paths, `.env`, Postgres `:25432`, MinIO `:29000` |
 
-Scaffolding does not auto-register anything: add the migration to `bin/worm.dart`
+Scaffolding does not auto-register anything: add the migration to `bin/migrate.dart`
 and the model to your registry yourself. See [CLI commands](cli-commands.md).
 
 ## The gate

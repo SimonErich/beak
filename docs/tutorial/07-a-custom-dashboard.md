@@ -23,7 +23,7 @@ graphs).
 
 Here is the real dashboard the reference store ships:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 dashboardStats: [
   const BeakStat(
     label: 'Products',
@@ -65,7 +65,7 @@ A `BeakChart` pairs a query with a mapping. The `query` fetches a page of record
 `map` turns them into typed points, and `type` picks the chart family. The mapper
 is a plain, typed function, also reading through column constants:
 
-```dart title="apps/reference_admin/lib/main.dart"
+```dart
 /// Maps a page of product records onto stock-per-product chart points.
 List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
   for (final record in records)
@@ -95,7 +95,7 @@ declarative block tree for its body.
 
 A `BeakScreen` whose `path` is `'/'` replaces the built-in stats/charts dashboard
 wholesale. Add this to your store, next to `buildReferencePanelConfig` in
-`apps/reference_admin/lib/main.dart`:
+`examples/store/lib/main.dart`:
 
 ```dart
 /// A custom home screen: KPI tiles and a chart over the store's own tables.
@@ -174,7 +174,7 @@ and joins the Ctrl/Cmd-K command bar automatically.
 Your backend from chapter 3 should still be serving on port 8080. Launch the panel:
 
 ```bash
-cd apps/reference_admin
+cd examples/store
 flutter run -d chrome
 ```
 

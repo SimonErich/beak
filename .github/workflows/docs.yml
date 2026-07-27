@@ -11,6 +11,16 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - ".github/workflows/docs.yml"
+  # The build is the docs' only structural gate — broken links, missing nav
+  # entries, snippet targets that moved. Running it after merge means main
+  # breaks first and someone finds out later.
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "examples/**"
+      - "packages/**"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:
@@ -36,6 +46,12 @@ jobs:
       - name: Install MkDocs and plugins
         run: pip install mkdocs-material mkdocs-minify-plugin
 
+      - uses: dart-lang/setup-dart@v1
+
+      # Every claim the docs make about a file path, checked against the tree.
+      - name: Check the docs
+        run: dart run tool/check_docs.dart
+
       # --strict fails the build on any broken internal link or page missing
       # from the nav. This is the docs' structural gate.
       - name: Build MkDocs
@@ -48,6 +64,8 @@ jobs:
   deploy:
     name: Deploy to Pages
     needs: build
+    # Only main publishes; a pull request builds to prove it still builds.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

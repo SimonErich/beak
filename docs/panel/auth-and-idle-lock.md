@@ -32,7 +32,7 @@ The showcase wires all three flows plus idle-lock. In the demo every callback
 returns `true`, since the panel is not guarded; in a real app you point them at your
 backend.
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel/config.dart"
 auth: BeakAuthConfig(
   onLogin: (email, password) async => true,
   onRegister: (name, email, password) async => true,

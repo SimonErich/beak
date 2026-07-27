@@ -378,8 +378,8 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_backend': 90,
   'beak_frontend': 85,
   'beak_cli': 85,
-  'reference_admin': 85,
-  'reference_admin_server': 85,
+  'store': 50,
+  'store': 85,
 };
 ```
 

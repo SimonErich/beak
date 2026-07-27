@@ -21,8 +21,8 @@ Beak ships two demo apps, and they run on different ports. Keep the frontend's
 
 | App | Backend port | Frontend `apiBaseUrl` |
 | --- | --- | --- |
-| `reference_admin` (the tutorial store) | `8080` | `http://localhost:8080` |
-| `beak_superdashboard` (the showcase) | `8180` | `http://localhost:8180` |
+| `store` (the tutorial store) | `8080` | `http://localhost:8080` |
+| `superdashboard` (the showcase) | `8180` | `http://localhost:8180` |
 
 `BeakBackendConfig`'s built-in default port is `8080`. The committed root
 `.env.example` sets `PORT=8180` because it configures the superdashboard demo
@@ -67,7 +67,7 @@ These are not read by `beak_backend` core. The demo servers read
 from the `BEAK_S3_*` variables. This is app code you own, so your own server can
 read these keys differently.
 
-```dart title="apps/reference_admin_server/lib/src/server_builder.dart"
+```dart title="examples/store/lib/server.dart"
 BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
   switch (environment['BEAK_STORAGE_DRIVER']) {
     case 's3':

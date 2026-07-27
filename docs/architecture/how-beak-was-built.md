@@ -27,7 +27,7 @@ The "phase's own proofs" were extra, phase-specific evidence: a golden serializa
 
 ## Bottom-up dependency order
 
-The build went from the foundation up, never the reverse. Pure-Dart `beak_core` came first, because everything depends on it; the ORM-backed backend and the Flutter panel came later, because they depend on the shared contract; the reference app came last, because it depends on all of it.
+The build went from the foundation up, never the reverse. Pure-Dart `beak_core` came first, because everything depends on it; the ORM-backed backend and the Flutter panel came later, because they depend on the shared contract; the store example came last, because it depends on all of it.
 
 ```text title="PLAN/PHASES.md"
 00 foundation
@@ -73,7 +73,7 @@ Each row landed as one gated commit. The ledger in `PLAN/STATE.md` records the S
 | 12 | frontend: BeakDataTable | `7872370` | Cell renderer, server-side sort/filter/paginate, row and bulk actions. |
 | 13 | frontend: form + detail | `1dd901d` | `BeakDataForm`, `BeakFormController`, `BeakDetailView`, relation fields. |
 | 14 | frontend: actions + dashboard | `2f80ed2` | Actions, filters, dashboard stats and charts; aggregates end-to-end. |
-| 15 | reference app + CLI + E2E | `6367c47` | The reference_admin trio, `beak_cli`, a live Postgres + MinIO E2E run. |
+| 15 | reference app + CLI + E2E | `6367c47` | The store trio, `beak_cli`, a live Postgres + MinIO E2E run. |
 
 Phase 15 ended at a `BUILD_COMPLETE` sentinel: the full gate green across every package, integration and end-to-end tags included, against live infrastructure.
 
@@ -85,7 +85,7 @@ Tests came before implementation, one behavior at a time, and the ledger notes a
 
 ## The superdashboard expansion
 
-The reference app is a small, clean teaching store. To prove Beak scaled to a real admin panel, a second demo was built on the `feat/superdashboard` branch: `apps/beak_superdashboard`, reproducing a full commercial admin theme entirely from seeded data using only declarative Beak widgets. It followed the same discipline, one gated commit per phase.
+The store example is a small, clean teaching store. To prove Beak scaled to a real admin panel, a second demo was built on the `feat/superdashboard` branch: `apps/superdashboard`, reproducing a full commercial admin theme entirely from seeded data using only declarative Beak widgets. It followed the same discipline, one gated commit per phase.
 
 Its value to the framework is that most of what it needed was reusable, so it landed in the packages rather than the app. `BEAK_MISSING_FEATURES.md` is the map of what that expansion added to `beak_frontend`:
 

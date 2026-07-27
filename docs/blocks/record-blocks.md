@@ -91,7 +91,7 @@ const BeakRelationBlock(this.relationship, {this.title, super.span});
 Here is the showcase's product layout. It uses all three blocks and is declared
 `const`, because a block tree is pure configuration.
 
-```dart title="apps/beak_superdashboard/lib/panel/details/commerce_layouts.dart"
+```dart title="examples/superdashboard/lib/panel/details/commerce_layouts.dart"
 const BeakBlock productLayout = BeakColumnBlock(
   gapInPixels: 20,
   children: [
@@ -147,7 +147,7 @@ const BeakBlock productLayout = BeakColumnBlock(
 
 The same constant goes into two resource slots:
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
+```dart title="examples/superdashboard/lib/panel/resources.dart"
 BeakResource(
   model: ProductModel(),
   icon: BeakIconToken(OiIcons.package),

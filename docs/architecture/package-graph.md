@@ -14,9 +14,9 @@ Beak is a Melos monorepo. The framework is a handful of small packages under `pa
 ```mermaid
 flowchart TD
   subgraph apps
-    RA[reference_admin\nFlutter panel]
-    RS[reference_admin_server\nShelf server]
-    RM[reference_admin_models\nshared model set]
+    RA[store\nFlutter panel]
+    RS[store\nShelf server]
+    RM[store\nshared model set]
   end
 
   RA --> FE[beak_frontend]
@@ -81,9 +81,9 @@ The worm ORM (and its `worm_postgres` driver) appears in exactly one place: `bea
 
 The two demo apps share one thing and split on everything else.
 
-- `reference_admin` (the Flutter panel) depends on `beak_frontend` and on the shared `reference_admin_models`. It runs against a server on port 8080.
-- `reference_admin_server` (the Shelf server) depends on `beak_backend` and on the same `reference_admin_models`. It serves that port.
-- `reference_admin_models` depends only on `beak_core`, so the identical model definitions compile into both the client and the server.
+- `store` (the Flutter panel) depends on `beak_frontend` and on the shared `store`. It runs against a server on port 8080.
+- `store` (the Shelf server) depends on `beak_backend` and on the same `store`. It serves that port.
+- `store` depends only on `beak_core`, so the identical model definitions compile into both the client and the server.
 
 That shared model package is the concrete payoff of the graph: one set of typed columns, imported unchanged by a Flutter app and a Dart server, because both sides bottom out at the same pure-Dart `beak_core`.
 
