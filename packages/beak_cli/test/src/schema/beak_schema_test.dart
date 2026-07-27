@@ -452,4 +452,71 @@ final class Product extends BeakSchema {
       expect(titleCaseOf('name'), 'Name');
     });
   });
+
+  group('column options', () {
+    test('an option the kind carries reaches the generated column', () {
+      final (schemas, issues) = readSchemas({
+        'thing.dart': """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+
+enum Grade { good, bad }
+
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  @Column(placeholder: 'A name')
+  late final String name;
+
+  @Column(trueLabel: 'On', falseLabel: 'Off')
+  late final bool active;
+
+  @Column(defaultValue: Grade.good)
+  late final Grade grade;
+}
+""",
+      });
+
+      expect(issues, isEmpty);
+      final emitted = BeakSchemaEmitter.emit(
+        schemaNamed(schemas, 'Thing'),
+        schemas,
+      );
+      expect(emitted, contains("placeholder: 'A name'"));
+      expect(emitted, contains("trueLabel: 'On'"));
+      expect(emitted, contains('defaultValue: Grade.good'));
+    });
+
+    test('an option the kind cannot take is named at the field', () {
+      // Otherwise it is a compile error inside a part file the project is
+      // told never to edit.
+      final (_, issues) = readSchemas({
+        'thing.dart': """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  @Column(prefix: 'x')
+  late final String name;
+}
+""",
+      });
+
+      expect(issues, hasLength(1));
+      expect(
+        issues.single.message,
+        allOf(
+          contains('Thing.name'),
+          contains('"prefix"'),
+          contains('number column'),
+        ),
+      );
+    });
+  });
 }

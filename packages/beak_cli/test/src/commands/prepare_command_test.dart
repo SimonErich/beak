@@ -508,6 +508,59 @@ resources:
     });
   });
 
+  group('beak.yaml server settings', () {
+    test('a declared port becomes a default the environment can beat', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': '''
+server:
+  port: 8180
+''',
+      });
+
+      runPrepare(environmentFor(root));
+
+      expect(
+        read(root, 'lib/beak/server.g.dart'),
+        contains(
+          "environment: {'PORT': '8180', ...environment ?? "
+          'BeakEnv.resolve()}',
+        ),
+      );
+    });
+
+    test('no server block leaves the host taking the environment whole', () {
+      final root = projectWith({'lib/models/note.dart': noteModel});
+      runPrepare(environmentFor(root));
+
+      expect(
+        read(root, 'lib/beak/server.g.dart'),
+        contains('environment: environment,'),
+      );
+    });
+
+    test('a port that is not one fails, naming the key', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': '''
+server:
+  port: http
+''',
+      });
+
+      expect(
+        () => runPrepare(environmentFor(root)),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (exception) => exception.message,
+            'message',
+            contains('server.port'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('overrides', () {
     test('a panel override gets the last word', () {
       final root = projectWith({

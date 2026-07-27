@@ -75,7 +75,9 @@ abstract final class BeakEmitters {
     ),
     BeakGeneratedFile(
       path: 'lib/beak/server.g.dart',
-      contents: format(server(packageName: packageName, discovery: discovery)),
+      contents: format(
+        server(packageName: packageName, discovery: discovery, config: config),
+      ),
       isCommitted: true,
     ),
     BeakGeneratedFile(
@@ -270,6 +272,7 @@ final class BeakApp extends StatelessWidget {
   static String server({
     required String packageName,
     required BeakDiscovery discovery,
+    required BeakProjectConfig config,
   }) {
     final buffer = StringBuffer(header)
       ..writeln('library;')
@@ -299,7 +302,7 @@ final class BeakApp extends StatelessWidget {
       ..writeln('/// temporary upload directory without touching the machine.')
       ..writeln('BeakServeHost beakHost({Map<String, String>? environment}) =>')
       ..writeln('    BeakServeHost(')
-      ..writeln('      environment: environment,')
+      ..writeln('      environment: ${_environmentExpression(config)},')
       ..writeln('      registry: buildBeakRegistry(),')
       ..writeln('      migrations: const [');
     for (final migration in discovery.migrations) {
@@ -348,6 +351,21 @@ Future<void> main() async {
   stderr.writeln('listening on http://\${server.address.host}:\${server.port}');
 }
 ''';
+
+  /// What the generated host seeds its environment with.
+  ///
+  /// A `server:` block in `beak.yaml` is a *default*: the resolved
+  /// environment is spread after it, so a real `PORT` in a deployment still
+  /// decides where the process binds.
+  static String _environmentExpression(BeakProjectConfig config) {
+    if (config.server.isDefault) {
+      return 'environment';
+    }
+    final String defaults = config.server.environmentDefaults.entries
+        .map((entry) => "'${entry.key}': '${entry.value}'")
+        .join(', ');
+    return '{$defaults, ...environment ?? BeakEnv.resolve()}';
+  }
 
   /// `bin/migrate.dart` — one statement.
   static String migrateEntrypoint(String packageName) =>

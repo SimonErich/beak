@@ -33,6 +33,7 @@ resources:
 | --- | --- | --- |
 | `name` | the title-cased package name | The panel's title, in the shell and the browser tab |
 | `api` | see below | Where the panel sends its requests |
+| `server` | Beak's defaults | Where the server binds |
 | `resources` | `{}` | Per-resource presentation |
 | `sidebar` | see below | How the navigation behaves |
 
@@ -60,6 +61,19 @@ flutter build web --dart-define=BEAK_API_BASE_URL=https://api.example.com
 
 Set `baseUrl: auto` and the panel calls the origin it was served from, which is
 what a single-host deployment wants.
+
+## `server`
+
+```yaml
+server:
+  port: 8180
+  host: 0.0.0.0
+```
+
+Both are *defaults*. A real `PORT` or `HOST` in the environment still wins,
+because where a process binds is a deployment's decision, not a repository's.
+Use this when a project has a fixed development port — two Beak apps in one
+repository cannot both have 8080.
 
 ## `resources`
 

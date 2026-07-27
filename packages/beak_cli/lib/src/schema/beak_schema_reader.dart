@@ -320,6 +320,23 @@ final class BeakSchemaReader {
       );
     }
 
+    // An option the kind cannot take would compile-error inside the part
+    // file, which is a file the project is told never to edit. Name it here
+    // instead, at the declaration that asked for it.
+    for (final option in options.keys) {
+      if (_optionAppliesTo(option, kind)) {
+        continue;
+      }
+      return _FieldIssue(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className.$fieldName is a ${kind.name} column, which has no '
+              '"$option". ${_optionHint(option)}',
+        ),
+      );
+    }
+
     final arguments = <String, String>{
       for (final entry in options.entries)
         if (!const {'columnName', 'label'}.contains(entry.key))
@@ -346,6 +363,36 @@ final class BeakSchemaReader {
       isDisplay: _annotation(metadata, 'Display') != null,
     );
   }
+
+  /// Whether `@Column`'s [option] means anything for a [kind] column.
+  ///
+  /// Everything not listed here is shared by every kind.
+  static bool _optionAppliesTo(String option, BeakColumnKind kind) =>
+      switch (option) {
+        'prefix' || 'suffix' => const {
+          BeakColumnKind.integer,
+          BeakColumnKind.decimal,
+        }.contains(kind),
+        'precision' => kind == BeakColumnKind.decimal,
+        'min' || 'max' => kind == BeakColumnKind.integer,
+        'maxLength' || 'placeholder' => kind == BeakColumnKind.string,
+        'format' => kind == BeakColumnKind.dateTime,
+        'trueLabel' || 'falseLabel' => kind == BeakColumnKind.boolean,
+        'defaultValue' => kind == BeakColumnKind.enumeration,
+        _ => true,
+      };
+
+  /// Where [option] does belong, for the error message.
+  static String _optionHint(String option) => switch (option) {
+    'prefix' || 'suffix' => 'Units belong on a number column.',
+    'precision' => 'Decimal places belong on a `double` field.',
+    'min' || 'max' => 'Bounds belong on an `int` field; use rules otherwise.',
+    'maxLength' || 'placeholder' => 'That belongs on a `String` field.',
+    'format' => 'A date format belongs on a `DateTime` field.',
+    'trueLabel' || 'falseLabel' => 'State labels belong on a `bool` field.',
+    'defaultValue' => 'A default belongs on an enum field.',
+    _ => '',
+  };
 
   /// Reads a relationship field.
   _FieldResult _readRelation({

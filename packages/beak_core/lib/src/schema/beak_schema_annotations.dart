@@ -100,6 +100,10 @@ final class Column {
     this.max,
     this.maxLength,
     this.format,
+    this.placeholder,
+    this.trueLabel,
+    this.falseLabel,
+    this.defaultValue,
   });
 
   /// Storage column name. Defaults to the snake-cased field name.
@@ -154,6 +158,22 @@ final class Column {
 
   /// Rendering format, for a `DateTime` field.
   final BeakDateFormat? format;
+
+  /// Hint text shown in the empty input, for a `String` field.
+  final String? placeholder;
+
+  /// Label for the true state, for a `bool` field.
+  final String? trueLabel;
+
+  /// Label for the false state, for a `bool` field.
+  final String? falseLabel;
+
+  /// The value a create form starts on, for an enum field.
+  ///
+  /// Typed `Enum` rather than the field's own enum because an annotation
+  /// cannot be generic over the field it annotates; the generator checks that
+  /// it belongs to the right one.
+  final Enum? defaultValue;
 }
 
 /// Marks the field that represents a record in pickers, links and titles.

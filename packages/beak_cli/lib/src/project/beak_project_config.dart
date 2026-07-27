@@ -40,6 +40,31 @@ final class BeakApiSettings {
             "defaultValue: '$baseUrl')";
 }
 
+/// Where the server listens, when the project wants something other than
+/// Beak's defaults.
+///
+/// These are *defaults*: a real `PORT` or `HOST` in the environment still
+/// wins, because a deployment decides where its own process binds.
+final class BeakServerSettings {
+  /// Creates server settings.
+  const BeakServerSettings({this.port, this.host});
+
+  /// Port the server binds, or null for Beak's default (8080).
+  final int? port;
+
+  /// Interface the server binds, or null for Beak's default.
+  final String? host;
+
+  /// Whether anything here differs from Beak's defaults.
+  bool get isDefault => port == null && host == null;
+
+  /// The environment entries the generated host seeds itself with.
+  Map<String, String> get environmentDefaults => {
+    if (port != null) 'PORT': '$port',
+    if (host != null) 'HOST': '$host',
+  };
+}
+
 /// Per-resource presentation the panel reads before falling back to defaults.
 final class BeakResourceOverride {
   /// Creates an override for one table.
@@ -80,6 +105,7 @@ final class BeakProjectConfig {
   const BeakProjectConfig({
     required this.name,
     this.api = const BeakApiSettings(),
+    this.server = const BeakServerSettings(),
     this.resources = const {},
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
@@ -105,11 +131,21 @@ final class BeakProjectConfig {
       return BeakProjectConfig.defaults(packageName: packageName);
     }
     final YamlMap root = _requireMap(document, 'the document root');
-    _rejectUnknownKeys(root, const {'name', 'api', 'theme', 'resources'}, '');
+    _rejectUnknownKeys(root, const {
+      'name',
+      'api',
+      'server',
+      'theme',
+      'resources',
+    }, '');
 
     final YamlMap? api = _optionalMap(root['api'], 'api');
     if (api != null) {
       _rejectUnknownKeys(api, const {'baseUrl'}, 'api.');
+    }
+    final YamlMap? server = _optionalMap(root['server'], 'server');
+    if (server != null) {
+      _rejectUnknownKeys(server, const {'port', 'host'}, 'server.');
     }
     final YamlMap? theme = _optionalMap(root['theme'], 'theme');
     if (theme != null) {
@@ -159,6 +195,10 @@ final class BeakProjectConfig {
             _optionalString(api?['baseUrl'], 'api.baseUrl') ??
             'http://localhost:8080',
       ),
+      server: BeakServerSettings(
+        port: _optionalPort(server?['port'], 'server.port'),
+        host: _optionalString(server?['host'], 'server.host'),
+      ),
       resources: resources,
       sidebarCollapsible:
           _optionalBool(sidebar?['collapsible'], 'theme.sidebar.collapsible') ??
@@ -193,6 +233,9 @@ final class BeakProjectConfig {
   /// Where the panel calls its API.
   final BeakApiSettings api;
 
+  /// Where the server binds, when the project asks for something specific.
+  final BeakServerSettings server;
+
   /// Per-table presentation overrides, keyed by table name.
   final Map<String, BeakResourceOverride> resources;
 
@@ -214,6 +257,19 @@ final class BeakProjectConfig {
       return null;
     }
     return _requireMap(value is YamlNode ? value.value : value, context);
+  }
+
+  /// A port number, rejected by name when it is not one.
+  static int? _optionalPort(Object? value, String path) {
+    if (value == null) {
+      return null;
+    }
+    if (value is int && value > 0 && value <= 65535) {
+      return value;
+    }
+    throw BeakProjectConfigException(
+      '$path must be a port number between 1 and 65535, got "$value".',
+    );
   }
 
   static String? _optionalString(Object? value, String key) {

@@ -99,6 +99,9 @@ void main() {
     const keyless = _KeylessModel();
     expect(keyless.relationships, isEmpty);
     expect(keyless.softDeletes, isFalse);
+    // Null means "Beak's own pool"; a generated model overrides it with one
+    // sized to itself.
+    expect(keyless.formSlots, isNull);
   });
 
   test('columnByKey returns the first matching column, else null', () {
