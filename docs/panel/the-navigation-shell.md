@@ -167,7 +167,7 @@ const BeakNotificationSource({
 Set it on `BeakPanelConfig.notifications` and the bell appears with no widget code
 on your side.
 
-```dart title="examples/superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel.dart"
 notifications: const BeakNotificationSource(
   model: NotificationModel(),
   titleField: NotificationColumns.title,
@@ -199,7 +199,7 @@ final class BeakThemeController extends ValueNotifier<OiThemeMode> {
 You rarely touch the controller directly. What you set is the starting mode on the
 config:
 
-```dart title="examples/superdashboard/lib/panel/config.dart"
+```dart title="examples/superdashboard/lib/panel.dart"
 initialThemeMode: OiThemeMode.light,
 ```
 

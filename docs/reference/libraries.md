@@ -9,10 +9,14 @@ Beak is one dependency:
 
 ```yaml
 dependencies:
-  beak: ^0.9.0
+  beak:
+    git:
+      url: https://github.com/SimonErich/beak.git
+      path: packages/beak
 ```
 
-and eight libraries. Which one you import says what a file is: a model, a
+which is what `beak create` writes until Beak is on pub.dev. Eight libraries
+come with it. Which one you import says what a file is: a model, a
 screen, a server, a test.
 
 | Import | What it holds | Reaches |

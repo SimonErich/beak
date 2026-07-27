@@ -11,8 +11,10 @@ candlestick chart (open, high, low, close), and a heatmap (a value at a row and
 column). Each is a block with its own typed point and mapper, and each follows
 the same query-plus-mapper shape as the [single-series charts](chart-basics.md).
 
-All three examples come from the showcase app (`apps/superdashboard`, port
-8180), which seeds a small analytics table behind each one.
+All three examples come from the showcase app (`examples/superdashboard`, port
+8180), which seeds a small analytics table behind each one. The blocks sit in
+`lib/screens/charts_screen.dart` and their mappers in
+`lib/services/dashboard_charts.dart`.
 
 ## Bubble charts
 
@@ -165,16 +167,32 @@ List<BeakCandle> priceCandles(List<BeakRecord> records) {
 ```
 
 The four price columns come from a typed model like any other. The
-`price_candles` resource declares them as `BeakDecimalColumn`s with a `$` prefix:
+`PriceCandle` schema class declares them as annotated fields, and the field's
+`double` type is what picks a decimal column:
 
 ```dart title="examples/superdashboard/lib/models/analytics/price_candle.dart"
-/// The opening price.
-static const open = BeakDecimalColumn(
-  key: 'open',
-  label: 'Open',
-  prefix: r'$',
-);
+@Resource()
+final class PriceCandle extends BeakSchema {
+  /// The bar's label (e.g. the day).
+  @Display()
+  @Column(label: 'Day', searchable: true)
+  late final String? label;
+
+  /// The opening price.
+  @Column(prefix: r'$')
+  late final double? open;
+
+  // ... high, low and close, the same shape
+
+  /// Ordering within the series.
+  @Column(label: 'Order', sortable: true, min: 0)
+  late final int? sortIndex;
+}
 ```
+
+`beak prepare` turns that into `PriceCandleColumns.open`, a `BeakDecimalColumn`
+carrying the `$` prefix, and `sortIndex` into a `BeakIntColumn` keyed
+`sort_index`. The mapper above reads the same rows.
 
 A candlestick is wide, so the showcase spans it across the whole grid:
 

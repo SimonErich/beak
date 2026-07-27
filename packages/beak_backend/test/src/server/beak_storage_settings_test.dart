@@ -166,15 +166,24 @@ void main() {
         'memory': <String, String>{},
       };
       for (final driver in BeakStorageSettings.supportedDrivers) {
+        // `none` is the one value that is not a driver: it is how a
+        // deployment says it wants no upload surface.
         expect(
           BeakStorageSettings.fromEnv({
             'BEAK_STORAGE_DRIVER': driver,
             ...?complete[driver],
           }),
-          isNotNull,
+          driver == 'none' ? isNull : isNotNull,
           reason: '$driver is listed as supported but did not parse',
         );
       }
     });
+
+    test(
+      'an unset driver selects nothing, leaving the default to the host',
+      () {
+        expect(BeakStorageSettings.fromEnv(const {}), isNull);
+      },
+    );
   });
 }

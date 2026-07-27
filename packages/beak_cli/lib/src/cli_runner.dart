@@ -47,7 +47,7 @@ typedef BeakProcessRunner =
 ///   now: () => DateTime.utc(2026, 7, 3, 12),
 ///   probe: (host, port) async => false,
 /// );
-/// await createBeakRunner(env).run(['make:model', 'Product']);
+/// await createBeakRunner(env).run(['make:resource', 'Product']);
 /// ```
 final class BeakCliEnvironment {
   /// Creates an environment from explicit seams.
@@ -145,9 +145,9 @@ final class BeakCliEnvironment {
   }
 }
 
-/// Builds the `beak` [CommandRunner] with every scaffolding command
-/// (`make:resource`, `make:model`, `make:columns`, `make:migration`) and
-/// `doctor` registered against [environment].
+/// Builds the `beak` [CommandRunner] with every command registered against
+/// [environment]: `create`, `prepare`, `dev`, `introspect`, `eject`,
+/// `migrate`, `seed`, `make:resource`, `make:migration` and `doctor`.
 ///
 /// The returned runner's `run` completes with the process exit code (or
 /// `null` for `--help`); it throws [UsageException] on bad input, which the

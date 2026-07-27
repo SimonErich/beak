@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/io.dart';
 import 'package:worm/worm.dart';
 
 import '../auth/auth_router.dart';
@@ -150,8 +151,30 @@ final class BeakServeHost {
     environment: _environment,
   );
 
-  /// The upload driver the environment selects, or `null` when uploads are
-  /// disabled.
+  /// The host a stored file's URL should name.
+  ///
+  /// `0.0.0.0` is a bind address, not somewhere a browser can go, so a URL
+  /// built from it would be handed out and then fail to load.
+  String get _reachableHost =>
+      config.host == '0.0.0.0' ? 'localhost' : config.host;
+
+  /// Where uploads land by default: a directory beside the project, served
+  /// by this server.
+  static const String defaultUploadDir = 'storage/uploads';
+
+  /// The path the default upload driver serves its files under.
+  static const String defaultUploadPath = '/uploads';
+
+  /// The upload driver the environment selects.
+  ///
+  /// With nothing configured this is local disk under [defaultUploadDir],
+  /// served by this server at [defaultUploadPath] — the same posture as the
+  /// database, which is a SQLite file until `DATABASE_URL` says otherwise. An
+  /// upload column works on a fresh project with no setup, and a deployment
+  /// changes it with one variable.
+  ///
+  /// `BEAK_STORAGE_DRIVER=none` returns `null`, which turns the upload
+  /// endpoints off outright.
   ///
   /// Throws a [BeakConfigurationException] when a driver is selected but not
   /// registered — a missing `registerS3Storage` fails at boot, by name.
@@ -160,7 +183,14 @@ final class BeakServeHost {
       _environment,
     );
     if (storageConfig == null) {
-      return null;
+      return _environment[BeakStorageSettings.driverKey] == 'none'
+          ? null
+          : BeakLocalDiskStorageDriver(
+              rootDir: defaultUploadDir,
+              publicBaseUrl: Uri.parse(
+                'http://$_reachableHost:${config.port}$defaultUploadPath',
+              ),
+            );
     }
     return resolveStorage(
       storageConfig,

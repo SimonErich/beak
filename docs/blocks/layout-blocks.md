@@ -13,6 +13,10 @@ blocks and decide where things sit.
 Every block here is `const` configuration that renders onto an obers_ui layout
 widget. Nothing below hard-codes a widget or a callback.
 
+The tree you build lands in one of three files: `lib/screens/<name>.dart` for a
+page of your own, `lib/dashboard.dart` for the screen at `/`, or
+`lib/resources/<table>.dart` for a resource's `detail` and `formLayout`.
+
 ## The family at a glance
 
 | Block | Renders onto | Key parameters |
@@ -108,16 +112,22 @@ Each child's `span` decides how many tracks it covers. A child with no span
 occupies one track. This two-up grid of cards comes from the UI-kit page:
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakGridBlock(
+BeakBlock _widgets() => BeakGridBlock(
   columns: 2,
   gapInPixels: 20,
   children: [
     BeakCardBlock(
       title: 'Badges',
-      child: /* ... */,
+      child: BeakRowBlock(
+        gapInPixels: 8,
+        children: [
+          for (final color in BeakColor.values)
+            BeakBadgeBlock(color.name, color: color),
+        ],
+      ),
     ),
     const BeakCardBlock(title: 'Rating', child: BeakRatingBlock(value: 3.5)),
-    // ...
+    // ... the Progress and Round slider cards.
   ],
 );
 ```

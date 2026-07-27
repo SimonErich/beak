@@ -19,7 +19,7 @@ contract, and it round-trips losslessly.
 ## The spec is the wire contract
 
 A `BeakQuerySpec` is a typed, JSON-serializable description of a query. It
-names a table and carries the seven parts of a read:
+names a table and carries the six other parts of a read:
 
 ```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
 const BeakQuerySpec({
@@ -53,16 +53,18 @@ You never mutate a spec. Each builder (`withFilter`, `orderBy`, `withRelation`,
 `searching`, `paginate`) returns a new spec, so they chain and the original is
 left alone.
 
-```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
-BeakQuerySpec withFilter(BeakFilter filter) => ...
-BeakQuerySpec orderBy(BeakColumn column, {bool descending = false}) => ...
-BeakQuerySpec withRelation(BeakRelationship relation, {BeakFilter? constraint}) => ...
-BeakQuerySpec searching(String term, List<BeakColumn> columns) => ...
-BeakQuerySpec paginate({int? page, int? perPage}) => ...
-```
+| Builder | Signature | The copy it returns |
+| --- | --- | --- |
+| `withFilter` | `BeakQuerySpec withFilter(BeakFilter filter)` | AND-merges `filter` into the existing predicate |
+| `orderBy` | `BeakQuerySpec orderBy(BeakColumn column, {bool descending = false})` | is additionally ordered by `column` |
+| `withRelation` | `BeakQuerySpec withRelation(BeakRelationship relation, {BeakFilter? constraint})` | additionally eager-loads `relation` |
+| `searching` | `BeakQuerySpec searching(String term, List<BeakColumn> columns)` | searches for `term` across `columns` |
+| `paginate` | `BeakQuerySpec paginate({int? page, int? perPage})` | has an updated paging window |
 
-Each one takes a typed column or relationship constant, not a string. The spec
-reads the key off the constant for you:
+Each one takes a typed column or relationship constant, not a string. Those are
+the constants `beak prepare` wrote from your schema class, so
+`ProductColumns.price` and `ProductRelations.category` are what you pass, and
+the spec reads the key off them for you:
 
 ```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
 final spec = const BeakQuerySpec(table: 'posts')
@@ -106,16 +108,29 @@ final BeakFilter predicate = BeakAndFilter([
 ]);
 ```
 
-The default `BeakFieldFilter` constructor takes a `BeakColumn` and reads its
-key, so user code never writes a key string:
+The default `BeakFieldFilter` constructor takes a `BeakColumn` and reads its key,
+so user code never writes a key string:
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
-BeakFieldFilter({
+const BeakFieldFilter({
   required BeakColumn column,
   required this.operator,
   this.value = const BeakNullValue(),
-}) : columnKey = column.key;
+}) : _column = column,
+     _columnKey = null;
 ```
+
+It holds the column rather than reducing it to a key so that the constructor can
+stay `const`, and the key is read on demand:
+
+```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
+/// Key of the column this predicate applies to.
+String get columnKey => _columnKey ?? _column!.key;
+```
+
+That matters more than it sounds: a screen, a dashboard metric and a resource's
+base filter are all `const` expressions, and a filter that could not be one
+would force every caller of them open.
 
 Walking the tree is a switch with no default case, so adding a filter shape is
 a compile error until every translator handles it:
@@ -157,7 +172,7 @@ Operands are wrapped in the sealed `BeakValue` family instead of raw
 themselves; a `DateTime` serializes as a tagged object so decoding never
 confuses a timestamp with a plain string.
 
-```dart title="packages/beak_core/lib/src/query/beak_value.dart"
+```dart
 BeakValue.of('active');           // BeakStringValue
 BeakValue.of(42);                 // BeakIntValue
 BeakValue.of([1, 2, 3]);          // BeakListValue of BeakIntValues
@@ -174,7 +189,7 @@ what lets `BeakValue.fromJson` rebuild the exact `DateTime` on the other side.
 into an equal spec. A `POST /api/products/query` body for a filtered,
 sorted, paged read looks like this:
 
-```json title="POST /api/products/query"
+```json
 {
   "table": "products",
   "filter": {
@@ -194,6 +209,14 @@ sorted, paged read looks like this:
 Nothing here is invented for the docs: every key is what the matching `toJson`
 emits. Feed this body back through `BeakQuerySpec.fromJson` and you get a spec
 that is `==` to the one you started with.
+
+!!! note "Why `relations` is already there"
+    You did not ask for the category. `beakWithToOneLoads` adds a relation load
+    for every to-one relationship the model declares that the spec does not
+    already carry, because the table shows the related record's name rather than
+    the uuid the foreign key stores. It rides in the same spec, so the whole page
+    is one query rather than one per row. See
+    [Tables and filters](../panel/tables-and-filters.md).
 
 ```mermaid
 flowchart LR

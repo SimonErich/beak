@@ -1,113 +1,128 @@
 ---
 title: Common recipes
-description: Short, copy-ready how-tos for the things you do most in Beak: a resource, a row action, a KPI, a kanban board, a badge column, a picker, and a CSV export.
+description: Short, copy-ready how-tos for the things you do most in Beak: a resource, a row action, a KPI, a kanban board, a badge column, a picker, a wizard, and a CSV export.
 ---
 
 # Common recipes
 
 A grab-bag of small, worked answers to "how do I do that one thing". Each recipe
 is a few lines of real code and a link to the page that covers it in depth. Skim
-for the one you need; every snippet is lifted from a running demo app.
+for the one you need; every snippet is lifted from a running example app or from
+Beak's own source.
 
-Unless a recipe says otherwise, the code is from the store example store
-(`examples/store`, served on port 8080). The kanban recipe uses the showcase
-app (`superdashboard`, port 8180); it is labelled where it appears.
+Unless a recipe says otherwise, the code is from the store example
+(`examples/store`, served on port 8080). One snippet comes from the showcase app
+(`examples/superdashboard`, port 8180) and one from `beak_core`; both are
+labelled where they appear.
 
 ## Add a resource end-to-end
 
-Once a model exists, two moves turn it into a full CRUD page. First register it,
-so both the backend and the panel know its shape:
+Write one annotated class under `lib/models/`. The field's type picks the column
+kind, and its nullability decides whether the value is required:
 
-```dart
-BeakModelRegistry buildBeakRegistry() {
-  final registry = BeakModelRegistry();
-  for (final model in beakModels) {
-    registry.register(model);
-  }
-  return registry;
+```dart title="examples/store/lib/models/tag.dart"
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+part 'tag.beak.dart';
+
+/// A free-form label products are tagged with.
+@Resource()
+final class Tag extends BeakSchema {
+  /// What the tag is called.
+  @Display()
+  @Column(
+    searchable: true,
+    sortable: true,
+    unique: true,
+    rules: [BeakMaxLength(60)],
+  )
+  late final String name;
 }
 ```
 
-Then declare a `BeakResource` for it in the panel config. That single line
-yields the list, detail, create, and edit pages, plus navigation:
+Then run the generator:
 
-```dart
-BeakResource(
-  model: CategoryModel(),
-  icon: BeakIconToken(OiIcons.folderTree),
-),
+```bash
+beak prepare
 ```
 
-→ [Defining models](../models/defining-models.md) and
-[The generated API](../backend/the-generated-api.md).
+That writes `tag.beak.dart` beside it (`TagColumns`, `TagRelations`,
+`TagModel`, a typed record view), adds the model to `beakModels` and the
+registry, adds the resource to the panel config, and writes the migration the
+new table needs. You register nothing. Give it an icon and a sidebar section in
+`beak.yaml` if the defaults are not what you want.
+
+→ [Defining a resource](../models/defining-models.md) and
+[Generated code](../models/generated-code.md).
 
 ## A custom row action
 
-When a resource needs a verb the CRUD basics do not cover, write plain typed
-code over the data source and surface it as a `BeakRecordAction`. This one
-duplicates a product, reading fields through column constants and never strings:
+When a resource needs a verb the CRUD basics do not cover, add it in
+`lib/resources/<table>.dart`. That file takes the generated `BeakResource` and
+returns a changed copy, so the model, label, icon and section stay generated:
 
-```dart
-Future<void> duplicateProduct(
-  BeakRecord record,
-  BeakActionContext context,
-) async {
-  final String? name = switch (record[ProductColumns.name.key]?.raw) {
-    final String value => value,
-    _ => null,
-  };
-  if (name == null) {
-    throw const BeakConfigurationException(
-      'Cannot duplicate a product that has no name.',
-    );
-  }
-  await context.dataSource.create(
-    context.model.table,
-    BeakRecord(values: {
-      ProductColumns.name.key: BeakStringValue('$name (copy)'),
-    }),
-  );
-  await context.refresh?.call();
-}
+```dart title="examples/store/lib/resources/products.dart"
+BeakResource beakResource(BeakResource generated) => generated.copyWith(
+  // ...detail and formLayout...
+  recordActions: [
+    BeakRecordAction(
+      key: 'publish',
+      label: 'Publish',
+      icon: OiIcons.rocket,
+      onExecute: (record, context) async {
+        final Object? id = context.model.primaryKeyOf(record);
+        if (id == null) {
+          return;
+        }
+        await context.dataSource.update(
+          context.model.table,
+          id,
+          BeakRecord(
+            values: {
+              ProductColumns.status.key: BeakValue.of(
+                ProductStatus.published.name,
+              ),
+              ProductColumns.publishedAt.key: BeakValue.of(DateTime.now()),
+            },
+          ),
+        );
+      },
+    ),
+  ],
+  // ...bulkActions and viewModes...
+);
 ```
 
-Wire it into the resource as an action:
-
-```dart
-recordActions: [
-  BeakRecordAction(
-    key: 'duplicate',
-    label: 'Duplicate',
-    icon: OiIcons.copy,
-    onExecute: duplicateProduct,
-  ),
-],
-```
+The action reads and writes through generated column constants, never through a
+string field reference, so renaming `publishedAt` in the schema class breaks the
+build here rather than in production.
 
 → [Actions](../panel/actions.md).
 
 ## A KPI on the dashboard
 
-A stat tile is an aggregate spec plus a label. The count runs in the database;
-no rows are loaded to produce the number:
+Add `lib/dashboard.dart` declaring `BeakScreen beakDashboard()` and it replaces
+the generated page at `/`. A KPI is an aggregate spec plus a title: the number
+is computed in the database, and no rows are loaded to produce it.
 
-```dart
-dashboardStats: [
-  const BeakStat(
-    label: 'Products',
-    aggregate: BeakAggregateSpec.count(table: 'products'),
-    icon: OiIcons.package,
-  ),
-  BeakStat(
-    label: 'Catalog value',
-    aggregate: BeakAggregateSpec.sum(
-      table: 'products',
-      column: ProductColumns.price,
+```dart title="examples/store/lib/dashboard.dart"
+const BeakBlock _kpis = BeakGridBlock(
+  columns: 4,
+  children: [
+    BeakKpiBlock(
+      title: 'Revenue',
+      value: BeakAggregateSpec.sum(table: 'orders', column: OrderColumns.total),
+      format: BeakKpiFormat.currency,
+      currencySymbol: '€',
     ),
-    icon: OiIcons.euro,
-    prefix: '€',
-  ),
-],
+    BeakKpiBlock(
+      title: 'Orders',
+      value: BeakAggregateSpec.count(table: 'orders'),
+    ),
+    // ...'Awaiting payment' and 'Out of stock', each a filtered count.
+  ],
+);
 ```
 
 → [Dashboards](../panel/dashboards.md).
@@ -115,68 +130,111 @@ dashboardStats: [
 ## A kanban view
 
 A resource can offer more than a table. Add a `BeakKanbanView` alongside
-`BeakTableView` and it groups records into columns by an enum field. From the
-showcase app (`superdashboard`, port 8180):
+`BeakTableView` in the resource file and it groups records into columns by an
+enum field:
 
-```dart title="examples/superdashboard/lib/panel/resources.dart"
-viewModes: [
-  BeakTableView(),
-  BeakKanbanView(
-    groupField: OrderColumns.status,
-    titleField: OrderColumns.reference,
-    subtitleField: OrderColumns.total,
-    sortField: OrderColumns.placedAt,
-    sortDescending: true,
-  ),
-],
+```dart title="examples/store/lib/resources/products.dart"
+  viewModes: const [
+    BeakTableView(),
+    BeakKanbanView(
+      groupField: ProductColumns.status,
+      titleField: ProductColumns.name,
+      subtitleField: ProductColumns.sku,
+    ),
+  ],
 ```
 
 → [View modes](../panel/view-modes.md).
 
 ## An enum badge column
 
-A `BeakEnumColumn` renders as a coloured badge when you give it `badgeColors`.
-Map each enum value to a `BeakColor`, and the badge shows up in the table, the
-detail row, and the filter without any per-surface code:
+Declare the field as your enum and Beak renders a select in the form and a
+badge everywhere else. `@Badges` maps each value to a colour, and the badge
+shows up in the table, the detail row and the filter without any per-surface
+code:
 
-```dart
-static const status = BeakEnumColumn<ProductStatus>(
-  key: 'status',
-  label: 'Status',
-  values: ProductStatus.values,
-  defaultValue: ProductStatus.draft,
-  filterable: true,
-  badgeColors: {
+```dart title="examples/store/lib/models/product.dart"
+  /// Lifecycle state, rendered as a coloured badge.
+  @Column(filterable: true)
+  @Badges({
     ProductStatus.draft: BeakColor.muted,
     ProductStatus.published: BeakColor.success,
     ProductStatus.archived: BeakColor.warning,
-  },
-);
+  })
+  late final ProductStatus status;
 ```
 
 → [Column types](../models/column-types.md).
 
 ## A belongs-to picker
 
-Declare a `BeakBelongsTo` relationship and Beak gives you a searchable picker in
-the form and a linked label in the table and detail, all from the display column
-you name:
+Point a field at another schema class and annotate it `@BelongsTo`. Beak
+generates the foreign-key column, both sides of the relationship, a searchable
+picker in the form and a linked label in the table and detail:
 
-```dart
-static const category = BeakBelongsTo(
-  key: 'category',
-  label: 'Category',
-  relatedTable: 'categories',
-  displayColumnKey: 'name',
-  foreignKey: 'category_id',
-  searchColumnKeys: ['name'],
+```dart title="examples/store/lib/models/product.dart"
+  /// The category this product is filed under.
+  @BelongsTo(onDelete: BeakOnDelete.setNull)
+  late final Category? category;
+```
+
+The picker searches the related model's display column by default. When people
+look a record up by something else, widen it with `searchOn`, and rename the
+relationship with `label` (from the showcase app):
+
+```dart title="examples/superdashboard/lib/models/invoices/invoice.dart"
+  /// The billed user.
+  @BelongsTo(label: 'Bill to', searchOn: ['name', 'email'])
+  late final User? user;
+```
+
+→ [Relationships](../models/relationships.md) and [Forms](../panel/forms.md).
+
+## Hide a resource from the sidebar
+
+A join table or a child model usually has no business in the navigation, but it
+still needs its model, its API and its relationships. Set `hidden: true` on it
+in `beak.yaml`; that is the only change:
+
+```yaml title="examples/store/beak.yaml"
+resources:
+  products:
+    icon: package
+    section: Catalog
+  # ...categories, tags, roast_profiles, orders, users...
+  order_items:
+    hidden: true
+```
+
+The showcase app leans on this hard: 49 models, 17 of them navigable.
+
+→ [beak.yaml](../reference/beak-yaml.md).
+
+## Split a long form into steps
+
+A create form with nine inputs is a wall. Give the resource `formSteps` and each
+step validates before the next one opens:
+
+```dart title="examples/store/lib/resources/orders.dart"
+BeakResource beakResource(BeakResource generated) => generated.copyWith(
+  formSteps: const [
+    BeakFormStep(
+      title: 'Customer',
+      subtitle: 'Who is buying',
+      icon: OiIcons.user,
+      description:
+          'Pick the customer this order belongs to. Their past orders appear '
+          'on their own page once this one is saved.',
+      columns: [OrderColumns.customerId],
+    ),
+    // ...'Order', 'Money' and 'Delivery', covering every remaining column.
+  ],
 );
 ```
 
-List the relationship on the model's `relationships` getter and the picker
-appears wherever the resource renders a form.
+Every form column must appear in exactly one step.
 
-→ [Relationships](../models/relationships.md) and [Forms](../panel/forms.md).
+→ [Multi-step forms](../panel/multi-step-forms.md).
 
 ## Export to CSV
 
@@ -185,11 +243,11 @@ client turns a query spec into a CSV string, so an export honours the same
 filters and sorts the table is showing:
 
 ```dart title="packages/beak_core/lib/src/client/beak_client.dart"
-/// Exports [spec]'s rows as CSV via `POST /api/{table}/export`.
-Future<String> export(String table, BeakQuerySpec spec) async {
-  final response = await _postJson('/api/$table/export', spec.toJson());
-  return response.body;
-}
+  /// Exports [spec]'s rows as CSV via `POST /api/{table}/export`.
+  Future<String> export(String table, BeakQuerySpec spec) async {
+    final response = await _postJson('/api/$table/export', spec.toJson());
+    return response.body;
+  }
 ```
 
 Call it with the same spec the current view built:
@@ -204,9 +262,10 @@ final csv = await client.export('products', spec);
 
 - [Actions](../panel/actions.md) the full action model behind the row-action
   recipe.
-- [Dashboards](../panel/dashboards.md) more on stat tiles, KPI blocks, and
-  charts.
+- [Dashboards](../panel/dashboards.md) more on KPI blocks, metrics, and charts.
 - [Relationships](../models/relationships.md) all four relation kinds and how
   they render.
+- [beak.yaml](../reference/beak-yaml.md) every key that shapes the panel from
+  outside Dart.
 - [Performance](performance.md) why aggregate KPIs and eager-loaded pickers keep
   query counts flat.

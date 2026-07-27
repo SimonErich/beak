@@ -44,13 +44,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install MkDocs and plugins
-        run: pip install mkdocs-material mkdocs-minify-plugin
+        run: pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects
 
       - uses: dart-lang/setup-dart@v1
 
-      # Every claim the docs make about a file path, checked against the tree.
+      # `dart run` fetches on its own, but the checker reads the tree rather
+      # than the packages, so a bare resolve is all it needs.
       - name: Check the docs
-        run: dart run tool/check_docs.dart
+        run: dart pub get && dart run tool/check_docs.dart
 
       # --strict fails the build on any broken internal link or page missing
       # from the nav. This is the docs' structural gate.

@@ -32,7 +32,7 @@ pixel never touches `dynamic`.
 A `BeakChartPoint` is a label, a value, and an optional x position.
 
 ```dart title="packages/beak_frontend/lib/src/dashboard/beak_chart.dart"
-/// One typed chart data point - the shape [BeakChartMapper]s produce, so
+/// One typed chart data point — the shape [BeakChartMapper]s produce, so
 /// mapping records to series never touches `dynamic`.
 final class BeakChartPoint {
   /// Creates a point labelled [label] with [value]; [x] positions it on
@@ -66,29 +66,39 @@ typedef BeakChartMapper =
 ```
 
 Here is a real one from the tutorial store (`examples/store`, port 8080).
-It turns each product row into one bar, labelled by name and sized by stock,
-reading both fields through the shared `ProductColumns` constants:
+It turns each order row into one bar, labelled by reference and sized by total,
+reading both fields through the generated `OrderColumns` constants:
 
-```dart
-List<BeakChartPoint> stockPerProduct(List<BeakRecord> records) => [
+```dart title="examples/store/lib/dashboard.dart"
+/// One bar per order: its reference and what it was worth.
+///
+/// A mapper reads through the generated column constants, so renaming a
+/// column in the schema class is a compile error here rather than an empty
+/// chart in production.
+List<BeakChartPoint> orderTotalPoints(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
-      label: record[ProductColumns.name.key]?.raw?.toString() ?? '',
-      value: switch (record[ProductColumns.stock.key]?.raw) {
-        final num stock => stock.toDouble(),
-        _ => 0,
-      },
+      label: OrderColumns.reference.readFrom(record) ?? '—',
+      value: OrderColumns.total.readFrom(record) ?? 0,
     ),
 ];
 ```
 
 !!! note "What just happened"
-    - `record[column.key]` reads a field by its column constant, not a bare
-      string, so a rename in the model is a compile error here, not a silent
-      empty chart.
-    - `?.raw` unwraps the typed `BeakValue`; the `switch` coerces it to `double`
-      and gives a missing or non-numeric stock a zero-height bar rather than
-      dropping the row.
+    - `readFrom` is the typed read. `OrderColumns.total.readFrom(record)` is a
+      `double?` at compile time, because `total` is declared `double` on the
+      `Order` schema class. No key strings, no `dynamic`, no casts.
+    - `OrderColumns` is generated into `lib/models/order.beak.dart` from the
+      `@Resource` class beside it. Rename the field and this mapper stops
+      compiling rather than drawing an empty chart.
+    - `?? 0` decides what a missing value means. A row with no total gets a
+      zero-height bar instead of being dropped.
+
+!!! tip "When the column constant is not the tool"
+    A mapper over an ad-hoc analytics table (one tall `series`/`label`/`value`
+    table feeding a dozen charts) reads by key, because there is no single
+    resource behind the rows. The showcase's mappers below do that. Over a
+    resource's own rows, use the generated constant.
 
 ## The seven families
 
@@ -111,10 +121,10 @@ enum BeakChartType {
   /// An area chart over the mapped points.
   area,
 
-  /// A radar chart - one axis per point, a single series of their values.
+  /// A radar chart — one axis per point, a single series of their values.
   radar,
 
-  /// A funnel chart - one stage per point.
+  /// A funnel chart — one stage per point.
   funnel,
 }
 ```
@@ -139,42 +149,12 @@ identically. You never call `obers_ui_charts` yourself.
 
 The same family and mapper power two placements.
 
-### On the dashboard: `BeakChart`
-
-List `BeakChart`s on `BeakPanelConfig.dashboardCharts` and Beak lays them out on
-the auto-generated dashboard alongside the stat cards. This is the config-only
-route: you declare the chart, Beak builds the card.
-
-```dart title="packages/beak_frontend/lib/src/dashboard/beak_chart.dart"
-final class BeakChart {
-  /// Creates a chart titled [title] rendering [query] through [map].
-  const BeakChart({
-    required this.title,
-    required this.type,
-    required this.query,
-    required this.map,
-    this.heightInPixels = 260,
-  });
-```
-
-The tutorial store registers exactly one:
-
-```dart
-dashboardCharts: [
-  const BeakChart(
-    title: 'Stock per product',
-    type: BeakChartType.bar,
-    query: BeakQuerySpec(table: 'products'),
-    map: stockPerProduct,
-  ),
-],
-```
-
 ### Anywhere in a block tree: `BeakChartBlock`
 
-When you build a custom screen or a hand-composed dashboard, `BeakChartBlock`
-joins the block union, so a chart drops into any grid, card, or page. Its
-constructor mirrors `BeakChart` and adds a `span` for grid layout.
+`BeakChartBlock` joins the block union, so a chart drops into any grid, card, or
+page: `lib/dashboard.dart` for the screen at `/`, `lib/screens/<name>.dart` for
+a page of your own. Its constructor mirrors `BeakChart` and adds a `span` for
+grid layout.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_chart_block.dart"
 final class BeakChartBlock extends BeakBlock {
@@ -189,9 +169,10 @@ final class BeakChartBlock extends BeakBlock {
   });
 ```
 
-The showcase's charts screen (`apps/superdashboard`, port 8180) is a grid of
-these. Note the shared `analyticsPage` pagination so each chart reads the whole
-series, and the `sorts` that put the buckets in order:
+The showcase's charts screen (`examples/superdashboard`, port 8180) is a grid of
+these, in `lib/screens/charts_screen.dart`. Note the shared `analyticsPage`
+pagination so each chart reads the whole series, and the `sorts` that put the
+buckets in order:
 
 ```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 body: BeakGridBlock(
@@ -228,7 +209,7 @@ orders them, and returns the points.
 
 ```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// A chart mapper that keeps only the `time_series_points` rows of [series]
-/// and turns them into ordered points - so one tall table feeds every chart.
+/// and turns them into ordered points — so one tall table feeds every chart.
 BeakChartMapper seriesPoints(String series) => (records) {
   final points = [
     for (final record in records)
@@ -260,10 +241,47 @@ List<BeakChartPoint> purchaseSourcePoints(List<BeakRecord> records) => [
 ```
 
 !!! tip "Values arrive as numbers or strings"
-    In-memory adapters hand back numeric fields as `num`; Postgres decimals come
-    over HTTP as strings. The showcase's `_asDouble` helper parses either, so the
-    same mapper works against both backends. Reach for it (or your own) whenever a
-    chart reads a decimal column.
+    SQLite and the in-memory source hand back numeric fields as `num`; Postgres
+    decimals come over HTTP as strings. A generated column constant already
+    absorbs that: `OrderColumns.total.readFrom(record)` is a `double?` against
+    either backend. The showcase's `_asDouble` exists because these analytics
+    mappers read an ad-hoc table by key, with no column constant to do it for
+    them.
+
+### On the dashboard: `BeakChart`
+
+There is a second, layout-free route. `BeakStat`s and `BeakChart`s listed on the
+config make Beak draw the cards for you, with no block tree at all. They live on
+`BeakPanelConfig`, so the place to set them is `lib/panel.dart`:
+
+```dart title="packages/beak_frontend/lib/src/dashboard/beak_chart.dart"
+final class BeakChart {
+  /// Creates a chart titled [title] rendering [query] through [map].
+  const BeakChart({
+    required this.title,
+    required this.type,
+    required this.query,
+    required this.map,
+    this.heightInPixels = 260,
+  });
+```
+
+```dart
+BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
+  dashboardCharts: const [
+    BeakChart(
+      title: 'Order totals',
+      type: BeakChartType.bar,
+      query: BeakQuerySpec(table: 'orders'),
+      map: orderTotalPoints,
+    ),
+  ],
+);
+```
+
+Beak mounts that generated dashboard only when no page claims `/`. A
+`lib/dashboard.dart` wins the home route outright, so you wire one or the other,
+never both. See [Dashboards](../panel/dashboards.md).
 
 ## Rendered height
 
@@ -275,6 +293,6 @@ itself to that height and the chart fills it.
 
 - [Advanced charts](advanced-charts.md) bubble, candlestick, and heatmap, when a label and a value are not enough.
 - [Maps](maps.md) shading regions and pinning coordinates from the same query-plus-mapper shape.
-- [Dashboards](../panel/dashboards.md) how `dashboardStats` and `dashboardCharts` build the flat dashboard.
+- [Dashboards](../panel/dashboards.md) `lib/dashboard.dart` versus config-only `dashboardStats` and `dashboardCharts`.
 - [Column types](../models/column-types.md) the column constants your mappers read fields through.
 - [Data blocks](../blocks/data-blocks.md) the KPI, table, and metric blocks charts sit beside.

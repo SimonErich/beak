@@ -15,6 +15,9 @@ pubspec.lock
 # Secrets
 .env
 
+# Uploads land here until BEAK_STORAGE_DRIVER points somewhere else.
+/storage/
+
 # The default SQLite database, so the first `beak dev` needs no setup. A real
 # deployment sets DATABASE_URL and this file never appears.
 /*.db

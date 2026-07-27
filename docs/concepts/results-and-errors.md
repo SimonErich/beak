@@ -231,6 +231,26 @@ That is the same `BeakRecord` a data source returns, a form controller edits, an
 guess the shape of. A record never lazy-loads either: a relation is present only
 if the query asked for it.
 
+### Your own rows read as your own types
+
+`record['title']` is the core-level API, the one every layer of Beak is built on.
+In your app you rarely reach for it, because `beak prepare` writes an extension
+type per resource that reads each field through its own column:
+
+```dart title="examples/store/lib/models/category.beak.dart"
+/// What the category is called.
+String get name => CategoryColumns.name.require(record);
+
+/// The one-line blurb shown above the product list.
+String? get blurb => CategoryColumns.blurb.readFrom(record);
+```
+
+`require` is generated for a non-nullable field and `readFrom` for a nullable
+one, so the getter's nullability matches the schema class it came from. Reach for
+a row with `record.asCategory` and you get `String name` and `String? blurb`
+instead of two `BeakValue?`s to unwrap. The extension type is zero-cost: it is
+the same `BeakRecord` underneath.
+
 ## Continue reading
 
 - [The four layers](the-four-layers.md) where exceptions are thrown and caught on
@@ -240,5 +260,6 @@ if the query asked for it.
 - [The type-safety promise](the-type-safety-promise.md) why users never touch
   `dynamic` or a raw map.
 - [Exceptions](../reference/exceptions.md) the full reference for every variant.
+- [Generated code](../models/generated-code.md) the typed record view, and everything else `beak prepare` writes.
 - [Middleware](../backend/middleware.md) the backend boundary that maps the
   exception family to HTTP status and JSON.

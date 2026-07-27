@@ -18,8 +18,9 @@ take values, not children.
 | `BeakRatingBlock` | `OiStarRating` | `value`, `maxStars`, `readOnly` |
 | `BeakRadialSliderBlock` | `OiRadialSlider` | `label`, `min`, `max`, `initialValue` |
 
-The showcase's UI Elements screen puts all of these on one page. The snippets
-below are lifted from it and from the block tests.
+The showcase's UI Elements screen puts all of these on one page, in a single
+file under `lib/screens/`. The snippets below are lifted from it and from the
+block tests.
 
 ## Alert
 
@@ -137,7 +138,7 @@ const BeakRatingBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakRatingBlock(value: 3.5),
+const BeakCardBlock(title: 'Rating', child: BeakRatingBlock(value: 3.5)),
 ```
 
 The host always renders it with half-star precision:
@@ -177,9 +178,9 @@ BeakCardBlock(
 
 !!! note "Display versus data"
     These blocks take literal values you already have. To show a live number
-    from your database (an aggregate, a metric), reach for a data block: a
-    [KPI or metric](data-blocks.md) reads a `BeakQuerySpec` instead of a
-    hard-coded `value`.
+    from your database, reach for a data block: a
+    [KPI or metric](data-blocks.md) reads a `BeakAggregateSpec` the API
+    computes, instead of a hard-coded `value`.
 
 ## Continue reading
 

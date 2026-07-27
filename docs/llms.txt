@@ -17,9 +17,11 @@ acme_admin/
   beak.yaml             optional: title, api origin, icons, sections
   lib/models/           DISCOVERED: one @Resource class per file
   lib/screens/          optional: a top-level BeakScreen per file
-  lib/migrations/       optional: hand-written, discovered, run in name order
-  lib/seeders/          optional
+  lib/resources/        optional: <table>.dart adjusting one resource
+  lib/migrations/       GENERATED first, then yours; discovered, run by name
+  lib/seeders/          optional, discovered
   lib/beak/*.g.dart     GENERATED, committed
+  lib/models/*.beak.dart GENERATED, committed
   lib/main.dart         GENERATED, git-ignored
   bin/serve.dart        GENERATED, git-ignored
   bin/migrate.dart      GENERATED, git-ignored
@@ -71,9 +73,16 @@ Two rules cover most of the surface:
   is not. One rule covers the form validator, the API's validation and the
   database's `NOT NULL`.
 
-Relationships are `@BelongsTo`, `@HasOne`, `@HasMany` and
-`@BelongsToMany(pivotTable: '...')`. Declaring one side is enough; the
-generator writes the inverse.
+Relationships are `@BelongsTo`, `@HasOne`, `@HasMany` and `@BelongsToMany`,
+each typed by the related schema class. The foreign key, the pivot table and
+its key columns are derived. Declaring one side is enough; the generator
+writes the inverse, and suppresses it when the far side declares its own. Each
+takes `label:`, and the to-one and many-to-many kinds take
+`searchOn: ['name', 'email']` for the picker.
+
+`@Column` also carries `indexed`, `unique`, `placeholder`, `trueLabel`,
+`falseLabel` and `defaultValue`; an option the column kind cannot take is an
+error naming the field.
 
 ## The libraries
 
@@ -84,7 +93,7 @@ generator writes the inverse.
 | `package:beak/schema.dart` | `@Resource`, `@Column`, `@BelongsTo`, `BeakText`, … |
 | `package:beak/server.dart` | The Shelf host, config, storage. |
 | `package:beak/migrations.dart` | The schema DSL plus `BeakBlueprint`. |
-| `package:beak/testing.dart` | `InMemoryBeakDataSource`, the adapter contract. |
+| `package:beak/testing.dart` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, the adapter contract. |
 | `package:beak/ui.dart` | obers_ui widgets. |
 | `package:beak/charts.dart` | obers_ui charts. |
 
@@ -102,7 +111,9 @@ from a panel file breaks the web build and the server's ahead-of-time compile;
 | `beak dev` | Regenerate, serve the API, run the panel. |
 | `beak introspect <url>` | Write models for the tables a Postgres database already has. |
 | `beak eject <target>` | Write a Beak default out as a file you own. |
-| `beak make:migration <Name> --from-model` | A migration derived from the model. |
+| `beak eject resource <table>` | Take over one resource's panel configuration. |
+| `beak make:resource <Name> --fields …` | Write a schema class and run `prepare`. |
+| `beak make:migration <Name>` | Scaffold an empty, correctly named migration. |
 | `beak migrate` / `beak seed` | Apply migrations; run seeders. |
 | `beak doctor` | Diagnose the project. `--json` for CI. |
 
@@ -136,7 +147,12 @@ A query body needs only `table`; every other key defaults. `PATCH` honours
   banned and a guard fails the build on it.
 - **No `dynamic`, no `as` casts, no `Map<String, Object?>` as a domain type.**
   Users never write a string column reference.
-- **Migrations are explicit.** Beak never alters a database on its own.
+- **Migrations are explicit.** `beak prepare` writes the one a new resource
+  needs, once, and never rewrites it. Nothing is applied without `migrate`.
+- **Presentation lives in `beak.yaml`** (title, api origin, `server.port`, and
+  per-resource `icon` / `label` / `section` / `hidden`); behaviour lives in
+  Dart. Filters are derived from `@Column(filterable: true)` unless a resource
+  declares its own.
 - **Relations are eager.** Declare what you need with `withRelations([...])`;
   reading an unloaded relation throws.
 - **Row-level authorization** is `BeakRowPolicy.scopeFor`, enforced in the

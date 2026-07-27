@@ -24,6 +24,10 @@ tree for a scope:
   renders the editable input the form registered for that column, complete with
   the client-side validation that mirrors the server.
 
+Both slots live on the resource, which you adjust in
+`lib/resources/<table>.dart`. Everything else about the resource stays
+generated.
+
 The renderer is where the fork lives. This is the host's own summary of the rule:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
@@ -44,6 +48,21 @@ Widget _field(BuildContext context, BeakFieldBlock block) {
 
 One layout, two surfaces. Write it once, wire it to both slots on the resource,
 and the same tree serves the show page and the create/edit page.
+
+## You may not need one
+
+Before you write a layout, look at what you get without one. A resource with no
+`detail` renders a derived show page: a headline card, then the remaining
+fields, then a tab per to-many relationship. That is the same shape most
+hand-written layouts end up with, so reach for `detail` when you want a
+different arrangement, not to get the default back.
+
+```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
+/// The show-page layout: [detail] when declared, and otherwise the one
+/// [model] implies — a headline card, the remaining fields, and a tab per
+/// to-many relationship.
+BeakBlock get effectiveDetail => detail ?? beakDefaultDetailLayout(model);
+```
 
 ## The three blocks
 
@@ -89,7 +108,9 @@ const BeakRelationBlock(this.relationship, {this.title, super.span});
 ## One layout, wired to both slots
 
 Here is the showcase's product layout. It uses all three blocks and is declared
-`const`, because a block tree is pure configuration.
+`const`, because a block tree is pure configuration. `ProductColumns` and
+`ProductRelations` are generated from the `Product` schema class, so every name
+below is checked by the compiler.
 
 ```dart title="examples/superdashboard/lib/panel/details/commerce_layouts.dart"
 const BeakBlock productLayout = BeakColumnBlock(
@@ -145,20 +166,29 @@ const BeakBlock productLayout = BeakColumnBlock(
 );
 ```
 
-The same constant goes into two resource slots:
+The same constant goes into two resource slots. A resource file takes the
+generated `BeakResource` and returns a copy with the parts a person decided:
 
-```dart title="examples/superdashboard/lib/panel/resources.dart"
-BeakResource(
-  model: ProductModel(),
-  icon: BeakIconToken(OiIcons.package),
-  section: 'Store',
+```dart title="examples/superdashboard/lib/resources/products.dart"
+/// The products resource, with the parts Beak cannot derive.
+///
+/// Its model, label, icon and section still come from the schema class and
+/// `beak.yaml`; this adds what a person decided.
+BeakResource beakResource(BeakResource generated) => generated.copyWith(
   detail: productLayout,
   formLayout: productLayout,
-  // ...
-),
+  filters: [
+    const BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
+    const BeakTextFilter(column: ProductColumns.name, label: 'Name'),
+  ],
+);
 ```
 
 !!! note "What just happened"
+    - The file is named after the table (`products.dart`) and declares one
+      function. Nothing registers it: `beak prepare` finds it and calls it with
+      the resource it generated. `beak eject resource products` writes the
+      starter.
     - `detail: productLayout` renders the tree inside a `BeakRecordScope`, so
       every `BeakFieldBlock` shows a formatted, read-only value.
     - `formLayout: productLayout` renders the *same* tree inside a
@@ -166,6 +196,15 @@ BeakResource(
       of `name`, `sku`, `status`, `price` becomes four inputs; the image field
       becomes an upload field; and `ProductColumns.categoryId` becomes a
       belongs-to picker, because the form scope knows that column is a foreign key.
+    - `model`, `icon`, `label` and `section` are not mentioned, so they stay
+      what the schema class and `beak.yaml` produced. Drop the `filters` line
+      too and Beak derives the filter bar from the columns marked
+      `@Column(filterable: true)`.
+
+The layout constant itself is an ordinary top-level `const`, so it can live
+anywhere the resource file can import. The showcase keeps its commerce layouts
+together in `lib/panel/details/commerce_layouts.dart`; a smaller project often
+puts the tree straight in `lib/resources/<table>.dart`.
 
 ## How relations behave in each scope
 

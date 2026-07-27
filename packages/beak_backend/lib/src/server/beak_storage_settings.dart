@@ -20,13 +20,25 @@ abstract final class BeakStorageSettings {
 
   /// Driver ids this parser can build a config for.
   ///
-  /// A driver outside this set is still usable — register it and build its
-  /// config yourself; this helper covers the ones configurable purely from
-  /// environment variables.
-  static const Set<String> supportedDrivers = {'s3', 'ftp', 'memory', 'local'};
+  /// A driver outside this set is still usable: register it and build its
+  /// config yourself. This helper covers the ones configurable purely from
+  /// environment variables. `none` is not a driver, it is the way to say
+  /// that a deployment wants no upload surface at all.
+  static const Set<String> supportedDrivers = {
+    's3',
+    'ftp',
+    'memory',
+    'local',
+    'none',
+  };
 
-  /// Builds the storage config [environment] selects, or `null` when
-  /// `BEAK_STORAGE_DRIVER` is unset or empty (uploads disabled).
+  /// Builds the storage config [environment] selects, or `null` when it asks
+  /// for none.
+  ///
+  /// An unset `BEAK_STORAGE_DRIVER` selects nothing here, and the host then
+  /// falls back to local disk — the same posture as the database, which is a
+  /// SQLite file until `DATABASE_URL` says otherwise. `BEAK_STORAGE_DRIVER=none`
+  /// is how a deployment turns uploads off outright.
   ///
   /// Throws a [BeakConfigurationException] naming the missing variable when a
   /// driver is selected without the settings it needs, and naming the
@@ -69,7 +81,7 @@ abstract final class BeakStorageSettings {
         );
       case 'memory':
         return const BeakMemoryStorageConfig();
-      case null || '':
+      case 'none' || null || '':
         return null;
       case final String other:
         throw BeakConfigurationException(

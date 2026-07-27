@@ -1,146 +1,183 @@
 ---
 title: Column types
-description: A tour of all thirteen built-in Beak column types, each with a real snippet, its value type, and how it renders.
+description: All thirteen Beak column kinds, the field type that picks each one, and what @Column adds on top.
 ---
 
 # Column types
 
-Beak ships thirteen column types. Each one is a `const` leaf of the sealed
-`BeakColumn` family: pick the leaf that matches the field's Dart type and it
-brings the right form input, table cell, detail entry, and validation for free.
-This page tours all thirteen with a real snippet for each. For the parameter-by-
-parameter reference, see the [column types reference](../reference/column-types.md).
+Beak has thirteen column kinds. You never name one: you declare a field, and its
+Dart type picks the kind, which brings the right form input, table cell, detail
+entry and validation with it. This page walks all thirteen with a real field for
+each. For the parameter-by-parameter reference of the constants they generate,
+see the [column types reference](../reference/column-types.md).
 
-Every type also carries the shared config (`key`, `label`, `visibleOn`, and
-friends) from [Column basics](column-basics.md); the snippets below highlight
-what each type *adds*.
+Every kind also carries the shared `@Column` options (`visibleOn`, `sortable`,
+`searchable`, `filterable`, `indexed`, `unique`, `rules`) from
+[Column basics](column-basics.md). The snippets below highlight what each kind
+*adds*.
 
 ## The thirteen at a glance
 
-| Column | Dart value | Renders as (table) |
-| --- | --- | --- |
-| `BeakStringColumn` | `String` | plain text |
-| `BeakTextColumn` | `String` | truncated text |
-| `BeakIntColumn` | `int` | number |
-| `BeakDecimalColumn` | `double` | number, or currency with a prefix/suffix |
-| `BeakBoolColumn` | `bool` | yes/no indicator |
-| `BeakDateTimeColumn` | `DateTime` | absolute or relative date |
-| `BeakEnumColumn<T>` | `T extends Enum` | colored badge |
-| `BeakJsonColumn` | `String` | pretty-printed JSON |
-| `BeakRichTextColumn` | `String` | rendered markup |
-| `BeakColorColumn` | `String` | color swatch |
-| `BeakImageColumn` | `String` | thumbnail |
-| `BeakFileColumn` | `String` | custom download cell |
-| `BeakCustomColumn` | `Object` | your registered renderer |
+| Field type | Column it becomes | Renders as (table) | Its own `@Column` options |
+| --- | --- | --- | --- |
+| `String` | `BeakStringColumn` | plain text | `maxLength`, `placeholder` |
+| `BeakText` | `BeakTextColumn` | truncated text | none |
+| `int` | `BeakIntColumn` | number | `min`, `max`, `prefix`, `suffix` |
+| `double` | `BeakDecimalColumn` | number, or currency with a prefix | `precision`, `prefix`, `suffix` |
+| `bool` | `BeakBoolColumn` | yes/no indicator | `trueLabel`, `falseLabel` |
+| `DateTime` | `BeakDateTimeColumn` | absolute or relative date | `format` |
+| any `enum` | `BeakEnumColumn<T>` | coloured badge | `defaultValue`, plus `@Badges` |
+| `BeakJson` | `BeakJsonColumn` | pretty-printed JSON | none |
+| `BeakRichText` | `BeakRichTextColumn` | rendered markup | none |
+| `BeakHexColor` | `BeakColorColumn` | colour swatch | none |
+| `BeakImageRef` | `BeakImageColumn` | thumbnail | via `@Image` |
+| `BeakFileRef` | `BeakFileColumn` | download cell | via `@FileField` |
+| `Object?` with `@Custom` | `BeakCustomColumn` | your registered renderer | none |
+
+`BeakText`, `BeakRichText`, `BeakHexColor`, `BeakImageRef` and `BeakFileRef` are
+extension types over `String`. They exist so a field's type can say "multi-line"
+or "an uploaded image", which `String` alone cannot, and they compile away to the
+`String` they wrap.
 
 ## Text and numbers
 
 ### BeakStringColumn
 
-The workhorse: a single-line string, plain text everywhere. `maxLength` caps the
-form input and `placeholder` hints an empty one.
+The workhorse: a single-line string, plain text everywhere. `maxLength` caps what
+the form input accepts while typing; pair it with a `BeakMaxLength` rule to
+reject an over-long value on submit as well.
 
-```dart
-static const name = BeakStringColumn(
-  key: 'name',
-  label: 'Name',
+```dart title="examples/store/lib/models/product.dart"
+/// What the product is called.
+@Display()
+@Column(
   searchable: true,
   sortable: true,
-  rules: [BeakRequired(), BeakMaxLength(255)],
-);
+  indexed: true,
+  rules: [BeakMaxLength(255)],
+)
+late final String name;
 ```
 
 ### BeakTextColumn
 
-Multiline text: a textarea in forms, truncated in table cells, and the full text
-in detail views.
+Multi-line plain text: a textarea in forms, truncated in table cells, the full
+text in detail views. Declare it with `BeakText`.
 
-```dart
-static const description = BeakTextColumn(
-  key: 'description',
-  label: 'Description',
-  searchable: true,
-  visibleOn: {BeakContext.form, BeakContext.detail},
-);
+```dart title="examples/store/lib/models/product.dart"
+/// The short description shown in listings.
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakText? summary;
 ```
 
 ### BeakIntColumn
 
-A whole number, rendered locale-aware. `min` and `max` bound the form's stepper;
-pair them with `BeakMin`/`BeakMax` rules to reject out-of-range values on submit
-too.
+A whole number, rendered locale-aware. `min` and `max` bound the form's stepper,
+and `prefix`/`suffix` carry the unit into every surface that renders the value.
 
-```dart
-static const stock = BeakIntColumn(
-  key: 'stock',
-  label: 'Stock',
-  min: 0,
-  sortable: true,
-  rules: [BeakMin(0)],
-);
+```dart title="examples/store/lib/models/product.dart"
+/// Units in stock.
+@Column(suffix: ' pcs', min: 0, sortable: true)
+late final int stock;
 ```
+
+Bounds on the stepper are a convenience, not a check. Add `BeakMin`/`BeakMax` to
+`rules` when the value must be rejected rather than nudged.
 
 ### BeakDecimalColumn
 
-A fractional number with fixed `precision` (default `2`). Add a `prefix` or
+A fractional number with fixed `precision` (default `2`). Add a `prefix` or a
 `suffix` and the render intent flips from a plain number to a currency-style
 amount: `€19.99`, or `1.50 kg`.
 
-```dart
-static const price = BeakDecimalColumn(
-  key: 'price',
-  label: 'Price',
-  prefix: '€',
-  sortable: true,
-  filterable: true,
-  rules: [BeakRequired(), BeakMin(0)],
-);
+```dart title="examples/store/lib/models/product.dart"
+/// Sale price in euros.
+@Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
+late final double price;
 ```
 
 ## Choices and states
 
 ### BeakBoolColumn
 
-A boolean: a toggle in forms, a yes/no indicator elsewhere. `trueLabel` and
-`falseLabel` override the default state text. This example is from the showcase
-app's email model:
+A boolean: a toggle in forms, a yes/no indicator elsewhere.
+
+```dart title="examples/store/lib/models/product.dart"
+/// Whether the product is featured on the storefront.
+@Column(filterable: true)
+late final bool featured;
+```
+
+`trueLabel` and `falseLabel` override the default state text. From the
+superdashboard showcase, where an email is "Read" or "Unread" rather than yes or
+no:
 
 ```dart title="examples/superdashboard/lib/models/email/email.dart"
-static const isRead = BeakBoolColumn(
-  key: 'is_read',
+/// Whether the email has been read.
+@Column(
   label: 'Read',
   filterable: true,
   trueLabel: 'Read',
   falseLabel: 'Unread',
-);
+)
+late final bool? isRead;
 ```
 
 ### BeakEnumColumn&lt;T&gt;
 
-A column over a Dart enum, rendered as a colored badge in tables and a select in
-forms. The generic keeps the whole thing type-safe: `values`, `defaultValue`,
-and `badgeColors` all speak in `T`, so there are no stringly-typed states.
+Declare a Dart enum and use it as the field's type. Beak renders it as a badge in
+tables and a select in forms, and carries the enum's values through the API and
+into the database default. `@Badges` colours each value, and its map is checked
+against *this* field's enum, so a stray value is a compile error.
 
-```dart
-enum ProductStatus { draft, published, archived }
-
-static const status = BeakEnumColumn<ProductStatus>(
-  key: 'status',
-  label: 'Status',
-  values: ProductStatus.values,
-  defaultValue: ProductStatus.draft,
-  filterable: true,
-  badgeColors: {
-    ProductStatus.draft: BeakColor.muted,
-    ProductStatus.published: BeakColor.success,
-    ProductStatus.archived: BeakColor.warning,
-  },
-);
+```dart title="examples/store/lib/models/product.dart"
+/// Lifecycle state, rendered as a coloured badge.
+@Column(filterable: true)
+@Badges({
+  ProductStatus.draft: BeakColor.muted,
+  ProductStatus.published: BeakColor.success,
+  ProductStatus.archived: BeakColor.warning,
+})
+late final ProductStatus status;
 ```
 
-!!! tip "Prettier labels than the enum name"
-    Pass a `labelOf` callback to display something other than the enum's
-    `name`. Without it, `BeakEnumColumn` falls back to `value.name`. It also
+The generated constant is generic over the enum, which is what keeps the whole
+thing free of stringly-typed states:
+
+```dart title="examples/store/lib/models/product.beak.dart"
+/// Lifecycle state, rendered as a coloured badge.
+static const BeakEnumColumn<ProductStatus> status =
+    BeakEnumColumn<ProductStatus>(
+      key: 'status',
+      label: 'Status',
+      rules: [BeakRequired()],
+      filterable: true,
+      badgeColors: {
+        ProductStatus.draft: BeakColor.muted,
+        ProductStatus.published: BeakColor.success,
+        ProductStatus.archived: BeakColor.warning,
+      },
+      values: ProductStatus.values,
+    );
+```
+
+`defaultValue` pre-selects a value in create forms, and the migration takes it as
+the column's schema default, so the two cannot disagree:
+
+```dart title="examples/superdashboard/lib/models/files/managed_file.dart"
+/// File kind.
+@Column(filterable: true, defaultValue: AttachmentKind.document)
+@Badges({
+  AttachmentKind.image: BeakColor.success,
+  // ...
+})
+late final AttachmentKind? kind;
+```
+
+!!! tip "Labels come from the enum"
+    A value displays as its `name`. When you need prettier text than the enum
+    gives, the generated column's `labelOf` callback does it, which means a
+    hand-written model ([Escape hatches](escape-hatches.md)). The column also
     exposes `valueByName`, the one place a wire string decodes back into a typed
     value without an `as` cast.
 
@@ -148,57 +185,58 @@ static const status = BeakEnumColumn<ProductStatus>(
 
 ### BeakDateTimeColumn
 
-A date/time value. `format` controls how tables and detail views render it
+A `DateTime` field. `format` controls how tables and detail views render it
 (`standard`, `relative`, `dateOnly`, `timeOnly`, or `iso`); forms and filters
 always use an absolute date picker.
 
-```dart
-static const updatedAt = BeakDateTimeColumn(
-  key: 'updated_at',
-  label: 'Updated',
-  format: BeakDateFormat.relative,
-  sortable: true,
-  visibleOn: {BeakContext.table, BeakContext.detail},
-);
+```dart title="examples/store/lib/models/product.dart"
+/// When the product went on sale.
+@Column(sortable: true, format: BeakDateFormat.relative)
+late final DateTime? publishedAt;
 ```
 
-`withFormat` returns a copy with a different `format`, keeping every other
-property, when you want the same column shown two ways.
+On the generated constant, `withFormat` returns a copy with a different `format`
+and every other property unchanged, for when you want the same column shown two
+ways.
 
 ## Rich values
 
 ### BeakRichTextColumn
 
 A WYSIWYG editor in forms, rendered markup in tables and detail views. Values are
-stored as the raw markup source string. From the showcase email model:
+stored as the raw markup source. Declare it with `BeakRichText`.
 
-```dart title="examples/superdashboard/lib/models/email/email.dart"
-static const body = BeakRichTextColumn(
-  key: 'body',
-  label: 'Body',
-  visibleOn: {BeakContext.form, BeakContext.detail},
-);
+```dart title="examples/store/lib/models/product.dart"
+/// The long description, edited as rich text.
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakRichText? description;
 ```
 
 ### BeakColorColumn
 
-Holds a hex string such as `#663399`, rendered as a swatch with a color picker in
-forms. From the showcase calendar model:
+A `#rrggbb` string, rendered as a swatch with a colour picker in forms. Declare
+it with `BeakHexColor`.
 
-```dart title="examples/superdashboard/lib/models/calendar/calendar_event.dart"
-static const color = BeakColorColumn(
-  key: 'color',
-  label: 'Color',
-  visibleOn: {BeakContext.form, BeakContext.detail},
-);
+```dart title="examples/store/lib/models/product.dart"
+/// The swatch shown beside the name.
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakHexColor? swatch;
 ```
 
 ### BeakJsonColumn
 
-A structured-JSON column. Beak carries the document as a JSON *text* value and
-never surfaces a raw `Map<String, dynamic>`: it renders pretty-printed and edits
-as multiline text. Parse it into a typed, pattern-matchable tree with
-`BeakJson.decode` when you need structured access.
+A structured-JSON column, declared with `BeakJson`. Beak carries the document as
+JSON *text* and never surfaces a raw `Map<String, dynamic>`: it renders
+pretty-printed and edits as multi-line text.
+
+```dart title="examples/store/lib/models/product.dart"
+/// Storefront metadata the catalog importer round-trips untouched.
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakJson? metadata;
+```
+
+Parse that text into a typed, pattern-matchable tree with `BeakJson.decode` when
+you need structured access:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_json_column.dart"
 const column = BeakJsonColumn(key: 'meta', label: 'Metadata');
@@ -211,18 +249,19 @@ final tree = switch (value?.raw) {
 
 ## Files
 
-Image and file columns carry upload rules (size, type, dimensions) that run on
-both client and server. They get a page of their own; here is the shape.
+Upload columns are declared by their own annotation rather than by `@Column`
+alone, because they carry rules a plain column has no use for: where the bytes
+land, how large they may be, which types are accepted. They get a page of their
+own; here is the shape.
 
 ### BeakImageColumn
 
 A thumbnail in table cells, an image picker in forms, the full image in detail
-views. Bound the upload and attach a transform pipeline that runs on upload.
+views. `@Image` on a `BeakImageRef` field bounds the upload and attaches a
+transform pipeline that runs when it lands.
 
-```dart
-static const image = BeakImageColumn(
-  key: 'image',
-  label: 'Image',
+```dart title="examples/store/lib/models/product.dart"
+@Image(
   storagePath: 'products',
   maxSizeInBytes: 5 * 1024 * 1024,
   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
@@ -233,49 +272,53 @@ static const image = BeakImageColumn(
     ),
     BeakFormatTransform.webp(),
   ],
-);
+)
+late final BeakImageRef? image;
 ```
 
 ### BeakFileColumn
 
-A generic file attachment. Same upload rules, but rendered through the custom
-download/preview cell instead of an image. From the showcase file manager:
+A generic attachment: a PDF, a CSV, an archive. Same upload rules, rendered
+through a download/preview cell instead of an image. `@FileField` on a
+`BeakFileRef` field.
 
-```dart title="examples/superdashboard/lib/models/files/managed_file.dart"
-static const file = BeakFileColumn(
-  key: 'file',
-  label: 'File',
-  storagePath: 'files/store',
-);
+```dart title="examples/store/lib/models/product.dart"
+/// The spec sheet customers download.
+@FileField(
+  storagePath: 'products/specs',
+  maxSizeInBytes: 10 * 1024 * 1024,
+  allowedTypes: [BeakFileType.pdf],
+)
+late final BeakFileRef? specSheet;
 ```
 
 See [Files and storage columns](files-and-storage-columns.md) for upload
-validation, dimensions, transforms, and the storage drivers behind `storagePath`.
+validation, dimensions, transforms, and where `storagePath` actually points.
 
 ## The escape hatch
 
 ### BeakCustomColumn
 
-When no built-in type fits (a sparkline, a bespoke status pill), a custom column
-defers rendering to a builder you register in `beak_frontend` under a `tag`. The
-same `tag` value must exist on both sides so the renderer can be located, and
-auto-forms skip these columns.
+When no built-in kind fits (a sparkline, a stock bar, a bespoke status pill),
+annotate an `Object?` field with `@Custom` and a tag. Rendering defers to a
+builder the panel registers under that same tag, and auto-forms skip the column.
 
-```dart title="packages/beak_core/lib/src/columns/beak_custom_column.dart"
-static const badge = BeakCustomColumn(
-  key: 'badge',
-  label: 'Badge',
-  tag: BeakColumnTag('badge'),
-);
+```dart title="examples/store/lib/models/product.dart"
+/// The stock indicator, drawn by the panel's registered renderer.
+@Custom('stock_bar')
+@Column(visibleOn: {BeakContext.table})
+late final Object? stockLevel;
 ```
 
-See [Custom columns](../extending/custom-columns.md) for registering the builder.
+The tag becomes a `BeakColumnTag` on the generated constant, and the same value
+must exist on both sides so the renderer can be found. See
+[Custom columns](../extending/custom-columns.md) for registering the builder.
 
 ## Continue reading
 
-- [Column basics](column-basics.md) the config every one of these shares.
-- [Validation rules](validation-rules.md) the `rules` you attach to any column.
+- [Column basics](column-basics.md) the options every one of these shares.
+- [Validation rules](validation-rules.md) the `rules` you attach to any field.
 - [Files and storage columns](files-and-storage-columns.md) the image and file
   columns in depth.
 - [Column types reference](../reference/column-types.md) every parameter of
-  every type, in tables.
+  every generated column, in tables.

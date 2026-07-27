@@ -12,10 +12,13 @@ Beak ships, and most of them are data-bound: they resolve the panel's data sourc
 and fetch their own records, bound to your model by typed `BeakColumn`, never by
 string.
 
-Every module below is built from real seeded data in the showcase app
-(`superdashboard`, port 8180). The demo screens are `BeakScreen`s, so each
-one is a custom page in the panel's navigation. If a demo uses different app
-model constants than another, that is expected: the showcase has 49 models.
+Most of the modules below have a demo in the showcase app
+(`examples/superdashboard`, port 8180), built from real seeded data. Each demo is
+one file under `lib/screens/` declaring a `BeakScreen`, which `beak prepare`
+discovers, routes, and files in the sidebar. The file manager and the wizard have
+no showcase screen, so their examples are the ones in the block's own dartdoc. If
+a demo uses different model constants than another, that is expected: the
+showcase has 49 models.
 
 | Module | Block | Renders onto |
 | --- | --- | --- |
@@ -65,8 +68,19 @@ BeakScreen buildChatScreen() => const BeakScreen(
 );
 ```
 
-`_composeMessage` builds the `BeakRecord` a new message needs (the FKs and
-defaults you fill in), so a sent message survives a reload.
+`_composeMessage` builds the `BeakRecord` a new message needs (the sender,
+the timestamp, the defaults), so a sent message survives a reload:
+
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
+/// Builds the record persisted when the demo user sends [body] from the
+/// chat composer.
+BeakRecord _composeMessage(String body) => BeakRecord.fromRow({
+  'sender_name': 'You',
+  'body': body,
+  'sent_at': DateTime.now().toUtc(),
+  'is_read': true,
+});
+```
 
 ## Inbox
 
@@ -91,7 +105,11 @@ const BeakInboxBlock({
   this.leftWidthInPixels = 220,
   this.rightWidthInPixels = 360,
   super.span,
-});
+}) : assert(
+       unreadField == null || readField == null,
+       'Bind unreadField (true = unread) or readField (true = read), '
+       'not both.',
+     );
 ```
 
 ```dart title="examples/superdashboard/lib/screens/email_screen.dart"
@@ -378,8 +396,9 @@ BeakWizardBlock(
     A `BeakWizardBlock` is free-form: the step bodies are any blocks, and you
     collect their values in your own signals and read them in `onComplete`. When
     each step is a set of a resource's fields and you want Beak to build,
-    validate, and save the record for you, use a resource's multi-step form
-    instead. See [Multi-step forms](../panel/multi-step-forms.md).
+    validate, and save the record for you, set `formSteps` on the resource in
+    `lib/resources/<table>.dart` instead. The showcase's calendar events do
+    that. See [Multi-step forms](../panel/multi-step-forms.md).
 
 ## Continue reading
 

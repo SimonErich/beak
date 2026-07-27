@@ -17,8 +17,9 @@ write an integration test, or point another client at the server.
 ## How the surface is assembled
 
 `beakApiRouter` mounts one resource router per registered model under
-`/api/{table}`, plus the global search route and (when configured) the auth
-surface. Registering a model is all it takes to get its routes.
+`/api/{table}`, plus the global search route, the health probes, and (when
+configured) the auth surface. Declaring a resource is all it takes to get its
+routes: nothing here is hand-written or generated into your project.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
 Router beakResourceRouter(
@@ -34,6 +35,7 @@ Router beakResourceRouter(
     ..get('/<id>', handlers.getOne)
     ..patch('/<id>', handlers.update)
     ..delete('/<id>', handlers.delete)
+    ..post('/<id>/restore', handlers.restore)
     ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
     ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
 }
@@ -53,12 +55,12 @@ wired. Everything below lives under those mounts.
 
 ## Conventions
 
-These hold for every route on the page. The examples use the tutorial store
-(`store`, `products` table) served on port `8080`.
+These hold for every route on the page. The examples use the store example
+(`examples/store`, `products` table) served on port `8080`.
 
 | Convention | Detail |
 | --- | --- |
-| Base path | Every route is under `/api`, except the `/healthz` and `/readyz` probes. Resource routes are under `/api/{table}` (the model's `table`). |
+| Base path | Every route is under `/api`, except the `/healthz` and `/readyz` probes and the local-disk upload route. Resource routes are under `/api/{table}`, where `{table}` is what `@Resource(table:)` says or what Beak derived from the class name. |
 | Request bodies | JSON objects. `POST`/`PATCH` bodies are read with `readJsonObject`: a body that is not valid JSON, or not a JSON object, is a `422`. |
 | Spec bodies | A query spec needs only `table`; an aggregate spec needs `table` and `function`. Every other key falls back to its default, so `{"table": "products"}` is a valid query. Responses still carry every key. |
 | Response bodies | JSON, `content-type: application/json; charset=utf-8` (set by the JSON middleware). Exports and file downloads carry their own content type. |
@@ -87,17 +89,24 @@ These hold for every route on the page. The examples use the tutorial store
 | `POST` | `/api/auth/login` | Exchange credentials for a session token | `200` |
 | `POST` | `/api/auth/logout` | Revoke the presented token | `204` |
 | `GET` | `/api/auth/me` | The authenticated principal | `200` |
-| `GET` | `/healthz` | Liveness — is the process serving? | `200` |
-| `GET` | `/readyz` | Readiness — does the data source answer? | `200` / `503` |
+| `GET` | `/healthz` | Liveness: is the process serving? | `200` |
+| `GET` | `/readyz` | Readiness: does the data source answer? | `200` / `503` |
 
 The upload routes exist only when the server is built with an `UploadService`
 (storage wired); the auth routes only when it is built with `BeakAuthSessions`.
 The rest are always present for every registered model.
 
+One more route appears with the local-disk storage driver: a read-only `GET`
+under the path of its `publicBaseUrl` (`/uploads/<key>` by default), serving the
+files that driver wrote. It exists so `beak create` gives you working uploads
+with no S3, no MinIO and no reverse proxy. Point
+`BEAK_LOCAL_PUBLIC_BASE_URL` at a CDN and the route stops being used. A key that
+climbs out of the driver's root is a `404`, not a file.
+
 The two probes sit **outside `/api`** on purpose: a container platform's probe
 arrives with no credentials, so it must not pass through the auth middleware.
-`/healthz` never touches the database — a liveness probe decides whether to
-*restart* the process, and a database blip must move traffic away rather than
+`/healthz` never touches the database, because a liveness probe decides whether
+to *restart* the process and a database blip must move traffic away rather than
 kill it. `/readyz` is the one that answers `503`, with the cause:
 
 ```json
@@ -118,7 +127,7 @@ curl -X PATCH localhost:8080/api/products/p1 \
 
 It is opt-in: a request without the header updates unconditionally, which is
 what a script or a single-writer panel wants. With two people editing the same
-record, the default — last write wins, silently — is how the first one's work
+record, the default (last write wins, silently) is how the first one's work
 disappears; the header is how the panel notices instead.
 
 An unparseable header is a `422`, never a silent unconditional write.
@@ -127,7 +136,7 @@ An unparseable header is a `422`, never a silent unconditional write.
 
 A `BeakPolicy` answers "may this principal read orders". That is not the same
 question as "may they read *these* orders", and a filter in a query spec comes
-from the client — so a policy meaning "a customer sees only their own" is
+from the client, so a policy meaning "a customer sees only their own" is
 bypassed by asking for everything.
 
 Implement `BeakRowPolicy` instead and its `scopeFor(principal, table)` filter is
@@ -175,19 +184,27 @@ So a product record on the wire looks like:
 ```json
 {
   "values": {
-    "id": 7,
+    "id": "p1",
     "name": "Ethiopia Yirgacheffe",
+    "sku": "ETH-YIR-250",
     "price": 18.5,
-    "in_stock": true,
+    "stock": 42,
+    "featured": true,
+    "status": "published",
+    "category_id": "c1",
     "created_at": { "type": "dateTime", "value": "2026-07-24T09:00:00.000Z" }
   },
   "relations": {
     "tags": [
-      { "values": { "id": 3, "name": "single-origin" }, "relations": {} }
+      { "values": { "id": "t3", "name": "single-origin" }, "relations": {} }
     ]
   }
 }
 ```
+
+An enum column travels as the value's `name`, and a relationship's foreign key
+travels as an ordinary column value (`category_id`). The related record itself
+appears under `relations` only when the query eager-loaded it.
 
 ### The page envelope
 
@@ -215,17 +232,19 @@ fetch.
 records.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `POST /query` - runs a posted [BeakQuerySpec].
-Future<Response> query(Request request) async {
-  _requireView(request);
-  final spec = readBeakSpec(await readJsonObject(request), BeakQuerySpec.fromJson);
-  final page = await service.query(spec);
-  return _json(200, page.toJson((record) => record.toJson()));
-}
+  Future<Response> query(Request request) async {
+    _requireView(request);
+    final spec = readBeakSpec(
+      await readJsonObject(request),
+      BeakQuerySpec.fromJson,
+    );
+    final page = await service.query(spec, scope: _scope(request));
+    return _json(200, page.toJson((record) => record.toJson()));
+  }
 ```
 
-The request body is a serialized `BeakQuerySpec`. Every key is optional except
-`table`; a malformed spec is a `422`, not a `500`.
+The request body is a serialized `BeakQuerySpec`. Every top-level key is
+optional except `table`; a malformed spec is a `422`, not a `500`.
 
 ```json
 {
@@ -238,11 +257,18 @@ The request body is a serialized `BeakQuerySpec`. Every key is optional except
   },
   "sorts": [{ "column": "created_at", "descending": true }],
   "search": { "term": "espresso", "columns": ["name"] },
-  "relations": [{ "relation": "tags", "filter": null, "nested": [] }],
+  "relations": [{ "relation": "category", "filter": null, "nested": [] }],
   "pagination": { "page": 2, "perPage": 50 },
   "withTrashed": false
 }
 ```
+
+Eager loads live under `relations`, and each one is an **object keyed
+`relation`**, not a bare relation name. Unlike the top-level keys, a relation
+load spells all three of its own out: `filter` narrows which related rows load
+(`null` for all of them) and `nested` eager-loads the related model's own
+relations. Beak never lazy-loads, so a relation the spec does not name is absent
+from the response.
 
 The `filter` node is a predicate tree. A leaf is
 `{ "type": "field", "column": <key>, "operator": <name>, "value": <value> }`;
@@ -257,13 +283,15 @@ branches are `{ "type": "and", "filters": [...] }` and its `or` sibling. The
 `POST /api/{table}/aggregate` computes a single number.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `POST /aggregate` - computes a posted [BeakAggregateSpec].
-Future<Response> aggregate(Request request) async {
-  _requireView(request);
-  final spec = readBeakSpec(await readJsonObject(request), BeakAggregateSpec.fromJson);
-  final num value = await service.aggregate(spec);
-  return _json(200, {'value': value});
-}
+  Future<Response> aggregate(Request request) async {
+    _requireView(request);
+    final spec = readBeakSpec(
+      await readJsonObject(request),
+      BeakAggregateSpec.fromJson,
+    );
+    final num value = await service.aggregate(spec, scope: _scope(request));
+    return _json(200, {'value': value});
+  }
 ```
 
 The body is a serialized `BeakAggregateSpec`. `function` is `count`, `sum`, or
@@ -281,17 +309,20 @@ The response is `{ "value": <number> }` (`200`).
 `{values, relations}` record envelope).
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `POST /` - creates a record from flat field values.
-Future<Response> create(Request request) async {
-  _require(request, policy.canCreate(beakPrincipal(request), service.model.table), 'create');
-  final record = await _readRecord(request);
-  final created = await service.create(record);
-  return _json(201, created.toJson());
-}
+  Future<Response> create(Request request) async {
+    _require(
+      request,
+      policy.canCreate(beakPrincipal(request), service.model.table),
+      'create',
+    );
+    final record = await _readRecord(request);
+    final created = await service.create(record);
+    return _json(201, created.toJson());
+  }
 ```
 
 ```json
-{ "name": "Ethiopia Yirgacheffe", "price": 18.5, "in_stock": true }
+{ "name": "Ethiopia Yirgacheffe", "sku": "ETH-YIR-250", "price": 18.5, "stock": 42 }
 ```
 
 The response is the created record (`201`), with the server-assigned id in
@@ -305,28 +336,35 @@ parse is a `422` as well.
 matches.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `GET /<id>` - fetches one record.
-Future<Response> getOne(Request request, String id) async {
-  _requireView(request);
-  final record = await service.getOne(_coerceId(id));
-  return _json(200, record.toJson());
-}
+  Future<Response> getOne(Request request, String id) async {
+    _requireView(request);
+    final record = await service.getOne(_coerceId(id), scope: _scope(request));
+    return _json(200, record.toJson());
+  }
 ```
 
 ### Update
 
 `PATCH /api/{table}/<id>` partially updates a record. The body is a flat map of
-just the columns you want to change; omitted columns keep their value.
+only the columns you want to change; omitted columns keep their value.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `PATCH /<id>` - partially updates a record.
-Future<Response> update(Request request, String id) async {
-  final Object recordId = _coerceId(id);
-  _require(request, policy.canUpdate(beakPrincipal(request), service.model.table, recordId), 'update');
-  final record = await _readRecord(request);
-  final updated = await service.update(recordId, record);
-  return _json(200, updated.toJson());
-}
+  Future<Response> update(Request request, String id) async {
+    final Object recordId = _coerceId(id);
+    _require(
+      request,
+      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      'update',
+    );
+    final record = await _readRecord(request);
+    final updated = await service.update(
+      recordId,
+      record,
+      scope: _scope(request),
+      expectedUpdatedAt: _expectedUpdatedAt(request),
+    );
+    return _json(200, updated.toJson());
+  }
 ```
 
 The response is the updated record (`200`).
@@ -337,17 +375,29 @@ The response is the updated record (`200`).
 `?force=true` to delete for real.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `DELETE /<id>?force=` - soft-deletes (or force-deletes) a record.
-Future<Response> delete(Request request, String id) async {
-  final Object recordId = _coerceId(id);
-  _require(request, policy.canDelete(beakPrincipal(request), service.model.table, recordId), 'delete');
-  final force = request.url.queryParameters['force'] == 'true';
-  await service.delete(recordId, force: force);
-  return Response(204);
-}
+  Future<Response> delete(Request request, String id) async {
+    final Object recordId = _coerceId(id);
+    _require(
+      request,
+      policy.canDelete(beakPrincipal(request), service.model.table, recordId),
+      'delete',
+    );
+    final force = request.url.queryParameters['force'] == 'true';
+    await service.delete(recordId, force: force, scope: _scope(request));
+    return Response(204);
+  }
 ```
 
-The response has no body (`204`).
+The response has no body (`204`). Soft deletes come from
+`@Resource(softDeletes: true)`, which adds the `deleted_at` marker; without it,
+every delete is permanent.
+
+### Restore
+
+`POST /api/{table}/<id>/restore` clears a soft-delete marker and returns the
+restored record (`200`). It is gated by `canUpdate`, not `canDelete`: bringing a
+record back is not the inverse permission of removing it. Find the deleted rows
+first by posting a query spec with `"withTrashed": true`.
 
 ### Batch fetch
 
@@ -355,16 +405,18 @@ The response has no body (`204`).
 `{ "ids": [...] }`; ids may be integers or strings.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `POST /batch` - fetches the records named by `{"ids": [...]}` in one query.
-Future<Response> batch(Request request) async {
-  _requireView(request);
-  final records = await service.batchGet(await _readIds(request));
-  return _json(200, [for (final record in records) record.toJson()]);
-}
+  Future<Response> batch(Request request) async {
+    _requireView(request);
+    final records = await service.batchGet(
+      await _readIds(request),
+      scope: _scope(request),
+    );
+    return _json(200, [for (final record in records) record.toJson()]);
+  }
 ```
 
 ```json
-{ "ids": [7, 8, 12] }
+{ "ids": ["p1", "p2", "p7"] }
 ```
 
 The response is a JSON array of records (`200`). A body without an `ids` list, or
@@ -377,13 +429,25 @@ links related ids and the `.../detach` route unlinks them. Both take
 `{ "ids": [...] }` and return `204`.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-/// `POST /<id>/relations/<relationKey>/attach` - links related ids.
-Future<Response> attach(Request request, String id, String relationKey) async {
-  final Object recordId = _coerceId(id);
-  _require(request, policy.canUpdate(beakPrincipal(request), service.model.table, recordId), 'update');
-  await service.attach(recordId, relationKey, await _readIds(request));
-  return Response(204);
-}
+  Future<Response> attach(
+    Request request,
+    String id,
+    String relationKey,
+  ) async {
+    final Object recordId = _coerceId(id);
+    _require(
+      request,
+      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      'update',
+    );
+    await service.attach(
+      recordId,
+      relationKey,
+      await _readIds(request),
+      scope: _scope(request),
+    );
+    return Response(204);
+  }
 ```
 
 Both are gated by the `canUpdate` policy for the owning record: changing a
@@ -395,23 +459,33 @@ record's links counts as updating it.
 attachment.
 
 ```dart title="packages/beak_backend/lib/src/export/export_router.dart"
-/// `POST /export` - body: a `BeakQuerySpec` for this model.
-Future<Response> export(Request request) async {
-  enforcePolicyDecision(
-    allowed: policy.canView(beakPrincipal(request), model.table),
-    principal: beakPrincipal(request),
-    action: 'export',
-    table: model.table,
-  );
-  final spec = readBeakSpec(await readJsonObject(request), BeakQuerySpec.fromJson);
-  return Response.ok(
-    await service.exportCsv(model.table, spec),
-    headers: {
-      'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': 'attachment; filename="${model.table}.csv"',
-    },
-  );
-}
+  Future<Response> export(Request request) async {
+    enforcePolicyDecision(
+      allowed: policy.canView(beakPrincipal(request), model.table),
+      principal: beakPrincipal(request),
+      action: 'export',
+      table: model.table,
+    );
+    final spec = readBeakSpec(
+      await readJsonObject(request),
+      BeakQuerySpec.fromJson,
+    );
+    // Export is a query that returns a file. A row scope that held for
+    // `/query` but not here would be the easiest bypass in the API.
+    return Response.ok(
+      await service.exportCsv(
+        model.table,
+        BeakResourceService.scopedQuery(
+          spec,
+          beakRowScope(policy, beakPrincipal(request), model.table),
+        ),
+      ),
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': 'attachment; filename="${model.table}.csv"',
+      },
+    );
+  }
 ```
 
 The body is the same `BeakQuerySpec` you would post to `/query`, so the filters,
@@ -435,26 +509,29 @@ file under the field name `file`. The handler bounds the read at the column's si
 limit before buffering, so an oversize file never fills memory.
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_handler.dart"
-/// `POST /<columnKey>/upload` - stores a validated upload ...
-Future<Response> upload(Request request, String columnKey) async {
-  enforcePolicyDecision(
-    allowed: policy.canCreate(beakPrincipal(request), model.table),
-    principal: beakPrincipal(request),
-    action: 'upload to',
-    table: model.table,
-  );
-  final upload = await _readUpload(request, _sizeLimitFor(columnKey));
-  final stored = await service.handle(table: model.table, columnKey: columnKey, upload: upload);
-  return Response(201, body: jsonEncode(stored.toJson()));
-}
+  Future<Response> upload(Request request, String columnKey) async {
+    enforcePolicyDecision(
+      allowed: policy.canCreate(beakPrincipal(request), model.table),
+      principal: beakPrincipal(request),
+      action: 'upload to',
+      table: model.table,
+    );
+    final upload = await _readUpload(request, _sizeLimitFor(columnKey));
+    final stored = await service.handle(
+      table: model.table,
+      columnKey: columnKey,
+      upload: upload,
+    );
+    return Response(201, body: jsonEncode(stored.toJson()));
+  }
 ```
 
 The response is a stored-file description (`201`):
 
 ```json
 {
-  "key": "products/image/7-a1b2c3.webp",
-  "url": "http://localhost:29000/beak-uploads/products/image/7-a1b2c3.webp",
+  "key": "products/image/p1-a1b2c3.webp",
+  "url": "http://localhost:8080/uploads/products/image/p1-a1b2c3.webp",
   "sizeInBytes": 84213,
   "mimeType": "image/webp",
   "widthInPixels": 1200,
@@ -476,15 +553,13 @@ in the body and returns `204`, gated by `canDeleteUpload`.
 table.
 
 ```dart title="packages/beak_backend/lib/src/search/search_router.dart"
-/// `GET /api/search?q=…&perModel=…&tables=a,b`.
-Future<Response> search(Request request) async {
-  final String term = request.url.queryParameters['q'] ?? '';
-  if (term.trim().isEmpty) {
-    throw const BeakValidationException('The query parameter "q" is required.');
-  }
-  // ...
-  return Response.ok(jsonEncode({'results': grouped}));
-}
+  Future<Response> search(Request request) async {
+    final String term = request.url.queryParameters['q'] ?? '';
+    if (term.trim().isEmpty) {
+      throw const BeakValidationException(
+        'The query parameter "q" is required.',
+      );
+    }
 ```
 
 | Query parameter | Required | Default | Meaning |
@@ -499,14 +574,16 @@ The response groups `BeakSearchHit`s by table:
 {
   "results": {
     "products": [
-      { "table": "products", "id": 7, "displayLabel": "Ethiopia Yirgacheffe", "matchedColumnKey": "name" }
+      { "table": "products", "id": "p1", "displayLabel": "Ethiopia Yirgacheffe", "matchedColumnKey": "name" }
     ]
   }
 }
 ```
 
-Tables the caller cannot view are filtered out before the search runs, so search
-never leaks the existence of a hidden record.
+`displayLabel` is the record's `@Display()` field, and `matchedColumnKey` names
+the `@Column(searchable: true)` column that matched. Tables the caller cannot
+view are filtered out before the search runs, and a row scope narrows what is
+left, so search never leaks the existence of a hidden record.
 
 ## Auth
 
@@ -527,10 +604,10 @@ Router beakAuthRouter(BeakAuthSessions sessions) {
 credentials against the configured accounts, and mints an opaque session token.
 
 ```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-final String token = await sessions.store.createSession(account.principal);
-return Response.ok(
-  jsonEncode({'token': token, 'principal': account.principal.toJson()}),
-);
+    final String token = await sessions.store.createSession(account.principal);
+    return Response.ok(
+      jsonEncode({'token': token, 'principal': account.principal.toJson()}),
+    );
 ```
 
 ```json
@@ -551,15 +628,15 @@ code, and anything untyped to an opaque `500` so server internals never reach th
 client.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-final int statusCode = switch (exception) {
-  BeakValidationException() => 422,
-  BeakNotFoundException() => 404,
-  BeakAuthenticationException() => 401,
-  BeakAuthorizationException() => 403,
-  BeakConflictException() => 409,
-  BeakConfigurationException() => 500,
-  BeakStorageException() => 500,
-};
+  final int statusCode = switch (exception) {
+    BeakValidationException() => 422,
+    BeakNotFoundException() => 404,
+    BeakAuthenticationException() => 401,
+    BeakAuthorizationException() => 403,
+    BeakConflictException() => 409,
+    BeakConfigurationException() => 500,
+    BeakStorageException() => 500,
+  };
 ```
 
 The body carries a stable `code`, a human `message`, an optional `fieldErrors`

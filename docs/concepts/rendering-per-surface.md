@@ -5,10 +5,10 @@ description: How one column definition resolves to a different obers_ui widget i
 
 # Rendering per surface
 
-A column is declared once, but it shows up in four places: a table cell, a form
-input, a detail row, and a filter control. After this page you can predict which
-obers_ui widget any column produces on any surface, and steer that choice with a
-`BeakRenderConfig`.
+You declare a field once, and the column Beak generates from it shows up in four
+places: a table cell, a form input, a detail row, and a filter control. After
+this page you can predict which obers_ui widget any column produces on any
+surface, and steer that choice with a `BeakRenderConfig`.
 
 ## Four surfaces, one column
 
@@ -31,10 +31,20 @@ enum BeakContext {
 }
 ```
 
-That is the whole point of Beak's columns. One `const BeakColumn` feeds all four
-surfaces, so a change to a field's rules or label lands everywhere at once. This
-page is about the other half of that promise: the same column can *look*
-different on each surface without you writing four widgets.
+That is the whole point of Beak's columns. One `const BeakColumn`, generated from
+one annotated field, feeds all four surfaces, so a change to a field's rules or
+label lands everywhere at once. This page is about the other half of that
+promise: the same column can *look* different on each surface without you writing
+four widgets.
+
+!!! note "The filter surface is opt-in"
+    A column reaches the filter bar when you write `@Column(filterable: true)`.
+    A resource that declares no filters of its own gets one control per
+    filterable column of a kind that has one: an enum becomes a select, a
+    boolean a switch, a string a contains-search, a date a range. A filterable
+    column of any other kind is skipped rather than guessed at, so declare that
+    one on the resource. See
+    [Tables and filters](../panel/tables-and-filters.md).
 
 ## Intents, not widgets
 
@@ -144,17 +154,17 @@ Widget renderBeakCell(
   final BeakValue? value = record[column.key];
   final Object? raw = value?.raw;
   if (raw == null) {
-    return const OiLabel.caption('-');
+    return const OiLabel.caption('—');
   }
   return switch (intentOverride ?? column.intentFor(renderContext)) {
     BeakRenderIntent.text => OiLabel.body(raw.toString(), maxLines: 1),
     BeakRenderIntent.badge => _enumBadge(column, raw),
-    BeakRenderIntent.thumbnail => _image(column, raw, sizeInPixels: 40),
-    BeakRenderIntent.image => _image(column, raw, sizeInPixels: 160),
     BeakRenderIntent.relativeDate => OiLabel.body(
       _relativeText(raw, (now ?? DateTime.now)()),
       maxLines: 1,
     ),
+    BeakRenderIntent.thumbnail => _image(column, raw, sizeInPixels: 40),
+    BeakRenderIntent.image => _image(column, raw, sizeInPixels: 160),
     // ... one arm per BeakRenderIntent
     BeakRenderIntent.custom => _custom(context, column, record),
   };
@@ -164,7 +174,7 @@ Widget renderBeakCell(
 The switch is exhaustive over `BeakRenderIntent`, so a new intent is a compile
 error until this renderer handles it. Three details are worth knowing:
 
-- **A `null` value renders a muted em dash placeholder**, never a crash and never
+- **A `null` value renders a muted dash placeholder**, never a crash and never
   an empty cell you cannot tell apart from a real one.
 - **`intentOverride` substitutes the column's own intent.** Relationship fields
   use it, because relation intents (`relationLink`, `relationBadges`) live on the
@@ -194,6 +204,37 @@ and `renderConfig.filter`), but they have their own mappers, because a form need
 an editable input and a filter needs a comparison control. `renderBeakCell` is
 specifically the read-only path shared by the table and the detail view.
 
+## Relationships render instead of their keys
+
+One cell in a list table is not drawn from a column at all. A belongs-to
+relationship owns a foreign key, and the key renders as the uuid it stores,
+which tells a reader nothing. So the table swaps them: where the foreign-key
+column would go, it draws the related record's display value, read from the
+record eager-loaded with the page.
+
+```dart title="packages/beak_frontend/lib/src/table/beak_data_table.dart"
+cellBuilder: (context, record, rowIndex) {
+  final BeakRecord? related = _relatedOf(relation, record);
+  if (related == null) {
+    return const OiLabel.body('');
+  }
+  final String label = relation.displayLabelOf(related);
+  if (onOpenRelation == null) {
+    return OiLabel.body(label, maxLines: 1);
+  }
+  return GestureDetector(
+    onTap: () => onOpenRelation?.call(relation, related),
+    child: OiLabel.link(label, maxLines: 1),
+  );
+},
+```
+
+`displayLabelOf` reads the relationship's `displayColumnKey`, which came from the
+`@Display()` field on the other schema class. Nothing was loaded per row: the
+related records rode in with the page. The show page follows the same rule, its
+derived layout dropping every foreign-key column and giving each to-many
+relationship a tab. See [Relationships](../models/relationships.md).
+
 ## Visibility is a separate axis
 
 Do not confuse *whether* a column appears on a surface with *how* it renders
@@ -204,17 +245,27 @@ there. Those are two independent settings.
 - `renderConfig` controls what the column looks like on the surfaces where it is
   visible.
 
+You set the first one on the field:
+
+```dart title="examples/store/lib/models/product.dart"
+/// The swatch shown beside the name.
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakHexColor? swatch;
+```
+
+and it lands on the generated column, where every surface reads it:
+
 ```dart title="packages/beak_core/lib/src/columns/beak_column.dart"
 /// The surfaces this column appears on. Defaults to table, form, and
-/// detail (but not filter); narrow it to hide a field from a surface - e.g.
+/// detail (but not filter); narrow it to hide a field from a surface — e.g.
 /// `{BeakContext.detail}` for a read-only primary key.
 final Set<BeakContext> visibleOn;
 ```
 
-A read-only primary key sets `visibleOn: {BeakContext.detail}` and never reaches
-a form. A humanized timestamp stays visible in the table and detail while
-rendering as a picker anywhere it can be edited. One definition, four surfaces,
-two dials.
+The read-only primary key in that comment is one Beak generates for you, already
+scoped to `{BeakContext.detail}`, so it never reaches a form. A humanized
+timestamp stays visible in the table and detail while rendering as a picker
+anywhere it can be edited. One declaration, four surfaces, two dials.
 
 ## Continue reading
 

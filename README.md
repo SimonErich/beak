@@ -11,22 +11,30 @@ obers_ui widgets that auto-wire to a Shelf backend: no hand-written endpoints,
 no client/server plumbing, fully type-safe, zero Material.
 
 ```dart
-abstract final class ProductColumns {
-  static const name = BeakStringColumn(
-    key: 'name', label: 'Name',
-    searchable: true, sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
-  static const price = BeakDecimalColumn(
-    key: 'price', label: 'Price', prefix: '€', rules: [BeakMin(0)],
-  );
-  static const List<BeakColumn> values = [name, price];
+@Resource(softDeletes: true, timestamps: true)
+final class Product extends BeakSchema {
+  /// What the product is called.
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(255)])
+  late final String name;
+
+  /// Sale price in euros.
+  @Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
+  late final double price;
+
+  /// The category this product is filed under.
+  @BelongsTo()
+  late final Category? category;
 }
 ```
 
-That one definition drives the table cell, the form input (with client-side
-validation mirroring the server byte-for-byte), the detail row, the filter,
-the REST validation, and the CSV export column.
+The field's type picks the column kind; its nullability decides required-ness,
+once, for the form validator, the API and the database alike. From that one
+class `beak prepare` generates the typed columns, the model, both sides of
+every relationship, a typed record view, the migration, and the wiring. Each
+column then drives the table cell, the form input (validating exactly as the
+server does), the detail row, the filter, the API's validation, and the CSV
+column.
 
 ## Packages
 
@@ -36,8 +44,12 @@ the REST validation, and the CSV export column.
 | `packages/beak_backend` | Shelf server: generated CRUD/query/batch/relations/aggregate endpoints, validated uploads with image transforms, auth, global search, CSV export — all from a `BeakModelRegistry` over worm |
 | `packages/beak_storage_s3` / `beak_storage_ftp` / `beak_image` | Pluggable storage drivers + the image transform runner |
 | `packages/beak_frontend` | Flutter: `BeakPanel` (shell + router), generated tables/forms/detail/actions/filters/dashboard on obers_ui — HookWidget + Signals + GetIt + go_router |
-| `packages/beak_cli` | Scaffolding: `beak make:resource` and friends, `beak doctor` |
-| `apps/reference_admin*` | The reference admin (Products/Categories/Tags/Users/Orders) — shared models, server binary, Flutter panel, and the E2E acceptance suite |
+| `packages/beak_cli` | The `beak` command: `create`, `prepare`, `dev`, `introspect`, `eject`, `doctor`, `make:*` |
+| `packages/beak_test` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, the data-source contract |
+| `examples/quickstart` | Exactly what `beak create` produces, checked in |
+| `examples/store` | The teaching example: every column kind, all four relationship kinds, auth with a row policy, uploads, a wizard, a dashboard |
+| `examples/superdashboard` | 49 models at scale: 17 navigable resources, 37 block types, charts, maps |
+| `examples/embedded` | Beak mounted inside an application that already exists |
 
 ## Quickstart
 
@@ -60,8 +72,11 @@ acme_admin/
 ├── lib/
 │   ├── models/           ← you write these
 │   ├── screens/          ← optional custom pages
+│   ├── resources/        ← optional: <table>.dart adjusting one resource
+│   ├── migrations/       generated once, then yours
 │   ├── {theme,auth,dashboard,server,panel}.dart   ← optional overrides
 │   ├── beak/*.g.dart     generated wiring (committed)
+│   ├── models/*.beak.dart generated per model (committed)
 │   └── main.dart         generated entrypoint (git-ignored)
 └── bin/{serve,migrate}.dart                       generated (git-ignored)
 ```
@@ -80,62 +95,65 @@ and `dart compile exe` all work with no flags.
 | `beak migrate` / `beak seed` | Apply migrations / run seeders. |
 | `beak doctor` | Diagnose the project. |
 
-## Running the demos
+## Running the examples
 
-The two example apps in this repo run the traditional way:
+Each example is a single package that needs nothing but Dart and Flutter. The
+database is a SQLite file created on first run.
 
 ```bash
-# 0. One-time: Dart ^3.11, Flutter stable, Docker, melos 6.3.3
+# 0. One-time: Dart ^3.11, Flutter stable, melos 6.3.3
 dart pub global activate melos 6.3.3
 melos bootstrap
 
-# 1. Services (Postgres :25432, MinIO :29000 — see docker-compose.yml)
-melos run up
-cp .env.example .env
-
-# 2. Schema + sample data
-cd apps/reference_admin_server
-dart run bin/worm.dart migrate
-dart run bin/worm.dart db:seed
-
-# 3. The backend (serves the generated API on :8080)
-dart run bin/reference_admin_server.dart
-
-# 4. The panel
-cd ../reference_admin
-flutter run -d chrome
+cd examples/store
+dart run bin/migrate.dart migrate     # create the tables
+dart run bin/migrate.dart db:seed     # a small, fixed catalog
+beak dev                              # API on :8080, panel on :3000
 ```
+
+Sign in as `ada@example.com` / `espresso` (staff) or `linus@example.com` /
+`grinder` (a customer, who sees only their own orders). `examples/superdashboard`
+runs the same way on port 8180. Postgres and MinIO (`melos run up`) are only
+needed for the `e2e`-tagged suites.
 
 ## Defining a resource
 
-1. **Columns + model** — a namespaced `XxxColumns` class of `const` column
-   definitions and an `XxxModel extends BeakModel` naming the table, display
-   column, and relationships. Drop it in `lib/models/`.
-2. **Schema** — a worm migration in `lib/migrations/`. `BeakBlueprint.defineColumns`
-   derives the DDL from the model, so a migration cannot drift from it.
+One file: an `@Resource` class under `lib/models/`. `beak prepare` derives the
+typed columns, the model, both sides of every relationship, a typed record
+view, the migration and the wiring from it. Nothing is registered.
 
-That is it. Discovery finds both; the API, the panel pages, the filters and the
-dashboard cards follow. `beak make:resource Widget --fields name:string,price:decimal`
-scaffolds all of it.
+```bash
+beak make:resource Widget --fields name:string!,price:decimal!
+dart run bin/migrate.dart migrate
+```
+
+A resource's presentation (icon, label, section, or hiding it) is `beak.yaml`;
+its filters, actions, view modes and layouts are `lib/resources/<table>.dart`,
+scaffolded by `beak eject resource <table>`.
 
 ## Storage drivers & file rules
 
 Storage is configured at startup, never hard-wired: `BeakStorageConfig`
 selects a driver (`memory` and `local` ship in core; `s3` and `ftp` plug in
-via the driver packages — see `BEAK_STORAGE_DRIVER` in `.env.example`).
+via the driver packages, registered by a `beakStorageRegistry()` in
+`lib/server.dart`). The local driver's files are served by the Beak server
+itself, so uploads work in development with nothing else running.
 File rules live on the column, Filament-style, and are enforced on upload
 (client-side too, for fast feedback):
 
 ```dart
-static const image = BeakImageColumn(
-  key: 'image', label: 'Image', storagePath: 'products',
+@Image(
+  storagePath: 'products',
   maxSizeInBytes: 5 * 1024 * 1024,
   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
   transforms: [
-    BeakThumbnailTransform(size: BeakDimensions(widthInPixels: 160, heightInPixels: 160)),
+    BeakThumbnailTransform(
+      size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
+    ),
     BeakFormatTransform.webp(),
   ],
-);
+)
+late final BeakImageRef? image;
 ```
 
 The upload endpoint validates, runs the pipeline, stores via the configured
@@ -153,18 +171,22 @@ data source.
 ## Development
 
 ```bash
-melos run analyze       # 0 issues, Material imports banned
-melos run test          # all packages (unit + integration + e2e when services are up)
+melos run analyze       # 0 issues; Material imports, web-unsafe imports and
+                        # stale docs all fail here
+melos run test          # every package, e2e excluded
+melos run test-e2e      # the service-backed suites (needs `melos run up`)
 melos run coverage      # per-package thresholds (beak_core at 100%)
 melos run format-check
 ```
 
-The end-to-end acceptance suite
-(`apps/reference_admin_server/test/e2e/full_flow_test.dart`) drives the real
-server over HTTP with the real client against live Postgres + MinIO: paged
-and searched queries with eager-loaded relations, validated creates, a real
-PNG upload with a retrievable thumbnail variant, soft/force deletes, pivot
-attach/detach, global search, CSV export, and aggregates.
+The store's API assertions live once, in
+[`examples/store/test/api_scenario.dart`](examples/store/test/api_scenario.dart),
+and run twice: on `sqlite::memory:` with local-disk uploads on every push, and
+against Postgres under `melos run test-e2e`. Between them they cover paged,
+sorted and searched queries with eager-loaded relations, validated creates, a
+real PNG upload with a retrievable thumbnail variant, soft delete with restore
+and force delete, pivot attach/detach, global search, CSV export, aggregates,
+optimistic concurrency, and the row policy.
 
 ## Documentation
 
@@ -173,8 +195,8 @@ searchable site (MkDocs Material, deployed to GitHub Pages). Good places to star
 
 - [**Start here**](docs/start-here/index.md): what Beak is, why it exists, and a
   quickstart.
-- [**Tutorial: First Flight**](docs/tutorial/index.md): build the reference store
-  admin one concept at a time.
+- [**Tutorial: First Flight**](docs/tutorial/index.md): build the store example
+  one concept at a time.
 - [**Core concepts**](docs/concepts/index.md): the one-definition promise, the
   four layers, the block system.
 - [**Reference**](docs/reference/index.md): every column, rule, block, config

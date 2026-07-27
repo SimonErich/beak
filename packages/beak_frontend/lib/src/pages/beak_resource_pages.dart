@@ -10,7 +10,6 @@ import '../blocks/beak_block_host.dart';
 import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/reference_cache.dart';
-import '../detail/beak_detail_view.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../filters/beak_filter_widget.dart';
@@ -213,9 +212,11 @@ class _ViewModeSwitcher extends HookWidget {
   }
 }
 
-/// The generated show page: the record rendered through [BeakDetailView],
-/// its to-many relations through [BeakRelationManager], with edit/delete
-/// actions.
+/// The generated show page: the record rendered through the resource's
+/// [BeakResource.effectiveDetail] layout, with edit and delete actions.
+///
+/// The record and the relations that layout renders arrive in one query, and
+/// each [BeakRelationManager] is handed the rows already loaded for it.
 class BeakResourceShowPage extends HookWidget {
   /// Creates the show page for [recordId] of [resource].
   const BeakResourceShowPage({

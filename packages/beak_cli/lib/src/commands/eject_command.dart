@@ -267,8 +267,10 @@ import 'package:beak/panel.dart';
 
 /// Which auth routes the panel mounts, and what they call.
 ///
-/// With no `onLogin`, the panel posts to the server's `/auth/login`. Supply
-/// one to authenticate against something else.
+/// With no `onLogin`, the panel signs in against the generated
+/// `/api/auth/login` and remembers the session, so a project whose
+/// `lib/server.dart` configures auth needs nothing here. Supply one to
+/// authenticate somewhere else.
 BeakAuthConfig beakAuth() => const BeakAuthConfig();
 ''';
 

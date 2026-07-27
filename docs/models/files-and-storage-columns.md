@@ -1,24 +1,50 @@
 ---
 title: Files and storage columns
-description: Declare image and file columns with size, type, dimension, and transform rules that Beak enforces on upload and mirrors in the form.
+description: Declare image and file fields with size, type, dimension and transform rules that Beak enforces on upload and mirrors in the form.
 ---
 
 # Files and storage columns
 
-After this page you can add an image or file field to a model, bound it with
+After this page you can add an image or file field to a resource, bound it with
 size and type limits, generate thumbnails and format renditions on upload, and
 know where the bytes land and how they are validated.
 
-Two columns carry uploads: `BeakImageColumn` for pictures and `BeakFileColumn`
-for everything else. Both store the file's key/URL as their value, and both let
-you write the upload rules right on the column, the same place every other rule
-lives. You describe the file's constraints once. Beak runs the picker, the
-validation, and the transforms.
+Two annotations carry uploads: `@Image` for pictures and `@FileField` for
+everything else. Both go on a field whose type says it stores a file reference,
+and both take their rules right there, the same place every other rule lives. You
+describe the file's constraints once. Beak runs the picker, the validation and
+the transforms.
 
-## The shared upload column
+```dart title="examples/store/lib/models/product.dart"
+/// The spec sheet customers download.
+@FileField(
+  storagePath: 'products/specs',
+  maxSizeInBytes: 10 * 1024 * 1024,
+  allowedTypes: [BeakFileType.pdf],
+)
+late final BeakFileRef? specSheet;
+```
 
-Both columns extend one sealed intermediate, `BeakUploadColumn`, which holds the
-three settings every upload has: where it lands and what gates it.
+`BeakImageRef` and `BeakFileRef` are extension types over `String`: the field
+holds the stored file's key, and the type is how the field says which annotation
+belongs on it.
+
+## The shared upload settings
+
+Three settings are common to both annotations: where the file lands, and what
+gates it.
+
+| Setting | Type | Meaning |
+| --- | --- | --- |
+| `storagePath` | `String` | subfolder the file is written under, for example `products` or `users/avatars` |
+| `maxSizeInBytes` | `int?` | largest accepted upload; `null` means unbounded |
+| `allowedTypes` | `List<BeakFileType>` | accepted types |
+
+`allowedTypes` is typed: `BeakFileType` is an enum pairing a canonical MIME type
+with its extensions, so you write `BeakFileType.png`, never `'image/png'`.
+
+Both annotations generate a column extending one sealed intermediate,
+`BeakUploadColumn`, which is where those three live on the output side:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_column.dart"
 sealed class BeakUploadColumn extends BeakColumn {
@@ -31,6 +57,8 @@ sealed class BeakUploadColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.maxSizeInBytes,
     this.allowedTypes = const [],
@@ -44,69 +72,27 @@ sealed class BeakUploadColumn extends BeakColumn {
 
   /// Accepted upload types; empty means unrestricted.
   final List<BeakFileType> allowedTypes;
-
-  /// Values are stored file keys/URLs.
-  @override
-  Type get valueType => String;
 }
 ```
 
-| Setting | Type | Meaning |
-| --- | --- | --- |
-| `storagePath` | `String` | subfolder the file is written under, e.g. `products` or `users/avatars` |
-| `maxSizeInBytes` | `int?` | largest accepted upload; `null` means unbounded |
-| `allowedTypes` | `List<BeakFileType>` | accepted types; empty means anything goes |
+## Image fields
 
-`allowedTypes` is typed: `BeakFileType` is an enum pairing a canonical MIME type
-with its extensions, so you say `BeakFileType.png`, never `'image/png'`.
+`@Image` renders a thumbnail in table cells, an image picker in forms, and the
+full image in detail views. On top of the shared settings it adds dimension
+limits, an optional thumbnail, and a transform pipeline.
 
-## Image columns
-
-`BeakImageColumn` renders a thumbnail in table cells, an image picker in forms,
-and the full image in detail views. On top of the shared upload settings it adds
-dimension limits, an optional thumbnail, and a transform pipeline.
-
-```dart title="packages/beak_core/lib/src/columns/beak_image_column.dart"
-final class BeakImageColumn extends BeakUploadColumn {
-  const BeakImageColumn({
-    required super.key,
-    required super.label,
-    required super.storagePath,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.rules,
-    super.maxSizeInBytes,
-    super.allowedTypes = BeakFileType.images,
-    this.maxDimensions,
-    this.aspectRatio,
-    this.thumbnail,
-    this.transforms = const [],
-  });
-```
-
-Note the default: an image column's `allowedTypes` defaults to
-`BeakFileType.images` (JPEG, PNG, WebP, GIF). SVG is deliberately left out
-because it can carry scripts and cannot be transformed like a raster; add it
-explicitly if you need it.
-
-| Field | Type | Meaning |
+| Parameter | Type | Meaning |
 | --- | --- | --- |
 | `maxDimensions` | `BeakDimensions?` | largest accepted source size in pixels |
 | `aspectRatio` | `double?` | required width/height ratio, if enforced |
 | `thumbnail` | `BeakDimensions?` | size of an auto-generated thumbnail rendition |
 | `transforms` | `List<BeakImageTransform>` | pipeline run in order on upload |
 
-The products model's photo shows the full set: a 5 MB cap, raster formats only,
-a thumbnail, and a transform pipeline.
+The store's product photo uses the full set: a 5 MB cap, raster formats only, a
+thumbnail, and a two-step pipeline.
 
-```dart
-/// Product photo: max 5 MB, raster formats only, thumbnail + webp
-/// renditions generated on upload.
-static const image = BeakImageColumn(
-  key: 'image',
-  label: 'Image',
+```dart title="examples/store/lib/models/product.dart"
+@Image(
   storagePath: 'products',
   maxSizeInBytes: 5 * 1024 * 1024,
   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
@@ -117,55 +103,70 @@ static const image = BeakImageColumn(
     ),
     BeakFormatTransform.webp(),
   ],
-);
+)
+late final BeakImageRef? image;
 ```
 
-The **superdashboard** showcase uses the simpler form for avatars: rules
-and a thumbnail, no transform pipeline.
+Leave `allowedTypes` off and the generated column falls back to
+`BeakFileType.images`: JPEG, PNG, WebP and GIF. SVG is deliberately excluded,
+because it can carry scripts and cannot be transformed like a raster. Add it
+explicitly if you need it.
+
+The superdashboard showcase uses the simpler form for avatars, rules and a
+thumbnail with no pipeline:
 
 ```dart title="examples/superdashboard/lib/models/people/user.dart"
-static const avatar = BeakImageColumn(
-  key: 'avatar',
-  label: 'Avatar',
+@Image(
   storagePath: 'users/avatars',
   maxSizeInBytes: 5 * 1024 * 1024,
   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
   thumbnail: BeakDimensions(widthInPixels: 96, heightInPixels: 96),
-);
+)
+late final BeakImageRef? avatar;
 ```
 
-## File columns
+An `@Image` field takes `@Column` alongside it when it also needs a shared option
+such as `visibleOn`. The two annotations sit on the same field and configure
+different halves of the column.
 
-`BeakFileColumn` is the generic attachment: a PDF, a CSV, an archive. It adds
-nothing beyond the shared upload settings and renders through the custom
-download/preview widget. Reach for it whenever the file is not an image.
+The generated column is a `BeakImageColumn`:
 
-```dart title="packages/beak_core/lib/src/columns/beak_file_column.dart"
-final class BeakFileColumn extends BeakUploadColumn {
-  /// Creates a file column storing uploads under [storagePath].
-  const BeakFileColumn({
-    required super.key,
-    required super.label,
-    required super.storagePath,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.rules,
-    super.maxSizeInBytes,
-    super.allowedTypes,
-  });
+```dart title="packages/beak_core/lib/src/columns/beak_image_column.dart"
+const BeakImageColumn({
+  required super.key,
+  required super.label,
+  required super.storagePath,
+  super.visibleOn,
+  super.sortable,
+  super.searchable,
+  super.filterable,
+  super.indexed,
+  super.unique,
+  super.rules,
+  super.maxSizeInBytes,
+  super.allowedTypes = BeakFileType.images,
+  this.maxDimensions,
+  this.aspectRatio,
+  this.thumbnail,
+  this.transforms = const [],
+});
 ```
 
-```dart title="packages/beak_core/lib/src/columns/beak_file_column.dart"
-static const attachment = BeakFileColumn(
-  key: 'attachment',
-  label: 'Attachment',
-  storagePath: 'articles/files',
-  maxSizeInBytes: 10 * 1024 * 1024,
-  allowedTypes: [BeakFileType.pdf],
-);
+## File fields
+
+`@FileField` is the generic attachment: a PDF, a CSV, an archive. It adds nothing
+beyond the shared settings and renders through a download/preview widget instead
+of an image. Reach for it whenever the file is not a picture.
+
+```dart title="examples/superdashboard/lib/models/files/managed_file.dart"
+/// The stored file.
+@FileField(storagePath: 'files/store')
+late final BeakFileRef? file;
 ```
+
+With no `allowedTypes` and no `maxSizeInBytes`, anything goes. That is fine for
+an internal file manager and wrong for a public upload form, so bound the ones
+strangers can reach.
 
 ## The transform pipeline
 
@@ -190,10 +191,10 @@ There are three step kinds:
 | `BeakImageTransform.format(...)` / `.webp(...)` | the image re-encoded to another format at a quality |
 | `BeakImageTransform.thumbnail(...)` | an extra named rendition at a fixed size |
 
-A `thumbnail` step (and the column's `thumbnail` shortcut) produces an
+A thumbnail step (and the annotation's `thumbnail` shortcut) produces an
 additional stored rendition. Those renditions come back on the upload result as
-named `variants`, so the panel can show the small version in a table and the
-full one in detail.
+named `variants`, so the panel can show the small version in a table and the full
+one in detail.
 
 ```dart title="packages/beak_core/lib/src/storage/beak_stored_file.dart"
 /// Additional stored renditions (e.g. `thumbnail`), keyed by variant name.
@@ -202,7 +203,7 @@ final Map<String, BeakStoredFileVariant> variants;
 
 ## Upload validation
 
-The size, type, dimension, and aspect-ratio rules are not decoration: they run
+The size, type, dimension and aspect-ratio rules are not decoration: they run
 server-side on the upload endpoint through `BeakUploadValidator`, which is pure
 logic with no I/O. It returns the upload unchanged when every rule passes, or a
 `BeakValidationException` whose `fieldErrors` are keyed by the aspect that
@@ -226,11 +227,26 @@ always, the server has the final word.
 
 ## Where the bytes land
 
-`storagePath` is a subfolder, not a full location. The actual destination
-(memory, local disk, S3, or FTP) is chosen once at app init by a
-`BeakStorageConfig` and resolved to a driver. The column does not care which
-driver is active; it only names the folder. Swapping local disk for S3 in
-production is a config change, not a model change.
+`storagePath` is a subfolder, not a destination. Which store it is a subfolder of
+is decided at boot, by the environment, not by the resource:
+
+```bash
+BEAK_STORAGE_DRIVER=s3
+BEAK_S3_ENDPOINT=http://localhost:9000
+BEAK_S3_BUCKET=acme-uploads
+BEAK_S3_ACCESS_KEY=...
+BEAK_S3_SECRET_KEY=...
+BEAK_S3_REGION=us-east-1
+```
+
+`BEAK_STORAGE_DRIVER` takes `s3`, `ftp`, `local` or `memory`, each reading its own
+variables. Leave it unset and the server runs without upload endpoints, which is
+the right default for an app that has no upload fields yet. A driver named
+without the variables it needs fails at boot with the missing name in the
+message, rather than at the first upload.
+
+Under those variables sits a sealed `BeakStorageConfig` family, one variant per
+driver. It is also what you build directly when you host the server yourself:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_config.dart"
 final BeakStorageConfig config = isProduction
@@ -247,13 +263,29 @@ final BeakStorageConfig config = isProduction
       );
 ```
 
+The S3 and FTP drivers are separate packages, so a project that stores nothing in
+S3 does not build its client. Declare the ones you use in `lib/server.dart` and
+`beak prepare` wires them into the host:
+
+```dart title="examples/superdashboard/lib/server.dart"
+BeakStorageRegistry beakStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
+  registerS3Storage(registry);
+  return registry;
+}
+```
+
+Either way the field does not care which driver is active. It only names the
+folder, so swapping local disk for S3 in production is an environment change,
+not a schema change.
+
 The [uploads and storage wiring](../backend/uploads-and-storage-wiring.md) page
-covers how the upload endpoint, the validator, the transform runner, and the
+covers how the upload endpoint, the validator, the transform runner and the
 driver fit together on the server.
 
 ## Continue reading
 
-- [Column types](column-types.md) the other twelve column kinds.
+- [Column types](column-types.md) the other eleven column kinds.
 - [Validation rules](validation-rules.md) the file rules mirrored on the client.
 - [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) the
   server side of an upload.

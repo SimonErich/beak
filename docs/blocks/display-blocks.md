@@ -10,6 +10,9 @@ right size, long-form Markdown, images from a URL, a video pulled from your data
 and a reference grid of named icons. These are the blocks that show things
 rather than arrange them.
 
+They go wherever a block tree goes: a `BeakScreen` body in
+`lib/screens/<name>.dart`, `lib/dashboard.dart`, or a resource's `detail`.
+
 | Block | Renders onto | Key parameters |
 | --- | --- | --- |
 | `BeakTextBlock` | `OiLabel` (per variant) | `text`, `variant` |
@@ -131,9 +134,24 @@ BeakImageBlock(
 
 !!! note "Static image versus image column"
     `BeakImageBlock` shows one URL you already have. To render an image *field*
-    of a record (a product photo, an avatar), use a
-    [`BeakImageColumn`](../models/files-and-storage-columns.md) instead, and let
-    the column own upload, validation, and thumbnails.
+    of a record (a product photo, an avatar), declare a `BeakImageRef` field on
+    the schema class and annotate it `@Image`:
+
+    ```dart title="examples/store/lib/models/product.dart"
+    /// The product photo.
+    @Image(
+      storagePath: 'products',
+      maxSizeInBytes: 5 * 1024 * 1024,
+      allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
+      thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
+    )
+    late final BeakImageRef? image;
+    ```
+
+    That generates a
+    [`BeakImageColumn`](../models/files-and-storage-columns.md) owning upload,
+    validation and thumbnails, and a `BeakFieldBlock` renders it read-only on
+    the detail page and as an upload field on the form.
 
 ## Video
 

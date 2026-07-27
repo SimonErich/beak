@@ -7,11 +7,11 @@ description: How BeakDataSource lets one interface serve worm today and Serverpo
 
 Every read and write in Beak passes through one interface, `BeakDataSource`. After this page you understand the seam: the interface both sides of Beak speak, the `WormDataSource` that implements it over the worm ORM, and why a future `ServerpodDataSource` can slot in without a line changing in `beak_core` or `beak_backend`.
 
-Beak's promise is that your models, columns, and queries describe *what* you want, never *which database* answers. The seam is what makes that true. Above it, handlers and services speak a source-agnostic vocabulary of typed records. Below it, one implementation translates that vocabulary to a real store. Swap the implementation and everything above it keeps working.
+Beak's promise is that your schema classes, columns, and queries describe *what* you want, never *which database* answers. The seam is what makes that true. Above it, handlers and services speak a source-agnostic vocabulary of typed records. Below it, one implementation translates that vocabulary to a real store. Swap the implementation and everything above it keeps working.
 
 ## The interface
 
-`BeakDataSource` lives in `beak_core`, the pure-Dart package with no Flutter and no worm. It is nine methods:
+`BeakDataSource` lives in `beak_core`, the pure-Dart package with no Flutter and no worm. It is ten methods:
 
 ```dart title="packages/beak_core/lib/src/data/beak_data_source.dart"
 abstract interface class BeakDataSource {
@@ -24,21 +24,34 @@ abstract interface class BeakDataSource {
   /// not exist (or is soft-deleted).
   Future<BeakRecord?> getOne(String table, Object id);
 
-  /// Inserts [data] into [table] and returns the stored record.
+  /// Inserts [data] into [table] and returns the stored record (including
+  /// database-assigned values).
   Future<BeakRecord> create(String table, BeakRecord data);
 
   /// Updates the record of [table] with primary key [id] with the values of
   /// [data] and returns the stored result.
+  ///
+  /// Throws a `BeakNotFoundException` when no such record exists.
   Future<BeakRecord> update(String table, Object id, BeakRecord data);
 
-  /// Deletes the record of [table] with primary key [id] - softly when the
+  /// Deletes the record of [table] with primary key [id] — softly when the
   /// model opts into soft deletes, unless [force] hard-deletes.
+  ///
+  /// Throws a `BeakNotFoundException` when no such record exists.
   Future<void> delete(String table, Object id, {bool force = false});
 
-  /// The records of [table] whose primary keys appear in [ids].
+  /// Clears the soft-delete marker on the record with primary key [id],
+  /// returning it as it now reads.
+  Future<BeakRecord> restore(String table, Object id);
+
+  /// The records of [table] whose primary keys appear in [ids], fetched in
+  /// a single query (the reference-deduplication path).
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids);
 
-  /// Links [relatedIds] to the record of [table] through [relationKey].
+  /// Links [relatedIds] to the record of [table] with primary key [id]
+  /// through the to-many relation [relationKey]: belongs-to-many inserts
+  /// pivot rows (skipping links that already exist), has-many re-parents
+  /// the related rows' foreign keys.
   Future<void> attach(
     String table,
     Object id,
@@ -46,7 +59,9 @@ abstract interface class BeakDataSource {
     List<Object> relatedIds,
   );
 
-  /// Unlinks [relatedIds] from the record of [table] through [relationKey].
+  /// Unlinks [relatedIds] from the record of [table] with primary key [id]
+  /// through the to-many relation [relationKey]: belongs-to-many removes
+  /// the pivot rows, has-many clears the related rows' foreign keys.
   Future<void> detach(
     String table,
     Object id,
@@ -54,7 +69,8 @@ abstract interface class BeakDataSource {
     List<Object> relatedIds,
   );
 
-  /// Computes [spec]'s aggregate (count/sum/avg) over the matching rows.
+  /// Computes [spec]'s aggregate (count/sum/avg) over the matching rows,
+  /// returning `0` when no rows match.
   Future<num> aggregate(BeakAggregateSpec spec);
 }
 ```
@@ -66,6 +82,7 @@ Notice what the signatures speak in: `BeakQuerySpec`, `BeakRecord`, `BeakPage`, 
 | `query` | A filtered, sorted, paginated page with eager relation loads |
 | `getOne` | A single record by primary key |
 | `create` / `update` / `delete` | The write path (`delete` honors soft deletes) |
+| `restore` | Clear a soft-delete marker, reaching past the soft-delete scope |
 | `batchGet` | Many records by id in one query (reference de-duplication) |
 | `attach` / `detach` | Wire up a to-many relation |
 | `aggregate` | A `count`, `sum`, or `avg` for a KPI or chart |
@@ -91,15 +108,27 @@ flowchart TB
   WD -. implements .-> I
 ```
 
-On the panel side, `HttpBeakDataSource` implements `BeakDataSource` by serializing each call to REST. On the server side, `WormDataSource` implements it by translating each call to the worm ORM. The frontend's repository is the catch boundary; the backend's handler is. Both stand on the same nine methods.
+On the panel side, `HttpBeakDataSource` implements `BeakDataSource` by delegating every call to `BeakClient`, the typed REST transport in `beak_core`. On the server side, `WormDataSource` implements it by translating each call to the worm ORM. The frontend's repository is the catch boundary; the backend's middleware is. Both stand on the same ten methods.
+
+```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
+final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
+  /// Creates a data source over [client].
+  const HttpBeakDataSource(this.client);
+
+  /// The transport the source delegates to.
+  final BeakClient client;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
+      client.query(spec.table, spec);
+```
 
 ## WormDataSource: the default over worm
 
-`WormDataSource` is the implementation Beak ships. It is generic: it works entirely off the model registry, so one instance serves every registered table with no per-model code.
+`WormDataSource` is the implementation Beak ships, and the one the generated `BeakServeHost` wires up for you. It is generic: it works entirely off the model registry, so one instance serves every registered table with no per-model code.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
 final class WormDataSource implements BeakDataSource {
-  /// Creates a data source over [registry] executing on [adapter].
   WormDataSource(
     this.registry, {
     required DatabaseAdapter adapter,
@@ -116,27 +145,34 @@ final class WormDataSource implements BeakDataSource {
   final WormQueryTranslator _translator;
 ```
 
-You hand it any worm `DatabaseAdapter`: an `InMemoryAdapter` in tests, a Postgres adapter in production. The `now` hook stamps soft-delete markers and is overridable for deterministic tests. A read turns a spec into a builder and hydrated rows into records:
+You hand it any worm `DatabaseAdapter`: an `InMemoryAdapter` in tests, a SQLite or Postgres adapter in production. The `now` hook stamps soft-delete markers and is overridable for deterministic tests. A read turns a spec into a builder and hydrated rows into records:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-@override
-Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
-  final builder = _translator.builderFor(spec, _adapter);
-  final int total = await builder.count();
-  final models = await builder.get();
-  return BeakPage(
-    items: [
-      for (final model in models)
-        model.toBeakRecord(loads: spec.relationLoads),
-    ],
-    total: total,
-    page: spec.pagination.page,
-    perPage: spec.pagination.perPage,
-  );
-}
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    final BeakModel beakModel = registry.byTableOrThrow(spec.table);
+    final builder = _translator.builderFor(spec, _adapter);
+    final int total = await builder.count();
+    final rows = await builder.get();
+    return BeakPage(
+      items: [
+        for (final row in rows)
+          row.toBeakRecord(
+            loads: spec.relationLoads,
+            model: beakModel,
+            registry: registry,
+          ),
+      ],
+      total: total,
+      page: spec.pagination.page,
+      perPage: spec.pagination.perPage,
+    );
+  }
 ```
 
-Everything below is machinery that lives inside `beak_backend`. It is the only Beak package that imports worm, and none of these worm types cross back out.
+The model goes into the conversion on purpose. Without it, a SQLite row arrives with `1` where the schema declares a flag and a string where it declares an instant, because the driver decides the Dart type. The registry does the same job for related records, which belong to other models. A `BeakRecord` therefore reads the same whichever database answered.
+
+Everything below is machinery that lives inside `beak_backend`. It is the only Beak package that runs a query through worm, and none of these worm types cross back out.
 
 ### The translator
 
@@ -180,20 +216,24 @@ final class WormRecordModel extends Model {
   /// This row as a typed [BeakRecord], converting the relations loaded for
   /// [loads] recursively (a requested-but-unloaded relation throws, honoring
   /// Beak's no-lazy-loading rule).
-  BeakRecord toBeakRecord({List<BeakRelationLoad> loads = const []}) =>
-      BeakRecord(
-        values: {
-          for (final name in _columnNames)
-            name: BeakValue.of(getAttribute(name)),
-        },
-        relations: {
-          for (final load in loads) load.relationKey: _relatedRecords(load),
-        },
-      );
+  BeakRecord toBeakRecord({
+    List<BeakRelationLoad> loads = const [],
+    BeakModel? model,
+    BeakModelRegistry? registry,
+  }) => BeakRecord(
+    values: {
+      for (final name in _columnNames)
+        name: beakValueForColumn(model?.columnByKey(name), getAttribute(name)),
+    },
+    relations: {
+      for (final load in loads)
+        load.relationKey: _relatedRecords(load, model, registry),
+    },
+  );
 }
 ```
 
-`toBeakRecord` is where worm's world ends: attributes become typed `BeakValue`s, eager-loaded relations convert recursively, and a relation you did not load throws rather than firing a lazy query. What comes out is a `beak_core` `BeakRecord`, nothing worm-shaped.
+`toBeakRecord` is where worm's world ends: attributes become typed `BeakValue`s through the column that declared them, eager-loaded relations convert recursively, and a relation you did not load throws rather than firing a lazy query. What comes out is a `beak_core` `BeakRecord`, nothing worm-shaped.
 
 ### Column and connection helpers
 
@@ -215,18 +255,36 @@ Field<Object?> wormFieldForColumn(BeakColumn column) => switch (column) {
 };
 ```
 
-And `worm_bootstrap.dart` maps a `DATABASE_URL` to a connection. `postgresAdapterFromUrl` gives you an adapter to hand straight to `WormDataSource`:
+And `worm_bootstrap.dart` maps a `DATABASE_URL` to a connection. `adapterFromUrl` is the single place a URL scheme becomes a driver, so the server, the migration CLI and a test cannot disagree about what `DATABASE_URL` means:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
-PostgresAdapter postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
-    PostgresAdapter(
-      pool: PostgresConnectionPool.fromConfig(
-        postgresConnectionConfig(databaseUrl, poolSize: poolSize),
-      ),
-    );
+DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
+  if (isSqliteUrl(databaseUrl)) {
+    final String? path = sqliteFilePathOf(databaseUrl);
+    return path == null ? SqliteAdapter.memory() : SqliteAdapter.open(path);
+  }
+  return postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
+}
 ```
 
 `initializeWormPostgres(config)` registers the default adapter once at startup; pair it with `Worm.reset()` on shutdown. Both are covered from the boot angle in [Running the server](running-the-server.md).
+
+## Where the seam is wired
+
+You do not construct `WormDataSource` yourself either. `BeakServeHost.buildServer` does it, and hands the result to your `lib/server.dart` as one of the resolved defaults:
+
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+    final defaults = BeakServerDefaults(
+      config: config,
+      registry: registry,
+      dataSource: WormDataSource(registry, adapter: adapter, now: _now),
+      environment: _environment,
+      storage: storage,
+    );
+    return configure?.call(defaults) ?? defaults.build();
+```
+
+That is also where a different implementation would go in. `BeakServerDefaults.dataSource` is typed as `BeakDataSource`, so a project holding its own implementation can build a `BeakServer` around it directly instead of calling `defaults.build()`. See [Custom data sources](../extending/custom-data-sources.md).
 
 ## Why the seam holds
 
@@ -234,7 +292,9 @@ The rule is one line in the class doc, and the whole package layout enforces it:
 
 > This is the concrete implementation Beak ships; a future `ServerpodDataSource` would satisfy the same `BeakDataSource` interface without touching `beak_core` or `beak_backend`.
 
-`beak_core` declares the interface and the wire types (`BeakRecord`, `BeakQuerySpec`, `BeakValue`) and imports neither worm nor Flutter. `beak_backend` is the only package that imports worm, and it keeps worm behind `WormDataSource`: the translator, the record model, and the field mapper are all internal. A handler or service is typed against `BeakDataSource`, so it cannot reach a worm type even by accident.
+`beak_core` declares the interface and the wire types (`BeakRecord`, `BeakQuerySpec`, `BeakValue`) and imports neither worm nor Flutter. `beak_backend` is the only package that reads or writes through worm, and it keeps worm behind `WormDataSource`: the translator, the record model, and the field mapper are all internal. A handler or service is typed against `BeakDataSource`, so it cannot reach a worm type even by accident.
+
+One package does re-export worm on purpose: `package:beak/migrations.dart` hands you worm's `Migration`, `Schema` and `Seeder` so you can write the schema and the demo data (see [Seeding](seeding.md)). That is the schema DSL, not the read path. Nothing on the query side of the seam speaks worm.
 
 That is what leaves room for another store. A `beak_serverpod` package could ship a `ServerpodDataSource implements BeakDataSource`, wire it into `BeakServer` in place of `WormDataSource`, and every column, query, filter, block, and CSV export above it would keep working unchanged. The seam is a single interface, and the whole framework is built to depend on it and nothing below.
 
@@ -243,4 +303,4 @@ That is what leaves room for another store. A `beak_serverpod` package could shi
 - [Custom data sources](../extending/custom-data-sources.md) implement `BeakDataSource` yourself.
 - [How data flows](../concepts/how-data-flows.md) the serializable query spec that crosses the seam.
 - [The generated API](the-generated-api.md) the routes that call the data source on the server.
-- [Running the server](running-the-server.md) wiring an adapter and data source at boot.
+- [Running the server](running-the-server.md) the host that wires the adapter and data source at boot.

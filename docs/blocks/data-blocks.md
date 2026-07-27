@@ -26,9 +26,14 @@ final loaded = await dataSource.aggregate(block.value);
 That `beakLocator<BeakDataSource>()` is the package-scoped GetIt lookup Beak
 wires when the panel boots. In the running app it resolves to
 `HttpBeakDataSource` over REST; in a test it resolves to whatever fake you
-registered. Either way the block is the same `const` descriptor. The five blocks
-below are the data-bound ones you place by hand; the [chart](../charts/chart-basics.md)
-and [map](../charts/maps.md) blocks work the same way.
+registered (`InMemoryBeakDataSource` from `package:beak/testing.dart`). Either
+way the block is the same `const` descriptor. The five blocks below are the
+data-bound ones you place by hand; the [chart](../charts/chart-basics.md) and
+[map](../charts/maps.md) blocks work the same way.
+
+You place them wherever a block tree goes: `lib/dashboard.dart` for the home
+screen, `lib/screens/<name>.dart` for a page of your own, or a card inside
+either.
 
 | Block | Binds to | Fetches |
 | --- | --- | --- |
@@ -58,26 +63,24 @@ const BeakKpiBlock({
 
 The showcase dashboard opens with four of them: an earnings sum and three counts.
 
-```dart title="examples/superdashboard/lib/panel/dashboard.dart"
-BeakBlock _kpis() => BeakGridBlock(
+```dart title="examples/superdashboard/lib/dashboard.dart"
+BeakBlock _kpis() => const BeakGridBlock(
   columns: 4,
   children: [
-    // sum() is not a const constructor (it reads column.key), so this tile
-    // is built at runtime; the count tiles stay const.
     BeakKpiBlock(
       title: 'Total earnings',
       value: BeakAggregateSpec.sum(table: 'orders', column: OrderColumns.total),
       format: BeakKpiFormat.currency,
     ),
-    const BeakKpiBlock(
+    BeakKpiBlock(
       title: 'Total orders',
       value: BeakAggregateSpec.count(table: 'orders'),
     ),
-    const BeakKpiBlock(
+    BeakKpiBlock(
       title: 'Customers',
       value: BeakAggregateSpec.count(table: 'users'),
     ),
-    const BeakKpiBlock(
+    BeakKpiBlock(
       title: 'Products',
       value: BeakAggregateSpec.count(table: 'products'),
     ),
@@ -86,10 +89,12 @@ BeakBlock _kpis() => BeakGridBlock(
 ```
 
 !!! note "What just happened"
-    - `BeakAggregateSpec.count(table: 'orders')` is a `const` constructor, so
-      three of the tiles stay `const`. `BeakAggregateSpec.sum(...)` reads
-      `column.key` at build time, so that one tile is constructed at runtime.
-      That is the whole reason the first tile is not `const`.
+    - `count`, `sum` and `avg` are all `const` constructors, so the whole grid
+      is one `const` expression. The API computes every figure; the browser
+      receives a number, not a table to count.
+    - `OrderColumns.total` is generated from the `total` field of the `Order`
+      schema class. Rename the field and this file stops compiling, which is
+      the point.
     - `format: BeakKpiFormat.currency` turns the raw number into `$34,123` using
       `currencySymbol`. The two other formats are below.
 
@@ -130,13 +135,14 @@ BeakMetricBlock(
 
 `BeakTableBlock` embeds the full `BeakDataTable` (the same widget a resource list
 page uses) inside a page or a card. You get server-side sort, filter, and
-pagination for free; `initialSpec` seeds the ordering and page size, and
-`baseFilter` scopes the rows.
+pagination for free; `initialSpec` seeds the ordering and page size,
+`baseFilter` scopes the rows, and `columns` narrows what is shown.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_table_block.dart"
 const BeakTableBlock({
   required this.model,
   this.title,
+  this.columns,
   this.initialSpec,
   this.baseFilter,
   this.actions = const [],
@@ -148,7 +154,7 @@ const BeakTableBlock({
 
 The dashboard's three listings are all the same block over different models:
 
-```dart title="examples/superdashboard/lib/panel/dashboard.dart"
+```dart title="examples/superdashboard/lib/dashboard.dart"
 BeakBlock _tables() => const BeakGridBlock(
   columns: 12,
   children: [
@@ -162,16 +168,58 @@ BeakBlock _tables() => const BeakGridBlock(
         pagination: BeakPagination(perPage: 6),
       ),
     ),
-    // Top customers (UserModel) and Latest transactions (TransactionModel)
-    // follow the same shape.
+    // ... Top customers (UserModel) and Latest transactions
+    // (TransactionModel) follow the same shape.
   ],
 );
 ```
+
+### Narrowing the columns
+
+Leave `columns` unset and the table shows the model's table-context columns,
+which is what a list page wants and what a dashboard card cannot fit. Pass a
+list of generated column constants and the card shows those, in that order. The
+store's dashboard does exactly this for its two lists:
+
+```dart title="examples/store/lib/dashboard.dart"
+BeakCardBlock(
+  span: BeakSpan(columns: 6),
+  title: 'Latest orders',
+  child: BeakTableBlock(
+    model: OrderModel(),
+    columns: [
+      OrderColumns.reference,
+      OrderColumns.status,
+      OrderColumns.total,
+    ],
+    initialSpec: BeakQuerySpec(
+      table: 'orders',
+      sorts: [BeakSort('placed_at', descending: true)],
+      pagination: BeakPagination(perPage: 5),
+    ),
+  ),
+),
+```
+
+!!! note "What just happened"
+    - Three columns read at a glance where seventeen do not fit at all. The
+      resource's own list page still shows everything.
+    - `columns` takes `BeakColumn` constants generated from the `Order` schema
+      class, never key strings.
+    - `baseFilter` is the other narrowing knob: the store's second card scopes
+      products to `featured == true` with a `BeakFieldFilter` while leaving the
+      user's own sorting and paging alone.
 
 !!! tip "heightInPixels earns its keep"
     A table needs a vertical bound to lay out, and a grid cell or card gives it
     none. `heightInPixels` (default `360`) is that bound. If a table block
     renders blank inside a card, this is usually why.
+
+!!! note "One column per to-one relationship, free"
+    A list table already renders a column for each to-one relationship, showing
+    the related record's name rather than its foreign key, loaded with the page
+    in a single query. You do not add it and you do not pay an extra request
+    for it.
 
 ## Calendars and kanban boards
 
@@ -240,9 +288,26 @@ BeakKanbanBlock(
     block tree goes: a custom screen, a card, an overlay. They are a different
     thing from `BeakCalendarView` and `BeakKanbanView`, which are alternate
     **view modes** you attach to a resource so its list page can toggle between
-    a table, a calendar, and a board. The showcase's Orders resource uses
-    `BeakKanbanView`; a standalone board on a page uses `BeakKanbanBlock`. Same
-    obers_ui widget underneath, two ways to reach it. See
+    a table, a calendar, and a board. View modes are set on the resource, in
+    `lib/resources/<table>.dart`:
+
+    ```dart title="examples/superdashboard/lib/resources/orders.dart"
+    BeakResource beakResource(BeakResource generated) => generated.copyWith(
+      // ... detail, formLayout and filters, then:
+      viewModes: [
+        const BeakTableView(),
+        const BeakKanbanView(
+          groupField: OrderColumns.status,
+          titleField: OrderColumns.reference,
+          subtitleField: OrderColumns.total,
+          sortField: OrderColumns.placedAt,
+          sortDescending: true,
+        ),
+      ],
+    );
+    ```
+
+    Same obers_ui widget underneath, two ways to reach it. See
     [View modes](../panel/view-modes.md) for the resource-level pair.
 
 ## Continue reading

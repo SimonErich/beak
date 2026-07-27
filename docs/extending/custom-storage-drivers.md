@@ -1,24 +1,22 @@
 ---
 title: Custom storage drivers
-description: Implement BeakStorageDriver's five methods, hide the wire behind a thin transport seam, and register the driver so a config selects it.
+description: Implement BeakStorageDriver's six members, hide the wire behind a thin transport seam, and register the driver so an environment variable selects it.
 ---
 
 # Custom storage drivers
 
 After this page you can implement `BeakStorageDriver`, keep its wire protocol
-behind a testable seam the way the S3 and FTP drivers do, and register it so a
-`BeakStorageConfig` picks it at startup. Beak's uploads then land wherever you
-say: a bucket, an FTP host, a content API of your own.
+behind a testable seam the way the S3 and FTP drivers do, and register it in
+`lib/server.dart` so a `BeakStorageConfig` picks it at startup. Beak's uploads
+then land wherever you say: a bucket, an FTP host, a content API of your own.
 
-Storage in Beak is pluggable for the same reason data is. `beak_core` ships the
-`memory` and `local` drivers; driver packages (`beak_storage_s3`,
-`beak_storage_ftp`) add the rest and plug in at app init. Nothing is hard-wired.
-Your driver joins that set.
+Storage in Beak is pluggable for the same reason data is. `memory` and `local`
+ship in the box; driver packages (`beak_storage_s3`, `beak_storage_ftp`) add the
+rest and plug in at app init. Nothing is hard-wired. Your driver joins that set.
 
 ## The interface
 
-A driver is five methods over one relative, `/`-separated key. It lives behind
-the `BeakStorageDriver` interface in `beak_core`:
+A driver is an id and five methods over one relative, `/`-separated key:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_driver.dart"
 abstract interface class BeakStorageDriver {
@@ -46,7 +44,7 @@ abstract interface class BeakStorageDriver {
 }
 ```
 
-| Method | Returns | The contract |
+| Member | Returns | The contract |
 | --- | --- | --- |
 | `id` | `String` | Matches the `driverId` of the config that selects you. |
 | `put` | `BeakStoredFile` | Key is `path/filename`; overwrite an existing key. |
@@ -113,30 +111,30 @@ The `_guard` helper is the boundary rule in code: it rethrows Beak's own
 exceptions untouched and wraps everything else in a `BeakStorageException`.
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
-Future<T> _guard<T>(
-  String operationName,
-  String key,
-  Future<T> Function() operation, {
-  bool missingFileReplies = false,
-}) async {
-  try {
-    return await operation();
-  } on BeakException {
-    rethrow;
-  } on FtpProtocolException catch (error) {
-    if (missingFileReplies && error.replyCode == 550) {
-      throw BeakStorageException('No file is stored under "$key".');
+  Future<T> _guard<T>(
+    String operationName,
+    String key,
+    Future<T> Function() operation, {
+    bool missingFileReplies = false,
+  }) async {
+    try {
+      return await operation();
+    } on BeakException {
+      rethrow;
+    } on FtpProtocolException catch (error) {
+      if (missingFileReplies && error.replyCode == 550) {
+        throw BeakStorageException('No file is stored under "$key".');
+      }
+      throw BeakStorageException(
+        'FTP $operationName failed for "$key" '
+        '(reply ${error.replyCode}): ${error.message}',
+      );
+    } on Object catch (error) {
+      throw BeakStorageException(
+        'FTP $operationName failed for "$key": $error',
+      );
     }
-    throw BeakStorageException(
-      'FTP $operationName failed for "$key" '
-      '(reply ${error.replyCode}): ${error.message}',
-    );
-  } on Object catch (error) {
-    throw BeakStorageException(
-      'FTP $operationName failed for "$key": $error',
-    );
   }
-}
 ```
 
 ## The seam pattern
@@ -175,11 +173,26 @@ S3 driver mirrors this exactly: `S3StorageDriver` logic behind an
     real socket in that code and you can only test it against a live server. Put
     it behind an interface and the whole driver is unit-testable against a map.
 
-## Registering the driver
+## The factory
 
 A driver resolves from config through a `BeakStorageRegistry`, which maps a
-`driverId` to a factory. The convention is a `register<Name>Storage` function,
-one line, that a driver package exposes:
+`driverId` to a factory. The factory narrows the sealed `BeakStorageConfig` with
+pattern matching and throws `BeakConfigurationException` for a foreign config
+type, so the id and the config type stay in lockstep:
+
+```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
+  factory FtpStorageDriver.fromConfig(BeakStorageConfig config) =>
+      switch (config) {
+        BeakFtpConfig() => FtpStorageDriver(config),
+        _ => throw BeakConfigurationException(
+          'FtpStorageDriver requires a BeakFtpConfig, '
+          'got ${config.runtimeType}.',
+        ),
+      };
+```
+
+The convention is a `register<Name>Storage` function, one line, that a driver
+package exposes:
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
 void registerFtpStorage(BeakStorageRegistry registry) {
@@ -187,78 +200,78 @@ void registerFtpStorage(BeakStorageRegistry registry) {
 }
 ```
 
-`FtpStorageDriver.fromConfig` is the factory. It narrows the sealed
-`BeakStorageConfig` with pattern matching and throws
-`BeakConfigurationException` for a foreign config type, so the id and the config
-type stay in lockstep:
+## Registering the driver
 
-```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
-factory FtpStorageDriver.fromConfig(BeakStorageConfig config) =>
-    switch (config) {
-      BeakFtpConfig() => FtpStorageDriver(config),
-      _ => throw BeakConfigurationException(
-        'FtpStorageDriver requires a BeakFtpConfig, '
-        'got ${config.runtimeType}.',
-      ),
-    };
+Beak's server depends on no driver package, on purpose: pulling
+`beak_storage_s3` in from the framework would put `minio` in the dependency
+graph of every backend, uploading or not. So a project declares the drivers it
+wants, in one place.
+
+Add a `beakStorageRegistry` function to `lib/server.dart` (`beak eject server`
+writes the starter). `beak prepare` notices it and hands it to the generated
+host:
+
+```dart title="examples/embedded/lib/server.dart"
+/// The storage drivers this app can resolve.
+///
+/// `beak_backend` depends on no driver package on purpose, so an app that
+/// uploads to S3 declares `beak_storage_s3` and registers it here. Set
+/// `BEAK_STORAGE_DRIVER=s3` and the rest of the `BEAK_S3_*` variables, and
+/// every upload column stores there instead of on local disk.
+BeakStorageRegistry beakStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
+  registerS3Storage(registry);
+  return registry;
+}
 ```
 
-The registry pre-registers `memory` and `local`; the server adds `s3` and `ftp`
-through `createDefaultStorageRegistry`. Register yours the same way, then
-`resolve` a config to a driver:
+`createDefaultStorageRegistry()` gives you `memory` and `local`; each
+`register<Name>Storage` call adds one more. Register yours the same way, with
+your own package's function or a bare `registry.register('cdn', ...)`.
 
-```dart title="packages/beak_core/lib/src/storage/beak_storage_registry.dart"
-final registry = BeakStorageRegistry()
-  ..register('s3', BeakS3StorageDriver.fromConfig); // from beak_storage_s3
+### Selecting it at runtime
 
-// Later, build the driver the config selects:
-final BeakStorageDriver driver = registry.resolve(
-  BeakS3Config(
-    endpoint: Uri.parse('https://s3.eu-central-1.amazonaws.com'),
-    bucket: 'uploads',
-    accessKey: accessKey,
-    secretKey: secretKey,
-    region: 'eu-central-1',
-  ),
-);
-```
+Which registered driver is actually used comes from the environment.
+`BEAK_STORAGE_DRIVER` names it, and each driver reads its own variables:
+
+| `BEAK_STORAGE_DRIVER` | Also reads |
+| --- | --- |
+| unset or empty | nothing (uploads fall back to local disk under `storage/uploads`, served at `/uploads`) |
+| `none` | nothing (uploads are disabled outright) |
+| `memory` | nothing |
+| `local` | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL` |
+| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION`, optional `BEAK_S3_USE_PATH_STYLE` |
+| `ftp` | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL`, optional `BEAK_FTP_PORT` |
+
+A driver selected but never registered fails at boot with a
+`BeakConfigurationException` naming it, rather than at the first upload. A
+driver whose settings are not purely environment variables is still usable:
+register it, build its config yourself, and pass the resolved driver to the
+server.
+
+!!! danger "Storage credentials are secrets"
+    `BEAK_S3_SECRET_KEY` and `BEAK_FTP_PASSWORD` belong in the environment, not
+    in a commit. Beak reads the real process environment first and an optional
+    git-ignored `.env` second, so a deployment can set them without a file. See
+    [Environment and config](../deployment/environment-and-config.md).
 
 ## Where your config lives
 
-`BeakStorageConfig` is a **sealed** family in `beak_core`, so a config carries a
-`driverId` and the settings your driver needs, and every factory can match it
-exhaustively. A genuinely new backend therefore comes in two parts: a
-`BeakStorageConfig` subtype in `beak_core` (its settings and `driverId`) and a
-driver package that implements `BeakStorageDriver` and exposes a
-`register<Name>Storage` function, exactly as `beak_storage_ftp` and
-`beak_storage_s3` are laid out. The contributing guide walks that split in
-detail.
+`BeakStorageConfig` is a **sealed** family, so a config carries a `driverId` and
+the settings your driver needs, and every factory can match it exhaustively. A
+genuinely new backend therefore comes in two parts: a `BeakStorageConfig`
+subtype (its settings and `driverId`) and a driver package that implements
+`BeakStorageDriver` and exposes a `register<Name>Storage` function, exactly as
+`beak_storage_ftp` and `beak_storage_s3` are laid out. The contributing guide
+walks that split in detail.
 
 Once registered, the server resolves your driver at startup and hands it to the
 upload service. Nothing else changes: file columns, validation, and the upload
 route already speak `BeakStorageDriver`.
 
-```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-final storage = resolveStorage(
-  BeakS3Config(
-    endpoint: Uri.parse('https://s3.example.com'),
-    bucket: 'uploads',
-    accessKey: accessKey,
-    secretKey: secretKey,
-    region: 'us-east-1',
-  ),
-);
-final server = BeakServer(
-  config: config,
-  registry: registry,
-  dataSource: dataSource,
-  storage: storage,
-);
-```
-
 ## Continue reading
 
 - [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) the validate-transform-store pipeline your driver's `put` sits at the end of.
-- [Files and storage columns](../models/files-and-storage-columns.md) the image and file columns that produce the uploads.
+- [Files and storage columns](../models/files-and-storage-columns.md) the `@Image` and `@FileField` annotations that produce the uploads.
 - [Writing a storage driver](../contributing/writing-a-storage-driver.md) the config-plus-package split for contributing a driver upstream.
 - [Custom data sources](custom-data-sources.md) the same pluggable pattern for records instead of files.

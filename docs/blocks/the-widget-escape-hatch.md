@@ -41,6 +41,9 @@ so it can read inherited scopes and theme the way any obers_ui widget does.
 
 Pass a builder that returns an obers_ui widget. Because a block can take a `span`,
 the escape hatch still places itself inside a `BeakGridBlock` like any other block.
+The file holding it is an ordinary screen or resource file, so it imports
+`package:beak/panel.dart` for the blocks and `package:beak/ui.dart` for the
+`Oi*` widgets the builder returns.
 
 ```dart
 BeakWidgetBlock(
@@ -72,13 +75,13 @@ out rather than forking a block.
 ## Stay off Material
 
 The escape hatch does not exempt you from Beak's one hard UI rule. Your builder
-must return obers_ui widgets (the `Oi*` family), with Flutter's `widgets.dart`
-and `foundation.dart` allowed only for the core types (`BuildContext`, `Widget`,
-`Key`, `EdgeInsets`, `Color`, and friends). Never import
-`package:flutter/material.dart` or `package:flutter/cupertino.dart` inside a
-builder. The panel's `guard-material` check greps for those imports across the
-whole tree, so a Material widget smuggled through a `BeakWidgetBlock` fails the
-gate the same as anywhere else.
+must return obers_ui widgets (the `Oi*` family, re-exported by
+`package:beak/ui.dart`), with Flutter's `widgets.dart` and `foundation.dart`
+allowed only for the core types (`BuildContext`, `Widget`, `Key`, `EdgeInsets`,
+`Color`, and friends). Never import `package:flutter/material.dart` or
+`package:flutter/cupertino.dart` inside a builder. Beak's own `guard-material`
+check greps for those imports across the whole tree, so a Material widget
+smuggled through a `BeakWidgetBlock` fails the gate the same as anywhere else.
 
 !!! tip "The column-side twin"
     `BeakWidgetBlock` is to blocks what `BeakCustomColumn` is to columns: the

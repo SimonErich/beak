@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/io.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
@@ -132,8 +133,41 @@ void main() {
   });
 
   group('resolveStorageDriver', () {
-    test('returns null when the environment disables uploads', () {
-      expect(host().resolveStorageDriver(), isNull);
+    test('falls back to local disk when nothing is configured', () {
+      // The same posture as the database: an upload column works on a fresh
+      // project with no setup, and this server serves what it stored.
+      final BeakStorageDriver? driver = host().resolveStorageDriver();
+
+      expect(driver, isA<BeakLocalDiskStorageDriver>());
+      if (driver case final BeakLocalDiskStorageDriver local) {
+        expect(local.publicBaseUrl.path, BeakServeHost.defaultUploadPath);
+        expect(local.rootDir, BeakServeHost.defaultUploadDir);
+        // The test environment binds 127.0.0.1, so that is what the URL
+        // names; the `0.0.0.0` case is covered below.
+        expect(local.publicBaseUrl.host, '127.0.0.1');
+      }
+    });
+
+    test('never hands out a URL naming the wildcard bind address', () {
+      // `0.0.0.0` is where the socket binds, not somewhere a browser can go;
+      // a URL built from it would be handed out and then fail to load.
+      final BeakStorageDriver? driver = host(
+        environment: {..._env, 'HOST': '0.0.0.0'},
+      ).resolveStorageDriver();
+
+      expect(driver, isA<BeakLocalDiskStorageDriver>());
+      if (driver case final BeakLocalDiskStorageDriver local) {
+        expect(local.publicBaseUrl.host, 'localhost');
+      }
+    });
+
+    test('returns null when the environment turns uploads off', () {
+      expect(
+        host(
+          environment: {..._env, 'BEAK_STORAGE_DRIVER': 'none'},
+        ).resolveStorageDriver(),
+        isNull,
+      );
     });
 
     test('resolves an in-box driver without a plug-in registry', () {

@@ -101,9 +101,10 @@ final class BeakResource {
 
   /// A custom show-page layout: a record-bound [BeakBlock] tree (cards,
   /// sections, tabs, grids composed of `BeakFieldBlock`/`BeakFieldGroupBlock`/
-  /// `BeakRelationBlock`) rendered inside the loaded record's scope. When
-  /// `null`, the show page falls back to the generated definition-grid detail
-  /// view plus the record's to-many relation managers.
+  /// `BeakRelationBlock`) rendered inside the loaded record's scope.
+  ///
+  /// When `null`, [effectiveDetail] derives one from the model: a headline
+  /// card, the remaining fields, and a tab per to-many relationship.
   final BeakBlock? detail;
 
   /// When set, the create/edit form renders as a multi-step wizard over these
