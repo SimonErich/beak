@@ -7,45 +7,39 @@
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
+/// [Blueprint] is a builder, not a renderer.
+///
+/// It used to carry its own `toSql()` — a second, Postgres-flavoured DDL
+/// renderer living in the dialect-neutral core, free to drift from the three
+/// compilers that actually run. The rendering now belongs to the compilers,
+/// one per dialect, each with its own exhaustive `ColumnType` mapping test.
+/// What is left here is what a blueprint is for: turning a build callback
+/// into a described table.
 void main() {
   group('Blueprint create', () {
-    test('emits SQL with primary key, NOT NULL, defaults', () {
+    test('captures columns with their modifiers', () {
       final blueprint = Blueprint.create('users', (table) {
         table.idUuid();
         table.string('email').makeUnique();
         table.integer('age').makeNullable();
         table.boolean('active').withDefault(true);
       });
-      final sql = blueprint.toSql();
-      expect(sql, contains('CREATE TABLE "users"'));
-      expect(sql, contains('"id" UUID'));
-      expect(sql, contains('PRIMARY KEY'));
-      expect(sql, contains('"email" VARCHAR(255)'));
-      expect(sql, contains('UNIQUE'));
-      expect(sql, contains('"age" INTEGER'));
-      expect(sql, contains('"active" BOOLEAN'));
-      expect(sql, contains('DEFAULT TRUE'));
-    });
 
-    test('emits MongoDB description with required flags', () {
-      final blueprint = Blueprint.create('posts', (table) {
-        table.uuid('id').primary();
-        table.string('title');
-        table.text('body').makeNullable();
-      });
-      final mongo = blueprint.toMongo();
-      expect(mongo['operation'], 'create');
-      expect(mongo['collection'], 'posts');
-      final fields = mongo['fields']! as List<Map<String, Object?>>;
-      expect(fields, hasLength(3));
-      expect(fields[0]['bsonType'], 'string');
-      expect(fields[1]['required'], true);
-      expect(fields[2]['required'], false);
+      expect(blueprint.operation, BlueprintOperation.create);
+      expect(blueprint.tableName, 'users');
+      final columns = {
+        for (final column in blueprint.table.columns) column.name: column,
+      };
+      expect(columns['id']?.isPrimaryKey, isTrue);
+      expect(columns['email']?.unique, isTrue);
+      expect(columns['age']?.nullable, isTrue);
+      expect(columns['active']?.defaultValue, true);
+      expect(columns['email']?.type, ColumnType.string);
     });
   });
 
   group('Blueprint type coverage', () {
-    test('all 24+ column types render valid SQL', () {
+    test('every column factory reaches the table definition', () {
       final blueprint = Blueprint.create('all_types', (table) {
         table.string('a');
         table.smallInteger('b');
@@ -75,35 +69,42 @@ void main() {
         table.xml('z');
         table.array('aa', ColumnType.integer);
       });
+
       expect(blueprint.table.columns, hasLength(27));
-      final sql = blueprint.toSql();
-      expect(sql, contains('VARCHAR(255)'));
-      expect(sql, contains('SMALLINT'));
-      expect(sql, contains('NUMERIC(10,2)'));
-      expect(sql, contains('INTEGER[]'));
+      final byName = {
+        for (final column in blueprint.table.columns) column.name: column,
+      };
+      expect(byName['a']?.type, ColumnType.string);
+      expect(byName['b']?.type, ColumnType.smallInteger);
+      expect(byName['e']?.type, ColumnType.decimal);
+      expect(byName['o']?.enumValues, <String>['x', 'y']);
+      expect(byName['aa']?.elementType, ColumnType.integer);
     });
   });
 
   group('Blueprint alter and drop', () {
-    test('alter adds columns and drops named columns', () {
+    test('alter records added and dropped columns', () {
       final blueprint = Blueprint.alter('users', (table) {
         table.string('bio');
         table.dropColumn('legacy');
       });
-      final sql = blueprint.toSql();
-      expect(sql, contains('ALTER TABLE "users"'));
-      expect(sql, contains('ADD COLUMN'));
-      expect(sql, contains('DROP COLUMN "legacy"'));
+
+      expect(blueprint.operation, BlueprintOperation.alter);
+      expect(blueprint.table.columns.single.name, 'bio');
+      expect(blueprint.table.droppedColumns, <String>['legacy']);
     });
 
-    test('drop emits idempotent DROP TABLE', () {
-      final sql = Blueprint.drop('users').toSql();
-      expect(sql, 'DROP TABLE IF EXISTS "users";');
+    test('drop carries nothing but the table name', () {
+      final blueprint = Blueprint.drop('users');
+
+      expect(blueprint.operation, BlueprintOperation.drop);
+      expect(blueprint.tableName, 'users');
+      expect(blueprint.table.columns, isEmpty);
     });
   });
 
   group('Blueprint indexes and foreign keys', () {
-    test('renders unique and partial indexes', () {
+    test('a unique and a partial index over one column are two indexes', () {
       final blueprint = Blueprint.create('users', (table) {
         table.uuid('id').primary();
         table.string('email');
@@ -117,12 +118,15 @@ void main() {
           where: 'email IS NOT NULL',
         );
       });
-      final sql = blueprint.toSql();
-      expect(sql, contains('UNIQUE INDEX'));
-      expect(sql, contains('WHERE email IS NOT NULL'));
+
+      final indexes = blueprint.table.indexes;
+      expect(indexes, hasLength(2));
+      expect(indexes.first.unique, isTrue);
+      expect(indexes.last.name, 'users_email_present_idx');
+      expect(indexes.last.partialWhere, 'email IS NOT NULL');
     });
 
-    test('renders foreign keys with ON DELETE action', () {
+    test('a foreign key keeps its delete action', () {
       final blueprint = Blueprint.create('posts', (table) {
         table.uuid('id').primary();
         table.uuid('user_id');
@@ -133,10 +137,12 @@ void main() {
           onDelete: OnDelete.cascade,
         );
       });
-      final sql = blueprint.toSql();
-      expect(sql, contains('FOREIGN KEY ("user_id")'));
-      expect(sql, contains('REFERENCES "users"("id")'));
-      expect(sql, contains('ON DELETE CASCADE'));
+
+      final foreignKey = blueprint.table.foreignKeys.single;
+      expect(foreignKey.columns, <String>['user_id']);
+      expect(foreignKey.referencedTable, 'users');
+      expect(foreignKey.referencedColumns, <String>['id']);
+      expect(foreignKey.onDelete, OnDelete.cascade);
     });
   });
 }

@@ -358,4 +358,21 @@ void main() {
       );
     });
   });
+
+  group('SqliteCompiler.sqliteTypeOf', () {
+    test('maps every ColumnType to one of the four storage classes', () {
+      // SQLite has four of them, and a column declared as anything else
+      // still resolves to one by its own affinity rules — so an unmapped
+      // type would silently become TEXT rather than fail. Assert the
+      // mapping is deliberate for all 27.
+      const affinities = {'INTEGER', 'REAL', 'TEXT', 'BLOB', 'NUMERIC'};
+      for (final type in ColumnType.values) {
+        expect(
+          affinities,
+          contains(SqliteCompiler.sqliteTypeOf(type)),
+          reason: 'ColumnType.${type.name} maps to an unknown storage class',
+        );
+      }
+    });
+  });
 }

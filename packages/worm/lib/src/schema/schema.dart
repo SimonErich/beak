@@ -10,4 +10,3 @@ export 'on_delete.dart';
 export 'primary_key_type.dart';
 export 'schema_facade.dart';
 export 'table_schema.dart';
-export 'type_mapper.dart';

@@ -7,7 +7,6 @@ import 'column_type.dart';
 import 'foreign_key_definition.dart';
 import 'index_definition.dart';
 import 'on_delete.dart';
-import 'type_mapper.dart';
 
 /// Operation performed by a [Blueprint].
 enum BlueprintOperation {
@@ -259,7 +258,7 @@ final class BlueprintTable {
       if (existing.name != indexName) {
         continue;
       }
-      final bool identical =
+      final identical =
           _sameColumns(existing.columns, columns) &&
           existing.unique == unique &&
           existing.kind == kind &&
@@ -404,113 +403,4 @@ final class Blueprint {
 
   /// The accumulated table definition.
   final BlueprintTable table;
-
-  /// Renders the blueprint as PostgreSQL DDL.
-  String toSql() => switch (operation) {
-    BlueprintOperation.create => _renderCreate(),
-    BlueprintOperation.alter => _renderAlter(),
-    BlueprintOperation.drop => 'DROP TABLE IF EXISTS "$tableName";',
-  };
-
-  String _renderCreate() {
-    final buffer = StringBuffer('CREATE TABLE "$tableName" (')..write('\n');
-    final lines = <String>[
-      for (final col in table.columns) _renderColumn(col),
-      for (final fk in table.foreignKeys) _renderForeignKey(fk),
-    ];
-    buffer
-      ..writeAll(lines, ',\n')
-      ..write('\n);');
-    for (final idx in table.indexes) {
-      buffer
-        ..write('\n')
-        ..write(_renderIndex(idx));
-    }
-    return buffer.toString();
-  }
-
-  String _renderAlter() {
-    final parts = <String>[
-      for (final col in table.columns)
-        'ADD COLUMN ${_renderColumn(col).trim()}',
-      for (final dropped in table.droppedColumns) 'DROP COLUMN "$dropped"',
-    ];
-    if (parts.isEmpty) return '-- empty alter';
-    return 'ALTER TABLE "$tableName" ${parts.join(', ')};';
-  }
-
-  String _renderColumn(ColumnDefinition col) {
-    final sqlType = TypeMapper.toSqlType(
-      col.type,
-      length: col.length,
-      precision: col.precision,
-      scale: col.scale,
-      elementType: col.elementType,
-    );
-    final buffer = StringBuffer('  "${col.name}" $sqlType');
-    if (col.autoIncrement) buffer.write(' GENERATED ALWAYS AS IDENTITY');
-    if (col.isPrimaryKey) buffer.write(' PRIMARY KEY');
-    if (col.unique) buffer.write(' UNIQUE');
-    if (!col.nullable && !col.isPrimaryKey) buffer.write(' NOT NULL');
-    final defaultValue = col.defaultValue;
-    if (defaultValue != null) {
-      buffer.write(' DEFAULT ${_renderDefault(defaultValue)}');
-    }
-    return buffer.toString();
-  }
-
-  String _renderDefault(Object value) => switch (value) {
-    final bool b => b ? 'TRUE' : 'FALSE',
-    final num n => '$n',
-    _ => "'$value'",
-  };
-
-  String _renderForeignKey(ForeignKeyDefinition fk) {
-    final locals = fk.columns.map((c) => '"$c"').join(', ');
-    final remotes = fk.referencedColumns.map((c) => '"$c"').join(', ');
-    final buffer = StringBuffer('  FOREIGN KEY ($locals) ')
-      ..write('REFERENCES "${fk.referencedTable}"')
-      ..write('($remotes)')
-      ..write(' ON DELETE ${_onDeleteSql(fk.onDelete)}');
-    return buffer.toString();
-  }
-
-  String _onDeleteSql(OnDelete action) => switch (action) {
-    OnDelete.cascade => 'CASCADE',
-    // ormCascade is honored at runtime by ActiveRecord.delete; the
-    // database-level FK is rendered as NO ACTION because the ORM
-    // walks every child before issuing the parent delete.
-    OnDelete.ormCascade => 'NO ACTION',
-    OnDelete.restrict => 'RESTRICT',
-    OnDelete.setNull => 'SET NULL',
-    OnDelete.setDefault => 'SET DEFAULT',
-    OnDelete.noAction => 'NO ACTION',
-  };
-
-  String _renderIndex(IndexDefinition idx) {
-    final cols = idx.columns.map((c) => '"$c"').join(', ');
-    final unique = idx.unique ? 'UNIQUE ' : '';
-    final where = idx.partialWhere != null ? ' WHERE ${idx.partialWhere}' : '';
-    return 'CREATE ${unique}INDEX "${idx.name}" '
-        'ON "$tableName" USING ${idx.kind.name} ($cols)$where;';
-  }
-
-  /// Renders the blueprint as a MongoDB description document.
-  Map<String, Object?> toMongo() => <String, Object?>{
-    'operation': operation.name,
-    'collection': tableName,
-    if (operation != BlueprintOperation.drop)
-      'fields': <Map<String, Object?>>[
-        for (final col in table.columns)
-          <String, Object?>{
-            'name': col.name,
-            'bsonType': TypeMapper.toMongoType(col.type),
-            'required': !col.nullable,
-          },
-      ],
-    if (table.indexes.isNotEmpty)
-      'indexes': <Map<String, Object?>>[
-        for (final idx in table.indexes) idx.toMap(),
-      ],
-  };
 }
