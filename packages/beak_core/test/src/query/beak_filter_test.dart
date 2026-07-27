@@ -71,7 +71,10 @@ void main() {
 
     test('defaults its value to BeakNullValue for operand-less operators', () {
       expect(
-        BeakFieldFilter(column: status, operator: BeakOperator.isNotNull).value,
+        const BeakFieldFilter(
+          column: status,
+          operator: BeakOperator.isNotNull,
+        ).value,
         const BeakNullValue(),
       );
       expect(

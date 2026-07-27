@@ -1,0 +1,24 @@
+name: store
+description: A Beak admin panel.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  beak:
+    path: ../../packages/beak
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  http: ^1.6.0
+  # Only the API scenario needs these: it encodes a real PNG to upload, and
+  # runs outside `flutter_test` so it can bind a port.
+  image: ^4.9.1
+  lints: ^6.0.0
+  test: ^1.26.0

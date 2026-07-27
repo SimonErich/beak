@@ -1,0 +1,13 @@
+# Beak inside an app that already exists.
+name: Embedded
+
+api:
+  # Mounted under the host's own server, so the panel calls the same origin
+  # it was served from.
+  baseUrl: auto
+
+resources:
+  tickets:
+    icon: lifeBuoy
+  accounts:
+    icon: building

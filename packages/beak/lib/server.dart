@@ -6,6 +6,9 @@
 /// database driver, so a panel file must never import it — the web-safety
 /// guard fails the build if one does.
 ///
+/// Re-exports `package:beak/beak.dart`, so a `lib/server.dart` writing a row
+/// policy has the columns and filters it scopes with under one import.
+///
 /// ```dart
 /// import 'package:beak/server.dart';
 ///
@@ -13,5 +16,6 @@
 /// ```
 library;
 
+export 'beak.dart';
 export 'package:beak_backend/beak_backend.dart';
 export 'package:beak_core/io.dart';

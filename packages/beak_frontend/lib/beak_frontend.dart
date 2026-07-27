@@ -3,6 +3,7 @@
 library;
 
 export 'src/actions/beak_action.dart';
+export 'src/auth/beak_session_store.dart';
 export 'src/actions/beak_action_button.dart';
 export 'src/blocks/beak_block.dart';
 export 'src/blocks/beak_block_host.dart';

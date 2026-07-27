@@ -274,12 +274,12 @@ void main() {
       final page = await source.query(
         _product.query(
           relationLoads: [
-            BeakRelationLoad(
+            const BeakRelationLoad(
               'tags',
               filter: BeakFieldFilter(
                 column: CategoryColumns.name,
                 operator: BeakOperator.eq,
-                value: const BeakStringValue('Hot'),
+                value: BeakStringValue('Hot'),
               ),
             ),
           ],

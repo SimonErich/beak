@@ -18,7 +18,7 @@ final class BeakLocalDiskStorageDriver implements BeakStorageDriver {
   BeakLocalDiskStorageDriver({
     required String rootDir,
     required this.publicBaseUrl,
-  }) : _rootDir = rootDir.replaceAll(RegExp(r'/+$'), '');
+  }) : rootDir = rootDir.replaceAll(RegExp(r'/+$'), '');
 
   /// Creates the driver from its [BeakLocalDiskStorageConfig].
   ///
@@ -37,7 +37,8 @@ final class BeakLocalDiskStorageDriver implements BeakStorageDriver {
         ),
       };
 
-  final String _rootDir;
+  /// Directory stored files are written under, without a trailing slash.
+  final String rootDir;
 
   /// Base URL stored files are publicly served from.
   final Uri publicBaseUrl;
@@ -92,7 +93,7 @@ final class BeakLocalDiskStorageDriver implements BeakStorageDriver {
 
   File _fileFor(String key) {
     BeakStorageKeys.validate(key);
-    return File('$_rootDir/$key');
+    return File('$rootDir/$key');
   }
 
   Uri _urlFor(String key) =>

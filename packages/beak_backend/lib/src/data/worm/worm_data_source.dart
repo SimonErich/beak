@@ -51,13 +51,18 @@ final class WormDataSource implements BeakDataSource {
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    final BeakModel beakModel = registry.byTableOrThrow(spec.table);
     final builder = _translator.builderFor(spec, _adapter);
     final int total = await builder.count();
-    final models = await builder.get();
+    final rows = await builder.get();
     return BeakPage(
       items: [
-        for (final model in models)
-          model.toBeakRecord(loads: spec.relationLoads),
+        for (final row in rows)
+          row.toBeakRecord(
+            loads: spec.relationLoads,
+            model: beakModel,
+            registry: registry,
+          ),
       ],
       total: total,
       page: spec.pagination.page,
@@ -71,7 +76,7 @@ final class WormDataSource implements BeakDataSource {
     final found = await _scopedBuilder(
       model,
     ).where(_primaryKeyPredicate(model, id)).first();
-    return found?.toBeakRecord();
+    return found?.toBeakRecord(model: model, registry: registry);
   }
 
   @override
@@ -173,7 +178,10 @@ final class WormDataSource implements BeakDataSource {
           ),
         )
         .get();
-    return [for (final found in models) found.toBeakRecord()];
+    return [
+      for (final found in models)
+        found.toBeakRecord(model: model, registry: registry),
+    ];
   }
 
   @override

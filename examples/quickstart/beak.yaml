@@ -1,0 +1,15 @@
+# Beak project configuration. Every key is optional — delete this file and
+# Beak still boots, titling the panel after the package.
+name: Quickstart
+
+api:
+  # The origin the panel calls. Use `auto` to call the origin the panel was
+  # served from, which is what a single-host deployment wants.
+  baseUrl: http://localhost:8080
+
+# Presentation for a discovered resource. Anything not listed here is still
+# discovered — it just uses the default icon and a title-cased label.
+resources:
+  notes:
+    icon: fileText
+    section: Content

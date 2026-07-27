@@ -46,5 +46,5 @@ docker build -f deploy/Dockerfile.web    -t beak-web .
 ```
 
 Always build from the repo root: Beak uses path dependencies, so the whole
-`packages/` and `apps/` tree must be in the build context. The repo-root
+`packages/` and `examples/` tree must be in the build context. The repo-root
 `.dockerignore` trims the rest.

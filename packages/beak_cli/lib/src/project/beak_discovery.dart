@@ -15,6 +15,7 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
     required this.isConstructible,
     this.sortKey,
     this.table,
+    this.alsoDeclares = const {},
   });
 
   /// The Dart identifier: a class name, or a top-level variable/function name.
@@ -28,6 +29,12 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
   /// `false` for a top-level `final` variable or a zero-argument function,
   /// which the emitter references directly instead.
   final bool isConstructible;
+
+  /// Optional companion functions the same file declares, by name.
+  ///
+  /// An override file may wire more than one thing; `lib/server.dart` adding
+  /// `beakStorageRegistry` is how a project registers a plug-in upload driver.
+  final Set<String> alsoDeclares;
 
   /// What this symbol sorts by ahead of its path, when it declares one.
   ///
@@ -160,16 +167,28 @@ enum BeakOverrideKind {
   /// `lib/dashboard.dart` — replaces the generated `/` screen.
   dashboard(path: 'dashboard.dart', symbol: 'beakDashboard'),
 
-  /// `lib/server.dart` — middleware, extra routes, policy.
-  server(path: 'server.dart', symbol: 'beakServer');
+  /// `lib/server.dart` — middleware, extra routes, policy, and optionally
+  /// the storage registry a plug-in upload driver is registered into.
+  server(
+    path: 'server.dart',
+    symbol: 'beakServer',
+    optionalSymbols: {'beakStorageRegistry'},
+  );
 
-  const BeakOverrideKind({required this.path, required this.symbol});
+  const BeakOverrideKind({
+    required this.path,
+    required this.symbol,
+    this.optionalSymbols = const {},
+  });
 
   /// Path relative to `lib/` this override lives at.
   final String path;
 
   /// Top-level function the file must declare for the override to apply.
   final String symbol;
+
+  /// Further functions the file may declare, each wiring one more thing.
+  final Set<String> optionalSymbols;
 }
 
 /// Scans a Beak project for the declarations Beak wires up for you.
@@ -476,6 +495,15 @@ final class BeakProjectScanner {
           name: kind.symbol,
           importPath: kind.path,
           isConstructible: false,
+          alsoDeclares: {
+            for (final optional in kind.optionalSymbols)
+              if (unit.declarations.any(
+                (declaration) =>
+                    declaration is FunctionDeclaration &&
+                    declaration.name.lexeme == optional,
+              ))
+                optional,
+          },
         );
       }
     }

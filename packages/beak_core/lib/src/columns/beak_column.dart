@@ -201,11 +201,12 @@ double? _readDouble(BeakValue? value) => switch (value?.raw) {
   _ => null,
 };
 
-/// Reads [value] as a boolean, accepting the canonical wire strings.
+/// Reads [value] as a boolean, accepting the canonical wire strings and the
+/// 0/1 integers SQLite stores booleans as.
 bool? _readBool(BeakValue? value) => switch (value?.raw) {
   final bool raw => raw,
-  'true' => true,
-  'false' => false,
+  'true' || 1 => true,
+  'false' || 0 => false,
   _ => null,
 };
 

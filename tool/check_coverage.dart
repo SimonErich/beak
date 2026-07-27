@@ -1,7 +1,7 @@
 /// Coverage-threshold enforcer for the Beak monorepo (`melos run coverage`).
 ///
 /// Run from the repo root after `melos run test`. For every gated package
-/// (under `packages/` and `apps/`, vendored `worm*` excluded) that has a
+/// (under `packages/` and `examples/`, vendored `worm*` excluded) that has a
 /// `test/` directory, it locates the lcov report — converting the VM-JSON
 /// output of `dart test --coverage` when needed — computes the line-coverage
 /// percentage, and exits non-zero if any package misses its threshold.
@@ -14,8 +14,14 @@ const int defaultThresholdPct = 85;
 
 /// Per-package threshold overrides, keyed by package directory name.
 ///
-/// Phase 00 scaffolds empty skeletons, so packages start at zero and later
-/// phases raise them as real code lands. `beak_core` is pure and holds 100.
+/// `beak_core` is pure and holds 100. The examples hold a lower bar on
+/// purpose: an example earns its keep by being read and run, and most of what
+/// it declares — a screen's block tree, a resource's actions — is data the
+/// widget suite instantiates without executing line by line. What has to work
+/// is checked directly instead: the API scenario exercises the models, the
+/// policy and the seeders end to end (outside the coverage run, since it
+/// binds a port), and the coverage matrices fail when a feature stops being
+/// demonstrated at all.
 const Map<String, int> thresholdOverridesPct = {
   'beak_core': 100,
   'beak_backend': 90,
@@ -23,12 +29,14 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
-  'reference_admin': 85,
-  'reference_admin_server': 85,
+  'quickstart': 50,
+  'store': 50,
+  'superdashboard': 85,
+  'embedded': 50,
 };
 
 /// Directories that hold gated packages, relative to the repo root.
-const List<String> packageRootDirs = ['packages', 'apps'];
+const List<String> packageRootDirs = ['packages', 'examples'];
 
 /// Line-coverage numbers extracted from an lcov report.
 final class LcovSummary {

@@ -3,13 +3,16 @@ part of 'beak_column.dart';
 /// An integer column, rendered as a locale-aware number.
 ///
 /// [min]/[max] bound the form's stepper; pair them with [BeakMin]/[BeakMax]
-/// rules to reject out-of-range values on submit as well.
+/// rules to reject out-of-range values on submit as well. A [prefix] or
+/// [suffix] carries the unit into the rendering, so a count reads `42 pcs`
+/// rather than `42`.
 ///
 /// ```dart
 /// static const stock = BeakIntColumn(
 ///   key: 'stock',
 ///   label: 'Stock',
 ///   min: 0,
+///   suffix: ' pcs',
 ///   sortable: true,
 ///   rules: [BeakMin(0)],
 /// );
@@ -28,6 +31,8 @@ final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
     super.rules,
     this.min,
     this.max,
+    this.prefix,
+    this.suffix,
   });
 
   /// Lowest value the form input offers, if bounded.
@@ -36,9 +41,18 @@ final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
   /// Highest value the form input offers, if bounded.
   final int? max;
 
+  /// Text rendered before the number (e.g. `#`), if any.
+  final String? prefix;
+
+  /// Text rendered after the number (e.g. ` pcs`), if any.
+  final String? suffix;
+
   @override
-  BeakRenderConfig get renderConfig =>
-      const BeakRenderConfig.uniform(BeakRenderIntent.number);
+  BeakRenderConfig get renderConfig => BeakRenderConfig.uniform(
+    prefix != null || suffix != null
+        ? BeakRenderIntent.currency
+        : BeakRenderIntent.number,
+  );
 
   /// Reads [value] as a int value.
   @override

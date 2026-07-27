@@ -30,6 +30,7 @@ final class BeakServerDefaults {
     required this.config,
     required this.registry,
     required this.dataSource,
+    required this.environment,
     this.storage,
   });
 
@@ -44,6 +45,17 @@ final class BeakServerDefaults {
 
   /// The resolved upload driver, or `null` when uploads are disabled.
   final BeakStorageDriver? storage;
+
+  /// The environment the host resolved, `.env` included.
+  ///
+  /// Read app-specific settings from here rather than [Platform.environment]:
+  /// a test that injects an environment into [BeakServeHost] injects it into
+  /// the policy and the auth configuration too.
+  ///
+  /// ```dart
+  /// final secret = defaults.environment['AUTH_SECRET'] ?? 'dev-secret';
+  /// ```
+  final Map<String, String> environment;
 
   /// The server Beak would have built.
   ///
@@ -170,6 +182,7 @@ final class BeakServeHost {
       config: config,
       registry: registry,
       dataSource: WormDataSource(registry, adapter: adapter, now: _now),
+      environment: _environment,
       storage: storage,
     );
     return configure?.call(defaults) ?? defaults.build();

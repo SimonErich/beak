@@ -10,6 +10,7 @@ import '../query/beak_query_spec.dart';
 import '../query/beak_record.dart';
 import '../search/beak_search_hit.dart';
 import '../storage/beak_stored_file.dart';
+import 'beak_session.dart';
 import '../storage/beak_upload.dart';
 
 /// The thin typed transport over Beak's REST surface: it serializes the
@@ -58,6 +59,42 @@ final class BeakClient {
   final http.Client _http;
   final String? Function()? _tokenProvider;
 
+  /// The origin this client calls, without a trailing slash.
+  String get baseUrl => _baseUrl;
+
+  /// Signs in through the generated `/api/auth/login`.
+  ///
+  /// Feed the returned token back through `tokenProvider` (the panel's
+  /// session store does this for you) and every later call is authenticated.
+  ///
+  /// Throws a [BeakAuthenticationException] when the credentials are wrong.
+  Future<BeakSession> login({
+    required String username,
+    required String password,
+  }) async {
+    final response = await _postJson('/api/auth/login', {
+      'username': username,
+      'password': password,
+    });
+    return BeakSession.fromJson(_decodeObject(response.body));
+  }
+
+  /// Ends [token]'s session through `/api/auth/logout`.
+  ///
+  /// The server forgets the token, so a copy of it elsewhere stops working
+  /// too — which is the point of an opaque session token.
+  Future<void> logout(String token) async {
+    final response = await _http.post(
+      _uri('/api/auth/logout'),
+      headers: {
+        'content-type': 'application/json',
+        'authorization': 'Bearer $token',
+      },
+      body: jsonEncode(const <String, Object?>{}),
+    );
+    _ensureSuccess(response);
+  }
+
   /// Runs [spec] against `POST /api/{table}/query`.
   Future<BeakPage<BeakRecord>> query(String table, BeakQuerySpec spec) async {
     final response = await _postJson('/api/$table/query', spec.toJson());
@@ -87,10 +124,24 @@ final class BeakClient {
   }
 
   /// Partially updates a record via `PATCH /api/{table}/{id}`.
-  Future<BeakRecord> update(String table, Object id, BeakRecord data) async {
+  ///
+  /// Pass [ifUnmodifiedSince] — the `updated_at` the record carried when it
+  /// was read — to make the write conditional: if someone else saved in the
+  /// meantime the API answers 409 and this throws a [BeakConflictException],
+  /// instead of silently overwriting their work.
+  Future<BeakRecord> update(
+    String table,
+    Object id,
+    BeakRecord data, {
+    DateTime? ifUnmodifiedSince,
+  }) async {
     final response = await _http.patch(
       _uri('/api/$table/$id'),
-      headers: _headers(json: true),
+      headers: {
+        ..._headers(json: true),
+        if (ifUnmodifiedSince != null)
+          'if-unmodified-since': ifUnmodifiedSince.toUtc().toIso8601String(),
+      },
       body: jsonEncode(_flatValues(data)),
     );
     _ensureSuccess(response);

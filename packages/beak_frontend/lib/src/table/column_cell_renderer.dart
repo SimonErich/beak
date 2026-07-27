@@ -175,6 +175,12 @@ String _currencyText(BeakColumn column, Object raw) {
       prefix ?? '',
       suffix ?? '',
     ),
+    // An integer keeps its own precision: `42 pcs`, never `42.00 pcs`.
+    BeakIntColumn(:final prefix, :final suffix) => (
+      0,
+      prefix ?? '',
+      suffix ?? '',
+    ),
     _ => (2, '', ''),
   };
   final String amount = switch (_asNum(raw)) {

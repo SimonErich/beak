@@ -1,0 +1,52 @@
+name: superdashboard
+description: >-
+  Beak superdashboard — a single-package demo that reproduces a full admin
+  theme (dashboard, apps, pages, UI kit) entirely from seeded data. It holds
+  the shared Beak models, worm migrations and seeders, the Shelf server
+  binary, and the Flutter panel, all in one deployable package.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  beak_backend:
+    path: ../../packages/beak_backend
+  beak_core:
+    path: ../../packages/beak_core
+  beak_frontend:
+    path: ../../packages/beak_frontend
+  beak_storage_s3:
+    path: ../../packages/beak_storage_s3
+  # See packages/beak_frontend/pubspec.yaml for why this is pinned by commit.
+  obers_ui:
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
+  worm:
+    path: ../../packages/worm
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  beak_test:
+    path: ../../packages/beak_test
+  flutter_test:
+    sdk: flutter
+  go_router: ^17.3.0
+  http: ^1.6.0
+  image: ^4.9.1
+  lints: ^6.0.0
+
+# This package is the first to combine the panel (beak_frontend) and the
+# server (beak_backend + the s3 driver it opts into) in ONE pubspec. minio
+# 3.5.8 pins xml ^6 while image 4.9.x needs xml ^7; minio's xml use is
+# xml-7-compatible
+# (proven by beak_backend's MinIO integration suite), so this override lets
+# both stacks coexist. It lives here (tracked) rather than the melos-managed,
+# git-ignored pubspec_overrides.yaml so it survives a fresh clone; pub merges
+# it with melos's generated path overrides.
+dependency_overrides:
+  xml: ^7.0.1

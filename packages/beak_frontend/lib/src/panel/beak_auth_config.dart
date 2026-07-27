@@ -4,13 +4,21 @@ import 'package:meta/meta.dart';
 ///
 /// When set on `BeakPanelConfig.auth`, the router mounts `/login` (always),
 /// plus `/register` and `/recover` when enabled, each rendered with
-/// obers_ui's `OiAuthPage`. The callbacks return `true` on success so the
-/// auth screen can advance; wire them to your backend (or the seeded users
-/// in a demo).
+/// obers_ui's `OiAuthPage`.
+///
+/// The callbacks are overrides, not requirements: with no [onLogin] the panel
+/// signs in against the generated `/api/auth/login` through the registered
+/// `BeakSessionStore`, and every later request carries the session. Supply one
+/// to authenticate somewhere else. Each returns `true` on success so the auth
+/// screen can advance.
 ///
 /// ```dart
+/// // Server-side auth, already configured in lib/server.dart:
+/// const BeakAuthConfig();
+///
+/// // Or somewhere else entirely:
 /// BeakAuthConfig(
-///   onLogin: (email, password) async => email == 'demo@beak.dev',
+///   onLogin: (email, password) async => mySso.signIn(email, password),
 /// );
 /// ```
 @immutable

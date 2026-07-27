@@ -18,6 +18,7 @@ export 'src/data/worm/worm_record_model.dart';
 export 'src/endpoints/beak_resource_router.dart';
 export 'src/endpoints/crud_handlers.dart';
 export 'src/endpoints/health_router.dart';
+export 'src/endpoints/local_uploads_router.dart';
 export 'src/export/csv_export_service.dart';
 export 'src/export/export_router.dart';
 export 'src/search/global_search_service.dart';

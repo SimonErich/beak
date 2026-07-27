@@ -9,10 +9,11 @@
 #
 #   docker build -f deploy/Dockerfile.web -t beak-web .
 #
-# The panel's apiBaseUrl is set in code (apps/reference_admin/lib/main.dart,
-# default http://localhost:8080). For a demo where the server is published on
-# host port 8080, the browser reaches it at that default. For a real remote
-# deploy, set apiBaseUrl to your API origin before building.
+# The panel's API origin comes from `beak.yaml` (`api.baseUrl`), compiled in
+# as a `String.fromEnvironment` default. For a demo where the server is
+# published on host port 8080, the browser reaches it at that default; for a
+# real deploy pass `--dart-define=BEAK_API_BASE_URL=https://api.example.com`
+# to the build below, or set `api.baseUrl: auto` to call the serving origin.
 
 FROM ghcr.io/cirruslabs/flutter:stable AS build
 
@@ -22,7 +23,7 @@ COPY . .
 # Flutter refuses to touch a repo it does not "own" (root user in CI images).
 RUN git config --global --add safe.directory '*'
 
-WORKDIR /app/apps/reference_admin
+WORKDIR /app/examples/store
 RUN flutter pub get
 RUN flutter build web --release
 
@@ -30,6 +31,6 @@ RUN flutter build web --release
 FROM nginx:alpine AS runtime
 
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/reference_admin/build/web /usr/share/nginx/html
+COPY --from=build /app/examples/store/build/web /usr/share/nginx/html
 
 EXPOSE 80

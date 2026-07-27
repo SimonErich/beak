@@ -140,8 +140,12 @@ abstract final class BeakEmitters {
     if (config.api.isAuto) {
       buffer.writeln("import 'package:flutter/foundation.dart';");
     }
+    // Only the models this file names: a hidden resource keeps its model and
+    // its API, but the panel never mentions it, and an unused import is an
+    // analyzer warning in a file the project cannot edit.
     for (final path in _importPathsOf([
-      ...discovery.models,
+      for (final model in discovery.models)
+        if (!(config.resources[model.table]?.hidden ?? false)) model,
       ...discovery.screens,
     ])) {
       buffer.writeln("import '../$path';");
@@ -289,7 +293,13 @@ final class BeakApp extends StatelessWidget {
       ..writeln('///')
       ..writeln('/// Reads `.env`, connects the database, resolves storage and')
       ..writeln('/// serves the generated API for every registered model.')
-      ..writeln('BeakServeHost beakHost() => BeakServeHost(')
+      ..writeln('///')
+      ..writeln('/// [environment] overrides what the process supplies, so a')
+      ..writeln('/// test can point the real host at `sqlite::memory:` and a')
+      ..writeln('/// temporary upload directory without touching the machine.')
+      ..writeln('BeakServeHost beakHost({Map<String, String>? environment}) =>')
+      ..writeln('    BeakServeHost(')
+      ..writeln('      environment: environment,')
       ..writeln('      registry: buildBeakRegistry(),')
       ..writeln('      migrations: const [');
     for (final migration in discovery.migrations) {
@@ -304,6 +314,9 @@ final class BeakApp extends StatelessWidget {
     buffer.writeln('      ],');
     if (serverOverride != null) {
       buffer.writeln('      configure: server.beakServer,');
+      if (serverOverride.alsoDeclares.contains('beakStorageRegistry')) {
+        buffer.writeln('      storageRegistry: server.beakStorageRegistry,');
+      }
     }
     buffer.writeln('    );');
     return buffer.toString();

@@ -20,7 +20,7 @@ void main() {
     });
 
     test('sum reads the column key from the column constant', () {
-      final spec = BeakAggregateSpec.sum(
+      const spec = BeakAggregateSpec.sum(
         table: 'products',
         column: priceColumn,
       );
@@ -29,13 +29,13 @@ void main() {
     });
 
     test('avg reads the column key and keeps the filter', () {
-      final spec = BeakAggregateSpec.avg(
+      const spec = BeakAggregateSpec.avg(
         table: 'products',
         column: priceColumn,
         filter: BeakFieldFilter(
           column: activeColumn,
           operator: BeakOperator.eq,
-          value: const BeakBoolValue(true),
+          value: BeakBoolValue(true),
         ),
         withTrashed: true,
       );
@@ -94,13 +94,13 @@ void main() {
     });
 
     test('decode(encode(spec)) is deep-equal after a JSON wire trip', () {
-      final spec = BeakAggregateSpec.avg(
+      const spec = BeakAggregateSpec.avg(
         table: 'products',
         column: priceColumn,
         filter: BeakFieldFilter(
           column: activeColumn,
           operator: BeakOperator.eq,
-          value: const BeakBoolValue(true),
+          value: BeakBoolValue(true),
         ),
         withTrashed: true,
       );
@@ -213,15 +213,21 @@ void main() {
       expect(base, isNot(const BeakAggregateSpec.count(table: 'users')));
       expect(
         base,
-        isNot(BeakAggregateSpec.sum(table: 'products', column: priceColumn)),
+        isNot(
+          const BeakAggregateSpec.sum(table: 'products', column: priceColumn),
+        ),
       );
       expect(
-        BeakAggregateSpec.sum(table: 'products', column: priceColumn),
-        isNot(BeakAggregateSpec.avg(table: 'products', column: priceColumn)),
+        const BeakAggregateSpec.sum(table: 'products', column: priceColumn),
+        isNot(
+          const BeakAggregateSpec.avg(table: 'products', column: priceColumn),
+        ),
       );
       expect(
-        BeakAggregateSpec.sum(table: 'products', column: priceColumn),
-        isNot(BeakAggregateSpec.sum(table: 'products', column: activeColumn)),
+        const BeakAggregateSpec.sum(table: 'products', column: priceColumn),
+        isNot(
+          const BeakAggregateSpec.sum(table: 'products', column: activeColumn),
+        ),
       );
       expect(
         base,
@@ -232,12 +238,12 @@ void main() {
       expect(
         base,
         isNot(
-          BeakAggregateSpec.count(
+          const BeakAggregateSpec.count(
             table: 'products',
             filter: BeakFieldFilter(
               column: activeColumn,
               operator: BeakOperator.eq,
-              value: const BeakBoolValue(true),
+              value: BeakBoolValue(true),
             ),
           ),
         ),

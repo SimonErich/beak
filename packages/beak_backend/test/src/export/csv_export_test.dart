@@ -124,10 +124,10 @@ void main() {
   test('honors the posted spec filter and sort', () async {
     final spec = const BeakQuerySpec(table: 'notes')
         .withFilter(
-          BeakFieldFilter(
+          const BeakFieldFilter(
             column: NoteColumns.rating,
             operator: BeakOperator.gte,
-            value: const BeakIntValue(3),
+            value: BeakIntValue(3),
           ),
         )
         .orderBy(NoteColumns.rating);

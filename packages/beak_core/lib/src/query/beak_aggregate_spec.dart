@@ -52,25 +52,28 @@ final class BeakAggregateSpec {
     this.filter,
     this.withTrashed = false,
   }) : function = BeakAggregateFunction.count,
-       columnKey = null;
+       _column = null,
+       _columnKey = null;
 
   /// Sums [column] over the rows of [table] matching [filter].
-  BeakAggregateSpec.sum({
+  const BeakAggregateSpec.sum({
     required this.table,
     required BeakColumn column,
     this.filter,
     this.withTrashed = false,
   }) : function = BeakAggregateFunction.sum,
-       columnKey = column.key;
+       _column = column,
+       _columnKey = null;
 
   /// Averages [column] over the rows of [table] matching [filter].
-  BeakAggregateSpec.avg({
+  const BeakAggregateSpec.avg({
     required this.table,
     required BeakColumn column,
     this.filter,
     this.withTrashed = false,
   }) : function = BeakAggregateFunction.avg,
-       columnKey = column.key;
+       _column = column,
+       _columnKey = null;
 
   /// Creates a spec from raw keys — the deserialization path; prefer the
   /// typed constructors in user code.
@@ -111,10 +114,11 @@ final class BeakAggregateSpec {
   const BeakAggregateSpec._({
     required this.table,
     required this.function,
-    required this.columnKey,
+    required String? columnKey,
     required this.filter,
     required this.withTrashed,
-  });
+  }) : _column = null,
+       _columnKey = columnKey;
 
   /// Decodes [json] (produced by [toJson]).
   ///
@@ -168,9 +172,18 @@ final class BeakAggregateSpec {
   /// The aggregate to compute.
   final BeakAggregateFunction function;
 
+  /// The aggregated column, when the spec was built from a column constant.
+  ///
+  /// Held rather than reduced to its key so [sum] and [avg] can be `const`,
+  /// which is what lets a whole screen — metrics included — be one const
+  /// expression.
+  final BeakColumn? _column;
+
+  final String? _columnKey;
+
   /// Key of the aggregated column; `null` iff [function] is
   /// [BeakAggregateFunction.count].
-  final String? columnKey;
+  String? get columnKey => _columnKey ?? _column?.key;
 
   /// The predicate rows must satisfy to be aggregated, if any.
   final BeakFilter? filter;

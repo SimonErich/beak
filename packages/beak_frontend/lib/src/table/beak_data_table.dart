@@ -56,6 +56,7 @@ class BeakDataTable extends HookWidget {
   const BeakDataTable({
     required this.model,
     required this.dataSource,
+    this.columns,
     this.actions = const [],
     this.bulkActions = const [],
     this.onRowTap,
@@ -72,6 +73,10 @@ class BeakDataTable extends HookWidget {
 
   /// The source queries and mutations run against.
   final BeakDataSource dataSource;
+
+  /// The columns to render, in order; defaults to [model]'s table-context
+  /// columns.
+  final List<BeakColumn>? columns;
 
   /// Per-row actions, each invoked with the row's primary key.
   final List<BeakTableAction> actions;
@@ -248,12 +253,14 @@ class BeakDataTable extends HookWidget {
     // A relationship is shown in place of the foreign key it owns: the key
     // renders as the uuid it stores, which tells the reader nothing, and
     // showing both would be the same fact twice.
+    final List<BeakColumn> shown =
+        columns ?? model.columnsFor(BeakContext.table);
     final relationsByForeignKey = <String, BeakRelationship>{
       for (final relation in beakToOneRelationsOf(model))
         if (relation is BeakBelongsTo) relation.foreignKey: relation,
     };
     return <OiTableColumn<BeakRecord>>[
-      for (final column in model.columnsFor(BeakContext.table))
+      for (final column in shown)
         if (relationsByForeignKey[column.key] case final BeakRelationship r)
           _relationColumn(r)
         else
@@ -270,9 +277,7 @@ class BeakDataTable extends HookWidget {
       // column — the relationship is what the reader came for.
       for (final relation in beakToOneRelationsOf(model))
         if (relation is! BeakBelongsTo ||
-            !model
-                .columnsFor(BeakContext.table)
-                .any((column) => column.key == relation.foreignKey))
+            !shown.any((column) => column.key == relation.foreignKey))
           _relationColumn(relation),
       if (actions.isNotEmpty || enableDelete)
         OiTableColumn<BeakRecord>(

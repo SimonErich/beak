@@ -1,5 +1,6 @@
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
+import 'beak_schema_emitter.dart';
 import 'beak_schema_ir.dart';
 
 /// One migration Beak wrote, and where it goes.
@@ -114,8 +115,7 @@ abstract final class BeakMigrationEmitter {
       );
     }
 
-    for (final (schema, relation) in _pivotsOf(owned)) {
-      final String pivot = relation.pivotTable!;
+    for (final (schema, relation, pivot) in _pivotsOf(owned, byClass)) {
       // Either the table name, or the relation constant a hand-written
       // `createPivot` names it through.
       final bool covered =
@@ -129,7 +129,7 @@ abstract final class BeakMigrationEmitter {
       files.add(
         BeakMigrationFile(
           path: 'lib/migrations/create_${pivot}_table.dart',
-          contents: _pivotMigration(schema, relation, nextTimestamp()),
+          contents: _pivotMigration(schema, relation, pivot, nextTimestamp()),
           table: pivot,
         ),
       );
@@ -175,23 +175,42 @@ abstract final class BeakMigrationEmitter {
     return ordered;
   }
 
-  /// Every many-to-many, once per pivot table.
+  /// Every many-to-many, once per pivot table, with the table it joins
+  /// through.
+  ///
+  /// The name is resolved the same way the model emitter resolves it, so a
+  /// relation that does not name its pivot still gets the migration that
+  /// creates the one it will look for.
   ///
   /// Only the declaring side appears in `schema.relations`, so a pivot cannot
   /// be reached twice — but a project may declare both sides explicitly, and
   /// two migrations creating one table would fail on the second.
-  static List<(BeakSchemaIr, BeakRelationIr)> _pivotsOf(
+  static List<(BeakSchemaIr, BeakRelationIr, String)> _pivotsOf(
     List<BeakSchemaIr> schemas,
+    Map<String, BeakSchemaIr> byClass,
   ) {
     final seen = <String>{};
-    return <(BeakSchemaIr, BeakRelationIr)>[
-      for (final schema in schemas)
-        for (final relation in schema.relations)
-          if (relation.kind == BeakRelationKind.belongsToMany &&
-              relation.pivotTable != null &&
-              seen.add(relation.pivotTable!))
-            (schema, relation),
-    ];
+    final pivots = <(BeakSchemaIr, BeakRelationIr, String)>[];
+    for (final schema in schemas) {
+      for (final relation in schema.relations) {
+        if (relation.kind != BeakRelationKind.belongsToMany) {
+          continue;
+        }
+        final BeakSchemaIr? related = byClass[relation.relatedSchema];
+        final String? pivot =
+            relation.pivotTable ??
+            (related == null
+                ? null
+                : BeakSchemaEmitter.pivotTableFor(schema, related));
+        // A pivot Beak cannot name is one joining a schema it cannot see;
+        // the reader has already reported that.
+        if (pivot == null || !seen.add(pivot)) {
+          continue;
+        }
+        pivots.add((schema, relation, pivot));
+      }
+    }
+    return pivots;
   }
 
   static String _tableMigration({
@@ -238,9 +257,9 @@ final class $className extends Migration {
   static String _pivotMigration(
     BeakSchemaIr schema,
     BeakRelationIr relation,
+    String pivot,
     String timestamp,
   ) {
-    final String pivot = relation.pivotTable!;
     final String className = 'Create${_pascalOf(pivot)}Table';
     return BeakEmitters.format('''
 import 'package:beak/migrations.dart';

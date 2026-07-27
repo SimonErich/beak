@@ -4,9 +4,9 @@ import 'package:test/test.dart';
 
 import '../tool/link_obers_ui.dart';
 
-/// Every `pubspec.yaml` under `packages/` and `apps/`.
+/// Every `pubspec.yaml` under `packages/` and `examples/`.
 Iterable<File> _workspacePubspecs() sync* {
-  for (final dir in ['packages', 'apps']) {
+  for (final dir in ['packages', 'examples']) {
     final root = Directory(dir);
     if (!root.existsSync()) {
       continue;

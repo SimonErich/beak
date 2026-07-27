@@ -437,12 +437,12 @@ void main() {
       );
       expect(
         await dataSource.aggregate(
-          BeakAggregateSpec.count(
+          const BeakAggregateSpec.count(
             table: 'products',
             filter: BeakFieldFilter(
               column: ProductColumns.active,
               operator: BeakOperator.eq,
-              value: const BeakBoolValue(true),
+              value: BeakBoolValue(true),
             ),
           ),
         ),
@@ -453,7 +453,7 @@ void main() {
     test('sum and avg push down to the adapter', () async {
       expect(
         await dataSource.aggregate(
-          BeakAggregateSpec.sum(
+          const BeakAggregateSpec.sum(
             table: 'products',
             column: ProductColumns.price,
           ),
@@ -462,7 +462,7 @@ void main() {
       );
       expect(
         await dataSource.aggregate(
-          BeakAggregateSpec.avg(
+          const BeakAggregateSpec.avg(
             table: 'products',
             column: ProductColumns.price,
           ),
@@ -474,13 +474,13 @@ void main() {
     test('sum over no rows returns zero', () async {
       expect(
         await dataSource.aggregate(
-          BeakAggregateSpec.sum(
+          const BeakAggregateSpec.sum(
             table: 'products',
             column: ProductColumns.price,
             filter: BeakFieldFilter(
               column: ProductColumns.price,
               operator: BeakOperator.gt,
-              value: const BeakDoubleValue(1000.0),
+              value: BeakDoubleValue(1000.0),
             ),
           ),
         ),
@@ -507,7 +507,10 @@ void main() {
     test('sum rejects non-numeric columns', () {
       expect(
         () => dataSource.aggregate(
-          BeakAggregateSpec.sum(table: 'products', column: ProductColumns.name),
+          const BeakAggregateSpec.sum(
+            table: 'products',
+            column: ProductColumns.name,
+          ),
         ),
         throwsA(isA<BeakConfigurationException>()),
       );

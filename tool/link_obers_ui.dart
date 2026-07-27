@@ -56,7 +56,7 @@ String withoutObersUiBlock(String overridesSource) {
 /// replacing any block a previous run wrote.
 ///
 /// [depthFromRoot] is how many directories deep the package sits inside the
-/// repo (2 for `packages/x` and `apps/x`), which sets how far the relative
+/// repo (2 for `packages/x` and `examples/x`), which sets how far the relative
 /// path has to climb.
 String withObersUiBlock(
   String overridesSource, {
@@ -100,7 +100,7 @@ void main(List<String> args) {
   }
 
   var touched = 0;
-  for (final dir in ['packages', 'apps']) {
+  for (final dir in ['packages', 'examples']) {
     final root = Directory(dir);
     if (!root.existsSync()) {
       continue;

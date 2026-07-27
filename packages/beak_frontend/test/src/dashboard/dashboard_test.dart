@@ -41,7 +41,7 @@ void main() {
       aggregate: BeakAggregateSpec.count(table: 'articles'),
       icon: OiIcons.newspaper,
     ),
-    BeakStat(
+    const BeakStat(
       label: 'Inventory value',
       aggregate: BeakAggregateSpec.sum(
         table: 'articles',

@@ -10,6 +10,7 @@ import '../query/beak_pagination.dart';
 import '../query/beak_query_spec.dart';
 import '../query/beak_relation_load.dart';
 import '../query/beak_sort.dart';
+import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
 
@@ -185,4 +186,39 @@ abstract base class BeakModel {
     }
     return null;
   }
+}
+
+/// [raw] as the [BeakValue] [column] describes.
+///
+/// A database says what it can: SQLite has no boolean, date or decimal type,
+/// so a row comes back with `1` where the model declares a flag and a string
+/// where it declares an instant. Typing values by their Dart runtime type
+/// alone therefore produces a record whose shape depends on the driver — the
+/// panel renders `1` instead of a badge, and a conditional update cannot find
+/// the timestamp it was asked to compare.
+///
+/// This is the one place that decides, so every data source agrees. A value
+/// the column cannot read keeps its literal form rather than being dropped.
+BeakValue beakValueForColumn(BeakColumn? column, Object? raw) {
+  final BeakValue value = BeakValue.of(raw);
+  return switch (column) {
+        BeakBoolColumn() => switch (column.readValue(value)) {
+          final bool parsed => BeakBoolValue(parsed),
+          null => null,
+        },
+        BeakDateTimeColumn() => switch (column.readValue(value)) {
+          final DateTime parsed => BeakDateTimeValue(parsed),
+          null => null,
+        },
+        BeakDecimalColumn() => switch (column.readValue(value)) {
+          final double parsed => BeakDoubleValue(parsed),
+          null => null,
+        },
+        BeakIntColumn() => switch (column.readValue(value)) {
+          final int parsed => BeakIntValue(parsed),
+          null => null,
+        },
+        _ => null,
+      } ??
+      value;
 }

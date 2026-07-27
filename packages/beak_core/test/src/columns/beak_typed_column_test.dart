@@ -168,9 +168,16 @@ void main() {
       expect(column.readFrom(_record('false')), isFalse);
     });
 
+    test('read the 0/1 SQLite stores booleans as', () {
+      // SQLite has no boolean type, so a flag comes back as an integer. A
+      // panel that rendered `1` instead of a badge is what this prevents.
+      expect(column.readFrom(_record(1)), isTrue);
+      expect(column.readFrom(_record(0)), isFalse);
+    });
+
     test('read null for anything else', () {
       expect(column.readFrom(_record('yes')), isNull);
-      expect(column.readFrom(_record(1)), isNull);
+      expect(column.readFrom(_record(2)), isNull);
       expect(column.readFrom(_empty), isNull);
     });
   });

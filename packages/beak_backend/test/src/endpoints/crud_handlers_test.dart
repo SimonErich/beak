@@ -182,10 +182,10 @@ void main() {
     test('runs a posted spec and returns the page envelope', () async {
       final spec = const BeakQuerySpec(table: 'notes')
           .withFilter(
-            BeakFieldFilter(
+            const BeakFieldFilter(
               column: NoteColumns.rating,
               operator: BeakOperator.gte,
-              value: const BeakIntValue(2),
+              value: BeakIntValue(2),
             ),
           )
           .orderBy(NoteColumns.rating, descending: true)
@@ -454,7 +454,7 @@ void main() {
       final sumResponse = await call(
         'POST',
         '/api/notes/aggregate',
-        body: BeakAggregateSpec.sum(
+        body: const BeakAggregateSpec.sum(
           table: 'notes',
           column: NoteColumns.rating,
         ).toJson(),

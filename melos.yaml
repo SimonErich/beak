@@ -2,7 +2,7 @@ name: beak
 
 packages:
   - packages/**
-  - apps/**
+  - examples/**
 
 # The worm ORM and its drivers are vendored ("given") — they are consumed as
 # path dependencies but not gated: their mysql/mongodb test suites need
@@ -41,7 +41,7 @@ scripts:
     description: Static analysis for Flutter packages.
     packageFilters: { flutter: true }
   analyze-root:
-    # `melos bootstrap` resolves packages/** and apps/**, not the workspace
+    # `melos bootstrap` resolves packages/** and examples/**, not the workspace
     # root — and `dart analyze`, unlike `dart test`/`dart run`, does not fetch
     # on its own. Resolving here (a no-op once resolved) is what makes
     # `melos run analyze` work on a fresh clone with no extra step.
@@ -77,13 +77,31 @@ scripts:
       melos run test-root
     description: Run every package's tests (pure Dart + Flutter + workspace tooling).
   test-dart:
-    run: melos exec --fail-fast -- "dart test --coverage=coverage"
+    run: melos exec --fail-fast -- "dart test --coverage=coverage --exclude-tags e2e"
     description: Run pure-Dart package tests with coverage.
     packageFilters: { flutter: false, dirExists: test }
   test-flutter:
-    run: melos exec --fail-fast -- "flutter test --coverage"
+    run: melos exec --fail-fast -- "flutter test --coverage --exclude-tags e2e"
     description: Run Flutter package tests with coverage.
     packageFilters: { flutter: true, dirExists: test }
+  test-e2e:
+    # The suites that need `melos run up`: Postgres, MinIO. Everything they
+    # assert also runs on SQLite in the main gate, so this is the driver
+    # check, not the feature check.
+    run: melos run test-e2e-dart && melos run test-e2e-flutter
+    description: Run the service-backed suites (needs `melos run up`).
+  test-e2e-dart:
+    # The filters live on `exec` rather than in `packageFilters`, so running
+    # these directly does not prompt for a package.
+    run: >-
+      melos exec --fail-fast --no-flutter --dir-exists=test/e2e --
+      "dart test test/e2e --tags e2e"
+    description: Service-backed suites of the pure-Dart packages.
+  test-e2e-flutter:
+    run: >-
+      melos exec --fail-fast --flutter --dir-exists=test/e2e --
+      "flutter test test/e2e --tags e2e"
+    description: Service-backed suites of the Flutter packages.
   test-root:
     run: dart test
     description: Run the workspace tooling self-checks (coverage gate, guards).

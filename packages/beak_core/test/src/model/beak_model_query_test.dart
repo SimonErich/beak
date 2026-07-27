@@ -23,10 +23,10 @@ final class _ProductModel extends BeakModel {
 
 void main() {
   const model = _ProductModel();
-  final published = BeakFieldFilter(
+  const published = BeakFieldFilter(
     column: _ProductColumns.name,
     operator: BeakOperator.eq,
-    value: const BeakStringValue('x'),
+    value: BeakStringValue('x'),
   );
 
   group('BeakTableRef', () {
@@ -156,7 +156,7 @@ void main() {
       );
       expect(
         model.sum(_ProductColumns.price).toJson(),
-        BeakAggregateSpec.sum(
+        const BeakAggregateSpec.sum(
           table: 'products',
           column: _ProductColumns.price,
         ).toJson(),

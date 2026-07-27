@@ -7,6 +7,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../auth/beak_session_store.dart';
 import '../dashboard/beak_dashboard.dart';
 import '../data/reference_cache.dart';
 import '../di/beak_locator.dart';
@@ -121,9 +122,15 @@ List<RouteBase> _authRoutes(BeakPanelConfig config) {
       builder: (context, state) => OiAuthPage.login(
         label: config.title,
         onLogin: (email, password) async {
+          // With no callback the panel signs in against the generated
+          // `/api/auth/login`: a project that configured server-side auth
+          // does not also have to wire the request that uses it.
           final bool signedIn =
               await (auth?.onLogin?.call(email, password) ??
-                  Future<bool>.value(true));
+                  beakLocator<BeakSessionStore>().signIn(
+                    username: email,
+                    password: password,
+                  ));
           if (signedIn && context.mounted) {
             context.go('/');
           }

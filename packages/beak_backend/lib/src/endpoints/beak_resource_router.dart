@@ -1,4 +1,5 @@
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/io.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
@@ -14,6 +15,7 @@ import '../uploads/upload_router.dart';
 import '../uploads/upload_service.dart';
 import 'crud_handlers.dart';
 import 'health_router.dart';
+import 'local_uploads_router.dart';
 
 /// The generated routes of one model's REST surface, relative to its mount
 /// point (`/api/{table}`).
@@ -72,6 +74,7 @@ Handler beakApiRouter({
   BeakPolicy policy = const BeakAllowAllPolicy(),
   BeakAuthSessions? auth,
   UploadService? uploads,
+  BeakStorageDriver? storage,
   DateTime Function()? now,
   String Function()? generateId,
 }) {
@@ -86,6 +89,11 @@ Handler beakApiRouter({
     '/',
     beakHealthRouter(registry: registry, dataSource: dataSource).call,
   );
+  // Files the local-disk driver wrote are served by this server, so an
+  // upload's URL resolves with no CDN, bucket or proxy in front.
+  if (storage case final BeakLocalDiskStorageDriver local) {
+    router.mount('/', beakLocalUploadsRouter(local).call);
+  }
   if (auth != null) {
     router.mount('/api/auth', beakAuthRouter(auth).call);
   }
