@@ -366,6 +366,9 @@ class BeakBlockHost extends StatelessWidget {
       parentId: id,
       relationship: block.relationship,
       dataSource: beakLocator<BeakDataSource>(),
+      // The page that loaded this record may have loaded its relations with
+      // it; when it did, the manager paints without a query of its own.
+      initialRecords: scope.record.relations[block.relationship.key],
     );
   }
 

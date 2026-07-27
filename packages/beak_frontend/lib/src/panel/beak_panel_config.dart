@@ -6,6 +6,7 @@ import '../actions/beak_action.dart';
 import '../blocks/beak_block.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
+import '../detail/beak_default_detail_layout.dart';
 import '../filters/beak_default_filters.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_form_step.dart';
@@ -117,6 +118,11 @@ final class BeakResource {
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
+
+  /// The show-page layout: [detail] when declared, and otherwise the one
+  /// [model] implies — a headline card, the remaining fields, and a tab per
+  /// to-many relationship.
+  BeakBlock get effectiveDetail => detail ?? beakDefaultDetailLayout(model);
 
   /// The filter bar the list page renders: [filters] when declared, and
   /// otherwise the controls [model]'s `filterable` columns imply.

@@ -6,7 +6,6 @@ import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
 import '../actions/beak_action_button.dart';
-import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
 import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
@@ -304,32 +303,15 @@ class BeakResourceShowPage extends HookWidget {
         (null, final BeakException error) => OiEmptyState.error(
           description: error.message,
         ),
+        // The layout the resource declared, or the one its model implies —
+        // rendered inside the loaded record's scope so its field blocks
+        // resolve.
         (final BeakRecord value, _) => SingleChildScrollView(
-          child: switch (resource.detail) {
-            // A resource may declare a bespoke, record-bound layout; render it
-            // inside the loaded record's scope so its field blocks resolve.
-            final BeakBlock layout => BeakRecordScope(
-              model: model,
-              record: value,
-              child: BeakBlockHost(block: layout),
-            ),
-            null => OiColumn(
-              breakpoint: context.breakpoint,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                BeakDetailView(model: model, record: value),
-                for (final relationship in model.relationships)
-                  if (relationship.cardinality == BeakRelationCardinality.many)
-                    BeakRelationManager(
-                      parentModel: model,
-                      parentId: recordId,
-                      relationship: relationship,
-                      dataSource: dataSource,
-                      initialRecords: value.relations[relationship.key],
-                    ),
-              ],
-            ),
-          },
+          child: BeakRecordScope(
+            model: model,
+            record: value,
+            child: BeakBlockHost(block: resource.effectiveDetail),
+          ),
         ),
       },
     );

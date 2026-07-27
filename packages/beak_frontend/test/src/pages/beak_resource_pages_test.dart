@@ -122,8 +122,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BeakResourceShowPage), findsOneWidget);
-    expect(find.byType(BeakDetailView), findsOneWidget);
-    expect(find.text('First note'), findsOneWidget);
+    // The layout the model implies: the fields, then a tab per to-many.
+    expect(find.text('First note'), findsWidgets);
+    expect(find.text('Comments'), findsWidgets);
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
   });
