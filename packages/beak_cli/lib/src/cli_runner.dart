@@ -175,8 +175,6 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
-      ..addCommand(MakeModelCommand(environment))
-      ..addCommand(MakeColumnsCommand(environment))
       ..addCommand(MakeMigrationCommand(environment))
       ..addCommand(DoctorCommand(environment));
 
@@ -250,80 +248,19 @@ final class MakeResourceCommand extends _MakeCommand {
   String get name => 'make:resource';
 
   @override
-  String get description =>
-      'Scaffold a full resource: worm model, migration, Beak columns/model.';
+  String get description => 'Scaffold a resource: one annotated schema class.';
 
   @override
   Future<int> run() async {
     final String resource = resourceName();
-    final List<BeakFieldSpec> specs = fields();
-    final String snake = snakeCaseOf(resource);
-    final String stamp = timestamp();
-    environment
-      ..out.writeln('Scaffolding $resource:')
-      ..writeFile('lib/models/$snake.dart', generateWormModel(resource, specs))
-      ..writeFile(
-        'lib/models/${snake}_columns.dart',
-        generateBeakColumns(resource, specs),
-      )
-      ..writeFile(
-        'lib/migrations/create_${tableNameOf(resource)}_table.dart',
-        generateMigration(resource, specs, timestamp: stamp),
-      )
-      // Nothing to register: `beak prepare` discovers both directories.
-      ..out.writeln('Next: run `beak prepare` (or `beak dev`) to wire it up.');
-    return 0;
-  }
-}
-
-/// The `beak make:model Name --fields ...` command — generates only the
-/// canonical worm model (`lib/models/<snake>.dart`), leaving columns
-/// and migration untouched. The narrow counterpart of
-/// [MakeResourceCommand].
-final class MakeModelCommand extends _MakeCommand {
-  /// Creates the command bound to [environment].
-  MakeModelCommand(super.environment);
-
-  @override
-  String get name => 'make:model';
-
-  @override
-  String get description => 'Scaffold a canonical worm model.';
-
-  @override
-  Future<int> run() async {
-    final String resource = resourceName();
+    // One file, and `--fields` written once. `prepare` derives the columns,
+    // the model, both sides of every relationship and the migration from it —
+    // so there is no second place for the field list to drift out of step.
     environment.writeFile(
       'lib/models/${snakeCaseOf(resource)}.dart',
-      generateWormModel(resource, fields()),
+      generateSchemaClass(resource, fields()),
     );
-    return 0;
-  }
-}
-
-/// The `beak make:columns Name --fields ...` command — generates only the
-/// Beak columns class and `BeakModel`
-/// (`lib/models/<snake>_columns.dart`), the define-once definition both
-/// the server and the Flutter panel consume. The narrow counterpart of
-/// [MakeResourceCommand].
-final class MakeColumnsCommand extends _MakeCommand {
-  /// Creates the command bound to [environment].
-  MakeColumnsCommand(super.environment);
-
-  @override
-  String get name => 'make:columns';
-
-  @override
-  String get description => 'Scaffold Beak columns and the BeakModel.';
-
-  @override
-  Future<int> run() async {
-    final String resource = resourceName();
-    environment.writeFile(
-      'lib/models/${snakeCaseOf(resource)}_columns.dart',
-      generateBeakColumns(resource, fields()),
-    );
-    return 0;
+    return runPrepare(environment).exitCode;
   }
 }
 
@@ -331,52 +268,85 @@ final class MakeColumnsCommand extends _MakeCommand {
 /// create-table worm migration (`lib/migrations/create_<table>_table.dart`),
 /// its name prefixed with a timestamp from [BeakCliEnvironment.now]. The
 /// narrow counterpart of [MakeResourceCommand]; remember to register the
-/// migration in `bin/worm.dart`.
-final class MakeMigrationCommand extends _MakeCommand {
+/// The `beak make:migration Name` command — an empty, correctly-named
+/// migration for a change `beak prepare` cannot derive.
+///
+/// `prepare` writes the create-table migration for any model whose table
+/// nothing creates, so this is for everything else: adding a column to a
+/// shipped table, backfilling data, dropping something. The scaffold gives
+/// the timestamped name — worm runs migrations in that order — and leaves
+/// the body to you.
+///
+/// ```console
+/// $ beak make:migration AddStatusToProducts
+///   created lib/migrations/add_status_to_products.dart
+/// ```
+final class MakeMigrationCommand extends Command<int> {
   /// Creates the command bound to [environment].
-  MakeMigrationCommand(super.environment) {
-    argParser.addFlag(
-      'from-model',
-      help:
-          'Derive the columns from the model of the same name instead of '
-          'restating them with --fields.',
-      negatable: false,
-    );
-  }
+  MakeMigrationCommand(this.environment);
+
+  /// The seams this command runs against.
+  final BeakCliEnvironment environment;
 
   @override
   String get name => 'make:migration';
 
   @override
-  String get description => 'Scaffold the create-table worm migration.';
+  String get description => 'Scaffold an empty, correctly-named migration.';
+
+  @override
+  String get invocation => 'beak make:migration <Name>';
 
   @override
   Future<int> run() async {
-    final String resource = resourceName();
-    final String path =
-        'lib/migrations/create_${tableNameOf(resource)}_table'
-        '.dart';
-    if (argResults?['from-model'] == true) {
-      environment
-        ..writeFile(
-          path,
-          generateModelMigration(
-            resource,
-            modelClass: '${resource}Model',
-            importPath: '../models/${snakeCaseOf(resource)}.dart',
-            timestamp: timestamp(),
-          ),
-        )
-        ..out.writeln(
-          'The table is derived from ${resource}Model, so adding a column to '
-          'the schema class changes the DDL with no second edit.',
-        );
-      return 0;
+    final List<String> rest = argResults?.rest ?? const [];
+    if (rest.length != 1 ||
+        !RegExp(r'^[A-Z][A-Za-z0-9]*$').hasMatch(rest.single)) {
+      throw UsageException(
+        'Expected exactly one UpperCamelCase migration name.',
+        invocation,
+      );
     }
-    environment.writeFile(
-      path,
-      generateMigration(resource, fields(), timestamp: timestamp()),
-    );
+    final String className = rest.single;
+    final String snake = snakeCaseOf(className);
+    final String stamp = _timestampOf(environment.now());
+    environment.writeFile('lib/migrations/$snake.dart', '''
+import 'package:beak/migrations.dart';
+
+/// ${_sentenceOf(snake)}.
+final class $className extends Migration {
+  /// Creates the migration.
+  const $className();
+
+  @override
+  String get name => '${stamp}_$snake';
+
+  @override
+  Future<void> upSchema(Schema schema) async {
+    // e.g. await schema.alter('products', (table) {
+    //   table.string('status', length: 20).makeNullable();
+    // });
+  }
+
+  @override
+  Future<void> downSchema(Schema schema) async {
+    // The inverse of upSchema, so a rollback is not a restore from backup.
+  }
+}
+''');
     return 0;
+  }
+
+  /// `20260727_143012`, sortable and readable.
+  static String _timestampOf(DateTime at) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${at.year}${two(at.month)}${two(at.day)}_'
+        '${two(at.hour)}${two(at.minute)}${two(at.second)}';
+  }
+
+  /// `add_status_to_products` -> `Add status to products`.
+  static String _sentenceOf(String snake) {
+    final String spaced = snake.replaceAll('_', ' ');
+    return '${spaced[0].toUpperCase()}${spaced.substring(1)}';
   }
 }

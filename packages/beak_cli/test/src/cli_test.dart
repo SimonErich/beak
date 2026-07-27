@@ -69,79 +69,94 @@ void main() {
   });
 
   group('make:resource', () {
-    test('scaffolds worm model, Beak columns and migration', () async {
+    test('scaffolds one annotated schema class, and prepares it', () async {
+      // It used to write a worm Model and an old-style columns class that
+      // the schema reader could not see, then print "run beak prepare".
       final int? code = await runner.run([
         'make:resource',
         'Widget',
         '--fields',
-        'name:string,price:decimal,active:bool',
+        'name:string!,price:decimal!,active:bool',
       ]);
 
       expect(code, 0);
-      final String wormModel = read('lib/models/widget.dart');
-      expect(wormModel, contains('final class Widget extends Model'));
-      expect(
-        wormModel,
-        contains("String get tableName => Widget\$.tableName;"),
-      );
-      expect(wormModel, contains('static QueryBuilder<Widget> query()'));
-      expect(wormModel, contains("static const String tableName = 'widgets';"));
-
-      final String columns = read('lib/models/widget_columns.dart');
-      expect(columns, contains('abstract final class WidgetColumns'));
-      expect(columns, contains('final class WidgetModel extends BeakModel'));
-      expect(columns, contains("String get table => 'widgets';"));
-      expect(columns, contains("String get displayColumnKey => 'name';"));
-
-      final String migration = read('lib/migrations/create_widgets_table.dart');
-      expect(
-        migration,
-        contains("String get name => '20260703_120000_create_widgets_table';"),
-      );
-      expect(migration, contains("table.decimal('price');"));
-      expect(out.toString(), contains('beak prepare'));
+      final String source = read('lib/models/widget.dart');
+      expect(source, contains('@Resource(timestamps: true)'));
+      expect(source, contains('final class Widget extends BeakSchema'));
+      expect(source, contains("part 'widget.beak.dart';"));
+      expect(source, contains('late final String name;'));
+      expect(source, contains('late final double price;'));
+      expect(source, contains('late final bool? active;'));
     });
 
-    test('rejects a lowercase resource name', () async {
-      await expectLater(
-        runner.run(['make:resource', 'widget']),
-        throwsA(isA<UsageException>()),
+    test('the scaffold is what the schema reader reads', () async {
+      // The whole point: one authoring surface, not two that disagree.
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      final (schemas, issues) = BeakSchemaReader(root).read();
+
+      expect(issues, isEmpty);
+      expect(schemas.single.className, 'Widget');
+      expect(schemas.single.table, 'widgets');
+      // Plus the primary key and the timestamps the annotation asked for.
+      expect(
+        schemas.single.columns.map((c) => c.fieldName),
+        containsAll(<String>['name', 'id']),
       );
     });
 
-    test('rejects malformed fields through usage errors', () async {
-      await expectLater(
-        runner.run(['make:resource', 'Widget', '--fields', 'name:blob']),
-        throwsA(isA<UsageException>()),
+    test('prepare runs, so the part file and migration exist', () async {
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      expect(
+        File('${root.path}/lib/models/widget.beak.dart').existsSync(),
+        isTrue,
       );
+      expect(
+        File(
+          '${root.path}/lib/migrations/create_widgets_table.dart',
+        ).existsSync(),
+        isTrue,
+      );
+    });
+
+    test('nullability decides required-ness, marked with a trailing !', () {
+      final required = BeakFieldSpec.parse('name:string!');
+      final optional = BeakFieldSpec.parse('note:text');
+
+      expect(required.isRequired, isTrue);
+      expect(optional.isRequired, isFalse);
+    });
+
+    test('with no fields it scaffolds a display column to edit', () async {
+      await runner.run(['make:resource', 'Widget']);
+
+      final String source = read('lib/models/widget.dart');
+      expect(source, contains('@Display()'));
+      expect(source, contains('late final String name;'));
     });
   });
 
-  group('narrow generators', () {
-    test('make:model writes only the worm model', () async {
-      await runner.run(['make:model', 'Gadget', '--fields', 'label:string']);
-      expect(File('${root.path}/lib/models/gadget.dart').existsSync(), isTrue);
+  group('make:migration', () {
+    test('scaffolds an empty, correctly-named migration', () async {
+      // `prepare` writes the create-table migration; this is for the changes
+      // it cannot derive — an alter, a backfill.
+      expect(await runner.run(['make:migration', 'AddStatusToProducts']), 0);
+
+      final String source = read('lib/migrations/add_status_to_products.dart');
+      expect(source, contains('class AddStatusToProducts extends Migration'));
       expect(
-        File('${root.path}/lib/models/gadget_columns.dart').existsSync(),
-        isFalse,
+        source,
+        contains("String get name => '20260703_120000_add_status_to_products'"),
       );
+      expect(source, contains('Future<void> upSchema(Schema schema)'));
+      expect(source, contains('Future<void> downSchema(Schema schema)'));
     });
 
-    test('make:columns writes only the Beak definition', () async {
-      await runner.run(['make:columns', 'Gadget', '--fields', 'label:string']);
-      expect(read('lib/models/gadget_columns.dart'), contains('GadgetModel'));
-    });
-
-    test('make:migration writes only the migration', () async {
-      await runner.run([
-        'make:migration',
-        'Gadget',
-        '--fields',
-        'label:string',
-      ]);
+    test('rejects a name that is not UpperCamelCase', () {
       expect(
-        read('lib/migrations/create_gadgets_table.dart'),
-        contains('CreateGadgetsTable'),
+        runner.run(['make:migration', 'add_status']),
+        throwsA(isA<UsageException>()),
       );
     });
   });
@@ -197,7 +212,12 @@ void main() {
     test('the migration class agrees with the table it creates', () async {
       // `CreateCategorysTable` beside a `categories` table was the tell that
       // two pluralisers were in play.
-      await runner.run(['make:migration', 'Category', '--from-model']);
+      await runner.run([
+        'make:resource',
+        'Category',
+        '--fields',
+        'name:string!',
+      ]);
 
       final source = read('lib/migrations/create_categories_table.dart');
       expect(source, contains('class CreateCategoriesTable'));
@@ -211,46 +231,6 @@ void main() {
       expect(pluralOf('Batch'), 'Batches');
       expect(pluralOf('Category'), 'Categories');
       expect(pluralOf('Product'), 'Products');
-    });
-  });
-
-  group('make:migration --from-model', () {
-    test('derives the table from the model instead of restating it', () async {
-      await runner.run(['make:migration', 'Product', '--from-model']);
-
-      final source = read('lib/migrations/create_products_table.dart');
-      expect(source, contains("import '../models/product.dart';"));
-      expect(
-        source,
-        contains('BeakBlueprint.defineColumns(table, const ProductModel())'),
-      );
-      expect(
-        source,
-        contains(
-          'BeakBlueprint.defineForeignKeys(table, const ProductModel())',
-        ),
-      );
-      // No hand-restated columns to drift from the model.
-      expect(source, isNot(contains('table.string(')));
-    });
-
-    test('says why it is better, so the choice is informed', () async {
-      await runner.run(['make:migration', 'Product', '--from-model']);
-
-      expect(out.toString(), contains('derived from ProductModel'));
-    });
-
-    test('without the flag it still writes explicit columns', () async {
-      await runner.run([
-        'make:migration',
-        'Product',
-        '--fields',
-        'name:string',
-      ]);
-
-      final source = read('lib/migrations/create_products_table.dart');
-      expect(source, contains("table.string('name')"));
-      expect(source, isNot(contains('BeakBlueprint')));
     });
   });
 
@@ -294,7 +274,7 @@ void main() {
       final result = await Process.run(Platform.resolvedExecutable, const [
         'run',
         'bin/beak.dart',
-        'make:model',
+        'make:resource',
         'lowercase',
       ]);
 

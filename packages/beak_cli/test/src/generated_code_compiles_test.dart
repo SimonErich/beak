@@ -24,15 +24,6 @@ void main() {
         now: () => DateTime.utc(2026, 7, 3, 12),
         probe: (host, port) async => false,
       );
-      final int? code = await createBeakRunner(environment).run([
-        'make:resource',
-        'Widget',
-        '--fields',
-        'name:string,notes:text,stock:int,price:decimal,'
-            'active:bool,released_at:datetime',
-      ]);
-      expect(code, 0);
-
       File('${temp.path}/pubspec.yaml').writeAsStringSync('''
 name: generated_probe
 publish_to: none
@@ -47,6 +38,18 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
 ''');
+      // Scaffold after the pubspec exists: `make:resource` now runs
+      // `prepare`, which reads the package name from it to write the
+      // entrypoint imports.
+      final int? code = await createBeakRunner(environment).run([
+        'make:resource',
+        'Widget',
+        '--fields',
+        'name:string,notes:text,stock:int,price:decimal,'
+            'active:bool,released_at:datetime',
+      ]);
+      expect(code, 0);
+
       File('${temp.path}/analysis_options.yaml').writeAsStringSync(
         File('${repoRoot.path}/analysis_options.yaml').readAsStringSync(),
       );
