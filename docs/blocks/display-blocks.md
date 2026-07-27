@@ -55,7 +55,7 @@ The showcase's typography page walks the whole ramp. Here is the top of it,
 inside a card:
 
 ```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
-BeakCardBlock(
+body: BeakCardBlock(
   title: 'Type scale',
   child: BeakColumnBlock(
     gapInPixels: 12,
@@ -65,6 +65,7 @@ BeakCardBlock(
       BeakTextBlock('Heading 2', variant: BeakTextVariant.h2),
       BeakTextBlock('Heading 3', variant: BeakTextVariant.h3),
       BeakTextBlock('Heading 4', variant: BeakTextVariant.h4),
+      // ... the body, small, and caption variants.
     ],
   ),
 ),
@@ -124,7 +125,7 @@ const BeakImageBlock(
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakImageBlock(
+block: BeakImageBlock(
   'https://example.com/pic.png',
   alt: 'A picture',
   widthInPixels: 100,
@@ -144,6 +145,7 @@ BeakImageBlock(
       maxSizeInBytes: 5 * 1024 * 1024,
       allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
       thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
+      // ... the transforms list.
     )
     late final BeakImageRef? image;
     ```
@@ -172,7 +174,7 @@ const BeakVideoBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
-BeakVideoBlock(
+child: BeakVideoBlock(
   title: 'Featured video',
   query: BeakQuerySpec(
     table: 'media_assets',
@@ -205,7 +207,7 @@ const BeakIconGalleryBlock({
 The showcase's icons page builds one from a curated list of Lucide icons:
 
 ```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
-BeakCardBlock(
+body: BeakCardBlock(
   title: 'Lucide icons',
   child: BeakIconGalleryBlock(
     columns: 6,
@@ -223,7 +225,7 @@ Where `_icons` is a plain list of token-and-label pairs:
 const List<_Icon> _icons = [
   (BeakIconToken(OiIcons.home), 'home'),
   (BeakIconToken(OiIcons.user), 'user'),
-  (BeakIconToken(OiIcons.settings), 'settings'),
+  (BeakIconToken(OiIcons.users), 'users'),
   // ...
 ];
 ```

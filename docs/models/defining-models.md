@@ -97,6 +97,8 @@ the API. [Annotations](../reference/annotations.md) has the full table.
 @BelongsTo(onDelete: BeakOnDelete.setNull)
 late final Category? category;
 
+// ... a has-one ...
+
 /// The tags attached to this product.
 @BelongsToMany(allowCreate: true)
 late final List<Tag> tags;

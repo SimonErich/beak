@@ -224,12 +224,25 @@ and exposed as a `ReadonlySignal`, and disposed together.
 
 ```dart title="packages/beak_frontend/lib/src/state/beak_view_model.dart"
 abstract base class BeakViewModel {
+  final List<void Function()> _cleanups = [];
+  // ...
   @protected
   Signal<T> ownedSignal<T>(T value) {
     final owned = signal<T>(value);
     _cleanups.add(owned.dispose);
     return owned;
   }
+
+  /// Releases every owned signal; further use is a programming error.
+  @mustCallSuper
+  void dispose() {
+    for (final cleanup in _cleanups) {
+      cleanup();
+    }
+    _cleanups.clear();
+    _isDisposed = true;
+  }
+}
 ```
 
 ### The Repository is the catch boundary
@@ -242,6 +255,8 @@ ViewModel, failure is a value it can pattern-match on.
 /// Runs a query, capturing failures as [BeakErr].
 Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
     _guard(() => dataSource.query(spec));
+
+// ... aggregate, getOne, batchGet, create, update, delete, each the same shape ...
 
 Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
   try {

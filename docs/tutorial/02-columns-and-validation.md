@@ -210,19 +210,22 @@ transforms the server runs on the way in. `@FileField` is the same declaration
 without them. Each column gets its own endpoint,
 `POST /api/products/<column>/upload`.
 
-The bytes need somewhere to land, and that is the one thing Beak takes no
-default on. Point it at a folder in a `.env` beside your `pubspec.yaml`:
+The bytes need somewhere to land, and Beak takes a default rather than asking:
+`storage/uploads` beside your `pubspec.yaml`, served by the same server at
+`/uploads`. Development needs no S3, no MinIO and no reverse proxy, and
+`beak create` git-ignores `storage/` for you.
+
+Point it elsewhere with a `.env` beside your `pubspec.yaml`:
 
 ```bash title=".env"
 BEAK_STORAGE_DRIVER=local
-BEAK_LOCAL_ROOT_DIR=storage/uploads
+BEAK_LOCAL_ROOT_DIR=var/uploads
 BEAK_LOCAL_PUBLIC_BASE_URL=http://localhost:8080/uploads
 ```
 
-The same server then serves what it stored, so development needs no S3, no
-MinIO and no reverse proxy. `beak create` git-ignores `.env` for you. Leave the
-file out and the upload endpoints are not registered at all, which is what a
-project with no file columns wants.
+`s3`, `ftp` and `memory` are the other drivers, each with its own `BEAK_*`
+settings. `BEAK_STORAGE_DRIVER=none` turns the upload endpoints off outright,
+which is what a project with no file columns wants. `.env` is git-ignored too.
 
 ## The escape hatch
 

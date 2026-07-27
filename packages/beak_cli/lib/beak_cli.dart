@@ -47,6 +47,7 @@ export 'src/field_spec.dart';
 export 'src/project/beak_discovery.dart';
 export 'src/project/beak_emitters.dart';
 export 'src/project/beak_project_config.dart';
+export 'src/schema/beak_schema_drift.dart';
 export 'src/schema/beak_schema_emitter.dart';
 export 'src/schema/beak_schema_ir.dart';
 export 'src/schema/beak_schema_reader.dart';

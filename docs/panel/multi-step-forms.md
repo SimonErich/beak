@@ -68,7 +68,7 @@ column and a renamed field breaks the build instead of the wizard.
 
 The store breaks its "new order" flow into four steps: who is buying, then the
 reference and status, then the money, then anything the courier needs. This is
-the whole thing, and bar its two imports it is the whole file:
+the whole thing, and bar its imports it is the whole file:
 
 ```dart title="examples/store/lib/resources/orders.dart"
 /// The orders resource: a wizard instead of one long form.

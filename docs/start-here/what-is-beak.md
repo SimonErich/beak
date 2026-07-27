@@ -182,7 +182,7 @@ Four projects in the repository, each answering a different question.
 | --- | --- |
 | `examples/quickstart` | Exactly what `beak create` produces, checked in. |
 | `examples/store` | The teaching example this section and the tutorial quote: every column kind, all four relationship kinds, auth with a row policy, uploads, a wizard, a dashboard. API on port 8080. |
-| `examples/superdashboard` | The same ideas at 49 models: 17 navigable resources, 37 block types, charts, maps. API on port 8180. |
+| `examples/superdashboard` | The same ideas at 49 models: 17 navigable resources, every one of the 48 block types, charts, maps. API on port 8180. |
 | `examples/embedded` | Beak mounted inside an application that already exists, including a table another system owns. |
 
 ## Continue reading

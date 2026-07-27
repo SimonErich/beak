@@ -49,9 +49,9 @@ Future<bool> confirm({
 }
 ```
 
-An action can call it directly for a tailored prompt, rather than relying on the automatic dialog that `requiresConfirmation` raises:
+An action can call it directly for a tailored prompt, rather than relying on the automatic dialog that `requiresConfirmation` raises. An archive action of your own might read:
 
-```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
+```dart
 BeakRecordAction(
   key: 'archive',
   label: 'Archive',

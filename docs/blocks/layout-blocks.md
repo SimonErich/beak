@@ -63,6 +63,7 @@ body: BeakCardBlock(
       BeakTextBlock('Heading 2', variant: BeakTextVariant.h2),
       BeakTextBlock('Heading 3', variant: BeakTextVariant.h3),
       BeakTextBlock('Heading 4', variant: BeakTextVariant.h4),
+      // ... the body, small, and caption variants.
     ],
   ),
 ),
@@ -80,7 +81,7 @@ const BeakRowBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakRowBlock(
+child: BeakRowBlock(
   gapInPixels: 8,
   children: [
     for (final color in BeakColor.values)
@@ -133,9 +134,10 @@ BeakBlock _widgets() => BeakGridBlock(
 ```
 
 For finer control, set a wider grid and span individual children. On a
-twelve-track grid, `BeakSpan(columns: 6)` is a half-width child:
+twelve-track grid, `BeakSpan(columns: 6)` is a half-width child. A layout of
+your own might say:
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
+```dart
 BeakGridBlock(
   columns: 12,
   children: [
@@ -187,7 +189,7 @@ const BeakSectionBlock({
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakSectionBlock(
+const BeakSectionBlock(
   title: 'Settings',
   description: 'Tune the panel',
   child: BeakTextBlock('content'),
@@ -205,7 +207,7 @@ const BeakTabsBlock({required this.tabs, this.initialIndex = 0, super.span});
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakTabsBlock(
+const BeakTabsBlock(
   tabs: [
     BeakTabBlockItem(label: 'One', content: BeakTextBlock('first')),
     BeakTabBlockItem(label: 'Two', content: BeakTextBlock('second')),
@@ -225,7 +227,7 @@ const BeakAccordionBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakAccordionBlock(
+child: BeakAccordionBlock(
   items: [
     BeakAccordionBlockItem(
       title: 'What is a block?',
@@ -249,7 +251,7 @@ const BeakBreadcrumbsBlock({required this.items, super.span});
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakBreadcrumbsBlock(
+block: BeakBreadcrumbsBlock(
   items: [
     BeakBreadcrumbBlockItem(label: 'Home', route: '/target'),
     BeakBreadcrumbBlockItem(label: 'Here'),
@@ -272,7 +274,7 @@ const BeakMasonryBlock({
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakMasonryBlock(
+const BeakMasonryBlock(
   columns: 2,
   children: [BeakTextBlock('a'), BeakTextBlock('b')],
 ),
@@ -304,10 +306,12 @@ body: BeakThreePaneBlock(
     model: FileFolderModel(),
     heightInPixels: 640,
   ),
-  middle: BeakTableBlock(
-    title: 'Files',
+  middle: BeakFileManagerBlock(
+    label: 'Files',
     model: ManagedFileModel(),
-    heightInPixels: 640,
+    nameField: ManagedFileColumns.name,
+    sizeField: ManagedFileColumns.size,
+    modifiedField: ManagedFileColumns.modifiedAt,
   ),
   right: BeakTableBlock(
     title: 'Storage',
@@ -333,7 +337,7 @@ const BeakCarouselBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
-BeakCarouselBlock(
+child: BeakCarouselBlock(
   query: BeakQuerySpec(
     table: 'media_assets',
     filter: _inCollection(MediaCollection.carousel),
@@ -357,7 +361,7 @@ const BeakTimelineBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakTimelineBlock(
+child: BeakTimelineBlock(
   query: BeakQuerySpec(
     table: 'activities',
     sorts: [BeakSort('created_at', descending: true)],
@@ -391,7 +395,7 @@ const BeakSpacerBlock({this.heightInPixels = 16, super.span});
 Both, side by side:
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakColumnBlock(
+const BeakColumnBlock(
   children: [
     BeakMarkdownBlock('# Heading\n\nBody copy.'),
     BeakDividerBlock(label: 'or'),

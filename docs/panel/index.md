@@ -172,7 +172,7 @@ BeakPanelConfig buildBeakPanel() {
           section: 'Sales',
         ),
       ),
-      // …
+      // ... the four remaining resources ...
     ],
     pages: [dashboard.beakDashboard(), restockScreen],
   );
@@ -227,7 +227,7 @@ resource and returns a copy.
 BeakResource beakResource(BeakResource generated) => generated.copyWith(
   detail: productLayout,
   formLayout: productLayout,
-  // …
+  // ... actions and view modes ...
 );
 ```
 
@@ -261,7 +261,7 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
     readField: NotificationColumns.isRead,
     categoryField: NotificationColumns.level,
   ),
-  // …
+  // ... pages, auth and maintenance ...
 );
 ```
 

@@ -99,7 +99,7 @@ Two facts fall out of that signature and make rules compose cleanly:
   ignores a number, `BeakMin` ignores a string. Presence is `BeakRequired`'s job
   alone, so you stack rules freely without them fighting over empty values.
 
-```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
+```dart
 const rule = BeakMaxLength(3);
 rule.validate('abcd'); // 'Must be at most 3 characters.'
 rule.validate(42);     // null (not a string)
@@ -173,9 +173,9 @@ late final String email;
 
 `BeakPattern` covers everything else. Its `regex` is unanchored, so add `^` and
 `$` yourself to match the whole value, and pass `message` for a domain-specific
-error.
+error. On a slug column it reads:
 
-```dart title="packages/beak_core/lib/src/rules/beak_pattern.dart"
+```dart
 static const slug = BeakStringColumn(
   key: 'slug',
   label: 'Slug',
@@ -192,9 +192,9 @@ static const slug = BeakStringColumn(
 
 `BeakInList<T>` keeps a value inside a known set and stays type-safe through its
 type parameter. `null` passes, since presence is decided by the field's
-nullability.
+nullability. A size column held to three values:
 
-```dart title="packages/beak_core/lib/src/rules/beak_in_list.dart"
+```dart
 static const size = BeakStringColumn(
   key: 'size',
   label: 'Size',
@@ -218,7 +218,7 @@ applies the matching rules (see
 standalone rules for the same reason the others do, so the check is one value
 that travels to both sides.
 
-```dart title="packages/beak_core/lib/src/rules/beak_allowed_file_types.dart"
+```dart
 const rule = BeakAllowedFileTypes([BeakFileType.jpeg, BeakFileType.png]);
 rule.validate('photo.PNG');       // null (extension matches)
 rule.validate('image/jpeg');      // null (MIME matches)

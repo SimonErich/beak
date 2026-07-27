@@ -2,10 +2,13 @@ import 'package:beak/panel.dart';
 import 'package:superdashboard/models/models.dart';
 import 'package:beak/ui.dart';
 
-/// The file manager — a three-pane layout composed from Beak blocks (obers
-/// has no turnkey mailbox-style file manager that fits this two-table
-/// schema): the folder tree on the left, files in the middle, and connected
-/// cloud-storage accounts on the right. All from seeded data.
+/// The file manager — a three-pane layout composed from Beak blocks: the
+/// folder tree on the left, the files themselves in the middle on a real
+/// [BeakFileManagerBlock], and connected cloud-storage accounts on the
+/// right. All from seeded data.
+///
+/// `files` stores only files — folders are their own table, and the left
+/// pane — so the manager's folder flag is left unbound.
 BeakScreen buildFilesScreen() => const BeakScreen(
   path: '/files',
   title: 'File Manager',
@@ -21,10 +24,12 @@ BeakScreen buildFilesScreen() => const BeakScreen(
       model: FileFolderModel(),
       heightInPixels: 640,
     ),
-    middle: BeakTableBlock(
-      title: 'Files',
+    middle: BeakFileManagerBlock(
+      label: 'Files',
       model: ManagedFileModel(),
-      heightInPixels: 640,
+      nameField: ManagedFileColumns.name,
+      sizeField: ManagedFileColumns.size,
+      modifiedField: ManagedFileColumns.modifiedAt,
     ),
     right: BeakTableBlock(
       title: 'Storage',

@@ -123,7 +123,9 @@ const BeakMetricBlock({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_metric_block.dart"
+The block's own dartdoc shows the shape a call takes:
+
+```dart
 BeakMetricBlock(
   label: 'Products',
   aggregate: BeakAggregateSpec.count(table: 'products'),
@@ -168,8 +170,7 @@ BeakBlock _tables() => const BeakGridBlock(
         pagination: BeakPagination(perPage: 6),
       ),
     ),
-    // ... Top customers (UserModel) and Latest transactions
-    // (TransactionModel) follow the same shape.
+    // ... Top customers (UserModel) and Latest transactions (TransactionModel).
   ],
 );
 ```
@@ -244,7 +245,9 @@ const BeakCalendarBlock({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart"
+A calendar over an events model reads like this:
+
+```dart
 BeakCalendarBlock(
   model: const EventModel(),
   titleField: EventColumns.title,
@@ -273,7 +276,9 @@ const BeakKanbanBlock({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
+And a board over a tasks model:
+
+```dart
 BeakKanbanBlock(
   model: const TaskModel(),
   groupField: TaskColumns.status, // a BeakEnumColumn

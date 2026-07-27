@@ -397,9 +397,36 @@ All checks passed.
 | `web/` scaffold present | WARN | `flutter create --platforms=web .` can fail offline, leaving a project that runs everywhere but the web. |
 | No panel file imports the server | FAIL | `package:beak/server.dart` reaches `dart:io`: it compiles, then fails in a browser. |
 | Database reachable | WARN | Only for a server database. No `DATABASE_URL` is the supported SQLite default and passes as OK, as does a `sqlite:`/`file:` URL. |
+| Database matches the schema classes | WARN | Drift: the schema class is what the panel, the API and the next generated migration all read, so a database that no longer matches it is wrong in three places at once. |
 
 Warnings do not fail the command; only a FAIL does. `--json` prints
 `{"healthy": bool, "checks": [...]}` instead, so CI can gate on it.
+
+### Drift
+
+The last check runs only when `DATABASE_URL` names a **reachable Postgres**,
+and it reads that database's real schema. It reports both directions, one
+warning per difference:
+
+```console
+$ beak doctor
+  OK   database reachable at localhost:5432
+  WARN products.reserved is declared by Product.reserved but missing from the database
+       → write a migration with `beak make:migration`, then `migrate`
+  WARN products.legacy_sku is in the database but Product does not declare it
+       → write a migration with `beak make:migration`, then `migrate`
+```
+
+It also checks the columns a schema *implies* rather than declares — a
+belongs-to's foreign key, `deleted_at` under `softDeletes`, the two stamps
+under `timestamps`, and the pivot table behind every `@BelongsToMany`.
+
+Two deliberate quiets. A `@Resource(managesSchema: false)` table may carry any
+number of columns Beak knows nothing about, because another system owns it;
+only the columns the schema *declares* are checked there. And drift is a
+warning, never a failure — the fix is a migration someone has to write and
+review, so blocking on it would make `doctor` unrunnable against an
+environment mid-deploy.
 
 ## Exit codes
 

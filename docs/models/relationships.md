@@ -76,6 +76,8 @@ static const BeakBelongsTo category = BeakBelongsTo(
   onDelete: BeakOnDelete.setNull,
 );
 
+// ... the has-one ...
+
 /// The tags attached to this product.
 static const BeakBelongsToMany tags = BeakBelongsToMany(
   key: 'tags',
@@ -295,7 +297,7 @@ page, and for the relations a show page renders. Compose a spec yourself and you
 ask with `withRelation`, which takes the typed relationship constant, never a
 string:
 
-```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
+```dart
 final spec = const BeakQuerySpec(table: 'posts')
     .withRelation(author)
     .withFilter(BeakFieldFilter(

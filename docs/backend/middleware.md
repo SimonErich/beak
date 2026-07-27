@@ -65,7 +65,13 @@ Middleware beakRequestLogMiddleware({
     );
     stopwatch.stop();
     onRequest(
-      BeakRequestLogEntry(/* ...requestId, method, path, statusCode, duration... */),
+      BeakRequestLogEntry(
+        requestId: requestId,
+        method: request.method,
+        path: request.url.path,
+        statusCode: response.statusCode,
+        duration: stopwatch.elapsed,
+      ),
     );
     return response.change(headers: {'x-request-id': requestId});
   };

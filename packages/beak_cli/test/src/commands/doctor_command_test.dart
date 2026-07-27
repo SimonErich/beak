@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/command_runner.dart';
 import 'package:beak_cli/beak_cli.dart';
 import 'package:test/test.dart';
+
+import '../../support/fake_database.dart';
 
 const String noteModel = '''
 import 'package:beak_core/beak_core.dart';
@@ -17,6 +20,53 @@ final class NoteModel extends BeakModel {
   List<BeakColumn> get columns => const [];
 }
 ''';
+
+/// A schema class over `products`, plus whatever [extraFields] adds.
+///
+/// Matches [driftDatabase] exactly as written, so a test that wants drift
+/// has to introduce it — which keeps each one about the difference it names.
+String productSchema(String extraFields) =>
+    '''
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+part 'product.beak.dart';
+
+/// Something for sale.
+@Resource(softDeletes: true, timestamps: true)
+final class Product extends BeakSchema {
+  /// What it is called.
+  @Display()
+  late final String name;
+
+  /// What it costs.
+  late final double price;
+$extraFields}
+''';
+
+/// The `products` table as the schema class above describes it, plus any
+/// [extraColumns] the database has grown on its own.
+FakeDatabase driftDatabase({List<String> extraColumns = const []}) =>
+    FakeDatabase(
+      columns: [
+        column('products', 'id', 'uuid', nullable: false),
+        column('products', 'name', 'character varying', nullable: false),
+        column('products', 'price', 'numeric', nullable: false),
+        for (final name in ['created_at', 'updated_at', 'deleted_at'])
+          column('products', name, 'timestamp with time zone'),
+        for (final name in extraColumns) column('products', name, 'text'),
+      ],
+      primaryKeys: const [
+        {'table_name': 'products', 'column_name': 'id'},
+      ],
+    );
+
+/// An opener that fails if anything reaches for it.
+///
+/// The default opener connects to a real Postgres, so a test that does not
+/// mean to introspect must say so rather than find out over the network.
+Future<(BeakSqlReader, Future<void> Function())> neverOpen(Uri url) async =>
+    throw StateError('a test opened a database connection to $url');
 
 /// A project directory seeded with [files].
 Directory projectWith(Map<String, String> files) {
@@ -297,10 +347,128 @@ final class NoteModel extends BeakModel {
         'DATABASE_URL=postgres://beak:beak@localhost:25432/beak\n',
       );
       final check = checkMatching(
-        await diagnose(environmentFor(root, databaseUp: true)),
+        await diagnose(environmentFor(root, databaseUp: true), open: neverOpen),
         'database reachable',
       );
       expect(check.status, BeakCheckStatus.ok);
+    });
+  });
+
+  group('drift', () {
+    /// A project whose one schema class declares a `products` table shaped
+    /// like the one [shopDatabase] introspects.
+    Directory shopProject({String extraFields = ''}) {
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/product.dart': productSchema(extraFields),
+        '.env': 'DATABASE_URL=postgres://beak:beak@localhost:25432/beak\n',
+      });
+      runPrepare(environmentFor(root));
+      return root;
+    }
+
+    Future<List<BeakCheck>> checksAgainst(
+      Directory root, {
+      List<String> extraColumns = const [],
+    }) => diagnose(
+      environmentFor(root, databaseUp: true),
+      open: (url) async =>
+          (driftDatabase(extraColumns: extraColumns).query, () async {}),
+    );
+
+    test(
+      'a column the database lacks is a warning naming both sides',
+      () async {
+        final checks = await checksAgainst(
+          shopProject(
+            extraFields: '''
+
+  /// How many are reserved.
+  late final int? reserved;
+''',
+          ),
+        );
+
+        final check = checkMatching(checks, 'products.reserved');
+        expect(check.status, BeakCheckStatus.warn);
+        expect(check.label, contains('Product.reserved'));
+        expect(check.remedy, contains('beak make:migration'));
+      },
+    );
+
+    test('a matching database reports one check, not one per column', () async {
+      final checks = await checksAgainst(shopProject());
+
+      final check = checkMatching(checks, 'matches the schema classes');
+      expect(check.status, BeakCheckStatus.ok);
+    });
+
+    test('a column the schema does not declare is drift too', () async {
+      // The direction people forget: someone added it by hand, and every
+      // generated migration from here on is derived from a schema that has
+      // never heard of it.
+      final checks = await checksAgainst(
+        shopProject(),
+        extraColumns: ['legacy_sku'],
+      );
+
+      final check = checkMatching(checks, 'products.legacy_sku');
+      expect(check.status, BeakCheckStatus.warn);
+      expect(check.label, contains('Product does not declare it'));
+    });
+
+    test('drift alone does not fail the run', () async {
+      final runner = CommandRunner<int>('beak', 'test')
+        ..addCommand(
+          DoctorCommand(
+            environmentFor(
+              shopProject(extraFields: '\n  late final int? reserved;\n'),
+              databaseUp: true,
+            ),
+            open: (url) async => (driftDatabase().query, () async {}),
+          ),
+        );
+      final code = await runner.run(['doctor']);
+
+      // A database is not the project, and the fix is a migration someone
+      // has to write. Blocking CI on it would make `doctor` unrunnable
+      // against any environment mid-deploy.
+      expect(code, 0);
+    });
+
+    test(
+      'an unreadable database says so rather than reporting drift',
+      () async {
+        final checks = await diagnose(
+          environmentFor(shopProject(), databaseUp: true),
+          open: (url) async => throw const SocketException('password rejected'),
+        );
+
+        final check = checkMatching(
+          checks,
+          'could not read the database schema',
+        );
+        expect(check.status, BeakCheckStatus.warn);
+        expect(check.remedy, contains('credentials'));
+      },
+    );
+
+    test('a project with no schema classes is not checked at all', () async {
+      final root = preparedProject();
+      File('${root.path}/.env').writeAsStringSync(
+        'DATABASE_URL=postgres://beak:beak@localhost:25432/beak\n',
+      );
+
+      // The hand-written-model hatch: there is no schema class to compare
+      // against, so there is nothing to say.
+      final checks = await diagnose(
+        environmentFor(root, databaseUp: true),
+        open: neverOpen,
+      );
+      expect(
+        checks.where((check) => check.label.contains('schema classes')),
+        isEmpty,
+      );
     });
   });
 

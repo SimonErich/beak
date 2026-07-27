@@ -25,8 +25,14 @@ beak eject resource products
 ```dart title="examples/store/lib/resources/orders.dart"
 BeakResource beakResource(BeakResource generated) => generated.copyWith(
   formSteps: const [
-    BeakFormStep(title: 'Customer', columns: [OrderColumns.customerId]),
-    // ...
+    BeakFormStep(
+      title: 'Customer',
+      subtitle: 'Who is buying',
+      icon: OiIcons.user,
+      // ...
+      columns: [OrderColumns.customerId],
+    ),
+    // ... three more steps ...
   ],
 );
 ```
@@ -88,14 +94,16 @@ final class LegacyOrderModel extends BeakModel {
 }
 ```
 
-Put it under `lib/models/` like any other. Discovery finds it, the registry
-registers it, the panel and the API treat it identically — it simply has no
-part file, because there is no schema class to generate one from. You write
-its migration yourself, or let `beak prepare` derive one from the model.
+Put it under `lib/models/` like any other, with a zero-argument `const`
+constructor so Beak can instantiate it. Discovery finds it, the registry
+registers it, and the panel and the API treat it identically. It simply has no
+part file, because there is no schema class to generate one from. You write its
+migration yourself, or let `beak prepare` derive one from the model.
 
-[`examples/superdashboard`](https://github.com/SimonErich/beak/tree/main/examples/superdashboard)
-is 49 models written this way. It is the honest measure of what the schema
-classes save.
+That missing part file is the cost: nothing writes the typed column constants or
+the typed record view for you, so hoist the columns into `static const` fields
+yourself if you want to pass them around. Reach for this hatch only when a schema
+class cannot describe the table.
 
 ## 4. A table another system owns
 
@@ -103,7 +111,9 @@ Not a hatch out of Beak so much as one *into* an existing product:
 
 ```dart title="examples/embedded/lib/models/legacy_account.dart"
 @Resource(table: 'accounts', managesSchema: false)
-final class LegacyAccount extends BeakSchema { /* ... */ }
+final class LegacyAccount extends BeakSchema {
+  // ... ordinary columns ...
+}
 ```
 
 Beak reads the table, writes it, renders it and relates to it. It writes no

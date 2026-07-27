@@ -107,7 +107,8 @@ flowchart TD
 `beak_cli` stands apart: it generates source files rather than linking against
 Beak, so it depends on no Beak package. It reaches for `worm` and
 `worm_postgres` only so `beak introspect` can read a live schema, and for
-`analyzer`, `args`, `dart_style`, `path` and `yaml` to do its own job.
+`analyzer`, `args`, `dart_style`, `path`, `pub_semver` and `yaml` to do its own
+job.
 
 ## The vendored worm ORM
 

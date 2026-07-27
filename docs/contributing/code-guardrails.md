@@ -24,8 +24,8 @@ const List<String> forbiddenImportUris = [
 
 This is not a convention you have to remember. The `guard-material` step of
 `melos run analyze` runs `tool/check_no_material.dart`, which scans every Dart
-file under `packages/` and `apps/` (the vendored `worm*` packages excluded) and
-exits non-zero listing each offending file:
+file under `packages/` and `examples/` (the vendored `worm*` packages excluded)
+and exits non-zero listing each offending file:
 
 ```yaml title="melos.yaml"
   guard-material:

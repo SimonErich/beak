@@ -175,7 +175,7 @@ sealed and JSON-serializable, so the pipeline travels over the wire and the
 server's transform runner switches over it exhaustively. Compose steps with the
 named factories.
 
-```dart title="packages/beak_core/lib/src/storage/transforms/beak_image_transform.dart"
+```dart
 const pipeline = <BeakImageTransform>[
   BeakImageTransform.resize(widthInPixels: 1280, fit: BeakImageFit.contain),
   BeakImageTransform.webp(quality: 80),
@@ -209,7 +209,7 @@ logic with no I/O. It returns the upload unchanged when every rule passes, or a
 `BeakValidationException` whose `fieldErrors` are keyed by the aspect that
 failed: `size`, `type`, `dimensions`, or `aspectRatio`.
 
-```dart title="packages/beak_core/lib/src/storage/beak_upload_validator.dart"
+```dart
 const validator = BeakUploadValidator();
 final result = validator.validate(
   upload,
@@ -248,7 +248,7 @@ message, rather than at the first upload.
 Under those variables sits a sealed `BeakStorageConfig` family, one variant per
 driver. It is also what you build directly when you host the server yourself:
 
-```dart title="packages/beak_core/lib/src/storage/beak_storage_config.dart"
+```dart
 final BeakStorageConfig config = isProduction
     ? BeakS3Config(
         endpoint: Uri.parse('https://s3.eu-central-1.amazonaws.com'),

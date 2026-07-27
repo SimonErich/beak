@@ -10,6 +10,30 @@ library;
 
 import 'dart:io';
 
+/// Fence languages whose body is a transcript rather than a quotation.
+///
+/// A `console` block titled with a file name is showing what running it
+/// prints, not what the file contains.
+const Set<String> transcriptLanguages = {
+  '',
+  'console',
+  'bash',
+  'sh',
+  'shell',
+  'text',
+  'output',
+  'diff',
+};
+
+/// A line that says "and some more of the file here".
+///
+/// Anything opening with `...`, optionally behind a comment marker and
+/// optionally followed by a note about what was left out: `// ...`,
+/// `// ... roughly fifty arms ...`, `# ...`, a bare `...`. A quotation is
+/// checked chunk by chunk between these, so an abridged quote stays honest
+/// without having to be complete.
+final RegExp elisionMarker = RegExp(r'^(?://+|#+|/\*+|<!--)?\s*\.\.\.');
+
 /// Phrases the style guide bans, lowercased.
 ///
 /// Each one is a promise the reader has to take on faith. The docs make
@@ -178,5 +202,198 @@ List<DocProblem> checkPage(String path, String content) {
     }
   }
 
+  problems.addAll(checkQuotations(path, lines));
   return problems;
+}
+
+/// The problems in the code fences of [lines] that claim to quote a file.
+///
+/// A fence titled with a repository path is a quotation, and a quotation that
+/// has drifted from its source is worse than no quotation: the reader trusts
+/// it, opens the file, and finds something else. Every such fence is checked
+/// against the file it names.
+///
+/// A fence may abridge with an elision marker, so the body is compared chunk
+/// by chunk between them, and indentation is ignored — a class member quoted
+/// on its own is still that member.
+List<DocProblem> checkQuotations(String path, List<String> lines) {
+  final problems = <DocProblem>[];
+  for (final quotation in _quotationsIn(lines)) {
+    final file = File(quotation.target);
+    if (!file.existsSync()) {
+      // Already reported as a missing path.
+      continue;
+    }
+    final List<String> source = _significant(
+      file.readAsStringSync().split('\n'),
+    );
+    for (final chunk in _chunksOf(quotation.body)) {
+      if (_containsRun(source, chunk)) {
+        continue;
+      }
+      problems.add(
+        DocProblem(
+          path,
+          'the fence titled "${quotation.target}" does not quote it: '
+          '${_whyNot(source, chunk)}. Correct the code, or drop the title if '
+          'the block is illustrative.',
+          line: quotation.line,
+        ),
+      );
+      // One report per fence: the first mismatch is the one to look at.
+      break;
+    }
+  }
+  return problems;
+}
+
+/// One fence that claims to quote a repository file.
+final class _Quotation {
+  const _Quotation({
+    required this.target,
+    required this.line,
+    required this.body,
+  });
+
+  /// The repository path the fence names.
+  final String target;
+
+  /// The 1-based line the fence opens on.
+  final int line;
+
+  /// The fence's contents.
+  final List<String> body;
+}
+
+/// Every quotation fence in [lines].
+Iterable<_Quotation> _quotationsIn(List<String> lines) sync* {
+  final opener = RegExp(r'^(\s*)```(\w*)\s+title="([^"]+)"');
+  for (var index = 0; index < lines.length; index += 1) {
+    final RegExpMatch? match = opener.firstMatch(lines[index]);
+    if (match == null) {
+      continue;
+    }
+    final String indent = match.group(1)!;
+    final String language = match.group(2)!;
+    final String target = match.group(3)!;
+    final int close = _closingFence(lines, index + 1, indent);
+    if (close == -1) {
+      continue;
+    }
+    final bool quotesRepo =
+        target.startsWith('packages/') ||
+        target.startsWith('examples/') ||
+        target.startsWith('tool/');
+    if (quotesRepo && !transcriptLanguages.contains(language)) {
+      yield _Quotation(
+        target: target,
+        line: index + 1,
+        body: lines.sublist(index + 1, close),
+      );
+    }
+    index = close;
+  }
+}
+
+/// The index of the fence closing the one opened at [from], or -1.
+int _closingFence(List<String> lines, int from, String indent) {
+  for (var index = from; index < lines.length; index += 1) {
+    if (lines[index] == '$indent```') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+/// [lines] reduced to what a comparison should care about: trimmed, with
+/// blank lines dropped.
+List<String> _significant(List<String> lines) => [
+  for (final line in lines)
+    if (line.trim().isNotEmpty) line.trim(),
+];
+
+/// [body] split on elision markers into the runs that must each appear.
+///
+/// A chunk of one line is skipped: a single line in isolation is as likely to
+/// be a paraphrase of a signature as a quotation of one, and reporting it
+/// would cost more than it catches.
+List<List<String>> _chunksOf(List<String> body) {
+  final chunks = <List<String>>[];
+  var current = <String>[];
+  for (final line in _significant(body)) {
+    if (elisionMarker.hasMatch(line)) {
+      if (current.length > 1) {
+        chunks.add(current);
+      }
+      current = <String>[];
+      continue;
+    }
+    current.add(line);
+  }
+  if (current.length > 1) {
+    chunks.add(current);
+  }
+  return chunks;
+}
+
+/// Why [run] is not in [source], in the words a writer can act on.
+///
+/// A line that appears nowhere is the useful thing to name. When every line
+/// is present but the run is not, the quotation reordered or interrupted
+/// them, which is worth saying differently.
+String _whyNot(List<String> source, List<String> run) {
+  for (final line in run) {
+    if (!source.contains(line)) {
+      return '"${_clip(line)}" is not in that file';
+    }
+  }
+  return 'its ${run.length} lines are all in that file but not together, so '
+      'the quotation reorders or interrupts them (starting at '
+      '"${_clip(run.first)}")';
+}
+
+/// [line], short enough to read in a terminal.
+String _clip(String line) =>
+    line.length <= 60 ? line : '${line.substring(0, 57)}...';
+
+/// A line that is prose about the code rather than the code.
+///
+/// A page quoting a declaration may leave its doc comment out to stay short,
+/// and that is still a faithful quotation. Quoting one that has since changed
+/// is not, so a comment the fence *does* include still has to match.
+bool _isComment(String line) =>
+    line.startsWith('//') ||
+    line.startsWith('/*') ||
+    line.startsWith('*') ||
+    line.startsWith('#');
+
+/// Whether [run] appears in [source] in order, allowing the source's comment
+/// lines to be passed over where the quotation omits them.
+bool _containsRun(List<String> source, List<String> run) {
+  if (run.isEmpty || run.length > source.length) {
+    return false;
+  }
+  for (var start = 0; start < source.length; start += 1) {
+    if (source[start] != run.first) {
+      continue;
+    }
+    var index = start;
+    var offset = 0;
+    while (offset < run.length && index < source.length) {
+      if (source[index] == run[offset]) {
+        index += 1;
+        offset += 1;
+        continue;
+      }
+      if (_isComment(source[index]) && !_isComment(run[offset])) {
+        index += 1;
+        continue;
+      }
+      break;
+    }
+    if (offset == run.length) {
+      return true;
+    }
+  }
+  return false;
 }

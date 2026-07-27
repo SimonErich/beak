@@ -415,8 +415,10 @@ server in front instead, in which case you point the public base URL at that and
 the built-in route stops being used. The details are in
 [Uploads and storage wiring](uploads-and-storage-wiring.md).
 
-With `BEAK_STORAGE_DRIVER` unset, uploads are off and the upload endpoints are
-not mounted at all.
+With `BEAK_STORAGE_DRIVER` unset you get that same local disk driver without
+setting anything: files land under `storage/uploads` and the server serves them
+at `/uploads`. `BEAK_STORAGE_DRIVER=none` is the way to turn uploads off, and
+then the upload endpoints are not mounted at all.
 
 ## Migrations and seeds run separately
 

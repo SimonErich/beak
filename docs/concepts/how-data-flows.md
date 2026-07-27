@@ -66,7 +66,7 @@ the constants `beak prepare` wrote from your schema class, so
 `ProductColumns.price` and `ProductRelations.category` are what you pass, and
 the spec reads the key off them for you:
 
-```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
+```dart
 final spec = const BeakQuerySpec(table: 'posts')
     .withRelation(author)
     .withFilter(BeakFieldFilter(
@@ -93,7 +93,7 @@ final spec = const BeakQuerySpec(table: 'posts')
 one column, and `BeakAndFilter` / `BeakOrFilter` combine children. Because it
 is sealed, any translator walks it with an exhaustive switch.
 
-```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
+```dart
 final BeakFilter predicate = BeakAndFilter([
   BeakFieldFilter(
     column: price,
@@ -135,7 +135,7 @@ would force every caller of them open.
 Walking the tree is a switch with no default case, so adding a filter shape is
 a compile error until every translator handles it:
 
-```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
+```dart
 String describe(BeakFilter filter) => switch (filter) {
   BeakFieldFilter(:final columnKey, :final operator) =>
     '$columnKey ${operator.name}',
@@ -237,7 +237,7 @@ Filters become predicate trees, searches become case-insensitive OR groups,
 relation loads become batched eager-load paths, and soft-deleting models are
 scoped with worm's `SoftDeleteScope` (lifted by `withTrashed`).
 
-```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
+```dart
 final translator = WormQueryTranslator(registry);
 final builder = translator.builderFor(
   BeakQuerySpec(

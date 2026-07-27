@@ -130,6 +130,8 @@ static const BeakStringColumn id = BeakStringColumn(
   visibleOn: {BeakContext.detail},
 );
 
+// ... the columns declared on the schema class ...
+
 /// When the record was last updated.
 static const BeakDateTimeColumn updatedAt = BeakDateTimeColumn(
   key: 'updated_at',

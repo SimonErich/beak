@@ -70,7 +70,7 @@ final class FtpStorageDriver implements BeakStorageDriver {
   FtpStorageDriver(BeakFtpConfig config, {FtpTransport? transport})
     : _config = config,
       _transport = transport ?? SocketFtpTransport(config);
-
+  // ...the `fromConfig` factory the registry calls...
   final BeakFtpConfig _config;
   final FtpTransport _transport;
 
@@ -103,7 +103,7 @@ final class FtpStorageDriver implements BeakStorageDriver {
     );
   }
 
-  // delete / url / exists follow the same validate-then-guard shape.
+  // ...delete, url and exists, the same validate-then-guard shape...
 }
 ```
 
@@ -226,8 +226,9 @@ BeakStorageRegistry beakStorageRegistry() {
 ```
 
 `createDefaultStorageRegistry()` gives you `memory` and `local`; each
-`register<Name>Storage` call adds one more. Register yours the same way, with
-your own package's function or a bare `registry.register('cdn', ...)`.
+`register<Name>Storage` call adds one more. Register yours the same way, either
+through your package's own function or with a bare
+`registry.register(id, factory)` for the config id it serves.
 
 ### Selecting it at runtime
 
@@ -258,12 +259,18 @@ server.
 ## Where your config lives
 
 `BeakStorageConfig` is a **sealed** family, so a config carries a `driverId` and
-the settings your driver needs, and every factory can match it exhaustively. A
-genuinely new backend therefore comes in two parts: a `BeakStorageConfig`
-subtype (its settings and `driverId`) and a driver package that implements
-`BeakStorageDriver` and exposes a `register<Name>Storage` function, exactly as
-`beak_storage_ftp` and `beak_storage_s3` are laid out. The contributing guide
-walks that split in detail.
+the settings its driver needs, and every factory can match it exhaustively.
+Sealed also means the subtypes live in `beak_core`, next to the base class: even
+`BeakFtpConfig` and `BeakS3Config` sit there, as part-files of
+`beak_storage_config.dart`, while their drivers ship in their own packages. That
+is what lets an app select S3 without importing `beak_storage_s3`.
+
+So a genuinely new backend comes in two parts, and the config half belongs
+upstream: a `BeakStorageConfig` subtype (its settings and `driverId`) in
+`beak_core`, and a driver package implementing `BeakStorageDriver` and exposing a
+`register<Name>Storage` function, exactly as `beak_storage_ftp` and
+`beak_storage_s3` are laid out. The [contributing
+guide](../contributing/writing-a-storage-driver.md) walks that split in detail.
 
 Once registered, the server resolves your driver at startup and hands it to the
 upload service. Nothing else changes: file columns, validation, and the upload

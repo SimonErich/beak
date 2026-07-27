@@ -145,7 +145,7 @@ default, so a request sends just what it means.
 | You wrote | Beak generated |
 | --- | --- |
 | One 28-line class | Column constants, the model, both sides of every relationship, a typed record view |
-| Nothing | 9 REST routes, validated, policy-gated, with search and CSV export |
+| Nothing | 13 REST routes, validated and policy-gated, plus global search |
 | Nothing | The panel: list, detail, create, edit, filters, sort, pagination |
 | Nothing | The registry, the router, the server host, three entrypoints |
 

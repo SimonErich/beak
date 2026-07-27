@@ -238,7 +238,7 @@ late final BeakJson? metadata;
 Parse that text into a typed, pattern-matchable tree with `BeakJson.decode` when
 you need structured access:
 
-```dart title="packages/beak_core/lib/src/columns/beak_json_column.dart"
+```dart
 const column = BeakJsonColumn(key: 'meta', label: 'Metadata');
 final BeakValue? value = record[column.key];
 final tree = switch (value?.raw) {

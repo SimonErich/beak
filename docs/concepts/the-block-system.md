@@ -33,7 +33,7 @@ Because blocks are pure `const` values, a layout is data you can write inline,
 pass around, and compare. Here is a page body built entirely from block
 constructors:
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
+```dart
 const body = BeakColumnBlock(
   children: [
     BeakTextBlock('Welcome back', variant: BeakTextVariant.h1),
@@ -76,6 +76,7 @@ class BeakBlockHost extends StatelessWidget {
     final BeakCardBlock card => _card(card),
     // ... one arm per block type
     final BeakMarkdownBlock markdown => OiMarkdown(data: markdown.source),
+    // ... divider, spacer
     final BeakWidgetBlock widget => Builder(builder: widget.builder),
   };
 ```

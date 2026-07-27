@@ -134,14 +134,15 @@ body: BeakInboxBlock(
 ## File manager
 
 `BeakFileManagerBlock` renders a model's folder and file records on
-`OiFileManager`. `nameField` names each entry and `isFolderField` separates
-folders from files; the size, modified, and thumbnail fields enrich the file rows.
+`OiFileManager`. `nameField` names each entry; `isFolderField` separates
+folders from files where a table stores both, and is left unbound for a table
+of files only. The size, modified, and thumbnail fields enrich the file rows.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_file_manager_block.dart"
 const BeakFileManagerBlock({
   required this.model,
   required this.nameField,
-  required this.isFolderField,
+  this.isFolderField,
   this.sizeField,
   this.modifiedField,
   this.thumbnailField,
@@ -151,7 +152,7 @@ const BeakFileManagerBlock({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_file_manager_block.dart"
+```dart
 BeakFileManagerBlock(
   model: const AssetModel(),
   nameField: AssetColumns.name,
@@ -247,7 +248,7 @@ const BeakGalleryBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
-BeakGalleryBlock(
+child: BeakGalleryBlock(
   query: BeakQuerySpec(
     table: 'media_assets',
     filter: _inCollection(MediaCollection.gallery),
@@ -381,7 +382,7 @@ const BeakWizardStep({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_wizard_block.dart"
+```dart
 BeakWizardBlock(
   onComplete: submitApplication,
   steps: [

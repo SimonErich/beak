@@ -213,6 +213,7 @@ const BeakBlock productLayout = BeakColumnBlock(
         ProductColumns.price,
       ], columnCount: 4),
     ),
+    // ... a grid: a wide Overview card beside a narrow Media card ...
     BeakCardBlock(
       title: 'Related',
       child: BeakTabsBlock(
@@ -240,7 +241,8 @@ const BeakBlock productLayout = BeakColumnBlock(
 ```
 
 Between those two cards the store's file puts a `BeakGridBlock`: a wide
-Overview card holding the remaining fields, beside a narrow Media card for the
+Overview card holding the summary, the description and a four-up group of
+stock, featured, published at and swatch, beside a narrow Media card for the
 image and the spec sheet.
 
 !!! note "What just happened"
@@ -270,6 +272,7 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
           'on their own page once this one is saved.',
       columns: [OrderColumns.customerId],
     ),
+    // ... the Order, Money and Delivery steps ...
   ],
 );
 ```
@@ -293,6 +296,7 @@ const BeakScreen restockScreen = BeakScreen(
   body: BeakColumnBlock(
     gapInPixels: 20,
     children: [
+      // ... a grid of two BeakMetricBlock counters ...
       BeakCardBlock(
         title: 'Running low',
         child: BeakTableBlock(
@@ -345,6 +349,7 @@ const BeakBlock _kpis = BeakGridBlock(
       format: BeakKpiFormat.currency,
       currencySymbol: '€',
     ),
+    // ... three more tiles ...
   ],
 );
 

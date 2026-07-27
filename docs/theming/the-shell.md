@@ -48,7 +48,7 @@ final bool sidebarDefaultCollapsed;
 Both flow straight into the `OiAppShell` that wraps every page:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_router.dart"
-OiAppShell(
+child: OiAppShell(
   label: config.title,
   title: config.title,
   sidebarCollapsible: config.sidebarCollapsible,
@@ -130,7 +130,9 @@ BeakScreen buildTypographyScreen() => const BeakScreen(
   section: 'Showcase',
   body: BeakCardBlock(
     title: 'Type scale',
-    child: BeakColumnBlock(/* ... */),
+    child: BeakColumnBlock(
+      // ... one BeakTextBlock per size in the ramp ...
+    ),
   ),
 );
 ```

@@ -75,9 +75,11 @@ BeakModel byTableOrThrow(String table) {
 
 ### all
 
-`all` returns every registered model in the order you registered them. That
-order matters: it becomes the default order of resources in the panel's
-navigation. Register in the order you want the sidebar to read.
+`all` returns every registered model in the order you registered them. On the
+server that is the order resource routers are mounted under `/api/{table}` and
+the order global search scans tables in. The panel does not read `all` for its
+sidebar: it builds its own registry from the resource list on its config, so the
+nav order is the resource order.
 
 ## The one Beak builds
 
@@ -119,7 +121,9 @@ server:
 BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
   environment: environment,
   registry: buildBeakRegistry(),
-  migrations: const [/* ... */],
+  migrations: const [
+    // ... one per table ...
+  ],
   seeders: const [StoreSeeder()],
   configure: server.beakServer,
 );
@@ -134,7 +138,9 @@ A test builds one directly, which is the other reason it is a plain function:
 ```dart title="examples/store/test/widget_test.dart"
 final registry = buildBeakRegistry();
 final source = InMemoryBeakDataSource(registry: registry)
-  ..seed(const ProductModel(), [/* ... */]);
+  ..seed(const ProductModel(), [
+    // ... the records the test needs ...
+  ]);
 ```
 
 ```mermaid

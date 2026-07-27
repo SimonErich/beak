@@ -61,6 +61,9 @@ this carries what the type cannot express.
 | `min` / `max` | Bounds the form's stepper, for an `int` |
 | `maxLength` | Longest accepted text, for a `String` |
 | `format` | `BeakDateFormat.relative` renders "3 days ago" |
+| `placeholder` | Hint text in the empty input, for a `String` |
+| `trueLabel` / `falseLabel` | State labels, for a `bool` |
+| `defaultValue` | The value a create form starts on, for an enum |
 
 Every belongs-to foreign key is indexed without being asked, so `indexed` is
 for the columns you sort or filter by often.
@@ -131,8 +134,10 @@ Common parameters:
 
 | Parameter | Applies to | What it does |
 | --- | --- | --- |
+| `label` | all | Overrides the title-cased field name |
 | `foreignKey` | all but many-to-many | Overrides the derived key name |
-| `onDelete` | all | `cascade`, `setNull` or `restrict`, written into the migration |
+| `searchOn` | belongs-to, many-to-many | The related columns the picker searches (default: its display column) |
+| `onDelete` | all but has-one | A `BeakOnDelete` value (`cascade`, `ormCascade`, `restrict`, `setNull`, `setDefault`, `noAction`), written into the migration |
 | `inverse` | belongs-to, many-to-many | `false` stops Beak generating the other side |
 | `pivotTable`, `foreignPivotKey`, `relatedPivotKey` | many-to-many | Override the derived pivot names |
 | `allowCreate` | many-to-many | The relation manager may create related records inline |

@@ -48,7 +48,7 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
       },
     ),
   ],
-  // …
+  // ... bulk actions and view modes ...
 );
 ```
 

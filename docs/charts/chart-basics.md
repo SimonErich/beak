@@ -179,6 +179,7 @@ body: BeakGridBlock(
   columns: 2,
   gapInPixels: 20,
   children: [
+    // ... two aggregate metrics head the grid ...
     BeakChartBlock(
       title: 'Revenue (area)',
       type: BeakChartType.area,
@@ -189,6 +190,7 @@ body: BeakGridBlock(
       ),
       map: seriesPoints('sales_revenue'),
     ),
+    // ... line and bar charts over the same series table ...
     const BeakChartBlock(
       title: 'Source of purchases (pie)',
       type: BeakChartType.pie,
@@ -198,7 +200,7 @@ body: BeakGridBlock(
       ),
       map: purchaseSourcePoints,
     ),
-    // ...donut, radar, and funnel over the same query
+    // ...donut, radar and funnel over the same query, then the three advanced blocks...
   ],
 ),
 ```

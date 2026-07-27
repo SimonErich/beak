@@ -174,8 +174,7 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
   Future<BeakRecord> restore(String table, Object id) =>
       client.restore(table, id);
 
-  // batchGet, attach, detach, upload, aggregate follow the same one-line
-  // delegation.
+  // ...batchGet, attach, detach, upload and aggregate, delegating the same way...
 }
 ```
 

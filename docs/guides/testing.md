@@ -409,6 +409,8 @@ to the golden bytes, and the golden must decode back to an equal spec.
       };
       expect(spec, richSpec());
     });
+
+    // ...
   });
 ```
 

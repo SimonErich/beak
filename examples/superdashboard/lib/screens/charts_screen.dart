@@ -1,10 +1,12 @@
 import 'package:beak/panel.dart';
+import 'package:superdashboard/models/models.dart';
 import 'package:superdashboard/services/dashboard_charts.dart';
 import 'package:beak/ui.dart';
 
 /// The charts gallery — every Beak chart family (area, line, bar, pie, donut)
 /// bound to the same seeded analytics tables the dashboard uses, so the whole
-/// page is data-driven.
+/// page is data-driven. Two aggregate metrics head it, because a chart shows
+/// a shape and a number answers "how many".
 BeakScreen buildChartsScreen() => BeakScreen(
   path: '/charts',
   title: 'Charts',
@@ -14,6 +16,20 @@ BeakScreen buildChartsScreen() => BeakScreen(
     columns: 2,
     gapInPixels: 20,
     children: [
+      const BeakMetricBlock(
+        label: 'Orders placed',
+        aggregate: BeakAggregateSpec.count(table: 'orders'),
+        icon: OiIcons.shoppingCart,
+      ),
+      const BeakMetricBlock(
+        label: 'Revenue booked',
+        aggregate: BeakAggregateSpec.sum(
+          table: 'orders',
+          column: OrderColumns.total,
+        ),
+        prefix: r'$',
+        icon: OiIcons.creditCard,
+      ),
       BeakChartBlock(
         title: 'Revenue (area)',
         type: BeakChartType.area,

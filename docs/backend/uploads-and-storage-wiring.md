@@ -12,13 +12,11 @@ variable. No upload endpoint is hand-written: declare a file column, configure a
 driver, and the route appears.
 
 Uploads build on the [file and storage columns](../models/files-and-storage-columns.md)
-you already defined. The reference store's product has an image column, and that
-is what wires into an endpoint here.
+you already defined. The reference store's product declares one `@Image` field,
+and that is what wires into an endpoint here.
 
-```dart
-static const image = BeakImageColumn(
-  key: 'image',
-  label: 'Image',
+```dart title="examples/store/lib/models/product.dart"
+@Image(
   storagePath: 'products',
   maxSizeInBytes: 5 * 1024 * 1024,
   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
@@ -29,8 +27,12 @@ static const image = BeakImageColumn(
     ),
     BeakFormatTransform.webp(),
   ],
-);
+)
+late final BeakImageRef? image;
 ```
+
+`beak prepare` turns that into a `BeakImageColumn` on the generated model, which
+is what the upload service reads its rules from.
 
 ## The pipeline: validate, transform, store
 
@@ -186,15 +188,28 @@ rules the service enforces.
 ## Choosing a driver
 
 A `BeakStorageDriver` is where bytes actually land. Beak keeps drivers behind a
-`BeakStorageRegistry`. `createDefaultStorageRegistry` builds one with every
-built-in driver: `memory` and `local` come from `beak_core`, and `s3` and `ftp`
-are plugged in from their own packages, so nothing is hard-wired into core.
+`BeakStorageRegistry`. `createDefaultStorageRegistry` builds one with the two
+drivers Beak ships in-box: `memory` (registered by the registry itself) and
+`local`, added here because it needs `dart:io`.
 
 ```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
 BeakStorageRegistry createDefaultStorageRegistry() {
   final registry = BeakStorageRegistry();
+  registry.register('local', BeakLocalDiskStorageDriver.fromConfig);
+  return registry;
+}
+```
+
+Driver packages are deliberately left out. Depending on `beak_storage_s3` here
+would put `minio` in the dependency graph of every Beak backend, whether or not
+it uploads anything. A project declares the drivers it wants in a
+`beakStorageRegistry` function in `lib/server.dart`, which `beak prepare` hands
+to the generated host:
+
+```dart title="examples/embedded/lib/server.dart"
+BeakStorageRegistry beakStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
   registerS3Storage(registry);
-  registerFtpStorage(registry);
   return registry;
 }
 ```
@@ -217,25 +232,26 @@ interface.
 
 ### One environment variable picks the driver
 
-The apps read `BEAK_STORAGE_DRIVER` and turn it into a `BeakStorageConfig?`. The
-reference server does this in `referenceStorageConfig`: `s3` builds a
-`BeakS3Config` from the `BEAK_S3_*` variables, `memory` selects the in-memory
-driver (tests), and an absent value disables uploads entirely.
+You do not write that parsing. `BeakStorageSettings.fromEnv` reads
+`BEAK_STORAGE_DRIVER` and turns it into a `BeakStorageConfig?`: `s3` builds a
+`BeakS3Config` from the `BEAK_S3_*` variables, `ftp` and `local` do the same for
+their own sets, `memory` selects the in-memory driver (tests), and `none` says
+this deployment wants no upload surface at all.
 
-```dart title="examples/store/lib/server.dart"
-BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
-  switch (environment['BEAK_STORAGE_DRIVER']) {
+```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
+static BeakStorageConfig? fromEnv(Map<String, String> environment) {
+  String require(String key) {
+    final String? value = environment[key];
+    if (value == null || value.isEmpty) {
+      throw BeakConfigurationException(
+        '$key is required when $driverKey=${environment[driverKey]}.',
+      );
+    }
+    return value;
+  }
+
+  switch (environment[driverKey]) {
     case 's3':
-      String require(String key) {
-        final String? value = environment[key];
-        if (value == null || value.isEmpty) {
-          throw BeakConfigurationException(
-            '$key is required when BEAK_STORAGE_DRIVER=s3.',
-          );
-        }
-        return value;
-      }
-
       return BeakS3Config(
         endpoint: Uri.parse(require('BEAK_S3_ENDPOINT')),
         bucket: require('BEAK_S3_BUCKET'),
@@ -244,13 +260,13 @@ BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
         region: require('BEAK_S3_REGION'),
         usePathStyle: environment['BEAK_S3_USE_PATH_STYLE'] == 'true',
       );
-    case 'memory':
-      return const BeakMemoryStorageConfig();
-    case null || '':
+    // ...the ftp, local and memory cases...
+    case 'none' || null || '':
       return null;
     case final String other:
       throw BeakConfigurationException(
-        'Unsupported BEAK_STORAGE_DRIVER "$other" (use "s3" or "memory").',
+        'Unsupported $driverKey "$other" — use one of '
+        '${supportedDrivers.join(', ')}.',
       );
   }
 }
@@ -259,16 +275,20 @@ BeakStorageConfig? referenceStorageConfig(Map<String, String> environment) {
 The `require` closure is why an incomplete config fails loudly at startup instead
 of surfacing as a mysterious 500 on the first upload. Selecting `s3` with a
 missing `BEAK_S3_BUCKET` throws a `BeakConfigurationException` before the server
-binds.
+binds, and a typo in the driver name fails the same way, with the supported names
+in the message.
 
 | Variable | Meaning |
 | --- | --- |
-| `BEAK_STORAGE_DRIVER` | `s3`, `memory`, or absent (uploads off) |
+| `BEAK_STORAGE_DRIVER` | `s3`, `ftp`, `local`, `memory`, `none`, or unset (local disk) |
 | `BEAK_S3_ENDPOINT` | the object-store endpoint URL |
 | `BEAK_S3_BUCKET` | the bucket uploads land in |
 | `BEAK_S3_ACCESS_KEY` / `BEAK_S3_SECRET_KEY` | credentials |
 | `BEAK_S3_REGION` | the region string |
 | `BEAK_S3_USE_PATH_STYLE` | `true` for MinIO and path-style hosts |
+| `BEAK_LOCAL_ROOT_DIR` / `BEAK_LOCAL_PUBLIC_BASE_URL` | where local-disk files live and how they are served |
+| `BEAK_FTP_HOST` / `BEAK_FTP_USER` / `BEAK_FTP_PASSWORD` | FTP credentials |
+| `BEAK_FTP_BASE_DIR` / `BEAK_FTP_PUBLIC_BASE_URL` / `BEAK_FTP_PORT` | FTP path, public URL, and port (default `21`) |
 
 The repo's docker-compose stack ships a MinIO container, and the committed
 `.env.example` points at it with path-style on, so `melos run up` plus the sample
@@ -278,22 +298,54 @@ variable list.
 
 ## Turning uploads on
 
-The wiring meets at `BeakServer`. Pass a resolved `storage` driver and the server
-builds the `UploadService` and registers the upload routes for every model with a
-file column. Pass `null` (the default) and there are no upload endpoints at all.
+There is nothing to turn on. The generated host resolves the driver for you in
+`resolveStorageDriver`. With nothing configured it falls back to local disk under
+`storage/uploads`, served by the same server at `/uploads`, so a file column works
+on a fresh project with no setup. `BEAK_STORAGE_DRIVER=none` is how you switch the
+upload endpoints off outright.
 
-```dart title="examples/store/bin/serve.dart"
-final storageConfig = referenceStorageConfig(environment);
-final server = buildReferenceServer(
-  config: config,
-  adapter: Worm.adapter(),
-  storage: storageConfig == null ? null : resolveStorage(storageConfig),
-);
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+BeakStorageDriver? resolveStorageDriver() {
+  final BeakStorageConfig? storageConfig = BeakStorageSettings.fromEnv(
+    _environment,
+  );
+  if (storageConfig == null) {
+    return _environment[BeakStorageSettings.driverKey] == 'none'
+        ? null
+        : BeakLocalDiskStorageDriver(
+            rootDir: defaultUploadDir,
+            publicBaseUrl: Uri.parse(
+              'http://$_reachableHost:${config.port}$defaultUploadPath',
+            ),
+          );
+  }
+  return resolveStorage(
+    storageConfig,
+    registry: storageRegistry?.call() ?? createDefaultStorageRegistry(),
+  );
+}
+```
+
+The driver goes into `BeakServer`, which builds the `UploadService` and registers
+the upload routes for every model with a file column. A `null` driver means no
+upload endpoints at all.
+
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+Future<HttpServer> serve() async {
+  await initializeWormPostgres(config);
+  final server = buildServer(
+    adapter: Worm.adapter(),
+    storage: resolveStorageDriver(),
+  );
+  return server.start();
+}
 ```
 
 That is the whole loop: an environment variable becomes a config, the config
 resolves to a driver, the driver goes into the server, and every image column in
-the registry gains a validated, transforming upload endpoint.
+the registry gains a validated, transforming upload endpoint. A driver from a
+plug-in package joins the loop through the `beakStorageRegistry` function above,
+which the host reads as `storageRegistry`.
 
 ## Continue reading
 

@@ -99,6 +99,8 @@ Every view model extends `BeakViewModel`, which owns its Signals, exposes them a
 
 ```dart title="packages/beak_frontend/lib/src/state/beak_view_model.dart"
 abstract base class BeakViewModel {
+  // ...
+
   @protected
   Signal<T> ownedSignal<T>(T value) {
     final owned = signal<T>(value);
@@ -137,6 +139,8 @@ That `requestId` guard is latest-wins concurrency: a slow response from a supers
 ```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
 Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
     _guard(() => dataSource.query(spec));
+
+// ...
 
 Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
   try {

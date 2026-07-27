@@ -110,9 +110,10 @@ api:
   # single-host deployment wants.
   baseUrl: auto
 
-sidebar:
-  collapsible: true
-  startCollapsed: false
+theme:
+  sidebar:
+    collapsible: true
+    startCollapsed: false
 
 resources:
   products:
@@ -121,8 +122,10 @@ resources:
 ```
 
 It is decoded at generate time into a typed config and emitted as Dart
-literals, so no `Map<String, Object?>` ever reaches your runtime. Icon names
-are validated against the real `OiIcons` set, with did-you-mean suggestions.
+literals, so no `Map<String, Object?>` ever reaches your runtime. An unknown key
+is an error naming the line, an icon has to be a lowerCamelCase `OiIcons` name,
+and a `resources` key naming no discovered table is reported with a
+did-you-mean.
 
 ## The layers, and why `beak.dart` has no widgets
 

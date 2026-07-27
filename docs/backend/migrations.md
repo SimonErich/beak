@@ -92,7 +92,7 @@ Future<void> upSchema(Schema schema) async {
 
 ### Pivot tables
 
-A many-to-many join needs no surrogate key: the pair of foreign keys is the identity. The store example writes it by hand.
+A many-to-many join needs no surrogate key: the pair of foreign keys is the identity. Spelled out, it looks like this:
 
 ```dart
 @override
@@ -117,7 +117,7 @@ Future<void> upSchema(Schema schema) async {
 }
 ```
 
-The `unique` on the pair stops duplicate links; the cascading foreign keys clean up join rows when either side is deleted. You will meet a helper for exactly this shape below.
+The `unique` on the pair stops duplicate links; the cascading foreign keys clean up join rows when either side is deleted. You rarely type that out: `BeakBlueprint.createPivot` writes this shape from the relationship, and the generated pivot migration below calls it.
 
 ## Registering migrations
 
@@ -223,6 +223,25 @@ you will find later.
 
 That is why adding a column to a schema class changes the table with no second
 edit: the DDL is derived from the same declaration the API and the panel read.
+
+A `@BelongsToMany` relationship gets the same treatment, through
+`BeakBlueprint.createPivot`. It reads the pivot table name and both key columns
+off the relationship, so the join table and the relationship cannot disagree. It
+also adds an index on the right-hand key, which the composite `unique` does not
+cover, so a many-to-many is fast from both sides:
+
+```dart title="examples/store/lib/migrations/create_product_tag_table.dart"
+@override
+Future<void> upSchema(Schema schema) => BeakBlueprint.createPivot(
+  schema,
+  ProductRelations.tags,
+  ownerTable: 'products',
+);
+
+@override
+Future<void> downSchema(Schema schema) async =>
+    schema.drop('product_tag', ifExists: true);
+```
 
 ## Changing a table later
 

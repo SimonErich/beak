@@ -132,6 +132,7 @@ BeakScreen buildChartsScreen() => BeakScreen(
     columns: 2,
     gapInPixels: 20,
     children: [
+      // ...two aggregate metrics...
       BeakChartBlock(
         title: 'Revenue (area)',
         type: BeakChartType.area,

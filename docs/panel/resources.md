@@ -289,6 +289,7 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
       },
     ),
   ],
+  // ... bulk actions ...
   viewModes: const [
     BeakTableView(),
     BeakKanbanView(

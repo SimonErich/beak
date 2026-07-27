@@ -209,9 +209,10 @@ final class WormRecordModel extends Model {
     row.forEach(hydrateAttribute);
     markPersisted();
   }
-
+  // ...
   @override
   String get tableName => _table;
+  // ...the other Model overrides: primaryKeyColumn, id, toRow...
 
   /// This row as a typed [BeakRecord], converting the relations loaded for
   /// [loads] recursively (a requested-but-unloaded relation throws, honoring
@@ -230,6 +231,7 @@ final class WormRecordModel extends Model {
         load.relationKey: _relatedRecords(load, model, registry),
     },
   );
+  // ..._relatedRecords, which converts each eager-loaded child...
 }
 ```
 

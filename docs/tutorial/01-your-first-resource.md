@@ -232,7 +232,7 @@ curl -X POST localhost:8080/api/categories \
 Same rule, same message, both sides, from `String` not being `String?`.
 
 !!! note "What just happened"
-    One class produced a database table, eleven REST routes, four panel pages,
+    One class produced a database table, thirteen REST routes, four panel pages,
     and client and server validation that cannot disagree, because both come
     from the same declaration.
 

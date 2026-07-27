@@ -70,6 +70,24 @@ JOIN pg_enum e ON e.enumtypid = t.oid
 ORDER BY t.typname, e.enumsortorder
 ''';
 
+  /// SQL listing every indexed column, and whether its index is unique.
+  ///
+  /// Single-column indexes only: a composite index is a decision about a
+  /// query, not about a column, and a schema class has nowhere to put it.
+  /// The migration a project owns is where those belong.
+  static String indexesSql(String schema) =>
+      '''
+SELECT t.relname AS table_name, a.attname AS column_name, i.indisunique
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+JOIN pg_class t ON t.oid = i.indrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = i.indkey[0]
+WHERE n.nspname = '$schema'
+  AND i.indnatts = 1
+  AND NOT i.indisprimary
+''';
+
   /// Reads the schema.
   Future<List<IntrospectedTable>> read() async {
     final enumValues = <String, List<String>>{};
@@ -96,6 +114,16 @@ ORDER BY t.typname, e.enumsortorder
       );
     }
 
+    final indexed = <String>{};
+    final uniquelyIndexed = <String>{};
+    for (final row in await query(indexesSql(schema))) {
+      final String key = '${row['table_name']}.${row['column_name']}';
+      indexed.add(key);
+      if (row['indisunique'] == true || '${row['indisunique']}' == 't') {
+        uniquelyIndexed.add(key);
+      }
+    }
+
     final columns = <String, List<IntrospectedColumn>>{};
     for (final row in await query(columnsSql(schema))) {
       final String udt = '${row['udt_name']}';
@@ -113,6 +141,12 @@ ORDER BY t.typname, e.enumsortorder
           hasDefault: row['column_default'] != null,
           enumTypeName: labels.isEmpty ? null : udt,
           enumValues: labels,
+          isIndexed: indexed.contains(
+            '${row['table_name']}.${row['column_name']}',
+          ),
+          isUnique: uniquelyIndexed.contains(
+            '${row['table_name']}.${row['column_name']}',
+          ),
         ),
       );
     }

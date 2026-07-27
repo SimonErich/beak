@@ -17,6 +17,7 @@ Beak's form is `BeakDataForm`. You give it a model and a data source; it reads t
 const BeakDataForm({
   required this.model,
   required this.dataSource,
+  this.referenceCache,
   this.recordId,
   this.sections,
   this.steps,
@@ -34,13 +35,14 @@ The generated create and edit pages wire it straight from the resource:
 child: BeakDataForm(
   model: resource.model,
   dataSource: dataSource,
+  referenceCache: referenceCache,
   steps: resource.formSteps,
   layout: resource.formLayout,
   onSaved: (_) => router.go(BeakRoutes.list(resource.model.table)),
 ),
 ```
 
-`onSaved` fires with the stored record after a successful submit. `sections`, `steps`, and `layout` are three ways to structure the same fields: a flat form with grouped sections (this page), a wizard ([Multi-step forms](multi-step-forms.md)), or a record-bound block layout shared with the show page ([Detail views and dual-mode blocks](detail-and-dual-mode.md)). When more than one is set, `steps` wins, then `layout`, then `sections`.
+`onSaved` fires with the stored record after a successful submit. `referenceCache` is the cache that resolves each belongs-to picker's prefilled key, so a form with four pickers costs one `batchGet` instead of four `getOne`s. `sections`, `steps`, and `layout` are three ways to structure the same fields: a flat form with grouped sections (this page), a wizard ([Multi-step forms](multi-step-forms.md)), or a record-bound block layout shared with the show page ([Detail views and dual-mode blocks](detail-and-dual-mode.md)). When more than one is set, `steps` wins, then `layout`, then `sections`.
 
 !!! note "What just happened"
     - You handed the form a `BeakModel` and a `BeakDataSource`. It did the rest.
@@ -64,14 +66,31 @@ return switch (column) {
     field: slot(),
     label: column.label,
   ),
-  BeakIntColumn(:final min, :final max) => OiAfNumberInput(...),
-  BeakDecimalColumn(:final precision) => OiAfNumberInput(...),
-  BeakBoolColumn() => OiAfSwitch(field: slot(), label: column.label),
-  final BeakEnumColumn<Enum> enumColumn => OiAfSelect<BeakFormSlot, Enum>(...),
-  BeakDateTimeColumn() => OiAfDateTimeInput(field: slot(), label: column.label),
+  BeakIntColumn(:final min, :final max) => OiAfNumberInput(
+    field: slot(),
+    label: column.label,
+    min: min?.toDouble(),
+    max: max?.toDouble(),
+    decimalPlaces: 0,
+  ),
+  // ...
+  final BeakEnumColumn<Enum> enumColumn => OiAfSelect<Enum, Enum>(
+    field: slot(),
+    label: column.label,
+    options: [
+      for (final option in enumColumn.values)
+        OiAfOption(value: option, label: enumColumn.labelFor(option)),
+    ],
+  ),
+  // ...
   BeakColorColumn() => OiAfColorInput(field: slot(), label: column.label),
   BeakRichTextColumn() => OiAfRichEditor(field: slot(), label: column.label),
-  BeakUploadColumn() => BeakUploadField(...),
+  BeakUploadColumn() => BeakUploadField(
+    controller: controller,
+    column: column,
+    uploader: uploader,
+    filePicker: filePicker,
+  ),
 };
 ```
 
@@ -92,22 +111,22 @@ The full table:
 | `BeakCustomColumn` | no field (rendered through the custom escape hatch) |
 | a `BeakBelongsTo` foreign key | `BeakBelongsToField` picker |
 
-You address a field by its column constant, never by a string. Under the hood `obers_ui_autoforms` keys fields by a Dart enum, so `BeakFormController` claims one `BeakFormSlot` per form column in declaration order and hands you a column-addressed API on top:
+You address a field by its column constant, never by a string. Under the hood `obers_ui_autoforms` keys fields by a Dart enum, so `BeakFormController` claims one slot per form field in declaration order and hands you a column-addressed API on top:
 
-```dart title="packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart"
+```dart
 final String? name = controller.valueOf<String>(ProductColumns.name);
 controller.setValue<bool>(ProductColumns.onSale, true);
 ```
 
-The slot pool caps at 32 fields. A model that declares more form columns than that throws a `BeakConfigurationException` asking you to split the form with sections or hide columns from the form context. See [Column types](../models/column-types.md) for how `visibleOn` keeps a column out of the form.
+A model draws those slots from its own pool when it has one, and a generated model always does, sized to itself. Only a hand-written model falls back to the shared `BeakFormSlot` pool, which holds 32. Ask for more than the pool has and `BeakFormController` throws a `BeakConfigurationException` telling you to narrow the form with `visibleOn` or to override `formSlots`. Splitting into more sections does not help: every column listed in any section claims a slot. See [Column types](../models/column-types.md) for how `visibleOn` keeps a column out of the form.
 
 ## Rules mirror the server, message for message
 
 A column's [validation rules](../models/validation-rules.md) run on both sides of the wire from a single declaration. The form does not re-implement them: every client-side validator delegates to the rule's own `validate`, so the client and the server produce byte-identical messages.
 
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart"
-OiAfValidator<BeakFormSlot, T>? _mirror<T>(BeakRule rule) => switch (rule) {
-  BeakRequired() => OiAfValidators.custom<BeakFormSlot, T>(
+OiAfValidator<Enum, T>? _mirror<T>(BeakRule rule) => switch (rule) {
+  BeakRequired() => OiAfValidators.custom<Enum, T>(
     (context) => rule.validate(context.value),
   ),
   BeakMaxFileSize() || BeakAllowedFileTypes() => null,
@@ -118,7 +137,7 @@ OiAfValidator<BeakFormSlot, T>? _mirror<T>(BeakRule rule) => switch (rule) {
   BeakPattern() ||
   BeakMin() ||
   BeakMax() ||
-  BeakInList() => OiAfValidators.custom<BeakFormSlot, T>(
+  BeakInList() => OiAfValidators.custom<Enum, T>(
     (context) => _mirrorContent(rule, context.value),
   ),
 };
@@ -136,7 +155,7 @@ When the server rejects a submit with a 422, the form maps each field error back
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart"
 void applyServerErrors(Map<String, List<String>> errorsByColumnKey) {
   for (final MapEntry(:key, :value) in errorsByColumnKey.entries) {
-    final BeakFormSlot? slot = _slotByKey[key];
+    final Enum? slot = _slotByKey[key];
     if (slot != null) {
       setBackendErrors(slot, value);
     } else {
@@ -164,9 +183,9 @@ final class BeakFormSection {
 }
 ```
 
-`visibleWhen` is a typed predicate over the form's current values, never a `Map<String, dynamic>`. Reads go through a column-addressed reader that tracks dependencies, so a section re-evaluates automatically whenever a value it read changes.
+`visibleWhen` is a typed predicate over the form's current values, never a `Map<String, dynamic>`. Reads go through a column-addressed reader that tracks dependencies, so a section re-evaluates automatically whenever a value it read changes. A product form of your own might gate its pricing group:
 
-```dart title="packages/beak_frontend/lib/src/form/beak_data_form.dart"
+```dart
 sections: [
   const BeakFormSection(
     title: 'Basics',
@@ -233,9 +252,9 @@ final BeakUploadClient? effectiveUploader =
     };
 ```
 
-The `filePicker` is yours to provide, because platform pickers surface names while Beak needs bytes to validate and upload. The store example wires a `file_picker`-based one:
+The `filePicker` is yours to provide, because platform pickers surface names while Beak needs bytes to validate and upload. A `file_picker`-based one reads:
 
-```dart title="packages/beak_frontend/lib/src/form/upload_field.dart"
+```dart
 Future<BeakUpload?> pickImageFromDisk() async {
   final result = await FilePicker.platform.pickFiles(withData: true);
   final file = result?.files.single;
@@ -254,34 +273,30 @@ See [Files and storage columns](../models/files-and-storage-columns.md) for the 
 
 ## The teaching store, end to end
 
-The store example app declares its Products resource with a filter and a custom action and gets create and edit forms for free, because a resource's form is generated from its model. This is the whole panel config for the store, on port 8080:
+The store example lists its resources and gets create and edit forms for free, because a resource's form is generated from its model. This is the panel config `beak prepare` wrote for it, on port 8080:
 
-```dart
-BeakPanelConfig buildReferencePanelConfig({
-  String apiBaseUrl = 'http://localhost:8080',
-}) => BeakPanelConfig(
-  title: 'Beak Admin',
-  apiBaseUrl: apiBaseUrl,
-  resources: const [
-    BeakResource(
-      model: ProductModel(),
-      icon: BeakIconToken(OiIcons.package),
-      filters: [
-        BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
-        BeakTextFilter(column: ProductColumns.name, label: 'Name'),
-      ],
-      recordActions: [
-        BeakRecordAction(
-          key: 'duplicate',
-          label: 'Duplicate',
-          icon: OiIcons.copy,
-          onExecute: duplicateProduct,
-        ),
-      ],
+```dart title="examples/store/lib/beak/panel.g.dart"
+BeakPanelConfig buildBeakPanel() {
+  final config = BeakPanelConfig(
+    title: 'Beak Store',
+    apiBaseUrl: const String.fromEnvironment(
+      'BEAK_API_BASE_URL',
+      defaultValue: 'http://localhost:8080',
     ),
-    // ...five more resources
-  ],
-);
+    sidebarCollapsible: true,
+    sidebarDefaultCollapsed: false,
+    resources: [
+      BeakResource(
+        model: const CategoryModel(),
+        icon: BeakIconToken(OiIcons.folderTree),
+        section: 'Catalog',
+      ),
+      // ... five more resources ...
+    ],
+    pages: [dashboard.beakDashboard(), restockScreen],
+  );
+  return config;
+}
 ```
 
 Nowhere does the store write a form. The Product form, its category picker, its tag multi-select, and its client validation all fall out of `ProductModel`.

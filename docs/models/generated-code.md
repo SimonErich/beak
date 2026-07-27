@@ -47,7 +47,7 @@ read. It is what you name in a `BeakResource`, a `BeakTableBlock` or a test.
 **`ProductRecord`** — an extension type over `BeakRecord` giving typed getters:
 
 ```dart
-final product = ProductRecord(record);
+final product = record.asProduct;     // or ProductRecord.of(record)
 final double price = product.price;   // not record['price']?.raw as double
 ```
 
@@ -72,6 +72,7 @@ resources: [
     icon: BeakIconToken(OiIcons.folderTree),
     section: 'Catalog',
   ),
+  // ...
   resource_products.beakResource(
     BeakResource(
       model: const ProductModel(),
@@ -83,9 +84,9 @@ resources: [
 ],
 ```
 
-The second entry is what a `lib/resources/products.dart` override looks like
-from the outside: Beak derives the resource, then hands it to your file, which
-returns the copy it wants.
+The `resource_products` entry is what a `lib/resources/products.dart` override
+looks like from the outside: Beak derives the resource, then hands it to your
+file, which returns the copy it wants.
 
 ## The entrypoints
 

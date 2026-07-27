@@ -150,8 +150,8 @@ When you want Postgres, put a `DATABASE_URL` in a `.env` beside your
 DATABASE_URL=postgres://user:pass@localhost:5432/acme
 ```
 
-Uploads need a storage driver. Leave `BEAK_STORAGE_DRIVER` unset to keep files
-on local disk, served by the Beak server itself:
+Uploads land under `storage/uploads` and are served by the Beak server itself
+until `BEAK_STORAGE_DRIVER` says otherwise. Point them at S3 or MinIO with:
 
 ```bash
 BEAK_STORAGE_DRIVER=s3

@@ -121,13 +121,14 @@ Router beakAuthRouter(BeakAuthSessions sessions) {
 | `POST /api/auth/logout` | (`Authorization: Bearer <token>`) | `204` | revokes the presented token |
 | `GET /api/auth/me` | (`Authorization: Bearer <token>`) | `200` principal | the authenticated principal |
 
-A round trip against the reference store on port 8080:
+A round trip against the reference store on port 8080, whose `lib/server.dart`
+declares two accounts of its own:
 
 ```bash
 curl -sX POST http://localhost:8080/api/auth/login \
   -H 'content-type: application/json' \
-  -d '{"username":"admin","password":"s3cret"}'
-# {"token":"a1b2...","principal":{"id":"admin","roles":["admin"]}}
+  -d '{"username":"ada@example.com","password":"espresso"}'
+# {"token":"a1b2...","principal":{"id":"0000...0301","roles":["staff"]}}
 ```
 
 The panel drives exactly these routes from its login screen. See
@@ -281,10 +282,11 @@ record-id parameter. Deleting a file and deleting a row are different questions.
 ### The default: allow everything
 
 Until you configure a real policy, Beak uses `BeakAllowAllPolicy`. Every method
-returns `true`.
+returns `true`. It is a `base class`, not a `final` one, so your own policy can
+extend it and override only the methods it restricts.
 
 ```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-final class BeakAllowAllPolicy implements BeakPolicy {
+base class BeakAllowAllPolicy implements BeakPolicy {
   /// Creates the permissive default policy.
   const BeakAllowAllPolicy();
 
@@ -337,6 +339,29 @@ Because you get the `table` on every call, one policy can encode rules that
 differ per model: pattern-match on `table` and return different answers for
 `orders` than for `products`.
 
+### Which rows, not just which tables
+
+`canView` answers "may this principal read orders at all". It cannot answer "may
+this principal read *these* orders", and a policy that means "a customer sees
+only their own" is bypassed by `POST /api/orders/query` with any filter the
+caller likes, because the filter comes from the client. `BeakRowPolicy` is the
+answer: one extra method returning a filter.
+
+```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
+abstract interface class BeakRowPolicy implements BeakPolicy {
+  /// The filter every read and write of [table] is additionally constrained
+  /// by, or `null` when [principal] may touch every row.
+  BeakFilter? scopeFor(BeakPrincipal? principal, String table);
+}
+```
+
+Implement it instead of `BeakPolicy` and every read and write of that table is
+intersected with `scopeFor`: query, aggregate, get-one, update, delete, export
+and global search alike, so there is no endpoint left to forget. Returning a
+filter that matches nothing is how a policy says "no rows": the request succeeds
+with an empty page, which is a different answer from `canView` returning false,
+which is a 403. The worked example is in [Security](../guides/security.md).
+
 ### From decision to HTTP status
 
 A policy returns a `bool`. `enforcePolicyDecision` turns a denial into the
@@ -387,8 +412,14 @@ final server = BeakServer(
 
 The one thing to line up by hand: the `TokenSessionAuthGuard` and the
 `BeakAuthSessions` must share the *same* `store`, because login mints into it
-and the guard reads out of it. The demo apps ship without any of this, so they
-run open on `BeakAllowAllPolicy`. Auth is something you opt into.
+and the guard reads out of it.
+
+Auth is something you opt into, and the two demo apps show both sides of that.
+`examples/superdashboard` wires none of it and runs open on
+`BeakAllowAllPolicy`. `examples/store` wires all of it in `lib/server.dart`: two
+accounts hashed under `AUTH_SECRET`, a `TokenSessionAuthGuard` over the same
+store, and a `StorePolicy` that is a row policy. See
+[Running the server](running-the-server.md) for that file in full.
 
 ## Continue reading
 

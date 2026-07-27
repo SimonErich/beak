@@ -54,7 +54,7 @@ Widget _alert(BeakAlertBlock block) => switch (block.level) {
 | `error` | Something that failed |
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_uikit_blocks_test.dart"
-BeakAlertBlock('Saved', level: BeakAlertLevel.success),
+const BeakAlertBlock('Saved', level: BeakAlertLevel.success),
 ```
 
 ## Badge
@@ -71,7 +71,7 @@ const BeakBadgeBlock(
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_uikit_blocks_test.dart"
-BeakBadgeBlock('Active', color: BeakColor.success),
+const BeakBadgeBlock('Active', color: BeakColor.success),
 ```
 
 `BeakColor` is the shared semantic palette (`primary`, `secondary`, `success`,
@@ -94,7 +94,7 @@ Because `BeakColor` is an enum, you can loop over `BeakColor.values` to show the
 whole palette, exactly as the UI-kit page does:
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakRowBlock(
+child: BeakRowBlock(
   gapInPixels: 8,
   children: [
     for (final color in BeakColor.values)
@@ -113,7 +113,7 @@ const BeakProgressBlock({required this.value, this.label, super.span});
 ```
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakColumnBlock(
+child: BeakColumnBlock(
   gapInPixels: 12,
   children: [
     BeakProgressBlock(value: 0.25, label: 'Design'),
@@ -170,7 +170,7 @@ const BeakRadialSliderBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakCardBlock(
+const BeakCardBlock(
   title: 'Round slider',
   child: BeakRadialSliderBlock(label: 'Volume', initialValue: 65),
 ),

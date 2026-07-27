@@ -4,11 +4,16 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../cli_runner.dart';
+import '../introspect/beak_schema_introspection.dart';
+import '../introspect/postgres_introspector.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
+import '../schema/beak_schema_drift.dart';
+import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import 'introspect_command.dart';
 
 /// How a single check came out.
 enum BeakCheckStatus {
@@ -52,7 +57,11 @@ final class BeakCheck {
 /// This one checks the project it is actually run in.
 final class DoctorCommand extends Command<int> {
   /// Creates the command bound to [environment].
-  DoctorCommand(this.environment) {
+  ///
+  /// [open] is the seam the drift check reads the live schema through; tests
+  /// pass their own so the check runs against canned rows.
+  DoctorCommand(this.environment, {BeakDatabaseOpener? open})
+    : _open = open ?? openPostgresConnection {
     argParser.addFlag(
       'json',
       help: 'Report as JSON, for CI.',
@@ -63,6 +72,9 @@ final class DoctorCommand extends Command<int> {
   /// The seams this command runs against.
   final BeakCliEnvironment environment;
 
+  /// How the drift check connects to the database.
+  final BeakDatabaseOpener _open;
+
   @override
   String get name => 'doctor';
 
@@ -71,7 +83,7 @@ final class DoctorCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final checks = await diagnose(environment);
+    final checks = await diagnose(environment, open: _open);
     final bool healthy = checks.every(
       (check) => check.status != BeakCheckStatus.fail,
     );
@@ -105,8 +117,12 @@ final class DoctorCommand extends Command<int> {
 /// Runs every diagnostic against [environment], in report order.
 ///
 /// Exposed separately from the command so the checks can be asserted on
-/// directly, and so other commands can reuse them.
-Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
+/// directly, and so other commands can reuse them. [open] connects to the
+/// database for the drift check, and defaults to a real connection.
+Future<List<BeakCheck>> diagnose(
+  BeakCliEnvironment environment, {
+  BeakDatabaseOpener open = openPostgresConnection,
+}) async {
   final checks = <BeakCheck>[];
   final Directory root = environment.rootDirectory;
   final pubspec = File('${root.path}/pubspec.yaml');
@@ -219,10 +235,16 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
     );
   }
 
-  checks.add(_migrationCoverageCheck(root, config, discovery));
+  // Read once: the migration check and the drift check ask the same
+  // question of the same files, and parsing them twice is parsing them
+  // twice.
+  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));
   checks.add(_webScaffoldCheck(root));
   checks.addAll(serverImportChecks(root));
-  checks.add(await _databaseCheck(environment, root));
+  checks.addAll(
+    await _databaseChecks(environment, root, open, schemas, schemaIssues),
+  );
   return checks;
 }
 
@@ -234,11 +256,10 @@ Future<List<BeakCheck>> diagnose(BeakCliEnvironment environment) async {
 /// `beak prepare` writes with, so the check and the generator cannot report
 /// different things.
 BeakCheck _migrationCoverageCheck(
-  Directory root,
-  BeakProjectConfig config,
   BeakDiscovery discovery,
+  List<BeakSchemaIr> schemas,
+  List<BeakDiscoveryIssue> schemaIssues,
 ) {
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
   if (schemaIssues.isNotEmpty) {
     // A schema that does not parse is already a failure of its own.
     return const BeakCheck(
@@ -349,42 +370,114 @@ List<BeakCheck> serverImportChecks(Directory root) {
   ];
 }
 
-/// Whether the configured database is reachable.
+/// Whether the configured database is reachable, and whether it still
+/// matches the schema classes.
 ///
-/// A warning rather than a failure: the panel and the generator work fine
-/// without a database, and plenty of `doctor` runs happen before one exists.
-Future<BeakCheck> _databaseCheck(
+/// Reachability is a warning rather than a failure: the panel and the
+/// generator work fine without a database, and plenty of `doctor` runs happen
+/// before one exists.
+Future<List<BeakCheck>> _databaseChecks(
   BeakCliEnvironment environment,
   Directory root,
+  BeakDatabaseOpener open,
+  List<BeakSchemaIr> schemas,
+  List<BeakDiscoveryIssue> schemaIssues,
 ) async {
   final Uri? url = _databaseUrlOf(root);
   if (url == null) {
     // Not a warning: no DATABASE_URL is the supported zero-setup default, and
     // telling someone their working project is misconfigured trains them to
     // ignore this output.
-    return const BeakCheck(
-      status: BeakCheckStatus.ok,
-      label: 'no DATABASE_URL — using the default SQLite file',
-    );
+    return const [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label: 'no DATABASE_URL — using the default SQLite file',
+      ),
+    ];
   }
   if (url.scheme == 'sqlite' || url.scheme == 'file') {
-    return BeakCheck(
-      status: BeakCheckStatus.ok,
-      label:
-          'database is SQLite (${url.path.isEmpty ? url.toString() : url.path})',
-    );
+    return [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label:
+            'database is SQLite '
+            '(${url.path.isEmpty ? url.toString() : url.path})',
+      ),
+    ];
   }
   final bool reachable = await environment.probe(
     url.host,
     url.hasPort ? url.port : 5432,
   );
-  return BeakCheck(
-    status: reachable ? BeakCheckStatus.ok : BeakCheckStatus.warn,
-    label: reachable
-        ? 'database reachable at ${url.host}:${url.port}'
-        : 'database unreachable at ${url.host}:${url.port}',
-    remedy: reachable ? null : 'start it, or correct DATABASE_URL in .env',
-  );
+  if (!reachable) {
+    return [
+      BeakCheck(
+        status: BeakCheckStatus.warn,
+        label: 'database unreachable at ${url.host}:${url.port}',
+        remedy: 'start it, or correct DATABASE_URL in .env',
+      ),
+    ];
+  }
+  return [
+    BeakCheck(
+      status: BeakCheckStatus.ok,
+      label: 'database reachable at ${url.host}:${url.port}',
+    ),
+    if (isIntrospectableUrl(url) && schemaIssues.isEmpty && schemas.isNotEmpty)
+      ...await _driftChecks(url, open, schemas),
+  ];
+}
+
+/// How the live schema differs from the schema classes, one check per
+/// difference.
+///
+/// Warnings, never failures. Drift is a fact about a database rather than
+/// about the project, and the fix is a migration someone has to write and
+/// review — so `beak doctor` in CI should name it, not block on it.
+Future<List<BeakCheck>> _driftChecks(
+  Uri url,
+  BeakDatabaseOpener open,
+  List<BeakSchemaIr> schemas,
+) async {
+  final List<IntrospectedTable> tables;
+  try {
+    final (BeakSqlReader query, Future<void> Function() close) = await open(
+      url,
+    );
+    try {
+      tables = await PostgresIntrospector(query).read();
+    } finally {
+      await close();
+    }
+  } catch (error) {
+    // The port answered but the connection did not, which is a credentials
+    // or permissions problem rather than drift. Say which.
+    return [
+      BeakCheck(
+        status: BeakCheckStatus.warn,
+        label: 'could not read the database schema: $error',
+        remedy: 'check the credentials in DATABASE_URL',
+      ),
+    ];
+  }
+
+  final List<String> drift = beakSchemaDrift(schemas: schemas, tables: tables);
+  if (drift.isEmpty) {
+    return const [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label: 'the database matches the schema classes',
+      ),
+    ];
+  }
+  return [
+    for (final problem in drift)
+      BeakCheck(
+        status: BeakCheckStatus.warn,
+        label: problem,
+        remedy: 'write a migration with `beak make:migration`, then `migrate`',
+      ),
+  ];
 }
 
 /// The `DATABASE_URL` from the project's `.env`, when it declares one.

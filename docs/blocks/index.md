@@ -38,10 +38,10 @@ trees handed to the same host.
 /// handles it.
 ```
 
-Here is a small tree. It stacks a heading over a two-up grid of cards, and each
-card claims half of a twelve-track grid with its `span`:
+Here is a small tree of your own. It stacks a heading over a two-up grid of
+cards, and each card claims half of a twelve-track grid with its `span`:
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
+```dart
 const body = BeakColumnBlock(
   children: [
     BeakTextBlock('Welcome back', variant: BeakTextVariant.h1),

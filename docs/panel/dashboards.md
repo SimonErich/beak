@@ -206,7 +206,7 @@ const BeakBlock _lists = BeakGridBlock(
         ),
       ),
     ),
-    // … featured products
+    // ... featured products ...
   ],
 );
 ```

@@ -92,17 +92,17 @@ BeakScreen buildTypographyScreen() => const BeakScreen(
         BeakTextBlock('Heading 2', variant: BeakTextVariant.h2),
         BeakTextBlock('Heading 3', variant: BeakTextVariant.h3),
         BeakTextBlock('Heading 4', variant: BeakTextVariant.h4),
-        BeakTextBlock('Body - the default paragraph size.'),
+        BeakTextBlock('Body — the default paragraph size.'),
         BeakTextBlock(
-          'Body strong - emphasized paragraph text.',
+          'Body strong — emphasized paragraph text.',
           variant: BeakTextVariant.bodyStrong,
         ),
         BeakTextBlock(
-          'Small - secondary text.',
+          'Small — secondary text.',
           variant: BeakTextVariant.small,
         ),
         BeakTextBlock(
-          'Caption - the smallest label.',
+          'Caption — the smallest label.',
           variant: BeakTextVariant.caption,
         ),
       ],
@@ -163,7 +163,7 @@ final class BeakIconGalleryItem {
   final String label;
 }
 
-/// A reference grid of named icons - a design-system cheat-sheet. Each entry
+/// A reference grid of named icons — a design-system cheat-sheet. Each entry
 /// renders onto `OiIcon` with its label beneath.
 final class BeakIconGalleryBlock extends BeakBlock {
   /// Creates a gallery of [items] laid out in [columns] columns.

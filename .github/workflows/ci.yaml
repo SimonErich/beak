@@ -65,12 +65,15 @@ jobs:
         run: dart pub global activate melos 6.3.3
       - name: Bootstrap
         run: melos bootstrap
-      - name: Build the reference panel for web
+      - name: Build the quickstart panel for web
         run: flutter build web --release
-        working-directory: apps/reference_admin
+        working-directory: examples/quickstart
+      - name: Build the store panel for web
+        run: flutter build web --release
+        working-directory: examples/store
       - name: Build the superdashboard panel for web
         run: flutter build web --release
-        working-directory: apps/beak_superdashboard
+        working-directory: examples/superdashboard
 
   test:
     name: Test & coverage
@@ -93,12 +96,17 @@ jobs:
         run: dart pub global activate melos 6.3.3
       - name: Bootstrap
         run: melos bootstrap
-      - name: Start services (Postgres + MinIO)
-        run: melos run up
       - name: Test
         run: melos run test
       - name: Coverage gate
         run: melos run coverage
+      # The service-backed suites assert the same things on a real driver that
+      # the main gate asserts on SQLite, so they run after it rather than
+      # gating it.
+      - name: Start services (Postgres + MinIO)
+        run: melos run up
+      - name: Service-backed suites
+        run: melos run test-e2e
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4

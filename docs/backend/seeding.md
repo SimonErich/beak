@@ -67,6 +67,7 @@ final class StoreSeeder extends Seeder {
       'name': 'Coffee',
       'blurb': 'Beans, ground and whole.',
     });
+    // ...the Gear category and three tags...
     await insert('users', {
       'id': StoreSeedIds.userAda,
       'name': 'Ada Lovelace',
@@ -76,6 +77,7 @@ final class StoreSeeder extends Seeder {
       'created_at': now,
       'updated_at': now,
     });
+    // ...a second user...
     await insert('products', {
       'id': StoreSeedIds.productEspresso,
       'name': 'Espresso Beans',
@@ -91,8 +93,8 @@ final class StoreSeeder extends Seeder {
       'created_at': now,
       'updated_at': now,
     });
-    // ...tags, more products, a roast profile, the product_tag pivot,
-    // and one order with two lines.
+    // ...two more products, a roast profile, the product_tag pivot,
+    // ...and one order with two lines.
   }
 }
 ```
@@ -103,12 +105,13 @@ The ids are constants, not random:
 abstract final class StoreSeedIds {
   /// The "Coffee" category.
   static const categoryCoffee = '00000000-0000-4000-8000-000000000101';
-
+  // ...
   /// Ada, the staff account.
   static const userAda = '00000000-0000-4000-8000-000000000301';
-
+  // ...
   /// The espresso beans product.
   static const productEspresso = '00000000-0000-4000-8000-000000000401';
+  // ...
 }
 ```
 

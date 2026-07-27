@@ -4,8 +4,8 @@ import 'package:beak/ui.dart';
 
 /// The UI-elements showcase — one page proving every leaf block: alerts (the
 /// four severities), the full badge palette, progress bars, a star rating, a
-/// round slider, tabs, an accordion, and a live activity timeline bound to
-/// the seeded `activities` table.
+/// round slider, tabs, an accordion, the layout primitives, and a live
+/// activity timeline bound to the seeded `activities` table.
 BeakScreen buildUiKitScreen() => BeakScreen(
   path: '/ui-kit',
   title: 'UI Elements',
@@ -13,8 +13,24 @@ BeakScreen buildUiKitScreen() => BeakScreen(
   section: 'Showcase',
   body: BeakColumnBlock(
     gapInPixels: 24,
-    children: [_alerts(), _widgets(), _tabs(), _accordion(), _timeline()],
+    children: [
+      _breadcrumbs(),
+      _alerts(),
+      _widgets(),
+      _tabs(),
+      _accordion(),
+      _layout(),
+      _wizard(),
+      _timeline(),
+    ],
   ),
+);
+
+BeakBlock _breadcrumbs() => const BeakBreadcrumbsBlock(
+  items: [
+    BeakBreadcrumbBlockItem(label: 'Showcase'),
+    BeakBreadcrumbBlockItem(label: 'UI Elements', route: '/ui-kit'),
+  ],
 );
 
 BeakBlock _alerts() => const BeakSectionBlock(
@@ -100,6 +116,75 @@ BeakBlock _accordion() => const BeakCardBlock(
       BeakAccordionBlockItem(
         title: 'How does it render?',
         content: BeakTextBlock('Through one exhaustive host switch.'),
+      ),
+    ],
+  ),
+);
+
+/// The primitives that arrange other blocks rather than showing data: a
+/// masonry wall, the rule and the gap between sections, and the one escape
+/// hatch — [BeakWidgetBlock], which hands the slot to an ordinary widget
+/// when no block fits.
+BeakBlock _layout() => BeakSectionBlock(
+  title: 'Layout',
+  child: BeakColumnBlock(
+    gapInPixels: 12,
+    children: [
+      const BeakDividerBlock(label: 'Masonry'),
+      BeakMasonryBlock(
+        columns: 3,
+        children: [
+          for (final (title, height) in const [
+            ('Tall', 240.0),
+            ('Short', 120.0),
+            ('Medium', 180.0),
+          ])
+            BeakCardBlock(
+              title: title,
+              child: BeakImageBlock(
+                'https://picsum.photos/seed/\$title/480/360',
+                alt: '\$title placeholder',
+                heightInPixels: height,
+              ),
+            ),
+        ],
+      ),
+      const BeakSpacerBlock(heightInPixels: 24),
+      const BeakDividerBlock(label: 'Escape hatch'),
+      BeakWidgetBlock(
+        (context) =>
+            const OiLabel.body('An ordinary widget, hosted in a block.'),
+      ),
+    ],
+  ),
+);
+
+/// A step-by-step flow, as a block rather than as a resource's form.
+///
+/// A resource's create form gets its steps from `BeakResource.formSteps`.
+/// This is the other case: a flow on a page of its own, whose steps are
+/// ordinary blocks and need not be fields at all.
+BeakBlock _wizard() => const BeakCardBlock(
+  title: 'Wizard',
+  child: BeakWizardBlock(
+    steps: [
+      BeakWizardStep(
+        title: 'Account',
+        subtitle: 'Who you are',
+        icon: OiIcons.user,
+        body: BeakTextBlock('Step bodies are blocks, so anything can go here.'),
+      ),
+      BeakWizardStep(
+        title: 'Workspace',
+        subtitle: 'Where the work lives',
+        icon: OiIcons.building,
+        body: BeakTextBlock('A second step, gated by the first.'),
+      ),
+      BeakWizardStep(
+        title: 'Done',
+        subtitle: 'Review and finish',
+        icon: OiIcons.check,
+        body: BeakTextBlock('The last step completes the flow.'),
       ),
     ],
   ),

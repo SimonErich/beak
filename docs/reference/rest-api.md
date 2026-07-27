@@ -175,8 +175,12 @@ The one exception is a timestamp, which is tagged so decoding never mistakes it 
 a plain string:
 
 ```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-// BeakDateTimeValue
-Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
+final class BeakDateTimeValue extends BeakValue {
+  // ...
+  @override
+  Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
+  // ...
+}
 ```
 
 So a product record on the wire looks like:

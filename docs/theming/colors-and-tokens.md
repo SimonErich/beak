@@ -63,12 +63,12 @@ the value appears.
 
 ## Badge colors on enum columns
 
-The place you set roles most often is a `BeakEnumColumn`. Its `badgeColors` map
-pairs each enum value with a `BeakColor`, and the column renders as a colored
-badge in tables and a select control in forms. Here is the products model from
-the tutorial store, quoted verbatim:
+The place you set roles most often is an enum field. `@Badges` pairs each enum
+value with a `BeakColor`, and the generated `BeakEnumColumn<T>` renders as a
+colored badge in tables and a select control in forms. Here is the products
+model from the tutorial store:
 
-```dart
+```dart title="examples/store/lib/models/product.dart"
 /// Lifecycle states of a product.
 enum ProductStatus {
   /// Being drafted, not on sale.
@@ -81,25 +81,22 @@ enum ProductStatus {
   archived,
 }
 
-/// Lifecycle state, rendered as a colored badge.
-static const status = BeakEnumColumn<ProductStatus>(
-  key: 'status',
-  label: 'Status',
-  values: ProductStatus.values,
-  defaultValue: ProductStatus.draft,
-  filterable: true,
-  badgeColors: {
-    ProductStatus.draft: BeakColor.muted,
-    ProductStatus.published: BeakColor.success,
-    ProductStatus.archived: BeakColor.warning,
-  },
-);
+// ...
+
+/// Lifecycle state, rendered as a coloured badge.
+@Column(filterable: true)
+@Badges({
+  ProductStatus.draft: BeakColor.muted,
+  ProductStatus.published: BeakColor.success,
+  ProductStatus.archived: BeakColor.warning,
+})
+late final ProductStatus status;
 ```
 
-The generic parameter keeps the whole thing type-safe. `values`, `defaultValue`,
-`badgeColors`, and the optional `labelOf` all speak in `ProductStatus`, so there
-is no stringly-typed state anywhere. The column exposes typed lookups over the
-map:
+The generic parameter on the generated column keeps the whole thing type-safe.
+`values`, `defaultValue`, `badgeColors`, and the optional `labelOf` all speak in
+`ProductStatus`, so there is no stringly-typed state anywhere. The column exposes
+typed lookups over the map:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_enum_column.dart"
 /// The badge color configured for [value], or `null` when unmapped.
@@ -121,13 +118,14 @@ only map the states you want to stand out.
 ## Literal colors: `BeakColorColumn`
 
 Sometimes the color is the data. A calendar event stores its own color; a brand
-row stores a swatch. That is a `BeakColorColumn`, which holds a hex string and
-renders as a swatch with a color picker in forms:
+row stores a swatch. Declare the field as `BeakHexColor` and you get a
+`BeakColorColumn`, which holds a hex string and renders as a swatch with a color
+picker in forms:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_color_column.dart"
 /// A color column holding hex strings (e.g. `#663399`), rendered as a
 /// swatch with a color picker in forms.
-final class BeakColorColumn extends BeakColumn {
+final class BeakColorColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a color column.
   const BeakColorColumn({
     required super.key,
@@ -136,12 +134,18 @@ final class BeakColorColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
 
-  /// Values are hex color strings.
   @override
-  Type get valueType => String;
+  BeakRenderConfig get renderConfig =>
+      const BeakRenderConfig.uniform(BeakRenderIntent.color);
+
+  /// Reads [value] as a string value.
+  @override
+  String? readValue(BeakValue? value) => _readText(value);
 }
 ```
 
@@ -150,11 +154,8 @@ category's color per event:
 
 ```dart title="examples/superdashboard/lib/models/calendar/calendar_event.dart"
 /// Event color (overrides the category color when set).
-static const color = BeakColorColumn(
-  key: 'color',
-  label: 'Color',
-  visibleOn: {BeakContext.form, BeakContext.detail},
-);
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakHexColor? color;
 ```
 
 The difference is worth holding onto. A `BeakColor` role does not change when the

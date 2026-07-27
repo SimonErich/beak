@@ -4,129 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:beak_cli/beak_cli.dart';
 import 'package:test/test.dart';
 
-/// Canned `information_schema` rows, so introspection is tested without a
-/// server. The shapes match what Postgres actually returns.
-final class FakeDatabase {
-  FakeDatabase({
-    this.columns = const [],
-    this.foreignKeys = const [],
-    this.primaryKeys = const [],
-    this.enums = const [],
-  });
-
-  final List<Map<String, Object?>> columns;
-  final List<Map<String, Object?>> foreignKeys;
-  final List<Map<String, Object?>> primaryKeys;
-  final List<Map<String, Object?>> enums;
-
-  Future<List<Map<String, Object?>>> query(String sql) async {
-    if (sql.contains('pg_enum')) {
-      return enums;
-    }
-    if (sql.contains("'FOREIGN KEY'")) {
-      return foreignKeys;
-    }
-    if (sql.contains("'PRIMARY KEY'")) {
-      return primaryKeys;
-    }
-    return columns;
-  }
-}
-
-Map<String, Object?> column(
-  String table,
-  String name,
-  String type, {
-  bool nullable = true,
-  int? maxLength,
-  Object? defaultValue,
-  String? udt,
-}) => {
-  'table_name': table,
-  'column_name': name,
-  'data_type': type,
-  'is_nullable': nullable ? 'YES' : 'NO',
-  'character_maximum_length': maxLength,
-  'column_default': defaultValue,
-  'udt_name': udt ?? type,
-};
-
-/// A small shop schema: two resources, a pivot, an enum, and a secret.
-FakeDatabase shopDatabase() => FakeDatabase(
-  columns: [
-    column('categories', 'id', 'uuid', nullable: false),
-    column(
-      'categories',
-      'name',
-      'character varying',
-      nullable: false,
-      maxLength: 60,
-    ),
-    column('products', 'id', 'uuid', nullable: false),
-    column(
-      'products',
-      'name',
-      'character varying',
-      nullable: false,
-      maxLength: 255,
-    ),
-    column('products', 'description', 'text'),
-    column('products', 'price', 'numeric', nullable: false),
-    column('products', 'stock', 'integer', nullable: false, defaultValue: '0'),
-    column(
-      'products',
-      'status',
-      'USER-DEFINED',
-      nullable: false,
-      udt: 'product_status',
-    ),
-    column('products', 'image', 'character varying', maxLength: 255),
-    column('products', 'spec_file', 'character varying', maxLength: 255),
-    column('products', 'category_id', 'uuid'),
-    column('products', 'created_at', 'timestamp with time zone'),
-    column('products', 'updated_at', 'timestamp with time zone'),
-    column('products', 'deleted_at', 'timestamp with time zone'),
-    column('tags', 'id', 'uuid', nullable: false),
-    column('tags', 'name', 'character varying', nullable: false),
-    column('product_tag', 'product_id', 'uuid', nullable: false),
-    column('product_tag', 'tag_id', 'uuid', nullable: false),
-    column('users', 'id', 'uuid', nullable: false),
-    column('users', 'email', 'character varying', nullable: false),
-    column('users', 'password_hash', 'character varying', nullable: false),
-    column('worm_migrations', 'id', 'integer', nullable: false),
-  ],
-  foreignKeys: [
-    {
-      'table_name': 'products',
-      'column_name': 'category_id',
-      'referenced_table': 'categories',
-    },
-    {
-      'table_name': 'product_tag',
-      'column_name': 'product_id',
-      'referenced_table': 'products',
-    },
-    {
-      'table_name': 'product_tag',
-      'column_name': 'tag_id',
-      'referenced_table': 'tags',
-    },
-  ],
-  primaryKeys: [
-    for (final table in ['categories', 'products', 'tags', 'users'])
-      {'table_name': table, 'column_name': 'id'},
-  ],
-  enums: [
-    {'enum_name': 'product_status', 'enum_value': 'draft'},
-    {'enum_name': 'product_status', 'enum_value': 'published'},
-  ],
-);
-
-Future<List<IntrospectedTable>> readShop() =>
-    PostgresIntrospector(shopDatabase().query).read();
-
-IntrospectedTable tableNamed(List<IntrospectedTable> tables, String name) =>
-    tables.firstWhere((table) => table.name == name);
+import '../../support/fake_database.dart';
 
 void main() {
   group('PostgresIntrospector', () {
@@ -162,6 +40,21 @@ void main() {
       ).columns.firstWhere((c) => c.name == 'status');
       expect(status.enumTypeName, 'product_status');
       expect(status.enumValues, ['draft', 'published']);
+    });
+
+    test('reads the indexes a table already has', () {
+      // An index the database has is a decision about how it is queried.
+      // Reading it back is what keeps a round trip from handing back a schema
+      // that looks right and runs slowly.
+      final byName = {
+        for (final c in tableNamed(tables, 'products').columns) c.name: c,
+      };
+
+      expect(byName['name']?.isIndexed, isTrue);
+      expect(byName['name']?.isUnique, isFalse);
+      expect(byName['sku']?.isIndexed, isTrue);
+      expect(byName['sku']?.isUnique, isTrue);
+      expect(byName['price']?.isIndexed, isFalse);
     });
 
     test('reads foreign keys and primary keys', () {
@@ -203,6 +96,16 @@ void main() {
           'users',
         ]),
       );
+    });
+
+    test('carries a read index onto the column it belongs to', () {
+      final String source = files['products']!.contents;
+
+      expect(source, contains('indexed: true'));
+      expect(source, contains('unique: true'));
+      // The primary key and the foreign key never reach a `@Column`: the
+      // schema class does not declare either.
+      expect(source, isNot(contains('late final String id;')));
     });
 
     test('declares the database enum so the emitted type resolves', () {

@@ -1,6 +1,6 @@
 # Superdashboard
 
-Beak at scale: **49 resources**, 37 block types, a charts gallery, a vector
+Beak at scale: **49 resources**, every one of the 48 block types, a charts gallery, a vector
 map, notifications, auth and maintenance screens, an email client, a chat, a
 file manager, a kanban board and a calendar. All of it from seeded data, and
 none of it from hand-written widgets.

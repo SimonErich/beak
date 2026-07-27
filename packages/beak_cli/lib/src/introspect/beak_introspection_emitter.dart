@@ -264,12 +264,20 @@ abstract final class BeakIntrospectionEmitter {
   }
 
   /// The `@Column` options a described column implies.
+  ///
+  /// `indexed` and `unique` are read from the database rather than guessed:
+  /// an index it already has is a decision somebody made about how the table
+  /// is queried, and dropping it on the way through would hand back a schema
+  /// that looks right and runs slowly. Foreign keys never reach here — the
+  /// relationship declares them, and Beak indexes every one unasked.
   static List<String> _columnOptionsOf(IntrospectedColumn column) => [
     if (_isDisplayCandidate(column) || column.dataType == 'text')
       'searchable: true',
     if (_isSortable(column)) 'sortable: true',
     if (column.enumValues.isNotEmpty || column.dataType == 'boolean')
       'filterable: true',
+    if (column.isIndexed && !column.isUnique) 'indexed: true',
+    if (column.isUnique) 'unique: true',
     if (_lengthOf(column) case final int length) 'maxLength: $length',
     if (_extraRulesOf(column) case final String rules) 'rules: [$rules]',
   ];

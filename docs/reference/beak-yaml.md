@@ -20,9 +20,11 @@ resources:
   products:
     icon: package
     section: Catalog
+  # ... one entry per resource ...
   orders:
     icon: receipt
     section: Sales
+  # ...
   order_items:
     hidden: true
 ```
@@ -35,7 +37,7 @@ resources:
 | `api` | see below | Where the panel sends its requests |
 | `server` | Beak's defaults | Where the server binds |
 | `resources` | `{}` | Per-resource presentation |
-| `sidebar` | see below | How the navigation behaves |
+| `theme` | see below | How the navigation behaves |
 
 ## `api`
 
@@ -98,13 +100,20 @@ An icon that is not a lowerCamelCase identifier fails at `beak prepare` naming
 the line. That check exists because the value is spliced into generated code,
 and a typo would otherwise be a compile error inside a file you did not write.
 
-## `sidebar`
+## `theme`
+
+The sidebar's two behaviours live here, nested under `theme`:
 
 ```yaml
-sidebar:
-  collapsible: true
-  startCollapsed: false
+theme:
+  sidebar:
+    collapsible: true
+    startCollapsed: false
 ```
+
+`collapsible` defaults to `true` and `startCollapsed` to `false`, so a panel
+that wants neither can leave the whole block out. Anything else about the look
+of the panel is Dart, in `lib/theme.dart`.
 
 ## What does not live here
 

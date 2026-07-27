@@ -50,6 +50,8 @@ beak dev       # serve the API, print the flutter run line
 ```dart title="examples/store/lib/models/category.beak.dart"
 /// Typed column constants of the categories resource.
 abstract final class CategoryColumns {
+  // ... the primary key ...
+
   /// What the category is called.
   static const BeakStringColumn name = BeakStringColumn(
     key: 'name',
@@ -58,6 +60,8 @@ abstract final class CategoryColumns {
     searchable: true,
     sortable: true,
   );
+
+  // ... blurb ...
 
   /// Every column, in declaration order.
   static const List<BeakColumn> values = [id, name, blurb];

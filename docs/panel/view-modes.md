@@ -109,6 +109,7 @@ board grouped by status:
 BeakResource beakResource(BeakResource generated) => generated.copyWith(
   detail: productLayout,
   formLayout: productLayout,
+  // ... record and bulk actions ...
   viewModes: const [
     BeakTableView(),
     BeakKanbanView(

@@ -313,7 +313,7 @@ message rather than at the first upload.
 | Variable | Default | What it changes |
 | --- | --- | --- |
 | `DATABASE_URL` | `sqlite:beak.db` | `postgres://user:pass@host:5432/db` moves the store to Postgres |
-| `BEAK_STORAGE_DRIVER` | unset (uploads off) | `s3`, `local`, `ftp` or `memory`, each with its own `BEAK_*` settings |
+| `BEAK_STORAGE_DRIVER` | unset (local disk under `storage/uploads`) | `s3`, `local`, `ftp` or `memory`, each with its own `BEAK_*` settings; `none` turns uploads off |
 | `PORT`, `HOST` | `8080`, `0.0.0.0` | where the API listens |
 | `AUTH_SECRET` | none | the secret your `lib/server.dart` hashes passwords under, read from `defaults.environment` |
 

@@ -49,7 +49,7 @@ sealed class BeakResult<T> {
 Collapse both cases into one value with `fold`, or keep the failure and rework
 only the success with `map`:
 
-```dart title="packages/beak_core/lib/src/common/beak_result.dart"
+```dart
 BeakResult<int> parseQuantity(String raw) {
   final int? value = int.tryParse(raw);
   return value == null
@@ -103,7 +103,7 @@ Because the family is sealed, the backend's exception-to-response mapping is an
 exhaustive switch: add a variant and every mapper stops compiling until it
 handles the new case.
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+```dart
 int httpStatus(BeakException exception) => switch (exception) {
   BeakValidationException() => 422,
   BeakNotFoundException() => 404,
@@ -119,7 +119,7 @@ int httpStatus(BeakException exception) => switch (exception) {
 map lets a form highlight the offending inputs individually instead of showing
 one blanket message.
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+```dart
 throw const BeakValidationException(
   'The product could not be saved.',
   fieldErrors: {
@@ -149,7 +149,7 @@ Above the repository, view models never write `try/catch`. They receive a
 `BeakResult` and switch on the outcome, which keeps the failure path visible in
 the type rather than hidden in control flow.
 
-```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
+```dart
 final repository = BeakResourceRepository(dataSource);
 final result = await repository.query(
   const BeakQuerySpec(table: 'products'),
@@ -214,7 +214,7 @@ relations keyed by relation key. It round-trips to a plain ORM row
 (`fromRow`/`toRow`) and to JSON (`fromJson`/`toJson`), and you read a value back
 out by column key with `operator []`.
 
-```dart title="packages/beak_core/lib/src/query/beak_record.dart"
+```dart
 // Wrap a raw ORM row, then read typed values back out by column key.
 final record = BeakRecord.fromRow({
   'id': 7,

@@ -96,6 +96,8 @@ const BeakRenderConfig({
 const BeakRenderConfig.uniform(BeakRenderIntent intent)
   : this(table: intent, form: intent, detail: intent, filter: intent);
 
+// ... one final BeakRenderIntent field per context ...
+
 /// The intent this config resolves to for [context].
 BeakRenderIntent intentFor(BeakContext context) => switch (context) {
   BeakContext.table => table,
@@ -158,14 +160,16 @@ Widget renderBeakCell(
   }
   return switch (intentOverride ?? column.intentFor(renderContext)) {
     BeakRenderIntent.text => OiLabel.body(raw.toString(), maxLines: 1),
+    // ... number, currency ...
     BeakRenderIntent.badge => _enumBadge(column, raw),
+    // ... boolean, date ...
     BeakRenderIntent.relativeDate => OiLabel.body(
       _relativeText(raw, (now ?? DateTime.now)()),
       maxLines: 1,
     ),
     BeakRenderIntent.thumbnail => _image(column, raw, sizeInPixels: 40),
     BeakRenderIntent.image => _image(column, raw, sizeInPixels: 160),
-    // ... one arm per BeakRenderIntent
+    // ... relationLink, relationBadges, richText, color, json ...
     BeakRenderIntent.custom => _custom(context, column, record),
   };
 }

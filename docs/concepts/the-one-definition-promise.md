@@ -194,9 +194,10 @@ because the list page shows the related category's name instead of the uuid the
 key stores.
 
 `visibleOn` gates the visual surfaces (cell, form field, detail row). The
-validator and the CSV exporter still know about the column regardless, because
-they work from the model's full column list, not from what happens to be on
-screen.
+validator runs on the column regardless, because it works from the model's full
+column list rather than from what happens to be on screen. The CSV export is the
+one that follows `visibleOn`: it takes the table-context columns, so a column
+hidden from the table is hidden from the export too.
 
 ## Richer columns, same promise
 

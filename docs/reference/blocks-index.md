@@ -71,7 +71,7 @@ The scaffolding. These take other blocks as children and decide how they sit on 
 | `BeakSpacerBlock` | (none) | `heightInPixels = 16` | Blank vertical space. |
 | `BeakTimelineBlock` | `query: BeakQuerySpec`, `titleField`, `timeField: BeakColumn` | (none) | A vertical event timeline (data-bound). |
 
-Here is one verbatim to show the shape they share:
+Here is one verbatim. Note the assert: pass `columns` or `minColumnWidthInPixels`, never both.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_grid_block.dart"
 const BeakGridBlock({
@@ -80,7 +80,10 @@ const BeakGridBlock({
   this.minColumnWidthInPixels,
   this.gapInPixels = 16,
   super.span,
-});
+}) : assert(
+       columns == null || minColumnWidthInPixels == null,
+       'Provide either columns or minColumnWidthInPixels, not both.',
+     );
 ```
 
 ## Display blocks
@@ -92,7 +95,7 @@ Static content that does not read the database. Prose: [Display blocks](../block
 | `BeakTextBlock` | `BeakTextBlock(String text, {...})` | `variant = BeakTextVariant.body` | A run of themed text. |
 | `BeakMarkdownBlock` | `BeakMarkdownBlock(String source, {...})` | (none) | Rendered Markdown. |
 | `BeakImageBlock` | `BeakImageBlock(String url, {required alt, ...})` | `widthInPixels?`, `heightInPixels?`, `fit = BoxFit.cover` | A static image. |
-| `BeakVideoBlock` | `BeakVideoBlock({required model query fields, ...})` | `posterField?`, `title?`, `autoPlay = false`, `loop = false` | A video from `query` + `urlField` (data-bound). |
+| `BeakVideoBlock` | `BeakVideoBlock({required query, required urlField, ...})` | `posterField?`, `title?`, `autoPlay = false`, `loop = false` | A video from `query` + `urlField` (data-bound). |
 | `BeakIconGalleryBlock` | `BeakIconGalleryBlock({required items, ...})` | `columns = 6` | A grid of labelled icons. |
 | `BeakIconGalleryItem` | `BeakIconGalleryItem({required icon, required label})` | (none) | One icon tile (`icon: BeakIconToken`). |
 
@@ -129,7 +132,7 @@ Backed by a `BeakModel` or a `BeakQuerySpec`; they fetch and render live rows. P
 | --- | --- | --- | --- |
 | `BeakKpiBlock` | `title: String`, `value: BeakAggregateSpec` | `previous?`, `target?: num`, `format = BeakKpiFormat.number`, `currencySymbol = r'$'`, `decimals = 0` | A single big number with a delta. |
 | `BeakMetricBlock` | `label: String`, `aggregate: BeakAggregateSpec` | `icon?: IconData`, `prefix = ''`, `suffix = ''` | A compact metric tile. |
-| `BeakTableBlock` | `model: BeakModel` | `title?`, `initialSpec?: BeakQuerySpec`, `baseFilter?: BeakFilter`, `actions = const []`, `onRowTap?`, `heightInPixels = 360` | An embedded data table. |
+| `BeakTableBlock` | `model: BeakModel` | `title?`, `columns?: List<BeakColumn>`, `initialSpec?: BeakQuerySpec`, `baseFilter?: BeakFilter`, `actions = const []`, `onRowTap?`, `heightInPixels = 360` | An embedded data table. |
 | `BeakChartBlock` | `title`, `type: BeakChartType`, `query: BeakQuerySpec`, `map: BeakChartMapper` | `heightInPixels = 260` | A line/bar/pie/etc. chart. |
 | `BeakBubbleChartBlock` | `title`, `query`, `map: BeakBubbleMapper` | `heightInPixels = 300` | A bubble chart. |
 | `BeakCandlestickChartBlock` | `title`, `query`, `map: BeakCandleMapper` | `heightInPixels = 320` | An OHLC candlestick chart. |

@@ -45,6 +45,7 @@ BeakServer beakServer(BeakServerDefaults defaults) {
             roles: {'staff'},
           ),
         ),
+        // ... a second account, for a customer ...
       ],
     ),
     authGuard: TokenSessionAuthGuard(store),
@@ -86,7 +87,11 @@ return `null`.
 /// Implementations return `null` for anonymous requests (no credentials at
 /// all) and throw a [BeakAuthenticationException] for credentials that are
 /// present but invalid, so forged tokens never demote silently to
-/// anonymous.
+/// anonymous. Implement this to plug in an alternative scheme (JWT, an API
+/// gateway header, …); [TokenSessionAuthGuard] is the built-in Bearer-token
+/// implementation. Install it via [beakAuthMiddleware] or [BeakServer]'s
+/// `authGuard` parameter:
+/// ...
 ```
 
 The built-in guard, `TokenSessionAuthGuard`, reads opaque `Bearer` tokens and

@@ -27,6 +27,7 @@ demo apps:
 
 ```yaml title="packages/beak_frontend/pubspec.yaml"
 dependencies:
+  # ...
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui.git

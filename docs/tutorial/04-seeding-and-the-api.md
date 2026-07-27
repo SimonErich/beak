@@ -30,11 +30,17 @@ abstract final class StoreSeedIds {
   /// The "Coffee" category.
   static const categoryCoffee = '00000000-0000-4000-8000-000000000101';
 
+  // ... the "Gear" category ...
+
   /// The "hot" tag.
   static const tagHot = '00000000-0000-4000-8000-000000000201';
 
+  // ... the other tags, the two users ...
+
   /// The espresso beans product.
   static const productEspresso = '00000000-0000-4000-8000-000000000401';
+
+  // ... the rest of the catalog, and the seeded order ...
 }
 ```
 

@@ -250,6 +250,7 @@ a resource an agent added but broke fails a test rather than a demo.
         }),
       ]);
 
+    // ... a desktop-sized test surface ...
     await tester.pumpWidget(BeakApp(dataSource: source));
     await tester.pumpAndSettle();
 

@@ -83,6 +83,10 @@ try {
     'FTP $operationName failed for "$key" '
     '(reply ${error.replyCode}): ${error.message}',
   );
+} on Object catch (error) {
+  throw BeakStorageException(
+    'FTP $operationName failed for "$key": $error',
+  );
 }
 ```
 

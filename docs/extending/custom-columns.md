@@ -94,6 +94,7 @@ final class BeakColumnTag {
 
   /// Unique identity of the custom renderer.
   final String value;
+  // ...`==`, `hashCode` and `toString`, all over [value]...
 }
 ```
 

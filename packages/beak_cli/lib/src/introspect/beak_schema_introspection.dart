@@ -9,6 +9,8 @@ final class IntrospectedColumn {
     this.hasDefault = false,
     this.enumTypeName,
     this.enumValues = const [],
+    this.isIndexed = false,
+    this.isUnique = false,
   });
 
   /// Column name, as stored.
@@ -32,6 +34,16 @@ final class IntrospectedColumn {
 
   /// The enum's labels, in declaration order.
   final List<String> enumValues;
+
+  /// Whether an index covers this column.
+  ///
+  /// An index a database already has is a decision somebody made about how it
+  /// is queried. Reading it back is what keeps `beak introspect` from handing
+  /// you a schema that looks right and runs slowly.
+  final bool isIndexed;
+
+  /// Whether that index makes the column's values distinct.
+  final bool isUnique;
 }
 
 /// A foreign key as the database describes it.
