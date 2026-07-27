@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import 'beak_discovery.dart';
+
 /// Thrown when `beak.yaml` cannot be understood.
 ///
 /// Unknown keys are errors rather than silent no-ops: a typo in a config file
@@ -262,4 +264,72 @@ final class BeakProjectConfig {
       .where((word) => word.isNotEmpty)
       .map((word) => word[0].toUpperCase() + word.substring(1))
       .join(' ');
+}
+
+/// Problems in [config] that only the scan can see.
+///
+/// `beak.yaml` is written before the models exist and is keyed by table name,
+/// so a typo — or a rename — leaves a block that silently applies to nothing.
+/// The parser cannot catch that on its own; it needs the discovered tables.
+///
+/// ```dart
+/// for (final issue in beakConfigIssues(config, discovery)) {
+///   print('${issue.path}: ${issue.message}');
+/// }
+/// ```
+List<BeakDiscoveryIssue> beakConfigIssues(
+  BeakProjectConfig config,
+  BeakDiscovery discovery,
+) {
+  final tables = <String>{
+    for (final model in discovery.models)
+      if (model.table case final String table) table,
+  };
+  if (tables.isEmpty) {
+    // Nothing was discovered — a different problem, already reported.
+    return const <BeakDiscoveryIssue>[];
+  }
+  return <BeakDiscoveryIssue>[
+    for (final key in config.resources.keys)
+      if (!tables.contains(key))
+        BeakDiscoveryIssue(
+          path: 'beak.yaml',
+          message:
+              'resources.$key names no discovered table'
+              '${_didYouMean(key, tables)}.',
+        ),
+  ];
+}
+
+/// A `did you mean` hint naming the closest table, when one is close enough.
+String _didYouMean(String key, Set<String> tables) {
+  var best = '';
+  var bestDistance = 1 << 30;
+  for (final table in tables) {
+    final distance = _editDistance(key, table);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = table;
+    }
+  }
+  // Beyond a third of the word the suggestion is noise, not help.
+  return bestDistance <= key.length ~/ 3 + 1 ? ' — did you mean $best?' : '';
+}
+
+/// Levenshtein distance between [a] and [b].
+int _editDistance(String a, String b) {
+  var previous = List<int>.generate(b.length + 1, (i) => i);
+  for (var i = 1; i <= a.length; i++) {
+    final current = <int>[i, ...List<int>.filled(b.length, 0)];
+    for (var j = 1; j <= b.length; j++) {
+      final substitution = previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1);
+      current[j] = [
+        current[j - 1] + 1,
+        previous[j] + 1,
+        substitution,
+      ].reduce((x, y) => x < y ? x : y);
+    }
+    previous = current;
+  }
+  return previous[b.length];
 }

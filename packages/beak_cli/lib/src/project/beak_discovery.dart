@@ -14,6 +14,7 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
     required this.importPath,
     required this.isConstructible,
     this.sortKey,
+    this.table,
   });
 
   /// The Dart identifier: a class name, or a top-level variable/function name.
@@ -36,6 +37,16 @@ final class BeakDiscoveredSymbol implements Comparable<BeakDiscoveredSymbol> {
   /// `create_orders_table.dart` and the foreign key would reference a table
   /// that does not exist yet.
   final String? sortKey;
+
+  /// The physical table a model backs, when this symbol is one.
+  ///
+  /// Read from the declaration — an `@Resource(table:)` argument, or the
+  /// model's own `String get table => '...';` — and never re-derived from the
+  /// class name. `beak.yaml` is keyed by table, so a second derivation is a
+  /// second answer: `@Resource(table: 'people')` on a class named `Person`
+  /// silently lost its icon for as long as the emitter pluralised the class
+  /// name instead of reading this.
+  final String? table;
 
   /// A Dart expression evaluating to this symbol.
   String get expression => isConstructible ? 'const $name()' : name;
@@ -176,13 +187,14 @@ final class BeakProjectScanner {
   /// shared-base-class pattern). A model must have a zero-argument `const`
   /// constructor so Beak can instantiate it; one that does not is reported as
   /// an issue naming the file, rather than silently skipped.
-  BeakDiscovery scan() {
+  BeakDiscovery scan({Map<String, String> tablesByModelClass = const {}}) {
     final issues = <BeakDiscoveryIssue>[];
     final models = _scanClasses(
       modelsDir,
       supertype: 'BeakModel',
       issues: issues,
       requireConstConstructor: true,
+      tables: tablesByModelClass,
     );
     final migrations = _scanClasses(
       migrationsDir,
@@ -216,6 +228,7 @@ final class BeakProjectScanner {
     required String supertype,
     required List<BeakDiscoveryIssue> issues,
     required bool requireConstConstructor,
+    Map<String, String> tables = const {},
   }) {
     final found = <BeakDiscoveredSymbol>[];
     // Two passes: the first collects classes extending the supertype
@@ -268,6 +281,11 @@ final class BeakProjectScanner {
               importPath: path,
               isConstructible: true,
               sortKey: _declaredNameOf(declaration),
+              // The schema reader already parsed `@Resource(table:)`; for a
+              // hand-written model the declaration itself carries it. Either
+              // way it is read, never re-derived.
+              table:
+                  tables[name] ?? _declaredStringGetter(declaration, 'table'),
             ),
           );
         }
@@ -279,12 +297,22 @@ final class BeakProjectScanner {
 
   /// The string a class's `String get name => '...';` returns, when it has
   /// one — a migration's timestamped identity.
-  static String? _declaredNameOf(ClassDeclaration declaration) {
+  static String? _declaredNameOf(ClassDeclaration declaration) =>
+      _declaredStringGetter(declaration, 'name');
+
+  /// The string a class's `String get <getter> => '...';` returns.
+  ///
+  /// The one AST read behind both a migration's `name` and a hand-written
+  /// model's `table`.
+  static String? _declaredStringGetter(
+    ClassDeclaration declaration,
+    String getter,
+  ) {
     for (final member in declaration.members) {
       if (member is! MethodDeclaration || !member.isGetter) {
         continue;
       }
-      if (member.name.lexeme != 'name') {
+      if (member.name.lexeme != getter) {
         continue;
       }
       if (member.body case final ExpressionFunctionBody body) {

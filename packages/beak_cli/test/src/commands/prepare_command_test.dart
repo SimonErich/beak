@@ -158,6 +158,76 @@ final class NoteModel extends BeakModel {
     });
   });
 
+  group('the table name', () {
+    const person = """
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+part 'person.beak.dart';
+
+/// Someone in the directory.
+@Resource(table: 'people')
+final class Person extends BeakSchema {
+  /// Their name.
+  @Display()
+  @Column()
+  late final String name;
+}
+""";
+
+    test('an explicit @Resource(table:) drives the beak.yaml lookup', () {
+      // The emitter used to pluralise the CLASS name — `Person` -> `persons`
+      // — so a resources block keyed by the real table silently applied to
+      // nothing and the icon was quietly the default.
+      final root = projectWith({
+        'lib/models/person.dart': person,
+        'beak.yaml': '''
+name: Directory
+resources:
+  people:
+    icon: users
+    section: People
+''',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isTrue);
+      final panel = read(root, 'lib/beak/panel.g.dart');
+      expect(panel, contains('OiIcons.users'));
+      expect(panel, contains("section: 'People'"));
+    });
+
+    test('a key naming no table fails, and suggests the near miss', () {
+      // beak.yaml is written before the models exist and outlives renames,
+      // so a stale key is the likely case, not the exotic one.
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': '''
+resources:
+  note:
+    icon: fileText
+''',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        result.discovery.issues.single.message,
+        allOf(contains('resources.note'), contains('did you mean notes?')),
+      );
+    });
+
+    test('a hand-written model reports its own declared table', () {
+      final root = projectWith({'lib/models/note.dart': noteModel});
+
+      final discovery = BeakProjectScanner(root).scan();
+
+      expect(discovery.models.single.table, 'notes');
+    });
+  });
+
   group('beak.yaml', () {
     test('drives the title, icon and section of a resource', () {
       final root = projectWith({

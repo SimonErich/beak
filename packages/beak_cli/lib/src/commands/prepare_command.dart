@@ -92,8 +92,16 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     }
   }
 
-  final BeakDiscovery discovery = BeakProjectScanner(root).scan();
-  final allIssues = [...schemaIssues, ...discovery.issues];
+  final BeakDiscovery discovery = BeakProjectScanner(root).scan(
+    tablesByModelClass: <String, String>{
+      for (final schema in schemas) schema.modelClass: schema.table,
+    },
+  );
+  final allIssues = <BeakDiscoveryIssue>[
+    ...schemaIssues,
+    ...discovery.issues,
+    ...beakConfigIssues(config, discovery),
+  ];
 
   if (allIssues.isNotEmpty) {
     environment.out.writeln('Cannot generate — fix these first:');

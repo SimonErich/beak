@@ -338,10 +338,11 @@ Future<void> main(List<String> args) async =>
     BeakDiscoveredSymbol model,
     BeakProjectConfig config,
   ) {
-    // beak.yaml is keyed by table name; the model's class name is what we
-    // have at generate time, so match on the conventional derivation.
-    final String table = _tableNameOf(model.name);
-    final BeakResourceOverride? override = config.resources[table];
+    // beak.yaml is keyed by table name, and discovery read the real one off
+    // the declaration. Re-deriving it from the class name gave a second
+    // answer, so `@Resource(table: 'people')` on a `Person` silently lost
+    // its icon.
+    final BeakResourceOverride? override = config.resources[model.table];
     final parts = <String>[
       'model: ${model.expression}',
       'icon: BeakIconToken(OiIcons.${override?.icon ?? 'table'})',
@@ -350,29 +351,6 @@ Future<void> main(List<String> args) async =>
         "section: '${_escape(override!.section!)}'",
     ];
     return 'BeakResource(${parts.join(', ')})';
-  }
-
-  /// `ProductModel` -> `products`, the conventional table name.
-  ///
-  /// Only used to look up `beak.yaml` overrides; the real table name comes
-  /// from the model itself at runtime.
-  static String _tableNameOf(String className) {
-    final String base = className.endsWith('Model')
-        ? className.substring(0, className.length - 'Model'.length)
-        : className;
-    final String snake = base
-        .replaceAllMapped(
-          RegExp('([a-z0-9])([A-Z])'),
-          (match) => '${match[1]}_${match[2]}',
-        )
-        .toLowerCase();
-    if (snake.endsWith('y')) {
-      return '${snake.substring(0, snake.length - 1)}ies';
-    }
-    if (snake.endsWith('s') || snake.endsWith('x') || snake.endsWith('ch')) {
-      return '${snake}es';
-    }
-    return '${snake}s';
   }
 
   /// Unique import paths of [symbols], in path order.
