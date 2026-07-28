@@ -1,28 +1,25 @@
 import 'package:beak/panel.dart';
+import 'package:superdashboard/models/models.dart';
 
 /// The page size for analytics-bound blocks: comfortably above every seeded
 /// analytics table, so a chart never renders a silently truncated page
 /// (`BeakQuerySpec` defaults to 25 rows per page).
 const BeakPagination analyticsPage = BeakPagination(perPage: 500);
 
-/// Parses a value that may arrive as a number (in-memory) or a string
-/// (Postgres decimals over HTTP).
-double _asDouble(Object? raw) => switch (raw) {
-  final num value => value.toDouble(),
-  final String value => double.tryParse(value) ?? 0,
-  _ => 0,
-};
-
 /// A chart mapper that keeps only the `time_series_points` rows of [series]
 /// and turns them into ordered points — so one tall table feeds every chart.
+///
+/// Every field is read through the generated record view, which returns each
+/// column's declared Dart type and parses the wire shapes a source may send
+/// (Postgres hands decimals over as strings).
 BeakChartMapper seriesPoints(String series) => (records) {
   final points = [
-    for (final record in records)
-      if (record['series']?.raw == series)
+    for (final point in records.map(TimeSeriesPointRecord.of))
+      if (point.series == series)
         (
-          index: (record['sort_index']?.raw as num?)?.toInt() ?? 0,
-          label: record['label']?.raw?.toString() ?? '',
-          value: _asDouble(record['value']?.raw),
+          index: point.sortIndex ?? 0,
+          label: point.label,
+          value: point.value ?? 0,
         ),
   ]..sort((a, b) => a.index.compareTo(b.index));
   return [
@@ -33,50 +30,43 @@ BeakChartMapper seriesPoints(String series) => (records) {
 
 /// Maps `purchase_sources` rows onto donut segments sized by revenue.
 List<BeakChartPoint> purchaseSourcePoints(List<BeakRecord> records) => [
-  for (final record in records)
-    BeakChartPoint(
-      label: record['label']?.raw?.toString() ?? '',
-      value: _asDouble(record['total']?.raw),
-    ),
+  for (final source in records.map(PurchaseSourceRecord.of))
+    BeakChartPoint(label: source.label, value: source.total ?? 0),
 ];
 
 /// Maps `products` rows onto bubble points: price × stock, sized by cost.
 List<BeakBubblePoint> productBubblePoints(List<BeakRecord> records) => [
-  for (final record in records)
+  for (final product in records.map(ProductRecord.of))
     BeakBubblePoint(
-      x: _asDouble(record['price']?.raw),
-      y: _asDouble(record['stock']?.raw),
-      size: _asDouble(record['cost']?.raw),
-      label: record['name']?.raw?.toString(),
+      x: product.price,
+      y: (product.stock ?? 0).toDouble(),
+      size: product.cost ?? 0,
+      label: product.name,
     ),
 ];
 
 /// Maps `price_candles` rows onto ordered OHLC candles.
 List<BeakCandle> priceCandles(List<BeakRecord> records) {
-  final rows = [...records]
-    ..sort((a, b) {
-      final ai = (a['sort_index']?.raw as num?)?.toInt() ?? 0;
-      final bi = (b['sort_index']?.raw as num?)?.toInt() ?? 0;
-      return ai.compareTo(bi);
-    });
+  final candles = records.map(PriceCandleRecord.of).toList()
+    ..sort((a, b) => (a.sortIndex ?? 0).compareTo(b.sortIndex ?? 0));
   return [
-    for (final (index, record) in rows.indexed)
+    for (final (index, candle) in candles.indexed)
       BeakCandle(
         x: index.toDouble(),
-        open: _asDouble(record['open']?.raw),
-        high: _asDouble(record['high']?.raw),
-        low: _asDouble(record['low']?.raw),
-        close: _asDouble(record['close']?.raw),
+        open: candle.open ?? 0,
+        high: candle.high ?? 0,
+        low: candle.low ?? 0,
+        close: candle.close ?? 0,
       ),
   ];
 }
 
 /// Maps `activity_heatmap` rows onto matrix cells.
 List<BeakMatrixCell> activityHeatCells(List<BeakRecord> records) => [
-  for (final record in records)
+  for (final cell in records.map(ActivityHeatCellRecord.of))
     BeakMatrixCell(
-      row: record['row_label']?.raw?.toString() ?? '',
-      column: record['column_label']?.raw?.toString() ?? '',
-      value: _asDouble(record['value']?.raw),
+      row: cell.rowLabel ?? '',
+      column: cell.columnLabel ?? '',
+      value: (cell.value ?? 0).toDouble(),
     ),
 ];

@@ -178,7 +178,7 @@ beak doctor
 No `DATABASE_URL` is a passing check, not a warning: it is the supported
 zero-setup default.
 
-## Already have a database?
+## Pointing Beak at a database you already have
 
 Point Beak at it and it writes the models for you:
 

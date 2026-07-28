@@ -27,7 +27,8 @@ final class PostgresIntrospector {
   static String columnsSql(String schema) =>
       '''
 SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
-       c.character_maximum_length, c.column_default, c.udt_name
+       c.character_maximum_length, c.numeric_precision, c.numeric_scale,
+       c.column_default, c.udt_name
 FROM information_schema.columns c
 JOIN information_schema.tables t
   ON t.table_schema = c.table_schema AND t.table_name = c.table_name
@@ -133,11 +134,9 @@ WHERE n.nspname = '$schema'
           name: '${row['column_name']}',
           dataType: '${row['data_type']}'.toLowerCase(),
           isNullable: '${row['is_nullable']}'.toUpperCase() == 'YES',
-          maxLength: switch (row['character_maximum_length']) {
-            final int value => value,
-            final String value => int.tryParse(value),
-            _ => null,
-          },
+          maxLength: _asInt(row['character_maximum_length']),
+          numericPrecision: _asInt(row['numeric_precision']),
+          numericScale: _asInt(row['numeric_scale']),
           hasDefault: row['column_default'] != null,
           enumTypeName: labels.isEmpty ? null : udt,
           enumValues: labels,
@@ -163,3 +162,14 @@ WHERE n.nspname = '$schema'
     return tables;
   }
 }
+
+/// [value] as an int, whichever way the driver returned it.
+///
+/// `information_schema` columns come back as `int` from one driver version
+/// and as a numeric string from another, and a width read as null silently
+/// becomes a default width in the migration.
+int? _asInt(Object? value) => switch (value) {
+  final int number => number,
+  final String text => int.tryParse(text),
+  _ => null,
+};

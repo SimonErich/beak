@@ -70,12 +70,12 @@ The showcase reads the catalog: price on x, stock on y, cost as the bubble size.
 ```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `products` rows onto bubble points: price × stock, sized by cost.
 List<BeakBubblePoint> productBubblePoints(List<BeakRecord> records) => [
-  for (final record in records)
+  for (final product in records.map(ProductRecord.of))
     BeakBubblePoint(
-      x: _asDouble(record['price']?.raw),
-      y: _asDouble(record['stock']?.raw),
-      size: _asDouble(record['cost']?.raw),
-      label: record['name']?.raw?.toString(),
+      x: product.price,
+      y: (product.stock ?? 0).toDouble(),
+      size: product.cost ?? 0,
+      label: product.name,
     ),
 ];
 ```
@@ -147,20 +147,16 @@ each an x position:
 ```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `price_candles` rows onto ordered OHLC candles.
 List<BeakCandle> priceCandles(List<BeakRecord> records) {
-  final rows = [...records]
-    ..sort((a, b) {
-      final ai = (a['sort_index']?.raw as num?)?.toInt() ?? 0;
-      final bi = (b['sort_index']?.raw as num?)?.toInt() ?? 0;
-      return ai.compareTo(bi);
-    });
+  final candles = records.map(PriceCandleRecord.of).toList()
+    ..sort((a, b) => (a.sortIndex ?? 0).compareTo(b.sortIndex ?? 0));
   return [
-    for (final (index, record) in rows.indexed)
+    for (final (index, candle) in candles.indexed)
       BeakCandle(
         x: index.toDouble(),
-        open: _asDouble(record['open']?.raw),
-        high: _asDouble(record['high']?.raw),
-        low: _asDouble(record['low']?.raw),
-        close: _asDouble(record['close']?.raw),
+        open: candle.open ?? 0,
+        high: candle.high ?? 0,
+        low: candle.low ?? 0,
+        close: candle.close ?? 0,
       ),
   ];
 }
@@ -261,11 +257,11 @@ record:
 ```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `activity_heatmap` rows onto matrix cells.
 List<BeakMatrixCell> activityHeatCells(List<BeakRecord> records) => [
-  for (final record in records)
+  for (final cell in records.map(ActivityHeatCellRecord.of))
     BeakMatrixCell(
-      row: record['row_label']?.raw?.toString() ?? '',
-      column: record['column_label']?.raw?.toString() ?? '',
-      value: _asDouble(record['value']?.raw),
+      row: cell.rowLabel ?? '',
+      column: cell.columnLabel ?? '',
+      value: (cell.value ?? 0).toDouble(),
     ),
 ];
 ```

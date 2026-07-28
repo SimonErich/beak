@@ -327,7 +327,10 @@ final class AnalyticsSeeder {
     }
     var grandTotal = 0.0;
     for (final order in orders) {
-      final source = order['source']! as String;
+      final source = order['source'];
+      if (source is! String) {
+        continue;
+      }
       final total = _totalOf(order);
       totals[source] = (totals[source] ?? 0) + total;
       counts[source] = (counts[source] ?? 0) + 1;
@@ -362,11 +365,16 @@ final class AnalyticsSeeder {
     final activeByCode = <String, int>{};
     for (final user in users) {
       final code = user['country_code'];
-      if (code is! String || code.isEmpty) {
+      final id = user['id'];
+      final country = user['country'];
+      if (code is! String ||
+          code.isEmpty ||
+          id is! String ||
+          country is! String) {
         continue;
       }
-      codeByUser[user['id']! as String] = code;
-      nameByCode[code] = user['country']! as String;
+      codeByUser[id] = code;
+      nameByCode[code] = country;
       activeByCode[code] = (activeByCode[code] ?? 0) + 1;
     }
     final salesByCode = <String, double>{};

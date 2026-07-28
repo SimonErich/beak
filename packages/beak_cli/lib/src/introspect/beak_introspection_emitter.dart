@@ -279,8 +279,27 @@ abstract final class BeakIntrospectionEmitter {
     if (column.isIndexed && !column.isUnique) 'indexed: true',
     if (column.isUnique) 'unique: true',
     if (_lengthOf(column) case final int length) 'maxLength: $length',
+    ..._numericWidthOf(column),
     if (_extraRulesOf(column) case final String rules) 'rules: [$rules]',
   ];
+
+  /// The declared `NUMERIC(precision, scale)` width, when it is not the
+  /// default one the migration would produce anyway.
+  ///
+  /// Emitting the default would put `precision: 2, totalDigits: 10` on every
+  /// money column in a generated schema, which reads as a decision rather
+  /// than as the absence of one.
+  static List<String> _numericWidthOf(IntrospectedColumn column) {
+    if (_dartTypeOf(column) != 'double') {
+      return const [];
+    }
+    final int? scale = column.numericScale;
+    final int? precision = column.numericPrecision;
+    return [
+      if (scale != null && scale != 2) 'precision: $scale',
+      if (precision != null && precision != 10) 'totalDigits: $precision',
+    ];
+  }
 
   /// The declared length, when it constrains something the user types.
   ///

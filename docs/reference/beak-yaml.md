@@ -74,7 +74,7 @@ server:
 
 Both are *defaults*. A real `PORT` or `HOST` in the environment still wins,
 because where a process binds is a deployment's decision, not a repository's.
-Use this when a project has a fixed development port — two Beak apps in one
+Use this when a project has a fixed development port. Two Beak apps in one
 repository cannot both have 8080.
 
 ## `resources`
@@ -92,9 +92,9 @@ nothing.
 | `hidden` | `true` keeps it out of the sidebar |
 
 `hidden` does not remove anything. The model is still registered, still has an
-API, and is still reachable as the far side of a relationship. It simply does
-not earn a sidebar entry — which is what you want for a table like
-`order_items`, always reached through the order it belongs to.
+API, and is still reachable as the far side of a relationship. It just does not
+earn a sidebar entry, which is what you want for a table like `order_items`,
+always reached through the order it belongs to.
 
 An icon that is not a lowerCamelCase identifier fails at `beak prepare` naming
 the line. That check exists because the value is spliced into generated code,

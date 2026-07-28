@@ -485,7 +485,14 @@ final class MysqlCompiler {
         ..write(' DEFAULT ')
         ..write(_renderDefault(defaultValue));
     }
-    if (column.isPrimaryKey && _autoIncrementTypes.contains(column.type)) {
+    // The descriptor decides, not the shape of the column: `idIncrements()`
+    // sets `autoIncrement`, and a plain integer primary key the caller
+    // supplies values for does not. The two guards stay because MySQL
+    // rejects the DDL outright otherwise — an AUTO_INCREMENT column must be
+    // a key, and must hold an integer.
+    if (column.autoIncrement &&
+        column.isPrimaryKey &&
+        _autoIncrementTypes.contains(column.type)) {
       buffer.write(' AUTO_INCREMENT');
     }
     if (column.isPrimaryKey) buffer.write(' PRIMARY KEY');

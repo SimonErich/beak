@@ -47,8 +47,8 @@ miss is visible rather than silent.
 | `lib/seeders/` | A class extending `Seeder`. Registered for `beak seed`. |
 | `lib/resources/` | `BeakResource beakResource(BeakResource generated)`, in a file named after the table. Adjusts that one resource. |
 
-A class that cannot be used is reported by name and file — a model with no
-`const` constructor, a screen of the wrong type — rather than skipped.
+A class that cannot be used is reported by name and file (a model with no
+`const` constructor, a screen of the wrong type) rather than skipped.
 
 ## Generated files
 
@@ -82,7 +82,7 @@ additive rather than a rewrite.
 
 | Path | Symbol | Overrides |
 | --- | --- | --- |
-| `lib/panel.dart` | `BeakPanelConfig beakPanel(BeakPanelConfig defaults)` | Everything — the last word on the panel. |
+| `lib/panel.dart` | `BeakPanelConfig beakPanel(BeakPanelConfig defaults)` | Everything: the last word on the panel. |
 | `lib/theme.dart` | `OiThemeData beakLightTheme()` / `beakDarkTheme()` | The light and dark themes. |
 | `lib/auth.dart` | `BeakAuthConfig beakAuth()` | Which auth routes exist and what they call. |
 | `lib/dashboard.dart` | `BeakScreen beakDashboard()` | The screen at `/`. |
@@ -99,7 +99,7 @@ Precedence runs library default → `beak.yaml` → `lib/panel.dart`.
 ## `beak.yaml`
 
 YAML for scalars, enums, ordering and infrastructure; Dart for anything holding
-a symbol or a closure. Every key is optional — delete the file and Beak still
+a symbol or a closure. Every key is optional. Delete the file and Beak still
 boots, titling the panel after the package.
 
 ```yaml title="beak.yaml"
@@ -138,8 +138,8 @@ bin/serve.dart ──► server.dart ──► registry.g.dart ──► models/
 lib/main.dart  ──► app.g.dart  ──► panel.g.dart    ──► panel.dart ──► beak.dart
 ```
 
-`package:beak/beak.dart` is the shared vocabulary — columns, models, query
-specs — with no Flutter and no `dart:io`. `panel.dart` adds the widgets and
+`package:beak/beak.dart` is the shared vocabulary (columns, models, query
+specs) with no Flutter and no `dart:io`. `panel.dart` adds the widgets and
 re-exports it, so a screen needs one import. `beak doctor` fails when a panel
 file imports the server half by hand.
 
@@ -158,7 +158,7 @@ file imports the server half by hand.
 
 ## Continue reading
 
-- [Quickstart](quickstart.md) — the whole loop in one page.
-- [CLI commands](../reference/cli-commands.md) — every command and flag.
-- [Contributing](../contributing/index.md) — the Beak monorepo's own layout,
-  which is a different thing from your project's.
+- [Quickstart](quickstart.md) runs the whole loop in one page.
+- [CLI commands](../reference/cli-commands.md) lists every command and flag.
+- [Contributing](../contributing/index.md) describes the Beak monorepo's own
+  layout, which is a different thing from your project's.

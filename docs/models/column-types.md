@@ -23,7 +23,7 @@ Every kind also carries the shared `@Column` options (`visibleOn`, `sortable`,
 | `String` | `BeakStringColumn` | plain text | `maxLength`, `placeholder` |
 | `BeakText` | `BeakTextColumn` | truncated text | none |
 | `int` | `BeakIntColumn` | number | `min`, `max`, `prefix`, `suffix` |
-| `double` | `BeakDecimalColumn` | number, or currency with a prefix | `precision`, `prefix`, `suffix` |
+| `double` | `BeakDecimalColumn` | number, or currency with a prefix | `precision`, `totalDigits`, `prefix`, `suffix` |
 | `bool` | `BeakBoolColumn` | yes/no indicator | `trueLabel`, `falseLabel` |
 | `DateTime` | `BeakDateTimeColumn` | absolute or relative date | `format` |
 | any `enum` | `BeakEnumColumn<T>` | coloured badge | `defaultValue`, plus `@Badges` |
@@ -89,6 +89,11 @@ Bounds on the stepper are a convenience, not a check. Add `BeakMin`/`BeakMax` to
 A fractional number with fixed `precision` (default `2`). Add a `prefix` or a
 `suffix` and the render intent flips from a plain number to a currency-style
 amount: `€19.99`, or `1.50 kg`.
+
+`precision` is the stored scale as well as the displayed one, so the generated
+migration creates `NUMERIC(totalDigits, precision)`. A column that shows four
+decimals holds four; set `totalDigits` when the default of ten digits overall
+is not enough room ahead of the point.
 
 ```dart title="examples/store/lib/models/product.dart"
 /// Sale price in euros.

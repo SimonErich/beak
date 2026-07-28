@@ -410,7 +410,7 @@ void main() {
       expect(result.single.parameters, isEmpty);
     });
 
-    test('integer primary key becomes AUTO_INCREMENT', () {
+    test('a declared auto-incrementing key becomes AUTO_INCREMENT', () {
       final result = compiler.compileDdl(
         const SchemaDescriptor.createTable(
           table: 'events',
@@ -419,6 +419,7 @@ void main() {
               name: 'id',
               type: ColumnType.integer,
               isPrimaryKey: true,
+              autoIncrement: true,
             ),
             SchemaColumn(name: 'flag', type: ColumnType.boolean),
           ],
@@ -430,6 +431,47 @@ void main() {
       );
       // boolean maps to TINYINT(1) (round-trips to Dart bool).
       expect(result.single.sql, contains('`flag` TINYINT(1) NOT NULL'));
+    });
+
+    test('an integer key that did not ask for it does not get it', () {
+      // The descriptor decides. `t.intId()` is an integer primary key whose
+      // values the caller supplies; inferring AUTO_INCREMENT from the shape
+      // of the column made MySQL disagree with every other dialect about
+      // what the same descriptor means.
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'events',
+          columns: <SchemaColumn>[
+            SchemaColumn(
+              name: 'id',
+              type: ColumnType.integer,
+              isPrimaryKey: true,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.single.sql, isNot(contains('AUTO_INCREMENT')));
+      expect(result.single.sql, contains('`id` INT NOT NULL PRIMARY KEY'));
+    });
+
+    test('a non-key column never gets it, however it is declared', () {
+      // MySQL rejects the DDL outright: an AUTO_INCREMENT column must be a
+      // key. Emitting it would turn a mistake into a failed migration.
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'events',
+          columns: <SchemaColumn>[
+            SchemaColumn(
+              name: 'seq',
+              type: ColumnType.integer,
+              autoIncrement: true,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.single.sql, isNot(contains('AUTO_INCREMENT')));
     });
 
     test('non-integer primary key is not AUTO_INCREMENT', () {

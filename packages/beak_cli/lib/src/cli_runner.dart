@@ -217,24 +217,17 @@ abstract base class _MakeCommand extends Command<int> {
       throw UsageException(exception.message, usage);
     }
   }
-
-  /// The migration timestamp prefix derived from the injected clock.
-  String timestamp() {
-    final DateTime now = environment.now();
-    String two(int part) => part.toString().padLeft(2, '0');
-    return '${now.year}${two(now.month)}${two(now.day)}'
-        '_${two(now.hour)}${two(now.minute)}${two(now.second)}';
-  }
 }
 
-/// The `beak make:resource Name --fields ...` command — the full scaffold.
+/// The `beak make:resource Name --fields ...` command.
 ///
-/// Writes three files under [BeakCliEnvironment.rootDirectory]: the worm
-/// model (`lib/models/<snake>.dart`), the Beak columns + model
-/// (`lib/models/<snake>_columns.dart`), and the create-table migration
-/// (`lib/migrations/create_<table>_table.dart`), then prints the manual
-/// registration steps. Registered on the runner by [createBeakRunner]; run
-/// it rather than constructing it directly.
+/// Writes one file under [BeakCliEnvironment.rootDirectory] — the annotated
+/// schema class at `lib/models/<snake>.dart` — and then runs `beak prepare`,
+/// which derives the columns, the model, both sides of every relationship,
+/// the panel wiring and the create-table migration from it. `--fields` is
+/// written once, so there is no second place for the field list to drift out
+/// of step. Registered on the runner by [createBeakRunner]; run it rather
+/// than constructing it directly.
 ///
 /// ```console
 /// $ beak make:resource Product \
@@ -264,10 +257,6 @@ final class MakeResourceCommand extends _MakeCommand {
   }
 }
 
-/// The `beak make:migration Name --fields ...` command — generates only the
-/// create-table worm migration (`lib/migrations/create_<table>_table.dart`),
-/// its name prefixed with a timestamp from [BeakCliEnvironment.now]. The
-/// narrow counterpart of [MakeResourceCommand]; remember to register the
 /// The `beak make:migration Name` command — an empty, correctly-named
 /// migration for a change `beak prepare` cannot derive.
 ///

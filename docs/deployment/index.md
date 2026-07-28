@@ -1,11 +1,11 @@
 ---
 title: Deployment
-description: How Beak ships. The zero-service default, the optional local stack, the two production images, and where you adapt them.
+description: How Beak ships. The zero-service default, the two production images, and where you adapt them.
 ---
 
 # Deployment
 
-This section covers how you run Beak past `beak dev`: what a Beak project needs to boot (less than you expect), the optional local stack for the parts that need real services, and the two Docker images that put a Beak backend and panel on a real host.
+This section covers how you run Beak past `beak dev`: what a Beak project needs to boot (less than you expect), and the two Docker images that put a Beak backend and panel on a real host. The local stack for the parts that need real services is a contributor topic, and lives under Contributing.
 
 ## The default is no infrastructure
 
@@ -18,7 +18,7 @@ beak dev
 
 That is deliberate. Requiring a database before a reader sees anything at all loses more first-time users than any other step. Everything below is what you reach for **after** that, and each piece is opt-in.
 
-- **Dev infrastructure** is the local stack this repository uses for the parts SQLite cannot cover: Postgres, MinIO, and a database console in one `docker-compose.yml`. You need it for the `e2e`-tagged suites and for S3 uploads, not to run an app. See [Dev infrastructure](dev-infrastructure.md).
+- **Dev infrastructure** is the local stack *this repository* uses for the parts SQLite cannot cover: Postgres, MinIO, and a database console in one `docker-compose.yml`. It is something you start to work on Beak, not something you deploy, so its page is filed under Contributing: [Dev infrastructure](dev-infrastructure.md). You need it for the `e2e`-tagged suites and for S3 uploads, not to run an app.
 - **Going to production** is the `deploy/` folder: two images and a compose file that build the backend and panel from scratch and wire them to their own Postgres and MinIO. See [Going to production](going-to-production.md).
 
 ## Two images, because Beak is two programs
@@ -46,6 +46,6 @@ They are a reference you copy and adapt, not a managed platform. Beak does not r
 ## Continue reading
 
 - [Environment and config](environment-and-config.md) every variable a Beak backend reads, and how it resolves at boot.
-- [Dev infrastructure](dev-infrastructure.md) the optional local Postgres and MinIO stack.
 - [Going to production](going-to-production.md) the real `deploy/` setup, walked through file by file.
+- [Dev infrastructure](dev-infrastructure.md) the optional local Postgres and MinIO stack, under Contributing.
 - [Working with obers_ui](working-with-obers-ui.md) how obers_ui is pinned by commit, and how to develop against a local checkout.

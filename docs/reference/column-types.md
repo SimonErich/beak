@@ -330,6 +330,7 @@ from `number` to `currency`.
     super.unique,
     super.rules,
     this.precision = 2,
+    this.totalDigits = 10,
     this.prefix,
     this.suffix,
   });
@@ -337,7 +338,8 @@ from `number` to `currency`.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `precision` | `int` | `2` | Number of fraction digits displayed. |
+| `precision` | `int` | `2` | Fraction digits, displayed and stored. The generated migration uses it as the column's SQL scale. |
+| `totalDigits` | `int` | `10` | Total stored digits, fraction digits included: the SQL precision of `NUMERIC(totalDigits, precision)`. |
 | `prefix` | `String?` | `null` | Text rendered before the number (e.g. `€`), if any. |
 | `suffix` | `String?` | `null` | Text rendered after the number (e.g. `kg`), if any. |
 

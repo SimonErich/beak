@@ -161,6 +161,38 @@ void main() {
     });
   });
 
+  group('beak.yaml resources', () {
+    test('a key naming no table fails, with a did-you-mean', () async {
+      // `prepare` refuses to generate on this, so a doctor that stayed quiet
+      // reported a healthy project that could not be generated.
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': 'resources:\n  note:\n    icon: fileText\n',
+      });
+      runPrepare(environmentFor(root));
+
+      final check = checkMatching(
+        await diagnose(environmentFor(root), open: neverOpen),
+        'note',
+      );
+      expect(check.status, BeakCheckStatus.fail);
+      expect(check.label, contains('notes'), reason: 'no did-you-mean');
+    });
+
+    test('a key naming a real table is not reported', () async {
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': 'resources:\n  notes:\n    icon: fileText\n',
+      });
+      runPrepare(environmentFor(root));
+
+      final checks = await diagnose(environmentFor(root), open: neverOpen);
+      expect(checks.where((c) => c.status == BeakCheckStatus.fail), isEmpty);
+    });
+  });
+
   group('models', () {
     test('an empty project warns rather than failing', () async {
       final root = projectWith({

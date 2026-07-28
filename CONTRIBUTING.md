@@ -23,14 +23,14 @@ Beak is a Melos monorepo:
 
 - `packages/beak_*` — the framework (core, backend, frontend, storage drivers,
   image, CLI).
-- `apps/reference_admin*` — the reference admin (models, server, Flutter panel)
-  and the E2E acceptance suite. This is the worked example.
+- `examples/*` — the demo projects (models, server, Flutter panel) and the E2E
+  acceptance suites. `examples/store` is the worked example the tutorial builds.
 - `packages/worm*` — the **vendored** worm ORM and its drivers. These are
   consumed as path dependencies but are *not* in the Melos scope and are not
   gated here. **Do not send Beak PRs that change vendored worm code** — report
   those upstream.
 
-`beak_frontend` and the apps reference **`obers_ui`** by pinned git commit, so
+`beak_frontend` and `beak` reference **`obers_ui`** by pinned git commit, so
 `melos bootstrap` fetches it and a plain clone of this repo is all you need. If
 your change spans both repositories, clone obers_ui beside this one and run
 `melos run link-obers-ui` to swap the pin for your working copy (and
@@ -76,7 +76,7 @@ melos run coverage       # per-package line-coverage thresholds
 > does not regenerate them. If you changed code, delete stale reports first so
 > the gate sees fresh numbers:
 > ```bash
-> rm -rf packages/*/coverage apps/*/coverage
+> rm -rf packages/*/coverage examples/*/coverage
 > melos run test && melos run coverage
 > ```
 

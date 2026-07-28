@@ -1,4 +1,5 @@
 tags:
-  # Needs the Docker Postgres service (`melos run up`).
-  integration:
+  # Needs the Docker Postgres service (`melos run up`). Named `e2e` like every
+  # other service-backed suite, so `melos run test-e2e` reaches it.
+  e2e:
     timeout: 2x

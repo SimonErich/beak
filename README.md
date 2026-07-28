@@ -207,8 +207,9 @@ searchable site (MkDocs Material, deployed to GitHub Pages). Good places to star
   [`deploy/`](deploy/).
 
 Preview the site locally with
-`pip install mkdocs-material mkdocs-minify-plugin && mkdocs serve`. Every public
-API also carries dartdoc; run `dart doc` in any package to browse it.
+`pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects && mkdocs serve`.
+Every public API also carries dartdoc; run `dart doc` in any package to browse
+it.
 
 ## Contributing
 

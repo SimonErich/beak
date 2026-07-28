@@ -43,10 +43,13 @@ final class EngagementSeeder {
     final products = await ctx.selectAll('products');
     final orders = await ctx.selectAll('orders');
     final users = await ctx.selectAll('users');
-    final userIds = [for (final u in users) u['id']! as String];
+    final userIds = [
+      for (final user in users)
+        if (user['id'] case final String id) id,
+    ];
     final nameById = <String, String>{
-      for (final u in users)
-        u['id']! as String: (u['name'] as String?) ?? 'User',
+      for (final user in users)
+        if (user['id'] case final String id) id: _asText(user['name'], 'User'),
     };
     await _seedProductExtras(ctx, products, userIds, nameById);
     await _seedOrderExtras(ctx, orders, userIds, nameById);
@@ -64,7 +67,10 @@ final class EngagementSeeder {
     final ruleRows = <Map<String, Object?>>[];
 
     for (final product in products) {
-      final productId = product['id']! as String;
+      final productId = product['id'];
+      if (productId is! String) {
+        continue;
+      }
       final basePrice = _asNum(product['price']);
 
       final variantCount = ctx.between(2, 4);
@@ -150,9 +156,12 @@ final class EngagementSeeder {
     final commentRows = <Map<String, Object?>>[];
 
     for (final order in orders) {
-      final orderId = order['id']! as String;
-      final reference = (order['reference'] as String?) ?? 'order';
-      final status = (order['status'] as String?) ?? OrderEventKind.placed.name;
+      final orderId = order['id'];
+      if (orderId is! String) {
+        continue;
+      }
+      final reference = _asText(order['reference'], 'order');
+      final status = _asText(order['status'], OrderEventKind.placed.name);
       final placedAt = _asDate(order['placed_at'], SeedContext.now);
 
       // A coherent lifecycle up to the order's current status.
@@ -221,6 +230,11 @@ final class EngagementSeeder {
     OrderEventKind.cancelled => 'Order cancelled.',
     OrderEventKind.refunded => 'Order refunded in full.',
     OrderEventKind.note => 'Note added.',
+  };
+
+  String _asText(Object? raw, String fallback) => switch (raw) {
+    final String value => value,
+    _ => fallback,
   };
 
   double _asNum(Object? raw) => switch (raw) {

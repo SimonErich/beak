@@ -176,7 +176,14 @@ Future<List<BeakCheck>> diagnose(
   }
 
   final BeakDiscovery discovery = BeakProjectScanner(root).scan();
-  for (final issue in discovery.issues) {
+  // Discovery's own issues, plus the ones only `beak.yaml` and discovery
+  // together can see: a `resources:` key naming no table. `prepare` refuses
+  // to generate on those, so a doctor that stayed quiet about them reported
+  // a healthy project that could not be generated.
+  for (final issue in [
+    ...discovery.issues,
+    ...beakConfigIssues(config, discovery),
+  ]) {
     checks.add(
       BeakCheck(
         status: BeakCheckStatus.fail,

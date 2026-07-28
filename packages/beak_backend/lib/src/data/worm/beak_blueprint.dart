@@ -115,7 +115,8 @@ abstract final class BeakBlueprint {
           bigIntColumns.contains(column.key)
               ? table.bigInteger(column.key)
               : table.integer(column.key),
-        BeakDecimalColumn() => table.decimal(column.key),
+        BeakDecimalColumn(:final totalDigits, :final precision) =>
+          table.decimal(column.key, precision: totalDigits, scale: precision),
         BeakBoolColumn() => table.boolean(column.key),
         BeakDateTimeColumn() => table.dateTime(column.key),
         BeakJsonColumn() => table.json(column.key),

@@ -132,7 +132,7 @@ middleware. And the file route means uploads work on a laptop with no S3, no
 MinIO and no reverse proxy: it serves the driver's root under the path of
 `BEAK_LOCAL_PUBLIC_BASE_URL`, which is why the path in the table is `/uploads`
 rather than something Beak chose. Point that variable at a CDN in production and
-the route simply stops being used.
+the route stops being used.
 
 Export lives in [Search and export](search-and-export.md), uploads in
 [Uploads and storage wiring](uploads-and-storage-wiring.md), and auth in

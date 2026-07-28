@@ -38,8 +38,10 @@ final class ChatSeeder {
     // Read the seeded users so each message carries a denormalized sender
     // name (chat bubbles render without a per-message lookup).
     final users = await ctx.selectAll('users');
-    final nameById = <Object?, String>{
-      for (final user in users) user['id']: user['name']! as String,
+    final nameById = <String, String>{
+      for (final user in users)
+        if (user['id'] case final String id)
+          if (user['name'] case final String name) id: name,
     };
 
     void seedConversation({

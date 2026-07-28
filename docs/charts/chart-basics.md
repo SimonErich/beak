@@ -212,14 +212,18 @@ orders them, and returns the points.
 ```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// A chart mapper that keeps only the `time_series_points` rows of [series]
 /// and turns them into ordered points — so one tall table feeds every chart.
+///
+/// Every field is read through the generated record view, which returns each
+/// column's declared Dart type and parses the wire shapes a source may send
+/// (Postgres hands decimals over as strings).
 BeakChartMapper seriesPoints(String series) => (records) {
   final points = [
-    for (final record in records)
-      if (record['series']?.raw == series)
+    for (final point in records.map(TimeSeriesPointRecord.of))
+      if (point.series == series)
         (
-          index: (record['sort_index']?.raw as num?)?.toInt() ?? 0,
-          label: record['label']?.raw?.toString() ?? '',
-          value: _asDouble(record['value']?.raw),
+          index: point.sortIndex ?? 0,
+          label: point.label,
+          value: point.value ?? 0,
         ),
   ]..sort((a, b) => a.index.compareTo(b.index));
   return [
@@ -234,11 +238,8 @@ The `purchaseSourcePoints` mapper is simpler still, one row per channel:
 ```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `purchase_sources` rows onto donut segments sized by revenue.
 List<BeakChartPoint> purchaseSourcePoints(List<BeakRecord> records) => [
-  for (final record in records)
-    BeakChartPoint(
-      label: record['label']?.raw?.toString() ?? '',
-      value: _asDouble(record['total']?.raw),
-    ),
+  for (final source in records.map(PurchaseSourceRecord.of))
+    BeakChartPoint(label: source.label, value: source.total ?? 0),
 ];
 ```
 

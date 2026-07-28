@@ -36,16 +36,6 @@ BeakQuerySpec beakWithToOneLoads(BeakQuerySpec spec, BeakModel model) {
   return result;
 }
 
-/// The foreign-key column keys [model]'s to-one relationships own.
-///
-/// A table showing both the key and the record it points at shows the same
-/// fact twice, once unreadably — so the surface rendering the relationship
-/// hides these.
-Set<String> beakForeignKeyColumnKeysOf(BeakModel model) => <String>{
-  for (final relation in model.relationships)
-    if (relation is BeakBelongsTo) relation.foreignKey,
-};
-
 /// Loads the [id] record of [model] with [relations] eager-loaded, in one
 /// query.
 ///

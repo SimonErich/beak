@@ -96,6 +96,7 @@ final class Column {
     this.prefix,
     this.suffix,
     this.precision,
+    this.totalDigits,
     this.min,
     this.max,
     this.maxLength,
@@ -145,7 +146,15 @@ final class Column {
   final String? suffix;
 
   /// Decimal places, for a `double` field.
+  ///
+  /// Displayed and stored: the generated migration uses it as the column's
+  /// SQL scale.
   final int? precision;
+
+  /// Total stored digits, for a `double` field.
+  ///
+  /// The SQL precision of `NUMERIC(totalDigits, precision)`; defaults to 10.
+  final int? totalDigits;
 
   /// Lowest accepted value, for an `int` field.
   final int? min;

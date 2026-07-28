@@ -1,0 +1,493 @@
+import 'package:test/test.dart';
+
+import '../tool/check_docs.dart';
+
+/// The repository file the quotation fences below claim to quote.
+const String sourcePath = 'packages/beak_core/lib/src/columns/beak_column.dart';
+
+/// What [sourcePath] holds, doc comments and blank lines included.
+///
+/// Its first line carries an em-dash, the way Beak's real doc comments do, so
+/// a fence quoting it shows the ban stopping at the fence.
+const String sourceFile = '''
+/// A column, declared once — read by six surfaces.
+final class BeakColumn {
+  const BeakColumn({required this.name});
+
+  /// The name of the underlying database column.
+  final String name;
+}
+''';
+
+/// A reader that knows one file, so any other path is a missing one.
+String? readOnlySource(String path) => path == sourcePath ? sourceFile : null;
+
+/// [body] wrapped in the front matter and footer every page needs, so a test
+/// sees only the problem it is about.
+///
+/// The wrapper is 7 lines, so body line 1 is page line 8.
+String page(String body) =>
+    '---\n'
+    'title: A test page\n'
+    'description: One sentence a search result can show.\n'
+    '---\n'
+    '\n'
+    '# A test page\n'
+    '\n'
+    '$body\n'
+    '\n'
+    '## Continue reading\n'
+    '\n'
+    '- [Column types](column-types.md) every built-in column.\n';
+
+/// The problems [body] produces as the only content of a page.
+List<DocProblem> problemsIn(String body) =>
+    checkPage('docs/test/page.md', page(body), readFile: readOnlySource);
+
+/// The messages of [problems], for a readable expectation.
+List<String> messagesOf(List<DocProblem> problems) => [
+  for (final problem in problems) problem.message,
+];
+
+void main() {
+  group('page structure', () {
+    test('a wrapped page is clean, so every other test starts from zero', () {
+      expect(problemsIn('Plain prose about a column.'), isEmpty);
+    });
+
+    test('reports missing front matter and a missing footer', () {
+      final problems = checkPage(
+        'docs/test/page.md',
+        '# A test page\n\nProse.\n',
+        readFile: readOnlySource,
+      );
+      expect(
+        messagesOf(problems),
+        containsAll(<Matcher>[
+          contains('no front matter'),
+          contains('Continue reading'),
+        ]),
+      );
+    });
+
+    test('reports front matter without a description', () {
+      final problems = checkPage(
+        'docs/test/page.md',
+        '---\ntitle: A test page\n---\n\n## Continue reading\n',
+        readFile: readOnlySource,
+      );
+      expect(messagesOf(problems), ['front matter has no "description:"']);
+    });
+  });
+
+  group('fence titles and snippet includes', () {
+    test('reports a fence titled with a file that is not there', () {
+      final problems = problemsIn(
+        '```dart title="packages/beak_core/lib/src/columns/gone.dart"\n'
+        'final class Gone {}\n'
+        '```',
+      );
+      // One report, not two: the quotation check leaves a missing file alone.
+      expect(messagesOf(problems), [
+        'fence titled "packages/beak_core/lib/src/columns/gone.dart", '
+            'which does not exist',
+      ]);
+    });
+
+    test('names the apps/ to examples/ move rather than the missing file', () {
+      final problems = problemsIn(
+        '```dart title="apps/reference_admin/lib/main.dart"\n'
+        'void main() {}\n'
+        '```',
+      );
+      expect(messagesOf(problems), [
+        'fence titled "apps/reference_admin/lib/main.dart" — apps/ is now '
+            'examples/',
+      ]);
+    });
+
+    test('leaves a title that names no repository path alone', () {
+      // A generated project's own file, which this repository does not hold.
+      expect(
+        problemsIn('```dart title="lib/main.dart"\nvoid main() {}\n```'),
+        isEmpty,
+      );
+    });
+
+    test('reports a snippet include pointing at a moved file', () {
+      final problems = problemsIn('--8<-- "packages/beak_core/lib/moved.dart"');
+      expect(messagesOf(problems), [
+        'snippet includes "packages/beak_core/lib/moved.dart", which does '
+            'not exist',
+      ]);
+    });
+
+    test('resolves a snippet include with a section marker', () {
+      expect(problemsIn('--8<-- "$sourcePath:column"'), isEmpty);
+    });
+  });
+
+  group('quotation fences', () {
+    test('accepts a faithful quotation, blank lines and indent aside', () {
+      expect(
+        problemsIn(
+          '```dart title="$sourcePath"\n'
+          '/// A column, declared once — read by six surfaces.\n'
+          'final class BeakColumn {\n'
+          '  const BeakColumn({required this.name});\n'
+          '  /// The name of the underlying database column.\n'
+          '  final String name;\n'
+          '}\n'
+          '```',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('accepts a quotation that leaves the source comments out', () {
+      expect(
+        problemsIn(
+          '```dart title="$sourcePath"\n'
+          'final class BeakColumn {\n'
+          '  const BeakColumn({required this.name});\n'
+          '  final String name;\n'
+          '}\n'
+          '```',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('reports a quotation that reorders the members', () {
+      final problems = problemsIn(
+        '```dart title="$sourcePath"\n'
+        'final class BeakColumn {\n'
+        '  final String name;\n'
+        '  const BeakColumn({required this.name});\n'
+        '}\n'
+        '```',
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single.message, contains('not together'));
+      expect(problems.single.message, contains('reorders or interrupts'));
+    });
+
+    test('names the line that is nowhere in the file', () {
+      final problems = problemsIn(
+        '```dart title="$sourcePath"\n'
+        'final class BeakColumn {\n'
+        '  final int precision;\n'
+        '}\n'
+        '```',
+      );
+      expect(problems, hasLength(1));
+      expect(
+        problems.single.message,
+        contains('"final int precision;" is not in that file'),
+      );
+    });
+
+    test('checks each side of an elision marker on its own', () {
+      expect(
+        problemsIn(
+          '```dart title="$sourcePath"\n'
+          'final class BeakColumn {\n'
+          '  const BeakColumn({required this.name});\n'
+          '  // ...\n'
+          '  final String name;\n'
+          '}\n'
+          '```',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('still checks the run after an elision marker', () {
+      final problems = problemsIn(
+        '```dart title="$sourcePath"\n'
+        'final class BeakColumn {\n'
+        '  const BeakColumn({required this.name});\n'
+        '  // ...\n'
+        '  final int precision;\n'
+        '  final String unit;\n'
+        '}\n'
+        '```',
+      );
+      expect(problems, hasLength(1));
+      expect(
+        problems.single.message,
+        contains('"final int precision;" is not in that file'),
+      );
+    });
+
+    test('leaves a transcript fence alone, whatever it is titled', () {
+      for (final language in transcriptLanguages) {
+        expect(
+          problemsIn(
+            '```$language title="$sourcePath"\n'
+            'dart run tool/check_docs.dart\n'
+            'Docs check passed.\n'
+            '```',
+          ),
+          isEmpty,
+          reason: '`$language` shows output, not the file',
+        );
+      }
+    });
+
+    test('reports the line the fence opens on', () {
+      final problems = problemsIn(
+        '```dart title="$sourcePath"\n'
+        'final class BeakColumn {\n'
+        '  final String name;\n'
+        '  const BeakColumn({required this.name});\n'
+        '}\n'
+        '```',
+      );
+      // The wrapper is 7 lines, so the fence opens on page line 8.
+      expect(problems.single.line, 8);
+    });
+  });
+
+  group('containsRun', () {
+    const source = [
+      'final class BeakColumn {',
+      '/// The name of the underlying database column.',
+      'final String name;',
+      '}',
+    ];
+
+    test('finds a run that is there in order', () {
+      expect(containsRun(source, ['final String name;', '}']), isTrue);
+    });
+
+    test('walks over a comment the run omits', () {
+      expect(
+        containsRun(source, ['final class BeakColumn {', 'final String name;']),
+        isTrue,
+      );
+    });
+
+    test('will not walk over a comment the run claims to quote', () {
+      expect(
+        containsRun(source, [
+          'final class BeakColumn {',
+          '/// A column, declared once — read by six surfaces.',
+        ]),
+        isFalse,
+      );
+    });
+
+    test('rejects a reordered run and an empty one', () {
+      expect(containsRun(source, ['}', 'final String name;']), isFalse);
+      expect(containsRun(source, const []), isFalse);
+    });
+
+    test('rejects a run longer than the source', () {
+      expect(containsRun(const ['a'], ['a', 'b']), isFalse);
+    });
+  });
+
+  group('chunksOf', () {
+    test('splits on every elision spelling', () {
+      final chunks = chunksOf([
+        'one',
+        'two',
+        '// ...',
+        'three',
+        'four',
+        '# ... the rest of the config ...',
+        'five',
+        'six',
+        '...',
+        'seven',
+        'eight',
+      ]);
+      expect(chunks, [
+        ['one', 'two'],
+        ['three', 'four'],
+        ['five', 'six'],
+        ['seven', 'eight'],
+      ]);
+    });
+
+    test('drops a chunk of one line, which proves nothing on its own', () {
+      expect(chunksOf(['alone']), isEmpty);
+      expect(chunksOf(['one', '// ...', 'two']), isEmpty);
+    });
+
+    test('drops blank lines and indentation before comparing', () {
+      expect(chunksOf(['  one', '', '  two']), [
+        ['one', 'two'],
+      ]);
+    });
+  });
+
+  group('fencedLineIndices', () {
+    test('covers the body of a fence but not its markers', () {
+      expect(fencedLineIndices(['prose', '```dart', 'code', '```', 'prose']), {
+        2,
+      });
+    });
+
+    test('keeps a longer fence open across the fences it quotes', () {
+      final lines = [
+        '````markdown',
+        '```mermaid',
+        'flowchart LR',
+        '```',
+        '````',
+        'prose',
+      ];
+      expect(fencedLineIndices(lines), {1, 2, 3});
+    });
+
+    test('treats an unterminated fence as running to the end', () {
+      expect(fencedLineIndices(['```dart', 'code', 'more code']), {1, 2});
+    });
+  });
+
+  group('proseOf', () {
+    test('drops inline code, where a banned word is a symbol', () {
+      expect(
+        proseOf('The `onUnlock` callback runs first.'),
+        isNot(contains('onUnlock')),
+      );
+    });
+
+    test('drops the admonition and image markers, keeping the indent', () {
+      expect(
+        proseOf('!!! note "What just happened"'),
+        ' note "What just happened"',
+      );
+      expect(proseOf('    ??? tip "More"'), '     tip "More"');
+      expect(
+        proseOf('![A panel](../assets/panel.png)'),
+        '[A panel](../assets/panel.png)',
+      );
+    });
+  });
+
+  group('the enforced bans', () {
+    test('cover every marketing word the style guide lists', () {
+      expect(marketingWordBans.map((ban) => ban.label), [
+        '"seamless"',
+        '"effortless"',
+        '"powerful"',
+        '"blazing"',
+        '"robust"',
+        '"simply"',
+        '"supercharge"',
+        '"delightful"',
+        '"magic"',
+        '"revolutionary"',
+      ]);
+    });
+
+    test('catch each word and the forms built on it', () {
+      const offenders = <String, String>{
+        'The wiring is seamless.': '"seamless"',
+        'Effortlessly define a model.': '"effortless"',
+        'A powerful table widget.': '"powerful"',
+        'Blazing fast exports.': '"blazing"',
+        'A robust migration story.': '"robust"',
+        'You simply add a column.': '"simply"',
+        'Supercharge your panel.': '"supercharge"',
+        'A delightful editing experience.': '"delightful"',
+        'The relation is wired magically.': '"magic"',
+        'A revolutionary admin panel.': '"revolutionary"',
+        'To wire it up, just call the builder.': '"just" in front of a verb',
+        'Wow!! Two exclamation points.': 'an exclamation-point storm',
+        '## Already have a database?': 'a heading written as a question',
+        'One idea — then another.': 'the em-dash',
+      };
+      for (final offender in offenders.entries) {
+        expect(messagesOf(problemsIn(offender.key)), [
+          contains(offender.value),
+        ], reason: offender.key);
+      }
+    });
+
+    test('leave the senses the style guide allows alone', () {
+      const allowed = [
+        'The server listens on every interface, not just loopback.',
+        '!!! note "What just happened"',
+        'Fill the tables you just created with demo data.',
+        'A trailing `!` means required.',
+        '## What a column is',
+        '# What is Beak?',
+        '# Why Beak?',
+        'There is a use case for a raw column.',
+        'Its comment reads `declared once — read six times`.',
+      ];
+      for (final line in allowed) {
+        expect(problemsIn(line), isEmpty, reason: line);
+      }
+    });
+
+    test('read the prose, not the code it quotes', () {
+      expect(
+        problemsIn(
+          '```dart title="$sourcePath"\n'
+          '/// Simply put, a powerful column. Wow!! Magic.\n'
+          'final class BeakColumn {\n'
+          '  const BeakColumn({required this.name});\n'
+          '  final String name;\n'
+          '}\n'
+          '```',
+        ),
+        // The fence body is not a faithful quotation either, so the one
+        // problem reported is the quotation, never the wording.
+        [
+          predicate<DocProblem>(
+            (problem) => problem.message.contains('does not quote it'),
+            'a quotation problem',
+          ),
+        ],
+      );
+    });
+
+    test('report the line the writer has to open', () {
+      final problems = problemsIn('You simply add a column.');
+      // The wrapper is 7 lines, so the body starts on page line 8.
+      expect(problems.single.line, 8);
+    });
+  });
+
+  group('the pending bans', () {
+    List<DocProblem> pendingIn(String body) => checkBannedPhrases(
+      'docs/test/page.md',
+      page(body).split('\n'),
+      bans: pendingBans,
+    );
+
+    test('are reported but never enforced', () {
+      const offenders = [
+        'Some architectures slot a UseCase between the two.',
+        'This unlocks the panel.',
+      ];
+      for (final line in offenders) {
+        expect(pendingIn(line), hasLength(1), reason: line);
+        expect(problemsIn(line), isEmpty, reason: line);
+      }
+    });
+
+    test('do not fire on quoted source, which has to stay verbatim', () {
+      const quoted =
+          '```dart\n'
+          '/// The UseCase this frontend does not have.\n'
+          '```';
+      expect(pendingIn(quoted), isEmpty);
+      expect(
+        pendingIn('The `onUnlock` callback validates the password.'),
+        isEmpty,
+      );
+    });
+
+    test('are not also enforced, which would report every line twice', () {
+      for (final ban in pendingBans) {
+        expect(enforcedBans, isNot(contains(ban)), reason: ban.label);
+      }
+    });
+  });
+}

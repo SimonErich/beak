@@ -25,7 +25,7 @@ Iterable<File> _workspacePubspecs() sync* {
 
 void main() {
   group('the obers_ui dependency pin', () {
-    // Five copies of the same SHA across three pubspecs is a drift surface.
+    // Six refs to the same SHA across two pubspecs is a drift surface.
     // These tests are what make repeating it safe.
     final refPattern = RegExp(
       r'^\s*ref:\s*([0-9a-f]{40})\s*$',

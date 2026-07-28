@@ -10,12 +10,12 @@ page you know which hatch fits which problem, and the rule they all follow:
 **you receive Beak's default and return what you want**, so the file compiles
 and changes nothing until your first edit.
 
-They are listed narrowest first. Prefer the narrowest one that works — the
+They are listed narrowest first. Prefer the narrowest one that works: the
 wider ones stop tracking changes you would otherwise get for free.
 
 ## 1. One resource: `lib/resources/<table>.dart`
 
-Filters, actions, view modes, the detail layout, the form steps — anything on
+Filters, actions, view modes, the detail layout, the form steps: anything on
 `BeakResource`, for one resource, without touching any other.
 
 ```bash
@@ -68,9 +68,9 @@ and the default comes back.
 
 ## 3. A hand-written model
 
-A schema class covers what a schema class can describe. When it cannot — a
+A schema class covers what a schema class can describe. When it cannot (a
 primary key that is not `id`, a table whose columns are decided at runtime, a
-model shared by a package that must not depend on the generator — write the
+model shared by a package that must not depend on the generator), write the
 `BeakModel` yourself:
 
 ```dart
@@ -96,9 +96,10 @@ final class LegacyOrderModel extends BeakModel {
 
 Put it under `lib/models/` like any other, with a zero-argument `const`
 constructor so Beak can instantiate it. Discovery finds it, the registry
-registers it, and the panel and the API treat it identically. It simply has no
-part file, because there is no schema class to generate one from. You write its
-migration yourself, or let `beak prepare` derive one from the model.
+registers it, and the panel and the API treat it identically. What it does not
+have is a part file, because there is no schema class to generate one from, so
+you write its migration yourself or let `beak prepare` derive one from the
+model.
 
 That missing part file is the cost: nothing writes the typed column constants or
 the typed record view for you, so hoist the columns into `static const` fields

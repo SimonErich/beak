@@ -5,6 +5,10 @@
 /// quote a file that no longer exists, a page with no front matter, a snippet
 /// include pointing at a moved file, or a banned phrase from the style guide.
 ///
+/// The style guide's "Banned" section is enforced from [enforcedBans]. The
+/// bans still waiting on a copy-editing pass live in [pendingBans]; they are
+/// printed on every run and fail nothing.
+///
 /// Run from the repo root. Exits non-zero with one line per problem.
 library;
 
@@ -34,19 +38,148 @@ const Set<String> transcriptLanguages = {
 /// without having to be complete.
 final RegExp elisionMarker = RegExp(r'^(?://+|#+|/\*+|<!--)?\s*\.\.\.');
 
-/// Phrases the style guide bans, lowercased.
+/// One entry from the style guide's "Banned" section, and how to spot it.
+///
+/// [pattern] runs over [proseOf] a line that sits outside every code fence. A
+/// banned word inside a fence belongs to the source being quoted, and changing
+/// it would break the quotation check below.
+final class BannedPhrase {
+  /// Bans [label], found by [pattern], with [instead] naming the way out.
+  const BannedPhrase({
+    required this.label,
+    required this.pattern,
+    required this.instead,
+  });
+
+  /// What is banned, phrased the way the style guide phrases it.
+  final String label;
+
+  /// Matches an occurrence of [label] in a line of prose.
+  final RegExp pattern;
+
+  /// What to write instead.
+  final String instead;
+
+  /// The problem text reported for a line that matches.
+  String get message => 'style guide bans $label ($instead)';
+}
+
+/// A ban on the marketing word [word] and the forms built on it.
+///
+/// The trailing `\w*` is what catches "seamlessly" and "magically", which are
+/// the forms a writer actually reaches for.
+BannedPhrase marketingWord(String word) => BannedPhrase(
+  label: '"$word"',
+  pattern: RegExp('\\b$word\\w*', caseSensitive: false),
+  instead: 'state what it does and show the code',
+);
+
+/// The style guide's marketing words that are safe to match as words.
 ///
 /// Each one is a promise the reader has to take on faith. The docs make
-/// claims and show code instead.
-const List<String> bannedPhrases = [
-  'seamless',
-  'effortless',
-  'blazing',
-  'supercharge',
-  'revolutionary',
-  'magic ',
-  'delightful',
+/// claims and show code instead. The other two on the guide's list, "just"
+/// and "unlock", also mean something honest in these docs, so they get their
+/// own rules: [belittlingJust] and [marketingUnlock].
+final List<BannedPhrase> marketingWordBans = [
+  for (final word in const [
+    'seamless',
+    'effortless',
+    'powerful',
+    'blazing',
+    'robust',
+    'simply',
+    'supercharge',
+    'delightful',
+    'magic',
+    'revolutionary',
+  ])
+    marketingWord(word),
 ];
+
+/// "just" used to make a step sound smaller than it is, as in "just call".
+///
+/// Only that sense is banned, so the ban needs a verb behind the word. The
+/// tutorial's "What just happened" and a plain "not just loopback" are fine,
+/// and a bare `\bjust\b` would report both.
+final BannedPhrase belittlingJust = BannedPhrase(
+  label: '"just" in front of a verb',
+  pattern: RegExp(
+    r'\bjust\s+(add|call|create|declare|define|drop|import|make|open|pass|'
+    r'point|put|register|return|run|set|tell|use|wrap|write)\b',
+    caseSensitive: false,
+  ),
+  instead: 'say what the step does',
+);
+
+/// A heading written as a question.
+///
+/// "What is Beak?" and "Why Beak?" are frozen nav titles the style guide
+/// exempts by name, so the pattern looks past those two.
+final BannedPhrase questionHeading = BannedPhrase(
+  label: 'a heading written as a question',
+  pattern: RegExp(r'^\s{0,3}#{1,6}\s+(?!(What is|Why) Beak\?\s*$).*\?\s*$'),
+  instead: 'write "What a column is", not "What is a column?"',
+);
+
+/// Two or more exclamation points on one line of prose.
+///
+/// The style guide bans the storm, not the single mark, and [proseOf] has
+/// already dropped the `!!!` admonition markers and the `![image]` syntax.
+final BannedPhrase exclamationStorm = BannedPhrase(
+  label: 'an exclamation-point storm',
+  pattern: RegExp(r'![^!]*!'),
+  instead: 'state what it does; the reader decides how they feel',
+);
+
+/// The em-dash, banned outright by the style guide.
+///
+/// Scoped to prose because Beak's own Dart doc comments are full of them, so
+/// every fence that quotes real source carries one and has to keep it.
+final BannedPhrase emDash = BannedPhrase(
+  label: 'the em-dash',
+  pattern: RegExp('—'),
+  instead: 'a period, a comma, a colon, or parentheses',
+);
+
+/// The word "UseCase", which names a layer Beak's frontend does not have.
+///
+/// Spelled as one word, so the ordinary English "a use case for exports" is
+/// left alone.
+final BannedPhrase useCaseLayer = BannedPhrase(
+  label: 'the word "UseCase"',
+  pattern: RegExp(r'\bUseCases?\b'),
+  instead: 'name the Repository or the ViewModel',
+);
+
+/// "unlock" in the marketing sense, as in "unlock the power of your data".
+final BannedPhrase marketingUnlock = BannedPhrase(
+  label: '"unlock"',
+  pattern: RegExp(r'\bunlock\w*', caseSensitive: false),
+  instead: 'state what it does and show the code',
+);
+
+/// Every ban that fails the run.
+final List<BannedPhrase> enforcedBans = [
+  ...marketingWordBans,
+  belittlingJust,
+  questionHeading,
+  exclamationStorm,
+  emDash,
+];
+
+/// Bans that are implemented and tested but only reported, never fatal.
+///
+/// Each one fires on published pages today, so enforcing it now would leave
+/// the gate red for everybody. They are printed on every run instead. Once a
+/// ban's lines below are gone, move it into [enforcedBans]:
+///
+/// * [useCaseLayer] hits the lines in `concepts/the-four-layers.md` that teach
+///   the invariant by naming it. Enforcing it needs a way to say "this page
+///   may name the thing it bans", which no other ban wants yet.
+/// * [marketingUnlock] collides with the panel's lock screen, whose prose has
+///   to be able to say "the unlock password" for `onUnlock`. Enforcing it
+///   needs the marketing sense told apart from the API one.
+final List<BannedPhrase> pendingBans = [useCaseLayer, marketingUnlock];
 
 /// Directories under `docs/` that are not published and are not checked.
 const Set<String> unpublishedDirs = {'_internal', 'assets'};
@@ -69,6 +202,15 @@ final class DocProblem {
   String toString() => '$path${line == null ? '' : ':$line'}: $message';
 }
 
+/// Reads the repository file at [path], or `null` when it is not there.
+///
+/// Injected into the checks so a test can hand them a page and the sources it
+/// quotes without writing either to disk.
+String? readRepoFile(String path) {
+  final file = File(path);
+  return file.existsSync() ? file.readAsStringSync() : null;
+}
+
 void main() {
   final docs = Directory('docs');
   if (!docs.existsSync()) {
@@ -77,9 +219,16 @@ void main() {
   }
 
   final problems = <DocProblem>[];
+  final advisories = <DocProblem>[];
   for (final file in _publishedPages(docs)) {
-    problems.addAll(checkPage(file.path, file.readAsStringSync()));
+    final String content = file.readAsStringSync();
+    problems.addAll(checkPage(file.path, content));
+    advisories.addAll(
+      checkBannedPhrases(file.path, content.split('\n'), bans: pendingBans),
+    );
   }
+
+  _reportAdvisories(advisories);
 
   if (problems.isEmpty) {
     stdout.writeln('Docs check passed.');
@@ -90,6 +239,26 @@ void main() {
     stderr.writeln('  $problem');
   }
   exit(1);
+}
+
+/// Prints the [pendingBans] hits without failing the run.
+///
+/// They are listed on every run so the backlog stays visible and shrinks
+/// instead of being rediscovered later.
+void _reportAdvisories(List<DocProblem> advisories) {
+  if (advisories.isEmpty) {
+    return;
+  }
+  stdout.writeln(
+    'Style-guide bans not enforced yet (${advisories.length} lines):',
+  );
+  for (final advisory in advisories) {
+    stdout.writeln('  $advisory');
+  }
+  stdout.writeln(
+    'Clear the lines for one of these, then move that ban from pendingBans to '
+    'enforcedBans in tool/check_docs.dart.',
+  );
 }
 
 /// Every published Markdown page under [docs], in path order.
@@ -110,9 +279,14 @@ Iterable<File> _publishedPages(Directory docs) sync* {
 
 /// The problems in [content], a page at [path].
 ///
-/// Pure, so the checks are testable without a filesystem full of fixtures —
-/// except the two that must look at the tree, which take the repo as it is.
-List<DocProblem> checkPage(String path, String content) {
+/// Everything the page can be judged on alone is judged here. The two checks
+/// that need the tree behind it, a fence title and a snippet include, go
+/// through [readFile], which defaults to the repository as it is.
+List<DocProblem> checkPage(
+  String path,
+  String content, {
+  String? Function(String path) readFile = readRepoFile,
+}) {
   final problems = <DocProblem>[];
   final lines = content.split('\n');
 
@@ -160,10 +334,7 @@ List<DocProblem> checkPage(String path, String content) {
             line: number,
           ),
         );
-      } else if ((named.startsWith('packages/') ||
-              named.startsWith('examples/') ||
-              named.startsWith('tool/')) &&
-          !File(named).existsSync()) {
+      } else if (_quotesRepo(named) && readFile(named) == null) {
         problems.add(
           DocProblem(
             path,
@@ -181,7 +352,7 @@ List<DocProblem> checkPage(String path, String content) {
     ).firstMatch(line);
     if (include != null) {
       final String target = include.group(1)!.split(':').first;
-      if (!File(target).existsSync()) {
+      if (readFile(target) == null) {
         problems.add(
           DocProblem(
             path,
@@ -191,20 +362,86 @@ List<DocProblem> checkPage(String path, String content) {
         );
       }
     }
+  }
 
-    final String lowered = line.toLowerCase();
-    for (final banned in bannedPhrases) {
-      if (lowered.contains(banned)) {
-        problems.add(
-          DocProblem(path, 'style guide bans "${banned.trim()}"', line: number),
-        );
+  problems.addAll(checkBannedPhrases(path, lines, bans: enforcedBans));
+  problems.addAll(checkQuotations(path, lines, readFile: readFile));
+  return problems;
+}
+
+/// Whether [path] names a file this repository is expected to contain.
+bool _quotesRepo(String path) =>
+    path.startsWith('packages/') ||
+    path.startsWith('examples/') ||
+    path.startsWith('tool/');
+
+/// The lines of [lines] on [path] that break one of [bans].
+///
+/// Only prose is looked at. Fenced lines are the source being quoted, and
+/// [proseOf] drops what is quoted inline, so a ban never asks a writer to
+/// misquote the code to satisfy it.
+List<DocProblem> checkBannedPhrases(
+  String path,
+  List<String> lines, {
+  required List<BannedPhrase> bans,
+}) {
+  final problems = <DocProblem>[];
+  final Set<int> fenced = fencedLineIndices(lines);
+  for (var index = 0; index < lines.length; index += 1) {
+    if (fenced.contains(index)) {
+      continue;
+    }
+    final String prose = proseOf(lines[index]);
+    for (final ban in bans) {
+      if (ban.pattern.hasMatch(prose)) {
+        problems.add(DocProblem(path, ban.message, line: index + 1));
       }
     }
   }
-
-  problems.addAll(checkQuotations(path, lines));
   return problems;
 }
+
+/// The 0-based indices of [lines] that sit inside a fenced code block.
+///
+/// The fence markers themselves are left out: an opener carries the
+/// `title="..."` other checks read. A closing fence has to be at least as long
+/// as the one it closes and carry no language, which is what keeps a
+/// ````` ```` ````` block quoting a fenced example from ending early.
+Set<int> fencedLineIndices(List<String> lines) {
+  final fenced = <int>{};
+  final marker = RegExp(r'^\s*(`{3,})(.*)$');
+  String? open;
+  for (var index = 0; index < lines.length; index += 1) {
+    final RegExpMatch? match = marker.firstMatch(lines[index]);
+    if (open == null) {
+      if (match != null) {
+        open = match.group(1);
+      }
+      continue;
+    }
+    final bool closes =
+        match != null &&
+        match.group(1)!.length >= open.length &&
+        match.group(2)!.trim().isEmpty;
+    if (closes) {
+      open = null;
+      continue;
+    }
+    fenced.add(index);
+  }
+  return fenced;
+}
+
+/// [line] reduced to the prose the writer chose.
+///
+/// Inline code spans go, because a banned word inside backticks is a symbol
+/// (`onUnlock`) and an em-dash inside them is quoted source. The `!!!`/`???`
+/// admonition markers and the `!` of an image link go too, so neither counts
+/// towards an exclamation-point storm.
+String proseOf(String line) => line
+    .replaceAll(RegExp('`+[^`]*`+'), ' ')
+    .replaceFirstMapped(RegExp(r'^(\s*)[!?]{3}\+?'), (match) => match.group(1)!)
+    .replaceAll('![', '[');
 
 /// The problems in the code fences of [lines] that claim to quote a file.
 ///
@@ -216,19 +453,21 @@ List<DocProblem> checkPage(String path, String content) {
 /// A fence may abridge with an elision marker, so the body is compared chunk
 /// by chunk between them, and indentation is ignored — a class member quoted
 /// on its own is still that member.
-List<DocProblem> checkQuotations(String path, List<String> lines) {
+List<DocProblem> checkQuotations(
+  String path,
+  List<String> lines, {
+  String? Function(String path) readFile = readRepoFile,
+}) {
   final problems = <DocProblem>[];
   for (final quotation in _quotationsIn(lines)) {
-    final file = File(quotation.target);
-    if (!file.existsSync()) {
+    final String? contents = readFile(quotation.target);
+    if (contents == null) {
       // Already reported as a missing path.
       continue;
     }
-    final List<String> source = _significant(
-      file.readAsStringSync().split('\n'),
-    );
-    for (final chunk in _chunksOf(quotation.body)) {
-      if (_containsRun(source, chunk)) {
+    final List<String> source = _significant(contents.split('\n'));
+    for (final chunk in chunksOf(quotation.body)) {
+      if (containsRun(source, chunk)) {
         continue;
       }
       problems.add(
@@ -280,11 +519,7 @@ Iterable<_Quotation> _quotationsIn(List<String> lines) sync* {
     if (close == -1) {
       continue;
     }
-    final bool quotesRepo =
-        target.startsWith('packages/') ||
-        target.startsWith('examples/') ||
-        target.startsWith('tool/');
-    if (quotesRepo && !transcriptLanguages.contains(language)) {
+    if (_quotesRepo(target) && !transcriptLanguages.contains(language)) {
       yield _Quotation(
         target: target,
         line: index + 1,
@@ -317,7 +552,7 @@ List<String> _significant(List<String> lines) => [
 /// A chunk of one line is skipped: a single line in isolation is as likely to
 /// be a paraphrase of a signature as a quotation of one, and reporting it
 /// would cost more than it catches.
-List<List<String>> _chunksOf(List<String> body) {
+List<List<String>> chunksOf(List<String> body) {
   final chunks = <List<String>>[];
   var current = <String>[];
   for (final line in _significant(body)) {
@@ -369,7 +604,7 @@ bool _isComment(String line) =>
 
 /// Whether [run] appears in [source] in order, allowing the source's comment
 /// lines to be passed over where the quotation omits them.
-bool _containsRun(List<String> source, List<String> run) {
+bool containsRun(List<String> source, List<String> run) {
   if (run.isEmpty || run.length > source.length) {
     return false;
   }

@@ -161,10 +161,13 @@ final class BeakProjectConfig {
 
     final resources = <String, BeakResourceOverride>{};
     final YamlMap? declared = _optionalMap(root['resources'], 'resources');
-    final Map<dynamic, YamlNode> declaredNodes =
-        declared?.nodes ?? const <dynamic, YamlNode>{};
+    // `YamlMap.nodes` is typed `Map<dynamic, YamlNode>` by the yaml package.
+    // Widening the key to `Object?` accepts the same map and keeps `dynamic`
+    // out of this file; a YAML key can be any scalar, including null.
+    final Map<Object?, YamlNode> declaredNodes =
+        declared?.nodes ?? const <Object?, YamlNode>{};
     for (final entry in declaredNodes.entries) {
-      final String table = entry.key.toString();
+      final String table = '${entry.key}';
       final YamlMap options = _requireMap(
         entry.value.value,
         'resources.$table',

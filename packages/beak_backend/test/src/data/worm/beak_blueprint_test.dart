@@ -14,6 +14,12 @@ abstract final class _WidgetColumns {
   );
   static const summary = BeakTextColumn(key: 'summary', label: 'Summary');
   static const price = BeakDecimalColumn(key: 'price', label: 'Price');
+  static const weight = BeakDecimalColumn(
+    key: 'weight',
+    label: 'Weight',
+    precision: 4,
+    totalDigits: 12,
+  );
   static const quantity = BeakIntColumn(key: 'quantity', label: 'Quantity');
   static const sizeInBytes = BeakIntColumn(key: 'size_in_bytes', label: 'Size');
   static const active = BeakBoolColumn(key: 'active', label: 'Active');
@@ -38,6 +44,7 @@ abstract final class _WidgetColumns {
     name,
     summary,
     price,
+    weight,
     quantity,
     sizeInBytes,
     active,
@@ -214,6 +221,21 @@ void main() {
       expect(columnOf(table, 'cover').type, ColumnType.string);
       expect(columnOf(table, 'payload').type, ColumnType.json);
       expect(columnOf(table, 'created_at').type, ColumnType.dateTime);
+    });
+
+    test('a decimal is stored at the width it is declared with', () {
+      // `precision` used to be display-only while every decimal column was
+      // created NUMERIC(10, 2), so a column showing four decimals stored two
+      // and the value was rounded on the way in.
+      final weight = columnOf(table, 'weight');
+      expect(weight.scale, 4);
+      expect(weight.precision, 12);
+    });
+
+    test('a decimal with no declared width takes the default', () {
+      final price = columnOf(table, 'price');
+      expect(price.scale, 2);
+      expect(price.precision, 10);
     });
 
     test('honours bigIntColumns for values above the 32-bit range', () {

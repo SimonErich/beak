@@ -1,6 +1,6 @@
 ---
 title: Recipes
-description: Short, worked answers to the things you do most in Beak — one page each, every snippet lifted from a running example.
+description: Short, worked answers to the things you do most in Beak. One page each, every snippet lifted from a running example.
 ---
 
 # Recipes

@@ -85,7 +85,7 @@ Tests came before implementation, one behavior at a time, and the ledger notes a
 
 ## The superdashboard expansion
 
-The store example is a small, clean teaching store. To prove Beak scaled to a real admin panel, a second demo was built on the `feat/superdashboard` branch: `apps/superdashboard`, reproducing a full commercial admin theme entirely from seeded data using only declarative Beak widgets. It followed the same discipline, one gated commit per phase.
+The store example is a small, clean teaching store. To prove Beak scaled to a real admin panel, a second demo was built on the `feat/superdashboard` branch: `examples/superdashboard`, reproducing a full commercial admin theme entirely from seeded data using only declarative Beak widgets. It followed the same discipline, one gated commit per phase.
 
 Its value to the framework is that most of what it needed was reusable, so it landed in the packages rather than the app. `BEAK_MISSING_FEATURES.md` is the map of what that expansion added to `beak_frontend`:
 

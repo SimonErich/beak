@@ -1,4 +1,4 @@
-@Tags(['integration'])
+@Tags(['e2e'])
 library;
 
 import 'dart:io';

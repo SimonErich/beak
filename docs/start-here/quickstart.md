@@ -58,8 +58,8 @@ final class Product extends BeakSchema {
 The **field's type picks the column**: `String` is a single-line text column,
 `BeakText` is a multi-line one, `double` is a decimal, `BeakImageRef` is an
 upload. **Nullability decides required-ness**: `String name` is required and
-`int? stock` is not — one rule that covers the form validator, the API's
-validation and the database's `NOT NULL` at once.
+`int? stock` is not. One rule covers the form validator, the API's validation
+and the database's `NOT NULL` at once.
 
 ## 3. Generate
 
@@ -69,13 +69,13 @@ beak prepare
 
 That reads `lib/models/`, `lib/screens/` and `beak.yaml`, and writes:
 
-- `lib/models/product.beak.dart` — typed column constants, the `BeakModel`, the
+- `lib/models/product.beak.dart`: typed column constants, the `BeakModel`, the
   relationship constants on both sides, and a typed record view. Committed.
-- `lib/beak/{registry,panel,app,server}.g.dart` — the wiring. Committed.
-- `lib/migrations/create_products_table.dart` — the migration this resource
+- `lib/beak/{registry,panel,app,server}.g.dart`: the wiring. Committed.
+- `lib/migrations/create_products_table.dart`: the migration this resource
   needs and does not have. Written once, then yours: Beak never rewrites a
   migration it has written.
-- `lib/main.dart`, `bin/serve.dart`, `bin/migrate.dart` — the entrypoints, at
+- `lib/main.dart`, `bin/serve.dart`, `bin/migrate.dart`: the entrypoints, at
   the paths Flutter and Dart expect. Git-ignored, because nothing about them is
   a decision worth reviewing. `beak eject main` changes that.
 
@@ -137,7 +137,7 @@ curl -X POST localhost:8080/api/products/query \
   -H 'content-type: application/json' -d '{"table":"products"}'
 ```
 
-Only `table` is required — every other key of a query spec falls back to its
+Only `table` is required. Every other key of a query spec falls back to its
 default, so a request sends just what it means.
 
 ## What you did not write
@@ -151,11 +151,11 @@ default, so a request sends just what it means.
 
 ## Continue reading
 
-- [Project structure](project-structure.md) — what each folder is for, and the
-  optional files that override a default.
-- [Tutorial: First Flight](../tutorial/index.md) — the same ideas at length,
+- [Project structure](project-structure.md) says what each folder is for, and
+  which optional files override a default.
+- [Tutorial: First Flight](../tutorial/index.md) takes the same ideas at length,
   building a coffee-roastery store one concept at a time.
-- [CLI commands](../reference/cli-commands.md) — `create`, `prepare`, `dev`,
-  `introspect`, `eject`, `doctor` and the rest.
-- [Already have a database?](installation.md) — `beak introspect` writes the
-  models from it.
+- [CLI commands](../reference/cli-commands.md) covers `create`, `prepare`,
+  `dev`, `introspect`, `eject`, `doctor` and the rest.
+- [Pointing Beak at a database you already have](installation.md) shows how
+  `beak introspect` writes the models from it.

@@ -38,7 +38,7 @@ file rarely needs two imports. A model file needs `beak.dart` and
 
 `bin/serve.dart` imports `server.g.dart`, which imports `registry.g.dart`,
 which imports your models. If anything on that path pulled in Flutter, the
-server would stop compiling ahead of time — `dart compile exe` cannot build
+server would stop compiling ahead of time: `dart compile exe` cannot build
 against `dart:ui`.
 
 That is why `beak.dart` holds no widgets, and why a model file must not import

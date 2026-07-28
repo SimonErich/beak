@@ -417,14 +417,14 @@ $ beak doctor
        → write a migration with `beak make:migration`, then `migrate`
 ```
 
-It also checks the columns a schema *implies* rather than declares — a
+It also checks the columns a schema *implies* rather than declares: a
 belongs-to's foreign key, `deleted_at` under `softDeletes`, the two stamps
 under `timestamps`, and the pivot table behind every `@BelongsToMany`.
 
 Two deliberate quiets. A `@Resource(managesSchema: false)` table may carry any
 number of columns Beak knows nothing about, because another system owns it;
 only the columns the schema *declares* are checked there. And drift is a
-warning, never a failure — the fix is a migration someone has to write and
+warning, never a failure. The fix is a migration someone has to write and
 review, so blocking on it would make `doctor` unrunnable against an
 environment mid-deploy.
 

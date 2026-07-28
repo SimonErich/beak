@@ -373,7 +373,7 @@ final class BeakSchemaReader {
           BeakColumnKind.integer,
           BeakColumnKind.decimal,
         }.contains(kind),
-        'precision' => kind == BeakColumnKind.decimal,
+        'precision' || 'totalDigits' => kind == BeakColumnKind.decimal,
         'min' || 'max' => kind == BeakColumnKind.integer,
         'maxLength' || 'placeholder' => kind == BeakColumnKind.string,
         'format' => kind == BeakColumnKind.dateTime,
@@ -386,6 +386,7 @@ final class BeakSchemaReader {
   static String _optionHint(String option) => switch (option) {
     'prefix' || 'suffix' => 'Units belong on a number column.',
     'precision' => 'Decimal places belong on a `double` field.',
+    'totalDigits' => 'A stored width belongs on a `double` field.',
     'min' || 'max' => 'Bounds belong on an `int` field; use rules otherwise.',
     'maxLength' || 'placeholder' => 'That belongs on a `String` field.',
     'format' => 'A date format belongs on a `DateTime` field.',

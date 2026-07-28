@@ -68,14 +68,17 @@ end_of_record
     expect(thresholdFor('beak_core'), 100);
   });
 
-  test('the phase-06 packages gate at the default threshold', () {
-    for (final package in const [
-      'beak_storage_s3',
-      'beak_storage_ftp',
-      'beak_image',
-    ]) {
+  test('the storage drivers gate at the default threshold', () {
+    for (final package in const ['beak_storage_ftp', 'beak_image']) {
       expect(thresholdFor(package), defaultThresholdPct, reason: package);
     }
+  });
+
+  test('the S3 driver gates lower, because a quarter of it needs a server', () {
+    // Signing, retries and error mapping are only reached against a real
+    // endpoint. They are covered by test/e2e/ against MinIO, which is outside
+    // this measurement because the main gate runs without Docker.
+    expect(thresholdFor('beak_storage_s3'), 70);
   });
 
   test('beak_backend gates at the phase-07 threshold', () {

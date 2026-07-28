@@ -511,6 +511,7 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
+  'beak_storage_s3': 70,
   'quickstart': 50,
   'store': 70,
   'superdashboard': 85,
@@ -525,6 +526,9 @@ without executing line by line. What has to work is checked directly instead, by
 the API scenario
 and by the coverage matrices in `examples/store/test/widget_test.dart` that fail
 when a column kind or a relationship kind stops being demonstrated.
+`beak_storage_s3` is lower for a different reason: request signing, retries and
+error mapping are only reached against a real endpoint, so they are covered by
+its `test/e2e/` suite against MinIO rather than by this measurement.
 
 The floor is there to keep you honest about branches and error paths, not just
 happy paths: a package at 90% coverage with an untested failure mode has not

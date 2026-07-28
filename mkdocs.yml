@@ -221,7 +221,6 @@ nav:
   - "Deployment":
       - deployment/index.md
       - "Environment and config": deployment/environment-and-config.md
-      - "Dev infrastructure": deployment/dev-infrastructure.md
       - "Going to production": deployment/going-to-production.md
   - "Reference":
       - reference/index.md
@@ -243,6 +242,7 @@ nav:
       - "Conventions": contributing/conventions.md
       - "Writing tests": contributing/writing-tests.md
       - "Writing a storage driver": contributing/writing-a-storage-driver.md
+      - "Dev infrastructure": deployment/dev-infrastructure.md
       - "Working with obers_ui": deployment/working-with-obers-ui.md
       - "Architecture":
           - architecture/index.md

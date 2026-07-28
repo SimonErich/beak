@@ -6,6 +6,8 @@ final class IntrospectedColumn {
     required this.dataType,
     required this.isNullable,
     this.maxLength,
+    this.numericPrecision,
+    this.numericScale,
     this.hasDefault = false,
     this.enumTypeName,
     this.enumValues = const [],
@@ -24,6 +26,12 @@ final class IntrospectedColumn {
 
   /// Declared character limit, for a varchar.
   final int? maxLength;
+
+  /// Total stored digits, for a numeric column.
+  final int? numericPrecision;
+
+  /// Fraction digits, for a numeric column.
+  final int? numericScale;
 
   /// Whether the column has a default, which makes it effectively optional
   /// on insert even when it is `NOT NULL`.

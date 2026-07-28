@@ -8,9 +8,9 @@ import 'models/ticket.dart';
 /// The host application's Flutter app — not a Beak panel.
 ///
 /// It has its own shell, its own navigation and its own screens. One of them
-/// happens to render Beak blocks: [BeakBlockHost] draws a data table and a
-/// metric against the same models and the same API the admin panel uses, so
-/// support staff see the ticket queue without leaving the product.
+/// happens to render a Beak block: [BeakBlockHost] draws a data table against
+/// the same models and the same API the admin panel uses, so support staff see
+/// the ticket queue without leaving the product.
 ///
 /// The only Beak wiring is [registerBeakDependencies], which is what gives the
 /// blocks their data source.

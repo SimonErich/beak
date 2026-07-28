@@ -182,9 +182,12 @@ final class _Column {
 
 /// The schema this round trip starts from.
 ///
-/// Chosen for what it can lose: a bounded `VARCHAR`, a `NUMERIC` with a
-/// precision, a nullable and a non-nullable column, an index that is not a
-/// key, and a foreign key with a delete rule that is not the default.
+/// Chosen for what it can lose: a bounded `VARCHAR`, a `NUMERIC` whose width
+/// is deliberately NOT the default `(10, 2)` a generated migration falls back
+/// to, a nullable and a non-nullable column, an index that is not a key, and
+/// a foreign key with a delete rule that is not the default. Every one of
+/// those is a value the trip has to carry rather than reconstruct, and a
+/// fixture made of defaults would pass while losing them all.
 Future<void> _createOriginSchema(DatabaseAdapter adapter) async {
   await adapter.rawQuery('''
 CREATE TABLE categories (
@@ -197,7 +200,7 @@ CREATE TABLE products (
   id UUID NOT NULL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   sku VARCHAR(40) NOT NULL,
-  price NUMERIC(10, 2) NOT NULL,
+  price NUMERIC(12, 4) NOT NULL,
   stock INTEGER,
   category_id UUID REFERENCES categories (id) ON DELETE SET NULL
 )''', const <Object?>[]);

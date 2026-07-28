@@ -15,8 +15,8 @@ repository, and you can open any of it.
 beak prepare
 ```
 
-reads three inputs — the schema classes under `lib/models/`, the screens under
-`lib/screens/`, and `beak.yaml` — and writes two kinds of output.
+reads three inputs (the schema classes under `lib/models/`, the screens under
+`lib/screens/`, and `beak.yaml`) and writes two kinds of output.
 
 ## Beside each model
 
@@ -28,23 +28,23 @@ lib/models/
 
 The part file holds four things, all derived from the one class:
 
-**`ProductColumns`** — a `static const` per field. This is what you point at
+**`ProductColumns`**: a `static const` per field. This is what you point at
 everywhere else, instead of writing `'price'` and hoping the strings match:
 
 ```dart
 BeakSelectFilter(column: ProductColumns.status, label: 'Status')
 ```
 
-**`ProductRelations`** — a `static const` per relationship, *including the ones
+**`ProductRelations`**: a `static const` per relationship, *including the ones
 the other side declared*. `@BelongsTo() late final Category? category;` on
 `Product` generates `ProductRelations.category` here and
 `CategoryRelations.products` in `category.beak.dart`, so both sides exist and
 neither can drift.
 
-**`ProductModel`** — the `BeakModel` the API, the panel and the migration all
+**`ProductModel`**: the `BeakModel` the API, the panel and the migration all
 read. It is what you name in a `BeakResource`, a `BeakTableBlock` or a test.
 
-**`ProductRecord`** — an extension type over `BeakRecord` giving typed getters:
+**`ProductRecord`**: an extension type over `BeakRecord` giving typed getters:
 
 ```dart
 final product = record.asProduct;     // or ProductRecord.of(record)
@@ -98,7 +98,7 @@ bin/migrate.dart   git-ignored
 
 Three files, one line each, at the paths Flutter and Dart expect so
 `flutter run`, an IDE run button and `dart compile exe` work with no flags.
-They are ignored because nothing about them is a decision worth reviewing —
+They are ignored because nothing about them is a decision worth reviewing.
 `beak eject main` changes that if your team would rather commit them.
 
 ## The migrations

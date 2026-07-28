@@ -119,7 +119,10 @@ final class CommerceSeeder {
     List<({String id, double price})> products,
   ) async {
     final users = await ctx.selectAll('users');
-    final userIds = [for (final user in users) user['id']! as String];
+    final userIds = [
+      for (final user in users)
+        if (user['id'] case final String id) id,
+    ];
 
     final orderRows = <Map<String, Object?>>[];
     final itemRows = <Map<String, Object?>>[];

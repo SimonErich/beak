@@ -22,8 +22,11 @@ This page explains the pin and the one case where you want to override it.
 
 ## The pin
 
-The dependency is declared in `beak_frontend` and, for `OiIcons`, in the two
-demo apps:
+Two pubspecs declare the dependency: `packages/beak_frontend`, which builds the
+panel on it, and `packages/beak`, whose `ui.dart` and `charts.dart` re-export
+it. No example declares it. A project reaches `OiIcons` and the rest of the
+widget set through `package:beak/ui.dart`, so it never adds an obers_ui
+dependency of its own.
 
 ```yaml title="packages/beak_frontend/pubspec.yaml"
 dependencies:
@@ -58,8 +61,8 @@ Three details worth knowing:
 
 ## Bumping obers_ui
 
-Update the `ref` in all three places — `packages/beak_frontend`,
-`examples/store`, and `apps/superdashboard` — then re-bootstrap:
+Update the `ref` in both pubspecs, `packages/beak_frontend` and `packages/beak`.
+Each declares three obers_ui packages, so that is six lines. Then re-bootstrap:
 
 ```bash
 melos bootstrap
@@ -82,8 +85,8 @@ melos run link-obers-ui
 ```
 
 That writes path `dependency_overrides` into the `pubspec_overrides.yaml` of
-the three packages that depend on obers_ui, and re-bootstraps. Melos manages
-only the entries listed in each file's
+every package that declares obers_ui, currently those two, and re-bootstraps.
+Melos manages only the entries listed in each file's
 `# melos_managed_dependency_overrides:` header, so these survive later
 bootstraps. When you are done:
 
@@ -95,7 +98,7 @@ Both files are git-ignored, so a link never leaks into a commit.
 
 !!! tip "Why not melos's dependencyOverridePaths"
     Melos can do this itself, but it applies the overrides to *every* package
-    in the workspace — including the pure-Dart ones. That drags the Flutter SDK
+    in the workspace, including the pure-Dart ones. That drags the Flutter SDK
     into `beak_core`, `beak_cli`, `beak_image` and the storage drivers, and
     makes `dart pub get` there require Flutter. `link-obers-ui` touches only
     the packages that actually depend on obers_ui.
@@ -107,4 +110,4 @@ Both files are git-ignored, so a link never leaks into a commit.
 - [Installation](../start-here/installation.md) getting a Beak workspace
   resolved.
 - [Project structure](../start-here/project-structure.md) where `beak_frontend`
-  and the apps sit in the tree.
+  and the examples sit in the tree.

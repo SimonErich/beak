@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -29,12 +30,19 @@ Future<BeakClient> asUser(
 /// for the transform pipeline to do something to it.
 final Uint8List storeTestPng = img.encodePng(img.Image(width: 8, height: 8));
 
+/// The JSON object a probe answered with.
+Map<String, Object?> _probeBody(http.Response response) =>
+    switch (jsonDecode(response.body)) {
+      final Map<String, Object?> body => body,
+      final Object? other => throw StateError('expected an object, got $other'),
+    };
+
 /// The store's whole API surface, asserted once and run twice.
 ///
 /// Every claim the README makes about the backend is checked here: paging,
 /// sorting, search, eager loading, validation, uploads with variants, soft
 /// delete and restore, pivot attach/detach, global search, CSV export,
-/// aggregates, optimistic concurrency, and the row policy.
+/// aggregates, optimistic concurrency, the row policy, and the health probes.
 ///
 /// [environmentFor] is the only difference between the two runs: it receives
 /// the port the test server bound and returns the environment to run it in.
@@ -378,6 +386,24 @@ void runStoreApiScenario({
         customer.delete('products', StoreSeedIds.productTeaser),
         throwsA(isA<BeakAuthorizationException>()),
       );
+    });
+
+    test('answers both platform probes, unauthenticated', () async {
+      final Uri base = Uri.parse(client.baseUrl);
+
+      // Liveness decides whether to restart the process, so it answers from
+      // the process alone and reads no database: its body carries only the
+      // status, never a data-source detail. Readiness decides whether to route
+      // traffic, so it is the one that asks the data source, and it reports ok
+      // because the seeded database is answering. What each returns while the
+      // source is down is pinned in beak_backend's health tests.
+      final live = await http.get(base.resolve('/healthz'));
+      expect(live.statusCode, 200);
+      expect(_probeBody(live), {'status': 'ok'});
+
+      final ready = await http.get(base.resolve('/readyz'));
+      expect(ready.statusCode, 200);
+      expect(_probeBody(ready), {'status': 'ok'});
     });
   });
 }

@@ -32,17 +32,18 @@ dart pub global activate melos 6.3.3
 
 ## The obers_ui dependency
 
-`beak_frontend` and the demo apps reference **`obers_ui`** by pinned git commit,
-so `melos bootstrap` fetches it for you and a plain clone of this repo is all
+`beak_frontend` and `beak` reference **`obers_ui`** by pinned git commit, so
+`melos bootstrap` fetches it for you and a plain clone of this repo is all
 you need. If your change spans both repositories, clone obers_ui beside this one
-and run `melos run link-obers-ui` to swap the pin for your working copy —
+and run `melos run link-obers-ui` to swap the pin for your working copy.
 [Working with obers_ui](../deployment/working-with-obers-ui.md) has the
 details.
 
 ## Setup
 
 ```bash
-# 1. Sibling checkout of obers_ui (see above), then from the repo root:
+# 1. From the repo root. obers_ui resolves from its pinned commit, so a
+#    plain clone is all you need:
 melos bootstrap                      # resolve every package
 
 # 2. Local services (Postgres + MinIO), waits for health, inits the bucket:
@@ -102,7 +103,7 @@ them. If you changed code, delete stale reports first so the gate sees fresh
 numbers:
 
 ```bash
-rm -rf packages/*/coverage apps/*/coverage
+rm -rf packages/*/coverage examples/*/coverage
 melos run test && melos run coverage
 ```
 
@@ -112,11 +113,12 @@ and the patterns that reach them.
 
 ## Running the docs locally
 
-The site is MkDocs with the Material theme and the minify plugin. Install the two
-Python packages, then serve with live reload:
+The site is MkDocs with the Material theme, the minify plugin, and the redirects
+plugin that keeps moved pages' old addresses working. Install the three Python
+packages, then serve with live reload:
 
 ```bash
-pip install mkdocs-material mkdocs-minify-plugin
+pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects
 mkdocs serve
 ```
 
