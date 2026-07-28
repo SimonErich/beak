@@ -51,14 +51,39 @@ abstract final class BeakDriftMigrationEmitter {
   /// would hand someone a file that `beak migrate` refuses, after telling
   /// them it had written the fix.
   static bool _canAddToLiveTable(BeakColumnIr column) =>
-      !column.isUnique && (!column.isRequired || column.hasDefault);
+      !column.isUnique &&
+      (!column.isRequired || _hasValueForExistingRows(column));
 
-  /// Why [column] cannot be added, phrased as the edit that would let it.
-  static String _refusalFor(BeakColumnIr column) => column.isUnique
-      ? 'a unique column cannot be added to a table that already has rows; '
-            'add it nullable, backfill, then add the index'
-      : 'a required column needs a value for the rows already there; give it '
-            'a default, or make it nullable and backfill';
+  /// Whether a required [column] arrives with a value the existing rows can
+  /// take.
+  ///
+  /// Mirrors what `BeakBlueprint.defineColumn` will really emit, which is not
+  /// the same as "the field declared a default": a boolean always defaults to
+  /// false, because a nullable boolean is three-valued and no Beak form can
+  /// express that, and an enum contributes its own `defaultValue`. Only an
+  /// enum may declare one at all, since `@Column(defaultValue:)` is rejected
+  /// on every other kind.
+  static bool _hasValueForExistingRows(BeakColumnIr column) =>
+      column.kind == BeakColumnKind.boolean ||
+      (column.kind == BeakColumnKind.enumeration && column.hasDefault);
+
+  /// Why [column] cannot be added, phrased as an edit that is actually
+  /// available for its kind.
+  static String _refusalFor(BeakColumnIr column) {
+    if (column.isUnique) {
+      return 'a unique column cannot be added to a table that already has '
+          'rows; add it nullable, backfill, then add the index';
+    }
+    if (column.kind == BeakColumnKind.enumeration) {
+      return 'a required enum column needs a value for the rows already '
+          'there; give it `@Column(defaultValue: ...)`, or make it nullable '
+          'and backfill';
+    }
+    // `@Column(defaultValue:)` is enum-only, so naming it here would send
+    // someone after an option the reader rejects.
+    return 'a required column needs a value for the rows already there, and '
+        'only an enum can declare one; make it nullable and backfill';
+  }
 
   /// The migration body for [drift], grouped by table.
   ///

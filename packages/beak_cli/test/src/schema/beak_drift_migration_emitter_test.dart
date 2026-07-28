@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:beak_cli/beak_cli.dart';
 import 'package:test/test.dart';
 
@@ -9,6 +11,7 @@ BeakSchemaIr schemaWith(
   bool softDeletes = false,
   bool required = false,
   Map<String, String> options = const {},
+  BeakColumnKind kind = BeakColumnKind.integer,
 }) => BeakSchemaIr(
   className: className,
   table: table,
@@ -19,7 +22,7 @@ BeakSchemaIr schemaWith(
         fieldName: field,
         columnKey: field,
         label: field,
-        kind: BeakColumnKind.integer,
+        kind: kind,
         isRequired: required,
         arguments: options,
       ),
@@ -237,19 +240,66 @@ void main() {
       );
     });
 
-    test('a required column with a default is written', () {
+    test('a required bool is written, because it defaults to false', () {
+      // Not because the field declared a default: `@Column(defaultValue:)` is
+      // enum-only. `BeakBlueprint.defineColumn` gives every boolean `false`,
+      // since a nullable boolean is three-valued and no Beak form can express
+      // that, so the column arrives with a value the existing rows can take.
       final drift = driftFor(
         schemaWith(
           'Product',
           'products',
-          ['stock'],
+          ['active'],
           required: true,
-          options: const {'defaultValue': '0'},
+          kind: BeakColumnKind.boolean,
         ),
       );
 
       expect(BeakDriftMigrationEmitter.addable(drift), hasLength(1));
       expect(BeakDriftMigrationEmitter.unaddable(drift), isEmpty);
+    });
+
+    test('a required enum with a declared default is written', () {
+      final drift = driftFor(
+        schemaWith(
+          'Product',
+          'products',
+          ['status'],
+          required: true,
+          kind: BeakColumnKind.enumeration,
+          options: const {'defaultValue': 'ProductStatus.draft'},
+        ),
+      );
+
+      expect(BeakDriftMigrationEmitter.addable(drift), hasLength(1));
+    });
+
+    test('a required enum without one is refused, naming the option', () {
+      final drift = driftFor(
+        schemaWith(
+          'Product',
+          'products',
+          ['status'],
+          required: true,
+          kind: BeakColumnKind.enumeration,
+        ),
+      );
+
+      expect(
+        BeakDriftMigrationEmitter.unaddable(drift).values.single,
+        contains('@Column(defaultValue:'),
+      );
+    });
+
+    test('the refusal for other kinds does not name an option they lack', () {
+      // `@Column(defaultValue:)` is rejected on anything but an enum, so
+      // telling someone to add one would send them after an error.
+      final why = BeakDriftMigrationEmitter.unaddable(
+        driftFor(schemaWith('Product', 'products', ['stock'], required: true)),
+      ).values.single;
+
+      expect(why, isNot(contains('defaultValue')));
+      expect(why, contains('only an enum can declare one'));
     });
 
     test('a unique column is refused, with the three-step way round', () {
@@ -280,6 +330,87 @@ void main() {
           ),
         ),
         isNull,
+      );
+    });
+  });
+
+  group('against a schema class the reader really parsed', () {
+    /// The IR `BeakSchemaReader` produces for a `Product` declaring [fields].
+    ///
+    /// Hand-built IR is how the emitter's own tests got this wrong once: the
+    /// fixture set `defaultValue` on an integer column, a state the reader
+    /// rejects outright, so the test proved a path no project can reach.
+    BeakSchemaIr parsedProduct(String fields) {
+      final root = Directory.systemTemp.createTempSync('beak_ir_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/lib/models/product.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('''
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+part 'product.beak.dart';
+
+/// Something for sale.
+@Resource()
+final class Product extends BeakSchema {
+  /// What it is called.
+  @Display()
+  late final String name;
+$fields}
+''');
+      final (schemas, issues) = BeakSchemaReader(root).read();
+      expect(issues, isEmpty, reason: '${issues.map((i) => i.message)}');
+      return schemas.single;
+    }
+
+    test('`@Column(unique: true)` reaches isUnique', () {
+      final schema = parsedProduct('''
+  /// A unique code.
+  @Column(unique: true)
+  late final String? code;
+''');
+
+      expect(
+        schema.columns.firstWhere((c) => c.fieldName == 'code').isUnique,
+        isTrue,
+        reason: 'the refusal for a unique column never fires without this',
+      );
+    });
+
+    test('a plain required field carries no default, so it is refused', () {
+      final schema = parsedProduct('''
+  /// Units in stock.
+  late final int stock;
+''');
+      final drift = beakSchemaDrift(
+        schemas: [schema],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      );
+
+      expect(
+        BeakDriftMigrationEmitter.unaddable(drift).keys.map((p) => p.columnKey),
+        contains('stock'),
+      );
+    });
+
+    test('a required bool is addable, as the blueprint would emit it', () {
+      final schema = parsedProduct('''
+  /// Whether it is on sale.
+  late final bool active;
+''');
+      final drift = beakSchemaDrift(
+        schemas: [schema],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      );
+
+      expect(
+        BeakDriftMigrationEmitter.addable(drift).map((p) => p.columnKey),
+        contains('active'),
       );
     });
   });
