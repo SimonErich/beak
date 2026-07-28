@@ -5,9 +5,9 @@
 /// quote a file that no longer exists, a page with no front matter, a snippet
 /// include pointing at a moved file, or a banned phrase from the style guide.
 ///
-/// The style guide's "Banned" section is enforced from [enforcedBans]. The
-/// bans still waiting on a copy-editing pass live in [pendingBans]; they are
-/// printed on every run and fail nothing.
+/// The style guide's "Banned" section is enforced from [enforcedBans]. A ban
+/// that a page must be able to break, because naming the thing is that page's
+/// subject, lists it in [BannedPhrase.exceptPaths].
 ///
 /// Run from the repo root. Exits non-zero with one line per problem.
 library;
@@ -49,6 +49,7 @@ final class BannedPhrase {
     required this.label,
     required this.pattern,
     required this.instead,
+    this.exceptPaths = const {},
   });
 
   /// What is banned, phrased the way the style guide phrases it.
@@ -59,6 +60,16 @@ final class BannedPhrase {
 
   /// What to write instead.
   final String instead;
+
+  /// Pages allowed to name this, because naming it is their subject.
+  ///
+  /// A page that teaches "there is no UseCase layer" has to be able to write
+  /// the words. Without this the choice is a ban that fires on the one page
+  /// stating the rule, or no ban at all.
+  final Set<String> exceptPaths;
+
+  /// Whether this ban applies to the page at [path].
+  bool appliesTo(String path) => !exceptPaths.contains(path);
 
   /// The problem text reported for a line that matches.
   String get message => 'style guide bans $label ($instead)';
@@ -149,12 +160,26 @@ final BannedPhrase useCaseLayer = BannedPhrase(
   label: 'the word "UseCase"',
   pattern: RegExp(r'\bUseCases?\b'),
   instead: 'name the Repository or the ViewModel',
+  // The two pages that state the invariant have to be able to name what they
+  // forbid. Everywhere else the word means someone has the architecture wrong.
+  exceptPaths: {
+    'docs/concepts/the-four-layers.md',
+    'docs/contributing/code-guardrails.md',
+  },
 );
 
 /// "unlock" in the marketing sense, as in "unlock the power of your data".
+///
+/// Scoped to that sense rather than to the word: the panel has a lock screen
+/// with an `onUnlock` callback and an unlock password, so a bare `\bunlock`
+/// fires on the page documenting them and on nothing else.
 final BannedPhrase marketingUnlock = BannedPhrase(
-  label: '"unlock"',
-  pattern: RegExp(r'\bunlock\w*', caseSensitive: false),
+  label: '"unlock" in the marketing sense',
+  pattern: RegExp(
+    r'\bunlock\w*\s+(the\s+|its\s+|your\s+)?'
+    r'(power|potential|value|magic|full|true|hidden|insights?)\b',
+    caseSensitive: false,
+  ),
   instead: 'state what it does and show the code',
 );
 
@@ -165,21 +190,9 @@ final List<BannedPhrase> enforcedBans = [
   questionHeading,
   exclamationStorm,
   emDash,
+  useCaseLayer,
+  marketingUnlock,
 ];
-
-/// Bans that are implemented and tested but only reported, never fatal.
-///
-/// Each one fires on published pages today, so enforcing it now would leave
-/// the gate red for everybody. They are printed on every run instead. Once a
-/// ban's lines below are gone, move it into [enforcedBans]:
-///
-/// * [useCaseLayer] hits the lines in `concepts/the-four-layers.md` that teach
-///   the invariant by naming it. Enforcing it needs a way to say "this page
-///   may name the thing it bans", which no other ban wants yet.
-/// * [marketingUnlock] collides with the panel's lock screen, whose prose has
-///   to be able to say "the unlock password" for `onUnlock`. Enforcing it
-///   needs the marketing sense told apart from the API one.
-final List<BannedPhrase> pendingBans = [useCaseLayer, marketingUnlock];
 
 /// Directories under `docs/` that are not published and are not checked.
 const Set<String> unpublishedDirs = {'_internal', 'assets'};
@@ -219,16 +232,9 @@ void main() {
   }
 
   final problems = <DocProblem>[];
-  final advisories = <DocProblem>[];
   for (final file in _publishedPages(docs)) {
-    final String content = file.readAsStringSync();
-    problems.addAll(checkPage(file.path, content));
-    advisories.addAll(
-      checkBannedPhrases(file.path, content.split('\n'), bans: pendingBans),
-    );
+    problems.addAll(checkPage(file.path, file.readAsStringSync()));
   }
-
-  _reportAdvisories(advisories);
 
   if (problems.isEmpty) {
     stdout.writeln('Docs check passed.');
@@ -239,26 +245,6 @@ void main() {
     stderr.writeln('  $problem');
   }
   exit(1);
-}
-
-/// Prints the [pendingBans] hits without failing the run.
-///
-/// They are listed on every run so the backlog stays visible and shrinks
-/// instead of being rediscovered later.
-void _reportAdvisories(List<DocProblem> advisories) {
-  if (advisories.isEmpty) {
-    return;
-  }
-  stdout.writeln(
-    'Style-guide bans not enforced yet (${advisories.length} lines):',
-  );
-  for (final advisory in advisories) {
-    stdout.writeln('  $advisory');
-  }
-  stdout.writeln(
-    'Clear the lines for one of these, then move that ban from pendingBans to '
-    'enforcedBans in tool/check_docs.dart.',
-  );
 }
 
 /// Every published Markdown page under [docs], in path order.
@@ -393,7 +379,7 @@ List<DocProblem> checkBannedPhrases(
     }
     final String prose = proseOf(lines[index]);
     for (final ban in bans) {
-      if (ban.pattern.hasMatch(prose)) {
+      if (ban.appliesTo(path) && ban.pattern.hasMatch(prose)) {
         problems.add(DocProblem(path, ban.message, line: index + 1));
       }
     }

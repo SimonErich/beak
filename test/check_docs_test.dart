@@ -454,40 +454,65 @@ void main() {
     });
   });
 
-  group('the pending bans', () {
-    List<DocProblem> pendingIn(String body) => checkBannedPhrases(
-      'docs/test/page.md',
-      page(body).split('\n'),
-      bans: pendingBans,
-    );
-
-    test('are reported but never enforced', () {
-      const offenders = [
-        'Some architectures slot a UseCase between the two.',
-        'This unlocks the panel.',
-      ];
-      for (final line in offenders) {
-        expect(pendingIn(line), hasLength(1), reason: line);
-        expect(problemsIn(line), isEmpty, reason: line);
-      }
-    });
-
-    test('do not fire on quoted source, which has to stay verbatim', () {
-      const quoted =
-          '```dart\n'
-          '/// The UseCase this frontend does not have.\n'
-          '```';
-      expect(pendingIn(quoted), isEmpty);
+  group('the UseCase ban', () {
+    test('fires on a page that has the architecture wrong', () {
       expect(
-        pendingIn('The `onUnlock` callback validates the password.'),
-        isEmpty,
+        problemsIn('Some architectures slot a UseCase between the two.'),
+        hasLength(1),
       );
     });
 
-    test('are not also enforced, which would report every line twice', () {
-      for (final ban in pendingBans) {
-        expect(enforcedBans, isNot(contains(ban)), reason: ban.label);
+    test('spares the pages whose subject is that there is none', () {
+      // A page teaching "there is no UseCase layer" has to be able to write
+      // the words, or the ban fires on the one page stating the rule.
+      for (final path in const [
+        'docs/concepts/the-four-layers.md',
+        'docs/contributing/code-guardrails.md',
+      ]) {
+        expect(
+          checkBannedPhrases(
+            path,
+            page('Reaching for a UseCase means the Repository.').split('\n'),
+            bans: enforcedBans,
+          ),
+          isEmpty,
+          reason: path,
+        );
       }
+    });
+  });
+
+  group('the unlock ban', () {
+    test('fires on the marketing sense', () {
+      for (final line in const [
+        'Unlock the power of your data.',
+        'It unlocks the full potential of the panel.',
+        'Unlocking hidden insights from every table.',
+      ]) {
+        expect(problemsIn(line), hasLength(1), reason: line);
+      }
+    });
+
+    test('spares the lock screen, which really does unlock', () {
+      // The panel has an `onUnlock` callback and an unlock password. A ban on
+      // the bare word fired on the page documenting them and nowhere else.
+      for (final line in const [
+        'The `onUnlock` callback validates the unlock password.',
+        'Any password unlocks the panel.',
+      ]) {
+        expect(problemsIn(line), isEmpty, reason: line);
+      }
+    });
+  });
+
+  group('every style-guide ban', () {
+    test('is enforced, with no reported-only backlog', () {
+      // The tool used to carry a `pendingBans` list for rules that fired on
+      // published pages. Both were false positives rather than a backlog, and
+      // narrowing them emptied it.
+      expect(enforcedBans, contains(useCaseLayer));
+      expect(enforcedBans, contains(marketingUnlock));
+      expect(enforcedBans, contains(emDash));
     });
   });
 }
