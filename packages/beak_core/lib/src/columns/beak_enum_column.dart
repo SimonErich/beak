@@ -28,6 +28,7 @@ part of 'beak_column.dart';
 final class BeakEnumColumn<T extends Enum> extends BeakColumn
     with BeakTypedColumn<T> {
   /// Creates an enum column offering [values].
+  // --8<-- [start:BeakEnumColumn]
   const BeakEnumColumn({
     required super.key,
     required super.label,
@@ -43,6 +44,7 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
     this.badgeColors = const <Never, BeakColor>{},
     this.labelOf,
   });
+  // --8<-- [end:BeakEnumColumn]
 
   /// All selectable values (typically `MyEnum.values`).
   final List<T> values;

@@ -36,6 +36,7 @@ enum BeakDateFormat {
 final class BeakDateTimeColumn extends BeakColumn
     with BeakTypedColumn<DateTime> {
   /// Creates a date/time column displayed with [format].
+  // --8<-- [start:BeakDateTimeColumn]
   const BeakDateTimeColumn({
     required super.key,
     required super.label,
@@ -48,6 +49,7 @@ final class BeakDateTimeColumn extends BeakColumn
     super.rules,
     this.format = BeakDateFormat.standard,
   });
+  // --8<-- [end:BeakDateTimeColumn]
 
   /// Display format used in tables and detail views.
   final BeakDateFormat format;

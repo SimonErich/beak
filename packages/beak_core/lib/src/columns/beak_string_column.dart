@@ -17,6 +17,7 @@ part of 'beak_column.dart';
 /// ```
 final class BeakStringColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a single-line string column.
+  // --8<-- [start:BeakStringColumn]
   const BeakStringColumn({
     required super.key,
     required super.label,
@@ -30,6 +31,7 @@ final class BeakStringColumn extends BeakColumn with BeakTypedColumn<String> {
     this.placeholder = '',
     this.maxLength,
   });
+  // --8<-- [end:BeakStringColumn]
 
   /// Hint text shown in an empty form input.
   final String placeholder;

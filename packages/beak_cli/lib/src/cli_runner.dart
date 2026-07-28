@@ -371,6 +371,16 @@ final class $className extends Migration {
     }
 
     final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+    if (beakSqliteFileOf(url) != null && !beakSqliteFileExists(url, root)) {
+      // Opening a SQLite file creates it, so looking would leave an empty
+      // database behind and then report that it lacks nothing.
+      environment.out.writeln(
+        'There is no database yet, so there is nothing to compare the schema '
+        'classes against.',
+      );
+      environment.out.writeln('  run `beak migrate` first');
+      return 1;
+    }
     final List<IntrospectedTable> tables;
     try {
       tables = await _readSchema(beakResolvedDatabaseUrl(url, root));
@@ -379,18 +389,35 @@ final class $className extends Migration {
       return 1;
     }
 
+    final List<BeakDrift> drift = beakSchemaDrift(
+      schemas: schemas,
+      tables: tables,
+    );
     final String? contents = BeakDriftMigrationEmitter.emit(
       className: className,
       timestamp: stamp,
       description: _sentenceOf(snake),
-      drift: beakSchemaDrift(schemas: schemas, tables: tables),
+      drift: drift,
     );
+    // Report what cannot be written before deciding there is nothing to do:
+    // "no drift" and "drift no migration can express" are different answers,
+    // and conflating them tells someone their schema is applied when it is
+    // not.
+    final refusals = BeakDriftMigrationEmitter.unaddable(drift);
+    for (final MapEntry(key: problem, value: why) in refusals.entries) {
+      environment.out.writeln(
+        '  ! ${problem.table}.${problem.columnKey}: $why',
+      );
+    }
     if (contents == null) {
       environment.out.writeln(
-        '  nothing to add — the database already has every column the '
-        'schema classes declare',
+        refusals.isEmpty
+            ? '  nothing to add — the database already has every column the '
+                  'schema classes declare'
+            : '  nothing written — every missing column needs a decision '
+                  'first',
       );
-      return 0;
+      return refusals.isEmpty ? 0 : 1;
     }
     environment.writeFile('lib/migrations/$snake.dart', contents);
     environment.out.writeln('  run `beak migrate` to apply it');

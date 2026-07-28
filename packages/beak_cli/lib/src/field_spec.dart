@@ -35,6 +35,7 @@ enum BeakFieldKind {
   /// BeakFieldKind.parse('int'); // BeakFieldKind.integer
   /// BeakFieldKind.parse('blob'); // null
   /// ```
+  // --8<-- [start:fieldKindParse]
   static BeakFieldKind? parse(String token) => switch (token) {
     'string' => string,
     'text' => text,
@@ -44,6 +45,7 @@ enum BeakFieldKind {
     'datetime' || 'date' => dateTime,
     _ => null,
   };
+  // --8<-- [end:fieldKindParse]
 }
 
 /// One typed field of a scaffolded resource, parsed from a `name:kind`

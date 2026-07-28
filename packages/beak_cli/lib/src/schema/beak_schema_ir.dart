@@ -128,6 +128,15 @@ final class BeakColumnIr {
   /// The field's own doc comment, carried onto the generated constant.
   final String? docComment;
 
+  /// Whether `@Column(unique: true)` was declared.
+  ///
+  /// Read through a getter rather than by indexing [arguments] at each call
+  /// site, so the option's spelling lives in one place.
+  bool get isUnique => arguments['unique'] == 'true';
+
+  /// Whether the field declares a value for rows that do not supply one.
+  bool get hasDefault => arguments.containsKey('defaultValue');
+
   /// The Dart type this column reads its values as.
   String get valueType => switch (kind) {
     BeakColumnKind.integer => 'int',

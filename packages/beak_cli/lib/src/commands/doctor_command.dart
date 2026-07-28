@@ -516,7 +516,18 @@ Future<List<BeakCheck>> _databaseChecks(
   final bool isDefault = beakDatabaseUrlOf(root) == null;
   final bool canDrift = schemaIssues.isEmpty && schemas.isNotEmpty;
 
-  if (beakSqliteFileOf(url) case final String file) {
+  if (beakIsSqliteUrl(url)) {
+    final String? file = beakSqliteFileOf(url);
+    if (file == null) {
+      // In-memory: it belongs to the process that opened it, so there is
+      // nothing here to be out of step with, and nothing to probe.
+      return const [
+        BeakCheck(
+          status: BeakCheckStatus.ok,
+          label: 'database is in-memory SQLite, so nothing persists',
+        ),
+      ];
+    }
     if (!beakSqliteFileExists(url, root)) {
       // Before the first migrate there is no file, and no schema that could
       // be out of step with the models.

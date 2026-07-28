@@ -143,15 +143,7 @@ to its JSON value; `relations` maps a relation key to a list of nested records
 (only the relations the query eager-loaded appear).
 
 ```dart title="packages/beak_core/lib/src/query/beak_record.dart"
-Map<String, Object?> toJson() => {
-  'values': {
-    for (final MapEntry(:key, :value) in _values.entries) key: value.toJson(),
-  },
-  'relations': {
-    for (final MapEntry(:key, :value) in _relations.entries)
-      key: [for (final record in value) record.toJson()],
-  },
-};
+--8<-- "packages/beak_core/lib/src/query/beak_record.dart:toJson"
 ```
 
 Values encode as their raw JSON primitive (string, number, bool, `null`) or array.
@@ -200,12 +192,7 @@ appears under `relations` only when the query eager-loaded it.
 item type and carries no `dynamic`.
 
 ```dart title="packages/beak_core/lib/src/query/beak_page.dart"
-Map<String, Object?> toJson(Object? Function(T item) encodeItem) => {
-  'items': [for (final item in items) encodeItem(item)],
-  'total': total,
-  'page': page,
-  'perPage': perPage,
-};
+--8<-- "packages/beak_core/lib/src/query/beak_page.dart:toJson"
 ```
 
 `total` is the count across all pages; `page` is 1-based; `perPage` is the page
@@ -220,15 +207,7 @@ fetch.
 records.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> query(Request request) async {
-    _requireView(request);
-    final spec = readBeakSpec(
-      await readJsonObject(request),
-      BeakQuerySpec.fromJson,
-    );
-    final page = await service.query(spec, scope: _scope(request));
-    return _json(200, page.toJson((record) => record.toJson()));
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:query"
 ```
 
 The request body is a serialized `BeakQuerySpec`. Every top-level key is
@@ -271,15 +250,7 @@ branches are `{ "type": "and", "filters": [...] }` and its `or` sibling. The
 `POST /api/{table}/aggregate` computes a single number.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> aggregate(Request request) async {
-    _requireView(request);
-    final spec = readBeakSpec(
-      await readJsonObject(request),
-      BeakAggregateSpec.fromJson,
-    );
-    final num value = await service.aggregate(spec, scope: _scope(request));
-    return _json(200, {'value': value});
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:aggregate"
 ```
 
 The body is a serialized `BeakAggregateSpec`. `function` is `count`, `sum`, or
@@ -297,16 +268,7 @@ The response is `{ "value": <number> }` (`200`).
 `{values, relations}` record envelope).
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> create(Request request) async {
-    _require(
-      request,
-      policy.canCreate(beakPrincipal(request), service.model.table),
-      'create',
-    );
-    final record = await _readRecord(request);
-    final created = await service.create(record);
-    return _json(201, created.toJson());
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:create"
 ```
 
 ```json
@@ -324,11 +286,7 @@ parse is a `422` as well.
 matches.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> getOne(Request request, String id) async {
-    _requireView(request);
-    final record = await service.getOne(_coerceId(id), scope: _scope(request));
-    return _json(200, record.toJson());
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:getOne"
 ```
 
 ### Update
@@ -337,22 +295,7 @@ matches.
 only the columns you want to change; omitted columns keep their value.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> update(Request request, String id) async {
-    final Object recordId = _coerceId(id);
-    _require(
-      request,
-      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
-      'update',
-    );
-    final record = await _readRecord(request);
-    final updated = await service.update(
-      recordId,
-      record,
-      scope: _scope(request),
-      expectedUpdatedAt: _expectedUpdatedAt(request),
-    );
-    return _json(200, updated.toJson());
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:update"
 ```
 
 The response is the updated record (`200`).
@@ -363,17 +306,7 @@ The response is the updated record (`200`).
 `?force=true` to delete for real.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> delete(Request request, String id) async {
-    final Object recordId = _coerceId(id);
-    _require(
-      request,
-      policy.canDelete(beakPrincipal(request), service.model.table, recordId),
-      'delete',
-    );
-    final force = request.url.queryParameters['force'] == 'true';
-    await service.delete(recordId, force: force, scope: _scope(request));
-    return Response(204);
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:delete"
 ```
 
 The response has no body (`204`). Soft deletes come from
@@ -393,14 +326,7 @@ first by posting a query spec with `"withTrashed": true`.
 `{ "ids": [...] }`; ids may be integers or strings.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> batch(Request request) async {
-    _requireView(request);
-    final records = await service.batchGet(
-      await _readIds(request),
-      scope: _scope(request),
-    );
-    return _json(200, [for (final record in records) record.toJson()]);
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:batch"
 ```
 
 ```json
@@ -417,25 +343,7 @@ links related ids and the `.../detach` route unlinks them. Both take
 `{ "ids": [...] }` and return `204`.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> attach(
-    Request request,
-    String id,
-    String relationKey,
-  ) async {
-    final Object recordId = _coerceId(id);
-    _require(
-      request,
-      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
-      'update',
-    );
-    await service.attach(
-      recordId,
-      relationKey,
-      await _readIds(request),
-      scope: _scope(request),
-    );
-    return Response(204);
-  }
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:attach"
 ```
 
 Both are gated by the `canUpdate` policy for the owning record: changing a
@@ -447,33 +355,7 @@ record's links counts as updating it.
 attachment.
 
 ```dart title="packages/beak_backend/lib/src/export/export_router.dart"
-  Future<Response> export(Request request) async {
-    enforcePolicyDecision(
-      allowed: policy.canView(beakPrincipal(request), model.table),
-      principal: beakPrincipal(request),
-      action: 'export',
-      table: model.table,
-    );
-    final spec = readBeakSpec(
-      await readJsonObject(request),
-      BeakQuerySpec.fromJson,
-    );
-    // Export is a query that returns a file. A row scope that held for
-    // `/query` but not here would be the easiest bypass in the API.
-    return Response.ok(
-      await service.exportCsv(
-        model.table,
-        BeakResourceService.scopedQuery(
-          spec,
-          beakRowScope(policy, beakPrincipal(request), model.table),
-        ),
-      ),
-      headers: {
-        'content-type': 'text/csv; charset=utf-8',
-        'content-disposition': 'attachment; filename="${model.table}.csv"',
-      },
-    );
-  }
+--8<-- "packages/beak_backend/lib/src/export/export_router.dart:export"
 ```
 
 The body is the same `BeakQuerySpec` you would post to `/query`, so the filters,
@@ -497,21 +379,7 @@ file under the field name `file`. The handler bounds the read at the column's si
 limit before buffering, so an oversize file never fills memory.
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_handler.dart"
-  Future<Response> upload(Request request, String columnKey) async {
-    enforcePolicyDecision(
-      allowed: policy.canCreate(beakPrincipal(request), model.table),
-      principal: beakPrincipal(request),
-      action: 'upload to',
-      table: model.table,
-    );
-    final upload = await _readUpload(request, _sizeLimitFor(columnKey));
-    final stored = await service.handle(
-      table: model.table,
-      columnKey: columnKey,
-      upload: upload,
-    );
-    return Response(201, body: jsonEncode(stored.toJson()));
-  }
+--8<-- "packages/beak_backend/lib/src/uploads/upload_handler.dart:upload"
 ```
 
 The response is a stored-file description (`201`):

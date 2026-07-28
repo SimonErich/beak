@@ -93,21 +93,7 @@ sections below only document what each leaf *adds*.
 The base constructor, quoted verbatim:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_column.dart"
-  const BeakColumn({
-    required this.key,
-    required this.label,
-    this.visibleOn = const {
-      BeakContext.table,
-      BeakContext.form,
-      BeakContext.detail,
-    },
-    this.sortable = false,
-    this.searchable = false,
-    this.filterable = false,
-    this.indexed = false,
-    this.unique = false,
-    this.rules = const [],
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_column.dart:BeakColumn"
 ```
 
 Every column also exposes members the renderer, the backend mapper and your own
@@ -161,19 +147,7 @@ and the workhorse for names, references and codes.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_string_column.dart"
-  const BeakStringColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.placeholder = '',
-    this.maxLength,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_string_column.dart:BeakStringColumn"
 ```
 
 | Field | Type | Default | Meaning |
@@ -195,17 +169,7 @@ own.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_text_column.dart"
-  const BeakTextColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_text_column.dart:BeakTextColumn"
 ```
 
 Value type `String`. Renders as `text` on every surface.
@@ -222,17 +186,7 @@ source string, not as parsed nodes. No extra fields.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_rich_text_column.dart"
-  const BeakRichTextColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_rich_text_column.dart:BeakRichTextColumn"
 ```
 
 Value type `String`. Renders as `richText` on every surface.
@@ -251,17 +205,7 @@ No extra fields.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_json_column.dart"
-  const BeakJsonColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_json_column.dart:BeakJsonColumn"
 ```
 
 Value type `String`. Renders as `json` on every surface.
@@ -281,21 +225,7 @@ into the rendering.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_int_column.dart"
-  const BeakIntColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.min,
-    this.max,
-    this.prefix,
-    this.suffix,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_int_column.dart:BeakIntColumn"
 ```
 
 | Field | Type | Default | Meaning |
@@ -319,21 +249,7 @@ from `number` to `currency`.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_decimal_column.dart"
-  const BeakDecimalColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.precision = 2,
-    this.totalDigits = 10,
-    this.prefix,
-    this.suffix,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_decimal_column.dart:BeakDecimalColumn"
 ```
 
 | Field | Type | Default | Meaning |
@@ -357,19 +273,7 @@ elsewhere. `trueLabel`/`falseLabel` override the default state text.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_bool_column.dart"
-  const BeakBoolColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.trueLabel,
-    this.falseLabel,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_bool_column.dart:BeakBoolColumn"
 ```
 
 | Field | Type | Default | Meaning |
@@ -393,18 +297,7 @@ A date/time column, declared as `DateTime`. Tables and detail views follow
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_date_time_column.dart"
-  const BeakDateTimeColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.format = BeakDateFormat.standard,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_date_time_column.dart:BeakDateTimeColumn"
 ```
 
 | Field | Type | Default | Meaning |
@@ -452,21 +345,7 @@ keys are checked against *this* field's enum.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_enum_column.dart"
-  const BeakEnumColumn({
-    required super.key,
-    required super.label,
-    required this.values,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.defaultValue,
-    this.badgeColors = const <Never, BeakColor>{},
-    this.labelOf,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_enum_column.dart:BeakEnumColumn"
 ```
 
 | Field | Type | Default | Declared with |
@@ -495,17 +374,7 @@ color picker in forms. Declared as `BeakHexColor`. No extra fields.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_color_column.dart"
-  const BeakColorColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_color_column.dart:BeakColorColumn"
 ```
 
 Value type `String` (a hex color string). Renders as `color` on every surface.
@@ -542,24 +411,7 @@ the check.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_image_column.dart"
-  const BeakImageColumn({
-    required super.key,
-    required super.label,
-    required super.storagePath,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    super.maxSizeInBytes,
-    super.allowedTypes = BeakFileType.images,
-    this.maxDimensions,
-    this.aspectRatio,
-    this.thumbnail,
-    this.transforms = const [],
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_image_column.dart:BeakImageColumn"
 ```
 
 | Field | Type | Default | Meaning |
@@ -590,20 +442,7 @@ for images. It adds no fields beyond the shared upload three.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_file_column.dart"
-  const BeakFileColumn({
-    required super.key,
-    required super.label,
-    required super.storagePath,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    super.maxSizeInBytes,
-    super.allowedTypes,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_file_column.dart:BeakFileColumn"
 ```
 
 Value type `String`. Renders as `custom` on every surface.
@@ -625,18 +464,7 @@ the renderer can be located.
 ```
 
 ```dart title="packages/beak_core/lib/src/columns/beak_custom_column.dart"
-  const BeakCustomColumn({
-    required super.key,
-    required super.label,
-    required this.tag,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-  });
+--8<-- "packages/beak_core/lib/src/columns/beak_custom_column.dart:BeakCustomColumn"
 ```
 
 | Field | Type | Default | Meaning |

@@ -15,6 +15,7 @@ part of 'beak_column.dart';
 /// ```
 final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
   /// Creates a boolean column with optional state labels.
+  // --8<-- [start:BeakBoolColumn]
   const BeakBoolColumn({
     required super.key,
     required super.label,
@@ -28,6 +29,7 @@ final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
     this.trueLabel,
     this.falseLabel,
   });
+  // --8<-- [end:BeakBoolColumn]
 
   /// Display label of the `true` state, if customized.
   final String? trueLabel;

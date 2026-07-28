@@ -19,6 +19,7 @@ part of 'beak_column.dart';
 /// ```
 final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
   /// Creates an integer column, optionally bounded by [min]/[max].
+  // --8<-- [start:BeakIntColumn]
   const BeakIntColumn({
     required super.key,
     required super.label,
@@ -34,6 +35,7 @@ final class BeakIntColumn extends BeakColumn with BeakTypedColumn<int> {
     this.prefix,
     this.suffix,
   });
+  // --8<-- [end:BeakIntColumn]
 
   /// Lowest value the form input offers, if bounded.
   final int? min;

@@ -5,6 +5,7 @@ part of '../beak_storage_config.dart';
 /// storage without importing driver packages.
 final class BeakFtpConfig extends BeakStorageConfig {
   /// Creates an FTP storage configuration.
+  // --8<-- [start:BeakFtpConfig]
   const BeakFtpConfig({
     required this.host,
     this.port = 21,
@@ -13,6 +14,7 @@ final class BeakFtpConfig extends BeakStorageConfig {
     required this.baseDir,
     required this.publicBaseUrl,
   });
+  // --8<-- [end:BeakFtpConfig]
 
   /// FTP server host name.
   final String host;

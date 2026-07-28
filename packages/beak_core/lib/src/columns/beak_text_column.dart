@@ -4,6 +4,7 @@ part of 'beak_column.dart';
 /// cells, and the full text in detail views.
 final class BeakTextColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a multiline text column.
+  // --8<-- [start:BeakTextColumn]
   const BeakTextColumn({
     required super.key,
     required super.label,
@@ -15,6 +16,7 @@ final class BeakTextColumn extends BeakColumn with BeakTypedColumn<String> {
     super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakTextColumn]
 
   @override
   BeakRenderConfig get renderConfig =>

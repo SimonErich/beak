@@ -74,16 +74,7 @@ The scaffolding. These take other blocks as children and decide how they sit on 
 Here is one verbatim. Note the assert: pass `columns` or `minColumnWidthInPixels`, never both.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_grid_block.dart"
-const BeakGridBlock({
-  required this.children,
-  this.columns,
-  this.minColumnWidthInPixels,
-  this.gapInPixels = 16,
-  super.span,
-}) : assert(
-       columns == null || minColumnWidthInPixels == null,
-       'Provide either columns or minColumnWidthInPixels, not both.',
-     );
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_grid_block.dart:BeakGridBlock"
 ```
 
 ## Display blocks

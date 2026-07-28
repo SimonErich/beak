@@ -196,4 +196,37 @@ void main() {
       expect(tableNamed(tables, 'keyless').primaryKey, 'id');
     });
   });
+
+  group('awkward identifiers', () {
+    test('a name holding a double quote is read, not a syntax error', () async {
+      // PRAGMA takes no bind parameters, so names are interpolated. `beak
+      // introspect sqlite:legacy.db` exists to read databases Beak did not
+      // create, where such a name is somebody else's decision.
+      database.execute('CREATE TABLE "we""ird" (id TEXT PRIMARY KEY, a TEXT)');
+
+      final tables = await introspect(database);
+      expect(tables.map((table) => table.name), contains('we"ird'));
+      expect(
+        columnNamed(tableNamed(tables, 'we"ird'), 'a').name,
+        'a',
+        reason: 'the columns of an awkwardly named table are still read',
+      );
+    });
+
+    test('an index whose name holds a quote is read', () async {
+      database
+        ..execute('CREATE TABLE t (id TEXT PRIMARY KEY, a TEXT)')
+        ..execute('CREATE INDEX "od""d" ON t (a)');
+
+      expect(
+        columnNamed(tableNamed(await introspect(database), 't'), 'a').isIndexed,
+        isTrue,
+      );
+    });
+
+    test('quoted doubles an embedded quote', () {
+      expect(SqliteIntrospector.quoted('plain'), '"plain"');
+      expect(SqliteIntrospector.quoted('we"ird'), '"we""ird"');
+    });
+  });
 }

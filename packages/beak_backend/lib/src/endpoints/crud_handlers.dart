@@ -44,6 +44,7 @@ final class BeakCrudHandlers {
       beakRowScope(policy, beakPrincipal(request), service.model.table);
 
   /// `POST /query` — runs a posted [BeakQuerySpec].
+  // --8<-- [start:query]
   Future<Response> query(Request request) async {
     _requireView(request);
     final spec = readBeakSpec(
@@ -53,8 +54,10 @@ final class BeakCrudHandlers {
     final page = await service.query(spec, scope: _scope(request));
     return _json(200, page.toJson((record) => record.toJson()));
   }
+  // --8<-- [end:query]
 
   /// `POST /aggregate` — computes a posted [BeakAggregateSpec].
+  // --8<-- [start:aggregate]
   Future<Response> aggregate(Request request) async {
     _requireView(request);
     final spec = readBeakSpec(
@@ -64,15 +67,19 @@ final class BeakCrudHandlers {
     final num value = await service.aggregate(spec, scope: _scope(request));
     return _json(200, {'value': value});
   }
+  // --8<-- [end:aggregate]
 
   /// `GET /<id>` — fetches one record.
+  // --8<-- [start:getOne]
   Future<Response> getOne(Request request, String id) async {
     _requireView(request);
     final record = await service.getOne(_coerceId(id), scope: _scope(request));
     return _json(200, record.toJson());
   }
+  // --8<-- [end:getOne]
 
   /// `POST /` — creates a record from flat field values.
+  // --8<-- [start:create]
   Future<Response> create(Request request) async {
     _require(
       request,
@@ -83,8 +90,10 @@ final class BeakCrudHandlers {
     final created = await service.create(record);
     return _json(201, created.toJson());
   }
+  // --8<-- [end:create]
 
   /// `PATCH /<id>` — partially updates a record.
+  // --8<-- [start:update]
   Future<Response> update(Request request, String id) async {
     final Object recordId = _coerceId(id);
     _require(
@@ -101,8 +110,10 @@ final class BeakCrudHandlers {
     );
     return _json(200, updated.toJson());
   }
+  // --8<-- [end:update]
 
   /// `DELETE /<id>?force=` — soft-deletes (or force-deletes) a record.
+  // --8<-- [start:delete]
   Future<Response> delete(Request request, String id) async {
     final Object recordId = _coerceId(id);
     _require(
@@ -114,6 +125,7 @@ final class BeakCrudHandlers {
     await service.delete(recordId, force: force, scope: _scope(request));
     return Response(204);
   }
+  // --8<-- [end:delete]
 
   /// The `updated_at` an `If-Unmodified-Since` header claims the caller read.
   ///
@@ -152,6 +164,7 @@ final class BeakCrudHandlers {
 
   /// `POST /batch` — fetches the records named by `{"ids": [...]}` in one
   /// query.
+  // --8<-- [start:batch]
   Future<Response> batch(Request request) async {
     _requireView(request);
     final records = await service.batchGet(
@@ -160,8 +173,10 @@ final class BeakCrudHandlers {
     );
     return _json(200, [for (final record in records) record.toJson()]);
   }
+  // --8<-- [end:batch]
 
   /// `POST /<id>/relations/<relationKey>/attach` — links related ids.
+  // --8<-- [start:attach]
   Future<Response> attach(
     Request request,
     String id,
@@ -181,6 +196,7 @@ final class BeakCrudHandlers {
     );
     return Response(204);
   }
+  // --8<-- [end:attach]
 
   /// `POST /<id>/relations/<relationKey>/detach` — unlinks related ids.
   Future<Response> detach(

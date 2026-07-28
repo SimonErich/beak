@@ -28,6 +28,7 @@ final class BeakImageColumn extends BeakUploadColumn
     with BeakTypedColumn<String> {
   /// Creates an image column storing uploads under [storagePath]
   /// (e.g. `products/covers`); [allowedTypes] defaults to raster images.
+  // --8<-- [start:BeakImageColumn]
   const BeakImageColumn({
     required super.key,
     required super.label,
@@ -46,6 +47,7 @@ final class BeakImageColumn extends BeakUploadColumn
     this.thumbnail,
     this.transforms = const [],
   });
+  // --8<-- [end:BeakImageColumn]
 
   /// Largest accepted source dimensions, if bounded.
   final BeakDimensions? maxDimensions;

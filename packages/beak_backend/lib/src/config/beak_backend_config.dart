@@ -42,11 +42,13 @@ String? sqliteFilePathOf(Uri databaseUrl) {
 /// ```
 final class BeakBackendConfig {
   /// Creates a configuration from already-validated parts.
+  // --8<-- [start:BeakBackendConfig]
   const BeakBackendConfig({
     required this.databaseUrl,
     this.port = defaultPort,
     this.host = defaultHost,
   });
+  // --8<-- [end:BeakBackendConfig]
 
   /// The database a project gets when it names none.
   ///

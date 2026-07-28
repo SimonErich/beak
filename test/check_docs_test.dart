@@ -665,4 +665,40 @@ void main() {
       );
     });
   });
+
+  group('which titles are checked as repo quotations', () {
+    /// A fence titled [title], quoting a line no file contains.
+    List<DocProblem> problemsForTitle(String title) => checkPage(
+      'docs/test/page.md',
+      page('```dart title="$title"\nnot in any file\nand nor is this\n```'),
+      readFile: (path) => null,
+    );
+
+    test('a root config file this repository owns is checked', () {
+      // `melos.yaml` went unchecked for as long as the rule was a prefix
+      // allowlist, and the page quoting its `analyze` script drifted three
+      // sub-scripts behind.
+      for (final title in const [
+        'melos.yaml',
+        'mkdocs.yml',
+        'CONTRIBUTING.md',
+      ]) {
+        expect(problemsForTitle(title), isNotEmpty, reason: title);
+      }
+    });
+
+    test('deploy/ and PLAN/ are checked', () {
+      expect(problemsForTitle('deploy/Dockerfile.server'), isNotEmpty);
+      expect(problemsForTitle('PLAN/PHASES.md'), isNotEmpty);
+    });
+
+    test('a path in the reader\'s own project is left alone', () {
+      // `beak.yaml` and `lib/models/product.dart` name files in the project
+      // the reader is building, not in this repository. Checking those would
+      // fail the day someone adds a file with the same name at the root.
+      expect(problemsForTitle('beak.yaml'), isEmpty);
+      expect(problemsForTitle('lib/models/product.dart'), isEmpty);
+      expect(problemsForTitle('.env'), isEmpty);
+    });
+  });
 }

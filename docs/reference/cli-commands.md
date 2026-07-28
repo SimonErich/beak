@@ -238,15 +238,7 @@ validation and the column's `NOT NULL`.
 The parser is the source of truth for the accepted tokens:
 
 ```dart title="packages/beak_cli/lib/src/field_spec.dart"
-  static BeakFieldKind? parse(String token) => switch (token) {
-    'string' => string,
-    'text' => text,
-    'int' || 'integer' => integer,
-    'decimal' || 'double' => decimal,
-    'bool' || 'boolean' => boolean,
-    'datetime' || 'date' => dateTime,
-    _ => null,
-  };
+--8<-- "packages/beak_cli/lib/src/field_spec.dart:fieldKindParse"
 ```
 
 An unknown kind or a malformed pair throws a `FormatException` whose message

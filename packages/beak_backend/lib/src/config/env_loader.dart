@@ -65,10 +65,12 @@ abstract final class BeakEnv {
   ///   environment: BeakEnv.resolve(),
   /// );
   /// ```
+  // --8<-- [start:resolve]
   static Map<String, String> resolve({
     String filePath = '.env',
     Map<String, String>? processEnvironment,
   }) => {...loadFile(filePath), ...processEnvironment ?? Platform.environment};
+  // --8<-- [end:resolve]
 
   static String _unquote(String value) {
     const quotes = ['"', "'"];

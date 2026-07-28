@@ -69,18 +69,18 @@ compose stack in full.
 
 ## The gate (Definition of Done)
 
-Every change must keep all four commands green, run from the repo root:
+Every change must keep these four green, run from the repo root:
 
 ```bash
-melos run analyze        # 0 issues (incl. the no-Material import guard)
+melos run analyze        # 0 issues, plus five guards
 melos run format-check   # dart format --set-exit-if-changed, clean
 melos run test           # all package tests, no skips
 melos run coverage       # per-package line-coverage thresholds
 ```
 
-These are Melos scripts. `analyze` chains the pure-Dart analyzer, the Flutter
-analyzer, the workspace tooling, and the `guard-material` check; `test` chains
-the Dart, Flutter, and tooling suites. The definitions live in `melos.yaml`:
+These are Melos scripts. `analyze` chains the analyzers and the guards; `test`
+chains the Dart, Flutter, and tooling suites. The definitions live in
+`melos.yaml`:
 
 ```yaml title="melos.yaml"
   analyze:
@@ -88,13 +88,24 @@ the Dart, Flutter, and tooling suites. The definitions live in `melos.yaml`:
       melos run analyze-dart &&
       melos run analyze-flutter &&
       melos run analyze-root &&
-      melos run guard-material
+      melos run guard-material &&
+      melos run guard-web &&
+      melos run check-docs &&
+      melos run check-examples
     description: Static analysis across all packages (0 issues required).
 ```
 
-Integration and E2E tests that need Postgres or MinIO are health-check-guarded:
-they skip cleanly when the services are down, so `melos run test` passes without
-Docker. Run `melos run up` before relying on them.
+Two more run in CI and are worth running before you push anything that touches
+a driver or a service path:
+
+```bash
+melos run up             # Postgres + MinIO
+melos run test-e2e       # every test/e2e directory, --tags e2e
+melos run test-worm      # the vendored worm packages, which melos ignores
+```
+
+The service-backed suites are health-check-guarded, so `melos run test` passes
+without Docker: they skip rather than fail.
 
 ### The coverage gotcha
 

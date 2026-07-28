@@ -16,6 +16,13 @@ import 'sqlite_introspector.dart';
 typedef BeakLiveSchemaReader =
     Future<List<IntrospectedTable>> Function(Uri url, {String schema});
 
+/// Whether [url] names a SQLite database, whether or not it names a file.
+///
+/// Separate from [beakSqliteFileOf], which answers "which file": an
+/// in-memory URL is SQLite and has no file, and conflating the two sent
+/// `sqlite::memory:` down the Postgres branch to be probed on port 0.
+bool beakIsSqliteUrl(Uri url) => url.scheme == 'sqlite' || url.scheme == 'file';
+
 /// Whether Beak can read the schema of the database [url] names.
 bool beakCanReadSchema(Uri url) =>
     isIntrospectableUrl(url) || beakSqliteFileOf(url) != null;
@@ -26,15 +33,30 @@ bool beakCanReadSchema(Uri url) =>
 /// the process that opened it, so there is nothing for another process to
 /// read.
 String? beakSqliteFileOf(Uri url) {
-  if (url.scheme != 'sqlite' && url.scheme != 'file') {
+  if (!beakIsSqliteUrl(url)) {
     return null;
   }
-  final String path = url.path.isEmpty ? url.toString() : url.path;
+  // `Uri.parse` percent-encodes what a file path may legitimately contain, a
+  // space above all, so decode rather than hand the encoded form to the
+  // filesystem. `sqlite:beak.db` has no authority and so an empty `path`,
+  // which is why the whole string is the fallback.
+  final String path = url.path.isEmpty
+      ? Uri.decodeFull(url.toString())
+      : Uri.decodeFull(url.path);
   final String file = path.startsWith('sqlite:')
       ? path.substring('sqlite:'.length)
       : path;
   return file.isEmpty || file.contains(':memory:') ? null : file;
 }
+
+/// Whether [file] already names a location rather than one relative to a
+/// project.
+///
+/// A leading slash covers POSIX; a drive letter covers Windows, where
+/// `sqlite:C:\data\beak.db` parses to the path `C:/data/beak.db` and
+/// joining it to the project root would name a directory nobody has.
+bool beakIsAbsolutePath(String file) =>
+    file.startsWith('/') || RegExp(r'^[A-Za-z]:[/\\]').hasMatch(file);
 
 /// Reads every table of the database [url] names.
 ///
@@ -76,7 +98,7 @@ bool beakSqliteFileExists(Uri url, Directory root) {
   if (file == null) {
     return false;
   }
-  final String path = file.startsWith('/') ? file : '${root.path}/$file';
+  final String path = beakIsAbsolutePath(file) ? file : '${root.path}/$file';
   return File(path).existsSync();
 }
 
@@ -108,8 +130,11 @@ Uri? beakDatabaseUrlOf(Directory root) {
 /// wherever the user happens to be.
 Uri beakResolvedDatabaseUrl(Uri url, Directory root) {
   final String? file = beakSqliteFileOf(url);
-  if (file == null || file.startsWith('/')) {
+  if (file == null || beakIsAbsolutePath(file)) {
     return url;
   }
-  return Uri.parse('sqlite:${root.path}/$file');
+  // Built rather than parsed: `Uri.parse` would percent-encode a project
+  // path containing a space, and the reader hands this straight to the
+  // filesystem.
+  return Uri(scheme: 'sqlite', path: '${root.path}/$file');
 }

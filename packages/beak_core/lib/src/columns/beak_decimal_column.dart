@@ -25,6 +25,7 @@ part of 'beak_column.dart';
 final class BeakDecimalColumn extends BeakColumn with BeakTypedColumn<double> {
   /// Creates a decimal column displaying [precision] fraction digits, stored
   /// in [totalDigits] digits overall.
+  // --8<-- [start:BeakDecimalColumn]
   const BeakDecimalColumn({
     required super.key,
     required super.label,
@@ -39,7 +40,14 @@ final class BeakDecimalColumn extends BeakColumn with BeakTypedColumn<double> {
     this.totalDigits = 10,
     this.prefix,
     this.suffix,
-  });
+  }) : assert(
+         precision <= totalDigits,
+         'precision is the fraction digits of totalDigits, so it cannot '
+         'exceed it: NUMERIC(totalDigits, precision) leaves '
+         'totalDigits - precision digits ahead of the point.',
+       ),
+       assert(precision >= 0, 'a column cannot show negative digits');
+  // --8<-- [end:BeakDecimalColumn]
 
   /// Number of fraction digits, displayed and stored.
   ///

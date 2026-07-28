@@ -8,6 +8,7 @@ part of 'beak_block.dart';
 /// `OiSpan` placement, so spans resolve responsively.
 final class BeakGridBlock extends BeakBlock {
   /// Creates a grid of [children].
+  // --8<-- [start:BeakGridBlock]
   const BeakGridBlock({
     required this.children,
     this.columns,
@@ -18,6 +19,7 @@ final class BeakGridBlock extends BeakBlock {
          columns == null || minColumnWidthInPixels == null,
          'Provide either columns or minColumnWidthInPixels, not both.',
        );
+  // --8<-- [end:BeakGridBlock]
 
   /// The blocks to place, in reading order.
   final List<BeakBlock> children;

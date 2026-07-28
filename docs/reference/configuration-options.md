@@ -123,13 +123,7 @@ drivers are in the box.
 ```
 
 ```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
-  static const Set<String> supportedDrivers = {
-    's3',
-    'ftp',
-    'memory',
-    'local',
-    'none',
-  };
+--8<-- "packages/beak_backend/lib/src/server/beak_storage_settings.dart:supportedDrivers"
 ```
 
 A driver outside that set is still usable: register it and build its config
@@ -154,10 +148,7 @@ a deployment configures itself through real environment variables and never
 needs a file. Real environment variables always win over file values.
 
 ```dart title="packages/beak_backend/lib/src/config/env_loader.dart"
-  static Map<String, String> resolve({
-    String filePath = '.env',
-    Map<String, String>? processEnvironment,
-  }) => {...loadFile(filePath), ...processEnvironment ?? Platform.environment};
+--8<-- "packages/beak_backend/lib/src/config/env_loader.dart:resolve"
 ```
 
 `BeakEnv.parse` handles comments (`#`), blank lines, an optional `export `
@@ -177,11 +168,7 @@ only when you have the parts already validated (tests, embedding). Its
 `toString` redacts the database credentials, so it is safe to log.
 
 ```dart title="packages/beak_backend/lib/src/config/beak_backend_config.dart"
-  const BeakBackendConfig({
-    required this.databaseUrl,
-    this.port = defaultPort,
-    this.host = defaultHost,
-  });
+--8<-- "packages/beak_backend/lib/src/config/beak_backend_config.dart:BeakBackendConfig"
 ```
 
 | Field | Type | Default | Meaning |
@@ -209,15 +196,7 @@ For AWS S3, MinIO, and other S3-compatible stores. Consumed by
 `beak_storage_s3`.
 
 ```dart title="packages/beak_core/lib/src/storage/drivers/beak_s3_config.dart"
-  const BeakS3Config({
-    required this.endpoint,
-    required this.bucket,
-    required this.accessKey,
-    required this.secretKey,
-    required this.region,
-    this.usePathStyle = false,
-    this.publicBaseUrl,
-  });
+--8<-- "packages/beak_core/lib/src/storage/drivers/beak_s3_config.dart:BeakS3Config"
 ```
 
 | Field | Type | Default | Meaning |
@@ -235,14 +214,7 @@ For AWS S3, MinIO, and other S3-compatible stores. Consumed by
 Consumed by `beak_storage_ftp`.
 
 ```dart title="packages/beak_core/lib/src/storage/drivers/beak_ftp_config.dart"
-  const BeakFtpConfig({
-    required this.host,
-    this.port = 21,
-    required this.user,
-    required this.password,
-    required this.baseDir,
-    required this.publicBaseUrl,
-  });
+--8<-- "packages/beak_core/lib/src/storage/drivers/beak_ftp_config.dart:BeakFtpConfig"
 ```
 
 | Field | Type | Default | Meaning |
@@ -261,10 +233,7 @@ Files land under a directory this server then serves. Pre-registered in
 at the public base URL's path for you.
 
 ```dart title="packages/beak_core/lib/src/storage/drivers/beak_local_disk_storage_config.dart"
-  const BeakLocalDiskStorageConfig({
-    required this.rootDir,
-    required this.publicBaseUrl,
-  });
+--8<-- "packages/beak_core/lib/src/storage/drivers/beak_local_disk_storage_config.dart:BeakLocalDiskStorageConfig"
 ```
 
 | Field | Type | Default | Meaning |
@@ -290,22 +259,7 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) =>
 ```
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
-  const BeakPanelConfig({
-    required this.title,
-    required this.resources,
-    required this.apiBaseUrl,
-    this.pages = const [],
-    this.auth,
-    this.maintenance,
-    this.theme,
-    this.darkTheme,
-    this.initialThemeMode = OiThemeMode.system,
-    this.sidebarCollapsible = true,
-    this.sidebarDefaultCollapsed = false,
-    this.dashboardStats = const [],
-    this.dashboardCharts = const [],
-    this.notifications,
-  });
+--8<-- "packages/beak_frontend/lib/src/panel/beak_panel_config.dart:BeakPanelConfig"
 ```
 
 | Field | Type | Default | Generated from |
@@ -343,20 +297,7 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
 ```
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
-  const BeakResource({
-    required this.model,
-    required this.icon,
-    this.label,
-    this.section,
-    this.recordActions = const [],
-    this.bulkActions = const [],
-    this.globalActions = const [],
-    this.filters = const [],
-    this.viewModes = const [BeakTableView()],
-    this.detail,
-    this.formSteps,
-    this.formLayout,
-  });
+--8<-- "packages/beak_frontend/lib/src/panel/beak_panel_config.dart:BeakResource"
 ```
 
 Three fields fall back to something derived rather than to their literal

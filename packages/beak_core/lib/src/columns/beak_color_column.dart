@@ -11,6 +11,7 @@ part of 'beak_column.dart';
 /// ```
 final class BeakColorColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a color column.
+  // --8<-- [start:BeakColorColumn]
   const BeakColorColumn({
     required super.key,
     required super.label,
@@ -22,6 +23,7 @@ final class BeakColorColumn extends BeakColumn with BeakTypedColumn<String> {
     super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakColorColumn]
 
   @override
   BeakRenderConfig get renderConfig =>

@@ -9,6 +9,7 @@ part of 'beak_column.dart';
 /// ```
 final class BeakRichTextColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a rich-text column.
+  // --8<-- [start:BeakRichTextColumn]
   const BeakRichTextColumn({
     required super.key,
     required super.label,
@@ -20,6 +21,7 @@ final class BeakRichTextColumn extends BeakColumn with BeakTypedColumn<String> {
     super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakRichTextColumn]
 
   @override
   BeakRenderConfig get renderConfig =>

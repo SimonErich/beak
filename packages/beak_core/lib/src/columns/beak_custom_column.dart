@@ -37,6 +37,7 @@ final class BeakColumnTag {
 /// ```
 final class BeakCustomColumn extends BeakColumn with BeakTypedColumn<Object> {
   /// Creates a custom column rendered by the builder registered under [tag].
+  // --8<-- [start:BeakCustomColumn]
   const BeakCustomColumn({
     required super.key,
     required super.label,
@@ -49,6 +50,7 @@ final class BeakCustomColumn extends BeakColumn with BeakTypedColumn<Object> {
     super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakCustomColumn]
 
   /// Identifies the registered custom renderer.
   final BeakColumnTag tag;

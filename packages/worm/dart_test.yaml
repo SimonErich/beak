@@ -56,7 +56,7 @@ paths:
 # Tag-driven test selection.
 #
 # The 'performance' tag covers benchmark assertions that exercise
-# wall-clock latency, query counts at scale, and RSS growth. The
+# wall-clock latency and query counts at scale. The
 # tag is declared so `dart test --tags performance` runs only
 # them; CI can exclude them from regular runs with
 # `dart test --exclude-tags performance`.

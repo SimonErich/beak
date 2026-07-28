@@ -1,6 +1,6 @@
 /// Performance regression benchmarks against `InMemoryAdapter`.
 ///
-/// Three guarantees are pinned here:
+/// Two guarantees are pinned here:
 ///
 /// 1. 10 000 individual `adapter.insert()` calls finish in
 ///    under 5 seconds.
@@ -8,8 +8,25 @@
 ///    under 500 ms AND issues exactly two `adapter.select()`
 ///    calls (one parent SELECT + one chunked-IN child
 ///    SELECT — well below the 1 000-id chunk boundary).
-/// 3. Streaming 50 000 rows via `adapter.stream()` adds
-///    fewer than 50 MB to `ProcessInfo.currentRss`.
+///
+/// A third used to pin the memory streaming 50 000 rows adds,
+/// as a `ProcessInfo.currentRss` budget. It is gone, because
+/// it asserted something that is not true of the adapter it
+/// measured: `InMemoryAdapter.stream` is
+/// `Stream.fromIterable(_store.query(d))`, and `query` returns
+/// a fully materialised `List`, so every row exists before the
+/// first one is emitted. The budget passed only because 50 000
+/// small maps are a few MB, and it flaked because RSS is
+/// process-wide and a parallel `dart test` charged other
+/// suites' allocations to it.
+///
+/// Reachability probes were tried as a replacement and are no
+/// better: Dart collects by liveness, so the local holding the
+/// rows is already unreachable by the time the probes are read,
+/// and the check passes whether or not anything retained them.
+/// What `stream()` really owes its caller, that it delivers
+/// every row exactly once, is pinned in
+/// `test/src/query/streaming_terminals_test.dart`.
 ///
 /// Thresholds are calibrated for the in-memory adapter only.
 /// Postgres / MongoDB adapters live in their own packages and
@@ -21,8 +38,6 @@
 /// with `dart test --tags performance`.
 @Tags(<String>['performance'])
 library;
-
-import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:worm/src/adapter/adapter_capabilities.dart';
@@ -312,79 +327,6 @@ void main() {
         expect(list, hasLength(5));
       }
     });
-
-    test(
-      'streaming 50 000 rows adds < 50 MB to ProcessInfo.currentRss',
-      () async {
-        final adapter = await _freshUsersTable();
-
-        // Seed 50 000 rows before the RSS snapshot so the
-        // backing store's allocation does NOT count against
-        // the budget — only stream-consumer growth is being
-        // measured.
-        await adapter.insertMany(
-          InsertManyDescriptor(
-            table: 'users',
-            rows: <Map<String, Object?>>[
-              for (var i = 1; i <= 50000; i++)
-                <String, Object?>{'id': i, 'name': 'u-$i'},
-            ],
-          ),
-        );
-
-        final baselineRss = ProcessInfo.currentRss;
-        if (baselineRss == 0) {
-          markTestSkipped(
-            'ProcessInfo.currentRss returns 0 on this platform; the RSS '
-            'growth assertion needs a Linux/macOS host.',
-          );
-          return;
-        }
-
-        var observed = 0;
-        await for (final _ in adapter.stream(
-          const QueryDescriptor(table: 'users'),
-        )) {
-          // Drop the row immediately — the AC under test is
-          // that streaming does NOT retain rows in memory
-          // beyond the per-iteration scope. Counting rows
-          // keeps the loop work non-trivial without forcing
-          // the runtime to retain anything.
-          observed++;
-        }
-
-        // RSS is process-wide — when `dart test` runs multiple test
-        // files in parallel isolates within a single process, the
-        // baseline → final delta picks up allocations from other
-        // isolates too. To keep the assertion focused on the stream
-        // consumer, take a follow-up sample after a brief event-loop
-        // yield (gives the runtime a chance to settle and any
-        // unrelated allocations to release) and use the minimum.
-        final firstSample = ProcessInfo.currentRss;
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        final secondSample = ProcessInfo.currentRss;
-        final finalRss = firstSample < secondSample
-            ? firstSample
-            : secondSample;
-        final growthBytes = finalRss - baselineRss;
-        const limitBytes = 50 * 1024 * 1024; // 50 MB
-
-        expect(observed, 50000, reason: 'stream() must deliver every row');
-        expect(
-          growthBytes,
-          lessThan(limitBytes),
-          reason:
-              'RSS grew by ${(growthBytes / (1024 * 1024)).toStringAsFixed(1)} '
-              'MB while streaming; spec budget is 50 MB on '
-              'InMemoryAdapter. A regression here usually means a stream '
-              'consumer is retaining rows it should be discarding. Note: '
-              'under default `dart test` parallelism this measurement is '
-              'noisy because RSS is process-wide; run '
-              '`dart test --tags performance --concurrency=1` for a '
-              'clean baseline.',
-        );
-      },
-    );
 
     test('complex query (relation + 2 aggregates) issues a constant, '
         'row-count-independent number of SELECTs (no N+1)', () async {

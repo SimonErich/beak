@@ -18,6 +18,7 @@ part of 'beak_column.dart';
 /// ```
 final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a JSON column.
+  // --8<-- [start:BeakJsonColumn]
   const BeakJsonColumn({
     required super.key,
     required super.label,
@@ -29,6 +30,7 @@ final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
     super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakJsonColumn]
 
   @override
   BeakRenderConfig get renderConfig =>

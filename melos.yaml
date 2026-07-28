@@ -4,9 +4,11 @@ packages:
   - packages/**
   - examples/**
 
-# The worm ORM and its drivers are vendored ("given") — they are consumed as
-# path dependencies but not gated: their mysql/mongodb test suites need
-# services this repo does not provision.
+# The worm ORM and its drivers are vendored ("given"), so they are consumed as
+# path dependencies and kept out of the melos gate: `melos exec` would run
+# `dart analyze` and `dart test` over an upstream tree this repo does not own.
+# They are still edited here, so `melos run test-worm` runs their suites
+# explicitly and CI calls it.
 ignore:
   - packages/worm
   - packages/worm/**
@@ -118,12 +120,26 @@ scripts:
       melos exec --fail-fast --flutter --dir-exists=test/e2e --
       "flutter test test/e2e --tags e2e"
     description: Service-backed suites of the Flutter packages.
-  test-worm-drivers:
-    # worm and its drivers are vendored and sit outside the melos scope
-    # (see `ignore:` above), so `melos run test` never reaches them. Their
-    # Postgres suites are where ALTER TABLE and `EXPLAIN … USING INDEX` are
-    # proven against a real server rather than a compiler golden, and until
-    # this ran they self-skipped everywhere including CI.
+  test-worm:
+    # worm and its drivers are vendored and sit outside the melos scope (see
+    # `ignore:` above), so `melos run test` never reaches them. They are still
+    # edited here: the schema compilers, the adapter contract and the
+    # descriptor union all live in this tree, and a change to one of them is
+    # invisible to every other gate.
+    run: melos run test-worm-local && melos run test-worm-postgres
+    description: Run the vendored worm packages' suites.
+  test-worm-local:
+    # No services. worm_mysql and worm_mongodb self-skip without their own
+    # env vars and still cover their compilers and error mappers.
+    run: >-
+      for pkg in worm worm_sqlite worm_mysql worm_mongodb; do
+        (cd "packages/$pkg" && dart pub get > /dev/null && dart test) || exit 1;
+      done
+    description: Run the vendored packages' service-free suites.
+  test-worm-postgres:
+    # Where ALTER TABLE and `EXPLAIN … USING INDEX` are proven against a real
+    # server rather than a compiler golden. Until this ran they self-skipped
+    # everywhere including CI.
     #
     # `?sslmode=disable` is required by the postgres package's own URL parser
     # against a server without TLS; the local compose instance has none.
@@ -131,7 +147,7 @@ scripts:
       cd packages/worm_postgres && dart pub get &&
       PG_DB="${PG_DB:-postgres://beak:beak@localhost:25432/beak?sslmode=disable}"
       dart test
-    description: Run the vendored drivers' service-backed suites.
+    description: Run the vendored Postgres driver's service-backed suite.
   test-root:
     run: dart test
     description: Run the workspace tooling self-checks (coverage gate, guards).

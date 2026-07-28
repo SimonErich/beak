@@ -7,6 +7,8 @@ BeakSchemaIr schemaWith(
   String table,
   List<String> fields, {
   bool softDeletes = false,
+  bool required = false,
+  Map<String, String> options = const {},
 }) => BeakSchemaIr(
   className: className,
   table: table,
@@ -18,8 +20,8 @@ BeakSchemaIr schemaWith(
         columnKey: field,
         label: field,
         kind: BeakColumnKind.integer,
-        isRequired: false,
-        arguments: const {},
+        isRequired: required,
+        arguments: options,
       ),
   ],
   relations: const [],
@@ -208,6 +210,77 @@ void main() {
       );
 
       expect(BeakEmitters.format(source!), source);
+    });
+  });
+
+  group('a column a live table cannot gain', () {
+    List<BeakDrift> driftFor(BeakSchemaIr schema) => beakSchemaDrift(
+      schemas: [schema],
+      tables: [
+        tableWith('products', ['id']),
+      ],
+    );
+
+    test('a required column with no default is refused, not written', () {
+      // Every database refuses a NOT NULL column on a table that already has
+      // rows unless it is told what those rows should hold. Writing it anyway
+      // hands someone a migration `beak migrate` rejects, after telling them
+      // the fix was written.
+      final drift = driftFor(
+        schemaWith('Product', 'products', ['stock'], required: true),
+      );
+
+      expect(BeakDriftMigrationEmitter.addable(drift), isEmpty);
+      expect(
+        BeakDriftMigrationEmitter.unaddable(drift).values.single,
+        contains('needs a value for the rows already there'),
+      );
+    });
+
+    test('a required column with a default is written', () {
+      final drift = driftFor(
+        schemaWith(
+          'Product',
+          'products',
+          ['stock'],
+          required: true,
+          options: const {'defaultValue': '0'},
+        ),
+      );
+
+      expect(BeakDriftMigrationEmitter.addable(drift), hasLength(1));
+      expect(BeakDriftMigrationEmitter.unaddable(drift), isEmpty);
+    });
+
+    test('a unique column is refused, with the three-step way round', () {
+      final drift = driftFor(
+        schemaWith(
+          'Product',
+          'products',
+          ['sku'],
+          options: const {'unique': 'true'},
+        ),
+      );
+
+      expect(BeakDriftMigrationEmitter.addable(drift), isEmpty);
+      expect(
+        BeakDriftMigrationEmitter.unaddable(drift).values.single,
+        contains('backfill'),
+      );
+    });
+
+    test('nothing addable means no migration at all', () {
+      expect(
+        BeakDriftMigrationEmitter.emit(
+          className: 'AddStock',
+          timestamp: '20260728_120000',
+          description: 'Add stock',
+          drift: driftFor(
+            schemaWith('Product', 'products', ['stock'], required: true),
+          ),
+        ),
+        isNull,
+      );
     });
   });
 }

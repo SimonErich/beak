@@ -19,6 +19,7 @@ part of 'beak_column.dart';
 final class BeakFileColumn extends BeakUploadColumn
     with BeakTypedColumn<String> {
   /// Creates a file column storing uploads under [storagePath].
+  // --8<-- [start:BeakFileColumn]
   const BeakFileColumn({
     required super.key,
     required super.label,
@@ -33,6 +34,7 @@ final class BeakFileColumn extends BeakUploadColumn
     super.maxSizeInBytes,
     super.allowedTypes,
   });
+  // --8<-- [end:BeakFileColumn]
 
   @override
   BeakRenderConfig get renderConfig =>

@@ -29,6 +29,7 @@ final class BeakExportHandlers {
   final BeakPolicy policy;
 
   /// `POST /export` — body: a `BeakQuerySpec` for this model.
+  // --8<-- [start:export]
   Future<Response> export(Request request) async {
     enforcePolicyDecision(
       allowed: policy.canView(beakPrincipal(request), model.table),
@@ -56,6 +57,8 @@ final class BeakExportHandlers {
       },
     );
   }
+
+  // --8<-- [end:export]
 }
 
 /// Registers one model's export surface on its resource [router].

@@ -22,6 +22,7 @@ import 'package:meta/meta.dart';
 ///   BeakStorageException() => 500,
 /// };
 /// ```
+// --8<-- [start:BeakException]
 @immutable
 sealed class BeakException implements Exception {
   /// Creates an exception carrying a stable [code] and a [message].
@@ -36,6 +37,7 @@ sealed class BeakException implements Exception {
   @override
   String toString() => '$runtimeType($code): $message';
 }
+// --8<-- [end:BeakException]
 
 /// Raised when user-supplied data violates one or more column rules.
 ///

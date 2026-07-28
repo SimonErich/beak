@@ -25,6 +25,15 @@ WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
 ORDER BY name
 ''';
 
+  /// [identifier] as a quoted SQLite identifier.
+  ///
+  /// PRAGMA takes no bind parameters, so the name is interpolated and has to
+  /// carry its own quoting. `beak introspect sqlite:legacy.db` exists to read
+  /// databases Beak did not create, where a name holding a double quote is
+  /// somebody else's decision rather than a hypothetical.
+  static String quoted(String identifier) =>
+      '"${identifier.replaceAll('"', '""')}"';
+
   /// Reads every table, its columns, its indexes and its foreign keys.
   Future<List<IntrospectedTable>> read() async {
     final tables = <IntrospectedTable>[];
@@ -45,7 +54,7 @@ ORDER BY name
   Future<List<IntrospectedColumn>> _columnsOf(String table) async {
     final (indexed, unique) = await _indexedColumnsOf(table);
     return [
-      for (final row in await query('PRAGMA table_info("$table")'))
+      for (final row in await query('PRAGMA table_info(${quoted(table)})'))
         _columnOf(row, indexed: indexed, unique: unique),
     ];
   }
@@ -108,9 +117,11 @@ ORDER BY name
   Future<(Set<String>, Set<String>)> _indexedColumnsOf(String table) async {
     final indexed = <String>{};
     final unique = <String>{};
-    for (final index in await query('PRAGMA index_list("$table")')) {
+    for (final index in await query('PRAGMA index_list(${quoted(table)})')) {
       final columns = [
-        for (final row in await query('PRAGMA index_info("${index['name']}")'))
+        for (final row in await query(
+          'PRAGMA index_info(${quoted('${index['name']}')})',
+        ))
           '${row['name']}',
       ];
       // A composite index says nothing about any one of its columns being
@@ -127,7 +138,7 @@ ORDER BY name
   }
 
   Future<List<IntrospectedForeignKey>> _foreignKeysOf(String table) async => [
-    for (final row in await query('PRAGMA foreign_key_list("$table")'))
+    for (final row in await query('PRAGMA foreign_key_list(${quoted(table)})'))
       IntrospectedForeignKey(
         column: '${row['from']}',
         referencedTable: '${row['table']}',
@@ -140,7 +151,7 @@ ORDER BY name
   /// not, and naming the conventional column keeps the rest of the pipeline
   /// from having to handle a null.
   Future<String> _primaryKeyOf(String table) async {
-    for (final row in await query('PRAGMA table_info("$table")')) {
+    for (final row in await query('PRAGMA table_info(${quoted(table)})')) {
       if ('${row['pk']}' != '0') {
         return '${row['name']}';
       }

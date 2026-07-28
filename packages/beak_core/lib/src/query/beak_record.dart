@@ -100,6 +100,7 @@ final class BeakRecord {
   };
 
   /// This record as a plain JSON-encodable object.
+  // --8<-- [start:toJson]
   Map<String, Object?> toJson() => {
     'values': {
       for (final MapEntry(:key, :value) in _values.entries) key: value.toJson(),
@@ -109,6 +110,7 @@ final class BeakRecord {
         key: [for (final record in value) record.toJson()],
     },
   };
+  // --8<-- [end:toJson]
 
   @override
   bool operator ==(Object other) =>

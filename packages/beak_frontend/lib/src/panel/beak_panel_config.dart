@@ -54,6 +54,7 @@ extension type const BeakIconToken(IconData icon) {}
 final class BeakResource {
   /// Creates a panel resource for [model], shown with [icon] and [label]
   /// (defaults to the title-cased table name).
+  // --8<-- [start:BeakResource]
   const BeakResource({
     required this.model,
     required this.icon,
@@ -68,6 +69,7 @@ final class BeakResource {
     this.formSteps,
     this.formLayout,
   });
+  // --8<-- [end:BeakResource]
 
   /// The model this resource exposes.
   final BeakModel model;
@@ -230,6 +232,7 @@ final class BeakResource {
 /// ```
 final class BeakPanelConfig {
   /// Creates a panel configuration.
+  // --8<-- [start:BeakPanelConfig]
   const BeakPanelConfig({
     required this.title,
     required this.resources,
@@ -246,6 +249,7 @@ final class BeakPanelConfig {
     this.dashboardCharts = const [],
     this.notifications,
   });
+  // --8<-- [end:BeakPanelConfig]
 
   /// The panel title, shown in the shell and the login screen.
   final String title;

@@ -24,6 +24,7 @@ abstract final class BeakStorageSettings {
   /// config yourself. This helper covers the ones configurable purely from
   /// environment variables. `none` is not a driver, it is the way to say
   /// that a deployment wants no upload surface at all.
+  // --8<-- [start:supportedDrivers]
   static const Set<String> supportedDrivers = {
     's3',
     'ftp',
@@ -31,6 +32,7 @@ abstract final class BeakStorageSettings {
     'local',
     'none',
   };
+  // --8<-- [end:supportedDrivers]
 
   /// Builds the storage config [environment] selects, or `null` when it asks
   /// for none.

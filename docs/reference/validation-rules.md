@@ -28,17 +28,7 @@ across the wire) and a single `validate` method that returns `null` when the
 value is valid, or a human-readable message when it is not.
 
 ```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
-@immutable
-sealed class BeakRule {
-  const BeakRule();
-
-  /// Stable machine-readable identity for serialization to either side of
-  /// the wire.
-  String get id;
-
-  /// Returns `null` when [value] is valid, else a human-readable message.
-  String? validate(Object? value);
-}
+--8<-- "packages/beak_core/lib/src/rules/beak_rule.dart:BeakRule"
 ```
 
 ### Non-applicable types pass

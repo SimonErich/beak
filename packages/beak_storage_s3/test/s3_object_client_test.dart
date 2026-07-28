@@ -5,6 +5,8 @@ import 'package:beak_storage_s3/beak_storage_s3.dart';
 import 'package:minio/minio.dart';
 // Shown selectively: the model barrel also declares an `Object` that would
 // shadow `dart:core`'s in this file.
+// `Error` is minio's S3 error model and would shadow dart:core's here.
+import 'package:minio/models.dart' as minio show Error;
 import 'package:minio/models.dart' show StatObjectResult;
 import 'package:test/test.dart';
 
@@ -55,14 +57,23 @@ final class RecordedPresign {
   final int? expiresInSeconds;
 }
 
-/// The error `package:minio` raises for an HTTP [statusCode], as its own
-/// response validation builds it.
-MinioS3Error s3Error(int statusCode, String message) =>
-    // The S3 error code, which is what a real "no such object" carries and
-    // what the adapter reads. Building the HTTP response it would also carry
-    // needs `package:minio`'s own internals, and a test has no business
-    // importing those.
-    MinioS3Error(statusCode == 404 ? 'NoSuchKey' : message);
+/// The error `package:minio` raises for an HTTP [statusCode], shaped the way
+/// its own response validation shapes one.
+///
+/// `validate` parses S3's XML body into minio's `Error` and passes
+/// `error.message` as the exception message, keeping the documented code on
+/// the error itself. Getting that split wrong is how a check for a missing
+/// object can look right and never fire, so the fixture reproduces it:
+/// message is the sentence, code is `NoSuchKey`.
+MinioS3Error s3Error(int statusCode, String message) => MinioS3Error(
+  message,
+  minio.Error(
+    statusCode == 404 ? 'NoSuchKey' : 'InternalError',
+    null,
+    message,
+    null,
+  ),
+);
 
 /// A [Minio] double serving objects from memory.
 ///

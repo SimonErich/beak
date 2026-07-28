@@ -448,11 +448,30 @@ String? sectionOf(String reference) {
   return RegExp(r'^[A-Za-z_][\w-]*$').hasMatch(tail) ? tail : null;
 }
 
+/// Root-level files this repository owns and pages quote verbatim.
+///
+/// Listed rather than inferred from what happens to exist: a fence titled
+/// `beak.yaml` or `lib/models/product.dart` names a file in the *reader's*
+/// project, and checking those against this repo would fail on the day
+/// someone adds a file with the same name at the root.
+const Set<String> quotableRootFiles = {
+  'melos.yaml',
+  'mkdocs.yml',
+  'pubspec.yaml',
+  'analysis_options.yaml',
+  'docker-compose.yml',
+  'CONTRIBUTING.md',
+  'README.md',
+};
+
 /// Whether [path] names a file this repository is expected to contain.
 bool _quotesRepo(String path) =>
     path.startsWith('packages/') ||
     path.startsWith('examples/') ||
-    path.startsWith('tool/');
+    path.startsWith('tool/') ||
+    path.startsWith('deploy/') ||
+    path.startsWith('PLAN/') ||
+    quotableRootFiles.contains(path);
 
 /// The lines of [lines] on [path] that break one of [bans].
 ///

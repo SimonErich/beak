@@ -21,20 +21,7 @@ Every failure carries two things: a stable machine-readable `code` for wire
 formats and a human-readable `message` for people.
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-@immutable
-sealed class BeakException implements Exception {
-  /// Creates an exception carrying a stable [code] and a [message].
-  const BeakException({required this.code, required this.message});
-
-  /// Stable machine-readable identifier of the failure category.
-  final String code;
-
-  /// Human-readable description of what went wrong.
-  final String message;
-
-  @override
-  String toString() => '$runtimeType($code): $message';
-}
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakException"
 ```
 
 The `code` is the contract. It travels in the JSON error body, and the frontend

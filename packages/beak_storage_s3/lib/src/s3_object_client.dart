@@ -160,13 +160,13 @@ final class MinioS3ObjectClient implements S3ObjectClient {
   /// Whether [error] means the object is not there, rather than that the
   /// request failed.
   ///
-  /// Checks the S3 error code as well as the HTTP status. A `NoSuchKey` can
-  /// arrive without the response object the status is read from, and the code
-  /// is what S3 itself documents; keying only on 404 turned a missing object
-  /// into a thrown exception whenever the response was absent.
+  /// Reads the S3 error code as well as the HTTP status. `package:minio`
+  /// puts the human sentence in [MinioS3Error.message] and the code S3
+  /// documents on `error.error.code`, so the code is the field to match; the
+  /// status alone misses a failure raised without a response attached.
   static bool isMissingObject(MinioS3Error error) =>
       error.response?.statusCode == 404 ||
-      _missingObjectCodes.contains(error.message);
+      _missingObjectCodes.contains(error.error?.code);
 
   /// The S3 error codes that mean "no such object".
   static const Set<String> _missingObjectCodes = {'NoSuchKey', 'NotFound'};

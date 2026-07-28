@@ -25,9 +25,40 @@ abstract final class BeakDriftMigrationEmitter {
     for (final problem in drift)
       if (problem case BeakMissingColumn(
         cause: BeakMissingColumnCause.declared,
+        column: final BeakColumnIr column,
       ))
-        problem,
+        if (_canAddToLiveTable(column)) problem,
   ];
+
+  /// The declared columns this cannot add, and why, for the caller to report.
+  ///
+  /// Kept beside [addable] so the two cannot disagree about which column
+  /// belongs where.
+  static Map<BeakMissingColumn, String> unaddable(List<BeakDrift> drift) => {
+    for (final problem in drift)
+      if (problem case BeakMissingColumn(
+        cause: BeakMissingColumnCause.declared,
+        column: final BeakColumnIr column,
+      ))
+        if (!_canAddToLiveTable(column)) problem: _refusalFor(column),
+  };
+
+  /// Whether [column] can be added to a table that already holds rows.
+  ///
+  /// The constraint is the database's, not Beak's: a table with rows cannot
+  /// gain a `NOT NULL` column without a value for the rows already there, and
+  /// SQLite cannot add a unique column at all. Writing the migration anyway
+  /// would hand someone a file that `beak migrate` refuses, after telling
+  /// them it had written the fix.
+  static bool _canAddToLiveTable(BeakColumnIr column) =>
+      !column.isUnique && (!column.isRequired || column.hasDefault);
+
+  /// Why [column] cannot be added, phrased as the edit that would let it.
+  static String _refusalFor(BeakColumnIr column) => column.isUnique
+      ? 'a unique column cannot be added to a table that already has rows; '
+            'add it nullable, backfill, then add the index'
+      : 'a required column needs a value for the rows already there; give it '
+            'a default, or make it nullable and backfill';
 
   /// The migration body for [drift], grouped by table.
   ///

@@ -77,6 +77,12 @@ jobs:
       - name: Build the superdashboard panel for web
         run: flutter build web --release
         working-directory: examples/superdashboard
+      # Embedded mounts Beak inside a host app whose own code sits beside it,
+      # which is the arrangement most likely to drag a server import into the
+      # panel graph by accident.
+      - name: Build the embedded host app for web
+        run: flutter build web --release
+        working-directory: examples/embedded
 
   test:
     name: Test & coverage
@@ -110,11 +116,12 @@ jobs:
         run: melos run up
       - name: Service-backed suites
         run: melos run test-e2e
-      # The vendored drivers sit outside the melos scope, so `melos run test`
-      # never reaches them. This is where ALTER TABLE and `EXPLAIN … USING
-      # INDEX` are proven against a real server rather than a compiler golden.
-      - name: Vendored driver suites (Postgres)
-        run: melos run test-worm-drivers
+      # The vendored worm packages sit outside the melos scope, so
+      # `melos run test` never reaches them, and they are still edited here.
+      # This is also where ALTER TABLE and `EXPLAIN … USING INDEX` are proven
+      # against a real server rather than a compiler golden.
+      - name: Vendored worm suites
+        run: melos run test-worm
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4

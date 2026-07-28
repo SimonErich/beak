@@ -64,6 +64,7 @@ part 'beak_text_column.dart';
 @immutable
 sealed class BeakColumn {
   /// Creates a column stored under [key] and labelled [label].
+  // --8<-- [start:BeakColumn]
   const BeakColumn({
     required this.key,
     required this.label,
@@ -79,6 +80,7 @@ sealed class BeakColumn {
     this.unique = false,
     this.rules = const [],
   });
+  // --8<-- [end:BeakColumn]
 
   /// Storage/DB column name (snake_case). Beak wires it internally; users
   /// reference the column constant itself, never this string.

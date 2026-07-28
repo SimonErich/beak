@@ -102,4 +102,39 @@ void main() {
       );
     });
   });
+
+  group('paths a URI would mangle', () {
+    test('a project directory with a space survives the round trip', () {
+      // `Uri.parse` percent-encodes a space, and the reader hands the result
+      // straight to the filesystem, so a checkout under `~/My Projects`
+      // reported "could not read the schema" on every run.
+      final root = Directory('/tmp/My Beak Project');
+      final resolved = beakResolvedDatabaseUrl(
+        Uri.parse('sqlite:beak.db'),
+        root,
+      );
+
+      expect(beakSqliteFileOf(resolved), '/tmp/My Beak Project/beak.db');
+    });
+
+    test('a Windows drive letter counts as absolute', () {
+      // Joining `C:/data/beak.db` to the project root would name a directory
+      // nobody has, and doctor would report a migrated database as missing.
+      expect(beakIsAbsolutePath(r'C:\data\beak.db'), isTrue);
+      expect(beakIsAbsolutePath('C:/data/beak.db'), isTrue);
+      expect(beakIsAbsolutePath('/var/db/beak.db'), isTrue);
+      expect(beakIsAbsolutePath('beak.db'), isFalse);
+    });
+  });
+
+  group('beakIsSqliteUrl', () {
+    test('an in-memory database is SQLite even though it names no file', () {
+      // Deciding "is this SQLite?" by asking which file it names sent
+      // `sqlite::memory:` down the Postgres branch, to be probed on port 0.
+      final url = Uri.parse('sqlite::memory:');
+
+      expect(beakIsSqliteUrl(url), isTrue);
+      expect(beakSqliteFileOf(url), isNull);
+    });
+  });
 }
