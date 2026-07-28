@@ -16,19 +16,7 @@ Every place a column can appear is one value of `BeakContext`. The renderer asks
 a column "what are you here?" and passes one of these four answers.
 
 ```dart title="packages/beak_core/lib/src/context/beak_context.dart"
-enum BeakContext {
-  /// A cell inside a resource list/table.
-  table,
-
-  /// An editable input inside a create/edit form.
-  form,
-
-  /// A read-only entry inside a record detail view.
-  detail,
-
-  /// A filter control inside a table's filter bar.
-  filter,
-}
+--8<-- "packages/beak_core/lib/src/context/beak_context.dart:BeakContext"
 ```
 
 That is the whole point of Beak's columns. One `const BeakColumn`, generated from

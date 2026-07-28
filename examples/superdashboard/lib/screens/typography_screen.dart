@@ -3,6 +3,7 @@ import 'package:beak/ui.dart';
 
 /// The typography specimen — the full `OiLabel` type ramp exposed through
 /// `BeakTextBlock`, from the display size down to the caption.
+// --8<-- [start:buildTypographyScreen]
 BeakScreen buildTypographyScreen() => const BeakScreen(
   path: '/typography',
   title: 'Typography',
@@ -35,3 +36,5 @@ BeakScreen buildTypographyScreen() => const BeakScreen(
     ),
   ),
 );
+
+// --8<-- [end:buildTypographyScreen]

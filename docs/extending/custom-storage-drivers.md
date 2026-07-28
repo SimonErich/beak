@@ -19,29 +19,7 @@ rest and plug in at app init. Nothing is hard-wired. Your driver joins that set.
 A driver is an id and five methods over one relative, `/`-separated key:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_driver.dart"
-abstract interface class BeakStorageDriver {
-  /// Stable driver identifier matching `BeakStorageConfig.driverId`
-  /// (`'s3'`, `'ftp'`, `'memory'`, `'local'`).
-  String get id;
-
-  /// Stores [upload] under the [path] prefix and returns its description.
-  ///
-  /// The key is `path/filename`; putting to an existing key overwrites it.
-  Future<BeakStoredFile> put(BeakUpload upload, {required String path});
-
-  /// Reads the content stored under [key].
-  Future<Uint8List> get(String key);
-
-  /// Deletes the file stored under [key].
-  Future<void> delete(String key);
-
-  /// A URL serving [key], valid for [expiresIn] where the backend supports
-  /// expiring links (drivers without link expiry ignore it).
-  Future<Uri> url(String key, {Duration? expiresIn});
-
-  /// Whether a file is stored under [key].
-  Future<bool> exists(String key);
-}
+--8<-- "packages/beak_core/lib/src/storage/beak_storage_driver.dart:BeakStorageDriver"
 ```
 
 | Member | Returns | The contract |
@@ -145,19 +123,7 @@ worth copying: driver *logic* (key handling, error mapping, URL building) on one
 side, the *wire* on the other.
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_transport.dart"
-abstract interface class FtpTransport {
-  /// Uploads [bytes] under [key], creating missing parent directories.
-  Future<void> store(String key, Uint8List bytes);
-
-  /// Downloads the file stored under [key].
-  Future<Uint8List> retrieve(String key);
-
-  /// Deletes the file stored under [key].
-  Future<void> remove(String key);
-
-  /// Whether a file is stored under [key].
-  Future<bool> exists(String key);
-}
+--8<-- "packages/beak_storage_ftp/lib/src/ftp_transport.dart:FtpTransport"
 ```
 
 The production implementation, `SocketFtpTransport`, speaks RFC 959 over
@@ -195,9 +161,7 @@ The convention is a `register<Name>Storage` function, one line, that a driver
 package exposes:
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
-void registerFtpStorage(BeakStorageRegistry registry) {
-  registry.register('ftp', FtpStorageDriver.fromConfig);
-}
+--8<-- "packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart:registerFtpStorage"
 ```
 
 ## Registering the driver

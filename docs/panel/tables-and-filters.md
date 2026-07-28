@@ -93,16 +93,7 @@ binds to a `BeakColumn` and fixes both how it renders and which `BeakOperator` i
 contributes.
 
 ```dart title="packages/beak_frontend/lib/src/filters/beak_filter_widget.dart"
-sealed class BeakFilterDef {
-  /// Creates a filter over [column] labelled [label].
-  const BeakFilterDef({required this.column, required this.label});
-
-  /// The column the filter constrains.
-  final BeakColumn column;
-
-  /// The control label.
-  final String label;
-}
+--8<-- "packages/beak_frontend/lib/src/filters/beak_filter_widget.dart:BeakFilterDef"
 ```
 
 | Filter | Control | Operator | Contributes a predicate when |
@@ -136,25 +127,7 @@ The mapping from column kind to control is one exhaustive switch, so a new colum
 kind has to decide what filtering it means instead of silently defaulting to none:
 
 ```dart title="packages/beak_frontend/lib/src/filters/beak_default_filters.dart"
-BeakFilterDef? _filterFor(BeakColumn column) => switch (column) {
-  BeakEnumColumn() => BeakSelectFilter(column: column, label: column.label),
-  BeakBoolColumn() => BeakBoolFilter(column: column, label: column.label),
-  BeakStringColumn() ||
-  BeakTextColumn() => BeakTextFilter(column: column, label: column.label),
-  BeakDateTimeColumn() => BeakDateRangeFilter(
-    column: column,
-    label: column.label,
-  ),
-  // No control fits these: a number wants a range input the filter family
-  // does not have yet, and the rest are not values a person filters by.
-  BeakIntColumn() ||
-  BeakDecimalColumn() ||
-  BeakRichTextColumn() ||
-  BeakJsonColumn() ||
-  BeakColorColumn() ||
-  BeakCustomColumn() ||
-  BeakUploadColumn() => null,
-};
+--8<-- "packages/beak_frontend/lib/src/filters/beak_default_filters.dart:filterFor"
 ```
 
 | Column kind | Derived control |
@@ -195,24 +168,7 @@ your labels. That happens in `lib/resources/<table>.dart`, the one file per
 resource where a person's decisions live:
 
 ```dart title="examples/superdashboard/lib/resources/orders.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: orderLayout,
-  formLayout: orderLayout,
-  filters: [
-    const BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
-    const BeakSelectFilter(column: OrderColumns.source, label: 'Source'),
-  ],
-  viewModes: [
-    const BeakTableView(),
-    const BeakKanbanView(
-      groupField: OrderColumns.status,
-      titleField: OrderColumns.reference,
-      subtitleField: OrderColumns.total,
-      sortField: OrderColumns.placedAt,
-      sortDescending: true,
-    ),
-  ],
-);
+--8<-- "examples/superdashboard/lib/resources/orders.dart:beakResource"
 ```
 
 Reach for this when the derived bar is wrong: a label that should read something

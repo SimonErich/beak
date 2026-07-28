@@ -42,6 +42,7 @@ const List<_Icon> _icons = [
 ];
 
 /// The icons reference page — a named grid of the design-system icon set.
+// --8<-- [start:buildIconsScreen]
 BeakScreen buildIconsScreen() => BeakScreen(
   path: '/icons',
   title: 'Icons',
@@ -58,3 +59,5 @@ BeakScreen buildIconsScreen() => BeakScreen(
     ),
   ),
 );
+
+// --8<-- [end:buildIconsScreen]

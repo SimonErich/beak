@@ -3,6 +3,7 @@
 /// `beak_core` never imports `dart:ui`: columns and actions reference colors
 /// only by semantic role, and `beak_frontend` resolves each token against the
 /// active obers_ui theme (`context.colors`).
+// --8<-- [start:BeakColor]
 enum BeakColor {
   /// The theme's primary accent color.
   primary,
@@ -25,3 +26,5 @@ enum BeakColor {
   /// De-emphasized/disabled states.
   muted,
 }
+
+// --8<-- [end:BeakColor]

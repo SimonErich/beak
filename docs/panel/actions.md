@@ -64,32 +64,7 @@ The file is named after the table, the function is named `beakResource`, and `be
 `BeakAction` is a sealed hierarchy with exactly three targets, so every surface can switch over them exhaustively. All three share the same base fields.
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
-sealed class BeakAction {
-  /// Creates an action identified by [key] and labelled [label].
-  const BeakAction({
-    required this.key,
-    required this.label,
-    this.icon,
-    this.color,
-    this.requiresConfirmation = false,
-  });
-
-  /// Stable identifier (test hooks, telemetry).
-  final String key;
-
-  /// The button label.
-  final String label;
-
-  /// The button icon, if any.
-  final IconData? icon;
-
-  /// Semantic color driving the button variant ([BeakColor.error] renders
-  /// destructively, [BeakColor.primary] prominently).
-  final BeakColor? color;
-
-  /// Whether a confirmation dialog gates execution.
-  final bool requiresConfirmation;
-}
+--8<-- "packages/beak_frontend/lib/src/actions/beak_action.dart:BeakAction"
 ```
 
 The three subclasses differ only in what their `onExecute` receives:
@@ -101,21 +76,7 @@ The three subclasses differ only in what their `onExecute` receives:
 | `BeakGlobalAction` | `globalActions` | the context only |
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
-final class BeakRecordAction extends BeakAction {
-  /// Creates a record action running [onExecute].
-  const BeakRecordAction({
-    required super.key,
-    required super.label,
-    required this.onExecute,
-    super.icon,
-    super.color,
-    super.requiresConfirmation,
-  });
-
-  /// Runs the action on [BeakRecord].
-  final Future<void> Function(BeakRecord record, BeakActionContext context)
-  onExecute;
-}
+--8<-- "packages/beak_frontend/lib/src/actions/beak_action.dart:BeakRecordAction"
 ```
 
 The built-in view, edit, delete, and create actions subclass these, so your custom actions sit alongside them on the generated pages. `BeakDeleteAction`, for instance, is a `BeakRecordAction` that renders destructively and commits through an optimistic undo window.
@@ -159,35 +120,7 @@ A bulk action gets the whole selection in one call, so mass work runs in a singl
 Every action's `onExecute` is handed a `BeakActionContext`: the resource's model, the data source, the router, the build context overlays mount from, and a hook to refresh the surface the action ran from. Custom actions read from it rather than capturing widget state.
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
-final class BeakActionContext {
-  /// Creates the execution context handed to every action.
-  const BeakActionContext({
-    required this.buildContext,
-    required this.model,
-    required this.dataSource,
-    required this.router,
-    this.refresh,
-  });
-
-  /// The context overlays (dialogs, undo toasts) mount from.
-  final BuildContext buildContext;
-
-  /// The model of the resource the action runs on.
-  final BeakModel model;
-
-  /// The source mutations run against.
-  final BeakDataSource dataSource;
-
-  /// The panel router, for navigating actions.
-  final GoRouter router;
-
-  /// Reloads the surface the action ran from (e.g. the list), if any.
-  final Future<void> Function()? refresh;
-
-  /// The declarative overlay handle — confirmations, modals, sheets, and
-  /// toasts — bound to this action's [buildContext].
-  BeakOverlays get overlays => BeakOverlays(buildContext);
-}
+--8<-- "packages/beak_frontend/lib/src/actions/beak_action.dart:BeakActionContext"
 ```
 
 Two members carry most of the weight. `dataSource` is the same source-agnostic interface the panel reads through, so an action's mutation goes through the identical path as everything else. `refresh` reloads the surface the action ran from.
@@ -199,34 +132,7 @@ Two members carry most of the weight. `dataSource` is the same source-agnostic i
 Set `requiresConfirmation: true` and Beak shows a dialog before running. The single execution path both the buttons and the table rows route through checks it first, and a destructive color turns the confirm button destructive:
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action_button.dart"
-Future<void> executeBeakAction({
-  required BeakAction action,
-  required BeakActionContext context,
-  BeakRecord? record,
-  List<BeakRecord> records = const [],
-}) async {
-  if (action.requiresConfirmation) {
-    final bool confirmed = await context.overlays.confirm(
-      title: '${action.label}?',
-      confirmLabel: action.label,
-      destructive: action.color == BeakColor.error,
-    );
-    if (!confirmed) {
-      return;
-    }
-  }
-  switch (action) {
-    case final BeakRecordAction recordAction:
-      final BeakRecord? target = record;
-      if (target != null) {
-        await recordAction.onExecute(target, context);
-      }
-    case final BeakBulkAction bulkAction:
-      await bulkAction.onExecute(records, context);
-    case final BeakGlobalAction globalAction:
-      await globalAction.onExecute(context);
-  }
-}
+--8<-- "packages/beak_frontend/lib/src/actions/beak_action_button.dart:executeBeakAction"
 ```
 
 If you need finer control (a custom message, a modal instead of a yes/no), skip `requiresConfirmation` and call `context.overlays.confirm(...)` inside `onExecute` yourself, as [Overlays](overlays.md) shows.

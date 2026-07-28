@@ -14,6 +14,7 @@ import 'models/ticket.dart';
 ///
 /// The only Beak wiring is [registerBeakDependencies], which is what gives the
 /// blocks their data source.
+// --8<-- [start:HostApp]
 final class HostApp extends StatelessWidget {
   /// Creates the host app; [dataSource] injects a fake in widget tests.
   HostApp({this.dataSource, super.key}) {
@@ -27,6 +28,7 @@ final class HostApp extends StatelessWidget {
   Widget build(BuildContext context) =>
       OiApp(theme: OiThemeData.light(), home: const _SupportScreen());
 }
+// --8<-- [end:HostApp]
 
 class _SupportScreen extends StatelessWidget {
   const _SupportScreen();

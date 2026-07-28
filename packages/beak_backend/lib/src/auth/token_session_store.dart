@@ -9,6 +9,7 @@ import 'beak_auth_guard.dart';
 /// [TokenSessionAuthGuard] reads them back on every request; implement this
 /// interface to persist sessions across restarts (e.g. in Redis or a table)
 /// instead of the process-memory [InMemoryTokenSessionStore].
+// --8<-- [start:TokenSessionStore]
 abstract interface class TokenSessionStore {
   /// Mints a new opaque token for [principal] and stores the session.
   Future<String> createSession(BeakPrincipal principal);
@@ -20,6 +21,7 @@ abstract interface class TokenSessionStore {
   /// Invalidates [token]; unknown tokens are a no-op.
   Future<void> revoke(String token);
 }
+// --8<-- [end:TokenSessionStore]
 
 /// The default [TokenSessionStore]: sessions in process memory with a
 /// fixed time-to-live.

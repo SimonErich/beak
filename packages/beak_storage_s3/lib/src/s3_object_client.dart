@@ -66,21 +66,25 @@ abstract interface class S3ObjectClient {
 /// ));
 /// ```
 final class MinioS3ObjectClient implements S3ObjectClient {
-  /// Creates a client for the endpoint and credentials in [config].
+  /// Creates a client for the endpoint and credentials in [config];
+  /// [minio] overrides the wire client for tests (default: one built from
+  /// [config]).
   ///
   /// The endpoint's scheme selects TLS (`https` → SSL), its host and optional
   /// port address the server, and [BeakS3Config.usePathStyle] chooses
   /// path-style vs. virtual-host bucket addressing (MinIO needs path-style).
-  MinioS3ObjectClient(BeakS3Config config)
-    : _minio = Minio(
-        endPoint: config.endpoint.host,
-        port: config.endpoint.hasPort ? config.endpoint.port : null,
-        useSSL: config.endpoint.scheme == 'https',
-        accessKey: config.accessKey,
-        secretKey: config.secretKey,
-        region: config.region,
-        pathStyle: config.usePathStyle,
-      );
+  MinioS3ObjectClient(BeakS3Config config, {Minio? minio})
+    : _minio =
+          minio ??
+          Minio(
+            endPoint: config.endpoint.host,
+            port: config.endpoint.hasPort ? config.endpoint.port : null,
+            useSSL: config.endpoint.scheme == 'https',
+            accessKey: config.accessKey,
+            secretKey: config.secretKey,
+            region: config.region,
+            pathStyle: config.usePathStyle,
+          );
 
   final Minio _minio;
 
@@ -109,7 +113,7 @@ final class MinioS3ObjectClient implements S3ObjectClient {
     try {
       stream = await _minio.getObject(bucket, key);
     } on MinioS3Error catch (error) {
-      if (_isMissingObject(error)) {
+      if (isMissingObject(error)) {
         return null;
       }
       rethrow;
@@ -132,7 +136,7 @@ final class MinioS3ObjectClient implements S3ObjectClient {
       await _minio.statObject(bucket, key);
       return true;
     } on MinioS3Error catch (error) {
-      if (_isMissingObject(error)) {
+      if (isMissingObject(error)) {
         return false;
       }
       rethrow;
@@ -153,6 +157,17 @@ final class MinioS3ObjectClient implements S3ObjectClient {
     return Uri.parse(url);
   }
 
-  static bool _isMissingObject(MinioS3Error error) =>
-      error.response?.statusCode == 404;
+  /// Whether [error] means the object is not there, rather than that the
+  /// request failed.
+  ///
+  /// Checks the S3 error code as well as the HTTP status. A `NoSuchKey` can
+  /// arrive without the response object the status is read from, and the code
+  /// is what S3 itself documents; keying only on 404 turned a missing object
+  /// into a thrown exception whenever the response was absent.
+  static bool isMissingObject(MinioS3Error error) =>
+      error.response?.statusCode == 404 ||
+      _missingObjectCodes.contains(error.message);
+
+  /// The S3 error codes that mean "no such object".
+  static const Set<String> _missingObjectCodes = {'NoSuchKey', 'NotFound'};
 }

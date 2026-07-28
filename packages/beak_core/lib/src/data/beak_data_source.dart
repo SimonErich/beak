@@ -29,6 +29,7 @@ import '../query/beak_record.dart';
 /// final created = await source.create('products', newProduct);
 /// await source.attach('products', created['id']!.raw!, 'tags', [tagId]);
 /// ```
+// --8<-- [start:BeakDataSource]
 abstract interface class BeakDataSource {
   /// Runs [spec] and returns the requested page of typed records, with
   /// every relation load in the spec eagerly resolved (Beak never
@@ -98,3 +99,5 @@ abstract interface class BeakDataSource {
   /// returning `0` when no rows match.
   Future<num> aggregate(BeakAggregateSpec spec);
 }
+
+// --8<-- [end:BeakDataSource]

@@ -8,8 +8,10 @@ import '../common/hex_color.dart';
 
 /// Renders a custom-column cell — the escape hatch consumers register per
 /// [BeakColumnTag].
+// --8<-- [start:BeakCustomCellBuilder]
 typedef BeakCustomCellBuilder =
     Widget Function(BuildContext context, BeakColumn column, BeakRecord record);
+// --8<-- [end:BeakCustomCellBuilder]
 
 /// The registry of custom cell builders, keyed by column tag.
 ///
@@ -326,6 +328,7 @@ String _jsonText(Object raw) {
   return jsonEncode(raw);
 }
 
+// --8<-- [start:custom]
 Widget _custom(BuildContext context, BeakColumn column, BeakRecord record) {
   if (column case BeakCustomColumn(:final tag)) {
     final builder = BeakCustomRenderers.builderFor(tag);
@@ -336,3 +339,5 @@ Widget _custom(BuildContext context, BeakColumn column, BeakRecord record) {
   }
   return const OiLabel.caption('Unsupported custom cell');
 }
+
+// --8<-- [end:custom]

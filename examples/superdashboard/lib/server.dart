@@ -11,8 +11,11 @@ BeakServer beakServer(BeakServerDefaults defaults) => defaults.build();
 ///
 /// `beak_backend` depends on no driver package, so an app that uploads to S3
 /// declares `beak_storage_s3` and registers it here; `.env` selects it.
+// --8<-- [start:beakStorageRegistry]
 BeakStorageRegistry beakStorageRegistry() {
   final registry = createDefaultStorageRegistry();
   registerS3Storage(registry);
   return registry;
 }
+
+// --8<-- [end:beakStorageRegistry]

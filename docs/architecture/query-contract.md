@@ -93,54 +93,7 @@ BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
 That spec serializes byte-for-byte to the pinned golden file. This is the actual wire body of a `POST /api/posts/query`:
 
 ```json title="packages/beak_core/test/golden/rich_query_spec.json"
-{
-  "table": "posts",
-  "filter": {
-    "type": "and",
-    "filters": [
-      {
-        "type": "field",
-        "column": "status",
-        "operator": "eq",
-        "value": "active"
-      },
-      {
-        "type": "field",
-        "column": "last_active",
-        "operator": "lt",
-        "value": {
-          "type": "dateTime",
-          "value": "2026-06-01T00:00:00.000Z"
-        }
-      }
-    ]
-  },
-  "sorts": [
-    {
-      "column": "created_at",
-      "descending": true
-    }
-  ],
-  "search": {
-    "term": "ada",
-    "columns": [
-      "name",
-      "email"
-    ]
-  },
-  "relations": [
-    {
-      "relation": "author",
-      "filter": null,
-      "nested": []
-    }
-  ],
-  "pagination": {
-    "page": 2,
-    "perPage": 50
-  },
-  "withTrashed": false
-}
+--8<-- "packages/beak_core/test/golden/rich_query_spec.json"
 ```
 
 !!! note "Reading the round-trip"

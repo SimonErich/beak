@@ -13,6 +13,7 @@ import '../blocks/beak_block.dart';
 /// Derived rather than generated on purpose: it follows the model, so adding
 /// a column changes the page with no file to regenerate, and a hand-written
 /// panel gets it too.
+// --8<-- [start:beakDefaultDetailLayout]
 BeakBlock beakDefaultDetailLayout(BeakModel model) {
   final List<BeakColumn> detail = model.columnsFor(BeakContext.detail);
   final Set<String> foreignKeys = {
@@ -73,3 +74,5 @@ BeakBlock beakDefaultDetailLayout(BeakModel model) {
     ],
   );
 }
+
+// --8<-- [end:beakDefaultDetailLayout]

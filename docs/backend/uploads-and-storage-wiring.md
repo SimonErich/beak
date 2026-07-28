@@ -91,21 +91,7 @@ Registering a model adds two routes under its mount point, so the full paths are
 `POST` and `DELETE /api/{table}/{columnKey}/upload`.
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_router.dart"
-void registerUploadRoutes(
-  Router router, {
-  required BeakModel model,
-  required UploadService service,
-  BeakPolicy policy = const BeakAllowAllPolicy(),
-}) {
-  final handlers = BeakUploadHandlers(
-    model: model,
-    service: service,
-    policy: policy,
-  );
-  router
-    ..post('/<columnKey>/upload', handlers.upload)
-    ..delete('/<columnKey>/upload', handlers.remove);
-}
+--8<-- "packages/beak_backend/lib/src/uploads/upload_router.dart:registerUploadRoutes"
 ```
 
 The upload handler checks `canCreate` (uploading a file is creating one), then
@@ -193,11 +179,7 @@ drivers Beak ships in-box: `memory` (registered by the registry itself) and
 `local`, added here because it needs `dart:io`.
 
 ```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-BeakStorageRegistry createDefaultStorageRegistry() {
-  final registry = BeakStorageRegistry();
-  registry.register('local', BeakLocalDiskStorageDriver.fromConfig);
-  return registry;
-}
+--8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
 ```
 
 Driver packages are deliberately left out. Depending on `beak_storage_s3` here
@@ -207,11 +189,7 @@ it uploads anything. A project declares the drivers it wants in a
 to the generated host:
 
 ```dart title="examples/embedded/lib/server.dart"
-BeakStorageRegistry beakStorageRegistry() {
-  final registry = createDefaultStorageRegistry();
-  registerS3Storage(registry);
-  return registry;
-}
+--8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
 ```
 
 `resolveStorage` takes a `BeakStorageConfig` and returns the driver it selects.
@@ -219,10 +197,7 @@ The server resolves once at startup and injects the driver into the upload
 service.
 
 ```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-BeakStorageDriver resolveStorage(
-  BeakStorageConfig config, {
-  BeakStorageRegistry? registry,
-}) => (registry ?? createDefaultStorageRegistry()).resolve(config);
+--8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:resolveStorage"
 ```
 
 To add a driver of your own, register it on the registry before you resolve, and

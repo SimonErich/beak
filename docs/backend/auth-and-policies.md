@@ -44,23 +44,7 @@ to `BeakServer`'s `authSessions` parameter and the generated API mounts
 `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me`.
 
 ```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-final class BeakAuthSessions {
-  /// Creates the auth-surface configuration.
-  const BeakAuthSessions({
-    required this.store,
-    required this.users,
-    required this.secret,
-  });
-
-  /// Where sessions live.
-  final TokenSessionStore store;
-
-  /// The accounts that may log in.
-  final List<BeakUserAccount> users;
-
-  /// The secret behind [hashBeakPassword].
-  final String secret;
-}
+--8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:BeakAuthSessions"
 ```
 
 Each account is a `BeakUserAccount`: a username, the hash of its password, and
@@ -69,8 +53,7 @@ plaintext password. You hash it once with `hashBeakPassword`, which is HMAC-SHA2
 under your secret:
 
 ```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-String hashBeakPassword(String password, {required String secret}) =>
-    Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(password)).toString();
+--8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:hashBeakPassword"
 ```
 
 The same `secret` you gave `BeakAuthSessions` must have hashed every account's
@@ -106,13 +89,7 @@ token. `me` echoes the authenticated principal, or 401 when the request is
 anonymous.
 
 ```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-Router beakAuthRouter(BeakAuthSessions sessions) {
-  final handlers = BeakAuthHandlers(sessions);
-  return Router()
-    ..post('/login', handlers.login)
-    ..post('/logout', handlers.logout)
-    ..get('/me', handlers.me);
-}
+--8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:beakAuthRouter"
 ```
 
 | Method and path | Body | Success | Does |
@@ -140,17 +117,7 @@ A login mints an opaque token into a `TokenSessionStore` and the guard reads it
 back on every later request. The interface is three methods:
 
 ```dart title="packages/beak_backend/lib/src/auth/token_session_store.dart"
-abstract interface class TokenSessionStore {
-  /// Mints a new opaque token for [principal] and stores the session.
-  Future<String> createSession(BeakPrincipal principal);
-
-  /// The principal behind [token], or `null` when the token is unknown or
-  /// the session expired.
-  Future<BeakPrincipal?> sessionFor(String token);
-
-  /// Invalidates [token]; unknown tokens are a no-op.
-  Future<void> revoke(String token);
-}
+--8<-- "packages/beak_backend/lib/src/auth/token_session_store.dart:TokenSessionStore"
 ```
 
 The default `InMemoryTokenSessionStore` keeps sessions in process memory with a
@@ -205,17 +172,7 @@ The guard runs inside `beakAuthMiddleware`, which the server installs for you.
 Handlers and policies read the resolved principal back with `beakPrincipal`:
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/auth_middleware.dart"
-Middleware beakAuthMiddleware({BeakAuthGuard? guard}) =>
-    (Handler inner) => (Request request) async {
-      if (guard == null) {
-        return inner(request);
-      }
-      final principal = await guard.authenticate(request);
-      if (principal == null) {
-        return inner(request);
-      }
-      return inner(request.change(context: {_principalContextKey: principal}));
-    };
+--8<-- "packages/beak_backend/lib/src/server/middleware/auth_middleware.dart:beakAuthMiddleware"
 ```
 
 With no guard installed, every request stays anonymous. To plug in a different
@@ -368,22 +325,7 @@ A policy returns a `bool`. `enforcePolicyDecision` turns a denial into the
 correct typed exception, which the error-mapping middleware maps to a status.
 
 ```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-void enforcePolicyDecision({
-  required bool allowed,
-  required BeakPrincipal? principal,
-  required String action,
-  required String table,
-}) {
-  if (allowed) {
-    return;
-  }
-  if (principal == null) {
-    throw BeakAuthenticationException('Sign in to $action "$table".');
-  }
-  throw BeakAuthorizationException(
-    'Principal "${principal.id}" is not allowed to $action "$table".',
-  );
-}
+--8<-- "packages/beak_backend/lib/src/auth/beak_policy.dart:enforcePolicyDecision"
 ```
 
 The split matters: a denied **anonymous** request is a

@@ -22,11 +22,6 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
-  // The S3 driver's remaining quarter is request signing, retries and error
-  // mapping that only a real endpoint reaches. Those lines are covered, by
-  // `packages/beak_storage_s3/test/e2e/` against the MinIO service — which is
-  // outside this measurement because the main gate must run without Docker.
-  'beak_storage_s3': 70,
   // The examples earn their keep by being read and run, and much of what they
   // declare is data a widget suite instantiates without executing line by
   // line. What has to work is checked directly instead: the store's API

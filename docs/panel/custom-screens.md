@@ -201,20 +201,7 @@ edge to edge. These "module" screens pair a single high-level block with a
 model.
 
 ```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
-BeakScreen buildChatScreen() => const BeakScreen(
-  path: '/chat',
-  title: 'Chat',
-  icon: BeakIconToken(OiIcons.messageCircle),
-  section: 'Apps',
-  framed: false,
-  body: BeakChatBlock(
-    model: ChatMessageModel(),
-    authorField: ChatMessageColumns.senderName,
-    bodyField: ChatMessageColumns.body,
-    timeField: ChatMessageColumns.sentAt,
-    composeRecord: _composeMessage,
-  ),
-);
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
 ```
 
 The invoice screen shows the other reason to reach for a screen: a detail

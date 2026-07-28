@@ -94,19 +94,7 @@ const BeakColumn({
 render site:
 
 ```dart title="packages/beak_core/lib/src/context/beak_context.dart"
-enum BeakContext {
-  /// A cell inside a resource list/table.
-  table,
-
-  /// An editable input inside a create/edit form.
-  form,
-
-  /// A read-only entry inside a record detail view.
-  detail,
-
-  /// A filter control inside a table's filter bar.
-  filter,
-}
+--8<-- "packages/beak_core/lib/src/context/beak_context.dart:BeakContext"
 ```
 
 The default is `{table, form, detail}`: shown everywhere a value is edited or
@@ -156,11 +144,7 @@ The filter bar is derived. A resource that declares no filters of its own gets
 one control per filterable column, of the kind that column's type calls for:
 
 ```dart title="packages/beak_frontend/lib/src/filters/beak_default_filters.dart"
-List<BeakFilterDef> beakDefaultFiltersOf(BeakModel model) => <BeakFilterDef>[
-  for (final column in model.columns)
-    if (column.filterable)
-      if (_filterFor(column) case final BeakFilterDef filter) filter,
-];
+--8<-- "packages/beak_frontend/lib/src/filters/beak_default_filters.dart:beakDefaultFiltersOf"
 ```
 
 Enums become a select, booleans a switch, strings and text a contains-search,

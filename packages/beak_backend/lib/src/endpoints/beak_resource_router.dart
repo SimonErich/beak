@@ -24,6 +24,7 @@ import 'local_uploads_router.dart';
 /// batch, CRUD, and relation attach/detach routes, each gated by [policy].
 /// [beakApiRouter] mounts one of these per registered model; call it
 /// directly only to compose a single resource's surface by hand.
+// --8<-- [start:beakResourceRouter]
 Router beakResourceRouter(
   BeakResourceService service, {
   BeakPolicy policy = const BeakAllowAllPolicy(),
@@ -41,6 +42,7 @@ Router beakResourceRouter(
     ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
     ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
 }
+// --8<-- [end:beakResourceRouter]
 
 /// The full generated API: one resource router per registered model
 /// (mounted under `/api/{table}`, with CSV export), the global search

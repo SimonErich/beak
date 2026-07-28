@@ -3,6 +3,7 @@ import 'package:beak/migrations.dart';
 /// The shared toolkit every domain seeder builds on: a deterministically
 /// seeded faker, a fixed reference clock, a UUID minter, and thin insert
 /// helpers — so the whole database reproduces byte-for-byte across runs.
+// --8<-- [start:SeedContext]
 final class SeedContext {
   /// Creates a context over [adapter] and seeds the faker.
   SeedContext(this.adapter) {
@@ -67,3 +68,5 @@ final class SeedContext {
   /// `true` with probability [p].
   bool chance(double p) => faker.boolean(probability: p);
 }
+
+// --8<-- [end:SeedContext]

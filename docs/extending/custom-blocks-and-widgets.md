@@ -21,13 +21,7 @@ is the block-level twin of the [custom column](custom-columns.md) hatch.
 it, it builds whatever the builder returns.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_widget_block.dart"
-final class BeakWidgetBlock extends BeakBlock {
-  /// Creates a block that renders whatever [builder] returns.
-  const BeakWidgetBlock(this.builder, {super.span});
-
-  /// Builds the embedded subtree.
-  final WidgetBuilder builder;
-}
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_widget_block.dart:BeakWidgetBlock"
 ```
 
 The renderer is one arm of the host's exhaustive switch, and it is as thin as it
@@ -130,14 +124,7 @@ Every block, the widget block included, can take a `BeakSpan` to size itself
 inside a grid parent. That field lives on the base of the union:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
-sealed class BeakBlock {
-  /// Creates a block, optionally sized by [span] inside grid parents.
-  const BeakBlock({this.span});
-
-  /// How many grid tracks this block occupies when it is a direct child
-  /// of a [BeakGridBlock]; ignored elsewhere.
-  final BeakSpan? span;
-}
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_block.dart:BeakBlock"
 ```
 
 Wrapping your widget in a `BeakCardBlock` (as above) is usually what you want:

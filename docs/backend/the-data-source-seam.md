@@ -14,65 +14,7 @@ Beak's promise is that your schema classes, columns, and queries describe *what*
 `BeakDataSource` lives in `beak_core`, the pure-Dart package with no Flutter and no worm. It is ten methods:
 
 ```dart title="packages/beak_core/lib/src/data/beak_data_source.dart"
-abstract interface class BeakDataSource {
-  /// Runs [spec] and returns the requested page of typed records, with
-  /// every relation load in the spec eagerly resolved (Beak never
-  /// lazy-loads).
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec);
-
-  /// The record of [table] with primary key [id], or `null` when it does
-  /// not exist (or is soft-deleted).
-  Future<BeakRecord?> getOne(String table, Object id);
-
-  /// Inserts [data] into [table] and returns the stored record (including
-  /// database-assigned values).
-  Future<BeakRecord> create(String table, BeakRecord data);
-
-  /// Updates the record of [table] with primary key [id] with the values of
-  /// [data] and returns the stored result.
-  ///
-  /// Throws a `BeakNotFoundException` when no such record exists.
-  Future<BeakRecord> update(String table, Object id, BeakRecord data);
-
-  /// Deletes the record of [table] with primary key [id] — softly when the
-  /// model opts into soft deletes, unless [force] hard-deletes.
-  ///
-  /// Throws a `BeakNotFoundException` when no such record exists.
-  Future<void> delete(String table, Object id, {bool force = false});
-
-  /// Clears the soft-delete marker on the record with primary key [id],
-  /// returning it as it now reads.
-  Future<BeakRecord> restore(String table, Object id);
-
-  /// The records of [table] whose primary keys appear in [ids], fetched in
-  /// a single query (the reference-deduplication path).
-  Future<List<BeakRecord>> batchGet(String table, List<Object> ids);
-
-  /// Links [relatedIds] to the record of [table] with primary key [id]
-  /// through the to-many relation [relationKey]: belongs-to-many inserts
-  /// pivot rows (skipping links that already exist), has-many re-parents
-  /// the related rows' foreign keys.
-  Future<void> attach(
-    String table,
-    Object id,
-    String relationKey,
-    List<Object> relatedIds,
-  );
-
-  /// Unlinks [relatedIds] from the record of [table] with primary key [id]
-  /// through the to-many relation [relationKey]: belongs-to-many removes
-  /// the pivot rows, has-many clears the related rows' foreign keys.
-  Future<void> detach(
-    String table,
-    Object id,
-    String relationKey,
-    List<Object> relatedIds,
-  );
-
-  /// Computes [spec]'s aggregate (count/sum/avg) over the matching rows,
-  /// returning `0` when no rows match.
-  Future<num> aggregate(BeakAggregateSpec spec);
-}
+--8<-- "packages/beak_core/lib/src/data/beak_data_source.dart:BeakDataSource"
 ```
 
 Notice what the signatures speak in: `BeakQuerySpec`, `BeakRecord`, `BeakPage`, `BeakAggregateSpec`, all from `beak_core`. There is no ORM type, no SQL, no table class. A table is a `String`, an id is an `Object`, a row is a typed `BeakRecord`. That is the whole vocabulary of the seam.
@@ -242,31 +184,13 @@ final class WormRecordModel extends Model {
 Two more pieces round out the layer. `wormFieldForColumn` maps a `BeakColumn` to the right worm `Field` so filters and sorts are typed correctly:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/column_type_mapper.dart"
-Field<Object?> wormFieldForColumn(BeakColumn column) => switch (column) {
-  BeakIntColumn() || BeakDecimalColumn() => ComparableField<num>(column.key),
-  BeakDateTimeColumn() => ComparableField<DateTime>(column.key),
-  BeakStringColumn() ||
-  BeakTextColumn() ||
-  BeakRichTextColumn() ||
-  BeakColorColumn() ||
-  BeakFileColumn() ||
-  BeakImageColumn() ||
-  BeakEnumColumn() => StringField(column.key),
-  BeakBoolColumn() => Field<bool>(column.key),
-  BeakJsonColumn() || BeakCustomColumn() => Field<Object>(column.key),
-};
+--8<-- "packages/beak_backend/lib/src/data/worm/column_type_mapper.dart:wormFieldForColumn"
 ```
 
 And `worm_bootstrap.dart` maps a `DATABASE_URL` to a connection. `adapterFromUrl` is the single place a URL scheme becomes a driver, so the server, the migration CLI and a test cannot disagree about what `DATABASE_URL` means:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
-DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
-  if (isSqliteUrl(databaseUrl)) {
-    final String? path = sqliteFilePathOf(databaseUrl);
-    return path == null ? SqliteAdapter.memory() : SqliteAdapter.open(path);
-  }
-  return postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
-}
+--8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"
 ```
 
 `initializeWormPostgres(config)` registers the default adapter once at startup; pair it with `Worm.reset()` on shutdown. Both are covered from the boot angle in [Running the server](running-the-server.md).

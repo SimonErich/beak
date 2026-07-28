@@ -22,23 +22,7 @@ configured) the auth surface. Declaring a resource is all it takes to get its
 routes: nothing here is hand-written or generated into your project.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
-Router beakResourceRouter(
-  BeakResourceService service, {
-  BeakPolicy policy = const BeakAllowAllPolicy(),
-}) {
-  final handlers = BeakCrudHandlers(service, policy: policy);
-  return Router()
-    ..post('/query', handlers.query)
-    ..post('/aggregate', handlers.aggregate)
-    ..post('/batch', handlers.batch)
-    ..post('/', handlers.create)
-    ..get('/<id>', handlers.getOne)
-    ..patch('/<id>', handlers.update)
-    ..delete('/<id>', handlers.delete)
-    ..post('/<id>/restore', handlers.restore)
-    ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
-    ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
-}
+--8<-- "packages/beak_backend/lib/src/endpoints/beak_resource_router.dart:beakResourceRouter"
 ```
 
 `registerExportRoutes` adds `POST /export` to each resource router, and
@@ -595,13 +579,7 @@ Present only when the server is built with `BeakAuthSessions`. The three routes 
 mounted under `/api/auth`.
 
 ```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-Router beakAuthRouter(BeakAuthSessions sessions) {
-  final handlers = BeakAuthHandlers(sessions);
-  return Router()
-    ..post('/login', handlers.login)
-    ..post('/logout', handlers.logout)
-    ..get('/me', handlers.me);
-}
+--8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:beakAuthRouter"
 ```
 
 `POST /api/auth/login` takes `{ "username": ..., "password": ... }`, verifies the

@@ -1,6 +1,7 @@
 part of 'beak_block.dart';
 
 /// Typographic variants a [BeakTextBlock] can render as.
+// --8<-- [start:BeakTextVariant]
 enum BeakTextVariant {
   /// Hero display text.
   display,
@@ -29,6 +30,7 @@ enum BeakTextVariant {
   /// Caption / hint text.
   caption,
 }
+// --8<-- [end:BeakTextVariant]
 
 /// A run of themed text.
 ///

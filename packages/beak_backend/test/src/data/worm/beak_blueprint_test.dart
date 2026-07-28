@@ -238,6 +238,44 @@ void main() {
       expect(price.precision, 10);
     });
 
+    test('defineColumn agrees with defineColumns, column for column', () {
+      // An `alter` migration that adds one column calls `defineColumn`; the
+      // `create` that made the table called `defineColumns`. Two answers to
+      // "what SQL does this Beak column become" would let a table built by
+      // one disagree with a table evolved by the other.
+      const model = _WidgetModel();
+      final foreignKeys = <String>{
+        for (final relation in model.relationships)
+          if (relation is BeakBelongsTo) relation.foreignKey,
+      };
+      for (final column in model.columns) {
+        if (column.key == model.primaryKey.key) {
+          continue;
+        }
+        final single = BlueprintTable('widgets');
+        BeakBlueprint.defineColumn(
+          single,
+          column,
+          // What the caller knows and the column does not: a belongs-to key
+          // is a nullable uuid whatever its declared kind says.
+          isForeignKey: foreignKeys.contains(column.key),
+          bigIntColumns: const {'size_in_bytes'},
+        );
+        final fromWhole = columnOf(table, column.key);
+        expect(single.columns.single.type, fromWhole.type, reason: column.key);
+        expect(
+          single.columns.single.nullable,
+          fromWhole.nullable,
+          reason: column.key,
+        );
+        expect(
+          single.columns.single.length,
+          fromWhole.length,
+          reason: column.key,
+        );
+      }
+    });
+
     test('honours bigIntColumns for values above the 32-bit range', () {
       expect(columnOf(table, 'size_in_bytes').type, ColumnType.bigInteger);
       expect(columnOf(table, 'quantity').type, ColumnType.integer);

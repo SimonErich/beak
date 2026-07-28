@@ -6,6 +6,7 @@ import 'package:beak/ui.dart';
 /// each bubble labelled with its denormalized sender name. The composer
 /// persists sent messages back into the same table, so they survive a
 /// reload.
+// --8<-- [start:buildChatScreen]
 BeakScreen buildChatScreen() => const BeakScreen(
   path: '/chat',
   title: 'Chat',
@@ -20,6 +21,7 @@ BeakScreen buildChatScreen() => const BeakScreen(
     composeRecord: _composeMessage,
   ),
 );
+// --8<-- [end:buildChatScreen]
 
 /// Builds the record persisted when the demo user sends [body] from the
 /// chat composer.

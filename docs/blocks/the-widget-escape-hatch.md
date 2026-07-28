@@ -19,13 +19,7 @@ it. `BeakWidgetBlock` deliberately breaks that guarantee in one spot: it holds a
 `WidgetBuilder` and renders whatever the builder returns.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_widget_block.dart"
-final class BeakWidgetBlock extends BeakBlock {
-  /// Creates a block that renders whatever [builder] returns.
-  const BeakWidgetBlock(this.builder, {super.span});
-
-  /// Builds the embedded subtree.
-  final WidgetBuilder builder;
-}
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_widget_block.dart:BeakWidgetBlock"
 ```
 
 The host renders it by handing your builder a `BuildContext` and nothing else:

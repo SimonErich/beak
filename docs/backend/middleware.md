@@ -51,31 +51,7 @@ id (reusing an incoming `x-request-id` when present), and it reports the served 
 with timing, to a logger.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/request_log_middleware.dart"
-Middleware beakRequestLogMiddleware({
-  required BeakRequestLogger onRequest,
-  BeakRequestIdFactory? requestIdFactory,
-}) {
-  final BeakRequestIdFactory nextRequestId =
-      requestIdFactory ?? _randomRequestId;
-  return (Handler inner) => (Request request) async {
-    final stopwatch = Stopwatch()..start();
-    final String requestId = request.headers['x-request-id'] ?? nextRequestId();
-    final Response response = await inner(
-      request.change(context: {_requestIdContextKey: requestId}),
-    );
-    stopwatch.stop();
-    onRequest(
-      BeakRequestLogEntry(
-        requestId: requestId,
-        method: request.method,
-        path: request.url.path,
-        statusCode: response.statusCode,
-        duration: stopwatch.elapsed,
-      ),
-    );
-    return response.change(headers: {'x-request-id': requestId});
-  };
-}
+--8<-- "packages/beak_backend/lib/src/server/middleware/request_log_middleware.dart:beakRequestLogMiddleware"
 ```
 
 The id is stored in the request context (readable downstream with `beakRequestId`),
@@ -95,20 +71,7 @@ one line on stderr per request:
 pass `allowedOrigin` to pin it to your panel's origin.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/cors_middleware.dart"
-Middleware beakCorsMiddleware({String allowedOrigin = '*'}) {
-  final headers = <String, String>{
-    'access-control-allow-origin': allowedOrigin,
-    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'access-control-allow-headers': 'authorization, content-type, x-request-id',
-  };
-  return (Handler inner) => (Request request) async {
-    if (request.method == 'OPTIONS') {
-      return Response(204, headers: headers);
-    }
-    final Response response = await inner(request);
-    return response.change(headers: headers);
-  };
-}
+--8<-- "packages/beak_backend/lib/src/server/middleware/cors_middleware.dart:beakCorsMiddleware"
 ```
 
 ## JSON defaulting
@@ -118,16 +81,7 @@ leaves explicit content types alone. That is what lets CRUD handlers return
 `jsonEncode(...)` without a header while the CSV export and file downloads keep their own.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/json_middleware.dart"
-Middleware beakJsonMiddleware() =>
-    (Handler inner) => (Request request) async {
-      final Response response = await inner(request);
-      if (response.headers.containsKey('content-type')) {
-        return response;
-      }
-      return response.change(
-        headers: {'content-type': 'application/json; charset=utf-8'},
-      );
-    };
+--8<-- "packages/beak_backend/lib/src/server/middleware/json_middleware.dart:beakJsonMiddleware"
 ```
 
 The same file also carries `readJsonObject` and `readBeakSpec`, the request-side helpers
@@ -200,17 +154,7 @@ stores it in the request context, where handlers and policies read it with
 `beakPrincipal`. Without a guard, every request stays anonymous.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/auth_middleware.dart"
-Middleware beakAuthMiddleware({BeakAuthGuard? guard}) =>
-    (Handler inner) => (Request request) async {
-      if (guard == null) {
-        return inner(request);
-      }
-      final principal = await guard.authenticate(request);
-      if (principal == null) {
-        return inner(request);
-      }
-      return inner(request.change(context: {_principalContextKey: principal}));
-    };
+--8<-- "packages/beak_backend/lib/src/server/middleware/auth_middleware.dart:beakAuthMiddleware"
 ```
 
 Invalid credentials throw inside the guard, and because this sits below error mapping,

@@ -20,6 +20,7 @@ import 'beak_upload.dart';
 /// );
 /// final link = await driver.url(stored.key, expiresIn: Duration(hours: 1));
 /// ```
+// --8<-- [start:BeakStorageDriver]
 abstract interface class BeakStorageDriver {
   /// Stable driver identifier matching `BeakStorageConfig.driverId`
   /// (`'s3'`, `'ftp'`, `'memory'`, `'local'`).
@@ -43,3 +44,5 @@ abstract interface class BeakStorageDriver {
   /// Whether a file is stored under [key].
   Future<bool> exists(String key);
 }
+
+// --8<-- [end:BeakStorageDriver]

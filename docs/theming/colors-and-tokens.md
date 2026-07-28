@@ -21,28 +21,7 @@ color. Instead it names roles, and `beak_frontend` resolves each role against th
 active obers_ui theme. The full set is small on purpose:
 
 ```dart title="packages/beak_core/lib/src/common/beak_color.dart"
-enum BeakColor {
-  /// The theme's primary accent color.
-  primary,
-
-  /// The theme's secondary accent color.
-  secondary,
-
-  /// Positive/confirming states (published, paid, active).
-  success,
-
-  /// Cautionary states (pending, low stock).
-  warning,
-
-  /// Destructive or failing states (rejected, out of stock).
-  error,
-
-  /// Neutral informational states.
-  info,
-
-  /// De-emphasized/disabled states.
-  muted,
-}
+--8<-- "packages/beak_core/lib/src/common/beak_color.dart:BeakColor"
 ```
 
 Seven roles cover the states an admin panel actually shows. Because a column

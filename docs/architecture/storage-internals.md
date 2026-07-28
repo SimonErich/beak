@@ -51,11 +51,7 @@ BeakStorageDriver resolve(BeakStorageConfig config) {
 The backend does the wiring once at startup. `createDefaultStorageRegistry` adds `local` (it needs `dart:io`) on top of core's `memory`, and `resolveStorage` turns the configured config into a driver:
 
 ```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-BeakStorageRegistry createDefaultStorageRegistry() {
-  final registry = BeakStorageRegistry();
-  registry.register('local', BeakLocalDiskStorageDriver.fromConfig);
-  return registry;
-}
+--8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
 ```
 
 Driver packages are deliberately not wired in here. Depending on `beak_storage_s3` from `beak_backend` would put `minio` in the dependency graph of every Beak backend, uploads or not. Your app adds the driver it uses at init instead, with one line: `registerS3Storage(registry)`. The config stays plain data from `beak_core`, so only that one line names the driver package.

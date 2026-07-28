@@ -69,19 +69,7 @@ source if any of your blocks read records. The embedded example does both in one
 small class.
 
 ```dart title="examples/embedded/lib/host_app.dart"
-final class HostApp extends StatelessWidget {
-  /// Creates the host app; [dataSource] injects a fake in widget tests.
-  HostApp({this.dataSource, super.key}) {
-    registerBeakDependencies(config: buildBeakPanel(), dataSource: dataSource);
-  }
-
-  /// Test seam replacing the HTTP-backed data source.
-  final BeakDataSource? dataSource;
-
-  @override
-  Widget build(BuildContext context) =>
-      OiApp(theme: OiThemeData.light(), home: const _SupportScreen());
-}
+--8<-- "examples/embedded/lib/host_app.dart:HostApp"
 ```
 
 The screen under it is an ordinary widget with an ordinary layout. One child

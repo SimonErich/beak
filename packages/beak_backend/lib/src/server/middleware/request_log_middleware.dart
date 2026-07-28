@@ -83,6 +83,7 @@ String? beakRequestId(Request request) =>
 /// Tags every request with an id (reusing an incoming `x-request-id`),
 /// echoes it as a response header, and reports the served request to
 /// [onRequest].
+// --8<-- [start:beakRequestLogMiddleware]
 Middleware beakRequestLogMiddleware({
   required BeakRequestLogger onRequest,
   BeakRequestIdFactory? requestIdFactory,
@@ -108,6 +109,7 @@ Middleware beakRequestLogMiddleware({
     return response.change(headers: {'x-request-id': requestId});
   };
 }
+// --8<-- [end:beakRequestLogMiddleware]
 
 final Random _random = Random();
 

@@ -238,7 +238,7 @@ Image and file columns render a `BeakUploadField`. Picking a file validates the 
 Two things must be supplied for the field to be interactive: an `uploader` (the transport) and a `filePicker` (the strategy that returns picked bytes). Without both, the field renders read-only.
 
 ```dart title="packages/beak_frontend/lib/src/form/upload_field.dart"
-typedef BeakFilePicker = Future<BeakUpload?> Function();
+--8<-- "packages/beak_frontend/lib/src/form/upload_field.dart:BeakFilePicker"
 ```
 
 The `uploader` defaults to the form's `dataSource` when it also implements `BeakUploadClient`, which the HTTP data source does:

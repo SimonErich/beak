@@ -76,26 +76,24 @@ dependencies:
       );
       expect(runPrepare(environment).isSuccess, isTrue);
 
-      // The first migration is written once and never rewritten, so the column
-      // arrives through one the project owns.
+      // The first migration is written once and never rewritten, and a Beak
+      // migration derives its columns from the model at runtime rather than
+      // naming them, so nothing static could work out what this database is
+      // missing. `--from-drift` looks instead.
       expect(
         await createBeakRunner(
           environment,
-        ).run(['make:migration', 'AddStockToProducts']),
+        ).run(['make:migration', 'AddStockToProducts', '--from-drift']),
         0,
       );
       final alter = File(
         '${project.path}/lib/migrations/add_stock_to_products.dart',
       );
       expect(alter.existsSync(), isTrue, reason: 'the scaffold names the file');
-      // Fill in the two bodies the scaffold left empty. `schema.alter`
-      // reaches the same blueprint `schema.create` does, so each driver
-      // compiles it its own way and no dialect appears here.
-      alter.writeAsStringSync(
-        alter
-            .readAsStringSync()
-            .replaceFirst(_scaffoldedUp, _realUp)
-            .replaceFirst(_scaffoldedDown, _realDown),
+      expect(
+        alter.readAsStringSync(),
+        contains('BeakBlueprint.defineColumn(table, ProductColumns.stock)'),
+        reason: 'the body was left empty rather than filled in from drift',
       );
       expect(runPrepare(environment).isSuccess, isTrue);
       await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
@@ -114,32 +112,6 @@ dependencies:
     timeout: const Timeout(Duration(minutes: 6)),
   );
 }
-
-/// The empty `upSchema` body `beak make:migration` writes.
-const String _scaffoldedUp = '''
-  Future<void> upSchema(Schema schema) async {
-    // e.g. await schema.alter('products', (table) {
-    //   table.string('status', length: 20).makeNullable();
-    // });
-  }''';
-
-/// The empty `downSchema` body `beak make:migration` writes.
-const String _scaffoldedDown = '''
-  Future<void> downSchema(Schema schema) async {
-    // The inverse of upSchema, so a rollback is not a restore from backup.
-  }''';
-
-/// What a person fills the first one in with.
-const String _realUp = '''
-  Future<void> upSchema(Schema schema) => schema.alter(
-    'products',
-    (table) => table.integer('stock').makeNullable(),
-  );''';
-
-/// And the second, so a rollback is not a restore from backup.
-const String _realDown = '''
-  Future<void> downSchema(Schema schema) =>
-      schema.alter('products', (table) => table.dropColumn('stock'));''';
 
 /// Runs [command] in [project], failing the test with its output.
 Future<void> _run(Directory project, List<String> command) async {

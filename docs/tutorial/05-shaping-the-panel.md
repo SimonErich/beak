@@ -369,13 +369,7 @@ A chart queries, then maps. `map` takes a top-level function from the records
 the query returned to the points to draw:
 
 ```dart title="examples/store/lib/dashboard.dart"
-List<BeakChartPoint> orderTotalPoints(List<BeakRecord> records) => [
-  for (final record in records)
-    BeakChartPoint(
-      label: OrderColumns.reference.readFrom(record) ?? '—',
-      value: OrderColumns.total.readFrom(record) ?? 0,
-    ),
-];
+--8<-- "examples/store/lib/dashboard.dart:orderTotalPoints"
 ```
 
 Every figure is a `BeakAggregateSpec` the API computes: nothing is counted in

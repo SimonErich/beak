@@ -9,24 +9,7 @@ Write one annotated class under `lib/models/`. The field's type picks the column
 kind, and its nullability decides whether the value is required:
 
 ```dart title="examples/store/lib/models/tag.dart"
-import 'package:beak/beak.dart';
-import 'package:beak/schema.dart';
-
-part 'tag.beak.dart';
-
-/// A free-form label products are tagged with.
-@Resource()
-final class Tag extends BeakSchema {
-  /// What the tag is called.
-  @Display()
-  @Column(
-    searchable: true,
-    sortable: true,
-    unique: true,
-    rules: [BeakMaxLength(60)],
-  )
-  late final String name;
-}
+--8<-- "examples/store/lib/models/tag.dart"
 ```
 
 Then run the generator:

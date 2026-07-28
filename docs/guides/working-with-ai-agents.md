@@ -192,13 +192,7 @@ turns most of those mistakes into a red analyzer, not a runtime surprise.
 `beak create` writes a strict `analysis_options.yaml` for exactly this reason:
 
 ```yaml title="examples/store/analysis_options.yaml"
-include: package:lints/recommended.yaml
-
-analyzer:
-  language:
-    strict-casts: true
-    strict-inference: true
-    strict-raw-types: true
+--8<-- "examples/store/analysis_options.yaml"
 ```
 
 Four constraints do most of the catching, and they are worth restating in the

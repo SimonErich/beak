@@ -28,7 +28,7 @@ or invoke it as `dart run beak_cli:beak …`.
 | `migrate` | `[subcommand]` | Applies pending migrations. |
 | `seed` | (none) | Runs the project seeders. |
 | `make:resource` | `Name` | One `@Resource` schema class, then `prepare`. |
-| `make:migration` | `Name` | An empty, correctly-named migration. |
+| `make:migration` | `Name` | An empty, correctly-named migration. `--from-drift` fills it in. |
 | `doctor` | (none) | Diagnoses the project. `--json` for CI. |
 
 Every command exits `0` on success, `1` on a failed check or a generation
@@ -291,6 +291,41 @@ The timestamp matters: `beak prepare` lists discovered migrations on the
 generated host ordered by their declared `name`, and worm runs them in that
 order. There is nothing to register, and nothing is ever applied automatically.
 
+### `--from-drift`
+
+Adding a field to a resource that is already live is the common case, and it
+is the one the scaffold above leaves most work for. `--from-drift` reads the
+database, compares it against the schema classes, and writes the body:
+
+```console
+$ beak make:migration AddStockToProducts --from-drift
+  created lib/migrations/add_stock_to_products.dart
+  run `beak migrate` to apply it
+```
+
+```dart
+@override
+Future<void> upSchema(Schema schema) async {
+  await schema.alter('products', (table) {
+    BeakBlueprint.defineColumn(table, ProductColumns.stock);
+  });
+}
+```
+
+It reads the database rather than the migrations because a Beak migration
+never names its columns: a generated one calls
+`BeakBlueprint.defineColumns(table, const ProductModel())`, so the DDL follows
+the model and the two cannot drift on a fresh database. The generated `alter`
+adds the column through the same mapping, so a column added here and a column
+created there cannot become different columns.
+
+It writes only the columns a **field** declares. A missing table means the
+resource was never migrated, which `beak prepare` already writes a create
+migration for; a missing `deleted_at` means `softDeletes` was turned on, which
+changes more than the table; and a column the database has and no schema
+declares is a decision rather than a defect. `beak doctor` reports all of
+those, and leaves them to you.
+
 ## `beak eject <target>`
 
 Writes a Beak default out as a file this project owns, pre-filled so it compiles
@@ -383,6 +418,7 @@ $ beak doctor
   OK   web/ scaffold present
   OK   no panel file imports the server
   OK   database is SQLite (beak.db)
+  OK   the database matches the schema classes
 All checks passed.
 ```
 
@@ -397,16 +433,17 @@ All checks passed.
 | `web/` scaffold present | WARN | `flutter create --platforms=web .` can fail offline, leaving a project that runs everywhere but the web. |
 | No panel file imports the server | FAIL | `package:beak/server.dart` reaches `dart:io`: it compiles, then fails in a browser. |
 | Database reachable | WARN | Only for a server database. No `DATABASE_URL` is the supported SQLite default and passes as OK, as does a `sqlite:`/`file:` URL. |
-| Database matches the schema classes | WARN | Drift: the schema class is what the panel, the API and the next generated migration all read, so a database that no longer matches it is wrong in three places at once. |
+| Database matches the schema classes | WARN | Drift: the schema class is what the panel, the API and the next generated migration all read, so a database that no longer matches it is wrong in three places at once. `beak make:migration --from-drift` writes the fix. |
 
 Warnings do not fail the command; only a FAIL does. `--json` prints
 `{"healthy": bool, "checks": [...]}` instead, so CI can gate on it.
 
 ### Drift
 
-The last check runs only when `DATABASE_URL` names a **reachable Postgres**,
-and it reads that database's real schema. It reports both directions, one
-warning per difference:
+The last check reads the database's real schema and compares it against the
+schema classes. It works on SQLite, including the zero-setup default file, and
+on a reachable Postgres. It reports both directions, one warning per
+difference:
 
 ```console
 $ beak doctor
@@ -440,15 +477,7 @@ The `64` mapping lives in the entry point, which catches the `UsageException`
 the runner throws:
 
 ```dart title="packages/beak_cli/bin/beak.dart"
-Future<void> main(List<String> args) async {
-  final runner = createBeakRunner(BeakCliEnvironment.production());
-  try {
-    exit(await runner.run(args) ?? 0);
-  } on UsageException catch (error) {
-    stderr.writeln(error);
-    exit(64);
-  }
-}
+--8<-- "packages/beak_cli/bin/beak.dart:main"
 ```
 
 ## Continue reading

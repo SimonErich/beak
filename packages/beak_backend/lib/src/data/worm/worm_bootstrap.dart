@@ -59,6 +59,7 @@ ConnectionConfig postgresConnectionConfig(
 /// The one place that maps a URL scheme to a driver, so `beak dev`, the
 /// migration CLI and a hand-built server cannot disagree about what
 /// `DATABASE_URL` means.
+// --8<-- [start:adapterFromUrl]
 DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
   if (isSqliteUrl(databaseUrl)) {
     final String? path = sqliteFilePathOf(databaseUrl);
@@ -66,6 +67,7 @@ DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
   }
   return postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
 }
+// --8<-- [end:adapterFromUrl]
 
 /// Builds a lazily connecting Postgres adapter from a `DATABASE_URL`.
 ///
@@ -100,6 +102,7 @@ PostgresAdapter postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
 ///   await Worm.reset();
 /// }
 /// ```
+// --8<-- [start:initializeWormPostgres]
 Future<void> initializeWormPostgres(BeakBackendConfig config) =>
     Worm.initialize(
       config: const WormConfig(),
@@ -107,3 +110,5 @@ Future<void> initializeWormPostgres(BeakBackendConfig config) =>
         'default': adapterFromUrl(config.databaseUrl),
       },
     );
+
+// --8<-- [end:initializeWormPostgres]

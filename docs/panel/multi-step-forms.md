@@ -155,19 +155,7 @@ wizard with a custom show page and extra view modes in the same call, as the
 superdashboard's calendar events do:
 
 ```dart title="examples/superdashboard/lib/resources/calendar_events.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: calendarEventDetail,
-  formSteps: calendarEventFormSteps,
-  viewModes: [
-    const BeakTableView(),
-    const BeakCalendarView(
-      titleField: CalendarEventColumns.title,
-      startField: CalendarEventColumns.startAt,
-      endField: CalendarEventColumns.endAt,
-      allDayField: CalendarEventColumns.allDay,
-    ),
-  ],
-);
+--8<-- "examples/superdashboard/lib/resources/calendar_events.dart:beakResource"
 ```
 
 Its four steps live in a file of their own, which is worth doing once the list

@@ -15,26 +15,7 @@ the names all line up.
 One file. No registry to edit, no endpoint to write, no resource to register.
 
 ```dart title="examples/store/lib/models/category.dart"
-import 'package:beak/beak.dart';
-import 'package:beak/schema.dart';
-
-part 'category.beak.dart';
-
-/// A shelf of the catalog.
-///
-/// The `products` side of the relationship is not declared here: `@BelongsTo`
-/// on [Product.category] generates it, so the pair cannot drift apart.
-@Resource()
-final class Category extends BeakSchema {
-  /// What the category is called.
-  @Display()
-  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
-  late final String name;
-
-  /// The one-line blurb shown above the product list.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakText? blurb;
-}
+--8<-- "examples/store/lib/models/category.dart"
 ```
 
 Then:
@@ -362,6 +343,7 @@ none of them can act on stale wiring.
 | `beak seed` | Run the seeders. |
 | `beak make:resource Name --fields name:string!,price:decimal` | One `@Resource` class, then `prepare`. |
 | `beak make:migration Name` | An empty, correctly-named migration for a change `prepare` cannot derive. |
+| `beak make:migration Name --from-drift` | The same, filled in from what the database is missing. |
 | `beak eject <main\|panel\|resource\|theme\|auth\|dashboard\|server>` | Take a default over (`--force` to overwrite). |
 | `beak introspect <postgres-url>` | Write schema classes for a database you already have. |
 | `beak doctor` | Diagnose the project (`--json` for CI). |

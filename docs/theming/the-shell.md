@@ -144,20 +144,7 @@ The showcase's chat screen is the other half of the pair. `OiChat` wants the
 whole viewport and brings its own header, so the screen opts out of the frame:
 
 ```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
-BeakScreen buildChatScreen() => const BeakScreen(
-  path: '/chat',
-  title: 'Chat',
-  icon: BeakIconToken(OiIcons.messageCircle),
-  section: 'Apps',
-  framed: false,
-  body: BeakChatBlock(
-    model: ChatMessageModel(),
-    authorField: ChatMessageColumns.senderName,
-    bodyField: ChatMessageColumns.body,
-    timeField: ChatMessageColumns.sentAt,
-    composeRecord: _composeMessage,
-  ),
-);
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
 ```
 
 The sidebar and top bar stay exactly where they are. `framed` decides only what

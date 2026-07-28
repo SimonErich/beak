@@ -102,11 +102,7 @@ The worm ORM (with the `worm_postgres` and `worm_sqlite` drivers) appears in exa
 `beak_backend` depends on neither storage driver. `beak_core` defines `BeakStorageConfig` and the `BeakStorageDriver` interface; a driver package implements one and registers itself. An app that uploads to S3 declares `beak_storage_s3` in its own pubspec and names the drivers it can resolve in `lib/server.dart`, which the generated host picks up:
 
 ```dart title="examples/embedded/lib/server.dart"
-BeakStorageRegistry beakStorageRegistry() {
-  final registry = createDefaultStorageRegistry();
-  registerS3Storage(registry);
-  return registry;
-}
+--8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
 ```
 
 That is why `beak_storage_s3` hangs off the graph on a dotted line, and why a project that never names the S3 driver never resolves `minio` at all. Uploads still work on that project: with `BEAK_STORAGE_DRIVER` unset the host falls back to a local-disk driver from `beak_core`. `embedded` and `superdashboard` are the examples that opt in to S3.

@@ -191,23 +191,7 @@ The adapter under it is injected, and the URL scheme picks it: a project with no
 There are no per-model endpoint files. `beakApiRouter` walks the `BeakModelRegistry` and mounts one resource router per model under `/api/{table}`, each backed by its own service.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
-Router beakResourceRouter(
-  BeakResourceService service, {
-  BeakPolicy policy = const BeakAllowAllPolicy(),
-}) {
-  final handlers = BeakCrudHandlers(service, policy: policy);
-  return Router()
-    ..post('/query', handlers.query)
-    ..post('/aggregate', handlers.aggregate)
-    ..post('/batch', handlers.batch)
-    ..post('/', handlers.create)
-    ..get('/<id>', handlers.getOne)
-    ..patch('/<id>', handlers.update)
-    ..delete('/<id>', handlers.delete)
-    ..post('/<id>/restore', handlers.restore)
-    ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
-    ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
-}
+--8<-- "packages/beak_backend/lib/src/endpoints/beak_resource_router.dart:beakResourceRouter"
 ```
 
 On top of these, `beakApiRouter` adds the global search endpoint (`GET /api/search`), the auth surface (mounted at `/api/auth` when auth is configured), CSV export routes, and per-column upload routes when storage is wired. Declaring a resource is all it takes to get its whole REST surface. See [The generated API](../backend/the-generated-api.md) for the endpoint list and payloads.

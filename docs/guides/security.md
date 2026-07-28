@@ -72,11 +72,7 @@ identity behind a request, and it is the pluggable seam the auth middleware
 calls on every request.
 
 ```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
-abstract interface class BeakAuthGuard {
-  /// The principal behind [request], or `null` when it carries no
-  /// credentials.
-  Future<BeakPrincipal?> authenticate(Request request);
-}
+--8<-- "packages/beak_backend/lib/src/auth/beak_auth_guard.dart:BeakAuthGuard"
 ```
 
 The contract has a sharp edge worth internalizing: `null` means anonymous (no
@@ -178,15 +174,7 @@ Implement `BeakRowPolicy` instead of `BeakPolicy` and every read and write of th
 table is intersected with `scopeFor`:
 
 ```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-abstract interface class BeakRowPolicy implements BeakPolicy {
-  /// The filter every read and write of [table] is additionally constrained
-  /// by, or `null` when [principal] may touch every row.
-  ///
-  /// Returning a filter that matches nothing is how a policy says "no rows":
-  /// the request still succeeds, with an empty page, which is what a row
-  /// scope means — as opposed to `canView` returning false, which is a 403.
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table);
-}
+--8<-- "packages/beak_backend/lib/src/auth/beak_policy.dart:BeakRowPolicy"
 ```
 
 Query, aggregate, get-one, update, delete, export and global search all apply it,
@@ -194,44 +182,7 @@ so there is no endpoint left to forget. The store's policy is three rules in
 thirty lines:
 
 ```dart title="examples/store/lib/server.dart"
-final class StorePolicy extends BeakAllowAllPolicy implements BeakRowPolicy {
-  /// Creates the policy.
-  const StorePolicy();
-
-  /// Tables that need an account, whoever it belongs to.
-  static const Set<String> _private = {'orders', 'users'};
-
-  @override
-  bool canView(BeakPrincipal? principal, String table) =>
-      principal != null || !_private.contains(table);
-
-  @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
-      principal?.hasRole('staff') ?? false;
-
-  @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) {
-    // Staff see everything; an anonymous caller never gets this far on a
-    // private table, because [canView] already refused.
-    if (principal == null || principal.hasRole('staff')) {
-      return null;
-    }
-    final String ownerId = principal.id;
-    return switch (table) {
-      'orders' => BeakFieldFilter(
-        column: OrderColumns.customerId,
-        operator: BeakOperator.eq,
-        value: BeakValue.of(ownerId),
-      ),
-      'users' => BeakFieldFilter(
-        column: UserColumns.id,
-        operator: BeakOperator.eq,
-        value: BeakValue.of(ownerId),
-      ),
-      _ => null,
-    };
-  }
-}
+--8<-- "examples/store/lib/server.dart:StorePolicy"
 ```
 
 !!! note "Refusing and narrowing are different answers"

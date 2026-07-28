@@ -260,26 +260,14 @@ connection goes through it: the server, the migration CLI, and a hand-built
 adapter in a test.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
-DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
-  if (isSqliteUrl(databaseUrl)) {
-    final String? path = sqliteFilePathOf(databaseUrl);
-    return path == null ? SqliteAdapter.memory() : SqliteAdapter.open(path);
-  }
-  return postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
-}
+--8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"
 ```
 
 `initializeWormPostgres` is the call `serve()` makes before anything else. It
 registers a single `'default'` adapter chosen by that scheme.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
-Future<void> initializeWormPostgres(BeakBackendConfig config) =>
-    Worm.initialize(
-      config: const WormConfig(),
-      adapters: <String, DatabaseAdapter>{
-        'default': adapterFromUrl(config.databaseUrl),
-      },
-    );
+--8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:initializeWormPostgres"
 ```
 
 Switching database is one variable:
@@ -385,11 +373,7 @@ declares the package and registers it from the same `lib/server.dart`, in a
 second function called `beakStorageRegistry`:
 
 ```dart title="examples/embedded/lib/server.dart"
-BeakStorageRegistry beakStorageRegistry() {
-  final registry = createDefaultStorageRegistry();
-  registerS3Storage(registry);
-  return registry;
-}
+--8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
 ```
 
 `beak prepare` notices the second function and passes it through as the host's

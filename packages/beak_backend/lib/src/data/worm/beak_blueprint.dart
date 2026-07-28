@@ -95,45 +95,13 @@ abstract final class BeakBlueprint {
           column.key == WormDataSource.softDeleteColumnKey) {
         continue;
       }
-      if (foreignKeys.contains(column.key)) {
-        table.uuid(column.key).makeNullable();
-        continue;
-      }
-      final definition = switch (column) {
-        BeakStringColumn(:final maxLength) => table.string(
-          column.key,
-          length: maxLength ?? defaultStringLength,
-        ),
-        BeakEnumColumn() ||
-        BeakColorColumn() => table.string(column.key, length: tokenLength),
-        BeakImageColumn() ||
-        BeakFileColumn() => table.string(column.key, length: storageKeyLength),
-        BeakTextColumn() ||
-        BeakRichTextColumn() ||
-        BeakCustomColumn() => table.text(column.key),
-        BeakIntColumn() =>
-          bigIntColumns.contains(column.key)
-              ? table.bigInteger(column.key)
-              : table.integer(column.key),
-        BeakDecimalColumn(:final totalDigits, :final precision) =>
-          table.decimal(column.key, precision: totalDigits, scale: precision),
-        BeakBoolColumn() => table.boolean(column.key),
-        BeakDateTimeColumn() => table.dateTime(column.key),
-        BeakJsonColumn() => table.json(column.key),
-      };
-      final Object? declaredDefault = columnDefaults.containsKey(column.key)
-          ? columnDefaults[column.key]
-          : _modelDefaultOf(column);
-      if (declaredDefault != null) {
-        definition.withDefault(declaredDefault);
-      } else if (!column.rules.any((rule) => rule is BeakRequired)) {
-        definition.makeNullable();
-      }
-      if (column.unique) {
-        definition.makeUnique();
-      } else if (column.indexed) {
-        table.index(<String>[column.key]);
-      }
+      defineColumn(
+        table,
+        column,
+        isForeignKey: foreignKeys.contains(column.key),
+        bigIntColumns: bigIntColumns,
+        columnDefaults: columnDefaults,
+      );
     }
 
     // Every belongs-to foreign key, without being asked. The panel joins on
@@ -145,6 +113,66 @@ abstract final class BeakBlueprint {
 
     if (model.softDeletes) {
       table.softDeletes();
+    }
+  }
+
+  /// Declares one [column] on [table], the same way [defineColumns] would.
+  ///
+  /// Split out so a migration that adds a single column derives its DDL from
+  /// the same mapping the create migration used. A generated `alter` that
+  /// spelled the column out itself would be a second answer to "what SQL
+  /// does this Beak column become", free to drift from this one.
+  ///
+  /// [isForeignKey] is what the caller knows and the column does not: a
+  /// belongs-to key is a nullable uuid whatever its declared kind says.
+  static void defineColumn(
+    BlueprintTable table,
+    BeakColumn column, {
+    bool isForeignKey = false,
+    Set<String> bigIntColumns = const {},
+    Map<String, Object?> columnDefaults = const {},
+  }) {
+    if (isForeignKey) {
+      table.uuid(column.key).makeNullable();
+      return;
+    }
+    final definition = switch (column) {
+      BeakStringColumn(:final maxLength) => table.string(
+        column.key,
+        length: maxLength ?? defaultStringLength,
+      ),
+      BeakEnumColumn() ||
+      BeakColorColumn() => table.string(column.key, length: tokenLength),
+      BeakImageColumn() ||
+      BeakFileColumn() => table.string(column.key, length: storageKeyLength),
+      BeakTextColumn() ||
+      BeakRichTextColumn() ||
+      BeakCustomColumn() => table.text(column.key),
+      BeakIntColumn() =>
+        bigIntColumns.contains(column.key)
+            ? table.bigInteger(column.key)
+            : table.integer(column.key),
+      BeakDecimalColumn(:final totalDigits, :final precision) => table.decimal(
+        column.key,
+        precision: totalDigits,
+        scale: precision,
+      ),
+      BeakBoolColumn() => table.boolean(column.key),
+      BeakDateTimeColumn() => table.dateTime(column.key),
+      BeakJsonColumn() => table.json(column.key),
+    };
+    final Object? declaredDefault = columnDefaults.containsKey(column.key)
+        ? columnDefaults[column.key]
+        : _modelDefaultOf(column);
+    if (declaredDefault != null) {
+      definition.withDefault(declaredDefault);
+    } else if (!column.rules.any((rule) => rule is BeakRequired)) {
+      definition.makeNullable();
+    }
+    if (column.unique) {
+      definition.makeUnique();
+    } else if (column.indexed) {
+      table.index(<String>[column.key]);
     }
   }
 

@@ -252,6 +252,20 @@ write, and `beak make:migration` scaffolds the shape:
 beak make:migration AddNotesToOrders
 ```
 
+!!! tip "Adding a field to a resource that is already live"
+    That is the common case, and `--from-drift` writes it for you: it reads
+    the database, compares it against the schema classes, and fills the body
+    in with the columns the table is missing.
+
+    ```bash
+    beak make:migration AddStockToProducts --from-drift
+    beak migrate
+    ```
+
+    It reads the database rather than the migrations because a Beak migration
+    never names its columns. See
+    [`--from-drift`](../reference/cli-commands.md#-from-drift).
+
 ```dart
 final class AddNotesToOrders extends Migration {
   /// Creates the migration.

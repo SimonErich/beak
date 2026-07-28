@@ -10,7 +10,12 @@ import 'commands/doctor_command.dart';
 import 'commands/introspect_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
+import 'introspect/beak_live_schema.dart';
+import 'introspect/beak_schema_introspection.dart';
 import 'project/beak_emitters.dart';
+import 'schema/beak_drift_migration_emitter.dart';
+import 'schema/beak_schema_drift.dart';
+import 'schema/beak_schema_reader.dart';
 import 'templates.dart';
 
 /// A TCP reachability probe over a host and port.
@@ -272,10 +277,25 @@ final class MakeResourceCommand extends _MakeCommand {
 /// ```
 final class MakeMigrationCommand extends Command<int> {
   /// Creates the command bound to [environment].
-  MakeMigrationCommand(this.environment);
+  ///
+  /// [readSchema] is how `--from-drift` reads the live schema; tests pass
+  /// their own so the command runs without a database.
+  MakeMigrationCommand(this.environment, {BeakLiveSchemaReader? readSchema})
+    : _readSchema = readSchema ?? beakReadLiveSchema {
+    argParser.addFlag(
+      'from-drift',
+      help:
+          'Fill the migration in from the difference between the schema '
+          'classes and the database.',
+      negatable: false,
+    );
+  }
 
   /// The seams this command runs against.
   final BeakCliEnvironment environment;
+
+  /// How `--from-drift` reads the live schema.
+  final BeakLiveSchemaReader _readSchema;
 
   @override
   String get name => 'make:migration';
@@ -284,7 +304,7 @@ final class MakeMigrationCommand extends Command<int> {
   String get description => 'Scaffold an empty, correctly-named migration.';
 
   @override
-  String get invocation => 'beak make:migration <Name>';
+  String get invocation => 'beak make:migration <Name> [--from-drift]';
 
   @override
   Future<int> run() async {
@@ -299,6 +319,9 @@ final class MakeMigrationCommand extends Command<int> {
     final String className = rest.single;
     final String snake = snakeCaseOf(className);
     final String stamp = _timestampOf(environment.now());
+    if (argResults?['from-drift'] == true) {
+      return _writeFromDrift(className: className, snake: snake, stamp: stamp);
+    }
     environment.writeFile('lib/migrations/$snake.dart', '''
 import 'package:beak/migrations.dart';
 
@@ -323,6 +346,54 @@ final class $className extends Migration {
   }
 }
 ''');
+    return 0;
+  }
+
+  /// Writes the migration the live database needs to match the models.
+  ///
+  /// The columns come from drift rather than from reading the migrations,
+  /// because a Beak migration derives its columns from the model at runtime
+  /// and never names them. Only a column a field declares is written: the
+  /// rest of what drift reports needs a decision, not a column.
+  Future<int> _writeFromDrift({
+    required String className,
+    required String snake,
+    required String stamp,
+  }) async {
+    final Directory root = environment.rootDirectory;
+    final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+    if (schemaIssues.isNotEmpty) {
+      environment.out.writeln('Cannot read the schema classes:');
+      for (final issue in schemaIssues) {
+        environment.out.writeln('  ${issue.path}: ${issue.message}');
+      }
+      return 1;
+    }
+
+    final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+    final List<IntrospectedTable> tables;
+    try {
+      tables = await _readSchema(beakResolvedDatabaseUrl(url, root));
+    } catch (error) {
+      environment.out.writeln('Could not read the database schema: $error');
+      return 1;
+    }
+
+    final String? contents = BeakDriftMigrationEmitter.emit(
+      className: className,
+      timestamp: stamp,
+      description: _sentenceOf(snake),
+      drift: beakSchemaDrift(schemas: schemas, tables: tables),
+    );
+    if (contents == null) {
+      environment.out.writeln(
+        '  nothing to add — the database already has every column the '
+        'schema classes declare',
+      );
+      return 0;
+    }
+    environment.writeFile('lib/migrations/$snake.dart', contents);
+    environment.out.writeln('  run `beak migrate` to apply it');
     return 0;
   }
 

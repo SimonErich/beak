@@ -9,6 +9,7 @@ import 'beak_panel_config.dart';
 /// jumps to any resource or custom page. Commands are derived from the panel
 /// config, so every navigable destination is reachable in two keystrokes with
 /// no per-app wiring.
+// --8<-- [start:openBeakCommandBar]
 void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
   final GoRouter router = GoRouter.of(context);
   void go(String route) => router.go(route);
@@ -28,9 +29,11 @@ void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
     ),
   );
 }
+// --8<-- [end:openBeakCommandBar]
 
 /// Builds one navigation [OiCommand] per resource and in-nav page (plus the
 /// dashboard when no page claims `/`), grouped by their sidebar section.
+// --8<-- [start:beakNavigationCommands]
 List<OiCommand> beakNavigationCommands(
   BeakPanelConfig config,
   void Function(String route) go,
@@ -66,3 +69,5 @@ List<OiCommand> beakNavigationCommands(
         ),
   ];
 }
+
+// --8<-- [end:beakNavigationCommands]

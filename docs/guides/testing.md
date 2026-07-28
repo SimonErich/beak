@@ -227,18 +227,7 @@ Pair it with `tearDown(Worm.reset)`: worm throws on a double-init, so the reset
 is mandatory, and a fresh adapter per test keeps them isolated.
 
 ```dart title="packages/beak_backend/test/support/api_models.dart"
-Future<InMemoryAdapter> createApiTestDatabase() async {
-  final adapter = InMemoryAdapter();
-  await adapter.connect();
-  for (final descriptor in apiSchema) {
-    await adapter.executeSchema(descriptor);
-  }
-  await Worm.initialize(
-    config: const WormConfig(),
-    adapters: <String, DatabaseAdapter>{'default': adapter},
-  );
-  return adapter;
-}
+--8<-- "packages/beak_backend/test/support/api_models.dart:createApiTestDatabase"
 ```
 
 The endpoint suite wires that adapter into the router. It injects `now` and
@@ -418,54 +407,7 @@ The file it checks against is committed, so a diff in review shows the format ch
 in plain sight.
 
 ```json title="packages/beak_core/test/golden/rich_query_spec.json"
-{
-  "table": "posts",
-  "filter": {
-    "type": "and",
-    "filters": [
-      {
-        "type": "field",
-        "column": "status",
-        "operator": "eq",
-        "value": "active"
-      },
-      {
-        "type": "field",
-        "column": "last_active",
-        "operator": "lt",
-        "value": {
-          "type": "dateTime",
-          "value": "2026-06-01T00:00:00.000Z"
-        }
-      }
-    ]
-  },
-  "sorts": [
-    {
-      "column": "created_at",
-      "descending": true
-    }
-  ],
-  "search": {
-    "term": "ada",
-    "columns": [
-      "name",
-      "email"
-    ]
-  },
-  "relations": [
-    {
-      "relation": "author",
-      "filter": null,
-      "nested": []
-    }
-  ],
-  "pagination": {
-    "page": 2,
-    "perPage": 50
-  },
-  "withTrashed": false
-}
+--8<-- "packages/beak_core/test/golden/rich_query_spec.json"
 ```
 
 ## Where tests live and how to run them
@@ -511,7 +453,6 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
-  'beak_storage_s3': 70,
   'quickstart': 50,
   'store': 70,
   'superdashboard': 85,
@@ -526,9 +467,6 @@ without executing line by line. What has to work is checked directly instead, by
 the API scenario
 and by the coverage matrices in `examples/store/test/widget_test.dart` that fail
 when a column kind or a relationship kind stops being demonstrated.
-`beak_storage_s3` is lower for a different reason: request signing, retries and
-error mapping are only reached against a real endpoint, so they are covered by
-its `test/e2e/` suite against MinIO rather than by this measurement.
 
 The floor is there to keep you honest about branches and error paths, not just
 happy paths: a package at 90% coverage with an untested failure mode has not

@@ -77,25 +77,7 @@ commands come straight from your config, so every navigable destination is
 reachable without per-app wiring.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_command_bar.dart"
-void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
-  final GoRouter router = GoRouter.of(context);
-  void go(String route) => router.go(route);
-  BeakOverlays(context).dialog<void>(
-    title: 'Go to',
-    builder: (close) => SizedBox(
-      width: 640,
-      height: 480,
-      child: OiCommandBar(
-        label: 'Command bar',
-        onDismiss: () => close(),
-        commands: beakNavigationCommands(config, (route) {
-          close();
-          go(route);
-        }),
-      ),
-    ),
-  );
-}
+--8<-- "packages/beak_frontend/lib/src/panel/beak_command_bar.dart:openBeakCommandBar"
 ```
 
 `beakNavigationCommands` builds one command per resource and in-nav screen, plus a
@@ -103,41 +85,7 @@ Dashboard command when no page claims `/`. Commands carry the same section as th
 sidebar, so the palette groups the same way.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_command_bar.dart"
-List<OiCommand> beakNavigationCommands(
-  BeakPanelConfig config,
-  void Function(String route) go,
-) {
-  final bool hasHome = config.pages.any((page) => page.path == '/');
-  return [
-    if (!hasHome)
-      OiCommand(
-        id: 'nav:/',
-        label: 'Dashboard',
-        icon: OiIcons.layoutDashboard,
-        category: 'Navigate',
-        onExecute: () => go('/'),
-      ),
-    for (final resource in config.resources)
-      OiCommand(
-        id: 'nav:${resource.route}',
-        label: resource.effectiveLabel,
-        icon: resource.icon.icon,
-        category: resource.section ?? 'Resources',
-        keywords: const ['open', 'go to'],
-        onExecute: () => go(resource.route),
-      ),
-    for (final page in config.pages)
-      if (page.showInNav)
-        OiCommand(
-          id: 'nav:${page.path}',
-          label: page.effectiveLabel,
-          icon: page.icon.icon,
-          category: page.section ?? 'Pages',
-          keywords: const ['open', 'go to'],
-          onExecute: () => go(page.path),
-        ),
-  ];
-}
+--8<-- "packages/beak_frontend/lib/src/panel/beak_command_bar.dart:beakNavigationCommands"
 ```
 
 !!! note "What just happened"
@@ -190,10 +138,7 @@ The top bar carries a light/dark/system toggle. It is driven by a
 container so the toggle can flip the mode and the root `BeakPanel` rebuilds with it.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_theme_controller.dart"
-final class BeakThemeController extends ValueNotifier<OiThemeMode> {
-  /// Creates a controller starting in the given mode (default: system).
-  BeakThemeController([super.initialMode = OiThemeMode.system]);
-}
+--8<-- "packages/beak_frontend/lib/src/panel/beak_theme_controller.dart:BeakThemeController"
 ```
 
 You rarely touch the controller directly. What you set is the starting mode on the

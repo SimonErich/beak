@@ -64,28 +64,7 @@ const BeakKpiBlock({
 The showcase dashboard opens with four of them: an earnings sum and three counts.
 
 ```dart title="examples/superdashboard/lib/dashboard.dart"
-BeakBlock _kpis() => const BeakGridBlock(
-  columns: 4,
-  children: [
-    BeakKpiBlock(
-      title: 'Total earnings',
-      value: BeakAggregateSpec.sum(table: 'orders', column: OrderColumns.total),
-      format: BeakKpiFormat.currency,
-    ),
-    BeakKpiBlock(
-      title: 'Total orders',
-      value: BeakAggregateSpec.count(table: 'orders'),
-    ),
-    BeakKpiBlock(
-      title: 'Customers',
-      value: BeakAggregateSpec.count(table: 'users'),
-    ),
-    BeakKpiBlock(
-      title: 'Products',
-      value: BeakAggregateSpec.count(table: 'products'),
-    ),
-  ],
-);
+--8<-- "examples/superdashboard/lib/dashboard.dart:kpis"
 ```
 
 !!! note "What just happened"

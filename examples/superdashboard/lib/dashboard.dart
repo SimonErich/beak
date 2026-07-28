@@ -18,6 +18,7 @@ BeakScreen beakDashboard() => BeakScreen(
   ),
 );
 
+// --8<-- [start:kpis]
 BeakBlock _kpis() => const BeakGridBlock(
   columns: 4,
   children: [
@@ -40,6 +41,7 @@ BeakBlock _kpis() => const BeakGridBlock(
     ),
   ],
 );
+// --8<-- [end:kpis]
 
 BeakBlock _chartsAndDonut() => BeakGridBlock(
   columns: 12,

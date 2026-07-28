@@ -21,37 +21,7 @@ Configure auth on the server, in `lib/server.dart`. `BeakAuthSessions` mounts
 guard turns a presented token back into a principal:
 
 ```dart title="examples/store/lib/server.dart"
-BeakServer beakServer(BeakServerDefaults defaults) {
-  final String secret =
-      defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
-  final store = InMemoryTokenSessionStore();
-  return defaults.build(
-    policy: const StorePolicy(),
-    authSessions: BeakAuthSessions(
-      store: store,
-      secret: secret,
-      users: [
-        BeakUserAccount(
-          username: 'ada@example.com',
-          passwordHash: hashBeakPassword('espresso', secret: secret),
-          principal: const BeakPrincipal(
-            id: StoreSeedIds.userAda,
-            roles: {'staff'},
-          ),
-        ),
-        BeakUserAccount(
-          username: 'linus@example.com',
-          passwordHash: hashBeakPassword('grinder', secret: secret),
-          principal: const BeakPrincipal(
-            id: StoreSeedIds.userLinus,
-            roles: {'customer'},
-          ),
-        ),
-      ],
-    ),
-    authGuard: TokenSessionAuthGuard(store),
-  );
-}
+--8<-- "examples/store/lib/server.dart:beakServer"
 ```
 
 That is the whole of it. The store example has no `lib/auth.dart`, no

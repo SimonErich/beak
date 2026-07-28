@@ -100,6 +100,7 @@ abstract interface class BeakPolicy {
 ///   }
 /// }
 /// ```
+// --8<-- [start:BeakRowPolicy]
 abstract interface class BeakRowPolicy implements BeakPolicy {
   /// The filter every read and write of [table] is additionally constrained
   /// by, or `null` when [principal] may touch every row.
@@ -109,6 +110,7 @@ abstract interface class BeakRowPolicy implements BeakPolicy {
   /// scope means — as opposed to `canView` returning false, which is a 403.
   BeakFilter? scopeFor(BeakPrincipal? principal, String table);
 }
+// --8<-- [end:BeakRowPolicy]
 
 /// The row scope [policy] applies to [table], or `null` when it declares
 /// none.
@@ -170,6 +172,7 @@ base class BeakAllowAllPolicy implements BeakPolicy {
 ///   table: model.table,
 /// );
 /// ```
+// --8<-- [start:enforcePolicyDecision]
 void enforcePolicyDecision({
   required bool allowed,
   required BeakPrincipal? principal,
@@ -186,3 +189,5 @@ void enforcePolicyDecision({
     'Principal "${principal.id}" is not allowed to $action "$table".',
   );
 }
+
+// --8<-- [end:enforcePolicyDecision]

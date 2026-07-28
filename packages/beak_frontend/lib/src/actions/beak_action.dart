@@ -29,6 +29,7 @@ part 'built_in_actions.dart';
 ///   await context.refresh?.call();
 /// }
 /// ```
+// --8<-- [start:BeakActionContext]
 final class BeakActionContext {
   /// Creates the execution context handed to every action.
   const BeakActionContext({
@@ -58,6 +59,7 @@ final class BeakActionContext {
   /// toasts — bound to this action's [buildContext].
   BeakOverlays get overlays => BeakOverlays(buildContext);
 }
+// --8<-- [end:BeakActionContext]
 
 /// A typed panel action: what it is called, how it renders, and whether it
 /// asks before running.
@@ -67,6 +69,7 @@ final class BeakActionContext {
 /// page ([BeakGlobalAction]) — so surfaces switch over them exhaustively.
 /// The built-in view/edit/delete/create actions subclass these; declare
 /// custom ones on a [BeakResource] to extend the generated pages.
+// --8<-- [start:BeakAction]
 sealed class BeakAction {
   /// Creates an action identified by [key] and labelled [label].
   const BeakAction({
@@ -93,6 +96,7 @@ sealed class BeakAction {
   /// Whether a confirmation dialog gates execution.
   final bool requiresConfirmation;
 }
+// --8<-- [end:BeakAction]
 
 /// An action over one record (a table row or the record on a show page).
 ///
@@ -111,6 +115,7 @@ sealed class BeakAction {
 ///   },
 /// );
 /// ```
+// --8<-- [start:BeakRecordAction]
 final class BeakRecordAction extends BeakAction {
   /// Creates a record action running [onExecute].
   const BeakRecordAction({
@@ -126,6 +131,7 @@ final class BeakRecordAction extends BeakAction {
   final Future<void> Function(BeakRecord record, BeakActionContext context)
   onExecute;
 }
+// --8<-- [end:BeakRecordAction]
 
 /// An action over the currently selected records.
 ///

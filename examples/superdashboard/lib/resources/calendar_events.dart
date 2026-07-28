@@ -8,6 +8,7 @@ import '../panel/forms/calendar_event_form.dart';
 ///
 /// Its model, label, icon and section still come from the schema class and
 /// `beak.yaml`; this adds what a person decided.
+// --8<-- [start:beakResource]
 BeakResource beakResource(BeakResource generated) => generated.copyWith(
   detail: calendarEventDetail,
   formSteps: calendarEventFormSteps,
@@ -21,3 +22,5 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
     ),
   ],
 );
+
+// --8<-- [end:beakResource]

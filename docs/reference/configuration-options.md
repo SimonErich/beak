@@ -119,11 +119,7 @@ which `beak prepare` wires into the generated host. The `memory` and `local`
 drivers are in the box.
 
 ```dart title="examples/embedded/lib/server.dart"
-BeakStorageRegistry beakStorageRegistry() {
-  final registry = createDefaultStorageRegistry();
-  registerS3Storage(registry);
-  return registry;
-}
+--8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
 ```
 
 ```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"

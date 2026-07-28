@@ -3,7 +3,8 @@
 /// MkDocs' `--strict` catches broken links and pages missing from the nav.
 /// It cannot catch the things this file checks: a code fence claiming to
 /// quote a file that no longer exists, a page with no front matter, a snippet
-/// include pointing at a moved file, or a banned phrase from the style guide.
+/// include pointing at a moved file or a deleted section marker, or a banned
+/// phrase from the style guide.
 ///
 /// The style guide's "Banned" section is enforced from [enforcedBans]. A ban
 /// that a page must be able to break, because naming the thing is that page's
@@ -28,6 +29,21 @@ const Set<String> transcriptLanguages = {
   'output',
   'diff',
 };
+
+/// A `--8<-- "path"` line: mkdocs reads that file in at build time.
+///
+/// The quoted form is the only one the docs use, so the pattern insists on
+/// it rather than also matching the multi-line block form.
+final RegExp snippetInclude = RegExp(r'^\s*--8<--\s+"([^"]+)"\s*$');
+
+/// A `--8<-- [start:name]` or `[end:name]` marker in a quoted source file.
+///
+/// mkdocs strips these when it reads a section in, so they are build
+/// metadata rather than code, and neither the reader nor a quotation of the
+/// surrounding lines ever sees them.
+final RegExp snippetMarker = RegExp(
+  r'--8<--\s*\[\s*(start|end)\s*:\s*([\w-]+)\s*\]',
+);
 
 /// A line that says "and some more of the file here".
 ///
@@ -331,28 +347,105 @@ List<DocProblem> checkPage(
       }
     }
 
-    // A snippet include reads the file at build time; a moved file would
-    // publish an empty block.
-    final RegExpMatch? include = RegExp(
-      r'^\s*--8<--\s+"([^"]+)"',
-    ).firstMatch(line);
+    final RegExpMatch? include = snippetInclude.firstMatch(line);
     if (include != null) {
-      final String target = include.group(1)!.split(':').first;
-      if (readFile(target) == null) {
-        problems.add(
-          DocProblem(
-            path,
-            'snippet includes "$target", which does not exist',
-            line: number,
-          ),
-        );
-      }
+      problems.addAll(
+        checkInclude(path, include.group(1)!, number, readFile: readFile),
+      );
     }
   }
 
   problems.addAll(checkBannedPhrases(path, lines, bans: enforcedBans));
   problems.addAll(checkQuotations(path, lines, readFile: readFile));
   return problems;
+}
+
+/// The problems in the snippet include of [reference], on line [line] of
+/// [path].
+///
+/// An include cannot drift the way a copy does, because mkdocs re-reads the
+/// file on every build. It can still rot, and quietly: rename the symbol and
+/// the markers go with it, and the page publishes an empty block. Drop only
+/// the end marker and the section runs to the end of the file. So the file
+/// has to be there, and a named section needs both of its markers.
+List<DocProblem> checkInclude(
+  String path,
+  String reference,
+  int line, {
+  String? Function(String path) readFile = readRepoFile,
+}) {
+  final String target = reference.split(':').first;
+  final String? contents = readFile(target);
+  if (contents == null) {
+    return [
+      DocProblem(
+        path,
+        'snippet includes "$target", which does not exist',
+        line: line,
+      ),
+    ];
+  }
+  final String? section = sectionOf(reference);
+  if (section == null) {
+    return const [];
+  }
+  final List<({String kind, int at})> markers = [
+    for (final match in snippetMarker.allMatches(contents))
+      if (match.group(2)! == section) (kind: match.group(1)!, at: match.start),
+  ];
+  final Set<String> kinds = {for (final marker in markers) marker.kind};
+  if (!kinds.contains('start')) {
+    return [
+      DocProblem(
+        path,
+        'snippet includes section "$section" of "$target", which has no '
+        '"--8<-- [start:$section]" marker. Restore the markers around the '
+        'symbol, or point the include at what replaced it.',
+        line: line,
+      ),
+    ];
+  }
+  if (!kinds.contains('end')) {
+    return [
+      DocProblem(
+        path,
+        'snippet includes section "$section" of "$target", which opens the '
+        'section but never closes it, so the include runs to the end of the '
+        'file. Add "--8<-- [end:$section]".',
+        line: line,
+      ),
+    ];
+  }
+  final int start = markers.firstWhere((marker) => marker.kind == 'start').at;
+  final int end = markers.firstWhere((marker) => marker.kind == 'end').at;
+  if (end < start) {
+    return [
+      DocProblem(
+        path,
+        'snippet includes section "$section" of "$target", whose "end" marker '
+        'sits above its "start". Both are present, so the include is not '
+        'reported as broken; it just publishes nothing.',
+        line: line,
+      ),
+    ];
+  }
+  return const [];
+}
+
+/// The section [reference] names, or `null` when it reads a whole file.
+///
+/// pymdownx also accepts a line range (`file.dart:12:20`), which has no
+/// marker to look for, so a tail that is not a section name is not one.
+String? sectionOf(String reference) {
+  final int separator = reference.indexOf(':');
+  if (separator == -1) {
+    return null;
+  }
+  final String tail = reference.substring(separator + 1);
+  // A leading underscore is allowed: mkdocs does not care, and misreading
+  // `file.dart:_helper` as a whole-file include would skip the marker check
+  // on exactly the sections nothing else is watching.
+  return RegExp(r'^[A-Za-z_][\w-]*$').hasMatch(tail) ? tail : null;
 }
 
 /// Whether [path] names a file this repository is expected to contain.
@@ -439,6 +532,10 @@ String proseOf(String line) => line
 /// A fence may abridge with an elision marker, so the body is compared chunk
 /// by chunk between them, and indentation is ignored — a class member quoted
 /// on its own is still that member.
+///
+/// A fence whose body is a `--8<--` include is not a quotation and is left
+/// out: mkdocs substitutes the file at build time, so there is nothing on the
+/// page to compare. [checkInclude] is what guards those.
 List<DocProblem> checkQuotations(
   String path,
   List<String> lines, {
@@ -505,12 +602,11 @@ Iterable<_Quotation> _quotationsIn(List<String> lines) sync* {
     if (close == -1) {
       continue;
     }
-    if (_quotesRepo(target) && !transcriptLanguages.contains(language)) {
-      yield _Quotation(
-        target: target,
-        line: index + 1,
-        body: lines.sublist(index + 1, close),
-      );
+    final List<String> body = lines.sublist(index + 1, close);
+    if (_quotesRepo(target) &&
+        !transcriptLanguages.contains(language) &&
+        !isIncludeBody(body)) {
+      yield _Quotation(target: target, line: index + 1, body: body);
     }
     index = close;
   }
@@ -526,11 +622,24 @@ int _closingFence(List<String> lines, int from, String indent) {
   return -1;
 }
 
+/// Whether [body] is a snippet include rather than a copy of the source.
+///
+/// One include line and nothing else. A fence that mixes an include with
+/// lines someone typed is still partly a copy, so it stays a quotation.
+bool isIncludeBody(List<String> body) {
+  final List<String> significant = _significant(body);
+  return significant.length == 1 && snippetInclude.hasMatch(significant.single);
+}
+
 /// [lines] reduced to what a comparison should care about: trimmed, with
-/// blank lines dropped.
+/// blank lines and snippet section markers dropped.
+///
+/// The markers go because mkdocs strips them too. A page quoting lines that
+/// straddle one is quoting the code the reader will see, so it must not have
+/// to paste a build directive in to stay faithful.
 List<String> _significant(List<String> lines) => [
   for (final line in lines)
-    if (line.trim().isNotEmpty) line.trim(),
+    if (line.trim().isNotEmpty && !snippetMarker.hasMatch(line)) line.trim(),
 ];
 
 /// [body] split on elision markers into the runs that must each appear.

@@ -24,66 +24,7 @@ derived, not generated: no file is written for it, so adding a column to the
 schema class changes the show page with nothing to regenerate.
 
 ```dart title="packages/beak_frontend/lib/src/detail/beak_default_detail_layout.dart"
-BeakBlock beakDefaultDetailLayout(BeakModel model) {
-  final List<BeakColumn> detail = model.columnsFor(BeakContext.detail);
-  final Set<String> foreignKeys = {
-    for (final relation in model.relationships)
-      if (relation is BeakBelongsTo) relation.foreignKey,
-  };
-  // The relationship renders the record; the key that stores it is noise.
-  final List<BeakColumn> shown = [
-    for (final column in detail)
-      if (!foreignKeys.contains(column.key) &&
-          column.key != model.primaryKey.key)
-        column,
-  ];
-  final List<BeakColumn> headline = shown.take(4).toList();
-  final List<BeakColumn> rest = shown.skip(4).toList();
-  final List<BeakRelationship> toMany = [
-    for (final relation in model.relationships)
-      if (relation.cardinality == BeakRelationCardinality.many) relation,
-  ];
-
-  return BeakColumnBlock(
-    gapInPixels: 20,
-    children: [
-      if (headline.isNotEmpty)
-        BeakCardBlock(
-          child: BeakFieldGroupBlock(headline, columnCount: headline.length),
-        ),
-      if (rest.isNotEmpty)
-        BeakGridBlock(
-          columns: 12,
-          children: [
-            BeakCardBlock(
-              span: const BeakSpan(columns: 8),
-              title: 'Details',
-              child: BeakFieldGroupBlock(rest.take(8).toList(), columnCount: 2),
-            ),
-            if (rest.length > 8)
-              BeakCardBlock(
-                span: const BeakSpan(columns: 4),
-                title: 'More',
-                child: BeakFieldGroupBlock(rest.skip(8).toList()),
-              ),
-          ],
-        ),
-      if (toMany.isNotEmpty)
-        BeakCardBlock(
-          title: 'Related',
-          child: BeakTabsBlock(
-            tabs: [
-              for (final relation in toMany)
-                BeakTabBlockItem(
-                  label: relation.label,
-                  content: BeakRelationBlock(relation),
-                ),
-            ],
-          ),
-        ),
-    ],
-  );
-}
+--8<-- "packages/beak_frontend/lib/src/detail/beak_default_detail_layout.dart:beakDefaultDetailLayout"
 ```
 
 The rules in one list:
@@ -243,24 +184,7 @@ you like (cards, grids, tabs). Each is a plain `const` leaf:
 can be `const`:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_field_block.dart"
-final class BeakFieldBlock extends BeakBlock {
-  /// Shows [column] from the scoped record.
-  const BeakFieldBlock(
-    this.column, {
-    this.label,
-    this.layout = BeakFieldLayout.stacked,
-    super.span,
-  });
-
-  /// The column to display.
-  final BeakColumn column;
-
-  /// A label override; defaults to [BeakColumn.label].
-  final String? label;
-
-  /// Whether the label sits above or beside the value.
-  final BeakFieldLayout layout;
-}
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_field_block.dart:BeakFieldBlock"
 ```
 
 See [Record blocks](../blocks/record-blocks.md) for the full field list of each

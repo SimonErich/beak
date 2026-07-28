@@ -65,11 +65,13 @@ final class BeakPrincipal {
 ///   }
 /// }
 /// ```
+// --8<-- [start:BeakAuthGuard]
 abstract interface class BeakAuthGuard {
   /// The principal behind [request], or `null` when it carries no
   /// credentials.
   Future<BeakPrincipal?> authenticate(Request request);
 }
+// --8<-- [end:BeakAuthGuard]
 
 /// The default guard: opaque `Bearer` tokens looked up in a server-side
 /// [TokenSessionStore].

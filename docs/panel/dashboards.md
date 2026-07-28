@@ -160,8 +160,7 @@ key strings, no `dynamic`, no casts. The mapper's signature is the
 `BeakChartMapper` typedef:
 
 ```dart title="packages/beak_frontend/lib/src/dashboard/beak_chart.dart"
-typedef BeakChartMapper =
-    List<BeakChartPoint> Function(List<BeakRecord> records);
+--8<-- "packages/beak_frontend/lib/src/dashboard/beak_chart.dart:BeakChartMapper"
 ```
 
 `BeakChartType` picks how those points draw. Every family maps from the same

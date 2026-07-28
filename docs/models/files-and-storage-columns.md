@@ -47,32 +47,7 @@ Both annotations generate a column extending one sealed intermediate,
 `BeakUploadColumn`, which is where those three live on the output side:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_column.dart"
-sealed class BeakUploadColumn extends BeakColumn {
-  /// Creates an upload-backed column storing files under [storagePath].
-  const BeakUploadColumn({
-    required super.key,
-    required super.label,
-    required this.storagePath,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-    this.maxSizeInBytes,
-    this.allowedTypes = const [],
-  });
-
-  /// Storage subfolder uploads of this column land in.
-  final String storagePath;
-
-  /// Highest accepted upload size in bytes, if bounded.
-  final int? maxSizeInBytes;
-
-  /// Accepted upload types; empty means unrestricted.
-  final List<BeakFileType> allowedTypes;
-}
+--8<-- "packages/beak_core/lib/src/columns/beak_column.dart:BeakUploadColumn"
 ```
 
 ## Image fields
@@ -268,11 +243,7 @@ S3 does not build its client. Declare the ones you use in `lib/server.dart` and
 `beak prepare` wires them into the host:
 
 ```dart title="examples/superdashboard/lib/server.dart"
-BeakStorageRegistry beakStorageRegistry() {
-  final registry = createDefaultStorageRegistry();
-  registerS3Storage(registry);
-  return registry;
-}
+--8<-- "examples/superdashboard/lib/server.dart:beakStorageRegistry"
 ```
 
 Either way the field does not care which driver is active. It only names the

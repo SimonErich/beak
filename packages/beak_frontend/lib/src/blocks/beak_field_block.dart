@@ -14,6 +14,7 @@ enum BeakFieldLayout {
 /// (badges, dates, images, swatches, relations). Resolves the value from the
 /// enclosing `BeakRecordScope`, so it is a `const` leaf a detail layout drops
 /// into any card, grid, or tab.
+// --8<-- [start:BeakFieldBlock]
 final class BeakFieldBlock extends BeakBlock {
   /// Shows [column] from the scoped record.
   const BeakFieldBlock(
@@ -32,3 +33,5 @@ final class BeakFieldBlock extends BeakBlock {
   /// Whether the label sits above or beside the value.
   final BeakFieldLayout layout;
 }
+
+// --8<-- [end:BeakFieldBlock]

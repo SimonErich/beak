@@ -113,16 +113,7 @@ When the cell renderer meets `BeakRenderIntent.custom`, it looks up your builder
 by tag and calls it. A missing builder is a visible placeholder, never a crash:
 
 ```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
-Widget _custom(BuildContext context, BeakColumn column, BeakRecord record) {
-  if (column case BeakCustomColumn(:final tag)) {
-    final builder = BeakCustomRenderers.builderFor(tag);
-    if (builder != null) {
-      return builder(context, column, record);
-    }
-    return OiLabel.caption('No renderer for "${tag.value}"');
-  }
-  return const OiLabel.caption('Unsupported custom cell');
-}
+--8<-- "packages/beak_frontend/lib/src/table/column_cell_renderer.dart:custom"
 ```
 
 If you ever see `No renderer for "stock_bar"` in a cell, the schema shipped a
@@ -135,8 +126,7 @@ A renderer is a `BeakCustomCellBuilder`: a function from the build context, the
 column, and the record to a widget.
 
 ```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
-typedef BeakCustomCellBuilder =
-    Widget Function(BuildContext context, BeakColumn column, BeakRecord record);
+--8<-- "packages/beak_frontend/lib/src/table/column_cell_renderer.dart:BeakCustomCellBuilder"
 ```
 
 Register it against the tag on the static `BeakCustomRenderers` registry:

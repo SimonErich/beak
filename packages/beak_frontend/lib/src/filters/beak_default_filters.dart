@@ -14,14 +14,17 @@ import 'beak_filter_widget.dart';
 /// Enums become a select, booleans a switch, strings a contains-search, dates
 /// a range. A filterable column of any other kind has no obvious control and
 /// is skipped rather than guessed at — declare it on the resource.
+// --8<-- [start:beakDefaultFiltersOf]
 List<BeakFilterDef> beakDefaultFiltersOf(BeakModel model) => <BeakFilterDef>[
   for (final column in model.columns)
     if (column.filterable)
       if (_filterFor(column) case final BeakFilterDef filter) filter,
 ];
+// --8<-- [end:beakDefaultFiltersOf]
 
 /// Exhaustive on purpose: a new column kind must decide what filtering it
 /// means, rather than silently defaulting to none.
+// --8<-- [start:filterFor]
 BeakFilterDef? _filterFor(BeakColumn column) => switch (column) {
   BeakEnumColumn() => BeakSelectFilter(column: column, label: column.label),
   BeakBoolColumn() => BeakBoolFilter(column: column, label: column.label),
@@ -41,3 +44,5 @@ BeakFilterDef? _filterFor(BeakColumn column) => switch (column) {
   BeakCustomColumn() ||
   BeakUploadColumn() => null,
 };
+
+// --8<-- [end:filterFor]

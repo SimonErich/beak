@@ -59,19 +59,7 @@ seam so the driver's logic (key building, error mapping, URL shaping) stays
 unit-testable against a fake. FTP calls that seam an `FtpTransport`:
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_transport.dart"
-abstract interface class FtpTransport {
-  /// Uploads [bytes] under [key], creating missing parent directories.
-  Future<void> store(String key, Uint8List bytes);
-
-  /// Downloads the file stored under [key].
-  Future<Uint8List> retrieve(String key);
-
-  /// Deletes the file stored under [key].
-  Future<void> remove(String key);
-
-  /// Whether a file is stored under [key].
-  Future<bool> exists(String key);
-}
+--8<-- "packages/beak_storage_ftp/lib/src/ftp_transport.dart:FtpTransport"
 ```
 
 The S3 package does the same with an `S3ObjectClient`. The production
@@ -173,9 +161,7 @@ web-safe `memory` driver, and `beak_backend`'s `createDefaultStorageRegistry`
 adds `local`; your package adds one line:
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
-void registerFtpStorage(BeakStorageRegistry registry) {
-  registry.register('ftp', FtpStorageDriver.fromConfig);
-}
+--8<-- "packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart:registerFtpStorage"
 ```
 
 At app init the backend calls your register function once, then `resolve`s

@@ -61,8 +61,7 @@ A `BeakChartMapper` is a plain function from a page of records to a list of
 points.
 
 ```dart title="packages/beak_frontend/lib/src/dashboard/beak_chart.dart"
-typedef BeakChartMapper =
-    List<BeakChartPoint> Function(List<BeakRecord> records);
+--8<-- "packages/beak_frontend/lib/src/dashboard/beak_chart.dart:BeakChartMapper"
 ```
 
 Here is a real one from the tutorial store (`examples/store`, port 8080).
@@ -105,28 +104,7 @@ List<BeakChartPoint> orderTotalPoints(List<BeakRecord> records) => [
 `BeakChartType` picks which `obers_ui_charts` widget draws your points.
 
 ```dart title="packages/beak_frontend/lib/src/dashboard/beak_chart.dart"
-enum BeakChartType {
-  /// A line chart over the mapped points.
-  line,
-
-  /// A vertical bar chart, one category per point.
-  bar,
-
-  /// A pie chart, one segment per point.
-  pie,
-
-  /// A donut (ring) chart, one segment per point.
-  donut,
-
-  /// An area chart over the mapped points.
-  area,
-
-  /// A radar chart — one axis per point, a single series of their values.
-  radar,
-
-  /// A funnel chart — one stage per point.
-  funnel,
-}
+--8<-- "packages/beak_frontend/lib/src/dashboard/beak_chart.dart:BeakChartType"
 ```
 
 They all consume the same `List<BeakChartPoint>`; only the drawing changes.

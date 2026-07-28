@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../cli_runner.dart';
+import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
-import '../introspect/postgres_introspector.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
@@ -14,7 +14,6 @@ import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
-import 'introspect_command.dart';
 
 /// How a single check came out.
 enum BeakCheckStatus {
@@ -59,10 +58,10 @@ final class BeakCheck {
 final class DoctorCommand extends Command<int> {
   /// Creates the command bound to [environment].
   ///
-  /// [open] is the seam the drift check reads the live schema through; tests
-  /// pass their own so the check runs against canned rows.
-  DoctorCommand(this.environment, {BeakDatabaseOpener? open})
-    : _open = open ?? openPostgresConnection {
+  /// [readSchema] is the seam the drift check reads the live schema through;
+  /// tests pass their own so the check runs without a database.
+  DoctorCommand(this.environment, {BeakLiveSchemaReader? readSchema})
+    : _readSchema = readSchema ?? beakReadLiveSchema {
     argParser.addFlag(
       'json',
       help: 'Report as JSON, for CI.',
@@ -73,8 +72,8 @@ final class DoctorCommand extends Command<int> {
   /// The seams this command runs against.
   final BeakCliEnvironment environment;
 
-  /// How the drift check connects to the database.
-  final BeakDatabaseOpener _open;
+  /// How the drift check reads the live schema.
+  final BeakLiveSchemaReader _readSchema;
 
   @override
   String get name => 'doctor';
@@ -84,7 +83,7 @@ final class DoctorCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final checks = await diagnose(environment, open: _open);
+    final checks = await diagnose(environment, readSchema: _readSchema);
     final bool healthy = checks.every(
       (check) => check.status != BeakCheckStatus.fail,
     );
@@ -118,11 +117,11 @@ final class DoctorCommand extends Command<int> {
 /// Runs every diagnostic against [environment], in report order.
 ///
 /// Exposed separately from the command so the checks can be asserted on
-/// directly, and so other commands can reuse them. [open] connects to the
-/// database for the drift check, and defaults to a real connection.
+/// directly, and so other commands can reuse them. [readSchema] reads the
+/// live schema for the drift check, and defaults to a real connection.
 Future<List<BeakCheck>> diagnose(
   BeakCliEnvironment environment, {
-  BeakDatabaseOpener open = openPostgresConnection,
+  BeakLiveSchemaReader readSchema = beakReadLiveSchema,
 }) async {
   final checks = <BeakCheck>[];
   final Directory root = environment.rootDirectory;
@@ -269,7 +268,7 @@ Future<List<BeakCheck>> diagnose(
   checks.add(_webScaffoldCheck(root));
   checks.addAll(serverImportChecks(root, packageName: packageName));
   checks.addAll(
-    await _databaseChecks(environment, root, open, schemas, schemaIssues),
+    await _databaseChecks(environment, root, readSchema, schemas, schemaIssues),
   );
   return checks;
 }
@@ -505,32 +504,43 @@ String? _resolveWithinProject(
 Future<List<BeakCheck>> _databaseChecks(
   BeakCliEnvironment environment,
   Directory root,
-  BeakDatabaseOpener open,
+  BeakLiveSchemaReader readSchema,
   List<BeakSchemaIr> schemas,
   List<BeakDiscoveryIssue> schemaIssues,
 ) async {
-  final Uri? url = _databaseUrlOf(root);
-  if (url == null) {
-    // Not a warning: no DATABASE_URL is the supported zero-setup default, and
-    // telling someone their working project is misconfigured trains them to
-    // ignore this output.
-    return const [
-      BeakCheck(
-        status: BeakCheckStatus.ok,
-        label: 'no DATABASE_URL — using the default SQLite file',
-      ),
-    ];
-  }
-  if (url.scheme == 'sqlite' || url.scheme == 'file') {
+  // No DATABASE_URL is the supported zero-setup default rather than a
+  // misconfiguration, so it resolves to the same file the server would use
+  // and is checked like any other database. Telling someone their working
+  // project is wrong trains them to ignore this output.
+  final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+  final bool isDefault = beakDatabaseUrlOf(root) == null;
+  final bool canDrift = schemaIssues.isEmpty && schemas.isNotEmpty;
+
+  if (beakSqliteFileOf(url) case final String file) {
+    if (!beakSqliteFileExists(url, root)) {
+      // Before the first migrate there is no file, and no schema that could
+      // be out of step with the models.
+      return [
+        BeakCheck(
+          status: BeakCheckStatus.ok,
+          label: isDefault
+              ? 'no DATABASE_URL — the default SQLite file is not created yet'
+              : 'database is SQLite ($file), not created yet',
+          remedy: 'beak migrate',
+        ),
+      ];
+    }
     return [
       BeakCheck(
         status: BeakCheckStatus.ok,
-        label:
-            'database is SQLite '
-            '(${url.path.isEmpty ? url.toString() : url.path})',
+        label: isDefault
+            ? 'no DATABASE_URL — using the default SQLite file ($file)'
+            : 'database is SQLite ($file)',
       ),
+      if (canDrift) ...await _driftChecks(url, readSchema, schemas, root),
     ];
   }
+
   final bool reachable = await environment.probe(
     url.host,
     url.hasPort ? url.port : 5432,
@@ -549,8 +559,8 @@ Future<List<BeakCheck>> _databaseChecks(
       status: BeakCheckStatus.ok,
       label: 'database reachable at ${url.host}:${url.port}',
     ),
-    if (isIntrospectableUrl(url) && schemaIssues.isEmpty && schemas.isNotEmpty)
-      ...await _driftChecks(url, open, schemas),
+    if (canDrift && beakCanReadSchema(url))
+      ...await _driftChecks(url, readSchema, schemas, root),
   ];
 }
 
@@ -562,22 +572,16 @@ Future<List<BeakCheck>> _databaseChecks(
 /// review — so `beak doctor` in CI should name it, not block on it.
 Future<List<BeakCheck>> _driftChecks(
   Uri url,
-  BeakDatabaseOpener open,
+  BeakLiveSchemaReader readSchema,
   List<BeakSchemaIr> schemas,
+  Directory root,
 ) async {
   final List<IntrospectedTable> tables;
   try {
-    final (BeakSqlReader query, Future<void> Function() close) = await open(
-      url,
-    );
-    try {
-      tables = await PostgresIntrospector(query).read();
-    } finally {
-      await close();
-    }
+    tables = await readSchema(beakResolvedDatabaseUrl(url, root));
   } catch (error) {
-    // The port answered but the connection did not, which is a credentials
-    // or permissions problem rather than drift. Say which.
+    // The database answered the probe but not the query, which is a
+    // credentials or permissions problem rather than drift. Say which.
     return [
       BeakCheck(
         status: BeakCheckStatus.warn,
@@ -587,7 +591,10 @@ Future<List<BeakCheck>> _driftChecks(
     ];
   }
 
-  final List<String> drift = beakSchemaDrift(schemas: schemas, tables: tables);
+  final List<BeakDrift> drift = beakSchemaDrift(
+    schemas: schemas,
+    tables: tables,
+  );
   if (drift.isEmpty) {
     return const [
       BeakCheck(
@@ -600,23 +607,8 @@ Future<List<BeakCheck>> _driftChecks(
     for (final problem in drift)
       BeakCheck(
         status: BeakCheckStatus.warn,
-        label: problem,
+        label: problem.message,
         remedy: 'write a migration with `beak make:migration`, then `migrate`',
       ),
   ];
-}
-
-/// The `DATABASE_URL` from the project's `.env`, when it declares one.
-Uri? _databaseUrlOf(Directory root) {
-  final env = File('${root.path}/.env');
-  if (!env.existsSync()) {
-    return null;
-  }
-  for (final line in env.readAsLinesSync()) {
-    final match = RegExp(r'^\s*DATABASE_URL\s*=\s*(\S+)\s*$').firstMatch(line);
-    if (match != null) {
-      return Uri.tryParse(match.group(1)!);
-    }
-  }
-  return null;
 }

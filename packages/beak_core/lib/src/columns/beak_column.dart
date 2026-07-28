@@ -221,6 +221,7 @@ DateTime? _readDateTime(BeakValue? value) => switch (value?.raw) {
 /// [BeakFileColumn]): where uploads land and which size/type rules gate
 /// them — consumers of upload rules match this one type instead of the
 /// two leaves.
+// --8<-- [start:BeakUploadColumn]
 sealed class BeakUploadColumn extends BeakColumn {
   /// Creates an upload-backed column storing files under [storagePath].
   const BeakUploadColumn({
@@ -247,3 +248,5 @@ sealed class BeakUploadColumn extends BeakColumn {
   /// Accepted upload types; empty means unrestricted.
   final List<BeakFileType> allowedTypes;
 }
+
+// --8<-- [end:BeakUploadColumn]

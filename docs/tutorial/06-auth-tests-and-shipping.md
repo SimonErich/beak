@@ -35,37 +35,7 @@ compiles and changes nothing yet. Run `beak prepare` and the generated
 Accounts, hashed passwords, and somewhere to keep sessions:
 
 ```dart title="examples/store/lib/server.dart"
-BeakServer beakServer(BeakServerDefaults defaults) {
-  final String secret =
-      defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
-  final store = InMemoryTokenSessionStore();
-  return defaults.build(
-    policy: const StorePolicy(),
-    authSessions: BeakAuthSessions(
-      store: store,
-      secret: secret,
-      users: [
-        BeakUserAccount(
-          username: 'ada@example.com',
-          passwordHash: hashBeakPassword('espresso', secret: secret),
-          principal: const BeakPrincipal(
-            id: StoreSeedIds.userAda,
-            roles: {'staff'},
-          ),
-        ),
-        BeakUserAccount(
-          username: 'linus@example.com',
-          passwordHash: hashBeakPassword('grinder', secret: secret),
-          principal: const BeakPrincipal(
-            id: StoreSeedIds.userLinus,
-            roles: {'customer'},
-          ),
-        ),
-      ],
-    ),
-    authGuard: TokenSessionAuthGuard(store),
-  );
-}
+--8<-- "examples/store/lib/server.dart:beakServer"
 ```
 
 The eject wrote one import, `package:beak/server.dart`. Add
@@ -92,44 +62,7 @@ per login and holds it in memory, so a restart signs everyone out; implement
 An account says who you are. A policy says which rows you get.
 
 ```dart title="examples/store/lib/server.dart"
-final class StorePolicy extends BeakAllowAllPolicy implements BeakRowPolicy {
-  /// Creates the policy.
-  const StorePolicy();
-
-  /// Tables that need an account, whoever it belongs to.
-  static const Set<String> _private = {'orders', 'users'};
-
-  @override
-  bool canView(BeakPrincipal? principal, String table) =>
-      principal != null || !_private.contains(table);
-
-  @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
-      principal?.hasRole('staff') ?? false;
-
-  @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) {
-    // Staff see everything; an anonymous caller never gets this far on a
-    // private table, because [canView] already refused.
-    if (principal == null || principal.hasRole('staff')) {
-      return null;
-    }
-    final String ownerId = principal.id;
-    return switch (table) {
-      'orders' => BeakFieldFilter(
-        column: OrderColumns.customerId,
-        operator: BeakOperator.eq,
-        value: BeakValue.of(ownerId),
-      ),
-      'users' => BeakFieldFilter(
-        column: UserColumns.id,
-        operator: BeakOperator.eq,
-        value: BeakValue.of(ownerId),
-      ),
-      _ => null,
-    };
-  }
-}
+--8<-- "examples/store/lib/server.dart:StorePolicy"
 ```
 
 That file imports `models/order.dart` and `models/user.dart` for the two column

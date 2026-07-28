@@ -3,9 +3,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:beak_cli/beak_cli.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
-
-import '../../support/fake_database.dart';
 
 const String noteModel = '''
 import 'package:beak_core/beak_core.dart';
@@ -46,27 +45,32 @@ $extraFields}
 
 /// The `products` table as the schema class above describes it, plus any
 /// [extraColumns] the database has grown on its own.
-FakeDatabase driftDatabase({List<String> extraColumns = const []}) =>
-    FakeDatabase(
-      columns: [
-        column('products', 'id', 'uuid', nullable: false),
-        column('products', 'name', 'character varying', nullable: false),
-        column('products', 'price', 'numeric', nullable: false),
-        for (final name in ['created_at', 'updated_at', 'deleted_at'])
-          column('products', name, 'timestamp with time zone'),
-        for (final name in extraColumns) column('products', name, 'text'),
-      ],
-      primaryKeys: const [
-        {'table_name': 'products', 'column_name': 'id'},
-      ],
-    );
+List<IntrospectedTable> driftSchema({List<String> extraColumns = const []}) => [
+  IntrospectedTable(
+    name: 'products',
+    columns: [
+      for (final name in [
+        'id',
+        'name',
+        'price',
+        'created_at',
+        'updated_at',
+        'deleted_at',
+        ...extraColumns,
+      ])
+        IntrospectedColumn(name: name, dataType: 'text', isNullable: true),
+    ],
+    foreignKeys: const [],
+    primaryKey: 'id',
+  ),
+];
 
-/// An opener that fails if anything reaches for it.
+/// A reader that fails if anything reaches for it.
 ///
-/// The default opener connects to a real Postgres, so a test that does not
-/// mean to introspect must say so rather than find out over the network.
-Future<(BeakSqlReader, Future<void> Function())> neverOpen(Uri url) async =>
-    throw StateError('a test opened a database connection to $url');
+/// The default reader opens a real database, so a test that does not mean to
+/// introspect must say so rather than find out over the network.
+Future<List<IntrospectedTable>> neverRead(Uri url) async =>
+    throw StateError('a test read the live schema of $url');
 
 /// A project directory seeded with [files].
 Directory projectWith(Map<String, String> files) {
@@ -173,7 +177,7 @@ void main() {
       runPrepare(environmentFor(root));
 
       final check = checkMatching(
-        await diagnose(environmentFor(root), open: neverOpen),
+        await diagnose(environmentFor(root), readSchema: neverRead),
         'note',
       );
       expect(check.status, BeakCheckStatus.fail);
@@ -188,7 +192,10 @@ void main() {
       });
       runPrepare(environmentFor(root));
 
-      final checks = await diagnose(environmentFor(root), open: neverOpen);
+      final checks = await diagnose(
+        environmentFor(root),
+        readSchema: neverRead,
+      );
       expect(checks.where((c) => c.status == BeakCheckStatus.fail), isEmpty);
     });
   });
@@ -263,7 +270,7 @@ final class NoteModel extends BeakModel {
       part.writeAsStringSync('${lines.take(lines.length - 2).join('\n')}\n');
 
       final check = checkMatching(
-        await diagnose(environmentFor(root), open: neverOpen),
+        await diagnose(environmentFor(root), readSchema: neverRead),
         'out of date',
       );
       expect(check.status, BeakCheckStatus.fail);
@@ -349,7 +356,7 @@ import 'package:beak/server.dart';
 BeakScreen buildReportsScreen() => BeakScreen();
 '''),
         ),
-        open: neverOpen,
+        readSchema: neverRead,
       );
 
       final check = checkMatching(checks, 'lib/screens/reports.dart');
@@ -381,7 +388,7 @@ int get monthlyTotal => 0;
       runPrepare(environmentFor(root));
 
       final check = checkMatching(
-        await diagnose(environmentFor(root), open: neverOpen),
+        await diagnose(environmentFor(root), readSchema: neverRead),
         'lib/reporting/totals.dart',
       );
       expect(check.status, BeakCheckStatus.fail);
@@ -399,7 +406,7 @@ int get monthlyTotal => 0;
 
       expect(
         checkMatching(
-          await diagnose(environmentFor(root), open: neverOpen),
+          await diagnose(environmentFor(root), readSchema: neverRead),
           'no panel file imports the server',
         ).status,
         BeakCheckStatus.ok,
@@ -489,7 +496,10 @@ int get monthlyTotal => 0;
         'DATABASE_URL=postgres://beak:beak@localhost:25432/beak\n',
       );
       final check = checkMatching(
-        await diagnose(environmentFor(root, databaseUp: true), open: neverOpen),
+        await diagnose(
+          environmentFor(root, databaseUp: true),
+          readSchema: neverRead,
+        ),
         'database reachable',
       );
       expect(check.status, BeakCheckStatus.ok);
@@ -514,8 +524,7 @@ int get monthlyTotal => 0;
       List<String> extraColumns = const [],
     }) => diagnose(
       environmentFor(root, databaseUp: true),
-      open: (url) async =>
-          (driftDatabase(extraColumns: extraColumns).query, () async {}),
+      readSchema: (url) async => driftSchema(extraColumns: extraColumns),
     );
 
     test(
@@ -567,7 +576,7 @@ int get monthlyTotal => 0;
               shopProject(extraFields: '\n  late final int? reserved;\n'),
               databaseUp: true,
             ),
-            open: (url) async => (driftDatabase().query, () async {}),
+            readSchema: (url) async => driftSchema(),
           ),
         );
       final code = await runner.run(['doctor']);
@@ -583,7 +592,8 @@ int get monthlyTotal => 0;
       () async {
         final checks = await diagnose(
           environmentFor(shopProject(), databaseUp: true),
-          open: (url) async => throw const SocketException('password rejected'),
+          readSchema: (url) async =>
+              throw const SocketException('password rejected'),
         );
 
         final check = checkMatching(
@@ -605,12 +615,82 @@ int get monthlyTotal => 0;
       // against, so there is nothing to say.
       final checks = await diagnose(
         environmentFor(root, databaseUp: true),
-        open: neverOpen,
+        readSchema: neverRead,
       );
       expect(
         checks.where((check) => check.label.contains('schema classes')),
         isEmpty,
       );
+    });
+  });
+
+  group('drift on a real SQLite file', () {
+    test(
+      'a column the model gained is named, against the default db',
+      () async {
+        // The configuration most projects run: no DATABASE_URL, so the default
+        // file. Drift used to be Postgres-only, which left the zero-setup
+        // default with the least checking of any database Beak supports.
+        final root = projectWith({
+          'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+          'lib/models/product.dart': productSchema(''),
+        });
+        runPrepare(environmentFor(root));
+
+        // A table shaped like the schema class, minus the column it is about
+        // to gain.
+        final database = sqlite3.open('${root.path}/beak.db');
+        database.execute(
+          'CREATE TABLE products ('
+          'id TEXT PRIMARY KEY, name TEXT, price NUMERIC(12, 4), '
+          'created_at TEXT, updated_at TEXT, deleted_at TEXT)',
+        );
+        database.dispose();
+
+        final checks = await diagnose(environmentFor(root));
+        expect(
+          checkMatching(checks, 'default SQLite file').status,
+          BeakCheckStatus.ok,
+        );
+        expect(
+          checkMatching(checks, 'matches the schema classes').status,
+          BeakCheckStatus.ok,
+        );
+
+        // Now the model gains a column the table has not got.
+        final schema = File('${root.path}/lib/models/product.dart');
+        schema.writeAsStringSync(
+          schema.readAsStringSync().replaceFirst(
+            'late final double price;',
+            'late final double price;\n\n  /// Units in stock.\n'
+                '  late final int? stock;',
+          ),
+        );
+        runPrepare(environmentFor(root));
+
+        final check = checkMatching(
+          await diagnose(environmentFor(root)),
+          'products.stock',
+        );
+        expect(check.status, BeakCheckStatus.warn);
+        expect(check.label, contains('Product.stock'));
+      },
+    );
+
+    test('a database that does not exist yet is not drift', () async {
+      // Before the first migrate there is no file, and nothing that could be
+      // out of step with the models.
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/product.dart': productSchema(''),
+      });
+      runPrepare(environmentFor(root));
+
+      final checks = await diagnose(environmentFor(root));
+      final check = checkMatching(checks, 'not created yet');
+      expect(check.status, BeakCheckStatus.ok);
+      expect(check.remedy, 'beak migrate');
+      expect(checks.every((c) => c.status != BeakCheckStatus.fail), isTrue);
     });
   });
 

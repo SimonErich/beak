@@ -17,22 +17,7 @@ them. A view mode is a sealed type that builds a `BeakBlock` from the resource's
 model, so it is pure typed configuration, not a hand-written widget.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_resource_view.dart"
-sealed class BeakResourceView {
-  /// Enables `const` subclasses.
-  const BeakResourceView();
-
-  /// Stable identifier of this mode, unique within a resource.
-  String get key;
-
-  /// The label shown on the mode's segmented-control segment.
-  String get label;
-
-  /// The icon shown on the mode's segmented-control segment.
-  IconData get icon;
-
-  /// Builds the block that renders [model]'s records in this mode.
-  BeakBlock build(BeakModel model);
-}
+--8<-- "packages/beak_frontend/lib/src/panel/beak_resource_view.dart:BeakResourceView"
 ```
 
 There are three subclasses.
@@ -125,42 +110,13 @@ The superdashboard gives orders the same treatment, sorted newest first, beside
 its declared filters:
 
 ```dart title="examples/superdashboard/lib/resources/orders.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: orderLayout,
-  formLayout: orderLayout,
-  filters: [
-    const BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
-    const BeakSelectFilter(column: OrderColumns.source, label: 'Source'),
-  ],
-  viewModes: [
-    const BeakTableView(),
-    const BeakKanbanView(
-      groupField: OrderColumns.status,
-      titleField: OrderColumns.reference,
-      subtitleField: OrderColumns.total,
-      sortField: OrderColumns.placedAt,
-      sortDescending: true,
-    ),
-  ],
-);
+--8<-- "examples/superdashboard/lib/resources/orders.dart:beakResource"
 ```
 
 and gives calendar events a month calendar:
 
 ```dart title="examples/superdashboard/lib/resources/calendar_events.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: calendarEventDetail,
-  formSteps: calendarEventFormSteps,
-  viewModes: [
-    const BeakTableView(),
-    const BeakCalendarView(
-      titleField: CalendarEventColumns.title,
-      startField: CalendarEventColumns.startAt,
-      endField: CalendarEventColumns.endAt,
-      allDayField: CalendarEventColumns.allDay,
-    ),
-  ],
-);
+--8<-- "examples/superdashboard/lib/resources/calendar_events.dart:beakResource"
 ```
 
 Nothing in those files names the model, the icon, the label, or the section. Those

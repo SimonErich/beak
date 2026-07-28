@@ -7,6 +7,7 @@ import '../panel/details/details.dart';
 ///
 /// Its model, label, icon and section still come from the schema class and
 /// `beak.yaml`; this adds what a person decided.
+// --8<-- [start:beakResource]
 BeakResource beakResource(BeakResource generated) => generated.copyWith(
   detail: orderLayout,
   formLayout: orderLayout,
@@ -25,3 +26,5 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
     ),
   ],
 );
+
+// --8<-- [end:beakResource]

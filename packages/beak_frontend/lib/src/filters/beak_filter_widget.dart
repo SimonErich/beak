@@ -22,6 +22,7 @@ import 'package:obers_ui/obers_ui.dart';
 ///   ],
 /// );
 /// ```
+// --8<-- [start:BeakFilterDef]
 sealed class BeakFilterDef {
   /// Creates a filter over [column] labelled [label].
   const BeakFilterDef({required this.column, required this.label});
@@ -32,6 +33,7 @@ sealed class BeakFilterDef {
   /// The control label.
   final String label;
 }
+// --8<-- [end:BeakFilterDef]
 
 /// An equality filter over a [BeakEnumColumn], rendered as an `OiSelect`.
 ///

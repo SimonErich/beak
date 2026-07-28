@@ -13,8 +13,11 @@ BeakServer beakServer(BeakServerDefaults defaults) => defaults.build();
 /// uploads to S3 declares `beak_storage_s3` and registers it here. Set
 /// `BEAK_STORAGE_DRIVER=s3` and the rest of the `BEAK_S3_*` variables, and
 /// every upload column stores there instead of on local disk.
+// --8<-- [start:beakStorageRegistry]
 BeakStorageRegistry beakStorageRegistry() {
   final registry = createDefaultStorageRegistry();
   registerS3Storage(registry);
   return registry;
 }
+
+// --8<-- [end:beakStorageRegistry]

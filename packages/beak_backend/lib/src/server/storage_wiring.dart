@@ -21,11 +21,13 @@ import 'package:beak_core/io.dart';
 /// Resolving a config whose driver is not registered throws a
 /// [BeakConfigurationException] naming the driver and listing the registered
 /// ones, so a missing registration fails loudly at startup.
+// --8<-- [start:createDefaultStorageRegistry]
 BeakStorageRegistry createDefaultStorageRegistry() {
   final registry = BeakStorageRegistry();
   registry.register('local', BeakLocalDiskStorageDriver.fromConfig);
   return registry;
 }
+// --8<-- [end:createDefaultStorageRegistry]
 
 /// Resolves the [BeakStorageDriver] the [config] selects, using [registry]
 /// (default: the in-box `memory` and `local` drivers). The server resolves
@@ -53,7 +55,10 @@ BeakStorageRegistry createDefaultStorageRegistry() {
 /// registerS3Storage(registry); // from beak_storage_s3
 /// final storage = resolveStorage(s3Config, registry: registry);
 /// ```
+// --8<-- [start:resolveStorage]
 BeakStorageDriver resolveStorage(
   BeakStorageConfig config, {
   BeakStorageRegistry? registry,
 }) => (registry ?? createDefaultStorageRegistry()).resolve(config);
+
+// --8<-- [end:resolveStorage]

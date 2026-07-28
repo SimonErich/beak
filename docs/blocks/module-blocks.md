@@ -52,20 +52,7 @@ const BeakChatBlock({
 ```
 
 ```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
-BeakScreen buildChatScreen() => const BeakScreen(
-  path: '/chat',
-  title: 'Chat',
-  icon: BeakIconToken(OiIcons.messageCircle),
-  section: 'Apps',
-  framed: false,
-  body: BeakChatBlock(
-    model: ChatMessageModel(),
-    authorField: ChatMessageColumns.senderName,
-    bodyField: ChatMessageColumns.body,
-    timeField: ChatMessageColumns.sentAt,
-    composeRecord: _composeMessage,
-  ),
-);
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
 ```
 
 `_composeMessage` builds the `BeakRecord` a new message needs (the sender,

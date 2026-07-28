@@ -9,13 +9,33 @@ const String sourcePath = 'packages/beak_core/lib/src/columns/beak_column.dart';
 ///
 /// Its first line carries an em-dash, the way Beak's real doc comments do, so
 /// a fence quoting it shows the ban stopping at the fence.
+///
+/// Its three symbols cover the three states a section can be in. `BeakColumn`
+/// is marked and a page can include it, `BeakSpan` is unmarked and a page can
+/// only quote it, and `BeakStyle` is opened and never closed.
 const String sourceFile = '''
 /// A column, declared once — read by six surfaces.
+// --8<-- [start:BeakColumn]
 final class BeakColumn {
   const BeakColumn({required this.name});
 
   /// The name of the underlying database column.
   final String name;
+}
+// --8<-- [end:BeakColumn]
+
+/// Where a column sits in a grid.
+final class BeakSpan {
+  const BeakSpan({this.columns = 1});
+
+  /// Number of grid columns covered.
+  final int columns;
+}
+
+/// How a column paints itself.
+// --8<-- [start:BeakStyle]
+final class BeakStyle {
+  const BeakStyle();
 }
 ''';
 
@@ -123,7 +143,61 @@ void main() {
     });
 
     test('resolves a snippet include with a section marker', () {
-      expect(problemsIn('--8<-- "$sourcePath:column"'), isEmpty);
+      expect(problemsIn('--8<-- "$sourcePath:BeakColumn"'), isEmpty);
+    });
+
+    test(
+      'accepts a whole-file include and a line range, which mark nothing',
+      () {
+        expect(problemsIn('--8<-- "$sourcePath"'), isEmpty);
+        expect(problemsIn('--8<-- "$sourcePath:3:8"'), isEmpty);
+      },
+    );
+
+    test('reports an include naming a section the file no longer marks', () {
+      // How an include rots: the symbol is renamed or deleted and its markers
+      // go with it, and the page publishes an empty block.
+      final problems = problemsIn('--8<-- "$sourcePath:BeakSpan"');
+      expect(problems, hasLength(1));
+      expect(
+        problems.single.message,
+        contains('snippet includes section "BeakSpan" of "$sourcePath"'),
+      );
+      expect(problems.single.message, contains('[start:BeakSpan]'));
+    });
+
+    test('reports a section that is opened and never closed', () {
+      // The quiet half of the same rot: mkdocs reads an unclosed section to
+      // the end of the file, so the page publishes the rest of it.
+      final problems = problemsIn('--8<-- "$sourcePath:BeakStyle"');
+      expect(problems, hasLength(1));
+      expect(problems.single.message, contains('never closes it'));
+      expect(problems.single.message, contains('[end:BeakStyle]'));
+    });
+
+    test('leaves a fence whose body is an include alone', () {
+      // mkdocs substitutes the file at build time, so the page holds a
+      // directive and not a copy. Checking it as a quotation would report the
+      // directive as a line that is not in the file.
+      expect(
+        problemsIn(
+          '```dart title="$sourcePath"\n'
+          '--8<-- "$sourcePath:BeakColumn"\n'
+          '```',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('still checks a fence mixing an include with hand-written lines', () {
+      final problems = problemsIn(
+        '```dart title="$sourcePath"\n'
+        '--8<-- "$sourcePath:BeakColumn"\n'
+        'final int precision;\n'
+        '```',
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single.message, contains('does not quote it'));
     });
   });
 
@@ -137,6 +211,29 @@ void main() {
           '  const BeakColumn({required this.name});\n'
           '  /// The name of the underlying database column.\n'
           '  final String name;\n'
+          '}\n'
+          '```',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('reads past a section marker, which mkdocs strips too', () {
+      // A page quoting two neighbouring symbols straddles the markers another
+      // page put around the first one. It quotes the code the reader sees, so
+      // it must not have to paste a build directive to stay faithful.
+      expect(
+        problemsIn(
+          '```dart title="$sourcePath"\n'
+          'final class BeakColumn {\n'
+          '  const BeakColumn({required this.name});\n'
+          '  final String name;\n'
+          '}\n'
+          '\n'
+          '/// Where a column sits in a grid.\n'
+          'final class BeakSpan {\n'
+          '  const BeakSpan({this.columns = 1});\n'
+          '  final int columns;\n'
           '}\n'
           '```',
         ),
@@ -513,6 +610,47 @@ void main() {
       expect(enforcedBans, contains(useCaseLayer));
       expect(enforcedBans, contains(marketingUnlock));
       expect(enforcedBans, contains(emDash));
+    });
+  });
+
+  group('a section marker', () {
+    test('may name a private symbol', () {
+      // `file.dart:_helper` used to be misread as a whole-file include, which
+      // skipped the marker check on exactly the sections nothing else
+      // watches.
+      expect(sectionOf('lib/thing.dart:_helper'), '_helper');
+      expect(sectionOf('lib/thing.dart:BeakColumn'), 'BeakColumn');
+      expect(sectionOf('lib/thing.dart'), isNull);
+    });
+
+    test('is reported when its end sits above its start', () {
+      // Both markers present, so the presence checks pass; pymdownx then
+      // publishes nothing and the page silently loses its example.
+      final problems = checkInclude(
+        'docs/test/page.md',
+        'lib/thing.dart:Inverted',
+        4,
+        readFile: (path) =>
+            '// --8<-- [end:Inverted]\nclass Inverted {}\n'
+            '// --8<-- [start:Inverted]\n',
+      );
+
+      expect(problems, hasLength(1));
+      expect(problems.single.toString(), contains('sits above its "start"'));
+    });
+
+    test('in the right order is accepted', () {
+      expect(
+        checkInclude(
+          'docs/test/page.md',
+          'lib/thing.dart:Ordered',
+          4,
+          readFile: (path) =>
+              '// --8<-- [start:Ordered]\nclass Ordered {}\n'
+              '// --8<-- [end:Ordered]\n',
+        ),
+        isEmpty,
+      );
     });
   });
 }

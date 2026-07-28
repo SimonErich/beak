@@ -242,7 +242,6 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
-  'beak_storage_s3': 70,
   'quickstart': 50,
   'store': 70,
   'superdashboard': 85,
@@ -255,11 +254,7 @@ deliberately: most of what an example declares is data, a screen's block tree or
 a resource's actions, that a widget suite instantiates without executing line by
 line. What has to work is checked directly instead, by the API scenario and by
 the coverage matrices, which fail when a feature stops being demonstrated at
-all. `beak_storage_s3` holds a lower bar for a different reason: a quarter of
-the driver is request signing, retries and error mapping that only a real
-endpoint reaches, and those lines are covered by its `test/e2e/` suite against
-MinIO, which is outside this measurement because the main gate runs without
-Docker.
+all.
 
 Coverage is a floor, not a goal. Cover branches and error paths, not just the
 happy one; a package at 90% with an untested failure mode is not done. And

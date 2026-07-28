@@ -70,6 +70,7 @@ const BeakBlock _revenue = BeakChartBlock(
 /// A mapper reads through the generated column constants, so renaming a
 /// column in the schema class is a compile error here rather than an empty
 /// chart in production.
+// --8<-- [start:orderTotalPoints]
 List<BeakChartPoint> orderTotalPoints(List<BeakRecord> records) => [
   for (final record in records)
     BeakChartPoint(
@@ -77,6 +78,7 @@ List<BeakChartPoint> orderTotalPoints(List<BeakRecord> records) => [
       value: OrderColumns.total.readFrom(record) ?? 0,
     ),
 ];
+// --8<-- [end:orderTotalPoints]
 
 const BeakBlock _lists = BeakGridBlock(
   columns: 12,

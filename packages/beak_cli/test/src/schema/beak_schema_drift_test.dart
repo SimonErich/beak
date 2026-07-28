@@ -52,16 +52,28 @@ IntrospectedTable productTable(List<String> columns) => IntrospectedTable(
   primaryKey: 'id',
 );
 
+/// The rendered messages of the drift between [schemas] and [tables].
+///
+/// The comparison returns structured drift so the migration generator can
+/// switch on it; these assertions are about what a reader is told.
+List<String> messagesOf({
+  required List<BeakSchemaIr> schemas,
+  required List<IntrospectedTable> tables,
+}) => [
+  for (final drift in beakSchemaDrift(schemas: schemas, tables: tables))
+    drift.message,
+];
+
 void main() {
   group('a table the database does not have', () {
     test('is named with the class that declares it', () {
-      expect(beakSchemaDrift(schemas: [productSchema()], tables: const []), [
+      expect(messagesOf(schemas: [productSchema()], tables: const []), [
         'Product declares table "products", which the database does not have',
       ]);
     });
 
     test('does not also report every one of its columns', () {
-      final drift = beakSchemaDrift(
+      final drift = messagesOf(
         schemas: [
           productSchema(columns: [column('sku'), column('price')]),
         ],
@@ -74,7 +86,7 @@ void main() {
   group('a column', () {
     test('the schema declares and the database lacks is drift', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(columns: [column('stock')]),
           ],
@@ -91,7 +103,7 @@ void main() {
 
     test('the database has and the schema lacks is drift too', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [productSchema()],
           tables: [
             productTable(['id', 'name', 'legacy_sku']),
@@ -106,7 +118,7 @@ void main() {
 
     test('is not reported in either direction when they agree', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(columns: [column('stock')]),
           ],
@@ -120,7 +132,7 @@ void main() {
 
     test('the primary key is accounted for without being declared', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [productSchema()],
           tables: [
             productTable(['id', 'name']),
@@ -134,7 +146,7 @@ void main() {
   group('columns a schema implies rather than declares', () {
     test('a belongs-to key is checked', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(relations: [belongsTo('category', 'category_id')]),
           ],
@@ -151,7 +163,7 @@ void main() {
 
     test('and is not then reported as an undeclared column', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(relations: [belongsTo('category', 'category_id')]),
           ],
@@ -165,7 +177,7 @@ void main() {
 
     test('soft deletes need deleted_at', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [productSchema(softDeletes: true)],
           tables: [
             productTable(['id', 'name']),
@@ -177,7 +189,7 @@ void main() {
 
     test('timestamps need both stamps, and each is named', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [productSchema(timestamps: true)],
           tables: [
             productTable(['id', 'name', 'created_at']),
@@ -191,7 +203,7 @@ void main() {
   group('a table another system migrates', () {
     test('may carry columns the schema knows nothing about', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [productSchema(managesSchema: false)],
           tables: [
             productTable(['id', 'name', 'billing_account_ref']),
@@ -203,7 +215,7 @@ void main() {
 
     test('but a column the schema declares must still be there', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(managesSchema: false, columns: [column('stock')]),
           ],
@@ -249,7 +261,7 @@ void main() {
 
     test('is reported by its derived name when it is missing', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(relations: [tags]),
             tagSchema,
@@ -268,7 +280,7 @@ void main() {
 
     test('is not reported when it is there', () {
       expect(
-        beakSchemaDrift(
+        messagesOf(
           schemas: [
             productSchema(relations: [tags]),
             tagSchema,

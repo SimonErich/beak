@@ -9,6 +9,7 @@ import 'package:beak_cli/beak_cli.dart';
 /// a malformed `--fields` spec — surfaces the crafted usage message on
 /// stderr and exits `64` (the conventional `EX_USAGE`), rather than dumping
 /// a Dart stack trace.
+// --8<-- [start:main]
 Future<void> main(List<String> args) async {
   final runner = createBeakRunner(BeakCliEnvironment.production());
   try {
@@ -18,3 +19,5 @@ Future<void> main(List<String> args) async {
     exit(64);
   }
 }
+
+// --8<-- [end:main]

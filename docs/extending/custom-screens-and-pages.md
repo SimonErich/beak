@@ -179,20 +179,7 @@ resource page. Set it to `false` for a surface that wants the whole canvas: a
 calendar, a kanban board, a chat thread.
 
 ```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
-BeakScreen buildChatScreen() => const BeakScreen(
-  path: '/chat',
-  title: 'Chat',
-  icon: BeakIconToken(OiIcons.messageCircle),
-  section: 'Apps',
-  framed: false,
-  body: BeakChatBlock(
-    model: ChatMessageModel(),
-    authorField: ChatMessageColumns.senderName,
-    bodyField: ChatMessageColumns.body,
-    timeField: ChatMessageColumns.sentAt,
-    composeRecord: _composeMessage,
-  ),
-);
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
 ```
 
 ## Placing a screen in the nav

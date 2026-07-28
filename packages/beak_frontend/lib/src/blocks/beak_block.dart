@@ -89,6 +89,7 @@ part 'beak_wizard_block.dart';
 /// );
 /// ```
 @immutable
+// --8<-- [start:BeakBlock]
 sealed class BeakBlock {
   /// Creates a block, optionally sized by [span] inside grid parents.
   const BeakBlock({this.span});
@@ -97,6 +98,7 @@ sealed class BeakBlock {
   /// of a [BeakGridBlock]; ignored elsewhere.
   final BeakSpan? span;
 }
+// --8<-- [end:BeakBlock]
 
 /// Grid placement of a block inside a [BeakGridBlock].
 @immutable

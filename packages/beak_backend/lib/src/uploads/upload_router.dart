@@ -7,6 +7,7 @@ import 'upload_service.dart';
 
 /// Registers one model's upload surface on its resource [router]
 /// (`POST`/`DELETE /api/{table}/{columnKey}/upload`), gated by [policy].
+// --8<-- [start:registerUploadRoutes]
 void registerUploadRoutes(
   Router router, {
   required BeakModel model,
@@ -22,3 +23,5 @@ void registerUploadRoutes(
     ..post('/<columnKey>/upload', handlers.upload)
     ..delete('/<columnKey>/upload', handlers.remove);
 }
+
+// --8<-- [end:registerUploadRoutes]

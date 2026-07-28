@@ -24,8 +24,10 @@ import 'token_session_store.dart';
 ///   principal: const BeakPrincipal(id: 'admin', roles: {'admin'}),
 /// );
 /// ```
+// --8<-- [start:hashBeakPassword]
 String hashBeakPassword(String password, {required String secret}) =>
     Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(password)).toString();
+// --8<-- [end:hashBeakPassword]
 
 /// One login-capable account: a username, the hash of its password, and the
 /// principal a successful login mints sessions for.
@@ -67,6 +69,7 @@ final class BeakUserAccount {
 ///   ],
 /// );
 /// ```
+// --8<-- [start:BeakAuthSessions]
 final class BeakAuthSessions {
   /// Creates the auth-surface configuration.
   const BeakAuthSessions({
@@ -84,6 +87,7 @@ final class BeakAuthSessions {
   /// The secret behind [hashBeakPassword].
   final String secret;
 }
+// --8<-- [end:BeakAuthSessions]
 
 /// The thin handlers behind `/api/auth`: login mints an opaque session
 /// token, logout revokes it, and `me` echoes the authenticated principal.
@@ -155,6 +159,7 @@ final class BeakAuthHandlers {
 ///
 /// Usually you configure [BeakServer] with `authSessions` instead of calling
 /// this directly; reach for it when composing the router by hand.
+// --8<-- [start:beakAuthRouter]
 Router beakAuthRouter(BeakAuthSessions sessions) {
   final handlers = BeakAuthHandlers(sessions);
   return Router()
@@ -162,3 +167,5 @@ Router beakAuthRouter(BeakAuthSessions sessions) {
     ..post('/logout', handlers.logout)
     ..get('/me', handlers.me);
 }
+
+// --8<-- [end:beakAuthRouter]

@@ -9,6 +9,7 @@ import 'seeders/store_seeder.dart';
 /// [defaults] already carries the database connection, the model registry and
 /// the upload driver; this adds the two things a real store needs and Beak
 /// cannot guess: who may log in, and which rows each of them sees.
+// --8<-- [start:beakServer]
 BeakServer beakServer(BeakServerDefaults defaults) {
   final String secret =
       defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
@@ -40,6 +41,7 @@ BeakServer beakServer(BeakServerDefaults defaults) {
     authGuard: TokenSessionAuthGuard(store),
   );
 }
+// --8<-- [end:beakServer]
 
 /// Who may do what, and to which rows.
 ///
@@ -54,6 +56,7 @@ BeakServer beakServer(BeakServerDefaults defaults) {
 /// The difference between the first two is deliberate. Refusing to answer is
 /// a 403 ([canView]); answering with the rows that are theirs is a scope
 /// ([scopeFor]) — the request succeeds and the rest simply is not there.
+// --8<-- [start:StorePolicy]
 final class StorePolicy extends BeakAllowAllPolicy implements BeakRowPolicy {
   /// Creates the policy.
   const StorePolicy();
@@ -92,3 +95,5 @@ final class StorePolicy extends BeakAllowAllPolicy implements BeakRowPolicy {
     };
   }
 }
+
+// --8<-- [end:StorePolicy]
