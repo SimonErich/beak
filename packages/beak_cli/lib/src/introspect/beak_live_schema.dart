@@ -14,7 +14,7 @@ import 'sqlite_introspector.dart';
 /// the schema, and a test that has to fake `information_schema` rows to say
 /// "the table has these columns" is a test about SQL, not about drift.
 typedef BeakLiveSchemaReader =
-    Future<List<IntrospectedTable>> Function(Uri url);
+    Future<List<IntrospectedTable>> Function(Uri url, {String schema});
 
 /// Whether Beak can read the schema of the database [url] names.
 bool beakCanReadSchema(Uri url) =>
@@ -39,10 +39,14 @@ String? beakSqliteFileOf(Uri url) {
 /// Reads every table of the database [url] names.
 ///
 /// Dispatches on the scheme so one caller covers both the zero-setup SQLite
-/// default and a Postgres server. Throws when the database cannot be read,
+/// default and a Postgres server. [schema] names the Postgres schema and is
+/// ignored for SQLite, which has one. Throws when the database cannot be read,
 /// which the caller reports rather than treating as an empty schema: a
 /// connection failure is not the same fact as a database with no tables.
-Future<List<IntrospectedTable>> beakReadLiveSchema(Uri url) async {
+Future<List<IntrospectedTable>> beakReadLiveSchema(
+  Uri url, {
+  String schema = 'public',
+}) async {
   if (beakSqliteFileOf(url) case final String file) {
     final adapter = SqliteAdapter.open(file);
     await adapter.connect();

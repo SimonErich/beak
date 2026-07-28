@@ -408,9 +408,21 @@ void main() {
       ]);
     });
 
-    test('drops a chunk of one line, which proves nothing on its own', () {
-      expect(chunksOf(['alone']), isEmpty);
+    test('drops a one-line run that sits between elisions', () {
+      // A line lifted out of its surroundings is as likely to be a
+      // paraphrase of a signature as a quotation of one.
       expect(chunksOf(['one', '// ...', 'two']), isEmpty);
+      expect(chunksOf(['// ...', 'alone', '// ...']), isEmpty);
+    });
+
+    test('keeps a body that is one line and elides nothing', () {
+      // That body claims to be the whole of what it quotes, so it is checked
+      // like any other. Skipping it let a fence quoting
+      // `BeakAlertBlock('Saved', ...)` sit there having dropped the `const`
+      // its source carries.
+      expect(chunksOf(['alone']), [
+        ['alone'],
+      ]);
     });
 
     test('drops blank lines and indentation before comparing', () {

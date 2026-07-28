@@ -35,7 +35,7 @@ Using it is a one-liner. The builder receives the build context and returns any
 widget:
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakWidgetBlock((context) => const OiLabel.body('escaped'))
+BeakWidgetBlock((context) => const OiLabel.body('escaped')),
 ```
 
 !!! note "What just happened"

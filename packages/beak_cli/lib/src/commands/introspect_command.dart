@@ -4,6 +4,7 @@ import 'package:worm_postgres/worm_postgres.dart';
 
 import '../cli_runner.dart';
 import '../introspect/beak_introspection_emitter.dart';
+import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
 import '../introspect/postgres_introspector.dart';
 
@@ -31,8 +32,8 @@ typedef BeakDatabaseOpener =
 /// ```
 final class IntrospectCommand extends Command<int> {
   /// Creates the command against [environment], connecting through [open].
-  IntrospectCommand(this.environment, {BeakDatabaseOpener? open})
-    : _open = open ?? openPostgresConnection {
+  IntrospectCommand(this.environment, {BeakLiveSchemaReader? readSchema})
+    : _readSchema = readSchema ?? beakReadLiveSchema {
     argParser
       ..addOption(
         'out',
@@ -56,7 +57,7 @@ final class IntrospectCommand extends Command<int> {
   /// The injected seams.
   final BeakCliEnvironment environment;
 
-  final BeakDatabaseOpener _open;
+  final BeakLiveSchemaReader _readSchema;
 
   @override
   String get name => 'introspect';
@@ -81,27 +82,21 @@ final class IntrospectCommand extends Command<int> {
         invocation,
       );
     }
-    if (!isIntrospectableUrl(url)) {
+    if (!beakCanReadSchema(url)) {
       environment.out.writeln(
-        'Beak can introspect Postgres today; "${url.scheme}" is not supported '
-        'yet.',
+        'Beak can introspect Postgres and SQLite; "${url.scheme}" is not '
+        'supported yet.',
       );
       return 1;
     }
 
-    final (query, close) = await _open(url);
-    final List<IntrospectedTable> tables;
-    try {
-      tables = await PostgresIntrospector(
-        query,
-        schema: switch (argResults?['schema']) {
-          final String value => value,
-          _ => 'public',
-        },
-      ).read();
-    } finally {
-      await close();
-    }
+    final List<IntrospectedTable> tables = await _readSchema(
+      beakResolvedDatabaseUrl(url, environment.rootDirectory),
+      schema: switch (argResults?['schema']) {
+        final String value => value,
+        _ => 'public',
+      },
+    );
 
     final selected = _select(tables);
     environment.out.writeln(

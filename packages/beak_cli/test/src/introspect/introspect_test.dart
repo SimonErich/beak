@@ -297,7 +297,8 @@ void main() {
         ..addCommand(
           IntrospectCommand(
             environment,
-            open: (url) async => (shopDatabase().query, () async {}),
+            readSchema: (url, {String schema = 'public'}) =>
+                PostgresIntrospector(shopDatabase().query).read(),
           ),
         );
       return await runner.run(['introspect', ...args]) ?? 0;
@@ -342,9 +343,17 @@ void main() {
       expect(exists('lib/schema/product.dart'), isTrue);
     });
 
-    test('rejects a non-Postgres url with a clear message', () async {
+    test('rejects a scheme Beak cannot read, with a clear message', () async {
       expect(await run(['mysql://u:p@localhost/shop']), 1);
       expect(out.toString(), contains('not supported yet'));
+      expect(out.toString(), contains('SQLite'));
+    });
+
+    test('accepts a SQLite url, which Beak can read too', () async {
+      // The introspector for it exists, so refusing the scheme would be the
+      // command declining a thing the library does.
+      expect(await run(['sqlite:legacy.db']), 0);
+      expect(exists('lib/models/product.dart'), isTrue);
     });
 
     test('rejects a missing or malformed url', () {

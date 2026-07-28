@@ -644,15 +644,25 @@ List<String> _significant(List<String> lines) => [
 
 /// [body] split on elision markers into the runs that must each appear.
 ///
-/// A chunk of one line is skipped: a single line in isolation is as likely to
-/// be a paraphrase of a signature as a quotation of one, and reporting it
-/// would cost more than it catches.
+/// A one-line run *between elisions* is skipped: a line lifted out of its
+/// surroundings is as likely to be a paraphrase of a signature as a quotation
+/// of one, and reporting it would cost more than it catches.
+///
+/// A body that is one line and elides nothing is not that. It claims to be
+/// the whole of what it quotes, so it is checked like any other run. It used
+/// to be skipped under the same rule, and a fence quoting
+/// `BeakAlertBlock('Saved', ...)` sat there having dropped the `const` its
+/// source carries.
 List<List<String>> chunksOf(List<String> body) {
+  final List<String> lines = _significant(body);
+  final bool elides = lines.any(elisionMarker.hasMatch);
+  final int shortest = elides ? 2 : 1;
+
   final chunks = <List<String>>[];
   var current = <String>[];
-  for (final line in _significant(body)) {
+  for (final line in lines) {
     if (elisionMarker.hasMatch(line)) {
-      if (current.length > 1) {
+      if (current.length >= shortest) {
         chunks.add(current);
       }
       current = <String>[];
@@ -660,7 +670,7 @@ List<List<String>> chunksOf(List<String> body) {
     }
     current.add(line);
   }
-  if (current.length > 1) {
+  if (current.length >= shortest) {
     chunks.add(current);
   }
   return chunks;

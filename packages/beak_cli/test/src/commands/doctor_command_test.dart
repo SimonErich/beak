@@ -69,8 +69,10 @@ List<IntrospectedTable> driftSchema({List<String> extraColumns = const []}) => [
 ///
 /// The default reader opens a real database, so a test that does not mean to
 /// introspect must say so rather than find out over the network.
-Future<List<IntrospectedTable>> neverRead(Uri url) async =>
-    throw StateError('a test read the live schema of $url');
+Future<List<IntrospectedTable>> neverRead(
+  Uri url, {
+  String schema = 'public',
+}) async => throw StateError('a test read the live schema of $url');
 
 /// A project directory seeded with [files].
 Directory projectWith(Map<String, String> files) {
@@ -524,7 +526,8 @@ int get monthlyTotal => 0;
       List<String> extraColumns = const [],
     }) => diagnose(
       environmentFor(root, databaseUp: true),
-      readSchema: (url) async => driftSchema(extraColumns: extraColumns),
+      readSchema: (url, {String schema = 'public'}) async =>
+          driftSchema(extraColumns: extraColumns),
     );
 
     test(
@@ -576,7 +579,8 @@ int get monthlyTotal => 0;
               shopProject(extraFields: '\n  late final int? reserved;\n'),
               databaseUp: true,
             ),
-            readSchema: (url) async => driftSchema(),
+            readSchema: (url, {String schema = 'public'}) async =>
+                driftSchema(),
           ),
         );
       final code = await runner.run(['doctor']);
@@ -592,7 +596,7 @@ int get monthlyTotal => 0;
       () async {
         final checks = await diagnose(
           environmentFor(shopProject(), databaseUp: true),
-          readSchema: (url) async =>
+          readSchema: (url, {String schema = 'public'}) async =>
               throw const SocketException('password rejected'),
         );
 

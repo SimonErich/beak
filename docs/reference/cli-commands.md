@@ -369,9 +369,13 @@ an existing file (exit `1`); pass `--force` when you mean to.
 
 ## `beak introspect <database-url>`
 
-Reads an existing Postgres schema and writes the same annotated schema classes
-you would have written by hand. Postgres is the only scheme supported today; any
-other exits `1` saying so.
+Reads an existing schema and writes the same annotated schema classes you would
+have written by hand. Postgres and SQLite are supported; any other scheme exits
+`1` saying so.
+
+```console
+$ beak introspect sqlite:legacy.db
+```
 
 ```console
 $ beak introspect postgres://user:pass@localhost:5432/shop
@@ -387,7 +391,7 @@ $ beak introspect postgres://user:pass@localhost:5432/shop
 | Option | Effect |
 | --- | --- |
 | `--out <dir>` | Where the schema classes go. Defaults to `lib/models`. An absolute path is honoured as given. |
-| `--schema <name>` | The Postgres schema to read. Defaults to `public`. |
+| `--schema <name>` | The Postgres schema to read. Defaults to `public`, and is ignored for SQLite, which has one. |
 | `--only a,b` | Only these tables. |
 | `--except a,b` | Every table but these. |
 | `--dry-run` | Report what would be written without writing it. |
