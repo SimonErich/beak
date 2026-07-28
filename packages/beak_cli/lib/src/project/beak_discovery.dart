@@ -144,10 +144,18 @@ final class BeakDiscovery {
   final List<BeakDiscoveryIssue> issues;
 
   /// A one-line summary, so a discovery miss is visible rather than silent.
-  String get summary =>
-      '${models.length} model${models.length == 1 ? '' : 's'} · '
-      '${screens.length} screen${screens.length == 1 ? '' : 's'} · '
-      '${overrides.length} override${overrides.length == 1 ? '' : 's'}';
+  ///
+  /// Both kinds of override count toward the one number: to the person who
+  /// wrote them, `lib/theme.dart` and `lib/resources/products.dart` are the
+  /// same thing — a file they added to change what Beak generated — and a
+  /// summary that counted only the first reported "0 overrides" to a project
+  /// that had just ejected one.
+  String get summary {
+    final int overrideCount = overrides.length + resourceOverrides.length;
+    return '${models.length} model${models.length == 1 ? '' : 's'} · '
+        '${screens.length} screen${screens.length == 1 ? '' : 's'} · '
+        '$overrideCount override${overrideCount == 1 ? '' : 's'}';
+  }
 }
 
 /// The convention files a project may supply to override a Beak default.

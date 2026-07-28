@@ -302,5 +302,22 @@ final class $className extends Migration {
 
       expect(discovery.summary, '2 models · 0 screens · 0 overrides');
     });
+
+    test('counts a per-resource override too', () {
+      // `beak eject resource products` writes one of these, and the summary
+      // printed "0 overrides" straight afterwards — which reads as "your file
+      // was not picked up" to the one person guaranteed to be looking.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/models/product.dart': model('ProductModel', 'products'),
+          'lib/resources/products.dart':
+              'import \'package:beak/panel.dart\';\n'
+              'BeakResource beakResource(BeakResource generated) => generated;',
+        }),
+      ).scan();
+
+      expect(discovery.resourceOverrides.keys, <String>['products']);
+      expect(discovery.summary, '1 model · 0 screens · 1 override');
+    });
   });
 }
