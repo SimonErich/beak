@@ -41,6 +41,19 @@ abstract final class BeakSchemaEmitter {
   static String partFileNameOf(String libraryPath) =>
       '${_fileNameOf(libraryPath).replaceAll('.dart', '')}.beak.dart';
 
+  /// The project-relative path [schema]'s part file is written to.
+  ///
+  /// One derivation, used by `beak prepare` to write the file and by
+  /// `beak doctor` to notice it has gone stale — two answers here would mean
+  /// the generator and the check disagreeing about which file they mean.
+  static String partPathOf(BeakSchemaIr schema) {
+    final int slash = schema.libraryPath.lastIndexOf('/');
+    final String directory = slash < 0
+        ? ''
+        : schema.libraryPath.substring(0, slash + 1);
+    return 'lib/$directory${partFileNameOf(schema.libraryPath)}';
+  }
+
   static void _writeColumns(StringBuffer buffer, BeakSchemaIr schema) {
     buffer
       ..writeln('/// Typed column constants of the ${schema.table} resource.')

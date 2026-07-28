@@ -355,8 +355,26 @@ final class SqliteCompiler {
       ..write(sqliteTypeOf(column.type));
     if (column.isPrimaryKey) buffer.write(' PRIMARY KEY');
     if (!column.nullable && !column.isPrimaryKey) buffer.write(' NOT NULL');
+    if (column.defaultValue case final Object value) {
+      buffer
+        ..write(' DEFAULT ')
+        ..write(_renderDefault(value));
+    }
     return buffer.toString();
   }
+
+  /// [value] as a SQLite literal.
+  ///
+  /// Booleans render as `1`/`0` rather than `TRUE`/`FALSE`: SQLite has no
+  /// boolean storage class, and the runner binds a Dart `true` as `1`, so a
+  /// `TRUE` keyword default would put a different value in the column than an
+  /// explicit write of the same Dart value.
+  String _renderDefault(Object value) => switch (value) {
+    final String s => "'${s.replaceAll("'", "''")}'",
+    final bool b => b ? '1' : '0',
+    final num n => n.toString(),
+    _ => "'$value'",
+  };
 
   void _appendJoins(StringBuffer sql, List<JoinClause> joins) {
     for (final join in joins) {

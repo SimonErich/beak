@@ -80,6 +80,22 @@ final class LegacyAccountModel extends BeakModel {
   List<BeakRelationship> get relationships => const [
     LegacyAccountRelations.tickets,
   ];
+
+  @override
+  List<Enum> get formSlots => _LegacyAccountModelFormSlot.values;
+}
+
+/// Form-field slots of LegacyAccountModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field LegacyAccount can put on a form.
+enum _LegacyAccountModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
 }
 
 /// A typed, zero-cost view over a accounts record.

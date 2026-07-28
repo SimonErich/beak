@@ -36,7 +36,10 @@ jobs:
         run: melos bootstrap
       # No separate workspace-tooling `pub get`: `melos run analyze-root`
       # resolves the root itself, so a fresh clone needs no extra step.
-      - name: Analyze (includes the material and web-safety guards)
+      # `analyze` also runs `beak doctor` over every example, which is what
+      # catches an emitter change that left the checked-in generated code
+      # stale — nothing else in the gate reads it.
+      - name: Analyze (includes the material, web-safety and example guards)
         run: melos run analyze
       - name: Format check
         run: melos run format-check
@@ -107,6 +110,11 @@ jobs:
         run: melos run up
       - name: Service-backed suites
         run: melos run test-e2e
+      # The vendored drivers sit outside the melos scope, so `melos run test`
+      # never reaches them. This is where ALTER TABLE and `EXPLAIN … USING
+      # INDEX` are proven against a real server rather than a compiler golden.
+      - name: Vendored driver suites (Postgres)
+        run: melos run test-worm-drivers
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -114,7 +122,7 @@ jobs:
           name: coverage
           path: |
             packages/*/coverage/lcov.info
-            apps/*/coverage/lcov.info
+            examples/*/coverage/lcov.info
           retention-days: 7
       - name: Tear down services
         if: always()

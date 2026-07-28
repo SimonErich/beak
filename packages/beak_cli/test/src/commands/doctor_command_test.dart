@@ -215,6 +215,30 @@ final class NoteModel extends BeakModel {
       expect(check.label, contains('1 stale'));
     });
 
+    test('a stale <model>.beak.dart fails too', () async {
+      // The part files are written a step before `BeakEmitters.all` runs, so
+      // they used not to be compared at all — and `examples/quickstart` sat
+      // 18 lines behind the emitter while doctor reported "up to date".
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/product.dart': productSchema(''),
+      });
+      runPrepare(environmentFor(root));
+      // Stands in for the real drift: a part file written by an older
+      // emitter, missing whatever the current one adds.
+      final part = File('${root.path}/lib/models/product.beak.dart');
+      final List<String> lines = part.readAsLinesSync();
+      part.writeAsStringSync('${lines.take(lines.length - 2).join('\n')}\n');
+
+      final check = checkMatching(
+        await diagnose(environmentFor(root), open: neverOpen),
+        'out of date',
+      );
+      expect(check.status, BeakCheckStatus.fail);
+      expect(check.label, contains('1 stale'));
+      expect(check.remedy, 'beak prepare');
+    });
+
     test('a missing entrypoint fails — the fresh-clone case', () async {
       final root = preparedProject();
       File('${root.path}/lib/main.dart').deleteSync();
@@ -266,13 +290,35 @@ final class NoteModel extends BeakModel {
   });
 
   group('web safety', () {
+    /// A prepared project whose screen file is [screen].
+    ///
+    /// Prepared, because the check follows the panel's import graph: a file
+    /// nothing imports is not a panel file, and the screen only becomes one
+    /// once `beak prepare` has wired it into panel.g.dart.
+    Directory projectWithScreen(String screen) {
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/note.dart': noteModel,
+        'lib/screens/reports.dart': screen,
+      });
+      runPrepare(environmentFor(root));
+      return root;
+    }
+
     test('a panel file importing the server fails, naming the file', () async {
       // The exact failure the library split exists to prevent: it compiles,
       // then dies in a browser — or takes the server's AOT build with it.
-      final checks = await checksFor({
-        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
-        'lib/screens/reports.dart': "import 'package:beak/server.dart';\n",
-      });
+      final checks = await diagnose(
+        environmentFor(
+          projectWithScreen('''
+import 'package:beak/panel.dart';
+import 'package:beak/server.dart';
+
+BeakScreen buildReportsScreen() => BeakScreen();
+'''),
+        ),
+        open: neverOpen,
+      );
 
       final check = checkMatching(checks, 'lib/screens/reports.dart');
       expect(check.status, BeakCheckStatus.fail);
@@ -280,17 +326,81 @@ final class NoteModel extends BeakModel {
       expect(check.remedy, contains('lib/server.dart'));
     });
 
+    test('a screen the panel does import is reached through it', () async {
+      // Proves the walk is transitive rather than a scan of lib/screens/:
+      // the offending import sits one file further out, in a helper the
+      // screen imports.
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/note.dart': noteModel,
+        'lib/screens/reports.dart': '''
+import 'package:beak/panel.dart';
+
+import '../reporting/totals.dart';
+
+BeakScreen buildReportsScreen() => BeakScreen(total: monthlyTotal);
+''',
+        'lib/reporting/totals.dart': '''
+import 'package:beak/server.dart';
+
+int get monthlyTotal => 0;
+''',
+      });
+      runPrepare(environmentFor(root));
+
+      final check = checkMatching(
+        await diagnose(environmentFor(root), open: neverOpen),
+        'lib/reporting/totals.dart',
+      );
+      expect(check.status, BeakCheckStatus.fail);
+    });
+
     test('lib/server.dart and the migrations may import it', () async {
-      final checks = await checksFor({
-        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak:\n',
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/note.dart': noteModel,
         'lib/server.dart': "import 'package:beak/server.dart';\n",
         'lib/migrations/create_notes.dart':
             "import 'package:beak/migrations.dart';\n",
       });
+      runPrepare(environmentFor(root));
 
       expect(
-        checkMatching(checks, 'no panel file imports the server').status,
+        checkMatching(
+          await diagnose(environmentFor(root), open: neverOpen),
+          'no panel file imports the server',
+        ).status,
         BeakCheckStatus.ok,
+      );
+    });
+
+    test('a server-side file the panel never imports is not a panel file', () {
+      // `examples/embedded` keeps `lib/legacy_system.dart`, which migrates
+      // the host system's own table and is imported by `bin/host.dart`
+      // alone. A path allowlist called that a failure; the import graph
+      // knows better.
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/note.dart': noteModel,
+        'lib/legacy_system.dart': "import 'package:beak/migrations.dart';\n",
+      });
+      runPrepare(environmentFor(root));
+
+      expect(
+        serverImportChecks(root, packageName: 'acme_admin').single.status,
+        BeakCheckStatus.ok,
+      );
+    });
+
+    test('a project with no panel entrypoint reports nothing', () {
+      // Before `beak prepare` there is no panel to protect, and inventing a
+      // verdict about one would be a guess.
+      expect(
+        serverImportChecks(
+          projectWith({'lib/screens/reports.dart': "import 'dart:io';\n"}),
+          packageName: 'acme_admin',
+        ),
+        isEmpty,
       );
     });
 

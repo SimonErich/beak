@@ -80,9 +80,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   final schemaFiles = <String>[];
   if (schemaIssues.isEmpty) {
     for (final schema in schemas) {
-      final String path =
-          'lib/${_directoryOf(schema.libraryPath)}'
-          '${BeakSchemaEmitter.partFileNameOf(schema.libraryPath)}';
+      final String path = BeakSchemaEmitter.partPathOf(schema);
       final String contents = BeakSchemaEmitter.emit(schema, schemas);
       final file = File('${root.path}/$path');
       if (!file.existsSync() || file.readAsStringSync() != contents) {
@@ -174,13 +172,4 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     written: written,
     unchanged: unchanged,
   );
-}
-
-/// The directory part of [libraryPath], with a trailing slash.
-///
-/// A schema's part file sits beside the library that declares it, so the
-/// generated path keeps whatever nesting the author chose under `lib/models/`.
-String _directoryOf(String libraryPath) {
-  final int slash = libraryPath.lastIndexOf('/');
-  return slash < 0 ? '' : libraryPath.substring(0, slash + 1);
 }

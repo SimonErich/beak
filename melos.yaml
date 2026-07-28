@@ -31,7 +31,8 @@ scripts:
       melos run analyze-root &&
       melos run guard-material &&
       melos run guard-web &&
-      melos run check-docs
+      melos run check-docs &&
+      melos run check-examples
     description: Static analysis across all packages (0 issues required).
   analyze-dart:
     run: melos exec -- "dart analyze --fatal-infos --fatal-warnings ."
@@ -51,6 +52,15 @@ scripts:
       dart analyze --fatal-infos --fatal-warnings tool &&
       dart analyze --fatal-infos --fatal-warnings test
     description: Static analysis for the workspace tooling (tool/ and its tests).
+  check-examples:
+    # Runs the real `beak doctor` in each example. The examples are the only
+    # end-to-end exercise of the generator, and nothing else in the gate
+    # notices when an emitter change leaves one stale — analyze and test both
+    # run against whatever is checked in.
+    run: dart run tool/check_examples.dart
+    description: >-
+      FAIL when an example's generated code is stale, a model has no
+      migration, or a panel file reaches the server.
   check-docs:
     run: dart run tool/check_docs.dart
     description: >-
@@ -108,6 +118,20 @@ scripts:
       melos exec --fail-fast --flutter --dir-exists=test/e2e --
       "flutter test test/e2e --tags e2e"
     description: Service-backed suites of the Flutter packages.
+  test-worm-drivers:
+    # worm and its drivers are vendored and sit outside the melos scope
+    # (see `ignore:` above), so `melos run test` never reaches them. Their
+    # Postgres suites are where ALTER TABLE and `EXPLAIN … USING INDEX` are
+    # proven against a real server rather than a compiler golden, and until
+    # this ran they self-skipped everywhere including CI.
+    #
+    # `?sslmode=disable` is required by the postgres package's own URL parser
+    # against a server without TLS; the local compose instance has none.
+    run: >-
+      cd packages/worm_postgres && dart pub get &&
+      PG_DB="${PG_DB:-postgres://beak:beak@localhost:25432/beak?sslmode=disable}"
+      dart test
+    description: Run the vendored drivers' service-backed suites.
   test-root:
     run: dart test
     description: Run the workspace tooling self-checks (coverage gate, guards).

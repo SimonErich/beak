@@ -84,6 +84,24 @@ final class NoteModel extends BeakModel {
 
   @override
   List<BeakColumn> get columns => NoteColumns.values;
+
+  @override
+  List<Enum> get formSlots => _NoteModelFormSlot.values;
+}
+
+/// Form-field slots of NoteModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field Note can put on a form.
+enum _NoteModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
 }
 
 /// A typed, zero-cost view over a notes record.

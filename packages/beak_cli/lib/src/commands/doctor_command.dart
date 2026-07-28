@@ -11,6 +11,7 @@ import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_schema_drift.dart';
+import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
 import 'introspect_command.dart';
@@ -197,22 +198,44 @@ Future<List<BeakCheck>> diagnose(
     ),
   );
 
+  // Read once: the staleness check, the migration check and the drift check
+  // all ask the same question of the same files, and parsing them three
+  // times is parsing them three times.
+  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+
   // Stale generated files are the one failure mode the hidden-entrypoint
   // design introduces, so name it explicitly rather than letting it surface
   // as a confusing compile error.
   final stale = <String>[];
   final missing = <String>[];
+  void compare(String path, String expected) {
+    final file = File('${root.path}/$path');
+    if (!file.existsSync()) {
+      missing.add(path);
+    } else if (file.readAsStringSync() != expected) {
+      stale.add(path);
+    }
+  }
+
   if (discovery.issues.isEmpty) {
     for (final generated in BeakEmitters.all(
       packageName: packageName,
       config: config,
       discovery: discovery,
     )) {
-      final file = File('${root.path}/${generated.path}');
-      if (!file.existsSync()) {
-        missing.add(generated.path);
-      } else if (file.readAsStringSync() != generated.contents) {
-        stale.add(generated.path);
+      compare(generated.path, generated.contents);
+    }
+    // The part files too. They are not in `BeakEmitters.all` — the schema
+    // emitter writes them a step earlier, before discovery can see the
+    // models they declare — and leaving them out gave `doctor` a blind spot
+    // wide enough for `examples/quickstart` to sit 18 lines behind the
+    // emitter while reporting "generated files up to date".
+    if (schemaIssues.isEmpty) {
+      for (final schema in schemas) {
+        compare(
+          BeakSchemaEmitter.partPathOf(schema),
+          BeakSchemaEmitter.emit(schema, schemas),
+        );
       }
     }
   }
@@ -235,13 +258,9 @@ Future<List<BeakCheck>> diagnose(
     );
   }
 
-  // Read once: the migration check and the drift check ask the same
-  // question of the same files, and parsing them twice is parsing them
-  // twice.
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
   checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));
   checks.add(_webScaffoldCheck(root));
-  checks.addAll(serverImportChecks(root));
+  checks.addAll(serverImportChecks(root, packageName: packageName));
   checks.addAll(
     await _databaseChecks(environment, root, open, schemas, schemaIssues),
   );
@@ -301,6 +320,13 @@ BeakCheck _webScaffoldCheck(Directory root) {
   );
 }
 
+/// Libraries that cannot run in a browser, because they reach `dart:io` and a
+/// database driver.
+const Set<String> _serverLibraries = {
+  'package:beak/server.dart',
+  'package:beak/migrations.dart',
+};
+
 /// Panel files that reach the server, one check each.
 ///
 /// This is the failure the library split exists to prevent: the panel runs in
@@ -308,39 +334,32 @@ BeakCheck _webScaffoldCheck(Directory root) {
 /// one such import compiles fine and then fails at runtime — or takes the
 /// server's ahead-of-time build down with it when the file is also reachable
 /// from `bin/serve.dart`.
-List<BeakCheck> serverImportChecks(Directory root) {
-  const serverLibraries = {
-    'package:beak/server.dart',
-    'package:beak/migrations.dart',
-  };
-  // Where server-side code legitimately lives.
-  const allowed = {
-    'lib/server.dart',
-    'lib/beak/server.g.dart',
-    'lib/${BeakProjectScanner.migrationsDir}/',
-    'lib/${BeakProjectScanner.seedersDir}/',
-  };
-
-  final lib = Directory('${root.path}/lib');
-  if (!lib.existsSync()) {
+///
+/// Only files the panel actually reaches are checked. Membership is the
+/// import graph, not the path: a project may keep server-side code anywhere
+/// under `lib/` — `examples/embedded` has a `lib/legacy_system.dart` that
+/// migrates the host system's own table and is imported by `bin/host.dart`
+/// alone — and a path allowlist called that a failure while missing the real
+/// one, a server import in a file the panel does import.
+List<BeakCheck> serverImportChecks(
+  Directory root, {
+  required String packageName,
+}) {
+  final Set<String>? reachable = _panelGraphOf(root, packageName);
+  if (reachable == null) {
+    // No panel entrypoint to protect. `beak prepare` writes one; until then
+    // there is nothing to say.
     return const [];
   }
+
   final offenders = <String, String>{};
-  for (final entity in lib.listSync(recursive: true, followLinks: false)) {
-    if (entity is! File || !entity.path.endsWith('.dart')) {
+  for (final relative in reachable) {
+    final file = File('${root.path}/$relative');
+    if (!file.existsSync()) {
       continue;
     }
-    final String relative = entity.path
-        .substring(root.path.length + 1)
-        .replaceAll(r'\', '/');
-    if (allowed.any(
-      (path) =>
-          path.endsWith('/') ? relative.startsWith(path) : relative == path,
-    )) {
-      continue;
-    }
-    final String source = entity.readAsStringSync();
-    for (final library in serverLibraries) {
+    final String source = file.readAsStringSync();
+    for (final library in _serverLibraries) {
       if (source.contains("import '$library'")) {
         offenders[relative] = library;
         break;
@@ -368,6 +387,106 @@ List<BeakCheck> serverImportChecks(Directory root) {
             'package:beak/beak.dart instead',
       ),
   ];
+}
+
+/// Every project file the panel reaches, as `lib/`-rooted relative paths.
+///
+/// `null` when the project has no panel entrypoint at all. Walks this
+/// package's own sources only: what `package:beak` does internally is the
+/// framework's problem, and `melos run guard-web` covers it there.
+Set<String>? _panelGraphOf(Directory root, String packageName) {
+  // `lib/main.dart` is generated and often git-ignored, so fall back to the
+  // root widget it is one line of.
+  const roots = ['lib/main.dart', 'lib/beak/app.g.dart'];
+  final queue = <String>[
+    for (final path in roots)
+      if (File('${root.path}/$path').existsSync()) path,
+  ];
+  if (queue.isEmpty) {
+    return null;
+  }
+
+  final seen = <String>{...queue};
+  while (queue.isNotEmpty) {
+    final String current = queue.removeLast();
+    final file = File('${root.path}/$current');
+    if (!file.existsSync()) {
+      continue;
+    }
+    for (final uri in _referencedUrisIn(file.readAsStringSync())) {
+      final String? next = _resolveWithinProject(
+        uri,
+        from: current,
+        packageName: packageName,
+      );
+      if (next != null && seen.add(next)) {
+        queue.add(next);
+      }
+    }
+  }
+  return seen;
+}
+
+/// Every URI [source] pulls in via `import`, `export` or `part`.
+///
+/// Line-based and directive-anchored, matching `tool/check_web_safe.dart`: a
+/// URI inside a doc comment or a string constant is not an import.
+List<String> _referencedUrisIn(String source) {
+  final uris = <String>[];
+  for (final line in source.split('\n')) {
+    final String trimmed = line.trim();
+    final bool isDirective =
+        trimmed.startsWith('import ') ||
+        trimmed.startsWith('export ') ||
+        trimmed.startsWith('part ');
+    if (!isDirective || trimmed.startsWith('part of ')) {
+      continue;
+    }
+    if (RegExp("""['"]([^'"]+)['"]""").firstMatch(trimmed) case final match?) {
+      uris.add(match.group(1)!);
+    }
+  }
+  return uris;
+}
+
+/// [uri] as a project-relative path, or `null` when it leaves the project.
+///
+/// A `package:` URI naming this project resolves back into `lib/`; a URI
+/// naming anything else is a dependency, and stops the walk — what
+/// `package:beak` does internally is the framework's problem, checked there
+/// by `melos run guard-web`.
+String? _resolveWithinProject(
+  String uri, {
+  required String from,
+  required String packageName,
+}) {
+  if (uri.startsWith('dart:')) {
+    return null;
+  }
+  if (uri.startsWith('package:')) {
+    final String withoutScheme = uri.substring('package:'.length);
+    final int slash = withoutScheme.indexOf('/');
+    if (slash < 0 || withoutScheme.substring(0, slash) != packageName) {
+      return null;
+    }
+    return 'lib/${withoutScheme.substring(slash + 1)}';
+  }
+  // Relative, so resolve against the importing file's directory.
+  final List<String> segments = from.split('/')..removeLast();
+  for (final part in uri.split('/')) {
+    if (part == '.') {
+      continue;
+    }
+    if (part == '..') {
+      if (segments.isEmpty) {
+        return null;
+      }
+      segments.removeLast();
+    } else {
+      segments.add(part);
+    }
+  }
+  return segments.join('/');
 }
 
 /// Whether the configured database is reachable, and whether it still

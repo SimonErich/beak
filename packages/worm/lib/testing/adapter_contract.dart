@@ -664,6 +664,42 @@ void _registerAlterationTests(DatabaseAdapter Function() adapter) {
       expect(row?['nickname'], 'Ali');
     });
 
+    test('a non-null column with a default backfills the rows', () async {
+      // The case that separates "the DDL was emitted" from "the DDL was
+      // right": every database refuses to add a NOT NULL column to a
+      // populated table unless it is told what the existing rows should
+      // hold, so a compiler that drops the DEFAULT clause fails here and
+      // nowhere else. It passes on an empty table, which is why this seeds
+      // rows first.
+      await adapter().executeSchema(
+        const SchemaDescriptor.alterTable(
+          table: 'users',
+          alterations: <SchemaAlteration>[
+            SchemaAddColumn(
+              SchemaColumn(
+                name: 'tier',
+                type: ColumnType.text,
+                defaultValue: 'free',
+              ),
+            ),
+          ],
+        ),
+      );
+
+      final rows = await adapter().select(
+        const QueryDescriptor(
+          table: 'users',
+          orderBy: <SortClause>[SortClause('id')],
+        ),
+      );
+      expect(rows, hasLength(5));
+      expect(
+        rows.map((row) => row['tier']),
+        everyElement('free'),
+        reason: 'the default did not reach the existing rows',
+      );
+    });
+
     test('a dropped column leaves the schema', () async {
       await adapter().executeSchema(
         const SchemaDescriptor.alterTable(

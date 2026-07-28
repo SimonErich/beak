@@ -355,9 +355,9 @@ final class BeakProjectScanner {
   /// Every table the migrations under `lib/migrations/` create.
   ///
   /// Collects the string argument of every `schema.create('x', …)` and
-  /// `schema.alter('x', …)`, plus the `ownerTable:` and pivot of every
-  /// `BeakBlueprint.createPivot`. Unresolved AST, so it costs a parse and
-  /// nothing else.
+  /// `schema.alter('x', …)`, plus the relation constant every
+  /// `BeakBlueprint.createPivot` names its pivot through. Unresolved AST, so
+  /// it costs a parse and nothing else.
   Set<String> _scanMigratedTables() {
     final tables = <String>{};
     for (final file in _dartFilesUnder(migrationsDir)) {
@@ -376,12 +376,14 @@ final class BeakProjectScanner {
           if (argument case final SimpleStringLiteral literal) {
             into.add(literal.value);
           }
-          if (argument case NamedExpression(
-            name: Label(label: SimpleIdentifier(name: 'ownerTable')),
-            expression: final SimpleStringLiteral literal,
-          )) {
-            into.add(literal.value);
-          }
+          // `createPivot(…, ownerTable: 'products')` is deliberately NOT
+          // collected. It names which side of the relationship owns the
+          // pivot, not a table the migration creates — and recording it made
+          // a pivot migration vouch for its owner, so deleting
+          // `create_products_table.dart` left `products` looking covered and
+          // `beak prepare` never wrote it back. That is gap A returning
+          // through the check meant to prevent it.
+
           // A pivot names its table through a relation constant, which
           // unresolved AST cannot follow. Record the constant itself; the
           // emitter knows which pivot each one stands for.

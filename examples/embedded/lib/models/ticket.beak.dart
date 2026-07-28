@@ -109,6 +109,26 @@ final class TicketModel extends BeakModel {
 
   @override
   List<BeakRelationship> get relationships => const [TicketRelations.account];
+
+  @override
+  List<Enum> get formSlots => _TicketModelFormSlot.values;
+}
+
+/// Form-field slots of TicketModel.
+///
+/// An implementation bridge, never shown and never stored:
+/// auto forms key their fields by an enum, and this supplies
+/// one value per field Ticket can put on a form.
+enum _TicketModelFormSlot {
+  /// Bridge slots.
+  s0,
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
+  s6,
+  s7,
 }
 
 /// A typed, zero-cost view over a tickets record.

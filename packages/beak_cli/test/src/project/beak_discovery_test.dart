@@ -280,6 +280,104 @@ final class $className extends Migration {
     });
   });
 
+  group('migrated tables', () {
+    test('a create and an alter both count as coverage', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_products_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateProductsTable extends Migration {
+  @override
+  String get name => '20260101_000000_create_products_table';
+  @override
+  Future<void> upSchema(Schema schema) => schema.create('products', (t) {
+    t.idUuid();
+  });
+  @override
+  Future<void> downSchema(Schema schema) => schema.drop('products');
+}
+''',
+          'lib/migrations/add_stock.dart': '''
+import 'package:beak/migrations.dart';
+
+final class AddStock extends Migration {
+  @override
+  String get name => '20260101_000001_add_stock';
+  @override
+  Future<void> upSchema(Schema schema) =>
+      schema.alter('orders', (t) => t.integer('stock').makeNullable());
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+        }),
+      ).scan();
+
+      expect(
+        discovery.migratedTables,
+        containsAll(<String>['products', 'orders']),
+      );
+    });
+
+    test('a pivot counts through the relation constant it names', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_product_tag_table.dart': '''
+import 'package:beak/migrations.dart';
+import 'package:acme/models/product.dart';
+
+final class CreateProductTagTable extends Migration {
+  @override
+  String get name => '20260101_000002_create_product_tag_table';
+  @override
+  Future<void> upSchema(Schema schema) => BeakBlueprint.createPivot(
+    schema,
+    ProductRelations.tags,
+    ownerTable: 'products',
+  );
+  @override
+  Future<void> downSchema(Schema schema) => schema.drop('product_tag');
+}
+''',
+        }),
+      ).scan();
+
+      expect(discovery.migratedTables, contains('ProductRelations.tags'));
+    });
+
+    test('a pivot does not vouch for the table that owns it', () {
+      // `createPivot(…, ownerTable: 'products')` names which side owns the
+      // relationship, not a table the migration creates. Counting it meant a
+      // project could delete create_products_table.dart and have `prepare`
+      // decline to write it back, with `doctor` reporting all clear — gap A
+      // returning through the very check meant to prevent it.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_product_tag_table.dart': '''
+import 'package:beak/migrations.dart';
+import 'package:acme/models/product.dart';
+
+final class CreateProductTagTable extends Migration {
+  @override
+  String get name => '20260101_000002_create_product_tag_table';
+  @override
+  Future<void> upSchema(Schema schema) => BeakBlueprint.createPivot(
+    schema,
+    ProductRelations.tags,
+    ownerTable: 'products',
+  );
+  @override
+  Future<void> downSchema(Schema schema) => schema.drop('product_tag');
+}
+''',
+        }),
+      ).scan();
+
+      expect(discovery.migratedTables, isNot(contains('products')));
+    });
+  });
+
   group('summary', () {
     test('reports what was found, so a miss is visible', () {
       final discovery = BeakProjectScanner(

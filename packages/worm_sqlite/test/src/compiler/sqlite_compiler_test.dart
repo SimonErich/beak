@@ -359,6 +359,42 @@ void main() {
     });
   });
 
+  group('SqliteCompiler defaults', () {
+    test('a create renders each default as a SQLite literal', () {
+      final result = const SqliteCompiler().compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'products',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'id', type: ColumnType.uuid, isPrimaryKey: true),
+            SchemaColumn(
+              name: 'status',
+              type: ColumnType.string,
+              defaultValue: "draft's",
+            ),
+            SchemaColumn(
+              name: 'active',
+              type: ColumnType.boolean,
+              defaultValue: false,
+            ),
+            SchemaColumn(
+              name: 'stock',
+              type: ColumnType.integer,
+              defaultValue: 0,
+            ),
+          ],
+        ),
+      );
+
+      final sql = result.single.sql;
+      // Quoted and escaped for text, and 1/0 for a boolean — SQLite has no
+      // boolean storage class and the runner binds `true` as 1, so a `TRUE`
+      // keyword default would disagree with an explicit write.
+      expect(sql, contains(""""status" TEXT NOT NULL DEFAULT 'draft''s'"""));
+      expect(sql, contains('"active" INTEGER NOT NULL DEFAULT 0'));
+      expect(sql, contains('"stock" INTEGER NOT NULL DEFAULT 0'));
+    });
+  });
+
   group('SqliteCompiler.sqliteTypeOf', () {
     test('maps every ColumnType to one of the four storage classes', () {
       // SQLite has four of them, and a column declared as anything else
