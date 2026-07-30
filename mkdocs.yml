@@ -10,7 +10,6 @@ docs_dir: docs
 # Authoring aids that ship in the repo but are not part of the built site.
 exclude_docs: |
   _internal/
-  architecture/how-beak-was-built.md
 
 theme:
   name: material
@@ -254,4 +253,3 @@ nav:
           - "The data source seam": architecture/data-source-seam.md
           - "Block system internals": architecture/block-system-internals.md
           - "Storage internals": architecture/storage-internals.md
-          - "How Beak was built": architecture/how-beak-was-built.md
