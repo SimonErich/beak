@@ -1,5 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 
+import 'reference_cache.dart';
+
 /// The frontend's catch boundary: every data-source call is wrapped into a
 /// typed [BeakResult], so view models switch on outcomes and never
 /// `try/catch` themselves.
@@ -22,11 +24,16 @@ import 'package:beak_core/beak_core.dart';
 /// }
 /// ```
 final class BeakResourceRepository {
-  /// Creates a repository over [dataSource].
-  const BeakResourceRepository(this.dataSource);
+  /// Creates a repository over [dataSource], optionally resolving references
+  /// through [referenceCache].
+  const BeakResourceRepository(this.dataSource, {this.referenceCache});
 
   /// The source calls run against.
   final BeakDataSource dataSource;
+
+  /// Coalesces and caches [resolveReference] lookups; when null each one is
+  /// its own `getOne`.
+  final ReferenceCache? referenceCache;
 
   /// Runs a query, capturing failures as [BeakErr].
   Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
@@ -42,6 +49,26 @@ final class BeakResourceRepository {
         await dataSource.getOne(table, id) ??
         (throw BeakNotFoundException('No record of "$table" with id "$id".')),
   );
+
+  /// Fetches one record *by reference* — a foreign key being turned into
+  /// something a person can read.
+  ///
+  /// Unlike [getOne] this may be served from [referenceCache], so every
+  /// picker on a form resolving its prefilled key in the same frame costs one
+  /// `batchGet` between them. Use it where a stale label is harmless and a
+  /// round trip per widget is not; use [getOne] to load a record for editing.
+  Future<BeakResult<BeakRecord>> resolveReference(String table, Object id) =>
+      switch (referenceCache) {
+        null => getOne(table, id),
+        final ReferenceCache cache => _guard(() => cache.resolve(table, id)),
+      };
+
+  /// Fetches many records by id in one round trip, capturing failures as
+  /// [BeakErr]. Missing ids are simply absent from the result.
+  Future<BeakResult<List<BeakRecord>>> batchGet(
+    String table,
+    List<Object> ids,
+  ) => _guard(() => dataSource.batchGet(table, ids));
 
   /// Creates a record, capturing failures as [BeakErr].
   Future<BeakResult<BeakRecord>> create(String table, BeakRecord data) =>

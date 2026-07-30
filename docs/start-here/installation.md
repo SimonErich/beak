@@ -1,182 +1,209 @@
 ---
 title: Installation
-description: Get the Beak toolchain, the sibling obers_ui checkout, and local Postgres and MinIO in place before you build.
+description: Install the Beak CLI and scaffold your first admin panel. No Docker, no database to set up.
 ---
 
 # Installation
 
-After this page you have a resolved Beak workspace: the right Dart and Flutter,
-the pinned Melos, the obers_ui checkout Beak draws its widgets from, and Postgres
-plus MinIO running locally. The [Quickstart](quickstart.md) picks up from here.
+After this page you have the `beak` command on your path and a project it
+created. The [Quickstart](quickstart.md) picks up from here.
 
 ## Prerequisites
 
-Beak is a Dart and Flutter monorepo orchestrated by Melos, with a Docker stack
-for the services the backend talks to.
-
 | Tool | Version | Why you need it |
 | --- | --- | --- |
-| Dart SDK | `^3.11` | Every package targets it (`sdk: ^3.11.0`). |
-| Flutter | stable channel, `3.41` or newer | The panel and demo apps (`flutter: '>=3.41.0'`). |
-| Docker + Compose | any recent release | Postgres and MinIO for the backend, uploads, and integration tests. |
-| Melos | `6.3.3`, pinned | Bootstraps and gates the whole workspace. |
+| Dart SDK | `^3.11` | The CLI and the server half. |
+| Flutter | stable, `3.41` or newer | The panel. |
 
-Install the Dart and Flutter SDKs the usual way, then install Melos as a global
-at the exact pinned version:
+That is the whole list. A new project's database is a SQLite file Beak creates
+on first run, so there is nothing to install, start, or configure before you
+see a panel. Docker and Postgres become relevant later, when you want a server
+database or object storage, and both are opt-in.
+
+## Install the CLI
 
 ```bash
-dart pub global activate melos 6.3.3
+dart pub global activate --source git https://github.com/SimonErich/beak.git \
+  --git-path packages/beak_cli
 ```
 
-!!! warning "Do not use Melos 7 or newer"
-    The 7.x line moved its configuration out of `melos.yaml` and into
-    `pubspec.yaml`. Beak is on the `melos.yaml`-based `6.3.3` line (pinned in the
-    workspace root `pubspec.yaml`) and will not bootstrap under 7. If `melos
-    --version` prints anything but `6.3.3`, re-run the `activate` command above.
+Check it:
 
-## The obers_ui sibling checkout
-
-Beak's UI is obers_ui, never Material. `beak_frontend` and both demo apps depend
-on the obers_ui trio by a relative path that climbs one level above the repo
-root:
-
-```yaml title="packages/beak_frontend/pubspec.yaml"
-  obers_ui:
-    path: ../../../obers_ui
-  obers_ui_autoforms:
-    path: ../../../obers_ui/packages/obers_ui_autoforms
-  obers_ui_charts:
-    path: ../../../obers_ui/packages/obers_ui_charts
+```bash
+beak --help
 ```
 
-From `packages/beak_frontend/`, `../../../obers_ui` resolves to a folder named
-`obers_ui` sitting next to the `beak` repo. So check obers_ui out as a **sibling
-of this repo** before you bootstrap. The layout Beak expects:
+If the command is not found, add pub's bin directory to your `PATH`
+(`$HOME/.pub-cache/bin` on macOS and Linux, `%LOCALAPPDATA%\Pub\Cache\bin` on
+Windows).
+
+## Create a project
+
+```bash
+beak create acme_admin
+cd acme_admin
+```
+
+`beak create` writes the files you own, delegates `web/` to
+`flutter create --platforms=web`, and then runs `beak prepare` for you, so the
+project is runnable as created rather than one command short of it. What you
+own is small:
 
 ```text
-Flutters/
-  beak/        # this repository
-  obers_ui/    # the sibling checkout, cloned next to it
+acme_admin/
+├── pubspec.yaml            one dependency: beak
+├── beak.yaml               title, API origin, icons, sections (every key optional)
+├── analysis_options.yaml
+├── AGENTS.md               what an AI coding agent needs to know about the layout
+├── README.md
+├── .gitignore
+├── lib/models/note.dart    one @Resource class, the example to replace
+├── test/widget_test.dart   boots the panel against an in-memory data source
+└── web/                    Flutter's own web scaffold
 ```
+
+The `beak prepare` that follows generates nine more files: the model's part
+file (`lib/models/note.beak.dart`), the migration that table needs
+(`lib/migrations/create_notes_table.dart`), the four wiring files under
+`lib/beak/`, and the three entrypoints (`lib/main.dart`, `bin/serve.dart`,
+`bin/migrate.dart`).
+
+Everything else (the panel, the router, the REST API, the query layer) comes
+from the `beak` package itself. You never edit generated code, and you can take
+any Beak default over with `beak eject` when you want to. See
+[Project structure](project-structure.md) for what each of those files is.
+
+## One dependency
+
+A generated `pubspec.yaml` names Beak once:
+
+```yaml
+dependencies:
+  beak:
+    git:
+      url: https://github.com/SimonErich/beak.git
+      path: packages/beak
+  flutter:
+    sdk: flutter
+```
+
+The `beak` package re-exports each layer as its own library, so you import the
+one you need and never keep five version constraints in step. Which library a
+file imports says what that file is:
+
+| Library | What it holds |
+| --- | --- |
+| `package:beak/beak.dart` | Columns, models, relationships, the query spec, `BeakClient`, the storage abstraction. Shared by the panel and the server. |
+| `package:beak/schema.dart` | The annotations a schema class carries: `@Resource`, `@Column`, `@BelongsTo`. |
+| `package:beak/panel.dart` | The panel: `BeakPanel`, resources, blocks, tables, forms. |
+| `package:beak/server.dart` | The Shelf host, its config, storage wiring, auth, policy. |
+| `package:beak/migrations.dart` | The schema DSL for migrations and seeders. |
+| `package:beak/testing.dart` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, fixtures, and the executable data-source contract. |
+| `package:beak/ui.dart` | obers_ui, for a screen that draws its own widgets. |
+| `package:beak/charts.dart` | obers_ui_charts. |
+
+A file under `lib/models/` imports `beak.dart` and `schema.dart`, and nothing
+else. `panel.dart`, `server.dart` and `migrations.dart` re-export `beak.dart`,
+so everything else usually needs one import.
+
+!!! note "Why `beak.dart` carries no widgets"
+    `bin/serve.dart` reaches the generated registry, and the registry reaches
+    your models. If any of those pulled in `dart:ui`, the server would stop
+    compiling ahead of time. Keeping the widgets in `panel.dart` makes that
+    mistake impossible, and `beak doctor` catches it if a panel file imports
+    the server by hand.
+
+## Resolve and run
 
 ```bash
-# from the folder that contains your beak/ clone
-git clone https://github.com/SimonErich/obers_ui.git
+flutter pub get
+beak migrate
+beak dev
 ```
 
-If obers_ui is missing or lives somewhere else, `melos bootstrap` fails to
-resolve the path dependencies. See
-[The obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) for
-the CI and deployment version of this rule.
+`beak migrate` applies the migration `beak prepare` wrote. Beak never alters a
+database on boot, so this is a step you take deliberately, once per schema
+change.
 
-## Bootstrap the workspace
+`beak dev` regenerates the wiring and serves the API on
+`http://localhost:8080`. It prints the `flutter run` line for the panel rather
+than spawning it, so paste that into a second terminal:
 
-From the repo root, resolve every package:
+```console
+$ beak dev
+  1 model · 0 screens · 0 overrides
+  generated  up to date (7 files)
+  panel      run this in another terminal:
+               flutter run -d chrome
+  api        starting…
+```
+
+With no `DATABASE_URL`, the database is a SQLite file (`beak.db`, git-ignored)
+beside the project. Nothing to install and nothing to start.
+
+## A real database
+
+When you want Postgres, put a `DATABASE_URL` in a `.env` beside your
+`pubspec.yaml`:
 
 ```bash
-melos bootstrap
+DATABASE_URL=postgres://user:pass@localhost:5432/acme
 ```
 
-Melos runs `pub get` across everything it manages. Its scope is the `packages/**`
-and `apps/**` globs from `melos.yaml`; the vendored worm ORM and its drivers are
-explicitly ignored, so they are consumed as path dependencies but never gated
-here.
-
-```yaml title="melos.yaml"
-packages:
-  - packages/**
-  - apps/**
-
-ignore:
-  - packages/worm
-  - packages/worm/**
-  - packages/worm_*
-  - packages/worm_*/**
-```
-
-## The environment file
-
-The backend reads its configuration from a dotenv file. Copy the committed
-template to a real `.env`:
+Uploads land under `storage/uploads` and are served by the Beak server itself
+until `BEAK_STORAGE_DRIVER` says otherwise. Point them at S3 or MinIO with:
 
 ```bash
-cp .env.example .env
-```
-
-```bash title=".env.example"
-PORT=8180
-DATABASE_URL=postgres://beak:beak@localhost:25432/beak
 BEAK_STORAGE_DRIVER=s3
-BEAK_S3_ENDPOINT=http://localhost:29000
-BEAK_S3_BUCKET=beak-uploads
-BEAK_S3_ACCESS_KEY=beak
-BEAK_S3_SECRET_KEY=beaksecret
+BEAK_S3_ENDPOINT=http://localhost:9000
+BEAK_S3_BUCKET=acme-uploads
+BEAK_S3_ACCESS_KEY=...
+BEAK_S3_SECRET_KEY=...
 BEAK_S3_REGION=us-east-1
 BEAK_S3_USE_PATH_STYLE=true
 ```
 
-Every value here matches the Docker stack you start next:
+The S3 driver is registered by the project, not by Beak: declare a
+`beakStorageRegistry()` in `lib/server.dart` and `beak prepare` wires it into
+the host. See
+[Uploads and storage wiring](../backend/uploads-and-storage-wiring.md).
 
-- `DATABASE_URL` points at the dockerized Postgres on host port `25432`.
-- `BEAK_STORAGE_DRIVER=s3` plus the `BEAK_S3_*` block point at MinIO on host port
-  `29000`, using the `beak-uploads` bucket. Leave `BEAK_STORAGE_DRIVER` unset to
-  run without uploads.
-- `PORT` selects the HTTP port the backend binds. When it is unset the backend
-  defaults to `8080`.
-
-`.env` is git-ignored (secrets never land in a commit); `.env.example` is the
-committed record of the keys. Each runnable app reads a `.env` from the directory
-you launch it in, so the reference server keeps its own next to its `bin/`. The
-[Quickstart](quickstart.md) writes that one.
-
-## Start the local services
+`.env` is git-ignored by the generated `.gitignore`. Check the whole setup at
+any time:
 
 ```bash
-melos run up
+beak doctor
 ```
 
-That script starts Postgres and MinIO, waits for both to report healthy, and
-creates the upload bucket:
+No `DATABASE_URL` is a passing check, not a warning: it is the supported
+zero-setup default.
 
-```yaml title="melos.yaml"
-  up:
-    run: docker compose up -d --wait && docker compose run --rm createbuckets
-    description: Start Postgres + MinIO, wait for health, and init the upload bucket.
+## Pointing Beak at a database you already have
+
+Point Beak at it and it writes the models for you:
+
+```bash
+beak introspect postgres://user:pass@localhost:5432/existing_app
+beak prepare
 ```
 
-Host ports are remapped (each prefixed with a `2`) so they do not collide with a
-default Postgres or MinIO already running on your machine. Override any of them
-with the matching `BEAK_*_PORT` variable from `docker-compose.yml`.
+It reads types, nullability, defaults, foreign keys and enum labels, and writes
+the same annotated classes you would have written by hand. The result is an
+ordinary Beak project whose first draft happened to come from a database. Edit
+it and it stays yours.
 
-| Service | Host port | Notes |
-| --- | --- | --- |
-| Postgres | `25432` | `postgres://beak:beak@localhost:25432/beak` |
-| MinIO (S3 API) | `29000` | bucket `beak-uploads` |
-| MinIO console | `29001` | `beak` / `beaksecret` |
-| pgweb | `28081` | browse the database in a browser |
+## Working on Beak itself
 
-When you are done, `melos run down` stops the services and drops their volumes.
-
-!!! note "Docker is only needed for the backend and integration tests"
-    Unit tests that touch Postgres or MinIO are health-check-guarded: they skip
-    cleanly when the services are down, so `melos run test` passes without
-    Docker. Run `melos run up` before you rely on the backend, uploads, or the
-    end-to-end suite.
-
-## You are set
-
-You now have a bootstrapped workspace and running services. Two directions from
-here:
-
-- Boot the reference admin end to end in the [Quickstart](quickstart.md).
-- Learn where every folder lives in [Project structure](project-structure.md).
+Contributors clone the monorepo instead. See
+[Contributing](../contributing/index.md) for the Melos workspace, the
+four-command gate, and the Docker stack the integration tests use.
 
 ## Continue reading
 
-- [Quickstart](quickstart.md) migrate, seed, serve on port 8080, open the panel.
-- [Project structure](project-structure.md) the monorepo layout and the two-app
-  split.
-- [The obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) why
-  obers_ui lives outside the repo, and how CI checks it out.
-- [Contributing](../contributing/index.md) the four-command gate a change must
-  pass.
+- [Quickstart](quickstart.md) a resource, a migration, and a running panel.
+- [Project structure](project-structure.md) what each folder is for, and which
+  files you can take over.
+- [Libraries](../reference/libraries.md) the eight libraries in full, and why
+  the split is enforced rather than trusted.
+- [CLI commands](../reference/cli-commands.md) `create`, `prepare`, `dev`,
+  `migrate`, `introspect`, `eject`, `doctor` and their flags.

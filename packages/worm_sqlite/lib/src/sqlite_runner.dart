@@ -3,15 +3,18 @@
 library;
 
 import 'package:sqlite3/common.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:worm/worm.dart';
 
 import 'compiler/sqlite_compile_result.dart';
 import 'compiler/sqlite_compiler.dart';
 import 'pool/sqlite_prepared_cache.dart';
 import 'sqlite_error_mapper.dart';
+import 'sqlite_library_version.dart';
 
 export 'pool/sqlite_prepared_cache.dart';
 export 'sqlite_error_mapper.dart';
+export 'sqlite_library_version.dart';
 
 /// Runs worm descriptors against a [CommonDatabase], translating
 /// results and errors. Stateless apart from the connection it holds —
@@ -20,15 +23,36 @@ export 'sqlite_error_mapper.dart';
 /// caching, and mapping.
 final class SqliteRunner {
   /// Creates a runner over [database] using [compiler].
-  SqliteRunner({required CommonDatabase database, required this.compiler})
-    : _db = database,
-      _cache = SqlitePreparedCache(database);
+  ///
+  /// [libraryVersion] overrides the version the linked library reports. It is
+  /// the seam the version gates are testable through: asserting that an old
+  /// SQLite is refused by name otherwise needs an old SQLite to link against.
+  SqliteRunner({
+    required CommonDatabase database,
+    required this.compiler,
+    String? libraryVersion,
+  }) : _db = database,
+       _cache = SqlitePreparedCache(database),
+       _injectedLibraryVersion = libraryVersion;
+
+  /// The first SQLite release able to run `ALTER TABLE … DROP COLUMN`.
+  static const String dropColumnMinimumVersion = '3.35';
 
   final CommonDatabase _db;
   final SqlitePreparedCache _cache;
+  final String? _injectedLibraryVersion;
 
   /// The compiler used to translate descriptors to SQLite SQL.
   final SqliteCompiler compiler;
+
+  /// The SQLite library version this runner executes against, in the shape
+  /// the driver reports it (`3.45.1`).
+  ///
+  /// Resolved on first read: a runner can be handed a [CommonDatabase] some
+  /// other build opened, and only the DDL gate below asks, so the `dart:ffi`
+  /// library is not loaded until it does.
+  late final String libraryVersion =
+      _injectedLibraryVersion ?? sqlite3.version.libVersion;
 
   /// The prepared-statement cache backing this connection.
   SqlitePreparedCache get preparedCache => _cache;
@@ -167,12 +191,46 @@ final class SqliteRunner {
 
   Future<void> executeSchema(SchemaDescriptor d) =>
       SqliteErrorMapper.wrap(() async {
-        final compiled = compiler.compileDdl(d);
+        _guardDropColumnSupport(d.alterations);
         // DDL is one-off and can invalidate cached statements that
-        // referenced an altered table — run it raw and drop the cache.
-        _db.execute(compiled.sql, _bind(compiled.parameters));
+        // referenced an altered table — run it raw and drop the cache. One
+        // descriptor is several ordered statements: a create with indexes,
+        // an alter with steps.
+        for (final compiled in compiler.compileDdl(d)) {
+          _db.execute(compiled.sql, _bind(compiled.parameters));
+        }
         _cache.clear();
       }, table: d.table);
+
+  /// Refuses a `DROP COLUMN` the linked library is too old to execute.
+  ///
+  /// This is a runtime property of the connection, not of the descriptor, so
+  /// it cannot live in the compiler: that is a pure descriptor-to-SQL function
+  /// with nothing to ask. Left unguarded, an old library answers the emitted
+  /// statement with a bare syntax error, which [SqliteErrorMapper] can only
+  /// turn into a generic `QueryException` that names neither the version floor
+  /// nor the way past it.
+  void _guardDropColumnSupport(List<SchemaAlteration> alterations) {
+    final dropsColumn = alterations.any(
+      (alteration) => alteration is SchemaDropColumn,
+    );
+    if (!dropsColumn) return;
+    if (sqliteVersionAtLeast(
+      libraryVersion,
+      minimum: dropColumnMinimumVersion,
+    )) {
+      return;
+    }
+    throw UnsupportedOperationException(
+      operation: 'alter.dropColumn',
+      adapter: 'SqliteAdapter',
+      message:
+          'SQLite gained ALTER TABLE … DROP COLUMN in '
+          '$dropColumnMinimumVersion, and this build reports $libraryVersion. '
+          'Rebuild the table with adapter.rawExecute, or point DATABASE_URL '
+          'at Postgres.',
+    );
+  }
 
   Future<Map<String, List<String>>> introspectSchema() =>
       SqliteErrorMapper.wrap(() async {
@@ -210,7 +268,13 @@ final class SqliteRunner {
       final UpdateDescriptor d => compiler.compileUpdate(d),
       final DeleteDescriptor d => compiler.compileDelete(d),
       final AggregateDescriptor d => compiler.compileAggregate(d),
-      final SchemaDescriptor d => compiler.compileDdl(d),
+      // A schema descriptor can be several statements; this is a debug
+      // rendering, so joining them is right here and only here.
+      final SchemaDescriptor d => SqliteCompileResult(
+        sql: [
+          for (final compiled in compiler.compileDdl(d)) compiled.sql,
+        ].join(';\n'),
+      ),
       _ => SqliteCompileResult(sql: 'SQLite: ${descriptor.runtimeType}'),
     };
     return '${compiled.sql}\n-- Params: ${compiled.parameters}';
@@ -231,10 +295,25 @@ final class SqliteRunner {
           usesIndex:
               joined.contains('USING INDEX') ||
               joined.contains('USING COVERING INDEX'),
+          indexName: _plannedIndexName(joined),
           raw: joined,
           scannedTables: <String>[descriptor.table],
         );
       }, table: descriptor.table);
+
+  /// The index SQLite's planner picked, read out of the plan text.
+  ///
+  /// A plan line reads `SEARCH products USING INDEX products_status_idx
+  /// (status=?)`. Naming it is what turns "an index was used" into "the
+  /// index I declared was used" — the difference between a migration that
+  /// emitted a CREATE INDEX and one whose index the database actually reads
+  /// through.
+  static String? _plannedIndexName(String plan) {
+    final match = RegExp(
+      r'USING (?:COVERING )?INDEX ([^\s(]+)',
+    ).firstMatch(plan);
+    return match?.group(1);
+  }
 
   /// Run [body] inside `BEGIN … COMMIT`, rolling back on error.
   ///

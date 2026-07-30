@@ -31,14 +31,17 @@ flowchart TD
   mw --> handler[Handler: BeakCrudHandlers. parse, authorize, route]
   handler --> service[Service: BeakResourceService. logic, validation, defaults]
   service --> ds[DataSource: WormDataSource. raw I/O]
-  ds --> db[(worm to Postgres or in-memory)]
+  ds --> db[(worm to SQLite, Postgres, or in-memory)]
   handler -. throws BeakException .-> mw
   service -. throws BeakException .-> mw
 ```
 
-The whole REST surface is generated from a `BeakModelRegistry`: `beakApiRouter`
-mounts one resource router per model under `/api/{table}`, and every route ends
-in these same three layers. No endpoint is hand-written.
+The whole REST surface is generated from a `BeakModelRegistry`, and the registry
+is generated too: `beak prepare` collects every `@Resource` class under
+`lib/models/` into `buildBeakRegistry()` in `lib/beak/registry.g.dart`.
+`beakApiRouter` mounts one resource router per model under `/api/{table}`, and
+every route ends in these same three layers. No endpoint is hand-written and no
+model is hand-registered.
 
 ### The Handler parses, authorizes, and routes
 
@@ -53,10 +56,15 @@ Future<Response> query(Request request) async {
     await readJsonObject(request),
     BeakQuerySpec.fromJson,
   );
-  final page = await service.query(spec);
+  final page = await service.query(spec, scope: _scope(request));
   return _json(200, page.toJson((record) => record.toJson()));
 }
 ```
+
+`_scope` is the policy's row scope for this request's principal: a `BeakFilter?`
+the handler reads once and hands down. It is applied in the service, not here,
+so a handler that forgot to pass it could not open a hole quietly. See
+[Auth and policies](../backend/auth-and-policies.md).
 
 Malformed input is a user error, so the handler raises a
 `BeakValidationException` (which the boundary maps to `422`), never a `500`:
@@ -216,12 +224,25 @@ and exposed as a `ReadonlySignal`, and disposed together.
 
 ```dart title="packages/beak_frontend/lib/src/state/beak_view_model.dart"
 abstract base class BeakViewModel {
+  final List<void Function()> _cleanups = [];
+  // ...
   @protected
   Signal<T> ownedSignal<T>(T value) {
     final owned = signal<T>(value);
     _cleanups.add(owned.dispose);
     return owned;
   }
+
+  /// Releases every owned signal; further use is a programming error.
+  @mustCallSuper
+  void dispose() {
+    for (final cleanup in _cleanups) {
+      cleanup();
+    }
+    _cleanups.clear();
+    _isDisposed = true;
+  }
+}
 ```
 
 ### The Repository is the catch boundary
@@ -234,6 +255,8 @@ ViewModel, failure is a value it can pattern-match on.
 /// Runs a query, capturing failures as [BeakErr].
 Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
     _guard(() => dataSource.query(spec));
+
+// ... aggregate, getOne, batchGet, create, update, delete, each the same shape ...
 
 Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
   try {
@@ -262,10 +285,32 @@ Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
     client.query(spec.table, spec);
 ```
 
-Because the seam is the same `BeakDataSource` interface, a test injects a fake
-source and the ViewModel never notices. A production panel wires
-`HttpBeakDataSource(BeakClient(baseUrl: 'http://localhost:8080'))` for the
-reference store.
+You do not wire that up. `registerBeakDependencies`, which `BeakPanel` calls at
+startup, builds the client from the panel config and registers the source
+behind the interface:
+
+```dart title="packages/beak_frontend/lib/src/di/beak_locator.dart"
+final client = BeakClient(
+  baseUrl: config.apiBaseUrl,
+  httpClient: httpClient,
+  tokenProvider: tokenProvider ?? () => sessions.token,
+);
+sessions = BeakSessionStore(client);
+final source = dataSource ?? HttpBeakDataSource(client);
+```
+
+`config.apiBaseUrl` comes from `api.baseUrl` in
+[`beak.yaml`](../reference/beak-yaml.md), by way of the generated panel:
+
+```dart title="examples/store/lib/beak/panel.g.dart"
+apiBaseUrl: const String.fromEnvironment(
+  'BEAK_API_BASE_URL',
+  defaultValue: 'http://localhost:8080',
+),
+```
+
+Because the seam is the same `BeakDataSource` interface, a test passes
+`dataSource:` a fake and the ViewModel never notices.
 
 ## The two catch boundaries side by side
 

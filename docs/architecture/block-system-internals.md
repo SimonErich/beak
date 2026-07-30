@@ -144,8 +144,12 @@ class BeakRecordScope extends InheritedWidget {
     super.key,
   });
 
+  // ...
+
   static BeakRecordScope? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<BeakRecordScope>();
+
+  // ...
 }
 ```
 
@@ -163,6 +167,7 @@ Widget _fieldInput(BeakFormScope form, BeakColumn column) {
         controller: controller,
         relation: relation,
         dataSource: form.dataSource,
+        referenceCache: beakLocator<ReferenceCache>(),
       );
     }
   }

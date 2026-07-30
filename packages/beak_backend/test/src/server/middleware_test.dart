@@ -44,6 +44,34 @@ void main() {
       },
     );
 
+    test('serialises to one line of JSON per request', () async {
+      // A log aggregator indexes fields, not prose: "every 500 on
+      // /api/orders in the last hour" should be a query, not a regex.
+      final sink = StringBuffer();
+      final handler = const Pipeline()
+          .addMiddleware(
+            beakRequestLogMiddleware(
+              onRequest: beakJsonRequestLogger(sink: sink),
+              requestIdFactory: () => 'fixed-id',
+            ),
+          )
+          .addHandler((request) => Response(201));
+
+      await handler(_get('products'));
+
+      final List<String> lines = const LineSplitter().convert(sink.toString());
+      expect(lines, hasLength(1));
+      final Object? decoded = jsonDecode(lines.single);
+      expect(decoded, isA<Map<String, Object?>>());
+      if (decoded case final Map<String, Object?> entry) {
+        expect(entry['requestId'], 'fixed-id');
+        expect(entry['method'], 'GET');
+        expect(entry['path'], '/products');
+        expect(entry['statusCode'], 201);
+        expect(entry['durationMs'], isA<int>());
+      }
+    });
+
     test('reuses an incoming x-request-id header', () async {
       final entries = <BeakRequestLogEntry>[];
       final handler = const Pipeline()

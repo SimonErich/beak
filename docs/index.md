@@ -15,77 +15,48 @@ Flutter's mascot is a bird, and birds have beaks. Beak is the toolbox for the
 admin panel almost every app grows into. Its ORM sibling is `worm` (a bird has
 to eat something).
 
-## One definition, a whole panel
+## One declaration, a whole panel
 
-Here is a resource's columns, declared once as plain, typed Dart. No strings, no
-`dynamic`, no annotations to remember.
+Here is a resource. One file, one class, plain typed Dart.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-abstract final class ProductColumns {
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
+```dart title="examples/store/lib/models/category.dart"
+@Resource()
+final class Category extends BeakSchema {
+  /// What the category is called.
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
+  late final String name;
 
-  static const price = BeakDecimalColumn(
-    key: 'price',
-    label: 'Price',
-    prefix: '€',
-    sortable: true,
-    filterable: true,
-    rules: [BeakRequired(), BeakMin(0)],
-  );
-
-  static const status = BeakEnumColumn<ProductStatus>(
-    key: 'status',
-    label: 'Status',
-    values: ProductStatus.values,
-    defaultValue: ProductStatus.draft,
-    filterable: true,
-    badgeColors: {
-      ProductStatus.draft: BeakColor.muted,
-      ProductStatus.published: BeakColor.success,
-      ProductStatus.archived: BeakColor.warning,
-    },
-  );
-
-  // ...plus description, stock, image, timestamps, and the category FK.
-
-  static const List<BeakColumn> values = [name, price, status /* ... */];
+  /// The one-line blurb shown above the product list.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? blurb;
 }
 ```
 
-That one `price` column is declared once and feeds six mouths: the table cell,
-the form field (with client-side validation that mirrors the server), the detail
-row, the filter, the REST validation, and the CSV export column.
+The field's **type** picks the column: `String` is single-line text, `BeakText`
+is multi-line, `double` is a decimal, `BeakImageRef` is an upload. Its
+**nullability** decides required-ness, once, for the form validator, the API's
+validation and the database's `NOT NULL` alike.
 
-To turn those columns into pages, name the model on a `BeakResource` and hand the
-list to a `BeakPanel`. This is the whole app.
+Then:
 
-```dart title="apps/reference_admin/lib/main.dart"
-BeakPanelConfig buildReferencePanelConfig({
-  String apiBaseUrl = 'http://localhost:8080',
-}) => BeakPanelConfig(
-  title: 'Beak Admin',
-  apiBaseUrl: apiBaseUrl,
-  resources: const [
-    BeakResource(
-      model: ProductModel(),
-      icon: BeakIconToken(OiIcons.package),
-    ),
-    // ...one BeakResource per model.
-  ],
-);
-
-void main() => runApp(const ReferenceAdminApp());
+```bash
+beak prepare
 ```
 
-The panel renders navigation, a list/create/show/edit page per resource, its
-filters and actions, and the dashboard. The matching backend, generated from the
-same models, serves it on port 8080.
+From that one class Beak generates the typed column constants, the model, both
+sides of every relationship, a typed record view, the migration that creates
+the table, and the wiring that registers all of it. There is no registry to
+edit and no resource to declare. A file under `lib/models/` is a resource.
+
+```bash
+beak dev
+```
+
+You now have a REST API with query, batch, relations, aggregates, global search
+and CSV export, and a panel with a list, a detail page, create and edit forms,
+filters, sorting, pagination, soft delete and restore. Per resource, you wrote
+the class above.
 
 ## What you get
 
@@ -101,6 +72,10 @@ same models, serves it on port 8080.
   and FTP plug in via driver packages. Size and type limits live on the column.
 - **Typed all the way down.** No `dynamic`, no `Map<String, Object?>` domain
   types, and no string field references in your app code.
+- **Four worked examples.** [`examples/quickstart`](https://github.com/SimonErich/beak/tree/main/examples/quickstart)
+  is what `beak create` gives you, [`store`](https://github.com/SimonErich/beak/tree/main/examples/store)
+  is the whole feature surface at teaching size, `superdashboard` is 49 models
+  of it, and `embedded` mounts Beak inside an app that already exists.
 - **A source-agnostic data seam.** `BeakDataSource` is an interface. worm backs it
   today; a future adapter can back it without touching `beak_core`.
 
@@ -110,8 +85,8 @@ same models, serves it on port 8080.
 
 -   **[Start here](start-here/index.md)**
 
-    Install Beak, boot the reference admin, and see the generated panel running
-    against a live backend.
+    Install Beak, create a project, and have a panel running against your own
+    resource in about a minute.
 
 -   **[Tutorial: First Flight](tutorial/index.md)**
 
@@ -138,5 +113,5 @@ same models, serves it on port 8080.
 ## Continue reading
 
 - [What is Beak?](start-here/what-is-beak.md) the elevator pitch and who Beak is for.
-- [Quickstart](start-here/quickstart.md) the reference admin up and running in a few commands.
+- [Quickstart](start-here/quickstart.md) an empty folder to a running panel, in about a minute.
 - [The one-definition promise](concepts/the-one-definition-promise.md) how one column drives six surfaces.

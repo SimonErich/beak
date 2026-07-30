@@ -10,6 +10,9 @@ right size, long-form Markdown, images from a URL, a video pulled from your data
 and a reference grid of named icons. These are the blocks that show things
 rather than arrange them.
 
+They go wherever a block tree goes: a `BeakScreen` body in
+`lib/screens/<name>.dart`, `lib/dashboard.dart`, or a resource's `detail`.
+
 | Block | Renders onto | Key parameters |
 | --- | --- | --- |
 | `BeakTextBlock` | `OiLabel` (per variant) | `text`, `variant` |
@@ -51,8 +54,8 @@ Widget _text(BeakTextBlock block) => switch (block.variant) {
 The showcase's typography page walks the whole ramp. Here is the top of it,
 inside a card:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
-BeakCardBlock(
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
+body: BeakCardBlock(
   title: 'Type scale',
   child: BeakColumnBlock(
     gapInPixels: 12,
@@ -62,6 +65,7 @@ BeakCardBlock(
       BeakTextBlock('Heading 2', variant: BeakTextVariant.h2),
       BeakTextBlock('Heading 3', variant: BeakTextVariant.h3),
       BeakTextBlock('Heading 4', variant: BeakTextVariant.h4),
+      // ... the body, small, and caption variants.
     ],
   ),
 ),
@@ -121,7 +125,7 @@ const BeakImageBlock(
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-BeakImageBlock(
+block: BeakImageBlock(
   'https://example.com/pic.png',
   alt: 'A picture',
   widthInPixels: 100,
@@ -131,9 +135,25 @@ BeakImageBlock(
 
 !!! note "Static image versus image column"
     `BeakImageBlock` shows one URL you already have. To render an image *field*
-    of a record (a product photo, an avatar), use a
-    [`BeakImageColumn`](../models/files-and-storage-columns.md) instead, and let
-    the column own upload, validation, and thumbnails.
+    of a record (a product photo, an avatar), declare a `BeakImageRef` field on
+    the schema class and annotate it `@Image`:
+
+    ```dart title="examples/store/lib/models/product.dart"
+    /// The product photo.
+    @Image(
+      storagePath: 'products',
+      maxSizeInBytes: 5 * 1024 * 1024,
+      allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
+      thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
+      // ... the transforms list.
+    )
+    late final BeakImageRef? image;
+    ```
+
+    That generates a
+    [`BeakImageColumn`](../models/files-and-storage-columns.md) owning upload,
+    validation and thumbnails, and a `BeakFieldBlock` renders it read-only on
+    the detail page and as an upload field on the form.
 
 ## Video
 
@@ -153,8 +173,8 @@ const BeakVideoBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/gallery_screen.dart"
-BeakVideoBlock(
+```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
+child: BeakVideoBlock(
   title: 'Featured video',
   query: BeakQuerySpec(
     table: 'media_assets',
@@ -186,8 +206,8 @@ const BeakIconGalleryBlock({
 
 The showcase's icons page builds one from a curated list of Lucide icons:
 
-```dart title="apps/beak_superdashboard/lib/screens/icons_screen.dart"
-BeakCardBlock(
+```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
+body: BeakCardBlock(
   title: 'Lucide icons',
   child: BeakIconGalleryBlock(
     columns: 6,
@@ -201,11 +221,11 @@ BeakCardBlock(
 
 Where `_icons` is a plain list of token-and-label pairs:
 
-```dart title="apps/beak_superdashboard/lib/screens/icons_screen.dart"
+```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
 const List<_Icon> _icons = [
   (BeakIconToken(OiIcons.home), 'home'),
   (BeakIconToken(OiIcons.user), 'user'),
-  (BeakIconToken(OiIcons.settings), 'settings'),
+  (BeakIconToken(OiIcons.users), 'users'),
   // ...
 ];
 ```

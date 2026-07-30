@@ -1,7 +1,6 @@
 import '../common/beak_exception.dart';
 import 'beak_storage_config.dart';
 import 'beak_storage_driver.dart';
-import 'drivers/beak_local_disk_storage_driver.dart';
 import 'drivers/beak_memory_storage_driver.dart';
 
 /// Builds a [BeakStorageDriver] from a [BeakStorageConfig].
@@ -13,10 +12,12 @@ typedef BeakStorageDriverFactory =
 
 /// The app-level index of storage-driver factories, keyed by driver id.
 ///
-/// The built-in `memory` and `local` drivers are pre-registered; driver
-/// packages add theirs at app init (`registry.register('s3', ...)`) and the
-/// backend resolves the driver matching the configured
-/// [BeakStorageConfig.driverId].
+/// Only the web-safe `memory` driver is pre-registered. Every other driver is
+/// added at app init — `local` from `package:beak_core/io.dart` (it needs
+/// `dart:io`), `s3` from `beak_storage_s3`, `ftp` from `beak_storage_ftp` — and
+/// the backend resolves the driver matching the configured
+/// [BeakStorageConfig.driverId]. `beak_backend`'s
+/// `createDefaultStorageRegistry()` wires up `memory` and `local` for you.
 ///
 /// ```dart
 /// final registry = BeakStorageRegistry()
@@ -34,11 +35,9 @@ typedef BeakStorageDriverFactory =
 /// );
 /// ```
 final class BeakStorageRegistry {
-  /// Creates a registry with the built-in `memory` and `local` drivers
-  /// registered.
+  /// Creates a registry with the web-safe `memory` driver registered.
   BeakStorageRegistry() {
     register('memory', BeakMemoryStorageDriver.fromConfig);
-    register('local', BeakLocalDiskStorageDriver.fromConfig);
   }
 
   final Map<String, BeakStorageDriverFactory> _factoriesByDriverId = {};

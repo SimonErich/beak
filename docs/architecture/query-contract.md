@@ -29,19 +29,23 @@ The spec references column and relation *keys* only, which is what keeps it ORM-
 
 ## Building a spec
 
-You never set those fields by hand. The frontend composes a spec through immutable copy-builders that read their keys from typed column and relationship constants. Each builder returns a new spec, so they chain and the original is never mutated.
+You never set those fields by hand. The frontend composes a spec through immutable copy-builders (`withFilter`, `orderBy`, `withRelation`, `searching`, `paginate`) that read their keys from the typed column and relationship constants `beak prepare` generated. Each builder returns a new spec, so they chain and the original is never mutated.
 
-```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
-final spec = const BeakQuerySpec(table: 'posts')
-    .withRelation(author)
-    .withFilter(BeakFieldFilter(
-      column: status,
-      operator: BeakOperator.eq,
-      value: BeakValue.of('published'),
-    ))
-    .orderBy(createdAt, descending: true)
+```dart
+final spec = const BeakQuerySpec(table: 'products')
+    .withRelation(ProductRelations.category)
+    .withFilter(
+      BeakFieldFilter(
+        column: ProductColumns.featured,
+        operator: BeakOperator.eq,
+        value: BeakValue.of(true),
+      ),
+    )
+    .orderBy(ProductColumns.createdAt, descending: true)
     .paginate(page: 2, perPage: 50);
 ```
+
+Not one string in it. `ProductColumns.featured` carries its own key, so a renamed column is a compile error rather than a filter that silently matches nothing.
 
 One builder is worth calling out. `withFilter` does not nest: the first filter is taken as-is, and each later one joins an ever-growing conjunction instead of wrapping the previous tree one level deeper.
 
@@ -62,7 +66,7 @@ So a table with a status filter and a date filter and a search box produces one 
 
 ## The round-trip
 
-`toJson()` writes every key, always, and `fromJson` requires every key and throws `BeakConfigurationException` on anything malformed. That strictness is deliberate: a spec that decodes at all decodes to exactly what was sent. Here is the concept spec Beak's own golden test builds:
+`toJson()` writes every key, always. `fromJson` requires only `table`, defaults every other key to what the constructor declares, and throws `BeakConfigurationException` on anything malformed. The asymmetry is deliberate on both sides: `{"table": "products"}` is a valid request body for a human poking at the API with curl, while the encoded form stays complete, so a spec that made the round trip is byte-for-byte the spec you sent. Here is the spec Beak's own golden test builds:
 
 ```dart title="packages/beak_core/test/src/query/beak_query_spec_test.dart"
 BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
@@ -89,54 +93,7 @@ BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
 That spec serializes byte-for-byte to the pinned golden file. This is the actual wire body of a `POST /api/posts/query`:
 
 ```json title="packages/beak_core/test/golden/rich_query_spec.json"
-{
-  "table": "posts",
-  "filter": {
-    "type": "and",
-    "filters": [
-      {
-        "type": "field",
-        "column": "status",
-        "operator": "eq",
-        "value": "active"
-      },
-      {
-        "type": "field",
-        "column": "last_active",
-        "operator": "lt",
-        "value": {
-          "type": "dateTime",
-          "value": "2026-06-01T00:00:00.000Z"
-        }
-      }
-    ]
-  },
-  "sorts": [
-    {
-      "column": "created_at",
-      "descending": true
-    }
-  ],
-  "search": {
-    "term": "ada",
-    "columns": [
-      "name",
-      "email"
-    ]
-  },
-  "relations": [
-    {
-      "relation": "author",
-      "filter": null,
-      "nested": []
-    }
-  ],
-  "pagination": {
-    "page": 2,
-    "perPage": 50
-  },
-  "withTrashed": false
-}
+--8<-- "packages/beak_core/test/golden/rich_query_spec.json"
 ```
 
 !!! note "Reading the round-trip"
@@ -184,19 +141,13 @@ Note the difference between `raw` and `toJson`: `raw` unwraps a `BeakDateTimeVal
 
 Predicates form a sealed tree with three shapes: a leaf comparison and two combinators.
 
-```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
-sealed class BeakFilter {
-  const BeakFilter();
-  // ...
-  Map<String, Object?> toJson();
-}
+| Node | What it holds | What it means |
+| --- | --- | --- |
+| `BeakFieldFilter` | a column, a `BeakOperator`, a `BeakValue` | Compares one column against one operand. |
+| `BeakAndFilter` | `List<BeakFilter> filters` | Matches records satisfying every child. |
+| `BeakOrFilter` | `List<BeakFilter> filters` | Matches records satisfying at least one child. |
 
-final class BeakFieldFilter extends BeakFilter { /* column, operator, value */ }
-final class BeakAndFilter extends BeakFilter { /* filters */ }
-final class BeakOrFilter extends BeakFilter { /* filters */ }
-```
-
-Each node tags itself with a `type` discriminator (`field`, `and`, `or`) on the wire, and `fromJson` switches on it:
+The base class is `sealed`, so the set is closed and a `switch` over it has to be exhaustive. Each node tags itself with a `type` discriminator (`field`, `and`, `or`) on the wire, and `fromJson` switches on it:
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
 static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
@@ -207,21 +158,25 @@ static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
 };
 ```
 
-`BeakFieldFilter` has two constructors, and the split matters. The default constructor takes a `BeakColumn` and reads `columnKey` from it, so user code never types a key string. The `.forKey` constructor takes a raw string and exists for one caller only: `fromJson`, rebuilding a filter it decoded off the wire.
+`BeakFieldFilter` has two constructors, and the split matters. The default constructor takes a `BeakColumn` and reads `columnKey` off it, so user code never types a key string. The `.forKey` constructor takes a raw string and exists for the deserialization path: `fromJson`, rebuilding a filter it decoded off the wire.
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
-BeakFieldFilter({
+const BeakFieldFilter({
   required BeakColumn column,
   required this.operator,
   this.value = const BeakNullValue(),
-}) : columnKey = column.key;
+}) : _column = column,
+     _columnKey = null;
 
 const BeakFieldFilter.forKey(
-  this.columnKey,
+  String columnKey,
   this.operator, [
   this.value = const BeakNullValue(),
-]);
+]) : _columnKey = columnKey,
+     _column = null;
 ```
+
+Both are `const`, and the reason is worth a sentence. The filter holds the whole column rather than reducing it to its key, because a screen's base filter, a dashboard metric and a resource's default scope are all `const` expressions. A `BeakFieldFilter` that could not be `const` would have forced every one of them open. `columnKey` is then a getter over whichever of the two the constructor set.
 
 Because the tree is sealed, a translator that walks it must handle every node or the build breaks. That is the property the backend leans on next.
 
@@ -317,7 +272,7 @@ Relation loads become batched eager-load paths, a search becomes a grouped OR of
 
 Three properties fall out of the design, and each one is an invariant the rest of Beak depends on.
 
-- **Lossless.** Every `toJson` writes all keys and every `fromJson` requires them, and the `dateTime` tag removes the one genuine ambiguity. A spec that survives the wire is the spec you sent.
+- **Lossless.** Every `toJson` writes all keys, `fromJson` restores the same defaults the constructor declares, and the `dateTime` tag removes the one genuine ambiguity. A spec that survives the wire is the spec you sent, which a golden test pins byte-for-byte.
 - **No `dynamic`, ever.** `BeakValue` is the escape hatch that is not one: operands are typed on both sides, so a filter cannot smuggle an untyped value past the type system.
 - **ORM-neutral.** The spec speaks column keys, not database columns. `WormQueryTranslator` is the only code that knows about worm, so a future `ServerpodDataSource` would ship its own translator and touch nothing here.
 

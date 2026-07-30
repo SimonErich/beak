@@ -39,6 +39,7 @@ part 'beak_url.dart';
 /// rule.validate('abcd'); // 'Must be at most 3 characters.'
 /// rule.validate(42);     // null (not a string)
 /// ```
+// --8<-- [start:BeakRule]
 @immutable
 sealed class BeakRule {
   const BeakRule();
@@ -50,3 +51,5 @@ sealed class BeakRule {
   /// Returns `null` when [value] is valid, else a human-readable message.
   String? validate(Object? value);
 }
+
+// --8<-- [end:BeakRule]

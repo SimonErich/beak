@@ -33,8 +33,10 @@ class BeakRelationManager extends HookWidget {
     required this.parentId,
     required this.relationship,
     required this.dataSource,
+    this.initialRecords,
     this.onCreateRequested,
     this.relatedPrimaryKeyKey = 'id',
+    this.pageSize = 25,
     this.maxHeightInPixels = 360,
     super.key,
   });
@@ -51,12 +53,25 @@ class BeakRelationManager extends HookWidget {
   /// The source related records load from and mutations run against.
   final BeakDataSource dataSource;
 
+  /// The related records the parent already loaded, if any.
+  ///
+  /// A detail page eager-loads every relation with the record it shows, so
+  /// passing them here means N managers cost zero extra queries on first
+  /// paint. Any mutation still refetches.
+  final List<BeakRecord>? initialRecords;
+
   /// Invoked when the user asks to create a related record (typically
   /// navigates to the related resource's create form).
   final VoidCallback? onCreateRequested;
 
   /// Primary-key column key of the related table.
   final String relatedPrimaryKeyKey;
+
+  /// How many related rows to read at a time.
+  ///
+  /// A to-many can be unbounded, so the manager reads a page and offers to
+  /// read the next one rather than pretending the first page is all of it.
+  final int pageSize;
 
   /// The maximum height of the scrollable related-rows list, in pixels.
   final double maxHeightInPixels;
@@ -66,21 +81,31 @@ class BeakRelationManager extends HookWidget {
     final repository = useMemoized(() => BeakResourceRepository(dataSource), [
       dataSource,
     ]);
-    final related = useState<List<BeakRecord>>(const []);
+    final related = useState<List<BeakRecord>>(initialRecords ?? const []);
+    final total = useState(initialRecords?.length ?? 0);
+    final perPage = useState(pageSize);
     final reloadTick = useState(0);
 
     useEffect(() {
+      // Seeded by the parent: the first paint is already correct, so only a
+      // mutation (which bumps the tick) or a "load more" sends us back.
+      if (initialRecords != null &&
+          reloadTick.value == 0 &&
+          perPage.value == pageSize) {
+        return null;
+      }
       var cancelled = false;
       Future<void> load() async {
-        final List<BeakRecord> loaded = await _load(repository);
+        final (rows, count) = await _load(repository, perPage.value);
         if (!cancelled) {
-          related.value = loaded;
+          related.value = rows;
+          total.value = count;
         }
       }
 
       load();
       return () => cancelled = true;
-    }, [repository, parentId, reloadTick.value]);
+    }, [repository, parentId, reloadTick.value, perPage.value]);
 
     if (relationship.cardinality != BeakRelationCardinality.many) {
       return OiLabel.caption(
@@ -103,8 +128,7 @@ class BeakRelationManager extends HookWidget {
           breakpoint: context.breakpoint,
           children: [
             Expanded(child: OiLabel.smallStrong(relationship.label)),
-            if (related.value.isNotEmpty)
-              OiBadge.soft(label: '${related.value.length}'),
+            if (total.value > 0) OiBadge.soft(label: '${total.value}'),
             if (onCreateRequested != null)
               OiButton.secondary(label: 'Create', onTap: onCreateRequested),
           ],
@@ -164,6 +188,13 @@ class BeakRelationManager extends HookWidget {
                   OiLabel.caption(
                     'No ${relationship.label.toLowerCase()} yet.',
                   ),
+                // Only when there is more: a button that loads nothing is
+                // worse than no button.
+                if (related.value.length < total.value)
+                  OiButton.ghost(
+                    label: 'Load more (${total.value - related.value.length})',
+                    onTap: () => perPage.value += pageSize,
+                  ),
               ],
             ),
           ),
@@ -202,30 +233,43 @@ class BeakRelationManager extends HookWidget {
     );
   }
 
-  Future<List<BeakRecord>> _load(BeakResourceRepository repository) async {
+  /// The related records, and how many there are in total.
+  ///
+  /// The count matters: a has-many reads a page, so a parent with 400
+  /// children used to show a badge reading 25 — the page size, presented as
+  /// the truth.
+  Future<(List<BeakRecord>, int)> _load(
+    BeakResourceRepository repository,
+    int perPage,
+  ) async {
     switch (relationship) {
       case final BeakHasMany hasMany:
-        final spec = BeakQuerySpec(table: hasMany.relatedTable).withFilter(
-          BeakFieldFilter.forKey(
-            hasMany.foreignKey,
-            BeakOperator.eq,
-            BeakValue.of(parentId),
-          ),
-        );
+        final spec = BeakQuerySpec(table: hasMany.relatedTable)
+            .withFilter(
+              BeakFieldFilter.forKey(
+                hasMany.foreignKey,
+                BeakOperator.eq,
+                BeakValue.of(parentId),
+              ),
+            )
+            .paginate(perPage: perPage);
         final result = await repository.query(spec);
         return switch (result) {
-          BeakOk(:final value) => value.items,
-          BeakErr() => const [],
+          BeakOk(:final value) => (value.items, value.total),
+          BeakErr() => (const <BeakRecord>[], 0),
         };
       case final BeakBelongsToMany manyToMany:
-        return beakLoadAttachedRecords(
+        // A pivot load comes back whole with the parent, so what arrived is
+        // all there is.
+        final attached = await beakLoadAttachedRecords(
           repository,
           parentModel: parentModel,
           parentId: parentId,
           relation: manyToMany,
         );
+        return (attached, attached.length);
       case BeakBelongsTo() || BeakHasOne():
-        return const [];
+        return (const <BeakRecord>[], 0);
     }
   }
 

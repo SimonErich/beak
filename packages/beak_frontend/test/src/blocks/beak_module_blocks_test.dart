@@ -13,6 +13,18 @@ void main() {
 
   setUp(() {
     dataSource = FakeDataSource(
+      models: const [
+        MeetingModel(),
+        TaskModel(),
+        MessageModel(),
+        MailModel(),
+        AssetModel(),
+        InvoiceModel(),
+        InvoiceLineModel(),
+        ProfileModel(),
+        PlanModel(),
+        FaqModel(),
+      ],
       records: {
         'meetings': {
           'm1': BeakRecord.fromRow({
@@ -613,13 +625,7 @@ void main() {
     testWidgets('inbox filters by the selected data-driven folder', (
       tester,
     ) async {
-      const folderRelation = BeakBelongsTo(
-        key: 'folder',
-        label: 'Folder',
-        relatedTable: 'mail_folders',
-        displayColumnKey: 'label',
-        foreignKey: 'folder_id',
-      );
+      const folderRelation = MailRelations.folder;
       const folderLabel = BeakStringColumn(key: 'label', label: 'Folder');
       BeakRecord mail(
         String id,
@@ -640,6 +646,7 @@ void main() {
         },
       );
       final inboxSource = FakeDataSource(
+        models: const [MailModel()],
         records: {
           'mail': {
             'e1': mail('e1', 'Invoice due', 'Inbox', unread: true),
@@ -726,14 +733,9 @@ void main() {
         label: 'Total',
         prefix: r'$',
       );
-      const billedParty = BeakBelongsTo(
-        key: 'user',
-        label: 'Bill to',
-        relatedTable: 'profiles',
-        displayColumnKey: 'name',
-        foreignKey: 'user_id',
-      );
+      const billedParty = InvoiceRelations.user;
       final invoiceSource = FakeDataSource(
+        models: const [InvoiceModel(), InvoiceLineModel(), ProfileModel()],
         records: {
           'invoices': {
             'inv1': BeakRecord(
@@ -1007,6 +1009,21 @@ final class MailModel extends BeakModel {
 
   @override
   List<BeakColumn> get columns => MailColumns.values;
+
+  @override
+  List<BeakRelationship> get relationships => const [MailRelations.folder];
+}
+
+/// Typed relations of the [MailModel] fixture.
+abstract final class MailRelations {
+  /// The folder the message sits in.
+  static const folder = BeakBelongsTo(
+    key: 'folder',
+    label: 'Folder',
+    relatedTable: 'mail_folders',
+    displayColumnKey: 'label',
+    foreignKey: 'folder_id',
+  );
 }
 
 /// Typed columns of the [AssetModel] fixture.
@@ -1098,6 +1115,21 @@ final class InvoiceModel extends BeakModel {
 
   @override
   List<BeakColumn> get columns => InvoiceColumns.values;
+
+  @override
+  List<BeakRelationship> get relationships => const [InvoiceRelations.user];
+}
+
+/// Typed relations of the [InvoiceModel] fixture.
+abstract final class InvoiceRelations {
+  /// The billed party.
+  static const user = BeakBelongsTo(
+    key: 'user',
+    label: 'Bill to',
+    relatedTable: 'profiles',
+    displayColumnKey: 'name',
+    foreignKey: 'user_id',
+  );
 }
 
 /// Typed columns of the [InvoiceLineModel] fixture.

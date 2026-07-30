@@ -22,6 +22,7 @@ import 'package:obers_ui/obers_ui.dart';
 ///   ],
 /// );
 /// ```
+// --8<-- [start:BeakFilterDef]
 sealed class BeakFilterDef {
   /// Creates a filter over [column] labelled [label].
   const BeakFilterDef({required this.column, required this.label});
@@ -32,6 +33,7 @@ sealed class BeakFilterDef {
   /// The control label.
   final String label;
 }
+// --8<-- [end:BeakFilterDef]
 
 /// An equality filter over a [BeakEnumColumn], rendered as an `OiSelect`.
 ///
@@ -75,12 +77,13 @@ final class BeakDateRangeFilter extends BeakFilterDef {
 /// active control contributes one typed [BeakFilter], AND-ed together
 /// (`null` when nothing is active).
 ///
-/// The list page builds this from `resource.filters` and re-queries on
-/// every [onChanged]; hand-composing a page you wire it the same way:
+/// The list page builds this from `resource.effectiveFilters` — the declared
+/// ones, or the ones the model's `filterable` columns imply — and re-queries
+/// on every [onChanged]; hand-composing a page you wire it the same way:
 ///
 /// ```dart
 /// BeakFilterBar(
-///   filters: resource.filters,
+///   filters: resource.effectiveFilters,
 ///   onChanged: (combined) => filter.value = combined,
 /// );
 /// ```

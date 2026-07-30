@@ -34,5 +34,25 @@
 library;
 
 export 'src/cli_runner.dart';
+export 'src/commands/create_command.dart';
+export 'src/commands/dev_command.dart';
+export 'src/commands/doctor_command.dart';
+export 'src/commands/eject_command.dart';
+export 'src/commands/introspect_command.dart';
+export 'src/commands/prepare_command.dart';
 export 'src/field_spec.dart';
+export 'src/introspect/beak_introspection_emitter.dart';
+export 'src/introspect/beak_live_schema.dart';
+export 'src/introspect/beak_schema_introspection.dart';
+export 'src/introspect/postgres_introspector.dart';
+export 'src/introspect/sqlite_introspector.dart';
+export 'src/project/beak_discovery.dart';
+export 'src/project/beak_emitters.dart';
+export 'src/project/beak_project_config.dart';
+export 'src/schema/beak_drift_migration_emitter.dart';
+export 'src/schema/beak_migration_emitter.dart';
+export 'src/schema/beak_schema_drift.dart';
+export 'src/schema/beak_schema_emitter.dart';
+export 'src/schema/beak_schema_ir.dart';
+export 'src/schema/beak_schema_reader.dart';
 export 'src/templates.dart';

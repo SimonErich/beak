@@ -1,156 +1,164 @@
 ---
 title: Project structure
-description: How the Beak monorepo is laid out, what each package owns, and the two-app split between the reference admin and the superdashboard.
+description: What a Beak project contains, which folders are discovered, which files are generated, and which optional files override a default.
 ---
 
 # Project structure
 
-After this page you can find any piece of Beak by folder: which package owns the
-column types, which one runs the server, and why the repo ships two demo apps
-that never share models.
+After this page you know what every folder in your project is for, which files
+Beak writes, and which ones you can create to take a default over.
 
-Beak is a Melos monorepo. Framework code lives under `packages/`, runnable demos
-under `apps/`, and the whole thing is orchestrated from `melos.yaml` at the root.
-
-## The top level
+## What `beak create` gives you
 
 ```text
-beak/
-  packages/                # the framework, one package per layer
-    beak_core/             # pure Dart vocabulary (no Flutter, no worm)
-    beak_backend/          # Shelf server; the only package that imports worm
-    beak_frontend/         # the Flutter panel, built on obers_ui
-    beak_cli/              # scaffolding: beak make:resource, beak doctor
-    beak_storage_s3/       # S3/MinIO storage driver
-    beak_storage_ftp/      # FTP storage driver
-    beak_image/            # image transform runner (thumbnails, format)
-    worm*/                 # the vendored ORM and its drivers (not gated here)
-  apps/                    # the two demo apps
-    reference_admin_models/ #   shared models for the teaching store
-    reference_admin_server/ #   its Shelf backend (port 8080)
-    reference_admin/        #   its Flutter panel
-    beak_superdashboard/    #   the all-in-one showcase (port 8180)
-  melos.yaml               # workspace scope + gate scripts
-  docker-compose.yml       # Postgres + MinIO + pgweb
-  pubspec.yaml             # workspace root; pins melos 6.3.3
-  analysis_options.yaml    # strict, shared lints
-  tool/                    # the coverage gate and the no-Material guard
-  docs/                    # this documentation site
-```
-
-Melos manages everything under two globs, and deliberately ignores the vendored
-worm tree:
-
-```yaml title="melos.yaml"
-packages:
-  - packages/**
-  - apps/**
-
-ignore:
-  - packages/worm
-  - packages/worm/**
-  - packages/worm_*
-  - packages/worm_*/**
-```
-
-## The framework packages
-
-Each package owns one layer, and every layer speaks the shared vocabulary that
-lives in `beak_core`.
-
-| Package | What it holds |
-| --- | --- |
-| `beak_core` | Pure Dart, no Flutter and no worm. Typed columns and rules, relationships, the serializable `BeakQuerySpec` wire contract, the storage abstraction with file rules, the `BeakDataSource` seam, and the raw `BeakClient`. |
-| `beak_backend` | The Shelf server. Generated CRUD, query, batch, relations, and aggregate endpoints; validated uploads; auth; global search; CSV export. The only package that imports worm. |
-| `beak_frontend` | The Flutter panel. `BeakPanel` plus the generated tables, forms, detail views, actions, filters, and dashboards, on obers_ui with HookWidget, Signals, GetIt, and go_router. |
-| `beak_cli` | Scaffolding. `beak make:resource` and friends, and `beak doctor`. |
-| `beak_storage_s3`, `beak_storage_ftp` | Pluggable storage drivers registered at startup. Memory and local disk ship inside `beak_core`. |
-| `beak_image` | The image transform runner that powers thumbnail and format transforms on upload. |
-| `packages/worm*` | The vendored worm ORM and its drivers. Consumed as path dependencies, not gated here; do not send Beak changes to worm code. |
-
-The obers_ui trio (`obers_ui`, `obers_ui_autoforms`, `obers_ui_charts`) is not in
-this tree at all: it is referenced by a relative path to a
-[sibling checkout](installation.md#the-obers_ui-sibling-checkout) one level above
-the repo root. Beak never draws a Material widget of its own.
-
-## The two-app split
-
-Beak ships two demo apps, and they use **different model sets**. Keep them
-straight: a column constant from one will not compile against the other, and
-their servers listen on different ports.
-
-### The reference admin (the teaching store)
-
-`apps/reference_admin*` is the small coffee-roastery store the
-[Quickstart](quickstart.md) and the tutorial use: products, categories, tags,
-users, orders. It is split into **three packages** so the split between "define
-once" and "consume everywhere" is visible in the folder layout:
-
-```text
-apps/
-  reference_admin_models/  # shared BeakModel + column definitions
-    lib/src/               #   product.dart, category.dart, tag.dart,
-                           #   user.dart, order.dart, order_item.dart
-  reference_admin_server/  # the Shelf backend (port 8080)
-    bin/                   #   reference_admin_server.dart, worm.dart
-    lib/src/               #   migrations/, seeders/, server_builder.dart
-  reference_admin/         # the Flutter panel
-    lib/main.dart          #   one BeakPanel over the shared models
-```
-
-`reference_admin_models` is the single source of truth. The server imports it to
-generate its API, and the panel imports it to generate its pages, so the two can
-never drift. Its server runs on port **8080**, which is the panel's default
-`apiBaseUrl`.
-
-### The superdashboard (the showcase)
-
-`apps/beak_superdashboard` is the kitchen-sink demo: dozens of models, every
-block, every view mode, custom screens. It is a **single package** that holds the
-models, migrations, seeders, the server binary, and the panel all in one
-deployable unit:
-
-```text
-apps/beak_superdashboard/
-  bin/                     # server.dart, worm.dart
+acme_admin/
+  pubspec.yaml          REQUIRED   one dependency: beak
+  beak.yaml             optional   title, api origin, icons, sections
   lib/
-    models/                # the showcase's BeakModels
-    migrations/            # worm migrations
-    seeders/               # demo data factories
-    server/                # the Shelf server wiring
-    panel/                 # the BeakPanelConfig (resources, dashboard, auth)
-    screens/               # custom, non-resource screens
-    services/              # dashboard data mappers
-    main.dart              # the panel entry point
+    models/             DISCOVERED one @Resource class per file
+    screens/            optional   a top-level BeakScreen per file
+    migrations/         GENERATED first, then yours; discovered and registered
+    resources/          optional   one file per resource you want to adjust
+    seeders/            optional   discovered and registered
+    beak/*.g.dart       GENERATED, committed
+    main.dart           GENERATED, git-ignored
+  bin/
+    serve.dart          GENERATED, git-ignored
+    migrate.dart        GENERATED, git-ignored
+  test/
+  web/
+  assets/               optional
 ```
 
-Its server runs on port **8180**. The feature, blocks, charts, and reference
-pages draw their snippets from here. When you copy a snippet, match its
-`apiBaseUrl` port to the app it came from.
+The smallest working project is a `pubspec.yaml` and one model file. Everything
+else is optional or generated.
 
-!!! tip "Which app a page uses"
-    Start-here and the tutorial use the reference admin (port 8080). The feature
-    reference pages use the superdashboard (port 8180). If a snippet will not
-    connect, check the port against the app it came from.
+## Discovered folders
+
+You never register anything. `beak prepare` scans these and wires up what it
+finds, reporting a one-line summary (`4 models · 1 screen · 2 overrides`) so a
+miss is visible rather than silent.
+
+| Folder | What Beak looks for |
+| --- | --- |
+| `lib/models/` | A class extending `BeakSchema` with `@Resource`, or a hand-written `BeakModel`. Becomes a resource: pages, routes, REST endpoints. |
+| `lib/screens/` | A top-level `BeakScreen`, or a zero-argument function returning one. Becomes a page in the sidebar. |
+| `lib/migrations/` | A class extending `Migration` with a `const` constructor. Registered on the host in **declared-name order**, so a timestamp prefix controls when it runs. |
+| `lib/seeders/` | A class extending `Seeder`. Registered for `beak seed`. |
+| `lib/resources/` | `BeakResource beakResource(BeakResource generated)`, in a file named after the table. Adjusts that one resource. |
+
+A class that cannot be used is reported by name and file (a model with no
+`const` constructor, a screen of the wrong type) rather than skipped.
+
+## Generated files
+
+Two policies, deliberately different.
+
+**`lib/models/*.beak.dart` and `lib/beak/*.g.dart` are committed.** A
+path-dependency consumer cannot generate its dependency's sources, and a fresh
+clone must analyze before any `beak` command runs. They carry a
+`GENERATED — DO NOT EDIT` header; `beak doctor` fails when they are stale.
+
+| File | What it is |
+| --- | --- |
+| `lib/models/<name>.beak.dart` | The typed column constants and their `values` list, the relationship constants on **both** sides, the `BeakModel`, and a typed record view. |
+| `lib/beak/registry.g.dart` | `beakModels` and `buildBeakRegistry()`. |
+| `lib/beak/panel.g.dart` | The `BeakPanelConfig`: resources, icons, sections, screens. |
+| `lib/beak/app.g.dart` | The root widget, with the `dataSource` seam widget tests use. |
+| `lib/beak/server.g.dart` | The `BeakServeHost`: registry, migrations, seeders. |
+
+**`lib/main.dart`, `bin/serve.dart` and `bin/migrate.dart` are git-ignored.**
+They sit at the canonical paths so `flutter run`, IDE run buttons, hot reload
+and `dart compile exe` work with no flags, and nothing about them is a decision
+worth reviewing. Every `beak` command regenerates them first, which is what
+makes ignoring them safe. If your team would rather commit them, run
+`beak eject main` once.
+
+## Optional override files
+
+Each is presence-based: create the file and Beak uses it; delete it and the
+default comes back. Each receives Beak's own defaults, so overriding is
+additive rather than a rewrite.
+
+| Path | Symbol | Overrides |
+| --- | --- | --- |
+| `lib/panel.dart` | `BeakPanelConfig beakPanel(BeakPanelConfig defaults)` | Everything: the last word on the panel. |
+| `lib/theme.dart` | `OiThemeData beakLightTheme()` / `beakDarkTheme()` | The light and dark themes. |
+| `lib/auth.dart` | `BeakAuthConfig beakAuth()` | Which auth routes exist and what they call. |
+| `lib/dashboard.dart` | `BeakScreen beakDashboard()` | The screen at `/`. |
+| `lib/server.dart` | `BeakServer beakServer(BeakServerDefaults defaults)` | Middleware, extra routes, the policy. |
+
+`beak eject <target>` writes any of them out, pre-filled with the default:
+
+```bash
+beak eject theme
+```
+
+Precedence runs library default → `beak.yaml` → `lib/panel.dart`.
+
+## `beak.yaml`
+
+YAML for scalars, enums, ordering and infrastructure; Dart for anything holding
+a symbol or a closure. Every key is optional. Delete the file and Beak still
+boots, titling the panel after the package.
+
+```yaml title="beak.yaml"
+name: Acme Admin
+
+api:
+  # `auto` calls the origin the panel was served from — what a
+  # single-host deployment wants.
+  baseUrl: auto
+
+theme:
+  sidebar:
+    collapsible: true
+    startCollapsed: false
+
+resources:
+  products:
+    icon: package
+    section: Catalog
+```
+
+It is decoded at generate time into a typed config and emitted as Dart
+literals, so no `Map<String, Object?>` ever reaches your runtime. An unknown key
+is an error naming the line, an icon has to be a lowerCamelCase `OiIcons` name,
+and a `resources` key naming no discovered table is reported with a
+did-you-mean.
+
+## The layers, and why `beak.dart` has no widgets
+
+`bin/serve.dart` reaches `lib/beak/server.g.dart`, which reaches
+`registry.g.dart`, which reaches your models. If any of those pulled in
+`dart:ui`, the server would stop compiling ahead of time. So:
+
+```text
+bin/serve.dart ──► server.dart ──► registry.g.dart ──► models/ ──► beak.dart
+lib/main.dart  ──► app.g.dart  ──► panel.g.dart    ──► panel.dart ──► beak.dart
+```
+
+`package:beak/beak.dart` is the shared vocabulary (columns, models, query
+specs) with no Flutter and no `dart:io`. `panel.dart` adds the widgets and
+re-exports it, so a screen needs one import. `beak doctor` fails when a panel
+file imports the server half by hand.
 
 ## Where common things live
 
-| Looking for | It lives in |
+| I want to… | Go here |
 | --- | --- |
-| Column types and validation rules | `packages/beak_core/lib/src/columns/`, `.../rules/` |
-| The query wire format | `packages/beak_core/lib/src/query/` |
-| Generated REST routes | `packages/beak_backend/lib/src/endpoints/` |
-| Migrations and seeders (reference) | `apps/reference_admin_server/lib/src/migrations/`, `.../seeders/` |
-| The panel shell, tables, forms | `packages/beak_frontend/lib/src/` |
-| The gate scripts and guards | `melos.yaml`, `tool/` |
-| Local service config | `docker-compose.yml`, `.env.example` |
+| Add a resource | A new file in `lib/models/`, then `beak prepare`. |
+| Change a column's label, rules or visibility | The `@Column` annotation on the field. |
+| Add a page that is not a resource | `lib/screens/`. |
+| Change an icon or a sidebar section | `beak.yaml`, under `resources:`. |
+| Restyle the panel | `beak eject theme`. |
+| Add middleware or a policy | `beak eject server`. |
+| Change the schema | Edit the schema class, `beak prepare`, then `beak migrate`. Beak writes the first migration for a resource; changing a table later is a migration you write. |
+| See what Beak sees | `beak doctor`. |
 
 ## Continue reading
 
-- [Installation](installation.md) get the toolchain and services in place.
-- [Quickstart](quickstart.md) run the reference admin end to end.
-- [Packages](../reference/packages.md) the full export list for every package.
-- [The four layers](../concepts/the-four-layers.md) how backend and frontend code
-  is layered inside these packages.
-- [Package graph](../architecture/package-graph.md) the dependency edges between
-  them.
+- [Quickstart](quickstart.md) runs the whole loop in one page.
+- [CLI commands](../reference/cli-commands.md) lists every command and flag.
+- [Contributing](../contributing/index.md) describes the Beak monorepo's own
+  layout, which is a different thing from your project's.

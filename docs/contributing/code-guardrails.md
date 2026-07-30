@@ -24,15 +24,15 @@ const List<String> forbiddenImportUris = [
 
 This is not a convention you have to remember. The `guard-material` step of
 `melos run analyze` runs `tool/check_no_material.dart`, which scans every Dart
-file under `packages/` and `apps/` (the vendored `worm*` packages excluded) and
-exits non-zero listing each offending file:
+file under `packages/` and `examples/` (the vendored `worm*` packages excluded)
+and exits non-zero listing each offending file:
 
 ```yaml title="melos.yaml"
   guard-material:
     run: dart run tool/check_no_material.dart
     description: >-
       FAIL on any package:flutter/material.dart or package:flutter/cupertino.dart
-      import in Beak code (CLAUDE.md §2.1).
+      import in Beak code.
 ```
 
 Flutter's `widgets.dart` and `foundation.dart` stay allowed, but only for core

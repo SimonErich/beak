@@ -1,4 +1,5 @@
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/io.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
@@ -13,6 +14,8 @@ import '../service/validation_service.dart';
 import '../uploads/upload_router.dart';
 import '../uploads/upload_service.dart';
 import 'crud_handlers.dart';
+import 'health_router.dart';
+import 'local_uploads_router.dart';
 
 /// The generated routes of one model's REST surface, relative to its mount
 /// point (`/api/{table}`).
@@ -21,6 +24,7 @@ import 'crud_handlers.dart';
 /// batch, CRUD, and relation attach/detach routes, each gated by [policy].
 /// [beakApiRouter] mounts one of these per registered model; call it
 /// directly only to compose a single resource's surface by hand.
+// --8<-- [start:beakResourceRouter]
 Router beakResourceRouter(
   BeakResourceService service, {
   BeakPolicy policy = const BeakAllowAllPolicy(),
@@ -34,9 +38,11 @@ Router beakResourceRouter(
     ..get('/<id>', handlers.getOne)
     ..patch('/<id>', handlers.update)
     ..delete('/<id>', handlers.delete)
+    ..post('/<id>/restore', handlers.restore)
     ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
     ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
 }
+// --8<-- [end:beakResourceRouter]
 
 /// The full generated API: one resource router per registered model
 /// (mounted under `/api/{table}`, with CSV export), the global search
@@ -70,6 +76,7 @@ Handler beakApiRouter({
   BeakPolicy policy = const BeakAllowAllPolicy(),
   BeakAuthSessions? auth,
   UploadService? uploads,
+  BeakStorageDriver? storage,
   DateTime Function()? now,
   String Function()? generateId,
 }) {
@@ -78,6 +85,17 @@ Handler beakApiRouter({
       'No handler for ${request.method} /${request.url.path}.',
     ),
   );
+  // Outside `/api`, and mounted first: a platform's probes must not be
+  // subject to the auth middleware that guards the API.
+  router.mount(
+    '/',
+    beakHealthRouter(registry: registry, dataSource: dataSource).call,
+  );
+  // Files the local-disk driver wrote are served by this server, so an
+  // upload's URL resolves with no CDN, bucket or proxy in front.
+  if (storage case final BeakLocalDiskStorageDriver local) {
+    router.mount('/', beakLocalUploadsRouter(local).call);
+  }
   if (auth != null) {
     router.mount('/api/auth', beakAuthRouter(auth).call);
   }

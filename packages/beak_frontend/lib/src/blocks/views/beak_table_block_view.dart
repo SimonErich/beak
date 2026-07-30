@@ -16,6 +16,7 @@ class _BeakTableBlockView extends StatelessWidget {
         dataSource: beakLocator<BeakDataSource>(),
         actions: block.actions,
         onRowTap: block.onRowTap,
+        columns: block.columns,
         initialSpec: block.initialSpec,
         baseFilter: block.baseFilter,
       ),

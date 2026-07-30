@@ -1,8 +1,25 @@
-/// Fixtures for the panel widget suites: two tiny models and an in-memory
-/// fake data source, so widget tests never touch a network.
+/// Fixtures for the panel widget suites: three tiny models and a real
+/// in-memory data source, so widget tests never touch a network and still
+/// exercise real filtering, sorting, paging and eager loading.
 library;
 
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_test/beak_test.dart';
+
+/// Typed relationship constants of the [NoteModel] fixture.
+abstract final class NoteRelations {
+  /// Many-to-many labels.
+  static const labels = BeakBelongsToMany(
+    key: 'labels',
+    label: 'Labels',
+    relatedTable: 'labels',
+    displayColumnKey: 'name',
+    pivotTable: 'label_note',
+    foreignPivotKey: 'note_id',
+    relatedPivotKey: 'label_id',
+    searchColumnKeys: ['name'],
+  );
+}
 
 /// The notes fixture model.
 final class NoteModel extends BeakModel {
@@ -25,6 +42,9 @@ final class NoteModel extends BeakModel {
       sortable: true,
     ),
   ];
+
+  @override
+  List<BeakRelationship> get relationships => const [NoteRelations.labels];
 }
 
 /// Status values of the [ArticleModel] fixture.
@@ -223,125 +243,203 @@ final class LabelModel extends BeakModel {
   ];
 }
 
-/// An in-memory [BeakDataSource] that records calls and serves canned
-/// records — enough for panel, cache, and optimism tests (extend it to
-/// override single operations).
-base class FakeDataSource implements BeakDataSource {
-  /// Creates a fake serving [records] keyed by table then id.
-  FakeDataSource({Map<String, Map<Object, BeakRecord>>? records})
-    : _recordsByTable = records ?? {};
+/// A [BeakDataSource] for the panel suites: a real [InMemoryBeakDataSource]
+/// under a [BeakRecordingDataSource], so the calls a widget makes are both
+/// recorded *and* answered honestly — filters, sorts, paging and eager loads
+/// all behave as they do against a server.
+///
+/// Seed with `records`, keyed by table then id, and pass any [models] the
+/// suite declares itself. A row may carry a `relations` map: it is unfolded
+/// into what actually stores that relationship — pivot links for a
+/// many-to-many, child rows carrying the foreign key for a to-many — so the
+/// eager load a widget requests resolves the same way it would against a
+/// database. A table without a model gets one synthesised from its rows, so a
+/// block test can serve `invoices` without declaring one.
+///
+/// Extend it to make a single operation fail; everything else keeps working.
+base class FakeDataSource extends BeakRecordingDataSource {
+  /// Creates a fake serving [records] keyed by table then id, knowing
+  /// [models] on top of the shared [fixtureModels].
+  FakeDataSource({
+    Map<String, Map<Object, BeakRecord>>? records,
+    List<BeakModel> models = const [],
+  }) : this._(_storeFor(records ?? const {}, models));
 
-  final Map<String, Map<Object, BeakRecord>> _recordsByTable;
+  FakeDataSource._(this.store) : super(store);
 
-  /// Every `batchGet` invocation, as `(table, ids)` pairs.
-  final List<(String, List<Object>)> batchGetCalls = [];
+  /// The source answering the calls — for assertions about what was
+  /// persisted, via [InMemoryBeakDataSource.rowsOf].
+  final InMemoryBeakDataSource store;
 
-  /// Every `query` invocation.
-  final List<BeakQuerySpec> queryCalls = [];
-
-  /// Every `delete` invocation, as `(table, id)` pairs.
-  final List<(String, Object)> deleteCalls = [];
-
-  /// Every `create` invocation, as `(table, data)` pairs.
-  final List<(String, BeakRecord)> createCalls = [];
-
-  /// Every `update` invocation, as `(table, id, data)` triples.
-  final List<(String, Object, BeakRecord)> updateCalls = [];
-
-  /// Every `aggregate` invocation.
-  final List<BeakAggregateSpec> aggregateCalls = [];
-
-  /// Canned aggregate results; unmatched specs resolve to `0`.
+  /// Canned aggregate results; when null, real aggregates are computed.
   num Function(BeakAggregateSpec spec)? aggregateHandler;
-
-  /// Every `attach` invocation, as `(table, id, relationKey, ids)` tuples.
-  final List<(String, Object, String, List<Object>)> attachCalls = [];
-
-  /// Every `detach` invocation, as `(table, id, relationKey, ids)` tuples.
-  final List<(String, Object, String, List<Object>)> detachCalls = [];
-
-  @override
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
-    queryCalls.add(spec);
-    final records = (_recordsByTable[spec.table] ?? {}).values.toList();
-    return BeakPage(
-      items: records,
-      total: records.length,
-      page: spec.pagination.page,
-      perPage: spec.pagination.perPage,
-    );
-  }
-
-  @override
-  Future<BeakRecord?> getOne(String table, Object id) async =>
-      _recordsByTable[table]?[id];
-
-  int _mintedIds = 0;
-
-  @override
-  Future<BeakRecord> create(String table, BeakRecord data) async {
-    createCalls.add((table, data));
-    // Mirror the backend: mint an id when the caller supplies none.
-    final stored = switch (data['id']?.raw) {
-      Object() => data,
-      null => BeakRecord(
-        values: {
-          ...data.values,
-          'id': BeakStringValue('minted-${++_mintedIds}'),
-        },
-        relations: data.relations,
-      ),
-    };
-    if (stored['id']?.raw case final Object id) {
-      _recordsByTable.putIfAbsent(table, () => {})[id] = stored;
-    }
-    return stored;
-  }
-
-  @override
-  Future<BeakRecord> update(String table, Object id, BeakRecord data) async {
-    updateCalls.add((table, id, data));
-    return data;
-  }
-
-  @override
-  Future<void> delete(String table, Object id, {bool force = false}) async {
-    deleteCalls.add((table, id));
-    _recordsByTable[table]?.remove(id);
-  }
-
-  @override
-  Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
-    batchGetCalls.add((table, ids));
-    return [
-      for (final id in ids)
-        if (_recordsByTable[table]?[id] case final BeakRecord record) record,
-    ];
-  }
-
-  @override
-  Future<void> attach(
-    String table,
-    Object id,
-    String relationKey,
-    List<Object> relatedIds,
-  ) async {
-    attachCalls.add((table, id, relationKey, relatedIds));
-  }
-
-  @override
-  Future<void> detach(
-    String table,
-    Object id,
-    String relationKey,
-    List<Object> relatedIds,
-  ) async {
-    detachCalls.add((table, id, relationKey, relatedIds));
-  }
 
   @override
   Future<num> aggregate(BeakAggregateSpec spec) async {
-    aggregateCalls.add(spec);
-    return aggregateHandler?.call(spec) ?? 0;
+    if (aggregateHandler case final handler?) {
+      aggregateCalls.add(spec);
+      return handler(spec);
+    }
+    return super.aggregate(spec);
   }
+
+  /// An in-memory source seeded with [seeds], plus every row and pivot link
+  /// the seeds' `relations` maps imply.
+  static InMemoryBeakDataSource _storeFor(
+    Map<String, Map<Object, BeakRecord>> seeds,
+    List<BeakModel> models,
+  ) {
+    final Map<String, BeakModel> known = {
+      for (final model in [...fixtureModels, ...models]) model.table: model,
+    };
+    final rows = <String, Map<Object, BeakRecord>>{
+      for (final entry in seeds.entries)
+        entry.key: {
+          for (final row in entry.value.entries)
+            row.key: _withId(row.key, row.value),
+        },
+    };
+    final links = <(BeakBelongsToMany, Object, List<Object>)>[];
+    _unfoldRelations(known, rows, links);
+
+    final registry = BeakModelRegistry();
+    known.values.forEach(registry.register);
+    void ensure(String table) {
+      if (registry.byTable(table) == null) {
+        registry.register(_AdHocModel(table, rows[table]?.values.firstOrNull));
+      }
+    }
+
+    rows.keys.toList().forEach(ensure);
+    for (final model in known.values) {
+      for (final relation in model.relationships) {
+        ensure(relation.relatedTable);
+      }
+    }
+
+    final store = InMemoryBeakDataSource(registry: registry);
+    rows.forEach((table, seeded) {
+      store.seed(registry.byTableOrThrow(table), seeded.values.toList());
+    });
+    for (final (relation, ownerId, relatedIds) in links) {
+      store.seedPivot(relation, ownerId, relatedIds);
+    }
+    return store;
+  }
+
+  /// Rewrites every seeded `relations` map into the rows and links that
+  /// actually hold the relationship, growing [rows] and [links] in place.
+  ///
+  /// A to-one writes the foreign key onto the owner, a to-many writes it onto
+  /// the children, and a many-to-many becomes a pivot link — the three ways a
+  /// database stores what a fixture states as a nested list. Works through a
+  /// queue, so a related record may itself carry relations.
+  static void _unfoldRelations(
+    Map<String, BeakModel> known,
+    Map<String, Map<Object, BeakRecord>> rows,
+    List<(BeakBelongsToMany, Object, List<Object>)> links,
+  ) {
+    final pending = <(String, Object)>[
+      for (final table in rows.entries)
+        for (final id in table.value.keys) (table.key, id),
+    ];
+    while (pending.isNotEmpty) {
+      final (table, ownerId) = pending.removeLast();
+      final BeakModel? model = known[table];
+      final BeakRecord? record = rows[table]?[ownerId];
+      if (model == null || record == null) {
+        continue;
+      }
+      final values = <String, BeakValue>{...record.values};
+      record.relations.forEach((key, related) {
+        final BeakRelationship? relation = model.relationshipByKey(key);
+        if (relation == null) {
+          return;
+        }
+        final List<Object> relatedIds = [
+          for (final row in related)
+            if (row['id']?.raw case final Object id) id,
+        ];
+        switch (relation) {
+          case final BeakBelongsToMany many:
+            links.add((many, ownerId, relatedIds));
+          case final BeakBelongsTo belongsTo:
+            if (relatedIds.firstOrNull case final Object relatedId) {
+              values[belongsTo.foreignKey] = BeakValue.of(relatedId);
+            }
+          case BeakHasMany() || BeakHasOne():
+            break;
+        }
+        final String? childKey = switch (relation) {
+          BeakHasMany(:final foreignKey) => foreignKey,
+          BeakHasOne(:final foreignKey) => foreignKey,
+          BeakBelongsTo() || BeakBelongsToMany() => null,
+        };
+        final target = rows.putIfAbsent(relation.relatedTable, () => {});
+        for (final row in related) {
+          if (row['id']?.raw case final Object id) {
+            target[id] = childKey == null
+                ? row
+                : BeakRecord(
+                    values: {...row.values, childKey: BeakValue.of(ownerId)},
+                    relations: row.relations,
+                  );
+            pending.add((relation.relatedTable, id));
+          }
+        }
+      });
+      rows[table]![ownerId] = BeakRecord(
+        values: values,
+        relations: record.relations,
+      );
+    }
+  }
+
+  /// [record] guaranteed to carry the [id] it is keyed by.
+  static BeakRecord _withId(Object id, BeakRecord record) =>
+      record['id'] == null
+      ? BeakRecord(
+          values: {'id': BeakStringValue('$id'), ...record.values},
+          relations: record.relations,
+        )
+      : record;
+}
+
+/// The models every panel suite can rely on being registered.
+const List<BeakModel> fixtureModels = [
+  NoteModel(),
+  ArticleModel(),
+  LabelModel(),
+];
+
+/// A model stood up for a table a test seeds without declaring one.
+///
+/// Columns are inferred from the seeded row, which is all an
+/// [InMemoryBeakDataSource] needs: a primary key to store rows under and
+/// value keys to filter and sort by.
+final class _AdHocModel extends BeakModel {
+  const _AdHocModel(this.table, this._sample);
+
+  @override
+  final String table;
+
+  final BeakRecord? _sample;
+
+  @override
+  String get displayColumnKey => switch (_sample) {
+    null => 'id',
+    final BeakRecord row => const [
+      'name',
+      'title',
+      'label',
+      'text',
+    ].firstWhere((key) => row.values.containsKey(key), orElse: () => 'id'),
+  };
+
+  @override
+  List<BeakColumn> get columns => [
+    const BeakStringColumn(key: 'id', label: 'Id'),
+    for (final key in _sample?.values.keys ?? const <String>[])
+      if (key != 'id') BeakStringColumn(key: key, label: key),
+  ];
 }

@@ -7,9 +7,19 @@ description: Every BeakRule subclass, its constructor arguments, exactly what it
 
 This page lists every validation rule Beak ships: its constructor, what it
 checks, which values pass untouched, and the exact message it returns on
-failure. Attach rules to a column's `rules` list; the same list drives both the
-form field in `beak_frontend` and the request validator in `beak_backend`, so
-client and server never disagree.
+failure. Attach rules with `@Column(rules: [...])` on a schema field; the same
+list drives both the form field in the panel and the request validator in the
+API, so client and server never disagree.
+
+```dart title="examples/store/lib/models/product.dart"
+  @Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
+  late final double price;
+```
+
+Presence is not on the list. A non-nullable field gets `BeakRequired()` from its
+type, and a nullable one does not: `late final double price` is required,
+`late final DateTime? publishedAt` is not. You will see `BeakRequired()` in the
+generated column constant, and you should not write it yourself.
 
 ## How a rule works
 
@@ -18,17 +28,7 @@ across the wire) and a single `validate` method that returns `null` when the
 value is valid, or a human-readable message when it is not.
 
 ```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
-@immutable
-sealed class BeakRule {
-  const BeakRule();
-
-  /// Stable machine-readable identity for serialization to either side of
-  /// the wire.
-  String get id;
-
-  /// Returns `null` when [value] is valid, else a human-readable message.
-  String? validate(Object? value);
-}
+--8<-- "packages/beak_core/lib/src/rules/beak_rule.dart:BeakRule"
 ```
 
 ### Non-applicable types pass
@@ -38,7 +38,7 @@ that does not apply to the value's type reports it as valid. This is what lets
 rules compose freely: presence stays `BeakRequired`'s job alone, and a length
 rule on a numeric field never bites.
 
-```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
+```dart
 const rule = BeakMaxLength(3);
 rule.validate('abcd'); // 'Must be at most 3 characters.'
 rule.validate(42);     // null (not a string)
@@ -46,13 +46,14 @@ rule.validate(42);     // null (not a string)
 
 Rules run in the order you list them, and the first non-null message wins:
 
-```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
-static const email = BeakStringColumn(
-  key: 'email',
-  label: 'Email',
-  rules: [BeakRequired(), BeakEmail(), BeakMaxLength(255)],
-);
+```dart
+@Column(searchable: true, rules: [BeakEmail(), BeakMaxLength(255)])
+late final String email;
 ```
+
+The generated column carries `[BeakRequired(), BeakEmail(), BeakMaxLength(255)]`:
+the presence rule the non-nullable `String` implies, then yours, in the order
+you wrote them.
 
 ## Overview
 
@@ -91,6 +92,14 @@ const BeakRequired();
 | an empty `Iterable` | fails |
 | `false`, `0`, `'a'`, a non-empty list | passes |
 
+!!! note "You do not write this one"
+    Beak adds `BeakRequired()` to every non-nullable field's column and to no
+    nullable one. Declaring the field as `String name` rather than `String?
+    name` is how you require it, and that single decision covers the form
+    validator, the API's validation and the column's `NOT NULL`. The rule is
+    documented here because you will read it in generated code, and because a
+    hand-written `BeakModel` still needs it.
+
 ## Numeric bounds
 
 ### `BeakMin`
@@ -106,8 +115,13 @@ const BeakMin(this.min);
 | `min` | `num` | Lowest accepted value (inclusive). |
 
 `id`: `min`. Message when a number is below the bound: `Must be at least $min.`
-Pair it with a column's `min` (on `BeakIntColumn`/`BeakDecimalColumn`) so the
-form stepper and the submit-time check agree.
+Pair it with `@Column(min:)` on an `int` field so the form stepper and the
+submit-time check agree.
+
+```dart
+@Column(min: 0, sortable: true, rules: [BeakMin(0)])
+late final int stock;
+```
 
 ### `BeakMax`
 
@@ -175,17 +189,16 @@ const BeakPattern(this.regex, {this.message});
 `id`: `pattern`. Message when the string does not match:
 `message` when set, otherwise `Must match the expected format.`
 
-```dart title="packages/beak_core/lib/src/rules/beak_pattern.dart"
-static const slug = BeakStringColumn(
-  key: 'slug',
-  label: 'Slug',
+```dart
+@Column(
   rules: [
     BeakPattern(
       r'^[a-z0-9-]+$',
       message: 'Use lowercase letters, digits and hyphens only.',
     ),
   ],
-);
+)
+late final String slug;
 ```
 
 ### `BeakEmail`
@@ -232,17 +245,15 @@ const BeakInList(this.allowed);
 `id`: `in_list`. Message: `Must be one of: ` followed by the allowed values
 joined with `, ` and a trailing `.`.
 
-```dart title="packages/beak_core/lib/src/rules/beak_in_list.dart"
-static const size = BeakStringColumn(
-  key: 'size',
-  label: 'Size',
-  rules: [BeakInList<String>(['S', 'M', 'L'])],
-);
+```dart
+@Column(rules: [BeakInList<String>(['S', 'M', 'L'])])
+late final String size;
 ```
 
-!!! tip "For enums, reach for BeakEnumColumn"
-    A `BeakEnumColumn<T>` already constrains a field to its `values` type-safely.
-    Use `BeakInList` for a closed set of plain strings or numbers that is not
+!!! tip "For enums, declare an enum"
+    A field declared as a Dart enum becomes a `BeakEnumColumn<T>`, which already
+    constrains it to that enum's values type-safely, badge colours and all. Use
+    `BeakInList` for a closed set of plain strings or numbers that is not
     modelled as a Dart enum.
 
 ## Upload rules
@@ -268,7 +279,7 @@ const BeakAllowedFileTypes(this.allowedTypes);
 `id`: `allowed_file_types`. Message: `File type must be one of: ` followed by the
 first extension of each allowed type, joined with `, `.
 
-```dart title="packages/beak_core/lib/src/rules/beak_allowed_file_types.dart"
+```dart
 const rule = BeakAllowedFileTypes([BeakFileType.jpeg, BeakFileType.png]);
 rule.validate('photo.PNG');       // null (extension matches)
 rule.validate('image/jpeg');      // null (MIME matches)
@@ -291,16 +302,27 @@ const BeakMaxFileSize(this.maxSizeInBytes);
 `id`: `max_file_size`. Message when an `int` byte count exceeds the cap:
 `File must be at most $maxSizeInBytes bytes.`
 
-!!! note "Column-level upload bounds vs. rules"
-    Upload columns also take `maxSizeInBytes` and `allowedTypes` directly on the
-    constructor. Those configure the column's own upload validator; the two rules
-    above let you express the same limits inside a `rules` list when you want them
+!!! note "Upload bounds live on the annotation"
+    `@Image` and `@FileField` take `maxSizeInBytes` and `allowedTypes` directly,
+    and that is the usual way to bound an upload: it configures the column's own
+    upload validator, which the server enforces before a byte is stored. The two
+    rules above express the same limits inside a `rules` list when you want them
     alongside your other validations. See [Files and storage
     columns](../models/files-and-storage-columns.md).
+
+    ```dart
+    @Image(
+      storagePath: 'products',
+      maxSizeInBytes: 5 * 1024 * 1024,
+      allowedTypes: [BeakFileType.jpeg, BeakFileType.png],
+    )
+    late final BeakImageRef? image;
+    ```
 
 ## Continue reading
 
 - [Column types reference](column-types.md) every column you attach these rules to.
+- [Annotations](annotations.md) `@Column(rules: [...])` and everything else a field can say.
 - [Validation rules](../models/validation-rules.md) the guided tour, with worked form examples.
 - [The type-safety promise](../concepts/the-type-safety-promise.md) why one rule list drives both client and server.
 - [Security](../guides/security.md) how server-side validation backs up the client.

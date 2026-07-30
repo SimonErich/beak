@@ -25,6 +25,7 @@ import '../blocks/beak_block.dart';
 ///   ],
 /// );
 /// ```
+// --8<-- [start:BeakResourceView]
 sealed class BeakResourceView {
   /// Enables `const` subclasses.
   const BeakResourceView();
@@ -41,6 +42,7 @@ sealed class BeakResourceView {
   /// Builds the block that renders [model]'s records in this mode.
   BeakBlock build(BeakModel model);
 }
+// --8<-- [end:BeakResourceView]
 
 /// The default view mode: the resource's records in a data table.
 final class BeakTableView extends BeakResourceView {

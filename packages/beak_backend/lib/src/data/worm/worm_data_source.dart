@@ -51,13 +51,18 @@ final class WormDataSource implements BeakDataSource {
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    final BeakModel beakModel = registry.byTableOrThrow(spec.table);
     final builder = _translator.builderFor(spec, _adapter);
     final int total = await builder.count();
-    final models = await builder.get();
+    final rows = await builder.get();
     return BeakPage(
       items: [
-        for (final model in models)
-          model.toBeakRecord(loads: spec.relationLoads),
+        for (final row in rows)
+          row.toBeakRecord(
+            loads: spec.relationLoads,
+            model: beakModel,
+            registry: registry,
+          ),
       ],
       total: total,
       page: spec.pagination.page,
@@ -71,7 +76,7 @@ final class WormDataSource implements BeakDataSource {
     final found = await _scopedBuilder(
       model,
     ).where(_primaryKeyPredicate(model, id)).first();
-    return found?.toBeakRecord();
+    return found?.toBeakRecord(model: model, registry: registry);
   }
 
   @override
@@ -99,6 +104,39 @@ final class WormDataSource implements BeakDataSource {
     }
     final updated = await getOne(table, id);
     return updated ?? (throw BeakNotFoundException(_missingRecord(model, id)));
+  }
+
+  @override
+  Future<BeakRecord> restore(String table, Object id) async {
+    final model = registry.byTableOrThrow(table);
+    if (!model.softDeletes) {
+      throw BeakValidationException(
+        'Model "$table" does not soft-delete, so there is nothing to restore.',
+      );
+    }
+    final int affected = await _adapter.update(
+      UpdateDescriptor(
+        table: table,
+        values: const {softDeleteColumnKey: null},
+        // Deliberately the trashed rows only: restoring a live record would
+        // report success for something that never happened.
+        where: _primaryKeyPredicate(model, id).and(
+          const LeafNode(
+            Predicate(
+              fieldName: softDeleteColumnKey,
+              operator: Operator.isNotNull,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (affected == 0) {
+      throw BeakNotFoundException(
+        'No soft-deleted record of "$table" with id "$id".',
+      );
+    }
+    return await getOne(table, id) ??
+        (throw BeakNotFoundException(_missingRecord(model, id)));
   }
 
   @override
@@ -140,7 +178,10 @@ final class WormDataSource implements BeakDataSource {
           ),
         )
         .get();
-    return [for (final found in models) found.toBeakRecord()];
+    return [
+      for (final found in models)
+        found.toBeakRecord(model: model, registry: registry),
+    ];
   }
 
   @override

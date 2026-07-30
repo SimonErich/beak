@@ -7,58 +7,74 @@ description: Which Beak package depends on which, why beak_core sits at the base
 
 After this page you will know what each package is allowed to import, and therefore where a given piece of code has to live. The dependency edges are not incidental: they are how Beak keeps the ORM out of the frontend and the UI toolkit out of the backend.
 
-Beak is a Melos monorepo. The framework is a handful of small packages under `packages/`, and the two demo apps under `apps/` sit on top of them. The whole design rests on one package at the base.
+Your project depends on exactly one package, `beak`. Inside the repo, `beak` is a thin facade over four framework packages, alongside a handful of opt-in ones, all under `packages/`, with the four demo projects under `examples/` sitting on top. The whole design rests on one package at the base.
 
 ## The graph
 
 ```mermaid
 flowchart TD
-  subgraph apps
-    RA[reference_admin\nFlutter panel]
-    RS[reference_admin_server\nShelf server]
-    RM[reference_admin_models\nshared model set]
+  subgraph examples
+    EX[quickstart · store · superdashboard · embedded]
   end
 
-  RA --> FE[beak_frontend]
-  RA --> RM
-  RS --> BE[beak_backend]
-  RS --> RM
-  RM --> CORE[beak_core]
+  EX --> UMB[beak]
+
+  UMB --> CORE[beak_core]
+  UMB --> FE[beak_frontend]
+  UMB --> BE[beak_backend]
+  UMB --> TEST[beak_test]
+  UMB --> OBERS[[obers_ui / autoforms / charts]]
 
   FE --> CORE
-  FE --> OBERS[[obers_ui / autoforms / charts]]
+  FE --> OBERS
 
   BE --> CORE
   BE --> IMG[beak_image]
-  BE --> S3[beak_storage_s3]
-  BE --> FTP[beak_storage_ftp]
-  BE --> WORM[[worm / worm_postgres]]
+  BE --> WORM[[worm / worm_postgres / worm_sqlite]]
 
+  TEST --> CORE
   IMG --> CORE
-  S3 --> CORE
-  FTP --> CORE
 
-  CLI[beak_cli\nscaffolding] -.->|standalone| ARGS[[args]]
+  S3[beak_storage_s3] -.->|plug-in| CORE
+  FTP[beak_storage_ftp] -.->|plug-in| CORE
+
+  CLI[beak_cli<br/>scaffolding] -.->|standalone| ANALYZER[[analyzer / args / worm]]
 
   classDef ext fill:#eee,stroke:#999,color:#333;
-  class OBERS,WORM,ARGS ext;
+  class OBERS,WORM,ANALYZER ext;
 ```
 
-Read it top to bottom: apps depend on framework packages, framework packages depend on `beak_core`, and only `beak_core` depends on nothing Beak-specific.
+Read it top to bottom: an example depends on `beak`, `beak` depends on the framework packages, the framework packages depend on `beak_core`, and only `beak_core` depends on nothing Beak-specific.
 
 ## What each package is
 
 | Package | Runtime | Depends on (Beak) | Third-party of note |
 | --- | --- | --- | --- |
+| `beak` | Flutter | `beak_core`, `beak_frontend`, `beak_backend`, `beak_test`, `worm` | `obers_ui`, `obers_ui_autoforms`, `obers_ui_charts` |
 | `beak_core` | pure Dart | nothing | `http`, `http_parser`, `meta` |
-| `beak_backend` | Shelf server | `beak_core`, `beak_image`, `beak_storage_s3`, `beak_storage_ftp` | `worm`, `worm_postgres`, `shelf` |
+| `beak_backend` | Shelf server | `beak_core`, `beak_image` | `worm`, `worm_postgres`, `worm_sqlite`, `shelf` |
 | `beak_frontend` | Flutter | `beak_core` | `obers_ui`, `obers_ui_autoforms`, `obers_ui_charts`, `signals`, `get_it`, `go_router`, `flutter_hooks` |
+| `beak_test` | pure Dart | `beak_core` | `test` |
 | `beak_image` | pure Dart | `beak_core` | `image` |
 | `beak_storage_s3` | pure Dart | `beak_core` | `minio` |
 | `beak_storage_ftp` | pure Dart | `beak_core` | (sockets only) |
-| `beak_cli` | Dart CLI | none | `args` |
+| `beak_cli` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `yaml`, `worm_postgres` |
 
-## The three rules the graph enforces
+## The umbrella is one dependency and eight libraries
+
+`beak` contains no logic of its own. Every file in it is a `library;` with a doc comment and a list of exports, and the split between them is the point: which library a file imports is what says whether that file is a model, a screen, a server or a test.
+
+```dart title="packages/beak/lib/panel.dart"
+export 'package:beak_frontend/beak_frontend.dart';
+
+export 'beak.dart';
+```
+
+`beak.dart` re-exports `beak_core` and nothing else, so it reaches neither Flutter nor `dart:io`. `panel.dart` adds the widgets, `server.dart` adds the Shelf host, `testing.dart` adds `beak_test`. See [Libraries](../reference/libraries.md) for the full table and the rule of thumb per folder.
+
+The reason the umbrella cannot export everything from one library is the same reason `beak_core` is pure: `bin/serve.dart` imports the generated server host, which imports the registry, which imports your models. Anything on that path that reached `dart:ui` would stop `dart compile exe` working.
+
+## The rules the graph enforces
 
 ### beak_core is pure Dart at the base
 
@@ -66,29 +82,56 @@ Read it top to bottom: apps depend on framework packages, framework packages dep
 
 Because it is pure and central, `beak_core` is the package with the strictest review bar. A type that leaks Flutter or worm into `beak_core` would poison every dependent, so it does not happen.
 
-### Only beak_backend imports worm
+### Only beak_backend imports worm at runtime
 
-The worm ORM (and its `worm_postgres` driver) appears in exactly one place: `beak_backend`. That is where `WormDataSource` translates a `BeakQuerySpec` into a worm predicate tree and runs it. No other package, and no app widget, ever sees a worm type. This is what lets a future data backend, for example a `beak_serverpod`, implement the same `BeakDataSource` interface without disturbing anything above or below.
+The worm ORM (with the `worm_postgres` and `worm_sqlite` drivers) appears in exactly one runtime package: `beak_backend`. That is where `WormDataSource` translates a `BeakQuerySpec` into a worm predicate tree and runs it. No other package, and no app widget, ever sees a worm type. This is what lets a future data backend, for example a `beak_serverpod`, implement the same `BeakDataSource` interface without disturbing anything above or below.
+
+`beak` re-exports worm through `package:beak/migrations.dart`, because migrations and seeders are worm's own `Migration` and `Seeder` and there is no value in wrapping them. That export sits on the server side of the wall, not the panel side.
+
+!!! note "beak_cli names worm too"
+    The scaffolding CLI depends on `worm_postgres` and `worm_sqlite` for the commands that read a live schema: `beak introspect`, which writes schema classes from it, and `beak doctor`'s drift check. That is a build-time tool talking to a database, not the framework's data path, and nothing it generates depends on worm.
 
 ### Only beak_frontend imports obers_ui
 
-`beak_frontend` is the sole Flutter package in the framework, and the only one that imports `obers_ui`, `obers_ui_autoforms`, and `obers_ui_charts` (all path dependencies from the sibling `obers_ui` repo). It never imports `dart:io` or Shelf. The panel, table, form, detail view, actions, and dashboard all live here, built entirely on obers_ui widgets.
+`beak_frontend` is the framework's only widget package, and the only one whose code imports `obers_ui`, `obers_ui_autoforms`, and `obers_ui_charts` (all pinned to one commit of the `obers_ui` repo). It never imports `dart:io` or Shelf. The panel, table, form, detail view, actions, and dashboard all live here, built entirely on obers_ui widgets.
 
-!!! note "beak_cli stands apart"
-    The scaffolding CLI depends only on `args`. It emits models, columns, and migrations as generated text, so it has no need to link `beak_core` at all. That is why it hangs off the graph on its own.
+`beak` depends on the three obers_ui packages directly as well, but only to re-export them from `package:beak/ui.dart` and `package:beak/charts.dart`, so a project composing its own screens does not have to add three more dependencies and keep their versions in step. The two chart and UI barrels stay separate libraries because `obers_ui` and `obers_ui_charts` both declare an `OiAnnotationType`.
 
-## Where the apps fit
+### Storage drivers are plug-ins, not dependencies
 
-The two demo apps share one thing and split on everything else.
+`beak_backend` depends on neither storage driver. `beak_core` defines `BeakStorageConfig` and the `BeakStorageDriver` interface; a driver package implements one and registers itself. An app that uploads to S3 declares `beak_storage_s3` in its own pubspec and names the drivers it can resolve in `lib/server.dart`, which the generated host picks up:
 
-- `reference_admin` (the Flutter panel) depends on `beak_frontend` and on the shared `reference_admin_models`. It runs against a server on port 8080.
-- `reference_admin_server` (the Shelf server) depends on `beak_backend` and on the same `reference_admin_models`. It serves that port.
-- `reference_admin_models` depends only on `beak_core`, so the identical model definitions compile into both the client and the server.
+```dart title="examples/embedded/lib/server.dart"
+--8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
+```
 
-That shared model package is the concrete payoff of the graph: one set of typed columns, imported unchanged by a Flutter app and a Dart server, because both sides bottom out at the same pure-Dart `beak_core`.
+That is why `beak_storage_s3` hangs off the graph on a dotted line, and why a project that never names the S3 driver never resolves `minio` at all. Uploads still work on that project: with `BEAK_STORAGE_DRIVER` unset the host falls back to a local-disk driver from `beak_core`. `embedded` and `superdashboard` are the examples that opt in to S3.
+
+### The wall is checked, not trusted
+
+Two tools in `tool/` run on every `melos run analyze`.
+
+- `check_no_material.dart` (`melos run guard-material`) fails on any `package:flutter/material.dart` or `cupertino.dart` import in Beak code.
+- `check_web_safe.dart` (`melos run guard-web`) walks the import graph from every panel-side entrypoint (`packages/beak/lib/beak.dart`, `panel.dart`, `ui.dart`, `charts.dart`, plus the two package barrels) and fails on `dart:io`, `dart:ffi`, `dart:mirrors`, or any of `package:beak_backend`, `package:beak_image`, `package:beak_storage_`, `package:minio`, `package:postgres`, `package:shelf`, `package:worm`.
+
+The second one earns its keep because `dart:io` is not a compile error on the web. dart2js ships a patched `dart:io` whose members throw at runtime, so a stray server import produces a green build and a browser exception. CI also builds a panel for web on every run, as the empirical half of the same check.
+
+## Where the examples fit
+
+There are four projects under `examples/`, and each is a **single package** holding both halves: the models, the generated wiring, the Flutter panel and the Shelf server, in one pubspec.
+
+| Example | What it is for |
+| --- | --- |
+| `quickstart` | Exactly what `beak create` writes. One model, nothing else. |
+| `store` | The teaching example: seven schemas, every column kind, all four relationship kinds, auth and a row policy. Runs on `:8080`. |
+| `superdashboard` | 49 models at scale, every block and view mode. Runs on `:8180`. |
+| `embedded` | Beak mounted inside an app that already exists. |
+
+One package rather than two is the payoff of the graph. A shared model set used to need its own package so a Flutter app and a Dart server could both import it; now both entrypoints live beside the models and the import guard is what keeps them apart. `store`'s pubspec is `beak`, `flutter`, and its dev dependencies. That is the whole list.
 
 ## Continue reading
 
+- [Libraries](../reference/libraries.md) the eight libraries `beak` is made of, and which one each file imports.
 - [The data source seam](data-source-seam.md) the interface that keeps worm on one side and obers_ui on the other.
 - [Backend flow](backend-flow.md) what `beak_backend` does with `beak_core` types once a request lands.
 - [Packages](../reference/packages.md) the public barrel of every package, member by member.

@@ -90,7 +90,7 @@ void main() {
       deleteButton.onTap!();
       await tester.pumpAndSettle();
 
-      expect(dataSource.deleteCalls, [('comments', 'k1')]);
+      expect(dataSource.deleteCalls, [('comments', 'k1', false)]);
       expect(find.text('First!'), findsNothing);
       expect(find.text('No comments yet.'), findsOneWidget);
     });
@@ -159,5 +159,52 @@ void main() {
       find.text('Category is not a to-many relationship.'),
       findsOneWidget,
     );
+  });
+
+  group('paging', () {
+    testWidgets('the badge counts what exists, and more can be loaded', (
+      tester,
+    ) async {
+      final source = FakeDataSource(
+        records: {
+          'comments': {
+            for (var index = 1; index <= 5; index += 1)
+              'c$index': BeakRecord.fromRow({
+                'id': 'c$index',
+                'text': 'Comment $index',
+                'article_id': 'a1',
+              }),
+          },
+          'articles': {
+            'a1': BeakRecord.fromRow(const {'id': 'a1'}),
+          },
+        },
+      );
+
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakRelationManager(
+            parentModel: const ArticleModel(),
+            parentId: 'a1',
+            relationship: ArticleRelations.comments,
+            dataSource: source,
+            pageSize: 2,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Two rows of five, and the badge says five — not two.
+      expect(find.text('Comment 1'), findsOneWidget);
+      expect(find.text('Comment 3'), findsNothing);
+      expect(find.text('5'), findsOneWidget);
+
+      await tester.tap(find.text('Load more (3)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comment 3'), findsOneWidget);
+      expect(find.text('Comment 5'), findsNothing);
+    });
   });
 }

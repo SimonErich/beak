@@ -1,7 +1,7 @@
 /// Coverage-threshold enforcer for the Beak monorepo (`melos run coverage`).
 ///
 /// Run from the repo root after `melos run test`. For every gated package
-/// (under `packages/` and `apps/`, vendored `worm*` excluded) that has a
+/// (under `packages/` and `examples/`, vendored `worm*` excluded) that has a
 /// `test/` directory, it locates the lcov report — converting the VM-JSON
 /// output of `dart test --coverage` when needed — computes the line-coverage
 /// percentage, and exits non-zero if any package misses its threshold.
@@ -14,19 +14,27 @@ const int defaultThresholdPct = 85;
 
 /// Per-package threshold overrides, keyed by package directory name.
 ///
-/// Phase 00 scaffolds empty skeletons, so packages start at zero and later
-/// phases raise them as real code lands. `beak_core` is pure and holds 100.
+/// `beak_core` is pure and holds 100.
 const Map<String, int> thresholdOverridesPct = {
   'beak_core': 100,
   'beak_backend': 90,
   'beak_frontend': 85,
   'beak_cli': 85,
-  'reference_admin': 85,
-  'reference_admin_server': 85,
+  // A testing toolkit whose own tests are thin would be a poor advert.
+  'beak_test': 90,
+  // The examples earn their keep by being read and run, and much of what they
+  // declare is data a widget suite instantiates without executing line by
+  // line. What has to work is checked directly instead: the store's API
+  // scenario exercises its models, policy and seeders end to end, and the
+  // coverage matrices fail when a feature stops being demonstrated at all.
+  'quickstart': 50,
+  'store': 70,
+  'superdashboard': 85,
+  'embedded': 85,
 };
 
 /// Directories that hold gated packages, relative to the repo root.
-const List<String> packageRootDirs = ['packages', 'apps'];
+const List<String> packageRootDirs = ['packages', 'examples'];
 
 /// Line-coverage numbers extracted from an lcov report.
 final class LcovSummary {
@@ -45,14 +53,30 @@ final class LcovSummary {
   double get percent => linesFound == 0 ? 100 : linesHit / linesFound * 100;
 }
 
+/// Whether [sourcePath] is a file Beak generated rather than a person wrote.
+///
+/// Generated code is excluded from coverage. It is verified where it is
+/// produced — `beak_cli`'s own suite asserts what the emitters write — and
+/// measuring it here would say nothing about the package that contains it,
+/// while diluting the number that does: a project with 5,000 lines of
+/// generated columns could drop below its floor without one line of its own
+/// going untested.
+bool isGeneratedSource(String sourcePath) =>
+    sourcePath.endsWith('.g.dart') || sourcePath.endsWith('.beak.dart');
+
 /// Parses the `DA:<line>,<count>` entries of [lcovContent] into an
-/// [LcovSummary].
+/// [LcovSummary], skipping generated files.
 LcovSummary parseLcov(String lcovContent) {
   var linesFound = 0;
   var linesHit = 0;
+  var skipping = false;
   for (final line in lcovContent.split('\n')) {
     final trimmed = line.trim();
-    if (!trimmed.startsWith('DA:')) {
+    if (trimmed.startsWith('SF:')) {
+      skipping = isGeneratedSource(trimmed.substring('SF:'.length));
+      continue;
+    }
+    if (skipping || !trimmed.startsWith('DA:')) {
       continue;
     }
     linesFound += 1;

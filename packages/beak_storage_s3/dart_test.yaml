@@ -1,4 +1,6 @@
 tags:
-  # Needs the Docker MinIO service (`melos run up`).
-  integration:
+  # Needs the Docker MinIO service (`melos run up`). Named `e2e` like every
+  # other service-backed suite, so `melos run test-e2e` reaches it — under a
+  # second tag it started MinIO in CI and then talked to nothing.
+  e2e:
     timeout: 2x

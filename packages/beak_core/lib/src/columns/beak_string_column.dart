@@ -15,8 +15,9 @@ part of 'beak_column.dart';
 ///   rules: [BeakRequired(), BeakMaxLength(255)],
 /// );
 /// ```
-final class BeakStringColumn extends BeakColumn {
+final class BeakStringColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a single-line string column.
+  // --8<-- [start:BeakStringColumn]
   const BeakStringColumn({
     required super.key,
     required super.label,
@@ -24,10 +25,13 @@ final class BeakStringColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.placeholder = '',
     this.maxLength,
   });
+  // --8<-- [end:BeakStringColumn]
 
   /// Hint text shown in an empty form input.
   final String placeholder;
@@ -39,6 +43,7 @@ final class BeakStringColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.text);
 
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

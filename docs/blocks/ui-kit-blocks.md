@@ -18,8 +18,9 @@ take values, not children.
 | `BeakRatingBlock` | `OiStarRating` | `value`, `maxStars`, `readOnly` |
 | `BeakRadialSliderBlock` | `OiRadialSlider` | `label`, `min`, `max`, `initialValue` |
 
-The showcase's UI Elements screen puts all of these on one page. The snippets
-below are lifted from it and from the block tests.
+The showcase's UI Elements screen puts all of these on one page, in a single
+file under `lib/screens/`. The snippets below are lifted from it and from the
+block tests.
 
 ## Alert
 
@@ -53,7 +54,7 @@ Widget _alert(BeakAlertBlock block) => switch (block.level) {
 | `error` | Something that failed |
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_uikit_blocks_test.dart"
-BeakAlertBlock('Saved', level: BeakAlertLevel.success),
+const BeakAlertBlock('Saved', level: BeakAlertLevel.success),
 ```
 
 ## Badge
@@ -70,7 +71,7 @@ const BeakBadgeBlock(
 ```
 
 ```dart title="packages/beak_frontend/test/src/blocks/beak_uikit_blocks_test.dart"
-BeakBadgeBlock('Active', color: BeakColor.success),
+const BeakBadgeBlock('Active', color: BeakColor.success),
 ```
 
 `BeakColor` is the shared semantic palette (`primary`, `secondary`, `success`,
@@ -92,8 +93,8 @@ OiBadgeColor _badgeColor(BeakColor color) => switch (color) {
 Because `BeakColor` is an enum, you can loop over `BeakColor.values` to show the
 whole palette, exactly as the UI-kit page does:
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
-BeakRowBlock(
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
+child: BeakRowBlock(
   gapInPixels: 8,
   children: [
     for (final color in BeakColor.values)
@@ -111,8 +112,8 @@ range 0 to 1, and `label` is an optional caption above the bar.
 const BeakProgressBlock({required this.value, this.label, super.span});
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
-BeakColumnBlock(
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
+child: BeakColumnBlock(
   gapInPixels: 12,
   children: [
     BeakProgressBlock(value: 0.25, label: 'Design'),
@@ -136,8 +137,8 @@ const BeakRatingBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
-BeakRatingBlock(value: 3.5),
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
+const BeakCardBlock(title: 'Rating', child: BeakRatingBlock(value: 3.5)),
 ```
 
 The host always renders it with half-star precision:
@@ -168,8 +169,8 @@ const BeakRadialSliderBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/ui_kit_screen.dart"
-BeakCardBlock(
+```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
+const BeakCardBlock(
   title: 'Round slider',
   child: BeakRadialSliderBlock(label: 'Volume', initialValue: 65),
 ),
@@ -177,9 +178,9 @@ BeakCardBlock(
 
 !!! note "Display versus data"
     These blocks take literal values you already have. To show a live number
-    from your database (an aggregate, a metric), reach for a data block: a
-    [KPI or metric](data-blocks.md) reads a `BeakQuerySpec` instead of a
-    hard-coded `value`.
+    from your database, reach for a data block: a
+    [KPI or metric](data-blocks.md) reads a `BeakAggregateSpec` the API
+    computes, instead of a hard-coded `value`.
 
 ## Continue reading
 

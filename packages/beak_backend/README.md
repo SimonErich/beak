@@ -4,7 +4,7 @@ The Shelf server for Beak: generated CRUD/query/batch/relations/aggregate
 endpoints, validated uploads, auth, search, and CSV export — all from a
 `BeakModelRegistry` over the worm ORM.
 
-Part of [**Beak**](https://github.com/marqably/beak), a low-code,
+Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
 [architecture guide](../../docs/architecture.md) for how the packages fit
 together.

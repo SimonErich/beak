@@ -37,6 +37,7 @@ final class BeakUploadHandlers {
 
   /// `POST /<columnKey>/upload` — stores a validated upload (allowed for
   /// principals that may create records of this model).
+  // --8<-- [start:upload]
   Future<Response> upload(Request request, String columnKey) async {
     enforcePolicyDecision(
       allowed: policy.canCreate(beakPrincipal(request), model.table),
@@ -52,6 +53,7 @@ final class BeakUploadHandlers {
     );
     return Response(201, body: jsonEncode(stored.toJson()));
   }
+  // --8<-- [end:upload]
 
   /// `DELETE /<columnKey>/upload` — removes the stored file named by the
   /// posted `{"key": ...}` (allowed for principals that may delete records

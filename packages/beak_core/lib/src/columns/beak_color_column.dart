@@ -9,8 +9,9 @@ part of 'beak_column.dart';
 ///   label: 'Brand color',
 /// );
 /// ```
-final class BeakColorColumn extends BeakColumn {
+final class BeakColorColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a color column.
+  // --8<-- [start:BeakColorColumn]
   const BeakColorColumn({
     required super.key,
     required super.label,
@@ -18,14 +19,17 @@ final class BeakColorColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakColorColumn]
 
   @override
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.color);
 
-  /// Values are hex color strings.
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

@@ -2,9 +2,9 @@ name: beak_storage_s3
 description: S3/MinIO storage driver for Beak's storage abstraction.
 version: 0.0.1
 publish_to: none
-repository: https://github.com/marqably/beak/tree/main/packages/beak_storage_s3
-homepage: https://github.com/marqably/beak
-issue_tracker: https://github.com/marqably/beak/issues
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_storage_s3
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [storage, s3, aws, minio]
 
 environment:

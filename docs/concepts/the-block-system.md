@@ -33,7 +33,7 @@ Because blocks are pure `const` values, a layout is data you can write inline,
 pass around, and compare. Here is a page body built entirely from block
 constructors:
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
+```dart
 const body = BeakColumnBlock(
   children: [
     BeakTextBlock('Welcome back', variant: BeakTextVariant.h1),
@@ -76,6 +76,7 @@ class BeakBlockHost extends StatelessWidget {
     final BeakCardBlock card => _card(card),
     // ... one arm per block type
     final BeakMarkdownBlock markdown => OiMarkdown(data: markdown.source),
+    // ... divider, spacer
     final BeakWidgetBlock widget => Builder(builder: widget.builder),
   };
 ```
@@ -93,15 +94,46 @@ can build any of these:
 
 | Surface | What it renders | Where you set it |
 | --- | --- | --- |
-| Custom screens | a full page body | `BeakScreen.body` |
-| Resource view modes | an alternate view of a list | a resource's view modes |
-| Detail layouts | a record's read-only page | a resource's `detail` |
-| Form layouts | a create/edit form | a resource's `formLayout` |
+| Custom screens | a full page body | `BeakScreen.body`, from a file in `lib/screens/` |
+| Resource view modes | an alternate view of a list | `viewModes` in `lib/resources/<table>.dart` |
+| Detail layouts | a record's read-only page | `detail` in `lib/resources/<table>.dart` |
+| Form layouts | a create/edit form | `formLayout` in `lib/resources/<table>.dart` |
 | Overlay bodies | a modal or sheet's content | the overlay APIs |
-| Dashboards | KPI, chart, and table tiles | the dashboard block tree |
+| Dashboards | KPI, chart, and table tiles | `lib/dashboard.dart` |
 
 One host renders all of them, so a `BeakCardBlock` on a dashboard and a
 `BeakCardBlock` in an overlay are the exact same code path.
+
+The store sets two of them from one tree. `beakResource` takes the resource Beak
+generated and returns the copy it wants:
+
+```dart title="examples/store/lib/resources/products.dart"
+BeakResource beakResource(BeakResource generated) => generated.copyWith(
+  detail: productLayout,
+  formLayout: productLayout,
+  // ... actions and view modes
+);
+```
+
+## You get a layout without writing one
+
+A resource that declares no `detail` is not left with a bare field list. The
+show page falls back to the layout the model implies:
+
+```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
+/// The show-page layout: [detail] when declared, and otherwise the one
+/// [model] implies — a headline card, the remaining fields, and a tab per
+/// to-many relationship.
+BeakBlock get effectiveDetail => detail ?? beakDefaultDetailLayout(model);
+```
+
+`beakDefaultDetailLayout` builds an ordinary block tree out of the same three
+record blocks you would have used: a `BeakCardBlock` holding a
+`BeakFieldGroupBlock` of the first few fields, a grid for the rest, and a
+`BeakTabsBlock` with one `BeakRelationBlock` per to-many relationship. It is
+derived rather than generated, so adding a column changes the page with no file
+to regenerate. Write a `detail` when you want a different shape, not to get one
+at all.
 
 ## Grid placement with BeakSpan
 

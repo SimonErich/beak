@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:obers_ui/obers_ui.dart';
 
@@ -64,7 +65,7 @@ void main() {
 
       final List<BeakRecord> options = await picker.search!('New');
 
-      expect(options, hasLength(2));
+      expect(options.map((option) => option['name']?.raw), ['News']);
       expect(dataSource.queryCalls, hasLength(1));
       final BeakQuerySpec spec = dataSource.queryCalls.single;
       expect(spec.table, 'categories');
@@ -104,6 +105,49 @@ void main() {
       await pumpPicker(tester);
 
       expect(find.text('News'), findsWidgets);
+    });
+
+    testWidgets('a shared cache resolves every prefill in one batch', (
+      tester,
+    ) async {
+      final cache = ReferenceCache(dataSource, dataSource.store.registry);
+      final second = BeakFormController(model: const ArticleModel());
+      addTearDown(second.dispose);
+      controller.setValue(ArticleColumns.categoryId, 'c1');
+      second.setValue(ArticleColumns.categoryId, 'c2');
+
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: Builder(
+            builder: (context) => OiColumn(
+              breakpoint: context.breakpoint,
+              children: [
+                BeakBelongsToField(
+                  controller: controller,
+                  relation: ArticleRelations.category,
+                  dataSource: dataSource,
+                  referenceCache: cache,
+                ),
+                BeakBelongsToField(
+                  controller: second,
+                  relation: ArticleRelations.category,
+                  dataSource: dataSource,
+                  referenceCache: cache,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('News'), findsWidgets);
+      expect(find.text('Sports'), findsWidgets);
+      // Two pickers, one round trip — and never the per-picker getOne.
+      expect(dataSource.batchGetCalls, hasLength(1));
+      expect(dataSource.batchGetCalls.single.$2, ['c1', 'c2']);
+      expect(dataSource.getOneCalls, isEmpty);
     });
   });
 

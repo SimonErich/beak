@@ -116,6 +116,19 @@ void main() {
       expect(requests.single.url.queryParameters, {'force': 'true'});
     });
 
+    test(
+      'restore posts /api/{table}/{id}/restore and parses the record',
+      () async {
+        final record = await client(
+          recordJson({'id': 'n1'}),
+        ).restore('notes', 'n1');
+
+        expect(requests.single.method, 'POST');
+        expect(requests.single.url.path, '/api/notes/n1/restore');
+        expect(record['id']?.raw, 'n1');
+      },
+    );
+
     test('batchGet posts ids and parses the list', () async {
       final records = await client([
         recordJson({'id': 'n1'}),
@@ -364,5 +377,65 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+  });
+
+  group('sessions', () {
+    test('login returns the session and logout ends it', () async {
+      final session = await client({
+        'token': 'tok-1',
+        'principal': {
+          'id': 'u1',
+          'roles': ['staff', 'admin'],
+        },
+      }).login(username: 'ada@example.com', password: 'espresso');
+
+      expect(session.token, 'tok-1');
+      expect(session.principalId, 'u1');
+      expect(session.hasRole('staff'), isTrue);
+      expect(session.hasRole('owner'), isFalse);
+      expect(session.toString(), contains('u1'));
+      expect(requests.single.url.path, '/api/auth/login');
+
+      final target = client(null, statusCode: 204);
+      await target.logout('tok-1');
+      expect(requests.single.headers['authorization'], 'Bearer tok-1');
+    });
+
+    test('a session without roles is still a session', () {
+      final session = BeakSession.fromJson(const {
+        'token': 'tok',
+        'principal': {'id': 'u2'},
+      });
+      expect(session.roles, isEmpty);
+    });
+
+    test('malformed principal roles are a configuration error', () {
+      expect(
+        () => BeakSession.fromJson(const {
+          'token': 'tok',
+          'principal': {'id': 'u3', 'roles': 'staff'},
+        }),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('baseUrl is readable and has no trailing slash', () {
+      expect(client(null).baseUrl, 'http://api.test');
+    });
+  });
+
+  test('a conditional update sends the timestamp it read', () async {
+    final target = client(recordJson(const {'id': 'p1'}));
+    await target.update(
+      'products',
+      'p1',
+      BeakRecord.fromRow(const {'name': 'New'}),
+      ifUnmodifiedSince: DateTime.utc(2026, 7, 27, 12),
+    );
+
+    expect(
+      requests.single.headers['if-unmodified-since'],
+      '2026-07-27T12:00:00.000Z',
+    );
   });
 }

@@ -212,30 +212,41 @@ void main() {
       );
     });
 
-    test('SchemaIndexDescriptor: unique violation maps to '
-        'UniqueConstraintException', () async {
-      await adapter.executeSchema(
-        const SchemaIndexDescriptor(
-          collection: 'widgets',
-          field: 'label',
-          unique: true,
-        ),
-      );
-      await adapter.insert(
-        const InsertDescriptor(
-          table: 'widgets',
-          values: <String, Object?>{'id': 1, 'label': 'A'},
-        ),
-      );
-      expect(
-        () => adapter.insert(
+    test(
+      'a unique index violation maps to UniqueConstraintException',
+      () async {
+        // Indexes are described by a column list now, so a composite Mongo
+        // index is reachable through the same path a single-column one takes.
+        await adapter.executeSchema(
+          const SchemaDescriptor.alterTable(
+            table: 'widgets',
+            alterations: <SchemaAlteration>[
+              SchemaAddIndex(
+                SchemaIndex(
+                  name: 'widgets_label_key',
+                  columns: <String>['label'],
+                  unique: true,
+                ),
+              ),
+            ],
+          ),
+        );
+        await adapter.insert(
           const InsertDescriptor(
             table: 'widgets',
-            values: <String, Object?>{'id': 2, 'label': 'A'},
+            values: <String, Object?>{'id': 1, 'label': 'A'},
           ),
-        ),
-        throwsA(isA<UniqueConstraintException>()),
-      );
-    });
+        );
+        expect(
+          () => adapter.insert(
+            const InsertDescriptor(
+              table: 'widgets',
+              values: <String, Object?>{'id': 2, 'label': 'A'},
+            ),
+          ),
+          throwsA(isA<UniqueConstraintException>()),
+        );
+      },
+    );
   });
 }

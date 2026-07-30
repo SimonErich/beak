@@ -39,6 +39,12 @@ abstract interface class BeakStorageDriver {
 }
 ```
 
+The other half is the config. `BeakStorageConfig` is sealed, so its subtypes live
+in `beak_core` as part-files of `beak_storage_config.dart`: `BeakFtpConfig` and
+`BeakS3Config` are both there, even though their drivers are separate packages.
+Add yours beside them, with its settings and a `driverId`. That split is what
+lets an app configure your backend without depending on your package.
+
 Keys are relative, `/`-separated paths. `beak_core` ships `BeakStorageKeys` with
 `join`, `validate`, and `appendToBaseUrl` so you never build a key or a public
 URL by hand, and so path-traversal (`../evil.png`) is rejected in one place. The
@@ -53,19 +59,7 @@ seam so the driver's logic (key building, error mapping, URL shaping) stays
 unit-testable against a fake. FTP calls that seam an `FtpTransport`:
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_transport.dart"
-abstract interface class FtpTransport {
-  /// Uploads [bytes] under [key], creating missing parent directories.
-  Future<void> store(String key, Uint8List bytes);
-
-  /// Downloads the file stored under [key].
-  Future<Uint8List> retrieve(String key);
-
-  /// Deletes the file stored under [key].
-  Future<void> remove(String key);
-
-  /// Whether a file is stored under [key].
-  Future<bool> exists(String key);
-}
+--8<-- "packages/beak_storage_ftp/lib/src/ftp_transport.dart:FtpTransport"
 ```
 
 The S3 package does the same with an `S3ObjectClient`. The production
@@ -162,30 +156,29 @@ socket error or protocol reply code.
 ## Register the factory
 
 Expose a `register…Storage` function that wires the factory into a
-`BeakStorageRegistry` under the driver id. The registry pre-registers `memory`
-and `local`; your package adds one line:
+`BeakStorageRegistry` under the driver id. The registry pre-registers the
+web-safe `memory` driver, and `beak_backend`'s `createDefaultStorageRegistry`
+adds `local`; your package adds one line:
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
-void registerFtpStorage(BeakStorageRegistry registry) {
-  registry.register('ftp', FtpStorageDriver.fromConfig);
-}
+--8<-- "packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart:registerFtpStorage"
 ```
 
 At app init the backend calls your register function once, then `resolve`s
 whichever config it was handed:
 
-```dart title="packages/beak_core/lib/src/storage/beak_storage_registry.dart"
-final registry = BeakStorageRegistry()
-  ..register('s3', BeakS3StorageDriver.fromConfig); // from beak_storage_s3
+```dart
+final registry = createDefaultStorageRegistry();
+registerFtpStorage(registry); // from your package
 
 // Later, build the driver the config selects:
 final BeakStorageDriver driver = registry.resolve(
-  BeakS3Config(
-    endpoint: Uri.parse('https://s3.eu-central-1.amazonaws.com'),
-    bucket: 'uploads',
-    accessKey: accessKey,
-    secretKey: secretKey,
-    region: 'eu-central-1',
+  BeakFtpConfig(
+    host: 'ftp.example.com',
+    user: 'beak',
+    password: password,
+    baseDir: '/srv/uploads',
+    publicBaseUrl: Uri.parse('https://static.example.com/uploads'),
   ),
 );
 ```
@@ -209,6 +202,14 @@ final class FakeFtpTransport implements FtpTransport {
   /// When set, every method throws this error instead of executing.
   Object? failure;
 
+  void _record(String call) {
+    calls.add(call);
+    final Object? error = failure;
+    if (error != null) {
+      throw error;
+    }
+  }
+
   @override
   Future<void> store(String key, Uint8List bytes) async {
     _record('store $key');
@@ -224,7 +225,7 @@ final class FakeFtpTransport implements FtpTransport {
     }
     return bytes;
   }
-  // remove / exists / _record omitted
+  // ...remove and exists, the same shape...
 }
 ```
 
@@ -235,29 +236,35 @@ setUp(() {
   transport = FakeFtpTransport();
   driver = FtpStorageDriver(config, transport: transport);
 });
-
+// ...the groups the tests sit in...
 test('stores under path/filename and describes the file', () async {
   final stored = await driver.put(upload, path: 'products');
   expect(transport.calls, ['store products/photo.png']);
+  expect(transport.files['products/photo.png'], upload.bytes);
   expect(stored.key, 'products/photo.png');
+  expect(stored.sizeInBytes, 3);
+  expect(stored.mimeType, 'image/png');
   expect(
     stored.url,
     Uri.parse('https://static.example.com/uploads/products/photo.png'),
   );
 });
 
-test('rejects traversal filenames before touching the transport', () async {
-  final evil = BeakUpload(
-    filename: '../evil.png',
-    mimeType: 'image/png',
-    bytes: Uint8List.fromList([1]),
-  );
-  await expectLater(
-    driver.put(evil, path: 'products'),
-    throwsA(isA<BeakStorageException>()),
-  );
-  expect(transport.calls, isEmpty);
-});
+test(
+  'rejects traversal filenames before touching the transport',
+  () async {
+    final evil = BeakUpload(
+      filename: '../evil.png',
+      mimeType: 'image/png',
+      bytes: Uint8List.fromList([1]),
+    );
+    await expectLater(
+      driver.put(evil, path: 'products'),
+      throwsA(isA<BeakStorageException>()),
+    );
+    expect(transport.calls, isEmpty);
+  },
+);
 ```
 
 Cover the registration too, so a config resolves to your driver and the factory

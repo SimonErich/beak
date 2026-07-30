@@ -22,14 +22,24 @@ import 'sqlite_transaction_adapter.dart';
 /// latency to hide, so concurrent loading is a no-op win here.
 final class SqliteAdapter extends DatabaseAdapter with ExplainCapable {
   /// Creates an adapter over an already-open [database].
+  ///
+  /// [libraryVersion] overrides the version the linked library reports, which
+  /// gates the statements SQLite only learned recently. Pass it to prove the
+  /// refusal without linking a decade-old SQLite; leave it alone otherwise.
   SqliteAdapter(
     CommonDatabase database, {
     SqliteCompiler compiler = const SqliteCompiler(),
-  }) : _runner = SqliteRunner(database: database, compiler: compiler),
+    String? libraryVersion,
+  }) : _runner = SqliteRunner(
+         database: database,
+         compiler: compiler,
+         libraryVersion: libraryVersion,
+       ),
        super(capabilities: SqliteRunner.capabilities);
 
   /// Opens a fresh in-memory database (ideal for tests).
-  factory SqliteAdapter.memory() => SqliteAdapter(sqlite3.openInMemory());
+  factory SqliteAdapter.memory({String? libraryVersion}) =>
+      SqliteAdapter(sqlite3.openInMemory(), libraryVersion: libraryVersion);
 
   /// Opens (or creates) a file-backed database at [path].
   factory SqliteAdapter.open(String path) => SqliteAdapter(sqlite3.open(path));

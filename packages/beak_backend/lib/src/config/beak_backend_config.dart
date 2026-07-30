@@ -2,6 +2,28 @@ import 'dart:io';
 
 import 'package:beak_core/beak_core.dart';
 
+/// Whether [databaseUrl] names a SQLite database.
+///
+/// `sqlite:beak.db`, `sqlite:///tmp/beak.db` and `sqlite::memory:` all count;
+/// the last opens an in-memory database that vanishes with the process, which
+/// is what a demo or a throwaway container wants.
+bool isSqliteUrl(Uri databaseUrl) =>
+    databaseUrl.scheme == 'sqlite' || databaseUrl.scheme == 'file';
+
+/// The file path a SQLite [databaseUrl] points at, or `null` for in-memory.
+///
+/// `sqlite:beak.db` names a file beside the process. A URL whose path is
+/// `:memory:`, or which has no path at all, is in-memory.
+String? sqliteFilePathOf(Uri databaseUrl) {
+  final String path = databaseUrl.path.isNotEmpty
+      ? databaseUrl.path
+      : Uri.decodeComponent(
+          databaseUrl.toString().substring('${databaseUrl.scheme}:'.length),
+        );
+  final String trimmed = path.startsWith('//') ? path.substring(2) : path;
+  return trimmed.isEmpty || trimmed == ':memory:' ? null : trimmed;
+}
+
 /// Typed, validated runtime configuration for a Beak backend.
 ///
 /// Built once at startup — usually with [fromEnv] over `BeakEnv.resolve()` —
@@ -20,31 +42,39 @@ import 'package:beak_core/beak_core.dart';
 /// ```
 final class BeakBackendConfig {
   /// Creates a configuration from already-validated parts.
+  // --8<-- [start:BeakBackendConfig]
   const BeakBackendConfig({
     required this.databaseUrl,
     this.port = defaultPort,
     this.host = defaultHost,
   });
+  // --8<-- [end:BeakBackendConfig]
+
+  /// The database a project gets when it names none.
+  ///
+  /// A file beside the project, so the very first `beak dev` needs no Docker,
+  /// no credentials and no `.env`. Requiring a database to see anything at all
+  /// loses more first-time users than any other step.
+  static const String defaultDatabaseUrl = 'sqlite:beak.db';
 
   /// Reads and validates the configuration from [environment] (defaults to
   /// [Platform.environment]).
   ///
-  /// Requires `DATABASE_URL` (an absolute URL); `PORT` (1–65535, default
+  /// `DATABASE_URL` defaults to [defaultDatabaseUrl]; `PORT` (1–65535, default
   /// [defaultPort]) and `HOST` (non-empty, default [defaultHost]) are
-  /// optional. Throws a [BeakConfigurationException] on anything missing or
-  /// malformed.
+  /// optional. Throws a [BeakConfigurationException] on anything malformed.
   factory BeakBackendConfig.fromEnv({Map<String, String>? environment}) {
     final env = environment ?? Platform.environment;
-    final rawDatabaseUrl = env['DATABASE_URL'];
-    if (rawDatabaseUrl == null) {
-      throw const BeakConfigurationException(
-        'DATABASE_URL is required (e.g. postgres://user:pass@host:5432/db).',
+    final String rawDatabaseUrl = env['DATABASE_URL'] ?? defaultDatabaseUrl;
+    final Uri? databaseUrl = Uri.tryParse(rawDatabaseUrl);
+    if (databaseUrl == null || databaseUrl.scheme.isEmpty) {
+      throw BeakConfigurationException(
+        'DATABASE_URL must be an absolute URL, got "$rawDatabaseUrl".',
       );
     }
-    final Uri? databaseUrl = Uri.tryParse(rawDatabaseUrl);
-    if (databaseUrl == null ||
-        databaseUrl.scheme.isEmpty ||
-        databaseUrl.host.isEmpty) {
+    // A file-backed sqlite URL has a path and no host; every server database
+    // has a host, and one without is a typo worth naming.
+    if (!isSqliteUrl(databaseUrl) && databaseUrl.host.isEmpty) {
       throw BeakConfigurationException(
         'DATABASE_URL must be an absolute URL with a host, '
         'got "$rawDatabaseUrl".',

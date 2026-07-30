@@ -30,16 +30,28 @@ void main() {
       expect(column.autoIncrement, isTrue);
     });
 
-    test('id() and idUuid() emit the same SQL fragment', () {
-      final a = Blueprint.create('a', (t) => t.id()).toSql();
-      final b = Blueprint.create('a', (t) => t.idUuid()).toSql();
-      expect(a, b);
+    test('id() and idUuid() describe the same column', () {
+      expect(
+        _described((t) => t.id()),
+        _described((t) => t.idUuid()),
+        reason: 'the aliases have drifted apart',
+      );
     });
 
-    test('intId() and idIncrements() emit the same SQL fragment', () {
-      final a = Blueprint.create('a', (t) => t.intId()).toSql();
-      final b = Blueprint.create('a', (t) => t.idIncrements()).toSql();
-      expect(a, b);
+    test('intId() and idIncrements() describe the same column', () {
+      expect(_described((t) => t.intId()), _described((t) => t.idIncrements()));
     });
   });
+}
+
+/// The single column [build] declares, as comparable values.
+///
+/// The aliases are only aliases if they produce the same description; what
+/// each dialect then renders it as is the compilers' business, and their own
+/// tests'.
+(String, ColumnType, bool, bool) _described(
+  void Function(BlueprintTable table) build,
+) {
+  final column = Blueprint.create('a', build).table.columns.single;
+  return (column.name, column.type, column.isPrimaryKey, column.autoIncrement);
 }

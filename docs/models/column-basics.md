@@ -1,20 +1,72 @@
 ---
 title: Column basics
-description: The configuration every Beak column shares, and how visibleOn and render intents make one definition render on every surface.
+description: What @Column carries on every field, how visibleOn picks the surfaces, and how one field renders in a table, a form, a detail view and a filter.
 ---
 
 # Column basics
 
-Every column type in Beak, from a plain string to an image with a transform
-pipeline, shares the same base configuration. After this page you know what
-those shared options do and how one column definition renders differently in a
-table, a form, a detail view, and a filter.
+Every column in Beak, from a plain string to an image with a transform
+pipeline, shares one set of options. After this page you know what each of them
+does, which ones the migration reads, and how one field renders differently in
+a table, a form, a detail view and a filter.
 
 ## The shared config
 
-`BeakColumn` is a sealed base class. You never construct it directly, you pick a
-leaf like `BeakStringColumn` or `BeakEnumColumn`, but every leaf forwards these
-same constructor parameters:
+The field's Dart type picks the column kind. `@Column` carries the rest, and
+these parameters mean the same thing whatever the kind is:
+
+| Parameter | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `columnName` | `String?` | the snake-cased field name | The storage column name. |
+| `label` | `String?` | the title-cased field name | The human label shown in tables, forms and detail views. |
+| `visibleOn` | `Set<BeakContext>?` | table, form, detail | The surfaces the column appears on. |
+| `sortable` | `bool` | `false` | Table views may order by it. |
+| `searchable` | `bool` | `false` | Search includes it. |
+| `filterable` | `bool` | `false` | The list page derives a filter control from it. |
+| `indexed` | `bool` | `false` | The generated migration indexes it. |
+| `unique` | `bool` | `false` | The generated migration adds a unique index. |
+| `rules` | `List<BeakRule>` | `const []` | Validation rules, run in order, in the form and again in the API. |
+
+Everything else `@Column` takes belongs to one kind (`prefix` on a number,
+`format` on a `DateTime`, `trueLabel` on a `bool`).
+[Column types](column-types.md) takes those one at a time, and
+[Annotations](../reference/annotations.md) lists them in one table.
+
+Here is a field carrying four of the shared options:
+
+```dart title="examples/store/lib/models/tag.dart"
+/// What the tag is called.
+@Display()
+@Column(
+  searchable: true,
+  sortable: true,
+  unique: true,
+  rules: [BeakMaxLength(60)],
+)
+late final String name;
+```
+
+and the constant `beak prepare` writes from it:
+
+```dart title="examples/store/lib/models/tag.beak.dart"
+/// What the tag is called.
+static const BeakStringColumn name = BeakStringColumn(
+  key: 'name',
+  label: 'Name',
+  rules: [BeakRequired(), BeakMaxLength(60)],
+  searchable: true,
+  sortable: true,
+  unique: true,
+);
+```
+
+Two things arrived without being written. `key` and `label` come from the field
+name, and `BeakRequired()` comes from the field not being nullable. From here on
+your app points at `TagColumns.name`, the constant, never at `'name'`, the
+string.
+
+The constant is an instance of the sealed `BeakColumn` base, whose constructor
+is the shared config in code:
 
 ```dart title="packages/beak_core/lib/src/columns/beak_column.dart"
 const BeakColumn({
@@ -28,24 +80,12 @@ const BeakColumn({
   this.sortable = false,
   this.searchable = false,
   this.filterable = false,
+  this.indexed = false,
+  this.unique = false,
   this.rules = const [],
 });
 ```
 
-Here is what each one is for:
-
-| Parameter | Type | Default | What it does |
-| --- | --- | --- | --- |
-| `key` | `String` | required | The storage/DB column name, snake_case. Beak wires it internally; you reference the column constant, never this string. |
-| `label` | `String` | required | The human-readable label shown in tables, forms, and detail views. |
-| `visibleOn` | `Set<BeakContext>` | table, form, detail | The surfaces the column appears on. |
-| `sortable` | `bool` | `false` | Whether table views may sort by the column. |
-| `searchable` | `bool` | `false` | Whether global search includes the column. |
-| `filterable` | `bool` | `false` | Whether table views may filter by the column. |
-| `rules` | `List<BeakRule>` | `const []` | Validation rules enforced on input, in order, on client and server. |
-
-Notice `key` is the only string you write, and even that never appears in your
-app code again: everywhere else you pass the column constant itself.
 [Validation rules](validation-rules.md) covers the `rules` list in full.
 
 ## visibleOn: which surfaces a column appears on
@@ -54,52 +94,93 @@ app code again: everywhere else you pass the column constant itself.
 render site:
 
 ```dart title="packages/beak_core/lib/src/context/beak_context.dart"
-enum BeakContext {
-  /// A cell inside a resource list/table.
-  table,
-
-  /// An editable input inside a create/edit form.
-  form,
-
-  /// A read-only entry inside a record detail view.
-  detail,
-
-  /// A filter control inside a table's filter bar.
-  filter,
-}
+--8<-- "packages/beak_core/lib/src/context/beak_context.dart:BeakContext"
 ```
 
 The default is `{table, form, detail}`: shown everywhere a value is edited or
-read, but not offered as a filter. Narrow the set to hide a column from a
-surface. A primary key, for instance, is read-only detail only:
+read. Narrow the set to keep a field off a surface. A long blurb, for instance,
+belongs in the form and the detail view but would crowd a table row:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
+```dart title="examples/store/lib/models/category.dart"
+/// The one-line blurb shown above the product list.
+@Column(visibleOn: {BeakContext.form, BeakContext.detail})
+late final BeakText? blurb;
+```
+
+The columns Beak adds for you come pre-narrowed. The primary key is detail only,
+and the timestamps are never editable, because the API stamps them:
+
+```dart title="examples/store/lib/models/product.beak.dart"
 /// Primary key.
-static const id = BeakStringColumn(
+static const BeakStringColumn id = BeakStringColumn(
   key: 'id',
   label: 'Id',
   visibleOn: {BeakContext.detail},
 );
 
-/// Last-update timestamp, rendered relatively in tables.
-static const updatedAt = BeakDateTimeColumn(
+// ... the columns declared on the schema class ...
+
+/// When the record was last updated.
+static const BeakDateTimeColumn updatedAt = BeakDateTimeColumn(
   key: 'updated_at',
   label: 'Updated',
-  format: BeakDateFormat.relative,
   sortable: true,
+  format: BeakDateFormat.relative,
   visibleOn: {BeakContext.table, BeakContext.detail},
 );
 ```
 
-The `id` column shows up only on the detail view; `updatedAt` appears in the
-table and detail but never in a form (the backend stamps it, so there is nothing
-to edit).
+## Sorting, searching and filtering
 
-!!! tip "filter is opt-in, not automatic"
-    `filterable: true` marks a column as a candidate for filtering, but `filter`
-    is not in the default `visibleOn` set. The panel builds filter controls from
-    the [filters](../panel/tables-and-filters.md) you declare on a resource, not
-    from `visibleOn` alone.
+Three flags, three surfaces of the list page:
+
+- **`sortable: true`** gives the column a sortable table header, and lets a
+  query spec order by it.
+- **`searchable: true`** puts the column in the set the search box queries.
+  Search with no searchable column finds nothing, so mark at least the name.
+- **`filterable: true`** contributes a filter control to the filter bar.
+
+The filter bar is derived. A resource that declares no filters of its own gets
+one control per filterable column, of the kind that column's type calls for:
+
+```dart title="packages/beak_frontend/lib/src/filters/beak_default_filters.dart"
+--8<-- "packages/beak_frontend/lib/src/filters/beak_default_filters.dart:beakDefaultFiltersOf"
+```
+
+Enums become a select, booleans a switch, strings and text a contains-search,
+dates a range. A filterable number has no obvious control yet and is skipped
+rather than guessed at: declare that one on the resource. See
+[Tables and filters](../panel/tables-and-filters.md) for the declared kind.
+
+!!! tip "filterable is a flag, filter is a context"
+    `filterable: true` is what creates the control. `BeakContext.filter` is
+    where a control asks the column how to draw itself, which is why `filter`
+    is not in the default `visibleOn` set and does not need to be.
+
+## Indexing and uniqueness
+
+`indexed` and `unique` are read by the generated migration, not by the panel.
+`unique` writes a unique index, so it indexes too; declaring both is the same
+fact twice. Every belongs-to foreign key is indexed without being asked, since
+the panel joins on them to draw a list page, so these two are for the columns
+you sort or filter by often.
+
+```dart title="examples/store/lib/models/product.dart"
+/// The stock-keeping unit, unique across the catalog.
+@Column(
+  label: 'SKU',
+  searchable: true,
+  unique: true,
+  rules: [BeakMaxLength(40)],
+)
+late final String sku;
+```
+
+!!! warning "Adding an index to a table that exists"
+    `beak prepare` writes a table's migration once and never rewrites it. Adding
+    `indexed: true` to a resource that has already migrated changes the model,
+    not the database: write a migration that alters the table with
+    `schema.alter`. See [Migrations](../backend/migrations.md).
 
 ## Render intents: one column, four surfaces
 
@@ -140,16 +221,18 @@ BeakRenderConfig get renderConfig => BeakRenderConfig(
 );
 ```
 
-You never set intents yourself for the built-in columns; each type ships the
-right config. The [custom column](column-types.md#the-escape-hatch) is the one
-place you reach for the `custom` intent and register your own renderer. For the
-full story of how intents become widgets, see
+You never set intents. Each kind ships the right config, and a field annotated
+`@Custom` is the one place you name a renderer of your own (see
+[the escape hatch](column-types.md#the-escape-hatch)). For the full story of how
+intents become widgets, see
 [Rendering per surface](../concepts/rendering-per-surface.md).
 
 ## Continue reading
 
-- [Column types](column-types.md) every built-in column and the config it adds
-  on top of these basics.
-- [Validation rules](validation-rules.md) the rules you attach to `rules`.
+- [Column types](column-types.md) every column kind and the field type that
+  picks it.
+- [Validation rules](validation-rules.md) the rules you list in `rules:`.
+- [Annotations](../reference/annotations.md) every parameter of `@Column`, in
+  one table.
 - [Rendering per surface](../concepts/rendering-per-surface.md) how a render
   intent becomes an obers_ui widget.

@@ -32,11 +32,18 @@ if (searchableColumns.isEmpty) {
   continue;
 }
 final page = await dataSource.query(
-  BeakQuerySpec(table: model.table)
-      .searching(term, searchableColumns)
-      .paginate(page: 1, perPage: perModel),
+  BeakResourceService.scopedQuery(
+    BeakQuerySpec(table: model.table)
+        .searching(term, searchableColumns)
+        .paginate(page: 1, perPage: perModel),
+    scopes?[model.table],
+  ),
 );
 ```
+
+Note the `scopedQuery` wrapper. A [row policy](auth-and-policies.md) narrows
+global search the same way it narrows `/query`, or the search box would become a
+way to read the labels of rows the caller cannot open.
 
 The `searchable` flag lives on the column, next to everything else that column
 drives. Mark the two or three fields worth matching (a name, an email) and leave
@@ -76,6 +83,11 @@ final hits = await service.search(
   term,
   perModel: perModel,
   tables: viewableTables,
+  scopes: {
+    for (final table in viewableTables)
+      if (beakRowScope(policy, principal, table) case final BeakFilter s)
+        table: s,
+  },
 );
 final grouped = <String, List<Map<String, Object?>>>{};
 for (final hit in hits) {
@@ -99,7 +111,7 @@ grouped response back into a flat list in table order. The command bar's search
 box is the usual caller.
 
 !!! note "What just happened"
-    - Only `name` and `description` on the product model carry `searchable: true`,
+    - Only `name` and `sku` on the product model carry `searchable: true`,
       so those are the only columns searched.
     - `perModel: 3` capped each model to three hits, keeping a broad search fast.
     - The response groups hits by table so the UI can render one section per
@@ -174,8 +186,10 @@ doubled, so the output is valid CSV even for messy text.
 
 ### The endpoint
 
-The export handler checks `canView` before it parses the spec, then returns the
-stream as a downloadable attachment.
+The export handler checks `canView` before it parses the spec, applies the row
+scope to the spec it was given, then returns the stream as a downloadable
+attachment. Export is a query that returns a file, so a scope that held for
+`/query` but not here would be the easiest bypass in the API.
 
 ```dart title="packages/beak_backend/lib/src/export/export_router.dart"
 Future<Response> export(Request request) async {
@@ -190,7 +204,13 @@ Future<Response> export(Request request) async {
     BeakQuerySpec.fromJson,
   );
   return Response.ok(
-    await service.exportCsv(model.table, spec),
+    await service.exportCsv(
+      model.table,
+      BeakResourceService.scopedQuery(
+        spec,
+        beakRowScope(policy, beakPrincipal(request), model.table),
+      ),
+    ),
     headers: {
       'content-type': 'text/csv; charset=utf-8',
       'content-disposition': 'attachment; filename="${model.table}.csv"',

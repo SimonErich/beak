@@ -6,7 +6,8 @@ part of 'beak_block.dart';
 ///
 /// Reuses the full `BeakDataTable` (server-side sort, filter, pagination,
 /// row actions), so a table on a page behaves exactly like a resource list.
-/// [initialSpec] seeds ordering and page size; [baseFilter] scopes the rows.
+/// [initialSpec] seeds ordering and page size; [baseFilter] scopes the rows;
+/// [columns] narrows what is shown, for a table inside a card.
 ///
 /// ```dart
 /// BeakTableBlock(
@@ -24,6 +25,7 @@ final class BeakTableBlock extends BeakBlock {
   const BeakTableBlock({
     required this.model,
     this.title,
+    this.columns,
     this.initialSpec,
     this.baseFilter,
     this.actions = const [],
@@ -41,6 +43,13 @@ final class BeakTableBlock extends BeakBlock {
 
   /// The model whose rows the table lists.
   final BeakModel model;
+
+  /// The columns to show, in order; defaults to the model's table-context
+  /// columns.
+  ///
+  /// A dashboard card is not a list page: three columns read at a glance
+  /// where seventeen do not fit at all.
+  final List<BeakColumn>? columns;
 
   /// Seeds sort order and page size on first load.
   final BeakQuerySpec? initialSpec;

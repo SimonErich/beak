@@ -1,12 +1,12 @@
 /// Fluent schema builder for migrations.
 library;
 
+import '../exception/schema_definition_exception.dart';
 import 'column_definition.dart';
 import 'column_type.dart';
 import 'foreign_key_definition.dart';
 import 'index_definition.dart';
 import 'on_delete.dart';
-import 'type_mapper.dart';
 
 /// Operation performed by a [Blueprint].
 enum BlueprintOperation {
@@ -42,6 +42,24 @@ final class BlueprintTable {
 
   /// Columns marked for removal during ALTER.
   final List<String> droppedColumns = <String>[];
+
+  /// Index names marked for removal during ALTER.
+  final List<String> droppedIndexes = <String>[];
+
+  /// Foreign-key constraint names marked for removal during ALTER.
+  final List<String> droppedForeignKeys = <String>[];
+
+  /// Columns being added, in declaration order.
+  List<ColumnDefinition> get addedColumns => <ColumnDefinition>[
+    for (final column in columns)
+      if (!column.isChange) column,
+  ];
+
+  /// Columns being modified, in declaration order.
+  List<ColumnDefinition> get changedColumns => <ColumnDefinition>[
+    for (final column in columns)
+      if (column.isChange) column,
+  ];
 
   ColumnDefinition _add(ColumnDefinition column) {
     columns.add(column);
@@ -212,6 +230,17 @@ final class BlueprintTable {
     droppedColumns.add(columnName);
   }
 
+  /// Marks the index named [indexName] for removal during ALTER.
+  void dropIndex(String indexName) {
+    droppedIndexes.add(indexName);
+  }
+
+  /// Marks the foreign-key constraint named [constraintName] for removal
+  /// during ALTER.
+  void dropForeign(String constraintName) {
+    droppedForeignKeys.add(constraintName);
+  }
+
   /// Adds an index over [columns].
   IndexDefinition index(
     List<String> columns, {
@@ -221,6 +250,32 @@ final class BlueprintTable {
     String? where,
   }) {
     final indexName = name ?? '${tableName}_${columns.join('_')}_idx';
+    // Declaring the same index twice is normal once anything derives indexes
+    // from a model: a migration may also name the one on a foreign key. Two
+    // definitions with one name is either the same index — in which case the
+    // second is redundant — or a mistake worth naming.
+    for (final existing in indexes) {
+      if (existing.name != indexName) {
+        continue;
+      }
+      final identical =
+          _sameColumns(existing.columns, columns) &&
+          existing.unique == unique &&
+          existing.kind == kind &&
+          existing.partialWhere == where;
+      if (identical) {
+        return existing;
+      }
+      throw SchemaDefinitionException(
+        table: tableName,
+        operation: 'index',
+        message:
+            'Two different indexes would both be named "$indexName". A '
+            'unique, partial or differently-typed index over the same '
+            'columns is a different index, and no database accepts two under '
+            'one name — give one of them an explicit name.',
+      );
+    }
     final def = IndexDefinition(
       name: indexName,
       columns: columns,
@@ -230,6 +285,19 @@ final class BlueprintTable {
     );
     indexes.add(def);
     return def;
+  }
+
+  /// Whether [a] and [b] cover the same columns in the same order.
+  static bool _sameColumns(List<String> a, List<String> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Adds a unique index over [columns].
@@ -335,113 +403,4 @@ final class Blueprint {
 
   /// The accumulated table definition.
   final BlueprintTable table;
-
-  /// Renders the blueprint as PostgreSQL DDL.
-  String toSql() => switch (operation) {
-    BlueprintOperation.create => _renderCreate(),
-    BlueprintOperation.alter => _renderAlter(),
-    BlueprintOperation.drop => 'DROP TABLE IF EXISTS "$tableName";',
-  };
-
-  String _renderCreate() {
-    final buffer = StringBuffer('CREATE TABLE "$tableName" (')..write('\n');
-    final lines = <String>[
-      for (final col in table.columns) _renderColumn(col),
-      for (final fk in table.foreignKeys) _renderForeignKey(fk),
-    ];
-    buffer
-      ..writeAll(lines, ',\n')
-      ..write('\n);');
-    for (final idx in table.indexes) {
-      buffer
-        ..write('\n')
-        ..write(_renderIndex(idx));
-    }
-    return buffer.toString();
-  }
-
-  String _renderAlter() {
-    final parts = <String>[
-      for (final col in table.columns)
-        'ADD COLUMN ${_renderColumn(col).trim()}',
-      for (final dropped in table.droppedColumns) 'DROP COLUMN "$dropped"',
-    ];
-    if (parts.isEmpty) return '-- empty alter';
-    return 'ALTER TABLE "$tableName" ${parts.join(', ')};';
-  }
-
-  String _renderColumn(ColumnDefinition col) {
-    final sqlType = TypeMapper.toSqlType(
-      col.type,
-      length: col.length,
-      precision: col.precision,
-      scale: col.scale,
-      elementType: col.elementType,
-    );
-    final buffer = StringBuffer('  "${col.name}" $sqlType');
-    if (col.autoIncrement) buffer.write(' GENERATED ALWAYS AS IDENTITY');
-    if (col.isPrimaryKey) buffer.write(' PRIMARY KEY');
-    if (col.unique) buffer.write(' UNIQUE');
-    if (!col.nullable && !col.isPrimaryKey) buffer.write(' NOT NULL');
-    final defaultValue = col.defaultValue;
-    if (defaultValue != null) {
-      buffer.write(' DEFAULT ${_renderDefault(defaultValue)}');
-    }
-    return buffer.toString();
-  }
-
-  String _renderDefault(Object value) => switch (value) {
-    final bool b => b ? 'TRUE' : 'FALSE',
-    final num n => '$n',
-    _ => "'$value'",
-  };
-
-  String _renderForeignKey(ForeignKeyDefinition fk) {
-    final locals = fk.columns.map((c) => '"$c"').join(', ');
-    final remotes = fk.referencedColumns.map((c) => '"$c"').join(', ');
-    final buffer = StringBuffer('  FOREIGN KEY ($locals) ')
-      ..write('REFERENCES "${fk.referencedTable}"')
-      ..write('($remotes)')
-      ..write(' ON DELETE ${_onDeleteSql(fk.onDelete)}');
-    return buffer.toString();
-  }
-
-  String _onDeleteSql(OnDelete action) => switch (action) {
-    OnDelete.cascade => 'CASCADE',
-    // ormCascade is honored at runtime by ActiveRecord.delete; the
-    // database-level FK is rendered as NO ACTION because the ORM
-    // walks every child before issuing the parent delete.
-    OnDelete.ormCascade => 'NO ACTION',
-    OnDelete.restrict => 'RESTRICT',
-    OnDelete.setNull => 'SET NULL',
-    OnDelete.setDefault => 'SET DEFAULT',
-    OnDelete.noAction => 'NO ACTION',
-  };
-
-  String _renderIndex(IndexDefinition idx) {
-    final cols = idx.columns.map((c) => '"$c"').join(', ');
-    final unique = idx.unique ? 'UNIQUE ' : '';
-    final where = idx.partialWhere != null ? ' WHERE ${idx.partialWhere}' : '';
-    return 'CREATE ${unique}INDEX "${idx.name}" '
-        'ON "$tableName" USING ${idx.kind.name} ($cols)$where;';
-  }
-
-  /// Renders the blueprint as a MongoDB description document.
-  Map<String, Object?> toMongo() => <String, Object?>{
-    'operation': operation.name,
-    'collection': tableName,
-    if (operation != BlueprintOperation.drop)
-      'fields': <Map<String, Object?>>[
-        for (final col in table.columns)
-          <String, Object?>{
-            'name': col.name,
-            'bsonType': TypeMapper.toMongoType(col.type),
-            'required': !col.nullable,
-          },
-      ],
-    if (table.indexes.isNotEmpty)
-      'indexes': <Map<String, Object?>>[
-        for (final idx in table.indexes) idx.toMap(),
-      ],
-  };
 }

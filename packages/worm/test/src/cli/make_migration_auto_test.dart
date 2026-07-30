@@ -192,7 +192,7 @@ void main() {
       // Sanity check that this test file imports the Blueprint and
       // Schema facade so the in-scope verification above compiles
       // even when the auto-generator changes.
-      expect(Blueprint.drop('x').toSql(), contains('DROP TABLE'));
+      expect(Blueprint.drop('x').operation, BlueprintOperation.drop);
     });
   });
 }

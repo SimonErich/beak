@@ -155,6 +155,9 @@ final class FtpStorageDriver implements BeakStorageDriver {
 /// registerFtpStorage(registry);
 /// final driver = registry.resolve(ftpConfig); // -> FtpStorageDriver
 /// ```
+// --8<-- [start:registerFtpStorage]
 void registerFtpStorage(BeakStorageRegistry registry) {
   registry.register('ftp', FtpStorageDriver.fromConfig);
 }
+
+// --8<-- [end:registerFtpStorage]

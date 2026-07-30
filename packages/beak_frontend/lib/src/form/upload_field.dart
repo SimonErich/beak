@@ -27,7 +27,9 @@ import 'beak_form_controller_builder.dart';
 ///   );
 /// }
 /// ```
+// --8<-- [start:BeakFilePicker]
 typedef BeakFilePicker = Future<BeakUpload?> Function();
+// --8<-- [end:BeakFilePicker]
 
 /// The form field for [BeakImageColumn]/[BeakFileColumn]: picking a file
 /// validates the column's size/type rules client-side (identical messages
@@ -73,7 +75,7 @@ class BeakUploadField extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final BeakFormSlot slot = controller.slotOf(column);
+    final Enum slot = controller.slotOf(column);
     useListenable(controller);
     final feedback = useState<String?>(null);
     final stored = useState<BeakStoredFile?>(null);

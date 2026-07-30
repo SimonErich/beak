@@ -1,9 +1,9 @@
 /// Material/Cupertino import guard (`melos run guard-material`).
 ///
-/// Beak UI is built exclusively with obers_ui (CLAUDE.md §2.1): importing
+/// Beak UI is built exclusively with obers_ui: importing
 /// `package:flutter/material.dart` or `package:flutter/cupertino.dart` is a
 /// blocking defect. This tool scans every Dart file of the gated packages
-/// (under `packages/` and `apps/`, vendored `worm*` excluded) and exits
+/// (under `packages/` and `examples/`, vendored `worm*` excluded) and exits
 /// non-zero listing each offending file.
 library;
 
@@ -16,7 +16,7 @@ const List<String> forbiddenImportUris = [
 ];
 
 /// Directories that hold gated packages, relative to the repo root.
-const List<String> packageRootDirs = ['packages', 'apps'];
+const List<String> packageRootDirs = ['packages', 'examples'];
 
 /// Returns each forbidden URI referenced by an `import` or `export`
 /// directive in [dartSource], once per offending directive.

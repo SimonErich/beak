@@ -5,6 +5,7 @@ import 'package:shelf/shelf.dart';
 
 /// Defaults the response `content-type` to JSON when the handler set none,
 /// leaving explicit content types (CSV exports, file downloads) untouched.
+// --8<-- [start:beakJsonMiddleware]
 Middleware beakJsonMiddleware() =>
     (Handler inner) => (Request request) async {
       final Response response = await inner(request);
@@ -15,6 +16,7 @@ Middleware beakJsonMiddleware() =>
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     };
+// --8<-- [end:beakJsonMiddleware]
 
 /// Reads and decodes [request]'s body as a JSON object.
 ///

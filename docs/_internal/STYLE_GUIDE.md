@@ -106,11 +106,11 @@ form field, the detail row, the filter, the API validator, and the CSV column."
 Beak ships two demo apps. They use **different models**. Never put a column
 constant from one app into a snippet themed around the other.
 
-- **`apps/reference_admin*`** is the clean teaching store (a small coffee
+- **`examples/store*`** is the clean teaching store (a small coffee
   roastery: Products, Categories, Tags, Users, Orders). Use it for the **Tutorial
   ("First Flight")** and **Core concepts**. Its server runs on **port 8080**
   (`apiBaseUrl: 'http://localhost:8080'`).
-- **`apps/beak_superdashboard`** is the kitchen-sink showcase (49 models, every
+- **`examples/superdashboard`** is the kitchen-sink showcase (49 models, every
   block, every view mode, custom screens). Use it for **feature, blocks, charts,
   and reference** pages. Its server runs on **port 8180**
   (`apiBaseUrl: 'http://localhost:8180'`). Match the port to the app in every

@@ -11,8 +11,10 @@ candlestick chart (open, high, low, close), and a heatmap (a value at a row and
 column). Each is a block with its own typed point and mapper, and each follows
 the same query-plus-mapper shape as the [single-series charts](chart-basics.md).
 
-All three examples come from the showcase app (`apps/beak_superdashboard`, port
-8180), which seeds a small analytics table behind each one.
+All three examples come from the showcase app (`examples/superdashboard`, port
+8180), which seeds a small analytics table behind each one. The blocks sit in
+`lib/screens/charts_screen.dart` and their mappers in
+`lib/services/dashboard_charts.dart`.
 
 ## Bubble charts
 
@@ -65,22 +67,22 @@ final class BeakBubblePoint {
 The mapper is a `BeakBubbleMapper` (`List<BeakBubblePoint> Function(List<BeakRecord>)`).
 The showcase reads the catalog: price on x, stock on y, cost as the bubble size.
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `products` rows onto bubble points: price × stock, sized by cost.
 List<BeakBubblePoint> productBubblePoints(List<BeakRecord> records) => [
-  for (final record in records)
+  for (final product in records.map(ProductRecord.of))
     BeakBubblePoint(
-      x: _asDouble(record['price']?.raw),
-      y: _asDouble(record['stock']?.raw),
-      size: _asDouble(record['cost']?.raw),
-      label: record['name']?.raw?.toString(),
+      x: product.price,
+      y: (product.stock ?? 0).toDouble(),
+      size: product.cost ?? 0,
+      label: product.name,
     ),
 ];
 ```
 
 Drop it into a grid like any block:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 const BeakBubbleChartBlock(
   title: 'Catalog: price × stock, sized by cost',
   query: BeakQuerySpec(table: 'products', pagination: analyticsPage),
@@ -142,43 +144,55 @@ The mapper is a `BeakCandleMapper`. Because a candlestick chart is meaningless
 out of order, the showcase sorts the rows by their `sort_index` before assigning
 each an x position:
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `price_candles` rows onto ordered OHLC candles.
 List<BeakCandle> priceCandles(List<BeakRecord> records) {
-  final rows = [...records]
-    ..sort((a, b) {
-      final ai = (a['sort_index']?.raw as num?)?.toInt() ?? 0;
-      final bi = (b['sort_index']?.raw as num?)?.toInt() ?? 0;
-      return ai.compareTo(bi);
-    });
+  final candles = records.map(PriceCandleRecord.of).toList()
+    ..sort((a, b) => (a.sortIndex ?? 0).compareTo(b.sortIndex ?? 0));
   return [
-    for (final (index, record) in rows.indexed)
+    for (final (index, candle) in candles.indexed)
       BeakCandle(
         x: index.toDouble(),
-        open: _asDouble(record['open']?.raw),
-        high: _asDouble(record['high']?.raw),
-        low: _asDouble(record['low']?.raw),
-        close: _asDouble(record['close']?.raw),
+        open: candle.open ?? 0,
+        high: candle.high ?? 0,
+        low: candle.low ?? 0,
+        close: candle.close ?? 0,
       ),
   ];
 }
 ```
 
 The four price columns come from a typed model like any other. The
-`price_candles` resource declares them as `BeakDecimalColumn`s with a `$` prefix:
+`PriceCandle` schema class declares them as annotated fields, and the field's
+`double` type is what picks a decimal column:
 
-```dart title="apps/beak_superdashboard/lib/models/analytics/price_candle.dart"
-/// The opening price.
-static const open = BeakDecimalColumn(
-  key: 'open',
-  label: 'Open',
-  prefix: r'$',
-);
+```dart title="examples/superdashboard/lib/models/analytics/price_candle.dart"
+@Resource()
+final class PriceCandle extends BeakSchema {
+  /// The bar's label (e.g. the day).
+  @Display()
+  @Column(label: 'Day', searchable: true)
+  late final String? label;
+
+  /// The opening price.
+  @Column(prefix: r'$')
+  late final double? open;
+
+  // ... high, low and close, the same shape
+
+  /// Ordering within the series.
+  @Column(label: 'Order', sortable: true, min: 0)
+  late final int? sortIndex;
+}
 ```
+
+`beak prepare` turns that into `PriceCandleColumns.open`, a `BeakDecimalColumn`
+carrying the `$` prefix, and `sortIndex` into a `BeakIntColumn` keyed
+`sort_index`. The mapper above reads the same rows.
 
 A candlestick is wide, so the showcase spans it across the whole grid:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 const BeakCandlestickChartBlock(
   span: BeakSpan(columns: 2),
   title: 'Price history (candlestick)',
@@ -240,14 +254,14 @@ final class BeakMatrixCell {
 The `BeakMatrixMapper` reads the row key, column key, and value straight off each
 record:
 
-```dart title="apps/beak_superdashboard/lib/services/dashboard_charts.dart"
+```dart title="examples/superdashboard/lib/services/dashboard_charts.dart"
 /// Maps `activity_heatmap` rows onto matrix cells.
 List<BeakMatrixCell> activityHeatCells(List<BeakRecord> records) => [
-  for (final record in records)
+  for (final cell in records.map(ActivityHeatCellRecord.of))
     BeakMatrixCell(
-      row: record['row_label']?.raw?.toString() ?? '',
-      column: record['column_label']?.raw?.toString() ?? '',
-      value: _asDouble(record['value']?.raw),
+      row: cell.rowLabel ?? '',
+      column: cell.columnLabel ?? '',
+      value: (cell.value ?? 0).toDouble(),
     ),
 ];
 ```
@@ -255,7 +269,7 @@ List<BeakMatrixCell> activityHeatCells(List<BeakRecord> records) => [
 The showcase pins the weekday order explicitly with `rowLabels` so the rows read
 Monday to Sunday rather than alphabetically:
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 const BeakHeatmapChartBlock(
   span: BeakSpan(columns: 2),
   title: 'Orders by weekday & month',

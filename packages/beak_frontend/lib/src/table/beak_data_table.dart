@@ -5,6 +5,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 import 'package:signals/signals_flutter.dart';
 
+import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/optimistic.dart';
 import 'beak_table_action.dart';
@@ -55,9 +56,11 @@ class BeakDataTable extends HookWidget {
   const BeakDataTable({
     required this.model,
     required this.dataSource,
+    this.columns,
     this.actions = const [],
     this.bulkActions = const [],
     this.onRowTap,
+    this.onOpenRelation,
     this.initialSpec,
     this.baseFilter,
     this.controller,
@@ -71,6 +74,10 @@ class BeakDataTable extends HookWidget {
   /// The source queries and mutations run against.
   final BeakDataSource dataSource;
 
+  /// The columns to render, in order; defaults to [model]'s table-context
+  /// columns.
+  final List<BeakColumn>? columns;
+
   /// Per-row actions, each invoked with the row's primary key.
   final List<BeakTableAction> actions;
 
@@ -79,6 +86,14 @@ class BeakDataTable extends HookWidget {
 
   /// Invoked with the tapped record.
   final void Function(BeakRecord record)? onRowTap;
+
+  /// Invoked with the tapped record on the far side of a to-one relationship
+  /// — typically navigating to *that* record's show route.
+  ///
+  /// When null the relationship still renders its name; it just is not a
+  /// link, because a link that goes nowhere is worse than plain text.
+  final void Function(BeakRelationship relation, BeakRecord related)?
+  onOpenRelation;
 
   /// The spec the first fetch runs (default: unfiltered first page).
   final BeakQuerySpec? initialSpec;
@@ -100,7 +115,13 @@ class BeakDataTable extends HookWidget {
       () => TableViewModel(
         model,
         dataSource,
-        initial: initialSpec,
+        // The table renders a column per to-one relationship, so the table is
+        // what asks for them — every caller gets names instead of uuids
+        // without knowing to request it.
+        initial: beakWithToOneLoads(
+          initialSpec ?? BeakQuerySpec(table: model.table),
+          model,
+        ),
         baseFilter: baseFilter,
       ),
       [model, dataSource, initialSpec, baseFilter],
@@ -228,29 +249,91 @@ class BeakDataTable extends HookWidget {
     );
   }
 
-  List<OiTableColumn<BeakRecord>> _columns(TableViewModel viewModel) => [
-    for (final column in model.columnsFor(BeakContext.table))
+  List<OiTableColumn<BeakRecord>> _columns(TableViewModel viewModel) {
+    // A relationship is shown in place of the foreign key it owns: the key
+    // renders as the uuid it stores, which tells the reader nothing, and
+    // showing both would be the same fact twice.
+    final List<BeakColumn> shown =
+        columns ?? model.columnsFor(BeakContext.table);
+    final relationsByForeignKey = <String, BeakRelationship>{
+      for (final relation in beakToOneRelationsOf(model))
+        if (relation is BeakBelongsTo) relation.foreignKey: relation,
+    };
+    return <OiTableColumn<BeakRecord>>[
+      for (final column in shown)
+        if (relationsByForeignKey[column.key] case final BeakRelationship r)
+          _relationColumn(r)
+        else
+          OiTableColumn<BeakRecord>(
+            id: column.key,
+            header: column.label,
+            sortable: column.sortable,
+            filterable: column.filterable,
+            valueGetter: (record) => record[column.key]?.raw?.toString() ?? '',
+            cellBuilder: (context, record, rowIndex) =>
+                renderBeakCell(context, column: column, record: record),
+          ),
+      // A to-one whose key is hidden from the table context still deserves a
+      // column — the relationship is what the reader came for.
+      for (final relation in beakToOneRelationsOf(model))
+        if (relation is! BeakBelongsTo ||
+            !shown.any((column) => column.key == relation.foreignKey))
+          _relationColumn(relation),
+      if (actions.isNotEmpty || enableDelete)
+        OiTableColumn<BeakRecord>(
+          id: '_actions',
+          header: '',
+          width: 56.0 + 44.0 * actions.length,
+          sortable: false,
+          filterable: false,
+          resizable: false,
+          cellBuilder: (context, record, rowIndex) =>
+              _rowActions(context, viewModel, record),
+        ),
+    ];
+  }
+
+  /// The column showing the record on the far side of [relation].
+  ///
+  /// Reads the eager-loaded record the page asked for, so the cell is exact
+  /// and costs nothing: the whole page is one query. A row whose relation was
+  /// not loaded — or whose foreign key is null — renders empty rather than
+  /// guessing.
+  OiTableColumn<BeakRecord> _relationColumn(BeakRelationship relation) =>
       OiTableColumn<BeakRecord>(
-        id: column.key,
-        header: column.label,
-        sortable: column.sortable,
-        filterable: column.filterable,
-        valueGetter: (record) => record[column.key]?.raw?.toString() ?? '',
-        cellBuilder: (context, record, rowIndex) =>
-            renderBeakCell(context, column: column, record: record),
-      ),
-    if (actions.isNotEmpty || enableDelete)
-      OiTableColumn<BeakRecord>(
-        id: '_actions',
-        header: '',
-        width: 56.0 + 44.0 * actions.length,
+        id: relation.key,
+        header: relation.label,
         sortable: false,
         filterable: false,
-        resizable: false,
-        cellBuilder: (context, record, rowIndex) =>
-            _rowActions(context, viewModel, record),
-      ),
-  ];
+        valueGetter: (record) => _relationLabelOf(relation, record),
+        cellBuilder: (context, record, rowIndex) {
+          final BeakRecord? related = _relatedOf(relation, record);
+          if (related == null) {
+            return const OiLabel.body('');
+          }
+          final String label = relation.displayLabelOf(related);
+          if (onOpenRelation == null) {
+            return OiLabel.body(label, maxLines: 1);
+          }
+          return GestureDetector(
+            onTap: () => onOpenRelation?.call(relation, related),
+            child: OiLabel.link(label, maxLines: 1),
+          );
+        },
+      );
+
+  /// The display label of the record [relation] points at, or empty.
+  static String _relationLabelOf(BeakRelationship relation, BeakRecord record) {
+    final BeakRecord? related = _relatedOf(relation, record);
+    return related == null ? '' : relation.displayLabelOf(related);
+  }
+
+  /// The eager-loaded record [relation] points at, or null when the foreign
+  /// key is null or the relation was not loaded.
+  static BeakRecord? _relatedOf(BeakRelationship relation, BeakRecord record) {
+    final List<BeakRecord> related = record.relations[relation.key] ?? const [];
+    return related.isEmpty ? null : related.first;
+  }
 
   Widget _rowActions(
     BuildContext context,

@@ -7,8 +7,9 @@ part of 'beak_column.dart';
 /// ```dart
 /// static const body = BeakRichTextColumn(key: 'body', label: 'Body');
 /// ```
-final class BeakRichTextColumn extends BeakColumn {
+final class BeakRichTextColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a rich-text column.
+  // --8<-- [start:BeakRichTextColumn]
   const BeakRichTextColumn({
     required super.key,
     required super.label,
@@ -16,13 +17,17 @@ final class BeakRichTextColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakRichTextColumn]
 
   @override
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.richText);
 
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

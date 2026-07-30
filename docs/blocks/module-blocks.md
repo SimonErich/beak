@@ -12,10 +12,13 @@ Beak ships, and most of them are data-bound: they resolve the panel's data sourc
 and fetch their own records, bound to your model by typed `BeakColumn`, never by
 string.
 
-Every module below is built from real seeded data in the showcase app
-(`beak_superdashboard`, port 8180). The demo screens are `BeakScreen`s, so each
-one is a custom page in the panel's navigation. If a demo uses different app
-model constants than another, that is expected: the showcase has 49 models.
+Most of the modules below have a demo in the showcase app
+(`examples/superdashboard`, port 8180), built from real seeded data. Each demo is
+one file under `lib/screens/` declaring a `BeakScreen`, which `beak prepare`
+discovers, routes, and files in the sidebar. The file manager and the wizard have
+no showcase screen, so their examples are the ones in the block's own dartdoc. If
+a demo uses different model constants than another, that is expected: the
+showcase has 49 models.
 
 | Module | Block | Renders onto |
 | --- | --- | --- |
@@ -48,25 +51,23 @@ const BeakChatBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/chat_screen.dart"
-BeakScreen buildChatScreen() => const BeakScreen(
-  path: '/chat',
-  title: 'Chat',
-  icon: BeakIconToken(OiIcons.messageCircle),
-  section: 'Apps',
-  framed: false,
-  body: BeakChatBlock(
-    model: ChatMessageModel(),
-    authorField: ChatMessageColumns.senderName,
-    bodyField: ChatMessageColumns.body,
-    timeField: ChatMessageColumns.sentAt,
-    composeRecord: _composeMessage,
-  ),
-);
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
 ```
 
-`_composeMessage` builds the `BeakRecord` a new message needs (the FKs and
-defaults you fill in), so a sent message survives a reload.
+`_composeMessage` builds the `BeakRecord` a new message needs (the sender,
+the timestamp, the defaults), so a sent message survives a reload:
+
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
+/// Builds the record persisted when the demo user sends [body] from the
+/// chat composer.
+BeakRecord _composeMessage(String body) => BeakRecord.fromRow({
+  'sender_name': 'You',
+  'body': body,
+  'sent_at': DateTime.now().toUtc(),
+  'is_read': true,
+});
+```
 
 ## Inbox
 
@@ -91,10 +92,14 @@ const BeakInboxBlock({
   this.leftWidthInPixels = 220,
   this.rightWidthInPixels = 360,
   super.span,
-});
+}) : assert(
+       unreadField == null || readField == null,
+       'Bind unreadField (true = unread) or readField (true = read), '
+       'not both.',
+     );
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/email_screen.dart"
+```dart title="examples/superdashboard/lib/screens/email_screen.dart"
 body: BeakInboxBlock(
   model: EmailModel(),
   senderField: EmailColumns.senderName,
@@ -116,14 +121,15 @@ body: BeakInboxBlock(
 ## File manager
 
 `BeakFileManagerBlock` renders a model's folder and file records on
-`OiFileManager`. `nameField` names each entry and `isFolderField` separates
-folders from files; the size, modified, and thumbnail fields enrich the file rows.
+`OiFileManager`. `nameField` names each entry; `isFolderField` separates
+folders from files where a table stores both, and is left unbound for a table
+of files only. The size, modified, and thumbnail fields enrich the file rows.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_file_manager_block.dart"
 const BeakFileManagerBlock({
   required this.model,
   required this.nameField,
-  required this.isFolderField,
+  this.isFolderField,
   this.sizeField,
   this.modifiedField,
   this.thumbnailField,
@@ -133,7 +139,7 @@ const BeakFileManagerBlock({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_file_manager_block.dart"
+```dart
 BeakFileManagerBlock(
   model: const AssetModel(),
   nameField: AssetColumns.name,
@@ -181,7 +187,7 @@ const BeakInvoiceBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/invoice_screen.dart"
+```dart title="examples/superdashboard/lib/screens/invoice_screen.dart"
 body: BeakInvoiceBlock(
   model: InvoiceModel(),
   recordId: SeedIds.invoice,
@@ -228,8 +234,8 @@ const BeakGalleryBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/gallery_screen.dart"
-BeakGalleryBlock(
+```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
+child: BeakGalleryBlock(
   query: BeakQuerySpec(
     table: 'media_assets',
     filter: _inCollection(MediaCollection.gallery),
@@ -259,7 +265,7 @@ const BeakProfileBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/profile_screen.dart"
+```dart title="examples/superdashboard/lib/screens/profile_screen.dart"
 body: BeakProfileBlock(
   model: UserModel(),
   recordId: SeedIds.userAisha,
@@ -295,7 +301,7 @@ const BeakPricingBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/pricing_screen.dart"
+```dart title="examples/superdashboard/lib/screens/pricing_screen.dart"
 body: BeakPricingBlock(
   model: PricingPlanModel(),
   nameField: PricingPlanColumns.name,
@@ -326,7 +332,7 @@ const BeakFaqBlock({
 });
 ```
 
-```dart title="apps/beak_superdashboard/lib/screens/faq_screen.dart"
+```dart title="examples/superdashboard/lib/screens/faq_screen.dart"
 body: BeakFaqBlock(
   model: FaqModel(),
   questionField: FaqColumns.question,
@@ -363,7 +369,7 @@ const BeakWizardStep({
 });
 ```
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_wizard_block.dart"
+```dart
 BeakWizardBlock(
   onComplete: submitApplication,
   steps: [
@@ -378,8 +384,9 @@ BeakWizardBlock(
     A `BeakWizardBlock` is free-form: the step bodies are any blocks, and you
     collect their values in your own signals and read them in `onComplete`. When
     each step is a set of a resource's fields and you want Beak to build,
-    validate, and save the record for you, use a resource's multi-step form
-    instead. See [Multi-step forms](../panel/multi-step-forms.md).
+    validate, and save the record for you, set `formSteps` on the resource in
+    `lib/resources/<table>.dart` instead. The showcase's calendar events do
+    that. See [Multi-step forms](../panel/multi-step-forms.md).
 
 ## Continue reading
 

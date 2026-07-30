@@ -4,9 +4,9 @@ description: >-
   of the source-agnostic data layer.
 version: 0.0.1
 publish_to: none
-repository: https://github.com/marqably/beak/tree/main/packages/beak_backend
-homepage: https://github.com/marqably/beak
-issue_tracker: https://github.com/marqably/beak/issues
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_backend
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, backend, shelf, rest]
 
 environment:
@@ -17,12 +17,9 @@ dependencies:
     path: ../beak_core
   beak_image:
     path: ../beak_image
-  beak_storage_ftp:
-    path: ../beak_storage_ftp
-  beak_storage_s3:
-    path: ../beak_storage_s3
   crypto: ^3.0.7
   meta: ^1.16.0
+  mime: ^2.0.0
   shelf: ^1.4.2
   shelf_multipart: ^2.0.1
   shelf_router: ^1.1.4
@@ -30,15 +27,26 @@ dependencies:
     path: ../worm
   worm_postgres:
     path: ../worm_postgres
+  # The zero-setup default: a DATABASE_URL-less project runs on a file.
+  worm_sqlite:
+    path: ../worm_sqlite
 
 dev_dependencies:
+  # Dev-only: the MinIO integration suite exercises the `s3` plug-in driver.
+  # Deliberately NOT a real dependency — see storage_wiring.dart.
+  beak_storage_s3:
+    path: ../beak_storage_s3
+  # The shared BeakDataSource contract, run against WormDataSource.
+  beak_test:
+    path: ../beak_test
   image: ^4.9.1
   lints: ^6.0.0
   test: ^1.25.6
 
-# beak_storage_s3's minio 3.5.8 pins xml ^6, but image 4.9.x (this package's
-# dev-only test fixture generator) needs xml ^7; minio's xml use is
-# xml-7-compatible (proven by this package's own MinIO integration suite).
-# Mirrors the override in apps/beak_superdashboard/pubspec.yaml.
+# Dev-only conflict, contained to this package: beak_storage_s3's minio 3.5.8
+# pins xml ^6 while image 4.9.x (the test fixture generator) needs xml ^7.
+# minio's xml use is xml-7-compatible, proven by the MinIO integration suite
+# this override exists to run. Because both packages are dev_dependencies,
+# consumers of beak_backend no longer inherit either constraint.
 dependency_overrides:
   xml: ^7.0.1

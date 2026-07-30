@@ -4,10 +4,12 @@ part of '../beak_storage_config.dart';
 /// are served from [publicBaseUrl].
 final class BeakLocalDiskStorageConfig extends BeakStorageConfig {
   /// Creates a local-disk storage configuration.
+  // --8<-- [start:BeakLocalDiskStorageConfig]
   const BeakLocalDiskStorageConfig({
     required this.rootDir,
     required this.publicBaseUrl,
   });
+  // --8<-- [end:BeakLocalDiskStorageConfig]
 
   /// Directory files are written under.
   final String rootDir;

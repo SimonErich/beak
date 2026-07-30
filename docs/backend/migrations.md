@@ -13,7 +13,7 @@ Beak leaves schema to [worm](../reference/packages.md), its sibling ORM. A migra
 
 A migration extends worm's `Migration`, has a `const` constructor, a unique timestamped `name`, and two methods: `upSchema` builds the schema, `downSchema` unwinds it.
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
 /// Creates the categories lookup table.
 final class CreateCategoriesTable extends Migration {
   /// Creates the migration.
@@ -63,7 +63,7 @@ Two modifiers chain onto a column: `.makeNullable()` allows `NULL`, and `.withDe
 
 Here is a fuller table that uses most of them. Note the foreign key, the index, and the soft-delete/timestamp pair:
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
 @override
 Future<void> upSchema(Schema schema) async {
   await schema.create('products', (table) {
@@ -92,9 +92,9 @@ Future<void> upSchema(Schema schema) async {
 
 ### Pivot tables
 
-A many-to-many join needs no surrogate key: the pair of foreign keys is the identity. The reference app writes it by hand.
+A many-to-many join needs no surrogate key: the pair of foreign keys is the identity. Spelled out, it looks like this:
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
+```dart
 @override
 Future<void> upSchema(Schema schema) async {
   await schema.create('product_tag', (table) {
@@ -117,208 +117,184 @@ Future<void> upSchema(Schema schema) async {
 }
 ```
 
-The `unique` on the pair stops duplicate links; the cascading foreign keys clean up join rows when either side is deleted. You will meet a helper for exactly this shape below.
+The `unique` on the pair stops duplicate links; the cascading foreign keys clean up join rows when either side is deleted. You rarely type that out: `BeakBlueprint.createPivot` writes this shape from the relationship, and the generated pivot migration below calls it.
 
 ## Registering migrations
 
-A migration only runs if it is in the list. Each app collects its migrations into a `const List<Migration>` in dependency order (parents before children):
+Nothing. `beak prepare` scans `lib/migrations/`, orders the classes it finds
+by their `name`, and writes the list into `lib/beak/server.g.dart`:
 
-```dart title="apps/reference_admin_server/lib/src/migrations/reference_migrations.dart"
-/// Every reference migration, in dependency order.
-const List<Migration> referenceMigrations = [
-  CreateCategoriesTable(),
-  CreateTagsTable(),
-  CreateUsersTable(),
-  CreateProductsTable(),
-  CreateProductTagTable(),
-  CreateOrdersTable(),
-  CreateOrderItemsTable(),
-];
-```
-
-That list is handed to the project worm CLI, `bin/worm.dart`, together with the seeders and an adapter factory that connects to the database `DATABASE_URL` points at:
-
-```dart title="apps/reference_admin_server/bin/worm.dart"
-Future<void> main(List<String> args) async {
-  final config = BeakBackendConfig.fromEnv(environment: BeakEnv.resolve());
-  final context = CliContext(
-    out: stdout,
-    err: stderr,
-    projectRoot: Directory.current,
-    environment: Worm.environment,
-    now: DateTime.now,
-    adapterFactory: () async {
-      final adapter = postgresAdapterFromUrl(config.databaseUrl);
-      await adapter.connect();
-      return adapter;
-    },
-    migrations: referenceMigrations,
-    seeders: const [ReferenceSeeder()],
-  );
-  exit(await WormCommandRunner(context).run(args) ?? 0);
-}
-```
-
-`postgresAdapterFromUrl` and `BeakBackendConfig.fromEnv` come from `beak_backend`; they are covered in [The data source seam](the-data-source-seam.md) and [Running the server](running-the-server.md).
-
-## Running migrations
-
-Run the CLI from the server app directory (`apps/reference_admin_server` for the tutorial store on port 8080, `apps/beak_superdashboard` for the showcase on port 8180). Applying pending migrations:
-
-```bash
-dart run bin/worm.dart migrate
-```
-
-```text
-migrated  20260701_000100_create_categories_table
-migrated  20260701_000200_create_tags_table
-...
-```
-
-A second run prints `Nothing to migrate.` because worm skips names already in the ledger. The `migrate` command and its siblings:
-
-| Command | What it does |
-| --- | --- |
-| `dart run bin/worm.dart migrate` | Apply every pending migration in order |
-| `dart run bin/worm.dart migrate --pretend` | Print the compiled SQL without executing it |
-| `dart run bin/worm.dart migrate --step=N` | Apply only the first `N` pending migrations |
-| `dart run bin/worm.dart migrate:status` | List applied and pending migrations |
-| `dart run bin/worm.dart migrate:rollback` | Undo the last batch (runs `downSchema`) |
-| `dart run bin/worm.dart migrate:fresh` | Drop everything and re-run all migrations |
-| `dart run bin/worm.dart migrate:refresh` | Roll back, then re-apply |
-
-!!! warning "Migrations are never auto-applied"
-    Booting the server does not touch your schema. A fresh database is empty until you run `migrate`. That is deliberate: production schema changes should be a decision you make, not a side effect of a deploy.
-
-## Deriving schema from a model
-
-Writing every column twice, once on the model and once in a migration, invites drift. The showcase app derives the migration from the model instead, with a helper that maps each typed `BeakColumn` to its schema type. `defineModelColumns` walks a model's columns and adds them to the table:
-
-```dart title="apps/beak_superdashboard/lib/migrations/model_schema.dart"
-void defineModelColumns(
-  BlueprintTable table,
-  BeakModel model, {
-  Set<String> bigIntColumns = const {},
-}) {
-  final foreignKeys = <String>{
-    for (final relation in model.relationships)
-      if (relation is BeakBelongsTo) relation.foreignKey,
-  };
-
-  for (final column in model.columns) {
-    if (column.key == 'id') {
-      table.idUuid();
-      continue;
-    }
-    if (foreignKeys.contains(column.key)) {
-      table.uuid(column.key).makeNullable();
-      continue;
-    }
-    final definition = switch (column) {
-      BeakStringColumn(:final maxLength) => table.string(
-        column.key,
-        length: maxLength ?? 255,
-      ),
-      BeakEnumColumn() ||
-      BeakColorColumn() => table.string(column.key, length: 40),
-      BeakImageColumn() ||
-      BeakFileColumn() => table.string(column.key, length: 512),
-      BeakTextColumn() ||
-      BeakRichTextColumn() ||
-      BeakCustomColumn() => table.text(column.key),
-      BeakIntColumn() =>
-        bigIntColumns.contains(column.key)
-            ? table.bigInteger(column.key)
-            : table.integer(column.key),
-      BeakDecimalColumn() => table.decimal(column.key),
-      BeakBoolColumn() => table.boolean(column.key),
-      BeakDateTimeColumn() => table.dateTime(column.key),
-      BeakJsonColumn() => table.json(column.key),
-    };
-    if (column is BeakBoolColumn) {
-      definition.withDefault(false);
-    } else if (!column.rules.any((rule) => rule is BeakRequired)) {
-      definition.makeNullable();
-    }
-  }
-
-  if (model.softDeletes) {
-    table.softDeletes();
-  }
-}
-```
-
-The rules it encodes:
-
-- The `id` column becomes the UUID primary key.
-- A column that backs a `BeakBelongsTo` relationship becomes a nullable `uuid` foreign-key column; you still declare the constraint yourself.
-- A column carrying a [`BeakRequired`](../models/validation-rules.md) rule is `NOT NULL`; every other column is nullable.
-- Booleans default to `false`.
-- A byte-size column named in `bigIntColumns` uses `bigInteger` so gigabyte values do not overflow a 32-bit integer.
-- Soft-deleting models get `softDeletes()` at the end.
-
-Because the switch is exhaustive over every column type, a new column on the model is a compile error here until it is mapped: the schema cannot silently fall behind. A schema-parity test guards the match.
-
-You call it inside `create` and layer any table-specific constraints on top:
-
-```dart title="apps/beak_superdashboard/lib/migrations/commerce_migrations.dart"
-await schema.create('products', (table) {
-  defineModelColumns(table, const ProductModel());
-  table.unique(['sku']);
-  table.index(['status']);
-  table.foreign(
-    column: 'category_id',
-    references: 'id',
-    onTable: 'categories',
-    onDelete: OnDelete.setNull,
-  );
-});
-```
-
-### definePivotTable
-
-The keyless-join shape from earlier gets its own helper so every many-to-many looks the same:
-
-```dart title="apps/beak_superdashboard/lib/migrations/model_schema.dart"
-void definePivotTable(
-  BlueprintTable table, {
-  required String leftColumn,
-  required String leftTable,
-  required String rightColumn,
-  required String rightTable,
-}) {
-  table.uuid(leftColumn);
-  table.uuid(rightColumn);
-  table.unique([leftColumn, rightColumn]);
-  table.foreign(
-    column: leftColumn,
-    references: 'id',
-    onTable: leftTable,
-    onDelete: OnDelete.cascade,
-  );
-  table.foreign(
-    column: rightColumn,
-    references: 'id',
-    onTable: rightTable,
-    onDelete: OnDelete.cascade,
-  );
-}
-```
-
-```dart title="apps/beak_superdashboard/lib/migrations/commerce_migrations.dart"
-await schema.create(
-  'product_tag',
-  (table) => definePivotTable(
-    table,
-    leftColumn: 'product_id',
-    leftTable: 'products',
-    rightColumn: 'tag_id',
-    rightTable: 'tags',
-  ),
+```dart title="examples/store/lib/beak/server.g.dart"
+BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
+  environment: environment,
+  registry: buildBeakRegistry(),
+  migrations: const [
+    CreateCategoriesTable(),
+    CreateUsersTable(),
+    CreateOrdersTable(),
+    CreateProductsTable(),
+    CreateOrderItemsTable(),
+    CreateRoastProfilesTable(),
+    CreateTagsTable(),
+    CreateProductTagTable(),
+  ],
+  seeders: const [StoreSeeder()],
+  configure: server.beakServer,
 );
 ```
 
-Both helpers live in the app, not in a Beak package: they are a pattern you are free to copy and bend, not framework API. The reference app hand-writes its migrations to show the DSL plainly; the showcase derives them to keep 49 models honest. Either way, the migration list you register and the command you run are the same.
+Adding a migration means adding a file. Deleting one means deleting a file.
+There is no list to keep in step, which is the list that used to be wrong.
+
+## Running migrations
+
+`bin/migrate.dart` is generated too, and is one line. Run it from the project
+directory:
+
+```bash
+dart run bin/migrate.dart migrate
+```
+
+```text
+migrated  20260727_152054_create_categories_table
+migrated  20260727_152055_create_users_table
+...
+```
+
+A second run prints `Nothing to migrate.` because worm skips names already in
+the ledger. The `migrate` command and its siblings:
+
+| Command | What it does |
+| --- | --- |
+| `dart run bin/migrate.dart migrate` | Apply every pending migration in order |
+| `dart run bin/migrate.dart migrate --pretend` | Print the compiled SQL without executing it |
+| `dart run bin/migrate.dart migrate --step=N` | Apply only the first `N` pending migrations |
+| `dart run bin/migrate.dart migrate:status` | List applied and pending migrations |
+| `dart run bin/migrate.dart migrate:rollback` | Undo the last batch (runs `downSchema`) |
+| `dart run bin/migrate.dart migrate:fresh` | Drop everything and re-run all migrations |
+| `dart run bin/migrate.dart migrate:refresh` | Roll back, then re-apply |
+| `dart run bin/migrate.dart db:seed` | Run the registered seeders |
+
+!!! warning "Migrations are never auto-applied"
+    Booting the server does not touch your schema. A fresh database is empty
+    until you run `migrate`. That is deliberate: a production schema change
+    should be a decision you make, not a side effect of a deploy.
+
+## The migration Beak writes for you
+
+You rarely write the first migration for a resource. `beak prepare` notices
+that a schema class has no migration and writes one:
+
+```dart title="examples/store/lib/migrations/create_products_table.dart"
+final class CreateProductsTable extends Migration {
+  /// Creates the migration.
+  const CreateProductsTable();
+
+  @override
+  String get name => '20260727_152057_create_products_table';
+
+  @override
+  Future<void> upSchema(Schema schema) async {
+    await schema.create('products', (table) {
+      BeakBlueprint.defineColumns(table, const ProductModel());
+      BeakBlueprint.defineForeignKeys(table, const ProductModel());
+    });
+  }
+
+  @override
+  Future<void> downSchema(Schema schema) async =>
+      schema.drop('products', ifExists: true);
+}
+```
+
+Two things to notice.
+
+**It is written once and then it is yours.** Beak never rewrites a migration
+it has written. The file is ordinary source you can edit, and `beak prepare`
+leaves it alone from then on.
+
+**It reads the model rather than repeating it.** `BeakBlueprint.defineColumns`
+walks the model's columns and adds each one with the right storage type,
+nullability, length, index and unique constraint; `defineForeignKeys` adds the
+constraints its belongs-to relationships imply, each with the `onDelete` rule
+the relationship declared. Every belongs-to key is indexed without being asked,
+because a foreign key you filter and join on and never index is the slow query
+you will find later.
+
+That is why adding a column to a schema class changes the table with no second
+edit: the DDL is derived from the same declaration the API and the panel read.
+
+A `@BelongsToMany` relationship gets the same treatment, through
+`BeakBlueprint.createPivot`. It reads the pivot table name and both key columns
+off the relationship, so the join table and the relationship cannot disagree. It
+also adds an index on the right-hand key, which the composite `unique` does not
+cover, so a many-to-many is fast from both sides:
+
+```dart title="examples/store/lib/migrations/create_product_tag_table.dart"
+@override
+Future<void> upSchema(Schema schema) => BeakBlueprint.createPivot(
+  schema,
+  ProductRelations.tags,
+  ownerTable: 'products',
+);
+
+@override
+Future<void> downSchema(Schema schema) async =>
+    schema.drop('product_tag', ifExists: true);
+```
+
+## Changing a table later
+
+The generated migration creates a table. Changing one is a migration you
+write, and `beak make:migration` scaffolds the shape:
+
+```bash
+beak make:migration AddNotesToOrders
+```
+
+!!! tip "Adding a field to a resource that is already live"
+    That is the common case, and `--from-drift` writes it for you: it reads
+    the database, compares it against the schema classes, and fills the body
+    in with the columns the table is missing.
+
+    ```bash
+    beak make:migration AddStockToProducts --from-drift
+    beak migrate
+    ```
+
+    It reads the database rather than the migrations because a Beak migration
+    never names its columns. See
+    [`--from-drift`](../reference/cli-commands.md#-from-drift).
+
+```dart
+final class AddNotesToOrders extends Migration {
+  /// Creates the migration.
+  const AddNotesToOrders();
+
+  @override
+  String get name => '20260728_090000_add_notes_to_orders';
+
+  @override
+  Future<void> upSchema(Schema schema) async {
+    await schema.alter('orders', (table) {
+      table.text('notes').makeNullable();
+    });
+  }
+
+  @override
+  Future<void> downSchema(Schema schema) async {
+    await schema.alter('orders', (table) {
+      table.dropColumn('notes');
+    });
+  }
+}
+```
+
+`schema.alter` reaches the same blueprint `schema.create` does, so adding a
+column, an index or a foreign key reads the same either way. SQLite supports
+adding and dropping columns and indexes; changing a column's type there throws
+a typed exception naming the limitation, rather than silently rebuilding the
+table and losing your triggers.
 
 ## Continue reading
 

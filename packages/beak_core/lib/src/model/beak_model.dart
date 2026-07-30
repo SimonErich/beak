@@ -3,7 +3,15 @@ import 'package:meta/meta.dart';
 import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
+import '../query/beak_aggregate_spec.dart';
+import '../query/beak_filter.dart';
 import '../query/beak_record.dart';
+import '../query/beak_pagination.dart';
+import '../query/beak_query_spec.dart';
+import '../query/beak_relation_load.dart';
+import '../query/beak_sort.dart';
+import '../query/beak_value.dart';
+import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
@@ -63,6 +71,29 @@ abstract base class BeakModel {
   /// instead of physical row removal. Defaults to `false`.
   bool get softDeletes => false;
 
+  /// The pool of enum values this model's forms take a field slot from, or
+  /// `null` for Beak's default pool.
+  ///
+  /// Auto forms key their fields by a Dart enum, for compile-time safety;
+  /// Beak's columns are runtime values. A form therefore claims one enum
+  /// value per field it registers, and the pool has to be at least as large
+  /// as the form. The default pool holds 32, which is more fields than a form
+  /// a person can read — but not more than a wide table has columns.
+  ///
+  /// A generated model supplies a pool sized to itself, so the question never
+  /// arises. Override this on a hand-written model that needs a bigger one:
+  ///
+  /// ```dart
+  /// enum _WideSlots { s0, s1, /* ...as many as the form needs... */ }
+  ///
+  /// @override
+  /// List<Enum> get formSlots => _WideSlots.values;
+  /// ```
+  ///
+  /// The values are never shown and never stored; only their count and their
+  /// distinctness matter.
+  List<Enum>? get formSlots => null;
+
   /// The primary-key column: by default the first column with key `'id'`.
   ///
   /// Throws a [BeakConfigurationException] when no such column exists and
@@ -77,6 +108,77 @@ abstract base class BeakModel {
     }
     return column;
   }
+
+  /// A typed reference to this model's [table].
+  ///
+  /// Hand this to any API that needs to name the table, so the name is
+  /// derived from the model instead of retyped as a string.
+  BeakTableRef get ref => BeakTableRef.raw(table);
+
+  /// A query over this model's table.
+  ///
+  /// The typed entry point into [BeakQuerySpec]: chain the copy-builders from
+  /// here and no table string is ever written.
+  ///
+  /// ```dart
+  /// const ProductModel().query()
+  ///     .orderBy(ProductColumns.price, descending: true)
+  ///     .paginate(perPage: 10);
+  /// ```
+  ///
+  /// Mirrors [BeakQuerySpec]'s own parameters, so anything expressible there
+  /// is expressible here without naming the table.
+  BeakQuerySpec query({
+    BeakFilter? filter,
+    List<BeakSort> sorts = const [],
+    BeakSearch? search,
+    List<BeakRelationLoad> relationLoads = const [],
+    BeakPagination pagination = const BeakPagination(),
+    bool withTrashed = false,
+  }) => BeakQuerySpec(
+    table: table,
+    filter: filter,
+    sorts: sorts,
+    search: search,
+    relationLoads: relationLoads,
+    pagination: pagination,
+    withTrashed: withTrashed,
+  );
+
+  /// Counts this model's rows, optionally narrowed by [filter].
+  BeakAggregateSpec count({BeakFilter? filter, bool withTrashed = false}) =>
+      BeakAggregateSpec.count(
+        table: table,
+        filter: filter,
+        withTrashed: withTrashed,
+      );
+
+  /// Sums [column] over this model's rows.
+  ///
+  /// [column] should be numeric ([BeakIntColumn] or [BeakDecimalColumn]);
+  /// the data source rejects anything else.
+  BeakAggregateSpec sum(
+    BeakColumn column, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.sum(
+    table: table,
+    column: column,
+    filter: filter,
+    withTrashed: withTrashed,
+  );
+
+  /// Averages [column] over this model's rows.
+  BeakAggregateSpec avg(
+    BeakColumn column, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.avg(
+    table: table,
+    column: column,
+    filter: filter,
+    withTrashed: withTrashed,
+  );
 
   /// The primary-key value of [record], or `null` when the record does not
   /// carry it — the single way Beak extracts a record's id.
@@ -107,4 +209,39 @@ abstract base class BeakModel {
     }
     return null;
   }
+}
+
+/// [raw] as the [BeakValue] [column] describes.
+///
+/// A database says what it can: SQLite has no boolean, date or decimal type,
+/// so a row comes back with `1` where the model declares a flag and a string
+/// where it declares an instant. Typing values by their Dart runtime type
+/// alone therefore produces a record whose shape depends on the driver — the
+/// panel renders `1` instead of a badge, and a conditional update cannot find
+/// the timestamp it was asked to compare.
+///
+/// This is the one place that decides, so every data source agrees. A value
+/// the column cannot read keeps its literal form rather than being dropped.
+BeakValue beakValueForColumn(BeakColumn? column, Object? raw) {
+  final BeakValue value = BeakValue.of(raw);
+  return switch (column) {
+        BeakBoolColumn() => switch (column.readValue(value)) {
+          final bool parsed => BeakBoolValue(parsed),
+          null => null,
+        },
+        BeakDateTimeColumn() => switch (column.readValue(value)) {
+          final DateTime parsed => BeakDateTimeValue(parsed),
+          null => null,
+        },
+        BeakDecimalColumn() => switch (column.readValue(value)) {
+          final double parsed => BeakDoubleValue(parsed),
+          null => null,
+        },
+        BeakIntColumn() => switch (column.readValue(value)) {
+          final int parsed => BeakIntValue(parsed),
+          null => null,
+        },
+        _ => null,
+      } ??
+      value;
 }

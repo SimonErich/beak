@@ -200,7 +200,7 @@ void main() {
 
       await drainPending(tester);
 
-      expect(dataSource.deleteCalls, [('notes', 'n1')]);
+      expect(dataSource.deleteCalls, [('notes', 'n1', false)]);
       expect(find.text('list page'), findsOneWidget);
     });
 

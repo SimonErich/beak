@@ -209,14 +209,36 @@ final class InMemoryAdapter extends DatabaseAdapter with ExplainCapable {
       case SchemaOperation.truncate:
         _store.truncate(d.table);
       case SchemaOperation.alter:
-        throw const UnsupportedOperationException(
-          operation: 'executeSchema.alter',
-          adapter: 'InMemoryAdapter',
-          message: 'InMemoryAdapter does not support SchemaOperation.alter yet',
+        for (final alteration in d.alterations) {
+          _applyAlteration(d.table, alteration);
+        }
+    }
+  }
+
+  /// Applies one alteration to the store.
+  ///
+  /// The store models columns and rows, not indexes or constraints, so index
+  /// and foreign-key steps are accepted and have no effect — they are a
+  /// storage-engine concern the in-memory adapter has no engine for. Column
+  /// steps are applied for real, because a test asserting a migration added a
+  /// column must be able to see it.
+  void _applyAlteration(String table, SchemaAlteration alteration) {
+    switch (alteration) {
+      case SchemaAddColumn(:final column, :final ifNotExists):
+        _store.addColumn(
+          table,
+          column.name,
+          ifNotExists: ifNotExists,
+          defaultValue: column.defaultValue,
         );
-      case SchemaOperation.createIndex:
-        // The in-memory store does not model indexes — this is a
-        // no-op for compatibility with index-aware adapters.
+      case SchemaDropColumn(:final column, :final ifExists):
+        _store.dropColumn(table, column, ifExists: ifExists);
+      case SchemaChangeColumn():
+      // The store is untyped, so every column already accepts every value.
+      case SchemaAddIndex():
+      case SchemaDropIndex():
+      case SchemaAddForeignKey():
+      case SchemaDropForeignKey():
         break;
     }
   }

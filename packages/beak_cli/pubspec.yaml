@@ -2,17 +2,38 @@ name: beak_cli
 description: Scaffolding CLI for Beak projects (make:resource and friends).
 version: 0.0.1
 publish_to: none
-repository: https://github.com/marqably/beak/tree/main/packages/beak_cli
-homepage: https://github.com/marqably/beak
-issue_tracker: https://github.com/marqably/beak/issues
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_cli
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, cli, scaffolding, codegen]
 
 environment:
   sdk: ^3.11.0
 
 dependencies:
+  # Unresolved AST parsing only (parseString): fast, and stable across
+  # analyzer releases in a way the element model is not.
+  analyzer: ^8.4.0
   args: ^2.7.0
+  # Formats emitted code so `dart format` on a generated project is a no-op.
+  dart_style: ^3.1.0
+  # Joins generated-file paths without assuming a separator.
+  path: ^1.9.0
+  pub_semver: ^2.1.4
+  # `beak introspect` reads a live Postgres schema.
+  worm:
+    path: ../worm
+  worm_postgres:
+    path: ../worm_postgres
+  # `beak doctor` reads a live SQLite schema for its drift check, which is the
+  # zero-setup default and therefore the configuration most projects run.
+  worm_sqlite:
+    path: ../worm_sqlite
+  yaml: ^3.1.3
 
 dev_dependencies:
+  # The doctor suite builds a real SQLite file to prove drift detection works
+  # on the zero-setup default, not only against a server.
+  sqlite3: ^2.4.6
   lints: ^6.0.0
   test: ^1.25.6

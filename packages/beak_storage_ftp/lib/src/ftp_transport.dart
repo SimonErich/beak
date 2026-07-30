@@ -42,6 +42,7 @@ final class FtpProtocolException implements Exception {
 ///
 /// final driver = FtpStorageDriver(config, transport: FakeFtpTransport());
 /// ```
+// --8<-- [start:FtpTransport]
 abstract interface class FtpTransport {
   /// Uploads [bytes] under [key], creating missing parent directories.
   Future<void> store(String key, Uint8List bytes);
@@ -55,6 +56,7 @@ abstract interface class FtpTransport {
   /// Whether a file is stored under [key].
   Future<bool> exists(String key);
 }
+// --8<-- [end:FtpTransport]
 
 /// The production [FtpTransport]: a minimal RFC 959 client over `dart:io`
 /// sockets (binary type, passive mode), opening one fresh, cleanly closed

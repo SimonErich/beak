@@ -19,34 +19,7 @@ pixels. Text names a variant in a ramp; icons name a token over the obers_ui
 caption:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_text_block.dart"
-enum BeakTextVariant {
-  /// Hero display text.
-  display,
-
-  /// Page-level heading.
-  h1,
-
-  /// Section heading.
-  h2,
-
-  /// Sub-section heading.
-  h3,
-
-  /// Minor heading.
-  h4,
-
-  /// Regular body copy.
-  body,
-
-  /// Emphasized body copy.
-  bodyStrong,
-
-  /// De-emphasized small text.
-  small,
-
-  /// Caption / hint text.
-  caption,
-}
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_text_block.dart:BeakTextVariant"
 ```
 
 You render a variant with a `BeakTextBlock`. It takes the text and a variant, and
@@ -76,39 +49,8 @@ The variant defaults to `body`, so plain paragraph text is
 `BeakTextBlock('some copy')`. The superdashboard's typography screen shows the
 whole ramp in one card:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
-BeakScreen buildTypographyScreen() => const BeakScreen(
-  path: '/typography',
-  title: 'Typography',
-  icon: BeakIconToken(OiIcons.heading),
-  section: 'Showcase',
-  body: BeakCardBlock(
-    title: 'Type scale',
-    child: BeakColumnBlock(
-      gapInPixels: 12,
-      children: [
-        BeakTextBlock('Display', variant: BeakTextVariant.display),
-        BeakTextBlock('Heading 1', variant: BeakTextVariant.h1),
-        BeakTextBlock('Heading 2', variant: BeakTextVariant.h2),
-        BeakTextBlock('Heading 3', variant: BeakTextVariant.h3),
-        BeakTextBlock('Heading 4', variant: BeakTextVariant.h4),
-        BeakTextBlock('Body - the default paragraph size.'),
-        BeakTextBlock(
-          'Body strong - emphasized paragraph text.',
-          variant: BeakTextVariant.bodyStrong,
-        ),
-        BeakTextBlock(
-          'Small - secondary text.',
-          variant: BeakTextVariant.small,
-        ),
-        BeakTextBlock(
-          'Caption - the smallest label.',
-          variant: BeakTextVariant.caption,
-        ),
-      ],
-    ),
-  ),
-);
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
+--8<-- "examples/superdashboard/lib/screens/typography_screen.dart:buildTypographyScreen"
 ```
 
 Every line inherits the theme's font family and sizes. Change the theme's
@@ -163,7 +105,7 @@ final class BeakIconGalleryItem {
   final String label;
 }
 
-/// A reference grid of named icons - a design-system cheat-sheet. Each entry
+/// A reference grid of named icons — a design-system cheat-sheet. Each entry
 /// renders onto `OiIcon` with its label beneath.
 final class BeakIconGalleryBlock extends BeakBlock {
   /// Creates a gallery of [items] laid out in [columns] columns.
@@ -184,23 +126,8 @@ final class BeakIconGalleryBlock extends BeakBlock {
 The superdashboard's icons screen builds a curated slice of the set from a list
 of token/label pairs:
 
-```dart title="apps/beak_superdashboard/lib/screens/icons_screen.dart"
-BeakScreen buildIconsScreen() => BeakScreen(
-  path: '/icons',
-  title: 'Icons',
-  icon: const BeakIconToken(OiIcons.star),
-  section: 'Showcase',
-  body: BeakCardBlock(
-    title: 'Lucide icons',
-    child: BeakIconGalleryBlock(
-      columns: 6,
-      items: [
-        for (final (icon, label) in _icons)
-          BeakIconGalleryItem(icon: icon, label: label),
-      ],
-    ),
-  ),
-);
+```dart title="examples/superdashboard/lib/screens/icons_screen.dart"
+--8<-- "examples/superdashboard/lib/screens/icons_screen.dart:buildIconsScreen"
 ```
 
 Where `_icons` is a plain list of pairs, each one a

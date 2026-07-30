@@ -6,12 +6,12 @@ description: The seven ideas that make Beak tick, each in a paragraph, with a li
 # Core concepts
 
 By the end of this section you will hold Beak's whole mental model in your head:
-one typed column definition, the surfaces it drives, the layers it travels
-through, and the way results and errors come back. Read the pages top to bottom
-the first time. After that, this hub is a map you can jump around in.
+one annotated field, everything that one field generates, the layers a request
+travels through, and the way results and errors come back. Read the pages top to
+bottom the first time. After that, this hub is a map you can jump around in.
 
 Every page here quotes the tutorial store, a small coffee roastery
-(`apps/reference_admin`) whose server runs on port 8080. The models are small on
+(`examples/store`) whose server runs on port 8080. The models are small on
 purpose so the ideas stay in focus.
 
 !!! tip "Reading order"
@@ -21,17 +21,22 @@ purpose so the ideas stay in focus.
 
 ## The one-definition promise
 
-You declare a column once, as a typed `const`, and Beak feeds it to six
-consumers: the table cell, the form field, the detail row, the filter, the REST
-validator, and the CSV export column. Change the definition in one place and all
-six move together. See [The one-definition promise](the-one-definition-promise.md).
+You declare a field once on a `@Resource` class, and `beak prepare` writes the
+typed `const` behind it. That const then feeds six consumers: the table cell,
+the form field, the detail row, the filter, the REST validator, and the CSV
+export column. The same declaration also produces the migration that creates the
+column and the wiring that registers the resource, so the database, the API and
+the panel cannot disagree about what a field is. See
+[The one-definition promise](the-one-definition-promise.md).
 
 ## The type-safety promise
 
-You never write a string field reference and you never touch `dynamic`. Columns
-and relationships are typed constants, the sealed families (columns, values,
-filters, results, exceptions) force you to handle every case, and `BeakValue`
-carries filter operands across the wire without losing their type. See
+You never write a string field reference and you never touch `dynamic`. The
+generated column and relationship constants are what you point at everywhere
+else, the sealed families (columns, values, filters, results, exceptions) force
+you to handle every case, and `BeakValue` carries filter operands across the
+wire without losing their type. The one place a schema class names another
+table's column by key is checked at generation time. See
 [The type-safety promise](the-type-safety-promise.md).
 
 ## The four layers
@@ -72,7 +77,7 @@ Failures are values, not surprises. The Repository catches exceptions and return
 
 ## Continue reading
 
-- [The one-definition promise](the-one-definition-promise.md) one column, six surfaces.
+- [The one-definition promise](the-one-definition-promise.md) one field, six surfaces, plus the migration and the wiring.
 - [The type-safety promise](the-type-safety-promise.md) no strings, no `dynamic`, sealed all the way down.
-- [Defining models](../models/defining-models.md) put these ideas to work in a real model.
+- [Defining a resource](../models/defining-models.md) put these ideas to work in a real schema class.
 - [Tutorial: First Flight](../tutorial/index.md) build the coffee roastery from scratch.

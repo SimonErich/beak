@@ -1,6 +1,6 @@
 ---
 title: Custom screens and pages
-description: Add whole free-form pages to the panel with BeakScreen, framed or full-bleed, and place them in the sidebar.
+description: Add whole free-form pages to the panel with BeakScreen, framed or full-bleed, discovered from lib/screens and filed in the sidebar.
 ---
 
 # Custom screens and pages
@@ -9,11 +9,12 @@ After this page you can add a page to the panel that is not a resource: a block
 tree or a raw widget, framed by the standard chrome or bled to full width, filed
 under any sidebar section you choose.
 
-A [`BeakResource`](../panel/resources.md) turns a model into generated CRUD
-pages. A `BeakScreen` is the other kind of page: anything free-form, composed
-from [blocks](../blocks/index.md). A dashboard, a profile, an invoice document, a
-pricing table, a charts gallery. You register screens on the panel config; each
-becomes a route and, by default, a sidebar entry.
+A [resource](../panel/resources.md) is generated from a `@Resource` schema
+class: list, detail, create and edit, all derived from the columns you declared.
+A `BeakScreen` is the other kind of page, anything free-form, composed from
+[blocks](../blocks/index.md). A restock list, a dashboard, a profile, an invoice
+document, a charts gallery. Drop one in `lib/screens/`, run `beak prepare`, and
+Beak routes it and gives it a sidebar entry.
 
 ## The screen
 
@@ -35,7 +36,7 @@ final class BeakScreen {
 
 | Parameter | Type | Notes |
 | --- | --- | --- |
-| `path` | `String` | The route the screen mounts at, e.g. `'/analytics'`. |
+| `path` | `String` | The route the screen mounts at, e.g. `'/restock'`. |
 | `title` | `String` | Shown in the framed header; the nav-label fallback. |
 | `icon` | `BeakIconToken` | The sidebar icon. |
 | `body` | `BeakBlock` | The screen content, a single (usually nested) block. |
@@ -44,29 +45,84 @@ final class BeakScreen {
 | `showInNav` | `bool` | Whether it appears in the sidebar. Default `true`. |
 | `framed` | `bool` | Whether to wrap the body in standard page chrome. Default `true`. |
 
+`BeakScreen`, `BeakIconToken` and every block come from
+`package:beak/panel.dart`. The icon values the token wraps (`OiIcons.package`
+and friends) come from `package:beak/ui.dart`, so a screen file imports both.
+
 ## A screen from a block tree
 
 The body is a `BeakBlock`, so a screen is as simple or as deep as the tree you
-give it. A small one is a single module block:
+give it. The store's restock page is two aggregates and a filtered table, all in
+one `const` expression:
 
-```dart title="apps/beak_superdashboard/lib/screens/faq_screen.dart"
-BeakScreen buildFaqScreen() => const BeakScreen(
-  path: '/faq',
-  title: 'FAQ',
-  icon: BeakIconToken(OiIcons.helpCircle),
-  section: 'Pages',
-  body: BeakFaqBlock(
-    model: FaqModel(),
-    questionField: FaqColumns.question,
-    answerField: FaqColumns.answer,
+```dart title="examples/store/lib/screens/restock_screen.dart"
+const BeakScreen restockScreen = BeakScreen(
+  path: '/restock',
+  title: 'Restock',
+  icon: BeakIconToken(OiIcons.packageSearch),
+  section: 'Catalog',
+  body: BeakColumnBlock(
+    gapInPixels: 20,
+    children: [
+      BeakGridBlock(
+        columns: 12,
+        children: [
+          BeakMetricBlock(
+            span: BeakSpan(columns: 6),
+            label: 'Out of stock',
+            aggregate: BeakAggregateSpec.count(
+              table: 'products',
+              filter: BeakFieldFilter(
+                column: ProductColumns.stock,
+                operator: BeakOperator.eq,
+                value: BeakIntValue(0),
+              ),
+            ),
+            icon: OiIcons.packageX,
+          ),
+          // ...and a second metric block, the stock on hand.
+        ],
+      ),
+      BeakCardBlock(
+        title: 'Running low',
+        child: BeakTableBlock(
+          model: ProductModel(),
+          columns: [
+            ProductColumns.name,
+            ProductColumns.sku,
+            ProductColumns.stock,
+            ProductColumns.status,
+          ],
+          baseFilter: BeakFieldFilter(
+            column: ProductColumns.stock,
+            operator: BeakOperator.lt,
+            value: BeakIntValue(10),
+          ),
+          initialSpec: BeakQuerySpec(
+            table: 'products',
+            sorts: [BeakSort('stock')],
+          ),
+        ),
+      ),
+    ],
   ),
 );
 ```
 
-A larger one nests a grid of typed blocks. The charts gallery is one grid with a
-card per chart family, all bound to the same seeded tables:
+!!! note "What just happened"
+    - The screen is a top-level `const BeakScreen`. There is no widget code and
+      no `StatefulWidget`.
+    - `ProductColumns` is generated from the `Product` schema class, so renaming
+      a field is a compile error here rather than an empty table in production.
+    - Everything inside `body` is the same [block union](../concepts/the-block-system.md)
+      the dashboard and the view modes use. A screen is a block tree with a route.
+    - `section: 'Catalog'` is the same string the store's `beak.yaml` files its
+      catalog resources under, so the screen lands beside them.
 
-```dart title="apps/beak_superdashboard/lib/screens/charts_screen.dart"
+A larger screen nests a grid of typed blocks. The showcase app's charts gallery
+is one grid with a card per chart family, all bound to the same seeded tables:
+
+```dart title="examples/superdashboard/lib/screens/charts_screen.dart"
 BeakScreen buildChartsScreen() => BeakScreen(
   path: '/charts',
   title: 'Charts',
@@ -76,6 +132,7 @@ BeakScreen buildChartsScreen() => BeakScreen(
     columns: 2,
     gapInPixels: 20,
     children: [
+      // ...two aggregate metrics...
       BeakChartBlock(
         title: 'Revenue (area)',
         type: BeakChartType.area,
@@ -92,11 +149,9 @@ BeakScreen buildChartsScreen() => BeakScreen(
 );
 ```
 
-!!! note "What just happened"
-    - The screen is a plain function returning a `const` (or nearly const)
-      `BeakScreen`. There is no widget code and no `StatefulWidget`.
-    - Everything inside `body` is the same [block union](../concepts/the-block-system.md)
-      the dashboard and view modes use. A screen is a block tree with a route.
+A function returning a `BeakScreen` is discovered too, as long as it takes no
+required arguments. Use one when the body cannot be `const`, as here, where each
+card closes over a series name.
 
 ## A screen from a raw widget
 
@@ -123,27 +178,15 @@ the standard `OiResourcePage` header and padding, so the screen matches every
 resource page. Set it to `false` for a surface that wants the whole canvas: a
 calendar, a kanban board, a chat thread.
 
-```dart title="apps/beak_superdashboard/lib/screens/chat_screen.dart"
-BeakScreen buildChatScreen() => const BeakScreen(
-  path: '/chat',
-  title: 'Chat',
-  icon: BeakIconToken(OiIcons.messageCircle),
-  section: 'Apps',
-  framed: false,
-  body: BeakChatBlock(
-    model: ChatMessageModel(),
-    authorField: ChatMessageColumns.senderName,
-    bodyField: ChatMessageColumns.body,
-    timeField: ChatMessageColumns.sentAt,
-  ),
-);
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
 ```
 
 ## Placing a screen in the nav
 
 Screens share the sidebar with resources, and the same `section` string groups
 them. Give a screen `section: 'Apps'` and it lands under the "Apps" heading next
-to any resource filed there. The label the sidebar shows comes from
+to any resource `beak.yaml` files there. The label the sidebar shows comes from
 `effectiveLabel`, which falls back to the title:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_screen.dart"
@@ -157,29 +200,60 @@ classic case: it needs a route, but not a permanent nav entry.
 
 ## Registering screens
 
-Screens go on `BeakPanelConfig.pages`. The superdashboard registers all of its
-this way:
+You do not. `beak prepare` scans `lib/screens/`, picks up every top-level
+`BeakScreen` variable and every no-argument function returning one, and writes
+them into the generated panel config:
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
-  pages: [
-    buildDashboardScreen(),
-    buildEmailScreen(),
-    buildChatScreen(),
-    buildInvoiceScreen(),
-    buildProfileScreen(),
-    buildChartsScreen(),
-    buildUiKitScreen(),
-    // ...
-  ],
+```dart title="examples/store/lib/beak/panel.g.dart"
+    pages: [dashboard.beakDashboard(), restockScreen],
 ```
 
-Each entry becomes a `go_router` route at its `path` and (unless `showInNav` is
-false) a sidebar entry under its `section`. That is the whole wiring: build the
-screen, add it to `pages`, and Beak routes and lists it.
+`lib/dashboard.dart` goes first when it exists, because it declares `/` and the
+panel routes to whichever page claims a path. Everything else follows in path
+order. That file is generated and committed; you never edit it.
+
+Two things are worth knowing about the scan:
+
+- A file under `lib/screens/` that declares no `BeakScreen` is ignored, so
+  helpers and private builders can live there beside their screen.
+- A function returning a `BeakScreen` that takes a required argument is
+  reported as an error rather than skipped. Beak calls it with no arguments, so
+  give the parameter a default or build the screen in a variable.
+
+A screen the scan cannot reach, because it is built somewhere other than
+`lib/screens/`, goes in `lib/panel.dart`. That file takes the generated config
+and returns a changed copy, so spread the discovered pages and append your own:
+
+```dart
+BeakPanelConfig beakPanel(BeakPanelConfig defaults) =>
+    defaults.copyWith(pages: [...defaults.pages, buildAuditScreen()]);
+```
+
+The same file is where the rest of the whole-panel configuration lives, the part
+`beak.yaml` deliberately does not describe:
+
+```dart title="examples/superdashboard/lib/panel.dart"
+BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
+  initialThemeMode: OiThemeMode.light,
+  notifications: const BeakNotificationSource(
+    model: NotificationModel(),
+    titleField: NotificationColumns.title,
+    bodyField: NotificationColumns.body,
+    timeField: NotificationColumns.createdAt,
+    readField: NotificationColumns.isRead,
+    categoryField: NotificationColumns.level,
+  ),
+  // ...the pages, auth and maintenance config...
+);
+```
+
+Each page becomes a `go_router` route at its `path` and (unless `showInNav` is
+false) a sidebar entry under its `section`.
 
 ## Continue reading
 
 - [Custom screens](../panel/custom-screens.md) the panel-side reference for screen pages.
 - [Custom blocks and widgets](custom-blocks-and-widgets.md) put a raw widget at a screen's root.
 - [Dashboards](../panel/dashboards.md) the config-driven dashboard, a screen you get for free.
-- [Resources](../panel/resources.md) the other kind of page, generated from a model.
+- [Resources](../panel/resources.md) the other kind of page, generated from a schema class.
+- [beak.yaml](../reference/beak-yaml.md) where a resource's icon, label and section are set.

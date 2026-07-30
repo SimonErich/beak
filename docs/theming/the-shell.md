@@ -10,14 +10,32 @@ screen gets the standard page chrome or renders edge to edge.
 
 Every route in a Beak panel is wrapped in the same shell: an `OiAppShell` with a
 sidebar on one edge, a top bar with search and the theme toggle, and your page in
-the middle. Two config fields shape the sidebar, and one field per screen decides
-whether the page inside sits in a frame or fills the viewport.
+the middle. Two `beak.yaml` keys shape the sidebar, and one field per screen
+decides whether the page inside sits in a frame or fills the viewport.
 
 ## The sidebar
 
 The sidebar is generated from your resources and pages, grouped by their optional
-`section` headings. You control how it behaves with two fields on
-`BeakPanelConfig`:
+`section` headings. You never assemble it. Two booleans control how it behaves,
+and they are scalars, so they live in `beak.yaml`:
+
+```yaml title="beak.yaml"
+theme:
+  sidebar:
+    collapsible: true
+    startCollapsed: false
+```
+
+Those are the defaults, so the panel opens with a full labelled sidebar that the
+user can collapse to an icon rail. Set `startCollapsed: true` to open narrow, or
+`collapsible: false` to pin the sidebar open.
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `theme.sidebar.collapsible` | `true` | Whether the user can collapse the sidebar to an icon rail at all. |
+| `theme.sidebar.startCollapsed` | `false` | Whether the panel opens with the sidebar already collapsed. |
+
+`beak prepare` emits them as two fields on the generated `BeakPanelConfig`:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
 /// Whether the sidebar can collapse to an icon rail.
@@ -27,38 +45,38 @@ final bool sidebarCollapsible;
 final bool sidebarDefaultCollapsed;
 ```
 
-Both default to a sensible pair: `sidebarCollapsible` is `true` and
-`sidebarDefaultCollapsed` is `false`, so the panel opens with a full labelled
-sidebar that the user can collapse to an icon rail. Set
-`sidebarDefaultCollapsed: true` to start narrow, or `sidebarCollapsible: false`
-to pin the sidebar open.
-
-| Field | Default | Effect |
-| --- | --- | --- |
-| `sidebarCollapsible` | `true` | Whether the user can collapse the sidebar to an icon rail at all. |
-| `sidebarDefaultCollapsed` | `false` | Whether the panel opens with the sidebar already collapsed. |
-
 Both flow straight into the `OiAppShell` that wraps every page:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_router.dart"
-OiAppShell(
+child: OiAppShell(
   label: config.title,
   title: config.title,
   sidebarCollapsible: config.sidebarCollapsible,
   sidebarDefaultCollapsed: config.sidebarDefaultCollapsed,
   currentRoute: currentPath,
   onNavigate: (route) => context.go(route),
-  // actions: search, notifications, theme toggle
-  // navigation: one OiNavItem per resource and per screen
+  // ... actions: search, notifications, theme toggle.
+  // ... navigation: one OiNavItem per resource and per screen.
   child: child,
 ),
 ```
 
 The shell builds one navigation entry per resource and per screen, keyed by each
 one's `icon` and `section`. You do not assemble the sidebar yourself; you declare
-resources and screens, and the shell lays them out. The
-[navigation shell](../panel/the-navigation-shell.md) page covers the command bar
-and notification bell that share this top bar.
+resources and screens, and the shell lays them out.
+
+Where each entry comes from:
+
+| Entry | Declared in | Icon, label and section from |
+| --- | --- | --- |
+| A resource | An `@Resource` class in `lib/models/<name>.dart` | `resources.<table>` in `beak.yaml` |
+| A screen | A `BeakScreen` in `lib/screens/<name>.dart` | The screen's own `icon`, `label` and `section` |
+
+A resource marked `hidden: true` in `beak.yaml` keeps its model, its API and its
+relationships; it only loses its sidebar entry. That is how the showcase
+files 32 of its 49 tables away while keeping them reachable through the resources
+that own them. The [navigation shell](../panel/the-navigation-shell.md) page
+covers the command bar and notification bell that share this top bar.
 
 ## Framed versus full-bleed screens
 
@@ -100,9 +118,11 @@ return OiResourcePage(
     gets a consistent titled header and comfortable padding.
 
 Here is a framed screen (the default), so the block body sits inside a titled,
-padded page:
+padded page. The whole file is one function under `lib/screens/`, which
+`beak prepare` discovers, routes at `/typography` and files under the "Showcase"
+heading:
 
-```dart title="apps/beak_superdashboard/lib/screens/typography_screen.dart"
+```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
 BeakScreen buildTypographyScreen() => const BeakScreen(
   path: '/typography',
   title: 'Typography',
@@ -110,13 +130,25 @@ BeakScreen buildTypographyScreen() => const BeakScreen(
   section: 'Showcase',
   body: BeakCardBlock(
     title: 'Type scale',
-    child: BeakColumnBlock(/* ... */),
+    child: BeakColumnBlock(
+      // ... one BeakTextBlock per size in the ramp ...
+    ),
   ),
 );
 ```
 
 Because `framed` is not set, it defaults to `true`, and the type-scale card
 renders under a "Typography" header with the shell's standard padding.
+
+The showcase's chat screen is the other half of the pair. `OiChat` wants the
+whole viewport and brings its own header, so the screen opts out of the frame:
+
+```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
+--8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
+```
+
+The sidebar and top bar stay exactly where they are. `framed` decides only what
+happens inside them.
 
 ## Continue reading
 

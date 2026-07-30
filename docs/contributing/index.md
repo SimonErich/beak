@@ -30,19 +30,20 @@ dart pub global activate melos 6.3.3
     `pubspec.yaml`. This repo is on the `melos.yaml`-based `6.3.3` line and will
     not bootstrap under 7.
 
-## The obers_ui sibling
+## The obers_ui dependency
 
-`beak_frontend` and the demo apps reference **`obers_ui`** by a relative path one
-level above the repo root (`../obers_ui`), mirroring the `~/Flutters` layout.
-Check `obers_ui` out as a sibling of this repo *before* bootstrapping, or the
-resolve fails with a missing path dependency. The
-[obers_ui sibling caveat](../deployment/the-obers-ui-sibling-caveat.md) covers
-what breaks when it is missing.
+`beak_frontend` and `beak` reference **`obers_ui`** by pinned git commit, so
+`melos bootstrap` fetches it for you and a plain clone of this repo is all
+you need. If your change spans both repositories, clone obers_ui beside this one
+and run `melos run link-obers-ui` to swap the pin for your working copy.
+[Working with obers_ui](../deployment/working-with-obers-ui.md) has the
+details.
 
 ## Setup
 
 ```bash
-# 1. Sibling checkout of obers_ui (see above), then from the repo root:
+# 1. From the repo root. obers_ui resolves from its pinned commit, so a
+#    plain clone is all you need:
 melos bootstrap                      # resolve every package
 
 # 2. Local services (Postgres + MinIO), waits for health, inits the bucket:
@@ -68,18 +69,18 @@ compose stack in full.
 
 ## The gate (Definition of Done)
 
-Every change must keep all four commands green, run from the repo root:
+Every change must keep these four green, run from the repo root:
 
 ```bash
-melos run analyze        # 0 issues (incl. the no-Material import guard)
+melos run analyze        # 0 issues, plus the four guards
 melos run format-check   # dart format --set-exit-if-changed, clean
 melos run test           # all package tests, no skips
 melos run coverage       # per-package line-coverage thresholds
 ```
 
-These are Melos scripts. `analyze` chains the pure-Dart analyzer, the Flutter
-analyzer, the workspace tooling, and the `guard-material` check; `test` chains
-the Dart, Flutter, and tooling suites. The definitions live in `melos.yaml`:
+These are Melos scripts. `analyze` chains the analyzers and the guards; `test`
+chains the Dart, Flutter, and tooling suites. The definitions live in
+`melos.yaml`:
 
 ```yaml title="melos.yaml"
   analyze:
@@ -87,13 +88,24 @@ the Dart, Flutter, and tooling suites. The definitions live in `melos.yaml`:
       melos run analyze-dart &&
       melos run analyze-flutter &&
       melos run analyze-root &&
-      melos run guard-material
+      melos run guard-material &&
+      melos run guard-web &&
+      melos run check-docs &&
+      melos run check-examples
     description: Static analysis across all packages (0 issues required).
 ```
 
-Integration and E2E tests that need Postgres or MinIO are health-check-guarded:
-they skip cleanly when the services are down, so `melos run test` passes without
-Docker. Run `melos run up` before relying on them.
+Two more run in CI and are worth running before you push anything that touches
+a driver or a service path:
+
+```bash
+melos run up             # Postgres + MinIO
+melos run test-e2e       # every test/e2e directory, --tags e2e
+melos run test-worm      # the vendored worm packages, which melos ignores
+```
+
+The service-backed suites are health-check-guarded, so `melos run test` passes
+without Docker: they skip rather than fail.
 
 ### The coverage gotcha
 
@@ -102,7 +114,7 @@ them. If you changed code, delete stale reports first so the gate sees fresh
 numbers:
 
 ```bash
-rm -rf packages/*/coverage apps/*/coverage
+rm -rf packages/*/coverage examples/*/coverage
 melos run test && melos run coverage
 ```
 
@@ -112,11 +124,12 @@ and the patterns that reach them.
 
 ## Running the docs locally
 
-The site is MkDocs with the Material theme and the minify plugin. Install the two
-Python packages, then serve with live reload:
+The site is MkDocs with the Material theme, the minify plugin, and the redirects
+plugin that keeps moved pages' old addresses working. Install the three Python
+packages, then serve with live reload:
 
 ```bash
-pip install mkdocs-material mkdocs-minify-plugin
+pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects
 mkdocs serve
 ```
 

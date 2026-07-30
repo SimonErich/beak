@@ -50,7 +50,7 @@ All the chart and map types are exported from `beak_frontend`. The single-series
 types (`BeakChartType`, `BeakChartPoint`, `BeakChart`) live in
 `packages/beak_frontend/lib/src/dashboard/beak_chart.dart`; the composable blocks
 live under `packages/beak_frontend/lib/src/blocks/`. The showcase app
-(`apps/beak_superdashboard`, port 8180) wires all of them against seeded
+(`examples/superdashboard`, port 8180) wires all of them against seeded
 analytics tables, which is where the worked examples on the next three pages come
 from.
 

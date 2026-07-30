@@ -272,15 +272,12 @@ final class MongoAdapter extends DatabaseAdapter with ExplainCapable {
   @override
   Future<void> executeSchema(SchemaDescriptor d) =>
       MongoErrorMapper.wrap(() async {
-        if (d is SchemaIndexDescriptor) {
-          await _connection.db
-              .collection(d.collection)
-              .createIndex(key: d.field, unique: d.unique);
-          return;
-        }
         switch (d.operation) {
           case SchemaOperation.create:
             await _createCollection(d.table, ifNotExists: d.ifNotExists);
+            for (final index in d.indexes) {
+              await _createIndex(d.table, index);
+            }
           case SchemaOperation.drop:
             await _dropCollection(d.table, ifExists: d.ifExists);
           case SchemaOperation.truncate:
@@ -288,22 +285,54 @@ final class MongoAdapter extends DatabaseAdapter with ExplainCapable {
                 .collection(d.table)
                 .deleteMany(const <String, Object?>{});
           case SchemaOperation.alter:
-            throw const QueryException(
-              query: '',
-              message:
-                  'MongoAdapter.executeSchema does not support '
-                  'SchemaOperation.alter — Mongo collections are '
-                  'schemaless.',
-            );
-          case SchemaOperation.createIndex:
-            throw const QueryException(
-              query: '',
-              message:
-                  'executeSchema(SchemaOperation.createIndex) requires '
-                  'a SchemaIndexDescriptor',
-            );
+            for (final alteration in d.alterations) {
+              await _applyAlteration(d.table, alteration);
+            }
         }
       }, table: d.table);
+
+  /// Creates [index] on [collection].
+  ///
+  /// Composite indexes are reachable now that an index is described by a
+  /// column list rather than a single field.
+  Future<void> _createIndex(String collection, SchemaIndex index) => _connection
+      .db
+      .collection(collection)
+      .createIndex(
+        keys: <String, Object?>{for (final c in index.columns) c: 1},
+        unique: index.unique,
+        name: index.name,
+      );
+
+  /// Applies one alteration.
+  ///
+  /// A Mongo collection is schemaless, so adding, dropping or changing a
+  /// field is a no-op by nature rather than an unsupported request — there
+  /// is no declaration to change. Indexes are real, and constraints are not.
+  Future<void> _applyAlteration(
+    String collection,
+    SchemaAlteration alteration,
+  ) async {
+    switch (alteration) {
+      case SchemaAddColumn():
+      case SchemaDropColumn():
+      case SchemaChangeColumn():
+        break;
+      case SchemaAddIndex(:final index):
+        await _createIndex(collection, index);
+      case SchemaDropIndex(:final name):
+        await _connection.db.collection(collection).dropIndexes(name);
+      case SchemaAddForeignKey():
+      case SchemaDropForeignKey():
+        throw const UnsupportedOperationException(
+          operation: 'alter.foreignKey',
+          adapter: 'MongoAdapter',
+          message:
+              'Mongo has no referential integrity; a foreign key cannot be '
+              'declared or dropped.',
+        );
+    }
+  }
 
   @override
   Future<Map<String, List<String>>> introspectSchema() =>

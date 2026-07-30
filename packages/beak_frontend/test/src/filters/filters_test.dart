@@ -120,4 +120,76 @@ void main() {
 
     expect(find.textContaining('need an enum column'), findsOneWidget);
   });
+
+  group('derived defaults', () {
+    test('one control per filterable column, matched to its type', () {
+      final filters = beakDefaultFiltersOf(const _FilterableModel());
+
+      expect(filters.map((filter) => (filter.runtimeType, filter.column.key)), [
+        (BeakTextFilter, 'name'),
+        (BeakBoolFilter, 'active'),
+        (BeakSelectFilter, 'status'),
+        (BeakDateRangeFilter, 'published_at'),
+      ]);
+    });
+
+    test('a filterable column with no fitting control is skipped', () {
+      // A number has no range control yet; guessing one would be worse than
+      // leaving it to the resource.
+      expect(
+        beakDefaultFiltersOf(const _FilterableModel()).map((f) => f.column.key),
+        isNot(contains('stock')),
+      );
+    });
+
+    test('declared filters win over the derived ones', () {
+      const declared = BeakTextFilter(
+        column: ArticleColumns.title,
+        label: 'Headline',
+      );
+      const resource = BeakResource(
+        model: _FilterableModel(),
+        icon: BeakIconToken(OiIcons.table),
+        filters: [declared],
+      );
+
+      expect(resource.effectiveFilters, [declared]);
+      expect(
+        resource.copyWith(filters: const []).effectiveFilters,
+        hasLength(4),
+      );
+    });
+  });
+}
+
+/// A model marking one column of each filterable shape, plus an int (which
+/// has no control) to prove the skip.
+final class _FilterableModel extends BeakModel {
+  const _FilterableModel();
+
+  @override
+  String get table => 'posts';
+
+  @override
+  String get displayColumnKey => 'name';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'name', label: 'Name', filterable: true),
+    BeakBoolColumn(key: 'active', label: 'Active', filterable: true),
+    BeakEnumColumn<ArticleStatus>(
+      key: 'status',
+      label: 'Status',
+      values: ArticleStatus.values,
+      filterable: true,
+    ),
+    BeakDateTimeColumn(
+      key: 'published_at',
+      label: 'Published at',
+      filterable: true,
+    ),
+    BeakIntColumn(key: 'stock', label: 'Stock', filterable: true),
+    BeakStringColumn(key: 'slug', label: 'Slug'),
+  ];
 }

@@ -37,6 +37,7 @@ void main() {
       supportsPreparedStatements: true,
       supportsAggregations: true,
       supportsSchemaIntrospection: true,
+      supportsColumnAlterations: true,
       supportsExplain: true,
     ),
     adapterFactory: () async {

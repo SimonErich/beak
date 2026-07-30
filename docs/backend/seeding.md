@@ -1,17 +1,17 @@
 ---
 title: Seeding
-description: Write worm seeders, fill your tables with deterministic fake data through the SeedContext toolkit, and run them with db:seed.
+description: Write worm seeders, fill your tables with deterministic demo data, and run them with beak seed.
 ---
 
 # Seeding
 
-Seeders put rows in your tables so the panel has something to show. After this page you can write a plain seeder with fixed data, level up to the `SeedContext` factory toolkit for realistic fake data, and run either with one command, getting the same database byte for byte on every run.
+Seeders put rows in your tables so the panel has something to show. After this page you can write a plain seeder with fixed data, scale up to a shared context for realistic fake data, and run either with one command, getting the same database byte for byte on every run.
 
-An empty admin panel is hard to judge. A seeder is a class that inserts demo rows; running it after your migrations gives you products to browse, orders to filter, and charts with real shapes. Beak uses worm's seeder machinery and adds a shared context that makes the fake data reproducible.
+An empty admin panel is hard to judge. A seeder is a class that inserts demo rows; running it after your migrations gives you products to browse, orders to filter, and charts with real shapes. Beak uses worm's seeder machinery and discovers your seeders from `lib/seeders/`, so there is no list to register them in.
 
 ## What a seeder is
 
-A seeder extends worm's `Seeder`. It declares a `name`, optionally the `Environment` it runs in and an execution `order`, and implements `run` against a `DatabaseAdapter`.
+A seeder extends worm's `Seeder`. It declares a `name`, optionally the `Environment` it runs in and an execution `order`, and implements `run` against a `DatabaseAdapter`. Import it from `package:beak/migrations.dart`, the library that carries the schema and seeding half of worm.
 
 ```dart title="packages/worm/lib/src/seeder/seeder_base.dart"
 abstract base class Seeder {
@@ -40,17 +40,19 @@ abstract base class Seeder {
 
 `environment` defaults to `Environment.all`, so a seeder runs everywhere unless you narrow it (handy for keeping heavy demo data out of production). `order` sorts the registered seeders before they run.
 
+The class needs a zero-argument `const` constructor, because `beak prepare` lists it as `StoreSeeder()` inside a `const` list. A seeder without one is reported by name and file rather than quietly skipped: a demo database that came up empty is a bad way to learn about a missing `const`.
+
 ### The simplest seeder
 
-The tutorial store seeds a small, fixed catalog: a couple of categories and tags, two users, three products, and one order. It uses `adapter.insert` directly and gives every row a fixed, UUID-shaped primary key so tests and demos can name records.
+The store seeds a small, fixed catalog: two categories, three tags, two users, three products (one with a roast profile), and one order with two lines. It uses `adapter.insert` directly and gives every row a fixed, UUID-shaped primary key so tests and demos can name records.
 
-```dart title="apps/reference_admin_server/lib/src/seeders/reference_seeder.dart"
-final class ReferenceSeeder extends Seeder {
+```dart title="examples/store/lib/seeders/store_seeder.dart"
+final class StoreSeeder extends Seeder {
   /// Creates the seeder.
-  const ReferenceSeeder();
+  const StoreSeeder();
 
   @override
-  String get name => 'ReferenceSeeder';
+  String get name => 'StoreSeeder';
 
   @override
   Future<void> run(DatabaseAdapter adapter) async {
@@ -58,66 +60,88 @@ final class ReferenceSeeder extends Seeder {
       await adapter.insert(InsertDescriptor(table: table, values: values));
     }
 
+    final DateTime now = DateTime.utc(2026, 6, 30, 9, 30);
+
     await insert('categories', {
-      'id': ReferenceSeedIds.categoryCoffee,
+      'id': StoreSeedIds.categoryCoffee,
       'name': 'Coffee',
+      'blurb': 'Beans, ground and whole.',
     });
+    // ...the Gear category and three tags...
     await insert('users', {
-      'id': ReferenceSeedIds.userAda,
+      'id': StoreSeedIds.userAda,
       'name': 'Ada Lovelace',
       'email': 'ada@example.com',
+      'role': 'staff',
       'active': true,
+      'created_at': now,
+      'updated_at': now,
     });
+    // ...a second user...
     await insert('products', {
-      'id': ReferenceSeedIds.productEspresso,
+      'id': StoreSeedIds.productEspresso,
       'name': 'Espresso Beans',
-      'description': 'Dark roast, chocolate notes.',
+      'sku': 'COF-ESP-1KG',
+      'summary': 'Dark roast, chocolate notes.',
       'price': 12.5,
       'stock': 42,
+      'featured': true,
       'status': 'published',
-      'category_id': ReferenceSeedIds.categoryCoffee,
+      'published_at': now,
+      'swatch': '#4B2E2B',
+      'category_id': StoreSeedIds.categoryCoffee,
+      'created_at': now,
+      'updated_at': now,
     });
-    // ...tags, more products, the product_tag pivot, and one order.
+    // ...two more products, a roast profile, the product_tag pivot,
+    // ...and one order with two lines.
   }
 }
 ```
 
-The IDs are constants, not random:
+The ids are constants, not random:
 
-```dart title="apps/reference_admin_server/lib/src/seeders/reference_seeder.dart"
-abstract final class ReferenceSeedIds {
+```dart title="examples/store/lib/seeders/store_seeder.dart"
+abstract final class StoreSeedIds {
   /// The "Coffee" category.
   static const categoryCoffee = '00000000-0000-4000-8000-000000000101';
-
-  /// Ada, the active customer.
+  // ...
+  /// Ada, the staff account.
   static const userAda = '00000000-0000-4000-8000-000000000301';
-
+  // ...
   /// The espresso beans product.
   static const productEspresso = '00000000-0000-4000-8000-000000000401';
+  // ...
 }
 ```
 
-Fixed keys make the whole seed assertable: an end-to-end test can look up `productEspresso` by name and know exactly what it should find. Inserts write the raw row map (a foreign key is just its column, `category_id`), matching the [row shape your migration created](migrations.md).
+Fixed keys make the whole seed assertable: the store's API suite looks up `StoreSeedIds.productEspresso` and knows exactly what it should find. The same constants are reused by `lib/server.dart`, whose demo accounts are the seeded users, so a login and a row policy line up with the data.
+
+Inserts write the raw row map. A foreign key is its column (`category_id`), an enum column stores its `.name` (`'status': 'published'`), and a `DateTime` goes in as a `DateTime`. That is the shape [your migration created](migrations.md).
 
 ## Running seeders
 
-Registered seeders are passed to the same project worm CLI as the migrations. In `bin/worm.dart` the reference app lists one:
+There is nothing to register. `beak prepare` scans `lib/seeders/`, finds every class extending `Seeder`, and writes the list into the generated host:
 
-```dart title="apps/reference_admin_server/bin/worm.dart"
-seeders: const [ReferenceSeeder()],
+```dart title="examples/store/lib/beak/server.g.dart"
+  seeders: const [StoreSeeder()],
 ```
 
-Run them after migrating, from the server app directory:
+Run them after migrating, from the project directory:
 
 ```bash
-dart run bin/worm.dart db:seed
+beak seed
+```
+
+`beak seed` regenerates the wiring and then delegates to the project's generated `bin/migrate.dart`, which is the same `beakHost()` the server runs. Call that directly to see the runner's own output, or to pass a flag:
+
+```bash
+dart run bin/migrate.dart db:seed
 ```
 
 ```text
-seeded  ReferenceSeeder
+seeded  StoreSeeder
 ```
-
-The flags:
 
 | Flag | Effect |
 | --- | --- |
@@ -127,64 +151,17 @@ The flags:
 
 If no seeder applies to the active environment, the runner prints `No seeders applicable to <env> environment.` and does nothing.
 
-## Leveling up: the SeedContext toolkit
+!!! tip "Start from a clean slate"
+    `dart run bin/migrate.dart migrate:fresh --seed` drops everything, re-runs every migration, and seeds in one pass. It is the fastest way back to a known database while you are shaping a schema.
 
-Fixed rows are perfect for a teaching store. A 49-model showcase needs volume and variety without turning random, so the showcase app builds every domain seeder on a shared `SeedContext`: a deterministically seeded faker, a fixed clock, a UUID minter, and thin insert helpers.
+## Leveling up: a shared seed context
 
-```dart title="apps/beak_superdashboard/lib/seeders/seed_context.dart"
-final class SeedContext {
-  /// Creates a context over [adapter] and seeds the faker.
-  SeedContext(this.adapter) {
-    faker.seed(seed);
-  }
+Fixed rows are what a teaching store wants. A 49-model showcase needs volume and variety without turning random, so `examples/superdashboard` builds every domain seeder on a shared `SeedContext`: a deterministically seeded faker, a fixed clock, a UUID minter, and thin insert helpers.
 
-  /// The reproducibility seed shared by the faker and every derived value.
-  static const int seed = 20260707;
+`SeedContext` is the showcase's own class, not something Beak ships. It is about seventy lines over worm's `FakerService` and `DatabaseAdapter`, both of which reach you through `package:beak/migrations.dart`. Copy it, trim it, or write your own; the pattern is the point.
 
-  /// The demo's fixed "now" - every relative date is measured from here so
-  /// screens look identical on every run.
-  static final DateTime now = DateTime.utc(2026, 7, 7, 12);
-
-  /// The adapter rows are written to.
-  final DatabaseAdapter adapter;
-
-  /// The seeded fake-data source.
-  final FakerService faker = FakerService.instance;
-
-  /// Inserts one row into [table].
-  Future<void> insert(String table, Map<String, Object?> values) =>
-      adapter.insert(InsertDescriptor(table: table, values: values));
-
-  /// Inserts many [rows] into [table] in one batch (no-op when empty).
-  Future<void> insertMany(String table, List<Map<String, Object?>> rows) async {
-    if (rows.isEmpty) {
-      return;
-    }
-    await adapter.insertMany(InsertManyDescriptor(table: table, rows: rows));
-  }
-
-  /// Reads back every row of [table].
-  Future<List<Map<String, Object?>>> selectAll(String table) =>
-      adapter.select(QueryDescriptor(table: table));
-
-  /// A fresh deterministic UUID.
-  String uuid() => faker.uuid();
-
-  /// An inclusive integer in [lo]..[hi].
-  int between(int lo, int hi) => faker.intBetween(lo, hi);
-
-  /// A two-decimal amount in [lo]..[hi].
-  double money(num lo, num hi) => faker.decimalBetween(lo, hi);
-
-  /// A uniformly random element of [values].
-  T pick<T>(List<T> values) => faker.element(values);
-
-  /// A weighted random key of [weights].
-  T weighted<T>(Map<T, int> weights) => faker.weighted(weights);
-
-  /// `true` with probability [p].
-  bool chance(double p) => faker.boolean(probability: p);
-}
+```dart title="examples/superdashboard/lib/seeders/seed_context.dart"
+--8<-- "examples/superdashboard/lib/seeders/seed_context.dart:SeedContext"
 ```
 
 The toolkit at a glance:
@@ -202,13 +179,13 @@ The toolkit at a glance:
 | `chance(p)` | A boolean true with probability `p` |
 | `faker` | The full `FakerService` for names, sentences, image URLs |
 
-The constructor seeds the faker with the fixed `seed`, and every timestamp is measured from the fixed `now`. Same seed plus same clock equals the same rows every run: charts and calendars look identical, which makes screenshots and E2E assertions stable.
+The constructor seeds the faker with the fixed `seed`, and every timestamp is measured from the fixed `now`. Same seed plus same clock equals the same rows every run: charts and calendars look identical, which makes screenshots and end-to-end assertions stable.
 
 ### The master seeder
 
-Only one class extends `Seeder`: the master that builds a single shared context and runs the domain seeders through it in dependency order.
+Only one class in the showcase extends `Seeder`, which is also the only one discovery has to find. It builds a single shared context and runs the domain seeders through it in dependency order.
 
-```dart title="apps/beak_superdashboard/lib/seeders/demo_database_seeder.dart"
+```dart title="examples/superdashboard/lib/seeders/demo_database_seeder.dart"
 final class DemoDatabaseSeeder extends Seeder {
   /// Creates the master seeder.
   const DemoDatabaseSeeder();
@@ -232,9 +209,9 @@ One shared context means one continuous faker stream, so values stay unique acro
 
 ### A domain seeder
 
-A domain seeder is a plain class that takes the context. It does not extend `Seeder`: only the master does. It leans on the toolkit for realistic-but-fixed rows.
+A domain seeder is a plain class that takes the context. It does not extend `Seeder`: only the master does, which is why `beak prepare` lists one seeder rather than twelve. It leans on the toolkit for realistic-but-fixed rows.
 
-```dart title="apps/beak_superdashboard/lib/seeders/commerce_seeder.dart"
+```dart title="examples/superdashboard/lib/seeders/commerce_seeder.dart"
 productRows.add({
   'id': id,
   'name': _productNames[index],
@@ -256,14 +233,29 @@ productRows.add({
 });
 ```
 
-Enum-backed columns store `.name` (matching a [`BeakEnumColumn`](../models/column-types.md), which persists by name), and `selectAll('users')` lets the order seeder pick real customer IDs the people seeder already wrote. Registering `DemoDatabaseSeeder` in the showcase's `bin/worm.dart` and running `db:seed` fills all 49 tables in one pass.
+Enum-backed columns store `.name` (matching a [`BeakEnumColumn`](../models/column-types.md), which persists by name), and `selectAll('users')` lets the order seeder pick real customer ids the people seeder already wrote. Dropping `demo_database_seeder.dart` into `lib/seeders/` is the whole registration; `beak seed` then fills all 49 tables in one pass.
 
 !!! note "Determinism, restated"
-    Nothing here is truly random. `SeedContext.seed` and `SeedContext.now` are constants, the faker is seeded from them, and the master runs one shared stream. Delete the database, migrate, seed, and you get the identical rows. That is what lets the demo apps ship screenshots and green E2E tests.
+    Nothing here is truly random. `SeedContext.seed` and `SeedContext.now` are constants, the faker is seeded from them, and the master runs one shared stream. Delete the database, migrate, seed, and you get the identical rows. That is what lets the demo apps ship screenshots and green end-to-end tests.
+
+## Seeding inside a test
+
+The generated host exposes its seeders, so a test seeds the same rows the CLI would without shelling out. The store's API suite migrates and seeds a fresh in-memory database in `setUpAll`:
+
+```dart title="examples/store/test/api_scenario.dart"
+      await MigrationRunner(
+        adapter: adapter,
+        migrations: host.migrations.toList(),
+        seeders: host.seeders,
+      ).fresh(seed: true);
+```
+
+`fresh(seed: true)` drops, migrates, and seeds. Because the seed is fixed, every assertion below it can name a record instead of searching for one.
 
 ## Continue reading
 
 - [Migrations](migrations.md) create the tables a seeder fills.
-- [5. Seeding a flock of data](../tutorial/05-seeding-a-flock-of-data.md) the same story, walked step by step.
+- [Running the server](running-the-server.md) the generated host that lists your seeders.
+- [Tutorial: First Flight](../tutorial/index.md) the same story, walked step by step.
 - [Column types](../models/column-types.md) how enum and decimal columns store the values you seed.
 - [Testing](../guides/testing.md) using a fresh in-memory adapter and seeders in tests.

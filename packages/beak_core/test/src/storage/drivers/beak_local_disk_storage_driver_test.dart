@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/io.dart';
 import 'package:test/test.dart';
 
 BeakUpload _pngUpload({List<int> bytes = const [1, 2, 3]}) => BeakUpload(

@@ -9,6 +9,7 @@ import 'package:signals/signals_flutter.dart';
 
 import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
+import '../data/reference_cache.dart';
 import '../detail/relation_manager.dart';
 import 'beak_form_columns.dart';
 import 'beak_form_controller_builder.dart';
@@ -64,6 +65,7 @@ class BeakDataForm extends HookWidget {
   const BeakDataForm({
     required this.model,
     required this.dataSource,
+    this.referenceCache,
     this.recordId,
     this.sections,
     this.steps,
@@ -79,6 +81,10 @@ class BeakDataForm extends HookWidget {
 
   /// The source loads and submits run against.
   final BeakDataSource dataSource;
+
+  /// Resolves each belongs-to picker's prefilled key; one shared cache means
+  /// a form with four pickers costs one `batchGet`, not four `getOne`s.
+  final ReferenceCache? referenceCache;
 
   /// Primary key of the record under edit, or `null` for create mode.
   final Object? recordId;
@@ -165,7 +171,7 @@ class BeakDataForm extends HookWidget {
         if (viewModel.loading.value) {
           return const OiLabel.body('Loading…');
         }
-        return OiAfForm<BeakFormSlot, BeakRecord>(
+        return OiAfForm<Enum, BeakRecord>(
           controller: controller,
           onSubmit: (data, _) => _submit(data, viewModel, controller),
           child: switch ((steps, layout)) {
@@ -189,10 +195,8 @@ class BeakDataForm extends HookWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ..._fieldSections(controller, effectiveUploader),
-                  const OiAfErrorSummary<BeakFormSlot>(
-                    showOnlyAfterSubmit: true,
-                  ),
-                  OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+                  const OiAfErrorSummary<Enum>(showOnlyAfterSubmit: true),
+                  OiAfSubmitButton<Enum, BeakRecord>(
                     label: recordId == null ? 'Create' : 'Save',
                     loadingLabel: 'Saving…',
                   ),
@@ -228,8 +232,8 @@ class BeakDataForm extends HookWidget {
           filePicker: filePicker,
           child: BeakBlockHost(block: layout),
         ),
-        const OiAfErrorSummary<BeakFormSlot>(showOnlyAfterSubmit: true),
-        OiAfSubmitButton<BeakFormSlot, BeakRecord>(
+        const OiAfErrorSummary<Enum>(showOnlyAfterSubmit: true),
+        OiAfSubmitButton<Enum, BeakRecord>(
           label: recordId == null ? 'Create' : 'Save',
           loadingLabel: 'Saving…',
         ),
@@ -331,6 +335,7 @@ class BeakDataForm extends HookWidget {
         controller: controller,
         relation: relation,
         dataSource: dataSource,
+        referenceCache: referenceCache,
       );
     }
     return beakFormFieldFor(
@@ -377,6 +382,7 @@ class BeakDataForm extends HookWidget {
           controller: controller,
           relation: relation,
           dataSource: dataSource,
+          referenceCache: referenceCache,
         );
       }
       return beakFormFieldFor(
@@ -412,6 +418,7 @@ class BeakDataForm extends HookWidget {
               controller: controller,
               relation: relation,
               dataSource: dataSource,
+              referenceCache: referenceCache,
             ),
           );
         }

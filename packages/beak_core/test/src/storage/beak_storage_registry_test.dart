@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/io.dart';
 import 'package:test/test.dart';
 
 /// A driver stub for registration tests; no operation is ever invoked.
@@ -38,8 +39,11 @@ void main() {
   );
 
   group('BeakStorageRegistry', () {
-    test('registers the built-in drivers', () {
-      expect(BeakStorageRegistry().driverIds, const ['memory', 'local']);
+    test('pre-registers only the web-safe memory driver', () {
+      // `local` needs dart:io, so it is registered by the server side
+      // (beak_backend's createDefaultStorageRegistry) rather than here —
+      // that is what keeps this barrel importable from a Flutter web build.
+      expect(BeakStorageRegistry().driverIds, const ['memory']);
     });
 
     test('driverIds is unmodifiable', () {
@@ -56,13 +60,16 @@ void main() {
       );
     });
 
-    test('resolves the local-disk driver from its config', () {
-      final driver = BeakStorageRegistry().resolve(
-        BeakLocalDiskStorageConfig(
-          rootDir: '/tmp/beak',
-          publicBaseUrl: Uri.parse('http://localhost:8080/files'),
-        ),
-      );
+    test('resolves the local-disk driver once it is registered', () {
+      final driver =
+          (BeakStorageRegistry()
+                ..register('local', BeakLocalDiskStorageDriver.fromConfig))
+              .resolve(
+                BeakLocalDiskStorageConfig(
+                  rootDir: '/tmp/beak',
+                  publicBaseUrl: Uri.parse('http://localhost:8080/files'),
+                ),
+              );
       expect(driver, isA<BeakLocalDiskStorageDriver>());
     });
 
@@ -92,7 +99,7 @@ void main() {
     test('resolves additionally registered drivers', () {
       final registry = BeakStorageRegistry()
         ..register('s3', (config) => const _StubDriver());
-      expect(registry.driverIds, const ['memory', 'local', 's3']);
+      expect(registry.driverIds, const ['memory', 's3']);
       expect(registry.resolve(s3Config()), isA<_StubDriver>());
     });
   });

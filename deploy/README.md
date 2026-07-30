@@ -10,9 +10,8 @@ in the docs under [Deployment](../docs/deployment/index.md).
 | File | What it builds |
 | --- | --- |
 | `Dockerfile.server` | The backend as one AOT-compiled native executable on `debian:bookworm-slim`. Also carries the worm CLI (`beak-migrate`) for schema and seed steps. No obers_ui, no Flutter. |
-| `Dockerfile.web` | The Flutter web panel, served by nginx. Resolves obers_ui from git via `web-overrides.yaml` so it builds without the sibling checkout. |
+| `Dockerfile.web` | The Flutter web panel, served by nginx. Needs no dependency overrides — obers_ui is pinned by git commit in the pubspecs, so it resolves the same way in a container as on your machine. |
 | `nginx.conf` | Static serving with a SPA fallback for go_router routes. |
-| `web-overrides.yaml` | Redirects the three obers_ui packages to git during the web build. |
 | `docker-compose.prod.yml` | postgres + minio + createbuckets + migrate + server + web. |
 | `.env.prod.example` | Copy to `.env.prod` and change the credentials. |
 
@@ -47,5 +46,5 @@ docker build -f deploy/Dockerfile.web    -t beak-web .
 ```
 
 Always build from the repo root: Beak uses path dependencies, so the whole
-`packages/` and `apps/` tree must be in the build context. The repo-root
+`packages/` and `examples/` tree must be in the build context. The repo-root
 `.dockerignore` trims the rest.

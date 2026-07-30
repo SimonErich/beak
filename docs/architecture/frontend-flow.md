@@ -1,6 +1,6 @@
 ---
 title: Frontend flow
-description: The Widget to ViewModel to Repository to DataSource path in the panel, Signals state, the BeakResult catch boundary, and package-scoped GetIt.
+description: The generated wiring, the Widget to ViewModel to Repository to DataSource path, Signals state, the BeakResult catch boundary, and package-scoped GetIt.
 ---
 
 # Frontend flow
@@ -26,6 +26,59 @@ flowchart TD
 
 State flows up as Signals; intent flows down as method calls. The only layer that ever runs a `try/catch` is the repository.
 
+## The generated wiring above the widgets
+
+Nothing above hands itself a config. Before the first widget builds, four generated files decide what the panel *is*.
+
+```mermaid
+flowchart LR
+  MAIN[lib/main.dart] --> APP[lib/beak/app.g.dart<br/>BeakApp]
+  APP --> PANEL[lib/beak/panel.g.dart<br/>buildBeakPanel]
+  PANEL --> REG[lib/beak/registry.g.dart<br/>beakModels]
+  APP --> BP[BeakPanel]
+  BP --> DI[registerBeakDependencies]
+  BP --> ROUTER[createBeakRouter]
+```
+
+`beak prepare` writes all four. `registry.g.dart` lists every model it found under `lib/models/`. `panel.g.dart` turns `beak.yaml` plus those models plus anything in `lib/screens/` and `lib/resources/` into one `BeakPanelConfig`. `app.g.dart` holds the root widget.
+
+```dart title="examples/store/lib/beak/app.g.dart"
+/// The Beak Store panel's configuration.
+///
+/// Built once, at startup: the config holds closures and block trees, so a
+/// fresh one every frame would rebuild the router with it.
+final BeakPanelConfig beakPanelConfig = buildBeakPanel();
+
+/// The Beak Store panel.
+final class BeakApp extends StatelessWidget {
+  /// Creates the app; [dataSource] injects a fake in widget tests.
+  const BeakApp({this.dataSource, super.key});
+
+  /// Test seam replacing the HTTP-backed data source.
+  final BeakDataSource? dataSource;
+
+  @override
+  Widget build(BuildContext context) =>
+      BeakPanel(config: beakPanelConfig, dataSource: dataSource);
+}
+```
+
+Two details are worth reading twice. The config is a top-level `final`, built once, because it holds closures and block trees and a fresh one each frame would rebuild the router underneath the user. And `dataSource` is threaded straight through from the root widget, which is what lets a widget test pump the entire real panel over an `InMemoryBeakDataSource` with no socket anywhere.
+
+A generated resource entry is a plain `BeakResource`, and the one hand-written hook is a function that takes Beak's own default and returns a modified copy:
+
+```dart title="examples/store/lib/beak/panel.g.dart"
+      resource_products.beakResource(
+        BeakResource(
+          model: const ProductModel(),
+          icon: BeakIconToken(OiIcons.package),
+          section: 'Catalog',
+        ),
+      ),
+```
+
+So `lib/resources/products.dart` adjusts the products resource and nothing else. Delete the file and the plain `BeakResource` is what remains. Everything from here down is framework code that has never heard of your project.
+
 ## The Widget: render Signals, forward intent
 
 Panel widgets are `HookWidget`s (Beak forbids `StatefulWidget`). A widget watches a `ReadonlySignal` and rebuilds when it changes, and it forwards user intent to its view model. It holds no business logic and no `try/catch`.
@@ -46,6 +99,8 @@ Every view model extends `BeakViewModel`, which owns its Signals, exposes them a
 
 ```dart title="packages/beak_frontend/lib/src/state/beak_view_model.dart"
 abstract base class BeakViewModel {
+  // ...
+
   @protected
   Signal<T> ownedSignal<T>(T value) {
     final owned = signal<T>(value);
@@ -85,6 +140,8 @@ That `requestId` guard is latest-wins concurrency: a slow response from a supers
 Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
     _guard(() => dataSource.query(spec));
 
+// ...
+
 Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
   try {
     return BeakOk(await run());
@@ -111,7 +168,7 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
       client.query(spec.table, spec);
 ```
 
-Because the source is behind an interface, a test injects a fake `BeakDataSource` and the entire stack above it runs without a socket, and a future transport such as Serverpod could replace it without touching a single widget. That is the same seam described in [The data source seam](data-source-seam.md).
+Because the source is behind an interface, a test injects an `InMemoryBeakDataSource` from `package:beak/testing.dart` and the entire stack above it runs without a socket, and a future transport such as Serverpod could replace it without touching a single widget. That is the same seam described in [The data source seam](data-source-seam.md).
 
 ## Wiring: package-scoped GetIt
 
@@ -121,7 +178,7 @@ Beak resolves its dependencies from `beakLocator`, a GetIt container created wit
 final GetIt beakLocator = GetIt.asNewInstance();
 ```
 
-`registerBeakDependencies` populates it from a `BeakPanelConfig`: the model registry, the `BeakClient` pointed at `apiBaseUrl`, the `BeakDataSource`, a reference cache, and the theme controller. Registration is synchronous, because the router built right after reads the locator on its first frame, and it allows reassignment so hot restarts and tests can call it repeatedly.
+`registerBeakDependencies` populates it from a `BeakPanelConfig`: the model registry, the `BeakClient` pointed at `apiBaseUrl`, the session store, the `BeakDataSource`, a reference cache, and the theme controller. Registration is synchronous, because the router built right after reads the locator on its first frame, and it allows reassignment so hot restarts and tests can call it repeatedly.
 
 ```dart title="packages/beak_frontend/lib/src/di/beak_locator.dart"
 final source = dataSource ?? HttpBeakDataSource(client);
@@ -129,6 +186,7 @@ container
   ..registerSingleton<BeakPanelConfig>(config)
   ..registerSingleton<BeakModelRegistry>(registry)
   ..registerSingleton<BeakClient>(client)
+  ..registerSingleton<BeakSessionStore>(sessions)
   ..registerSingleton<BeakDataSource>(source)
   ..registerSingleton<ReferenceCache>(ReferenceCache(source, registry))
   ..registerSingleton<BeakThemeController>(
@@ -136,10 +194,15 @@ container
   );
 ```
 
-The `dataSource` parameter is the test seam: pass a fake and the panel talks to it instead of the network. `BeakPanel` calls this for you, so app authors set `apiBaseUrl` in config and never touch the locator directly. UI is obers_ui throughout, routing is go_router, and state is Signals, exactly as the [principles](principles.md) require.
+The client and the session store are built in that order for a reason: the client reads the store's token on every request, and the store mints one through the client when you sign in. Two halves of one session, so signing in is all it takes for the rest of the panel to be authenticated.
+
+The `dataSource` parameter is the test seam: pass a fake and the panel talks to it instead of the network. `BeakPanel` calls this for you, so app authors set `api.baseUrl` in `beak.yaml` and never touch the locator directly. UI is obers_ui throughout, routing is go_router, and state is Signals, exactly as the [principles](principles.md) require.
+
+`apiBaseUrl` itself is a compile-time value. The panel is a Flutter web app with no environment to read at runtime, so `beak.yaml`'s `api.baseUrl` becomes a `String.fromEnvironment` default in `panel.g.dart`, overridable at build time with `--dart-define=BEAK_API_BASE_URL=...`. Set `baseUrl: auto` and the generated expression resolves to the origin the panel was served from instead.
 
 ## Continue reading
 
 - [Backend flow](backend-flow.md) the server side, where the middleware plays the role the repository plays here.
 - [Results and errors](../concepts/results-and-errors.md) the `BeakResult` type the repository returns and the view model switches on.
 - [The panel](../panel/index.md) the widgets this flow drives, from tables to forms to dashboards.
+- [Project structure](../start-here/project-structure.md) the generated files at the top of this flow, and which ones you commit.

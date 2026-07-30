@@ -22,8 +22,10 @@ part of 'beak_column.dart';
 ///   suffix: 'kg',
 /// );
 /// ```
-final class BeakDecimalColumn extends BeakColumn {
-  /// Creates a decimal column displaying [precision] fraction digits.
+final class BeakDecimalColumn extends BeakColumn with BeakTypedColumn<double> {
+  /// Creates a decimal column displaying [precision] fraction digits, stored
+  /// in [totalDigits] digits overall.
+  // --8<-- [start:BeakDecimalColumn]
   const BeakDecimalColumn({
     required super.key,
     required super.label,
@@ -31,14 +33,37 @@ final class BeakDecimalColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.precision = 2,
+    this.totalDigits = 10,
     this.prefix,
     this.suffix,
-  });
+  }) : assert(
+         precision <= totalDigits,
+         'precision is the fraction digits of totalDigits, so it cannot '
+         'exceed it: NUMERIC(totalDigits, precision) leaves '
+         'totalDigits - precision digits ahead of the point.',
+       ),
+       assert(precision >= 0, 'a column cannot show negative digits');
+  // --8<-- [end:BeakDecimalColumn]
 
-  /// Number of fraction digits displayed.
+  /// Number of fraction digits, displayed and stored.
+  ///
+  /// The generated migration uses this as the column's SQL scale, so a
+  /// column that shows four decimals holds four. It used to be display-only
+  /// while every decimal column was created `NUMERIC(10, 2)`, which rounded
+  /// the value on the way in and then showed the rounded number to four
+  /// places.
   final int precision;
+
+  /// Total digits the column stores, fraction digits included.
+  ///
+  /// The SQL precision of `NUMERIC(totalDigits, precision)`. The default
+  /// leaves eight digits ahead of the point, which is enough for money and
+  /// not enough for a scientific quantity, so say so when it is not.
+  final int totalDigits;
 
   /// Text rendered before the number (e.g. `€`), if any.
   final String? prefix;
@@ -53,6 +78,7 @@ final class BeakDecimalColumn extends BeakColumn {
         : BeakRenderIntent.number,
   );
 
+  /// Reads [value] as a double value.
   @override
-  Type get valueType => double;
+  double? readValue(BeakValue? value) => _readDouble(value);
 }

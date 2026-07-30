@@ -1,54 +1,76 @@
 ---
 title: Validation rules
-description: Attach declarative rules to a column and Beak enforces them in the form and on the server from the same list.
+description: List rules on a field and Beak enforces them in the form and in the API from the same declaration.
 ---
 
 # Validation rules
 
-After this page you can attach any of Beak's eleven built-in rules to a column,
+After this page you can attach any of Beak's eleven built-in rules to a field,
 know exactly what each one checks, and trust that the check runs the same way in
 the Flutter form and in the Shelf request handler.
 
-A rule is plain data you list on a column. You never wire it up. Because the
-column is the single definition that feeds every surface, the rules ride along:
-the form field validates against them for instant feedback, and the backend
-runs the identical list before it writes a row. One list, both ends of the wire.
+A rule is plain data you list on `@Column`. You never wire it up. Because the
+field is the single definition that feeds every surface, the rules ride along:
+the form field validates against them for instant feedback, and the API runs the
+identical list before it writes a row. One list, both ends of the wire.
 
-## Attaching rules to a column
+## Attaching rules to a field
 
-Every column carries a `rules` list. Add the rules you want, in the order you
-want them checked.
+`@Column(rules: [...])` takes the rules you want, in the order you want them
+checked.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-/// Display name.
-static const name = BeakStringColumn(
-  key: 'name',
-  label: 'Name',
+```dart title="examples/store/lib/models/order_item.dart"
+/// How many units were bought.
+@Column(min: 1, rules: [BeakMin(1)])
+late final int quantity;
+
+/// What one unit cost, in euros.
+@Column(prefix: '€', rules: [BeakMin(0)])
+late final double unitPrice;
+```
+
+Rules run in list order and the first one that objects wins.
+
+!!! note "What just happened"
+    - `rules` is a `const List<BeakRule>`, baked into the generated column
+      constant with no runtime setup.
+    - The panel reads that list to validate the `quantity` and `unitPrice` form
+      fields; `beak_backend` reads it again to validate the incoming request
+      body. You wrote it once.
+    - `min: 1` bounds the form's stepper. `BeakMin(1)` is what rejects a `0` that
+      arrives anyway. The first is a convenience, the second is the rule.
+
+## Required is the type, not a rule
+
+You never write `BeakRequired()`. A non-nullable field is required and a nullable
+one is not, and `beak prepare` puts the rule in front of the list for you:
+
+```dart title="examples/store/lib/models/product.dart"
+/// The stock-keeping unit, unique across the catalog.
+@Column(
+  label: 'SKU',
   searchable: true,
-  sortable: true,
-  rules: [BeakRequired(), BeakMaxLength(255)],
-);
+  unique: true,
+  rules: [BeakMaxLength(40)],
+)
+late final String sku;
+```
 
-/// Sale price in euros.
-static const price = BeakDecimalColumn(
-  key: 'price',
-  label: 'Price',
-  prefix: '€',
-  sortable: true,
-  filterable: true,
-  rules: [BeakRequired(), BeakMin(0)],
+```dart title="examples/store/lib/models/product.beak.dart"
+/// The stock-keeping unit, unique across the catalog.
+static const BeakStringColumn sku = BeakStringColumn(
+  key: 'sku',
+  label: 'SKU',
+  rules: [BeakRequired(), BeakMaxLength(40)],
+  searchable: true,
+  unique: true,
 );
 ```
 
-Rules run in list order and the first one that objects wins: a blank `name`
-reports "This field is required." before `BeakMaxLength` ever looks at it.
-
-!!! note "What just happened"
-    - `rules` is a `const List<BeakRule>`, so it is baked into the column
-      constant with zero runtime setup.
-    - The panel reads this same list to validate the `name` and `price` form
-      fields; `beak_backend` reads it again to validate the incoming request
-      body. You wrote it once.
+The same nullability decides the migration's `NOT NULL`, so a blank `sku`
+reports "This field is required." in the form, comes back `422` from the API, and
+would be refused by the database if it ever got that far. Three answers, one
+decision.
 
 ## The rule contract
 
@@ -77,7 +99,7 @@ Two facts fall out of that signature and make rules compose cleanly:
   ignores a number, `BeakMin` ignores a string. Presence is `BeakRequired`'s job
   alone, so you stack rules freely without them fighting over empty values.
 
-```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
+```dart
 const rule = BeakMaxLength(3);
 rule.validate('abcd'); // 'Must be at most 3 characters.'
 rule.validate(42);     // null (not a string)
@@ -102,47 +124,58 @@ message column is the exact text a failing value produces.
 | Allowed file types | `const BeakAllowedFileTypes(List<BeakFileType> allowedTypes)` | an upload's name/MIME is outside `allowedTypes` | `File type must be one of: ….` |
 | Max file size | `const BeakMaxFileSize(int maxSizeInBytes)` | an upload exceeds `maxSizeInBytes` | `File must be at most $maxSizeInBytes bytes.` |
 
-### Presence and text length
+`BeakRequired` is the one you do not write; the other ten you list yourself.
 
-`BeakRequired` treats a whitespace-only string as empty, but keeps `false` and
-`0` as real, present values.
-
-```dart title="apps/reference_admin_models/lib/src/user.dart"
-static const name = BeakStringColumn(
-  key: 'name',
-  label: 'Name',
-  searchable: true,
-  sortable: true,
-  rules: [BeakRequired(), BeakMaxLength(120)],
-);
-```
+### Text length
 
 `BeakMinLength` and `BeakMaxLength` cap character counts. `BeakMinLength` does
-not imply presence: the empty string fails it like any short string, so pair it
-with `BeakRequired` when you also need the field filled in.
+not imply presence: the empty string fails it like any short string, so make the
+field non-nullable when you also need it filled in.
+
+```dart title="examples/store/lib/models/category.dart"
+/// What the category is called.
+@Display()
+@Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
+late final String name;
+```
+
+`@Column(maxLength: 120)` and `rules: [BeakMaxLength(120)]` are different jobs.
+The first stops the form input accepting a 121st character; the second rejects
+the value wherever it came from, including a `curl` that never saw the form.
+Reach for the rule, and add `maxLength` when you also want the input to stop
+typing.
 
 ### Numeric bounds
 
-`BeakMin` and `BeakMax` are inclusive and only bite numbers. The products model
-floors price and stock at zero.
+`BeakMin` and `BeakMax` are inclusive and only bite numbers. The store floors
+price at zero and gives the stepper the same floor.
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-static const stock = BeakIntColumn(
-  key: 'stock',
-  label: 'Stock',
-  min: 0,
-  sortable: true,
-  rules: [BeakMin(0)],
-);
+```dart title="examples/store/lib/models/product.dart"
+/// Sale price in euros.
+@Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
+late final double price;
+
+/// Units in stock.
+@Column(suffix: ' pcs', min: 0, sortable: true)
+late final int stock;
 ```
 
 ### Format: pattern, email, URL
 
-`BeakEmail` and `BeakUrl` are the two common formats built in. `BeakPattern`
-covers everything else. Its `regex` is unanchored, so add `^` and `$` yourself
-to match the whole value, and pass `message` for a domain-specific error.
+`BeakEmail` and `BeakUrl` are the two common formats built in. The store's user
+puts `BeakEmail` on the login field:
 
-```dart title="packages/beak_core/lib/src/rules/beak_pattern.dart"
+```dart title="examples/store/lib/models/user.dart"
+/// Login email, unique across the store.
+@Column(searchable: true, sortable: true, unique: true, rules: [BeakEmail()])
+late final String email;
+```
+
+`BeakPattern` covers everything else. Its `regex` is unanchored, so add `^` and
+`$` yourself to match the whole value, and pass `message` for a domain-specific
+error. On a slug column it reads:
+
+```dart
 static const slug = BeakStringColumn(
   key: 'slug',
   label: 'Slug',
@@ -155,24 +188,13 @@ static const slug = BeakStringColumn(
 );
 ```
 
-The users model uses `BeakEmail` directly on the login field:
-
-```dart title="apps/reference_admin_models/lib/src/user.dart"
-static const email = BeakStringColumn(
-  key: 'email',
-  label: 'Email',
-  searchable: true,
-  sortable: true,
-  rules: [BeakRequired(), BeakEmail()],
-);
-```
-
 ### Membership
 
 `BeakInList<T>` keeps a value inside a known set and stays type-safe through its
-type parameter. `null` passes (leave presence to `BeakRequired`).
+type parameter. `null` passes, since presence is decided by the field's
+nullability. A size column held to three values:
 
-```dart title="packages/beak_core/lib/src/rules/beak_in_list.dart"
+```dart
 static const size = BeakStringColumn(
   key: 'size',
   label: 'Size',
@@ -180,22 +202,23 @@ static const size = BeakStringColumn(
 );
 ```
 
-!!! tip "Prefer an enum column for fixed sets"
-    When the whole set of values is known at compile time, reach for a
-    [`BeakEnumColumn`](column-types.md) instead of a string plus `BeakInList`.
-    The enum column gives you typed values, badge colors, and a real dropdown
-    for free. Keep `BeakInList` for sets that are strings by nature.
+!!! tip "Prefer an enum field for fixed sets"
+    When the whole set of values is known at compile time, declare a Dart enum
+    and use it as the field's type instead of a string plus `BeakInList`. The
+    [enum column](column-types.md#beakenumcolumnt) gives you typed values, badge
+    colours and a real dropdown for free. Keep `BeakInList` for sets that are
+    strings by nature.
 
 ### File rules
 
-`BeakAllowedFileTypes` and `BeakMaxFileSize` gate uploads. You rarely write them
-by hand: an image or file column takes `allowedTypes` and `maxSizeInBytes`
-arguments and Beak applies the matching rules for you (see
+`BeakAllowedFileTypes` and `BeakMaxFileSize` gate uploads. You do not write them:
+`@Image` and `@FileField` take `allowedTypes` and `maxSizeInBytes`, and Beak
+applies the matching rules (see
 [Files and storage columns](files-and-storage-columns.md)). They exist as
-standalone rules for the same reason the others do: so the check is one value
+standalone rules for the same reason the others do, so the check is one value
 that travels to both sides.
 
-```dart title="packages/beak_core/lib/src/rules/beak_allowed_file_types.dart"
+```dart
 const rule = BeakAllowedFileTypes([BeakFileType.jpeg, BeakFileType.png]);
 rule.validate('photo.PNG');       // null (extension matches)
 rule.validate('image/jpeg');      // null (MIME matches)
@@ -204,29 +227,29 @@ rule.validate('notes.pdf');       // 'File type must be one of: jpg, png.'
 
 ## The client and server mirror
 
-The reason to define rules on the column rather than in a form widget is that
-there is only one place to define them, and both ends read it.
+The reason to declare rules on the field rather than in a form widget is that
+there is only one place to declare them, and both ends read it.
 
 ```mermaid
 flowchart LR
-  R["column.rules<br/>List&lt;BeakRule&gt;"] --> F["Form field<br/>(beak_frontend)"]
+  A["@Column(rules: …)<br/>+ nullability"] --> R["ProductColumns.sku<br/>rules"]
+  R --> F["Form field<br/>(beak_frontend)"]
   R --> V["ValidationService<br/>(beak_backend)"]
   F --> U["instant feedback"]
   V --> H["422 with fieldErrors"]
 ```
 
 The panel runs the list as the user types, so a bad value is caught before the
-request leaves the browser. The server runs the identical list in
-`beak_backend`'s validation step before any write. A request that slips past a
-stale client (or comes from `curl`) still hits the same wall and comes back as a
-`BeakValidationException` carrying per-field messages. The form never lies to
-you, because the form and the server read the same list.
+request leaves the browser. The server runs the identical list before any write.
+A request that slips past a stale client (or comes from `curl`) hits the same
+wall and comes back as a `BeakValidationException` carrying per-field messages.
+The form never lies to you, because the form and the server read the same list.
 
 ## Continue reading
 
-- [Column basics](column-basics.md) the shared options every column carries,
-  including `rules`.
-- [Column types](column-types.md) the leaf columns you attach rules to.
+- [Column basics](column-basics.md) the shared `@Column` options, `rules`
+  included.
+- [Column types](column-types.md) the field types you attach rules to.
 - [Files and storage columns](files-and-storage-columns.md) how `allowedTypes`
   and `maxSizeInBytes` become file rules.
 - [Validation rules reference](../reference/validation-rules.md) the exhaustive

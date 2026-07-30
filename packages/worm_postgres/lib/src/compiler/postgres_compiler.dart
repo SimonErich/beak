@@ -230,51 +230,116 @@ final class PostgresCompiler {
     return 'COUNT(*) AS "value"';
   }
 
-  /// Compile a [SchemaDescriptor] into DDL.
+  /// Compile a [SchemaDescriptor] into one or more DDL statements.
   ///
-  /// For [SchemaOperation.create], the descriptor's [SchemaColumn]
-  /// entries supply names and [ColumnType]s, which map onto
-  /// PostgreSQL native types via [pgTypeOf].
-  PostgresCompileResult compileDdl(SchemaDescriptor descriptor) {
-    if (descriptor is SchemaIndexDescriptor) {
-      final unique = descriptor.unique ? 'UNIQUE ' : '';
-      final col = _quoteIdent(descriptor.collection);
-      final field = _quoteIdent(descriptor.field);
-      return PostgresCompileResult(
-        sql: 'CREATE ${unique}INDEX ON $col ($field)',
-        parameters: const <Object?>[],
-      );
-    }
+  /// Returns a list because a single descriptor legitimately needs several
+  /// statements: a `CREATE TABLE` with two non-unique indexes is three, and
+  /// an alter is one per step. Joining them with `;` is not an option —
+  /// `package:postgres` rejects a multi-statement string on the extended
+  /// protocol.
+  ///
+  /// Statements are returned in dependency order and must be executed in it.
+  List<PostgresCompileResult> compileDdl(SchemaDescriptor descriptor) {
     final table = _quoteIdent(descriptor.table);
     return switch (descriptor.operation) {
-      SchemaOperation.create => PostgresCompileResult(
-        sql: _buildCreateTable(descriptor, table),
-        parameters: const <Object?>[],
-      ),
-      SchemaOperation.drop => PostgresCompileResult(
-        sql:
-            'DROP TABLE '
-            '${descriptor.ifExists ? 'IF EXISTS ' : ''}'
-            '$table',
-        parameters: const <Object?>[],
-      ),
-      SchemaOperation.truncate => PostgresCompileResult(
-        sql: 'TRUNCATE TABLE $table',
-        parameters: const <Object?>[],
-      ),
-      SchemaOperation.alter => throw const QueryException(
-        query: '',
-        message:
-            'compileDdl(SchemaOperation.alter) is not implemented '
-            'in the V1 compiler',
-      ),
-      SchemaOperation.createIndex => throw const QueryException(
-        query: '',
-        message:
-            'compileDdl(SchemaOperation.createIndex) requires a '
-            'SchemaIndexDescriptor',
-      ),
+      SchemaOperation.create => <PostgresCompileResult>[
+        _statement(_buildCreateTable(descriptor, table)),
+        // A unique index is already an inline table constraint; only the
+        // plain ones need their own statement.
+        for (final index in descriptor.indexes)
+          if (!index.unique) _statement(_createIndexSql(index, table)),
+      ],
+      SchemaOperation.drop => <PostgresCompileResult>[
+        _statement(
+          'DROP TABLE ${descriptor.ifExists ? 'IF EXISTS ' : ''}$table',
+        ),
+      ],
+      SchemaOperation.truncate => <PostgresCompileResult>[
+        _statement('TRUNCATE TABLE $table'),
+      ],
+      SchemaOperation.alter => <PostgresCompileResult>[
+        for (final alteration in descriptor.alterations)
+          _statement(_alterSql(alteration, table)),
+      ],
     };
+  }
+
+  PostgresCompileResult _statement(String sql) =>
+      PostgresCompileResult(sql: sql, parameters: const <Object?>[]);
+
+  /// The SQL one alteration compiles to.
+  ///
+  /// Postgres expresses every step this union can describe, so there is no
+  /// unsupported arm here — the exhaustive switch is what guarantees a future
+  /// variant cannot be added without a decision being made in this file.
+  String _alterSql(SchemaAlteration alteration, String table) =>
+      switch (alteration) {
+        SchemaAddColumn(:final column, :final ifNotExists) =>
+          'ALTER TABLE $table ADD COLUMN '
+              '${ifNotExists ? 'IF NOT EXISTS ' : ''}'
+              '${_columnDefinition(column)}',
+        SchemaDropColumn(:final column, :final ifExists) =>
+          'ALTER TABLE $table DROP COLUMN '
+              '${ifExists ? 'IF EXISTS ' : ''}${_quoteIdent(column)}',
+        SchemaChangeColumn() => _changeColumnSql(alteration, table),
+        SchemaAddIndex(:final index, :final ifNotExists) => _createIndexSql(
+          index,
+          table,
+          ifNotExists: ifNotExists,
+        ),
+        SchemaDropIndex(:final name, :final ifExists) =>
+          'DROP INDEX ${ifExists ? 'IF EXISTS ' : ''}${_quoteIdent(name)}',
+        SchemaAddForeignKey(:final foreignKey) =>
+          'ALTER TABLE $table ADD ${_foreignKeyConstraint(foreignKey)}',
+        SchemaDropForeignKey(:final name) =>
+          'ALTER TABLE $table DROP CONSTRAINT ${_quoteIdent(name)}',
+      };
+
+  /// One `ALTER TABLE` per requested facet, joined into one statement.
+  ///
+  /// Postgres alters type, nullability and default independently, so a change
+  /// that only relaxes `NOT NULL` does not restate — and therefore cannot
+  /// accidentally rewrite — the column's type or default.
+  String _changeColumnSql(SchemaChangeColumn change, String table) {
+    final column = change.column;
+    final name = _quoteIdent(column.name);
+    final clauses = <String>[
+      if (change.facets.contains(SchemaColumnFacet.type))
+        _typeClause(name, column, change.using),
+      if (change.facets.contains(SchemaColumnFacet.nullability))
+        'ALTER COLUMN $name ${column.nullable ? 'DROP' : 'SET'} NOT NULL',
+      if (change.facets.contains(SchemaColumnFacet.defaultValue))
+        if (column.defaultValue case final Object value)
+          'ALTER COLUMN $name SET DEFAULT ${_renderDefault(value)}'
+        else
+          'ALTER COLUMN $name DROP DEFAULT',
+    ];
+    return 'ALTER TABLE $table ${clauses.join(', ')}';
+  }
+
+  /// The `CREATE INDEX` statement for [index].
+  ///
+  /// Emitting this at all is the point: a non-unique index used to be dropped
+  /// on the floor, so every foreign key and every sortable column in every
+  /// schema was unindexed.
+  String _createIndexSql(
+    SchemaIndex index,
+    String table, {
+    bool ifNotExists = false,
+  }) {
+    final columns = index.columns.map(_quoteIdent).join(', ');
+    final buffer = StringBuffer('CREATE ')
+      ..write(index.unique ? 'UNIQUE INDEX ' : 'INDEX ')
+      ..write(ifNotExists ? 'IF NOT EXISTS ' : '')
+      ..write('${_quoteIdent(index.name)} ON $table ');
+    if (index.kind != IndexKind.btree) {
+      buffer.write('USING ${index.kind.name} ');
+    }
+    buffer.write('($columns)');
+    if (index.where case final String predicate) {
+      buffer.write(' WHERE $predicate');
+    }
+    return buffer.toString();
   }
 
   /// Compile any supported descriptor and render it as a
@@ -335,7 +400,13 @@ final class PostgresCompiler {
     final UpdateDescriptor d => compileUpdate(d),
     final DeleteDescriptor d => compileDelete(d),
     final AggregateDescriptor d => compileAggregate(d),
-    final SchemaDescriptor d => compileDdl(d),
+    // A schema descriptor can be several statements; compileToString is a
+    // debug rendering, so joining them is the right shape there and only
+    // there.
+    final SchemaDescriptor d => PostgresCompileResult(
+      sql: [for (final compiled in compileDdl(d)) compiled.sql].join(';\n'),
+      parameters: const <Object?>[],
+    ),
     _ => throw const QueryException(
       query: '',
       message: 'Unsupported descriptor type',
@@ -350,6 +421,13 @@ final class PostgresCompiler {
       ..write(' (');
     final parts = <String>[
       for (final column in descriptor.columns) _columnDefinition(column),
+      // Unique indexes and foreign keys become table constraints rather than
+      // separate statements, so the table is correct the moment it exists —
+      // a row inserted between CREATE TABLE and a follow-up ALTER could
+      // otherwise violate a constraint the schema claims to enforce.
+      for (final index in descriptor.indexes)
+        if (index.unique) _uniqueConstraint(index),
+      for (final key in descriptor.foreignKeys) _foreignKeyConstraint(key),
     ];
     sql
       ..write(parts.join(', '))
@@ -357,8 +435,80 @@ final class PostgresCompiler {
     return sql.toString();
   }
 
+  String _uniqueConstraint(SchemaIndex index) {
+    final columns = index.columns.map(_quoteIdent).join(', ');
+    return 'CONSTRAINT ${_quoteIdent(index.name)} UNIQUE ($columns)';
+  }
+
+  String _foreignKeyConstraint(SchemaForeignKey key) {
+    final locals = key.columns.map(_quoteIdent).join(', ');
+    final remotes = key.referencedColumns.map(_quoteIdent).join(', ');
+    final buffer = StringBuffer();
+    if (key.name case final String name) {
+      buffer.write('CONSTRAINT ${_quoteIdent(name)} ');
+    }
+    buffer
+      ..write('FOREIGN KEY ($locals) REFERENCES ')
+      ..write('${_quoteIdent(key.referencedTable)} ($remotes)')
+      ..write(' ON DELETE ${_onDeleteSql(key.onDelete)}');
+    return buffer.toString();
+  }
+
+  /// The `ON DELETE` action for [onDelete].
+  ///
+  /// [OnDelete.ormCascade] deliberately renders as `NO ACTION`: the ORM walks
+  /// and deletes the children itself so lifecycle hooks and soft-delete
+  /// scopes run, and a database-level cascade would remove the rows behind
+  /// its back.
+  String _onDeleteSql(OnDelete onDelete) => switch (onDelete) {
+    OnDelete.cascade => 'CASCADE',
+    OnDelete.restrict => 'RESTRICT',
+    OnDelete.setNull => 'SET NULL',
+    OnDelete.setDefault => 'SET DEFAULT',
+    OnDelete.noAction || OnDelete.ormCascade => 'NO ACTION',
+  };
+
+  /// The rendered type of [column], including the sizing it declared.
+  ///
+  /// `pgTypeOf` maps the kind; this adds what the builder recorded about it.
+  /// Without it a `VARCHAR(120)` reaches the database as a bare `VARCHAR` and
+  /// a `DECIMAL(10,2)` as an unconstrained `NUMERIC` — the length was
+  /// declared, carried, and then dropped one step short of the wire.
+  String _columnTypeSql(SchemaColumn column) {
+    if (column.autoIncrement) {
+      return switch (column.type) {
+        ColumnType.smallInteger => 'SMALLSERIAL',
+        ColumnType.bigInteger => 'BIGSERIAL',
+        _ => 'SERIAL',
+      };
+    }
+    final base = pgTypeOf(column.type);
+    return switch (column.type) {
+      ColumnType.string when column.length != null => '$base(${column.length})',
+      ColumnType.decimal when column.precision != null => _decimalType(
+        base,
+        column,
+      ),
+      ColumnType.array when column.elementType != null =>
+        '${pgTypeOf(column.elementType!)}[]',
+      _ => base,
+    };
+  }
+
+  /// The `ALTER COLUMN … TYPE` clause, with its optional cast expression.
+  String _typeClause(String name, SchemaColumn column, String? using) {
+    final cast = using == null ? '' : ' USING $using';
+    return 'ALTER COLUMN $name TYPE ${_columnTypeSql(column)}$cast';
+  }
+
+  /// `NUMERIC(10, 2)` — the scale is omitted when the column declares none.
+  String _decimalType(String base, SchemaColumn column) {
+    final scale = column.scale == null ? '' : ', ${column.scale}';
+    return '$base(${column.precision}$scale)';
+  }
+
   String _columnDefinition(SchemaColumn column) {
-    final type = pgTypeOf(column.type);
+    final type = _columnTypeSql(column);
     final buffer = StringBuffer('${_quoteIdent(column.name)} $type');
     if (!column.nullable) buffer.write(' NOT NULL');
     if (column.isPrimaryKey) buffer.write(' PRIMARY KEY');

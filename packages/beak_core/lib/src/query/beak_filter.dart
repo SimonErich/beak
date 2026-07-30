@@ -101,23 +101,34 @@ final class BeakFieldFilter extends BeakFilter {
   /// Creates a predicate on [column] — the type-safe path: the column
   /// constant supplies its own [columnKey], so callers never write key
   /// strings.
-  BeakFieldFilter({
+  const BeakFieldFilter({
     required BeakColumn column,
     required this.operator,
     this.value = const BeakNullValue(),
-  }) : columnKey = column.key;
+  }) : _column = column,
+       _columnKey = null;
 
   /// Creates a predicate on a raw [columnKey] — the deserialization path
   /// used by [BeakFilter.fromJson]; prefer the default constructor in user
   /// code.
   const BeakFieldFilter.forKey(
-    this.columnKey,
+    String columnKey,
     this.operator, [
     this.value = const BeakNullValue(),
-  ]);
+  ]) : _columnKey = columnKey,
+       _column = null;
+
+  /// The column this predicate applies to, when built from a constant.
+  ///
+  /// Held rather than reduced to its key so the constructor can be `const`:
+  /// a screen, a dashboard metric and a resource's base filter are all const
+  /// expressions, and a filter that could not be one forced them all open.
+  final BeakColumn? _column;
+
+  final String? _columnKey;
 
   /// Key of the column this predicate applies to.
-  final String columnKey;
+  String get columnKey => _columnKey ?? _column!.key;
 
   /// The comparison operator.
   final BeakOperator operator;

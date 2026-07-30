@@ -68,6 +68,7 @@ final class BeakServer {
              dataSource: dataSource,
              policy: policy,
              auth: authSessions,
+             storage: storage,
              uploads: storage == null
                  ? null
                  : UploadService(

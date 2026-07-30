@@ -5,7 +5,7 @@
 # The backend is pure Dart: it depends on beak_backend/beak_core/worm and never
 # on Flutter or obers_ui, so it AOT-compiles to a single native executable and
 # runs from a slim Debian base. Build from the REPO ROOT as context (Beak uses
-# path dependencies, so the whole packages/ + apps/ tree must be present):
+# path dependencies, so the whole packages/ + examples/ tree must be present):
 #
 #   docker build -f deploy/Dockerfile.server -t beak-server .
 #
@@ -17,14 +17,15 @@ FROM dart:stable AS build
 WORKDIR /app
 COPY . .
 
-# Resolve and compile the reference server. Swap this app path for your own
-# server package when you deploy your project.
-WORKDIR /app/apps/reference_admin_server
+# Resolve and compile the example's server. Swap this path for your own
+# project when you deploy it — the entrypoints are the same two files in
+# every Beak project, because `beak prepare` writes them.
+WORKDIR /app/examples/store
 RUN dart pub get
-RUN dart compile exe bin/reference_admin_server.dart -o /app/beak-server
+RUN dart compile exe bin/serve.dart -o /app/beak-server
 # The worm CLI (migrate / db:seed) as a second executable, so schema and seed
 # steps run from the same image (see the migrate service in the compose file).
-RUN dart compile exe bin/worm.dart -o /app/beak-migrate
+RUN dart compile exe bin/migrate.dart -o /app/beak-migrate
 
 # --- Runtime image: just glibc + CA roots for HTTPS to Postgres/S3 ---
 FROM debian:bookworm-slim AS runtime

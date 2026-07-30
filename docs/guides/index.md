@@ -16,11 +16,11 @@ Each guide stands on its own. Read the one that matches the job in front of you.
 
 | Guide | Read it when you want to |
 | --- | --- |
-| [Testing](testing.md) | Prove a resource works without a live server: inject a fake data source into the panel, drive the API over an in-memory database, and pin the query wire format with a golden test. |
-| [Working with AI agents](working-with-ai-agents.md) | Hand model and resource definitions to a coding agent, scaffold with the CLI, and rely on Beak's type system to catch anything the agent gets wrong. |
-| [Performance](performance.md) | Keep list pages fast: eager-load relations instead of paying the N+1 tax, page your queries, and read the query counts the tests assert. |
-| [Security](security.md) | Understand the auth surface, the per-operation policy gate, and how storage keys and upload rules are validated on both sides. |
-| [Common recipes](common-recipes.md) | Grab a copy-paste answer to a recurring task (a custom action, a computed column, a filtered relation load) without reading a whole concept page. |
+| [Testing](testing.md) | Prove a resource works without a live server: render the panel against `InMemoryBeakDataSource`, count a screen's round-trips with `BeakRecordingDataSource`, and boot your real API on `sqlite::memory:`. |
+| [Working with AI agents](working-with-ai-agents.md) | Point a coding agent at the `AGENTS.md` `beak create` wrote, have it add a resource as one annotated class, and rely on the analyzer and `beak doctor` to catch what it gets wrong. |
+| [Performance](performance.md) | Keep pages fast: a list page and a show page each cost one query with their relations, aggregates run in the database, and relation managers page their rows. |
+| [Security](security.md) | Close the seams in `lib/server.dart`: the auth guard, the policy, a row scope that narrows which rows a principal sees, upload validation, and CORS. |
+| [Recipes](../recipes/index.md) | Grab a copy-paste answer to a recurring task (a row action, a KPI, a kanban board, a picker, a CSV export) without reading a whole concept page. One page per recipe. |
 
 ## How the guides relate to the rest of the docs
 
@@ -28,13 +28,18 @@ A guide is a shortcut, not a replacement. Where a guide leans on a concept, it
 links to the page that explains it. Testing points at
 [Results and errors](../concepts/results-and-errors.md) for the exception family
 it asserts on. Working with AI agents points at
-[Defining models](../models/defining-models.md) for the one definition an agent
+[Defining a resource](../models/defining-models.md) for the one class an agent
 writes. Follow the link when you want the why behind the recipe.
+
+Every snippet in this section is lifted from a running example, usually
+[`examples/store`](https://github.com/SimonErich/beak/tree/main/examples/store).
+Clone the repo and you can run the code you are reading.
 
 ## Continue reading
 
 - [Testing](testing.md) the test seams every Beak package is built on.
 - [Working with AI agents](working-with-ai-agents.md) why config-over-code is a
   good fit for a coding agent.
-- [Security](security.md) the auth, policy, and upload guards worth knowing before
-  you ship.
+- [Performance](performance.md) how many queries each surface costs, and why.
+- [Security](security.md) the auth, policy, row-scope, and upload guards worth
+  knowing before you ship.

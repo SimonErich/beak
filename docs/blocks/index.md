@@ -14,6 +14,16 @@ a custom page: you compose `const BeakBlock` values, hand the tree to
 `BeakBlockHost`, and Beak renders it onto obers_ui. One sealed union, one
 renderer, everything type-checked.
 
+A block tree reaches a page through one of three files:
+
+| File | What the tree becomes |
+| --- | --- |
+| `lib/screens/<name>.dart` | A `BeakScreen`'s `body`: a page in the sidebar |
+| `lib/dashboard.dart` | The screen mounted at `/` |
+| `lib/resources/<table>.dart` | A resource's `detail` or `formLayout` |
+
+All three are discovered. You never register a screen or a layout by hand.
+
 ## One block, three mouths to feed
 
 The same block descriptors drive three surfaces. A custom screen's body, a
@@ -28,10 +38,10 @@ trees handed to the same host.
 /// handles it.
 ```
 
-Here is a small tree. It stacks a heading over a two-up grid of cards, and each
-card claims half of a twelve-track grid with its `span`:
+Here is a small tree of your own. It stacks a heading over a two-up grid of
+cards, and each card claims half of a twelve-track grid with its `span`:
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
+```dart
 const body = BeakColumnBlock(
   children: [
     BeakTextBlock('Welcome back', variant: BeakTextVariant.h1),
@@ -58,6 +68,9 @@ const body = BeakColumnBlock(
     - The tree is pure configuration. Nothing has been rendered yet.
     - You would hand `body` to a [custom screen](../panel/custom-screens.md), a
       view mode, or an overlay to see it on screen.
+    - `const` is the norm, not a trick. Column constants, aggregates and query
+      specs are all `const` constructors, so a whole dashboard is usually one
+      `const` expression.
 
 ## The renderer
 
@@ -141,6 +154,11 @@ One layout, two surfaces. That dual-mode behaviour is the whole point of
 [record blocks](record-blocks.md), and it powers
 [detail views](../panel/detail-and-dual-mode.md).
 
+You only write one when the derived default is not what you want. A resource
+with no `detail` gets a layout the model implies: a headline card, the
+remaining fields, and a tab per to-many relationship. Set `detail` in
+`lib/resources/<table>.dart` to replace it.
+
 ## The categories
 
 Blocks fall into six families plus one escape hatch. Each has its own page.
@@ -169,13 +187,17 @@ flowchart LR
   H --> O[Overlay content]
 ```
 
-- **Custom screens.** A `BeakScreen`'s `body` is a block. See
-  [custom screens](../panel/custom-screens.md).
-- **Dashboards.** A dashboard is a block tree of KPIs, charts, and tables. See
+- **Custom screens.** A `BeakScreen`'s `body` is a block. Declare the screen in
+  `lib/screens/<name>.dart` and `beak prepare` routes it and gives it a sidebar
+  entry. See [custom screens](../panel/custom-screens.md).
+- **Dashboards.** `lib/dashboard.dart` returns the `BeakScreen` mounted at `/`,
+  whose body is a tree of KPIs, charts, maps, and tables. See
   [dashboards](../panel/dashboards.md).
 - **Detail and form layouts.** A resource's `detail` and `formLayout` are block
-  trees of record blocks. See
+  trees of record blocks, set in `lib/resources/<table>.dart`. See
   [detail and dual-mode blocks](../panel/detail-and-dual-mode.md).
+- **View modes and overlays.** A resource's alternate view modes and the
+  panel's overlays take the same trees, through the same host.
 
 ## Continue reading
 

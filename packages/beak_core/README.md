@@ -4,7 +4,7 @@ The pure-Dart core of Beak: typed columns, rules, relationships, the
 serializable `BeakQuerySpec` wire contract, the storage abstraction, the
 `BeakDataSource` seam, and the raw `BeakClient` escape hatch.
 
-Part of [**Beak**](https://github.com/marqably/beak), a low-code,
+Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
 [architecture guide](../../docs/architecture.md) for how the packages fit
 together.

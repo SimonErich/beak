@@ -13,8 +13,9 @@ part of 'beak_column.dart';
 ///   falseLabel: 'Sold out',
 /// );
 /// ```
-final class BeakBoolColumn extends BeakColumn {
+final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
   /// Creates a boolean column with optional state labels.
+  // --8<-- [start:BeakBoolColumn]
   const BeakBoolColumn({
     required super.key,
     required super.label,
@@ -22,10 +23,13 @@ final class BeakBoolColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.trueLabel,
     this.falseLabel,
   });
+  // --8<-- [end:BeakBoolColumn]
 
   /// Display label of the `true` state, if customized.
   final String? trueLabel;
@@ -37,6 +41,7 @@ final class BeakBoolColumn extends BeakColumn {
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.boolean);
 
+  /// Reads [value] as a bool value.
   @override
-  Type get valueType => bool;
+  bool? readValue(BeakValue? value) => _readBool(value);
 }

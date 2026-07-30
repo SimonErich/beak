@@ -26,13 +26,14 @@ sealed class BeakStorageConfig {
 }
 ```
 
-A `BeakStorageRegistry` maps each `driverId` to a factory. It pre-registers the two built-in drivers; driver packages add theirs, and `resolve` builds the driver a config selects:
+A `BeakStorageRegistry` maps each `driverId` to a factory. Only the web-safe `memory` driver is pre-registered; everything else is added at app init, and `resolve` builds the driver a config selects:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_registry.dart"
 BeakStorageRegistry() {
   register('memory', BeakMemoryStorageDriver.fromConfig);
-  register('local', BeakLocalDiskStorageDriver.fromConfig);
 }
+
+// ...
 
 BeakStorageDriver resolve(BeakStorageConfig config) {
   final BeakStorageDriverFactory? factory =
@@ -47,18 +48,13 @@ BeakStorageDriver resolve(BeakStorageConfig config) {
 }
 ```
 
-The backend does the wiring once at startup. `createDefaultStorageRegistry` registers `s3` and `ftp` on top of core's `memory` and `local`, and `resolveStorage` turns the configured config into a driver:
+The backend does the wiring once at startup. `createDefaultStorageRegistry` adds `local` (it needs `dart:io`) on top of core's `memory`, and `resolveStorage` turns the configured config into a driver:
 
 ```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-BeakStorageRegistry createDefaultStorageRegistry() {
-  final registry = BeakStorageRegistry();
-  registerS3Storage(registry);
-  registerFtpStorage(registry);
-  return registry;
-}
+--8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
 ```
 
-Because config is separated from the driver package, an app configures S3 storage by constructing a `BeakS3Config` from `beak_core` without importing `beak_storage_s3` anywhere in its own code.
+Driver packages are deliberately not wired in here. Depending on `beak_storage_s3` from `beak_backend` would put `minio` in the dependency graph of every Beak backend, uploads or not. Your app adds the driver it uses at init instead, with one line: `registerS3Storage(registry)`. The config stays plain data from `beak_core`, so only that one line names the driver package.
 
 ## The driver interface
 
@@ -66,13 +62,16 @@ Every driver satisfies one interface: put a file, read it, delete it, mint a URL
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_driver.dart"
 abstract interface class BeakStorageDriver {
-  /// Stable driver identifier matching `BeakStorageConfig.driverId`.
   String get id;
 
   Future<BeakStoredFile> put(BeakUpload upload, {required String path});
+
   Future<Uint8List> get(String key);
+
   Future<void> delete(String key);
+
   Future<Uri> url(String key, {Duration? expiresIn});
+
   Future<bool> exists(String key);
 }
 ```
@@ -227,6 +226,9 @@ const factory BeakImageTransform.format({
   required BeakImageFormat format,
   int quality,
 }) = BeakFormatTransform;
+
+const factory BeakImageTransform.webp({int quality}) =
+    BeakFormatTransform.webp;
 
 const factory BeakImageTransform.thumbnail({
   required BeakDimensions size,

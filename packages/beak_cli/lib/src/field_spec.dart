@@ -35,6 +35,7 @@ enum BeakFieldKind {
   /// BeakFieldKind.parse('int'); // BeakFieldKind.integer
   /// BeakFieldKind.parse('blob'); // null
   /// ```
+  // --8<-- [start:fieldKindParse]
   static BeakFieldKind? parse(String token) => switch (token) {
     'string' => string,
     'text' => text,
@@ -44,6 +45,7 @@ enum BeakFieldKind {
     'datetime' || 'date' => dateTime,
     _ => null,
   };
+  // --8<-- [end:fieldKindParse]
 }
 
 /// One typed field of a scaffolded resource, parsed from a `name:kind`
@@ -64,7 +66,11 @@ enum BeakFieldKind {
 /// ```
 final class BeakFieldSpec {
   /// Creates a field named [name] (lower_snake_case) of the given [kind].
-  const BeakFieldSpec({required this.name, required this.kind});
+  const BeakFieldSpec({
+    required this.name,
+    required this.kind,
+    this.isRequired = false,
+  });
 
   /// Parses a single `name:kind` token into a [BeakFieldSpec].
   ///
@@ -79,7 +85,12 @@ final class BeakFieldSpec {
   /// BeakFieldSpec.parse('nameonly'); // throws FormatException
   /// ```
   factory BeakFieldSpec.parse(String token) {
-    final List<String> parts = token.split(':');
+    // A trailing `!` means required, mirroring Dart's own nullability: a
+    // non-nullable field is required, and that one rule drives the form
+    // validator, the API's validation and the column's NOT NULL.
+    final bool isRequired = token.endsWith('!');
+    final List<String> parts =
+        (isRequired ? token.substring(0, token.length - 1) : token).split(':');
     if (parts.length != 2 || parts.first.isEmpty) {
       throw FormatException(
         'Field "$token" must look like name:kind (e.g. title:string).',
@@ -96,7 +107,7 @@ final class BeakFieldSpec {
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) {
       throw FormatException('Field name "$name" must be lower_snake_case.');
     }
-    return BeakFieldSpec(name: name, kind: kind);
+    return BeakFieldSpec(name: name, kind: kind, isRequired: isRequired);
   }
 
   /// Parses a comma-separated `--fields` value into an ordered list.
@@ -121,6 +132,12 @@ final class BeakFieldSpec {
 
   /// The typed column kind that drives type and column generation.
   final BeakFieldKind kind;
+
+  /// Whether the field is non-nullable, and so required.
+  ///
+  /// Written as a trailing `!` — `name:string!` — mirroring Dart, where the
+  /// same mark is what makes a field required everywhere else.
+  final bool isRequired;
 
   /// The [name] rewritten to lowerCamelCase for use as a Dart identifier.
   ///
@@ -163,13 +180,24 @@ String snakeCaseOf(String resourceName) => resourceName
 /// tableNameOf('Category'); // 'categories'
 /// tableNameOf('Box'); // 'boxes'
 /// ```
-String tableNameOf(String resourceName) {
-  final String snake = snakeCaseOf(resourceName);
-  if (snake.endsWith('s') || snake.endsWith('x') || snake.endsWith('ch')) {
-    return '${snake}es';
+String tableNameOf(String resourceName) => pluralOf(snakeCaseOf(resourceName));
+
+/// `category` -> `categories`, `box` -> `boxes`, `product` -> `products`.
+///
+/// The one pluraliser: a table name and the migration class naming it must
+/// agree, and appending a bare `s` gave `CreateCategorysTable` beside a
+/// `categories` table.
+///
+/// ```dart
+/// pluralOf('Category'); // 'Categories'
+/// pluralOf('product');  // 'products'
+/// ```
+String pluralOf(String word) {
+  if (word.endsWith('s') || word.endsWith('x') || word.endsWith('ch')) {
+    return '${word}es';
   }
-  if (snake.endsWith('y')) {
-    return '${snake.substring(0, snake.length - 1)}ies';
+  if (word.endsWith('y')) {
+    return '${word.substring(0, word.length - 1)}ies';
   }
-  return '${snake}s';
+  return '${word}s';
 }

@@ -33,17 +33,17 @@ void main() {
     test('translates the rich spec to the pinned SQL', () {
       final spec = const BeakQuerySpec(table: 'products')
           .withFilter(
-            BeakFieldFilter(
+            const BeakFieldFilter(
               column: ProductColumns.price,
               operator: BeakOperator.gte,
-              value: const BeakDoubleValue(10.0),
+              value: BeakDoubleValue(10.0),
             ),
           )
           .withFilter(
-            BeakFieldFilter(
+            const BeakFieldFilter(
               column: ProductColumns.active,
               operator: BeakOperator.eq,
-              value: const BeakBoolValue(true),
+              value: BeakBoolValue(true),
             ),
           )
           .orderBy(ProductColumns.price, descending: true)
@@ -209,25 +209,25 @@ void main() {
 
   group('filter trees', () {
     test('nested and/or groups translate with parentheses', () {
-      final spec = BeakQuerySpec(
+      const spec = BeakQuerySpec(
         table: 'products',
         withTrashed: true,
         filter: BeakOrFilter([
           BeakFieldFilter(
             column: ProductColumns.name,
             operator: BeakOperator.eq,
-            value: const BeakStringValue('Laser'),
+            value: BeakStringValue('Laser'),
           ),
           BeakAndFilter([
             BeakFieldFilter(
               column: ProductColumns.active,
               operator: BeakOperator.eq,
-              value: const BeakBoolValue(true),
+              value: BeakBoolValue(true),
             ),
             BeakFieldFilter(
               column: ProductColumns.price,
               operator: BeakOperator.lt,
-              value: const BeakDoubleValue(100.0),
+              value: BeakDoubleValue(100.0),
             ),
           ]),
         ]),

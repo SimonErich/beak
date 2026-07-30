@@ -229,44 +229,113 @@ final class MysqlCompiler {
     return 'COUNT(*) AS `value`';
   }
 
-  /// Compile a [SchemaDescriptor] into DDL.
-  MysqlCompileResult compileDdl(SchemaDescriptor descriptor) {
-    if (descriptor is SchemaIndexDescriptor) {
-      final unique = descriptor.unique ? 'UNIQUE ' : '';
-      final name = _quoteIdent(
-        'idx_${descriptor.collection}_${descriptor.field}',
-      );
-      return MysqlCompileResult(
-        sql:
-            'CREATE ${unique}INDEX $name ON '
-            '${_quoteIdent(descriptor.collection)} '
-            '(${_quoteIdent(descriptor.field)})',
-      );
-    }
+  /// Compile a [SchemaDescriptor] into one or more DDL statements.
+  ///
+  /// Returns a list because a create with non-unique indexes, and an alter
+  /// with several steps, are each more than one statement — and the MySQL
+  /// client rejects a multi-statement string by default.
+  List<MysqlCompileResult> compileDdl(SchemaDescriptor descriptor) {
     final table = _quoteIdent(descriptor.table);
     return switch (descriptor.operation) {
-      SchemaOperation.create => MysqlCompileResult(
-        sql: _buildCreateTable(descriptor, table),
-      ),
-      SchemaOperation.drop => MysqlCompileResult(
-        sql: 'DROP TABLE ${descriptor.ifExists ? 'IF EXISTS ' : ''}$table',
-      ),
-      SchemaOperation.truncate => MysqlCompileResult(
-        sql: 'TRUNCATE TABLE $table',
-      ),
-      SchemaOperation.alter => throw const QueryException(
-        query: '',
-        message:
-            'compileDdl(SchemaOperation.alter) is not implemented '
-            'in the V1 compiler',
-      ),
-      SchemaOperation.createIndex => throw const QueryException(
-        query: '',
-        message:
-            'compileDdl(SchemaOperation.createIndex) requires a '
-            'SchemaIndexDescriptor',
-      ),
+      SchemaOperation.create => <MysqlCompileResult>[
+        MysqlCompileResult(sql: _buildCreateTable(descriptor, table)),
+        for (final index in descriptor.indexes)
+          if (!index.unique)
+            MysqlCompileResult(sql: _createIndexSql(index, table)),
+      ],
+      SchemaOperation.drop => <MysqlCompileResult>[
+        MysqlCompileResult(
+          sql: 'DROP TABLE ${descriptor.ifExists ? 'IF EXISTS ' : ''}$table',
+        ),
+      ],
+      SchemaOperation.truncate => <MysqlCompileResult>[
+        MysqlCompileResult(sql: 'TRUNCATE TABLE $table'),
+      ],
+      SchemaOperation.alter => <MysqlCompileResult>[
+        for (final alteration in descriptor.alterations)
+          MysqlCompileResult(sql: _alterSql(alteration, table)),
+      ],
     };
+  }
+
+  /// The SQL one alteration compiles to.
+  ///
+  /// MySQL lacks `IF [NOT] EXISTS` on every DDL clause here (MariaDB has
+  /// them; MySQL does not). A request carrying one is refused rather than
+  /// silently stripped — quietly ignoring a flag is how a non-unique index
+  /// came to emit nothing at all.
+  String _alterSql(SchemaAlteration alteration, String table) {
+    switch (alteration) {
+      case SchemaAddColumn(:final column, :final ifNotExists):
+        if (ifNotExists) {
+          throw _unsupported(
+            'alter.addColumn.ifNotExists',
+            'MySQL has no ADD COLUMN IF NOT EXISTS.',
+          );
+        }
+        return 'ALTER TABLE $table ADD COLUMN ${_columnDefinition(column)}';
+      case SchemaDropColumn(:final column, :final ifExists):
+        if (ifExists) {
+          throw _unsupported(
+            'alter.dropColumn.ifExists',
+            'MySQL has no DROP COLUMN IF EXISTS.',
+          );
+        }
+        return 'ALTER TABLE $table DROP COLUMN ${_quoteIdent(column)}';
+      // MODIFY COLUMN has no partial form, so the facet set is ignored here
+      // by design — which is why SchemaChangeColumn.column is a complete end
+      // state rather than a delta.
+      case SchemaChangeColumn(:final column):
+        return 'ALTER TABLE $table MODIFY COLUMN ${_columnDefinition(column)}';
+      case SchemaAddIndex(:final index, :final ifNotExists):
+        if (ifNotExists) {
+          throw _unsupported(
+            'createIndex.ifNotExists',
+            'MySQL has no CREATE INDEX IF NOT EXISTS.',
+          );
+        }
+        return _createIndexSql(index, table);
+      case SchemaDropIndex(:final name, :final ifExists):
+        if (ifExists) {
+          throw _unsupported(
+            'dropIndex.ifExists',
+            'MySQL has no DROP INDEX IF EXISTS.',
+          );
+        }
+        return 'DROP INDEX ${_quoteIdent(name)} ON $table';
+      case SchemaAddForeignKey(:final foreignKey):
+        return 'ALTER TABLE $table ADD ${_foreignKeyConstraint(foreignKey)}';
+      // DROP FOREIGN KEY, not DROP CONSTRAINT: the latter is 8.0.19+ only.
+      case SchemaDropForeignKey(:final name):
+        return 'ALTER TABLE $table DROP FOREIGN KEY ${_quoteIdent(name)}';
+    }
+  }
+
+  UnsupportedOperationException _unsupported(
+    String operation,
+    String message,
+  ) => UnsupportedOperationException(
+    operation: operation,
+    adapter: 'MysqlAdapter',
+    message: message,
+  );
+
+  /// The `CREATE INDEX` statement for [index].
+  String _createIndexSql(SchemaIndex index, String table) {
+    if (index.kind != IndexKind.btree) {
+      throw _unsupported(
+        'createIndex.kind',
+        'InnoDB builds a b-tree regardless of the requested '
+            '${index.kind.name} index, so the request cannot be honoured.',
+      );
+    }
+    if (index.where != null) {
+      throw _unsupported('createIndex.where', 'MySQL has no partial indexes.');
+    }
+    final columns = index.columns.map(_quoteIdent).join(', ');
+    final unique = index.unique ? 'UNIQUE ' : '';
+    return 'CREATE ${unique}INDEX ${_quoteIdent(index.name)} ON $table '
+        '($columns)';
   }
 
   /// Compile any supported descriptor and render it as a human-readable
@@ -327,7 +396,11 @@ final class MysqlCompiler {
     final UpdateDescriptor d => compileUpdate(d),
     final DeleteDescriptor d => compileDelete(d),
     final AggregateDescriptor d => compileAggregate(d),
-    final SchemaDescriptor d => compileDdl(d),
+    // A schema descriptor can be several statements; this is a debug
+    // rendering, so joining them is right here and only here.
+    final SchemaDescriptor d => MysqlCompileResult(
+      sql: [for (final compiled in compileDdl(d)) compiled.sql].join(';\n'),
+    ),
     _ => throw const QueryException(
       query: '',
       message: 'Unsupported descriptor type',
@@ -342,6 +415,11 @@ final class MysqlCompiler {
       ..write(' (');
     final parts = <String>[
       for (final column in descriptor.columns) _columnDefinition(column),
+      // Unique indexes and foreign keys become table constraints rather than
+      // separate statements, so the table is correct the moment it exists.
+      for (final index in descriptor.indexes)
+        if (index.unique) _uniqueConstraint(index),
+      for (final key in descriptor.foreignKeys) _foreignKeyConstraint(key),
     ];
     sql
       ..write(parts.join(', '))
@@ -351,8 +429,54 @@ final class MysqlCompiler {
     return sql.toString();
   }
 
+  String _uniqueConstraint(SchemaIndex index) {
+    final columns = index.columns.map(_quoteIdent).join(', ');
+    return 'CONSTRAINT ${_quoteIdent(index.name)} UNIQUE ($columns)';
+  }
+
+  String _foreignKeyConstraint(SchemaForeignKey key) {
+    final locals = key.columns.map(_quoteIdent).join(', ');
+    final remotes = key.referencedColumns.map(_quoteIdent).join(', ');
+    final buffer = StringBuffer();
+    if (key.name case final String name) {
+      buffer.write('CONSTRAINT ${_quoteIdent(name)} ');
+    }
+    buffer
+      ..write('FOREIGN KEY ($locals) REFERENCES ')
+      ..write('${_quoteIdent(key.referencedTable)} ($remotes)')
+      ..write(' ON DELETE ${_onDeleteSql(key.onDelete)}');
+    return buffer.toString();
+  }
+
+  /// The `ON DELETE` action for [onDelete].
+  ///
+  /// [OnDelete.ormCascade] deliberately renders as `NO ACTION`: the ORM walks
+  /// and deletes the children itself so lifecycle hooks and soft-delete
+  /// scopes run, and a database-level cascade would remove the rows behind
+  /// its back.
+  String _onDeleteSql(OnDelete onDelete) => switch (onDelete) {
+    OnDelete.cascade => 'CASCADE',
+    OnDelete.restrict => 'RESTRICT',
+    OnDelete.setNull => 'SET NULL',
+    OnDelete.setDefault => 'SET DEFAULT',
+    OnDelete.noAction || OnDelete.ormCascade => 'NO ACTION',
+  };
+
+  /// The rendered type of [column], including the sizing it declared.
+  ///
+  /// `mysqlTypeOf` maps the kind and has to pick a default width; this uses
+  /// what the builder actually recorded, so a `VARCHAR(40)` does not arrive
+  /// as `VARCHAR(255)` and a `DECIMAL(10,2)` not as `DECIMAL(38,10)`.
+  String _columnTypeSql(SchemaColumn column) => switch (column.type) {
+    ColumnType.string when column.length != null => 'VARCHAR(${column.length})',
+    ColumnType.decimal when column.precision != null =>
+      'DECIMAL(${column.precision},${column.scale ?? 0})',
+    ColumnType.bit when column.length != null => 'BIT(${column.length})',
+    _ => mysqlTypeOf(column.type),
+  };
+
   String _columnDefinition(SchemaColumn column) {
-    final type = mysqlTypeOf(column.type);
+    final type = _columnTypeSql(column);
     final buffer = StringBuffer('${_quoteIdent(column.name)} $type');
     if (!column.nullable) buffer.write(' NOT NULL');
     final defaultValue = column.defaultValue;
@@ -361,7 +485,14 @@ final class MysqlCompiler {
         ..write(' DEFAULT ')
         ..write(_renderDefault(defaultValue));
     }
-    if (column.isPrimaryKey && _autoIncrementTypes.contains(column.type)) {
+    // The descriptor decides, not the shape of the column: `idIncrements()`
+    // sets `autoIncrement`, and a plain integer primary key the caller
+    // supplies values for does not. The two guards stay because MySQL
+    // rejects the DDL outright otherwise — an AUTO_INCREMENT column must be
+    // a key, and must hold an integer.
+    if (column.autoIncrement &&
+        column.isPrimaryKey &&
+        _autoIncrementTypes.contains(column.type)) {
       buffer.write(' AUTO_INCREMENT');
     }
     if (column.isPrimaryKey) buffer.write(' PRIMARY KEY');

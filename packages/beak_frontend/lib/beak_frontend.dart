@@ -3,6 +3,7 @@
 library;
 
 export 'src/actions/beak_action.dart';
+export 'src/auth/beak_session_store.dart';
 export 'src/actions/beak_action_button.dart';
 export 'src/blocks/beak_block.dart';
 export 'src/blocks/beak_block_host.dart';
@@ -10,16 +11,19 @@ export 'src/common/hex_color.dart';
 export 'src/dashboard/beak_chart.dart';
 export 'src/dashboard/beak_dashboard.dart';
 export 'src/dashboard/beak_stat.dart';
+export 'src/data/beak_relation_loads.dart';
 export 'src/data/beak_resource_repository.dart';
 export 'src/data/beak_upload_repository.dart';
 export 'src/data/http_beak_data_source.dart';
 export 'src/data/optimistic.dart';
 export 'src/data/reference_cache.dart';
+export 'src/detail/beak_default_detail_layout.dart';
 export 'src/detail/beak_detail_view.dart';
 export 'src/detail/beak_record_scope.dart';
 export 'src/detail/relation_manager.dart';
 export 'src/di/beak_locator.dart';
 export 'src/overlays/beak_overlays.dart';
+export 'src/filters/beak_default_filters.dart';
 export 'src/filters/beak_filter_widget.dart';
 export 'src/form/beak_data_form.dart';
 export 'src/form/beak_form_columns.dart';

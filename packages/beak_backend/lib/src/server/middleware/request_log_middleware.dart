@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:meta/meta.dart';
@@ -32,10 +34,36 @@ final class BeakRequestLogEntry {
   /// How long the downstream handler took.
   final Duration duration;
 
+  /// This entry as JSON, one object per served request.
+  ///
+  /// Every log aggregator worth using indexes fields, not prose: emitting
+  /// this instead of [toString] makes "every 500 on /api/orders in the last
+  /// hour" a query rather than a regex.
+  Map<String, Object?> toJson() => {
+    'requestId': requestId,
+    'method': method,
+    'path': '/$path',
+    'statusCode': statusCode,
+    'durationMs': duration.inMilliseconds,
+  };
+
   @override
   String toString() =>
       '[$requestId] $method /$path -> $statusCode '
       '(${duration.inMilliseconds}ms)';
+}
+
+/// Writes each entry to [sink] as one line of JSON.
+///
+/// The shape a container platform expects on stdout, and the reason
+/// [BeakRequestLogEntry.toJson] exists:
+///
+/// ```dart
+/// BeakServeHost(registry: registry, onRequest: beakJsonRequestLogger());
+/// ```
+BeakRequestLogger beakJsonRequestLogger({StringSink? sink}) {
+  final StringSink target = sink ?? stdout;
+  return (entry) => target.writeln(jsonEncode(entry.toJson()));
 }
 
 /// Receives one [BeakRequestLogEntry] per served request.
@@ -55,6 +83,7 @@ String? beakRequestId(Request request) =>
 /// Tags every request with an id (reusing an incoming `x-request-id`),
 /// echoes it as a response header, and reports the served request to
 /// [onRequest].
+// --8<-- [start:beakRequestLogMiddleware]
 Middleware beakRequestLogMiddleware({
   required BeakRequestLogger onRequest,
   BeakRequestIdFactory? requestIdFactory,
@@ -80,6 +109,7 @@ Middleware beakRequestLogMiddleware({
     return response.change(headers: {'x-request-id': requestId});
   };
 }
+// --8<-- [end:beakRequestLogMiddleware]
 
 final Random _random = Random();
 

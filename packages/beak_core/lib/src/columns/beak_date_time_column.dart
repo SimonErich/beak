@@ -33,8 +33,10 @@ enum BeakDateFormat {
 ///   visibleOn: {BeakContext.table, BeakContext.detail},
 /// );
 /// ```
-final class BeakDateTimeColumn extends BeakColumn {
+final class BeakDateTimeColumn extends BeakColumn
+    with BeakTypedColumn<DateTime> {
   /// Creates a date/time column displayed with [format].
+  // --8<-- [start:BeakDateTimeColumn]
   const BeakDateTimeColumn({
     required super.key,
     required super.label,
@@ -42,9 +44,12 @@ final class BeakDateTimeColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
     this.format = BeakDateFormat.standard,
   });
+  // --8<-- [end:BeakDateTimeColumn]
 
   /// Display format used in tables and detail views.
   final BeakDateFormat format;
@@ -74,6 +79,7 @@ final class BeakDateTimeColumn extends BeakColumn {
     filter: BeakRenderIntent.date,
   );
 
+  /// Reads [value] as a datetime value.
   @override
-  Type get valueType => DateTime;
+  DateTime? readValue(BeakValue? value) => _readDateTime(value);
 }

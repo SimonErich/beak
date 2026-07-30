@@ -4,9 +4,9 @@ description: >-
   views, actions, and dashboards built on obers_ui.
 version: 0.0.1
 publish_to: none
-repository: https://github.com/marqably/beak/tree/main/packages/beak_frontend
-homepage: https://github.com/marqably/beak
-issue_tracker: https://github.com/marqably/beak/issues
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_frontend
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, flutter, low-code, ui]
 
 environment:
@@ -23,15 +23,32 @@ dependencies:
   go_router: ^17.3.0
   http: ^1.6.0
   meta: ^1.16.0
+  # Pinned by commit, not path: a path dep climbing above the repo root
+  # ("../../../obers_ui") makes a fresh clone unresolvable and this package
+  # unpublishable. To work against a local obers_ui checkout instead, run
+  # `melos run link-obers-ui`.
+  # Keep the ref identical everywhere; test/obers_ui_pin_test.dart enforces it.
   obers_ui:
-    path: ../../../obers_ui
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   obers_ui_autoforms:
-    path: ../../../obers_ui/packages/obers_ui_autoforms
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_autoforms
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   obers_ui_charts:
-    path: ../../../obers_ui/packages/obers_ui_charts
+    git:
+      url: https://github.com/SimonErich/obers_ui.git
+      path: packages/obers_ui_charts
+      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
   signals: ^7.1.0
 
 dev_dependencies:
+  # The panel suites serve their widgets from the real in-memory source
+  # rather than a fake that ignores the query spec.
+  beak_test:
+    path: ../beak_test
   flutter_test:
     sdk: flutter
   lints: ^6.0.0

@@ -18,12 +18,11 @@ void main() {
           onDelete: OnDelete.cascade,
         );
       });
-      final sql = blueprint.toSql();
-      expect(
-        sql,
-        contains('FOREIGN KEY ("a", "b") REFERENCES "other"("x", "y")'),
-      );
-      expect(sql, contains('ON DELETE CASCADE'));
+      final foreignKey = blueprint.table.foreignKeys.single;
+      expect(foreignKey.columns, <String>['a', 'b']);
+      expect(foreignKey.referencedTable, 'other');
+      expect(foreignKey.referencedColumns, <String>['x', 'y']);
+      expect(foreignKey.onDelete, OnDelete.cascade);
     });
 
     test('honors the ON DELETE action passed in', () {
@@ -35,15 +34,17 @@ void main() {
           onDelete: OnDelete.setNull,
         );
       });
-      expect(blueprint.toSql(), contains('ON DELETE SET NULL'));
+      expect(blueprint.table.foreignKeys.single.onDelete, OnDelete.setNull);
     });
 
-    test('single-column foreign() continues to render the old shape', () {
+    test('single-column foreign() is the one-entry composite form', () {
       final blueprint = Blueprint.create('t', (table) {
         table.foreign(column: 'user_id', references: 'id', onTable: 'users');
       });
-      final sql = blueprint.toSql();
-      expect(sql, contains('FOREIGN KEY ("user_id") REFERENCES "users"("id")'));
+      final foreignKey = blueprint.table.foreignKeys.single;
+      expect(foreignKey.columns, <String>['user_id']);
+      expect(foreignKey.referencedColumns, <String>['id']);
+      expect(foreignKey.referencedTable, 'users');
     });
   });
 

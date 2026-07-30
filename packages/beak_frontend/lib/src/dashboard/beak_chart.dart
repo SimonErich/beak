@@ -11,6 +11,7 @@ import '../data/beak_resource_repository.dart';
 /// Every family here maps from the same `List<BeakChartPoint>` shape; richer
 /// shapes (scatter, bubble, candlestick, heatmap…) are the domain of the
 /// showcase charts, added as they are wired.
+// --8<-- [start:BeakChartType]
 enum BeakChartType {
   /// A line chart over the mapped points.
   line,
@@ -33,6 +34,7 @@ enum BeakChartType {
   /// A funnel chart — one stage per point.
   funnel,
 }
+// --8<-- [end:BeakChartType]
 
 /// One typed chart data point — the shape [BeakChartMapper]s produce, so
 /// mapping records to series never touches `dynamic`.
@@ -68,8 +70,10 @@ final class BeakChartPoint {
 ///     ),
 /// ];
 /// ```
+// --8<-- [start:BeakChartMapper]
 typedef BeakChartMapper =
     List<BeakChartPoint> Function(List<BeakRecord> records);
+// --8<-- [end:BeakChartMapper]
 
 /// One point of a bubble chart: a position ([x], [y]) plus a magnitude
 /// ([size], the third dimension), optionally [label]led.

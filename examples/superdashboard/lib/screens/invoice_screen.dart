@@ -1,0 +1,38 @@
+import 'package:beak/panel.dart';
+import 'package:superdashboard/models/models.dart';
+import 'package:superdashboard/seeders/seed_ids.dart';
+import 'package:beak/ui.dart';
+
+/// The invoice-detail page — a composed invoice document (header meta,
+/// bill-to, a line-item table, and a totals summary) for the fixed seeded
+/// invoice.
+BeakScreen buildInvoiceScreen() => const BeakScreen(
+  path: '/invoice',
+  title: 'Invoice',
+  icon: BeakIconToken(OiIcons.fileText),
+  section: 'Apps',
+  body: BeakInvoiceBlock(
+    model: InvoiceModel(),
+    recordId: SeedIds.invoice,
+    lineItemsModel: InvoiceItemModel(),
+    lineItemsForeignKey: InvoiceItemColumns.invoiceId,
+    metaFields: [
+      InvoiceColumns.number,
+      InvoiceColumns.status,
+      InvoiceColumns.issueDate,
+      InvoiceColumns.dueDate,
+    ],
+    toRelation: InvoiceRelations.user,
+    toPartyFields: [
+      UserColumns.name,
+      UserColumns.email,
+      UserColumns.city,
+      UserColumns.country,
+    ],
+    subtotalField: InvoiceColumns.subtotal,
+    discountField: InvoiceColumns.discount,
+    shippingField: InvoiceColumns.shipping,
+    taxField: InvoiceColumns.tax,
+    totalField: InvoiceColumns.total,
+  ),
+);

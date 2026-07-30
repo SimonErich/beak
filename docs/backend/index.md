@@ -73,7 +73,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Handler | `crud_handlers.dart` | Check the policy, parse the body into a typed record or spec, call the service, encode the result. | Business logic, validation, `try/catch` for its own errors. |
 | Service | `beak_resource_service.dart` | Validate writes, mint uuid ids, stamp `created_at`/`updated_at`, gate relation kinds. Throws typed exceptions. | Touch HTTP, touch the database driver. |
-| DataSource | `worm_data_source.dart` | Raw reads and writes. Lets exceptions propagate. | Know it is behind HTTP. |
+| DataSource | `worm_data_source.dart` | Reads and writes against the store. Throws typed exceptions (`BeakNotFoundException` for a missing row) and never leaks an ORM error. | Know it is behind HTTP. |
 
 The handlers stay parse-and-route thin on purpose. They consult the policy, turn the
 request into a `BeakQuerySpec` or a `BeakRecord`, and hand it down. All the logic lives

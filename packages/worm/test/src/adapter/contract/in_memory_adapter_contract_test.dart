@@ -11,6 +11,7 @@ void main() {
       supportsReturning: true,
       supportsAggregations: true,
       supportsSchemaIntrospection: true,
+      supportsColumnAlterations: true,
       supportsExplain: true,
     ),
     name: 'InMemoryAdapter contract',

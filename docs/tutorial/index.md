@@ -1,143 +1,70 @@
 ---
 title: "Tutorial: First Flight"
-description: Build the coffee-roastery reference admin from an empty workspace to a running panel, one concept per chapter.
+description: Build a coffee-roastery admin panel from an empty folder to a deployed, authenticated store, one concept per chapter.
 ---
 
 # Tutorial: First Flight
 
-By the end of these ten chapters you will have built the reference admin: a
-working admin panel for a small coffee roastery, grown from an empty workspace.
-Models defined once, a backend generated from them, and a Flutter panel that
-lists, filters, edits, and charts every resource. This is the real
-`apps/reference_admin*` app in the Beak repo, revealed one concept at a time, so
-every snippet you copy is code that compiles and ships.
+By the end of these six chapters you will have built
+[`examples/store`](https://github.com/SimonErich/beak/tree/main/examples/store):
+a working admin panel for a small coffee roastery, grown from an empty folder.
+Seven resources declared once, a REST API generated from them, a panel that
+lists, filters, edits and charts every one of them, accounts that decide who
+sees what, and a test suite that proves it.
 
 The bird has to leave the nest sometime. This is that flight, taken in short
 hops.
 
-## What you build
+Every code block is quoted from the finished example, so a snippet you copy is
+code that compiles and ships. Nothing here is a toy version of the real thing.
 
-Picture the finished panel. A navigation rail down the left lists six resources:
-Products, Categories, Tags, Users, Orders, and Order items. The home page is a
-dashboard: stat tiles for the product count, the customer count, and the catalog
-value in euros, above a bar chart of stock per product.
+## What you need
 
-Click **Products** and a data table opens, searchable and sortable, with a status
-filter and a name filter across the top. Each product shows a euro price, a
-colored status badge, and a thumbnail. A **Create** button opens a form whose
-fields, and whose validation, come straight from the column definitions the
-server also enforces. Save it and the row appears in the table. Click a row to
-read it in a detail view; click **Edit** and the same layout becomes a form
-again. A **Duplicate** row action clones a product in one click.
+Dart 3.11 and Flutter stable. That is all: the database is a SQLite file Beak
+creates on first run, and uploads land beside it. Postgres, S3 and Docker are
+opt-in, and the last chapter shows where they plug in.
 
-Around all of that: a login screen, a light and dark theme toggle, a
-notification bell, and a command bar on <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd>.
-None of it is hand-written page code. All of it comes from configuration over the
-models you define.
+If you have not installed the CLI yet, start with
+[Installation](../start-here/installation.md).
 
-## How the three packages fit
+## The six chapters
 
-The reference admin is three packages, and the split is the whole point: you
-define each model once, and both the server and the panel read that one
-definition.
-
-```mermaid
-flowchart LR
-  M["reference_admin_models<br/>(pure Dart: the models)"]
-  S["reference_admin_server<br/>(Shelf backend, port 8080)"]
-  P["reference_admin<br/>(Flutter panel)"]
-  M --> S
-  M --> P
-  P -- "HTTP :8080" --> S
-```
-
-- **`reference_admin_models`** is pure Dart. It holds the `BeakModel` classes:
-  columns, rules, and relationships. It depends only on `beak_core`.
-- **`reference_admin_server`** wraps those models with `beak_backend` into a
-  generated REST API. It persists to Postgres and stores uploads in MinIO through
-  the `worm` ORM, and listens on port **8080**. You never write an endpoint.
-- **`reference_admin`** is the Flutter app. It reads the same models with
-  `beak_frontend` and renders the panel on `obers_ui`, talking to the server over
-  HTTP at `apiBaseUrl: 'http://localhost:8080'`.
-
-One `BeakColumn`, declared once in the models package, feeds six mouths: the
-table cell, the form field, the detail row, the filter, the REST validator, and
-the CSV export column. That is the promise the rest of this tutorial cashes in.
-
-## The finished project tree
-
-By Chapter 10 the reference trio looks like this. You will touch a handful of
-files; Beak generates the rest of the behavior at runtime.
-
-```text
-Flutters/
-  obers_ui/                         # sibling checkout Beak draws its widgets from
-  beak/
-    packages/                       # beak_core, beak_backend, beak_frontend, worm, ...
-    apps/
-      reference_admin_models/       # the models, defined once
-        lib/
-          reference_admin_models.dart   # referenceModels + buildReferenceRegistry
-          src/
-            category.dart
-            tag.dart
-            product.dart
-            user.dart
-            order.dart
-            order_item.dart
-      reference_admin_server/       # the generated Shelf backend, port 8080
-        bin/
-          reference_admin_server.dart   # boots the server
-          worm.dart                     # migrate / db:seed CLI
-        lib/src/
-          server_builder.dart
-          migrations/reference_migrations.dart
-          seeders/reference_seeder.dart
-      reference_admin/              # the Flutter panel
-        lib/main.dart                   # buildReferencePanelConfig + BeakPanel
-```
-
-## What you learn, in the order you use it
-
-Each chapter adds exactly what the store needs next, then stops.
-
-| Chapter | You add | Concept it teaches |
+| | Chapter | What you can do after it |
 | --- | --- | --- |
-| [1. Hatch the project](01-hatch-the-project.md) | The workspace and services | The three-package layout, Melos, Docker |
-| [2. Your first model and migration](02-first-model-and-migration.md) | `CategoryModel` and its table | Models, typed columns, migrations, the registry |
-| [3. The panel comes alive](03-the-panel-comes-alive.md) | A generated backend and panel | `BeakPanelConfig`, resources, auto CRUD |
-| [4. Relationships and rich columns](04-relationships-and-rich-columns.md) | Tags and Products | Enum, decimal, image columns, belongsTo, belongsToMany |
-| [5. Seeding a flock of data](05-seeding-a-flock-of-data.md) | Sample rows | Seeders and factory data |
-| [6. Filters, actions, and view modes](06-filters-actions-and-view-modes.md) | Filters, a row action, a board | Filtering, custom actions, view modes |
-| [7. A custom dashboard](07-a-custom-dashboard.md) | Stats and charts | Dashboard config and custom screens |
-| [8. Forms, wizards, and dual-mode detail](08-forms-wizards-and-dual-mode-detail.md) | Sectioned forms and a wizard | Form layout, steps, dual-mode blocks |
-| [9. Auth, theming, and polish](09-auth-theming-and-polish.md) | Login, theming, the command bar | Auth, theming, notifications, maintenance |
-| [10. Wrap-up and where to fly next](10-wrap-up.md) | The recap | Where each concept lives in the docs |
+| 1 | [Your first resource](01-your-first-resource.md) | Scaffold a project, declare a resource, and use the panel and API it produces |
+| 2 | [Columns and validation](02-columns-and-validation.md) | Reach for the right column kind, and write rules that hold in the form and in the API |
+| 3 | [Relationships](03-relationships.md) | Link resources by naming a class, and read what that gives you in the panel |
+| 4 | [Seeding and the API](04-seeding-and-the-api.md) | Fill the store with fixed data, and drive every endpoint from the command line |
+| 5 | [Shaping the panel](05-shaping-the-panel.md) | Decide icons, filters, actions, view modes, layouts, wizards, screens and the dashboard |
+| 6 | [Auth, tests, and shipping](06-auth-tests-and-shipping.md) | Add accounts and a row policy, test the lot, and build for production |
 
-## Prerequisites
+Read them in order the first time. Each chapter starts where the last one
+finished, and the project you end up with is the example you can clone.
 
-You need the same toolchain any Beak workspace needs. Chapter 1 walks through
-each step; this is the shopping list.
+## What you will not write
 
-| Tool | Version | Why |
-| --- | --- | --- |
-| Dart SDK | `^3.11` | Every package targets it. |
-| Flutter | stable, `3.41` or newer | The panel and its widget tests. |
-| Docker + Compose | any recent release | Postgres and MinIO for the backend and uploads. |
-| Melos | `6.3.3`, pinned | Bootstraps and gates the workspace. |
-| Git | any | To clone Beak and its sibling obers_ui checkout. |
+It is worth knowing in advance what the tutorial never asks you to type, so
+you can notice its absence:
 
-One thing worth flagging now: Beak's UI is `obers_ui`, and the demo apps depend on
-it by a relative path that sits **next to** the `beak` repo, not inside it.
-Chapter 1 clones it as a sibling. If you have run the
-[Installation](../start-here/installation.md) page already, you are ready to
-start.
+- No REST endpoints, request parsing, or response shaping.
+- No table, form, detail page, filter bar, or router.
+- No registry, no resource list, no migration list.
+- No string column references, no `dynamic`, no casts.
+
+You write schema classes, a handful of small files that state decisions, and
+the code that is genuinely yours.
+
+## If you would rather skim
+
+- [Quickstart](../start-here/quickstart.md) is the same first chapter in a
+  quarter of the words.
+- [Cheatsheet](../reference/cheatsheet.md) is every command and annotation on
+  one page.
+- [`examples/store`](https://github.com/SimonErich/beak/tree/main/examples/store)
+  is the finished project. Clone it and run it.
 
 ## Continue reading
 
-- [1. Hatch the project](01-hatch-the-project.md) set up the workspace and start
-  Postgres and MinIO.
-- [Installation](../start-here/installation.md) the same setup as a standalone
-  reference, with the full port map.
-- [Project structure](../start-here/project-structure.md) how the monorepo and
-  the two demo apps are laid out.
+- [Chapter 1: Your first resource](01-your-first-resource.md) starts the flight.
+- [Core concepts](../concepts/index.md) is the same material as ideas rather
+  than steps, if you prefer to read that way first.

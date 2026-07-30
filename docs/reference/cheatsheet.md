@@ -1,161 +1,186 @@
 ---
 title: Cheatsheet
-description: One dense page with the minimal wiring, every column type, rule, and relationship, the block and config fields, the REST routes, and the CLI and gate commands.
+description: One dense page: a resource end to end, every annotation, authoring type, column, rule, block and REST route, and every CLI command.
 ---
 
 # Cheatsheet
 
 Everything you reach for while building, on one page. Skim it, pin it, or feed
 it to an AI agent. Each row links out to the page that explains it in full.
-Snippets are lifted from the reference admin (the coffee-roastery demo, served
-on port 8080), so the ports and model names all line up.
+Snippets come from the store example (a coffee roastery, API on port 8080), so
+the names all line up.
 
-## Minimal wiring
+## A resource, end to end
 
-Four moving parts stand up a whole panel: a model, a registry over your models,
-a server, and the panel config. No endpoints, no client plumbing.
+One file. No registry to edit, no endpoint to write, no resource to register.
 
-### 1. Define a model
+```dart title="examples/store/lib/models/category.dart"
+--8<-- "examples/store/lib/models/category.dart"
+```
 
-One columns class of `static const` [column](column-types.md) fields, then a
-`BeakModel` that lists them.
+Then:
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-abstract final class ProductColumns {
-  static const name = BeakStringColumn(
+```bash
+beak prepare   # generate; every other beak command runs this first
+beak migrate   # apply the migration prepare wrote
+beak dev       # serve the API, print the flutter run line
+```
+
+`prepare` writes `category.beak.dart` beside the class:
+
+```dart title="examples/store/lib/models/category.beak.dart"
+/// Typed column constants of the categories resource.
+abstract final class CategoryColumns {
+  // ... the primary key ...
+
+  /// What the category is called.
+  static const BeakStringColumn name = BeakStringColumn(
     key: 'name',
     label: 'Name',
+    rules: [BeakRequired(), BeakMaxLength(120)],
     searchable: true,
     sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
-  static const price = BeakDecimalColumn(
-    key: 'price',
-    label: 'Price',
-    prefix: '€',
-    filterable: true,
-    rules: [BeakRequired(), BeakMin(0)],
   );
 
-  static const List<BeakColumn> values = [name, price];
-}
+  // ... blurb ...
 
-final class ProductModel extends BeakModel {
-  const ProductModel();
-
-  @override
-  String get table => 'products';
-
-  @override
-  String get displayColumnKey => 'name';
-
-  @override
-  List<BeakColumn> get columns => ProductColumns.values;
+  /// Every column, in declaration order.
+  static const List<BeakColumn> values = [id, name, blurb];
 }
 ```
 
-### 2. Register the models
+plus `CategoryRelations` (both sides of every relationship), `CategoryModel`,
+and a typed `CategoryRecord` view. Committed, never edited.
 
-The registry is the single index both the server and the panel read.
+The **field's type picks the column kind**. Its **nullability decides
+required-ness**, once, for the form validator, the API and the database:
+`String name` is required, `BeakText? blurb` is not.
 
-```dart title="apps/reference_admin_models/lib/reference_admin_models.dart"
-const List<BeakModel> referenceModels = [
-  ProductModel(),
-  CategoryModel(),
-  TagModel(),
-  UserModel(),
-  OrderModel(),
-  OrderItemModel(),
-];
+## Where each decision lives
 
-BeakModelRegistry buildReferenceRegistry() {
-  final registry = BeakModelRegistry();
-  for (final model in referenceModels) {
-    registry.register(model);
-  }
-  return registry;
-}
-```
+| Decision | Where |
+| --- | --- |
+| Columns, relationships, table, soft deletes, timestamps | the `@Resource` class in `lib/models/<name>.dart` |
+| Panel title, API origin, server port | `beak.yaml` |
+| A resource's icon, label, section, or hiding it | `beak.yaml`, under `resources.<table>` |
+| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart` |
+| Theme, auth, the `/` screen, the server | `lib/theme.dart`, `lib/auth.dart`, `lib/dashboard.dart`, `lib/server.dart` |
+| Everything else | generated into `lib/beak/*.g.dart` and `lib/models/*.beak.dart`, committed, never edited |
 
-### 3. Serve the API
+`beak eject <target>` writes any of those override files out, pre-filled with
+Beak's own default so it compiles and changes nothing until your first edit.
 
-Wrap the registry in a worm-backed data source and hand both to a `BeakServer`.
+## Libraries
 
-```dart title="apps/reference_admin_server/lib/src/server_builder.dart"
-BeakServer buildReferenceServer({
-  required BeakBackendConfig config,
-  required DatabaseAdapter adapter,
-  BeakStorageDriver? storage,
-}) {
-  final BeakModelRegistry registry = buildReferenceRegistry();
-  return BeakServer(
-    config: config,
-    registry: registry,
-    dataSource: WormDataSource(registry, adapter: adapter),
-    storage: storage,
-  );
-}
-```
+One dependency, `beak`; eight libraries. Which one a file imports says what the
+file is.
 
-### 4. Build the panel
+| Import | What it holds |
+| --- | --- |
+| `package:beak/beak.dart` | columns, models, relationships, the query spec, `BeakClient`, storage |
+| `package:beak/schema.dart` | the annotations a schema class carries |
+| `package:beak/panel.dart` | the panel: `BeakPanel`, resources, blocks, tables, forms |
+| `package:beak/server.dart` | the Shelf host, config, storage wiring, auth, policy |
+| `package:beak/migrations.dart` | `Migration`, `Schema`, `Seeder`, `BeakBlueprint` |
+| `package:beak/testing.dart` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, fixtures |
+| `package:beak/ui.dart` | obers_ui, for a screen that draws its own widgets |
+| `package:beak/charts.dart` | obers_ui_charts |
 
-Point a `BeakPanelConfig` at the running server and drop it into a `BeakPanel`.
+Full table and the reason for the split: [Libraries](libraries.md).
 
-```dart title="apps/reference_admin/lib/main.dart"
-BeakPanelConfig buildReferencePanelConfig({
-  String apiBaseUrl = 'http://localhost:8080',
-}) => BeakPanelConfig(
-  title: 'Beak Admin',
-  apiBaseUrl: apiBaseUrl,
-  resources: const [
-    BeakResource(
-      model: ProductModel(),
-      icon: BeakIconToken(OiIcons.package),
-    ),
-    // ... one BeakResource per model
-  ],
-);
+## Authoring types and the columns they become
 
-void main() => runApp(const ReferenceAdminApp());
-```
+The type on the left is what you write; the column on the right is what
+`beak prepare` generates. Reference the generated constant
+(`CategoryColumns.name`), never a string.
 
-!!! tip "Scaffold it instead of typing it"
-    `beak make:resource Product --fields name:string,price:decimal` writes the
-    worm model, the Beak columns/model, and the migration for you. See the
-    [CLI commands](#cli-commands) below.
-
-## Column types
-
-Thirteen leaf columns. Every one also accepts the base options `key`, `label`,
-`visibleOn` (a `Set<BeakContext>`: `table`, `form`, `detail`, `filter`),
-`sortable`, `searchable`, `filterable`, and `rules`. Declare each as a
-`static const` and reference the constant, never a string.
-
-| Column | Dart value | Options beyond the base | Renders as |
-| --- | --- | --- | --- |
-| `BeakStringColumn` | `String` | `placeholder`, `maxLength` | single-line text |
-| `BeakTextColumn` | `String` | none | multiline text / textarea |
-| `BeakIntColumn` | `int` | `min`, `max` | number |
-| `BeakDecimalColumn` | `double` | `precision` (2), `prefix`, `suffix` | number, or currency when a `prefix`/`suffix` is set |
-| `BeakBoolColumn` | `bool` | `trueLabel`, `falseLabel` | toggle / yes-no |
-| `BeakDateTimeColumn` | `DateTime` | `format` (`BeakDateFormat`), `withFormat(...)` | date, or relative date |
-| `BeakEnumColumn<T extends Enum>` | `T` | `values`, `defaultValue`, `badgeColors`, `labelOf` | colored badge / select |
-| `BeakJsonColumn` | `String` (JSON text) | none | pretty-printed JSON / textarea |
-| `BeakRichTextColumn` | `String` | none | rendered markup / WYSIWYG |
-| `BeakColorColumn` | `String` (hex) | none | swatch / color picker |
-| `BeakImageColumn` | `String` (key/URL) | `storagePath` (required), `maxSizeInBytes`, `allowedTypes`, `maxDimensions`, `aspectRatio`, `thumbnail`, `transforms` | thumbnail / image picker |
-| `BeakFileColumn` | `String` (key/URL) | `storagePath` (required), `maxSizeInBytes`, `allowedTypes` | download / file picker |
-| `BeakCustomColumn` | `Object` | `tag` (required, `BeakColumnTag`) | a renderer you register |
+| You declare | Column | Options beyond the base |
+| --- | --- | --- |
+| `String` | `BeakStringColumn` | `placeholder`, `maxLength` |
+| `BeakText` | `BeakTextColumn` | none |
+| `BeakRichText` | `BeakRichTextColumn` | none |
+| `int` | `BeakIntColumn` | `min`, `max`, `prefix`, `suffix` |
+| `double` | `BeakDecimalColumn` | `precision` (2), `prefix`, `suffix` |
+| `bool` | `BeakBoolColumn` | `trueLabel`, `falseLabel` |
+| `DateTime` | `BeakDateTimeColumn` | `format` (`BeakDateFormat`) |
+| any `enum` | `BeakEnumColumn<T>` | `defaultValue`, plus `@Badges({...})` |
+| `BeakJson` | `BeakJsonColumn` | none |
+| `BeakHexColor` | `BeakColorColumn` | none |
+| `BeakImageRef` + `@Image(...)` | `BeakImageColumn` | `storagePath`, `maxSizeInBytes`, `allowedTypes`, `maxDimensions`, `aspectRatio`, `thumbnail`, `transforms` |
+| `BeakFileRef` + `@FileField(...)` | `BeakFileColumn` | `storagePath`, `maxSizeInBytes`, `allowedTypes` |
+| `Object?` + `@Custom('tag')` | `BeakCustomColumn` | the tag your renderer is registered under |
 
 `BeakDateFormat` values: `standard`, `relative`, `dateOnly`, `timeOnly`, `iso`.
 Full options per type: [Column types reference](column-types.md).
 
+## `@Resource` and `@Column`
+
+```dart
+@Resource(table: 'products', softDeletes: true, timestamps: true, managesSchema: true)
+```
+
+| `@Resource` parameter | Default | What it does |
+| --- | --- | --- |
+| `table` | pluralised, snake-cased class name | The physical table name |
+| `softDeletes` | `false` | Deletes write a `deleted_at` marker |
+| `timestamps` | `false` | Adds `created_at` and `updated_at` |
+| `managesSchema` | `true` | Whether Beak generates a migration for this table |
+
+`@Column` carries what the type cannot: `columnName`, `label`, `visibleOn`,
+`sortable`, `searchable`, `filterable`, `indexed`, `unique`, `rules`, `prefix`,
+`suffix`, `precision`, `min`, `max`, `maxLength`, `format`, `placeholder`,
+`trueLabel`, `falseLabel`, `defaultValue`.
+
+`@Display()` marks the field that names a record in pickers, links and titles
+(one per schema; without it, the first string field). Full table:
+[Annotations](annotations.md).
+
+## Relationships
+
+Each takes the related **schema class** as the field type. Beak derives the
+foreign key, the pivot table, and the other side.
+
+| Annotation | Field type | Where the key lives | Renders as |
+| --- | --- | --- | --- |
+| `@BelongsTo` | `Other?` or `Other` | this table | link / searchable single-select |
+| `@HasOne` | `Other?` | the other table | link / searchable single-select |
+| `@HasMany` | `List<Other>` | the other table | badge list / relation manager |
+| `@BelongsToMany` | `List<Other>` | a pivot table | badge list / searchable multi-select |
+
+All four take `label:`. `@BelongsTo` and `@BelongsToMany` take
+`searchOn: ['name', 'email']`, the columns of the related table a picker
+searches (default: its display column). `onDelete` defaults to `setNull` for
+belongs-to, `restrict` for has-many, `cascade` for many-to-many;
+`inverse: false` stops Beak generating the other side.
+
+```dart title="examples/store/lib/models/product.dart"
+  /// The category this product is filed under.
+  @BelongsTo(onDelete: BeakOnDelete.setNull)
+  late final Category? category;
+
+  /// The roast profile for this product, if it is coffee.
+  @HasOne()
+  late final RoastProfile? roastProfile;
+
+  /// The tags attached to this product.
+  @BelongsToMany(allowCreate: true)
+  late final List<Tag> tags;
+
+  /// The order lines that sold this product.
+  @HasMany(onDelete: BeakOnDelete.restrict)
+  late final List<OrderItem> orderItems;
+```
+
+`BeakOnDelete` values mirror worm one for one: `cascade`, `ormCascade`,
+`restrict`, `setNull`, `setDefault`, `noAction`. See
+[Relationships](../models/relationships.md).
+
 ## Validation rules
 
-Eleven rules, attached to a column's `rules` list, run in order; the first
+Eleven rules, listed in `@Column(rules: [...])`, run in order; the first
 non-null message wins. A rule that does not apply to the value's runtime type
-reports it as valid, so rules compose freely and presence stays `BeakRequired`'s
-job alone.
+reports it as valid, so rules compose freely. Presence is not among them: a
+non-nullable field gets `BeakRequired()` from its type.
 
 | Rule | Bites on | Fails when |
 | --- | --- | --- |
@@ -173,44 +198,47 @@ job alone.
 
 Details and worked examples: [Validation rules reference](validation-rules.md).
 
-## Relationship kinds
+## What the panel derives
 
-Four sealed relationship types, declared in a model's `relationships` list. All
-share `key`, `label`, `relatedTable`, `displayColumnKey`, and `searchColumnKeys`.
+Nothing below needs configuring. Each one is what you get before you say
+anything, and each is replaceable.
 
-| Kind | Where the foreign key lives | Extra required params | Cardinality | Renders as |
-| --- | --- | --- | --- | --- |
-| `BeakBelongsTo` | this table's `foreignKey` | `foreignKey` | one | link / searchable single-select |
-| `BeakHasOne` | the related table's `foreignKey` | `foreignKey` | one | link / searchable single-select |
-| `BeakHasMany` | the related table's `foreignKey` | `foreignKey` (+ `onDelete`, default `restrict`) | many | badge list / relation manager |
-| `BeakBelongsToMany` | a `pivotTable` | `pivotTable`, `foreignPivotKey`, `relatedPivotKey` (+ `allowCreate` `false`, `maxAllowed`, `onDelete` default `cascade`) | many | badge list / searchable multi-select |
+| Surface | Derived default |
+| --- | --- |
+| Filters | one control per `@Column(filterable: true)`: select for an enum, switch for a bool, contains-search for text, range for a date |
+| Show page | a headline card of the first four fields, the rest beside it, and a tab per to-many relationship |
+| List table | a column per to-one relationship showing the related record's **name**, not the foreign key, loaded with the page in one query |
+| Label | the title-cased table name |
+| View modes | a single table view |
 
-`BeakOnDelete` values mirror worm 1:1: `cascade`, `ormCascade`, `restrict`,
-`setNull`, `setDefault`, `noAction`. `BeakHasOne` lives only in the showcase app
-(`beak_superdashboard`), not the reference store. See
-[Relationships](../models/relationships.md).
+## Adjusting one resource
 
-```dart title="apps/reference_admin_models/lib/src/product.dart"
-static const category = BeakBelongsTo(
-  key: 'category',
-  label: 'Category',
-  relatedTable: 'categories',
-  displayColumnKey: 'name',
-  foreignKey: 'category_id',
-  searchColumnKeys: ['name'],
-);
+`lib/resources/<table>.dart`, written by `beak eject resource <table>`:
 
-static const tags = BeakBelongsToMany(
-  key: 'tags',
-  label: 'Tags',
-  relatedTable: 'tags',
-  displayColumnKey: 'name',
-  pivotTable: 'product_tag',
-  foreignPivotKey: 'product_id',
-  relatedPivotKey: 'tag_id',
-  searchColumnKeys: ['name'],
+```dart
+BeakResource beakResource(BeakResource generated) => generated.copyWith(
+  detail: productLayout,
+  formLayout: productLayout,
+  viewModes: const [BeakTableView(), BeakKanbanView(/* ... */)],
 );
 ```
+
+| `copyWith` field | Type | Default |
+| --- | --- | --- |
+| `model` | `BeakModel` | the generated one |
+| `icon` | `BeakIconToken` | `beak.yaml`, else a default |
+| `label` | `String?` | title-cased table name |
+| `section` | `String?` | `beak.yaml`, else none |
+| `recordActions` | `List<BeakRecordAction>` | `const []` (view/edit/delete are built in) |
+| `bulkActions` | `List<BeakBulkAction>` | `const []` |
+| `globalActions` | `List<BeakGlobalAction>` | `const []` (create is built in) |
+| `filters` | `List<BeakFilterDef>` | derived from `filterable` columns |
+| `viewModes` | `List<BeakResourceView>` | `const [BeakTableView()]` |
+| `detail` | `BeakBlock?` | the derived show page |
+| `formSteps` | `List<BeakFormStep>?` | single-page form |
+| `formLayout` | `BeakBlock?` | generated form |
+
+See [Resources](../panel/resources.md).
 
 ## Blocks you reach for most
 
@@ -223,64 +251,43 @@ editable inside a form scope. Full catalog: [Blocks index](blocks-index.md).
 | `BeakColumnBlock` | vertical stack | `children`, `gapInPixels` (16) |
 | `BeakRowBlock` | horizontal stack | `children`, `gapInPixels` |
 | `BeakGridBlock` | responsive grid | `children`, `columns`, `minColumnWidthInPixels` |
-| `BeakCardBlock` | card container | `child`, `title`, `subtitle`, `footer` |
+| `BeakCardBlock` | card container | `child`, `title`, `subtitle`, `footer`, `span` |
 | `BeakTabsBlock` | tabbed panes | `tabs`, `initialIndex` (0) |
 | `BeakTextBlock` | typographic text | `text`, `variant` (`body`) |
 | `BeakMarkdownBlock` | rendered markdown | source string |
 | `BeakAlertBlock` | inline alert | `message`, `level` (`info`) |
 | `BeakKpiBlock` | metric card from an aggregate | `title`, `value` (`BeakAggregateSpec`), `format` (`number`) |
-| `BeakChartBlock` | a dashboard chart | chart spec |
+| `BeakChartBlock` | a dashboard chart | `title`, `type`, `query`, `map`, `heightInPixels` (260) |
 | `BeakTableBlock` | embedded data table | `model`, `title`, `baseFilter` |
 | `BeakFieldBlock` | dual-mode single field | `column`, `label`, `layout` (`stacked`) |
 | `BeakFieldGroupBlock` | grid of fields | `columns`, `columnCount` (2) |
 | `BeakRelationBlock` | dual-mode relation | `relationship`, `title` |
 | `BeakWidgetBlock` | escape hatch to a raw widget | a `WidgetBuilder` |
 
-## `BeakResource` fields
+## beak.yaml
 
-One resource per model, in navigation order. `view`, `edit`, `delete`, and
-`create` actions are always present; the lists below add to them.
+```yaml title="examples/store/beak.yaml"
+name: Beak Store
 
-| Field | Type | Default |
+api:
+  # The origin the panel calls. `auto` calls the origin the panel was served
+  # from, which is what a single-host deployment wants.
+  baseUrl: http://localhost:8080
+```
+
+| Key | Default | Decides |
 | --- | --- | --- |
-| `model` | `BeakModel` | required |
-| `icon` | `BeakIconToken` | required |
-| `label` | `String?` | title-cased table name |
-| `section` | `String?` | none |
-| `recordActions` | `List<BeakRecordAction>` | `const []` |
-| `bulkActions` | `List<BeakBulkAction>` | `const []` |
-| `globalActions` | `List<BeakGlobalAction>` | `const []` |
-| `filters` | `List<BeakFilterDef>` | `const []` |
-| `viewModes` | `List<BeakResourceView>` | `const [BeakTableView()]` |
-| `detail` | `BeakBlock?` | generated detail grid |
-| `formSteps` | `List<BeakFormStep>?` | single-page form |
-| `formLayout` | `BeakBlock?` | generated form |
+| `name` | title-cased package name | The panel title |
+| `api.baseUrl` | `http://localhost:8080` | Where the panel calls. `auto` means the origin it was served from |
+| `server.port` / `server.host` | Beak's defaults (`8080`, `0.0.0.0`) | Where the server binds, unless `PORT`/`HOST` say otherwise |
+| `resources.<table>.icon` | a default | The sidebar icon, a lowerCamelCase `OiIcons` name |
+| `resources.<table>.label` | title-cased table | The navigation label |
+| `resources.<table>.section` | none | The sidebar group |
+| `resources.<table>.hidden` | `false` | `true` keeps it out of the sidebar; the API and relationships stay |
+| `theme.sidebar.collapsible` / `.startCollapsed` | `true` / `false` | How the sidebar behaves |
 
-See [Resources](../panel/resources.md).
-
-## `BeakPanelConfig` fields
-
-The one declarative entry point of a panel; hand it to a `BeakPanel`.
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `title` | `String` | required |
-| `resources` | `List<BeakResource>` | required |
-| `apiBaseUrl` | `String` | required |
-| `pages` | `List<BeakScreen>` | `const []` |
-| `auth` | `BeakAuthConfig?` | default `/login` only |
-| `maintenance` | `BeakMaintenanceConfig?` | none |
-| `theme` | `OiThemeData?` | `OiThemeData.light()` |
-| `darkTheme` | `OiThemeData?` | `OiThemeData.dark()` |
-| `initialThemeMode` | `OiThemeMode` | `system` |
-| `sidebarCollapsible` | `bool` | `true` |
-| `sidebarDefaultCollapsed` | `bool` | `false` |
-| `dashboardStats` | `List<BeakStat>` | `const []` |
-| `dashboardCharts` | `List<BeakChart>` | `const []` |
-| `notifications` | `BeakNotificationSource?` | no bell |
-
-`buildRegistry()` turns the resources into a `BeakModelRegistry`. Full field
-docs: [Configuration options](configuration-options.md).
+Every key is optional. Delete the file and Beak still boots. Full page:
+[beak.yaml](beak-yaml.md).
 
 ## REST endpoints
 
@@ -289,57 +296,76 @@ record id, `{columnKey}` an upload column, `{relationKey}` a to-many relation.
 
 | Method + path | Does |
 | --- | --- |
-| `POST /api/{table}/query` | list with filter, sort, search, pagination |
+| `POST /api/{table}/query` | list with filter, sort, search, eager loads, pagination |
 | `POST /api/{table}/aggregate` | count / sum / avg |
 | `POST /api/{table}/batch` | fetch many records by id |
 | `POST /api/{table}` | create a record |
 | `GET /api/{table}/{id}` | read one record |
-| `PATCH /api/{table}/{id}` | update a record |
-| `DELETE /api/{table}/{id}` | delete a record |
+| `PATCH /api/{table}/{id}` | update a record (honours `If-Unmodified-Since`) |
+| `DELETE /api/{table}/{id}` | soft-delete, or `?force=true` to delete for real |
+| `POST /api/{table}/{id}/restore` | clear a soft-delete marker |
 | `POST /api/{table}/{id}/relations/{relationKey}/attach` | attach to-many records |
 | `POST /api/{table}/{id}/relations/{relationKey}/detach` | detach to-many records |
 | `POST /api/{table}/export` | CSV export |
 | `POST /api/{table}/{columnKey}/upload` | upload to a file/image column |
 | `DELETE /api/{table}/{columnKey}/upload` | remove an uploaded file |
 
-Global routes: `GET /api/search` (across searchable columns), and, when auth is
-configured, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
-Upload routes appear only when uploads are wired. Bodies and error codes:
+Global routes: `GET /api/search`, the `/healthz` and `/readyz` probes (outside
+`/api`, so they skip auth), and, when auth is configured,
+`POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`. Upload
+routes appear only when storage is wired.
+
+A query spec needs only `table`; every other key falls back to its default. Its
+eager loads are objects, not names:
+
+```json
+{
+  "table": "products",
+  "relations": [{ "relation": "category", "filter": null, "nested": [] }],
+  "pagination": { "page": 1, "perPage": 25 }
+}
+```
+
+Bodies, error codes, and the record wire shape:
 [REST API reference](rest-api.md).
 
 ## CLI commands
 
-Run `beak <command>` from the project root. Every `make:*` command takes
-`--fields name:kind,...` where `kind` is one of `string`, `text`, `int`,
-`decimal`, `bool`, `datetime`, and `Name` is `UpperCamelCase`.
+Run `beak <command>` from the project root. Every command regenerates first, so
+none of them can act on stale wiring.
 
-| Command | Generates |
+| Command | Does |
 | --- | --- |
-| `beak make:resource Name --fields ...` | worm model + Beak columns/model + create-table migration |
-| `beak make:model Name --fields ...` | the worm model only |
-| `beak make:columns Name --fields ...` | the Beak columns class and `BeakModel` only |
-| `beak make:migration Name --fields ...` | the create-table migration only |
-| `beak doctor` | checks worm/obers_ui paths, `.env`, Postgres `:25432`, MinIO `:29000` |
+| `beak create <name>` | Scaffold a project (`--beak-path` for a local Beak checkout). |
+| `beak prepare` | Regenerate the part files, the wiring, and any missing migration. |
+| `beak dev` | Regenerate, print the `flutter run` line, serve the API (`-d`, `--no-serve`). |
+| `beak migrate [status\|fresh\|refresh]` | Apply migrations. |
+| `beak seed` | Run the seeders. |
+| `beak make:resource Name --fields name:string!,price:decimal` | One `@Resource` class, then `prepare`. |
+| `beak make:migration Name` | An empty, correctly-named migration for a change `prepare` cannot derive. |
+| `beak make:migration Name --from-drift` | The same, filled in from what the database is missing. |
+| `beak eject <main\|panel\|resource\|theme\|auth\|dashboard\|server>` | Take a default over (`--force` to overwrite). |
+| `beak introspect <database-url>` | Write schema classes for a database you already have (Postgres or SQLite). |
+| `beak doctor` | Diagnose the project (`--json` for CI). |
 
-Scaffolding does not auto-register anything: add the migration to `bin/worm.dart`
-and the model to your registry yourself. See [CLI commands](cli-commands.md).
+`--fields` kinds: `string`, `text`, `int`, `decimal`, `bool`, `datetime`. A
+trailing `!` means non-nullable, and so required. See
+[CLI commands](cli-commands.md).
 
-## The gate
+## Testing
 
-Every change has to pass these four, run from the repo root, before it lands.
-
-```bash
-melos run analyze       # analyze + material guard, 0 issues required
-melos run test          # every package's tests, all green, no skips
-melos run coverage      # per-package line-coverage threshold
-melos run format-check  # dart format --set-exit-if-changed, must be clean
+```dart
+final source = InMemoryBeakDataSource(registry: buildBeakRegistry());
+await tester.pumpWidget(BeakApp(dataSource: source));
 ```
 
-Bring the dev services up and down with `melos run up` (Postgres + MinIO, waits
-for health, inits the bucket) and `melos run down`.
+`package:beak/testing.dart` gives you `InMemoryBeakDataSource` (a complete data
+source over maps that honours the query spec), `BeakRecordingDataSource` (wraps
+any source and counts the round trips a screen costs), `beakFakeRecord`, and the
+data-source contract suite. See [Testing](../guides/testing.md).
 
 ## Continue reading
 
 - [Reference index](index.md) the exhaustive per-topic reference pages.
-- [Quickstart](../start-here/quickstart.md) the same wiring, run end to end.
-- [Defining models](../models/defining-models.md) the long-form walkthrough of a model.
+- [Quickstart](../start-here/quickstart.md) the same resource, run end to end.
+- [Annotations](annotations.md) everything a schema class can say.

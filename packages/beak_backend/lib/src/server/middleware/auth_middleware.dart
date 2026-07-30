@@ -18,6 +18,7 @@ BeakPrincipal? beakPrincipal(Request request) =>
 ///
 /// Invalid credentials throw inside the guard and are mapped to 401 by the
 /// error-mapping middleware.
+// --8<-- [start:beakAuthMiddleware]
 Middleware beakAuthMiddleware({BeakAuthGuard? guard}) =>
     (Handler inner) => (Request request) async {
       if (guard == null) {
@@ -29,3 +30,5 @@ Middleware beakAuthMiddleware({BeakAuthGuard? guard}) =>
       }
       return inner(request.change(context: {_principalContextKey: principal}));
     };
+
+// --8<-- [end:beakAuthMiddleware]

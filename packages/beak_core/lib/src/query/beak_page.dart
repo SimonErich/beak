@@ -72,12 +72,14 @@ final class BeakPage<T> {
 
   /// This page as a plain JSON-encodable object, encoding each item with
   /// [encodeItem].
+  // --8<-- [start:toJson]
   Map<String, Object?> toJson(Object? Function(T item) encodeItem) => {
     'items': [for (final item in items) encodeItem(item)],
     'total': total,
     'page': page,
     'perPage': perPage,
   };
+  // --8<-- [end:toJson]
 
   @override
   bool operator ==(Object other) =>

@@ -235,12 +235,15 @@ final class MysqlAdapter extends DatabaseAdapter with ExplainCapable {
 
   @override
   Future<void> executeSchema(SchemaDescriptor d) async {
-    final compiled = _compiler.compileDdl(d);
-    await _run(compiled.sql, (conn) async {
-      // DDL carries no user parameters and quotes its identifiers, so
-      // it runs over the text protocol rather than a prepared stmt.
-      await conn.execute(compiled.sql);
-    });
+    // One descriptor is several ordered statements: a create with indexes,
+    // an alter with steps.
+    for (final compiled in _compiler.compileDdl(d)) {
+      await _run(compiled.sql, (conn) async {
+        // DDL carries no user parameters and quotes its identifiers, so
+        // it runs over the text protocol rather than a prepared stmt.
+        await conn.execute(compiled.sql);
+      });
+    }
   }
 
   @override

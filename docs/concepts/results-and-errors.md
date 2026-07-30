@@ -49,7 +49,7 @@ sealed class BeakResult<T> {
 Collapse both cases into one value with `fold`, or keep the failure and rework
 only the success with `map`:
 
-```dart title="packages/beak_core/lib/src/common/beak_result.dart"
+```dart
 BeakResult<int> parseQuantity(String raw) {
   final int? value = int.tryParse(raw);
   return value == null
@@ -103,7 +103,7 @@ Because the family is sealed, the backend's exception-to-response mapping is an
 exhaustive switch: add a variant and every mapper stops compiling until it
 handles the new case.
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+```dart
 int httpStatus(BeakException exception) => switch (exception) {
   BeakValidationException() => 422,
   BeakNotFoundException() => 404,
@@ -119,7 +119,7 @@ int httpStatus(BeakException exception) => switch (exception) {
 map lets a form highlight the offending inputs individually instead of showing
 one blanket message.
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+```dart
 throw const BeakValidationException(
   'The product could not be saved.',
   fieldErrors: {
@@ -149,7 +149,7 @@ Above the repository, view models never write `try/catch`. They receive a
 `BeakResult` and switch on the outcome, which keeps the failure path visible in
 the type rather than hidden in control flow.
 
-```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
+```dart
 final repository = BeakResourceRepository(dataSource);
 final result = await repository.query(
   const BeakQuerySpec(table: 'products'),
@@ -214,7 +214,7 @@ relations keyed by relation key. It round-trips to a plain ORM row
 (`fromRow`/`toRow`) and to JSON (`fromJson`/`toJson`), and you read a value back
 out by column key with `operator []`.
 
-```dart title="packages/beak_core/lib/src/query/beak_record.dart"
+```dart
 // Wrap a raw ORM row, then read typed values back out by column key.
 final record = BeakRecord.fromRow({
   'id': 7,
@@ -231,6 +231,26 @@ That is the same `BeakRecord` a data source returns, a form controller edits, an
 guess the shape of. A record never lazy-loads either: a relation is present only
 if the query asked for it.
 
+### Your own rows read as your own types
+
+`record['title']` is the core-level API, the one every layer of Beak is built on.
+In your app you rarely reach for it, because `beak prepare` writes an extension
+type per resource that reads each field through its own column:
+
+```dart title="examples/store/lib/models/category.beak.dart"
+/// What the category is called.
+String get name => CategoryColumns.name.require(record);
+
+/// The one-line blurb shown above the product list.
+String? get blurb => CategoryColumns.blurb.readFrom(record);
+```
+
+`require` is generated for a non-nullable field and `readFrom` for a nullable
+one, so the getter's nullability matches the schema class it came from. Reach for
+a row with `record.asCategory` and you get `String name` and `String? blurb`
+instead of two `BeakValue?`s to unwrap. The extension type is zero-cost: it is
+the same `BeakRecord` underneath.
+
 ## Continue reading
 
 - [The four layers](the-four-layers.md) where exceptions are thrown and caught on
@@ -240,5 +260,6 @@ if the query asked for it.
 - [The type-safety promise](the-type-safety-promise.md) why users never touch
   `dynamic` or a raw map.
 - [Exceptions](../reference/exceptions.md) the full reference for every variant.
+- [Generated code](../models/generated-code.md) the typed record view, and everything else `beak prepare` writes.
 - [Middleware](../backend/middleware.md) the backend boundary that maps the
   exception family to HTTP status and JSON.

@@ -1,0 +1,19 @@
+name: quickstart
+description: A Beak admin panel.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  beak:
+    path: ../../packages/beak
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0

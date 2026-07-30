@@ -2,6 +2,7 @@ import 'package:shelf/shelf.dart';
 
 /// Adds CORS headers to every response and short-circuits `OPTIONS`
 /// preflight requests with `204 No Content`.
+// --8<-- [start:beakCorsMiddleware]
 Middleware beakCorsMiddleware({String allowedOrigin = '*'}) {
   final headers = <String, String>{
     'access-control-allow-origin': allowedOrigin,
@@ -16,3 +17,5 @@ Middleware beakCorsMiddleware({String allowedOrigin = '*'}) {
     return response.change(headers: headers);
   };
 }
+
+// --8<-- [end:beakCorsMiddleware]

@@ -279,6 +279,7 @@ const List<SchemaDescriptor> apiSchema = [
 
 /// Connects a fresh [InMemoryAdapter], creates the endpoint fixture schema,
 /// and initializes worm on it — pair with `tearDown(Worm.reset)`.
+// --8<-- [start:createApiTestDatabase]
 Future<InMemoryAdapter> createApiTestDatabase() async {
   final adapter = InMemoryAdapter();
   await adapter.connect();
@@ -291,3 +292,5 @@ Future<InMemoryAdapter> createApiTestDatabase() async {
   );
   return adapter;
 }
+
+// --8<-- [end:createApiTestDatabase]

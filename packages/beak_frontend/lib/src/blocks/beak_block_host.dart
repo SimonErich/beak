@@ -8,6 +8,7 @@ import 'package:obers_ui_charts/obers_ui_charts.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../data/beak_resource_repository.dart';
+import '../data/reference_cache.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
@@ -311,6 +312,7 @@ class BeakBlockHost extends StatelessWidget {
           controller: controller,
           relation: relation,
           dataSource: form.dataSource,
+          referenceCache: beakLocator<ReferenceCache>(),
         );
       }
     }
@@ -364,6 +366,9 @@ class BeakBlockHost extends StatelessWidget {
       parentId: id,
       relationship: block.relationship,
       dataSource: beakLocator<BeakDataSource>(),
+      // The page that loaded this record may have loaded its relations with
+      // it; when it did, the manager paints without a query of its own.
+      initialRecords: scope.record.relations[block.relationship.key],
     );
   }
 

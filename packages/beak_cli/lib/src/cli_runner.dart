@@ -1,8 +1,21 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
+import 'commands/create_command.dart';
+import 'commands/dev_command.dart';
+import 'commands/eject_command.dart';
+import 'commands/doctor_command.dart';
+import 'commands/introspect_command.dart';
+import 'commands/prepare_command.dart';
 import 'field_spec.dart';
+import 'introspect/beak_live_schema.dart';
+import 'introspect/beak_schema_introspection.dart';
+import 'project/beak_emitters.dart';
+import 'schema/beak_drift_migration_emitter.dart';
+import 'schema/beak_schema_drift.dart';
+import 'schema/beak_schema_reader.dart';
 import 'templates.dart';
 
 /// A TCP reachability probe over a host and port.
@@ -12,6 +25,18 @@ import 'templates.dart';
 /// be tested without touching the network — production uses
 /// [BeakCliEnvironment.production], which probes with a real socket.
 typedef BeakPortProbe = Future<bool> Function(String host, int port);
+
+/// Runs an external command, returning its exit code.
+///
+/// Injected so commands that shell out — `beak create` calling
+/// `flutter create` for the web scaffold, `beak dev` starting the server —
+/// stay unit-testable without spawning real processes.
+typedef BeakProcessRunner =
+    Future<int> Function(
+      String executable,
+      List<String> arguments, {
+      String? workingDirectory,
+    });
 
 /// The injectable seams every command runs against — the output sink, the
 /// target directory, the clock behind migration timestamps, and the network
@@ -27,7 +52,7 @@ typedef BeakPortProbe = Future<bool> Function(String host, int port);
 ///   now: () => DateTime.utc(2026, 7, 3, 12),
 ///   probe: (host, port) async => false,
 /// );
-/// await createBeakRunner(env).run(['make:model', 'Product']);
+/// await createBeakRunner(env).run(['make:resource', 'Product']);
 /// ```
 final class BeakCliEnvironment {
   /// Creates an environment from explicit seams.
@@ -38,7 +63,8 @@ final class BeakCliEnvironment {
     required this.rootDirectory,
     required this.now,
     required this.probe,
-  });
+    BeakProcessRunner? runProcess,
+  }) : runProcess = runProcess ?? _neverRunsProcesses;
 
   /// The sink command progress and generated-file logs are written to.
   final StringSink out;
@@ -54,6 +80,18 @@ final class BeakCliEnvironment {
   /// The reachability probe `beak doctor` uses to check Postgres and MinIO.
   final BeakPortProbe probe;
 
+  /// Spawns external commands. Defaults to a runner that refuses to spawn
+  /// anything, so a test that does not opt in cannot start a real process by
+  /// accident.
+  final BeakProcessRunner runProcess;
+
+  /// The default runner: reports the command it declined to run.
+  static Future<int> _neverRunsProcesses(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+  }) async => 127;
+
   /// Creates the default environment: writes to `stdout`, generates under
   /// the current directory, reads the wall clock, and probes ports with a
   /// real 2-second TCP connect.
@@ -66,6 +104,15 @@ final class BeakCliEnvironment {
     out: stdout,
     rootDirectory: Directory.current,
     now: DateTime.now,
+    runProcess: (executable, arguments, {workingDirectory}) async {
+      final result = await Process.run(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        runInShell: true,
+      );
+      return result.exitCode;
+    },
     probe: (host, port) async {
       try {
         final socket = await Socket.connect(
@@ -81,20 +128,31 @@ final class BeakCliEnvironment {
     },
   );
 
-  /// Writes [content] to [relativePath] resolved under [rootDirectory],
-  /// creating any missing parent directories, and logs a `created` line
-  /// naming the path to [out]. Overwrites an existing file at that path.
-  void writeFile(String relativePath, String content) {
-    final file = File('${rootDirectory.path}/$relativePath');
+  /// Writes [content] to [path], creating any missing parent directories, and
+  /// logs a `created` line naming the path to [out]. Overwrites an existing
+  /// file at that path.
+  ///
+  /// A relative [path] resolves under [rootDirectory]; an absolute one is used
+  /// as given, so `--out /somewhere/else` means what it says rather than
+  /// quietly landing inside the project.
+  void writeFile(String path, String content) {
+    final file = File(
+      p.isAbsolute(path) ? path : p.join(rootDirectory.path, path),
+    );
     file.parent.createSync(recursive: true);
-    file.writeAsStringSync(content);
-    out.writeln('  created $relativePath');
+    // Dart output goes through the same formatter the emitters use, so
+    // `dart format --set-exit-if-changed` on a scaffolded project is a no-op
+    // rather than a diff the user did not write.
+    file.writeAsStringSync(
+      path.endsWith('.dart') ? BeakEmitters.format(content) : content,
+    );
+    out.writeln('  created $path');
   }
 }
 
-/// Builds the `beak` [CommandRunner] with every scaffolding command
-/// (`make:resource`, `make:model`, `make:columns`, `make:migration`) and
-/// `doctor` registered against [environment].
+/// Builds the `beak` [CommandRunner] with every command registered against
+/// [environment]: `create`, `prepare`, `dev`, `introspect`, `eject`,
+/// `migrate`, `seed`, `make:resource`, `make:migration` and `doctor`.
 ///
 /// The returned runner's `run` completes with the process exit code (or
 /// `null` for `--help`); it throws [UsageException] on bad input, which the
@@ -112,11 +170,16 @@ final class BeakCliEnvironment {
 CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
     CommandRunner<int>(
         'beak',
-        'Beak scaffolding — generate models, columns, and migrations.',
+        'Beak — scaffold, generate, and diagnose admin panels.',
       )
+      ..addCommand(CreateCommand(environment))
+      ..addCommand(PrepareCommand(environment))
+      ..addCommand(DevCommand(environment))
+      ..addCommand(IntrospectCommand(environment))
+      ..addCommand(EjectCommand(environment))
+      ..addCommand(MigrateCommand(environment))
+      ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
-      ..addCommand(MakeModelCommand(environment))
-      ..addCommand(MakeColumnsCommand(environment))
       ..addCommand(MakeMigrationCommand(environment))
       ..addCommand(DoctorCommand(environment));
 
@@ -159,24 +222,17 @@ abstract base class _MakeCommand extends Command<int> {
       throw UsageException(exception.message, usage);
     }
   }
-
-  /// The migration timestamp prefix derived from the injected clock.
-  String timestamp() {
-    final DateTime now = environment.now();
-    String two(int part) => part.toString().padLeft(2, '0');
-    return '${now.year}${two(now.month)}${two(now.day)}'
-        '_${two(now.hour)}${two(now.minute)}${two(now.second)}';
-  }
 }
 
-/// The `beak make:resource Name --fields ...` command — the full scaffold.
+/// The `beak make:resource Name --fields ...` command.
 ///
-/// Writes three files under [BeakCliEnvironment.rootDirectory]: the worm
-/// model (`lib/src/models/<snake>.dart`), the Beak columns + model
-/// (`lib/src/models/<snake>_columns.dart`), and the create-table migration
-/// (`lib/src/migrations/create_<table>_table.dart`), then prints the manual
-/// registration steps. Registered on the runner by [createBeakRunner]; run
-/// it rather than constructing it directly.
+/// Writes one file under [BeakCliEnvironment.rootDirectory] — the annotated
+/// schema class at `lib/models/<snake>.dart` — and then runs `beak prepare`,
+/// which derives the columns, the model, both sides of every relationship,
+/// the panel wiring and the create-table migration from it. `--fields` is
+/// written once, so there is no second place for the field list to drift out
+/// of step. Registered on the runner by [createBeakRunner]; run it rather
+/// than constructing it directly.
 ///
 /// ```console
 /// $ beak make:resource Product \
@@ -190,168 +246,207 @@ final class MakeResourceCommand extends _MakeCommand {
   String get name => 'make:resource';
 
   @override
-  String get description =>
-      'Scaffold a full resource: worm model, migration, Beak columns/model.';
+  String get description => 'Scaffold a resource: one annotated schema class.';
 
   @override
   Future<int> run() async {
     final String resource = resourceName();
-    final List<BeakFieldSpec> specs = fields();
-    final String snake = snakeCaseOf(resource);
-    final String stamp = timestamp();
-    environment
-      ..out.writeln('Scaffolding $resource:')
-      ..writeFile(
-        'lib/src/models/$snake.dart',
-        generateWormModel(resource, specs),
-      )
-      ..writeFile(
-        'lib/src/models/${snake}_columns.dart',
-        generateBeakColumns(resource, specs),
-      )
-      ..writeFile(
-        'lib/src/migrations/create_${tableNameOf(resource)}_table.dart',
-        generateMigration(resource, specs, timestamp: stamp),
-      )
-      ..out.writeln(
-        'Next: register the migration in bin/worm.dart and the model in '
-        'your BeakModelRegistry / BeakPanelConfig.',
-      );
-    return 0;
-  }
-}
-
-/// The `beak make:model Name --fields ...` command — generates only the
-/// canonical worm model (`lib/src/models/<snake>.dart`), leaving columns
-/// and migration untouched. The narrow counterpart of
-/// [MakeResourceCommand].
-final class MakeModelCommand extends _MakeCommand {
-  /// Creates the command bound to [environment].
-  MakeModelCommand(super.environment);
-
-  @override
-  String get name => 'make:model';
-
-  @override
-  String get description => 'Scaffold a canonical worm model.';
-
-  @override
-  Future<int> run() async {
-    final String resource = resourceName();
+    // One file, and `--fields` written once. `prepare` derives the columns,
+    // the model, both sides of every relationship and the migration from it —
+    // so there is no second place for the field list to drift out of step.
     environment.writeFile(
-      'lib/src/models/${snakeCaseOf(resource)}.dart',
-      generateWormModel(resource, fields()),
+      'lib/models/${snakeCaseOf(resource)}.dart',
+      generateSchemaClass(resource, fields()),
     );
-    return 0;
+    return runPrepare(environment).exitCode;
   }
 }
 
-/// The `beak make:columns Name --fields ...` command — generates only the
-/// Beak columns class and `BeakModel`
-/// (`lib/src/models/<snake>_columns.dart`), the define-once definition both
-/// the server and the Flutter panel consume. The narrow counterpart of
-/// [MakeResourceCommand].
-final class MakeColumnsCommand extends _MakeCommand {
+/// The `beak make:migration Name` command — an empty, correctly-named
+/// migration for a change `beak prepare` cannot derive.
+///
+/// `prepare` writes the create-table migration for any model whose table
+/// nothing creates, so this is for everything else: adding a column to a
+/// shipped table, backfilling data, dropping something. The scaffold gives
+/// the timestamped name — worm runs migrations in that order — and leaves
+/// the body to you.
+///
+/// ```console
+/// $ beak make:migration AddStatusToProducts
+///   created lib/migrations/add_status_to_products.dart
+/// ```
+final class MakeMigrationCommand extends Command<int> {
   /// Creates the command bound to [environment].
-  MakeColumnsCommand(super.environment);
-
-  @override
-  String get name => 'make:columns';
-
-  @override
-  String get description => 'Scaffold Beak columns and the BeakModel.';
-
-  @override
-  Future<int> run() async {
-    final String resource = resourceName();
-    environment.writeFile(
-      'lib/src/models/${snakeCaseOf(resource)}_columns.dart',
-      generateBeakColumns(resource, fields()),
+  ///
+  /// [readSchema] is how `--from-drift` reads the live schema; tests pass
+  /// their own so the command runs without a database.
+  MakeMigrationCommand(this.environment, {BeakLiveSchemaReader? readSchema})
+    : _readSchema = readSchema ?? beakReadLiveSchema {
+    argParser.addFlag(
+      'from-drift',
+      help:
+          'Fill the migration in from the difference between the schema '
+          'classes and the database.',
+      negatable: false,
     );
-    return 0;
   }
-}
 
-/// The `beak make:migration Name --fields ...` command — generates only the
-/// create-table worm migration (`lib/src/migrations/create_<table>_table.dart`),
-/// its name prefixed with a timestamp from [BeakCliEnvironment.now]. The
-/// narrow counterpart of [MakeResourceCommand]; remember to register the
-/// migration in `bin/worm.dart`.
-final class MakeMigrationCommand extends _MakeCommand {
-  /// Creates the command bound to [environment].
-  MakeMigrationCommand(super.environment);
+  /// The seams this command runs against.
+  final BeakCliEnvironment environment;
+
+  /// How `--from-drift` reads the live schema.
+  final BeakLiveSchemaReader _readSchema;
 
   @override
   String get name => 'make:migration';
 
   @override
-  String get description => 'Scaffold the create-table worm migration.';
+  String get description => 'Scaffold an empty, correctly-named migration.';
+
+  @override
+  String get invocation => 'beak make:migration <Name> [--from-drift]';
 
   @override
   Future<int> run() async {
-    final String resource = resourceName();
-    environment.writeFile(
-      'lib/src/migrations/create_${tableNameOf(resource)}_table.dart',
-      generateMigration(resource, fields(), timestamp: timestamp()),
-    );
-    return 0;
+    final List<String> rest = argResults?.rest ?? const [];
+    if (rest.length != 1 ||
+        !RegExp(r'^[A-Z][A-Za-z0-9]*$').hasMatch(rest.single)) {
+      throw UsageException(
+        'Expected exactly one UpperCamelCase migration name.',
+        invocation,
+      );
+    }
+    final String className = rest.single;
+    final String snake = snakeCaseOf(className);
+    final String stamp = _timestampOf(environment.now());
+    if (argResults?['from-drift'] == true) {
+      return _writeFromDrift(className: className, snake: snake, stamp: stamp);
+    }
+    environment.writeFile('lib/migrations/$snake.dart', '''
+import 'package:beak/migrations.dart';
+
+/// ${_sentenceOf(snake)}.
+final class $className extends Migration {
+  /// Creates the migration.
+  const $className();
+
+  @override
+  String get name => '${stamp}_$snake';
+
+  @override
+  Future<void> upSchema(Schema schema) async {
+    // e.g. await schema.alter('products', (table) {
+    //   table.string('status', length: 20).makeNullable();
+    // });
+  }
+
+  @override
+  Future<void> downSchema(Schema schema) async {
+    // The inverse of upSchema, so a rollback is not a restore from backup.
   }
 }
+''');
+    return 0;
+  }
 
-/// The `beak doctor` command — verifies the local dev setup this repo
-/// expects.
-///
-/// Reports on the vendored `packages/worm`, a reachable `obers_ui`, a
-/// present `.env`, and the Postgres (`:25432`) and MinIO (`:29000`) services
-/// via [BeakCliEnvironment.probe]. Prints one `OK`/`FAIL` line per check and
-/// exits `0` only when every check passes, `1` otherwise.
-///
-/// ```console
-/// $ beak doctor
-///   OK   worm vendored
-///   FAIL postgres :25432
-/// Some checks failed.
-/// ```
-final class DoctorCommand extends Command<int> {
-  /// Creates the command bound to [environment].
-  DoctorCommand(this.environment);
-
-  /// The seams this command runs against — its [BeakCliEnvironment.probe]
-  /// checks the service ports and its [BeakCliEnvironment.rootDirectory]
-  /// anchors the path checks.
-  final BeakCliEnvironment environment;
-
-  @override
-  String get name => 'doctor';
-
-  @override
-  String get description =>
-      'Check worm/obers_ui paths, the env file, and Docker services.';
-
-  @override
-  Future<int> run() async {
-    var healthy = true;
-    void report(String label, bool ok) {
-      environment.out.writeln('  ${ok ? 'OK  ' : 'FAIL'} $label');
-      healthy = healthy && ok;
+  /// Writes the migration the live database needs to match the models.
+  ///
+  /// The columns come from drift rather than from reading the migrations,
+  /// because a Beak migration derives its columns from the model at runtime
+  /// and never names them. Only a column a field declares is written: the
+  /// rest of what drift reports needs a decision, not a column.
+  Future<int> _writeFromDrift({
+    required String className,
+    required String snake,
+    required String stamp,
+  }) async {
+    final Directory root = environment.rootDirectory;
+    final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+    if (schemaIssues.isNotEmpty) {
+      environment.out.writeln('Cannot read the schema classes:');
+      for (final issue in schemaIssues) {
+        environment.out.writeln('  ${issue.path}: ${issue.message}');
+      }
+      return 1;
     }
 
-    final String root = environment.rootDirectory.path;
-    report('worm vendored', Directory('$root/packages/worm').existsSync());
-    report(
-      'obers_ui reachable',
-      Directory('$root/../obers_ui').existsSync() ||
-          Directory('$root/packages/obers_ui').existsSync(),
+    final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+    if (!beakCanReadSchema(url)) {
+      // Without this, `sqlite::memory:` fell through to the Postgres reader
+      // and surfaced as a socket error on port 0.
+      environment.out.writeln(
+        beakIsSqliteUrl(url)
+            ? 'The database is in-memory SQLite, which belongs to the process '
+                  'that opened it; there is no schema on disk to compare '
+                  'against.'
+            : 'Beak can read Postgres and SQLite schemas; "${url.scheme}" is '
+                  'not supported yet.',
+      );
+      return 1;
+    }
+    if (beakSqliteFileOf(url) != null && !beakSqliteFileExists(url, root)) {
+      // Opening a SQLite file creates it, so looking would leave an empty
+      // database behind and then report that it lacks nothing.
+      environment.out.writeln(
+        'There is no database yet, so there is nothing to compare the schema '
+        'classes against.',
+      );
+      environment.out.writeln('  run `beak migrate` first');
+      return 1;
+    }
+    final List<IntrospectedTable> tables;
+    try {
+      tables = await _readSchema(beakResolvedDatabaseUrl(url, root));
+    } catch (error) {
+      environment.out.writeln('Could not read the database schema: $error');
+      return 1;
+    }
+
+    final List<BeakDrift> drift = beakSchemaDrift(
+      schemas: schemas,
+      tables: tables,
     );
-    report(
-      '.env present (.env.example to copy)',
-      File('$root/.env').existsSync(),
+    final String? contents = BeakDriftMigrationEmitter.emit(
+      className: className,
+      timestamp: stamp,
+      description: _sentenceOf(snake),
+      drift: drift,
     );
-    report('postgres :25432', await environment.probe('localhost', 25432));
-    report('minio :29000', await environment.probe('localhost', 29000));
-    environment.out.writeln(
-      healthy ? 'All checks passed.' : 'Some checks failed.',
-    );
-    return healthy ? 0 : 1;
+    // Report what cannot be written before deciding there is nothing to do:
+    // "no drift" and "drift no migration can express" are different answers,
+    // and conflating them tells someone their schema is applied when it is
+    // not.
+    final refusals = BeakDriftMigrationEmitter.unaddable(drift);
+    for (final MapEntry(key: problem, value: why) in refusals.entries) {
+      environment.out.writeln(
+        '  ! ${problem.table}.${problem.columnKey}: $why',
+      );
+    }
+    if (contents == null) {
+      environment.out.writeln(
+        refusals.isEmpty
+            ? '  nothing to add — the database already has every column the '
+                  'schema classes declare'
+            : '  nothing written — every missing column needs a decision '
+                  'first',
+      );
+      return refusals.isEmpty ? 0 : 1;
+    }
+    environment.writeFile('lib/migrations/$snake.dart', contents);
+    environment.out.writeln('  run `beak migrate` to apply it');
+    return 0;
+  }
+
+  /// `20260727_143012`, sortable and readable.
+  static String _timestampOf(DateTime at) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${at.year}${two(at.month)}${two(at.day)}_'
+        '${two(at.hour)}${two(at.minute)}${two(at.second)}';
+  }
+
+  /// `add_status_to_products` -> `Add status to products`.
+  static String _sentenceOf(String snake) {
+    final String spaced = snake.replaceAll('_', ' ');
+    return '${spaced[0].toUpperCase()}${spaced.substring(1)}';
   }
 }

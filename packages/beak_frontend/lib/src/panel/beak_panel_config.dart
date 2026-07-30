@@ -6,6 +6,8 @@ import '../actions/beak_action.dart';
 import '../blocks/beak_block.dart';
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
+import '../detail/beak_default_detail_layout.dart';
+import '../filters/beak_default_filters.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_form_step.dart';
 import 'beak_auth_config.dart';
@@ -52,6 +54,7 @@ extension type const BeakIconToken(IconData icon) {}
 final class BeakResource {
   /// Creates a panel resource for [model], shown with [icon] and [label]
   /// (defaults to the title-cased table name).
+  // --8<-- [start:BeakResource]
   const BeakResource({
     required this.model,
     required this.icon,
@@ -66,6 +69,7 @@ final class BeakResource {
     this.formSteps,
     this.formLayout,
   });
+  // --8<-- [end:BeakResource]
 
   /// The model this resource exposes.
   final BeakModel model;
@@ -99,9 +103,10 @@ final class BeakResource {
 
   /// A custom show-page layout: a record-bound [BeakBlock] tree (cards,
   /// sections, tabs, grids composed of `BeakFieldBlock`/`BeakFieldGroupBlock`/
-  /// `BeakRelationBlock`) rendered inside the loaded record's scope. When
-  /// `null`, the show page falls back to the generated definition-grid detail
-  /// view plus the record's to-many relation managers.
+  /// `BeakRelationBlock`) rendered inside the loaded record's scope.
+  ///
+  /// When `null`, [effectiveDetail] derives one from the model: a headline
+  /// card, the remaining fields, and a tab per to-many relationship.
   final BeakBlock? detail;
 
   /// When set, the create/edit form renders as a multi-step wizard over these
@@ -116,6 +121,60 @@ final class BeakResource {
 
   /// The label shown in navigation and page titles.
   String get effectiveLabel => label ?? _titleCase(model.table);
+
+  /// The show-page layout: [detail] when declared, and otherwise the one
+  /// [model] implies — a headline card, the remaining fields, and a tab per
+  /// to-many relationship.
+  BeakBlock get effectiveDetail => detail ?? beakDefaultDetailLayout(model);
+
+  /// The filter bar the list page renders: [filters] when declared, and
+  /// otherwise the controls [model]'s `filterable` columns imply.
+  ///
+  /// Deriving them here rather than in the generator keeps `panel.g.dart`
+  /// unchanged and gives hand-written panels the same defaults.
+  List<BeakFilterDef> get effectiveFilters =>
+      filters.isNotEmpty ? filters : beakDefaultFiltersOf(model);
+
+  /// Returns a copy with the given parts replaced.
+  ///
+  /// The way to adjust one generated resource without ejecting the panel:
+  /// a `lib/resources/<table>.dart` returning `generated.copyWith(...)` keeps
+  /// every other resource generated and up to date.
+  ///
+  /// ```dart
+  /// BeakResource beakResource(BeakResource generated) => generated.copyWith(
+  ///   filters: const [
+  ///     BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
+  ///   ],
+  /// );
+  /// ```
+  BeakResource copyWith({
+    BeakModel? model,
+    BeakIconToken? icon,
+    String? label,
+    String? section,
+    List<BeakRecordAction>? recordActions,
+    List<BeakBulkAction>? bulkActions,
+    List<BeakGlobalAction>? globalActions,
+    List<BeakFilterDef>? filters,
+    List<BeakResourceView>? viewModes,
+    BeakBlock? detail,
+    List<BeakFormStep>? formSteps,
+    BeakBlock? formLayout,
+  }) => BeakResource(
+    model: model ?? this.model,
+    icon: icon ?? this.icon,
+    label: label ?? this.label,
+    section: section ?? this.section,
+    recordActions: recordActions ?? this.recordActions,
+    bulkActions: bulkActions ?? this.bulkActions,
+    globalActions: globalActions ?? this.globalActions,
+    filters: filters ?? this.filters,
+    viewModes: viewModes ?? this.viewModes,
+    detail: detail ?? this.detail,
+    formSteps: formSteps ?? this.formSteps,
+    formLayout: formLayout ?? this.formLayout,
+  );
 
   /// The list route of this resource.
   String get route => BeakRoutes.list(model.table);
@@ -173,6 +232,7 @@ final class BeakResource {
 /// ```
 final class BeakPanelConfig {
   /// Creates a panel configuration.
+  // --8<-- [start:BeakPanelConfig]
   const BeakPanelConfig({
     required this.title,
     required this.resources,
@@ -189,6 +249,7 @@ final class BeakPanelConfig {
     this.dashboardCharts = const [],
     this.notifications,
   });
+  // --8<-- [end:BeakPanelConfig]
 
   /// The panel title, shown in the shell and the login screen.
   final String title;
@@ -232,6 +293,50 @@ final class BeakPanelConfig {
   /// Binds a model's rows to the shell's notification bell; `null` shows no
   /// bell.
   final BeakNotificationSource? notifications;
+
+  /// Returns a copy with the given parts replaced.
+  ///
+  /// What `beak eject panel` tells you to reach for: keep the generated
+  /// config and change one thing about it, rather than owning the whole file.
+  ///
+  /// ```dart
+  /// final config = buildBeakPanel().copyWith(
+  ///   title: 'Acme — staging',
+  ///   maintenance: const BeakMaintenanceConfig(enabled: true),
+  /// );
+  /// ```
+  BeakPanelConfig copyWith({
+    String? title,
+    List<BeakResource>? resources,
+    String? apiBaseUrl,
+    List<BeakScreen>? pages,
+    BeakAuthConfig? auth,
+    BeakMaintenanceConfig? maintenance,
+    OiThemeData? theme,
+    OiThemeData? darkTheme,
+    OiThemeMode? initialThemeMode,
+    bool? sidebarCollapsible,
+    bool? sidebarDefaultCollapsed,
+    List<BeakStat>? dashboardStats,
+    List<BeakChart>? dashboardCharts,
+    BeakNotificationSource? notifications,
+  }) => BeakPanelConfig(
+    title: title ?? this.title,
+    resources: resources ?? this.resources,
+    apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
+    pages: pages ?? this.pages,
+    auth: auth ?? this.auth,
+    maintenance: maintenance ?? this.maintenance,
+    theme: theme ?? this.theme,
+    darkTheme: darkTheme ?? this.darkTheme,
+    initialThemeMode: initialThemeMode ?? this.initialThemeMode,
+    sidebarCollapsible: sidebarCollapsible ?? this.sidebarCollapsible,
+    sidebarDefaultCollapsed:
+        sidebarDefaultCollapsed ?? this.sidebarDefaultCollapsed,
+    dashboardStats: dashboardStats ?? this.dashboardStats,
+    dashboardCharts: dashboardCharts ?? this.dashboardCharts,
+    notifications: notifications ?? this.notifications,
+  );
 
   /// Builds a [BeakModelRegistry] over every resource model, in declaration
   /// order.

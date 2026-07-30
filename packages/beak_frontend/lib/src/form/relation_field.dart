@@ -3,7 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
+import '../data/reference_cache.dart';
 import 'beak_form_controller_builder.dart';
 
 /// Searches [table] for records matching [term] across [columnKeys],
@@ -36,20 +38,15 @@ Future<List<BeakRecord>> beakLoadAttachedRecords(
   required Object parentId,
   required BeakBelongsToMany relation,
 }) async {
-  final spec = BeakQuerySpec(table: parentModel.table)
-      .withFilter(
-        BeakFieldFilter.forKey(
-          parentModel.primaryKey.key,
-          BeakOperator.eq,
-          BeakValue.of(parentId),
-        ),
-      )
-      .withRelation(relation);
-  final result = await repository.query(spec);
+  final result = await beakLoadRecordWithRelations(
+    repository,
+    model: parentModel,
+    id: parentId,
+    relations: [relation],
+  );
   return switch (result) {
-    BeakOk(:final value) when value.items.isNotEmpty =>
-      value.items.first.relations[relation.key] ?? const [],
-    BeakOk() || BeakErr() => const [],
+    BeakOk(:final value) => value.relations[relation.key] ?? const [],
+    BeakErr() => const [],
   };
 }
 
@@ -76,6 +73,7 @@ class BeakBelongsToField extends HookWidget {
     required this.controller,
     required this.relation,
     required this.dataSource,
+    this.referenceCache,
     this.relatedPrimaryKeyKey = 'id',
     super.key,
   });
@@ -89,15 +87,21 @@ class BeakBelongsToField extends HookWidget {
   /// The source related records are searched through.
   final BeakDataSource dataSource;
 
+  /// Resolves the prefilled key into its record. Passing the panel's cache
+  /// collapses every picker on a form into one `batchGet`; without it each
+  /// picker fetches its own.
+  final ReferenceCache? referenceCache;
+
   /// Primary-key column key of the related table.
   final String relatedPrimaryKeyKey;
 
   @override
   Widget build(BuildContext context) {
-    final BeakFormSlot slot = controller.slotOfForeignKey(relation);
-    final repository = useMemoized(() => BeakResourceRepository(dataSource), [
-      dataSource,
-    ]);
+    final Enum slot = controller.slotOfForeignKey(relation);
+    final repository = useMemoized(
+      () => BeakResourceRepository(dataSource, referenceCache: referenceCache),
+      [dataSource, referenceCache],
+    );
     useListenable(controller);
     final selected = useState<BeakRecord?>(null);
 
@@ -109,7 +113,7 @@ class BeakBelongsToField extends HookWidget {
       }
       var cancelled = false;
       Future<void> resolve() async {
-        final result = await repository.getOne(
+        final result = await repository.resolveReference(
           relation.relatedTable,
           initialId,
         );

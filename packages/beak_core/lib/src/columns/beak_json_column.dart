@@ -16,8 +16,9 @@ part of 'beak_column.dart';
 ///   _ => const BeakJsonNull(),
 /// };
 /// ```
-final class BeakJsonColumn extends BeakColumn {
+final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
   /// Creates a JSON column.
+  // --8<-- [start:BeakJsonColumn]
   const BeakJsonColumn({
     required super.key,
     required super.label,
@@ -25,13 +26,17 @@ final class BeakJsonColumn extends BeakColumn {
     super.sortable,
     super.searchable,
     super.filterable,
+    super.indexed,
+    super.unique,
     super.rules,
   });
+  // --8<-- [end:BeakJsonColumn]
 
   @override
   BeakRenderConfig get renderConfig =>
       const BeakRenderConfig.uniform(BeakRenderIntent.json);
 
+  /// Reads [value] as a string value.
   @override
-  Type get valueType => String;
+  String? readValue(BeakValue? value) => _readText(value);
 }

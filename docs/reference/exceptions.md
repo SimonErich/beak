@@ -21,20 +21,7 @@ Every failure carries two things: a stable machine-readable `code` for wire
 formats and a human-readable `message` for people.
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-@immutable
-sealed class BeakException implements Exception {
-  /// Creates an exception carrying a stable [code] and a [message].
-  const BeakException({required this.code, required this.message});
-
-  /// Stable machine-readable identifier of the failure category.
-  final String code;
-
-  /// Human-readable description of what went wrong.
-  final String message;
-
-  @override
-  String toString() => '$runtimeType($code): $message';
-}
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakException"
 ```
 
 The `code` is the contract. It travels in the JSON error body, and the frontend
@@ -71,6 +58,8 @@ final class BeakValidationException extends BeakException {
 
   /// Validation messages aggregated per column key.
   final Map<String, List<String>> fieldErrors;
+
+  // ... a toString that appends fieldErrors ...
 }
 ```
 
@@ -102,12 +91,16 @@ final class BeakNotFoundException extends BeakException {
 Thrown by the service layer when a lookup by primary key comes back empty:
 
 ```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-Future<BeakRecord> getOne(Object id) async =>
-    await dataSource.getOne(model.table, id) ??
+Future<BeakRecord> getOne(Object id, {BeakFilter? scope}) async =>
+    await _findInScope(id, scope) ??
     (throw BeakNotFoundException(
       'No record of "${model.table}" with id "$id".',
     ));
 ```
+
+A record a [row policy](../backend/auth-and-policies.md) scope excludes reports
+as missing too, not as forbidden. Telling a caller that a row they cannot
+address exists is itself a leak.
 
 ### BeakAuthenticationException
 
@@ -174,6 +167,12 @@ A developer mistake, not a user one: a [registry](../models/the-registry.md)
 lookup for an unregistered table, a duplicate column key, a missing environment
 variable. It maps to `500` because it means the deployment is misconfigured. This
 is also the fallback the client decoder uses for an unrecognized error `code`.
+
+It has one subclass, `BeakRecordShapeException`, thrown by
+`BeakTypedColumn.require` when a record carries no readable value for the column
+(absent, null, or the wrong shape). It carries the `columnKey` and the
+`expectedType`, and it travels as `configuration` like any other, because a
+record missing a column the code demands is a wiring mistake.
 
 ### BeakStorageException
 

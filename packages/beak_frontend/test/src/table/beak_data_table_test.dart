@@ -57,6 +57,55 @@ void main() {
       expect(find.text('Note 3'), findsOneWidget);
     });
 
+    testWidgets('a foreign key renders the related record, in one query', (
+      tester,
+    ) async {
+      final articles = FakeDataSource(
+        records: {
+          'articles': {
+            'a1': BeakRecord(
+              values: const {
+                'id': BeakStringValue('a1'),
+                'title': BeakStringValue('Cold brew'),
+              },
+              relations: {
+                'category': [
+                  BeakRecord.fromRow(const {'id': 'c1', 'name': 'Coffee'}),
+                ],
+              },
+            ),
+          },
+        },
+      );
+      await tester.binding.setSurfaceSize(const Size(1400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakDataTable(
+            model: const ArticleModel(),
+            dataSource: articles,
+            enableDelete: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The relationship, not the key it stores.
+      expect(find.text('Coffee'), findsOneWidget);
+      expect(find.text('c1'), findsNothing);
+      expect(find.text('Category'), findsOneWidget);
+      expect(find.text('Category id'), findsNothing);
+      // And it cost the one page query, not one lookup per row.
+      expect(articles.queryCalls, hasLength(1));
+      expect(articles.getOneCalls, isEmpty);
+      expect(articles.batchGetCalls, isEmpty);
+      expect(
+        articles.queryCalls.single.relationLoads.single.relationKey,
+        'category',
+      );
+    });
+
     testWidgets('empty data renders the typed empty state', (tester) async {
       dataSource = FakeDataSource();
       await pumpTable(tester);
@@ -223,7 +272,7 @@ void main() {
       await tester.pump(const Duration(seconds: 6));
       await tester.pumpAndSettle();
 
-      expect(dataSource.deleteCalls, [('notes', 'n1')]);
+      expect(dataSource.deleteCalls, [('notes', 'n1', false)]);
       expect(find.text('Note 1'), findsNothing);
     });
   });

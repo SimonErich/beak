@@ -1,13 +1,13 @@
 ---
 title: Tables and filters
-description: How BeakDataTable renders, sorts, filters, and paginates server-side through a BeakQuerySpec, and how the typed filter bar AND-merges its predicates.
+description: How BeakDataTable renders, sorts, filters, and paginates server-side through a BeakQuerySpec, and how the filter bar is derived from filterable columns before you ever declare one.
 ---
 
 # Tables and filters
 
 After this page you understand how the generated list renders a model as a table,
-how every sort, filter, and page change turns into a server-side query, and how to
-add a typed filter bar that never touches a string field name.
+how every sort, filter, and page change turns into a server-side query, and why
+most resources get a working filter bar without a filter list anywhere.
 
 ## The generated table
 
@@ -20,9 +20,11 @@ no per-resource table code: the list page builds one for you from the resource.
 const BeakDataTable({
   required this.model,
   required this.dataSource,
+  this.columns,
   this.actions = const [],
   this.bulkActions = const [],
   this.onRowTap,
+  this.onOpenRelation,
   this.initialSpec,
   this.baseFilter,
   this.controller,
@@ -40,12 +42,20 @@ two surfaces that agree.
 | --- | --- | --- | --- |
 | `model` | `BeakModel` | required | The model this table lists. |
 | `dataSource` | `BeakDataSource` | required | The source queries and mutations run against. |
+| `columns` | `List<BeakColumn>?` | `null` | The columns to render, in order; defaults to the model's table-context columns. |
 | `actions` | `List<BeakTableAction>` | `[]` | Per-row actions, each invoked with the row's primary key. |
 | `bulkActions` | `List<BeakTableAction>` | `[]` | Actions over the selected rows. |
 | `onRowTap` | `void Function(BeakRecord)?` | `null` | Invoked with the tapped record (usually navigates to its show route). |
+| `onOpenRelation` | `void Function(BeakRelationship, BeakRecord)?` | `null` | Invoked with the record on the far side of a to-one relationship. When null the relationship renders as plain text instead of a link. |
 | `initialSpec` | `BeakQuerySpec?` | `null` | The spec the first fetch runs (default: unfiltered first page). |
 | `baseFilter` | `BeakFilter?` | `null` | A persistent predicate that in-table column filters AND-merge with. |
+| `controller` | `OiTableController?` | `null` | Test seam for driving selection and pagination programmatically. |
 | `enableDelete` | `bool` | `true` | Whether the built-in optimistic delete row action renders. |
+
+You rarely construct one. The resource's list page builds it: the resource's
+`recordActions` become row actions beside the built-in view and edit, its
+`bulkActions` become the selection actions, a row tap navigates to the show page,
+and the filter bar's current predicate arrives as `baseFilter`.
 
 ## Everything is a query spec
 
@@ -77,22 +87,13 @@ The full query contract lives on [How data flows](../concepts/how-data-flows.md)
 
 ## Typed filters
 
-A filter is declared once per resource. `BeakFilterDef` is a sealed family, so the
-bar switches over its variants exhaustively and no `Map<String, dynamic>` ever
-appears. Each variant binds to a `BeakColumn` and fixes both how it renders and
-which `BeakOperator` it contributes.
+A filter is a `BeakFilterDef`, a sealed family, so the bar switches over its
+variants exhaustively and no `Map<String, dynamic>` ever appears. Each variant
+binds to a `BeakColumn` and fixes both how it renders and which `BeakOperator` it
+contributes.
 
 ```dart title="packages/beak_frontend/lib/src/filters/beak_filter_widget.dart"
-sealed class BeakFilterDef {
-  /// Creates a filter over [column] labelled [label].
-  const BeakFilterDef({required this.column, required this.label});
-
-  /// The column the filter constrains.
-  final BeakColumn column;
-
-  /// The control label.
-  final String label;
-}
+--8<-- "packages/beak_frontend/lib/src/filters/beak_filter_widget.dart:BeakFilterDef"
 ```
 
 | Filter | Control | Operator | Contributes a predicate when |
@@ -106,33 +107,74 @@ sealed class BeakFilterDef {
 column's `values`, labelled through `labelFor`. Point it at a non-enum column and
 the bar renders a caption telling you so, rather than failing silently.
 
-List the filters on the resource and the list page grows a filter bar:
+### The filter bar you did not declare
 
-```dart title="apps/beak_superdashboard/lib/panel/resources.dart"
-BeakResource(
-  model: OrderModel(),
-  icon: BeakIconToken(OiIcons.shoppingCart),
-  section: 'Store',
-  detail: orderLayout,
-  formLayout: orderLayout,
-  filters: [
-    BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
-    BeakSelectFilter(column: OrderColumns.source, label: 'Source'),
-  ],
-),
+Most resources declare no filters. `@Column(filterable: true)` on the schema class
+already states the intent, and the list page reads `effectiveFilters`, which falls
+back to the controls the model implies:
+
+```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
+/// The filter bar the list page renders: [filters] when declared, and
+/// otherwise the controls [model]'s `filterable` columns imply.
+///
+/// Deriving them here rather than in the generator keeps `panel.g.dart`
+/// unchanged and gives hand-written panels the same defaults.
+List<BeakFilterDef> get effectiveFilters =>
+    filters.isNotEmpty ? filters : beakDefaultFiltersOf(model);
 ```
 
-The tutorial store shows the boolean and text variants:
+The mapping from column kind to control is one exhaustive switch, so a new column
+kind has to decide what filtering it means instead of silently defaulting to none:
 
-```dart title="apps/reference_admin/lib/main.dart"
-BeakResource(
-  model: UserModel(),
-  icon: BeakIconToken(OiIcons.users),
-  filters: [
-    BeakBoolFilter(column: UserColumns.active, label: 'Active only'),
-  ],
-),
+```dart title="packages/beak_frontend/lib/src/filters/beak_default_filters.dart"
+--8<-- "packages/beak_frontend/lib/src/filters/beak_default_filters.dart:filterFor"
 ```
+
+| Column kind | Derived control |
+| --- | --- |
+| `BeakEnumColumn` | `BeakSelectFilter` |
+| `BeakBoolColumn` | `BeakBoolFilter` |
+| `BeakStringColumn`, `BeakTextColumn` | `BeakTextFilter` |
+| `BeakDateTimeColumn` | `BeakDateRangeFilter` |
+| everything else | none; declare it yourself if you need one |
+
+So marking two columns filterable on the store's user schema is the whole filter
+bar for `/users`:
+
+```dart title="examples/store/lib/models/user.dart"
+  /// What the account is allowed to see. Row policy reads this.
+  @Column(filterable: true)
+  late final UserRole role;
+
+  /// Whether the account may sign in.
+  @Column(filterable: true)
+  late final bool active;
+```
+
+The store has no `lib/resources/users.dart` at all. A Role select and an Active
+switch appear above the list because the schema said `filterable`, and the labels
+come from the columns.
+
+!!! note "A filterable number is skipped, not guessed at"
+    `BeakIntColumn` and `BeakDecimalColumn` derive nothing, because a number wants
+    a range input the filter family does not have yet. Marking one `filterable`
+    is not an error. The flag still turns on that column's in-table filter in the
+    `OiTable` header. It contributes no control to the bar above it.
+
+### Declaring them yourself
+
+Declare `filters` and they replace the derived list entirely, in your order, with
+your labels. That happens in `lib/resources/<table>.dart`, the one file per
+resource where a person's decisions live:
+
+```dart title="examples/superdashboard/lib/resources/orders.dart"
+--8<-- "examples/superdashboard/lib/resources/orders.dart:beakResource"
+```
+
+Reach for this when the derived bar is wrong: a label that should read something
+else, an order that puts the common filter first, or a bar control over a column
+you did not mark `filterable` (a declared filter does not need the flag).
+`beak eject resource orders` writes the starter. See [Resources](resources.md).
 
 ## The filter bar AND-merges
 
@@ -157,9 +199,9 @@ on Name plus an in-table column filter all combine into one predicate the backen
 resolves in a single query. Filters narrow; they never fight.
 
 !!! note "What just happened"
-    - A `BeakFilterDef` bound to a column produced a specific control and a
-      specific operator, chosen exhaustively by the sealed switch.
-    - Every active filter became a typed `BeakFieldFilter`, AND-ed with the
+    - A column marked `filterable: true` produced a `BeakFilterDef` of the kind
+      its type calls for, without a filter list anywhere.
+    - Each active control became a typed `BeakFieldFilter`, AND-ed with the
       others and with any in-table column filter.
     - The combined predicate rewrote the `BeakQuerySpec`, and the table refetched
       one server-side page.
@@ -170,5 +212,7 @@ resolves in a single query. Filters narrow; they never fight.
 - [Actions](actions.md) the row, bulk, and page actions the table hosts.
 - [Column types](../models/column-types.md) what each column contributes as a
   table cell and whether it is sortable, searchable, or filterable.
+- [Resources](resources.md) where a declared filter list goes, and what else
+  `lib/resources/<table>.dart` can change.
 - [The generated API](../backend/the-generated-api.md) the server endpoint the
   spec is posted to.

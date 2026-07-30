@@ -43,13 +43,13 @@ void main() {
         BeakDataForm(model: const ArticleModel(), dataSource: dataSource),
       );
 
-      expect(find.byType(OiAfTextInput<BeakFormSlot>), findsWidgets);
-      expect(find.byType(OiAfNumberInput<BeakFormSlot>), findsNWidgets(2));
-      expect(find.byType(OiAfSwitch<BeakFormSlot>), findsOneWidget);
-      expect(find.byType(OiAfSelect<BeakFormSlot, Enum>), findsOneWidget);
-      expect(find.byType(OiAfDateTimeInput<BeakFormSlot>), findsOneWidget);
-      expect(find.byType(OiAfColorInput<BeakFormSlot>), findsOneWidget);
-      expect(find.byType(OiAfRichEditor<BeakFormSlot>), findsOneWidget);
+      expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
+      expect(find.byType(OiAfNumberInput<Enum>), findsNWidgets(2));
+      expect(find.byType(OiAfSwitch<Enum>), findsOneWidget);
+      expect(find.byType(OiAfSelect<Enum, Enum>), findsOneWidget);
+      expect(find.byType(OiAfDateTimeInput<Enum>), findsOneWidget);
+      expect(find.byType(OiAfColorInput<Enum>), findsOneWidget);
+      expect(find.byType(OiAfRichEditor<Enum>), findsOneWidget);
       expect(find.byType(BeakUploadField), findsNWidgets(2));
       expect(find.byType(BeakBelongsToField), findsOneWidget);
       // Custom columns stay out of auto forms; many-relations wait for edit
@@ -202,11 +202,11 @@ void main() {
       expect(find.text('Basics'), findsOneWidget);
       expect(find.text('Pricing'), findsNothing);
 
-      final OiAfSwitch<BeakFormSlot> activeSwitch = tester.widget(
-        find.byType(OiAfSwitch<BeakFormSlot>),
+      final OiAfSwitch<Enum> activeSwitch = tester.widget(
+        find.byType(OiAfSwitch<Enum>),
       );
       expect(activeSwitch, isNotNull);
-      await tester.tap(find.byType(OiAfSwitch<BeakFormSlot>));
+      await tester.tap(find.byType(OiAfSwitch<Enum>));
       await tester.pumpAndSettle();
 
       expect(find.text('Pricing'), findsOneWidget);

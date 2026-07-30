@@ -269,6 +269,124 @@ void main() {
   });
 
   group('MysqlCompiler — DDL', () {
+    test('renders foreign keys as table constraints', () {
+      // Previously dropped: the descriptor carried no foreign keys, so every
+      // table.foreign(...) in every migration silently vanished.
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'products',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'id', type: ColumnType.uuid, isPrimaryKey: true),
+            SchemaColumn(
+              name: 'category_id',
+              type: ColumnType.uuid,
+              nullable: true,
+            ),
+          ],
+          foreignKeys: <SchemaForeignKey>[
+            SchemaForeignKey(
+              columns: <String>['category_id'],
+              referencedTable: 'categories',
+              referencedColumns: <String>['id'],
+              onDelete: OnDelete.setNull,
+            ),
+          ],
+        ),
+      );
+      expect(
+        result.single.sql,
+        contains(
+          'FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) '
+          'ON DELETE SET NULL',
+        ),
+      );
+    });
+
+    test('renders a unique index as a constraint, plain indexes not', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'product_tag',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'product_id', type: ColumnType.uuid),
+            SchemaColumn(name: 'tag_id', type: ColumnType.uuid),
+          ],
+          indexes: <SchemaIndex>[
+            SchemaIndex(
+              name: 'product_tag_pair_idx',
+              columns: <String>['product_id', 'tag_id'],
+              unique: true,
+            ),
+            SchemaIndex(
+              name: 'product_tag_tag_idx',
+              columns: <String>['tag_id'],
+            ),
+          ],
+        ),
+      );
+      expect(
+        result.first.sql,
+        contains(
+          'CONSTRAINT `product_tag_pair_idx` UNIQUE (`product_id`, `tag_id`)',
+        ),
+      );
+      // Not inlined as a constraint — it is its own statement instead.
+      expect(result.first.sql, isNot(contains('product_tag_tag_idx')));
+      expect(result.last.sql, startsWith('CREATE INDEX'));
+    });
+
+    test('maps every ON DELETE action, ormCascade to NO ACTION', () {
+      String sqlFor(OnDelete action) => compiler
+          .compileDdl(
+            SchemaDescriptor.createTable(
+              table: 'children',
+              columns: const <SchemaColumn>[
+                SchemaColumn(name: 'parent_id', type: ColumnType.uuid),
+              ],
+              foreignKeys: <SchemaForeignKey>[
+                SchemaForeignKey(
+                  columns: const <String>['parent_id'],
+                  referencedTable: 'parents',
+                  referencedColumns: const <String>['id'],
+                  onDelete: action,
+                ),
+              ],
+            ),
+          )
+          .single
+          .sql;
+
+      expect(sqlFor(OnDelete.cascade), contains('ON DELETE CASCADE'));
+      expect(sqlFor(OnDelete.restrict), contains('ON DELETE RESTRICT'));
+      expect(sqlFor(OnDelete.setNull), contains('ON DELETE SET NULL'));
+      expect(sqlFor(OnDelete.setDefault), contains('ON DELETE SET DEFAULT'));
+      expect(sqlFor(OnDelete.noAction), contains('ON DELETE NO ACTION'));
+      // The ORM walks the children itself so hooks and scopes run.
+      expect(sqlFor(OnDelete.ormCascade), contains('ON DELETE NO ACTION'));
+    });
+
+    test('a named foreign key keeps its constraint name', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'orders',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'user_id', type: ColumnType.uuid),
+          ],
+          foreignKeys: <SchemaForeignKey>[
+            SchemaForeignKey(
+              columns: <String>['user_id'],
+              referencedTable: 'users',
+              referencedColumns: <String>['id'],
+              name: 'orders_user_fk',
+            ),
+          ],
+        ),
+      );
+      expect(
+        result.single.sql,
+        contains('CONSTRAINT `orders_user_fk` FOREIGN KEY'),
+      );
+    });
+
     test('create table emits backtick-quoted columns + InnoDB/utf8mb4', () {
       final result = compiler.compileDdl(
         const SchemaDescriptor.createTable(
@@ -282,17 +400,44 @@ void main() {
         ),
       );
       expect(
-        result.sql,
+        result.single.sql,
         'CREATE TABLE IF NOT EXISTS `users`'
         ' (`id` CHAR(36) NOT NULL PRIMARY KEY,'
         ' `name` VARCHAR(255) NOT NULL,'
         ' `age` INT)'
         ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
       );
-      expect(result.parameters, isEmpty);
+      expect(result.single.parameters, isEmpty);
     });
 
-    test('integer primary key becomes AUTO_INCREMENT', () {
+    test('a declared auto-incrementing key becomes AUTO_INCREMENT', () {
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'events',
+          columns: <SchemaColumn>[
+            SchemaColumn(
+              name: 'id',
+              type: ColumnType.integer,
+              isPrimaryKey: true,
+              autoIncrement: true,
+            ),
+            SchemaColumn(name: 'flag', type: ColumnType.boolean),
+          ],
+        ),
+      );
+      expect(
+        result.single.sql,
+        contains('`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY'),
+      );
+      // boolean maps to TINYINT(1) (round-trips to Dart bool).
+      expect(result.single.sql, contains('`flag` TINYINT(1) NOT NULL'));
+    });
+
+    test('an integer key that did not ask for it does not get it', () {
+      // The descriptor decides. `t.intId()` is an integer primary key whose
+      // values the caller supplies; inferring AUTO_INCREMENT from the shape
+      // of the column made MySQL disagree with every other dialect about
+      // what the same descriptor means.
       final result = compiler.compileDdl(
         const SchemaDescriptor.createTable(
           table: 'events',
@@ -302,16 +447,31 @@ void main() {
               type: ColumnType.integer,
               isPrimaryKey: true,
             ),
-            SchemaColumn(name: 'flag', type: ColumnType.boolean),
           ],
         ),
       );
-      expect(
-        result.sql,
-        contains('`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY'),
+
+      expect(result.single.sql, isNot(contains('AUTO_INCREMENT')));
+      expect(result.single.sql, contains('`id` INT NOT NULL PRIMARY KEY'));
+    });
+
+    test('a non-key column never gets it, however it is declared', () {
+      // MySQL rejects the DDL outright: an AUTO_INCREMENT column must be a
+      // key. Emitting it would turn a mistake into a failed migration.
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'events',
+          columns: <SchemaColumn>[
+            SchemaColumn(
+              name: 'seq',
+              type: ColumnType.integer,
+              autoIncrement: true,
+            ),
+          ],
+        ),
       );
-      // boolean maps to TINYINT(1) (round-trips to Dart bool).
-      expect(result.sql, contains('`flag` TINYINT(1) NOT NULL'));
+
+      expect(result.single.sql, isNot(contains('AUTO_INCREMENT')));
     });
 
     test('non-integer primary key is not AUTO_INCREMENT', () {
@@ -323,7 +483,7 @@ void main() {
           ],
         ),
       );
-      expect(result.sql, isNot(contains('AUTO_INCREMENT')));
+      expect(result.single.sql, isNot(contains('AUTO_INCREMENT')));
     });
 
     test('mysqlTypeOf produces a non-empty mapping for every ColumnType', () {
@@ -340,35 +500,56 @@ void main() {
       final result = compiler.compileDdl(
         const SchemaDescriptor.dropTable(table: 'users', ifExists: true),
       );
-      expect(result.sql, 'DROP TABLE IF EXISTS `users`');
+      expect(result.single.sql, 'DROP TABLE IF EXISTS `users`');
     });
 
     test('truncateTable emits TRUNCATE TABLE', () {
       final result = compiler.compileDdl(
         const SchemaDescriptor.truncateTable(table: 'users'),
       );
-      expect(result.sql, 'TRUNCATE TABLE `users`');
+      expect(result.single.sql, 'TRUNCATE TABLE `users`');
     });
 
-    test('SchemaIndexDescriptor emits a named CREATE INDEX', () {
+    test('a non-unique index becomes its own CREATE INDEX statement', () {
       final result = compiler.compileDdl(
-        const SchemaIndexDescriptor(collection: 'users', field: 'email'),
-      );
-      expect(result.sql, 'CREATE INDEX `idx_users_email` ON `users` (`email`)');
-    });
-
-    test('SchemaIndexDescriptor unique=true emits CREATE UNIQUE INDEX', () {
-      final result = compiler.compileDdl(
-        const SchemaIndexDescriptor(
-          collection: 'users',
-          field: 'email',
-          unique: true,
+        const SchemaDescriptor.createTable(
+          table: 'users',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'email', type: ColumnType.string),
+          ],
+          indexes: <SchemaIndex>[
+            SchemaIndex(name: 'users_email_idx', columns: <String>['email']),
+          ],
         ),
       );
+
+      expect(result, hasLength(2));
       expect(
-        result.sql,
-        'CREATE UNIQUE INDEX `idx_users_email` ON `users` (`email`)',
+        result.last.sql,
+        'CREATE INDEX `users_email_idx` ON `users` (`email`)',
       );
+    });
+
+    test('a declared length and precision reach the SQL', () {
+      // mysqlTypeOf has to pick a default width; the declared one wins, so a
+      // VARCHAR(40) does not arrive as VARCHAR(255).
+      final result = compiler.compileDdl(
+        const SchemaDescriptor.createTable(
+          table: 'products',
+          columns: <SchemaColumn>[
+            SchemaColumn(name: 'sku', type: ColumnType.string, length: 40),
+            SchemaColumn(
+              name: 'price',
+              type: ColumnType.decimal,
+              precision: 10,
+              scale: 2,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.single.sql, contains('`sku` VARCHAR(40)'));
+      expect(result.single.sql, contains('`price` DECIMAL(10,2)'));
     });
   });
 
@@ -598,6 +779,122 @@ void main() {
       expect(result.sql, contains('GROUP BY `users`.`id`'));
       expect(result.sql, contains('HAVING COUNT(*) > ?'));
       expect(result.parameters, <Object?>[5]);
+    });
+  });
+
+  group('MysqlCompiler — ALTER TABLE', () {
+    List<String> sqlFor(List<SchemaAlteration> alterations) => <String>[
+      for (final compiled in compiler.compileDdl(
+        SchemaDescriptor.alterTable(
+          table: 'products',
+          alterations: alterations,
+        ),
+      ))
+        compiled.sql,
+    ];
+
+    test('one statement per step, in the order given', () {
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaDropColumn('legacy'),
+          SchemaAddColumn(
+            SchemaColumn(name: 'status', type: ColumnType.string, length: 20),
+          ),
+          SchemaAddIndex(
+            SchemaIndex(
+              name: 'products_status_idx',
+              columns: <String>['status'],
+            ),
+          ),
+        ]),
+        <String>[
+          'ALTER TABLE `products` DROP COLUMN `legacy`',
+          'ALTER TABLE `products` ADD COLUMN `status` VARCHAR(20) NOT NULL',
+          'CREATE INDEX `products_status_idx` ON `products` (`status`)',
+        ],
+      );
+    });
+
+    test('a change restates the whole column, because MODIFY must', () {
+      // MODIFY COLUMN has no partial form, which is why the alteration
+      // carries a complete end state rather than a delta.
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaChangeColumn(
+            SchemaColumn(
+              name: 'bio',
+              type: ColumnType.string,
+              length: 500,
+              nullable: true,
+            ),
+            facets: <SchemaColumnFacet>{SchemaColumnFacet.nullability},
+          ),
+        ]).single,
+        'ALTER TABLE `products` MODIFY COLUMN `bio` VARCHAR(500)',
+      );
+    });
+
+    test('drops a foreign key with DROP FOREIGN KEY, not DROP CONSTRAINT', () {
+      // DROP CONSTRAINT is 8.0.19+ only.
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaDropForeignKey('products_brand_fk'),
+        ]).single,
+        'ALTER TABLE `products` DROP FOREIGN KEY `products_brand_fk`',
+      );
+    });
+
+    test('drops an index with the ON clause MySQL requires', () {
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaDropIndex('products_status_idx'),
+        ]).single,
+        'DROP INDEX `products_status_idx` ON `products`',
+      );
+    });
+
+    test('refuses every IF EXISTS flag it cannot express', () {
+      // Silently stripping the flag is how a non-unique index came to emit
+      // nothing at all; refusing names the gap instead.
+      for (final alteration in const <SchemaAlteration>[
+        SchemaAddColumn(
+          SchemaColumn(name: 'sku', type: ColumnType.string),
+          ifNotExists: true,
+        ),
+        SchemaDropColumn('sku', ifExists: true),
+        SchemaDropIndex('products_sku_idx', ifExists: true),
+        SchemaAddIndex(
+          SchemaIndex(name: 'products_sku_idx', columns: <String>['sku']),
+          ifNotExists: true,
+        ),
+      ]) {
+        expect(
+          () => sqlFor(<SchemaAlteration>[alteration]),
+          throwsA(isA<UnsupportedOperationException>()),
+          reason: '${alteration.runtimeType} must be refused, not stripped',
+        );
+      }
+    });
+
+    test('refuses a partial index rather than dropping the predicate', () {
+      expect(
+        () => sqlFor(const <SchemaAlteration>[
+          SchemaAddIndex(
+            SchemaIndex(
+              name: 'products_live_idx',
+              columns: <String>['status'],
+              where: "status = 'published'",
+            ),
+          ),
+        ]),
+        throwsA(
+          isA<UnsupportedOperationException>().having(
+            (e) => e.message,
+            'message',
+            contains('no partial indexes'),
+          ),
+        ),
+      );
     });
   });
 }

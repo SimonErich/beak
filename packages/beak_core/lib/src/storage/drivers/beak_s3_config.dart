@@ -18,6 +18,7 @@ part of '../beak_storage_config.dart';
 /// ```
 final class BeakS3Config extends BeakStorageConfig {
   /// Creates an S3 storage configuration.
+  // --8<-- [start:BeakS3Config]
   const BeakS3Config({
     required this.endpoint,
     required this.bucket,
@@ -27,6 +28,7 @@ final class BeakS3Config extends BeakStorageConfig {
     this.usePathStyle = false,
     this.publicBaseUrl,
   });
+  // --8<-- [end:BeakS3Config]
 
   /// The S3 API endpoint, e.g. `https://s3.eu-central-1.amazonaws.com` or a
   /// MinIO host.

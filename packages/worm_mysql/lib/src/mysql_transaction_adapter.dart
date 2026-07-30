@@ -183,11 +183,13 @@ final class MysqlTransactionAdapter extends DatabaseAdapter
 
   @override
   Future<void> executeSchema(SchemaDescriptor d) async {
-    final compiled = _compiler.compileDdl(d);
-    await MysqlErrorMapper.wrap(
-      () => _connection.execute(compiled.sql),
-      query: compiled.sql,
-    );
+    // One descriptor is several ordered statements.
+    for (final compiled in _compiler.compileDdl(d)) {
+      await MysqlErrorMapper.wrap(
+        () => _connection.execute(compiled.sql),
+        query: compiled.sql,
+      );
+    }
   }
 
   @override

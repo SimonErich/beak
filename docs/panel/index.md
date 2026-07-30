@@ -1,59 +1,69 @@
 ---
 title: The panel
-description: BeakPanel and BeakPanelConfig, the single declarative object that stands up a whole admin app, plus the pages that break it down.
+description: What stands a Beak admin app up, which file decides what, and how beak.yaml, your schema classes and the generated config add up to a running panel.
 ---
 
 # The panel
 
-After this page you can boot a complete admin app from one config object: hand a
-`BeakPanelConfig` to a `BeakPanel`, call `runApp`, and the navigation, routing,
-generated CRUD pages, and dashboard all come from that one value.
+After this page you can read a Beak project and say where any part of the panel
+comes from: what `beak prepare` generated, what `beak.yaml` decided, and which
+file you open when a generated default is not what you want.
 
 ## One widget, one config
 
-A Beak app has exactly two moving parts at the top. `BeakPanel` is the root
-widget you give to `runApp`. `BeakPanelConfig` is the plain, `const`-friendly
-object that describes the whole panel. You compose the config once, usually in a
-builder so tests can vary the API origin, and Beak wires everything from it.
+A Beak app has two moving parts at the top, and you write neither. `main.dart`
+is generated, and so is the widget it boots.
 
-```dart title="apps/beak_superdashboard/lib/main.dart"
-/// The superdashboard demo app: one [BeakPanel] over the shared models,
-/// reproducing a full admin theme entirely from seeded data.
-final class SuperdashboardApp extends StatelessWidget {
+```dart title="examples/store/lib/main.dart"
+--8<-- "examples/store/lib/main.dart"
+```
+
+`BeakApp` is a thin wrapper over `BeakPanel`, the root widget, holding the one
+`BeakPanelConfig` that describes the whole panel.
+
+```dart title="examples/store/lib/beak/app.g.dart"
+/// The Beak Store panel's configuration.
+///
+/// Built once, at startup: the config holds closures and block trees, so a
+/// fresh one every frame would rebuild the router with it.
+final BeakPanelConfig beakPanelConfig = buildBeakPanel();
+
+/// The Beak Store panel.
+final class BeakApp extends StatelessWidget {
   /// Creates the app; [dataSource] injects a fake in widget tests.
-  const SuperdashboardApp({this.dataSource, super.key});
+  const BeakApp({this.dataSource, super.key});
 
   /// Test seam replacing the HTTP-backed data source.
   final BeakDataSource? dataSource;
 
   @override
   Widget build(BuildContext context) =>
-      BeakPanel(config: buildSuperdashboardConfig(), dataSource: dataSource);
+      BeakPanel(config: beakPanelConfig, dataSource: dataSource);
 }
-
-/// Boots the Flutter superdashboard against the default local backend.
-void main() => runApp(const SuperdashboardApp());
 ```
 
-That is the whole app shell. `SuperdashboardApp` is a `StatelessWidget` wrapper
-so a widget test can pass a fake `dataSource`; production leaves it null and the
-panel talks HTTP to `config.apiBaseUrl`.
-
 !!! note "What just happened"
-    - `BeakPanel` took a config and became the root of a Flutter app.
-    - `buildSuperdashboardConfig()` returned a `BeakPanelConfig` describing the
-      panel. It is a builder so its `apiBaseUrl` can be overridden.
-    - Nothing here mentions routes, tables, or forms. Those are generated from
-      the resources in the config.
+    - `runApp(const BeakApp())` started a Flutter app whose entire UI comes from
+      one value.
+    - `buildBeakPanel()` returned that value. `beak prepare` wrote it from
+      `beak.yaml`, the classes under `lib/models/`, and the screens under
+      `lib/screens/`.
+    - The `dataSource` seam survives generation: a widget test passes a fake and
+      no HTTP is issued. Production leaves it null and the panel talks to the
+      origin `beak.yaml` names.
+    - Nothing here mentions routes, tables, or forms. Those are derived from the
+      resources on the config.
 
 ## What BeakPanel does on first build
 
 `BeakPanel` is a `HookWidget`. On its first build it does three things, all
-memoized on `config`:
+memoized on the config and the two test seams (`dataSource`, `httpClient`), so
+swapping a fake in a test rebuilds the whole wiring:
 
 1. Registers the panel's dependencies in the package-scoped GetIt locator
-   (`beakLocator`): the data source (HTTP by default, or the injected fake), the
-   model registry, the theme controller.
+   (`beakLocator`): the model registry, the typed `BeakClient`, the session
+   store, the data source (HTTP by default, or the injected fake), the reference
+   cache, and the theme controller.
 2. Builds a `go_router` over every resource and page in the config.
 3. Wraps the router in `OiApp.router` with the config's light and dark themes,
    driven by a live `BeakThemeController`.
@@ -73,22 +83,168 @@ class BeakPanel extends HookWidget {
 ```
 
 You almost never touch the router, the locator, or the theme controller
-directly. They are wired from config. That is the deal Beak makes: you configure,
+directly. They are wired from config. That is the deal Beak makes: you declare,
 Beak plumbs.
+
+## Where each decision lives
+
+A resource is no longer a hand-written `BeakResource`. It is a schema class, a
+few lines of `beak.yaml`, and (only when you want more) one small file per
+resource. Here is the whole map.
+
+| Decision | Where it lives |
+| --- | --- |
+| Columns, relationships, table name, soft deletes, timestamps | the `@Resource` class in `lib/models/<name>.dart` |
+| Panel title, API origin, server port | `beak.yaml` |
+| A resource's sidebar icon, label, section, or hiding it | `beak.yaml`, under `resources.<table>` |
+| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart` |
+| The screen at `/` | `lib/dashboard.dart` |
+| Any other page | one file per screen under `lib/screens/` |
+| Themes, auth, the server, whole-panel overrides | `lib/theme.dart`, `lib/auth.dart`, `lib/server.dart`, `lib/panel.dart` |
+| Everything else | generated into `lib/beak/*.g.dart` and `lib/models/*.beak.dart`, committed, never edited |
+
+The store example puts icons and sections in `beak.yaml`, and keeps the order
+lines out of the sidebar entirely:
+
+```yaml title="examples/store/beak.yaml"
+resources:
+  products:
+    icon: package
+    section: Catalog
+  categories:
+    icon: folderTree
+    section: Catalog
+  tags:
+    icon: tag
+    section: Catalog
+  roast_profiles:
+    icon: flame
+    section: Catalog
+  orders:
+    icon: receipt
+    section: Sales
+  users:
+    icon: users
+    section: Sales
+  # Lines are always reached through their order, never from the sidebar —
+  # but they keep their API, their model and their relationships.
+  order_items:
+    hidden: true
+```
 
 ## The config object
 
-`BeakPanelConfig` is the single declarative entry point. Here is the top of the
-superdashboard's, which runs against the showcase server on port 8180:
+`BeakPanelConfig` is still the single declarative entry point. You no longer
+type it. This is the store's, as `beak prepare` wrote it:
 
-```dart title="apps/beak_superdashboard/lib/panel/config.dart"
-BeakPanelConfig buildSuperdashboardConfig({
-  String apiBaseUrl = 'http://localhost:8180',
-}) => BeakPanelConfig(
-  title: 'Beak Superdashboard',
-  apiBaseUrl: apiBaseUrl,
+```dart title="examples/store/lib/beak/panel.g.dart"
+/// The panel configuration for this project.
+///
+/// Assembled from `beak.yaml`, the models under `lib/models/`, and
+/// the screens under `lib/screens/`.
+BeakPanelConfig buildBeakPanel() {
+  final config = BeakPanelConfig(
+    title: 'Beak Store',
+    apiBaseUrl: const String.fromEnvironment(
+      'BEAK_API_BASE_URL',
+      defaultValue: 'http://localhost:8080',
+    ),
+    sidebarCollapsible: true,
+    sidebarDefaultCollapsed: false,
+    resources: [
+      BeakResource(
+        model: const CategoryModel(),
+        icon: BeakIconToken(OiIcons.folderTree),
+        section: 'Catalog',
+      ),
+      resource_orders.beakResource(
+        BeakResource(
+          model: const OrderModel(),
+          icon: BeakIconToken(OiIcons.receipt),
+          section: 'Sales',
+        ),
+      ),
+      // ... the four remaining resources ...
+    ],
+    pages: [dashboard.beakDashboard(), restockScreen],
+  );
+  return config;
+}
+```
+
+Read that top to bottom and you can see every input: the title and the origin
+came from `beak.yaml`, `CategoryModel` came from a schema class, the icon and
+section came from `beak.yaml`, `resource_orders.beakResource(...)` is the
+orders resource passing through its own file, and `pages` picked up
+`lib/dashboard.dart` and the screens folder.
+
+Every field of the config, and who fills it in:
+
+| Field | Type | Default | Filled in by |
+| --- | --- | --- | --- |
+| `title` | `String` | required | `beak.yaml` `name` (falls back to the title-cased package name). |
+| `resources` | `List<BeakResource>` | required | One per `@Resource` class, minus the ones `beak.yaml` hides. |
+| `apiBaseUrl` | `String` | required | `beak.yaml` `api.baseUrl`, as a `--dart-define`-able default. |
+| `pages` | `List<BeakScreen>` | `[]` | `lib/dashboard.dart` first, then `lib/screens/`. |
+| `auth` | `BeakAuthConfig?` | `null` | `lib/auth.dart`; `null` mounts only a default `/login`. |
+| `maintenance` | `BeakMaintenanceConfig?` | `null` | `lib/panel.dart`; `null` mounts neither route. |
+| `theme` / `darkTheme` | `OiThemeData?` | `OiThemeData.light()` / `.dark()` | `lib/theme.dart`. |
+| `initialThemeMode` | `OiThemeMode` | `system` | `lib/panel.dart`; toggled live from the shell. |
+| `sidebarCollapsible` | `bool` | `true` | `beak.yaml` `theme.sidebar.collapsible`. |
+| `sidebarDefaultCollapsed` | `bool` | `false` | `beak.yaml` `theme.sidebar.startCollapsed`. |
+| `dashboardStats` | `List<BeakStat>` | `[]` | `lib/panel.dart`. |
+| `dashboardCharts` | `List<BeakChart>` | `[]` | `lib/panel.dart`. |
+| `notifications` | `BeakNotificationSource?` | `null` | `lib/panel.dart`. |
+
+!!! warning "Match the origin to the server"
+    `api.baseUrl` is compiled in as a default, so a build can point elsewhere
+    with `--dart-define=BEAK_API_BASE_URL=…`. The store runs on
+    `http://localhost:8080` and the superdashboard on `http://localhost:8180`,
+    because both live in this repository and cannot share a port. Point a panel
+    at the server it actually has, or every query returns connection-refused.
+
+## Adjusting one resource
+
+When a resource needs filters, actions, view modes, a detail layout or a wizard,
+add `lib/resources/<table>.dart` with one function. It receives the generated
+resource and returns a copy.
+
+```dart title="examples/store/lib/resources/products.dart"
+/// The products resource, with the parts Beak cannot derive.
+///
+/// Everything else — the model, the label, the icon, the section — still comes
+/// from the schema class and `beak.yaml`; this file only adds what a person
+/// decides. The filters are not listed: every `filterable: true` column
+/// already contributes its control.
+BeakResource beakResource(BeakResource generated) => generated.copyWith(
+  detail: productLayout,
+  formLayout: productLayout,
+  // ... actions and view modes ...
+);
+```
+
+The file is named after the table, the function is named `beakResource`, and
+that is the whole contract. `model`, `icon`, `label` and `section` are already
+set on `generated`; overriding them here is possible but usually means the fact
+belongs in the schema class or in `beak.yaml` instead.
+[Resources](resources.md) covers every part you can hand it.
+
+## Having the last word
+
+`lib/panel.dart` is the one hook that sees the finished config. Declare
+`BeakPanelConfig beakPanel(BeakPanelConfig defaults)` and Beak calls it with
+everything it assembled, so you add rather than replace.
+
+```dart title="examples/superdashboard/lib/panel.dart"
+/// The last word on this panel's configuration.
+///
+/// [defaults] already carries the 17 navigable resources, their icons and
+/// their sections from `beak.yaml`, each one adjusted by its own file under
+/// `lib/resources/`. What is added here is what `beak.yaml` deliberately does
+/// not describe: the app screens, the notification feed, and the auth and
+/// maintenance behaviour.
+BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
   initialThemeMode: OiThemeMode.light,
-  resources: buildResources(),
   notifications: const BeakNotificationSource(
     model: NotificationModel(),
     titleField: NotificationColumns.title,
@@ -97,66 +253,112 @@ BeakPanelConfig buildSuperdashboardConfig({
     readField: NotificationColumns.isRead,
     categoryField: NotificationColumns.level,
   ),
-  pages: [
-    buildDashboardScreen(),
-    buildEmailScreen(),
-    // …
-  ],
-  auth: BeakAuthConfig(/* … */),
-  maintenance: BeakMaintenanceConfig(/* … */),
+  // ... pages, auth and maintenance ...
 );
 ```
 
-Every field is optional except the three that a panel cannot do without.
+Note the `...defaults.pages` idiom the superdashboard uses when it adds screens:
+`copyWith` replaces a list rather than appending to it, so spread what you were
+given before adding your own.
 
-| Field | Type | Default | What it does |
-| --- | --- | --- | --- |
-| `title` | `String` | required | Shown in the shell and on the login screen. |
-| `resources` | `List<BeakResource>` | required | The models the panel exposes, in navigation order. |
-| `apiBaseUrl` | `String` | required | Origin of the `beak_backend` server (match the port to your app). |
-| `pages` | `List<BeakScreen>` | `[]` | Custom, non-resource screens, in navigation order. |
-| `auth` | `BeakAuthConfig?` | `null` | Auth routes; `null` mounts only a default `/login`. |
-| `maintenance` | `BeakMaintenanceConfig?` | `null` | Maintenance / coming-soon routes; `null` mounts neither. |
-| `theme` / `darkTheme` | `OiThemeData?` | `OiThemeData.light()` / `.dark()` | The light and dark themes. |
-| `initialThemeMode` | `OiThemeMode` | `system` | The mode the panel starts in; toggled live from the shell. |
-| `sidebarCollapsible` | `bool` | `true` | Whether the sidebar can collapse to an icon rail. |
-| `sidebarDefaultCollapsed` | `bool` | `false` | Whether the sidebar starts collapsed. |
-| `dashboardStats` | `List<BeakStat>` | `[]` | The dashboard's metric cards, in order. |
-| `dashboardCharts` | `List<BeakChart>` | `[]` | The dashboard's charts, in order. |
-| `notifications` | `BeakNotificationSource?` | `null` | Binds a model's rows to the shell's notification bell. |
+## What the generated pages load
 
-!!! warning "Match the port to the app"
-    Beak ships two demo apps. The tutorial store (`reference_admin`) talks to a
-    server on `http://localhost:8080`; the showcase (`beak_superdashboard`) talks
-    to one on `http://localhost:8180`. Point `apiBaseUrl` at the server your app
-    actually runs, or the panel loads and every query returns connection-refused.
+Two things the panel does on your behalf are worth knowing about, because they
+decide how many queries a page costs.
 
-### The registry falls out of the resources
+**A list table renders a column per to-one relationship**, showing the related
+record's name rather than the foreign key it stores. The table asks for those
+relations itself, so they arrive with the page in one query instead of one per
+row.
 
-Config is the source of truth for the data layer too. `buildRegistry()` walks the
-resources once at startup and registers every model, so the data layer can map a
-table name back to its model (primary key, relations) without you maintaining a
-second list.
+```dart title="packages/beak_frontend/lib/src/data/beak_relation_loads.dart"
+/// Returns [spec] eager-loading every to-one relationship of [model] it does
+/// not already load.
+///
+/// Without them a foreign key renders as the uuid it stores — the panel showed
+/// `a3f9c1e2-…` where the reader expected `Beverages`. Loading them with the
+/// page costs one query rather than one per row, which is the whole reason
+/// this is a list rather than a lookup.
+///
+/// A load the caller supplied wins: it may carry a constraint this cannot
+/// know about.
+BeakQuerySpec beakWithToOneLoads(BeakQuerySpec spec, BeakModel model) {
+```
+
+The foreign-key column itself is hidden wherever the relationship is rendered,
+so the same fact never appears twice, once unreadably.
+
+**A show page loads its to-many relations with the record**, in one query, and
+hands each relation manager the rows it already has. N managers on a page cost
+zero extra queries on first paint.
+
+```dart title="packages/beak_frontend/lib/src/detail/relation_manager.dart"
+  /// The related records the parent already loaded, if any.
+  ///
+  /// A detail page eager-loads every relation with the record it shows, so
+  /// passing them here means N managers cost zero extra queries on first
+  /// paint. Any mutation still refetches.
+  final List<BeakRecord>? initialRecords;
+```
+
+A to-many can be unbounded, so a manager reads a page of related rows (25 by
+default), shows the true total in its badge, and offers a "load more" button for
+the rest. Attaching, detaching or deleting a related row refetches.
+
+## The registry falls out of the resources
+
+The config is the source of truth for the panel's data layer too.
+`buildRegistry()` walks the resources once at startup and registers every model,
+so the data layer can map a table name back to its model (primary key,
+relations) without you maintaining a second list.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
-BeakModelRegistry buildRegistry() {
+  BeakModelRegistry buildRegistry() {
+    final registry = BeakModelRegistry();
+    for (final resource in resources) {
+      registry.register(resource.model);
+    }
+    return registry;
+  }
+```
+
+Register the same table twice and the registry throws a configuration error.
+One resource, one model, one registration.
+
+The server keeps its own registry, and that one holds every model including the
+ones `beak.yaml` hides from the sidebar. It is generated too:
+
+```dart title="examples/store/lib/beak/registry.g.dart"
+/// Every model discovered under `lib/models/`, in path order.
+const List<BeakModel> beakModels = <BeakModel>[
+  CategoryModel(),
+  OrderModel(),
+  OrderItemModel(),
+  ProductModel(),
+  RoastProfileModel(),
+  TagModel(),
+  UserModel(),
+];
+
+/// A registry populated with every model in [beakModels].
+BeakModelRegistry buildBeakRegistry() {
   final registry = BeakModelRegistry();
-  for (final resource in resources) {
-    registry.register(resource.model);
+  for (final model in beakModels) {
+    registry.register(model);
   }
   return registry;
 }
 ```
 
-Register the same table twice and the registry throws a configuration error. One
-resource, one model, one registration.
+That is why a hidden resource keeps its REST API and stays reachable as the far
+side of a relationship. It only loses its sidebar entry.
 
 ## Where to go from here
 
-This section takes the config apart, field by field:
+This section takes the panel apart, page by page:
 
-- [Resources](resources.md) the anatomy of a `BeakResource`: model, icon, label,
-  section, actions, filters, view modes, detail, and form layout.
+- [Resources](resources.md) what a `BeakResource` carries and what a
+  `lib/resources/<table>.dart` can change about it.
 - [Tables and filters](tables-and-filters.md) how the generated list renders,
   sorts, filters, and paginates server-side, plus the typed filter bar.
 - [View modes](view-modes.md) giving a list a calendar or a board alongside the
@@ -167,15 +369,16 @@ This section takes the config apart, field by field:
   the one block tree that renders read-only and editable.
 - [Actions](actions.md) and [Overlays](overlays.md) the typed action family and
   the confirm/modal/toast handles it reaches for.
-- [Dashboards](dashboards.md) the stats and charts on `/`.
+- [Dashboards](dashboards.md) the screen at `/`.
 - [Custom screens](custom-screens.md), [The navigation shell](the-navigation-shell.md),
   [Auth and idle-lock](auth-and-idle-lock.md), and
   [Maintenance and coming soon](maintenance-and-coming-soon.md).
 
 ## Continue reading
 
-- [Resources](resources.md) turn a registered model into a full CRUD surface.
+- [Resources](resources.md) turn a schema class into a full CRUD surface.
+- [Defining a resource](../models/defining-models.md) the `@Resource` class every
+  panel resource starts as.
+- [beak.yaml](../reference/beak-yaml.md) every key of the project file.
 - [Quickstart](../start-here/quickstart.md) the shortest path from zero to a
   running panel.
-- [Configuration options](../reference/configuration-options.md) every config
-  field in one reference table.

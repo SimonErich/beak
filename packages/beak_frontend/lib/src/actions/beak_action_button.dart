@@ -14,6 +14,7 @@ import 'beak_action.dart';
 /// [BeakGlobalAction]. A record action with a null [record] is a no-op.
 /// This is the single execution path both [BeakActionButton] and the table
 /// row/bulk actions route through.
+// --8<-- [start:executeBeakAction]
 Future<void> executeBeakAction({
   required BeakAction action,
   required BeakActionContext context,
@@ -42,6 +43,7 @@ Future<void> executeBeakAction({
       await globalAction.onExecute(context);
   }
 }
+// --8<-- [end:executeBeakAction]
 
 /// Renders one [BeakAction] as the matching obers_ui button — prominent
 /// for [BeakColor.primary], destructive for [BeakColor.error], compact

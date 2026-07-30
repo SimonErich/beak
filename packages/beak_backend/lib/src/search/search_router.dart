@@ -44,10 +44,17 @@ final class BeakSearchHandlers {
             (requestedTables == null || requestedTables.contains(model.table)))
           model.table,
     ];
+    // A row scope must narrow global search too, or a search box becomes a
+    // way to read titles of rows the caller cannot open.
     final hits = await service.search(
       term,
       perModel: perModel,
       tables: viewableTables,
+      scopes: {
+        for (final table in viewableTables)
+          if (beakRowScope(policy, principal, table) case final BeakFilter s)
+            table: s,
+      },
     );
     final grouped = <String, List<Map<String, Object?>>>{};
     for (final hit in hits) {
