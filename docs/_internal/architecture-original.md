@@ -190,6 +190,6 @@ traversal, absolute paths, and backslashes.
 | scaffolding commands                 | `beak_cli`                                  |
 
 See each package's `README.md` for its public API and a usage snippet, and
-`CLAUDE.md` for the full guardrails.
+`CONTRIBUTING.md` for the full guardrails.
 
 [Signals]: https://pub.dev/packages/signals

@@ -25,10 +25,13 @@ build.log
 deploy/.env.prod
 
 # Local working notes and tooling config, not part of the published project.
-/CLAUDE.md
+CLAUDE.md
 /PROMPT.md
 /PLAN/
-/.claude/
+/run_beak_build.sh
+.claude/
+.peakz/
+.mcp.json
 /run_beak_build.sh
 /BUILD_COMPLETE
 /build.log

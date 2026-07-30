@@ -187,8 +187,7 @@ Pair module blocks with their demo screen:
 
 ## Guides
 - testing: `packages/beak_frontend/test/**` (fake BeakDataSource),
-  `packages/beak_backend/test/**` (InMemoryAdapter, Worm.reset),
-  `.claude/skills/tdd-loop/SKILL.md`.
+  `packages/beak_backend/test/**` (InMemoryAdapter, Worm.reset).
 - working-with-ai-agents: the config-over-code story; `beak_cli` scaffolding.
 - performance: eager loading, pagination; `packages/beak_backend/lib/src/data/worm/query_translator.dart`.
 - security: `packages/beak_backend/lib/src/auth/*`,
@@ -207,10 +206,8 @@ Pair module blocks with their demo screen:
 ## Architecture deep dive
 - expand `docs/_internal/architecture-original.md` (already correct) into the 9
   pages; sources per topic as in the backend/panel rows above.
-- how-beak-was-built: `PLAN/PHASES.md`, `PLAN/STATE.md`, `SUPERDASHBOARD_STATE.md`,
-  `BEAK_MISSING_FEATURES.md`.
 
 ## Contributing
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `melos.yaml`
   (`guard-material`, gate scripts), `tool/check_no_material.dart`,
-  `tool/check_coverage.dart`, `.claude/skills/*/SKILL.md`.
+  `tool/check_coverage.dart`.
