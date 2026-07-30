@@ -65,6 +65,11 @@ final class RecordedPresign {
 /// the error itself. Getting that split wrong is how a check for a missing
 /// object can look right and never fire, so the fixture reproduces it:
 /// message is the sentence, code is `NoSuchKey`.
+///
+/// The fixture carries no `MinioResponse`, so these tests exercise the code
+/// branch of `isMissingObject`. Building a response needs `package:minio`'s
+/// internals, and the status branch is covered where a real one exists:
+/// `test/e2e/` raises a genuine 404 from MinIO.
 MinioS3Error s3Error(int statusCode, String message) => MinioS3Error(
   message,
   minio.Error(

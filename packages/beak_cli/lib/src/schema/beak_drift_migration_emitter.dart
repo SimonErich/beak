@@ -71,8 +71,12 @@ abstract final class BeakDriftMigrationEmitter {
   /// available for its kind.
   static String _refusalFor(BeakColumnIr column) {
     if (column.isUnique) {
-      return 'a unique column cannot be added to a table that already has '
-          'rows; add it nullable, backfill, then add the index';
+      // Not "make it nullable": the refusal keys on `unique:`, so a nullable
+      // column still carrying the option would be refused again, and the
+      // remedy would have sent someone in a circle.
+      return 'SQLite cannot add a unique column to an existing table; '
+          'declare it without `unique: true` for now, backfill, then add '
+          'the unique index in a migration of its own';
     }
     if (column.kind == BeakColumnKind.enumeration) {
       return 'a required enum column needs a value for the rows already '

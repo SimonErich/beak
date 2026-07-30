@@ -508,6 +508,28 @@ int get monthlyTotal => 0;
     });
   });
 
+  group('an in-memory database', () {
+    test('is named, and neither probed nor read', () async {
+      // `sqlite::memory:` used to fall through to the Postgres branch and
+      // warn "database unreachable at :0" on every run, forever.
+      final root = preparedProject();
+      File(
+        '${root.path}/.env',
+      ).writeAsStringSync('DATABASE_URL=sqlite::memory:\n');
+
+      final checks = await diagnose(
+        environmentFor(root),
+        readSchema: neverRead,
+      );
+      final check = checkMatching(checks, 'in-memory');
+      expect(check.status, BeakCheckStatus.ok);
+      expect(
+        checks.where((check) => check.label.contains('unreachable')),
+        isEmpty,
+      );
+    });
+  });
+
   group('drift', () {
     /// A project whose one schema class declares a `products` table shaped
     /// like the one [shopDatabase] introspects.

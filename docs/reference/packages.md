@@ -46,7 +46,7 @@ see [Libraries](libraries.md) for why `beak.dart` must never reach Flutter.
 | `beak_backend` | The Shelf server. Generated CRUD, query, batch, relations and aggregate endpoints, plus uploads, auth, search, CSV export, the health probes, `BeakServeHost`, and `WormDataSource`. The only package that imports worm. | Never, in an app. See [The backend](../backend/index.md). |
 | `beak_frontend` | The Flutter admin panel. `BeakPanel` plus generated tables, forms, detail views, actions, filters, view modes and dashboards, all built on obers_ui (no Material). | Never, in an app. See [The panel](../panel/index.md). |
 | `beak_test` | The testing toolkit: `InMemoryBeakDataSource` (a complete data source over maps that honours the query spec), `BeakRecordingDataSource`, the executable `runBeakDataSourceContract`, `beakFakeRecord`, and `expectSchemaParity`. | Only from a pure-Dart package that cannot use `package:beak/testing.dart`. |
-| `beak_cli` | The `beak` command: project scaffolding, discovery, generation, Postgres introspection, and `doctor`. Pure Dart. | Never as a dependency. Install it once with `dart pub global activate`. See [CLI commands](cli-commands.md). |
+| `beak_cli` | The `beak` command: project scaffolding, discovery, generation, schema introspection (Postgres and SQLite), and `doctor`. Pure Dart. | Never as a dependency. Install it once with `dart pub global activate`. See [CLI commands](cli-commands.md). |
 | `beak_storage_s3` | An S3/MinIO [storage driver](../models/files-and-storage-columns.md). Register it once and any `BeakS3Config` resolves to it. Server-side. | When uploads live in S3 or MinIO. |
 | `beak_storage_ftp` | An FTP storage driver. Same registry pattern; files are served from a configured public base URL, because FTP has no expiring links. Server-side. | When uploads live on an FTP host. |
 | `beak_image` | The image transform runner. `beak_core` defines the image column and its `BeakImageTransform` steps but ships no pixel codec; `beak_image` executes them with `package:image` (resize, re-encode, thumbnails). | When you want real image processing behind image columns. |
@@ -106,7 +106,8 @@ flowchart TD
 
 `beak_cli` stands apart: it generates source files rather than linking against
 Beak, so it depends on no Beak package. It reaches for `worm` and
-`worm_postgres` only so `beak introspect` can read a live schema, and for
+`worm_postgres` and `worm_sqlite` only so `beak introspect` and the drift
+check can read a live schema, and for
 `analyzer`, `args`, `dart_style`, `path`, `pub_semver` and `yaml` to do its own
 job.
 

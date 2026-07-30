@@ -117,6 +117,38 @@ void main() {
       expect(beakSqliteFileOf(resolved), '/tmp/My Beak Project/beak.db');
     });
 
+    test('a directory that already looks percent-encoded survives too', () {
+      // `Uri(path:)` passes an existing %XX through as an already-valid
+      // escape, so `feature%2Ffoo` (a branch name in a CI workspace) decoded
+      // into `feature/foo` on the way out and the reader opened a path the
+      // existence guard had never checked.
+      for (final name in const ['feature%2Ffoo', '50%off', 'My%20Project']) {
+        final root = Directory('/tmp/$name');
+        final resolved = beakResolvedDatabaseUrl(
+          Uri.parse('sqlite:beak.db'),
+          root,
+        );
+
+        expect(beakSqliteFileOf(resolved), '/tmp/$name/beak.db', reason: name);
+      }
+    });
+
+    test('the existence guard and the reader agree on the same file', () {
+      // They used to resolve independently, so a path only one of them could
+      // open reported "present" and then failed to read.
+      final root = Directory.systemTemp.createTempSync('beak url %2F space ');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final url = Uri.parse('sqlite:beak.db');
+
+      expect(beakSqliteFileExists(url, root), isFalse);
+
+      final String? resolved = beakSqliteFileOf(
+        beakResolvedDatabaseUrl(url, root),
+      );
+      File(resolved!).writeAsStringSync('');
+      expect(beakSqliteFileExists(url, root), isTrue);
+    });
+
     test('a Windows drive letter counts as absolute', () {
       // Joining `C:/data/beak.db` to the project root would name a directory
       // nobody has, and doctor would report a migrated database as missing.

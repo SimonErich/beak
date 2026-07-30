@@ -72,7 +72,7 @@ compose stack in full.
 Every change must keep these four green, run from the repo root:
 
 ```bash
-melos run analyze        # 0 issues, plus five guards
+melos run analyze        # 0 issues, plus the four guards
 melos run format-check   # dart format --set-exit-if-changed, clean
 melos run test           # all package tests, no skips
 melos run coverage       # per-package line-coverage thresholds

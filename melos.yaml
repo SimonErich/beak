@@ -129,13 +129,26 @@ scripts:
     run: melos run test-worm-local && melos run test-worm-postgres
     description: Run the vendored worm packages' suites.
   test-worm-local:
-    # No services. worm_mysql and worm_mongodb self-skip without their own
-    # env vars and still cover their compilers and error mappers.
+    # Every vendored package with a test directory except worm_postgres, which
+    # needs a server and runs below. worm_mysql and worm_mongodb self-skip
+    # without their own env vars and still cover their compilers and error
+    # mappers.
+    #
+    # `performance` is excluded because those are wall-clock assertions, and a
+    # shared CI runner is exactly where a wall-clock budget produces a red
+    # build that means nothing. `melos run test-worm-performance` runs them.
     run: >-
-      for pkg in worm worm_sqlite worm_mysql worm_mongodb; do
-        (cd "packages/$pkg" && dart pub get > /dev/null && dart test) || exit 1;
+      for pkg in worm worm_generator worm_lints worm_mongodb worm_mysql
+      worm_sqlite; do
+        (cd "packages/$pkg" && dart pub get > /dev/null &&
+         dart test --exclude-tags performance) || exit 1;
       done
     description: Run the vendored packages' service-free suites.
+  test-worm-performance:
+    # Wall-clock and query-count benchmarks, on a machine you trust. Not part
+    # of `test-worm`, so CI never fails on someone else's noisy runner.
+    run: cd packages/worm && dart test --tags performance
+    description: Run worm's benchmark assertions.
   test-worm-postgres:
     # Where ALTER TABLE and `EXPLAIN … USING INDEX` are proven against a real
     # server rather than a compiler golden. Until this ran they self-skipped

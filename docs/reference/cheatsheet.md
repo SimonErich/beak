@@ -345,7 +345,7 @@ none of them can act on stale wiring.
 | `beak make:migration Name` | An empty, correctly-named migration for a change `prepare` cannot derive. |
 | `beak make:migration Name --from-drift` | The same, filled in from what the database is missing. |
 | `beak eject <main\|panel\|resource\|theme\|auth\|dashboard\|server>` | Take a default over (`--force` to overwrite). |
-| `beak introspect <postgres-url>` | Write schema classes for a database you already have. |
+| `beak introspect <database-url>` | Write schema classes for a database you already have (Postgres or SQLite). |
 | `beak doctor` | Diagnose the project (`--json` for CI). |
 
 `--fields` kinds: `string`, `text`, `int`, `decimal`, `bool`, `datetime`. A

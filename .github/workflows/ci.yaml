@@ -47,7 +47,8 @@ jobs:
   web:
     name: Web build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Four release builds on a shared runner.
+    timeout-minutes: 35
     steps:
       # The guard in `melos run analyze` is static; this job is the empirical
       # half. dart:io compiles on web and only fails at runtime, so a real
@@ -77,17 +78,19 @@ jobs:
       - name: Build the superdashboard panel for web
         run: flutter build web --release
         working-directory: examples/superdashboard
-      # Embedded mounts Beak inside a host app whose own code sits beside it,
-      # which is the arrangement most likely to drag a server import into the
-      # panel graph by accident.
-      - name: Build the embedded host app for web
+      # Embedded keeps its server-side files (lib/server.dart,
+      # lib/legacy_system.dart) in the same package as the panel, which is
+      # the arrangement most likely to leak a server import into the panel
+      # graph. Building the panel target proves the graph stayed clean.
+      - name: Build the embedded example's panel for web
         run: flutter build web --release
         working-directory: examples/embedded
 
   test:
     name: Test & coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The full gate plus the service-backed and vendored suites.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Set up Flutter

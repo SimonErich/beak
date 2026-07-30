@@ -311,12 +311,29 @@ the model and the two cannot drift on a fresh database. The generated `alter`
 adds the column through the same mapping, so a column added here and a column
 created there cannot become different columns.
 
-It writes only the columns a **field** declares. A missing table means the
-resource was never migrated, which `beak prepare` already writes a create
-migration for; a missing `deleted_at` means `softDeletes` was turned on, which
-changes more than the table; and a column the database has and no schema
-declares is a decision rather than a defect. `beak doctor` reports all of
-those, and leaves them to you.
+It writes only the columns a **field** declares and a live table can gain. A
+missing table means the resource was never migrated, which `beak prepare`
+already writes a create migration for; a missing `deleted_at` means
+`softDeletes` was turned on, which changes more than the table; and a column
+the database has and no schema declares is a decision rather than a defect.
+`beak doctor` reports all of those, and leaves them to you.
+
+A required column with nothing to fill the existing rows, or a `unique: true`
+column, is refused with a `!` line naming the edit that would let it through:
+
+```console
+$ beak make:migration AddFields --from-drift
+  ! products.stock: a required column needs a value for the rows already there, and only an enum can declare one; make it nullable and backfill
+  created lib/migrations/add_fields.dart
+  run `beak migrate` to apply it
+```
+
+When *every* missing column needs a decision, nothing is written and the
+command exits `1`, so a CI job cannot mistake "drift no migration can express"
+for "the schema is applied". It also refuses to run before the first
+`beak migrate` (opening a SQLite file creates it, so looking would leave an
+empty database behind) and against an in-memory database, which belongs to
+the serving process.
 
 ## `beak eject <target>`
 
@@ -438,7 +455,10 @@ Warnings do not fail the command; only a FAIL does. `--json` prints
 
 The last check reads the database's real schema and compares it against the
 schema classes. It works on SQLite, including the zero-setup default file, and
-on a reachable Postgres. It reports both directions, one warning per
+on a reachable Postgres. A file that does not exist yet reports "not created
+yet, run `beak migrate`", and `sqlite::memory:` is named as in-memory and left
+alone: it belongs to the serving process, so there is nothing on disk to
+compare. It reports both directions, one warning per
 difference:
 
 ```console
@@ -466,7 +486,7 @@ environment mid-deploy.
 | Code | Meaning |
 | --- | --- |
 | `0` | Success: generation completed, or `doctor` passed every check. |
-| `1` | A check failed, generation reported issues, or `eject` refused to overwrite a file. |
+| `1` | A check failed, generation reported issues, `eject` refused to overwrite a file, or `--from-drift` found only drift that needs a decision. |
 | `64` | Usage error (`EX_USAGE`): unknown command, bad option, a non-UpperCamelCase name, or a malformed `--fields` pair. The crafted usage message goes to stderr. |
 
 The `64` mapping lives in the entry point, which catches the `UsageException`

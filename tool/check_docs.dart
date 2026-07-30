@@ -450,10 +450,11 @@ String? sectionOf(String reference) {
 
 /// Root-level files this repository owns and pages quote verbatim.
 ///
-/// Listed rather than inferred from what happens to exist: a fence titled
-/// `beak.yaml` or `lib/models/product.dart` names a file in the *reader's*
-/// project, and checking those against this repo would fail on the day
-/// someone adds a file with the same name at the root.
+/// Listed rather than inferred from what happens to exist, for two reasons.
+/// A fence titled `beak.yaml` or `lib/models/product.dart` names a file in
+/// the *reader's* project. And a path that exists in a working copy is not
+/// the same as one a clone has: `PLAN/` is git-ignored, so inferring from
+/// disk would pass here and fail in CI.
 const Set<String> quotableRootFiles = {
   'melos.yaml',
   'mkdocs.yml',
@@ -470,7 +471,6 @@ bool _quotesRepo(String path) =>
     path.startsWith('examples/') ||
     path.startsWith('tool/') ||
     path.startsWith('deploy/') ||
-    path.startsWith('PLAN/') ||
     quotableRootFiles.contains(path);
 
 /// The lines of [lines] on [path] that break one of [bans].

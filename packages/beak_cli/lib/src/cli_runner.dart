@@ -371,6 +371,19 @@ final class $className extends Migration {
     }
 
     final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+    if (!beakCanReadSchema(url)) {
+      // Without this, `sqlite::memory:` fell through to the Postgres reader
+      // and surfaced as a socket error on port 0.
+      environment.out.writeln(
+        beakIsSqliteUrl(url)
+            ? 'The database is in-memory SQLite, which belongs to the process '
+                  'that opened it; there is no schema on disk to compare '
+                  'against.'
+            : 'Beak can read Postgres and SQLite schemas; "${url.scheme}" is '
+                  'not supported yet.',
+      );
+      return 1;
+    }
     if (beakSqliteFileOf(url) != null && !beakSqliteFileExists(url, root)) {
       // Opening a SQLite file creates it, so looking would leave an empty
       // database behind and then report that it lacks nothing.

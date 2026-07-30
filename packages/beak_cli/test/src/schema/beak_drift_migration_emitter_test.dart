@@ -313,10 +313,13 @@ void main() {
       );
 
       expect(BeakDriftMigrationEmitter.addable(drift), isEmpty);
-      expect(
-        BeakDriftMigrationEmitter.unaddable(drift).values.single,
-        contains('backfill'),
-      );
+      final String why = BeakDriftMigrationEmitter.unaddable(
+        drift,
+      ).values.single;
+      expect(why, contains('backfill'));
+      // The remedy must break the loop: a nullable column still carrying
+      // `unique: true` would be refused again.
+      expect(why, contains('without `unique: true`'));
     });
 
     test('nothing addable means no migration at all', () {

@@ -66,10 +66,12 @@ Local dev ports are remapped so they don't collide with default installs
 Every change must keep all four green, run from the repo root:
 
 ```bash
-melos run analyze        # 0 issues (incl. the no-Material import guard)
-melos run format-check   # dart format --set-exit-if-changed — clean
+melos run analyze        # 0 issues, plus the four guards
+melos run format-check   # dart format --set-exit-if-changed, clean
 melos run test           # all package tests, no skips
 melos run coverage       # per-package line-coverage thresholds
+melos run test-e2e       # the service-backed suites (needs `melos run up`)
+melos run test-worm      # the vendored worm packages, which melos ignores
 ```
 
 > **Coverage gotcha:** `melos run coverage` reads existing `lcov.info` files and
@@ -82,7 +84,7 @@ melos run coverage       # per-package line-coverage thresholds
 
 Integration/E2E tests that need Postgres or MinIO are health-check-guarded: they
 skip cleanly when the services aren't up, so `melos run test` passes without
-Docker — but run `melos run up` before relying on them.
+Docker. Run `melos run up` before relying on them.
 
 ## Code guardrails
 

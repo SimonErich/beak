@@ -69,6 +69,18 @@ Future<List<IntrospectedTable>> beakReadLiveSchema(
   Uri url, {
   String schema = 'public',
 }) async {
+  if (beakIsSqliteUrl(url) && beakSqliteFileOf(url) == null) {
+    // Without this, an in-memory URL fell through to the Postgres branch
+    // below and surfaced as a socket error on port 0. Callers gate on
+    // [beakCanReadSchema]; throwing here keeps a caller that forgot from
+    // producing that riddle.
+    throw ArgumentError.value(
+      '$url',
+      'url',
+      'an in-memory SQLite database belongs to the process that opened it, '
+          'so there is no schema on disk to read',
+    );
+  }
   if (beakSqliteFileOf(url) case final String file) {
     final adapter = SqliteAdapter.open(file);
     await adapter.connect();
@@ -94,12 +106,12 @@ Future<List<IntrospectedTable>> beakReadLiveSchema(
 /// Before the first `beak migrate` there is no file, and no schema to be out
 /// of step with.
 bool beakSqliteFileExists(Uri url, Directory root) {
-  final String? file = beakSqliteFileOf(url);
-  if (file == null) {
-    return false;
-  }
-  final String path = beakIsAbsolutePath(file) ? file : '${root.path}/$file';
-  return File(path).existsSync();
+  // Through the same resolution the reader uses, so the two cannot disagree
+  // about which file they mean. They used to: this joined strings while the
+  // reader round-tripped through a Uri, and a project directory containing a
+  // percent-escape passed the existence check here and failed to open there.
+  final String? file = beakSqliteFileOf(beakResolvedDatabaseUrl(url, root));
+  return file != null && File(file).existsSync();
 }
 
 /// The database a project uses when it names none.
@@ -133,8 +145,12 @@ Uri beakResolvedDatabaseUrl(Uri url, Directory root) {
   if (file == null || beakIsAbsolutePath(file)) {
     return url;
   }
-  // Built rather than parsed: `Uri.parse` would percent-encode a project
-  // path containing a space, and the reader hands this straight to the
-  // filesystem.
-  return Uri(scheme: 'sqlite', path: '${root.path}/$file');
+  // The filesystem path has to survive the trip through a Uri unchanged.
+  // `Uri(path:)` percent-encodes what it must (a space becomes %20) but
+  // passes an existing %XX through as an already-valid escape, so a
+  // directory literally named `feature%2Ffoo` would decode into a different
+  // path on the way out. Escaping the one ambiguous character first makes
+  // [Uri.decodeFull] the exact inverse.
+  final String escaped = '${root.path}/$file'.replaceAll('%', '%25');
+  return Uri(scheme: 'sqlite', path: escaped);
 }

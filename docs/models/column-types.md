@@ -93,7 +93,9 @@ amount: `€19.99`, or `1.50 kg`.
 `precision` is the stored scale as well as the displayed one, so the generated
 migration creates `NUMERIC(totalDigits, precision)`. A column that shows four
 decimals holds four; set `totalDigits` when the default of ten digits overall
-is not enough room ahead of the point.
+is not enough room ahead of the point. `precision` may not exceed
+`totalDigits`: the constructor asserts it, because the database would reject
+the DDL anyway and an assert names the field.
 
 ```dart title="examples/store/lib/models/product.dart"
 /// Sale price in euros.

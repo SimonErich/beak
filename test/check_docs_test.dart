@@ -687,9 +687,15 @@ void main() {
       }
     });
 
-    test('deploy/ and PLAN/ are checked', () {
+    test('deploy/ is checked', () {
       expect(problemsForTitle('deploy/Dockerfile.server'), isNotEmpty);
-      expect(problemsForTitle('PLAN/PHASES.md'), isNotEmpty);
+    });
+
+    test('a git-ignored directory is left alone', () {
+      // PLAN/ exists only in a working tree: it is git-ignored, so a fresh
+      // clone and CI have no such directory. Checking it made `melos run
+      // analyze` pass locally and fail on every checkout that mattered.
+      expect(problemsForTitle('PLAN/PHASES.md'), isEmpty);
     });
 
     test('a path in the reader\'s own project is left alone', () {

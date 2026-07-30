@@ -289,12 +289,23 @@ abstract final class BeakIntrospectionEmitter {
   /// Emitting the default would put `precision: 2, totalDigits: 10` on every
   /// money column in a generated schema, which reads as a decision rather
   /// than as the absence of one.
+  ///
+  /// Only a fixed-point type carries one at all. A float reports a width too
+  /// (`double precision` says 53), but that is bits of mantissa: writing it
+  /// out would convert the column to `NUMERIC(53, 2)` on the next migration.
+  /// And Postgres 15 accepts declarations Beak's own column cannot, a
+  /// negative scale or a scale above the precision, so those are skipped
+  /// rather than emitted into a class that fails its constructor assert.
   static List<String> _numericWidthOf(IntrospectedColumn column) {
-    if (_dartTypeOf(column) != 'double') {
+    if (!const {'numeric', 'decimal'}.contains(column.dataType)) {
       return const [];
     }
     final int? scale = column.numericScale;
     final int? precision = column.numericPrecision;
+    if (scale != null &&
+        (scale < 0 || (precision != null && scale > precision))) {
+      return const [];
+    }
     return [
       if (scale != null && scale != 2) 'precision: $scale',
       if (precision != null && precision != 10) 'totalDigits: $precision',

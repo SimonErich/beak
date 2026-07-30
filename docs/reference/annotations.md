@@ -58,7 +58,7 @@ this carries what the type cannot express.
 | `rules` | Validation rules, enforced in the form *and* the API |
 | `prefix` / `suffix` | Unit or currency carried into the rendering |
 | `precision` | Decimal places, for a `double`. Displayed *and* stored: it is the SQL scale |
-| `totalDigits` | Total stored digits for a `double`, fraction digits included (default `10`) |
+| `totalDigits` | Total stored digits for a `double`, fraction digits included (default `10`). Must be at least `precision`, asserted at construction |
 | `min` / `max` | Bounds the form's stepper, for an `int` |
 | `maxLength` | Longest accepted text, for a `String` |
 | `format` | `BeakDateFormat.relative` renders "3 days ago" |

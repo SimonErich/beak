@@ -89,7 +89,7 @@ The worm ORM (with the `worm_postgres` and `worm_sqlite` drivers) appears in exa
 `beak` re-exports worm through `package:beak/migrations.dart`, because migrations and seeders are worm's own `Migration` and `Seeder` and there is no value in wrapping them. That export sits on the server side of the wall, not the panel side.
 
 !!! note "beak_cli names worm too"
-    The scaffolding CLI depends on `worm_postgres` for one command: `beak introspect`, which reads a live Postgres schema and writes schema classes from it. That is a build-time tool talking to a database, not the framework's data path, and nothing it generates depends on worm.
+    The scaffolding CLI depends on `worm_postgres` and `worm_sqlite` for the commands that read a live schema: `beak introspect`, which writes schema classes from it, and `beak doctor`'s drift check. That is a build-time tool talking to a database, not the framework's data path, and nothing it generates depends on worm.
 
 ### Only beak_frontend imports obers_ui
 
