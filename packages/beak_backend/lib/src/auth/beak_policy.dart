@@ -79,7 +79,7 @@ abstract interface class BeakPolicy {
 ///
 /// Implement this instead of [BeakPolicy] and every read and write of the
 /// table is intersected with [scopeFor] — query, aggregate, get-one, update,
-/// delete, export and global search alike, so there is no endpoint left to
+/// delete, graph commits and export alike, so there is no endpoint left to
 /// forget.
 ///
 /// ```dart

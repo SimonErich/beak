@@ -8,9 +8,8 @@ import '../common/uuid_v4.dart';
 ///
 /// Handlers stay parse-thin; this service throws typed exceptions only
 /// (not-found for unknown columns/keys, validation for rule violations and
-/// non-file columns). [BeakServer] builds one for you when `storage` is
-/// configured; construct it directly only to compose the upload routes by
-/// hand.
+/// non-file columns). Internal to `beak_backend`: `beakApiRouter` builds one
+/// when a storage driver is configured, and the upload routes call it.
 ///
 /// ```dart
 /// final service = UploadService(
@@ -27,7 +26,7 @@ import '../common/uuid_v4.dart';
 ///     bytes: pngBytes,
 ///   ),
 /// );
-/// print(stored.url); // the public URL of the stored file
+/// final Uri url = stored.url; // the public URL of the stored file
 /// ```
 final class UploadService {
   /// Creates an upload service over [registry], [storage], and

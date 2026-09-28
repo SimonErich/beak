@@ -154,4 +154,296 @@ void main() {
     expect(await worker.drain(), 1);
     expect(seen, ['order:1:email']);
   });
+
+  Future<void> insertCorruptRow() => adapter.insert(
+    const InsertDescriptor(
+      table: BeakOutboxMigration.table,
+      values: {
+        'id': 'broken',
+        'kind': 'email',
+        'payload': '{}',
+        'status': 'pending',
+        'attempt': 0,
+        'available_at': 0,
+        'lease': null,
+        'last_error': '',
+      },
+    ),
+  );
+
+  Future<Map<String, Object?>?> stored(String id) => adapter.selectOne(
+    QueryDescriptor(
+      table: BeakOutboxMigration.table,
+      where: const StringField('id').eq(id),
+    ),
+  );
+
+  group('malformed rows', () {
+    test('a malformed row is set aside and reported, never claimed', () async {
+      // Only BeakOutbox.enqueue writes this table, so a row without a lease
+      // is corruption. Claiming it blindly could double-deliver; letting it
+      // abort the drain would starve every effect queued behind it.
+      await insertCorruptRow();
+      await enqueue();
+      final delivered = <String>[];
+      final worker = BeakOutboxWorker(
+        adapter: adapter,
+        now: () => now,
+        handlers: {'email': (effect) async => delivered.add(effect.key)},
+      );
+
+      await expectLater(
+        worker.drain(),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            contains('"broken"'),
+          ),
+        ),
+      );
+      expect(delivered, ['order:1:email']);
+      final broken = await stored('broken');
+      expect(broken?['status'], 'failed');
+      expect(broken?['last_error'], 'malformedRow');
+      expect(broken?['lease'], isNull, reason: 'the row was never claimed');
+      expect(
+        await worker.drain(),
+        0,
+        reason: 'a set-aside row is reported once, not on every drain',
+      );
+    });
+
+    test('a row without a usable id is skipped on every drain', () async {
+      // Nothing can address it, so it cannot be set aside; it is reported
+      // each time, and still blocks nothing.
+      await adapter.insert(
+        const InsertDescriptor(
+          table: BeakOutboxMigration.table,
+          values: {
+            'id': 42,
+            'kind': 'email',
+            'payload': '{}',
+            'status': 'pending',
+            'attempt': 0,
+            'available_at': 0,
+            'lease': '',
+            'last_error': '',
+          },
+        ),
+      );
+      await enqueue();
+      final delivered = <String>[];
+      final worker = BeakOutboxWorker(
+        adapter: adapter,
+        now: () => now,
+        handlers: {'email': (effect) async => delivered.add(effect.key)},
+      );
+      final reportsTheRow = throwsA(
+        isA<BeakConfigurationException>().having(
+          (e) => e.message,
+          'message',
+          contains('"42"'),
+        ),
+      );
+
+      await expectLater(worker.drain(), reportsTheRow);
+      await expectLater(worker.drain(), reportsTheRow);
+      expect(delivered, ['order:1:email']);
+    });
+
+    test(
+      'an effect nobody handles is retried like a failed delivery',
+      () async {
+        await enqueue(key: 'unhandled');
+        final worker = BeakOutboxWorker(
+          adapter: adapter,
+          now: () => now,
+          handlers: const {},
+          maxAttempts: 1,
+        );
+
+        expect(await worker.drain(), 0);
+        final unhandled = await stored('unhandled');
+        expect(unhandled?['status'], 'failed');
+        expect(unhandled?['last_error'], 'configuration');
+      },
+    );
+
+    test('an undecodable payload fails that effect, not the queue', () async {
+      await adapter.insert(
+        const InsertDescriptor(
+          table: BeakOutboxMigration.table,
+          values: {
+            'id': 'bad-payload',
+            'kind': 'email',
+            'payload': '[1, 2]',
+            'status': 'pending',
+            'attempt': 0,
+            'available_at': 0,
+            'lease': '',
+            'last_error': '',
+          },
+        ),
+      );
+      await enqueue();
+      final delivered = <String>[];
+      final worker = BeakOutboxWorker(
+        adapter: adapter,
+        now: () => now,
+        handlers: {'email': (effect) async => delivered.add(effect.key)},
+      );
+
+      expect(await worker.drain(), 1);
+      expect(delivered, ['order:1:email']);
+      final broken = await adapter.selectOne(
+        QueryDescriptor(
+          table: BeakOutboxMigration.table,
+          where: const StringField('id').eq('bad-payload'),
+        ),
+      );
+      expect(broken?['status'], 'pending');
+      expect(broken?['last_error'], 'configuration');
+    });
+  });
+
+  group('BeakOutboxSchedule', () {
+    Future<void> until(bool Function() condition) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!condition()) {
+        if (DateTime.now().isAfter(deadline)) {
+          fail('condition not met within 5 seconds');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    test('drains on its interval until stopped', () async {
+      final delivered = <String>[];
+      final loop = BeakOutboxSchedule(
+        interval: const Duration(milliseconds: 10),
+        handlers: {'email': (effect) async => delivered.add(effect.key)},
+      ).start(adapter, onError: (error, stackTrace) => fail('$error'));
+      addTearDown(loop.stop);
+      expect(loop.isRunning, isTrue);
+
+      await enqueue(key: 'first');
+      await until(() => delivered.contains('first'));
+      await loop.stop();
+      expect(loop.isRunning, isFalse);
+      await enqueue(key: 'after-stop');
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(delivered, ['first'], reason: 'a stopped loop drains nothing');
+    });
+
+    test('stop waits for the drain in flight', () async {
+      final release = Completer<void>();
+      final started = Completer<void>();
+      var finished = false;
+      final loop = BeakOutboxSchedule(
+        interval: const Duration(milliseconds: 5),
+        handlers: {
+          'email': (effect) async {
+            started.complete();
+            await release.future;
+            finished = true;
+          },
+        },
+      ).start(adapter, onError: (error, stackTrace) => fail('$error'));
+      await enqueue();
+      await started.future;
+
+      final stopping = loop.stop();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(finished, isFalse);
+      release.complete();
+      await stopping;
+
+      expect(finished, isTrue, reason: 'nothing is left half-delivered');
+    });
+
+    test('reports a failing drain and keeps its schedule', () async {
+      await insertCorruptRow();
+      final errors = <Object>[];
+      final delivered = <String>[];
+      final loop = BeakOutboxSchedule(
+        interval: const Duration(milliseconds: 5),
+        handlers: {'email': (effect) async => delivered.add(effect.key)},
+      ).start(adapter, onError: (error, stackTrace) => errors.add(error));
+      addTearDown(loop.stop);
+
+      await until(() => errors.isNotEmpty);
+      await enqueue(key: 'after-the-failure');
+      await until(() => delivered.contains('after-the-failure'));
+
+      expect(errors, [isA<BeakConfigurationException>()]);
+      expect(loop.isRunning, isTrue);
+    });
+
+    test('its worker carries the configured retry policy and clock', () async {
+      await enqueue();
+      var calls = 0;
+      final worker = BeakOutboxSchedule(
+        maxAttempts: 1,
+        retryDelay: Duration.zero,
+        leaseDuration: const Duration(seconds: 1),
+        handlers: {
+          'email': (_) async {
+            calls++;
+            throw StateError('down');
+          },
+        },
+      ).worker(adapter, now: () => now);
+
+      expect(await worker.drain(), 0);
+      expect(await worker.drain(), 0);
+      expect(calls, 1, reason: 'maxAttempts reached the worker');
+      expect(worker.leaseDuration, const Duration(seconds: 1));
+      expect(worker.retryDelay, Duration.zero);
+    });
+
+    test('validate accepts a schedule the loop can run', () {
+      expect(const BeakOutboxSchedule(handlers: {}).validate, returnsNormally);
+    });
+
+    test('validate rejects what start would refuse, without an adapter', () {
+      for (final schedule in [
+        const BeakOutboxSchedule(interval: Duration.zero, handlers: {}),
+        const BeakOutboxSchedule(drainLimit: 0, handlers: {}),
+        const BeakOutboxSchedule(drainLimit: 1001, handlers: {}),
+        const BeakOutboxSchedule(maxAttempts: 0, handlers: {}),
+        const BeakOutboxSchedule(leaseDuration: Duration.zero, handlers: {}),
+        const BeakOutboxSchedule(
+          retryDelay: Duration(seconds: -1),
+          handlers: {},
+        ),
+      ]) {
+        expect(schedule.validate, throwsA(isA<BeakConfigurationException>()));
+      }
+    });
+
+    test('rejects an interval that would never tick', () {
+      expect(
+        () => const BeakOutboxSchedule(
+          interval: Duration.zero,
+          handlers: {},
+        ).start(adapter, onError: (error, stackTrace) {}),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('rejects a drain limit the worker would refuse', () {
+      for (final drainLimit in [0, 1001]) {
+        expect(
+          () => BeakOutboxSchedule(
+            drainLimit: drainLimit,
+            handlers: const {},
+          ).start(adapter, onError: (error, stackTrace) {}),
+          throwsA(isA<BeakConfigurationException>()),
+          reason: '$drainLimit',
+        );
+      }
+    });
+  });
 }

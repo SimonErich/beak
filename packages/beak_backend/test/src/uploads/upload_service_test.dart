@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/uploads/upload_service.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_image/beak_image.dart';
 import 'package:test/test.dart';

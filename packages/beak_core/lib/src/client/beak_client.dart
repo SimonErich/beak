@@ -14,7 +14,6 @@ import '../query/beak_summary_spec.dart';
 import '../query/beak_page.dart';
 import '../query/beak_query_spec.dart';
 import '../query/beak_record.dart';
-import '../search/beak_search_hit.dart';
 import '../storage/beak_stored_file.dart';
 import 'beak_session.dart';
 import '../storage/beak_upload.dart';
@@ -348,32 +347,6 @@ final class BeakClient {
       if (raw) 'raw': true,
     });
     return response.body;
-  }
-
-  /// Searches every searchable model via `GET /api/search`, flattening the
-  /// grouped response in table order.
-  Future<List<BeakSearchHit>> search(String term) async {
-    final response = await _http.get(
-      _uri('/api/search', {'q': term}),
-      headers: _headers(),
-    );
-    _ensureSuccess(response);
-    final results = switch (_decodeObject(response.body)['results']) {
-      final Map<String, Object?> grouped => grouped,
-      final Object? other => throw BeakConfigurationException(
-        'Search response must carry a "results" object, got $other.',
-      ),
-    };
-    return [
-      for (final hits in results.values)
-        for (final hit in switch (hits) {
-          final List<Object?> list => list,
-          final Object? other => throw BeakConfigurationException(
-            'Search results must be lists of hits, got $other.',
-          ),
-        })
-          BeakSearchHit.fromJson(_asObject(hit)),
-    ];
   }
 
   /// Releases the underlying HTTP client.

@@ -399,34 +399,6 @@ void main() {
       },
     );
 
-    test('search flattens grouped hits in order', () async {
-      final hits = await client({
-        'results': {
-          'notes': [
-            const BeakSearchHit(
-              table: 'notes',
-              id: 'n1',
-              displayLabel: 'One',
-              matchedColumnKey: 'title',
-            ).toJson(),
-          ],
-          'labels': [
-            const BeakSearchHit(
-              table: 'labels',
-              id: 'l1',
-              displayLabel: 'hot',
-              matchedColumnKey: 'name',
-            ).toJson(),
-          ],
-        },
-      }).search('o');
-      expect(requests.single.url.path, '/api/search');
-      expect(requests.single.url.queryParameters, {'q': 'o'});
-      expect(hits, hasLength(2));
-      expect(hits.first.table, 'notes');
-      expect(hits.last.table, 'labels');
-    });
-
     test('a token provider attaches the Bearer header everywhere', () async {
       await client(
         recordJson({'id': 'n1'}),
@@ -536,26 +508,6 @@ void main() {
         () => client(const {
           'value': 'seven',
         }).aggregate('notes', const BeakAggregateSpec.count(table: 'notes')),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-    });
-
-    test('a search response without a results object is rejected', () {
-      expect(
-        () => client(const {'results': 3}).search('x'),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-      expect(
-        () => client(const <String, Object?>{}).search('x'),
-        throwsA(isA<BeakConfigurationException>()),
-      );
-    });
-
-    test('search groups that are not lists are rejected', () {
-      expect(
-        () => client(const {
-          'results': {'notes': 'nope'},
-        }).search('x'),
         throwsA(isA<BeakConfigurationException>()),
       );
     });

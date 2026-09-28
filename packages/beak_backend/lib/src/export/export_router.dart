@@ -58,20 +58,21 @@ final class BeakExportHandlers {
     final formats = <String, BeakExportFormat>{};
     try {
       if (body['formats'] case final Object value) {
-        if (value is! Map<String, Object?>) {
-          throw const FormatException(
+        final Map<String, Object?> fields = switch (value) {
+          final Map<String, Object?> map => map,
+          _ => throw const FormatException(
             'Export field formats must be an object.',
-          );
-        }
-        for (final entry in value.entries) {
-          if (entry.value is! Map<String, Object?>) {
-            throw const FormatException(
+          ),
+        };
+        for (final MapEntry(:key, :value) in fields.entries) {
+          formats[key] = switch (value) {
+            final Map<String, Object?> format => BeakExportFormat.fromJson(
+              format,
+            ),
+            _ => throw const FormatException(
               'Export field format must be an object.',
-            );
-          }
-          formats[entry.key] = BeakExportFormat.fromJson(
-            entry.value! as Map<String, Object?>,
-          );
+            ),
+          };
         }
       }
       formatting = switch (body['formatting']) {

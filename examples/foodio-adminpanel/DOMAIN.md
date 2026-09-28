@@ -1,6 +1,6 @@
 # Gabel demo domain
 
-The Foodio folder preserves the prototype’s **Gabel** brand. This is a persistent SQLite demo: payment and message providers store their results locally and make no outbound provider calls. `bin/serve.dart` drains the durable outbox once per second.
+The Foodio folder preserves the prototype’s **Gabel** brand. This is a persistent SQLite demo: payment and message providers store their results locally and make no outbound provider calls. The server host drains the durable outbox once per second: `lib/server.dart` passes the effect schedule to `defaults.build(outbox: ...)`.
 
 ## Reproduce the fixture
 

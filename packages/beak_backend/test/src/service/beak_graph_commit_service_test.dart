@@ -32,6 +32,21 @@ final class _HiddenCommentScope extends BeakAllowAllPolicy
       };
 }
 
+/// Admits only the notes titled "Mine".
+final class _MineOnly extends BeakAllowAllPolicy implements BeakRowPolicy {
+  const _MineOnly();
+
+  @override
+  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
+      table == 'notes'
+      ? const BeakFieldFilter.forKey(
+          'title',
+          BeakOperator.eq,
+          BeakStringValue('Mine'),
+        )
+      : null;
+}
+
 final class _OwnedNote extends BeakModel {
   const _OwnedNote();
   @override
@@ -405,6 +420,126 @@ void main() {
       );
       expect(result.complete, isFalse);
       expect(await source.getOne('comments', child.id!), isNotNull);
+    },
+  );
+
+  test('a detach checks that the child belongs to the owner', () async {
+    for (final (note, comment) in [
+      ('mine', 'c-mine'),
+      ('theirs', 'c-theirs'),
+    ]) {
+      await source.create(
+        'notes',
+        BeakRecord.fromRow({
+          'id': note,
+          'title': note == 'mine' ? 'Mine' : 'Theirs',
+        }),
+      );
+      await source.create(
+        'comments',
+        BeakRecord.fromRow({'id': comment, 'note_id': note, 'message': 'Hi'}),
+      );
+    }
+    final scoped = BeakGraphCommitService(
+      registry: createApiRegistry(),
+      source: source,
+      policy: const _MineOnly(),
+    );
+    const mine = BeakRecordRef.existing('notes', 'mine');
+    Future<BeakSaveResult> detach(String comment) => scoped.commit(
+      BeakSavePlan(
+        saveId: 'detach-$comment',
+        root: mine,
+        operations: [
+          BeakSaveOperation(
+            id: 'unlink',
+            kind: BeakSaveOperationKind.detach,
+            target: mine,
+            related: BeakRecordRef.existing('comments', comment),
+            relationKey: 'comments',
+          ),
+        ],
+      ),
+    );
+
+    expect((await detach('c-mine')).complete, isTrue);
+    expect((await detach('c-theirs')).complete, isFalse);
+    expect(
+      (await source.getOne('comments', 'c-theirs'))?['note_id']?.raw,
+      'theirs',
+      reason: 'a comment of another note is not this owner\'s to detach',
+    );
+  });
+
+  test(
+    'the membership query of a scoped detach carries the row scope',
+    () async {
+      // Every caller has already read the owner through the scope, so no
+      // outcome tells a scoped membership query from an unscoped one; the
+      // query itself does. The scope value 'Mine' differs from the id 'mine'.
+      final logger = InMemoryQueryLogger();
+      final logged = WormDataSource(
+        createApiRegistry(),
+        adapter: LoggingAdapter(
+          inner: adapter,
+          logger: logger,
+          strictness: const StrictnessConfig(),
+          adapterName: 'InMemory',
+        ),
+      );
+      await logged.create(
+        'notes',
+        BeakRecord.fromRow({'id': 'mine', 'title': 'Mine'}),
+      );
+      await logged.create(
+        'comments',
+        BeakRecord.fromRow({
+          'id': 'c-mine',
+          'note_id': 'mine',
+          'message': 'Hi',
+        }),
+      );
+      final seeded = logger.entries.length;
+      const mine = BeakRecordRef.existing('notes', 'mine');
+
+      final result =
+          await BeakGraphCommitService(
+            registry: createApiRegistry(),
+            source: logged,
+            policy: const _MineOnly(),
+          ).commit(
+            BeakSavePlan(
+              saveId: 'detach-logged',
+              root: mine,
+              operations: [
+                BeakSaveOperation(
+                  id: 'unlink',
+                  kind: BeakSaveOperationKind.detach,
+                  target: mine,
+                  related: const BeakRecordRef.existing('comments', 'c-mine'),
+                  relationKey: 'comments',
+                ),
+              ],
+            ),
+          );
+
+      expect(result.complete, isTrue);
+      // Single-row reads (`LIMIT 1`) are the scoped owner read and the
+      // re-read that validates the final state; the one page query on the
+      // owner table, loading the relation, is the membership check.
+      final membership = [
+        for (final entry in logger.entries.skip(seeded))
+          if (entry.table == 'notes' &&
+              entry.statement.startsWith('SELECT') &&
+              !entry.statement.endsWith('LIMIT 1'))
+            entry,
+      ];
+      expect(membership, hasLength(1));
+      expect(
+        membership.single.parameters,
+        contains('Mine'),
+        reason: membership.single.statement,
+      );
     },
   );
 

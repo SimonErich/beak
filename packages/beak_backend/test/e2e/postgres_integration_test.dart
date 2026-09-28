@@ -48,7 +48,7 @@ void main() {
     return true;
   }
 
-  group('initializeWormPostgres', () {
+  group('initializeBeakDatabase', () {
     tearDown(() async {
       await Worm.reset();
     });
@@ -62,7 +62,7 @@ void main() {
         final config = BeakBackendConfig.fromEnv(
           environment: {'DATABASE_URL': databaseUrl.toString()},
         );
-        await initializeWormPostgres(config);
+        await initializeBeakDatabase(config);
 
         final rows = await Worm.adapter().rawQuery(
           'SELECT 1 AS probe',

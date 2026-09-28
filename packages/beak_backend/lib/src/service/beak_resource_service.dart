@@ -8,29 +8,20 @@ import 'validation_service.dart';
 /// source: validation, create-time defaults (minted uuid ids, timestamps),
 /// and relation-kind gating — handlers stay parse-and-route thin.
 ///
-/// [beakApiRouter] builds one service per registered model; construct one
-/// directly only to drive a resource without the HTTP surface.
-///
-/// ```dart
-/// final service = BeakResourceService(productModel, dataSource);
-///
-/// // Omitting the string primary key lets the service mint a uuid, and it
-/// // stamps created_at/updated_at when the model declares them.
-/// final created = await service.create(
-///   BeakRecord(values: {'name': BeakValue.of('Keyboard')}),
-/// );
-/// ```
+/// Internal to `beak_backend`: `beakApiRouter` builds one per registered
+/// model, and the graph commit service one per table a commit writes, so both
+/// write paths share one set of defaults. Omitting a string primary key lets
+/// the service mint a uuid, and it stamps `created_at`/`updated_at` when the
+/// model declares them.
 final class BeakResourceService {
   /// Creates the service for [model] over [dataSource].
   ///
-  /// [validation] is the boundary run before every write. [now] and
-  /// [generateId] inject the clock and id mint so tests can pin the stamped
-  /// timestamps and minted primary keys; both default to real
+  /// [now] and [generateId] inject the clock and id mint so tests can pin the
+  /// stamped timestamps and minted primary keys; both default to real
   /// implementations ([DateTime.now] and a v4 uuid generator).
   BeakResourceService(
     this.model,
     this.dataSource, {
-    this.validation = const ValidationService(),
     this.deferRecordRules = false,
     this.registry,
     DateTime Function()? now,
@@ -44,9 +35,6 @@ final class BeakResourceService {
   /// The source the service reads and writes through.
   final BeakDataSource dataSource;
 
-  /// The validation boundary run before every write.
-  final ValidationService validation;
-
   /// Graph operations defer cross-record checks until all rows exist atomically.
   final bool deferRecordRules;
 
@@ -55,6 +43,9 @@ final class BeakResourceService {
 
   final DateTime Function() _now;
   final String Function() _generateId;
+
+  /// The validation boundary run before every write.
+  static const ValidationService _validation = ValidationService();
 
   /// The column key the service stamps on create.
   static const String createdAtColumnKey = 'created_at';
@@ -80,7 +71,7 @@ final class BeakResourceService {
       // Root scope still gates identity; related read filters must not conceal
       // siblings from count, distinct or aggregate constraints.
       final page = await dataSource.query(
-        scopedQuery(
+        _scopedQuery(
           model.query(
             filter: BeakFieldFilter(
               column: model.primaryKey,
@@ -103,7 +94,7 @@ final class BeakResourceService {
     } else if (recordId != null && !deferRecordRules) {
       initial = await getOne(recordId, scope: scope);
     }
-    validation.validate(
+    _validation.validate(
       model,
       input,
       isCreate: recordId == null && !asynchronousOnly,
@@ -130,59 +121,48 @@ final class BeakResourceService {
     }
   }
 
-  /// Runs [spec] against the data source, narrowed by [scope].
+  /// Runs [spec] against the data source.
   ///
-  /// [scope] comes from a [BeakRowPolicy] and is intersected with whatever
-  /// filter the client sent — never replaced by it, and never optional at the
-  /// endpoint's discretion. That is the whole point: the filter in the spec
-  /// is attacker-controlled.
-  ///
-  /// Throws a [BeakValidationException] when the spec targets another table
-  /// than this service's model.
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec, {BeakFilter? scope}) {
+  /// The handler authorizes [spec] first — a row policy's scope is folded
+  /// into its filter by `BeakQueryAuthorizer` — so this only checks the
+  /// target. Throws a [BeakValidationException] when the spec targets another
+  /// table than this service's model.
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) {
     _requireSpecTargets(spec.table, 'Query');
-    return dataSource.query(scopedQuery(spec, scope));
+    return dataSource.query(spec);
   }
 
-  /// Computes [spec]'s aggregate against the data source, narrowed by
-  /// [scope] — so a count cannot report rows a query would not return.
+  /// Computes [spec]'s aggregate against the data source, authorized like
+  /// [query].
   ///
   /// Throws a [BeakValidationException] when the spec targets another table
   /// than this service's model.
-  Future<num> aggregate(BeakAggregateSpec spec, {BeakFilter? scope}) {
+  Future<num> aggregate(BeakAggregateSpec spec) {
     _requireSpecTargets(spec.table, 'Aggregate');
-    return dataSource.aggregate(
-      scope == null
-          ? spec
-          : BeakAggregateSpec.forKey(
-              table: spec.table,
-              function: spec.function,
-              columnKey: spec.columnKey,
-              filter: intersect(spec.filter, scope),
-              withTrashed: spec.withTrashed,
-            ),
-    );
+    return dataSource.aggregate(spec);
   }
 
   /// Executes a full-population summary through an explicit source capability.
+  ///
+  /// Throws a [BeakConfigurationException] when the data source cannot
+  /// summarise.
   Future<BeakSummaryResult> summary(BeakSummarySpec spec) {
     _requireSpecTargets(spec.table, 'Summary');
-    final source = dataSource;
-    if (source is! BeakSummaryDataSource) {
-      throw const BeakConfigurationException(
+    return switch (dataSource) {
+      final BeakSummaryDataSource summaries => summaries.summary(spec),
+      _ => throw const BeakConfigurationException(
         'This data source does not support summaries.',
-      );
-    }
-    return (source as BeakSummaryDataSource).summary(spec);
+      ),
+    };
   }
 
   /// [spec] narrowed by [scope], or [spec] unchanged when there is none.
-  static BeakQuerySpec scopedQuery(BeakQuerySpec spec, BeakFilter? scope) =>
+  static BeakQuerySpec _scopedQuery(BeakQuerySpec spec, BeakFilter? scope) =>
       scope == null
       ? spec
       : BeakQuerySpec(
           table: spec.table,
-          filter: intersect(spec.filter, scope),
+          filter: _intersect(spec.filter, scope),
           sorts: spec.sorts,
           search: spec.search,
           relationLoads: spec.relationLoads,
@@ -194,16 +174,15 @@ final class BeakResourceService {
   ///
   /// Nesting two ANDs would still be correct, but flattening keeps the SQL —
   /// and anything reading a logged spec — legible.
-  static BeakFilter? intersect(BeakFilter? left, BeakFilter? right) => switch ((
-    left,
-    right,
-  )) {
-    (null, final BeakFilter? only) || (final BeakFilter? only, null) => only,
-    (final BeakFilter a, final BeakFilter b) => BeakAndFilter([
-      if (a case final BeakAndFilter and) ...and.filters else a,
-      if (b case final BeakAndFilter and) ...and.filters else b,
-    ]),
-  };
+  static BeakFilter? _intersect(BeakFilter? left, BeakFilter? right) =>
+      switch ((left, right)) {
+        (null, final BeakFilter? only) ||
+        (final BeakFilter? only, null) => only,
+        (final BeakFilter a, final BeakFilter b) => BeakAndFilter([
+          if (a case final BeakAndFilter and) ...and.filters else a,
+          if (b case final BeakAndFilter and) ...and.filters else b,
+        ]),
+      };
 
   /// Rejects specs aimed at another table than this service's model — the
   /// one wording every spec-accepting endpoint shares.
@@ -237,7 +216,7 @@ final class BeakResourceService {
     final page = await dataSource.query(
       BeakQuerySpec(
         table: model.table,
-        filter: intersect(
+        filter: _intersect(
           BeakFieldFilter.forKey(
             model.primaryKey.key,
             BeakOperator.eq,
@@ -384,7 +363,7 @@ final class BeakResourceService {
     final page = await dataSource.query(
       BeakQuerySpec(
         table: model.table,
-        filter: intersect(
+        filter: _intersect(
           BeakFieldFilter.forKey(
             model.primaryKey.key,
             BeakOperator.eq,
@@ -415,7 +394,7 @@ final class BeakResourceService {
     final page = await dataSource.query(
       BeakQuerySpec(
         table: model.table,
-        filter: intersect(
+        filter: _intersect(
           BeakFieldFilter.forKey(
             model.primaryKey.key,
             BeakOperator.inList,

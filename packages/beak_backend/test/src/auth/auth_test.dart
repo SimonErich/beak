@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 

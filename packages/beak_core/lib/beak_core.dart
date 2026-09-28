@@ -51,7 +51,6 @@ export 'src/validation/beak_validation.dart';
 export 'src/validation/beak_record_rule.dart';
 export 'src/validation/beak_validation_data_source.dart';
 export 'src/validation/beak_async_validation.dart';
-export 'src/search/beak_search_hit.dart';
 export 'src/storage/beak_storage_config.dart';
 export 'src/storage/beak_storage_driver.dart';
 export 'src/storage/beak_storage_key.dart';
@@ -70,4 +69,4 @@ export 'src/storage/transforms/beak_transform_runner.dart';
 export 'src/data/beak_export_data_source.dart';
 
 /// The version of the `beak_core` package.
-const String beakCoreVersion = '0.0.1';
+const String beakCoreVersion = '0.9.0';

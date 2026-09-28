@@ -15,15 +15,8 @@ import '../service/beak_resource_service.dart';
 /// service, and encode typed results — all logic and validation lives
 /// below, all error mapping above.
 ///
-/// [beakResourceRouter] constructs and mounts these onto the model's routes;
-/// wire them by hand only for a bespoke router.
-///
-/// ```dart
-/// final handlers = BeakCrudHandlers(service, policy: policy);
-/// final router = Router()
-///   ..post('/query', handlers.query)
-///   ..get('/<id>', handlers.getOne);
-/// ```
+/// Internal to `beak_backend`: `beakApiRouter` builds one set per registered
+/// model and mounts it under `/api/{table}`.
 final class BeakCrudHandlers {
   /// Creates handlers delegating to [service], gated by [policy].
   const BeakCrudHandlers(

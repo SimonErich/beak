@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 
 Request _get(String path, {Map<String, String> headers = const {}}) =>
@@ -134,6 +133,42 @@ void main() {
         expect(handlerCalls, 0);
       },
     );
+
+    test('a preflight admits every header the Beak client sends', () async {
+      // A browser refuses the real request when a header it carries is not
+      // listed here. `if-unmodified-since` is the optimistic-lock header an
+      // edit sends, so leaving it out breaks every save from another origin.
+      final handler = const Pipeline()
+          .addMiddleware(beakCorsMiddleware())
+          .addHandler((request) => Response.ok('ok'));
+
+      final response = await handler(
+        Request(
+          'OPTIONS',
+          Uri.parse('http://localhost/api/notes/n1'),
+          headers: const {
+            'access-control-request-method': 'PUT',
+            'access-control-request-headers':
+                'authorization, content-type, if-unmodified-since',
+          },
+        ),
+      );
+
+      final allowed = {
+        for (final header
+            in response.headers['access-control-allow-headers']!.split(','))
+          header.trim(),
+      };
+      expect(
+        allowed,
+        containsAll([
+          'authorization',
+          'content-type',
+          'if-unmodified-since',
+          'x-request-id',
+        ]),
+      );
+    });
 
     test('honors a configured origin', () async {
       final handler = const Pipeline()

@@ -8,8 +8,8 @@ library;
 import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/auth/beak_policy.dart' show beakRowScope;
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -229,14 +229,6 @@ void main() {
     final String csv = await response.readAsString();
     expect(csv, contains('mine'));
     expect(csv, isNot(contains('theirs')));
-  });
-
-  test('global search carries the scope', () async {
-    final response = await call('GET', '/api/search?q=e');
-
-    final String body = await response.readAsString();
-    expect(body, contains('mine'));
-    expect(body, isNot(contains('theirs')));
   });
 
   test('a plain policy declares no scope, so nothing is narrowed', () async {

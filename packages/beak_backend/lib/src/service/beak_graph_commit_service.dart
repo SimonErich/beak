@@ -47,17 +47,25 @@ typedef BeakSavePlanFinalizer =
 /// automatic expiry: an old idempotency key never becomes a new write.
 final class BeakGraphCommitService {
   /// Binds persistence and authorization once per backend.
+  ///
+  /// [now] and [generateId] are the clock and the primary-key mint behind
+  /// every write the graph performs (defaults: [DateTime.now] and a v4 uuid),
+  /// the same seams the per-record routes take.
   BeakGraphCommitService({
     required this.registry,
     required this.source,
     this.policy = const BeakAllowAllPolicy(),
-    this.validation = const ValidationService(),
     this.preparePlan,
     this.finalizePlan,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    String Function()? generateId,
+  }) : _now = now ?? DateTime.now,
+       _generateId = generateId;
 
   final DateTime Function() _now;
+  final String Function()? _generateId;
+
+  static const ValidationService _validation = ValidationService();
 
   /// Registered resource metadata.
   final BeakModelRegistry registry;
@@ -67,9 +75,6 @@ final class BeakGraphCommitService {
 
   /// Authoritative policy, checked for every graph node.
   final BeakPolicy policy;
-
-  /// Shared model validation.
-  final ValidationService validation;
 
   /// Optional authoritative aggregate validation and derived-value calculation.
   /// Requires a transactional adapter; no partially prepared graph is accepted.
@@ -470,7 +475,7 @@ final class BeakGraphCommitService {
           relations[relation.key] = page.items;
         }
         arguments = BeakRecord(values: arguments.values, relations: relations);
-        validation.validate(input, arguments, isCreate: true);
+        _validation.validate(input, arguments, isCreate: true);
         final report = await const BeakAsyncValidation().validate(
           input,
           arguments,
@@ -805,8 +810,9 @@ final class BeakGraphCommitService {
         await BeakResourceService(
           model,
           data,
-          validation: validation,
           registry: registry,
+          now: _now,
+          generateId: _generateId,
         ).validateCandidate(
           record,
           recordId: ref.id,
@@ -916,10 +922,10 @@ final class BeakGraphCommitService {
       BeakResourceService(
         registry.byTableOrThrow(table),
         data,
-        validation: validation,
         deferRecordRules: commitCapabilities.atomicGraph,
         registry: registry,
         now: _now,
+        generateId: _generateId,
       );
 
   BeakFilter? _scope(String table, BeakPrincipal? principal) =>
@@ -1023,7 +1029,7 @@ final class BeakGraphCommitService {
       }
       if (op.kind == BeakSaveOperationKind.create ||
           op.kind == BeakSaveOperationKind.update) {
-        validation.validate(
+        _validation.validate(
           model,
           values,
           isCreate: op.kind == BeakSaveOperationKind.create,
@@ -1288,13 +1294,17 @@ final class BeakGraphCommitService {
   ) async {
     final model = registry.byTableOrThrow(parent.table);
     final childModel = registry.byTableOrThrow(child.table);
+    final owner = BeakFieldFilter(
+      column: model.primaryKey,
+      operator: BeakOperator.eq,
+      value: BeakValue.of(parent.resolve(identities)),
+    );
+    final BeakFilter? scope = _scope(parent.table, principal);
     final result = await _service(parent.table, data).query(
       model.query(
-        filter: BeakFieldFilter(
-          column: model.primaryKey,
-          operator: BeakOperator.eq,
-          value: BeakValue.of(parent.resolve(identities)),
-        ),
+        // An owner outside the caller's row scope reports as missing, like
+        // every other scoped read.
+        filter: scope == null ? owner : BeakAndFilter([owner, scope]),
         relationLoads: [
           BeakRelationLoad(
             relationKey,
@@ -1306,7 +1316,6 @@ final class BeakGraphCommitService {
           ),
         ],
       ),
-      scope: _scope(parent.table, principal),
     );
     if (result.items.isEmpty ||
         (result.items.first.relations[relationKey]?.isEmpty ?? true)) {

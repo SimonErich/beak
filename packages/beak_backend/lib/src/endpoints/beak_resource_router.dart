@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/io.dart';
+import 'package:beak_image/beak_image.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
@@ -8,11 +9,9 @@ import '../auth/beak_policy.dart';
 import '../data/worm/worm_data_source.dart';
 import '../export/csv_export_service.dart';
 import '../export/export_router.dart';
-import '../search/global_search_service.dart';
-import '../search/search_router.dart';
+import '../server/middleware/error_mapping_middleware.dart';
 import '../service/beak_resource_service.dart';
 import '../service/beak_graph_commit_service.dart';
-import '../service/validation_service.dart';
 import '../uploads/upload_router.dart';
 import '../uploads/upload_service.dart';
 import 'crud_handlers.dart';
@@ -25,8 +24,8 @@ import 'local_uploads_router.dart';
 ///
 /// Wires the [BeakCrudHandlers] for [service] onto the query, aggregate,
 /// batch, CRUD, and relation attach/detach routes, each gated by [policy].
-/// [beakApiRouter] mounts one of these per registered model; call it
-/// directly only to compose a single resource's surface by hand.
+/// Internal to `beak_backend`: [beakApiRouter] mounts one of these per
+/// registered model.
 // --8<-- [start:beakResourceRouter]
 Router beakResourceRouter(
   BeakResourceService service, {
@@ -72,30 +71,40 @@ Router beakResourceRouter(
 // --8<-- [end:beakResourceRouter]
 
 /// The full generated API: one resource router per registered model
-/// (mounted under `/api/{table}`, with CSV export), the global search
-/// endpoint, the auth surface when [auth] is configured, and per-column
-/// upload endpoints when [uploads] is — registering a model is all it
-/// takes to get its surface, and every operation consults [policy].
+/// (mounted under `/api/{table}`, with CSV export), the graph commit
+/// endpoints, the health probes, the auth surface when [auth] is configured,
+/// and per-column upload endpoints when [storage] is — registering a model is
+/// all it takes to get its surface, and every operation consults [policy].
 ///
-/// [validation], [now], and [generateId] configure every model's service
-/// (the latter two inject the clock and id mint for tests).
+/// [now] and [generateId] are the clock and the id mint behind every write:
+/// the per-record CRUD routes, the graph commits, and the upload storage keys
+/// all use them, so a frozen-clock test sees one instant on every path.
+/// [transformRunner] overrides the image pipeline behind the uploads (default:
+/// the real `beak_image` runner).
 ///
-/// [preparePlan] normalizes and validates complete graphs within a transaction.
-/// [graphOnlyTables] restricts named resources to that write path, rejecting
-/// direct CRUD and relationship mutations while retaining all read operations.
+/// [preparePlan] normalizes and validates complete graphs within a
+/// transaction. [graphOnly] restricts those models to that write path,
+/// rejecting direct CRUD and relationship mutations while retaining all read
+/// operations; every model it names must be registered.
 ///
-/// The result is a Shelf [Handler]; wrap it in a [Pipeline] with Beak's JSON
-/// and error-mapping middleware so typed exceptions become HTTP/JSON.
+/// [onUnexpectedError] receives the failures the readiness probe swallows, so
+/// `/readyz` can answer with a generic detail instead of the raw error.
+///
+/// `BeakServer` composes this with the full middleware stack, and a project
+/// normally reaches it through the generated host. Call it directly to embed
+/// Beak in a larger Shelf app: the result is a Shelf [Handler]; wrap it in a
+/// [Pipeline] with Beak's JSON and error-mapping middleware so typed
+/// exceptions become HTTP/JSON.
 ///
 /// ```dart
-/// final registry = buildReferenceRegistry();
+/// final registry = buildBeakRegistry();
 /// final handler = const Pipeline()
 ///     .addMiddleware(beakJsonMiddleware())
 ///     .addMiddleware(beakErrorMappingMiddleware())
 ///     .addHandler(
 ///       beakApiRouter(
 ///         registry: registry,
-///         dataSource: WormDataSource(registry, adapter: adapter),
+///         dataSource: WormDataSource(registry, adapter: Worm.adapter()),
 ///       ),
 ///     );
 /// // POST /api/products/query, GET /api/products/<id>, ... are now live.
@@ -103,17 +112,20 @@ Router beakResourceRouter(
 Handler beakApiRouter({
   required BeakModelRegistry registry,
   required BeakDataSource dataSource,
-  ValidationService validation = const ValidationService(),
   BeakPolicy policy = const BeakAllowAllPolicy(),
   BeakAuthSessions? auth,
-  UploadService? uploads,
   BeakStorageDriver? storage,
+  BeakTransformRunner? transformRunner,
   DateTime Function()? now,
   String Function()? generateId,
   BeakSavePlanPreparer? preparePlan,
   BeakSavePlanFinalizer? finalizePlan,
-  Set<String> graphOnlyTables = const {},
+  List<BeakModel> graphOnly = const [],
+  BeakUnexpectedErrorListener? onUnexpectedError,
 }) {
+  final graphOnlyTables = {
+    for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
+  };
   if (graphOnlyTables.isNotEmpty && preparePlan == null) {
     throw const BeakConfigurationException(
       'Graph-only resources require an authoritative graph preparer.',
@@ -124,9 +136,6 @@ Handler beakApiRouter({
     throw const BeakConfigurationException(
       'Graph preparation requires a Worm data source.',
     );
-  }
-  for (final table in graphOnlyTables) {
-    registry.byTableOrThrow(table);
   }
   final constrainedTables = <String>{
     ...graphOnlyTables,
@@ -180,7 +189,11 @@ Handler beakApiRouter({
   // subject to the auth middleware that guards the API.
   router.mount(
     '/',
-    beakHealthRouter(registry: registry, dataSource: dataSource).call,
+    beakHealthRouter(
+      registry: registry,
+      dataSource: dataSource,
+      onUnexpectedError: onUnexpectedError,
+    ).call,
   );
   // Files the local-disk driver wrote are served by this server, so an
   // upload's URL resolves with no CDN, bucket or proxy in front.
@@ -190,11 +203,6 @@ Handler beakApiRouter({
   if (auth != null) {
     router.mount('/api/auth', beakAuthRouter(auth).call);
   }
-  final searchHandlers = BeakSearchHandlers(
-    service: GlobalSearchService(registry, dataSource),
-    policy: policy,
-  );
-  router.get('/api/search', searchHandlers.search);
   final exportService = CsvExportService(registry, dataSource);
   if (dataSource is WormDataSource) {
     registerBeakCommitRoutes(
@@ -203,17 +211,25 @@ Handler beakApiRouter({
         registry: registry,
         source: dataSource,
         policy: policy,
-        validation: validation,
         preparePlan: preparePlan,
         finalizePlan: finalizePlan,
+        now: now,
+        generateId: generateId,
       ),
     );
   }
+  final uploads = storage == null
+      ? null
+      : UploadService(
+          registry: registry,
+          storage: storage,
+          transformRunner: transformRunner ?? const ImageTransformRunner(),
+          generateKeyId: generateId,
+        );
   for (final model in registry.all) {
     final service = BeakResourceService(
       model,
       dataSource,
-      validation: validation,
       registry: registry,
       now: now,
       generateId: generateId,

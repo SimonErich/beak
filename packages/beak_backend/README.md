@@ -1,8 +1,9 @@
 # beak_backend
 
-The Shelf server for Beak: generated CRUD/query/batch/relations/aggregate
-endpoints, validated uploads, auth, search, and CSV export — all from a
-`BeakModelRegistry` over the worm ORM.
+The Shelf server for Beak: generated CRUD, query, batch, relation, aggregate
+and summary endpoints, graph commits with a durable outbox, validated uploads,
+auth, health probes and CSV export, all derived from a `BeakModelRegistry`
+over the worm ORM.
 
 Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
@@ -11,73 +12,110 @@ together.
 
 ## What it is
 
-The server layer of the Beak stack. It turns a `BeakModelRegistry` into a
-complete REST surface — one resource router per registered model mounted under
-`/api/{table}` — wrapped in Beak's middleware stack (request log → CORS → JSON
-→ error mapping → auth). It is the **only** package that imports `worm`: the
-default `WormDataSource` translates every `BeakQuerySpec` to worm against an
-injected `DatabaseAdapter`, keeping `beak_core` source-agnostic. The primary
-entry points are `BeakServer`, `beakApiRouter`, and `WormDataSource`.
+The server layer of the Beak stack. It turns a registry into a complete REST
+surface, one resource router per model under `/api/{table}`, wrapped in Beak's
+middleware stack (request log → CORS → JSON → error mapping → auth → your
+middleware). `WormDataSource` translates every `BeakQuerySpec` to worm against
+a `DatabaseAdapter`, which keeps `beak_core` source-agnostic.
+
+A project imports it through `package:beak/server.dart` and rarely wires it
+by hand.
 
 ## Usage
 
-The generated `BeakServeHost` handles startup for an application. For embedding
-in an existing server, configure the lower-level components after connecting
-your database adapter:
+`beak prepare` writes `lib/beak/server.g.dart`, a `BeakServeHost` holding every
+discovered model, migration and seeder, plus the `bin/serve.dart` and
+`bin/migrate.dart` entrypoints that call it. The host reads `.env`, connects
+`DATABASE_URL`, resolves the storage driver and serves the API.
+
+The part that is yours is `lib/server.dart`. The host hands it the resolved
+`BeakServerDefaults`, and `defaults.build(...)` takes whatever you want to
+change:
 
 ```dart
-import 'package:beak_backend/beak_backend.dart';
-import 'package:worm/worm.dart';
+import 'package:beak/server.dart';
 
-// Import buildBeakRegistry from your app’s generated registry.
-final BeakModelRegistry registry = buildBeakRegistry();
+import 'domain/order_preparer.dart';
+import 'domain/order_effects.dart';
+import 'models/models.dart';
 
-final server = BeakServer(
-  config: BeakBackendConfig.fromEnv(environment: BeakEnv.resolve()),
-  registry: registry,
-  dataSource: WormDataSource(registry, adapter: Worm.adapter()),
-  storage: resolveStorage(const BeakMemoryStorageConfig()),
-  policy: const BeakAllowAllPolicy(),
+BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+  policy: const ShopPolicy(),
+  // Transactional rules for graph commits, and the models that may only be
+  // written through them.
+  preparePlan: OrderPreparer(defaults.registry).prepare,
+  finalizePlan: const OrderEffects().finalize,
+  graphOnly: const [OrderModel(), OrderItemModel()],
+  // Effects the finalizer enqueued, delivered while the host serves.
+  outbox: BeakOutboxSchedule(
+    interval: const Duration(seconds: 5),
+    handlers: {'receipt': sendReceipt},
+  ),
+  // Extra endpoints in front of the generated API, and middleware that runs
+  // after authentication.
+  routes: (Router()..get('/api/stats', stats)).call,
+  middleware: [rateLimit()],
+  corsOrigin: 'https://admin.example.com',
 );
-
-final http = await server.start();
-// POST /api/products/query, GET /api/products/<id>, ... are now live.
 ```
 
-Compose the generated API by hand — e.g. to mount it inside a larger Shelf app:
+`BeakServeHost.serve()` validates the outbox schedule, binds the socket, starts
+the schedule and stops it again when the returned server closes. An invalid
+schedule fails the boot before any request is served. With
+`DATABASE_URL=sqlite::memory:` it also applies the migrations and runs the
+seeders in-process, since that database exists only inside the serving
+process. `beak eject server` writes a starter `lib/server.dart`.
+
+### Embedding in another Shelf app
+
+`beakApiRouter` is the generated API as one `Handler`. Wrap it in the JSON and
+error-mapping middleware so typed exceptions become JSON responses:
 
 ```dart
+final config = BeakBackendConfig.fromEnv();
+await initializeBeakDatabase(config);
+final registry = buildBeakRegistry();
 final handler = const Pipeline()
     .addMiddleware(beakJsonMiddleware())
     .addMiddleware(beakErrorMappingMiddleware())
     .addHandler(
       beakApiRouter(
         registry: registry,
-        dataSource: WormDataSource(registry, adapter: adapter),
+        dataSource: WormDataSource(registry, adapter: Worm.adapter()),
       ),
     );
 ```
 
+`BeakServer(...)` gives you the full middleware stack around it as
+`server.handler`, or `server.start()` to bind the socket yourself.
+
 ## Key types
 
-- `BeakServeHost` — shared application startup, migration and seeding wiring.
-- `BeakGraphCommitService` — atomic candidate graph validation, behavior and receipts.
-- `BeakServer` — composes the middleware stack around the router; `start()`
-  binds the socket, `handler` exposes the raw `Handler`.
-- `beakApiRouter` — builds the full generated API `Handler` from a registry
-  and data source (uploads, auth, search, and export included).
-- `WormDataSource` — the default `BeakDataSource`, executing every operation
-  on an injected worm `DatabaseAdapter`.
-- `BeakBackendConfig` — validated host/port/runtime config, `fromEnv(...)`.
-- `UploadService` — validated per-column file uploads through a storage driver.
-- `CsvExportService` / `GlobalSearchService` — CSV export and cross-model search.
-- `BeakPolicy` / `BeakAuthGuard` — per-operation authorization and auth guarding.
+- `BeakServeHost`: environment, database, storage, serving, and the migration
+  and seeding CLI (`runCli`).
+- `BeakServerDefaults`: what the host resolved; `build(...)` returns the
+  standard server with your changes.
+- `BeakServer`: the middleware stack around the API. `handler` is the raw Shelf
+  `Handler` and `start()` binds the socket.
+- `beakApiRouter`: the generated API as one `Handler`.
+- `WormDataSource`: the default `BeakDataSource`, executing every operation on
+  a worm `DatabaseAdapter`.
+- `BeakGraphCommitService` typedefs (`BeakSavePlanPreparer`,
+  `BeakSavePlanFinalizer`): the transactional hooks behind `/api/commits`.
+- `BeakOutbox`, `BeakOutboxSchedule`, `BeakOutboxWorker`: effects enqueued
+  inside a commit and delivered after it.
+- `BeakBackendConfig`: validated host, port and database URL, `fromEnv(...)`.
+- `BeakPolicy`, `BeakRowPolicy`, `BeakFieldPolicy`, `BeakAuthGuard`,
+  `BeakAuthSessions`: authorization and authentication.
+- `adapterFromUrl`, `initializeBeakDatabase`: open the database a
+  `DATABASE_URL` names.
 
 ## Status
 
 Pre-1.0, part of the Beak monorepo. Consumed by the
-[canonical shop](../../examples/clean_beak_config). Contributions welcome — see
-[CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
+[canonical shop](../../examples/clean_beak_config) and the
+[Foodio admin panel](../../examples/foodio-adminpanel). Contributions welcome;
+see [CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
 
 ## License
 

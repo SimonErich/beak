@@ -1,4 +1,5 @@
-import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/data/worm/query_translator.dart';
+import 'package:beak_backend/src/data/worm/worm_record_model.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';

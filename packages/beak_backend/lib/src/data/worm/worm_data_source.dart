@@ -9,20 +9,17 @@ import 'worm_record_model.dart';
 /// an injected adapter, honoring model metadata (primary keys, soft
 /// deletes, relationships) without any per-model code.
 ///
-/// This is the concrete implementation Beak ships; a future
-/// `ServerpodDataSource` would satisfy the same [BeakDataSource] interface
-/// without touching `beak_core` or `beak_backend`. Wire one over any worm
-/// [DatabaseAdapter] — an [InMemoryAdapter] in tests, a Postgres adapter in
-/// production — and hand it to [beakApiRouter] or a [BeakResourceService].
+/// This is the implementation the generated host serves through; any other
+/// source satisfies the same [BeakDataSource] interface without touching
+/// `beak_core` or `beak_backend`. Wire one over any worm [DatabaseAdapter] —
+/// an [InMemoryAdapter] in tests, the adapter `adapterFromUrl` opens in
+/// production — and hand it to a `BeakServer` or to `beakApiRouter`.
 ///
 /// ```dart
-/// final registry = buildReferenceRegistry();
-/// final adapter = InMemoryAdapter();
-/// final dataSource = WormDataSource(registry, adapter: adapter);
+/// final registry = buildBeakRegistry();
+/// final dataSource = WormDataSource(registry, adapter: InMemoryAdapter());
 ///
-/// final page = await dataSource.query(
-///   BeakQuerySpec(table: 'products'),
-/// );
+/// final page = await dataSource.query(const ProductModel().query());
 /// ```
 final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   /// Creates a data source over [registry] executing on [adapter].

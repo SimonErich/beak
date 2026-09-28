@@ -96,10 +96,12 @@ final class FoodioEffects {
     }
   }
 
-  /// The provider itself persists receipts by effect key before acknowledging.
-  BeakOutboxWorker worker(DatabaseAdapter adapter) => BeakOutboxWorker(
-    adapter: adapter,
-    now: clock.read,
+  /// The demo providers, drained every second while the host serves.
+  ///
+  /// Each provider persists its receipt through [adapter] by effect key
+  /// before acknowledging, so a redelivered effect is a no-op.
+  BeakOutboxSchedule schedule(DatabaseAdapter adapter) => BeakOutboxSchedule(
+    interval: const Duration(seconds: 1),
     handlers: {
       for (final kind in ['confirmation', 'approval', 'paymentLink'])
         kind: (effect) => _message(adapter, effect),
@@ -107,6 +109,11 @@ final class FoodioEffects {
       'refund': (effect) => _payment(adapter, effect),
     },
   );
+
+  /// One worker over the [schedule]'s providers on the demo clock, for a
+  /// caller that drains on its own terms, like a test.
+  BeakOutboxWorker worker(DatabaseAdapter adapter) =>
+      schedule(adapter).worker(adapter, now: clock.read);
 
   Future<void> _message(
     DatabaseAdapter adapter,
@@ -142,7 +149,10 @@ final class FoodioEffects {
                 }.contains(order['payment_status']) ||
                 order['payment_mode'] != effect.payload['payment_mode']?.raw ||
                 order['gross_cents'] != effect.payload['amount_cents']?.raw);
-    final recipient = effect.payload['recipient']?.raw as String? ?? '';
+    final recipient = switch (effect.payload['recipient']?.raw) {
+      final String value => value,
+      _ => '',
+    };
     if (!stale && recipient.isEmpty) {
       throw const BeakValidationException('A recipient is required.');
     }
@@ -231,7 +241,12 @@ final class FoodioEffects {
                   where: const Field<Object>('id').eq(methodId),
                 ),
               );
-        final amount = effect.payload['amount_cents']!.raw! as int;
+        final amount = switch (effect.payload['amount_cents']?.raw) {
+          final int value => value,
+          _ => throw const BeakValidationException(
+            'A payment effect must carry its amount in cents.',
+          ),
+        };
         final cancelled = order['status'] == 'cancelled';
         final stale =
             effect.kind == 'charge' &&

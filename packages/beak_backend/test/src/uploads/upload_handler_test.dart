@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/uploads/upload_service.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_image/beak_image.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -85,12 +85,13 @@ void main() {
       const BeakMemoryStorageConfig(),
     );
     var mintedKeys = 0;
+    String mint() => 'minted-${++mintedKeys}';
     dataSource = WormDataSource(registry, adapter: adapter);
     uploads = UploadService(
       registry: registry,
       storage: storage,
       transformRunner: const ImageTransformRunner(),
-      generateKeyId: () => 'minted-${++mintedKeys}',
+      generateKeyId: mint,
     );
     handler = const Pipeline()
         .addMiddleware(beakJsonMiddleware())
@@ -99,7 +100,8 @@ void main() {
           beakApiRouter(
             registry: registry,
             dataSource: dataSource,
-            uploads: uploads,
+            storage: storage,
+            generateId: mint,
           ),
         );
   });
@@ -188,7 +190,7 @@ void main() {
             beakApiRouter(
               registry: registry,
               dataSource: dataSource,
-              uploads: uploads,
+              storage: storage,
               policy: policy,
             ),
           );
@@ -359,7 +361,7 @@ void main() {
             beakApiRouter(
               registry: registry,
               dataSource: dataSource,
-              uploads: uploads,
+              storage: storage,
               policy: policy,
             ),
           );

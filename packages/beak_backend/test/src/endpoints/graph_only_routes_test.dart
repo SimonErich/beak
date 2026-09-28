@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -21,7 +20,7 @@ void main() {
             registry: registry,
             dataSource: WormDataSource(registry, adapter: adapter),
             preparePlan: (plan, source, principal) async => plan,
-            graphOnlyTables: {'notes'},
+            graphOnly: const [NoteModel()],
           ),
         );
   });
@@ -89,7 +88,7 @@ void main() {
           createApiRegistry(),
           adapter: Worm.adapter(),
         ),
-        graphOnlyTables: {'notes'},
+        graphOnly: const [NoteModel()],
       ),
       throwsA(isA<BeakConfigurationException>()),
     );

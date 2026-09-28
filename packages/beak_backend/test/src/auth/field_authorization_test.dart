@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -10,11 +9,10 @@ import '../../support/test_models.dart';
 
 final class _Policy extends BeakAllowAllPolicy
     implements BeakFieldPolicy, BeakRowPolicy {
-  const _Policy({this.hideNames = false});
-  final bool hideNames;
+  const _Policy();
   @override
   bool canReadField(BeakPrincipal? principal, String table, String key) =>
-      key != 'price' && key != 'body' && !(hideNames && key == 'name');
+      key != 'price' && key != 'body';
   @override
   bool canWriteField(BeakPrincipal? principal, String table, String key) =>
       key != 'price' && key != 'tags';
@@ -242,7 +240,7 @@ void main() {
     },
   );
 
-  test('CSV and global search share field visibility', () async {
+  test('CSV export shares field visibility', () async {
     final csv = await request(
       'POST',
       '/products/export',
@@ -253,10 +251,6 @@ void main() {
     expect(body, contains('Beans'));
     expect(body, isNot(contains('Price')));
     expect(body, isNot(contains('9.5')));
-    handler = serve(const _Policy(hideNames: true));
-    final search = await request('GET', '/search?q=Beans');
-    expect(search.statusCode, 200);
-    expect(await search.readAsString(), isNot(contains('Beans')));
   });
 
   test(

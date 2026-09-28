@@ -90,7 +90,7 @@ the fresh command drops known tables. The SQLite schema rebuild is atomic and ke
 | Exact cents, discount allocation and inclusive VAT | `lib/domain/foodio_money.dart` |
 | Authoritative reservations, snapshots and workflow rules | `lib/domain/foodio_order_preparer.dart`, `foodio_invoice_rules.dart` |
 | Persistent demo payment/message adapters | `lib/domain/foodio_effects.dart` |
-| Backend registration | `lib/server.dart`, `bin/serve.dart` |
+| Backend registration, graph rules and the outbox schedule | `lib/server.dart` |
 | Real fixture records | `lib/seeders/foodio_seeder.dart` |
 | Schema upgrades | `lib/migrations/` |
 

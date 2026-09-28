@@ -2,10 +2,9 @@ import 'package:beak_core/beak_core.dart';
 
 /// Reads the storage driver selection out of the environment.
 ///
-/// Every Beak backend needs the same `BEAK_STORAGE_DRIVER` switch, and both
-/// demo apps had written it out by hand — identically, down to the error
-/// strings. It lives here now so a project declares which drivers it supports
-/// and gets the parsing for free.
+/// Every Beak backend needs the same `BEAK_STORAGE_DRIVER` switch, so it
+/// lives here: a project declares which drivers it supports and gets the
+/// parsing, and the error wording, for free.
 ///
 /// ```dart
 /// final registry = createDefaultStorageRegistry();
