@@ -8,9 +8,9 @@ coverage/
 pubspec_overrides.yaml
 
 # Build-loop artifacts
-BUILD_COMPLETE
+/BUILD_COMPLETE
 NEEDS_HUMAN.md
-build.log
+/build.log
 
 # CodeGraph index (local, per-machine knowledge graph — not for committing)
 .codegraph/
@@ -25,18 +25,15 @@ build.log
 deploy/.env.prod
 
 # Local working notes and tooling config, not part of the published project.
-CLAUDE.md
+# Anchored to the root so an example may commit its own agent instructions.
+/CLAUDE.md
 /PROMPT.md
 /PLAN/
 /run_beak_build.sh
-.claude/
+/.claude/
 .peakz/
-.mcp.json
-/run_beak_build.sh
-/BUILD_COMPLETE
-/build.log
+/.mcp.json
 /BEAK_MISSING_FEATURES.md
-/SUPERDASHBOARD_STATE.md
 /OBERS_MISSING_FEATURES.md
 /WORM_MISSING_FEATURES.md
 .flutter-plugins-dependencies

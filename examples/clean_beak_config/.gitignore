@@ -6,7 +6,8 @@
 *.sqlite-shm
 *.sqlite-wal
 
-# Default local SQLite database
-beak.db
-beak.db-shm
-beak.db-wal
+# The default local SQLite database and its journals.
+*.db*
+
+# Uploads land here until BEAK_STORAGE_DRIVER points somewhere else.
+/storage/

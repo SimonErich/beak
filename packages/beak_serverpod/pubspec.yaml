@@ -1,6 +1,6 @@
 name: beak_serverpod
 description: Typed resource bindings and generated-model codecs for Serverpod-backed Beak panels.
-version: 0.0.1
+version: 0.9.0
 publish_to: none
 
 environment:
