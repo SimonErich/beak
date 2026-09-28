@@ -27,4 +27,4 @@ library;
 export 'src/image_transform_runner.dart';
 
 /// The version of the `beak_image` package.
-const String beakImageVersion = '0.0.1';
+const String beakImageVersion = '0.9.0';

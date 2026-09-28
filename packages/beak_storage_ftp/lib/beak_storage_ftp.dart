@@ -30,4 +30,4 @@ export 'src/ftp_storage_driver.dart';
 export 'src/ftp_transport.dart';
 
 /// The version of the `beak_storage_ftp` package.
-const String beakStorageFtpVersion = '0.0.1';
+const String beakStorageFtpVersion = '0.9.0';

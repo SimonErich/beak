@@ -49,15 +49,15 @@ void main() {
   testWidgets('active chips remove their predicate and clear all together', (
     tester,
   ) async {
-    final filter = BeakFieldFilter.forKey(
+    const filter = BeakFieldFilter.forKey(
       'active',
       BeakOperator.eq,
-      const BeakBoolValue(true),
+      BeakBoolValue(true),
     );
-    final titleFilter = BeakFieldFilter.forKey(
+    const titleFilter = BeakFieldFilter.forKey(
       'title',
       BeakOperator.contains,
-      const BeakStringValue('Lunch'),
+      BeakStringValue('Lunch'),
     );
     await tester.pumpWidget(
       OiApp(
@@ -690,11 +690,9 @@ void main() {
             ?.raw,
         'Fresh label',
       );
-      expect(
-        emitted,
-        [predicate],
-        reason: 'Refreshing a label preserves the selected filter identity.',
-      );
+      expect(emitted, [
+        predicate,
+      ], reason: 'Refreshing a label preserves the selected filter identity.');
       await tester.pumpWidget(const SizedBox());
     },
   );

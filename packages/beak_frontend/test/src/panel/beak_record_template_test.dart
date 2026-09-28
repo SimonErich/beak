@@ -7,20 +7,36 @@ import 'package:obers_ui/obers_ui.dart';
 import '../../support/panel_fixtures.dart';
 
 void main() {
-  testWidgets('mixed typed display callbacks remain typed inside their bindings', (tester) async {
-    await tester.pumpWidget(OiApp(home: BeakRecordTemplateView(
-      record: BeakRecord.fromRow({}),
-      template: BeakRecordTemplate(
-        title: BeakValueBinding<String>.computed(dependencies: const [], compute: (_) => 'Customer',
-          display: (value, _) => value!.toUpperCase()),
-        titleMetadata: [BeakValueBinding<DateTime>.computed(dependencies: const [],
-          compute: (_) => DateTime.utc(2026, 9, 29), display: (value, format) => format.date(value!, pattern: 'EEE d MMM'))],
-      ),
-    )));
-    expect(find.text('CUSTOMER'), findsOneWidget);
-    expect(find.text('Tue 29 Sep'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'mixed typed display callbacks remain typed inside their bindings',
+    (tester) async {
+      await tester.pumpWidget(
+        OiApp(
+          home: BeakRecordTemplateView(
+            record: BeakRecord.fromRow({}),
+            template: BeakRecordTemplate(
+              title: BeakValueBinding<String>.computed(
+                dependencies: const [],
+                compute: (_) => 'Customer',
+                display: (value, _) => value!.toUpperCase(),
+              ),
+              titleMetadata: [
+                BeakValueBinding<DateTime>.computed(
+                  dependencies: const [],
+                  compute: (_) => DateTime.utc(2026, 9, 29),
+                  display: (value, format) =>
+                      format.date(value!, pattern: 'EEE d MMM'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(find.text('CUSTOMER'), findsOneWidget);
+      expect(find.text('Tue 29 Sep'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final subtitleVariant in [null, OiLabelVariant.body]) {
     testWidgets(
       'identity metadata uses contextual $subtitleVariant typography',

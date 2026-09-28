@@ -60,95 +60,85 @@ Future<void> main() async {
     timeout: const Timeout(Duration(minutes: 2)),
   );
 
-  test(
-    'unsupported endpoint contracts fail with specific diagnostics',
-    () async {
-      final fixture = File('test/fixtures/resources.dart').readAsStringSync();
-      final source = File('test/fixtures/invalid_resources.dart');
-      addTearDown(() {
-        if (source.existsSync()) source.deleteSync();
-      });
-      final variants = <(String, String)>[
-        (
-          fixture.replaceFirst(
-            'final EntryEndpoint entry;',
-            'final EntryEndpoint entry; EntryEndpoint get duplicate => entry;',
-          ),
-          'one unambiguous',
+  test('unsupported endpoint contracts fail with specific diagnostics', () async {
+    final fixture = File('test/fixtures/resources.dart').readAsStringSync();
+    final source = File('test/fixtures/invalid_resources.dart');
+    addTearDown(() {
+      if (source.existsSync()) source.deleteSync();
+    });
+    final variants = <(String, String)>[
+      (
+        fixture.replaceFirst(
+          'final EntryEndpoint entry;',
+          'final EntryEndpoint entry; EntryEndpoint get duplicate => entry;',
         ),
-        (
-          fixture.replaceFirst('getById(UuidValue id)', 'fetch(UuidValue id)'),
-          'get/getById',
+        'one unambiguous',
+      ),
+      (
+        fixture.replaceFirst('getById(UuidValue id)', 'fetch(UuidValue id)'),
+        'get/getById',
+      ),
+      (
+        fixture.replaceFirst('getById(UuidValue id)', 'getById(UuidValue? id)'),
+        'non-null scalar',
+      ),
+      (
+        fixture.replaceFirst('this.page = 0,', 'required this.page,'),
+        'page/pageSize defaults',
+      ),
+      (
+        fixture.replaceFirst(
+          'Future<EntryView> getById',
+          'Future<EntryView> get(UuidValue id) async => value; Future<EntryView> getById',
         ),
-        (
-          fixture.replaceFirst(
-            'getById(UuidValue id)',
-            'getById(UuidValue? id)',
-          ),
-          'non-null scalar',
+        'ambiguous operations',
+      ),
+      (
+        fixture.replaceFirst(
+          'create(EntryInput input)',
+          'create(EntryInput input, EntryInput other)',
         ),
-        (
-          fixture.replaceFirst('this.page = 0,', 'required this.page,'),
-          'page/pageSize defaults',
-        ),
-        (
-          fixture.replaceFirst(
-            'Future<EntryView> getById',
-            'Future<EntryView> get(UuidValue id) async => value; Future<EntryView> getById',
-          ),
-          'ambiguous operations',
-        ),
-        (
-          fixture.replaceFirst(
-            'create(EntryInput input)',
-            'create(EntryInput input, EntryInput other)',
-          ),
-          'one typed input',
-        ),
-        (
-          fixture.replaceAll('locale', 'tenant'),
-          'unsupported parameter tenant',
-        ),
-      ];
-      for (final (contents, diagnostic) in variants) {
-        source.writeAsStringSync(contents);
-        await expectLater(
-          generateServerpodCompanions(
-            packageRoot: Directory.current.path,
-            library: Uri.file(source.absolute.path).toString(),
-            types: const [],
-            models: ['EntryView'],
-          ),
-          throwsA(
-            isA<FormatException>().having(
-              (error) => error.message,
-              'diagnostic',
-              contains(diagnostic),
-            ),
-          ),
-        );
-      }
+        'one typed input',
+      ),
+      (fixture.replaceAll('locale', 'tenant'), 'unsupported parameter tenant'),
+    ];
+    for (final (contents, diagnostic) in variants) {
+      source.writeAsStringSync(contents);
       await expectLater(
         generateServerpodCompanions(
           packageRoot: Directory.current.path,
-          library: Uri.file(
-            p.absolute('test/fixtures/resources.dart'),
-          ).toString(),
+          library: Uri.file(source.absolute.path).toString(),
           types: const [],
           models: ['EntryView'],
-          client: 'Absent',
         ),
         throwsA(
           isA<FormatException>().having(
             (error) => error.message,
             'diagnostic',
-            contains('does not export client'),
+            contains(diagnostic),
           ),
         ),
       );
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+    }
+    await expectLater(
+      generateServerpodCompanions(
+        packageRoot: Directory.current.path,
+        library: Uri.file(
+          p.absolute('test/fixtures/resources.dart'),
+        ).toString(),
+        types: const [],
+        models: ['EntryView'],
+        client: 'Absent',
+      ),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'diagnostic',
+          contains('does not export client'),
+        ),
+      ),
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test(
     'domain command results do not enable generic form capabilities',

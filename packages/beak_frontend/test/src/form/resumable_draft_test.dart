@@ -193,11 +193,16 @@ void main() {
       addTearDown(resumed.dispose);
       await resumed.load();
       expect(resumed.hasStoredDraft, true);
-      final beforeDecision = await store.read(config.storageKey('folders', null));
+      final beforeDecision = await store.read(
+        config.storageKey('folders', null),
+      );
       resumed.root.set(_name, 'New work before choosing recovery');
       expect(await resumed.persistDraft(), isFalse);
       expect(await resumed.save(), isNull);
-      expect(await store.read(config.storageKey('folders', null)), beforeDecision);
+      expect(
+        await store.read(config.storageKey('folders', null)),
+        beforeDecision,
+      );
       resumed.resumeDraft();
       expect(resumed.root.read(_name), 'Correctable');
       expect(

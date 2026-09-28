@@ -23,16 +23,32 @@ void main() {
   );
 
   test('facet exclusion keeps permanent and preset scopes', () {
-    const field = BeakScalarField<String>(model: NoteModel(), column: BeakStringColumn(key: 'title', label: 'Title'));
+    const field = BeakScalarField<String>(
+      model: NoteModel(),
+      column: BeakStringColumn(key: 'title', label: 'Title'),
+    );
     final filter = field.textFilter();
-    final controller = BeakQueryController(model: model, base: model.query().withFilter(permanent), presets: [preset]);
+    final controller = BeakQueryController(
+      model: model,
+      base: model.query().withFilter(permanent),
+      presets: [preset],
+    );
     addTearDown(controller.dispose);
     controller.selectPreset('attention');
     controller.applyFilters({filter.key: field.eq('urgent selected')});
-    final candidate = controller.queryFor(controller.state.value, excludingFilter: filter.key);
-    expect((candidate.filter as BeakAndFilter).filters, [permanent, preset.filter]);
+    final candidate = controller.queryFor(
+      controller.state.value,
+      excludingFilter: filter.key,
+    );
+    expect((candidate.filter as BeakAndFilter).filters, [
+      permanent,
+      preset.filter,
+    ]);
     expect(controller.query.filter, isNot(candidate.filter));
-    expect(controller.state.value.filters[filter.key], field.eq('urgent selected'));
+    expect(
+      controller.state.value.filters[filter.key],
+      field.eq('urgent selected'),
+    );
   });
 
   test(

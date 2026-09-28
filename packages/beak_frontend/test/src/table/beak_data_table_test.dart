@@ -71,7 +71,11 @@ void main() {
           dataSource: dataSource,
           controller: controller,
           initialSpec: const NoteModel().query().orderBy(
-            const BeakStringColumn(key: 'title', label: 'Title', sortable: true),
+            const BeakStringColumn(
+              key: 'title',
+              label: 'Title',
+              sortable: true,
+            ),
             descending: true,
           ),
           presentations: [
@@ -89,7 +93,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.sortColumnId, 'identity');
     expect(controller.sortAscending, isFalse);
-    expect(find.descendant(of: find.byKey(const Key('oi_table_header')), matching: find.byIcon(OiIcons.arrowDown)), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('oi_table_header')),
+        matching: find.byIcon(OiIcons.arrowDown),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

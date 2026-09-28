@@ -92,59 +92,55 @@ void main() {
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
-    test(
-      'emits HasMany/HasOne accessor extension on User',
-      () async {
-        final reader = await PackageAssetReader.currentIsolate();
-        final builder = PartBuilder(const <Generator>[
-          WormTableGenerator(),
-        ], '.worm.dart');
-        final writer = InMemoryAssetWriter();
-        await testBuilder(
-          builder,
-          const <String, String>{'_test|lib/user.dart': _userSource},
-          reader: reader,
-          writer: writer,
-          rootPackage: '_test',
-        );
-        final generated = writer.assets[AssetId('_test', 'lib/user.worm.dart')];
-        expect(generated, isNotNull, reason: 'no .worm.dart output written');
-        final source = String.fromCharCodes(generated!);
+    test('emits HasMany/HasOne accessor extension on User', () async {
+      final reader = await PackageAssetReader.currentIsolate();
+      final builder = PartBuilder(const <Generator>[
+        WormTableGenerator(),
+      ], '.worm.dart');
+      final writer = InMemoryAssetWriter();
+      await testBuilder(
+        builder,
+        const <String, String>{'_test|lib/user.dart': _userSource},
+        reader: reader,
+        writer: writer,
+        rootPackage: '_test',
+      );
+      final generated = writer.assets[AssetId('_test', 'lib/user.worm.dart')];
+      expect(generated, isNotNull, reason: 'no .worm.dart output written');
+      final source = String.fromCharCodes(generated!);
 
-        // Extension header.
-        expect(source, contains('extension UserAccessors on User {'));
+      // Extension header.
+      expect(source, contains('extension UserAccessors on User {'));
 
-        // HasMany accessor: typed getter wired through Post\$.tableName
-        // with the conventional foreign key 'user_id', the const
-        // HasManyRelation factory, and the generated hydrator.
-        expect(source, contains('HasManyAccessor<User, Post> get posts\$ =>'));
-        expect(source, contains('const HasManyRelation<User, Post>('));
-        expect(source, contains('childTable: Post\$.tableName'));
-        expect(source, contains("foreignKey: 'user_id'"));
-        expect(source, contains('hydrateChild: PostHydration.fromRow'));
+      // HasMany accessor: typed getter wired through Post\$.tableName
+      // with the conventional foreign key 'user_id', the const
+      // HasManyRelation factory, and the generated hydrator.
+      expect(source, contains('HasManyAccessor<User, Post> get posts\$ =>'));
+      expect(source, contains('const HasManyRelation<User, Post>('));
+      expect(source, contains('childTable: Post\$.tableName'));
+      expect(source, contains("foreignKey: 'user_id'"));
+      expect(source, contains('hydrateChild: PostHydration.fromRow'));
 
-        // HasOne accessor: same shape against the Profile model.
-        expect(
-          source,
-          contains('HasOneAccessor<User, Profile> get profile\$ =>'),
-        );
-        expect(source, contains('const HasOneRelation<User, Profile>('));
-        expect(source, contains('childTable: Profile\$.tableName'));
+      // HasOne accessor: same shape against the Profile model.
+      expect(
+        source,
+        contains('HasOneAccessor<User, Profile> get profile\$ =>'),
+      );
+      expect(source, contains('const HasOneRelation<User, Profile>('));
+      expect(source, contains('childTable: Profile\$.tableName'));
 
-        // Each generated getter references Worm.adapter — the
-        // generated source must include the explicit token so the
-        // adapter lookup is part of the generated artifact rather
-        // than an implicit runtime detail.
-        expect(
-          source,
-          contains('resolveAdapter: () => Worm.adapter(connectionName)'),
-        );
+      // Each generated getter references Worm.adapter — the
+      // generated source must include the explicit token so the
+      // adapter lookup is part of the generated artifact rather
+      // than an implicit runtime detail.
+      expect(
+        source,
+        contains('resolveAdapter: () => Worm.adapter(connectionName)'),
+      );
 
-        // Zero as-casts in generated output (constitution).
-        expect(source, isNot(contains(' as ')));
-      },
-      timeout: const Timeout(Duration(minutes: 2)),
-    );
+      // Zero as-casts in generated output (constitution).
+      expect(source, isNot(contains(' as ')));
+    }, timeout: const Timeout(Duration(minutes: 2)));
 
     test(
       'emits BelongsToMany accessor with alphabetical pivot convention',

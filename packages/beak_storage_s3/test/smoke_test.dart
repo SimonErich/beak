@@ -3,6 +3,6 @@ import 'package:test/test.dart';
 
 void main() {
   test('exposes the package version constant', () {
-    expect(beakStorageS3Version, '0.0.1');
+    expect(beakStorageS3Version, '0.9.0');
   });
 }
