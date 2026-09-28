@@ -635,3 +635,22 @@ content scroll; the footer remains pinned. Desktop layout is unchanged.
 Beak intrinsic form pages and `BeakListScrollMode.page` opt in, ensuring tall
 stacked headings or metrics cannot consume the whole editing/row viewport.
 Bounded table pages retain their ordinary scroll ownership.
+
+### Detailed progress rails
+
+`BeakFormProgress(timeline: true)` opts vertical detailed milestones into an
+intrinsic connected rail. The default remains the existing separated connector
+layout; horizontal and compact steppers retain their geometry. `contextSpacing`
+controls the gap between details and the contextual record and defaults to 6px.
+
+`OiStepperThemeData` supplies upcoming indicator border color/width, upcoming
+connector color, `stepSpacing` and `detailsSpacing`. Active, error and completed
+colors and 2px state strokes retain precedence. Omitted theme values preserve ordinary 2px indicator
+strokes; timeline mode defaults to 1px, 20px between items and 2px between label
+and details. Its connector extends beside the item content with 4px end margins
+and a 24px minimum length. Gabel uses its border and lineStrong colors in both
+light and dark themes, with an 8px contextual-record gap.
+
+A single computed subtitle binding can join related identity metadata into one
+line while retaining typed dependencies, full accessible text and the normal
+ellipsis policy. This avoids introducing a separate person-summary renderer.

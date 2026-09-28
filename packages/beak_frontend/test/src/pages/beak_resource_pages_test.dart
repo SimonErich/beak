@@ -204,6 +204,15 @@ void main() {
     await goToList(tester);
     dataSource.queryCalls.clear();
 
+    tester
+        .widget<OiFilterChip>(
+          find.byWidgetPredicate(
+            (widget) => widget is OiFilterChip && widget.label == 'Title',
+          ),
+        )
+        .onTap!
+        .call();
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText).first, 'First');
     await tester.pumpAndSettle();
 

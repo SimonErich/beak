@@ -115,7 +115,7 @@ void main() {
     },
   );
   testWidgets(
-    'unsaved bar summarizes, reveals errors by keyboard and saves or discards the shared draft',
+    'scaffold compact heading leaves the persisted error editor and pinned footer reachable',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1440, 1720));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -204,6 +204,102 @@ void main() {
       session.root.set(_title, '');
       expect(await session.validate(), isFalse);
       await tester.pumpAndSettle();
+      final issue = find.byWidgetPredicate(
+        (widget) =>
+            widget is OiTappable &&
+            widget.semanticLabel == '1 field needs attention',
+      );
+      final editor = find.byType(EditableText);
+      for (final size in [
+        const Size(375, 812),
+        const Size(812, 375),
+        const Size(1180, 375),
+      ]) {
+        await tester.binding.setSurfaceSize(size);
+        await tester.pumpAndSettle();
+        final footer = find.widgetWithText(OiButton, 'Discard changes');
+        expect(tester.getRect(footer).bottom, lessThanOrEqualTo(size.height));
+        await tester.tap(issue);
+        await tester.pumpAndSettle();
+        expect(tester.widget<EditableText>(editor).focusNode.hasFocus, isTrue);
+        expect(tester.getRect(editor).top, greaterThanOrEqualTo(64));
+        expect(
+          tester.getRect(editor).bottom,
+          lessThan(tester.getRect(footer).top),
+        );
+        expect(session.root.read(_title), '');
+        expect(session.validationIssueCount, 1);
+        expect(session.isDirty, isTrue);
+        expect(tester.takeException(), isNull);
+      }
+      expect(source.plans, isEmpty);
+    },
+  );
+  testWidgets(
+    'unsaved bar summarizes, reveals errors by keyboard and saves or discards the shared draft',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1100, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final source = _Source();
+      late BeakFormSession session;
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakConfiguredForm(
+            model: const _Model(),
+            dataSource: source,
+            recordId: 'one',
+            showChangeBar: true,
+            onSession: (value) => session = value,
+            header: BeakFormLayout(
+              children: [
+                BeakFormNotice(
+                  title: 'The kitchen and driver see changes immediately.',
+                  message: (_) => 'Items can change until 10:30.',
+                  inline: true,
+                ),
+                BeakFormMetrics(
+                  metrics: [
+                    for (final label in [
+                      'Total',
+                      'Delivery',
+                      'Payment',
+                      'Profile',
+                      'Budget left',
+                    ])
+                      BeakFormMetric(
+                        label: label,
+                        value: (_) => 'Current value',
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            layout: BeakFormLayout(
+              children: [
+                const BeakFormPlaceholder(
+                  label: 'Earlier content',
+                  height: 900,
+                ),
+                _title.inputText(
+                  label: 'Delivery phone',
+                  validate: const [BeakRequired()],
+                ),
+              ],
+            ),
+            frameBuilder: (_, _, _, actions, child) => Column(
+              children: [
+                actions,
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      session.root.set(_title, '');
+      expect(await session.validate(), isFalse);
+      await tester.pumpAndSettle();
       expect(find.text('1 unsaved change'), findsOneWidget);
       expect(find.text('Delivery phone'), findsWidgets);
       expect(session.reviewChangeSummary, 'Delivery phone');
@@ -270,6 +366,8 @@ void main() {
       expect(source.plans, hasLength(1));
       expect(session.isDirty, isFalse);
       expect(find.text('1 unsaved change'), findsNothing);
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
       session.root.set(_title, 'Discard this');

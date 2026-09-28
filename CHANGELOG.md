@@ -12,6 +12,8 @@ change without notice.
 
 ### Added
 
+- Detailed form progress can opt into an intrinsic connected timeline rail;
+  context spacing remains declarative and defaults to its existing 6px gap.
 - Declarative list `scrollMode` chooses a bounded table viewport (default) or
   intrinsic rows within page scrolling, using existing shared UI layout.
 - Navigation can present the current record as a contextual branch and opt

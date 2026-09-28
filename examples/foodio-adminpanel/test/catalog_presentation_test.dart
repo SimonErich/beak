@@ -1,13 +1,84 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodio_adminpanel/resources/orders/order_presentations.dart';
-import 'package:foodio_adminpanel/resources/orders/order_items.dart';
+import 'package:foodio_adminpanel/resources/orders/presentations/order_presentations.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_items_table.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_review_step.dart';
 import 'package:foodio_adminpanel/theme/gabel_theme.dart';
 import 'package:foodio_adminpanel/theme/gabel_tokens.dart';
 
 void main() {
+  testWidgets('review actor retains its full truthful caption in one line', (
+    tester,
+  ) async {
+    await (FontLoader(
+      'Mona Sans',
+    )..addFont(rootBundle.load('assets/fonts/MonaSans.ttf'))).load();
+    final progress = orderReviewAside().children
+        .whereType<BeakSection>()
+        .first
+        .children
+        .whereType<BeakFormProgress>()
+        .single;
+    final template = progress.steps!.first.context!;
+    const caption = 'approver · k.ebner@nordlicht-energie.at';
+    final record = BeakRecord(
+      values: const {},
+      relations: {
+        'profile': [
+          BeakRecord(
+            values: const {},
+            relations: {
+              'approver': [
+                BeakRecord.fromRow({
+                  'id': 'approver',
+                  'name': 'Katharina Ebner',
+                  'role': 'approver',
+                  'email': 'k.ebner@nordlicht-energie.at',
+                }),
+              ],
+            },
+          ),
+        ],
+      },
+    );
+    expect(template.subtitle.single.readFrom(record), caption);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      OiApp(
+        theme: gabelTheme(),
+        home: Center(
+          child: SizedBox(
+            width: 246,
+            child: BeakRecordTemplateView(template: template, record: record),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final captionFinder = find.text(caption);
+    expect(captionFinder, findsOneWidget);
+    final captionText = tester.widget<Text>(captionFinder);
+    expect(captionText.maxLines, 1);
+    expect(captionText.style!.fontSize, 12);
+    expect(captionText.style!.height, 16 / 12);
+    expect(captionText.style!.fontWeight, FontWeight.w500);
+    expect(
+      tester.renderObject<RenderParagraph>(captionFinder).didExceedMaxLines,
+      isTrue,
+    );
+    expect(find.bySemanticsLabel(RegExp(RegExp.escape(caption))), findsWidgets);
+    expect(
+      tester.getSize(find.byType(BeakRecordTemplateView)).height,
+      closeTo(36, .1),
+    );
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   for (final allergens in ['G', 'H']) {
     testWidgets(
       'options disclose only allergens additional to their dish $allergens',

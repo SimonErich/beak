@@ -2,7 +2,8 @@
 
 A persistent admin application built with Beak’s declarative resources, forms,
 wizards, record templates and summaries. The folder is named Foodio; the interface
-preserves the **Gabel** branding of `food-ordering-shop.html`. The original
+preserves the **Gabel** branding of the prototype in
+[`design/food-ordering-shop.html`](design/food-ordering-shop.html). The original
 `examples/clean_beak_config` shop remains available as a separate example.
 
 The reference screens cover order operations, advanced filtering, customer and
@@ -75,10 +76,13 @@ the fresh command drops known tables. The SQLite schema rebuild is atomic and ke
 | Panel, navigation and global formatting | `lib/main.dart`, `lib/theme/` |
 | Resource registration | `lib/foodio_resources.dart` |
 | Typed fields, relationships, validation, labels and badges | `lib/models/` |
-| Order list, filters, summaries and record templates | `lib/resources/orders/` |
-| Order wizard and shared detail/edit sections | `order_form.dart`, `order_review.dart`, `order_detail.dart`, `order_items.dart`, `order_summary.dart` in that folder |
+| Order list, filters, presets and table columns | `lib/resources/orders/list/` |
+| Order wizard shell and named customer, delivery, dish and payment steps | `lib/resources/orders/forms/order_wizard_screen.dart`, `forms/steps/` |
+| Reused order-item editor, review step, summary layout and exact totals | `lib/resources/orders/forms/` |
+| Read/edit detail screen and its delivery, customer, activity and presentation sections | `lib/resources/orders/details/` |
+| Shared identity, dish and status bindings | `lib/resources/orders/presentations/` |
+| Dashboard overview and printable order document | `lib/resources/orders/dashboard/`, `actions/` |
 | Reusable inline customer, profile and payment forms | `lib/resources/people/people_forms.dart` |
-| Printable persisted delivery note | `order_documents.dart` in that folder |
 | Dish catalog | `lib/resources/catalog/` |
 | Supporting configured screens | `lib/resources/people/`, `finance/`, `operations/` |
 | Shared read/create/edit form wrapper | `lib/supporting_forms.dart` |
@@ -135,8 +139,9 @@ snapshot contracts and the six disjoint chart populations.
 
 ## Demo effects and verification
 
-See [VERIFICATION.md](VERIFICATION.md) for the repeatable browser checks,
-coverage, reference-data corrections and the limits of the local demo.
+See [VERIFICATION.md](VERIFICATION.md) for the tests and repeatable browser
+checks, the contracts they cover, where the data deliberately departs from the
+prototype, and the limits of the local demo.
 
 Payment attempts, message deliveries and their receipts persist in SQLite. The
 outbox retries at least once; the adapters deduplicate by the stable effect key.

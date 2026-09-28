@@ -57,35 +57,35 @@ packages:
     source: path
     version: "0.0.1"
   beak_backend:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_backend"
       relative: true
     source: path
     version: "0.0.1"
   beak_core:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_core"
       relative: true
     source: path
     version: "0.0.1"
   beak_frontend:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_frontend"
       relative: true
     source: path
     version: "0.0.1"
   beak_image:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_image"
       relative: true
     source: path
     version: "0.0.1"
   beak_test:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../../packages/beak_test"
       relative: true

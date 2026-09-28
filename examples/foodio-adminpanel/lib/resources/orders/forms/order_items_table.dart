@@ -1,9 +1,9 @@
 import 'package:beak/panel.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../models/models.dart';
-import '../../theme/gabel_theme.dart';
-import 'order_presentations.dart';
+import '../../../models/models.dart';
+import '../../../theme/gabel_theme.dart';
+import '../presentations/order_presentations.dart';
 import 'order_totals.dart';
 
 /// The collection is reused in the wizard, order details and edit screen.

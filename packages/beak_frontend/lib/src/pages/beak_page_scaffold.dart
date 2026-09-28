@@ -96,6 +96,12 @@ final class BeakPageScaffold extends StatelessWidget {
             actions: pageActions,
             padding: EdgeInsets.zero,
           );
+          final pagePadding =
+              padding ??
+              const EdgeInsets.symmetric(horizontal: 32, vertical: 16);
+          final contentWidth =
+              constraints.maxWidth -
+              pagePadding.resolve(Directionality.of(context)).horizontal;
           final intrinsic = child is OiPageLayout
               ? child as OiPageLayout
               : null;
@@ -103,11 +109,9 @@ final class BeakPageScaffold extends StatelessWidget {
               intrinsic != null &&
               intrinsic.scrollable &&
               intrinsic.scrollHeaderWhenCompact &&
-              constraints.maxWidth < intrinsic.collapseBreakpoint.minWidth;
+              contentWidth < intrinsic.collapseBreakpoint.minWidth;
           return OiPageLayout(
-            padding:
-                padding ??
-                const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            padding: pagePadding,
             gap: gap ?? 16,
             header: scrollHeading ? null : pageHeading,
             child: scrollHeading

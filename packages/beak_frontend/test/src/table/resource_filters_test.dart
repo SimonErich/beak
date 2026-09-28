@@ -73,6 +73,15 @@ void main() {
       reason:
           'The typed filter bar must not have duplicate text header filters.',
     );
+    tester
+        .widget<OiFilterChip>(
+          find.byWidgetPredicate(
+            (widget) => widget is OiFilterChip && widget.label == 'Status',
+          ),
+        )
+        .onTap!
+        .call();
+    await tester.pumpAndSettle();
     final OiSelect<Enum> select = tester.widget(find.byType(OiSelect<Enum>));
     select.onChanged!(_Status.published);
     await tester.pumpAndSettle();
@@ -87,6 +96,15 @@ void main() {
     select.onChanged!(null);
     await tester.pumpAndSettle();
     expect(source.queryCalls.last.filter, isNull);
+    tester
+        .widget<OiFilterChip>(
+          find.byWidgetPredicate(
+            (widget) => widget is OiFilterChip && widget.label == 'Title',
+          ),
+        )
+        .onTap!
+        .call();
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText).first, 'Launch');
     await tester.pumpAndSettle();
     expect(

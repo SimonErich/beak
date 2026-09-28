@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -9,7 +7,6 @@ import 'package:signals/signals_flutter.dart';
 import '../data/beak_data_changes.dart';
 import '../data/beak_resource_repository.dart';
 import '../filters/beak_filter_widget.dart';
-import '../filters/beak_semantic_range_control.dart';
 import '../formatting/beak_formatting.dart';
 import '../localization/beak_localizations.dart';
 import 'beak_list_definition.dart';
@@ -256,7 +253,7 @@ class BeakListToolbar extends HookWidget {
                               filter.label,
                           value: active[filter.key] == null
                               ? null
-                              : _filterSummary(
+                              : beakFilterSummary(
                                   context,
                                   filter,
                                   active[filter.key]!,
@@ -282,51 +279,6 @@ class BeakListToolbar extends HookWidget {
       );
     });
   }
-}
-
-String _filterSummary(
-  BuildContext context,
-  BeakFilterDef definition,
-  BeakFilter filter,
-) {
-  if (definition is BeakChoiceFilter) {
-    final clauses = filter is BeakOrFilter ? filter.filters : [filter];
-    final labels = [
-      for (final choice in definition.options)
-        if (clauses.any(
-          (clause) =>
-              jsonEncode(clause.toJson()) == jsonEncode(choice.filter.toJson()),
-        ))
-          choice.label,
-    ];
-    return labels.join(', ');
-  }
-  final formatting = BeakFormatting.of(context);
-  String display(BeakValue? value) => value == null
-      ? '…'
-      : formatting.formatCell(
-          definition.column,
-          BeakRecord(values: {definition.column.key: value}),
-        );
-  if (definition is BeakSemanticRangeFilter) {
-    final bounds = beakFilterRange(filter);
-    for (final preset in definition.presets) {
-      if (preset.lower == definition.column.semantic.tryDecode(bounds.$1) &&
-          preset.upper == definition.column.semantic.tryDecode(bounds.$2)) {
-        return preset.label;
-      }
-    }
-    final lower = definition.column.semantic.tryDecode(bounds.$1);
-    final lowerLabel = definition.presets
-        .where(
-          (preset) => preset.lower == lower && preset.lower == preset.upper,
-        )
-        .firstOrNull
-        ?.label;
-    return '${lowerLabel ?? display(bounds.$1)} – ${display(bounds.$2)}';
-  }
-  if (filter case BeakFieldFilter(:final value)) return display(value);
-  return 'Active';
 }
 
 class _PresetTabs extends HookWidget {

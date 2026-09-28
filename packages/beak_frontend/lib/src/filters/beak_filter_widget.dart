@@ -192,6 +192,15 @@ final class BeakDateRangeFilter extends BeakFilterDef {
   });
 }
 
+/// Default arrangement for a filter bar.
+enum BeakFilterBarPresentation {
+  /// Compact filter chips that reveal their editor when opened.
+  chips,
+
+  /// Keep every filter editor visible in the bar.
+  controls,
+}
+
 /// Renders a resource's filters and emits the combined predicate: each
 /// active control contributes one typed [BeakFilter], AND-ed together
 /// (`null` when nothing is active).
@@ -216,6 +225,7 @@ class BeakFilterBar extends HookWidget {
     this.initialValues = const {},
     this.onFiltersChanged,
     this.onValidityChanged,
+    this.presentation = BeakFilterBarPresentation.chips,
     this.stacked = false,
     this.countQuery,
     this.countQueryFor,
@@ -243,6 +253,10 @@ class BeakFilterBar extends HookWidget {
   /// Whether all typed filter editors currently parse successfully.
   final ValueChanged<bool>? onValidityChanged;
 
+  /// Shows compact chips by default; choose [BeakFilterBarPresentation.controls]
+  /// when the editors should stay visible without opening a chip.
+  final BeakFilterBarPresentation presentation;
+
   /// Uses the available width in a vertically scrolling filter drawer.
   final bool stacked;
 
@@ -262,6 +276,7 @@ class BeakFilterBar extends HookWidget {
   Widget build(BuildContext context) {
     final invalid = useState(const <String>{});
     final advancedOpen = useState(false);
+    final editing = useState<String?>(null);
     final active = useState(initialValues);
     final controls = useState(<String, Object>{
       for (final def in filters)
@@ -313,6 +328,75 @@ class BeakFilterBar extends HookWidget {
           ),
         ),
     ];
+    if (!stacked && presentation == BeakFilterBarPresentation.chips) {
+      Widget chip(BeakFilterDef def) {
+        final current = active.value[def.key];
+        return OiPopover(
+          label: '${def.label} filter',
+          open: editing.value == def.key,
+          onClose: () => editing.value = null,
+          anchor: OiFilterChip(
+            label: def.label,
+            value: current == null
+                ? null
+                : beakFilterSummary(context, def, current),
+            selected: current != null,
+            onTap: () =>
+                editing.value = editing.value == def.key ? null : def.key,
+            onRemove: current == null
+                ? null
+                : () {
+                    editing.value = null;
+                    final nextInvalid = {...invalid.value}..remove(def.key);
+                    invalid.value = nextInvalid;
+                    onValidityChanged?.call(nextInvalid.isEmpty);
+                    apply(def);
+                  },
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 280, maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _control(context, def, controls.value[def.key], apply, (
+                valid,
+              ) {
+                final next = {...invalid.value};
+                if (valid) {
+                  next.remove(def.key);
+                } else {
+                  next.add(def.key);
+                }
+                invalid.value = next;
+                onValidityChanged?.call(next.isEmpty);
+              }),
+            ),
+          ),
+        );
+      }
+
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final def in filters) chip(def),
+          if (active.value.isNotEmpty)
+            OiButton.ghost(
+              size: OiButtonSize.small,
+              label: 'Clear all',
+              onTap: () {
+                active.value = const {};
+                controls.value = const {};
+                invalid.value = const {};
+                editing.value = null;
+                onValidityChanged?.call(true);
+                onChanged(null);
+                onFiltersChanged?.call(const {});
+              },
+            ),
+        ],
+      );
+    }
     if (!stacked) {
       return Wrap(
         spacing: 12,
@@ -633,6 +717,77 @@ class BeakFilterBar extends HookWidget {
           OiLabel.caption(BeakLocalizations.of(context).unavailable),
     );
   }
+}
+
+/// A concise, localized label for the predicate currently shown by a filter
+/// chip. Shared by ordinary resource filters and the composed list toolbar.
+String beakFilterSummary(
+  BuildContext context,
+  BeakFilterDef definition,
+  BeakFilter filter,
+) {
+  if (definition is BeakChoiceFilter) {
+    final clauses = filter is BeakOrFilter ? filter.filters : [filter];
+    final labels = [
+      for (final choice in definition.options)
+        if (clauses.any(
+          (clause) =>
+              jsonEncode(clause.toJson()) == jsonEncode(choice.filter.toJson()),
+        ))
+          choice.label,
+    ];
+    return labels.join(', ');
+  }
+  final formatting = BeakFormatting.of(context);
+  String display(BeakValue? value) => value == null
+      ? '…'
+      : formatting.formatCell(
+          definition.column,
+          BeakRecord(values: {definition.column.key: value}),
+        );
+  if (definition is BeakSemanticRangeFilter) {
+    final bounds = beakFilterRange(filter);
+    for (final preset in definition.presets) {
+      if (preset.lower == definition.column.semantic.tryDecode(bounds.$1) &&
+          preset.upper == definition.column.semantic.tryDecode(bounds.$2)) {
+        return preset.label;
+      }
+    }
+    final lower = definition.column.semantic.tryDecode(bounds.$1);
+    final lowerLabel = definition.presets
+        .where(
+          (preset) => preset.lower == lower && preset.lower == preset.upper,
+        )
+        .firstOrNull
+        ?.label;
+    return '${lowerLabel ?? display(bounds.$1)} – ${display(bounds.$2)}';
+  }
+  if (definition is BeakDateRangeFilter && filter is BeakAndFilter) {
+    final lower = filter.filters
+        .whereType<BeakFieldFilter>()
+        .where((clause) => clause.operator == BeakOperator.gte)
+        .firstOrNull;
+    final upper = filter.filters
+        .whereType<BeakFieldFilter>()
+        .where(
+          (clause) =>
+              clause.operator == BeakOperator.lt ||
+              clause.operator == BeakOperator.lte,
+        )
+        .firstOrNull;
+    final upperValue = upper?.value;
+    final inclusiveUpper =
+        upperValue?.raw is DateTime && upper?.operator == BeakOperator.lt
+        ? BeakDateTimeValue(
+            (upperValue!.raw! as DateTime).subtract(const Duration(days: 1)),
+          )
+        : upperValue;
+    if (lower == null) return 'Through ${display(inclusiveUpper)}';
+    if (inclusiveUpper == null) return 'From ${display(lower.value)}';
+    return '${display(lower.value)} – ${display(inclusiveUpper)}';
+  }
+  if (filter case BeakFieldFilter(:final value)) return display(value);
+  return 'Active';
 }
 
 /// An inclusive numeric range; either endpoint can be left open.

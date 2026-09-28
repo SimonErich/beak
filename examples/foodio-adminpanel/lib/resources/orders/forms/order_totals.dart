@@ -1,7 +1,7 @@
 import 'package:beak/panel.dart';
-import '../../domain/foodio_money.dart';
-import '../../domain/foodio_payment.dart';
-import '../../models/models.dart';
+import '../../../domain/foodio_money.dart';
+import '../../../domain/foodio_payment.dart';
+import '../../../models/models.dart';
 
 /// Shared exact money engine; the form contributes only its typed draft lines.
 FoodioTotals orderTotals(BeakFormReader state) {

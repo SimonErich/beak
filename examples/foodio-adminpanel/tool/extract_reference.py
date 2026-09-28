@@ -14,7 +14,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT.parents[1] / 'food-ordering-shop.html'
+SOURCE = ROOT / 'design/food-ordering-shop.html'
 
 def script(html, kind):
     return json.loads(re.search(r'<script type="__bundler/' + kind + r'">(.*?)</script>', html, re.S).group(1))
@@ -96,7 +96,7 @@ def color(value):
         return round(min(1, max(0,v))*255)
     return '0x' + ''.join(f'{x:02X}' for x in [round(alpha*255), *map(channel,rgb)])
 
-lines = ["// Extracted from food-ordering-shop.html by tool/extract_reference.py.",
+lines = ["// Extracted from design/food-ordering-shop.html by tool/extract_reference.py.",
          "import 'package:flutter/painting.dart';", '']
 for mode in ['light', 'dark']:
     css = re.search(r'\[data-theme="' + mode + r'"\]\s*\{(.*?)\}', template, re.S).group(1)

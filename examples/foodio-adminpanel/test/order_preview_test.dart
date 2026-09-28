@@ -3,15 +3,15 @@ import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:foodio_adminpanel/theme/gabel_theme.dart';
-import 'package:foodio_adminpanel/resources/orders/order_items.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_items_table.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foodio_adminpanel/beak/registry.g.dart';
 import 'package:foodio_adminpanel/beak/server.g.dart';
 import 'package:foodio_adminpanel/models/models.dart';
 import 'package:foodio_adminpanel/domain/foodio_order_preparer.dart';
-import 'package:foodio_adminpanel/resources/orders/order_detail.dart';
-import 'package:foodio_adminpanel/resources/orders/order_summary.dart';
-import 'package:foodio_adminpanel/resources/orders/order_totals.dart';
+import 'package:foodio_adminpanel/resources/orders/details/order_detail_screen.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_summary_layout.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_totals.dart';
 import 'package:foodio_adminpanel/seeders/foodio_seeder.dart';
 
 void main() {

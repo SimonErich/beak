@@ -8,7 +8,7 @@ import 'package:foodio_adminpanel/beak/server.g.dart';
 import 'package:foodio_adminpanel/models/models.dart';
 import 'package:foodio_adminpanel/main.dart';
 import 'package:go_router/go_router.dart';
-import 'package:foodio_adminpanel/resources/orders/order_form.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_wizard_screen.dart';
 import 'package:foodio_adminpanel/seeders/foodio_seeder.dart';
 import 'package:foodio_adminpanel/theme/gabel_theme.dart';
 import 'package:http/http.dart' as http;

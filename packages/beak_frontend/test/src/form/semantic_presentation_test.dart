@@ -109,6 +109,7 @@ void main() {
             child: BeakFilterBar(
               filters: [filters.first],
               onChanged: (value) => filter = value,
+              presentation: BeakFilterBarPresentation.controls,
             ),
           ),
         ),
@@ -223,6 +224,7 @@ void main() {
           home: BeakFilterBar(
             filters: [field.rangeFilter()],
             onChanged: (value) => filter = value,
+            presentation: BeakFilterBarPresentation.controls,
           ),
         ),
       );

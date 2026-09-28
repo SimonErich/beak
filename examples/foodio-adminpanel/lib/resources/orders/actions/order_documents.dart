@@ -1,6 +1,6 @@
 import 'package:beak/panel.dart';
 
-import '../../models/models.dart';
+import '../../../models/models.dart';
 
 /// A print-ready snapshot of the persisted order, with no app fetch/print code.
 BeakRecordAction deliveryNoteAction() => BeakRecordAction.document(

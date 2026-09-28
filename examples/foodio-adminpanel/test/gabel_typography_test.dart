@@ -1,11 +1,13 @@
 import 'dart:ui' as ui;
 
+import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show Align, Text;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodio_adminpanel/resources/orders/order_list.dart';
+import 'package:foodio_adminpanel/resources/orders/list/order_list_screen.dart';
 import 'package:foodio_adminpanel/theme/gabel_theme.dart';
 
 void main() {
@@ -76,7 +78,7 @@ void main() {
 
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('narrow Items heading fits with its active sort indicator', (
+  testWidgets('Items heading fits and retains sorting in its narrow column', (
     tester,
   ) async {
     await (FontLoader(
@@ -117,21 +119,61 @@ void main() {
     );
     controller.sortBy('items');
     await tester.pump();
-    expect(
-      tester.renderObject<RenderParagraph>(heading).didExceedMaxLines,
-      isFalse,
-      reason: 'The active sort indicator must leave room for the full heading.',
-    );
+    expect(controller.sortColumnId, 'items');
+    expect(controller.sortAscending, isTrue);
+    expect(tester.widget<Text>(heading).data, 'Items');
+    expect(tester.widget<Text>(heading).overflow, TextOverflow.ellipsis);
+    final sortedBounds = tester.getRect(heading);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     await mouse.moveTo(tester.getCenter(heading));
     await tester.pump();
-    expect(
-      tester.renderObject<RenderParagraph>(heading).didExceedMaxLines,
-      isFalse,
-      reason: 'Hover must preserve a readable sorted heading.',
-    );
+    expect(tester.getRect(heading), sortedBounds);
+    await tester.tap(heading);
+    await tester.pump();
+    expect(controller.sortAscending, isFalse);
     await mouse.removePointer();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Items count uses the reference tabular numeric advance', (
+    tester,
+  ) async {
+    await (FontLoader(
+      'Mona Sans',
+    )..addFont(rootBundle.load('assets/fonts/MonaSans.ttf'))).load();
+    final template = orderList().definition!.columns
+        .singleWhere((column) => column.key == 'items')
+        .template!;
+    await tester.pumpWidget(
+      OiApp(
+        theme: gabelTheme(),
+        home: Align(
+          child: BeakRecordTemplateView(
+            template: template,
+            record: BeakRecord.fromRow({'item_count': 12}),
+          ),
+        ),
+      ),
+    );
+    double width(String text) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: gabelTheme().textTheme.body.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final value = painter.width;
+      painter.dispose();
+      return value;
+    }
+
+    final count = tester.renderObject<RenderParagraph>(find.text('12'));
+    expect(count.size.width, closeTo(width('12'), .001));
+    expect(count.size.width, closeTo(width('88'), .001));
     expect(tester.takeException(), isNull);
   });
 

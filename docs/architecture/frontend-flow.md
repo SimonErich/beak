@@ -100,11 +100,26 @@ The guard drops results after disposal or after a newer request starts, so a slo
 
 ## The Repository: the single catch boundary
 
-`BeakResourceRepository` is a thin, stateless wrapper over a `BeakDataSource`. Every method mirrors a source operation but returns `BeakResult<T>` instead of throwing. A thrown `BeakException` becomes a `BeakErr`; any other error still propagates (a bug should not be swallowed as a value).
+`BeakResourceRepository` wraps a `BeakDataSource`. Every method mirrors a source operation but returns `BeakResult<T>` instead of throwing. The default remains uncached; its opt-in coalescing scope shares identical pending queries and removes them after completion. Mutations invalidate pending join eligibility, and record-specific permissions remain fresh. A thrown `BeakException` becomes a `BeakErr`; any other error still propagates (a bug should not be swallowed as a value).
 
 ```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
-Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
-    beakRun(() => dataSource.query(spec));
+Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) {
+  final queries = _queries;
+  if (queries == null) return beakRun(() => dataSource.query(spec));
+  return queries.putIfAbsent(spec, () {
+    late final Future<BeakResult<BeakPage<BeakRecord>>> request;
+    request = (() async {
+      try {
+        return await beakRun(() => dataSource.query(spec));
+      } finally {
+        queries.removeWhere(
+          (key, pending) => key == spec && identical(pending, request),
+        );
+      }
+    })();
+    return request;
+  });
+}
 
 ```
 

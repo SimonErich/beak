@@ -9,6 +9,15 @@ description: Configure typed list projections, permanent scopes and interactive 
 
 Resource filters use typed field builders such as `.boolFilter()`, `.numberRangeFilter()` and `.relationFilter()`. A table's base query remains in force as user filters change. Global search sources can include scalar fields and related paths. Account and field policies still constrain all server queries.
 
+Resource filter bars use compact chips by default: inactive filters appear as
+outlined `+` chips, and active filters show their selected value with a remove
+action. Selecting a chip opens its typed editor in a popover, so filters do not
+push the table down with a stack of empty inputs. Active bars include a clear
+action. This default is shared by inferred filters and explicitly configured
+resource filters. For a custom screen that needs editors permanently visible,
+set `presentation: BeakFilterBarPresentation.controls`; the staged filter
+drawer remains vertically arranged regardless of this setting.
+
 Standard mutations publish data-change events so lists and dependent views refresh after a form or another screen saves. Model actions appear on eligible rows, and `BeakBulkAction.edit` supplies a typed selection workflow.
 
 ```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"

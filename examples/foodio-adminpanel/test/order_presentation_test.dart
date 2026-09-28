@@ -1,7 +1,7 @@
 import 'package:beak/panel.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foodio_adminpanel/resources/orders/order_items.dart';
-import 'package:foodio_adminpanel/resources/orders/order_presentations.dart';
+import 'package:foodio_adminpanel/resources/orders/forms/order_items_table.dart';
+import 'package:foodio_adminpanel/resources/orders/presentations/order_presentations.dart';
 
 void main() {
   test('private profile metadata uses active saved payment methods', () {

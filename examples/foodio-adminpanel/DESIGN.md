@@ -1,9 +1,10 @@
 # Prototype fidelity and reusable presentation contracts
 
-The reference is `food-ordering-shop.html` at the repository root. Foodio uses
-Beak and the local **Obers UI** package. No Fluvie package is used by this app.
-`lib/theme/gabel_theme.dart` owns typography, surfaces, geometry and interaction
-colors; resources own their declarative composition and business content.
+The reference is [`design/food-ordering-shop.html`](design/food-ordering-shop.html)
+in this example. Foodio uses Beak and the local **Obers UI** package. No Fluvie
+package is used by this app. `lib/theme/gabel_theme.dart` owns typography,
+surfaces, geometry and interaction colors; resources own their declarative
+composition and business content.
 
 ## Why the earlier rendering differed
 
@@ -116,7 +117,7 @@ variable font. Widget tests cover bounded layout, state changes, keyboard
 interaction, responsive stacking and wizard scrolling. Browser scripts repeat
 list/filter and preview-only wizard flows without writing orders.
 
-See [VERIFICATION.md](VERIFICATION.md) for the latest runs and evidence. Compare
+See [VERIFICATION.md](VERIFICATION.md) for the commands that repeat them. Compare
 matching scroll, focus, hover and selection states; a screenshot alone does not
 establish that interactive styling is correct. Reference mock totals and IDs
 must not replace authoritative prices, capacity, approval state or identifiers
@@ -226,3 +227,16 @@ The numeric review total uses `gabelNumericTotalStyle`: the existing heading 2
 keeps total widths stable when only digits change; ordinary summary values keep
 their own roles. A loaded-font layout regression checks equal widths for €41.31
 and €48.60 against the prototype's 77.6875px text run.
+
+The review aside opts into the shared detailed timeline rail. Its connector
+extends beside each item's intrinsic content height, so an identity card does
+not add a separate connector row below it. The Gabel stepper theme supplies a
+1px upcoming-circle border, lineStrong connector, 20px item separation and 2px
+label/detail gap. Other stepper layouts retain their structure. The approver's
+real role and email use a single caption binding with ordinary ellipsis and
+full accessible text; the identity retains its 36px text block.
+
+The numeric Items column uses the shared 12px cell padding. Its 57px width
+allows the 32.556px caption to fit within a 1px reference tolerance; the prototype
+allows that fractional text overflow in its 56px column. Active sorting retains
+the standard narrow-column ellipsis and the full accessible label.

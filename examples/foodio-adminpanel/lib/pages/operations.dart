@@ -1,7 +1,7 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 import '../models/models.dart';
-import '../resources/orders/order_overview.dart';
+import '../resources/orders/dashboard/order_overview.dart';
 
 /// Supporting destinations use the same declarative query and display blocks.
 List<BeakScreen> foodioPages() => [

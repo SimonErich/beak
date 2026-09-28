@@ -1,4 +1,4 @@
-// Extracted from food-ordering-shop.html by tool/extract_reference.py.
+// Extracted from design/food-ordering-shop.html by tool/extract_reference.py.
 import 'package:flutter/painting.dart';
 
 /// Exact light semantic colors from the supplied prototype.

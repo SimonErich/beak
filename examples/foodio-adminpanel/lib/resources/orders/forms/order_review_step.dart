@@ -2,11 +2,11 @@ import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../models/models.dart';
-import '../../theme/gabel_theme.dart';
-import '../../domain/foodio_clock.dart';
-import 'order_items.dart';
-import 'order_presentations.dart';
+import '../../../models/models.dart';
+import '../../../theme/gabel_theme.dart';
+import '../../../domain/foodio_clock.dart';
+import 'order_items_table.dart';
+import '../presentations/order_presentations.dart';
 import 'order_totals.dart';
 
 /// The review reuses the same draft and points back to its owning wizard steps.

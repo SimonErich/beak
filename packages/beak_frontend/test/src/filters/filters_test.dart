@@ -19,13 +19,86 @@ void main() {
 
   setUp(() => emitted = []);
 
+  testWidgets('filter bars default to compact chips with on-demand editors', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakFilterBar(filters: defs, onChanged: emitted.add),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OiFilterChip), findsNWidgets(defs.length));
+    final selectFinder = find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString().startsWith('OiSelect<'),
+      skipOffstage: false,
+    );
+    expect(selectFinder, findsNothing);
+    expect(find.byType(OiDateRangePickerField), findsNothing);
+
+    await tester.tap(find.byType(OiFilterChip).first);
+    await tester.pumpAndSettle();
+    expect(selectFinder, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('active chips remove their predicate and clear all together', (
+    tester,
+  ) async {
+    final filter = BeakFieldFilter.forKey(
+      'active',
+      BeakOperator.eq,
+      const BeakBoolValue(true),
+    );
+    final titleFilter = BeakFieldFilter.forKey(
+      'title',
+      BeakOperator.contains,
+      const BeakStringValue('Lunch'),
+    );
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakFilterBar(
+          filters: const [
+            BeakBoolFilter(column: ArticleColumns.active, label: 'Active'),
+            BeakTextFilter(column: ArticleColumns.title, label: 'Title'),
+          ],
+          initialValues: {'active': filter, 'title': titleFilter},
+          onChanged: emitted.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Clear all'), findsOneWidget);
+    final activeChip = tester.widget<OiFilterChip>(
+      find.byType(OiFilterChip).first,
+    );
+    expect(activeChip.selected, isTrue);
+    activeChip.onRemove!.call();
+    await tester.pumpAndSettle();
+    expect(emitted.last, isNotNull);
+    expect(find.text('Clear all'), findsOneWidget);
+    await tester.tap(find.text('Clear all'));
+    await tester.pumpAndSettle();
+    expect(emitted.last, isNull);
+    expect(find.text('Clear all'), findsNothing);
+  });
+
   Future<void> pumpBar(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       OiApp(
         theme: OiThemeData.light(),
-        home: BeakFilterBar(filters: defs, onChanged: emitted.add),
+        home: BeakFilterBar(
+          filters: defs,
+          onChanged: emitted.add,
+          presentation: BeakFilterBarPresentation.controls,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -41,11 +114,7 @@ void main() {
   ) async {
     const field = BeakScalarField<String>(
       model: NoteModel(),
-      column: BeakStringColumn(
-        key: 'title',
-        label: 'Title',
-        sortable: true,
-      ),
+      column: BeakStringColumn(key: 'title', label: 'Title', sortable: true),
     );
     final source = _FacetSource();
     final scope = field.contains('Tenant');
@@ -74,6 +143,7 @@ void main() {
             ),
           ],
           onChanged: (_) {},
+          presentation: BeakFilterBarPresentation.controls,
         ),
       ),
     );
@@ -110,7 +180,11 @@ void main() {
           theme: OiThemeData.light(),
           home: BeakFormattingScope(
             formatting: const BeakFormatting(currency: 'EUR'),
-            child: BeakFilterBar(filters: [def], onChanged: emitted.add),
+            child: BeakFilterBar(
+              filters: [def],
+              onChanged: emitted.add,
+              presentation: BeakFilterBarPresentation.controls,
+            ),
           ),
         ),
       );
@@ -150,6 +224,7 @@ void main() {
             def.key: BeakOrFilter([choice]),
           },
           onChanged: emitted.add,
+          presentation: BeakFilterBarPresentation.controls,
         ),
       ),
     );
@@ -218,6 +293,7 @@ void main() {
             range.key: bounds,
           },
           onChanged: emitted.add,
+          presentation: BeakFilterBarPresentation.controls,
         ),
       ),
     );
@@ -452,6 +528,7 @@ void main() {
             BeakSelectFilter(column: ArticleColumns.title, label: 'Broken'),
           ],
           onChanged: emitted.add,
+          presentation: BeakFilterBarPresentation.controls,
         ),
       ),
     );
@@ -473,6 +550,7 @@ void main() {
           home: BeakFilterBar(
             filters: [price.numberRangeFilter(), defs.last],
             onChanged: emitted.add,
+            presentation: BeakFilterBarPresentation.controls,
           ),
         ),
       );
@@ -528,6 +606,7 @@ void main() {
             filters: [name.textFilter(), category.relationFilter()],
             dataSource: FakeDataSource(),
             onChanged: emitted.add,
+            presentation: BeakFilterBarPresentation.controls,
           ),
         ),
       );
@@ -588,6 +667,7 @@ void main() {
             filters: [category.relationFilter()],
             dataSource: source,
             onChanged: emitted.add,
+            presentation: BeakFilterBarPresentation.controls,
           ),
         ),
       );

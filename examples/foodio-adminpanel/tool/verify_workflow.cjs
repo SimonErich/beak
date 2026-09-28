@@ -6,6 +6,7 @@
  * FOODIO_URL and FOODIO_ARTIFACTS configure the app and evidence directory.
  */
 const fs = require('node:fs');
+const {stableScreenshot} = require('./capture_observer.cjs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const {performance} = require('node:perf_hooks');
@@ -90,14 +91,15 @@ const report = {url: base, passes: []};
     await settle();
     await page.waitForTimeout(300);
     await settle();
-    const bounds = await page.locator('flt-semantics').evaluateAll(elements =>
+    const readBounds = () => page.locator('flt-semantics').evaluateAll(elements =>
       elements.map(element => {
         const r = element.getBoundingClientRect();
         return {text: element.getAttribute('aria-label') || element.innerText,
           role: element.getAttribute('role'), x:r.x, y:r.y, width:r.width, height:r.height};
       }).filter(element => element.text && element.width && element.height));
-    fs.writeFileSync(path.join(artifacts, `${pass}-${name}-bounds.json`), JSON.stringify(bounds, null, 2));
-    await page.screenshot({path: path.join(artifacts, `${pass}-${name}.png`)});
+    await stableScreenshot({page, readBounds,
+      boundsPath: path.join(artifacts, `${pass}-${name}-bounds.json`),
+      screenshotPath: path.join(artifacts, `${pass}-${name}.png`)});
   }
   async function advance(title) {
     await page.getByRole('button').filter({hasText: /^Continue/}).click();

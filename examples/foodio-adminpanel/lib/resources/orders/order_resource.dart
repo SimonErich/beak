@@ -2,10 +2,10 @@ import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 
 import '../../models/models.dart';
-import 'order_list.dart';
-import 'order_form.dart';
-import 'order_detail.dart';
-import 'order_documents.dart';
+import 'list/order_list_screen.dart';
+import 'forms/order_wizard_screen.dart';
+import 'details/order_detail_screen.dart';
+import 'actions/order_documents.dart';
 
 /// Orders use one shared model for searchable lists and transactional workflows.
 final class OrderResource extends BeakResource {
