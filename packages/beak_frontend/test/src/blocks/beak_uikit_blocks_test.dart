@@ -100,6 +100,45 @@ void main() {
       expect(badge.label, 'Active');
     });
 
+    testWidgets('every alert level has a banner level of its own', (
+      tester,
+    ) async {
+      const expected = {
+        BeakAlertLevel.info: OiBannerLevel.info,
+        BeakAlertLevel.success: OiBannerLevel.success,
+        BeakAlertLevel.warning: OiBannerLevel.warning,
+        BeakAlertLevel.error: OiBannerLevel.error,
+      };
+      expect(expected.keys.toSet(), BeakAlertLevel.values.toSet());
+
+      for (final MapEntry(key: level, value: banner) in expected.entries) {
+        await pump(tester, BeakAlertBlock('Heads up', level: level));
+
+        expect(tester.widget<OiBanner>(find.byType(OiBanner)).level, banner);
+      }
+    });
+
+    testWidgets('every badge color maps onto an obers badge color', (
+      tester,
+    ) async {
+      const expected = {
+        BeakColor.primary: OiBadgeColor.primary,
+        BeakColor.secondary: OiBadgeColor.accent,
+        BeakColor.success: OiBadgeColor.success,
+        BeakColor.warning: OiBadgeColor.warning,
+        BeakColor.error: OiBadgeColor.error,
+        BeakColor.info: OiBadgeColor.info,
+        BeakColor.muted: OiBadgeColor.neutral,
+      };
+      expect(expected.keys.toSet(), BeakColor.values.toSet());
+
+      for (final MapEntry(key: color, value: badge) in expected.entries) {
+        await pump(tester, BeakBadgeBlock('State', color: color));
+
+        expect(tester.widget<OiBadge>(find.byType(OiBadge)).color, badge);
+      }
+    });
+
     testWidgets('progress renders a linear bar at its value', (tester) async {
       await pump(tester, const BeakProgressBlock(value: 0.6, label: 'Storage'));
 

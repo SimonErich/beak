@@ -2,7 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
-import '../dashboard/beak_chart.dart';
+import 'beak_chart_data.dart';
 import '../panel/beak_panel_config.dart';
 import '../table/beak_table_action.dart';
 
@@ -30,7 +30,6 @@ part 'beak_image_block.dart';
 part 'beak_inbox_block.dart';
 part 'beak_invoice_block.dart';
 part 'beak_kanban_block.dart';
-part 'beak_kpi_block.dart';
 part 'beak_markdown_block.dart';
 part 'beak_masonry_block.dart';
 part 'beak_metric_block.dart';
@@ -54,7 +53,6 @@ part 'beak_map_block.dart';
 part 'beak_radial_slider_block.dart';
 part 'beak_three_pane_block.dart';
 part 'beak_widget_block.dart';
-part 'beak_wizard_block.dart';
 
 /// A declarative, composable content node — the building block of every
 /// non-CRUD Beak surface.

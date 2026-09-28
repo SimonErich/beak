@@ -13,11 +13,11 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakPricingBlock(
 ///   model: const PlanModel(),
-///   nameField: PlanColumns.name,
-///   priceField: PlanColumns.monthlyPrice,
-///   featuredField: PlanColumns.recommended,
-///   featuresRelation: PlanRelations.features,
-///   featureLabelField: FeatureColumns.label,
+///   nameField: PlanModel.name.column,
+///   priceField: PlanModel.monthlyPrice.column,
+///   featuredField: PlanModel.recommended.column,
+///   featuresRelation: PlanModel.features.relation,
+///   featureLabelField: FeatureModel.label.column,
 /// );
 /// ```
 final class BeakPricingBlock extends BeakBlock {

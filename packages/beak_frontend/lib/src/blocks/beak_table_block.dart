@@ -1,8 +1,7 @@
 part of 'beak_block.dart';
 
-/// A composable data table bound to a model — the dashboard's
-/// order-status / top-users / latest-transactions tables and any embedded
-/// listing.
+/// A composable data table bound to a model: an order-status, top-users or
+/// latest-transactions card, or any other embedded listing.
 ///
 /// Reuses the full `BeakDataTable` (server-side sort, filter, pagination,
 /// row actions), so a table on a page behaves exactly like a resource list.
@@ -12,13 +11,19 @@ part of 'beak_block.dart';
 ///
 /// ```dart
 /// BeakTableBlock(
-///   title: 'Latest transactions',
-///   model: TransactionModel(),
-///   initialSpec: BeakQuerySpec(
-///     table: 'transactions',
-///     sort: BeakSort(column: 'occurred_at', descending: true),
-///     pagination: BeakPagination(perPage: 5),
-///   ),
+///   title: 'Upcoming deliveries',
+///   model: const OrderModel(),
+///   fields: [
+///     OrderModel.reference,
+///     OrderModel.status,
+///     OrderModel.deliveryDate,
+///   ],
+///   enableDelete: false,
+///   initialSpec: const OrderModel()
+///       .query()
+///       .orderBy(OrderModel.deliveryDate.column)
+///       .paginate(perPage: 5),
+///   baseFilter: OrderModel.status.notEq(OrderStatus.cancelled),
 /// );
 /// ```
 final class BeakTableBlock extends BeakBlock {
@@ -50,7 +55,7 @@ final class BeakTableBlock extends BeakBlock {
   /// The columns to show, in order; defaults to the model's table-context
   /// columns.
   ///
-  /// A dashboard card is not a list page: three columns read at a glance
+  /// A card on a page is not a list page: three columns read at a glance
   /// where seventeen do not fit at all.
   final List<BeakColumn>? columns;
 

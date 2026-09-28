@@ -1,5 +1,6 @@
-/// Beak admin-panel Flutter widgets — panel shell, data table, forms, detail
-/// views, actions, and dashboards built on obers_ui.
+/// Beak admin-panel Flutter widgets built on obers_ui: the panel shell,
+/// resource tables, forms, detail views and actions, plus the composable
+/// blocks (metrics, charts, tables, modules) that screens are made of.
 library;
 
 export 'src/actions/beak_action.dart';
@@ -13,6 +14,7 @@ export 'src/auth/beak_logout_button.dart';
 export 'src/actions/beak_action_button.dart';
 export 'src/blocks/beak_block.dart';
 export 'src/blocks/beak_block_host.dart';
+export 'src/blocks/beak_chart_data.dart';
 export 'src/common/hex_color.dart';
 export 'src/localization/beak_localizations.dart';
 export 'src/dashboard/beak_chart.dart';
@@ -89,4 +91,4 @@ export 'src/formatting/beak_formatting.dart';
 export 'src/formatting/beak_field_format.dart';
 
 /// The version of the `beak_frontend` package.
-const String beakFrontendVersion = '0.0.1';
+const String beakFrontendVersion = '0.9.0';

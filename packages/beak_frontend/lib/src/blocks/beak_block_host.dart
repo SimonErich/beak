@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
@@ -8,8 +9,6 @@ import 'package:obers_ui/obers_ui.dart';
 import 'package:obers_ui_charts/obers_ui_charts.dart';
 import 'package:signals/signals_flutter.dart';
 
-import '../dashboard/beak_chart.dart';
-import '../dashboard/beak_stat.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import '../query/beak_query_scope.dart';
@@ -21,6 +20,8 @@ import '../formatting/beak_formatting.dart';
 import '../table/beak_data_table.dart';
 import '../table/column_cell_renderer.dart';
 import 'beak_block.dart';
+import 'beak_chart_data.dart';
+import 'beak_chart_family.dart';
 
 part 'views/beak_calendar_block_view.dart';
 part 'views/beak_bubble_chart_block_view.dart';
@@ -34,7 +35,6 @@ part 'views/beak_gallery_block_view.dart';
 part 'views/beak_inbox_block_view.dart';
 part 'views/beak_invoice_block_view.dart';
 part 'views/beak_kanban_block_view.dart';
-part 'views/beak_kpi_block_view.dart';
 part 'views/beak_metric_block_view.dart';
 part 'views/beak_summary_block_view.dart';
 part 'views/beak_pricing_block_view.dart';
@@ -77,7 +77,6 @@ class BeakBlockHost extends StatelessWidget {
     final BeakCardBlock card => _card(card),
     final BeakSectionBlock section => _section(context, section),
     final BeakTabsBlock tabs => _BeakTabsHost(block: tabs),
-    final BeakKpiBlock kpi => _BeakKpiBlockView(block: kpi),
     final BeakChartBlock chart => _BeakChartBlockView(block: chart),
     final BeakBubbleChartBlock bubble => _BeakBubbleChartBlockView(
       block: bubble,
@@ -109,7 +108,6 @@ class BeakBlockHost extends StatelessWidget {
     final BeakAccordionBlock accordion => _accordion(accordion),
     final BeakBreadcrumbsBlock crumbs => _breadcrumbs(context, crumbs),
     final BeakMasonryBlock masonry => _masonry(context, masonry),
-    final BeakWizardBlock wizard => _wizard(wizard),
     final BeakThreePaneBlock panes => _threePane(panes),
     final BeakAlertBlock alert => _alert(alert),
     final BeakBadgeBlock badge => _badge(badge),
@@ -292,25 +290,6 @@ class BeakBlockHost extends StatelessWidget {
     columns: OiResponsive<int>(block.columns),
     gap: OiResponsive<double>(block.gapInPixels),
     children: [for (final child in block.children) BeakBlockHost(block: child)],
-  );
-
-  Widget _wizard(BeakWizardBlock block) => OiWizard(
-    stepperStyle: block.stepperStyle,
-    onComplete: block.onComplete == null
-        ? null
-        : (_) => block.onComplete!.call(),
-    steps: [
-      for (final step in block.steps)
-        OiWizardStep(
-          title: step.title,
-          subtitle: step.subtitle,
-          icon: step.icon,
-          validate: step.canAdvance == null
-              ? null
-              : (_) => step.canAdvance!.call(),
-          builder: (_) => BeakBlockHost(block: step.body),
-        ),
-    ],
   );
 
   Widget _threePane(BeakThreePaneBlock block) => OiThreeColumnLayout(

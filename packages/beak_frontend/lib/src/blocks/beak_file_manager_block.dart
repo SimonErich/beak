@@ -12,11 +12,11 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakFileManagerBlock(
 ///   model: const AssetModel(),
-///   nameField: AssetColumns.name,
-///   isFolderField: AssetColumns.isFolder,
-///   sizeField: AssetColumns.sizeInBytes,
-///   modifiedField: AssetColumns.updatedAt,
-///   onOpen: (record) => print(record[AssetColumns.name.key]?.raw),
+///   nameField: AssetModel.name.column,
+///   isFolderField: AssetModel.isFolder.column,
+///   sizeField: AssetModel.sizeInBytes.column,
+///   modifiedField: AssetModel.updatedAt.column,
+///   onOpen: (record) => openedAsset.value = AssetModel.id.readFrom(record),
 /// );
 /// ```
 final class BeakFileManagerBlock extends BeakBlock {

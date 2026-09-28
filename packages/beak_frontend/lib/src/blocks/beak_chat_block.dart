@@ -11,10 +11,10 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakChatBlock(
 ///   model: const MessageModel(),
-///   authorField: MessageColumns.author,
-///   bodyField: MessageColumns.body,
-///   timeField: MessageColumns.sentAt,
-///   isMineField: MessageColumns.fromMe,
+///   authorField: MessageModel.author.column,
+///   bodyField: MessageModel.body.column,
+///   timeField: MessageModel.sentAt.column,
+///   isMineField: MessageModel.fromMe.column,
 /// );
 /// ```
 final class BeakChatBlock extends BeakBlock {

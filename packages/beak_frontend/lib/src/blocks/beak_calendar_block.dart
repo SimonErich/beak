@@ -14,11 +14,11 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakCalendarBlock(
 ///   model: const EventModel(),
-///   titleField: EventColumns.title,
-///   startField: EventColumns.startsAt,
-///   endField: EventColumns.endsAt,
-///   categoryField: EventColumns.status,
-///   onEventTap: (record) => print(record[EventColumns.title.key]?.raw),
+///   titleField: EventModel.title.column,
+///   startField: EventModel.startsAt.column,
+///   endField: EventModel.endsAt.column,
+///   categoryField: EventModel.status.column,
+///   onEventTap: (record) => selected.value = EventModel.id.readFrom(record),
 /// );
 /// ```
 final class BeakCalendarBlock extends BeakBlock {

@@ -12,10 +12,12 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakKanbanBlock(
 ///   model: const TaskModel(),
-///   groupField: TaskColumns.status, // a BeakEnumColumn
-///   titleField: TaskColumns.title,
-///   subtitleField: TaskColumns.assignee,
-///   onCardMove: (record) => print('moved ${record[TaskColumns.id.key]?.raw}'),
+///   // The board needs the typed enum column, which the generated
+///   // TaskColumns keeps; `TaskModel.status.column` is a plain BeakColumn.
+///   groupField: TaskColumns.status,
+///   titleField: TaskModel.title.column,
+///   subtitleField: TaskModel.assignee.column,
+///   onCardMove: (record) => lastMoved.value = TaskModel.id.readFrom(record),
 /// );
 /// ```
 final class BeakKanbanBlock extends BeakBlock {

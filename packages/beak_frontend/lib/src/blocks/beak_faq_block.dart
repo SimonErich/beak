@@ -11,9 +11,9 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakFaqBlock(
 ///   model: const FaqModel(),
-///   questionField: FaqColumns.question,
-///   answerField: FaqColumns.answer,
-///   categoryField: FaqColumns.category,
+///   questionField: FaqModel.question.column,
+///   answerField: FaqModel.answer.column,
+///   categoryField: FaqModel.category.column,
 /// );
 /// ```
 final class BeakFaqBlock extends BeakBlock {

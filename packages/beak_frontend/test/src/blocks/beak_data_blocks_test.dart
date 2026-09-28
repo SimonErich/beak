@@ -43,42 +43,92 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  group('BeakKpiBlock', () {
-    testWidgets('fetches value and prior period into an OiKpiCard', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        const BeakKpiBlock(
-          title: 'Revenue',
-          value: BeakAggregateSpec.count(table: 'notes'),
-          previous: BeakAggregateSpec.count(table: 'notes_prior'),
-          format: BeakKpiFormat.currency,
-        ),
-      );
-
-      expect(find.byType(OiKpiCard), findsOneWidget);
-      final card = tester.widget<OiKpiCard>(find.byType(OiKpiCard));
-      expect(card.metric.value, 200);
-      expect(card.metric.previousValue, 160);
-      expect(card.showDelta, isTrue);
-    });
-
-    testWidgets('hides the delta without a prior period', (tester) async {
-      await pump(
-        tester,
-        const BeakKpiBlock(
-          title: 'Orders',
-          value: BeakAggregateSpec.count(table: 'notes'),
-        ),
-      );
-
-      final card = tester.widget<OiKpiCard>(find.byType(OiKpiCard));
-      expect(card.showDelta, isFalse);
-    });
-  });
-
   group('BeakChartBlock', () {
+    BeakChartBlock chartOf(BeakChartType type) => BeakChartBlock(
+      title: 'Notes',
+      type: type,
+      query: const NoteModel().query(),
+      map: (records) => [
+        for (final (index, record) in records.indexed)
+          BeakChartPoint(
+            label: record['title']?.raw?.toString() ?? '',
+            value: index + 1,
+          ),
+      ],
+    );
+
+    testWidgets('maps records to a line chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.line));
+
+      final chart = tester.widget<OiLineChart>(find.byType(OiLineChart));
+      expect(chart.series.single.points.map((point) => (point.x, point.y)), [
+        (0, 1),
+        (1, 2),
+      ]);
+    });
+
+    testWidgets('an explicit x positions a line point', (tester) async {
+      await pump(
+        tester,
+        BeakChartBlock(
+          title: 'Notes',
+          type: BeakChartType.line,
+          query: const NoteModel().query(),
+          map: (_) => const [BeakChartPoint(label: 'Q3', value: 4, x: 3)],
+        ),
+      );
+
+      final chart = tester.widget<OiLineChart>(find.byType(OiLineChart));
+      expect(chart.series.single.points.single.x, 3);
+    });
+
+    testWidgets('maps records to a bar chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.bar));
+
+      final chart = tester.widget<OiBarChart>(find.byType(OiBarChart));
+      expect(chart.categories.map((category) => category.label), [
+        'Alpha',
+        'Beta',
+      ]);
+    });
+
+    testWidgets('maps records to a pie chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.pie));
+
+      final chart = tester.widget<OiPieChart>(find.byType(OiPieChart));
+      expect(chart.segments.map((segment) => segment.value), [1, 2]);
+    });
+
+    testWidgets('maps records to an area chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.area));
+
+      final chart = tester.widget<OiAreaChart<BeakChartPoint>>(
+        find.byType(OiAreaChart<BeakChartPoint>),
+      );
+      final series = chart.series.single;
+      final data = series.data ?? const <BeakChartPoint>[];
+      expect(data.map(series.xMapper), [0, 1]);
+      expect(data.map(series.yMapper), [1, 2]);
+    });
+
+    testWidgets('a failed query leaves the chart empty', (tester) async {
+      await pump(
+        tester,
+        BeakChartBlock(
+          title: 'Missing',
+          type: BeakChartType.pie,
+          query: const BeakQuerySpec(table: 'missing'),
+          map: (records) => [
+            for (final record in records)
+              BeakChartPoint(label: record.toString(), value: 1),
+          ],
+        ),
+      );
+
+      final chart = tester.widget<OiPieChart>(find.byType(OiPieChart));
+      expect(chart.segments, isEmpty);
+    });
+
     testWidgets('maps records to a donut chart', (tester) async {
       await pump(
         tester,
@@ -141,21 +191,6 @@ void main() {
 
       final chart = tester.widget<OiFunnelChart>(find.byType(OiFunnelChart));
       expect(chart.stages.map((stage) => stage.label), ['Alpha', 'Beta']);
-    });
-  });
-
-  group('BeakMetricBlock', () {
-    testWidgets('renders the aggregate through a stat card', (tester) async {
-      await pump(
-        tester,
-        const BeakMetricBlock(
-          label: 'Notes',
-          aggregate: BeakAggregateSpec.count(table: 'notes'),
-        ),
-      );
-
-      expect(find.text('Notes'), findsOneWidget);
-      expect(find.text('200'), findsOneWidget);
     });
   });
 

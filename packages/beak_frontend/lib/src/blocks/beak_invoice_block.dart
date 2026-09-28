@@ -13,14 +13,17 @@ part of 'beak_block.dart';
 /// BeakInvoiceBlock(
 ///   model: const InvoiceModel(),
 ///   recordId: 'inv-1001',
-///   logoField: InvoiceColumns.logoUrl,
-///   fromFields: [InvoiceColumns.fromName, InvoiceColumns.fromAddress],
-///   toFields: [InvoiceColumns.toName, InvoiceColumns.toAddress],
+///   logoField: InvoiceModel.logoUrl.column,
+///   fromFields: [
+///     InvoiceModel.fromName.column,
+///     InvoiceModel.fromAddress.column,
+///   ],
+///   toFields: [InvoiceModel.toName.column, InvoiceModel.toAddress.column],
 ///   lineItemsModel: const InvoiceLineModel(),
-///   lineItemsForeignKey: InvoiceLineColumns.invoiceId,
-///   subtotalField: InvoiceColumns.subtotal,
-///   taxField: InvoiceColumns.tax,
-///   totalField: InvoiceColumns.total,
+///   lineItemsForeignKey: InvoiceLineModel.invoiceId.column,
+///   subtotalField: InvoiceModel.subtotal.column,
+///   taxField: InvoiceModel.tax.column,
+///   totalField: InvoiceModel.total.column,
 /// );
 /// ```
 final class BeakInvoiceBlock extends BeakBlock {

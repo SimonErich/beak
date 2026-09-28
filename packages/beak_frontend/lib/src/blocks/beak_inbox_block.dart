@@ -18,13 +18,16 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakInboxBlock(
 ///   model: const MailModel(),
-///   senderField: MailColumns.sender,
-///   subjectField: MailColumns.subject,
-///   previewField: MailColumns.preview,
-///   timeField: MailColumns.receivedAt,
-///   readField: MailColumns.isRead,
-///   folderRelation: MailRelationships.folder,
-///   folderLabelField: FolderColumns.label,
+///   senderField: MailModel.sender.column,
+///   subjectField: MailModel.subject.column,
+///   previewField: MailModel.preview.column,
+///   timeField: MailModel.receivedAt.column,
+///   readField: MailModel.isRead.column,
+///   // The rail needs the typed belongs-to, which the generated
+///   // MailRelations keeps; `MailModel.folder.relation` is a plain
+///   // BeakRelationship.
+///   folderRelation: MailRelations.folder,
+///   folderLabelField: FolderModel.label.column,
 /// );
 /// ```
 final class BeakInboxBlock extends BeakBlock {
