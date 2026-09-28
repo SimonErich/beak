@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../data/beak_relation_loads.dart';
+import '../data/beak_data_changes.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/reference_cache.dart';
 import 'beak_form_controller_builder.dart';
@@ -55,7 +56,7 @@ Future<List<BeakRecord>> beakLoadAttachedRecords(
 /// columns, showing its display column) whose selection stores the related
 /// record's id in the foreign-key field.
 ///
-/// [BeakDataForm] wires one automatically for each belongs-to relationship;
+/// A lower-level selector for custom controller integrations;
 /// build it directly only in a hand-composed form. In edit mode it resolves
 /// the prefilled foreign key into a labelled record so the picker opens on
 /// the current selection.
@@ -104,6 +105,11 @@ class BeakBelongsToField extends HookWidget {
     );
     useListenable(controller);
     final selected = useState<BeakRecord?>(null);
+    final dataRevision = useBeakDataRevision(
+      dataSource,
+      table: relation.relatedTable,
+    );
+    final choiceItems = useMemoized(() => <BeakRecord>[], [dataRevision]);
 
     // Resolve the prefilled foreign key into a labelled record once.
     useEffect(() {
@@ -127,9 +133,10 @@ class BeakBelongsToField extends HookWidget {
 
       resolve();
       return () => cancelled = true;
-    }, [repository, slot]);
+    }, [repository, slot, dataRevision]);
 
     return OiComboBox<BeakRecord>(
+      items: choiceItems,
       label: relation.label,
       labelOf: relation.displayLabelOf,
       value: selected.value,
@@ -154,7 +161,7 @@ class BeakBelongsToField extends HookWidget {
 /// changes.
 ///
 /// Requires a saved [parentId] (a many-to-many pivot needs both keys), so
-/// [BeakDataForm] renders it only in edit mode. Each selection change diffs
+/// This standalone control performs immediate writes. Each selection change diffs
 /// against the attached set and issues just the `attach`/`detach` calls
 /// needed; a rejected mutation reverts the optimistic selection.
 ///
@@ -198,6 +205,8 @@ class BeakBelongsToManyField extends HookWidget {
       dataSource,
     ]);
     final attached = useState<List<BeakRecord>>(const []);
+    final dataRevision = useBeakDataRevision(dataSource);
+    final choiceItems = useMemoized(() => <BeakRecord>[], [dataRevision]);
 
     Object? idOf(BeakRecord record) => record[relatedPrimaryKeyKey]?.raw;
 
@@ -217,7 +226,7 @@ class BeakBelongsToManyField extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [repository, parentId]);
+    }, [repository, parentId, dataRevision]);
 
     Future<void> sync(List<BeakRecord> next) async {
       final Set<Object> currentIds = {
@@ -250,7 +259,7 @@ class BeakBelongsToManyField extends HookWidget {
           BeakOk() => false,
         },
       );
-      if (failed) {
+      if (failed && context.mounted) {
         // A rejected mutation must not leave the optimistic selection in
         // place — revert so the UI keeps matching the server's pivot rows.
         attached.value = previous;
@@ -261,6 +270,7 @@ class BeakBelongsToManyField extends HookWidget {
       label: relation.label,
       labelOf: relation.displayLabelOf,
       multiSelect: true,
+      items: choiceItems,
       selectedValues: attached.value,
       search: (query) => beakSearchRelated(
         repository,

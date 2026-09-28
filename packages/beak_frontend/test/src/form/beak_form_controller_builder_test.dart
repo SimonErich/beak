@@ -15,6 +15,20 @@ void main() {
     return built;
   }
 
+  test(
+    'prefill distinguishes absent defaults from explicit nullable values',
+    () {
+      final form = controller(const ArticleModel());
+      form.prefill(BeakRecord.fromRow({'status': null, 'title': 'First'}));
+      expect(form.valueOf<Object>(ArticleColumns.status), isNull);
+      form.setValue(ArticleColumns.title, 'Unsent title');
+      form.prefill(const BeakRecord(values: {}));
+      expect(form.valueOf<Object>(ArticleColumns.status), ArticleStatus.draft);
+      expect(form.valueOf<Object>(ArticleColumns.title), isNull);
+      expect(form.isDirty, isFalse);
+    },
+  );
+
   group('field registration', () {
     test('registers a typed field per form column', () {
       final form = controller(const ArticleModel());
@@ -130,6 +144,61 @@ void main() {
   });
 
   group('buildData', () {
+    test(
+      'typed choice overrides preserve selected IDs and nullable choice',
+      () {
+        final form =
+            BeakFormController(
+              model: const ArticleModel(),
+              fields: [
+                const BeakFormChoiceField(
+                  column: ArticleColumns.badge,
+                  multiple: true,
+                ),
+                const BeakFormChoiceField(column: ArticleColumns.status),
+              ],
+            )..prefill(
+              BeakRecord.fromRow({
+                'badge': ['role-1'],
+                'status': null,
+              }),
+            );
+        addTearDown(form.dispose);
+        expect(form.valueOf<List<String>>(ArticleColumns.badge), ['role-1']);
+        expect(form.buildData()['status'], const BeakNullValue());
+        form.setValue(ArticleColumns.badge, <String>[]);
+        expect(form.buildData()['badge'], const BeakListValue([]));
+      },
+    );
+    test('complete command mode includes untouched nulls', () {
+      final form = BeakFormController(
+        model: const ArticleModel(),
+        valueMode: BeakFormValueMode.complete,
+      );
+      addTearDown(form.dispose);
+      expect(form.buildData()['summary'], const BeakNullValue());
+    });
+
+    test('patch mode sends only changed fields including clears', () {
+      final form = BeakFormController(
+        model: const ArticleModel(),
+        valueMode: BeakFormValueMode.changes,
+      )..prefill(BeakRecord.fromRow({'title': 'Same', 'summary': 'Old'}));
+      addTearDown(form.dispose);
+      expect(form.buildData().values, isEmpty);
+      form.setValue<String>(ArticleColumns.summary, null);
+      expect(form.buildData().values, {'summary': const BeakNullValue()});
+    });
+    test('preserves cleared values and explicit nullable booleans', () {
+      final form = controller(const ArticleModel())
+        ..prefill(BeakRecord.fromRow({'summary': 'Old', 'active': null}))
+        ..setValue<String>(ArticleColumns.summary, null);
+
+      expect(form.buildData()['summary'], const BeakNullValue());
+      expect(form.buildData()['active'], const BeakNullValue());
+      expect(form.buildData()['body'], isNull);
+    });
+
     test('yields a typed record and omits unset values', () {
       final form = controller(const ArticleModel())
         ..setValue(ArticleColumns.title, 'Hello')

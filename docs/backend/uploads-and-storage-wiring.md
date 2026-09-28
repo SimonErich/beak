@@ -15,21 +15,9 @@ Uploads build on the [file and storage columns](../models/files-and-storage-colu
 you already defined. The reference store's product declares one `@Image` field,
 and that is what wires into an endpoint here.
 
-```dart title="examples/store/lib/models/product.dart"
-@Image(
-  storagePath: 'products',
-  maxSizeInBytes: 5 * 1024 * 1024,
-  allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
-  thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-  transforms: [
-    BeakThumbnailTransform(
-      size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-    ),
-    BeakFormatTransform.webp(),
-  ],
-)
-late final BeakImageRef? image;
-```
+The canonical shop declares its upload in `resources/products/models/product_image.dart`
+and places the owned collection with `ProductModel.images.galleryForm(...)`.
+See [uploads and galleries](../panel/media-galleries.md) for the complete example.
 
 `beak prepare` turns that into a `BeakImageColumn` on the generated model, which
 is what the upload service reads its rules from.
@@ -97,23 +85,10 @@ Registering a model adds two routes under its mount point, so the full paths are
 The upload handler checks `canCreate` (uploading a file is creating one), then
 reads the multipart body into a typed `BeakUpload` and delegates to the service.
 
-```dart title="packages/beak_backend/lib/src/uploads/upload_handler.dart"
-Future<Response> upload(Request request, String columnKey) async {
-  enforcePolicyDecision(
-    allowed: policy.canCreate(beakPrincipal(request), model.table),
-    principal: beakPrincipal(request),
-    action: 'upload to',
-    table: model.table,
-  );
-  final upload = await _readUpload(request, _sizeLimitFor(columnKey));
-  final stored = await service.handle(
-    table: model.table,
-    columnKey: columnKey,
-    upload: upload,
-  );
-  return Response(201, body: jsonEncode(stored.toJson()));
-}
-```
+Upload creation checks the table policy and upload field capability before
+accepting multipart content. The upload service validates the file and cleans up
+partially stored variants when a transform or storage operation fails. URL reads
+also verify visible row ownership, and key-aware policy can further restrict them.
 
 The size limit is enforced *while reading*, not after. `_readBounded` fails the
 moment the buffered part grows past the column's `maxSizeInBytes`, so an oversize
@@ -146,12 +121,14 @@ key belongs to the column's storage path before it touches the driver, so a
 request cannot delete an arbitrary object by guessing keys.
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_service.dart"
-if (!key.startsWith('$storagePath/')) {
-  throw BeakValidationException(
-    'Key "$key" does not belong to column "$columnKey" '
-    '(expected the "$storagePath/" prefix).',
-  );
-}
+    if (!key.startsWith('$storagePath/') ||
+        key.split('/').any((segment) => segment == '..' || segment == '.') ||
+        key.contains('\\')) {
+      throw BeakValidationException(
+        'Key "$key" does not belong to column "$columnKey" '
+        '(expected the "$storagePath/" prefix).',
+      );
+    }
 ```
 
 Uploading a product image against the reference store on port 8080:
@@ -188,9 +165,9 @@ it uploads anything. A project declares the drivers it wants in a
 `beakStorageRegistry` function in `lib/server.dart`, which `beak prepare` hands
 to the generated host:
 
-```dart title="examples/embedded/lib/server.dart"
---8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
-```
+Register optional driver packages in a `beakStorageRegistry()` function in
+`lib/server.dart`. See [custom storage drivers](../extending/custom-storage-drivers.md)
+for the explicit registration contract.
 
 `resolveStorage` takes a `BeakStorageConfig` and returns the driver it selects.
 The server resolves once at startup and injects the driver into the upload

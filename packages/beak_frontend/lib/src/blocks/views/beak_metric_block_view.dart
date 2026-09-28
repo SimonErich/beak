@@ -9,7 +9,7 @@ class _BeakMetricBlockView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => BeakStatCard(
-    dataSource: beakLocator<BeakDataSource>(),
+    dataSource: beakDependencies(context)<BeakDataSource>(),
     stat: BeakStat(
       label: block.label,
       aggregate: block.aggregate,

@@ -38,7 +38,7 @@ That the split holds is not a hope. `melos run guard-web` walks the import graph
 
 The deployment files live in the repo under [`deploy/`](https://github.com/SimonErich/beak/tree/main/deploy), with a [README](https://github.com/SimonErich/beak/blob/main/deploy/README.md) that mirrors the commands you will find here. They build, and they were exercised end to end: the migrations ran, the server booted, and the API answered with the correct Beak error envelope.
 
-They are a reference you copy and adapt, not a managed platform. Beak does not run your servers, terminate your TLS, or rotate your secrets. What it hands you is a correct, minimal shape to start from: the multi-stage builds, the migrate-on-deploy step, the storage wiring, and the two health probes a container platform will ask for. The [production checklist](going-to-production.md#production-checklist) is honest about the parts that stay yours.
+They are a reference you copy and adapt, not a managed platform. Beak does not run your servers, terminate your TLS, or rotate your secrets. What it hands you is a correct, minimal shape to start from: the multi-stage builds, the migrate-on-deploy step, the storage wiring, and the two health probes a container platform will ask for. The [production checklist](going-to-production.md) is honest about the parts that stay yours.
 
 !!! note "What lives where"
     The dev `docker-compose.yml` and root `.env.example` sit at the repo root and serve this repository's own examples and test suites. The production `Dockerfile.server`, `Dockerfile.web`, `docker-compose.prod.yml`, and `.env.prod.example` all live under `deploy/`. They do not share a compose file, and they use different ports and credentials on purpose.

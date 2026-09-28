@@ -17,6 +17,10 @@ import 'registry.g.dart';
 BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
   environment: environment,
   registry: buildBeakRegistry(),
-  migrations: const [CreateNotesTable()],
+  migrations: const [
+    BeakCommitReceiptsMigration(),
+    BeakOutboxMigration(),
+    CreateNotesTable(),
+  ],
   seeders: const [],
 );

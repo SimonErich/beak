@@ -191,3 +191,15 @@ void enforcePolicyDecision({
 }
 
 // --8<-- [end:enforcePolicyDecision]
+
+/// Optional key-aware restriction in addition to resource and row read policy.
+/// Generated upload URL routes apply row ownership automatically when scoped.
+abstract interface class BeakUploadReadPolicy {
+  /// Whether a principal may resolve this upload's URL after ordinary read gates.
+  bool canViewUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  );
+}

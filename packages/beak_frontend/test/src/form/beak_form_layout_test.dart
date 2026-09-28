@@ -10,31 +10,36 @@ import '../../support/panel_fixtures.dart';
 void main() {
   // A structured layout: a Basics card plus a Pricing card, exactly the shape
   // a detail screen would use — reused here to drive the form.
-  const layout = BeakColumnBlock(
+  final layout = BeakFormLayout(
     children: [
-      BeakCardBlock(
+      BeakCard(
         title: 'Basics',
-        child: BeakColumnBlock(
-          children: [
-            BeakFieldBlock(ArticleColumns.title),
-            BeakFieldBlock(ArticleColumns.summary),
-          ],
-        ),
+        children: [
+          const BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.title,
+          ).input(),
+          const BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.summary,
+          ).input(),
+        ],
       ),
-      BeakCardBlock(
+      BeakCard(
         title: 'Pricing',
-        child: BeakFieldGroupBlock([
-          ArticleColumns.price,
-          ArticleColumns.stock,
-        ]),
+        children: [
+          const BeakScalarField<double>(
+            model: ArticleModel(),
+            column: ArticleColumns.price,
+          ).input(),
+          const BeakScalarField<int>(
+            model: ArticleModel(),
+            column: ArticleColumns.stock,
+          ).input(),
+        ],
       ),
     ],
   );
-
-  test('beakFormColumnsOf collects the layout fields in order', () {
-    final keys = [for (final c in beakFormColumnsOf(layout)) c.key];
-    expect(keys, ['title', 'summary', 'price', 'stock']);
-  });
 
   testWidgets('a layout form renders inputs inside the structured cards', (
     tester,
@@ -46,7 +51,7 @@ void main() {
     await tester.pumpWidget(
       OiApp(
         theme: OiThemeData.light(),
-        home: BeakDataForm(
+        home: BeakConfiguredForm(
           model: const ArticleModel(),
           dataSource: dataSource,
           layout: layout,
@@ -62,7 +67,7 @@ void main() {
     // …and the field blocks rendered *inputs*, not read-only values.
     expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
     expect(find.byType(OiAfNumberInput<Enum>), findsNWidgets(2));
-    expect(find.byType(OiAfSubmitButton<Enum, BeakRecord>), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
     // A column absent from the layout registered no field, so no select shows.
     expect(find.byType(OiAfSelect<Enum, Enum>), findsNothing);
   });

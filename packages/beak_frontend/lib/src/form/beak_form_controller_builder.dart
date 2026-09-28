@@ -3,6 +3,19 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 
 import '../common/hex_color.dart';
+import 'beak_form_field.dart';
+
+/// Which registered values a form submits to its command or patch endpoint.
+enum BeakFormValueMode {
+  /// Populated values and explicit clears; untouched absent fields are omitted.
+  populated,
+
+  /// Every field, including untouched nulls, for complete typed commands.
+  complete,
+
+  /// Only fields changed since prefill, for partial-update endpoints.
+  changes,
+}
 
 /// Beak's default pool of autoforms field keys.
 ///
@@ -178,7 +191,7 @@ final class BeakFormSection {
 /// backend), belongs-to foreign keys as picker slots, and typed
 /// [BeakRecord] output.
 ///
-/// [BeakDataForm] constructs and disposes one of these for you; instantiate
+/// [BeakConfiguredForm] constructs and disposes one of these for you; instantiate
 /// it directly only when hand-composing a form. Address fields through
 /// column constants — never the underlying slot enums — via
 /// [valueOf], [setValue], and [slotOf].
@@ -193,12 +206,57 @@ final class BeakFormSection {
 /// final BeakRecord submission = controller.buildData();
 /// ```
 final class BeakFormController extends OiAfController<Enum, BeakRecord> {
+  int _pendingSubmissions = 0;
+  bool _disposeRequested = false;
+
+  /// Lets autoforms finish its submit bookkeeping before releasing listeners.
+  @override
+  Future<OiAfSubmitResult<BeakRecord>> submit() async {
+    _pendingSubmissions++;
+    try {
+      return await super.submit();
+    } finally {
+      _pendingSubmissions--;
+      if (_disposeRequested && _pendingSubmissions == 0) super.dispose();
+    }
+  }
+
+  /// A pending submission can settle after the form leaves the widget tree.
+  @override
+  void dispose() {
+    if (_disposeRequested) return;
+    _disposeRequested = true;
+    if (_pendingSubmissions == 0) super.dispose();
+  }
+
   /// Creates the controller for [model], optionally restricted and grouped
   /// by [sections].
-  BeakFormController({required this.model, this.sections});
+  BeakFormController({
+    required this.model,
+    this.sections,
+    this.fields = const [],
+    this.valueMode = BeakFormValueMode.populated,
+    this.validateRule,
+  });
 
   /// The model this form edits.
   final BeakModel model;
+
+  /// Controls absent/null/changed field submission semantics.
+  final BeakFormValueMode valueMode;
+
+  /// Optional presentation translation without changing validation rules.
+  final String? Function(BeakRule rule, Object? value)? validateRule;
+
+  String? _validate(BeakRule rule, Object? value) =>
+      validateRule == null ? rule.validate(value) : validateRule!(rule, value);
+
+  /// Typed presentation overrides over the model's fields.
+  final List<BeakFormField> fields;
+
+  /// Finds the presentation override for [column], if any.
+  BeakFormField? fieldFor(BeakColumn column) =>
+      fields.where((field) => field.column.key == column.key).firstOrNull;
 
   /// The declared sections, or `null` for one implicit section over every
   /// form column.
@@ -207,6 +265,44 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   final Map<String, Enum> _slotByKey = {};
   final Map<Enum, BeakColumn> _columnBySlot = {};
   final Map<Enum, String> _keyBySlot = {};
+  final Set<String> _prefilledKeys = {};
+  final Map<String, String> _inputErrors = {};
+  final Set<String> _invalidEdits = {};
+
+  /// Parsing errors retained while an editor contains an incomplete value.
+  Map<String, String> get inputErrors => Map.unmodifiable(_inputErrors);
+
+  /// Keeps invalid text in the editor while blocking submission of stale data.
+  void setInputError(BeakColumn column, String? message) {
+    if (message == null) {
+      _invalidEdits.remove(column.key);
+    } else {
+      _invalidEdits.add(column.key);
+    }
+    if (_inputErrors[column.key] == message) return;
+    if (message == null) {
+      _inputErrors.remove(column.key);
+    } else {
+      _inputErrors[column.key] = message;
+    }
+    notifyListeners();
+  }
+
+  @override
+  bool get isDirty => _invalidEdits.isNotEmpty || super.isDirty;
+
+  @override
+  Future<bool> validate({
+    Enum? field,
+    OiAfValidationTrigger trigger = OiAfValidationTrigger.manual,
+  }) async {
+    final valid = await super.validate(field: field, trigger: trigger);
+    final errors = field == null
+        ? _inputErrors.values
+        : [_inputErrors[_keyBySlot[field]]].nonNulls;
+    return valid && errors.isEmpty;
+  }
+
   int _claimedSlotCount = 0;
 
   /// The pool this form claims slots from: the model's own when it has one.
@@ -236,18 +332,46 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   /// The current typed value of [column]'s field.
   T? valueOf<T>(BeakColumn column) => get<T>(slotOf(column));
 
+  /// The current editor value normalized for metadata validation, without rounding.
+  Object? validationValueOf(BeakColumn column) =>
+      _validationValue(column, valueOf<Object>(column));
+
+  Object? _validationValue(BeakColumn column, Object? value) => switch (value) {
+    final Color color => formatBeakHexColor(color),
+    final BeakJson json => json.encode(),
+    final num number
+        when column is BeakIntColumn &&
+            !column.semantic.hasCodec &&
+            number.isFinite &&
+            number == number.roundToDouble() =>
+      number.toInt(),
+    _ => value,
+  };
+
   /// Sets [column]'s field to [value].
-  void setValue<T>(BeakColumn column, T? value) => set(slotOf(column), value);
+  void setValue<T>(BeakColumn column, T? value) {
+    _invalidEdits.remove(column.key);
+    final cleared = _inputErrors.remove(column.key) != null;
+    set(slotOf(column), value);
+    if (cleared) notifyListeners();
+  }
 
   /// Seeds every field from [record] without marking the form dirty — the
   /// edit-mode prefill.
   void prefill(BeakRecord record) {
+    _prefilledKeys.clear();
+    _inputErrors.clear();
+    _invalidEdits.clear();
     final values = <Enum, Object?>{};
     for (final MapEntry(key: slot, value: columnKey) in _keyBySlot.entries) {
       final BeakValue? value = record[columnKey];
-      if (value != null) {
-        values[slot] = _fieldValueOf(slot, value.raw);
-      }
+      if (value != null) _prefilledKeys.add(columnKey);
+      // A prefill is a replacement baseline, not a partial update. Explicitly
+      // reset absent slots so discarded command arguments cannot survive.
+      values[slot] = _fieldValueOf(
+        slot,
+        value == null ? _columnBySlot[slot]?.defaultValue : value.raw,
+      );
     }
     rebase(values);
   }
@@ -263,9 +387,15 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
       return true;
     }
     final Object? value = get<Object>(slot);
+    if (_inputErrors.containsKey(column.key) ||
+        const BeakValidation()
+            .columnErrors(column, _validationValue(column, value))
+            .isNotEmpty) {
+      return false;
+    }
     for (final rule in column.rules) {
       final String? error = switch (rule) {
-        BeakRequired() => rule.validate(value),
+        BeakRequired() => _validate(rule, value),
         BeakMaxFileSize() || BeakAllowedFileTypes() => null,
         _ => _mirrorContent(rule, value),
       };
@@ -305,9 +435,17 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   BeakRecord buildData() {
     final values = <String, BeakValue>{};
     for (final MapEntry(key: slot, value: columnKey) in _keyBySlot.entries) {
+      if (!shouldExportField(slot)) continue;
+      if (valueMode == BeakFormValueMode.changes && !isFieldDirty(slot)) {
+        continue;
+      }
       final BeakValue? wire = _wireValueOf(slot);
       if (wire != null) {
         values[columnKey] = wire;
+      } else if (valueMode == BeakFormValueMode.complete ||
+          _prefilledKeys.contains(columnKey) ||
+          isFieldDirty(slot)) {
+        values[columnKey] = const BeakNullValue();
       }
     }
     return BeakRecord(values: values);
@@ -354,45 +492,116 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
 
   void _registerColumn(BeakColumn column, {required BeakFormSection? section}) {
     final OiAfVisibleWhen<Enum>? visibility = _visibilityOf(section);
+    if (fieldFor(column) case final BeakFormChoiceField field) {
+      final slot = _claim(column.key, column: column);
+      final options = [
+        for (final choice in field.options)
+          OiAfOption(value: choice.value, label: choice.label),
+      ];
+      if (field.multiple) {
+        addMultiSelectField<String>(
+          slot,
+          initialValue: const [],
+          options: options,
+          visibleWhen: visibility,
+          validators: _mirrors<List<String>>(column.rules),
+        );
+      } else {
+        addSelectField<String>(
+          slot,
+          options: options,
+          visibleWhen: visibility,
+          initialValue: switch (column.defaultValue) {
+            final String value => value,
+            _ => null,
+          },
+          validators: _columnValidators<String>(column),
+        );
+      }
+      return;
+    }
+    if (column.semantic.hasCodec) {
+      addComboBoxField<Object>(
+        _claim(column.key, column: column),
+        initialValue: column.defaultValue == null
+            ? null
+            : column.semantic.tryDecode(
+                column.semantic.encode(column.defaultValue),
+              ),
+        visibleWhen: visibility,
+        validators: [
+          OiAfValidators.custom<Enum, Object>(
+            (context) => const BeakValidation()
+                .columnErrors(column, context.value)
+                .firstOrNull,
+          ),
+        ],
+      );
+      return;
+    }
     switch (column) {
       case BeakCustomColumn():
         return;
-      case BeakStringColumn() ||
-          BeakTextColumn() ||
-          BeakJsonColumn() ||
-          BeakUploadColumn():
+      case BeakJsonColumn():
+        addComboBoxField<Object>(
+          _claim(column.key, column: column),
+          initialValue: column.defaultValue,
+          visibleWhen: visibility,
+          validators: _columnValidators<Object>(column),
+        );
+      case BeakStringColumn() || BeakTextColumn() || BeakUploadColumn():
         addTextField(
           _claim(column.key, column: column),
-          validators: _mirrors<String>(column.rules),
+          initialValue: switch (column.defaultValue) {
+            final String value => value,
+            _ => null,
+          },
+          validators: _columnValidators<String>(column),
           visibleWhen: visibility,
         );
       case BeakRichTextColumn():
         addRichTextField(
           _claim(column.key, column: column),
-          validators: _mirrors<String>(column.rules),
+          initialValue: switch (column.defaultValue) {
+            final String value => value,
+            _ => null,
+          },
+          validators: _columnValidators<String>(column),
           visibleWhen: visibility,
         );
       case BeakIntColumn(:final min, :final max):
         addNumberField(
           _claim(column.key, column: column),
+          initialValue: switch (column.defaultValue) {
+            final num value => value,
+            _ => null,
+          },
           min: min,
           max: max,
           decimalPlaces: 0,
-          validators: _mirrors<num>(column.rules),
+          validators: _columnValidators<num>(column),
           visibleWhen: visibility,
         );
       case BeakDecimalColumn(:final precision):
         addNumberField(
           _claim(column.key, column: column),
+          initialValue: switch (column.defaultValue) {
+            final num value => value,
+            _ => null,
+          },
           decimalPlaces: precision,
-          validators: _mirrors<num>(column.rules),
+          validators: _columnValidators<num>(column),
           visibleWhen: visibility,
         );
       case BeakBoolColumn():
         addBoolField(
           _claim(column.key, column: column),
-          initialValue: false,
-          validators: _mirrors<bool?>(column.rules),
+          initialValue: switch (column.defaultValue) {
+            final bool value => value,
+            _ => column.tristate ? null : false,
+          },
+          tristate: column.tristate,
+          validators: _columnValidators<bool?>(column),
           visibleWhen: visibility,
         );
       case final BeakEnumColumn<Enum> enumColumn:
@@ -403,19 +612,19 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
             for (final option in enumColumn.values)
               OiAfOption(value: option, label: enumColumn.labelFor(option)),
           ],
-          validators: _mirrors<Enum>(column.rules),
+          validators: _columnValidators<Enum>(column),
           visibleWhen: visibility,
         );
       case BeakDateTimeColumn():
         addDateTimeField(
           _claim(column.key, column: column),
-          validators: _mirrors<DateTime>(column.rules),
+          validators: _columnValidators<DateTime>(column),
           visibleWhen: visibility,
         );
       case BeakColorColumn():
         addColorField(
           _claim(column.key, column: column),
-          validators: _mirrors<Color>(column.rules),
+          validators: _columnValidators<Color>(column),
           visibleWhen: visibility,
         );
     }
@@ -474,6 +683,18 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
     return (reader) => predicate(BeakFormValues._(reader, _slotByKey));
   }
 
+  List<OiAfValidator<Enum, T>> _columnValidators<T>(BeakColumn column) => [
+    ..._mirrors<T>(column.rules),
+    OiAfValidators.custom<Enum, T>((context) {
+      final value = _validationValue(column, context.value);
+      final mirrored = {for (final rule in column.rules) rule.validate(value)};
+      return const BeakValidation()
+          .columnErrors(column, value)
+          .where((message) => !mirrored.contains(message))
+          .firstOrNull;
+    }),
+  ];
+
   /// Builds the client-side validators mirroring [rules] for a field whose
   /// autoforms value type is [T].
   List<OiAfValidator<Enum, T>> _mirrors<T>(List<BeakRule> rules) => [
@@ -493,7 +714,7 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   /// leaves the client.
   OiAfValidator<Enum, T>? _mirror<T>(BeakRule rule) => switch (rule) {
     BeakRequired() => OiAfValidators.custom<Enum, T>(
-      (context) => rule.validate(context.value),
+      (context) => _validate(rule, context.value),
     ),
     BeakMaxFileSize() || BeakAllowedFileTypes() => null,
     BeakMinLength() ||
@@ -503,7 +724,8 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
     BeakPattern() ||
     BeakMin() ||
     BeakMax() ||
-    BeakInList() => OiAfValidators.custom<Enum, T>(
+    BeakInList() ||
+    BeakFutureDate() => OiAfValidators.custom<Enum, T>(
       (context) => _mirrorContent(rule, context.value),
     ),
   };
@@ -516,22 +738,44 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
     if (value == null) {
       return null;
     }
-    return rule.validate(value);
+    return _validate(rule, value);
   }
 
   /// Converts a form field's value into its wire [BeakValue], or `null`
   /// when the field is unset.
   BeakValue? _wireValueOf(Enum slot) {
     final BeakColumn? column = _columnBySlot[slot];
+    if (column == null ? null : fieldFor(column)
+        case final BeakFormChoiceField field) {
+      if (field.multiple) {
+        return BeakListValue([
+          for (final value in get<List<String>>(slot) ?? const <String>[])
+            BeakStringValue(value),
+        ]);
+      }
+      final value = get<String>(slot);
+      return value == null ? null : BeakStringValue(value);
+    }
     if (column == null) {
       final Object? relatedId = get<Object>(slot);
       return relatedId == null ? null : BeakValue.of(relatedId);
     }
+    if (column.semantic.hasCodec) {
+      final value = get<Object>(slot);
+      return value == null ? null : column.semantic.encode(value);
+    }
     return switch (column) {
+      BeakJsonColumn() => switch (get<Object>(slot)) {
+        final BeakJson json => BeakStringValue(json.encode()),
+        final String text => BeakStringValue(text),
+        null => null,
+        _ => throw const BeakConfigurationException(
+          'JSON input requires JSON text or a typed BeakJson value.',
+        ),
+      },
       BeakStringColumn() ||
       BeakTextColumn() ||
       BeakRichTextColumn() ||
-      BeakJsonColumn() ||
       BeakUploadColumn() => switch (get<String>(slot)) {
         final String text => BeakStringValue(text),
         null => null,
@@ -544,7 +788,10 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
         final num number => BeakDoubleValue(number.toDouble()),
         null => null,
       },
-      BeakBoolColumn() => BeakBoolValue(getOr(slot, false)),
+      BeakBoolColumn() => switch (get<bool>(slot)) {
+        final bool value => BeakBoolValue(value),
+        null => null,
+      },
       BeakEnumColumn<Enum>() => switch (get<Enum>(slot)) {
         final Enum option => BeakStringValue(option.name),
         null => null,
@@ -570,6 +817,23 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
     if (column == null) {
       return raw;
     }
+    if (fieldFor(column) case final BeakFormChoiceField field) {
+      if (field.multiple && raw is List<Object?>) {
+        return [
+          for (final value in raw)
+            if (value is String) value,
+        ];
+      }
+      return raw is String ? raw : null;
+    }
+    if (column.semantic.hasCodec) {
+      final value = column.semantic.tryDecode(BeakValue.of(raw));
+      if (value == null) {
+        _inputErrors[column.key] =
+            'The stored value does not match this field type. Enter a valid value.';
+      }
+      return value;
+    }
     return switch (column) {
       BeakStringColumn() ||
       BeakTextColumn() ||
@@ -582,7 +846,7 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
       },
       BeakBoolColumn() => raw == true,
       final BeakEnumColumn<Enum> enumColumn => enumColumn.valueByName(
-        raw.toString(),
+        raw is Enum ? raw.name : raw.toString(),
       ),
       BeakDateTimeColumn() => switch (raw) {
         final DateTime instant => instant,

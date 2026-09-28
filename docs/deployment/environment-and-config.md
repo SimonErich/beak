@@ -32,15 +32,10 @@ A driver selected without the settings it needs fails at boot with a `BeakConfig
 
 Unset is not "off". It is the same posture as the database: `BeakServeHost` falls back to `BeakLocalDiskStorageDriver` rooted at `storage/uploads` and serves those files itself at `/uploads`, so an upload column works on a fresh project with no setup. `BEAK_STORAGE_DRIVER=none` is how a deployment turns the upload endpoints off outright.
 
-!!! note "Anything else is your own"
-    Beak reads only the variables above. A secret, an API key, a feature flag is read by *your* `lib/server.dart`, out of the environment the host already resolved. `examples/store` reads `AUTH_SECRET` that way:
-
-    ```dart title="examples/store/lib/server.dart"
-    final String secret =
-        defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
-    ```
-
-    Reading `defaults.environment` rather than `Platform.environment` is what lets a test inject an environment into `BeakServeHost` and have the policy and the auth configuration see it too.
+Application-specific secrets and feature flags are read by the application's
+`lib/server.dart` from `defaults.environment`. They are not automatically defined
+or secured by Beak's built-in environment loader. Configure production secrets
+through the deployment's secret store.
 
 ## The zero-config default
 
@@ -117,29 +112,24 @@ Binding `0.0.0.0` by default is what makes the container reachable: inside Docke
 Three places, in order of who wins.
 
 1. **Beak's default**, `8080`.
-2. **`beak.yaml`**, under `server:`. `beak prepare` bakes it into the generated host as a default. Use it when a project has a fixed development port, which is why `superdashboard` sets `8180`: two Beak apps in one repository cannot both have `8080`.
+2. **`beak.yaml`**, under `server:`. `beak prepare` bakes it into the generated host as a default. Use it when a project needs a fixed development port different from 8080.
 3. **The real `PORT`**, which beats both. Where a process binds is a deployment's decision, not a repository's.
 
-```yaml title="examples/superdashboard/beak.yaml"
-server:
-  # The store example already has 8080, and both run from this repository.
-  port: 8180
-```
+For example, `server.port: 8180` selects a different generated default.
+The real process `PORT` still takes precedence.
 
 ## The panel's API origin
 
 The panel is a Flutter web app, so it has no environment at runtime: whatever origin it should call is compiled in. That decision lives in `beak.yaml`, not in `.env`.
 
-```yaml title="examples/store/beak.yaml"
+```yaml title="examples/clean_beak_config/beak.yaml"
 api:
-  # The origin the panel calls. `auto` calls the origin the panel was served
-  # from, which is what a single-host deployment wants.
   baseUrl: http://localhost:8080
 ```
 
 `beak prepare` turns that into a compile-time default in the generated panel config:
 
-```dart title="examples/store/lib/beak/panel.g.dart"
+```dart title="examples/clean_beak_config/lib/beak/panel.g.dart"
     apiBaseUrl: const String.fromEnvironment(
       'BEAK_API_BASE_URL',
       defaultValue: 'http://localhost:8080',
@@ -152,7 +142,7 @@ So one build can point somewhere else without editing the file:
 flutter build web --dart-define=BEAK_API_BASE_URL=https://api.example.com
 ```
 
-Set `baseUrl: auto` and the generated expression resolves to the origin the panel was served from instead, which is what a deployment fronting both halves behind one host wants. `examples/embedded` does exactly that.
+Set `baseUrl: auto` and the generated expression resolves to the origin the panel was served from instead, which is what a deployment fronting both halves behind one host wants.
 
 The number that matters is the one the server actually listens on. If you change `PORT`, change `api.baseUrl` (or pass the `--dart-define`) to match, or the browser hits connection-refused.
 

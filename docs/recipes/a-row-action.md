@@ -1,50 +1,17 @@
 ---
-title: A custom row action
-description: Give a resource a verb the CRUD basics do not cover, without ejecting the panel.
+title: A row action
+description: Declare a server-owned transition once for forms and tables.
 ---
 
-# A custom row action
+# A row action
 
-When a resource needs a verb the CRUD basics do not cover, add it in
-`lib/resources/<table>.dart`. That file takes the generated `BeakResource` and
-returns a changed copy, so the model, label, icon and section stay generated:
+Add a `BeakModelAction` to the schema behavior for a business transition. Resource tables discover it, load the current record and collect optional arguments. Use `BeakRecordAction` only for an application-specific presentation callback.
 
-```dart title="examples/store/lib/resources/products.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  // ...detail and formLayout...
-  recordActions: [
-    BeakRecordAction(
-      key: 'publish',
-      label: 'Publish',
-      icon: OiIcons.rocket,
-      onExecute: (record, context) async {
-        final Object? id = context.model.primaryKeyOf(record);
-        if (id == null) {
-          return;
-        }
-        await context.dataSource.update(
-          context.model.table,
-          id,
-          BeakRecord(
-            values: {
-              ProductColumns.status.key: BeakValue.of(
-                ProductStatus.published.name,
-              ),
-              ProductColumns.publishedAt.key: BeakValue.of(DateTime.now()),
-            },
-          ),
-        );
-      },
-    ),
-  ],
-  // ...bulkActions and viewModes...
-);
+```dart title="examples/clean_beak_config/lib/resources/invoices/models/invoice.dart"
+--8<-- "examples/clean_beak_config/lib/resources/invoices/models/invoice.dart"
 ```
-
-The action reads and writes through generated column constants, never through a
-string field reference, so renaming `publishedAt` in the schema class breaks the
-build here rather than in production.
 
 ## Continue reading
 
-- [Actions](../panel/actions.md)
+- [Related guide](../panel/actions.md)
+- [All recipes](index.md)

@@ -1,5 +1,5 @@
 import 'package:beak_core/beak_core.dart';
-import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
@@ -8,9 +8,32 @@ import 'package:signals/signals_flutter.dart';
 import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/optimistic.dart';
+import '../localization/beak_localizations.dart';
 import 'beak_table_action.dart';
 import 'column_cell_renderer.dart';
 import 'table_view_model.dart';
+import '../query/beak_query_controller.dart';
+import '../presentation/beak_record_template.dart';
+import '../presentation/beak_action_presentation.dart';
+
+/// A visible-page selection snapshot; identities retain their model wire type.
+final class BeakTableSelection {
+  /// Supplied by the table after selection or its current page changes.
+  const BeakTableSelection({
+    required this.ids,
+    required this.total,
+    required this.clear,
+  });
+
+  /// Selected, currently visible record identities.
+  final List<Object> ids;
+
+  /// Records available on this page.
+  final int total;
+
+  /// Clears the owning table's selection.
+  final VoidCallback clear;
+}
 
 /// The generated list view: a model's table-context columns rendered as an
 /// `OiTable` with server-side sort/filter/pagination through
@@ -57,6 +80,7 @@ class BeakDataTable extends HookWidget {
     required this.model,
     required this.dataSource,
     this.columns,
+    this.fields,
     this.actions = const [],
     this.bulkActions = const [],
     this.onRowTap,
@@ -64,9 +88,26 @@ class BeakDataTable extends HookWidget {
     this.initialSpec,
     this.baseFilter,
     this.controller,
+    this.onViewModel,
     this.enableDelete = true,
+    this.showHeaderFilters = true,
+    this.queryController,
+    this.presentations,
+    this.showStatusBar = true,
+    this.shrinkWrap = false,
+    this.rowHeight,
+    this.showBulkActionBar = true,
+    this.onSelectionChanged,
+    this.pageSizeOptions = const [10, 25, 50, 100],
     super.key,
   });
+
+  /// Observes each owned view model once, for advanced surface integrations.
+  /// The table owns disposal; callers must not dispose the supplied instance.
+  final ValueChanged<TableViewModel>? onViewModel;
+
+  /// Optional visual row height; null follows the surrounding table theme.
+  final double? rowHeight;
 
   /// The model this table lists.
   final BeakModel model;
@@ -77,6 +118,10 @@ class BeakDataTable extends HookWidget {
   /// The columns to render, in order; defaults to [model]'s table-context
   /// columns.
   final List<BeakColumn>? columns;
+
+  /// Typed fields to display in order, with related paths loaded automatically.
+  /// Related fields are filterable; sorting remains local-column only.
+  final List<BeakScalarField<Object>>? fields;
 
   /// Per-row actions, each invoked with the row's primary key.
   final List<BeakTableAction> actions;
@@ -109,8 +154,36 @@ class BeakDataTable extends HookWidget {
   /// Whether the built-in optimistic delete action renders.
   final bool enableDelete;
 
+  /// Whether columns expose the table's text header filters.
+  ///
+  /// Resource pages disable these when their typed filter bar is present, so
+  /// an enum select cannot also issue a conflicting text-contains predicate.
+  final bool showHeaderFilters;
+
+  /// Shared query from the containing declarative list.
+  final BeakQueryController? queryController;
+
+  /// Fits a short visible page without reserving empty viewport space.
+  final bool shrinkWrap;
+
+  /// Renders the conventional inline bar; composed pages may place it elsewhere.
+  final bool showBulkActionBar;
+
+  /// Reports a page-local selection for advanced composed surfaces.
+  final ValueChanged<BeakTableSelection>? onSelectionChanged;
+
+  /// Optional status count above pagination.
+  final bool showStatusBar;
+
+  /// Available page lengths; current length is always included.
+  final List<int> pageSizeOptions;
+
+  /// Composite columns; fields and model defaults remain supported shorthands.
+  final List<BeakTableColumn>? presentations;
+
   @override
   Widget build(BuildContext context) {
+    final strings = BeakLocalizations.of(context);
     final viewModel = useMemoized(
       () => TableViewModel(
         model,
@@ -118,15 +191,51 @@ class BeakDataTable extends HookWidget {
         // The table renders a column per to-one relationship, so the table is
         // what asks for them — every caller gets names instead of uuids
         // without knowing to request it.
-        initial: beakWithToOneLoads(
-          initialSpec ?? BeakQuerySpec(table: model.table),
-          model,
-        ),
+        initial: queryController != null
+            ? beakWithFieldLoads(queryController!.query, [
+                ...?fields,
+                for (final action in actions)
+                  ...?action.labelValue?.dependencies,
+                for (final column in presentations ?? const <BeakTableColumn>[])
+                  ...column.fields,
+              ])
+            : fields != null
+            ? beakWithFieldLoads(
+                initialSpec ?? BeakQuerySpec(table: model.table),
+                fields!,
+              )
+            : beakWithToOneLoads(
+                initialSpec ?? BeakQuerySpec(table: model.table),
+                model,
+              ),
         baseFilter: baseFilter,
+        queryController: queryController,
+        queryFields: [
+          ...?fields,
+          for (final action in actions) ...?action.labelValue?.dependencies,
+          for (final column in presentations ?? const <BeakTableColumn>[])
+            ...column.fields,
+        ],
       ),
-      [model, dataSource, initialSpec, baseFilter],
+      [
+        model,
+        dataSource,
+        queryController ?? initialSpec,
+        baseFilter,
+        fields,
+        presentations,
+        actions
+            .expand(
+              (action) =>
+                  action.labelValue?.dependencies ??
+                  const <BeakFieldRef<Object>>[],
+            )
+            .map((field) => field.qualifiedKey)
+            .join(','),
+      ],
     );
     useEffect(() {
+      onViewModel?.call(viewModel);
       viewModel.refresh();
       return viewModel.dispose;
     }, [viewModel]);
@@ -146,26 +255,90 @@ class BeakDataTable extends HookWidget {
     // sync into widget state defers to the frame end.
     final selectedKeys = useState(const <String>{});
     useEffect(() {
+      var mounted = true;
+      var lastIds = const <Object>[];
+      var lastTotal = -1;
       void syncSelection() {
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || viewModel.isDisposed) return;
           final Set<String> current = {...tableController.selectedRows};
           if (!setEquals(current, selectedKeys.value)) {
             selectedKeys.value = current;
+          }
+          final rows = viewModel.page.peek()?.items ?? const <BeakRecord>[];
+          final ids = [
+            for (final row in rows)
+              if (model.primaryKeyOf(row) case final Object id)
+                if (current.contains(id.toString())) id,
+          ];
+          if (!listEquals(lastIds, ids) || lastTotal != rows.length) {
+            lastIds = ids;
+            lastTotal = rows.length;
+            onSelectionChanged?.call(
+              BeakTableSelection(
+                ids: List.unmodifiable(ids),
+                total: rows.length,
+                clear: () {
+                  if (mounted) tableController.clearSelection();
+                },
+              ),
+            );
           }
         });
       }
 
       tableController.addListener(syncSelection);
-      return () => tableController.removeListener(syncSelection);
-    }, [tableController]);
+      final stop = effect(() {
+        viewModel.page.value;
+        syncSelection();
+      });
+      return () {
+        mounted = false;
+        stop();
+        tableController.removeListener(syncSelection);
+      };
+    }, [tableController, viewModel]);
 
     Object? idOf(BeakRecord record) => model.primaryKeyOf(record);
 
-    return SignalBuilder(
+    return Watch.builder(
       builder: (context) {
         final page = viewModel.page.value;
         final rows = page?.items ?? const <BeakRecord>[];
         final int total = page?.total ?? 0;
+        final sort = viewModel.spec.value.sorts.firstOrNull;
+        final sortColumn = sort == null
+            ? null
+            : presentations
+                      ?.where((column) => column.sortBy?.key == sort.columnKey)
+                      .firstOrNull
+                      ?.key ??
+                  sort.columnKey;
+        if (tableController.sortColumnId != sortColumn ||
+            (sort != null &&
+                tableController.sortAscending == sort.descending)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted ||
+                viewModel.isDisposed ||
+                viewModel.spec.value.sorts.firstOrNull != sort) {
+              return;
+            }
+            if (sortColumn == null) {
+              tableController.clearSort();
+            } else {
+              tableController.sortBy(sortColumn, ascending: !sort!.descending);
+            }
+          });
+        }
+        final desired = viewModel.spec.value.pagination;
+        if (tableController.pagination.pageSize != desired.perPage ||
+            tableController.pagination.currentPage != desired.page - 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted || viewModel.isDisposed) return;
+            tableController.pagination.setPageSize(desired.perPage);
+            tableController.pagination.goToPage(desired.page - 1);
+          });
+        }
         if (tableController.totalRows != total) {
           // The controller notifies its listeners; defer past this build.
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -176,8 +349,8 @@ class BeakDataTable extends HookWidget {
         final error = viewModel.error.value;
         if (error != null) {
           return OiEmptyState.error(
-            description: error.message,
-            actionLabel: 'Retry',
+            description: strings.errorMessage(error),
+            actionLabel: strings.retry,
             onAction: viewModel.refresh,
           );
         }
@@ -185,9 +358,11 @@ class BeakDataTable extends HookWidget {
         return OiColumn(
           breakpoint: context.breakpoint,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.max,
+          mainAxisSize: shrinkWrap ? MainAxisSize.min : MainAxisSize.max,
           children: [
-            if (bulkActions.isNotEmpty && selectedKeys.value.isNotEmpty)
+            if (showBulkActionBar &&
+                bulkActions.isNotEmpty &&
+                selectedKeys.value.isNotEmpty)
               _BulkActionBar(
                 actions: bulkActions,
                 // Raw primary keys, honoring the onRun contract — the
@@ -200,9 +375,30 @@ class BeakDataTable extends HookWidget {
               ),
             // OiTable virtualizes its rows and must own the remaining
             // height.
-            Expanded(
+            Flexible(
+              fit: shrinkWrap ? FlexFit.loose : FlexFit.tight,
               child: OiTable<BeakRecord>(
-                label: model.table,
+                shrinkWrap: shrinkWrap,
+                rowHeight: rowHeight,
+                label: strings.records,
+                labels: OiTableLabels(
+                  rows: strings.tableRows,
+                  rowCount: strings.tableRowCount,
+                  selectedCount: strings.selectedCount,
+                  columns: strings.tableColumns,
+                  manageColumns: strings.tableManageColumns,
+                  pagination: OiPaginationLabels(
+                    perPage: strings.tablePerPage,
+                    navigation: strings.tablePagination,
+                    firstPage: strings.tableFirstPage,
+                    previousPage: strings.tablePreviousPage,
+                    nextPage: strings.tableNextPage,
+                    lastPage: strings.tableLastPage,
+                    page: strings.tablePage,
+                    total: (start, end, total, _) =>
+                        strings.tablePageTotal(start, end, total),
+                  ),
+                ),
                 rows: rows,
                 controller: tableController,
                 columns: _columns(viewModel),
@@ -211,10 +407,17 @@ class BeakDataTable extends HookWidget {
                 multiSelect: bulkActions.isNotEmpty,
                 onRowTap: onRowTap == null
                     ? null
-                    : (record, index) => onRowTap?.call(record),
+                    : (record, index) {
+                        if (!viewModel.isDisposed) onRowTap?.call(record);
+                      },
                 serverSideSort: true,
                 onSort: (columnId, {required ascending}) {
-                  final column = model.columnByKey(columnId);
+                  final presentation = presentations
+                      ?.where((column) => column.key == columnId)
+                      .firstOrNull;
+                  final column =
+                      presentation?.sortBy?.column ??
+                      model.columnByKey(columnId);
                   if (column != null) {
                     viewModel.sortBy(column, descending: !ascending);
                   }
@@ -222,6 +425,11 @@ class BeakDataTable extends HookWidget {
                 serverSideFilter: true,
                 onFilter: (filters) =>
                     viewModel.setFilter(_filterTree(filters)),
+                showStatusBar: showStatusBar,
+                pageSizeOptions: ({
+                  ...pageSizeOptions,
+                  viewModel.spec.value.pagination.perPage,
+                }.toList()..sort()),
                 paginationMode: OiTablePaginationMode.pages,
                 totalRows: page?.total ?? 0,
                 onPageChange: (zeroBasedPage, pageSize) {
@@ -238,7 +446,7 @@ class BeakDataTable extends HookWidget {
                 },
                 loading: viewModel.loading.value,
                 emptyState: OiEmptyState(
-                  title: 'No ${model.table} yet',
+                  title: strings.noRecords,
                   icon: OiIcons.inbox,
                 ),
               ),
@@ -256,34 +464,99 @@ class BeakDataTable extends HookWidget {
     final List<BeakColumn> shown =
         columns ?? model.columnsFor(BeakContext.table);
     final relationsByForeignKey = <String, BeakRelationship>{
-      for (final relation in beakToOneRelationsOf(model))
-        if (relation is BeakBelongsTo) relation.foreignKey: relation,
+      if (fields == null)
+        for (final relation in beakToOneRelationsOf(model))
+          if (relation is BeakBelongsTo) relation.foreignKey: relation,
     };
     return <OiTableColumn<BeakRecord>>[
-      for (final column in shown)
-        if (relationsByForeignKey[column.key] case final BeakRelationship r)
-          _relationColumn(r)
-        else
+      if (presentations case final List<BeakTableColumn> selected)
+        for (final column in selected)
           OiTableColumn<BeakRecord>(
             id: column.key,
             header: column.label,
-            sortable: column.sortable,
-            filterable: column.filterable,
-            valueGetter: (record) => record[column.key]?.raw?.toString() ?? '',
-            cellBuilder: (context, record, rowIndex) =>
-                renderBeakCell(context, column: column, record: record),
+            width: column.width,
+            minWidth: column.minWidth,
+            textAlign: column.textAlign,
+            cellPadding: column.cellPadding,
+            sortable:
+                column.sortBy != null &&
+                column.sortBy!.path.isEmpty &&
+                column.sortBy!.column.sortable,
+            filterable: false,
+            cellBuilder: (context, record, rowIndex) => column.template == null
+                ? _configuredAction(column, record)
+                : BeakRecordTemplateView(
+                    template: column.template!,
+                    record: record,
+                  ),
           ),
+      if ((presentations, fields) case (
+        null,
+        final List<BeakScalarField<Object>> selected,
+      ))
+        for (final field in selected)
+          OiTableColumn<BeakRecord>(
+            id: field.qualifiedKey,
+            header: field.label,
+            minWidth: 160,
+            sortable: field.path.isEmpty && field.column.sortable,
+            filterable: showHeaderFilters && field.column.filterable,
+            valueGetter: (record) => field.readFrom(record)?.toString() ?? '',
+            cellBuilder: (context, record, rowIndex) =>
+                renderBeakField(context, field: field, record: record),
+          ),
+      if (fields == null && presentations == null)
+        for (final column in shown)
+          if (relationsByForeignKey[column.key] case final BeakRelationship r)
+            _relationColumn(r)
+          else
+            OiTableColumn<BeakRecord>(
+              id: column.key,
+              header: column.label,
+              minWidth: 160,
+              sortable: column.sortable,
+              filterable: showHeaderFilters && column.filterable,
+              valueGetter: (record) =>
+                  record[column.key]?.raw?.toString() ?? '',
+              cellBuilder: (context, record, rowIndex) =>
+                  renderBeakCell(context, column: column, record: record),
+            ),
       // A to-one whose key is hidden from the table context still deserves a
       // column — the relationship is what the reader came for.
-      for (final relation in beakToOneRelationsOf(model))
-        if (relation is! BeakBelongsTo ||
-            !shown.any((column) => column.key == relation.foreignKey))
-          _relationColumn(relation),
-      if (actions.isNotEmpty || enableDelete)
+      if (fields == null && presentations == null)
+        for (final relation in beakToOneRelationsOf(model))
+          if (relation is! BeakBelongsTo ||
+              !shown.any((column) => column.key == relation.foreignKey))
+            _relationColumn(relation),
+      if (actions.any(
+            (action) => action.placement != BeakActionPlacement.column,
+          ) ||
+          enableDelete)
         OiTableColumn<BeakRecord>(
           id: '_actions',
           header: '',
-          width: 56.0 + 44.0 * actions.length,
+          cellPadding: const EdgeInsets.symmetric(horizontal: 4),
+          minWidth: 40,
+          width:
+              8.0 +
+              (enableDelete ? 32 : 0) +
+              (actions.any(
+                    (action) =>
+                        action.placement == BeakActionPlacement.overflow,
+                  )
+                  ? 32
+                  : 0) +
+              actions.fold<double>(
+                0,
+                (width, action) =>
+                    width +
+                    switch (action.placement) {
+                      BeakActionPlacement.primary => 140,
+                      BeakActionPlacement.icon => 44,
+                      BeakActionPlacement.overflow => 0,
+                      BeakActionPlacement.column => 0,
+                    },
+              ),
           sortable: false,
           filterable: false,
           resizable: false,
@@ -291,6 +564,39 @@ class BeakDataTable extends HookWidget {
               _rowActions(context, viewModel, record),
         ),
     ];
+  }
+
+  Widget _configuredAction(BeakTableColumn column, BeakRecord record) {
+    final selection = column.actionSelector?.readFrom(record);
+    final presentation =
+        column.actionChoices[selection] ?? column.fallbackAction;
+    if (presentation == null) return const SizedBox.shrink();
+    final available = actions
+        .where(
+          (action) =>
+              action.id == presentation.key &&
+              (action.visibleWhen?.call(record) ?? true),
+        )
+        .firstOrNull;
+    if (available == null) return const SizedBox.shrink();
+    final id = model.primaryKeyOf(record);
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: _RowActionButton(
+        key: ValueKey((column.key, id, available.id)),
+        recordId: id,
+        constrained: true,
+        action: BeakTableAction(
+          id: available.id,
+          label: presentation.label ?? available.label,
+          semanticLabel: available.semanticLabel ?? available.label,
+          onRun: available.onRun,
+          icon: available.icon,
+          destructive: available.destructive,
+          placement: BeakActionPlacement.primary,
+        ),
+      ),
+    );
   }
 
   /// The column showing the record on the far side of [relation].
@@ -303,6 +609,7 @@ class BeakDataTable extends HookWidget {
       OiTableColumn<BeakRecord>(
         id: relation.key,
         header: relation.label,
+        minWidth: 160,
         sortable: false,
         filterable: false,
         valueGetter: (record) => _relationLabelOf(relation, record),
@@ -345,16 +652,37 @@ class BeakDataTable extends HookWidget {
       breakpoint: context.breakpoint,
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        for (final action in actions)
-          OiButton.icon(
-            icon: action.icon ?? OiIcons.play,
-            label: action.label,
-            onTap: id == null ? null : () => action.onRun([id]),
+        for (final action in actions.where(
+          (action) =>
+              action.placement == BeakActionPlacement.icon ||
+              action.placement == BeakActionPlacement.primary,
+        ))
+          if (action.visibleWhen?.call(record) ?? true)
+            _RowActionButton(
+              key: ValueKey((id, action.id)),
+              action: action,
+              recordId: id,
+            ),
+        if (actions.any(
+          (action) =>
+              action.placement == BeakActionPlacement.overflow &&
+              (action.visibleWhen?.call(record) ?? true),
+        ))
+          _RowOverflowActions(
+            recordId: id,
+            record: record,
+            actions: [
+              for (final action in actions)
+                if (action.placement == BeakActionPlacement.overflow &&
+                    (action.visibleWhen?.call(record) ?? true))
+                  action,
+            ],
           ),
         if (enableDelete)
           OiButton.icon(
+            size: OiButtonSize.small,
             icon: OiIcons.trash2,
-            label: 'Delete',
+            label: BeakLocalizations.of(context).delete,
             onTap: id == null
                 ? null
                 : () => _deleteOptimistically(context, viewModel, id),
@@ -379,7 +707,7 @@ class BeakDataTable extends HookWidget {
         }
       },
       commit: () => dataSource.delete(model.table, id),
-      message: 'Record deleted',
+      message: BeakLocalizations.of(context).recordDeleted,
     );
   }
 
@@ -428,7 +756,9 @@ class BeakDataTable extends HookWidget {
   BeakFilter? _filterTree(Map<String, String> filters) {
     final leaves = <BeakFilter>[
       for (final MapEntry(:key, :value) in filters.entries)
-        if (value.trim().isNotEmpty && model.columnByKey(key) != null)
+        if (value.trim().isNotEmpty &&
+            (model.columnByKey(key) != null ||
+                (fields?.any((field) => field.qualifiedKey == key) ?? false)))
           BeakFieldFilter.forKey(
             key,
             BeakOperator.contains,
@@ -436,6 +766,56 @@ class BeakDataTable extends HookWidget {
           ),
     ];
     return BeakFilter.allOf(leaves);
+  }
+}
+
+/// Keeps a row action pending until its confirmation and mutation finish.
+final class _RowActionButton extends HookWidget {
+  const _RowActionButton({
+    required this.action,
+    this.recordId,
+    this.constrained = false,
+    super.key,
+  });
+
+  final bool constrained;
+
+  final BeakTableAction action;
+  final Object? recordId;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = useState(false);
+    final id = recordId;
+    Future<void> run() async {
+      if (pending.value || id == null) return;
+      pending.value = true;
+      try {
+        await action.onRun([id]);
+      } finally {
+        if (context.mounted) pending.value = false;
+      }
+    }
+
+    if (action.placement == BeakActionPlacement.primary) {
+      return OiButton.secondary(
+        size: OiButtonSize.small,
+        label: action.label,
+        semanticLabel: action.semanticLabel,
+        tooltip: action.semanticLabel != action.label
+            ? action.semanticLabel
+            : null,
+        fullWidth: false,
+        loading: pending.value,
+        onTap: id == null || pending.value ? null : run,
+      );
+    }
+    return OiButton.icon(
+      size: OiButtonSize.small,
+      icon: action.icon ?? OiIcons.play,
+      label: action.label,
+      onTap: id == null || pending.value ? null : run,
+    );
   }
 }
 
@@ -451,7 +831,9 @@ final class _BulkActionBar extends StatelessWidget {
     breakpoint: context.breakpoint,
     gap: const OiResponsive<double>(8),
     children: [
-      OiLabel.smallStrong('${selectedIds.length} selected'),
+      OiLabel.smallStrong(
+        BeakLocalizations.of(context).selectedCount(selectedIds.length),
+      ),
       for (final action in actions)
         if (action.destructive)
           OiButton.destructive(
@@ -465,4 +847,48 @@ final class _BulkActionBar extends StatelessWidget {
           ),
     ],
   );
+}
+
+class _RowOverflowActions extends HookWidget {
+  const _RowOverflowActions({
+    required this.recordId,
+    required this.record,
+    required this.actions,
+  });
+  final BeakRecord record;
+  final Object? recordId;
+  final List<BeakTableAction> actions;
+  @override
+  Widget build(BuildContext context) {
+    final pending = useState(false);
+    return OiActionBar(
+      label: 'Record actions',
+      separator: true,
+      overflowIcon: OiIcons.ellipsis,
+      size: OiButtonSize.small,
+      actions: const [],
+      overflowActions: [
+        for (final action in actions)
+          OiActionBarItem(
+            icon: action.icon ?? OiIcons.play,
+            label: action.labelValue?.readFrom(record) ?? action.label,
+            semanticLabel: action.labelValue?.readFrom(record) ?? action.label,
+            group: action.group,
+            variant: action.destructive
+                ? OiButtonVariant.destructive
+                : OiButtonVariant.ghost,
+            enabled: recordId != null && !pending.value,
+            onTap: () async {
+              if (pending.value || recordId == null) return;
+              pending.value = true;
+              try {
+                await action.onRun([recordId!]);
+              } finally {
+                if (context.mounted) pending.value = false;
+              }
+            },
+          ),
+      ],
+    );
+  }
 }

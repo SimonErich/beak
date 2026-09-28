@@ -52,7 +52,8 @@ const String _introspectSql =
 /// (positional `?`), never string interpolation. Transactions run the
 /// nested callback against a [MysqlTransactionAdapter] pinned to one
 /// connection for the whole `START TRANSACTION` … `COMMIT` span.
-final class MysqlAdapter extends DatabaseAdapter with ExplainCapable {
+final class MysqlAdapter extends DatabaseAdapter
+    with ExplainCapable, CurrentReadCapable {
   /// Creates an adapter backed by [pool], compiling descriptors with
   /// [compiler]. The optional [preparedStatementCache] records compiled
   /// SQL for prepared-statement-churn diagnostics.
@@ -121,6 +122,16 @@ final class MysqlAdapter extends DatabaseAdapter with ExplainCapable {
   @override
   Future<Map<String, Object?>?> selectOne(QueryDescriptor d) async {
     final rows = await select(d.copyWith(limit: 1));
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  @override
+  Future<Map<String, Object?>?> selectOneCurrent(QueryDescriptor d) async {
+    final compiled = _compiler.compileCurrentSelect(d);
+    final rows = await _run(
+      compiled.sql,
+      (conn) => runSelectRows(conn, compiled.sql, compiled.parameters),
+    );
     return rows.isEmpty ? null : rows.first;
   }
 

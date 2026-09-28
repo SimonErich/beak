@@ -304,7 +304,9 @@ final class BeakApp extends StatelessWidget {
       ..writeln('    BeakServeHost(')
       ..writeln('      environment: ${_environmentExpression(config)},')
       ..writeln('      registry: buildBeakRegistry(),')
-      ..writeln('      migrations: const [');
+      ..writeln('      migrations: const [')
+      ..writeln('        BeakCommitReceiptsMigration(),')
+      ..writeln('        BeakOutboxMigration(),');
     for (final migration in discovery.migrations) {
       buffer.writeln('        ${migration.constFreeExpression},');
     }

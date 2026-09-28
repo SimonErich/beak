@@ -10,7 +10,7 @@ class _BeakInvoiceBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final record = useState<BeakRecord?>(null);
 
     useEffect(() {
@@ -71,7 +71,7 @@ class _BeakInvoiceBlockView extends HookWidget {
             _header(context, invoice),
             const OiDivider(spacing: 8),
             _lineItems(),
-            _totals(invoice),
+            _totals(context, invoice),
           ],
         ],
       ),
@@ -87,13 +87,14 @@ class _BeakInvoiceBlockView extends HookWidget {
         if (_readString(invoice, column) case final String url)
           OiImage(src: url, alt: '${block.title} logo', height: 48),
       if (block.metaFields.isNotEmpty)
-        _party('Details', invoice, block.metaFields),
+        _party(context, 'Details', invoice, block.metaFields),
       if (block.fromFields.isNotEmpty)
-        _party('From', invoice, block.fromFields),
-      if (block.toFields.isNotEmpty) _party('To', invoice, block.toFields),
+        _party(context, 'From', invoice, block.fromFields),
+      if (block.toFields.isNotEmpty)
+        _party(context, 'To', invoice, block.toFields),
       if (_billedParty(invoice) case final BeakRecord party)
         if (block.toPartyFields.isNotEmpty)
-          _party('To', party, block.toPartyFields),
+          _party(context, 'To', party, block.toPartyFields),
     ],
   );
 
@@ -108,20 +109,28 @@ class _BeakInvoiceBlockView extends HookWidget {
     return related.isEmpty ? null : related.first;
   }
 
-  Widget _party(String title, BeakRecord invoice, List<BeakColumn> fields) =>
-      SizedBox(
-        width: 280,
-        child: OiKeyValue.group(
-          title: title,
-          children: [
-            for (final column in fields)
-              OiKeyValue(
-                label: column.label,
-                value: beakCellText(column, invoice[column.key]?.raw),
-              ),
-          ],
-        ),
-      );
+  Widget _party(
+    BuildContext context,
+    String title,
+    BeakRecord invoice,
+    List<BeakColumn> fields,
+  ) => SizedBox(
+    width: 280,
+    child: OiKeyValue.group(
+      title: title,
+      children: [
+        for (final column in fields)
+          OiKeyValue(
+            label: column.label,
+            value: beakCellText(
+              column,
+              invoice[column.key]?.raw,
+              formatting: BeakFormatting.maybeOf(context),
+            ),
+          ),
+      ],
+    ),
+  );
 
   Widget _lineItems() {
     final BeakColumn? foreignKey = block.lineItemsForeignKey;
@@ -140,13 +149,17 @@ class _BeakInvoiceBlockView extends HookWidget {
     );
   }
 
-  Widget _totals(BeakRecord invoice) {
+  Widget _totals(BuildContext context, BeakRecord invoice) {
     // Through the shared cell formatter so decimal columns keep their
     // configured currency prefix and precision — Postgres numerics arrive
     // over the wire as strings.
     OiKeyValue row(BeakColumn column) => OiKeyValue(
       label: column.label,
-      value: beakCellText(column, invoice[column.key]?.raw),
+      value: beakCellText(
+        column,
+        invoice[column.key]?.raw,
+        formatting: BeakFormatting.maybeOf(context),
+      ),
     );
     final rows = <OiKeyValue>[
       if (block.subtotalField case final BeakColumn column) row(column),

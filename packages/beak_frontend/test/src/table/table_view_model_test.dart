@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak_frontend/src/data/model_beak_data_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/panel_fixtures.dart';
@@ -29,6 +30,37 @@ void main() {
     expect(viewModel.loading.value, isFalse);
     expect(viewModel.error.value, isNull);
   });
+
+  test(
+    'unchanged table intents cost no request while refresh stays fresh',
+    () async {
+      await viewModel.refresh();
+      dataSource.queryCalls.clear();
+      viewModel.goToPage(1);
+      viewModel.setPageSize(viewModel.spec.value.pagination.perPage);
+      viewModel.setSearch('   ');
+      viewModel.setFilter(null);
+      await pumpEventQueue();
+      expect(dataSource.queryCalls, isEmpty);
+
+      viewModel.setSearch('laser');
+      await pumpEventQueue();
+      expect(dataSource.queryCalls, hasLength(1));
+      viewModel.setSearch('laser');
+      await pumpEventQueue();
+      expect(dataSource.queryCalls, hasLength(1));
+
+      viewModel.sortBy(const NoteModel().columns[1]);
+      await pumpEventQueue();
+      expect(dataSource.queryCalls, hasLength(2));
+      viewModel.sortBy(const NoteModel().columns[1]);
+      await pumpEventQueue();
+      expect(dataSource.queryCalls, hasLength(2));
+
+      await viewModel.refresh();
+      expect(dataSource.queryCalls, hasLength(3));
+    },
+  );
 
   test('sortBy replaces the ordering and resets to the first page', () async {
     viewModel.goToPage(3);
@@ -109,6 +141,90 @@ void main() {
     );
   });
 
+  for (final shared in [false, true]) {
+    test(
+      'permanent scope applies from first query through refresh (shared: $shared)',
+      () async {
+        const base = BeakFieldFilter.forKey(
+          'id',
+          BeakOperator.eq,
+          BeakStringValue('n1'),
+        );
+        const active = BeakFieldFilter.forKey(
+          'title',
+          BeakOperator.contains,
+          BeakStringValue('One'),
+        );
+        final source = FakeDataSource(
+          records: {
+            'notes': {
+              'n1': BeakRecord.fromRow({'id': 'n1', 'title': 'One'}),
+              'n2': BeakRecord.fromRow({
+                'id': 'n2',
+                'title': 'One outside scope',
+              }),
+            },
+          },
+        );
+        final query = shared
+            ? BeakQueryController(
+                model: const NoteModel(),
+                base: const BeakQuerySpec(table: 'notes', filter: active),
+              )
+            : null;
+        final mutations = ModelBeakDataSource(
+          registry: BeakModelRegistry()..register(const NoteModel()),
+          fallback: source,
+        );
+        addTearDown(mutations.dispose);
+        final scoped = TableViewModel(
+          const NoteModel(),
+          mutations,
+          initial: const BeakQuerySpec(table: 'notes', filter: active),
+          baseFilter: base,
+          queryController: query,
+        );
+        addTearDown(scoped.dispose);
+        if (query != null) addTearDown(query.dispose);
+        await scoped.refresh();
+        expect(scoped.page.value!.items.map((row) => row['id']?.raw), ['n1']);
+        expect(scoped.page.value!.total, 1);
+        scoped.sortBy(const NoteModel().columns[1], descending: true);
+        scoped.setSearch('One');
+        scoped.setPageSize(1);
+        scoped.goToPage(2);
+        await pumpEventQueue();
+        expect(scoped.page.value!.total, 1);
+        expect(scoped.page.value!.items, isEmpty);
+        scoped.setFilter(null);
+        scoped.goToPage(1);
+        await scoped.refresh();
+        expect(scoped.page.value!.items.map((row) => row['id']?.raw), ['n1']);
+        expect(scoped.page.value!.total, 1);
+        final beforeMutation = source.queryCalls.length;
+        await mutations.update(
+          'notes',
+          'n2',
+          BeakRecord.fromRow({'title': 'One changed outside scope'}),
+        );
+        await pumpEventQueue();
+        expect(source.queryCalls.length, greaterThan(beforeMutation));
+        expect(scoped.page.value!.total, 1);
+        expect(scoped.page.value!.items.map((row) => row['id']?.raw), ['n1']);
+        for (final call in source.queryCalls) {
+          expect(
+            call.filter == base ||
+                (call.filter is BeakAndFilter &&
+                    (call.filter! as BeakAndFilter).filters.contains(base)),
+            isTrue,
+            reason:
+                'Every query, including pagination and totals, retains permanent scope.',
+          );
+        }
+      },
+    );
+  }
+
   test(
     'a superseded out-of-order response never overwrites the latest',
     () async {
@@ -158,6 +274,15 @@ void main() {
     expect(failingViewModel.error.value, isA<BeakStorageException>());
     expect(failingViewModel.loading.value, isFalse);
     expect(failingViewModel.page.value, isNull);
+  });
+
+  test('a query completing after disposal is ignored', () async {
+    final source = _GatedSource();
+    final disposed = TableViewModel(const NoteModel(), source);
+    final load = disposed.refresh();
+    disposed.dispose();
+    source.release(0, total: 3);
+    await expectLater(load, completes);
   });
 }
 

@@ -20,6 +20,8 @@ final class BeakRichTextColumn extends BeakColumn with BeakTypedColumn<String> {
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
   });
   // --8<-- [end:BeakRichTextColumn]
 

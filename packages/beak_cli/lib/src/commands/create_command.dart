@@ -349,6 +349,9 @@ pubspec.lock
 include: package:lints/recommended.yaml
 
 analyzer:
+  exclude:
+    - build/**
+    - web/**
   language:
     strict-casts: true
     strict-inference: true

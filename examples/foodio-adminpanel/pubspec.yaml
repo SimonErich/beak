@@ -1,0 +1,40 @@
+name: foodio_adminpanel
+description: Gabel food ordering operations, configured declaratively with Beak.
+publish_to: none
+version: 0.1.0
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+dependencies:
+  beak:
+    path: ../../packages/beak
+  flutter:
+    sdk: flutter
+  go_router: ^17.3.0
+  worm_sqlite:
+    path: ../../packages/worm_sqlite
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  test: ^1.26.0
+  lints: ^6.0.0
+  http: ^1.2.0
+  shelf: ^1.4.0
+
+flutter:
+  fonts:
+    - family: Mona Sans
+      fonts:
+        - asset: assets/fonts/MonaSans.ttf
+    - family: Mona Sans Extended
+      fonts:
+        - asset: assets/fonts/MonaSansExtended.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf
+    - family: JetBrains Mono Extended
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoExtended.ttf
+  assets:
+    - assets/fonts/MonaSans-OFL.txt
+    - assets/fonts/JetBrainsMono-OFL.txt

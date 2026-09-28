@@ -9,7 +9,7 @@ class _BeakProfileBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final record = useState<BeakRecord?>(null);
 
     useEffect(() {

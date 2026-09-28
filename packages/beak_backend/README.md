@@ -6,7 +6,7 @@ endpoints, validated uploads, auth, search, and CSV export — all from a
 
 Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
-[architecture guide](../../docs/architecture.md) for how the packages fit
+[architecture guide](../../docs/architecture/index.md) for how the packages fit
 together.
 
 ## What it is
@@ -21,11 +21,16 @@ entry points are `BeakServer`, `beakApiRouter`, and `WormDataSource`.
 
 ## Usage
 
+The generated `BeakServeHost` handles startup for an application. For embedding
+in an existing server, configure the lower-level components after connecting
+your database adapter:
+
 ```dart
 import 'package:beak_backend/beak_backend.dart';
 import 'package:worm/worm.dart';
 
-final BeakModelRegistry registry = buildReferenceRegistry();
+// Import buildBeakRegistry from your app’s generated registry.
+final BeakModelRegistry registry = buildBeakRegistry();
 
 final server = BeakServer(
   config: BeakBackendConfig.fromEnv(environment: BeakEnv.resolve()),
@@ -55,6 +60,8 @@ final handler = const Pipeline()
 
 ## Key types
 
+- `BeakServeHost` — shared application startup, migration and seeding wiring.
+- `BeakGraphCommitService` — atomic candidate graph validation, behavior and receipts.
 - `BeakServer` — composes the middleware stack around the router; `start()`
   binds the socket, `handler` exposes the raw `Handler`.
 - `beakApiRouter` — builds the full generated API `Handler` from a registry
@@ -69,7 +76,7 @@ final handler = const Pipeline()
 ## Status
 
 Pre-1.0, part of the Beak monorepo. Consumed by the
-[reference admin](../../apps/reference_admin). Contributions welcome — see
+[canonical shop](../../examples/clean_beak_config). Contributions welcome — see
 [CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
 
 ## License

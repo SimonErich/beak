@@ -64,8 +64,16 @@ final class PredicateEvaluator {
   };
 
   bool _evaluateColumn(Map<String, Object?> row, ColumnNode node) {
-    final left = row[node.leftField];
-    final right = row[node.rightField];
+    final leftKey = node.leftTable == null
+        ? node.leftField
+        : '${node.leftTable}.${node.leftField}';
+    final rightKey = node.rightTable == null
+        ? node.rightField
+        : '${node.rightTable}.${node.rightField}';
+    final left = row.containsKey(leftKey) ? row[leftKey] : row[node.leftField];
+    final right = row.containsKey(rightKey)
+        ? row[rightKey]
+        : row[node.rightField];
     return switch (node.operator) {
       Operator.eq => left == right,
       Operator.neq => left != right,
@@ -109,7 +117,9 @@ final class PredicateEvaluator {
   }
 
   bool _evaluateLeaf(Map<String, Object?> row, Predicate predicate) {
-    final field = row[predicate.fieldName];
+    final field = row.containsKey(predicate.qualifiedName)
+        ? row[predicate.qualifiedName]
+        : row[predicate.fieldName];
     return switch (predicate.operator) {
       Operator.eq => field == predicate.value,
       Operator.neq => field != predicate.value,

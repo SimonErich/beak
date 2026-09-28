@@ -23,7 +23,7 @@ final class BeakSchemaReader {
   /// The project directory holding `lib/`.
   final Directory projectRoot;
 
-  /// Reads every schema class under `lib/models/`.
+  /// Reads every schema class under `lib/`, including resource-local models.
   ///
   /// Issues are returned rather than thrown, so `beak prepare` can report all
   /// of them at once instead of one per run.
@@ -34,9 +34,7 @@ final class BeakSchemaReader {
     // tell `ProductStatus` from `Uri` by name alone, so collect the real
     // declarations and treat anything else as an error the author can fix.
     final enums = <String>{};
-    final root = Directory(
-      '${projectRoot.path}/lib/${BeakProjectScanner.modelsDir}',
-    );
+    final root = Directory('${projectRoot.path}/lib');
     if (!root.existsSync()) {
       return (schemas, issues);
     }
@@ -49,6 +47,8 @@ final class BeakSchemaReader {
               (file) =>
                   file.path.endsWith('.dart') &&
                   !file.path.endsWith('.beak.dart') &&
+                  !file.path.endsWith('.g.dart') &&
+                  !file.path.endsWith('.freezed.dart') &&
                   !file.uri.pathSegments.last.startsWith('_'),
             )
             .toList()
@@ -94,7 +94,62 @@ final class BeakSchemaReader {
     }
 
     issues.addAll(_validateRelations(schemas));
-    return (schemas, issues);
+    return (_resolveForeignKeyTypes(schemas), issues);
+  }
+
+  /// Foreign keys use the target identity's declared storage type.
+  List<BeakSchemaIr> _resolveForeignKeyTypes(List<BeakSchemaIr> schemas) {
+    final byClass = {for (final schema in schemas) schema.className: schema};
+    return [
+      for (final schema in schemas)
+        BeakSchemaIr(
+          className: schema.className,
+          table: schema.table,
+          libraryPath: schema.libraryPath,
+          columns: [
+            for (final column in schema.columns)
+              _resolveForeignKey(column, schema, byClass),
+          ],
+          relations: schema.relations,
+          displayColumnKey: schema.displayColumnKey,
+          softDeletes: schema.softDeletes,
+          timestamps: schema.timestamps,
+          managesSchema: schema.managesSchema,
+          hasValidationRules: schema.hasValidationRules,
+          hasBehavior: schema.hasBehavior,
+          docComment: schema.docComment,
+        ),
+    ];
+  }
+
+  BeakColumnIr _resolveForeignKey(
+    BeakColumnIr column,
+    BeakSchemaIr schema,
+    Map<String, BeakSchemaIr> byClass,
+  ) {
+    for (final relation in schema.relations) {
+      if (relation.kind != BeakRelationKind.belongsTo ||
+          relation.foreignKey != column.columnKey) {
+        continue;
+      }
+      final related = byClass[relation.relatedSchema];
+      if (related == null) return column;
+      final identity = related.columns
+          .where((field) => field.columnKey == 'id')
+          .first;
+      return BeakColumnIr(
+        fieldName: column.fieldName,
+        columnKey: column.columnKey,
+        label: column.label,
+        kind: identity.kind,
+        isRequired: relation.isRequired,
+        enumTypeName: identity.enumTypeName,
+        declaredValueType: identity.declaredValueType,
+        arguments: column.arguments,
+        docComment: column.docComment,
+      );
+    }
+    return column;
   }
 
   /// Reads one annotated class.
@@ -159,18 +214,20 @@ final class BeakSchemaReader {
     // The primary key and the stamps are implied, never declared: writing
     // them out per schema is the boilerplate this whole surface removes.
     final allColumns = <BeakColumnIr>[
-      const BeakColumnIr(
-        fieldName: 'id',
-        columnKey: 'id',
-        label: 'Id',
-        kind: BeakColumnKind.string,
-        isRequired: false,
-        arguments: {'visibleOn': '{BeakContext.detail}'},
-        docComment: 'Primary key.',
-      ),
+      if (!columns.any((column) => column.columnKey == 'id'))
+        const BeakColumnIr(
+          fieldName: 'id',
+          columnKey: 'id',
+          label: 'Id',
+          kind: BeakColumnKind.string,
+          isRequired: false,
+          arguments: {'visibleOn': '{BeakContext.detail}'},
+          docComment: 'Primary key.',
+        ),
       ...columns,
       for (final relation in relations)
-        if (relation.kind == BeakRelationKind.belongsTo)
+        if (relation.kind == BeakRelationKind.belongsTo &&
+            !columns.any((column) => column.columnKey == relation.foreignKey))
           BeakColumnIr(
             // `categoryId`, not `category`: the relationship constant already
             // owns that name, and a column and a relationship that look alike
@@ -179,7 +236,7 @@ final class BeakSchemaReader {
             columnKey: relation.foreignKey!,
             label: relation.label,
             kind: BeakColumnKind.string,
-            isRequired: false,
+            isRequired: relation.isRequired,
             arguments: const {'visibleOn': '{BeakContext.form}'},
             docComment: 'Foreign key backing [${relation.fieldName}].',
           ),
@@ -219,11 +276,38 @@ final class BeakSchemaReader {
         ),
     ];
 
+    for (final column in allColumns) {
+      final reference = column.arguments['currencyFrom'];
+      if (reference == null) continue;
+      final member = reference.startsWith('#') ? reference.substring(1) : '';
+      final targets = allColumns.where(
+        (candidate) => candidate.fieldName == member,
+      );
+      if (targets.isEmpty ||
+          targets.first.kind != BeakColumnKind.string ||
+          column.declaredValueType != 'BeakDecimal' ||
+          !(column.arguments['semantic']?.contains('BeakSemantic.money(') ??
+              false)) {
+        issues.add(
+          BeakDiscoveryIssue(
+            path: 'lib/$path',
+            message:
+                '$className.${column.fieldName}: currencyFrom $reference must name a String schema field on a BeakDecimal money column.',
+          ),
+        );
+      }
+    }
+
     final String display =
         displayColumnKey ??
         columns
             .firstWhere(
-              (column) => column.kind == BeakColumnKind.string,
+              (column) =>
+                  column.kind == BeakColumnKind.string &&
+                  !(column.arguments['semantic']?.contains(
+                        'BeakSemantic.password(',
+                      ) ??
+                      false),
               orElse: () => allColumns.first,
             )
             .columnKey;
@@ -253,6 +337,20 @@ final class BeakSchemaReader {
         softDeletes: softDeletes,
         timestamps: timestamps,
         managesSchema: options['managesSchema'] != 'false',
+        hasValidationRules: declaration.members
+            .whereType<MethodDeclaration>()
+            .any(
+              (member) =>
+                  member.isStatic &&
+                  member.isGetter &&
+                  member.name.lexeme == 'validationRules',
+            ),
+        hasBehavior: declaration.members.whereType<MethodDeclaration>().any(
+          (member) =>
+              member.isStatic &&
+              member.isGetter &&
+              member.name.lexeme == 'behavior',
+        ),
         docComment: _docCommentOf(declaration),
       ),
       issues,
@@ -276,6 +374,7 @@ final class BeakSchemaReader {
     final Annotation? image = _annotation(metadata, 'Image');
     final Annotation? fileField = _annotation(metadata, 'FileField');
     final Annotation? badges = _annotation(metadata, 'Badges');
+    final Annotation? enumLabels = _annotation(metadata, 'EnumLabels');
     final relationAnnotation = _relationAnnotationOf(metadata);
 
     if (relationAnnotation != null) {
@@ -298,6 +397,28 @@ final class BeakSchemaReader {
         _unquote(options['columnName']) ?? snakeCaseOf(fieldName);
     final String label = _unquote(options['label']) ?? titleCaseOf(fieldName);
 
+    final listElement =
+        typeName == 'List' &&
+            type.typeArguments?.arguments.singleOrNull?.question == null
+        ? _listElementName(type)
+        : null;
+    final primitiveType = switch (listElement) {
+      'String' => 'string',
+      'int' => 'integer',
+      'double' => 'decimal',
+      'bool' => 'boolean',
+      _ => null,
+    };
+    final semanticType = switch (typeName) {
+      'BeakJson' ||
+      'BeakDate' ||
+      'BeakTime' ||
+      'Duration' ||
+      'BeakDecimal' ||
+      'BeakJsonObject' => typeName,
+      'List' when primitiveType != null => 'List<$listElement>',
+      _ => null,
+    };
     // An upload or custom annotation names the kind; otherwise the type does.
     final BeakColumnKind? kind = image != null
         ? BeakColumnKind.image
@@ -305,7 +426,9 @@ final class BeakSchemaReader {
         ? BeakColumnKind.file
         : custom != null
         ? BeakColumnKind.custom
-        : BeakColumnKind.ofType(typeName) ??
+        : (primitiveType == null
+                  ? BeakColumnKind.ofType(typeName)
+                  : BeakColumnKind.json) ??
               (enums.contains(typeName) ? BeakColumnKind.enumeration : null);
 
     if (kind == null) {
@@ -316,6 +439,50 @@ final class BeakSchemaReader {
               '$className.$fieldName is a $typeName, which Beak cannot map to '
               'a column. Use a supported type, annotate it with @BelongsTo / '
               '@HasMany for a relationship, or @Custom for an opaque value.',
+        ),
+      );
+    }
+
+    final semanticName = RegExp(
+      r'BeakSemantic\.(\w+)\(',
+    ).firstMatch(options['semantic'] ?? '')?.group(1);
+    final validSemantic = switch (semanticName) {
+      'email' ||
+      'url' ||
+      'phone' ||
+      'slug' ||
+      'password' ||
+      'uuid' => typeName == 'String',
+      'calendarDate' => typeName == 'BeakDate',
+      'time' => typeName == 'BeakTime',
+      'duration' => typeName == 'Duration',
+      'exactDecimal' || 'money' => typeName == 'BeakDecimal',
+      'percentage' || 'quantity' => typeName == 'int' || typeName == 'double',
+      'fileSize' => typeName == 'int',
+      'object' => typeName == 'BeakJsonObject',
+      'list' => typeName == 'List' && primitiveType != null,
+      _ => true,
+    };
+    if (!validSemantic) {
+      return _FieldIssue(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className.$fieldName: BeakSemantic.$semanticName is incompatible with $typeName. Use its semantic Dart value type.',
+        ),
+      );
+    }
+
+    final password =
+        options['semantic']?.contains('BeakSemantic.password(') ?? false;
+    if (password &&
+        (_annotation(metadata, 'Display') != null ||
+            options['searchable'] == 'true')) {
+      return _FieldIssue(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className.$fieldName is a password and cannot be @Display or searchable.',
         ),
       );
     }
@@ -337,7 +504,27 @@ final class BeakSchemaReader {
       );
     }
 
+    final inferredSemantic = switch (typeName) {
+      'BeakDate' => 'BeakSemantic.calendarDate()',
+      'BeakTime' => 'BeakSemantic.time()',
+      'Duration' => 'BeakSemantic.duration()',
+      'BeakDecimal' => 'BeakSemantic.exactDecimal()',
+      'BeakJsonObject' =>
+        'BeakSemantic.object(BeakObjectSchema(columns: [], allowUnknown: true))',
+      'List' when primitiveType != null =>
+        'BeakSemantic.list(BeakPrimitiveType.$primitiveType)',
+      _ => null,
+    };
     final arguments = <String, String>{
+      'semantic': ?inferredSemantic,
+      if (kind == BeakColumnKind.boolean && nullable) 'tristate': 'true',
+      if (password) 'visibleOn': '{BeakContext.form}',
+      if (typeName == 'double' &&
+          semanticName == 'percentage' &&
+          RegExp(
+            r'scale:\s*1(?:\.0)?\s*[,)]',
+          ).hasMatch(options['semantic'] ?? ''))
+        'precision': '4',
       for (final entry in options.entries)
         if (!const {'columnName', 'label'}.contains(entry.key))
           entry.key: entry.value,
@@ -346,6 +533,7 @@ final class BeakSchemaReader {
       if (custom != null)
         'tag': 'BeakColumnTag(${_positionalArguments(custom).first})',
       if (badges != null) 'badgeColors': _positionalArguments(badges).first,
+      if (enumLabels != null) 'labels': _positionalArguments(enumLabels).first,
       if (kind == BeakColumnKind.enumeration) 'values': '$typeName.values',
     };
 
@@ -357,6 +545,7 @@ final class BeakSchemaReader {
         kind: kind,
         isRequired: !nullable,
         enumTypeName: kind == BeakColumnKind.enumeration ? typeName : null,
+        declaredValueType: semanticType,
         arguments: arguments,
         docComment: docComment,
       ),
@@ -378,7 +567,7 @@ final class BeakSchemaReader {
         'maxLength' || 'placeholder' => kind == BeakColumnKind.string,
         'format' => kind == BeakColumnKind.dateTime,
         'trueLabel' || 'falseLabel' => kind == BeakColumnKind.boolean,
-        'defaultValue' => kind == BeakColumnKind.enumeration,
+        'defaultValue' => true,
         _ => true,
       };
 
@@ -391,7 +580,7 @@ final class BeakSchemaReader {
     'maxLength' || 'placeholder' => 'That belongs on a `String` field.',
     'format' => 'A date format belongs on a `DateTime` field.',
     'trueLabel' || 'falseLabel' => 'State labels belong on a `bool` field.',
-    'defaultValue' => 'A default belongs on an enum field.',
+    'defaultValue' => 'A default must match the declared field type.',
     _ => '',
   };
 
@@ -443,6 +632,10 @@ final class BeakSchemaReader {
         foreignPivotKey: _unquote(options['foreignPivotKey']),
         relatedPivotKey: _unquote(options['relatedPivotKey']),
         arguments: {
+          if (kind == BeakRelationKind.belongsTo &&
+              type.question == null &&
+              !options.containsKey('onDelete'))
+            'onDelete': 'BeakOnDelete.restrict',
           for (final entry in options.entries)
             if (!const {
               'label',
@@ -457,6 +650,7 @@ final class BeakSchemaReader {
         },
         docComment: docComment,
         generateInverse: options['inverse'] != 'false',
+        isRequired: !isCollection && type.question == null,
       ),
     );
   }
@@ -501,7 +695,7 @@ final class BeakSchemaReader {
               message:
                   '${schema.className}.${relation.fieldName} points at '
                   '${relation.relatedSchema}, which is not a @Resource '
-                  'under lib/models/.',
+                  'under lib/.',
             ),
           );
           continue;

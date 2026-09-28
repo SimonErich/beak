@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:signals/signals.dart';
+
+import '../auth/beak_auth_view_model_test.dart';
 
 import '../../support/panel_fixtures.dart';
 
@@ -25,6 +30,74 @@ void main() {
       ..register(const LabelModel());
     cache = ReferenceCache(dataSource, registry);
   });
+
+  test(
+    'panel identity changes clear cached and in-flight references',
+    () async {
+      final auth = _CacheAuth();
+      final source = _ChangingPrincipalSource();
+      registerBeakDependencies(
+        config: BeakPanelConfig(
+          title: 'Admin',
+          resources: const [BeakResource(model: NoteModel())],
+          auth: BeakAuthConfig(adapter: auth),
+        ),
+        dataSource: source,
+      );
+      addTearDown(beakLocator.reset);
+      final references = beakLocator<ReferenceCache>();
+      auth.snapshot.value = const BeakAuthAuthenticated(
+        BeakAuthIdentity(id: 'first'),
+      );
+      expect(
+        (await references.resolve('notes', 'n1'))['title']?.raw,
+        'First account',
+      );
+      source.delayNext = true;
+      final old = references.resolve('notes', 'n2');
+      final cancelled = expectLater(
+        old,
+        throwsA(isA<BeakAuthenticationException>()),
+      );
+      await Future<void>.delayed(Duration.zero);
+      source.title = 'Second account';
+      auth.snapshot.value = const BeakAuthAuthenticated(
+        BeakAuthIdentity(id: 'second'),
+      );
+      await cancelled;
+      source.pending.complete([
+        BeakRecord.fromRow({'id': 'n2', 'title': 'First account secret'}),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        (await references.resolve('notes', 'n1'))['title']?.raw,
+        'Second account',
+      );
+      expect(
+        (await references.resolve('notes', 'n2'))['title']?.raw,
+        'Second account',
+      );
+      expect(source.calls, 4);
+      auth.snapshot.value = const BeakAuthGuest();
+      source.title = 'Guest';
+      expect((await references.resolve('notes', 'n1'))['title']?.raw, 'Guest');
+    },
+  );
+
+  test(
+    'identity change cancels requests still queued in the batch window',
+    () async {
+      final pending = cache.resolve('notes', 'n1');
+      final cancelled = expectLater(
+        pending,
+        throwsA(isA<BeakAuthenticationException>()),
+      );
+      cache.invalidateAll();
+      await cancelled;
+      expect(dataSource.batchGetCalls, isEmpty);
+      expect((await cache.resolve('notes', 'n1'))['title']?.raw, 'One');
+    },
+  );
 
   test('same-frame resolves coalesce into one batchGet', () async {
     final results = await Future.wait<BeakRecord>([
@@ -98,5 +171,29 @@ final class _FailingDataSource extends FakeDataSource {
   @override
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
     throw const BeakStorageException('backend unreachable');
+  }
+}
+
+final class _CacheAuth extends FakeAuthAdapter {
+  final snapshot = signal<BeakAuthState>(const BeakAuthGuest());
+  @override
+  ReadonlySignal<BeakAuthState> get state => snapshot;
+}
+
+final class _ChangingPrincipalSource extends FakeDataSource {
+  String title = 'First account';
+  bool delayNext = false;
+  int calls = 0;
+  final pending = Completer<List<BeakRecord>>();
+  @override
+  Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
+    calls++;
+    if (delayNext) {
+      delayNext = false;
+      return pending.future;
+    }
+    return [
+      for (final id in ids) BeakRecord.fromRow({'id': id, 'title': title}),
+    ];
   }
 }

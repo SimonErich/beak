@@ -1,0 +1,10 @@
+name: Clean Beak Shop
+api:
+  baseUrl: http://localhost:8080
+resources:
+  order_items:
+    hidden: true
+  order_discounts:
+    hidden: true
+  user_profile_connections:
+    hidden: true

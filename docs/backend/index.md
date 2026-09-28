@@ -22,31 +22,38 @@ declare routes. `beakApiRouter` walks the registry and mounts a full resource ro
 per model, so the surface is a pure function of what you registered.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
-for (final model in registry.all) {
-  final service = BeakResourceService(
-    model,
-    dataSource,
-    validation: validation,
-    now: now,
-    generateId: generateId,
-  );
-  final resourceRouter = beakResourceRouter(service, policy: policy);
-  registerExportRoutes(
-    resourceRouter,
-    model: model,
-    service: exportService,
-    policy: policy,
-  );
-  if (uploads != null) {
-    registerUploadRoutes(
+  for (final model in registry.all) {
+    final service = BeakResourceService(
+      model,
+      dataSource,
+      validation: validation,
+      registry: registry,
+      now: now,
+      generateId: generateId,
+    );
+    final resourceRouter = beakResourceRouter(
+      service,
+      policy: policy,
+      registry: registry,
+      graphOnly: constrainedTables.contains(model.table),
+    );
+    registerExportRoutes(
       resourceRouter,
       model: model,
-      service: uploads,
+      service: exportService,
       policy: policy,
     );
+    if (uploads != null) {
+      registerUploadRoutes(
+        resourceRouter,
+        model: model,
+        service: uploads,
+        policy: policy,
+        dataSource: dataSource,
+      );
+    }
+    router.mount('/api/${model.table}', resourceRouter.call);
   }
-  router.mount('/api/${model.table}', resourceRouter.call);
-}
 ```
 
 !!! note "What just happened"
@@ -103,6 +110,7 @@ without the handler or service layer noticing. That is
   worm to Postgres, and the `main()` that boots the reference backend.
 - [The generated API](the-generated-api.md): every route `beakApiRouter` and
   `beakResourceRouter` mount, per model.
+- [Transactional business rules](graph-business-rules.md): authoritative rules for complete record graphs.
 - [Migrations](migrations.md): the explicit, registered schema changes worm applies.
 - [Seeding](seeding.md): filling a fresh database with demo rows.
 - [Auth and policies](auth-and-policies.md): the auth surface and the `BeakPolicy` gate

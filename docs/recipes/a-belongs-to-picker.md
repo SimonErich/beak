@@ -1,31 +1,17 @@
 ---
 title: A belongs-to picker
-description: A searchable picker and a linked label, generated from one annotated field.
+description: Use shared eligibility rules for a dependent selection.
 ---
 
 # A belongs-to picker
 
-Point a field at another schema class and annotate it `@BelongsTo`. Beak
-generates the foreign-key column, both sides of the relationship, a searchable
-picker in the form and a linked label in the table and detail:
+Place the generated to-one field with `.inputCombobox()`. Shared existence and matching rules supply query scopes, prerequisites and invalidation. The order model restricts a delivery profile to its selected customer; its wizard requires no separate picker state.
 
-```dart title="examples/store/lib/models/product.dart"
-  /// The category this product is filed under.
-  @BelongsTo(onDelete: BeakOnDelete.setNull)
-  late final Category? category;
-```
-
-The picker searches the related model's display column by default. When people
-look a record up by something else, widen it with `searchOn`, and rename the
-relationship with `label` (from the showcase app):
-
-```dart title="examples/superdashboard/lib/models/invoices/invoice.dart"
-  /// The billed user.
-  @BelongsTo(label: 'Bill to', searchOn: ['name', 'email'])
-  late final User? user;
+```dart title="examples/clean_beak_config/lib/resources/orders/models/order.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/models/order.dart"
 ```
 
 ## Continue reading
 
-- [Relationships](../models/relationships.md)
-- [Forms](../panel/forms.md)
+- [Related guide](../models/relationships.md)
+- [All recipes](index.md)

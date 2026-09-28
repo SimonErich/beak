@@ -416,7 +416,7 @@ int get monthlyTotal => 0;
     });
 
     test('a server-side file the panel never imports is not a panel file', () {
-      // `examples/embedded` keeps `lib/legacy_system.dart`, which migrates
+      // An embedded host may keep a helper under `lib/` that migrates
       // the host system's own table and is imported by `bin/host.dart`
       // alone. A path allowlist called that a failure; the import graph
       // knows better.

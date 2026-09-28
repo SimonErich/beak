@@ -1,161 +1,43 @@
 ---
 title: Quickstart
-description: From an empty folder to a running admin panel with a real REST API, in about a minute.
+description: Generate and run the minimal maintained Beak application.
 ---
 
 # Quickstart
 
-After this page you have your own panel: a Shelf backend serving a generated
-REST API, a Flutter admin talking to it, and a resource you declared yourself.
-No Docker, no `.env`, no configuration.
-
-This page assumes you finished [Installation](installation.md).
-
-## 1. Create the project
+Install the CLI as described in [Installation](installation.md), then generate a project:
 
 ```bash
 beak create acme_admin
-cd acme_admin && flutter pub get
-```
-
-## 2. Declare a resource
-
-Replace `lib/models/note.dart` with the thing your app is actually about. One
-file, one class:
-
-```dart title="lib/models/product.dart"
-import 'package:beak/beak.dart';
-import 'package:beak/schema.dart';
-
-part 'product.beak.dart';
-
-/// Something the shop sells.
-@Resource(softDeletes: true, timestamps: true)
-final class Product extends BeakSchema {
-  /// What the product is called.
-  @Display()
-  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
-  late final String name;
-
-  /// The long description shown on the detail page.
-  @Column(searchable: true)
-  late final BeakText? description;
-
-  /// Shelf price, in the store's currency.
-  @Column(sortable: true)
-  late final double price;
-
-  /// How many are in stock right now.
-  @Column(sortable: true)
-  late final int? stock;
-
-  /// The hero image.
-  @Image()
-  late final BeakImageRef? photo;
-}
-```
-
-The **field's type picks the column**: `String` is a single-line text column,
-`BeakText` is a multi-line one, `double` is a decimal, `BeakImageRef` is an
-upload. **Nullability decides required-ness**: `String name` is required and
-`int? stock` is not. One rule covers the form validator, the API's validation
-and the database's `NOT NULL` at once.
-
-## 3. Generate
-
-```bash
+cd acme_admin
+flutter pub get
 beak prepare
-```
-
-That reads `lib/models/`, `lib/screens/` and `beak.yaml`, and writes:
-
-- `lib/models/product.beak.dart`: typed column constants, the `BeakModel`, the
-  relationship constants on both sides, and a typed record view. Committed.
-- `lib/beak/{registry,panel,app,server}.g.dart`: the wiring. Committed.
-- `lib/migrations/create_products_table.dart`: the migration this resource
-  needs and does not have. Written once, then yours: Beak never rewrites a
-  migration it has written.
-- `lib/main.dart`, `bin/serve.dart`, `bin/migrate.dart`: the entrypoints, at
-  the paths Flutter and Dart expect. Git-ignored, because nothing about them is
-  a decision worth reviewing. `beak eject main` changes that.
-
-You never register anything. A file under `lib/models/` is a resource.
-
-## 4. Create the table
-
-```bash
 beak migrate
-```
-
-The migration Beak wrote reads the model rather than repeating it, so the table
-and the API cannot drift:
-
-```dart title="examples/store/lib/migrations/create_products_table.dart"
-final class CreateProductsTable extends Migration {
-  /// Creates the migration.
-  const CreateProductsTable();
-
-  @override
-  String get name => '20260727_152057_create_products_table';
-
-  @override
-  Future<void> upSchema(Schema schema) async {
-    await schema.create('products', (table) {
-      BeakBlueprint.defineColumns(table, const ProductModel());
-      BeakBlueprint.defineForeignKeys(table, const ProductModel());
-    });
-  }
-
-  @override
-  Future<void> downSchema(Schema schema) async =>
-      schema.drop('products', ifExists: true);
-}
-```
-
-Applying it is still a decision you make. Beak never alters a database on
-boot.
-
-## 5. Run it
-
-```bash
 beak dev
 ```
 
-The API is on `http://localhost:8080` and the panel opens against it. You have
-a list with search, sort, filters and pagination; a detail page; create and edit
-forms validated by the same rules the server enforces; soft-delete with restore;
-and CSV export.
+The generated project starts with a note schema. Add fields and relationships, run `beak prepare`, review generated migrations and apply them explicitly. Generation does not change the database on startup.
 
-Try the API directly:
-
-```bash
-curl -X POST localhost:8080/api/products \
-  -H 'content-type: application/json' \
-  -d '{"name":"Hammer","price":19.5,"stock":7}'
-
-curl -X POST localhost:8080/api/products/query \
-  -H 'content-type: application/json' -d '{"table":"products"}'
+```dart title="examples/quickstart/lib/models/note.dart"
+--8<-- "examples/quickstart/lib/models/note.dart"
 ```
 
-Only `table` is required. Every other key of a query spec falls back to its
-default, so a request sends just what it means.
+Generated `.beak.dart` parts contain typed fields and record readers. The `lib/beak/` files connect the registry, default panel and server. For an authored interface, pass a list of resources to `BeakPanel` and place layouts beside those resources. The [shop tutorial](../tutorial/index.md) demonstrates that structure.
 
-## What you did not write
+## Run the checked-in shop
 
-| You wrote | Beak generated |
-| --- | --- |
-| One 28-line class | Column constants, the model, both sides of every relationship, a typed record view |
-| Nothing | 13 REST routes, validated and policy-gated, plus global search |
-| Nothing | The panel: list, detail, create, edit, filters, sort, pagination |
-| Nothing | The registry, the router, the server host, three entrypoints |
+```bash
+cd examples/clean_beak_config
+flutter pub get
+dart run ../../packages/beak_cli/bin/beak.dart prepare
+dart run bin/migrate.dart migrate
+dart run bin/migrate.dart db:seed
+dart run bin/serve.dart
+```
+
+In another terminal, run `flutter run -d chrome --web-port=3000` from the same directory. The panel uses the local API on port 8080. Database migrations preserve upgrade history; the seeder preserves existing records.
 
 ## Continue reading
 
-- [Project structure](project-structure.md) says what each folder is for, and
-  which optional files override a default.
-- [Tutorial: First Flight](../tutorial/index.md) takes the same ideas at length,
-  building a coffee-roastery store one concept at a time.
-- [CLI commands](../reference/cli-commands.md) covers `create`, `prepare`,
-  `dev`, `introspect`, `eject`, `doctor` and the rest.
-- [Pointing Beak at a database you already have](installation.md) shows how
-  `beak introspect` writes the models from it.
+- [Project structure](project-structure.md)
+- [Tutorial](../tutorial/index.md)

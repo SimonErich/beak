@@ -1,315 +1,192 @@
 ---
 title: Forms
-description: How Beak turns a model's form columns into a validated create/edit form with pickers, uploads, sections, and conditional visibility.
+description: Use one declarative form runtime for values, rules, related drafts and saves.
 ---
 
 # Forms
 
-After this page you can render a full create and edit form for any model with one widget, group its fields into sections that appear and disappear as the user types, and know exactly how a column's validation rules travel to the field.
+Place generated typed inputs inside a `BeakFormLayout`. A resource supplies its model, identity and data source; `BeakConfiguredForm` provides the same runtime when embedded directly.
 
-Beak's form is `BeakDataForm`. You give it a model and a data source; it reads the model's form-context columns, builds a typed input for each, mirrors each column's rules as client-side validators, wires belongs-to pickers and upload fields, prefills in edit mode, and maps a 422 back onto the offending fields. There is no per-resource form code to write. The generated create and edit pages construct one for you, so most apps never touch it directly.
-
-## The one widget
-
-`BeakDataForm` is a `HookWidget`. A `null` `recordId` renders the create form; any other value loads that record and switches to edit mode.
-
-```dart title="packages/beak_frontend/lib/src/form/beak_data_form.dart"
-const BeakDataForm({
-  required this.model,
-  required this.dataSource,
-  this.referenceCache,
-  this.recordId,
-  this.sections,
-  this.steps,
-  this.layout,
-  this.onSaved,
-  this.uploader,
-  this.filePicker,
-  super.key,
-});
+```dart title="examples/clean_beak_config/lib/resources/users/screens/user_form_screen.dart"
+--8<-- "examples/clean_beak_config/lib/resources/users/screens/user_form_screen.dart"
 ```
 
-The generated create and edit pages wire it straight from the resource:
+## Layout and behavior
 
-```dart title="packages/beak_frontend/lib/src/pages/beak_resource_pages.dart"
-child: BeakDataForm(
-  model: resource.model,
-  dataSource: dataSource,
-  referenceCache: referenceCache,
-  steps: resource.formSteps,
-  layout: resource.formLayout,
-  onSaved: (_) => router.go(BeakRoutes.list(resource.model.table)),
-),
-```
+Use `BeakCard`, `BeakColumns`, `BeakSection` and `BeakTabs` for structure. `BeakFormSections` reuses a section definition across plain, tabbed and wizard presentations. Conditions can apply to a group or an individual input.
 
-`onSaved` fires with the stored record after a successful submit. `referenceCache` is the cache that resolves each belongs-to picker's prefilled key, so a form with four pickers costs one `batchGet` instead of four `getOne`s. `sections`, `steps`, and `layout` are three ways to structure the same fields: a flat form with grouped sections (this page), a wizard ([Multi-step forms](multi-step-forms.md)), or a record-bound block layout shared with the show page ([Detail views and dual-mode blocks](detail-and-dual-mode.md)). When more than one is set, `steps` wins, then `layout`, then `sections`.
+Model rules and behavior supply shared constraints and values. Placement rules add local restrictions. Model value lifecycles distinguish defaults, suggestions, derived values and action snapshots. Explicit custom calculations and validators remain ordinary Dart functions.
 
-!!! note "What just happened"
-    - You handed the form a `BeakModel` and a `BeakDataSource`. It did the rest.
-    - The form registered one typed field per form-context column, skipping the primary key.
-    - `recordId: null` means create; any id means load-then-edit.
+## Choice cards
 
-## Columns become typed fields
+`inputRadio(cards: true)` presents typed scalar choices as bordered radio cards.
 
-Each column type maps to exactly one `OiAf*` field. This is the single place a column type turns into a form input, so the mapping is worth keeping nearby.
-
-```dart title="packages/beak_frontend/lib/src/form/field_widget_mapper.dart"
-return switch (column) {
-  BeakCustomColumn() => null,
-  BeakStringColumn(:final placeholder, :final maxLength) => OiAfTextInput(
-    field: slot(),
-    label: column.label,
-    placeholder: placeholder.isEmpty ? null : placeholder,
-    maxLength: maxLength,
-  ),
-  BeakTextColumn() || BeakJsonColumn() => OiAfTextInput.multiline(
-    field: slot(),
-    label: column.label,
-  ),
-  BeakIntColumn(:final min, :final max) => OiAfNumberInput(
-    field: slot(),
-    label: column.label,
-    min: min?.toDouble(),
-    max: max?.toDouble(),
-    decimalPlaces: 0,
-  ),
-  // ...
-  final BeakEnumColumn<Enum> enumColumn => OiAfSelect<Enum, Enum>(
-    field: slot(),
-    label: column.label,
-    options: [
-      for (final option in enumColumn.values)
-        OiAfOption(value: option, label: enumColumn.labelFor(option)),
-    ],
-  ),
-  // ...
-  BeakColorColumn() => OiAfColorInput(field: slot(), label: column.label),
-  BeakRichTextColumn() => OiAfRichEditor(field: slot(), label: column.label),
-  BeakUploadColumn() => BeakUploadField(
-    controller: controller,
-    column: column,
-    uploader: uploader,
-    filePicker: filePicker,
-  ),
-};
-```
-
-The full table:
-
-| Column | Field widget |
-| --- | --- |
-| `BeakStringColumn` | `OiAfTextInput` (carries `placeholder`, `maxLength`) |
-| `BeakTextColumn`, `BeakJsonColumn` | `OiAfTextInput.multiline` |
-| `BeakIntColumn` | `OiAfNumberInput` (`decimalPlaces: 0`, honors `min`/`max`) |
-| `BeakDecimalColumn` | `OiAfNumberInput` (`decimalPlaces: precision`) |
-| `BeakBoolColumn` | `OiAfSwitch` |
-| `BeakEnumColumn<T>` | `OiAfSelect` (options from the enum's values and labels) |
-| `BeakDateTimeColumn` | `OiAfDateTimeInput` |
-| `BeakColorColumn` | `OiAfColorInput` |
-| `BeakRichTextColumn` | `OiAfRichEditor` |
-| `BeakImageColumn`, `BeakFileColumn` | `BeakUploadField` |
-| `BeakCustomColumn` | no field (rendered through the custom escape hatch) |
-| a `BeakBelongsTo` foreign key | `BeakBelongsToField` picker |
-
-You address a field by its column constant, never by a string. Under the hood `obers_ui_autoforms` keys fields by a Dart enum, so `BeakFormController` claims one slot per form field in declaration order and hands you a column-addressed API on top:
+Choice presentation follows the panel theme: Obers `radio.groupLabelStyle`
+styles the section heading, while `radio` controls the indicator and `radioTile`
+controls card padding, radius, minimum height and selected outlines. The same
+card theme applies to relationship choices. Outline changes do not move content
+or create extra state; the form keeps owning binding and validation.
+`BeakInputOption.description` supplies supporting text and `icon` an optional
+Obers icon. The field keeps its normal binding, model validation, disabled
+options and read-mode labels.
 
 ```dart
-final String? name = controller.valueOf<String>(ProductColumns.name);
-controller.setValue<bool>(ProductColumns.onSale, true);
-```
-
-A model draws those slots from its own pool when it has one, and a generated model always does, sized to itself. Only a hand-written model falls back to the shared `BeakFormSlot` pool, which holds 32. Ask for more than the pool has and `BeakFormController` throws a `BeakConfigurationException` telling you to narrow the form with `visibleOn` or to override `formSlots`. Splitting into more sections does not help: every column listed in any section claims a slot. See [Column types](../models/column-types.md) for how `visibleOn` keeps a column out of the form.
-
-## Rules mirror the server, message for message
-
-A column's [validation rules](../models/validation-rules.md) run on both sides of the wire from a single declaration. The form does not re-implement them: every client-side validator delegates to the rule's own `validate`, so the client and the server produce byte-identical messages.
-
-```dart title="packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart"
-OiAfValidator<Enum, T>? _mirror<T>(BeakRule rule) => switch (rule) {
-  BeakRequired() => OiAfValidators.custom<Enum, T>(
-    (context) => rule.validate(context.value),
-  ),
-  BeakMaxFileSize() || BeakAllowedFileTypes() => null,
-  BeakMinLength() ||
-  BeakMaxLength() ||
-  BeakEmail() ||
-  BeakUrl() ||
-  BeakPattern() ||
-  BeakMin() ||
-  BeakMax() ||
-  BeakInList() => OiAfValidators.custom<Enum, T>(
-    (context) => _mirrorContent(rule, context.value),
-  ),
-};
-```
-
-Two details make the mirror faithful to the backend, which validates only the values a request actually submitted:
-
-- **Presence is `BeakRequired`'s job alone.** Content rules skip an absent (`null`) value and only run once something is entered. A submitted empty or whitespace string still gets validated, exactly as the server's `ValidationService` treats every provided value.
-- **Upload rules mirror to `null` here.** `BeakMaxFileSize` and `BeakAllowedFileTypes` return no form validator because the upload field enforces them before the file ever leaves the client (see [Uploads](#uploads)).
-
-The server side reads the same rules the same way, calling `rule.validate(raw)` in `ValidationService`. One rule, two runners, identical text.
-
-When the server rejects a submit with a 422, the form maps each field error back onto the matching field; errors under an unknown key surface as a global form error:
-
-```dart title="packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart"
-void applyServerErrors(Map<String, List<String>> errorsByColumnKey) {
-  for (final MapEntry(:key, :value) in errorsByColumnKey.entries) {
-    final Enum? slot = _slotByKey[key];
-    if (slot != null) {
-      setBackendErrors(slot, value);
-    } else {
-      setGlobalError('$key: ${value.join(' ')}');
-    }
-  }
-}
-```
-
-## Sections group and gate the fields
-
-Pass `sections` to slice a large model's form into titled groups and to control field order. A section lists the columns it renders; columns in no section carry no field at all, so sectioning is also how you subset a form.
-
-```dart title="packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart"
-final class BeakFormSection {
-  const BeakFormSection({
-    required this.title,
-    required this.columns,
-    this.visibleWhen,
-  });
-
-  final String title;
-  final List<BeakColumn> columns;
-  final BeakFormPredicate? visibleWhen;
-}
-```
-
-`visibleWhen` is a typed predicate over the form's current values, never a `Map<String, dynamic>`. Reads go through a column-addressed reader that tracks dependencies, so a section re-evaluates automatically whenever a value it read changes. A product form of your own might gate its pricing group:
-
-```dart
-sections: [
-  const BeakFormSection(
-    title: 'Basics',
-    columns: [ProductColumns.name, ProductColumns.onSale],
-  ),
-  BeakFormSection(
-    title: 'Pricing',
-    columns: const [ProductColumns.salePrice],
-    // Only shown while the "on sale" switch is on.
-    visibleWhen: (values) =>
-        values.valueOf<bool>(ProductColumns.onSale) ?? false,
-  ),
-],
-```
-
-`values.valueOf<T>(column)` returns the field's current typed value, or `null` when the field is unset or the column carries no field. A section with no predicate is always visible.
-
-!!! tip "Sections vs the block layout"
-    Sections are the quickest way to organize a flat form. When you want the create form to share the exact cards, tabs, and grids of the show page, reach for a record-bound `layout` instead. See [Detail views and dual-mode blocks](detail-and-dual-mode.md).
-
-## Relationship pickers
-
-For each `BeakBelongsTo` relationship, the form wires a `BeakBelongsToField`: an async-searching combobox over the related table. It searches the relation's search columns, shows its display column, and stores the selected record's id in the foreign-key field. In edit mode it resolves the prefilled foreign key into a labelled record, so the picker opens on the current selection.
-
-```dart title="packages/beak_frontend/lib/src/form/relation_field.dart"
-return OiComboBox<BeakRecord>(
-  label: relation.label,
-  labelOf: relation.displayLabelOf,
-  value: selected.value,
-  error: controller.getError(slot),
-  search: (query) => beakSearchRelated(
-    repository,
-    table: relation.relatedTable,
-    columnKeys: relation.effectiveSearchColumnKeys,
-    term: query,
-  ),
-  onSelect: (record) {
-    selected.value = record;
-    controller.set(slot, record?[relatedPrimaryKeyKey]?.raw);
-  },
-);
-```
-
-A many-to-many relationship needs a saved parent (a pivot row needs both keys), so `BeakBelongsToManyField` appears only in edit mode. It is a multi-select combobox seeded with the currently attached records; each change diffs against the attached set and issues just the `attach`/`detach` calls needed, reverting the optimistic selection if a mutation is rejected. Has-many relations render an embedded `BeakRelationManager` under the form in edit mode. Both are covered in [Relationships](../models/relationships.md) and [Detail views and dual-mode blocks](detail-and-dual-mode.md).
-
-## Uploads
-
-Image and file columns render a `BeakUploadField`. Picking a file validates the column's size and type rules on the client (again, the same messages as the backend), uploads through the configured `BeakUploadClient`, and stores the returned storage key as the field value. Images also get a thumbnail preview.
-
-Two things must be supplied for the field to be interactive: an `uploader` (the transport) and a `filePicker` (the strategy that returns picked bytes). Without both, the field renders read-only.
-
-```dart title="packages/beak_frontend/lib/src/form/upload_field.dart"
---8<-- "packages/beak_frontend/lib/src/form/upload_field.dart:BeakFilePicker"
-```
-
-The `uploader` defaults to the form's `dataSource` when it also implements `BeakUploadClient`, which the HTTP data source does:
-
-```dart title="packages/beak_frontend/lib/src/form/beak_data_form.dart"
-final BeakUploadClient? effectiveUploader =
-    uploader ??
-    switch (dataSource) {
-      final BeakUploadClient client => client,
-      _ => null,
-    };
-```
-
-The `filePicker` is yours to provide, because platform pickers surface names while Beak needs bytes to validate and upload. A `file_picker`-based one reads:
-
-```dart
-Future<BeakUpload?> pickImageFromDisk() async {
-  final result = await FilePicker.platform.pickFiles(withData: true);
-  final file = result?.files.single;
-  if (file == null || file.bytes == null) {
-    return null;
-  }
-  return BeakUpload(
-    filename: file.name,
-    mimeType: 'image/png',
-    bytes: file.bytes!,
-  );
-}
-```
-
-See [Files and storage columns](../models/files-and-storage-columns.md) for the column side and [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) for the server side.
-
-## The teaching store, end to end
-
-The store example lists its resources and gets create and edit forms for free, because a resource's form is generated from its model. This is the panel config `beak prepare` wrote for it, on port 8080:
-
-```dart title="examples/store/lib/beak/panel.g.dart"
-BeakPanelConfig buildBeakPanel() {
-  final config = BeakPanelConfig(
-    title: 'Beak Store',
-    apiBaseUrl: const String.fromEnvironment(
-      'BEAK_API_BASE_URL',
-      defaultValue: 'http://localhost:8080',
+OrderModel.paymentMode.inputRadio(
+  label: 'Payment method',
+  cards: true,
+  options: (state) => const [
+    BeakInputOption(
+      'monthlyInvoice',
+      'Company invoice',
+      description: 'Billed to the company profile',
+      icon: OiIcons.landmark,
     ),
-    sidebarCollapsible: true,
-    sidebarDefaultCollapsed: false,
-    resources: [
-      BeakResource(
-        model: const CategoryModel(),
-        icon: BeakIconToken(OiIcons.folderTree),
-        section: 'Catalog',
-      ),
-      // ... five more resources ...
-    ],
-    pages: [dashboard.beakDashboard(), restockScreen],
-  );
-  return config;
-}
+    BeakInputOption(
+      'paymentLink',
+      'Payment link',
+      description: 'The customer pays before preparation',
+      icon: OiIcons.link,
+    ),
+  ],
+)
 ```
 
-Nowhere does the store write a form. The Product form, its category picker, its tag multi-select, and its client validation all fall out of `ProductModel`.
+The options callback receives the tracked form reader, so options can follow
+other fields without a separate controller. Relationship records use
+`inputCards(template: ...)`, described in [Workflow presentations](workflow-presentations.md).
 
-!!! question "What this skipped"
-    - Wizards for long entities: [Multi-step forms](multi-step-forms.md).
-    - Sharing one block layout between the form and the show page: [Detail views and dual-mode blocks](detail-and-dual-mode.md).
-    - The REST routes a submit calls: [The generated API](../backend/the-generated-api.md).
+## Exact code lookup
+
+Use `inputCode` for a voucher, reference or other unique identifier. Beak provides
+the text input, Apply/Remove actions, loading and error states. Applying a code
+only stages the relationship; the normal form submission persists it.
+
+```dart
+OrderModel.voucher.inputCode(
+  label: 'Voucher code',
+  codeField: VoucherModel.code,
+  normalizeCode: (code) => code.toUpperCase(),
+  placeholder: 'e.g. WELCOME10',
+  template: BeakRecordTemplate.fields(
+    title: VoucherModel.code,
+    subtitle: [VoucherModel.description],
+  ),
+)
+```
+
+`codeField` must be a string field directly on the related model. The exact
+query retains the model's eligibility constraints, dependent filters and access
+policy. Unknown, unavailable and ambiguous codes are rejected. A changed
+dependency invalidates an outstanding lookup; a network error remains visible
+and retryable. `normalizeCode` is optional; omit it for case-sensitive identifiers.
+
+## Calculated fields and requirements
+
+`BeakCalculated` reads the same draft without adding a stored model field.
+Its default presentation is inline text. `presentation: BeakCalculatedPresentation.field`
+shows a labelled, subdued value, while `.checkbox` displays a locked boolean
+requirement such as automatic company approval. Supply `dependencies` for
+related values used by the calculation; they are loaded and checked for read
+access before rendering. `labelBuilder` and `description` can explain the current
+calculated result. These presentations never add writes to the save graph.
+
+An ordinary editable checkbox can use `inputCheckbox(labelBuilder: ...)` to
+name its current recipient or other draft context. Its boolean value still uses
+the normal model binding and validation.
+
+## Date shortcuts and multiline text
+
+`inputDate(shortcuts: (state) => [...])` places typed `BeakInputOption<BeakDate>`
+shortcuts beside the normal calendar picker. They are suggestions, so a different
+calendar date remains valid unless model/placement rules reject it. Disabled
+shortcuts cannot be selected. The callback uses the same tracked draft reader
+as other input configuration; date values never pass through an instant timezone.
+
+```dart
+OrderModel.deliveryDate.inputDate(
+  label: 'Delivery date',
+  shortcuts: (_) => [BeakInputOption(tomorrow, 'Tomorrow')],
+)
+OrderModel.deliveryNote.inputText(maxLines: 3)
+```
+
+`inputText(maxLines: 3)` keeps an ordinary string column and uses a three-line
+editor. A model `BeakMaxLength` rule supplies its character limit and counter;
+server validation continues enforcing the same rule.
+
+## Drafts
+
+Related edits, new picker records and uploads belong to the form draft. A modal checkpoint supports cancellation without persisting intermediate work. Validation observes current dependencies and ignores stale asynchronous responses.
+
+The final submission validates visible submitted values and produces a graph save plan. The source reports its atomic or staged guarantee; the UI preserves an interrupted draft and recovery information. Hidden fields are excluded unless their placement explicitly opts into submission.
+
+## Escape hatches
+
+`onSession` exposes the live session for a custom editor or workflow. Use its typed draft operations rather than maintaining a parallel state map. Read mode uses the same layout and panel-wide formatters.
 
 ## Continue reading
 
-- [Multi-step forms](multi-step-forms.md) break a long form into validated wizard steps.
-- [Detail views and dual-mode blocks](detail-and-dual-mode.md) drive the form and the show page from one layout.
-- [Validation rules](../models/validation-rules.md) are the rules the form mirrors.
-- [Files and storage columns](../models/files-and-storage-columns.md) back the upload field.
-- [Actions](actions.md) add the buttons that live around the form.
+- [Multi-step forms](multi-step-forms.md)
+- [Shared model behavior](../models/behavior.md)
+
+### Preferred eligible choices
+
+`inputCards(defaultOptionMatch: ..., selectDefaultOption: true)` can resolve a
+recurring preference into a currently eligible option. Declare the fields used
+by the matcher in `dependencies`, and put date, availability and ownership
+restrictions in `options`. Matching runs only against loaded options when the
+selection is blank and the search term is empty; disabled options are excluded.
+A valid manual choice is preserved. `defaultOptionMatch` also identifies the
+choice's Default badge without enabling selection unless `selectDefaultOption`
+is set. Existing `defaultOption` can reference a concrete related record.
+
+### Pending edit indicators
+
+Set `BeakFormLayout(showChangeIndicators: true, children: [...])` to mark
+editable fields that differ from an existing record's loaded baseline. Markers
+use the existing typed draft comparison; restoring a value or discarding the
+draft removes them. New-record forms and read-only or inaccessible fields do
+not show modified markers. Inline command argument forms inherit their owning
+persisted edit context. Compact relationship rows mark newly added items until
+they are removed or saved. This presentation does not add a history store. The marker theme wrapper remains
+mounted as a field changes, preserving focus, cursor position and IME composition.
+
+`BeakFormSession.compactReviewChanges` returns actual graph operations, excluding
+field updates already represented by a newly created row.
+`reviewChangeCount` and `reviewChangeSummary` derive from that same list. The full
+`reviewChanges` remains available for the detailed review. The shared floating
+bar uses the compact count and labels rather than a separate app counter; its
+error action opens the first invalid region and focuses the matching editor,
+including keyboard activation.
+
+### Shared action and heading presentation
+
+`BeakConfiguredForm` accepts `editLabel`, `prominentEdit`, `compactActions`,
+`submitIcon`, `outlinedCancel` and `showActionsWhileEditing`. These change the
+existing controls' presentation; model commands still resolve permissions,
+arguments and execution through the same session. Defaults retain the ordinary
+Edit button, visible commands and existing save/cancel treatment.
+
+`BeakRelationAdd(presentation: BeakRelationAddPresentation.search, ...)` opens
+the declared collection editor through the same draft checkpoint as the dashed
+presentation. Its search-shaped surface remains one named action button; it
+does not create another query or editable text field. Cancelling restores the
+checkpoint, and row permissions and table availability still apply.
+
+`inputRadio(groupLabelAsField: true)` uses the text-input label style and label
+gap for a field heading. The default uses the radio group's heading role and
+`groupLabelSpacing`; spacing between options remains 8px. Quantity inputs accept
+`inputQuantity(controlWidth: 90)` without bypassing numeric bounds or binding.
+`BeakFormCapacity.valueStyle` styles the displayed ratio independently of its
+label; omitting it preserves the earlier label-style fallback.
+
+
+Relationship `inputCards(cardPadding: ...)` overrides the declared choice inset;
+its nullable default preserves existing rich and compact card spacing. Scalar
+`inputRadio(cardPadding: ...)` has a separate choice-card placement override.
+The shared radio tile still paints its selected outline over the same bounds.
+
+
+Multiline scalar placements can set `inputText(multilineContentPadding: ...)`.
+The nullable override is scoped to that editor and resolves the current text
+direction; other multiline notes retain the input theme's padding and height.

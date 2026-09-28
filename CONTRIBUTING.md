@@ -24,7 +24,7 @@ Beak is a Melos monorepo:
 - `packages/beak_*` — the framework (core, backend, frontend, storage drivers,
   image, CLI).
 - `examples/*` — the demo projects (models, server, Flutter panel) and the E2E
-  acceptance suites. `examples/store` is the worked example the tutorial builds.
+  acceptance suites. `examples/clean_beak_config` is the worked example the tutorial builds.
 - `packages/worm*` — the **vendored** worm ORM and its drivers. These are
   consumed as path dependencies but are *not* in the Melos scope and are not
   gated here. **Do not send Beak PRs that change vendored worm code** — report

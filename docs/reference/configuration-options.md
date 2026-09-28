@@ -27,16 +27,7 @@ still boots, titling the panel after the package. An unknown key is an error
 naming the line, because a typo that quietly does nothing is worse than one that
 fails at generate time.
 
-```yaml title="examples/superdashboard/beak.yaml"
-name: Beak Superdashboard
-
-api:
-  baseUrl: http://localhost:8180
-
-server:
-  # The store example already has 8080, and both run from this repository.
-  port: 8180
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -118,9 +109,7 @@ depends on no driver package, so an app uploading to S3 adds
 which `beak prepare` wires into the generated host. The `memory` and `local`
 drivers are in the box.
 
-```dart title="examples/embedded/lib/server.dart"
---8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 ```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
 --8<-- "packages/beak_backend/lib/src/server/beak_storage_settings.dart:supportedDrivers"
@@ -136,10 +125,7 @@ A `lib/server.dart` override reads everything else through
 `BeakServerDefaults.environment` rather than `Platform.environment`, so a test
 that injects an environment injects it into the policy and the auth config too:
 
-```dart title="examples/store/lib/server.dart"
-  final String secret =
-      defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 ### How `.env` resolves
 
@@ -246,11 +232,22 @@ at the public base URL's path for you.
 Holds uploads in memory. It takes no fields and is meant for tests. Selected by
 `BEAK_STORAGE_DRIVER=memory` or `const BeakMemoryStorageConfig()`.
 
+## Direct `BeakPanel` configuration
+
+`BeakPanel(resources: [...])` accepts resource objects directly, plus `title`,
+`theme`, `darkTheme`, `apiBaseUrl`, custom `pages`, `auth`, and `locale`.
+`dataSource` and `httpClient` provide transport/test overrides. The default API
+origin comes from `BEAK_API_BASE_URL`, falling back to `http://localhost:8080`.
+Use `BeakPanel.fromConfig(config: ...)` for the complete configuration below.
+Each panel owns a dependency scope; `beakDependencies(context)` resolves its
+services in custom child widgets.
+
 ## `BeakPanelConfig`
 
-Everything a panel needs at startup, in one declarative value. You do not write
-one: `beak prepare` generates it into `lib/beak/panel.g.dart` from `beak.yaml`
-and the discovered models and screens. To change it, add `lib/panel.dart`
+Everything a panel needs at startup, in one declarative value. In standalone
+projects, `beak prepare` generates it into `lib/beak/panel.g.dart` from `beak.yaml`
+and the discovered models and screens. Backend integrations can compose it
+directly. To change generated configuration, add `lib/panel.dart`
 (`beak eject panel`) and `copyWith` the parts you want different:
 
 ```dart
@@ -273,6 +270,9 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) =>
 | `theme` | `OiThemeData?` | `null` (`OiThemeData.light()`) | `lib/theme.dart`, when present |
 | `darkTheme` | `OiThemeData?` | `null` (`OiThemeData.dark()`) | `lib/theme.dart`, when present |
 | `initialThemeMode` | `OiThemeMode` | `OiThemeMode.system` | `lib/panel.dart` |
+| `locale` | `Locale?` | `null` (platform selection) | `lib/panel.dart` |
+| `supportedLocales` | `Iterable<Locale>` | Beak's English/German locales | `lib/panel.dart` |
+| `localizationsDelegates` | `Iterable<LocalizationsDelegate<Object?>>` | `const []` (application additions) | `lib/panel.dart` |
 | `sidebarCollapsible` | `bool` | `true` | `theme.sidebar.collapsible` |
 | `sidebarDefaultCollapsed` | `bool` | `false` | `theme.sidebar.startCollapsed` |
 | `dashboardStats` | `List<BeakStat>` | `const []` | `lib/panel.dart` |
@@ -282,6 +282,26 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) =>
 `buildRegistry()` walks `resources` and registers every model, so the data layer
 can resolve a table name back to its model. Registering the same table twice is
 a configuration error the registry surfaces.
+
+`BeakPanel` owns the root `OiApp`, including its locale and theme. Application
+translations can be supplied without an extra app widget or router:
+
+```dart
+config.copyWith(
+  locale: const Locale('de'),
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+)
+```
+
+The framework always appends `BeakLocalizations.delegate` after application
+delegates. This retains its built-in translations and lets an explicit
+`LocalizationsDelegate<BeakLocalizations>` override them for another language.
+Resource labels still come from the application. Supply supported locales that
+both the application and framework can render. Omitting `theme` and `darkTheme`
+uses Beak's standard light/dark appearance, independent of another app's theme.
+The delegate type accepts Flutter's generated localization list directly, without
+a cast or a manually reconstructed list of standard delegates.
 
 ## `BeakResource`
 
@@ -296,9 +316,24 @@ BeakResource beakResource(BeakResource generated) => generated.copyWith(
 );
 ```
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
---8<-- "packages/beak_frontend/lib/src/panel/beak_panel_config.dart:BeakResource"
+```dart title="packages/beak_frontend/lib/src/panel/beak_resource.dart"
+--8<-- "packages/beak_frontend/lib/src/panel/beak_resource.dart:BeakResource"
 ```
+
+For direct resource definitions, these fields configure conventional screens:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `title` | model label | Page title |
+| `navigationTitle` | effective title | Sidebar title |
+| `navigationGroup` | existing `section` | Sidebar grouping |
+| `navigationRank` | `0` | Ascending position, stable for equal ranks |
+| `globalSearchSources` | model searchable columns | Typed root or related search fields |
+| `screens` | generated conventional screens | `BeakFormScreen`, `BeakWizardScreen`, `BeakTableScreen`, or `BeakCustomResourceScreen` |
+| `filePicker`, `uploader` | none / default source upload client | Platform file selection and optional upload override |
+
+See [Declarative resources and forms](../concepts/declarative-resources.md) for
+layout nodes, validators, dependencies, and relationship save behavior.
 
 Three fields fall back to something derived rather than to their literal
 default, so a resource that says nothing still gets a sensible page:

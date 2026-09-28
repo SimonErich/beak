@@ -1,0 +1,54 @@
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+import '../../categories/models/category.dart';
+import '../../taxes/models/tax_rate.dart';
+import 'product_attribute.dart';
+import 'product_variant.dart';
+import 'product_image.dart';
+
+part 'product.beak.dart';
+
+/// Product schema; all metadata and typed helpers are generated.
+@Resource()
+final class Product extends BeakSchema {
+  /// Product name used in picker suggestions.
+  @Display()
+  @Column(searchable: true, sortable: true)
+  late final String name;
+
+  /// Current catalog unit price in euros.
+  @Column(label: 'Net price', prefix: '€', sortable: true, rules: [BeakMin(0)])
+  late final double price;
+
+  /// Optional stock-keeping identifier for the base product.
+  @Column(searchable: true)
+  late final String? sku;
+
+  /// Catalog description.
+  late final String? description;
+
+  /// Whether this product can be sold.
+  @Column(defaultValue: true)
+  late final bool active;
+
+  /// Category and its attribute definitions.
+  @BelongsTo(inverse: false, onDelete: BeakOnDelete.setNull)
+  late final Category? category;
+
+  /// Default exclusive tax rate.
+  @BelongsTo(inverse: false, onDelete: BeakOnDelete.setNull)
+  late final TaxRate? taxRate;
+
+  /// Product-specific attribute values.
+  @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
+  late final List<ProductAttribute> attributes;
+
+  /// Ordered product gallery, saved with the product draft.
+  @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
+  late final List<ProductImage> images;
+
+  /// Sellable variants with separate prices and stock.
+  @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
+  late final List<ProductVariant> variants;
+}

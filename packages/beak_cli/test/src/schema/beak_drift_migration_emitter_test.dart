@@ -241,10 +241,7 @@ void main() {
     });
 
     test('a required bool is written, because it defaults to false', () {
-      // Not because the field declared a default: `@Column(defaultValue:)` is
-      // enum-only. `BeakBlueprint.defineColumn` gives every boolean `false`,
-      // since a nullable boolean is three-valued and no Beak form can express
-      // that, so the column arrives with a value the existing rows can take.
+      // Required boolean columns retain the conventional false default.
       final drift = driftFor(
         schemaWith(
           'Product',
@@ -291,16 +288,39 @@ void main() {
       );
     });
 
-    test('the refusal for other kinds does not name an option they lack', () {
-      // `@Column(defaultValue:)` is rejected on anything but an enum, so
-      // telling someone to add one would send them after an error.
-      final why = BeakDriftMigrationEmitter.unaddable(
-        driftFor(schemaWith('Product', 'products', ['stock'], required: true)),
-      ).values.single;
-
-      expect(why, isNot(contains('defaultValue')));
-      expect(why, contains('only an enum can declare one'));
-    });
+    test(
+      'required scalar defaults allow safe backfilling of existing rows',
+      () {
+        final withoutDefault = driftFor(
+          schemaWith('Product', 'products', ['stock'], required: true),
+        );
+        expect(
+          BeakDriftMigrationEmitter.unaddable(withoutDefault).values.single,
+          contains('@Column(defaultValue:'),
+        );
+        final withDefault = driftFor(
+          schemaWith(
+            'Product',
+            'products',
+            ['stock'],
+            required: true,
+            options: const {'defaultValue': '0'},
+          ),
+        );
+        expect(BeakDriftMigrationEmitter.addable(withDefault), hasLength(1));
+        final nullableBool = driftFor(
+          schemaWith(
+            'Product',
+            'products',
+            ['active'],
+            required: true,
+            kind: BeakColumnKind.boolean,
+            options: const {'tristate': 'true'},
+          ),
+        );
+        expect(BeakDriftMigrationEmitter.addable(nullableBool), isEmpty);
+      },
+    );
 
     test('a unique column is refused, with the three-step way round', () {
       final drift = driftFor(
@@ -340,9 +360,7 @@ void main() {
   group('against a schema class the reader really parsed', () {
     /// The IR `BeakSchemaReader` produces for a `Product` declaring [fields].
     ///
-    /// Hand-built IR is how the emitter's own tests got this wrong once: the
-    /// fixture set `defaultValue` on an integer column, a state the reader
-    /// rejects outright, so the test proved a path no project can reach.
+    /// Uses the same schema reader as production generation.
     BeakSchemaIr parsedProduct(String fields) {
       final root = Directory.systemTemp.createTempSync('beak_ir_');
       addTearDown(() => root.deleteSync(recursive: true));

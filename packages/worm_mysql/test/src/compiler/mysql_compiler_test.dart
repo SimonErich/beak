@@ -11,6 +11,24 @@ PredicateTree _leaf({
 void main() {
   const compiler = MysqlCompiler();
 
+  test(
+    'current single-row read preserves bound predicates and update locks',
+    () {
+      final result = compiler.compileCurrentSelect(
+        QueryDescriptor(
+          table: 'notes',
+          where: const Field<String>('id').eq('one'),
+          limit: 20,
+        ),
+      );
+      expect(
+        result.sql,
+        'SELECT * FROM `notes` WHERE `id` = ? LIMIT 1 FOR UPDATE',
+      );
+      expect(result.parameters, ['one']);
+    },
+  );
+
   group('MysqlCompiler — predicates', () {
     test('eq emits = with positional ? placeholder', () {
       final result = compiler.compileSelect(

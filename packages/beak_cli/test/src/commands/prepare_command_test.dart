@@ -75,6 +75,13 @@ void main() {
       expect(registry, contains("import '../models/note.dart';"));
     });
 
+    test('registers commit receipts as an explicit backend migration', () {
+      expect(
+        read(root, 'lib/beak/server.g.dart'),
+        contains('BeakCommitReceiptsMigration()'),
+      );
+    });
+
     test('surface every model as a resource in the panel', () {
       // Assert on the pieces, not the layout: the emitter formats its output,
       // so line breaks are the formatter's business, not this test's.
@@ -115,6 +122,16 @@ void main() {
   });
 
   group('idempotence', () {
+    test('preserves a developer-owned direct panel entrypoint', () {
+      const main = 'void main() { /* BeakPanel(resources: ...) */ }\n';
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/main.dart': main,
+      });
+      final result = runPrepare(environmentFor(root));
+      expect(result.isSuccess, isTrue);
+      expect(read(root, 'lib/main.dart'), main);
+    });
     test('a second run rewrites nothing', () {
       final root = projectWith({'lib/models/note.dart': noteModel});
       runPrepare(environmentFor(root));

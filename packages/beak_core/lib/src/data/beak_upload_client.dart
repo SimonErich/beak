@@ -20,3 +20,22 @@ abstract interface class BeakUploadClient {
     BeakUpload file,
   );
 }
+
+/// Upload transport that can discard files created by an abandoned draft.
+///
+/// Implementations remove every rendition and treat missing files as success.
+/// Only newly uploaded, definitely uncommitted files may be passed here.
+abstract interface class BeakManagedUploadClient implements BeakUploadClient {
+  /// Removes [file] and its variants from this column's storage.
+  Future<void> discardUpload(
+    String table,
+    String columnKey,
+    BeakStoredFile file,
+  );
+}
+
+/// Optional resolution of persisted storage keys into current display URLs.
+abstract interface class BeakUploadUrlClient {
+  /// Resolves a key through the storage driver, including signed URL drivers.
+  Future<Uri> uploadUrl(String table, String columnKey, String key);
+}

@@ -5,7 +5,8 @@ part of 'beak_block.dart';
 ///
 /// Provide either a fixed [columns] count or a [minColumnWidthInPixels]
 /// for an auto-fitting grid — not both. Renders onto `OiGrid` with
-/// `OiSpan` placement, so spans resolve responsively.
+/// `OiSpan` placement. Fixed grids stack when their children would become
+/// narrower than [minChildWidthInPixels].
 final class BeakGridBlock extends BeakBlock {
   /// Creates a grid of [children].
   // --8<-- [start:BeakGridBlock]
@@ -13,12 +14,14 @@ final class BeakGridBlock extends BeakBlock {
     required this.children,
     this.columns,
     this.minColumnWidthInPixels,
+    this.minChildWidthInPixels = 240,
     this.gapInPixels = 16,
     super.span,
   }) : assert(
          columns == null || minColumnWidthInPixels == null,
          'Provide either columns or minColumnWidthInPixels, not both.',
-       );
+       ),
+       assert(minChildWidthInPixels >= 0);
   // --8<-- [end:BeakGridBlock]
 
   /// The blocks to place, in reading order.
@@ -29,6 +32,13 @@ final class BeakGridBlock extends BeakBlock {
 
   /// Minimum column width for an auto-fitting grid, when set.
   final double? minColumnWidthInPixels;
+
+  /// Minimum readable child width before a fixed grid stacks in one column.
+  ///
+  /// Uses available container width, declared spans, and gaps. Set to zero
+  /// to retain fixed tracks at every width. Auto-fitting grids use
+  /// [minColumnWidthInPixels] instead and ignore this setting.
+  final double minChildWidthInPixels;
 
   /// Spacing between grid tracks.
   final double gapInPixels;

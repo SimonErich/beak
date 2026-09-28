@@ -57,15 +57,13 @@ abstract final class BeakDriftMigrationEmitter {
   /// Whether a required [column] arrives with a value the existing rows can
   /// take.
   ///
-  /// Mirrors what `BeakBlueprint.defineColumn` will really emit, which is not
-  /// the same as "the field declared a default": a boolean always defaults to
-  /// false, because a nullable boolean is three-valued and no Beak form can
-  /// express that, and an enum contributes its own `defaultValue`. Only an
-  /// enum may declare one at all, since `@Column(defaultValue:)` is rejected
-  /// on every other kind.
+  /// Scalar defaults are applied by the schema builder. Non-nullable boolean
+  /// columns also retain the conventional false default; tri-state booleans do
+  /// not collapse absence into false.
   static bool _hasValueForExistingRows(BeakColumnIr column) =>
-      column.kind == BeakColumnKind.boolean ||
-      (column.kind == BeakColumnKind.enumeration && column.hasDefault);
+      column.hasDefault ||
+      (column.kind == BeakColumnKind.boolean &&
+          column.arguments['tristate'] != 'true');
 
   /// Why [column] cannot be added, phrased as an edit that is actually
   /// available for its kind.
@@ -83,10 +81,8 @@ abstract final class BeakDriftMigrationEmitter {
           'there; give it `@Column(defaultValue: ...)`, or make it nullable '
           'and backfill';
     }
-    // `@Column(defaultValue:)` is enum-only, so naming it here would send
-    // someone after an option the reader rejects.
-    return 'a required column needs a value for the rows already there, and '
-        'only an enum can declare one; make it nullable and backfill';
+    return 'a required column needs a value for the rows already there; '
+        'give it `@Column(defaultValue: ...)`, or make it nullable and backfill';
   }
 
   /// The migration body for [drift], grouped by table.

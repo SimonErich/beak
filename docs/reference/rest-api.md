@@ -26,7 +26,7 @@ routes: nothing here is hand-written or generated into your project.
 ```
 
 `registerExportRoutes` adds `POST /export` to each resource router, and
-`registerUploadRoutes` adds the two upload routes when the server has storage
+`registerUploadRoutes` adds upload, URL lookup and deletion routes when the server has storage
 wired. Everything below lives under those mounts.
 
 !!! note "What just happened"
@@ -39,8 +39,11 @@ wired. Everything below lives under those mounts.
 
 ## Conventions
 
-These hold for every route on the page. The examples use the store example
-(`examples/store`, `products` table) served on port `8080`.
+These hold for every route on the page. Request bodies below are illustrative
+for a product resource served on port `8080`; available columns, required values
+and graph-only writes depend on the registered model. The maintained shop uses
+`examples/clean_beak_config` and includes business rules beyond these minimal
+request examples.
 
 | Convention | Detail |
 | --- | --- |
@@ -52,10 +55,53 @@ These hold for every route on the page. The examples use the store example
 | Request id | Every response echoes `x-request-id` (reusing an incoming one), and error bodies carry the same value as `requestId`. |
 | Ids in paths | The `<id>` segment is coerced to the model's primary-key type. For an integer key, a non-integer id is a `404`, never a crash. |
 
+## Graph saves and recovery
+
+Configured forms use `BeakClient.commit(BeakSavePlan)` and
+`recoverCommit(saveId)` through the source capability seam. The plan and result
+have typed `toJson`/`fromJson` contracts; callers do not need to handcraft JSON.
+
+A `200` commit response means the outcome was evaluated. Inspect
+`BeakSaveResult.complete`, `mode`, and each operation's status before reporting
+success. An atomic validation failure returns unapplied outcomes and leaves the
+graph unchanged. A durable successful receipt is written with the data and is
+returned on repeated submission of the same save id. Reusing a save id for a
+different plan is rejected. Receipt lookup is scoped to the authenticated
+principal and performs no write.
+
+The server validates model rules, permissions, references, and child membership
+for the complete graph. Owned deletion additionally requires explicit ownership
+metadata. [Declarative resources and forms](../concepts/declarative-resources.md)
+explains the staged fallback used by other sources and handling of unknown
+outcomes after transport failure.
+
+## Validation and field capabilities
+
+`GET /api/{table}/capabilities?id=<id>` resolves field read/write access for the
+current principal, with `readableFields`, `writableFields` and
+`executableActions` allowlists. Action permissions combine resource create/update
+access, `BeakActionPolicy` and `allowOnCreate`; workflow availability is evaluated
+separately. The optional id selects an existing record and is checked
+against the row scope before capabilities are returned. It is presentation
+metadata: the backend still authorizes every request independently.
+
+`POST /api/{table}/validate` accepts the JSON form of
+`BeakValidationRequest.forModel(model, record, recordId: id)`. It evaluates
+server-declared asynchronous rules, such as uniqueness and relationship
+eligibility, without writing. A `200` report contains `fieldErrors`, an empty
+map when those checks pass. Invalid request shapes and denied access remain
+HTTP errors. Synchronous model rules and complete graph invariants still run
+on save; preflight does not reserve a unique value or replace a database
+constraint.
+
 ## Route map
 
 | Method | Path | Purpose | Success |
 | --- | --- | --- | --- |
+| `POST` | `/api/commits` | Submit a typed graph save plan | `200` with per-operation outcomes |
+| `GET` | `/api/commits/<saveId>` | Recover the caller’s durable save receipt | `200` |
+| `GET` | `/api/{table}/capabilities` | Read principal-specific field capabilities | `200` |
+| `POST` | `/api/{table}/validate` | Preflight a candidate record without saving | `200` with field errors |
 | `POST` | `/api/{table}/query` | Run a `BeakQuerySpec`, get a page of records | `200` |
 | `POST` | `/api/{table}/aggregate` | Compute a `BeakAggregateSpec` (count/sum/avg) | `200` |
 | `POST` | `/api/{table}/batch` | Fetch many records by id in one call | `200` |
@@ -68,6 +114,7 @@ These hold for every route on the page. The examples use the store example
 | `POST` | `/api/{table}/<id>/relations/<relationKey>/detach` | Unlink related ids | `204` |
 | `POST` | `/api/{table}/export` | Stream matching rows as CSV | `200` |
 | `POST` | `/api/{table}/<columnKey>/upload` | Store a file for a file/image column | `201` |
+| `GET` | `/api/{table}/<columnKey>/upload?key=<key>` | Resolve an authorized existing upload URL | `200` |
 | `DELETE` | `/api/{table}/<columnKey>/upload` | Remove a stored file | `204` |
 | `GET` | `/api/search` | Global search across viewable models | `200` |
 | `POST` | `/api/auth/login` | Exchange credentials for a session token | `200` |
@@ -78,7 +125,11 @@ These hold for every route on the page. The examples use the store example
 
 The upload routes exist only when the server is built with an `UploadService`
 (storage wired); the auth routes only when it is built with `BeakAuthSessions`.
-The rest are always present for every registered model.
+Graph commit routes are mounted for `WormDataSource` and require the commit
+receipt migration. The per-resource data routes are present for every registered
+model. Models with lifecycle behavior and tables configured for graph-only
+writes reject direct mutations; save them through `/api/commits` so their
+transactional rules and named actions run.
 
 One more route appears with the local-disk storage driver: a read-only `GET`
 under the path of its `publicBaseUrl` (`/uploads/<key>` by default), serving the
@@ -110,9 +161,10 @@ curl -X PATCH localhost:8080/api/products/p1 \
 ```
 
 It is opt-in: a request without the header updates unconditionally, which is
-what a script or a single-writer panel wants. With two people editing the same
-record, the default (last write wins, silently) is how the first one's work
-disappears; the header is how the panel notices instead.
+suitable only when the caller accepts last-write-wins behavior. Two concurrent
+editors should carry an explicit concurrency baseline. This header applies to
+the direct PATCH route; graph commit receipts provide idempotent recovery, not
+an automatic optimistic-locking guarantee.
 
 An unparseable header is a `422`, never a silent unconditional write.
 
@@ -354,6 +406,15 @@ record's links counts as updating it.
 `POST /api/{table}/export` streams the rows matching a `BeakQuerySpec` as a CSV
 attachment.
 
+The optional `columns` body property is a non-empty, unique list of scalar
+model field names in export order. Unknown fields are rejected; unreadable
+fields are omitted according to the current field policy. Omitting `columns`
+retains the model's table-context projection. An optional `formats` object maps
+selected field names to `{format, minorUnits, scale}` overrides. Format names
+come from `BeakValueFormat`; scales must be integers from 0 through 12.
+Overrides do not bypass field authorization or password redaction, and cannot
+be combined with `raw: true`.
+
 ```dart title="packages/beak_backend/lib/src/export/export_router.dart"
 --8<-- "packages/beak_backend/lib/src/export/export_router.dart:export"
 ```
@@ -369,9 +430,10 @@ Present only when the server has storage wired. The routes live under the column
 so a file targets exactly one file or image column of the model.
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_router.dart"
-router
-  ..post('/<columnKey>/upload', handlers.upload)
-  ..delete('/<columnKey>/upload', handlers.remove);
+  router
+    ..post('/<columnKey>/upload', handlers.upload)
+    ..get('/<columnKey>/upload', handlers.url)
+    ..delete('/<columnKey>/upload', handlers.remove);
 ```
 
 `POST /api/{table}/<columnKey>/upload` takes a `multipart/form-data` body with the
@@ -525,3 +587,24 @@ surfaces as a `BeakValidationException` with its `fieldErrors` intact.
 - [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) what the upload routes store and where.
 - [Exceptions](exceptions.md) the full `BeakException` family behind the error envelope.
 - [Configuration options](configuration-options.md) the env vars and config objects that stand this server up.
+
+
+## Resolving and discarding uploads
+
+`GET /api/{table}/{column}/upload?key={storageKey}` returns `{"url":"..."}`
+for an existing key belonging to that upload column. It enforces the resource read
+policy and uses the configured driver's public/signed URL. When the table has a
+row scope, the key must be referenced by a record visible under that scope in the
+requested upload column. Hidden and unreferenced keys both return `404`.
+`BeakUploadReadPolicy.canViewUpload` can add key-specific restrictions. Standalone
+upload routes need a data source to enforce row scopes and fail closed without one.
+Invalid column paths and traversal are rejected before the driver is called.
+
+Local disk file URLs and public buckets remain public: lookup authorization does
+not restrict subsequent access to a public URL. Confidential media requires a
+private storage driver that returns signed, expiring URLs.
+
+`DELETE /api/{table}/{column}/upload` accepts `{"key":"..."}` and checks
+`canDeleteUpload` for that exact key. The managed client discards each generated
+rendition and original, treating an already missing file as cleaned up. It only
+uses this for new draft-owned uploads known not to have committed.

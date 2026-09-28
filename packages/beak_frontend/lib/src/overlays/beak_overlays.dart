@@ -3,6 +3,7 @@ import 'package:obers_ui/obers_ui.dart';
 
 import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
+import '../localization/beak_localizations.dart';
 
 /// A declarative overlay handle bound to a [BuildContext]: confirmations,
 /// modals, side sheets (offcanvas), and toasts, all rendered with obers_ui.
@@ -37,23 +38,33 @@ final class BeakOverlays {
   /// The confirm button renders destructively when [destructive] is set.
   Future<bool> confirm({
     required String title,
-    String message = 'Please confirm this action.',
-    String confirmLabel = 'Confirm',
-    String cancelLabel = 'Cancel',
+    String? message,
+    String? confirmLabel,
+    String? cancelLabel,
     bool destructive = true,
   }) async {
+    final strings = BeakLocalizations.of(context);
     final bool? result = await showOiDialog<bool>(
       context,
       builder: (dialogContext, close) => OiDialog.confirm(
         label: title,
         title: title,
-        content: OiLabel.body(message),
+        content: OiLabel.body(message ?? strings.confirmAction),
         actions: [
-          OiButton.ghost(label: cancelLabel, onTap: () => close(false)),
+          OiButton.ghost(
+            label: cancelLabel ?? strings.cancel,
+            onTap: () => close(false),
+          ),
           if (destructive)
-            OiButton.destructive(label: confirmLabel, onTap: () => close(true))
+            OiButton.destructive(
+              label: confirmLabel ?? strings.confirm,
+              onTap: () => close(true),
+            )
           else
-            OiButton.primary(label: confirmLabel, onTap: () => close(true)),
+            OiButton.primary(
+              label: confirmLabel ?? strings.confirm,
+              onTap: () => close(true),
+            ),
         ],
         onClose: close,
       ),
@@ -68,14 +79,19 @@ final class BeakOverlays {
   Future<void> modal({
     required String title,
     required BeakBlock body,
-    String dismissLabel = 'Close',
+    String? dismissLabel,
   }) => showOiDialog<void>(
     context,
     builder: (dialogContext, close) => OiDialog.standard(
       label: title,
       title: title,
       content: BeakBlockHost(block: body),
-      actions: [OiButton.secondary(label: dismissLabel, onTap: close)],
+      actions: [
+        OiButton.secondary(
+          label: dismissLabel ?? BeakLocalizations.of(context).close,
+          onTap: close,
+        ),
+      ],
     ),
   );
 

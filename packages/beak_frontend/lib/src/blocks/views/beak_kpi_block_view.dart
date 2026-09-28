@@ -9,7 +9,7 @@ class _BeakKpiBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final value = useState<num?>(null);
     final previous = useState<num?>(null);
 

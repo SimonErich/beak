@@ -39,6 +39,37 @@ Request multipartRequest(
   );
 }
 
+base class _OwnedMedia extends BeakAllowAllPolicy implements BeakRowPolicy {
+  const _OwnedMedia();
+  @override
+  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
+      table == 'notes'
+      ? BeakFieldFilter(
+          column: NoteColumns.authorId,
+          operator: BeakOperator.eq,
+          value: BeakValue.of(principal?.id),
+        )
+      : null;
+}
+
+final class _BlockedMedia extends _OwnedMedia implements BeakUploadReadPolicy {
+  const _BlockedMedia();
+  @override
+  bool canViewUpload(
+    BeakPrincipal? principal,
+    String table,
+    String columnKey,
+    String storageKey,
+  ) => false;
+}
+
+final class _TenantGuard implements BeakAuthGuard {
+  const _TenantGuard();
+  @override
+  Future<BeakPrincipal?> authenticate(Request request) async =>
+      BeakPrincipal(id: request.headers['tenant'] ?? 'one');
+}
+
 void main() {
   late Handler handler;
   late BeakStorageDriver storage;
@@ -79,6 +110,114 @@ void main() {
     final Map<String, Object?> map => map,
     final Object? other => throw StateError('expected JSON object: $other'),
   };
+
+  test(
+    'GET upload URL resolves the persisted key and rejects traversal',
+    () async {
+      final saved = await uploads.handle(
+        table: 'notes',
+        columnKey: 'avatar',
+        upload: BeakUpload(
+          filename: 'picture.png',
+          mimeType: 'image/png',
+          bytes: pngBytes(width: 4, height: 4),
+        ),
+      );
+      final response = await handler(
+        Request(
+          'GET',
+          Uri.http('localhost', '/api/notes/avatar/upload', {'key': saved.key}),
+        ),
+      );
+      expect(response.statusCode, 200);
+      expect(
+        decodeObject(await response.readAsString())['url'],
+        saved.url.toString(),
+      );
+      final invalid = await handler(
+        Request(
+          'GET',
+          Uri.http('localhost', '/api/notes/avatar/upload', {
+            'key': 'avatars/../secret.png',
+          }),
+        ),
+      );
+      expect(invalid.statusCode, 422);
+    },
+  );
+
+  test(
+    'scoped upload URLs require a visible owning row and honor key-aware policy',
+    () async {
+      final files = <BeakStoredFile>[];
+      for (var i = 0; i < 3; i++) {
+        files.add(
+          await uploads.handle(
+            table: 'notes',
+            columnKey: 'avatar',
+            upload: BeakUpload(
+              filename: 'picture.png',
+              mimeType: 'image/png',
+              bytes: pngBytes(width: 4, height: 4),
+            ),
+          ),
+        );
+      }
+      await dataSource.create(
+        'notes',
+        BeakRecord.fromRow({
+          'id': 'first',
+          'title': 'First',
+          'author_id': 'one',
+          'avatar': files[0].key,
+        }),
+      );
+      await dataSource.create(
+        'notes',
+        BeakRecord.fromRow({
+          'id': 'second',
+          'title': 'Second',
+          'author_id': 'two',
+          'avatar': files[1].key,
+        }),
+      );
+      Handler scoped(BeakPolicy policy) => const Pipeline()
+          .addMiddleware(beakErrorMappingMiddleware())
+          .addMiddleware(beakAuthMiddleware(guard: const _TenantGuard()))
+          .addHandler(
+            beakApiRouter(
+              registry: registry,
+              dataSource: dataSource,
+              uploads: uploads,
+              policy: policy,
+            ),
+          );
+      final handler = scoped(const _OwnedMedia());
+      Future<Response> read(String key, {String tenant = 'one'}) async =>
+          handler(
+            Request(
+              'GET',
+              Uri.http('localhost', '/api/notes/avatar/upload', {'key': key}),
+              headers: {'tenant': tenant},
+            ),
+          );
+      expect((await read(files[0].key)).statusCode, 200);
+      expect((await read(files[1].key)).statusCode, 404);
+      expect((await read(files[1].key, tenant: 'two')).statusCode, 200);
+      expect((await read(files[2].key)).statusCode, 404);
+      expect(
+        (await scoped(const _BlockedMedia())(
+          Request(
+            'GET',
+            Uri.http('localhost', '/api/notes/avatar/upload', {
+              'key': files[0].key,
+            }),
+          ),
+        )).statusCode,
+        403,
+      );
+    },
+  );
 
   group('POST /api/{table}/{columnKey}/upload', () {
     test('stores a valid image and returns the typed 201 body', () async {

@@ -32,6 +32,19 @@ final class $name extends BeakModel {
 ''';
 
 void main() {
+  test('resource-local models are registered without becoming overrides', () {
+    final discovery = BeakProjectScanner(
+      projectWith({
+        'lib/resources/orders/models/order.dart': model('OrderModel', 'orders'),
+        'lib/resources/orders/order_resource.dart':
+            'class OrderResource extends BeakResource {}',
+        'lib/resources/orders/screens/order_form.dart': 'class OrderForm {}',
+      }),
+    ).scan();
+    expect(discovery.issues, isEmpty);
+    expect(discovery.models.single.name, 'OrderModel');
+    expect(discovery.resourceOverrides, isEmpty);
+  });
   group('models', () {
     test('are found by their supertype, in path order', () {
       final discovery = BeakProjectScanner(

@@ -15,7 +15,7 @@ class _BeakInboxBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final records = useState(const <BeakRecord>[]);
     final selectedRow = useState<BeakRecord?>(null);
     final selectedFolder = useState<String?>(null);
@@ -64,7 +64,7 @@ class _BeakInboxBlockView extends HookWidget {
       leftColumnWidth: block.leftWidthInPixels,
       rightColumnWidth: block.rightWidthInPixels,
       leftColumn: _folders(context, folders, selectedFolder),
-      middleColumn: _messages(visible, selectedRow),
+      middleColumn: _messages(context, visible, selectedRow),
       rightColumn: _detail(context, selectedRow.value),
     );
   }
@@ -139,6 +139,7 @@ class _BeakInboxBlockView extends HookWidget {
   }
 
   Widget _messages(
+    BuildContext context,
     List<BeakRecord> records,
     ValueNotifier<BeakRecord?> selected,
   ) => OiListView<BeakRecord>(
@@ -154,19 +155,27 @@ class _BeakInboxBlockView extends HookWidget {
       subtitle:
           _readString(record, block.previewField) ??
           _readString(record, block.senderField),
-      trailing: _timeLabel(record),
+      trailing: _timeLabel(context, record),
       selected: identical(record, selected.value),
       onTap: () => selected.value = record,
     ),
   );
 
-  Widget? _timeLabel(BeakRecord record) {
+  Widget? _timeLabel(BuildContext context, BeakRecord record) {
     final BeakColumn? column = block.timeField;
     if (column == null) {
       return null;
     }
     final Object? raw = record[column.key]?.raw;
-    return raw == null ? null : OiLabel.small(beakCellText(column, raw));
+    return raw == null
+        ? null
+        : OiLabel.small(
+            beakCellText(
+              column,
+              raw,
+              formatting: BeakFormatting.maybeOf(context),
+            ),
+          );
   }
 
   Widget _detail(BuildContext context, BeakRecord? record) {
@@ -190,7 +199,11 @@ class _BeakInboxBlockView extends HookWidget {
           if (block.timeField case final BeakColumn column)
             OiKeyValue(
               label: column.label,
-              value: beakCellText(column, record[column.key]?.raw),
+              value: beakCellText(
+                column,
+                record[column.key]?.raw,
+                formatting: BeakFormatting.maybeOf(context),
+              ),
             ),
         ],
       ),

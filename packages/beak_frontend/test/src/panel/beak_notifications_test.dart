@@ -83,11 +83,27 @@ void main() {
     // One of the two notifications is unread → a "1" badge on the bell.
     expect(find.text('1'), findsOneWidget);
 
+    await beakDependencies(
+      tester.element(find.byType(BeakNotificationBell)),
+    )<BeakDataSource>().create(
+      'notifications',
+      BeakRecord.fromRow({
+        'id': 'n3',
+        'title': 'Delivery update',
+        'body': 'The route has changed',
+        'is_read': false,
+        'created_at': '2026-02-02T00:00:00.000Z',
+      }),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2'), findsOneWidget);
+
     // Tapping the bell opens the notification panel.
     await tester.tap(find.byType(OiButton));
     await tester.pumpAndSettle();
     expect(find.byType(OiNotificationCenter), findsOneWidget);
     expect(find.text('New order'), findsWidgets);
+    expect(find.text('Delivery update'), findsWidgets);
     tester.takeException();
   });
 }

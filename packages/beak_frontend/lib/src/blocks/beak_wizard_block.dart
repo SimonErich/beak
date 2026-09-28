@@ -13,9 +13,9 @@ part of 'beak_block.dart';
 /// BeakWizardBlock(
 ///   onComplete: submitApplication,
 ///   steps: [
-///     BeakWizardStep(title: 'Seller', body: sellerFields),
-///     BeakWizardStep(title: 'Bank', body: bankFields),
-///     BeakWizardStep(title: 'Confirm', body: reviewSummary),
+///     BeakBlockWizardStep(title: 'Seller', body: sellerFields),
+///     BeakBlockWizardStep(title: 'Bank', body: bankFields),
+///     BeakBlockWizardStep(title: 'Confirm', body: reviewSummary),
 ///   ],
 /// );
 /// ```
@@ -29,7 +29,7 @@ final class BeakWizardBlock extends BeakBlock {
   });
 
   /// The steps, in order.
-  final List<BeakWizardStep> steps;
+  final List<BeakBlockWizardStep> steps;
 
   /// The visual style of the step indicator.
   final OiStepperStyle stepperStyle;
@@ -40,9 +40,9 @@ final class BeakWizardBlock extends BeakBlock {
 
 /// One step of a [BeakWizardBlock].
 @immutable
-final class BeakWizardStep {
+final class BeakBlockWizardStep {
   /// Creates a step titled [title] showing [body].
-  const BeakWizardStep({
+  const BeakBlockWizardStep({
     required this.title,
     required this.body,
     this.subtitle,

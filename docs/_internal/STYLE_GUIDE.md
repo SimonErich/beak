@@ -101,22 +101,18 @@ form field, the detail row, the filter, the API validator, and the CSV column."
 - Trim aggressively (drop imports and unrelated members) but never rename or
   restructure. A reader should be able to open the cited file and find your lines.
 
-## The two-app rule (do not mix them up)
+## Canonical example sources
 
-Beak ships two demo apps. They use **different models**. Never put a column
-constant from one app into a snippet themed around the other.
-
-- **`examples/store*`** is the clean teaching store (a small coffee
-  roastery: Products, Categories, Tags, Users, Orders). Use it for the **Tutorial
-  ("First Flight")** and **Core concepts**. Its server runs on **port 8080**
-  (`apiBaseUrl: 'http://localhost:8080'`).
-- **`examples/superdashboard`** is the kitchen-sink showcase (49 models, every
-  block, every view mode, custom screens). Use it for **feature, blocks, charts,
-  and reference** pages. Its server runs on **port 8180**
-  (`apiBaseUrl: 'http://localhost:8180'`). Match the port to the app in every
-  snippet or a reader hits connection-refused.
-- `hasOne` only exists in the superdashboard's `order.dart`. When you need a
-  `BeakHasOne` example, take it from there and say which app it is from.
+- `examples/clean_beak_config` is the complete shop and the primary teaching
+  source. It contains schemas, reusable form sections, named invoice actions,
+  dynamic attributes, variants, media, imports and custom screens/widgets.
+  Its API runs on port 8080. The local demonstration has no login.
+- `examples/quickstart` is the minimal generated project. Use it for the initial
+  scaffold and first resource; then use the canonical shop for richer examples.
+- Do not invent a feature in the shop when it only exists in the framework.
+  Use a focused package test or implementation excerpt and label its context.
+- Application schemas use generated `Model.field` helpers. Keep runtime/policy
+  code in the domain layer and screen files focused on presentation.
 
 ## Invariants writers must get right (these are Beak's laws)
 
@@ -136,10 +132,10 @@ constant from one app into a snippet themed around the other.
   cell, the form field (with client validation that mirrors the server), the
   detail row, the filter, the REST validation, and the CSV export column. Users
   never write a string field reference and never touch `dynamic`.
-- **Dual-mode record blocks.** The same block tree
-  (`BeakFieldBlock`/`BeakFieldGroupBlock`/`BeakRelationBlock`) renders read-only
-  values inside a `BeakRecordScope` (a resource's `detail`) and editable inputs
-  inside a `BeakFormScope` (a resource's `formLayout`). One layout, two surfaces.
+- **Shared form layouts.** A `BeakFormScreen` serves read, create and edit
+  roles from the same typed field layout. `BeakFormSections` projects sections
+  into forms, tabs or wizard steps. Record blocks read `BeakRecordScope`;
+  custom form widgets edit the draft supplied by `BeakDraftScope`.
 - **Source-agnostic data.** `BeakDataSource` (in `beak_core`) is the interface.
   `WormDataSource` (backend, over the worm ORM) and `HttpBeakDataSource`
   (frontend, over REST) both implement it. A future `beak_serverpod` can add a

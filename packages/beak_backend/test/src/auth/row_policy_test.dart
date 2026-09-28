@@ -135,6 +135,35 @@ void main() {
     expect(await jsonOf(response), {'value': 1});
   });
 
+  test('summary groups only the authorized population', () async {
+    final response = await call(
+      'POST',
+      '/api/notes/summary',
+      body: BeakSummarySpec(
+        table: 'notes',
+        groupBy: NoteColumns.authorId,
+        measures: const [BeakSummaryMeasure.count('count')],
+      ).toJson(),
+    );
+    expect(response.statusCode, 200);
+    final result = BeakSummaryResult.fromJson(
+      (await jsonOf(response) as Map).cast<String, Object?>(),
+    );
+    expect(result.rows.single.group.raw, 'a1');
+    expect(result.rows.single.values['count'], 1);
+    expect(
+      (await call(
+        'POST',
+        '/api/notes/summary',
+        body: BeakSummarySpec(
+          table: 'authors',
+          measures: const [BeakSummaryMeasure.count('count')],
+        ).toJson(),
+      )).statusCode,
+      422,
+    );
+  });
+
   test('get-one reports an out-of-scope record as missing', () async {
     // Not 403: telling an unauthorised caller that a record exists is itself
     // a leak.

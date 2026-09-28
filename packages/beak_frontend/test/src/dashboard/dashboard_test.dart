@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak_frontend/src/data/model_beak_data_source.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:obers_ui/obers_ui.dart';
@@ -72,6 +73,7 @@ void main() {
   Future<void> pumpDashboard(
     WidgetTester tester, {
     List<BeakChart> charts = const [],
+    List<BeakStat>? dashboardStats,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -79,7 +81,7 @@ void main() {
       OiApp(
         theme: OiThemeData.light(),
         home: BeakDashboard(
-          stats: stats,
+          stats: dashboardStats ?? stats,
           charts: charts,
           dataSource: dataSource,
         ),
@@ -99,6 +101,81 @@ void main() {
     expect(find.text('42'), findsOneWidget);
     expect(find.text('€1250.50'), findsOneWidget);
   });
+
+  testWidgets(
+    'metrics refresh after writes and offer retry after load failure',
+    (tester) async {
+      final registry = BeakModelRegistry()..register(const ArticleModel());
+      final source = ModelBeakDataSource(
+        registry: registry,
+        fallback: dataSource,
+      );
+      addTearDown(source.dispose);
+      dataSource.aggregateHandler = (_) =>
+          throw const BeakConfigurationException('Offline');
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakStatCard(stat: stats.first, dataSource: source),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Retry'), findsOneWidget);
+      dataSource.aggregateHandler = (_) => 3;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(find.text('3'), findsOneWidget);
+      dataSource.aggregateHandler = (_) => 4;
+      await source.create(
+        'articles',
+        BeakRecord.fromRow({'id': 'new', 'title': 'New'}),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('4'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'hidden stats never fetch and permission changes preserve other cards',
+    (tester) async {
+      var canReadPrivate = false;
+      final guardedStats = [
+        BeakStat(
+          label: 'Private articles',
+          aggregate: const BeakAggregateSpec.count(table: 'private_articles'),
+          visibleWhen: () => canReadPrivate,
+        ),
+        stats.first,
+      ];
+
+      await pumpDashboard(tester, dashboardStats: guardedStats);
+      expect(find.text('Private articles'), findsNothing);
+      expect(dataSource.aggregateCalls.map((spec) => spec.table), ['articles']);
+
+      canReadPrivate = true;
+      await pumpDashboard(tester, dashboardStats: guardedStats);
+      expect(find.text('Private articles'), findsOneWidget);
+      expect(dataSource.aggregateCalls.map((spec) => spec.table), [
+        'articles',
+        'private_articles',
+      ]);
+
+      canReadPrivate = false;
+      await pumpDashboard(tester, dashboardStats: guardedStats);
+      expect(find.text('Private articles'), findsNothing);
+      expect(dataSource.aggregateCalls, hasLength(2));
+
+      canReadPrivate = true;
+      await pumpDashboard(tester, dashboardStats: guardedStats);
+      expect(find.text('Private articles'), findsOneWidget);
+      expect(
+        dataSource.aggregateCalls.map((spec) => spec.table),
+        ['articles', 'private_articles', 'private_articles'],
+        reason:
+            'Restored access fetches afresh; visible cards keep their state.',
+      );
+    },
+  );
 
   testWidgets('a bar chart renders from mapped records', (tester) async {
     await pumpDashboard(tester, charts: charts(BeakChartType.bar));

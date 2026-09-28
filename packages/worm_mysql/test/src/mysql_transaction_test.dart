@@ -57,6 +57,53 @@ void main() {
     });
 
     test(
+      'current read sees newer rows hidden by repeatable-read snapshot',
+      () async {
+        await adapter.insert(
+          const InsertDescriptor(
+            table: 'tx_sample',
+            values: {'id': 1, 'label': 'Original'},
+          ),
+        );
+        final writer = MysqlAdapter(pool: MysqlConnectionPool.fromUri(url));
+        addTearDown(writer.disconnect);
+        await adapter.pool.run((connection) async {
+          await connection.execute(
+            'SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ',
+          );
+          await connection.execute('START TRANSACTION');
+          final tx = MysqlTransactionAdapter(connection: connection);
+          try {
+            final query = QueryDescriptor(table: 'tx_sample', where: _idEq(1));
+            expect((await tx.selectOne(query))?['label'], 'Original');
+            await writer.update(
+              UpdateDescriptor(
+                table: 'tx_sample',
+                values: {'label': 'Newer'},
+                where: _idEq(1),
+              ),
+            );
+            expect((await tx.selectOne(query))?['label'], 'Original');
+            expect((await tx.selectOneCurrent(query))?['label'], 'Newer');
+            expect(
+              await tx.selectOneCurrent(
+                QueryDescriptor(
+                  table: 'tx_sample',
+                  where: _idEq(
+                    1,
+                  ).and(const Field<String>('label').eq('Original')),
+                ),
+              ),
+              isNull,
+            );
+          } finally {
+            await connection.execute('ROLLBACK');
+          }
+        });
+      },
+    );
+
+    test(
       'throwing inside transaction rolls the outer transaction back',
       () async {
         await expectLater(

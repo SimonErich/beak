@@ -318,6 +318,10 @@ final class QueryBuilder<T extends Model> {
     ],
   );
 
+  /// Eager-load a relationship tree with a separate constraint at each level.
+  QueryBuilder<T> withEagerLoad(EagerLoad load) =>
+      _copy(eagerLoads: <EagerLoad>[...eagerLoads, load]);
+
   /// Eager-load the nested relation [path] produced by
   /// [RelationField.include].
   ///

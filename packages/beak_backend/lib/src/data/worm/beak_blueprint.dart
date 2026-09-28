@@ -53,7 +53,7 @@ abstract final class BeakBlueprint {
   ///   foreign-key column; [defineForeignKeys] adds the constraint.
   /// - A column carrying [BeakRequired] is `NOT NULL`; the rest are nullable,
   ///   which is the same rule the form validator and the API enforce.
-  /// - Booleans default to `false` rather than being nullable.
+  /// - Two-state booleans default to false; tristate booleans permit null.
   /// - An enum column declaring a [BeakEnumColumn.defaultValue] gets that
   ///   value as its schema default, so the model's default and the column's
   ///   are never two separate decisions.
@@ -111,6 +111,28 @@ abstract final class BeakBlueprint {
       table.index(<String>[key]);
     }
 
+    // Model-level uniqueness and its database race authority share one declaration.
+    final declaredUnique = <String>{};
+    for (final rule in model.validationRules.whereType<BeakUnique<Object>>()) {
+      final fields = [rule.field, ...rule.scope];
+      if (fields.any(
+        (field) => field.model.table != model.table || field.path.isNotEmpty,
+      )) {
+        throw const BeakConfigurationException(
+          'Unique fields must belong to the migrated model.',
+        );
+      }
+      final keys = fields
+          .map((field) => field.key)
+          .toSet()
+          .toList(growable: false);
+      if (keys.length == 1 && model.columnByKey(keys.single)?.unique == true) {
+        continue;
+      }
+      final signature = (keys.toList()..sort()).join(',');
+      if (declaredUnique.add(signature)) table.unique(keys);
+    }
+
     if (model.softDeletes) {
       table.softDeletes();
     }
@@ -149,7 +171,13 @@ abstract final class BeakBlueprint {
       BeakRichTextColumn() ||
       BeakCustomColumn() => table.text(column.key),
       BeakIntColumn() =>
-        bigIntColumns.contains(column.key)
+        (bigIntColumns.contains(column.key) ||
+                const {
+                  BeakSemanticKind.exactDecimal,
+                  BeakSemanticKind.money,
+                  BeakSemanticKind.duration,
+                  BeakSemanticKind.fileSize,
+                }.contains(column.semantic.kind))
             ? table.bigInteger(column.key)
             : table.integer(column.key),
       BeakDecimalColumn(:final totalDigits, :final precision) => table.decimal(
@@ -261,15 +289,17 @@ abstract final class BeakBlueprint {
 /// The schema default [column] declares in the model, or `null` when it
 /// declares none.
 ///
-/// Booleans always default to `false` — a nullable boolean is three-valued,
-/// which no Beak form can express. An enum column contributes its
-/// [BeakEnumColumn.defaultValue] by wire name, closing the drift surface
-/// where a migration restated a default the model already knew.
-Object? _modelDefaultOf(BeakColumn column) => switch (column) {
-  BeakBoolColumn() => false,
-  BeakEnumColumn(:final defaultValue) => defaultValue?.name,
-  _ => null,
-};
+/// Explicit defaults are encoded exactly as record writes. Two-state booleans
+/// retain their conventional false default; nullable booleans remain null.
+Object? _modelDefaultOf(BeakColumn column) {
+  if (column.defaultValue case final Object value) {
+    return beakValueForColumn(column, value).raw;
+  }
+  return switch (column) {
+    BeakBoolColumn(tristate: false) => false,
+    _ => null,
+  };
+}
 
 /// Translates Beak's ORM-neutral [BeakOnDelete] to worm's [OnDelete].
 ///

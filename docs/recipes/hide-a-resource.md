@@ -1,26 +1,13 @@
 ---
-title: Hide a resource from the sidebar
-description: Keep a model, its API and its relationships while dropping it from the navigation.
+title: Hide a resource
+description: Keep related models registered without adding navigation.
 ---
 
-# Hide a resource from the sidebar
+# Hide a resource
 
-A join table or a child model usually has no business in the navigation, but it
-still needs its model, its API and its relationships. Set `hidden: true` on it
-in `beak.yaml`; that is the only change:
-
-```yaml title="examples/store/beak.yaml"
-resources:
-  products:
-    icon: package
-    section: Catalog
-  # ...categories, tags, roast_profiles, orders, users...
-  order_items:
-    hidden: true
-```
-
-The showcase app leans on this hard: 49 models, 17 of them navigable.
+Register only resources users should navigate to. The panel discovers referenced models recursively for relationship editing. A resource visibility predicate can hide a navigation entry conditionally; enforce data access separately with backend policies.
 
 ## Continue reading
 
-- [beak.yaml](../reference/beak-yaml.md)
+- [Related guide](../backend/auth-and-policies.md)
+- [All recipes](index.md)

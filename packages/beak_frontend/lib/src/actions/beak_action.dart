@@ -3,9 +3,18 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import 'beak_uri_action.dart';
 import '../data/optimistic.dart';
+import '../data/beak_record_batch.dart';
+import '../form/beak_import_view.dart';
+import '../data/beak_data_changes.dart';
 import '../overlays/beak_overlays.dart';
+import '../localization/beak_localizations.dart';
 import '../panel/beak_routes.dart';
+import '../panel/beak_resource_screen.dart';
+import '../documents/beak_record_document.dart';
+import '../documents/beak_document_delivery.dart';
+import '../formatting/beak_formatting.dart';
 
 part 'built_in_actions.dart';
 
@@ -38,6 +47,9 @@ final class BeakActionContext {
     required this.dataSource,
     required this.router,
     this.refresh,
+    this.stageRemoval,
+    this.onError,
+    this.canExecute,
   });
 
   /// The context overlays (dialogs, undo toasts) mount from.
@@ -54,6 +66,38 @@ final class BeakActionContext {
 
   /// Reloads the surface the action ran from (e.g. the list), if any.
   final Future<void> Function()? refresh;
+
+  /// Hides a list record immediately and returns its undo/rollback callback.
+  /// Resource tables provide this automatically; detail surfaces omit it.
+  final VoidCallback Function(Object id)? stageRemoval;
+
+  /// Optional host notification boundary for failures.
+  final void Function(BeakException error)? onError;
+
+  /// Live presentation authorization, rechecked before and after confirmation.
+  /// Server-side authorization remains required for every mutation.
+  final bool Function(BeakAction action)? canExecute;
+
+  /// Checks current permissions and reports a denied action without executing it.
+  bool checkPermission(BeakAction action) {
+    if (!buildContext.mounted) return false;
+    if (canExecute?.call(action) ?? true) return true;
+    reportError(
+      BeakAuthorizationException(
+        BeakLocalizations.of(buildContext).actionDenied,
+      ),
+    );
+    return false;
+  }
+
+  /// Reports a safe typed failure through the host or the default overlay.
+  void reportError(BeakException error) {
+    if (onError case final report?) {
+      report(error);
+    } else if (buildContext.mounted) {
+      overlays.toast(error.message, level: OiToastLevel.error);
+    }
+  }
 
   /// The declarative overlay handle — confirmations, modals, sheets, and
   /// toasts — bound to this action's [buildContext].
@@ -122,10 +166,103 @@ final class BeakRecordAction extends BeakAction {
     required super.key,
     required super.label,
     required this.onExecute,
+    this.roles = const {
+      BeakScreenRole.list,
+      BeakScreenRole.read,
+      BeakScreenRole.create,
+      BeakScreenRole.edit,
+    },
     super.icon,
     super.color,
     super.requiresConfirmation,
   });
+
+  /// Opens a record's website, email composer, phone dialer, or SMS composer.
+  /// Uses the shared safe URI boundary and the standard action error handling.
+  factory BeakRecordAction.link({
+    required String key,
+    required String label,
+    required Uri? Function(BeakRecord record) uri,
+    IconData? icon,
+    Set<BeakScreenRole> roles = const {
+      BeakScreenRole.list,
+      BeakScreenRole.read,
+    },
+    BeakUriLauncher? launcher,
+  }) {
+    late final BeakRecordAction action;
+    action = BeakRecordAction(
+      key: key,
+      label: label,
+      icon: icon,
+      roles: roles,
+      onExecute: (record, context) async {
+        if (!context.checkPermission(action)) return;
+        final destination = uri(record);
+        if (destination == null) {
+          throw const BeakValidationException(
+            'No contact address is available.',
+          );
+        }
+        await launchBeakUri(destination, launcher: launcher);
+      },
+    );
+    return action;
+  }
+
+  /// Prints a fresh authorized persisted snapshot, never an unsaved form draft.
+  /// The standard action runner handles errors and prevents repeat dispatch.
+  factory BeakRecordAction.document({
+    required String key,
+    required String label,
+    required BeakRecordDocument document,
+    Set<BeakScreenRole> roles = const {
+      BeakScreenRole.list,
+      BeakScreenRole.read,
+      BeakScreenRole.create,
+      BeakScreenRole.edit,
+    },
+    IconData? icon,
+    BeakDocumentDelivery Function() beginDelivery = beginBeakDocumentDelivery,
+  }) {
+    late final BeakRecordAction action;
+    action = BeakRecordAction(
+      key: key,
+      label: label,
+      icon: icon ?? OiIcons.printer,
+      roles: roles,
+      onExecute: (record, context) async {
+        if (!context.checkPermission(action)) return;
+        final id = context.model.primaryKeyOf(record);
+        if (id == null) {
+          throw const BeakValidationException(
+            'Save the record before printing.',
+          );
+        }
+        final delivery = beginDelivery();
+        var shown = false;
+        try {
+          final snapshot = await document.load(
+            model: context.model,
+            id: id,
+            source: context.dataSource,
+            formatting: BeakFormatting.of(context.buildContext),
+          );
+          if (!context.checkPermission(action)) return;
+          await delivery.show(snapshot);
+          shown = true;
+        } finally {
+          if (!shown) delivery.cancel();
+        }
+      },
+    );
+    return action;
+  }
+
+  /// Generated resource surfaces that expose this action. Shared read/edit
+  /// forms follow their live mode, including in-place Edit and Cancel.
+  /// This is presentation only; resource and server permissions still apply.
+  final Set<BeakScreenRole> roles;
 
   /// Runs the action on [BeakRecord].
   final Future<void> Function(BeakRecord record, BeakActionContext context)
@@ -148,6 +285,35 @@ final class BeakBulkAction extends BeakAction {
     super.color,
     super.requiresConfirmation,
   });
+
+  /// Applies a typed patch through a validation preview and per-record receipts.
+  ///
+  /// The built-in review handles progress, cancellation and interrupted saves.
+  factory BeakBulkAction.edit({
+    required String key,
+    required String label,
+    required List<BeakFieldChange<Object>> changes,
+    IconData? icon,
+  }) => BeakBulkAction(
+    key: key,
+    label: label,
+    icon: icon ?? OiIcons.pencil,
+    onExecute: (records, context) async {
+      await context.overlays.dialog<void>(
+        title: label,
+        builder: (close) => SingleChildScrollView(
+          child: BeakBulkEditView(
+            model: context.model,
+            records: records,
+            changes: changes,
+            dataSource: context.dataSource,
+            title: label,
+          ),
+        ),
+      );
+      if (context.buildContext.mounted) await context.refresh?.call();
+    },
+  );
 
   /// Runs the action over the selection.
   final Future<void> Function(

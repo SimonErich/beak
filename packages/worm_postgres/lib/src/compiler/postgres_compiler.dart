@@ -31,6 +31,9 @@ final class PostgresCompiler {
       ..write(_projection(descriptor.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(descriptor.table));
+    if (descriptor.tableAlias case final alias?) {
+      sql.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendJoins(sql, descriptor.joins);
     _appendWhere(sql, descriptor.where, params);
     _appendGroupBy(sql, descriptor.groupBy);
@@ -619,6 +622,9 @@ final class PostgresCompiler {
       ..write(_projection(node.subquery.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(node.subquery.table));
+    if (node.subquery.tableAlias case final alias?) {
+      sub.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendWhere(sub, node.subquery.where, params);
     _appendOrderBy(sub, node.subquery.orderBy);
     _appendLimitOffset(sub, node.subquery.limit, node.subquery.offset);

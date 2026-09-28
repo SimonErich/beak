@@ -36,6 +36,28 @@ column then drives the table cell, the form input (validating exactly as the
 server does), the detail row, the filter, the API's validation, and the CSV
 column.
 
+## Configure the screen, let Beak run it
+
+Register resources directly; each resource owns navigation, search, and optional
+screen layouts. Omit a layout to derive the table and form from the model.
+
+```dart
+void main() => runApp(BeakPanel(
+  resources: [OrderResource(), UserResource()],
+));
+```
+
+Generated model fields are typed configuration values:
+`OrderModel.customer.inputCombobox()`,
+`OrderItemModel.quantity.inputNumber()`, and
+`OrderModel.customer.email`. One `BeakFormScreen` layout can serve read, create,
+and edit; `BeakWizardScreen` presents the same draft runtime in steps.
+Relationship edits remain local until Finish, with atomic Shelf/Worm graph
+saving and explicit recovery for sources that save in stages.
+
+Start with [examples/clean_beak_config](examples/clean_beak_config) and the
+[declarative resource guide](docs/concepts/declarative-resources.md).
+
 ## Packages
 
 | Package | What it is |
@@ -46,10 +68,9 @@ column.
 | `packages/beak_frontend` | Flutter: `BeakPanel` (shell + router), generated tables/forms/detail/actions/filters/dashboard on obers_ui — HookWidget + Signals + GetIt + go_router |
 | `packages/beak_cli` | The `beak` command: `create`, `prepare`, `dev`, `introspect`, `eject`, `doctor`, `make:*` |
 | `packages/beak_test` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, the data-source contract |
+| `examples/clean_beak_config` | Canonical shop: declarative forms, named invoice actions, custom dashboard/operations widgets, variants, imports, semantic fields and staged graph saving |
+| `examples/foodio-adminpanel` | Gabel food-ordering admin: 48,213 persisted demo orders, catalog wizard, operational charts, budgets, capacity, invoice snapshots and durable demo effects |
 | `examples/quickstart` | Exactly what `beak create` produces, checked in |
-| `examples/store` | The teaching example: every column kind, all four relationship kinds, auth with a row policy, uploads, a wizard, a dashboard |
-| `examples/superdashboard` | 49 models at scale: 17 navigable resources, 37 block types, charts, maps |
-| `examples/embedded` | Beak mounted inside an application that already exists |
 
 ## Quickstart
 
@@ -77,15 +98,16 @@ acme_admin/
 │   ├── {theme,auth,dashboard,server,panel}.dart   ← optional overrides
 │   ├── beak/*.g.dart     generated wiring (committed)
 │   ├── models/*.beak.dart generated per model (committed)
-│   └── main.dart         generated entrypoint (git-ignored)
+│   └── main.dart         your BeakPanel, or a generated default
 └── bin/{serve,migrate}.dart                       generated (git-ignored)
 ```
 
-Nothing needs registering. `beak prepare` — which every other command runs
-first — discovers what you declare and writes the registry, the panel config,
+Schema and host wiring need no manual registry. `beak prepare` — which every other command runs
+first — discovers schemas throughout `lib/` and writes the registry, the panel config,
 the app widget, the server host, and the three entrypoints. The entrypoints sit
 at their canonical paths so `flutter run`, `flutter build web`, IDE run buttons
-and `dart compile exe` all work with no flags.
+and `dart compile exe` all work with no flags. Authored entrypoints are preserved
+by generation; commit your own `main.dart` when it contains resource configuration.
 
 | Command | What it does |
 | --- | --- |
@@ -105,16 +127,27 @@ database is a SQLite file created on first run.
 dart pub global activate melos 6.3.3
 melos bootstrap
 
-cd examples/store
+cd examples/clean_beak_config
+dart run ../../packages/beak_cli/bin/beak.dart prepare
 dart run bin/migrate.dart migrate     # create the tables
 dart run bin/migrate.dart db:seed     # a small, fixed catalog
-beak dev                              # API on :8080, panel on :3000
+dart run bin/serve.dart               # API on :8080
+# In a second terminal:
+flutter run -d chrome --web-port=3000
 ```
 
-Sign in as `ada@example.com` / `espresso` (staff) or `linus@example.com` /
-`grinder` (a customer, who sees only their own orders). `examples/superdashboard`
-runs the same way on port 8180. Postgres and MinIO (`melos run up`) are only
-needed for the `e2e`-tagged suites.
+The canonical shop is an unauthenticated local demo. Its repeatable seed preserves
+existing records; migrations upgrade the schema without resetting the database.
+`examples/quickstart` remains the minimal generated project. PostgreSQL and object
+storage services are needed only for the corresponding service-backed tests.
+
+The [Gabel Foodio admin](examples/foodio-adminpanel/README.md) is a second complete
+application, preserving the food-ordering prototype’s branding. It runs its API
+on port 8081, alongside the canonical shop, and uses real seeded records for
+operational counts, a catalog order wizard, company budgets, delivery capacity
+and persistent demo payment/message effects. Its [domain contract](examples/foodio-adminpanel/DOMAIN.md)
+documents the exact fixture figures and transactional rules. Both examples use
+the same declarative Beak configuration APIs.
 
 ## Defining a resource
 
@@ -159,14 +192,26 @@ late final BeakImageRef? image;
 The upload endpoint validates, runs the pipeline, stores via the configured
 driver, and returns a typed `BeakStoredFile` with its variants.
 
-## The `beak_serverpod` seam
+## Existing Serverpod projects
 
-`BeakDataSource` is an interface and `BeakModel` is ORM-neutral metadata —
-worm never leaks into `beak_core`. A future `beak_serverpod` package will
-implement `ServerpodDataSource` and adapt generated Serverpod classes as
-Beak models **without changing beak_core or beak_backend**: supply the same
-column/relationship metadata for your generated classes and hand Beak the
-data source.
+[`beak_serverpod`](packages/beak_serverpod/README.md) adapts existing typed
+Serverpod models and client calls to Beak. Select read models in
+[`beak_serverpod_generator`](packages/beak_serverpod_generator/README.md), then
+configure the generated resource's columns, labels, permissions and exceptional
+operations. Endpoint discovery generates supported CRUD/query transport and
+command form metadata. The panel discovers each model's data source automatically;
+standard resources need no application repository or binding registry.
+
+Serverpod remains responsible for authentication, authorization, persistence and
+domain commands. Neither Beak's Worm backend nor a duplicate entity model sits
+between the panel and those operations. Framework auth screens consume the
+[`beak_serverpod_flutter`](packages/beak_serverpod_flutter/README.md) auth adapter
+separately from resource transport. That adapter reuses the existing authenticated
+client/session; generating a model does not provision accounts or authorize access.
+
+The same [model transport and permission contract](docs/extending/model-transports.md)
+serves standalone Worm models, generated Serverpod resources and custom sources.
+See the generator guide for exact endpoint conventions and typed escape hatches.
 
 ## Development
 
@@ -179,14 +224,12 @@ melos run coverage      # per-package thresholds (beak_core at 100%)
 melos run format-check
 ```
 
-The store's API assertions live once, in
-[`examples/store/test/api_scenario.dart`](examples/store/test/api_scenario.dart),
-and run twice: on `sqlite::memory:` with local-disk uploads on every push, and
-against Postgres under `melos run test-e2e`. Between them they cover paged,
-sorted and searched queries with eager-loaded relations, validated creates, a
-real PNG upload with a retrievable thumbnail variant, soft delete with restore
-and force delete, pivot attach/detach, global search, CSV export, aggregates,
-optimistic concurrency, and the row policy.
+The canonical shop's [API tests](examples/clean_beak_config/test/shop_api_test.dart)
+exercise real SQLite graph saves, rollback, named actions, snapshot immutability,
+relationship search and variant uniqueness. Its [custom-widget tests](examples/clean_beak_config/test/custom_shop_test.dart)
+cover shared refresh, explicit errors and staged combination generation. Framework
+packages cover transport contracts, policies, uploads and the optional
+service-backed database/storage integrations.
 
 ## Documentation
 

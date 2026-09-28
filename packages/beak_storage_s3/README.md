@@ -4,7 +4,7 @@ S3/MinIO storage driver for Beak's storage abstraction.
 
 Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
-[architecture guide](../../docs/architecture.md) for how the packages fit
+[architecture guide](../../docs/architecture/index.md) for how the packages fit
 together.
 
 ## What it is
@@ -59,7 +59,7 @@ final driver = S3StorageDriver(config, client: FakeS3ObjectClient());
 ## Status
 
 Pre-1.0, part of the Beak monorepo. Consumed by the
-[reference admin](../../apps/reference_admin). Contributions welcome — see
+[canonical shop](../../examples/clean_beak_config). Contributions welcome — see
 [CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
 
 ## License

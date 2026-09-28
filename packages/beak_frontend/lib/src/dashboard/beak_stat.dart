@@ -4,6 +4,9 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../data/beak_resource_repository.dart';
+import '../data/beak_data_changes.dart';
+import '../formatting/beak_formatting.dart';
+import '../localization/beak_localizations.dart';
 
 /// A dashboard metric: a typed aggregate over a table, rendered as a card.
 ///
@@ -37,6 +40,7 @@ final class BeakStat {
     this.icon,
     this.prefix = '',
     this.suffix = '',
+    this.visibleWhen,
   });
 
   /// The card label.
@@ -53,14 +57,23 @@ final class BeakStat {
 
   /// Text rendered after the value (e.g. ` items`).
   final String suffix;
+
+  /// Whether the dashboard may mount this stat and load its aggregate.
+  ///
+  /// Evaluated whenever the dashboard rebuilds, including committed identity
+  /// changes in a Beak panel. Omit to show the stat unconditionally. This is
+  /// presentation configuration; the backend must still authorize requests.
+  final bool Function()? visibleWhen;
+
+  /// Whether the stat is currently visible.
+  bool get isVisible => visibleWhen?.call() ?? true;
 }
 
 /// Renders one [BeakStat]: fetches its aggregate through a
 /// [BeakResourceRepository] and shows the formatted value.
 ///
-/// While the aggregate is loading, and on failure, the card shows an em
-/// dash. Integer results render without decimals, fractional results with
-/// two. The dashboard builds these from [BeakPanelConfig.dashboardStats].
+/// Loading and errors are explicit, failed requests can be retried, and writes
+/// refresh affected metrics automatically. Numbers use the panel display policy.
 class BeakStatCard extends HookWidget {
   /// Creates the card for [stat] over [dataSource].
   const BeakStatCard({required this.stat, required this.dataSource, super.key});
@@ -74,6 +87,14 @@ class BeakStatCard extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final value = useState<num?>(null);
+    final loading = useState(true);
+    final error = useState<BeakException?>(null);
+    final attempt = useState(0);
+    final revision = useBeakDataRevision(
+      dataSource,
+      table: stat.aggregate.table,
+    );
+    final strings = BeakLocalizations.of(context);
     useEffect(() {
       var cancelled = false;
       Future<void> load() async {
@@ -83,14 +104,19 @@ class BeakStatCard extends HookWidget {
         if (cancelled) {
           return;
         }
+        loading.value = false;
         if (result case BeakOk(value: final loaded)) {
           value.value = loaded;
+          error.value = null;
+        } else if (result case BeakErr(error: final failure)) {
+          error.value = failure;
         }
       }
 
+      loading.value = true;
       load();
       return () => cancelled = true;
-    }, [dataSource, stat]);
+    }, [dataSource, stat, revision, attempt.value]);
 
     return OiCard(
       child: OiColumn(
@@ -105,19 +131,27 @@ class BeakStatCard extends HookWidget {
               Expanded(child: OiLabel.small(stat.label)),
             ],
           ),
-          OiLabel.h2(_formatted(value.value)),
+          if (loading.value)
+            OiProgress.linear(indeterminate: true, label: strings.loading)
+          else if (error.value case final BeakException failure) ...[
+            OiLabel.small(strings.errorMessage(failure)),
+            OiButton.ghost(label: strings.retry, onTap: () => attempt.value++),
+          ] else
+            OiLabel.h2(
+              _formatted(value.value, BeakFormatting.maybeOf(context)),
+            ),
         ],
       ),
     );
   }
 
-  String _formatted(num? value) {
+  String _formatted(num? value, BeakFormatting? formatting) {
     if (value == null) {
       return '—';
     }
-    final String number = value % 1 == 0
-        ? value.toStringAsFixed(0)
-        : value.toStringAsFixed(2);
+    final String number =
+        formatting?.number(value) ??
+        (value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2));
     return '${stat.prefix}$number${stat.suffix}';
   }
 }

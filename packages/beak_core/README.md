@@ -6,22 +6,23 @@ serializable `BeakQuerySpec` wire contract, the storage abstraction, the
 
 Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
-[architecture guide](../../docs/architecture.md) for how the packages fit
+[architecture guide](../../docs/architecture/index.md) for how the packages fit
 together.
 
 ## What it is
 
 `beak_core` is pure Dart with no ORM, HTTP-server, or Flutter dependency — it
 is the shared vocabulary every other Beak package speaks. You declare a
-resource once as a `Columns` class plus a `BeakModel` subclass, and that single
-definition drives the table, form, detail, and filter surfaces. The
+resource as an annotated `BeakSchema`, and the generator creates columns,
+`BeakModel` descriptors and typed field references. That definition drives
+table, form, detail, validation, filtering and export. The
 `BeakQuerySpec` wire contract travels losslessly as JSON between frontend and
-backend, while `BeakDataSource` is the source-agnostic seam (worm today,
-Serverpod later) and `BeakClient` is the thin typed REST transport underneath.
+backend, while `BeakDataSource` is the source-agnostic seam (including the Worm and Serverpod adapters) and `BeakClient` is the thin typed REST transport underneath.
 
 ## Usage
 
-Declare typed columns and a model once — users never write a string field name:
+Most applications generate descriptors from schema annotations. The following
+is the lower-level equivalent for adapter or framework authors:
 
 ```dart
 import 'package:beak_core/beak_core.dart';
@@ -79,7 +80,11 @@ final decoded = BeakQuerySpec.fromJson(spec.toJson()); // lossless round-trip
 - `BeakModel` — ORM-agnostic resource metadata: table, columns, relationships.
 - `BeakQuerySpec` — the JSON-serializable query wire contract with copy-builders.
 - `BeakRelationship` — `BeakBelongsTo`, `BeakHasMany`, `BeakBelongsToMany`, …
-- `BeakRule` — validation rules (`BeakRequired`, `BeakMaxLength`, `BeakEmail`, …).
+- `BeakRule` / `BeakRecordRule` — scalar, conditional, cross-field and collection validation.
+- `BeakModelBehavior` / `BeakModelAction` — shared value lifecycle and named actions.
+- `BeakCandidateGraph` — typed final-state graph for transactional business preparation.
+- `BeakSavePlan` / `BeakSaveResult` — graph mutation and explicit persistence outcomes.
+- `BeakSemantic` / `BeakFormatPolicy` — typed codecs, semantic constraints and formatting.
 - `BeakDataSource` — the source-agnostic data boundary both sides speak.
 - `BeakClient` — the thin typed REST transport / raw escape hatch.
 - `BeakStorageDriver` — pluggable file-storage abstraction with upload rules.
@@ -87,7 +92,7 @@ final decoded = BeakQuerySpec.fromJson(spec.toJson()); // lossless round-trip
 ## Status
 
 Pre-1.0, part of the Beak monorepo. Consumed by the
-[reference admin](../../apps/reference_admin). Contributions welcome — see
+[canonical shop](../../examples/clean_beak_config). Contributions welcome — see
 [CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
 
 ## License

@@ -5,7 +5,7 @@ description: How BeakDataSource lets one interface serve worm today and Serverpo
 
 # The data source seam
 
-Every read and write in Beak passes through one interface, `BeakDataSource`. After this page you understand the seam: the interface both sides of Beak speak, the `WormDataSource` that implements it over the worm ORM, and why a future `ServerpodDataSource` can slot in without a line changing in `beak_core` or `beak_backend`.
+Every read and write in Beak passes through one interface, `BeakDataSource`. After this page you understand the seam: the interface both sides of Beak speak, the `WormDataSource` that implements it over the worm ORM, and how `ServerpodDataSource` implements the same contract while keeping persistence in the existing Serverpod backend.
 
 Beak's promise is that your schema classes, columns, and queries describe *what* you want, never *which database* answers. The seam is what makes that true. Above it, handlers and services speak a source-agnostic vocabulary of typed records. Below it, one implementation translates that vocabulary to a real store. Swap the implementation and everything above it keeps working.
 
@@ -53,16 +53,36 @@ flowchart TB
 On the panel side, `HttpBeakDataSource` implements `BeakDataSource` by delegating every call to `BeakClient`, the typed REST transport in `beak_core`. On the server side, `WormDataSource` implements it by translating each call to the worm ORM. The frontend's repository is the catch boundary; the backend's middleware is. Both stand on the same ten methods.
 
 ```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
-final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
+final class HttpBeakDataSource
+    implements
+        BeakDataSource,
+        BeakCapabilityDataSource,
+        BeakSummaryDataSource,
+        BeakExportDataSource,
+        BeakValidationDataSource,
+        BeakManagedUploadClient,
+        BeakUploadUrlClient,
+        BeakCommitDataSource {
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
   /// The transport the source delegates to.
   final BeakClient client;
 
+  // ... validation and remaining CRUD forwarding ...
+
   @override
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
-      client.query(spec.table, spec);
+  BeakCommitCapabilities get commitCapabilities =>
+      const BeakCommitCapabilities(durableReceipts: true);
+
+  @override
+  Future<BeakSaveResult> commit(BeakSavePlan plan) => client.commit(plan);
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
+
+  // ...
+}
 ```
 
 ## WormDataSource: the default over worm
@@ -70,7 +90,13 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
 `WormDataSource` is the implementation Beak ships, and the one the generated `BeakServeHost` wires up for you. It is generic: it works entirely off the model registry, so one instance serves every registered table with no per-model code.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-final class WormDataSource implements BeakDataSource {
+final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
+  /// Creates a data source over [registry] executing on [adapter].
+  ///
+  /// [registry] resolves every table name to its [BeakModel] metadata, so one
+  /// instance serves every registered model. [now] injects the clock stamped
+  /// into soft-delete markers (defaults to [DateTime.now]) — override it for
+  /// deterministic tests.
   WormDataSource(
     this.registry, {
     required DatabaseAdapter adapter,
@@ -83,8 +109,14 @@ final class WormDataSource implements BeakDataSource {
   final BeakModelRegistry registry;
 
   final DatabaseAdapter _adapter;
+
+  /// Adapter used by graph transactions and their durable receipt store.
+  DatabaseAdapter get adapter => _adapter;
   final DateTime Function() _now;
   final WormQueryTranslator _translator;
+
+  /// The column worm's soft-delete scope filters on.
+  static const String softDeleteColumnKey = 'deleted_at';
 ```
 
 You hand it any worm `DatabaseAdapter`: an `InMemoryAdapter` in tests, a SQLite or Postgres adapter in production. The `now` hook stamps soft-delete markers and is overridable for deterministic tests. A read turns a spec into a builder and hydrated rows into records:
@@ -138,7 +170,7 @@ A [`BeakFilter`](../concepts/how-data-flows.md) becomes a worm `PredicateTree`, 
 
 ### The generic record model
 
-Beak models are metadata only, so there is no generated worm class per table. Every row hydrates into one runtime-configured worm model:
+Beak models describe metadata and optional transport bindings; they are not persisted entities. There is no generated worm class per table. Every row hydrates into one runtime-configured worm model:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_record_model.dart"
 final class WormRecordModel extends Model {
@@ -214,15 +246,19 @@ That is also where a different implementation would go in. `BeakServerDefaults.d
 
 ## Why the seam holds
 
-The rule is one line in the class doc, and the whole package layout enforces it:
-
-> This is the concrete implementation Beak ships; a future `ServerpodDataSource` would satisfy the same `BeakDataSource` interface without touching `beak_core` or `beak_backend`.
+`ServerpodDataSource` satisfies the same interface through generated, authenticated
+RPC bindings. Its models can be registered directly in a panel without a Worm
+connection or a second backend.
 
 `beak_core` declares the interface and the wire types (`BeakRecord`, `BeakQuerySpec`, `BeakValue`) and imports neither worm nor Flutter. `beak_backend` is the only package that reads or writes through worm, and it keeps worm behind `WormDataSource`: the translator, the record model, and the field mapper are all internal. A handler or service is typed against `BeakDataSource`, so it cannot reach a worm type even by accident.
 
 One package does re-export worm on purpose: `package:beak/migrations.dart` hands you worm's `Migration`, `Schema` and `Seeder` so you can write the schema and the demo data (see [Seeding](seeding.md)). That is the schema DSL, not the read path. Nothing on the query side of the seam speaks worm.
 
-That is what leaves room for another store. A `beak_serverpod` package could ship a `ServerpodDataSource implements BeakDataSource`, wire it into `BeakServer` in place of `WormDataSource`, and every column, query, filter, block, and CSV export above it would keep working unchanged. The seam is a single interface, and the whole framework is built to depend on it and nothing below.
+The shipped `beak_serverpod` package uses this seam on the client side. Its
+model-owned sources call existing Serverpod endpoints; supported queries and
+mutations are generated from their typed contracts. Unsupported aggregates or
+relation mutations fail explicitly. See [model transports](../extending/model-transports.md)
+for automatic registration and per-model overrides.
 
 ## Continue reading
 

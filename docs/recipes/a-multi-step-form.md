@@ -1,32 +1,17 @@
 ---
-title: Split a long form into steps
-description: Turn a wall of inputs into a sequence that validates as it goes.
+title: A multi-step form
+description: Project reusable sections into a validated wizard.
 ---
 
-# Split a long form into steps
+# A multi-step form
 
-A create form with nine inputs is a wall. Give the resource `formSteps` and each
-step validates before the next one opens:
+Configure a `BeakWizardScreen` from `BeakWizardStep` nodes, or project shared `BeakFormSections` into steps. Beak validates each step, retains values while navigating and saves the complete draft graph on Finish.
 
-```dart title="examples/store/lib/resources/orders.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  formSteps: const [
-    BeakFormStep(
-      title: 'Customer',
-      subtitle: 'Who is buying',
-      icon: OiIcons.user,
-      description:
-          'Pick the customer this order belongs to. Their past orders appear '
-          'on their own page once this one is saved.',
-      columns: [OrderColumns.customerId],
-    ),
-    // ...'Order', 'Money' and 'Delivery', covering every remaining column.
-  ],
-);
+```dart title="examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
 ```
-
-Every form column must appear in exactly one step.
 
 ## Continue reading
 
-- [Multi-step forms](../panel/multi-step-forms.md)
+- [Related guide](../panel/multi-step-forms.md)
+- [All recipes](index.md)

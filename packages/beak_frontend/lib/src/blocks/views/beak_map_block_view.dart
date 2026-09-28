@@ -9,7 +9,7 @@ class _BeakMapBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final values = useState(const <String, num>{});
 
     useEffect(() {

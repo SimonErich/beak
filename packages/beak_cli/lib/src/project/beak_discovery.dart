@@ -241,7 +241,7 @@ final class BeakProjectScanner {
   BeakDiscovery scan({Map<String, String> tablesByModelClass = const {}}) {
     final issues = <BeakDiscoveryIssue>[];
     final models = _scanClasses(
-      modelsDir,
+      '',
       supertype: 'BeakModel',
       issues: issues,
       requireConstConstructor: true,
@@ -531,11 +531,20 @@ final class BeakProjectScanner {
     final overrides = <String, BeakDiscoveredSymbol>{};
     for (final file in _dartFilesUnder(resourcesDir)) {
       final String path = _libRelativePath(file);
+      // Resource-local schemas, screens and configuration classes are not
+      // legacy top-level per-table override functions.
+      if (path.split('/').length != 2) continue;
+      final unit = _parse(file);
+      if (unit.declarations.any(
+        (declaration) => declaration is ClassDeclaration,
+      )) {
+        continue;
+      }
       final String table = path
           .split('/')
           .last
           .replaceAll(RegExp(r'\.dart$'), '');
-      final bool declaresSymbol = _parse(file).declarations.any(
+      final bool declaresSymbol = unit.declarations.any(
         (declaration) =>
             declaration is FunctionDeclaration &&
             declaration.name.lexeme == resourceOverrideSymbol,

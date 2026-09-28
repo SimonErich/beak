@@ -9,7 +9,7 @@ class _BeakCandlestickChartBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final candles = useState(const <BeakCandle>[]);
 
     useEffect(() {

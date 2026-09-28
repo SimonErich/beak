@@ -1,6 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 
 import '../blocks/beak_block.dart';
+import '../localization/beak_localizations.dart';
 
 /// The show-page layout [model] implies.
 ///
@@ -14,7 +15,10 @@ import '../blocks/beak_block.dart';
 /// a column changes the page with no file to regenerate, and a hand-written
 /// panel gets it too.
 // --8<-- [start:beakDefaultDetailLayout]
-BeakBlock beakDefaultDetailLayout(BeakModel model) {
+BeakBlock beakDefaultDetailLayout(
+  BeakModel model, {
+  BeakLocalizations localizations = BeakLocalizations.english,
+}) {
   final List<BeakColumn> detail = model.columnsFor(BeakContext.detail);
   final Set<String> foreignKeys = {
     for (final relation in model.relationships)
@@ -47,20 +51,20 @@ BeakBlock beakDefaultDetailLayout(BeakModel model) {
           children: [
             BeakCardBlock(
               span: const BeakSpan(columns: 8),
-              title: 'Details',
+              title: localizations.details,
               child: BeakFieldGroupBlock(rest.take(8).toList(), columnCount: 2),
             ),
             if (rest.length > 8)
               BeakCardBlock(
                 span: const BeakSpan(columns: 4),
-                title: 'More',
+                title: localizations.more,
                 child: BeakFieldGroupBlock(rest.skip(8).toList()),
               ),
           ],
         ),
       if (toMany.isNotEmpty)
         BeakCardBlock(
-          title: 'Related',
+          title: localizations.related,
           child: BeakTabsBlock(
             tabs: [
               for (final relation in toMany)

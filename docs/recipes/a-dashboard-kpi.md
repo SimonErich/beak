@@ -1,33 +1,17 @@
 ---
-title: A KPI on the dashboard
-description: An aggregate computed in the database, rendered as a headline number.
+title: A dashboard KPI
+description: Load counts and monetary metrics on a custom page.
 ---
 
-# A KPI on the dashboard
+# A dashboard KPI
 
-Add `lib/dashboard.dart` declaring `BeakScreen beakDashboard()` and it replaces
-the generated page at `/`. A KPI is an aggregate spec plus a title: the number
-is computed in the database, and no rows are loaded to produce it.
+Use `BeakMetricBlock` with an aggregate specification for standard metrics. Use a custom widget for multi-part calculations and format its values through the panel policy. The shop overview demonstrates both.
 
-```dart title="examples/store/lib/dashboard.dart"
-const BeakBlock _kpis = BeakGridBlock(
-  columns: 4,
-  children: [
-    BeakKpiBlock(
-      title: 'Revenue',
-      value: BeakAggregateSpec.sum(table: 'orders', column: OrderColumns.total),
-      format: BeakKpiFormat.currency,
-      currencySymbol: '€',
-    ),
-    BeakKpiBlock(
-      title: 'Orders',
-      value: BeakAggregateSpec.count(table: 'orders'),
-    ),
-    // ...'Awaiting payment' and 'Out of stock', each a filtered count.
-  ],
-);
+```dart title="examples/clean_beak_config/lib/overview.dart"
+--8<-- "examples/clean_beak_config/lib/overview.dart"
 ```
 
 ## Continue reading
 
-- [Dashboards](../panel/dashboards.md)
+- [Related guide](../panel/dashboards.md)
+- [All recipes](index.md)

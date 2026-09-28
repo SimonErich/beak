@@ -102,8 +102,8 @@ final class InMemoryBeakDataSource implements BeakDataSource {
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     final BeakModel model = registry.byTableOrThrow(spec.table);
     final matched = _visibleRows(model, withTrashed: spec.withTrashed)
-        .where((record) => _matchesFilter(record, spec.filter))
-        .where((record) => _matchesSearch(record, spec.search))
+        .where((record) => _matchesFilter(model, record, spec.filter))
+        .where((record) => _matchesSearch(model, record, spec.search))
         .toList();
 
     _sort(matched, spec.sorts);
@@ -233,6 +233,13 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     String relationKey,
     List<Object> relatedIds,
   ) async {
+    final relationMetadata = registry
+        .byTableOrThrow(table)
+        .relationshipByKey(relationKey);
+    if (relationMetadata is BeakHasMany) {
+      _linkChildren(relationMetadata, id, relatedIds, detach: false);
+      return;
+    }
     final relation = _pivotRelation(table, relationKey);
     final links = _pivots.putIfAbsent(relation.pivotTable, () => {});
     for (final relatedId in relatedIds) {
@@ -247,6 +254,13 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     String relationKey,
     List<Object> relatedIds,
   ) async {
+    final relationMetadata = registry
+        .byTableOrThrow(table)
+        .relationshipByKey(relationKey);
+    if (relationMetadata is BeakHasMany) {
+      _linkChildren(relationMetadata, id, relatedIds, detach: true);
+      return;
+    }
     final relation = _pivotRelation(table, relationKey);
     final links = _pivots[relation.pivotTable];
     if (links == null) {
@@ -257,13 +271,36 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     }
   }
 
+  void _linkChildren(
+    BeakHasMany relation,
+    Object ownerId,
+    List<Object> ids, {
+    required bool detach,
+  }) {
+    final rows = _rows[relation.relatedTable];
+    if (rows == null) return;
+    for (final id in ids) {
+      final row = rows['$id'];
+      if (row == null || (detach && row[relation.foreignKey]?.raw != ownerId)) {
+        continue;
+      }
+      rows['$id'] = BeakRecord(
+        values: {
+          ...row.values,
+          relation.foreignKey: BeakValue.of(detach ? null : ownerId),
+        },
+        relations: row.relations,
+      );
+    }
+  }
+
   @override
   Future<num> aggregate(BeakAggregateSpec spec) async {
     final BeakModel model = registry.byTableOrThrow(spec.table);
     final matched = _visibleRows(
       model,
       withTrashed: spec.withTrashed,
-    ).where((record) => _matchesFilter(record, spec.filter)).toList();
+    ).where((record) => _matchesFilter(model, record, spec.filter)).toList();
 
     if (spec.function == BeakAggregateFunction.count) {
       return matched.length;
@@ -358,7 +395,7 @@ final class InMemoryBeakDataSource implements BeakDataSource {
         model,
         relation,
         record,
-      ).where((row) => _matchesFilter(row, load.filter)).toList();
+      ).where((row) => _matchesFilter(related, row, load.filter)).toList();
       relations[load.relationKey] = [
         for (final row in matched)
           await _withRelations(related, row, load.nested),
@@ -405,18 +442,67 @@ final class InMemoryBeakDataSource implements BeakDataSource {
   }
 
   /// Whether [record] satisfies [filter]; a null filter matches everything.
-  bool _matchesFilter(BeakRecord record, BeakFilter? filter) =>
+  bool _matchesFilter(BeakModel model, BeakRecord record, BeakFilter? filter) =>
       switch (filter) {
         null => true,
         BeakAndFilter(:final filters) => filters.every(
-          (child) => _matchesFilter(record, child),
+          (child) => _matchesFilter(model, record, child),
         ),
         BeakOrFilter(:final filters) => filters.any(
-          (child) => _matchesFilter(record, child),
+          (child) => _matchesFilter(model, record, child),
         ),
         BeakFieldFilter(:final columnKey, :final operator, :final value) =>
-          _matchesField(record[columnKey], operator, value),
+          _pathValues(
+            model,
+            record,
+            columnKey,
+          ).any((actual) => _matchesField(actual, operator, value)),
+        BeakRelationFilter(:final relationKey, :final filter) =>
+          _matchesRelated(model, record, relationKey, filter),
       };
+
+  BeakRelationship _relationOf(BeakModel model, String key) =>
+      model.relationshipByKey(key) ??
+      (throw BeakConfigurationException(
+        'Model "${model.table}" has no relationship "$key".',
+      ));
+
+  Iterable<BeakValue?> _pathValues(
+    BeakModel model,
+    BeakRecord record,
+    String path,
+  ) sync* {
+    final split = path.indexOf('.');
+    if (split < 0) {
+      if (model.columnByKey(path) == null) {
+        throw BeakConfigurationException(
+          'Model "${model.table}" has no column "$path".',
+        );
+      }
+      yield record[path];
+      return;
+    }
+    final relation = _relationOf(model, path.substring(0, split));
+    final target = registry.byTableOrThrow(relation.relatedTable);
+    for (final row in _relatedRows(model, relation, record)) {
+      yield* _pathValues(target, row, path.substring(split + 1));
+    }
+  }
+
+  bool _matchesRelated(
+    BeakModel model,
+    BeakRecord record,
+    String key,
+    BeakFilter filter,
+  ) {
+    final relation = _relationOf(model, key);
+    final target = registry.byTableOrThrow(relation.relatedTable);
+    return _relatedRows(
+      model,
+      relation,
+      record,
+    ).any((row) => _matchesFilter(target, row, filter));
+  }
 
   /// Whether [actual] satisfies [operator] against [operand].
   bool _matchesField(
@@ -467,10 +553,11 @@ final class InMemoryBeakDataSource implements BeakDataSource {
             low != null && high != null && low >= 0 && high <= 0;
         return operator == BeakOperator.between ? within : !within;
       case BeakOperator.like:
+        return _like(left, right, caseSensitive: true);
       case BeakOperator.contains:
         return _text(left).contains(_text(right));
       case BeakOperator.ilike:
-        return _text(left).toLowerCase().contains(_text(right).toLowerCase());
+        return _like(left, right, caseSensitive: false);
       case BeakOperator.startsWith:
         return _text(left).startsWith(_text(right));
       case BeakOperator.endsWith:
@@ -478,16 +565,21 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     }
   }
 
-  /// Whether [record] matches [search] in any of its declared columns.
-  bool _matchesSearch(BeakRecord record, BeakSearch? search) {
-    if (search == null || search.term.isEmpty) {
-      return true;
-    }
-    final String term = search.term.toLowerCase();
-    return search.columnKeys.any(
-      (key) => _text(record[key]?.raw).toLowerCase().contains(term),
-    );
+  bool _like(Object? value, Object? pattern, {required bool caseSensitive}) {
+    if (value == null || pattern == null) return false;
+    final expression = RegExp.escape(
+      _text(pattern),
+    ).replaceAll('%', '.*').replaceAll('_', '.');
+    return RegExp(
+      '^$expression\$',
+      caseSensitive: caseSensitive,
+      dotAll: true,
+    ).hasMatch(_text(value));
   }
+
+  /// Whether [record] matches [search] in any of its declared columns.
+  bool _matchesSearch(BeakModel model, BeakRecord record, BeakSearch? search) =>
+      _matchesFilter(model, record, beakSearchFilter(search, model, registry));
 
   /// Orders [records] by [sorts], first key first.
   void _sort(List<BeakRecord> records, List<BeakSort> sorts) {

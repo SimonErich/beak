@@ -27,18 +27,36 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Widget articleWizard() => BeakDataForm(
+  Widget articleWizard() => BeakConfiguredForm(
     model: const ArticleModel(),
     dataSource: dataSource,
-    steps: const [
-      BeakFormStep(
+    steps: [
+      BeakWizardStep(
         title: 'Basics',
         description: 'Name the article.',
-        columns: [ArticleColumns.title, ArticleColumns.summary],
+        children: [
+          const BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.title,
+          ).input(),
+          const BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.summary,
+          ).input(),
+        ],
       ),
-      BeakFormStep(
+      BeakWizardStep(
         title: 'Pricing',
-        columns: [ArticleColumns.price, ArticleColumns.stock],
+        children: [
+          const BeakScalarField<double>(
+            model: ArticleModel(),
+            column: ArticleColumns.price,
+          ).input(),
+          const BeakScalarField<int>(
+            model: ArticleModel(),
+            column: ArticleColumns.stock,
+          ).input(),
+        ],
       ),
     ],
   );
@@ -48,7 +66,7 @@ void main() {
   ) async {
     await pump(tester, articleWizard());
 
-    expect(find.byType(OiWizard), findsOneWidget);
+    expect(find.text('1 / 2 — Basics'), findsOneWidget);
     // Step one's description and its field are visible…
     expect(find.text('Name the article.'), findsOneWidget);
     expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
@@ -77,7 +95,7 @@ void main() {
 
     // Still on step one (its field present, step two's absent) with a notice.
     expect(find.byType(OiAfNumberInput<Enum>), findsNothing);
-    expect(find.textContaining('complete the required fields'), findsOneWidget);
+    expect(find.text('This field is required.'), findsOneWidget);
   });
 
   testWidgets('advances to the next step once the step is valid', (
@@ -100,22 +118,22 @@ void main() {
   testWidgets(
     'empty steps fall through to a full flat form, not an empty one',
     (tester) async {
-      // `steps: const []` must not produce a wizard *or* a field-less form: the
+      // `steps: []` must not produce a wizard *or* a field-less form: the
       // controller and the render switch both treat empty steps as "no wizard",
       // so every model field is registered and rendered flat with a submit CTA.
       await pump(
         tester,
-        BeakDataForm(
+        BeakConfiguredForm(
           model: const ArticleModel(),
           dataSource: dataSource,
-          steps: const [],
+          steps: [],
         ),
       );
 
       expect(find.byType(OiWizard), findsNothing);
       expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
       expect(find.byType(OiAfNumberInput<Enum>), findsWidgets);
-      expect(find.text('Create'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
     },
   );
 }

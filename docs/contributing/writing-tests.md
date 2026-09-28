@@ -212,21 +212,20 @@ behavior assertions.
 end-to-end proof that generated code compiles and the documented features still
 work.
 
-- `examples/store/test/widget_test.dart` boots the panel over an
-  `InMemoryBeakDataSource` and asserts the coverage matrices: every column kind
-  and every relationship kind Beak has must be demonstrated somewhere in the
-  example. A new column kind nothing uses fails that test, which is the reminder
-  to teach it.
-- `examples/store/test/api_scenario.dart` is the API surface asserted once and
-  run twice: `api_sqlite_test.dart` boots the real server on `sqlite::memory:`
-  in the main gate, and `test/e2e/postgres_test.dart` runs the identical
-  assertions against Postgres under the `e2e` tag.
-- `examples/superdashboard/test/` holds the scale checks: 49 models, 17 of them
-  navigable, every custom screen reachable, and schema parity between each model
-  and the migration that creates its table.
+- `examples/clean_beak_config/test/shop_widget_test.dart` renders actual form
+  layouts at narrow and wide sizes and checks state retained across tabs.
+- `examples/clean_beak_config/test/custom_shop_test.dart` covers custom summaries,
+  refresh, errors and staged variant generation without writes during preview.
+- `examples/clean_beak_config/test/shop_api_test.dart` exercises the real SQLite
+  server, including actions, snapshots, rollback and relationship constraints.
+- `examples/clean_beak_config/test/order_form_test.dart` sends a configured form
+  through the real HTTP graph provider; a plain CRUD fake cannot promise model
+  lifecycle transactions.
+- `examples/clean_beak_config/test/shop_migration_test.dart` proves additive upgrades
+  and repeatable seeding preserve existing records.
 
-When you add a feature to Beak, demonstrate it in an example and let one of
-those tests hold it there.
+Use package-level tests for framework features absent from the example. Do not
+require a separate showcase application merely to exercise every union member.
 
 ## The coverage floor
 
@@ -234,37 +233,14 @@ The default floor is 85% line coverage per package. `melos run coverage`
 (`tool/check_coverage.dart`) computes the number and fails the build below the
 threshold:
 
-```dart title="tool/check_coverage.dart"
-const Map<String, int> thresholdOverridesPct = {
-  'beak_core': 100,
-  'beak_backend': 90,
-  'beak_frontend': 85,
-  'beak_cli': 85,
-  // A testing toolkit whose own tests are thin would be a poor advert.
-  'beak_test': 90,
-  'quickstart': 50,
-  'store': 70,
-  'superdashboard': 85,
-  'embedded': 85,
-};
-```
+The current per-package thresholds are defined in `tool/check_coverage.dart`.
+Core requires 100%; backend, frontend and other package overrides are explicit
+in that source. Do not lower a threshold or exclude newly added logic to pass a gate.
 
-`beak_core` is pure and holds 100. `quickstart` and `store` hold a lower bar
-deliberately: most of what an example declares is data, a screen's block tree or
-a resource's actions, that a widget suite instantiates without executing line by
-line. What has to work is checked directly instead, by the API scenario and by
-the coverage matrices, which fail when a feature stops being demonstrated at
-all.
-
-Coverage is a floor, not a goal. Cover branches and error paths, not just the
-happy one; a package at 90% with an untested failure mode is not done. And
-remember the [coverage gotcha](index.md#the-coverage-gotcha): the tool reuses
-existing `lcov.info` files, so delete stale reports before you gate:
-
-```bash
-rm -rf packages/*/coverage examples/*/coverage
-melos run test && melos run coverage
-```
+`beak_core` is pure shared logic and carries the strictest floor. The canonical
+shop also has direct workflow tests: a declarative configuration can be correct
+without every list literal adding a useful coverage signal. Preserve focused
+failure and integration tests when refactoring the example.
 
 ## Continue reading
 

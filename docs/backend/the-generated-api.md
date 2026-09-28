@@ -1,6 +1,6 @@
 ---
 title: The generated API
-description: The REST surface beakApiRouter and beakResourceRouter mint for every registered model: query, CRUD, restore, batch, relations, aggregate, export, upload, search, and the health probes.
+description: The generated REST surface for queries, graph saves, named actions, capabilities, validation, CRUD, export, uploads and health probes.
 ---
 
 # The generated API
@@ -9,9 +9,9 @@ After this page you will know every endpoint a registered model gets, and where
 those endpoints come from: two functions, `beakApiRouter` and
 `beakResourceRouter`, that generate the whole surface from the registry.
 
-You do not write routes in Beak, and since 0.9 you do not write the registry
-either. A file under `lib/models/` is a resource; `beak prepare` puts it in the
-registry; the router loop turns each registered model into a REST resource. This
+Model routes and registry wiring are generated. A schema annotated with
+`@Resource()` is discovered by `beak prepare` and added to the registry; the
+router loop turns each registered model into a REST resource. This
 page is the map of what that produces. For the exhaustive request and response
 shapes, see the [REST API reference](../reference/rest-api.md).
 
@@ -33,6 +33,9 @@ Handler beakApiRouter({
   BeakStorageDriver? storage,
   DateTime Function()? now,
   String Function()? generateId,
+  BeakSavePlanPreparer? preparePlan,
+  BeakSavePlanFinalizer? finalizePlan,
+  Set<String> graphOnlyTables = const {},
 }) {
 ```
 
@@ -45,31 +48,27 @@ become HTTP/JSON.
     Setting `hidden: true` for a table in `beak.yaml` keeps it out of the
     navigation. The model is still registered, so it still has every route below,
     and it is still reachable as the far side of a relationship. `order_items` in
-    the store is exactly that: no sidebar entry, full API.
+    the shop is exactly that: no sidebar entry, full API subject to policy.
 
 ## The routes per model
 
 `beakResourceRouter` builds one model's routes, relative to its `/api/{table}`
-mount point. The list is short and complete:
+mount point. The tables below describe the resource and shared routes:
 
-```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
-  return Router()
-    ..post('/query', handlers.query)
-    ..post('/aggregate', handlers.aggregate)
-    ..post('/batch', handlers.batch)
-    ..post('/', handlers.create)
-    ..get('/<id>', handlers.getOne)
-    ..patch('/<id>', handlers.update)
-    ..delete('/<id>', handlers.delete)
-    ..post('/<id>/restore', handlers.restore)
-    ..post('/<id>/relations/<relationKey>/attach', handlers.attach)
-    ..post('/<id>/relations/<relationKey>/detach', handlers.detach);
-```
+The resource router registers ordinary CRUD and query operations from the
+registry. Capability and validation endpoints share the same model metadata;
+transactional graph commits and named actions use the commit router.
 
-Spelled out against the store's `products` table (served on port 8080), that is:
+For tables declared in `graphOnlyTables`, the mutation routes require a graph
+commit and reject direct writes. Read routes stay available. See
+[Transactional business rules](graph-business-rules.md) for the server hook.
+
+Spelled out against the shop's `products` table (served on port 8080), that is:
 
 | Method and path | What it does |
 | --- | --- |
+| `GET /api/products/capabilities` | Return field allowlists and authorized action names for create; `?id=<id>` resolves update capabilities for a visible row. Workflow availability is checked separately. |
+| `POST /api/products/validate` | Preflight a `BeakValidationRequest` against shared model rules and record eligibility without saving. Returns field errors. |
 | `POST /api/products/query` | Run a `BeakQuerySpec`: filter, sort, search, paginate, load relations. Returns a `BeakPage`. |
 | `POST /api/products/aggregate` | Compute a `BeakAggregateSpec`: count, sum, or avg. Returns `{"value": ...}`. |
 | `POST /api/products/batch` | Fetch the records named by `{"ids": [...]}` in one query. |
@@ -100,8 +99,11 @@ file route sit at the top level.
 
 | Method and path | Present when | What it does |
 | --- | --- | --- |
+| `POST /api/commits` | always | Submit a typed `BeakSavePlan`, including an optional named action and arguments. Returns per-operation outcomes. |
+| `GET /api/commits/<saveId>` | always | Recover the caller's saved receipt with current authorization applied. |
 | `POST /api/products/export` | always | Stream a CSV attachment for a posted `BeakQuerySpec`. |
 | `POST /api/products/<columnKey>/upload` | `uploads` configured | Upload a file for a column. |
+| `GET /api/products/<columnKey>/upload?key=<key>` | `uploads` configured | Resolve an existing upload URL after field, key and row-scope authorization. |
 | `DELETE /api/products/<columnKey>/upload` | `uploads` configured | Remove an uploaded file. |
 | `GET /api/search?q=...` | always | Global search across all policy-viewable models. Also takes `perModel` and `tables`. |
 | `POST /api/auth/login` | `auth` configured | Exchange credentials for a session token. |
@@ -110,6 +112,12 @@ file route sit at the top level.
 | `GET /healthz` | always | Liveness. Answers `200` as long as the process serves, without touching the database. |
 | `GET /readyz` | always | Readiness. `200` when the data source answers, `503` with the cause when it does not. |
 | `GET /uploads/<key>` | local-disk storage | Serve a file the local driver wrote, read-only. |
+
+Named model actions use the graph commit endpoint rather than separate action
+routes. Commit receipts distinguish applied, unapplied and unknown outcomes;
+clients recover an uncertain save using its existing save ID before deciding
+what to submit next. See [Graph saves](../reference/rest-api.md#graph-saves-and-recovery) and
+[Transactional business rules](graph-business-rules.md).
 
 The last three are mounted first and outside `/api`:
 
@@ -144,17 +152,9 @@ Each route points at a method on `BeakCrudHandlers`. Those methods do four thing
 and no more: check the policy, parse the body into a typed record or spec, call
 the service, and encode the result. The `query` handler is representative.
 
-```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-  Future<Response> query(Request request) async {
-    _requireView(request);
-    final spec = readBeakSpec(
-      await readJsonObject(request),
-      BeakQuerySpec.fromJson,
-    );
-    final page = await service.query(spec, scope: _scope(request));
-    return _json(200, page.toJson((record) => record.toJson()));
-  }
-```
+Query handling decodes the typed specification, authorizes requested paths,
+applies row and field policy, and returns a page of readable records. Hidden
+fields are not exposed through a different projection or relationship query.
 
 No business logic, no `try/catch` for its own errors. Validation and defaults
 live in the service below; error-to-HTTP mapping lives in the middleware above.
@@ -169,7 +169,7 @@ If a client posts a malformed spec, the handler lets the decode throw a
 
     ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
       BeakFilter? _scope(Request request) =>
-          beakRowScope(policy, beakPrincipal(request), service.model.table);
+          _authorizer(request).scopeFor(service.model.table);
     ```
 
     The scope is enforced in the service, not per route, so there is no endpoint

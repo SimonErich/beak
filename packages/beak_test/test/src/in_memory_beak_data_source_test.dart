@@ -35,6 +35,79 @@ BeakRecord product(
 );
 
 void main() {
+  test(
+    'relation search and grouped filters use matching related rows',
+    () async {
+      final source = sourceWith()
+        ..seed(_category, [
+          BeakRecord.fromRow({'id': 'c1', 'name': 'Coffee'}),
+        ])
+        ..seed(_product, [
+          product('p1', name: 'Beans', categoryId: 'c1'),
+          product('p2', name: 'Tea'),
+        ]);
+      final result = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          search: BeakSearch('coffee', ['category.name']),
+        ),
+      );
+      expect(result.items.map((row) => row['name']?.raw), ['Beans']);
+      final grouped = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          filter: BeakRelationFilter(
+            'category',
+            BeakFieldFilter.forKey(
+              'name',
+              BeakOperator.eq,
+              BeakStringValue('Coffee'),
+            ),
+          ),
+        ),
+      );
+      expect(grouped.total, 1);
+    },
+  );
+  test(
+    'automatic text search uses SQL wildcard semantics in the test source',
+    () async {
+      final source = sourceWith()
+        ..seed(_product, [
+          product('1', name: 'News'),
+          product('2', name: 'Other'),
+        ]);
+      final results = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          search: BeakSearch('new', ['name']),
+        ),
+      );
+      expect(results.items.map((row) => row['id']?.raw), ['1']);
+      final wildcard = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          filter: BeakFieldFilter.forKey(
+            'name',
+            BeakOperator.ilike,
+            BeakStringValue('n_w%'),
+          ),
+        ),
+      );
+      expect(wildcard.items.map((row) => row['id']?.raw), ['1']);
+      final anchored = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          filter: BeakFieldFilter.forKey(
+            'name',
+            BeakOperator.ilike,
+            BeakStringValue('ew'),
+          ),
+        ),
+      );
+      expect(anchored.items, isEmpty);
+    },
+  );
   // The full interface contract, run against the reference implementation.
   runBeakDataSourceContract(
     'InMemoryBeakDataSource',
@@ -349,6 +422,25 @@ void main() {
     test('detaching from an untouched pivot is a no-op', () async {
       await source.detach('products', '1', 'tags', ['t1']);
       expect(await tagCount(), 0);
+    });
+
+    test('has-many links change only the requested owner membership', () async {
+      source.seed(_product, [
+        product('1', categoryId: 'c1'),
+        product('2', categoryId: 'c2'),
+      ]);
+      await source.detach('categories', 'c1', 'products', [
+        '1',
+        '2',
+        'missing',
+      ]);
+      expect(
+        (await source.getOne('products', '1'))?['category_id']?.raw,
+        isNull,
+      );
+      expect((await source.getOne('products', '2'))?['category_id']?.raw, 'c2');
+      await source.attach('categories', 'c1', 'products', ['2']);
+      expect((await source.getOne('products', '2'))?['category_id']?.raw, 'c1');
     });
 
     test('a non-pivot relation cannot be attached', () {

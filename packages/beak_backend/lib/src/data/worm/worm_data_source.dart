@@ -24,7 +24,7 @@ import 'worm_record_model.dart';
 ///   BeakQuerySpec(table: 'products'),
 /// );
 /// ```
-final class WormDataSource implements BeakDataSource {
+final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   /// Creates a data source over [registry] executing on [adapter].
   ///
   /// [registry] resolves every table name to its [BeakModel] metadata, so one
@@ -43,6 +43,9 @@ final class WormDataSource implements BeakDataSource {
   final BeakModelRegistry registry;
 
   final DatabaseAdapter _adapter;
+
+  /// Adapter used by graph transactions and their durable receipt store.
+  DatabaseAdapter get adapter => _adapter;
   final DateTime Function() _now;
   final WormQueryTranslator _translator;
 
@@ -82,23 +85,36 @@ final class WormDataSource implements BeakDataSource {
   @override
   Future<BeakRecord> create(String table, BeakRecord data) async {
     registry.byTableOrThrow(table);
-    final row = await _adapter.insert(
-      InsertDescriptor(table: table, values: data.toRow()),
-    );
-    return BeakRecord.fromRow(row);
+    try {
+      final row = await _adapter.insert(
+        InsertDescriptor(table: table, values: data.toRow()),
+      );
+      return BeakRecord.fromRow(row);
+    } on UniqueConstraintException {
+      throw const BeakConflictException(
+        'A value that must be unique is already in use.',
+      );
+    }
   }
 
   @override
   Future<BeakRecord> update(String table, Object id, BeakRecord data) async {
     final model = registry.byTableOrThrow(table);
     final values = {...data.toRow()}..remove(model.primaryKey.key);
-    final int affected = await _adapter.update(
-      UpdateDescriptor(
-        table: table,
-        values: values,
-        where: _visibleRowPredicate(model, id),
-      ),
-    );
+    final int affected;
+    try {
+      affected = await _adapter.update(
+        UpdateDescriptor(
+          table: table,
+          values: values,
+          where: _visibleRowPredicate(model, id),
+        ),
+      );
+    } on UniqueConstraintException {
+      throw const BeakConflictException(
+        'A value that must be unique is already in use.',
+      );
+    }
     if (affected == 0) {
       throw BeakNotFoundException(_missingRecord(model, id));
     }
@@ -309,6 +325,108 @@ final class WormDataSource implements BeakDataSource {
       BeakAggregateFunction.avg =>
         await builder.avg(_numericField(model, spec)) ?? 0,
     };
+  }
+
+  @override
+  Future<BeakSummaryResult> summary(BeakSummarySpec spec) async {
+    final model = registry.byTableOrThrow(spec.table);
+    final group = spec.groupByKey == null
+        ? null
+        : model.columnByKey(spec.groupByKey!);
+    if (spec.groupByKey != null && group == null) {
+      throw BeakValidationException(
+        'Unknown summary group "${spec.groupByKey}".',
+      );
+    }
+    if (group is BeakJsonColumn || group is BeakCustomColumn) {
+      throw const BeakValidationException(
+        'Summary groups must be scalar columns.',
+      );
+    }
+    for (final measure in spec.measures) {
+      if (measure.columnKey case final key?) {
+        final column = model.columnByKey(key);
+        if (column is! BeakIntColumn && column is! BeakDecimalColumn) {
+          throw BeakValidationException(
+            'Summary measure "$key" must be numeric.',
+          );
+        }
+      }
+    }
+    final filter = BeakFilter.allOf([
+      ?spec.filter,
+      ?beakSearchFilter(spec.search, model, registry),
+    ]);
+    if (group == null) {
+      return BeakSummaryResult(
+        rows: [
+          BeakSummaryRow(
+            group: const BeakNullValue(),
+            values: {
+              for (final measure in spec.measures)
+                measure.key: await aggregate(
+                  BeakAggregateSpec.forKey(
+                    table: spec.table,
+                    function: measure.columnKey == null
+                        ? BeakAggregateFunction.count
+                        : BeakAggregateFunction.sum,
+                    columnKey: measure.columnKey,
+                    filter: BeakFilter.allOf([?filter, ?measure.filter]),
+                    withTrashed: spec.withTrashed,
+                  ),
+                ),
+            },
+          ),
+        ],
+      );
+    }
+    final values = <Object?, Map<String, num>>{};
+    for (final measure in spec.measures) {
+      var predicate = _translator.predicateFor(
+        BeakFilter.allOf([?filter, ?measure.filter]),
+        model,
+      );
+      if (model.softDeletes && !spec.withTrashed) {
+        const visible = LeafNode(
+          Predicate(fieldName: softDeleteColumnKey, operator: Operator.isNull),
+        );
+        predicate = predicate == null ? visible : predicate.and(visible);
+      }
+      final groups = await _adapter.aggregateGrouped(
+        AggregateDescriptor(
+          table: spec.table,
+          function: measure.columnKey == null
+              ? AggregateFunction.count
+              : AggregateFunction.sum,
+          column: measure.columnKey,
+          groupBy: group.key,
+          where: predicate,
+        ),
+      );
+      for (final entry in groups.entries) {
+        (values[entry.key] ??= {})[measure.key] = entry.value;
+      }
+    }
+    final keys = values.keys.toList()
+      ..sort((a, b) {
+        if (a == null) return b == null ? 0 : -1;
+        if (b == null) return 1;
+        if (a is num && b is num) return a.compareTo(b);
+        return a.toString().compareTo(b.toString());
+      });
+    return BeakSummaryResult(
+      truncated: keys.length > spec.limit,
+      rows: [
+        for (final key in keys.take(spec.limit))
+          BeakSummaryRow(
+            group: beakValueForColumn(group, key),
+            values: {
+              for (final measure in spec.measures)
+                measure.key: values[key]?[measure.key] ?? 0,
+            },
+          ),
+      ],
+    );
   }
 
   QueryBuilder<WormRecordModel> _scopedBuilder(BeakModel model) =>

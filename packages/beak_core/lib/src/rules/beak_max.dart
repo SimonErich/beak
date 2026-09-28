@@ -14,6 +14,8 @@ final class BeakMax extends BeakRule {
   @override
   String? validate(Object? value) => switch (value) {
     final num number when number > max => 'Must be at most $max.',
+    final BeakDecimal amount when _compareDecimalBound(amount, max) > 0 =>
+      'Must be at most $max.',
     _ => null,
   };
 }

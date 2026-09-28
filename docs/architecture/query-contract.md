@@ -139,21 +139,26 @@ Note the difference between `raw` and `toJson`: `raw` unwraps a `BeakDateTimeVal
 
 ## The filter tree: `BeakFilter`
 
-Predicates form a sealed tree with three shapes: a leaf comparison and two combinators.
+Predicates form a sealed tree with scalar comparisons, boolean combinators, and relationship scopes.
 
 | Node | What it holds | What it means |
 | --- | --- | --- |
 | `BeakFieldFilter` | a column, a `BeakOperator`, a `BeakValue` | Compares one column against one operand. |
 | `BeakAndFilter` | `List<BeakFilter> filters` | Matches records satisfying every child. |
 | `BeakOrFilter` | `List<BeakFilter> filters` | Matches records satisfying at least one child. |
+| `BeakRelationFilter` | relationship key and a child filter | Matches when one related record satisfies the entire child filter. |
 
-The base class is `sealed`, so the set is closed and a `switch` over it has to be exhaustive. Each node tags itself with a `type` discriminator (`field`, `and`, `or`) on the wire, and `fromJson` switches on it:
+The base class is `sealed`, so the set is closed and a `switch` over it has to be exhaustive. Each node tags itself with a `type` discriminator (`field`, `and`, `or`, `relation`) on the wire, and `fromJson` switches on it:
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
 static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
   {'type': 'field'} => _fieldFromJson(json),
   {'type': 'and'} => BeakAndFilter(_childrenFromJson(json, 'BeakAndFilter')),
   {'type': 'or'} => BeakOrFilter(_childrenFromJson(json, 'BeakOrFilter')),
+  {'type': 'relation'} => BeakRelationFilter(
+    requireJsonString(json, 'relation', 'BeakRelationFilter'),
+    BeakFilter.fromJson(requireJsonMap(json, 'filter', 'BeakRelationFilter')),
+  ),
   _ => throw BeakConfigurationException('Malformed BeakFilter JSON: $json.'),
 };
 ```
@@ -240,13 +245,36 @@ QueryBuilder<WormRecordModel> builderFor(
 Filters translate through an exhaustive switch over the sealed tree. An unknown column key, or an operand an operator cannot use, throws `BeakConfigurationException` (which the error middleware maps to `422`, not `500`).
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
-PredicateTree? predicateFor(BeakFilter? filter, BeakModel model) =>
-    switch (filter) {
-      null => null,
-      final BeakFieldFilter field => _leafFor(field, model),
-      final BeakAndFilter and => _composite(and.filters, model, isAnd: true),
-      final BeakOrFilter or => _composite(or.filters, model, isAnd: false),
-    };
+PredicateTree? predicateFor(
+    BeakFilter? filter,
+    BeakModel model, {
+    String? qualifier,
+    int depth = 0,
+  }) => switch (filter) {
+    null => null,
+    final BeakFieldFilter field => _leafFor(field, model, qualifier, depth),
+    final BeakAndFilter and => _composite(
+      and.filters,
+      model,
+      isAnd: true,
+      qualifier: qualifier,
+      depth: depth,
+    ),
+    final BeakOrFilter or => _composite(
+      or.filters,
+      model,
+      isAnd: false,
+      qualifier: qualifier,
+      depth: depth,
+    ),
+    BeakRelationFilter(:final relationKey, :final filter) => _relationPredicate(
+      model,
+      relationKey,
+      filter,
+      qualifier,
+      depth,
+    ),
+  };
 ```
 
 The leaf translation is where the operator table becomes code. Note the substring operators building their `ilike` patterns from the operand:
@@ -266,7 +294,9 @@ BeakOperator.endsWith => predicate(
 ),
 ```
 
-Relation loads become batched eager-load paths, a search becomes a grouped OR of case-insensitive matches over the searchable columns, and a soft-deleting model is scoped with worm's `SoftDeleteScope` unless `withTrashed` lifts it. The result is a builder the data source runs with `count()` for the total and `get()` for the page.
+Related scalar predicates become correlated `EXISTS` expressions, avoiding duplicate parent rows and inflated pagination counts. A `BeakRelationFilter` groups conditions on the same child. The backend applies related-model policies inside that same scope, including search and export.
+
+Relation loads become batched eager-load paths, a search becomes a grouped OR of case-insensitive text matches and typed equality for numeric, boolean, and timestamp columns, and a soft-deleting model is scoped with worm's `SoftDeleteScope` unless `withTrashed` lifts it. The result is a builder the data source runs with `count()` for the total and `get()` for the page.
 
 ## Why the contract looks like this
 
@@ -274,7 +304,7 @@ Three properties fall out of the design, and each one is an invariant the rest o
 
 - **Lossless.** Every `toJson` writes all keys, `fromJson` restores the same defaults the constructor declares, and the `dateTime` tag removes the one genuine ambiguity. A spec that survives the wire is the spec you sent, which a golden test pins byte-for-byte.
 - **No `dynamic`, ever.** `BeakValue` is the escape hatch that is not one: operands are typed on both sides, so a filter cannot smuggle an untyped value past the type system.
-- **ORM-neutral.** The spec speaks column keys, not database columns. `WormQueryTranslator` is the only code that knows about worm, so a future `ServerpodDataSource` would ship its own translator and touch nothing here.
+- **ORM-neutral.** The spec speaks column keys, not database columns. `WormQueryTranslator` is the only code that knows about worm, so `ServerpodDataSource` uses its own typed query adapter without changing this contract.
 
 ## Continue reading
 

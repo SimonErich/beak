@@ -39,6 +39,8 @@ import '../common/json_support.dart';
 ///     '$columnKey ${operator.name}',
 ///   BeakAndFilter(:final filters) => filters.map(describe).join(' AND '),
 ///   BeakOrFilter(:final filters) => filters.map(describe).join(' OR '),
+///   BeakRelationFilter(:final relationKey, :final filter) =>
+///     '$relationKey WHERE ${describe(filter)}',
 /// };
 /// ```
 @immutable
@@ -62,6 +64,10 @@ sealed class BeakFilter {
     {'type': 'field'} => _fieldFromJson(json),
     {'type': 'and'} => BeakAndFilter(_childrenFromJson(json, 'BeakAndFilter')),
     {'type': 'or'} => BeakOrFilter(_childrenFromJson(json, 'BeakOrFilter')),
+    {'type': 'relation'} => BeakRelationFilter(
+      requireJsonString(json, 'relation', 'BeakRelationFilter'),
+      BeakFilter.fromJson(requireJsonMap(json, 'filter', 'BeakRelationFilter')),
+    ),
     _ => throw BeakConfigurationException('Malformed BeakFilter JSON: $json.'),
   };
 
@@ -94,6 +100,41 @@ sealed class BeakFilter {
 
   /// This predicate tree as a plain JSON-encodable object.
   Map<String, Object?> toJson();
+}
+
+/// Matches an owner when one related record satisfies the complete [filter].
+///
+/// Keeping the child predicate grouped ensures that a row-level access scope
+/// and the user's filter apply to the same child. Generated field references
+/// provide this structure without requiring relation-key strings in app code.
+final class BeakRelationFilter extends BeakFilter {
+  /// Creates an existential predicate over [relationKey].
+  const BeakRelationFilter(this.relationKey, this.filter);
+
+  /// Relationship on the current model.
+  final String relationKey;
+
+  /// Predicate evaluated against each related record.
+  final BeakFilter filter;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'type': 'relation',
+    'relation': relationKey,
+    'filter': filter.toJson(),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is BeakRelationFilter &&
+      other.relationKey == relationKey &&
+      other.filter == filter;
+
+  @override
+  int get hashCode => Object.hash(relationKey, filter);
+
+  @override
+  String toString() => 'BeakRelationFilter($relationKey, $filter)';
 }
 
 /// Compares a single column against an operand with a [BeakOperator].

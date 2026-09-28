@@ -21,43 +21,11 @@ One file: `lib/server.dart`. It declares a `beakServer` function that receives
 everything Beak resolved and returns the server to run. `beak eject server`
 writes the starter, which returns the default unchanged.
 
-```dart title="examples/store/lib/server.dart"
-/// Builds the store's server on top of everything Beak resolved.
-///
-/// [defaults] already carries the database connection, the model registry and
-/// the upload driver; this adds the two things a real store needs and Beak
-/// cannot guess: who may log in, and which rows each of them sees.
-BeakServer beakServer(BeakServerDefaults defaults) {
-  final String secret =
-      defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
-  final store = InMemoryTokenSessionStore();
-  return defaults.build(
-    policy: const StorePolicy(),
-    authSessions: BeakAuthSessions(
-      store: store,
-      secret: secret,
-      users: [
-        BeakUserAccount(
-          username: 'ada@example.com',
-          passwordHash: hashBeakPassword('espresso', secret: secret),
-          principal: const BeakPrincipal(
-            id: StoreSeedIds.userAda,
-            roles: {'staff'},
-          ),
-        ),
-        // ... a second account, for a customer ...
-      ],
-    ),
-    authGuard: TokenSessionAuthGuard(store),
-  );
-}
-```
-
-Three pieces share one store: the sessions the login endpoint mints into, the
-guard that reads them back, and the policy that judges the resulting principal.
-The `authSessions` store and the `authGuard`'s store must be the same instance,
-or a freshly minted token will not be recognised. That is why the store is a
-local variable here and passed to both.
+Configure an authentication guard and a policy for the deployment. Token-session
+login and its guard must share the same session store. Read secrets from the
+resolved environment; do not copy demonstration credentials into production.
+The canonical shop runs without login and therefore is not a production security
+configuration. See [auth and policies](../backend/auth-and-policies.md).
 
 !!! warning "The panel is not the boundary"
     Hiding a resource in `beak.yaml`, or a button behind a role check in the UI,
@@ -178,12 +146,10 @@ table is intersected with `scopeFor`:
 ```
 
 Query, aggregate, get-one, update, delete, export and global search all apply it,
-so there is no endpoint left to forget. The store's policy is three rules in
-thirty lines:
+including related reads. Apply the policy at the server boundary:
 
-```dart title="examples/store/lib/server.dart"
---8<-- "examples/store/lib/server.dart:StorePolicy"
-```
+Use the framework's row-policy tests as executable tenant-isolation examples.
+The shop's transactional calculations are a separate concern from authorization.
 
 !!! note "Refusing and narrowing are different answers"
     `canView` returning `false` is a refusal: 403 for a signed-in caller, 401

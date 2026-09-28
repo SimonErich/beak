@@ -11,9 +11,8 @@ import 'beak_filter_widget.dart';
 /// [BeakResource.effectiveFilters] uses this whenever a resource declares no
 /// filters of its own.
 ///
-/// Enums become a select, booleans a switch, strings a contains-search, dates
-/// a range. A filterable column of any other kind has no obvious control and
-/// is skipped rather than guessed at — declare it on the resource.
+/// Enums and booleans become selects, strings a contains-search, dates and
+/// numbers a range. Structured/binary columns require an explicit custom filter.
 // --8<-- [start:beakDefaultFiltersOf]
 List<BeakFilterDef> beakDefaultFiltersOf(BeakModel model) => <BeakFilterDef>[
   for (final column in model.columns)
@@ -25,24 +24,37 @@ List<BeakFilterDef> beakDefaultFiltersOf(BeakModel model) => <BeakFilterDef>[
 /// Exhaustive on purpose: a new column kind must decide what filtering it
 /// means, rather than silently defaulting to none.
 // --8<-- [start:filterFor]
-BeakFilterDef? _filterFor(BeakColumn column) => switch (column) {
-  BeakEnumColumn() => BeakSelectFilter(column: column, label: column.label),
-  BeakBoolColumn() => BeakBoolFilter(column: column, label: column.label),
-  BeakStringColumn() ||
-  BeakTextColumn() => BeakTextFilter(column: column, label: column.label),
-  BeakDateTimeColumn() => BeakDateRangeFilter(
-    column: column,
-    label: column.label,
-  ),
-  // No control fits these: a number wants a range input the filter family
-  // does not have yet, and the rest are not values a person filters by.
-  BeakIntColumn() ||
-  BeakDecimalColumn() ||
-  BeakRichTextColumn() ||
-  BeakJsonColumn() ||
-  BeakColorColumn() ||
-  BeakCustomColumn() ||
-  BeakUploadColumn() => null,
-};
+BeakFilterDef? _filterFor(BeakColumn column) {
+  if (const {
+    BeakSemanticKind.calendarDate,
+    BeakSemanticKind.time,
+    BeakSemanticKind.duration,
+    BeakSemanticKind.money,
+    BeakSemanticKind.exactDecimal,
+    BeakSemanticKind.percentage,
+  }.contains(column.semantic.kind)) {
+    return BeakSemanticRangeFilter(column: column, label: column.label);
+  }
+  return switch (column) {
+    BeakEnumColumn() => BeakSelectFilter(column: column, label: column.label),
+    BeakBoolColumn() => BeakBoolFilter(column: column, label: column.label),
+    BeakStringColumn() ||
+    BeakTextColumn() => BeakTextFilter(column: column, label: column.label),
+    BeakDateTimeColumn() => BeakDateRangeFilter(
+      column: column,
+      label: column.label,
+    ),
+    BeakIntColumn() || BeakDecimalColumn() => BeakNumberRangeFilter(
+      column: column,
+      label: column.label,
+    ),
+    // Structured, binary and rich presentation values have no generic filter.
+    BeakRichTextColumn() ||
+    BeakJsonColumn() ||
+    BeakColorColumn() ||
+    BeakCustomColumn() ||
+    BeakUploadColumn() => null,
+  };
+}
 
 // --8<-- [end:filterFor]

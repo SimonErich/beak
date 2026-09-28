@@ -43,8 +43,9 @@ class BeakDashboard extends HookWidget {
             spacing: 16,
             runSpacing: 16,
             children: [
-              for (final stat in stats)
+              for (final stat in stats.where((stat) => stat.isVisible))
                 SizedBox(
+                  key: ValueKey(stat),
                   width: 220,
                   child: BeakStatCard(stat: stat, dataSource: dataSource),
                 ),

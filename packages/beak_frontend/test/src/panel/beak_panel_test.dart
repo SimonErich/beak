@@ -3,6 +3,7 @@ import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:get_it/get_it.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../../support/panel_fixtures.dart';
@@ -80,6 +81,118 @@ void main() {
   });
 
   group('generated routes', () {
+    testWidgets(
+      'resource capabilities are reevaluated after permissions change',
+      (tester) async {
+        var canWrite = true;
+        await tester.pumpWidget(
+          BeakPanel(
+            config: config.copyWith(
+              resources: [
+                config.resources.first.copyWith(canCreateWhen: () => canWrite),
+              ],
+            ),
+            dataSource: FakeDataSource(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final router = routerOf(tester);
+        canWrite = false;
+        router.go('/notes/create');
+        await tester.pumpAndSettle();
+        expect(find.byType(BeakResourceCreatePage), findsNothing);
+        expect(find.byType(OiErrorPage), findsOneWidget);
+      },
+    );
+    testWidgets('custom create and edit workflows keep resource routes', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        BeakPanel(
+          config: config.copyWith(
+            resources: [
+              config.resources.first.copyWith(
+                createBuilder: (_) => const Text('Checkout workflow'),
+                editBuilder: (_, id) => Text('Edit items $id'),
+              ),
+            ],
+          ),
+          dataSource: FakeDataSource(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final router = routerOf(tester);
+      router.go('/notes/create');
+      await tester.pumpAndSettle();
+      expect(find.text('Checkout workflow'), findsOneWidget);
+      router.go('/notes/n1/edit');
+      await tester.pumpAndSettle();
+      expect(find.text('Edit items n1'), findsOneWidget);
+    });
+
+    testWidgets('read-only resources hide writes and reject write routes', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        BeakPanel(
+          config: config.copyWith(
+            resources: [
+              config.resources.first.copyWith(
+                canCreate: false,
+                canEdit: false,
+                canDelete: false,
+              ),
+            ],
+          ),
+          dataSource: FakeDataSource(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final router = routerOf(tester);
+      router.go('/notes');
+      await tester.pumpAndSettle();
+      expect(find.text('Create'), findsNothing);
+      router.go('/notes/n1');
+      await tester.pumpAndSettle();
+      expect(find.text('Edit'), findsNothing);
+      expect(find.text('Delete'), findsNothing);
+      router.go('/notes/create');
+      await tester.pumpAndSettle();
+      expect(find.byType(BeakResourceCreatePage), findsNothing);
+      expect(find.byType(OiErrorPage), findsOneWidget);
+      router.go('/notes/n1/edit');
+      await tester.pumpAndSettle();
+      expect(find.byType(BeakResourceEditPage), findsNothing);
+    });
+
+    testWidgets('host router owns authentication and the app root', (
+      tester,
+    ) async {
+      registerBeakDependencies(config: config, dataSource: FakeDataSource());
+      final router = GoRouter(
+        initialLocation: '/notes',
+        routes: [
+          GoRoute(
+            path: '/sign-in',
+            builder: (_, _) => const Text('Host login'),
+          ),
+          ShellRoute(
+            redirect: (_, _) => '/sign-in',
+            builder: (_, _, child) => child,
+            routes: beakPanelRoutes(config),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(OiApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      expect(find.text('Host login'), findsOneWidget);
+      expect(find.byType(OiApp), findsOneWidget);
+      expect(find.byType(BeakResourceListPage), findsNothing);
+    });
+
     testWidgets('every resource gets list/create/show/edit routes', (
       tester,
     ) async {
@@ -92,7 +205,7 @@ void main() {
       expect(find.byType(BeakResourceCreatePage), findsOneWidget);
 
       await go(tester, '/notes/n1');
-      expect(find.text('Notes n1'), findsOneWidget);
+      expect(find.text('Notes n1'), findsWidgets);
       expect(find.byType(BeakResourceShowPage), findsOneWidget);
 
       await go(tester, '/notes/n1/edit');
@@ -109,7 +222,7 @@ void main() {
       await pumpPanel(tester);
       await go(tester, '/login');
 
-      expect(find.byType(OiAuthPage), findsOneWidget);
+      expect(find.byType(BeakAuthPage), findsOneWidget);
       expect(find.byType(OiAppShell), findsNothing);
     });
 
@@ -125,14 +238,34 @@ void main() {
   });
 
   group('dependency registration', () {
-    testWidgets('the panel registers the data layer in the Beak locator', (
+    test(
+      'external sessions do not create a second auth store or HTTP client',
+      () async {
+        final locator = GetIt.asNewInstance();
+        registerBeakDependencies(
+          config: config,
+          dataSource: FakeDataSource(),
+          locator: locator,
+          externalAuthentication: true,
+        );
+        expect(locator.isRegistered<BeakSessionStore>(), isFalse);
+        expect(locator.isRegistered<BeakClient>(), isFalse);
+        expect(locator.isRegistered<BeakDataSource>(), isTrue);
+        await locator.reset();
+      },
+    );
+
+    testWidgets('the panel registers the data layer in its own scope', (
       tester,
     ) async {
       await pumpPanel(tester);
 
-      expect(beakLocator<BeakClient>(), isNotNull);
-      expect(beakLocator<ReferenceCache>(), isNotNull);
-      expect(beakLocator<BeakPanelConfig>().title, 'Beak Admin');
+      final dependencies = beakDependencies(
+        tester.element(find.byType(OiAppShell)),
+      );
+      expect(dependencies<BeakClient>(), isNotNull);
+      expect(dependencies<ReferenceCache>(), isNotNull);
+      expect(dependencies<BeakPanelConfig>().title, 'Beak Admin');
     });
   });
 }

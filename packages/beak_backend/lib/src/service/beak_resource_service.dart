@@ -1,6 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 
 import '../common/uuid_v4.dart';
+import 'beak_revision_timestamp.dart';
 import 'validation_service.dart';
 
 /// The per-model logic layer between the generated handlers and the data
@@ -30,6 +31,8 @@ final class BeakResourceService {
     this.model,
     this.dataSource, {
     this.validation = const ValidationService(),
+    this.deferRecordRules = false,
+    this.registry,
     DateTime Function()? now,
     String Function()? generateId,
   }) : _now = now ?? DateTime.now,
@@ -44,6 +47,12 @@ final class BeakResourceService {
   /// The validation boundary run before every write.
   final ValidationService validation;
 
+  /// Graph operations defer cross-record checks until all rows exist atomically.
+  final bool deferRecordRules;
+
+  /// Optional registry for nonstandard related primary keys.
+  final BeakModelRegistry? registry;
+
   final DateTime Function() _now;
   final String Function() _generateId;
 
@@ -52,6 +61,74 @@ final class BeakResourceService {
 
   /// The column key the service stamps on create and update.
   static const String updatedAtColumnKey = 'updated_at';
+
+  /// Validates a complete candidate while preserving partial-update semantics.
+  /// The query seam applies caller policy to asynchronous checks and relation loads.
+  Future<void> validateCandidate(
+    BeakRecord input, {
+    Object? recordId,
+    BeakFilter? scope,
+    BeakValidationQuery? validationQuery,
+    bool asynchronousOnly = false,
+  }) async {
+    final query = validationQuery ?? dataSource.query;
+    BeakRecord? initial;
+    if (recordId != null &&
+        !deferRecordRules &&
+        model.validationRules.isNotEmpty) {
+      // Model rules are trusted invariants over complete persisted state.
+      // Root scope still gates identity; related read filters must not conceal
+      // siblings from count, distinct or aggregate constraints.
+      final page = await dataSource.query(
+        scopedQuery(
+          model.query(
+            filter: BeakFieldFilter(
+              column: model.primaryKey,
+              operator: BeakOperator.eq,
+              value: BeakValue.of(recordId),
+            ),
+            relationLoads: [
+              if (!asynchronousOnly)
+                for (final rule in model.validationRules) ...rule.relationLoads,
+            ],
+            pagination: const BeakPagination(perPage: 1),
+          ),
+          scope,
+        ),
+      );
+      initial = page.items.firstOrNull;
+      if (initial == null) {
+        throw const BeakNotFoundException('The record no longer exists.');
+      }
+    } else if (recordId != null && !deferRecordRules) {
+      initial = await getOne(recordId, scope: scope);
+    }
+    validation.validate(
+      model,
+      input,
+      isCreate: recordId == null && !asynchronousOnly,
+      initial: initial,
+      includeRecordRules: !deferRecordRules && !asynchronousOnly,
+    );
+    if (deferRecordRules) return;
+    final candidate = BeakRecord(
+      values: {...?initial?.values, ...input.values},
+      relations: {...?initial?.relations, ...input.relations},
+    );
+    final report = await const BeakAsyncValidation().validate(
+      model,
+      candidate,
+      recordId: recordId,
+      query: query,
+      registry: registry,
+    );
+    if (!report.valid) {
+      throw BeakValidationException(
+        'Validation failed for "${model.table}".',
+        fieldErrors: report.fieldErrors,
+      );
+    }
+  }
 
   /// Runs [spec] against the data source, narrowed by [scope].
   ///
@@ -85,6 +162,18 @@ final class BeakResourceService {
               withTrashed: spec.withTrashed,
             ),
     );
+  }
+
+  /// Executes a full-population summary through an explicit source capability.
+  Future<BeakSummaryResult> summary(BeakSummarySpec spec) {
+    _requireSpecTargets(spec.table, 'Summary');
+    final source = dataSource;
+    if (source is! BeakSummaryDataSource) {
+      throw const BeakConfigurationException(
+        'This data source does not support summaries.',
+      );
+    }
+    return (source as BeakSummaryDataSource).summary(spec);
   }
 
   /// [spec] narrowed by [scope], or [spec] unchanged when there is none.
@@ -165,9 +254,12 @@ final class BeakResourceService {
   /// Validates and stores [input], minting a uuid primary key (for
   /// string-keyed models) and stamping `created_at`/`updated_at` when the
   /// model declares them and the caller did not.
-  Future<BeakRecord> create(BeakRecord input) {
-    final prepared = _withCreateDefaults(input);
-    validation.validate(model, prepared, isCreate: true);
+  Future<BeakRecord> create(
+    BeakRecord input, {
+    BeakValidationQuery? validationQuery,
+  }) async {
+    final prepared = prepareCreate(input);
+    await validateCandidate(prepared, validationQuery: validationQuery);
     return dataSource.create(model.table, prepared);
   }
 
@@ -178,18 +270,45 @@ final class BeakResourceService {
     BeakRecord input, {
     BeakFilter? scope,
     DateTime? expectedUpdatedAt,
+    BeakValidationQuery? validationQuery,
   }) async {
     // Read first when scoped or when checking the version: an update whose
     // WHERE the client controls is the same hole as a query whose filter it
     // controls.
     await _requireInScope(id, scope);
+    final stampsRevision =
+        model.columnByKey(updatedAtColumnKey) is BeakDateTimeColumn;
+    final current = stampsRevision || expectedUpdatedAt != null
+        ? await getOne(id)
+        : null;
     if (expectedUpdatedAt != null) {
-      _requireUnchangedSince(expectedUpdatedAt, await getOne(id), id);
+      _requireUnchangedSince(expectedUpdatedAt, current!, id);
     }
-    validation.validate(model, input, isCreate: false);
-    var values = input.values;
-    if (model.columnByKey(updatedAtColumnKey) is BeakDateTimeColumn) {
-      values = {...values, updatedAtColumnKey: BeakDateTimeValue(_now())};
+    final prepared = const BeakValidation().applyDefaults(
+      model,
+      input,
+      includeMissing: false,
+    );
+    await validateCandidate(
+      prepared,
+      recordId: id,
+      scope: scope,
+      validationQuery: validationQuery,
+    );
+    var values = prepared.values;
+    if (stampsRevision) {
+      values = {
+        ...values,
+        updatedAtColumnKey: BeakDateTimeValue(
+          beakRevisionTimestamp(
+            _now(),
+            previous: switch (current?[updatedAtColumnKey]) {
+              BeakDateTimeValue(:final value) => value,
+              _ => null,
+            },
+          ),
+        ),
+      };
     }
     return dataSource.update(model.table, id, BeakRecord(values: values));
   }
@@ -215,11 +334,7 @@ final class BeakResourceService {
         'record cannot be updated conditionally.',
       );
     }
-    // Compared at whole-second precision: the wire format is ISO-8601 and
-    // some databases store fewer sub-second digits than Dart carries, so
-    // exact equality would reject an unmodified record.
-    if (stored.toUtc().millisecondsSinceEpoch ~/ 1000 !=
-        expected.toUtc().millisecondsSinceEpoch ~/ 1000) {
+    if (!beakRevisionMatches(expected, stored)) {
       throw BeakConflictException(
         'Record "$id" of "${model.table}" changed since it was read '
         '(expected $expected, found $stored).',
@@ -356,13 +471,18 @@ final class BeakResourceService {
     return relationship;
   }
 
-  BeakRecord _withCreateDefaults(BeakRecord input) {
-    final values = {...input.values};
+  /// Applies declared enum defaults, generated identities and timestamps once.
+  /// Graph writes use this before their authorization and validation checks.
+  /// Explicit nulls remain null for enum validation; only omissions default.
+  BeakRecord prepareCreate(BeakRecord input) {
+    final values = {
+      ...const BeakValidation().applyDefaults(model, input).values,
+    };
     final primaryKey = model.primaryKey;
     if (primaryKey is BeakStringColumn && _isUnset(values[primaryKey.key])) {
       values[primaryKey.key] = BeakStringValue(_generateId());
     }
-    final stamp = BeakDateTimeValue(_now());
+    final stamp = BeakDateTimeValue(beakRevisionTimestamp(_now()));
     for (final columnKey in const [createdAtColumnKey, updatedAtColumnKey]) {
       if (model.columnByKey(columnKey) is BeakDateTimeColumn &&
           _isUnset(values[columnKey])) {

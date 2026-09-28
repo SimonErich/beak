@@ -3,7 +3,8 @@
 # Beak backend server image.
 #
 # The backend is pure Dart: it depends on beak_backend/beak_core/worm and never
-# on Flutter or obers_ui, so it AOT-compiles to a single native executable and
+# on Flutter libraries. Its shared pubspec requires a Flutter SDK to resolve;
+# the server then AOT-compiles to a single native executable and
 # runs from a slim Debian base. Build from the REPO ROOT as context (Beak uses
 # path dependencies, so the whole packages/ + examples/ tree must be present):
 #
@@ -12,16 +13,21 @@
 # The .dockerignore at the repo root trims artifacts and the melos-managed
 # pubspec_overrides.yaml, so resolution comes from each committed pubspec.yaml.
 
-FROM dart:stable AS build
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 COPY . .
+RUN git config --global --add safe.directory '*'
 
 # Resolve and compile the example's server. Swap this path for your own
 # project when you deploy it — the entrypoints are the same two files in
 # every Beak project, because `beak prepare` writes them.
-WORKDIR /app/examples/store
+WORKDIR /app/packages/beak_cli
 RUN dart pub get
+
+WORKDIR /app/examples/clean_beak_config
+RUN flutter pub get
+RUN dart run ../../packages/beak_cli/bin/beak.dart prepare
 RUN dart compile exe bin/serve.dart -o /app/beak-server
 # The worm CLI (migrate / db:seed) as a second executable, so schema and seed
 # steps run from the same image (see the migrate service in the compose file).
@@ -31,7 +37,7 @@ RUN dart compile exe bin/migrate.dart -o /app/beak-migrate
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates \
+  && apt-get install -y --no-install-recommends ca-certificates libsqlite3-0 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/beak-server /usr/local/bin/beak-server

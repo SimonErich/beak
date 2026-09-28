@@ -1,25 +1,17 @@
 ---
 title: A kanban view
-description: Offer a board alongside the table, grouped by an enum column.
+description: Map model fields to a specialized workflow board.
 ---
 
 # A kanban view
 
-A resource can offer more than a table. Add a `BeakKanbanView` alongside
-`BeakTableView` in the resource file and it groups records into columns by an
-enum field:
+Place a `BeakKanbanBlock` on a custom screen and configure its model, grouping fields and callbacks. Use shared model actions for state transitions so drag interactions obey the same rules as forms. The block contract is shown below.
 
-```dart title="examples/store/lib/resources/products.dart"
-  viewModes: const [
-    BeakTableView(),
-    BeakKanbanView(
-      groupField: ProductColumns.status,
-      titleField: ProductColumns.name,
-      subtitleField: ProductColumns.sku,
-    ),
-  ],
+```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
 ```
 
 ## Continue reading
 
-- [View modes](../panel/view-modes.md)
+- [Related guide](../panel/actions.md)
+- [All recipes](index.md)

@@ -1,6 +1,6 @@
 # Deploying Beak with Docker
 
-This folder holds a real, buildable deployment setup: a pure-Dart backend image,
+This folder builds `examples/clean_beak_config`: a pure-Dart backend image,
 a Flutter-web panel image, and a compose stack that wires them to Postgres and
 MinIO. The prose version, with the production checklist and the tradeoffs, lives
 in the docs under [Deployment](../docs/deployment/index.md).
@@ -9,7 +9,7 @@ in the docs under [Deployment](../docs/deployment/index.md).
 
 | File | What it builds |
 | --- | --- |
-| `Dockerfile.server` | The backend as one AOT-compiled native executable on `debian:bookworm-slim`. Also carries the worm CLI (`beak-migrate`) for schema and seed steps. No obers_ui, no Flutter. |
+| `Dockerfile.server` | The backend as one AOT-compiled native executable on `debian:bookworm-slim`. Also carries the worm CLI (`beak-migrate`) for schema and seed steps. The build stage resolves the shared Flutter package; the runtime contains only native binaries. |
 | `Dockerfile.web` | The Flutter web panel, served by nginx. Needs no dependency overrides — obers_ui is pinned by git commit in the pubspecs, so it resolves the same way in a container as on your machine. |
 | `nginx.conf` | Static serving with a SPA fallback for go_router routes. |
 | `docker-compose.prod.yml` | postgres + minio + createbuckets + migrate + server + web. |
@@ -42,7 +42,8 @@ swap the dev credentials.
 
 ```bash
 docker build -f deploy/Dockerfile.server -t beak-server .
-docker build -f deploy/Dockerfile.web    -t beak-web .
+docker build -f deploy/Dockerfile.web -t beak-web \
+  --build-arg BEAK_API_BASE_URL=https://api.example.com .
 ```
 
 Always build from the repo root: Beak uses path dependencies, so the whole

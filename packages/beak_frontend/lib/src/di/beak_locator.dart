@@ -1,9 +1,12 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:get_it/get_it.dart';
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
 import '../auth/beak_session_store.dart';
+import '../actions/beak_model_action_runner.dart';
 import '../data/http_beak_data_source.dart';
+import '../data/model_beak_data_source.dart';
 import '../data/reference_cache.dart';
 import '../panel/beak_panel_config.dart';
 import '../panel/beak_theme_controller.dart';
@@ -14,6 +17,30 @@ import '../panel/beak_theme_controller.dart';
 /// [registerBeakDependencies] populates it and the generated pages resolve
 /// their dependencies from it, e.g. `beakLocator<BeakDataSource>()`.
 final GetIt beakLocator = GetIt.asNewInstance();
+
+/// The nearest panel's dependencies, falling back to the explicit host setup.
+GetIt beakDependencies(BuildContext context) =>
+    context
+        .dependOnInheritedWidgetOfExactType<BeakDependencyScope>()
+        ?.container ??
+    beakLocator;
+
+/// Keeps transports, references and authentication local to one panel tree.
+class BeakDependencyScope extends InheritedWidget {
+  /// Exposes [container] to the widgets below this scope.
+  const BeakDependencyScope({
+    required this.container,
+    required super.child,
+    super.key,
+  });
+
+  /// The dependency container owned by this panel.
+  final GetIt container;
+
+  @override
+  bool updateShouldNotify(BeakDependencyScope oldWidget) =>
+      container != oldWidget.container;
+}
 
 /// Registers Beak's infrastructure for [config] into [locator] (defaults to
 /// [beakLocator]): the [BeakModelRegistry], the [BeakClient], the
@@ -43,6 +70,7 @@ void registerBeakDependencies({
   BeakDataSource? dataSource,
   http.Client? httpClient,
   String? Function()? tokenProvider,
+  bool externalAuthentication = false,
 }) {
   final container = locator ?? beakLocator;
   container.allowReassignment = true;
@@ -50,21 +78,64 @@ void registerBeakDependencies({
   // The store is created before the client so the client can read its token,
   // and given the client afterwards so it can mint one — the two halves of
   // one session.
-  late final BeakSessionStore sessions;
-  final client = BeakClient(
-    baseUrl: config.apiBaseUrl,
-    httpClient: httpClient,
-    tokenProvider: tokenProvider ?? () => sessions.token,
+  BeakDataSource? fallback;
+  if (externalAuthentication || config.auth?.adapter != null) {
+    if (dataSource == null &&
+        registry.all.any((model) => model.dataSource == null)) {
+      throw const BeakConfigurationException(
+        'External authentication requires bound models or a data source.',
+      );
+    }
+    fallback = dataSource;
+    if (container.isRegistered<BeakClient>()) {
+      container.unregister<BeakClient>();
+    }
+    if (container.isRegistered<BeakSessionStore>()) {
+      container.unregister<BeakSessionStore>();
+    }
+  } else {
+    late final BeakSessionStore sessions;
+    final client = BeakClient(
+      baseUrl: config.apiBaseUrl,
+      httpClient: httpClient,
+      tokenProvider: tokenProvider ?? () => sessions.token,
+    );
+    sessions = BeakSessionStore(client);
+    fallback = dataSource ?? HttpBeakDataSource(client);
+    container
+      ..registerSingleton<BeakClient>(client)
+      ..registerSingleton<BeakSessionStore>(sessions);
+  }
+  final source = ModelBeakDataSource(
+    registry: registry,
+    fallback: fallback,
+    overrideBindings: dataSource != null,
+    mapException: config.mapException,
+    refreshPolicy: config.refreshPolicy,
   );
-  sessions = BeakSessionStore(client);
-  final source = dataSource ?? HttpBeakDataSource(client);
   container
+    ..registerSingleton<BeakModelActionRunner>(
+      BeakModelActionRunner(),
+      dispose: (runner) => runner.dispose(),
+    )
     ..registerSingleton<BeakPanelConfig>(config)
     ..registerSingleton<BeakModelRegistry>(registry)
-    ..registerSingleton<BeakClient>(client)
-    ..registerSingleton<BeakSessionStore>(sessions)
-    ..registerSingleton<BeakDataSource>(source)
-    ..registerSingleton<ReferenceCache>(ReferenceCache(source, registry))
+    ..registerSingleton<BeakDataSource>(
+      source,
+      dispose: (_) => source.dispose(),
+    )
+    ..registerSingleton<ReferenceCache>(
+      ReferenceCache(
+        source,
+        registry,
+        auth:
+            config.auth?.adapter ??
+            (container.isRegistered<BeakSessionStore>()
+                ? container<BeakSessionStore>()
+                : null),
+      ),
+      dispose: (cache) => cache.dispose(),
+    )
     ..registerSingleton<BeakThemeController>(
       BeakThemeController(config.initialThemeMode),
     );

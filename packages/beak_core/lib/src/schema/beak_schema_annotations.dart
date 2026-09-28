@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
+import '../columns/beak_semantic.dart';
 import '../common/beak_color.dart';
 import '../context/beak_context.dart';
 import '../relations/beak_on_delete.dart';
@@ -105,6 +106,8 @@ final class Column {
     this.trueLabel,
     this.falseLabel,
     this.defaultValue,
+    this.semantic,
+    this.currencyFrom,
   });
 
   /// Storage column name. Defaults to the snake-cased field name.
@@ -177,12 +180,17 @@ final class Column {
   /// Label for the false state, for a `bool` field.
   final String? falseLabel;
 
-  /// The value a create form starts on, for an enum field.
+  /// The default value used for a new record when the field is omitted.
   ///
-  /// Typed `Enum` rather than the field's own enum because an annotation
-  /// cannot be generic over the field it annotates; the generator checks that
-  /// it belongs to the right one.
-  final Enum? defaultValue;
+  /// Must match the declared field type and be a constant expression.
+  final Object? defaultValue;
+
+  /// Domain semantics inferred from the declared type unless overridden.
+  final BeakSemantic? semantic;
+
+  /// Schema member holding a money amount's currency, for example `#currency`.
+  /// The generator resolves this symbol to a typed column and rejects typos.
+  final Symbol? currencyFrom;
 }
 
 /// Marks the field that represents a record in pickers, links and titles.
@@ -267,6 +275,21 @@ final class Badges<T extends Enum> {
   final Map<T, BeakColor> colors;
 }
 
+/// Assigns display labels to an enum field without changing stored values.
+///
+/// ```dart
+/// @EnumLabels<OrderStatus>({OrderStatus.inKitchen: 'In kitchen'})
+/// late final OrderStatus status;
+/// ```
+@immutable
+final class EnumLabels<T extends Enum> {
+  /// Maps typed enum values to their display labels.
+  const EnumLabels(this.labels);
+
+  /// Unmapped values retain their enum name.
+  final Map<T, String> labels;
+}
+
 /// Declares an opaque column rendered by a client-registered builder.
 ///
 /// Apply to an `Object` field.
@@ -314,6 +337,9 @@ final class BelongsTo {
   final String? foreignKey;
 
   /// What happens to this row when the related record is deleted.
+  ///
+  /// When omitted, generation uses `setNull` for a nullable relationship and
+  /// `restrict` for a non-nullable relationship. An explicit value wins.
   final BeakOnDelete onDelete;
 
   /// Whether to generate the matching has-many on the other side.
@@ -327,7 +353,10 @@ final class BelongsTo {
 @immutable
 final class HasOne {
   /// Declares the annotated field a has-one relationship.
-  const HasOne({this.label, this.foreignKey});
+  const HasOne({this.label, this.foreignKey, this.owned = false});
+
+  /// Whether the related record belongs exclusively to the parent.
+  final bool owned;
 
   /// Human-readable label. Defaults to the title-cased field name.
   final String? label;
@@ -345,6 +374,7 @@ final class HasMany {
     this.label,
     this.foreignKey,
     this.onDelete = BeakOnDelete.restrict,
+    this.owned = false,
   });
 
   /// Human-readable label. Defaults to the title-cased field name.
@@ -355,6 +385,9 @@ final class HasMany {
 
   /// What happens to the children when this row is deleted.
   final BeakOnDelete onDelete;
+
+  /// Whether related records belong exclusively to the parent.
+  final bool owned;
 }
 
 /// A many-to-many relationship through a pivot table.

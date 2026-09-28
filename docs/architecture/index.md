@@ -26,8 +26,8 @@ The pages build on each other, but each stands alone.
 ### The seams
 
 - [The query contract](query-contract.md) `BeakQuerySpec`, the serializable description of a query that the panel builds and the server executes.
-- [The data source seam](data-source-seam.md) the `BeakDataSource` interface both sides implement, and why a future `beak_serverpod` can plug in without touching `beak_core`.
-- [Block system internals](block-system-internals.md) how one block tree renders read-only in a record scope and editable in a form scope.
+- [The data source seam](data-source-seam.md) the `BeakDataSource` interface both sides implement, and how `beak_serverpod` plugs in without touching `beak_core`.
+- [Block system internals](block-system-internals.md) how block rendering, grid placement and record scopes work alongside configured forms.
 - [Storage internals](storage-internals.md) the pluggable driver registry, the shared upload validator, and the image transform pipeline.
 
 ## The shape in one picture

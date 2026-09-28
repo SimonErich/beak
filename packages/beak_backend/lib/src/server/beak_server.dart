@@ -11,6 +11,7 @@ import '../auth/beak_auth_guard.dart';
 import '../auth/beak_policy.dart';
 import '../config/beak_backend_config.dart';
 import '../endpoints/beak_resource_router.dart';
+import '../service/beak_graph_commit_service.dart';
 import '../uploads/upload_service.dart';
 import 'middleware/auth_middleware.dart';
 import 'middleware/cors_middleware.dart';
@@ -48,7 +49,8 @@ final class BeakServer {
   /// [config].
   ///
   /// [transformRunner] overrides the image pipeline (default: the real
-  /// `beak_image` runner).
+  /// `beak_image` runner). [preparePlan] adds transactional business rules;
+  /// [graphOnlyTables] restricts the selected resources to graph writes.
   BeakServer({
     required this.config,
     required this.dataSource,
@@ -61,12 +63,18 @@ final class BeakServer {
     BeakAuthGuard? authGuard,
     BeakRequestLogger? onRequest,
     BeakUnexpectedErrorListener? onUnexpectedError,
+    BeakSavePlanPreparer? preparePlan,
+    BeakSavePlanFinalizer? finalizePlan,
+    Set<String> graphOnlyTables = const {},
   }) : _router =
            router ??
            beakApiRouter(
              registry: registry,
              dataSource: dataSource,
              policy: policy,
+             preparePlan: preparePlan,
+             finalizePlan: finalizePlan,
+             graphOnlyTables: graphOnlyTables,
              auth: authSessions,
              storage: storage,
              uploads: storage == null

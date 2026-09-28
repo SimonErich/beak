@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../data/beak_resource_repository.dart';
+import '../data/beak_data_changes.dart';
 import '../di/beak_locator.dart';
 
 /// Binds a model's rows to the panel's notification center: which columns
@@ -53,9 +54,10 @@ class BeakNotificationBell extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final records = useState(const <BeakRecord>[]);
     final reloadTick = useState(0);
+    final revision = useBeakDataRevision(dataSource, table: source.model.table);
 
     useEffect(() {
       var cancelled = false;
@@ -80,7 +82,7 @@ class BeakNotificationBell extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, source, reloadTick.value]);
+    }, [dataSource, source, reloadTick.value, revision]);
 
     final int unread = _unreadOf(records.value);
 
@@ -94,13 +96,9 @@ class BeakNotificationBell extends HookWidget {
         ),
         if (unread > 0)
           Positioned(
-            right: -2,
-            top: -2,
-            child: OiBadge.filled(
-              label: '$unread',
-              color: OiBadgeColor.error,
-              size: OiBadgeSize.small,
-            ),
+            right: 0,
+            top: 2,
+            child: IgnorePointer(child: OiBadge.counter(label: '$unread')),
           ),
       ],
     );
@@ -140,7 +138,7 @@ class _BeakNotificationPanel extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final records = useState(const <BeakRecord>[]);
 
     useEffect(() {

@@ -9,7 +9,7 @@ class _BeakGalleryBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final records = useState(const <BeakRecord>[]);
 
     useEffect(() {

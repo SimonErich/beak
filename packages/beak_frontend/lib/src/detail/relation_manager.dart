@@ -4,7 +4,9 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../data/beak_resource_repository.dart';
+import '../data/beak_data_changes.dart';
 import '../form/relation_field.dart';
+import '../localization/beak_localizations.dart';
 
 /// The embedded manager of a to-many relationship on one parent record:
 /// lists the related records by their display column and offers the
@@ -14,7 +16,8 @@ import '../form/relation_field.dart';
 ///
 /// A [BeakBelongsTo] or [BeakHasOne] [relationship] renders an informational
 /// caption instead of a manager (only to-many relations are managed here).
-/// [BeakDataForm] embeds one per has-many relation in edit mode.
+/// Configured forms stage relationship changes through their draft session;
+/// this standalone manager performs immediate relationship operations.
 ///
 /// ```dart
 /// BeakRelationManager(
@@ -78,6 +81,7 @@ class BeakRelationManager extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = BeakLocalizations.of(context);
     final repository = useMemoized(() => BeakResourceRepository(dataSource), [
       dataSource,
     ]);
@@ -85,12 +89,14 @@ class BeakRelationManager extends HookWidget {
     final total = useState(initialRecords?.length ?? 0);
     final perPage = useState(pageSize);
     final reloadTick = useState(0);
+    final dataRevision = useBeakDataRevision(dataSource);
 
     useEffect(() {
       // Seeded by the parent: the first paint is already correct, so only a
       // mutation (which bumps the tick) or a "load more" sends us back.
       if (initialRecords != null &&
           reloadTick.value == 0 &&
+          dataRevision == 0 &&
           perPage.value == pageSize) {
         return null;
       }
@@ -105,12 +111,10 @@ class BeakRelationManager extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [repository, parentId, reloadTick.value, perPage.value]);
+    }, [repository, parentId, reloadTick.value, perPage.value, dataRevision]);
 
     if (relationship.cardinality != BeakRelationCardinality.many) {
-      return OiLabel.caption(
-        '${relationship.label} is not a to-many relationship.',
-      );
+      return OiLabel.caption(strings.unavailable);
     }
 
     void reload() => reloadTick.value += 1;
@@ -130,11 +134,14 @@ class BeakRelationManager extends HookWidget {
             Expanded(child: OiLabel.smallStrong(relationship.label)),
             if (total.value > 0) OiBadge.soft(label: '${total.value}'),
             if (onCreateRequested != null)
-              OiButton.secondary(label: 'Create', onTap: onCreateRequested),
+              OiButton.secondary(
+                label: strings.create,
+                onTap: onCreateRequested,
+              ),
           ],
         ),
         if (relationship case final BeakBelongsToMany manyToMany)
-          _attachPicker(repository, manyToMany, reload),
+          _attachPicker(repository, manyToMany, reload, strings),
         // The related rows scroll within a bounded box, so a record with many
         // relations never overflows the surrounding form or detail layout.
         ConstrainedBox(
@@ -157,7 +164,7 @@ class BeakRelationManager extends HookWidget {
                       switch (relationship) {
                         final BeakBelongsToMany manyToMany => OiButton.icon(
                           icon: OiIcons.unlink,
-                          label: 'Detach',
+                          label: strings.detach,
                           onTap: () => _withRecordId(record, (relatedId) {
                             mutate(
                               () => repository.detach(
@@ -171,7 +178,7 @@ class BeakRelationManager extends HookWidget {
                         ),
                         _ => OiButton.icon(
                           icon: OiIcons.trash2,
-                          label: 'Delete',
+                          label: strings.delete,
                           onTap: () => _withRecordId(record, (relatedId) {
                             mutate(
                               () => repository.delete(
@@ -185,14 +192,12 @@ class BeakRelationManager extends HookWidget {
                     ],
                   ),
                 if (related.value.isEmpty)
-                  OiLabel.caption(
-                    'No ${relationship.label.toLowerCase()} yet.',
-                  ),
+                  OiLabel.caption(strings.noRelatedRecords(relationship.label)),
                 // Only when there is more: a button that loads nothing is
                 // worse than no button.
                 if (related.value.length < total.value)
                   OiButton.ghost(
-                    label: 'Load more (${total.value - related.value.length})',
+                    label: strings.loadMore(total.value - related.value.length),
                     onTap: () => perPage.value += pageSize,
                   ),
               ],
@@ -209,9 +214,10 @@ class BeakRelationManager extends HookWidget {
     BeakResourceRepository repository,
     BeakBelongsToMany manyToMany,
     VoidCallback reload,
+    BeakLocalizations strings,
   ) {
     return OiComboBox<BeakRecord>(
-      label: 'Attach ${manyToMany.label.toLowerCase()}',
+      label: strings.attachLabel(manyToMany.label),
       labelOf: manyToMany.displayLabelOf,
       search: (query) => beakSearchRelated(
         repository,

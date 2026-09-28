@@ -1,8 +1,8 @@
 # API inventory (writers: the public surface, per package)
 
-Not published. The exhaustive list of public types the reference and feature
-pages document. Every symbol here already carries dartdoc in source with worked
-examples; quote signatures verbatim from the cited files. Paths are
+Not published. A navigation aid for writers, not an exhaustive signature
+reference. Verify constructor fields against current source before writing an
+example. Public barrels and dartdoc are authoritative; paths below are
 workspace-relative.
 
 Version: pre-1.0 (`0.0.x`, shared line). Each barrel exports a `beak*Version`.
@@ -11,6 +11,19 @@ Version: pre-1.0 (`0.0.x`, shared line). Each barrel exports a `beak*Version`.
 
 ## beak_core (`packages/beak_core/lib/beak_core.dart`)
 Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
+
+### Declarative fields and commits
+- `BeakFieldRef<T>`, `BeakScalarField<T>`, `BeakToOneField`, `BeakToManyField`
+  (`src/model/beak_field_ref.dart`): typed paths/readers, scalar predicates,
+  `.matches` / `.any` grouped relation predicates, and `BeakOptionQuery`.
+- `BeakDraftReader`: tracked typed reads implemented by form drafts; generated
+  nullable `as<Model>` accessors delegate through this seam.
+- `BeakCommitDataSource`, `BeakCommitCapabilities`, `BeakSavePlan`,
+  `BeakSaveOperation`, `BeakRecordRef`, `BeakSaveResult` (`src/data/beak_commit.dart`):
+  graph persistence and explicit per-operation outcomes.
+- `BeakStagedCommitDataSource`: capability fallback for ordinary CRUD sources.
+- `BeakRelationFilter`: one child satisfies the grouped filter.
+- `BeakFutureDate`: client/server future-date validation.
 
 ### Columns (`src/columns/`)
 - `BeakColumn` (sealed base, `beak_column.dart`): `key`, `label`, `visibleOn`
@@ -34,6 +47,27 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
   intents; `.uniform(intent)`; `intentFor(context)`.
 - `BeakJson` sealed tree (`beak_json.dart`): `BeakJsonObject/Array/String/Number/
   Bool/Null`; statics `decode`, `fromEncodable`; `toEncodable`, `encode`.
+
+### Semantic types, formatting and validation
+- `BeakColumn.semantic`, `defaultValue`: shared metadata with physical storage
+  codecs; `BeakSemantic`, `BeakSemanticKind`, `BeakPrimitiveType` and
+  `BeakObjectSchema` (`src/columns/beak_semantic.dart`).
+- `BeakDate`, `BeakTime`, `BeakDecimal` (`src/columns/beak_semantic_values.dart`):
+  calendar/time values and exact integer-unit decimals; generated typed readers,
+  writers and predicates preserve the domain type.
+- `BeakFormatPolicy`, `BeakValueFormat` (`src/formatting/`): shared locale,
+  explicit timestamp timezone, number, date, money, percent and structured-value
+  display; serializable policy for CSV export.
+- `BeakValidation` (`src/validation/`): metadata, semantic, scalar and record
+  validation used by forms and authoritative writes.
+- `BeakRecordRule`, `BeakWhen`, `BeakRequiredIf`, `BeakSameAs`, `BeakBeforeField`,
+  `BeakAfterField`, `BeakCount`, `BeakDistinct`, `BeakSum`: typed model rules.
+- `BeakAsyncRecordRule`, `BeakUnique`, `BeakExists`, `BeakFieldMatch`,
+  `BeakAsyncValidation`: trusted datasource-backed rules.
+- `BeakValidationDataSource`, `BeakValidationRequest`, `BeakValidationReport`:
+  optional preflight capability; normal writes independently repeat validation.
+- `BeakManagedUploadClient.discardUpload`, `BeakUploadUrlClient.uploadUrl`:
+  optional cleanup and stored-file URL capabilities, implemented by BeakClient.
 
 ### Context/intents (`src/context/`)
 - `BeakContext` enum: table, form, detail, filter.
@@ -74,6 +108,11 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 - `BeakAggregateSpec`: `.count/.sum/.avg`, `.forKey`, `fromJson`;
   `table/function/columnKey/filter/withTrashed`. `BeakAggregateFunction` enum:
   count, sum, avg (`requiresColumn`).
+
+- `BeakSummarySpec`, `BeakSummaryMeasure`, `BeakSummaryRow`, `BeakSummaryResult`:
+  grouped count/sum queries with an explicit result bound and truncation flag.
+- `BeakSummaryDataSource`, `BeakExportDataSource`, `BeakExportFormat`: optional
+  source capabilities for authorized population summaries and explicit CSV projections.
 
 ### Model / client / data (`src/model|client|data/`)
 - `BeakModel` (@immutable abstract base): abstract `table`, `displayColumnKey`,
@@ -134,23 +173,67 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 ---
 
 ## beak_frontend (`packages/beak_frontend/lib/beak_frontend.dart`)
+
+### Composed pages and queries
+- `BeakListDefinition`, `BeakQueryPreset`, `BeakQueryController`, `BeakQueryState`,
+  `BeakQueryScope`: one versioned query for lists, summaries, filters and URL history.
+- `BeakTableColumn`, `BeakRecordTemplate`, `BeakActionPresentation`: typed composite
+  cells and explicit action placement without replacing CRUD/command handling.
+- `BeakSavedViewStore.model`, `BeakListExport`, `BeakRefreshPolicy`: persisted
+  query views, server-side CSV projection, and optional shared foreground polling.
+- `BeakNavigation`, `BeakNavigationSection`, `BeakNavigationItem`: primary rails,
+  contextual navigation and links retaining list return state.
+- `BeakFormHeader`, `BeakFormTemplate`, `BeakFormSummary`, `BeakFormMetrics`,
+  `BeakFormNotice`, `BeakFormCapacity`, `BeakFormProgress`, `BeakFormTimeline`,
+  `BeakFormActions`: session-bound presentation regions sharing draft state.
+- `EnumLabels<T>` schema annotation: stable enum wire names with generated
+  readable display labels; semantic badge colors resolve through the panel theme.
+
+### Semantic inputs and media
+- `BeakInputPresentation`, typed `.input()` and choice helpers: model-driven
+  editors for semantic values, nullable controls, lists and embedded objects.
+- `.inputAttribute`, `.inputRange`, `.inputDateRange`: dependent typed attribute
+  editors and paired field presentation while preserving independent model values.
+- `BeakFormatting`: Flutter policy inheriting the shared `BeakFormatPolicy`.
+- `BeakDraftUploads`: session-owned staging, upload preparation, receipt-aware
+  adoption/recovery and observable cleanup; `BeakFormSession.uploadCleanup`.
+- `beakPickFile`, `BeakStoredImage`: default native picker and optional transport
+  URL resolution with loading/error state.
+- `BeakGallery`, `BeakGalleryView`, `.galleryForm`: owned image relationships,
+  captions, metadata, local ordering and removal using the normal graph lifecycle.
+
+
+### Configured resource forms
+- `BeakResourceScreen`, `BeakScreenRole`, `BeakFormScreen`, `BeakWizardScreen`,
+  `BeakTableScreen`, `BeakCustomResourceScreen` (`src/panel/beak_resource_screen.dart`).
+- `BeakFormNode`, `BeakFormLayout`, `BeakCard`, `BeakColumns`, `BeakWizardStep`,
+  `BeakInput`, `BeakRelationInput`, `BeakRelationTable`, `BeakCalculated`,
+  `BeakFormWidget`, `BeakRemoveBehavior` (`src/form/beak_form_layout.dart`).
+- `BeakConfiguredForm`, `BeakFormSession`, `BeakDraftRecord`, `BeakFormReader`:
+  model-derived and authored forms sharing reactive local graph state.
+- `BeakDependencyScope` / `beakDependencies(context)`: per-panel service scope;
+  `beakLocator` remains a compatibility fallback for explicit standalone setup.
+
 The Flutter panel. Built on obers_ui / obers_ui_autoforms / obers_ui_charts.
 
 ### Panel/config (`src/panel/`)
-- `BeakPanel` (HookWidget root): `{config, dataSource?, httpClient?}`.
+- `BeakPanel` accepts explicit resources and pages; `BeakPanel.fromConfig`
+  accepts generated or host-built configuration. Both support transport overrides.
 - `BeakPanelConfig`: `{title, resources, apiBaseUrl, pages=[], auth?,
-  maintenance?, theme?, darkTheme?, initialThemeMode=system, sidebarCollapsible,
+  maintenance?, theme?, darkTheme?, initialThemeMode=system, locale?,
+  supportedLocales=BeakLocalizations.supportedLocales, localizationsDelegates=[],
+  sidebarCollapsible,
   sidebarDefaultCollapsed, dashboardStats=[], dashboardCharts=[], notifications?}`;
   `buildRegistry()`.
 - `BeakResource`: `{model, icon (BeakIconToken), label?, section?,
   recordActions=[], bulkActions=[], globalActions=[], filters=[],
-  viewModes=[BeakTableView()], detail?, formSteps?, formLayout?}`;
+  viewModes=[BeakTableView()], detail?, screens=[]}`;
   `effectiveLabel`, `route`.
 - `BeakIconToken` (extension type over IconData).
 - `BeakScreen`: `{path, title, icon, body (BeakBlock), label?, section?,
   showInNav=true, framed=true}`.
-- `BeakAuthConfig`: `{register=true, recover=true, onLogin?, onRegister?,
-  onRecover?, idleLockTimeout?, lockUserName?, onUnlock?}` (callbacks return
+- `BeakAuthConfig`: `{adapter?, register=false, recover=false,
+  idleLockTimeout?, lockUserName?, onUnlock?}` (unlock callbacks return
   `Future<bool>`).
 - `BeakMaintenanceConfig`: `{maintenanceTitle, maintenanceDescription?,
   estimatedReturn?, comingSoonTitle, comingSoonDescription?, launchAt?}`.
@@ -171,13 +254,13 @@ The Flutter panel. Built on obers_ui / obers_ui_autoforms / obers_ui_charts.
 ### Blocks (`src/blocks/`) — sealed `BeakBlock` (+ optional `span` `BeakSpan`),
 one `BeakBlockHost` renderer. ~48 variants:
 - Layout: `BeakColumnBlock({children, gapInPixels=16})`, `BeakRowBlock`,
-  `BeakGridBlock({children, columns?, minColumnWidthInPixels?, gapInPixels=16})`,
+  `BeakGridBlock({children, columns?, minColumnWidthInPixels?, minChildWidthInPixels=240, gapInPixels=16})`,
   `BeakCardBlock({child, title?, subtitle?, footer?})`, `BeakSectionBlock`,
   `BeakTabsBlock({tabs, initialIndex=0})` + `BeakTabBlockItem({label, content,
   icon?})`, `BeakAccordionBlock` + `BeakAccordionBlockItem`,
   `BeakBreadcrumbsBlock` + `BeakBreadcrumbBlockItem`, `BeakMasonryBlock`,
   `BeakThreePaneBlock`, `BeakWizardBlock({steps, stepperStyle, onComplete?})` +
-  `BeakWizardStep`, plus `BeakCarouselBlock`, `BeakDividerBlock`,
+  `BeakBlockWizardStep`, plus `BeakCarouselBlock`, `BeakDividerBlock`,
   `BeakSpacerBlock`, `BeakTimelineBlock` (some categorized as display/data).
 - Display: `BeakTextBlock(text,{variant=body})` + `BeakTextVariant`
   {display,h1,h2,h3,h4,body,bodyStrong,small,caption}, `BeakImageBlock`,
@@ -198,24 +281,29 @@ one `BeakBlockHost` renderer. ~48 variants:
   `BeakInboxBlock`, `BeakFileManagerBlock`, `BeakInvoiceBlock`, `BeakProfileBlock`,
   `BeakPricingBlock`, `BeakFaqBlock`. (See beak_frontend inventory in source for
   each block's full field list; quote verbatim.)
-- Record-bound (dual-mode): `BeakFieldBlock(column,{label?, layout=stacked})` +
+- Record presentation: `BeakFieldBlock(column,{label?, layout=stacked})` +
   `BeakFieldLayout` {stacked, inline}, `BeakFieldGroupBlock(columns,
   {columnCount=2})`, `BeakRelationBlock(relationship,{title?})`.
 
-### Detail + forms
-- `BeakRecordScope` (InheritedWidget `{model, record, child}`; `of`).
-- `BeakDetailView` (HookWidget `{model, record}`).
-- `BeakRelationManager` (HookWidget; attach/detach/delete for to-many).
-- `BeakDataForm`: `{model, dataSource, recordId?, sections?, steps?, layout?,
-  onSaved?, uploader?, filePicker?}`.
-- `BeakFormStep`: `{title, columns, subtitle?, description?, icon?}`.
-- `BeakFormScope` (InheritedWidget; `of`).
-- `BeakFormController` (extends `OiAfController<BeakFormSlot, BeakRecord>`):
-  `slotOf`, `slotOfForeignKey`, `hasFieldFor`, `valueOf`, `setValue`, `prefill`.
-- `BeakFormSection` (`{title, columns, visibleWhen?}`), `BeakFormValues`,
-  `BeakFormPredicate` typedef, `BeakFormSlot` enum.
-- `BeakFilePicker` typedef, `BeakUploadField`, `BeakBelongsToField`,
-  `BeakBelongsToManyField`; `beakFormColumnsOf(block)`.
+### Detail + configured forms
+- `BeakRecordScope` and `BeakDetailView` supply read-only record presentation.
+- `BeakRelationManager` manages persisted to-many relationships on detail pages.
+- `BeakFormScreen`, `BeakWizardScreen` and `BeakScreenRole` assign read,
+  create and edit screens to resources.
+- `BeakFormLayout`, `BeakFormSections`, `BeakSection`, `BeakCard`, `BeakColumns`,
+  `BeakTabs`, `BeakTab`, `BeakWizardStep` describe the configured layout.
+- Typed scalar references expose input helpers; to-many references expose
+  `tableForm`, with nested rows, advanced forms and summaries.
+- `BeakConfiguredForm` renders a layout against `BeakFormSession`.
+- `BeakDraftRecord`, `BeakDraftReader` and `BeakDraftScope` expose draft values,
+  nested rows, errors and inherited editing state to custom code.
+- `BeakFormWidget` embeds custom presentation; `showOnRead` controls whether an
+  editing-only component appears in read mode.
+- `BeakFormDrafts`, `BeakDraftStore`, `BeakMemoryDraftStore` and
+  `BeakBrowserDraftStore` configure checkpoint persistence. Verify current
+  signatures under `src/form/` before quoting.
+- `BeakImportView`, `BeakBulkEditView` and `BeakBulkAction.edit` provide typed
+  preview, validation and per-record commit outcomes for batch work.
 
 ### Overlays / actions / filters / table / dashboard / data / DI
 - `BeakOverlays` (`const BeakOverlays(context)`): `confirm`, `modal`, `dialog<T>`,
@@ -248,11 +336,12 @@ Shelf server. The only package that imports worm.
   generateId?}) -> Handler` (mounts `/api/auth`, `GET /api/search`, per-model
   `/api/{table}` with export + upload routes).
 - `beakResourceRouter(service, {policy}) -> Router`: `POST /query`,
-  `POST /aggregate`, `POST /batch`, `POST /`, `GET /<id>`, `PATCH /<id>`,
+  `POST /aggregate`, `POST /validate`, `POST /batch`, `POST /`, `GET /<id>`, `PATCH /<id>`,
   `DELETE /<id>`, `POST /<id>/relations/<relationKey>/attach|detach`.
 - `BeakCrudHandlers`, `BeakResourceService`, `ValidationService`.
 - Auth (`src/auth/`): `BeakPolicy` (`canView/canCreate/canUpdate/canDelete/
-  canDeleteUpload`), `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal`,
+  canDeleteUpload`), `BeakRowPolicy`, `BeakUploadReadPolicy.canViewUpload`,
+  `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal`,
   `BeakAuthGuard`, `TokenSessionAuthGuard`, `BeakAuthSessions`, `BeakUserAccount`,
   `hashBeakPassword`, `BeakAuthHandlers`, `beakAuthRouter`, `TokenSessionStore`,
   `InMemoryTokenSessionStore`, `beakAuthMiddleware`, `beakPrincipal`.

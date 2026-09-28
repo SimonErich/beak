@@ -39,7 +39,20 @@ final class CsvExportService {
   /// the handler and map to proper error responses. Failures on later
   /// pages truncate the already-streaming body: once the 200 status and
   /// header bytes are on the wire, no error envelope can follow.
-  Future<Stream<List<int>>> exportCsv(String table, BeakQuerySpec spec) async {
+  Future<Stream<List<int>>> exportCsv(
+    String table,
+    BeakQuerySpec spec, {
+    BeakFormatPolicy? formatting,
+    List<String>? columns,
+    Map<String, BeakExportFormat> formats = const {},
+    bool raw = false,
+    bool Function(BeakColumn column)? canRead,
+  }) async {
+    if (raw && (formatting != null || formats.isNotEmpty)) {
+      throw const BeakValidationException(
+        'Raw exports cannot also request display formatting.',
+      );
+    }
     final model = registry.byTableOrThrow(table);
     if (spec.table != model.table) {
       throw BeakValidationException(
@@ -47,28 +60,85 @@ final class CsvExportService {
         '"${model.table}".',
       );
     }
+    final selected = columns == null
+        ? model.columnsFor(BeakContext.table)
+        : [
+            for (final key in columns)
+              model.columns.where((column) => column.key == key).firstOrNull ??
+                  (throw BeakValidationException(
+                    'Unknown export column "$key".',
+                  )),
+          ];
+    if (selected.isEmpty ||
+        selected.map((column) => column.key).toSet().length !=
+            selected.length) {
+      throw const BeakValidationException(
+        'Export columns must be non-empty and unique.',
+      );
+    }
+    if (formats.keys.any(
+          (key) => !selected.any((column) => column.key == key),
+        ) ||
+        formats.values.any((format) => format.scale < 0 || format.scale > 12)) {
+      throw const BeakValidationException(
+        'Export formatting must target selected fields with a valid scale.',
+      );
+    }
+    final visibleColumns = selected
+        .where((column) => canRead?.call(column) ?? true)
+        .toList();
     final firstPage = await dataSource.query(
       spec.paginate(page: 1, perPage: pageSizeInRows),
     );
-    return _stream(model, spec, firstPage);
+    return _stream(
+      model,
+      spec,
+      firstPage,
+      columns: visibleColumns,
+      formats: formats,
+      formatting: formatting,
+      raw: raw,
+      canRead: canRead,
+    );
   }
 
   Stream<List<int>> _stream(
     BeakModel model,
     BeakQuerySpec spec,
-    BeakPage<BeakRecord> firstPage,
-  ) async* {
-    final columns = model.columnsFor(BeakContext.table);
+    BeakPage<BeakRecord> firstPage, {
+    required List<BeakColumn> columns,
+    required Map<String, BeakExportFormat> formats,
+    BeakFormatPolicy? formatting,
+    required bool raw,
+    bool Function(BeakColumn column)? canRead,
+  }) async* {
     yield utf8.encode(_csvRow([for (final column in columns) column.label]));
 
     var page = 1;
     var result = firstPage;
     while (true) {
       for (final record in result.items) {
+        final visible = canRead == null
+            ? record
+            : BeakRecord(
+                values: {
+                  for (final column in model.columns)
+                    if (canRead(column) &&
+                        record.values.containsKey(column.key))
+                      column.key: record.values[column.key]!,
+                },
+              );
         yield utf8.encode(
           _csvRow([
             for (final column in columns)
-              renderCell(column, record[column.key]),
+              renderCell(
+                column,
+                visible[column.key],
+                record: visible,
+                formatting: formatting,
+                override: formats[column.key],
+                raw: raw,
+              ),
           ]),
         );
       }
@@ -85,21 +155,76 @@ final class CsvExportService {
   /// Renders one cell per the column's display semantics: timestamps as
   /// ISO-8601, decimals at their configured precision, everything else via
   /// its raw value ('' for null).
-  static String renderCell(BeakColumn column, BeakValue? value) {
-    final Object? raw = value?.raw;
-    if (raw == null) {
+  static String renderCell(
+    BeakColumn column,
+    BeakValue? value, {
+    BeakRecord? record,
+    BeakExportFormat? override,
+    BeakFormatPolicy? formatting,
+    bool raw = false,
+  }) {
+    if (column.semantic.kind == BeakSemanticKind.password &&
+        value?.raw != null) {
+      return '••••••••';
+    }
+    if (override != null) {
+      final decoded = column.semantic.hasCodec
+          ? column.semantic.tryDecode(value)
+          : value?.raw;
+      return (formatting ?? const BeakFormatPolicy()).format(
+        override.minorUnits && decoded is int
+            ? BeakDecimal(decoded, scale: override.scale)
+            : decoded,
+        override.format,
+      );
+    }
+    if (formatting != null) {
+      return formatting.formatCell(
+        column,
+        record ?? BeakRecord(values: {column.key: ?value}),
+      );
+    }
+    if (!raw && column.semantic.hasCodec) {
+      final decoded = column.semantic.tryDecode(value);
+      if (decoded is BeakDecimal ||
+          decoded is BeakDate ||
+          decoded is BeakTime) {
+        return decoded.toString();
+      }
+      if (decoded is Duration) {
+        return const BeakFormatPolicy().duration(decoded);
+      }
+    }
+    return _physicalCell(column, value, raw: raw);
+  }
+
+  static String _physicalCell(
+    BeakColumn column,
+    BeakValue? value, {
+    required bool raw,
+  }) {
+    final Object? physical = value?.raw;
+    if (raw) {
+      return switch (physical) {
+        null => '',
+        final DateTime instant => instant.toIso8601String(),
+        _ => physical.toString(),
+      };
+    }
+    final Object? rawValue = physical;
+    if (rawValue == null) {
       return '';
     }
     return switch (column) {
-      BeakDateTimeColumn() => switch (raw) {
+      BeakDateTimeColumn() => switch (rawValue) {
         final DateTime instant => instant.toIso8601String(),
         final Object other => other.toString(),
       },
-      BeakDecimalColumn(:final precision) => switch (raw) {
+      BeakDecimalColumn(:final precision) => switch (rawValue) {
         final num number => number.toStringAsFixed(precision),
         final Object other => other.toString(),
       },
-      _ => raw.toString(),
+      _ => rawValue.toString(),
     };
   }
 

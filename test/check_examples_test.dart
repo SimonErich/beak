@@ -73,17 +73,11 @@ void main() {
   });
 
   group('the repository itself', () {
-    test('has the four examples the docs describe', () {
-      // The gate walks whatever it finds, so a fifth example is picked up
-      // for free — but the four the plan named must all be there.
+    test('has the documented examples', () {
+      // The gate walks all packages; keep the documented entry points present.
       expect(
         examplesIn(Directory.current).map((d) => d.path.split('/').last),
-        containsAll(<String>[
-          'embedded',
-          'quickstart',
-          'store',
-          'superdashboard',
-        ]),
+        containsAll(<String>['clean_beak_config', 'quickstart']),
       );
     });
 

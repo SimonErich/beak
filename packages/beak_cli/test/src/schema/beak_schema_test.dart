@@ -68,6 +68,154 @@ BeakSchemaIr schemaNamed(List<BeakSchemaIr> schemas, String name) =>
     schemas.firstWhere((schema) => schema.className == name);
 
 void main() {
+  test('typed enum labels and badge mappings survive schema generation', () {
+    final (schemas, issues) = readSchemas({
+      'ticket.dart': """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+enum TicketStatus { open, inProgress }
+@Resource()
+final class Ticket extends BeakSchema {
+  @Display()
+  late final String name;
+  @EnumLabels<TicketStatus>({TicketStatus.inProgress: 'In progress'})
+  @Badges<TicketStatus>({TicketStatus.open: BeakColor.info})
+  late final TicketStatus status;
+}
+""",
+    });
+    expect(issues, isEmpty);
+    final column = schemas.single.columns.firstWhere(
+      (column) => column.fieldName == 'status',
+    );
+    expect(
+      column.arguments['labels']?.replaceAll(' :', ':'),
+      "{TicketStatus.inProgress: 'In progress'}",
+    );
+    expect(
+      column.arguments['badgeColors']?.replaceAll(' :', ':'),
+      '{TicketStatus.open: BeakColor.info}',
+    );
+    final source = BeakSchemaEmitter.emit(schemas.single, schemas);
+    expect(
+      source,
+      contains("labels: {TicketStatus.inProgress: 'In progress'}"),
+    );
+  });
+
+  test('shared behavior is forwarded and its name remains a typed field', () {
+    final (schemas, issues) = readSchemas({
+      'category.dart': categorySchema.replaceFirst(
+        'late final String name;',
+        '''late final String name;
+  late final String? behavior;
+  static BeakModelBehavior get behaviorConfig => const BeakModelBehavior();''',
+      ),
+      'product.dart': productSchema.replaceFirst(
+        'late final String name;',
+        '''late final String name;
+  static BeakModelBehavior get behavior => const BeakModelBehavior();''',
+      ),
+    });
+    expect(issues, isEmpty);
+    final product = schemaNamed(schemas, 'Product');
+    final category = schemaNamed(schemas, 'Category');
+    expect(product.hasBehavior, isTrue);
+    expect(category.hasBehavior, isFalse);
+    expect(
+      BeakSchemaEmitter.emit(product, schemas),
+      contains('BeakModelBehavior get behavior => Product.behavior;'),
+    );
+    final categorySource = BeakSchemaEmitter.emit(category, schemas);
+    expect(categorySource, contains('BeakScalarField<String> get behavior'));
+    expect(categorySource, isNot(contains('static final behavior =')));
+  });
+
+  test(
+    'required relationships default to restrict without overriding intent',
+    () {
+      final (schemas, issues) = readSchemas({
+        'category.dart': categorySchema,
+        'product.dart': productSchema.replaceFirst(
+          'late final Category? category;',
+          '''late final Category category;
+  @BelongsTo(onDelete: OnDelete.cascade)
+  late final Category alternate;
+  @BelongsTo()
+  late final Category? optional;''',
+        ),
+      });
+      expect(issues, isEmpty);
+      final product = schemaNamed(schemas, 'Product');
+      expect(
+        product.relations[0].arguments['onDelete'],
+        'BeakOnDelete.restrict',
+      );
+      expect(product.relations[1].arguments['onDelete'], 'OnDelete.cascade');
+      expect(product.relations[2].arguments['onDelete'], isNull);
+    },
+  );
+  test('explicit integer identity drives the related foreign-key type', () {
+    final (schemas, issues) = readSchemas({
+      'customer.dart': '''
+@Resource()
+final class Customer extends BeakSchema {
+  late final int? id;
+  late final String name;
+}
+''',
+      'order.dart': '''
+@Resource()
+final class Order extends BeakSchema {
+  late final String label;
+  @BelongsTo()
+  late final Customer customer;
+}
+''',
+    });
+    expect(issues, isEmpty);
+    expect(
+      schemaNamed(
+        schemas,
+        'Customer',
+      ).columns.where((column) => column.columnKey == 'id'),
+      hasLength(1),
+    );
+    final foreignKey = schemaNamed(
+      schemas,
+      'Order',
+    ).columns.singleWhere((column) => column.columnKey == 'customer_id');
+    expect(foreignKey.valueType, 'int');
+    expect(foreignKey.isRequired, isTrue);
+  });
+  test('discovers resource-local models and preserves required relations', () {
+    final root = modelsWith({
+      '../resources/customers/models/customer.dart': categorySchema.replaceAll(
+        'Category',
+        'Customer',
+      ),
+      '../resources/orders/models/order.dart': productSchema
+          .replaceAll('Product', 'Order')
+          .replaceAll('Category?', 'Customer')
+          .replaceAll('category', 'customer'),
+      '../resources/orders/models/order.g.dart': productSchema,
+    });
+    final (schemas, issues) = BeakSchemaReader(root).read();
+    expect(issues, isEmpty);
+    expect(schemas.map((schema) => schema.className), ['Customer', 'Order']);
+    final order = schemaNamed(schemas, 'Order');
+    expect(order.relations.single.isRequired, isTrue);
+    expect(
+      order.columns
+          .singleWhere((column) => column.fieldName == 'customerId')
+          .isRequired,
+      isTrue,
+    );
+    final source = BeakSchemaEmitter.emit(order, schemas);
+    expect(source, contains('static const OrderFields fields'));
+    expect(source, contains('CustomerToOneField get customer'));
+    expect(source, contains('extension OrderDraftAccess on BeakDraftReader'));
+  });
   group('reading', () {
     late List<BeakSchemaIr> schemas;
     late List<BeakDiscoveryIssue> issues;

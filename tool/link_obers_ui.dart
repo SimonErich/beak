@@ -41,6 +41,21 @@ List<String> obersUiDependenciesOf(String pubspecSource) => [
       package,
 ];
 
+/// Coordinated overrides needed at an executable's own dependency root.
+///
+/// Pub deliberately does not inherit a dependency's overrides. A panel which
+/// depends on `beak` therefore needs the same overrides as `beak_frontend`.
+/// Pure Dart packages remain untouched so linking does not introduce Flutter.
+List<String> obersUiOverridesFor(String pubspecSource) {
+  final usesPanel = RegExp(
+    r'^  (beak|beak_frontend|beak_serverpod_flutter):',
+    multiLine: true,
+  ).hasMatch(pubspecSource);
+  return usesPanel || obersUiDependenciesOf(pubspecSource).isNotEmpty
+      ? obersUiPackagePaths.keys.toList()
+      : const [];
+}
+
 /// Returns [overridesSource] with this tool's block removed.
 ///
 /// An absent block is not an error — unlinking twice is a no-op.
@@ -113,7 +128,7 @@ void main(List<String> args) {
       if (!pubspec.existsSync()) {
         continue;
       }
-      final List<String> packages = obersUiDependenciesOf(
+      final List<String> packages = obersUiOverridesFor(
         pubspec.readAsStringSync(),
       );
       if (packages.isEmpty) {

@@ -1,164 +1,76 @@
 ---
 title: Actions
-description: How to add typed record, bulk, and global actions to a resource from lib/resources/<table>.dart, what an action receives, and how confirmation works.
+description: Expose model transitions and typed bulk edits with automatic validation and persistence.
 ---
 
 # Actions
 
-After this page you can add a button to a row, a selection, or a page that runs your own typed code against the data source, refreshes the surface it ran from, and optionally asks the user to confirm first.
+Declare business transitions in `BeakModelBehavior.actions`. Beak renders available actions in configured forms and resource tables, collects optional typed arguments, validates the candidate and submits the named graph operation.
 
-Beak's generated pages already carry view, edit, delete, and create. When you need more (publish a product, archive a selection, export a page), you declare a `BeakAction` in that resource's file under `lib/resources/`. An action is a small piece of typed Dart, not a widget: it reads from a `BeakActionContext` and returns a `Future`. Beak renders the button, routes the tap through one execution path, and hands your code everything it needs.
-
-## Where actions are declared
-
-A generated `BeakResource` has no custom actions on it. To add some, create `lib/resources/<table>.dart` with one function that receives the generated resource and returns a copy carrying yours:
-
-```dart title="examples/store/lib/resources/products.dart"
-/// The products resource, with the parts Beak cannot derive.
-///
-/// Everything else — the model, the label, the icon, the section — still comes
-/// from the schema class and `beak.yaml`; this file only adds what a person
-/// decides. The filters are not listed: every `filterable: true` column
-/// already contributes its control.
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: productLayout,
-  formLayout: productLayout,
-  recordActions: [
-    BeakRecordAction(
-      key: 'publish',
-      label: 'Publish',
-      icon: OiIcons.rocket,
-      onExecute: (record, context) async {
-        final Object? id = context.model.primaryKeyOf(record);
-        if (id == null) {
-          return;
-        }
-        await context.dataSource.update(
-          context.model.table,
-          id,
-          BeakRecord(
-            values: {
-              ProductColumns.status.key: BeakValue.of(
-                ProductStatus.published.name,
-              ),
-              ProductColumns.publishedAt.key: BeakValue.of(DateTime.now()),
-            },
-          ),
-        );
-      },
-    ),
-  ],
-  // ... bulk actions and view modes ...
-);
+```dart title="examples/clean_beak_config/lib/resources/invoices/models/invoice.dart"
+--8<-- "examples/clean_beak_config/lib/resources/invoices/models/invoice.dart"
 ```
 
-The file is named after the table, the function is named `beakResource`, and `beak prepare` wires it in. Nothing else registers it.
+The shop issues drafts, marks issued invoices paid, and cancels eligible documents. Terminal documents cannot be reopened by editing their status. Issuing a new document can create its lines and perform the transition in the same transaction. A replay uses the same receipt, so the transition is not executed twice.
 
-!!! note "What just happened"
-    - The action never captured widget state. It read the model, the data source and the record id off the context it was handed.
-    - It addressed fields through `ProductColumns` constants, generated from the `status` and `publishedAt` fields of the `Product` schema class. Rename a field and this is a compile error, not a runtime surprise.
-    - `context.model.primaryKeyOf(record)` is the typed way to get a record's id. There is no `record['id']` anywhere.
+## Permissions and failure
 
-## Three shapes
+Availability is evaluated for presentation and rechecked on the server against the stored baseline. An optional `BeakActionPolicy` further authorizes action names for the authenticated account. The source’s `executableActions` capability allowlist expresses that account permission and whether the action can run during creation; it does not replace workflow availability. A rejected action leaves the draft reviewable. Validation and uncertain transport outcomes use the same paths as Save.
 
-`BeakAction` is a sealed hierarchy with exactly three targets, so every surface can switch over them exhaustively. All three share the same base fields.
+## Bulk configuration
 
-```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
---8<-- "packages/beak_frontend/lib/src/actions/beak_action.dart:BeakAction"
+`BeakBulkAction.edit` takes a key, label and typed `BeakFieldChange` values. The product resource demonstrates activation and deactivation of a selection. Beak loads selected records, previews shared validation, preserves revisions and executes a separate graph per record. See [Imports and bulk edits](import-and-bulk-edit.md) for progress and recovery semantics.
+
+## List placement and recovery
+
+A composed list uses `BeakActionPresentation` to place configured commands inline or in an overflow menu. Its `bulkModelActions` executes the named transition for selected records, with shared arguments and one receipt per record. The panel runner retains uncertain outcomes across mounted route changes and exposes recovery through a pending-action banner. Recovery reuses the original save identity; it does not dispatch a replacement operation. This queue is scoped to the current mounted panel and principal, rather than browser-reload persistence. See [Composed lists](composed-lists.md) for the complete query and action contract.
+
+## Custom actions
+
+`BeakRecordAction`, `BeakBulkAction` and `BeakGlobalAction` remain presentation extension points for application-specific tasks. Their callbacks receive `BeakActionContext`, including the current model, source, router, overlays and refresh hook. They do not replace shared model actions for server-owned business transitions. Standard view, edit, create, delete and archive actions remain available.
+
+For delivery notes, receipts and similar record documents, use `BeakRecordAction.document`. Typed field bindings and collection columns define the content; Beak reloads the authorized persisted record, applies the panel's formatting and opens a print window or portable HTML download. See [Printable record documents](record-documents.md).
+
+## Contact and web links
+
+`BeakRecordAction.link` opens a typed URI using the shared platform launcher.
+It checks current action permission and reports a missing destination or handler
+through the normal typed error path. For example:
+
+```dart
+BeakRecordAction.link(
+  key: 'call-customer',
+  label: 'Call customer',
+  icon: OiIcons.phone,
+  roles: const {BeakScreenRole.list},
+  uri: (record) {
+    final phone = OrderModel.contactPhone.readFrom(record);
+    return phone == null ? null : Uri(scheme: 'tel', path: phone);
+  },
+)
 ```
 
-The three subclasses differ only in what their `onExecute` receives:
-
-| Action | Declared on | `onExecute` receives |
-| --- | --- | --- |
-| `BeakRecordAction` | `recordActions` | one `BeakRecord` plus the context |
-| `BeakBulkAction` | `bulkActions` | every selected `BeakRecord` at once, plus the context |
-| `BeakGlobalAction` | `globalActions` | the context only |
-
-```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
---8<-- "packages/beak_frontend/lib/src/actions/beak_action.dart:BeakRecordAction"
-```
-
-The built-in view, edit, delete, and create actions subclass these, so your custom actions sit alongside them on the generated pages. `BeakDeleteAction`, for instance, is a `BeakRecordAction` that renders destructively and commits through an optimistic undo window.
-
-### A bulk action over the selection
-
-A bulk action gets the whole selection in one call, so mass work runs in a single pass rather than one round trip per checkbox. The store archives products this way:
-
-```dart title="examples/store/lib/resources/products.dart"
-  bulkActions: [
-    BeakBulkAction(
-      key: 'archive',
-      label: 'Archive',
-      icon: OiIcons.archive,
-      color: BeakColor.warning,
-      onExecute: (records, context) async {
-        for (final record in records) {
-          final Object? id = context.model.primaryKeyOf(record);
-          if (id == null) {
-            continue;
-          }
-          await context.dataSource.update(
-            context.model.table,
-            id,
-            BeakRecord(
-              values: {
-                ProductColumns.status.key: BeakValue.of(
-                  ProductStatus.archived.name,
-                ),
-              },
-            ),
-          );
-        }
-      },
-    ),
-  ],
-```
-
-## What an action receives
-
-Every action's `onExecute` is handed a `BeakActionContext`: the resource's model, the data source, the router, the build context overlays mount from, and a hook to refresh the surface the action ran from. Custom actions read from it rather than capturing widget state.
-
-```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
---8<-- "packages/beak_frontend/lib/src/actions/beak_action.dart:BeakActionContext"
-```
-
-Two members carry most of the weight. `dataSource` is the same source-agnostic interface the panel reads through, so an action's mutation goes through the identical path as everything else. `refresh` reloads the surface the action ran from.
-
-`refresh` is nullable on purpose: the list page supplies one, and the show page does not (it has a single record and its own load). Call it as `await context.refresh?.call()` and the same action works on both. The `overlays` getter is covered in [Overlays](overlays.md).
-
-## Confirmation
-
-Set `requiresConfirmation: true` and Beak shows a dialog before running. The single execution path both the buttons and the table rows route through checks it first, and a destructive color turns the confirm button destructive:
-
-```dart title="packages/beak_frontend/lib/src/actions/beak_action_button.dart"
---8<-- "packages/beak_frontend/lib/src/actions/beak_action_button.dart:executeBeakAction"
-```
-
-If you need finer control (a custom message, a modal instead of a yes/no), skip `requiresConfirmation` and call `context.overlays.confirm(...)` inside `onExecute` yourself, as [Overlays](overlays.md) shows.
-
-## How the button renders
-
-You never build the button; the generated pages do. `BeakActionButton` picks the obers_ui variant from the action's color and can render a compact icon-only version inside a table row:
-
-```dart title="packages/beak_frontend/lib/src/actions/beak_action_button.dart"
-    return switch (action.color) {
-      BeakColor.primary => OiButton.primary(label: action.label, onTap: run),
-      BeakColor.error => OiButton.destructive(label: action.label, onTap: run),
-      _ => OiButton.secondary(label: action.label, onTap: run),
-    };
-```
-
-So the only things you choose are the `key`, the `label`, an optional `icon`, an optional `color`, whether it confirms, and the code that runs.
-
-!!! question "What this skipped"
-    - Dialogs, sheets, and toasts an action can raise: [Overlays](overlays.md).
-    - Where actions sit alongside filters, view modes and layouts: [Resources](resources.md).
-    - How a failed mutation surfaces: [Results and errors](../concepts/results-and-errors.md).
+The shared `launchBeakUri` boundary supports absolute HTTP(S), `mailto`, `tel`
+and `sms` destinations. Relative, file and executable schemes are rejected.
+It calls the platform handler directly, preserving browser user activation;
+platform failures become safe `BeakValidationException` values. Native hosts
+must supply the platform plugin registration used by `url_launcher`. Advanced
+hosts and tests can inject a `BeakUriLauncher` without replacing action policy.
+A link action defaults to list/read roles; explicit roles avoid duplicating a
+contact control already present in a detail layout.
 
 ## Continue reading
 
-- [Overlays](overlays.md) the confirm, modal, sheet, and toast an action reaches through the context.
-- [Resources](resources.md) the rest of what a `lib/resources/<table>.dart` can change.
-- [Tables and filters](tables-and-filters.md) the list surface most actions run from.
-- [Results and errors](../concepts/results-and-errors.md) how a rejected mutation is reported.
+- [Model behavior](../models/behavior.md)
+- [Imports and bulk edits](import-and-bulk-edit.md)
+- [Printable record documents](record-documents.md)
+
+## Presentation by resource role
+
+`BeakRecordAction.roles` selects the generated surfaces that expose a custom
+action. It defaults to all roles. Reuse the same `BeakScreenRole` values as screen
+definitions; for example, `roles: {BeakScreenRole.list, BeakScreenRole.read}`
+keeps a document action in list menus and read headers while editing focuses on
+Save and Cancel. Shared read/edit forms follow their live mode, including an
+in-place Edit or Cancel without a route change. Resource authorization and
+server permissions are still checked independently.

@@ -5,7 +5,7 @@ description: How one sealed BeakBlock union and a single exhaustive BeakBlockHos
 
 # Block system internals
 
-After this page you can explain why a new block type is a compile error until every renderer handles it, how a grid child claims its span, and how the same block tree renders read-only values on a detail page and editable inputs in a form.
+After this page you can explain how the block renderer dispatches each block, how a grid child claims its span, and how record blocks obtain their data.
 
 Every non-CRUD surface in Beak is a tree of blocks. A custom page's body, a resource's alternate view mode, an overlay's content, a detail layout, a form layout: all of them are `BeakBlock` values, and all of them are rendered by one widget, `BeakBlockHost`. The union is sealed and the host's switch is exhaustive, so the block system cannot drift out of sync with itself.
 
@@ -13,7 +13,7 @@ The union is defined in `packages/beak_frontend/lib/src/blocks/beak_block.dart`;
 
 ## One sealed union
 
-`BeakBlock` is a sealed base with a single shared field, an optional `span` used when the block is a direct child of a grid. Every concrete block, roughly fifty of them, extends it as a part-file of the same library (sealed types must live in one library).
+`BeakBlock` is a sealed base with a single shared field, an optional `span` used for grid tracks or as a relative width in an expanded row. Every concrete block, roughly fifty of them, extends it as a part-file of the same library (sealed types must live in one library).
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
 @immutable
@@ -21,8 +21,8 @@ sealed class BeakBlock {
   /// Creates a block, optionally sized by [span] inside grid parents.
   const BeakBlock({this.span});
 
-  /// How many grid tracks this block occupies when it is a direct child
-  /// of a [BeakGridBlock]; ignored elsewhere.
+  /// Grid tracks occupied inside a [BeakGridBlock]. An expanded [BeakRowBlock]
+  /// uses its columns as relative width weights instead; ignored elsewhere.
   final BeakSpan? span;
 }
 ```
@@ -71,23 +71,11 @@ The recursion terminates at leaf blocks (text, image, divider) that render a wid
 
 ## Grids and spans
 
-The grid is where `BeakSpan` earns its place on the base class. A `BeakGridBlock` renders as an `OiGrid`, and each child is wrapped by `_spanned`, which reads the child's `span` and, when present, places it in an `OiSpan` covering that many column and row tracks:
+The grid is where `BeakSpan` earns its place on the base class. A `BeakGridBlock` renders as an `OiGrid`. Fixed grids use `LayoutBuilder` to calculate each child's width from the available width, gaps, and column span. If any child falls below `minChildWidthInPixels` (240 by default), the grid uses one track. The existing spans clamp to that track, preserving reading order and natural card heights. Setting the minimum to zero disables this fallback; auto-fitting grids retain their explicit `minColumnWidthInPixels` behavior.
+
+Each child is wrapped by `_spanned`, which reads the child's `span` and, when present, places it in an `OiSpan` covering that many column and row tracks:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-Widget _grid(BuildContext context, BeakGridBlock block) => OiGrid(
-  breakpoint: context.breakpoint,
-  columns: switch (block.columns) {
-    final int columns => OiResponsive<int>(columns),
-    null => null,
-  },
-  minColumnWidth: switch (block.minColumnWidthInPixels) {
-    final double width => OiResponsive<double>(width),
-    null => null,
-  },
-  gap: OiResponsive<double>(block.gapInPixels),
-  children: [for (final child in block.children) _spanned(child)],
-);
-
 Widget _spanned(BeakBlock child) {
   final host = BeakBlockHost(block: child);
   final span = child.span;
@@ -106,82 +94,27 @@ Widget _spanned(BeakBlock child) {
 
 The span lives on the child but is only honored by a grid parent; anywhere else it is ignored. That is why `span` is a field on the base class rather than a grid-only concept: a `BeakCardBlock` can declare `span: BeakSpan(columns: 6)` and be laid out correctly whether or not it happens to sit in a grid.
 
-## Dual-mode: one layout, two surfaces
+## Record presentation and configured forms
 
-The block system's sharpest trick is that three blocks, `BeakFieldBlock`, `BeakFieldGroupBlock`, and `BeakRelationBlock`, render two entirely different things depending on where they sit. Inside a form they render editable inputs. Inside a detail page they render read-only values. The same `const` block tree drives both a resource's `detail` and its `formLayout`.
+`BeakFieldBlock` and `BeakFieldGroupBlock` display values from the nearest
+`BeakRecordScope`. The host delegates formatting to `renderBeakCell`, the same
+renderer used by table cells. Without a record scope, these blocks render an
+empty widget. `BeakRelationBlock` uses the scoped record's identity and the
+panel's data source to render a relationship manager; eagerly loaded rows can
+supply its initial data.
 
-The host resolves this by looking for scopes, form first:
+Configured forms use a separate typed layout tree: `BeakCard`, `BeakColumns`,
+`BeakSection`, `BeakTabs`, field inputs and relationship editors. A
+`BeakFormScreen` can serve read, create and edit roles with this one layout.
+`BeakFormSections` projects reusable sections into a stacked form, tabs or
+wizard steps. The form renderer selects values or inputs according to the
+current mode and shares the column formatting contract with record blocks.
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-Widget _field(BuildContext context, BeakFieldBlock block) {
-  final form = BeakFormScope.of(context);
-  if (form != null) {
-    return _fieldInput(form, block.column);
-  }
-  final scope = BeakRecordScope.of(context);
-  if (scope == null) {
-    return const SizedBox.shrink();
-  }
-  final String label = block.label ?? block.column.label;
-  final Widget value = renderBeakCell(
-    context,
-    column: block.column,
-    record: scope.record,
-    renderContext: BeakContext.detail,
-  );
-  // ... lay out label + value per block.layout ...
-}
-```
-
-The two scopes are plain `InheritedWidget`s. A show page wraps its detail layout in a `BeakRecordScope` carrying the loaded record; a `BeakDataForm` with a layout wraps its block host in a `BeakFormScope` carrying the form controller.
-
-```dart title="packages/beak_frontend/lib/src/detail/beak_record_scope.dart"
-class BeakRecordScope extends InheritedWidget {
-  const BeakRecordScope({
-    required this.model,
-    required this.record,
-    required super.child,
-    super.key,
-  });
-
-  // ...
-
-  static BeakRecordScope? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<BeakRecordScope>();
-
-  // ...
-}
-```
-
-Three things keep this safe. Field blocks look for a form scope before a record scope, so a layout reused in both places always resolves to the right surface. A field outside both scopes renders `SizedBox.shrink()` rather than throwing, so a block composed in the wrong place degrades quietly instead of crashing. And in a form, a field the controller did not register (an id, a detail-only column) renders nothing:
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-Widget _fieldInput(BeakFormScope form, BeakColumn column) {
-  final controller = form.controller;
-  if (!controller.hasFieldFor(column)) {
-    return const SizedBox.shrink();
-  }
-  for (final relation in form.model.relationships) {
-    if (relation is BeakBelongsTo && relation.foreignKey == column.key) {
-      return BeakBelongsToField(
-        controller: controller,
-        relation: relation,
-        dataSource: form.dataSource,
-        referenceCache: beakLocator<ReferenceCache>(),
-      );
-    }
-  }
-  return beakFormFieldFor(
-        controller: controller,
-        column: column,
-        uploader: form.uploader,
-        filePicker: form.filePicker,
-      ) ??
-      const SizedBox.shrink();
-}
-```
-
-A foreign-key column becomes a belongs-to picker; any other column becomes the type-mapped input; the read-only detail path runs `renderBeakCell` instead, the same cell renderer the data table uses. One layout, two surfaces, zero duplicated formatting.
+A custom form widget reads `BeakDraftScope.of(context)` for its draft and
+inherited enabled/read-only state. Changes made through that draft participate
+in the configured form's validation, review and graph save. A `BeakWidgetBlock`
+on a custom page instead supplies ordinary presentation under the panel's data
+and formatting scopes.
 
 ## Where interaction state lives
 
@@ -213,12 +146,12 @@ The `BeakTabsBlock` stays a `const` description of tabs; the private host holds 
 
 - **Exhaustiveness over registration.** A sealed union plus a `switch` means the compiler, not a runtime lookup table, guarantees every block renders. There is no "unknown block type" branch to forget.
 - **`const` config, not widgets.** Blocks are cheap immutable values, so a page layout is a literal you can define once and reuse. Rendering, state, and DI live in the host, keeping the block surface declarative.
-- **Dual-mode by scope.** Because field blocks resolve their surface from an inherited scope rather than a mode flag, one layout can be the detail page and the form, which is how the showcase gives a resource identical structure on both.
+- **Shared formatting.** Record blocks and configured forms consume the same column metadata and formatting policy, while each keeps an appropriate presentation or draft scope.
 
 ## Continue reading
 
 - [The block system](../concepts/the-block-system.md) the same idea at concept level, with the three consumers.
 - [Blocks overview](../blocks/index.md) the full catalog of block types.
-- [Record blocks](../blocks/record-blocks.md) the dual-mode field, group, and relation blocks.
-- [Detail views and dual-mode blocks](../panel/detail-and-dual-mode.md) building a layout that serves both surfaces.
+- [Record blocks](../blocks/record-blocks.md) read-only field and group blocks, and relationship presentation.
+- [Detail views and dual-mode blocks](../panel/detail-and-dual-mode.md) using a configured form for read and edit roles.
 - [The widget escape hatch](../blocks/the-widget-escape-hatch.md) dropping to a raw widget when a block will not do.

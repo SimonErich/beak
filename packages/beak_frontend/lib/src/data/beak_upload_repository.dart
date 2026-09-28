@@ -62,6 +62,10 @@ final class BeakUploadRepository {
       return BeakOk(await client.upload(table, column.key, file));
     } on BeakException catch (exception) {
       return BeakErr(exception);
+    } on Exception {
+      return const BeakErr(
+        BeakStorageException('Unable to upload the file. Please try again.'),
+      );
     }
   }
 }

@@ -160,6 +160,48 @@ void main() {
   });
 
   group('BeakTableBlock', () {
+    testWidgets(
+      'typed fields are exact and read-only blocks omit delete actions',
+      (tester) async {
+        const fields = [
+          BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.title,
+          ),
+          BeakScalarField<String>(
+            model: ArticleModel(),
+            column: BeakStringColumn(key: 'name', label: 'Category'),
+            path: [ArticleRelations.category],
+          ),
+        ];
+        await pump(
+          tester,
+          const BeakTableBlock(
+            model: ArticleModel(),
+            fields: fields,
+            enableDelete: false,
+          ),
+        );
+        final table = tester.widget<BeakDataTable>(find.byType(BeakDataTable));
+        final rendered = tester.widget<OiTable<BeakRecord>>(
+          find.byType(OiTable<BeakRecord>),
+        );
+        expect(table.fields, fields);
+        expect(table.enableDelete, false);
+        expect(rendered.columns.map((column) => column.id), [
+          'title',
+          'category.name',
+        ]);
+        expect(
+          dataSource.queryCalls.single.relationLoads.map(
+            (load) => load.relationKey,
+          ),
+          ['category'],
+        );
+        expect(find.bySemanticsLabel('Delete'), findsNothing);
+      },
+    );
+
     testWidgets('binds the model into a bounded data table', (tester) async {
       await pump(
         tester,
@@ -168,6 +210,14 @@ void main() {
 
       final table = tester.widget<BeakDataTable>(find.byType(BeakDataTable));
       expect(table.model.table, 'notes');
+      expect(table.enableDelete, true);
+      expect(
+        tester
+            .widget<OiTable<BeakRecord>>(find.byType(OiTable<BeakRecord>))
+            .columns
+            .map((column) => column.id),
+        contains('_actions'),
+      );
       expect(find.text('All notes'), findsWidgets);
       expect(find.text('Alpha'), findsWidgets);
     });

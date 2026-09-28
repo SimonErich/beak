@@ -31,6 +31,8 @@ final class BeakFileColumn extends BeakUploadColumn
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
     super.maxSizeInBytes,
     super.allowedTypes,
   });

@@ -6,6 +6,8 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_multipart/shelf_multipart.dart';
 
 import '../auth/beak_policy.dart';
+import '../auth/beak_field_policy.dart';
+import '../auth/beak_query_authorizer.dart';
 import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
 import 'upload_service.dart';
@@ -21,6 +23,7 @@ final class BeakUploadHandlers {
     required this.model,
     required this.service,
     this.policy = const BeakAllowAllPolicy(),
+    this.dataSource,
   });
 
   /// The model whose file columns these handlers serve.
@@ -32,6 +35,9 @@ final class BeakUploadHandlers {
   /// The authorization gate consulted before storing or removing files.
   final BeakPolicy policy;
 
+  /// Source used to verify visible record ownership of stored keys.
+  final BeakDataSource? dataSource;
+
   /// The multipart field the file must arrive under.
   static const String fileFieldName = 'file';
 
@@ -39,6 +45,11 @@ final class BeakUploadHandlers {
   /// principals that may create records of this model).
   // --8<-- [start:upload]
   Future<Response> upload(Request request, String columnKey) async {
+    BeakFieldAccess(
+      registry: service.registry,
+      policy: policy,
+      principal: beakPrincipal(request),
+    ).requireWrite(model.table, [columnKey]);
     enforcePolicyDecision(
       allowed: policy.canCreate(beakPrincipal(request), model.table),
       principal: beakPrincipal(request),
@@ -55,10 +66,85 @@ final class BeakUploadHandlers {
   }
   // --8<-- [end:upload]
 
+  /// Resolves a stored key after enforcing the resource's read policy.
+  Future<Response> url(Request request, String columnKey) async {
+    BeakFieldAccess(
+      registry: service.registry,
+      policy: policy,
+      principal: beakPrincipal(request),
+    ).requireRead(model.table, columnKey);
+    enforcePolicyDecision(
+      allowed: policy.canView(beakPrincipal(request), model.table),
+      principal: beakPrincipal(request),
+      action: 'view uploads of',
+      table: model.table,
+    );
+    final key = request.url.queryParameters['key'];
+    if (key == null || key.isEmpty) {
+      throw const BeakValidationException('An upload key is required.');
+    }
+    if (policy case final BeakUploadReadPolicy uploads) {
+      enforcePolicyDecision(
+        allowed: uploads.canViewUpload(
+          beakPrincipal(request),
+          model.table,
+          columnKey,
+          key,
+        ),
+        principal: beakPrincipal(request),
+        action: 'view uploads of',
+        table: model.table,
+      );
+    }
+    final authorizer = BeakQueryAuthorizer(
+      registry: service.registry,
+      policy: policy,
+      principal: beakPrincipal(request),
+    );
+    if (authorizer.scopeFor(model.table) != null) {
+      final source = dataSource;
+      if (source == null) {
+        throw const BeakConfigurationException(
+          'Scoped upload reads require a data source.',
+        );
+      }
+      final column = model.columnByKey(columnKey);
+      if (column is! BeakUploadColumn) {
+        throw const BeakValidationException(
+          'Upload URLs require a file or image column.',
+        );
+      }
+      final rows = await source.query(
+        authorizer.authorizeQuery(
+          model.query(
+            filter: BeakFieldFilter(
+              column: column,
+              operator: BeakOperator.eq,
+              value: BeakStringValue(key),
+            ),
+            pagination: const BeakPagination(perPage: 1),
+          ),
+        ),
+      );
+      if (rows.items.isEmpty) {
+        throw const BeakNotFoundException(
+          'No visible record references this upload.',
+        );
+      }
+    }
+    final url = await service.url(model.table, columnKey, key);
+    return Response.ok(jsonEncode({'url': url.toString()}));
+  }
+
   /// `DELETE /<columnKey>/upload` — removes the stored file named by the
   /// posted `{"key": ...}` (allowed for principals that may delete records
   /// of this model).
   Future<Response> remove(Request request, String columnKey) async {
+    BeakFieldAccess(
+      registry: service.registry,
+      policy: policy,
+      principal: beakPrincipal(request),
+    ).requireWrite(model.table, [columnKey]);
     final body = await readJsonObject(request);
     final String key = switch (body['key']) {
       final String value => value,

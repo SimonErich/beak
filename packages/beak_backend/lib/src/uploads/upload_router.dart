@@ -13,14 +13,17 @@ void registerUploadRoutes(
   required BeakModel model,
   required UploadService service,
   BeakPolicy policy = const BeakAllowAllPolicy(),
+  BeakDataSource? dataSource,
 }) {
   final handlers = BeakUploadHandlers(
     model: model,
     service: service,
     policy: policy,
+    dataSource: dataSource,
   );
   router
     ..post('/<columnKey>/upload', handlers.upload)
+    ..get('/<columnKey>/upload', handlers.url)
     ..delete('/<columnKey>/upload', handlers.remove);
 }
 

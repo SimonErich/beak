@@ -11,6 +11,7 @@ import '../config/beak_backend_config.dart';
 import '../config/env_loader.dart';
 import '../data/worm/worm_bootstrap.dart';
 import '../data/worm/worm_data_source.dart';
+import '../service/beak_graph_commit_service.dart';
 import 'beak_server.dart';
 import 'beak_storage_settings.dart';
 import 'middleware/error_mapping_middleware.dart';
@@ -61,13 +62,17 @@ final class BeakServerDefaults {
   /// The server Beak would have built.
   ///
   /// Pass the arguments you want to change; everything else comes from the
-  /// resolved defaults.
+  /// resolved defaults. [preparePlan] adds transactional business rules;
+  /// [graphOnlyTables] closes per-record mutation routes that could bypass them.
   BeakServer build({
     BeakPolicy policy = const BeakAllowAllPolicy(),
     BeakAuthSessions? authSessions,
     BeakAuthGuard? authGuard,
     BeakRequestLogger? onRequest,
     BeakUnexpectedErrorListener? onUnexpectedError,
+    BeakSavePlanPreparer? preparePlan,
+    BeakSavePlanFinalizer? finalizePlan,
+    Set<String> graphOnlyTables = const {},
   }) => BeakServer(
     config: config,
     registry: registry,
@@ -78,6 +83,9 @@ final class BeakServerDefaults {
     authGuard: authGuard,
     onRequest: onRequest,
     onUnexpectedError: onUnexpectedError,
+    preparePlan: preparePlan,
+    finalizePlan: finalizePlan,
+    graphOnlyTables: graphOnlyTables,
   );
 }
 

@@ -11,7 +11,7 @@ import 'predicate_tree.dart';
 /// constrains the child SELECT.
 final class EagerLoad {
   /// Creates an [EagerLoad].
-  const EagerLoad(this.path, {this.constrain});
+  const EagerLoad(this.path, {this.constrain, this.nested = const []});
 
   /// Dot-separated relation path
   /// (e.g. `'posts'` or `'posts.comments'`).
@@ -22,6 +22,9 @@ final class EagerLoad {
   /// nested segments may pass their own constraint via a separate
   /// [EagerLoad] entry.
   final PredicateTree? constrain;
+
+  /// Nested loads with independent predicates at each relationship level.
+  final List<EagerLoad> nested;
 
   /// First segment of [path].
   String get head => path.split('.').first;
@@ -37,10 +40,17 @@ final class EagerLoad {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is EagerLoad && path == other.path && constrain == other.constrain;
+      other is EagerLoad &&
+          path == other.path &&
+          constrain == other.constrain &&
+          nested.length == other.nested.length &&
+          List.generate(
+            nested.length,
+            (i) => nested[i] == other.nested[i],
+          ).every((same) => same);
 
   @override
-  int get hashCode => Object.hash(path, constrain);
+  int get hashCode => Object.hash(path, constrain, Object.hashAll(nested));
 }
 
 /// An aggregate to inject onto each loaded model.

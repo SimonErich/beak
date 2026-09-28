@@ -1,0 +1,8 @@
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+.env
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.artifacts/

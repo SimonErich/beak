@@ -47,7 +47,7 @@ jobs:
   web:
     name: Web build
     runs-on: ubuntu-latest
-    # Four release builds on a shared runner.
+    # Two maintained example release builds.
     timeout-minutes: 35
     steps:
       # The guard in `melos run analyze` is static; this job is the empirical
@@ -72,19 +72,9 @@ jobs:
       - name: Build the quickstart panel for web
         run: flutter build web --release
         working-directory: examples/quickstart
-      - name: Build the store panel for web
+      - name: Build the declarative shop panel for web
         run: flutter build web --release
-        working-directory: examples/store
-      - name: Build the superdashboard panel for web
-        run: flutter build web --release
-        working-directory: examples/superdashboard
-      # Embedded keeps its server-side files (lib/server.dart,
-      # lib/legacy_system.dart) in the same package as the panel, which is
-      # the arrangement most likely to leak a server import into the panel
-      # graph. Building the panel target proves the graph stayed clean.
-      - name: Build the embedded example's panel for web
-        run: flutter build web --release
-        working-directory: examples/embedded
+        working-directory: examples/clean_beak_config
 
   test:
     name: Test & coverage

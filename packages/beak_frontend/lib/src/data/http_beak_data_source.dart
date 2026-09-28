@@ -17,12 +17,39 @@ import 'package:beak_core/beak_core.dart';
 /// );
 /// final page = await source.query(const BeakQuerySpec(table: 'products'));
 /// ```
-final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
+final class HttpBeakDataSource
+    implements
+        BeakDataSource,
+        BeakCapabilityDataSource,
+        BeakSummaryDataSource,
+        BeakExportDataSource,
+        BeakValidationDataSource,
+        BeakManagedUploadClient,
+        BeakUploadUrlClient,
+        BeakCommitDataSource {
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
   /// The transport the source delegates to.
   final BeakClient client;
+
+  @override
+  Future<BeakAccessCapabilities> capabilities(String table, {Object? id}) =>
+      client.capabilities(table, id: id);
+
+  @override
+  Future<BeakValidationReport> validateRecord(BeakValidationRequest request) =>
+      client.validateRecord(request);
+
+  @override
+  BeakCommitCapabilities get commitCapabilities =>
+      const BeakCommitCapabilities(durableReceipts: true);
+
+  @override
+  Future<BeakSaveResult> commit(BeakSavePlan plan) => client.commit(plan);
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
@@ -74,6 +101,37 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
     String columnKey,
     BeakUpload file,
   ) => client.upload(table, columnKey, file);
+
+  @override
+  Future<void> discardUpload(
+    String table,
+    String columnKey,
+    BeakStoredFile file,
+  ) => client.discardUpload(table, columnKey, file);
+
+  @override
+  Future<Uri> uploadUrl(String table, String columnKey, String key) =>
+      client.uploadUrl(table, columnKey, key);
+
+  @override
+  Future<BeakSummaryResult> summary(BeakSummarySpec spec) =>
+      client.summary(spec);
+
+  @override
+  Future<String> export(
+    BeakQuerySpec spec, {
+    List<BeakColumn>? columns,
+    Map<String, BeakExportFormat> formats = const {},
+    BeakFormatPolicy? formatting,
+    bool raw = false,
+  }) => client.export(
+    spec.table,
+    spec,
+    columns: columns?.map((column) => column.key).toList(),
+    formats: formats,
+    formatting: formatting,
+    raw: raw,
+  );
 
   @override
   Future<num> aggregate(BeakAggregateSpec spec) =>

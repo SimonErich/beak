@@ -13,36 +13,14 @@ Beak is a low-code, configuration-driven admin-panel framework. You declare a re
 
 A resource is declared one time, as an annotated class, and that single declaration feeds every surface.
 
-```dart title="examples/store/lib/models/category.dart"
-/// A shelf of the catalog.
-///
-/// The `products` side of the relationship is not declared here: `@BelongsTo`
-/// on [Product.category] generates it, so the pair cannot drift apart.
-@Resource()
-final class Category extends BeakSchema {
-  /// What the category is called.
-  @Display()
-  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
-  late final String name;
-
-  /// The one-line blurb shown above the product list.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakText? blurb;
-}
-```
+The shop's `resources/categories/models/category.dart` declares `Category` with
+a display name, description and typed product/attribute relationships.
 
 The field's **type** picks the column kind. Its **nullability** decides required-ness. `@Column` carries only what the type cannot say. `beak prepare` turns that into typed constants in a part file beside it:
 
-```dart title="examples/store/lib/models/category.beak.dart"
-/// What the category is called.
-static const BeakStringColumn name = BeakStringColumn(
-  key: 'name',
-  label: 'Name',
-  rules: [BeakRequired(), BeakMaxLength(120)],
-  searchable: true,
-  sortable: true,
-);
-```
+The generated `CategoryModel.name` reference combines the owning model, column
+metadata and typed decoding. `CategoryModel.name.inputText()` places an input
+without repeating its state or validation.
 
 Note where `BeakRequired()` came from: nobody wrote it. `String` is non-nullable, so the form validator, the API's validation and the column's `NOT NULL` all follow from the same fact, stated once.
 
@@ -81,7 +59,7 @@ abstract interface class BeakDataSource {
   Future<BeakRecord> restore(String table, Object id);
 ```
 
-Ten methods in all; the rest are `batchGet`, `attach`, `detach` and `aggregate`. `WormDataSource` (backend, over the worm ORM) and `HttpBeakDataSource` (frontend, over REST) both implement it, and `InMemoryBeakDataSource` from `package:beak/testing.dart` implements it a third time so a test can run the whole stack without a socket. Because the seam trades only in `BeakQuerySpec`, `BeakRecord`, and friends, a future `beak_serverpod` package can add a `ServerpodDataSource` without changing `beak_core` or `beak_backend`. The rule that makes this hold: worm types never leak past `beak_backend`, and obers_ui types never leak past `beak_frontend`. See [The data source seam](data-source-seam.md) for the full contract.
+Ten methods in all; the rest are `batchGet`, `attach`, `detach` and `aggregate`. `WormDataSource` (backend, over the worm ORM) and `HttpBeakDataSource` (frontend, over REST) both implement it, and `InMemoryBeakDataSource` from `package:beak/testing.dart` implements it a third time so a test can run the whole stack without a socket. Because the seam trades only in `BeakQuerySpec`, `BeakRecord`, and friends, the `beak_serverpod` package supplies a `ServerpodDataSource` without changing `beak_core` or `beak_backend`. The rule that makes this hold: worm types never leak past `beak_backend`, and obers_ui types never leak past `beak_frontend`. See [The data source seam](data-source-seam.md) for the full contract.
 
 ## 4. No Material, obers_ui only
 

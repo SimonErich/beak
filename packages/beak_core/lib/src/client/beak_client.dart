@@ -1,10 +1,16 @@
+import '../data/beak_export_data_source.dart';
 import 'dart:convert';
+
+import '../data/beak_access_capabilities.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../common/beak_exception.dart';
+import '../data/beak_commit.dart';
+import '../formatting/beak_format_policy.dart';
 import '../query/beak_aggregate_spec.dart';
+import '../query/beak_summary_spec.dart';
 import '../query/beak_page.dart';
 import '../query/beak_query_spec.dart';
 import '../query/beak_record.dart';
@@ -12,6 +18,7 @@ import '../search/beak_search_hit.dart';
 import '../storage/beak_stored_file.dart';
 import 'beak_session.dart';
 import '../storage/beak_upload.dart';
+import '../validation/beak_validation_data_source.dart';
 
 /// The thin typed transport over Beak's REST surface: it serializes the
 /// shared `beak_core` wire types to the backend's endpoints and maps error
@@ -61,6 +68,48 @@ final class BeakClient {
 
   /// The origin this client calls, without a trailing slash.
   String get baseUrl => _baseUrl;
+
+  /// Resolves current field permissions through the resource API.
+  Future<BeakAccessCapabilities> capabilities(
+    String table, {
+    Object? id,
+  }) async {
+    final response = await _http.get(
+      _uri('/api/${Uri.encodeComponent(table)}/capabilities', {
+        if (id != null) 'id': id.toString(),
+      }),
+      headers: _headers(),
+    );
+    _ensureSuccess(response);
+    return BeakAccessCapabilities.fromJson(_decodeObject(response.body));
+  }
+
+  /// Checks trusted server-side model constraints without saving the candidate.
+  Future<BeakValidationReport> validateRecord(
+    BeakValidationRequest request,
+  ) async {
+    final response = await _postJson(
+      '/api/${Uri.encodeComponent(request.table)}/validate',
+      request.toJson(),
+    );
+    return BeakValidationReport.fromJson(_decodeObject(response.body));
+  }
+
+  /// Submits a complete draft graph; the response states atomic or staged mode.
+  Future<BeakSaveResult> commit(BeakSavePlan plan) async {
+    final response = await _postJson('/api/commits', plan.toJson());
+    return BeakSaveResult.fromJson(_decodeObject(response.body));
+  }
+
+  /// Resolves a lost response through the server's authoritative receipt.
+  Future<BeakSaveResult> recoverCommit(String saveId) async {
+    final response = await _http.get(
+      _uri('/api/commits/${Uri.encodeComponent(saveId)}'),
+      headers: _headers(),
+    );
+    _ensureSuccess(response);
+    return BeakSaveResult.fromJson(_decodeObject(response.body));
+  }
 
   /// Signs in through the generated `/api/auth/login`.
   ///
@@ -176,6 +225,15 @@ final class BeakClient {
     };
   }
 
+  /// Computes named server-side aggregates over a complete query population.
+  Future<BeakSummaryResult> summary(BeakSummarySpec spec) async {
+    final response = await _postJson(
+      '/api/${spec.table}/summary',
+      spec.toJson(),
+    );
+    return BeakSummaryResult.fromJson(_decodeObject(response.body));
+  }
+
   /// Fetches many records in one round trip via `POST /api/{table}/batch`.
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
     final response = await _postJson('/api/$table/batch', {'ids': ids});
@@ -233,9 +291,62 @@ final class BeakClient {
     return BeakStoredFile.fromJson(_decodeObject(response.body));
   }
 
+  /// Resolves an existing upload without assuming a public storage origin.
+  Future<Uri> uploadUrl(String table, String columnKey, String key) async {
+    final response = await _http.get(
+      _uri('/api/$table/$columnKey/upload', {'key': key}),
+      headers: _headers(),
+    );
+    _ensureSuccess(response);
+    final body = _decodeObject(response.body);
+    final url = body['url'];
+    if (url is! String) {
+      throw const BeakConfigurationException('Invalid upload URL response.');
+    }
+    return Uri.parse(url);
+  }
+
+  /// Discards an uncommitted upload, including all generated renditions.
+  /// Missing files are already discarded, making interrupted cleanup retryable.
+  Future<void> discardUpload(
+    String table,
+    String columnKey,
+    BeakStoredFile file,
+  ) async {
+    for (final key in {...file.variants.values.map((v) => v.key), file.key}) {
+      final response = await _http.delete(
+        _uri('/api/$table/$columnKey/upload'),
+        headers: _headers(json: true),
+        body: jsonEncode({'key': key}),
+      );
+      if (response.statusCode != 404) _ensureSuccess(response);
+    }
+  }
+
   /// Exports [spec]'s rows as CSV via `POST /api/{table}/export`.
-  Future<String> export(String table, BeakQuerySpec spec) async {
-    final response = await _postJson('/api/$table/export', spec.toJson());
+  Future<String> export(
+    String table,
+    BeakQuerySpec spec, {
+    BeakFormatPolicy? formatting,
+    List<String>? columns,
+    Map<String, BeakExportFormat> formats = const {},
+    bool raw = false,
+  }) async {
+    if (raw && (formatting != null || formats.isNotEmpty)) {
+      throw const BeakConfigurationException(
+        'Raw exports cannot also request display formatting.',
+      );
+    }
+    final response = await _postJson('/api/$table/export', {
+      ...spec.toJson(),
+      'columns': ?columns,
+      if (formats.isNotEmpty)
+        'formats': {
+          for (final entry in formats.entries) entry.key: entry.value.toJson(),
+        },
+      if (formatting != null) 'formatting': formatting.toJson(),
+      if (raw) 'raw': true,
+    });
     return response.body;
   }
 

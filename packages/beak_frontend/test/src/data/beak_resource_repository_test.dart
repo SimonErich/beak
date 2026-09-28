@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +19,57 @@ void main() {
       },
     );
     repository = BeakResourceRepository(dataSource);
+  });
+
+  test(
+    'coalescing shares pending reads but never caches completed responses',
+    () async {
+      final source = _DelayedSource();
+      final owner = BeakResourceRepository.coalescing(source);
+      const query = BeakQuerySpec(table: 'notes');
+      final first = owner.query(query);
+      final duplicate = owner.query(const BeakQuerySpec(table: 'notes'));
+      expect(identical(first, duplicate), isTrue);
+      expect(source.calls, 1);
+      source.pending.removeAt(0).complete();
+      await first;
+      final next = owner.query(query);
+      expect(source.calls, 2);
+      source.pending.removeAt(0).complete();
+      await next;
+    },
+  );
+
+  test(
+    'invalidated and distinct queries never join an old pending response',
+    () async {
+      final source = _DelayedSource();
+      final owner = BeakResourceRepository.coalescing(source);
+      const query = BeakQuerySpec(table: 'notes');
+      final old = owner.query(query);
+      owner.invalidateQueries();
+      final current = owner.query(query);
+      final distinct = owner.query(query.paginate(perPage: 1));
+      expect(source.calls, 3);
+      source.pending.removeAt(0).complete();
+      await old;
+      expect(
+        identical(current, owner.query(query)),
+        isTrue,
+        reason: 'Old completion must not remove the current request',
+      );
+      for (final gate in source.pending) {
+        gate.complete();
+      }
+      await Future.wait([current, distinct]);
+    },
+  );
+
+  test('failed coalesced queries remain retryable', () async {
+    final owner = BeakResourceRepository.coalescing(_FailingSource());
+    const query = BeakQuerySpec(table: 'notes');
+    expect(await owner.query(query), isA<BeakErr<BeakPage<BeakRecord>>>());
+    expect(await owner.query(query), isA<BeakErr<BeakPage<BeakRecord>>>());
   });
 
   test('every operation wraps success into BeakOk', () async {
@@ -86,5 +139,18 @@ final class _FailingSource extends FakeDataSource {
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     throw const BeakStorageException('backend unreachable');
+  }
+}
+
+final class _DelayedSource extends FakeDataSource {
+  int calls = 0;
+  final pending = <Completer<void>>[];
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    calls++;
+    final gate = Completer<void>();
+    pending.add(gate);
+    await gate.future;
+    return super.query(spec);
   }
 }

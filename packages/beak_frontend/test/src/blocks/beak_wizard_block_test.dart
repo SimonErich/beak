@@ -22,11 +22,14 @@ void main() {
       const BeakWizardBlock(
         stepperStyle: OiStepperStyle.horizontal,
         steps: [
-          BeakWizardStep(
+          BeakBlockWizardStep(
             title: 'Seller',
             body: BeakTextBlock('seller step body'),
           ),
-          BeakWizardStep(title: 'Bank', body: BeakTextBlock('bank step body')),
+          BeakBlockWizardStep(
+            title: 'Bank',
+            body: BeakTextBlock('bank step body'),
+          ),
         ],
       ),
     );
@@ -45,12 +48,12 @@ void main() {
       tester,
       BeakWizardBlock(
         steps: [
-          BeakWizardStep(
+          BeakBlockWizardStep(
             title: 'One',
             body: const BeakTextBlock('one'),
             canAdvance: () => allowed,
           ),
-          const BeakWizardStep(title: 'Two', body: BeakTextBlock('two')),
+          const BeakBlockWizardStep(title: 'Two', body: BeakTextBlock('two')),
         ],
       ),
     );

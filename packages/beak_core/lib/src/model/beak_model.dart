@@ -1,8 +1,11 @@
+import '../behavior/beak_model_behavior.dart';
 import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
+import '../columns/beak_json.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
+import '../data/beak_data_source.dart';
 import '../query/beak_aggregate_spec.dart';
 import '../query/beak_filter.dart';
 import '../query/beak_record.dart';
@@ -13,13 +16,16 @@ import '../query/beak_sort.dart';
 import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
+import 'beak_permissions.dart';
+import '../validation/beak_record_rule.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
 /// relationships, delete semantics, and display column.
 ///
-/// A `BeakModel` describes metadata only — it never runs queries. The
-/// backend pairs it with a `BeakDataSource`, which is the seam that lets
-/// worm today and other ORMs later both drive the same Beak panels.
+/// A model describes metadata and may bind a [dataSource]. The panel uses that
+/// binding automatically; models without one use the panel's default source.
+/// Persistence stays behind [BeakDataSource], so ORM-specific operations never
+/// leak into forms, tables or application screens.
 ///
 /// Subclass it once per resource, wiring up its columns, relationships, and
 /// delete semantics:
@@ -64,8 +70,46 @@ abstract base class BeakModel {
   /// The columns of this model, in display order.
   List<BeakColumn> get columns;
 
+  /// Shared typed scalar, cross-field, collection and asynchronous constraints.
+  List<BeakRecordRule> get validationRules => const [];
+
+  /// Shared value lifecycles, workflow guards and named commands.
+  BeakModelBehavior get behavior => const BeakModelBehavior();
+
+  /// Live presentation policy shared by every resource using this model.
+  BeakPermissions get permissions => const BeakPermissions.allowAll();
+
+  /// Operations actually supported by this model's transport.
+  ///
+  /// Defaults to ordinary CRUD for HTTP/Worm models. Adapters narrow this set
+  /// when an endpoint is absent; a custom screen may supply a missing workflow.
+  Set<BeakOperation> get capabilities => const {
+    BeakOperation.read,
+    BeakOperation.create,
+    BeakOperation.update,
+    BeakOperation.delete,
+  };
+
+  /// Optional model-owned transport, registered automatically by the panel.
+  ///
+  /// Return a stable instance. A null source uses the panel's HTTP or explicitly
+  /// supplied source, preserving the standalone handwritten-model workflow.
+  BeakDataSource? get dataSource => null;
+
+  /// Create command metadata when the write shape differs from the read model.
+  BeakModel? get createModel => null;
+
+  /// Update command metadata; an edit-capable source supplies its prefill data.
+  BeakModel? get editModel => null;
+
   /// The relationships of this model. Defaults to none.
   List<BeakRelationship> get relationships => const [];
+
+  /// Models referenced by this model, registered without navigation entries.
+  ///
+  /// Generated models supply these declarations so a panel only needs its
+  /// visible resources. Cycles are resolved by the panel registry.
+  List<BeakModel> get relatedModels => const [];
 
   /// Whether deletes are soft (a deleted-at marker the backend filters on)
   /// instead of physical row removal. Defaults to `false`.
@@ -156,7 +200,8 @@ abstract base class BeakModel {
   /// Sums [column] over this model's rows.
   ///
   /// [column] should be numeric ([BeakIntColumn] or [BeakDecimalColumn]);
-  /// the data source rejects anything else.
+  /// the data source rejects anything else. Results use physical storage units;
+  /// exact decimal fields offer a typed `field.sum(source)` helper.
   BeakAggregateSpec sum(
     BeakColumn column, {
     BeakFilter? filter,
@@ -168,7 +213,8 @@ abstract base class BeakModel {
     withTrashed: withTrashed,
   );
 
-  /// Averages [column] over this model's rows.
+  /// Averages [column] over this model's rows, returning physical storage units.
+  /// Fixed-scale money may produce fractional units; choose rounding explicitly.
   BeakAggregateSpec avg(
     BeakColumn column, {
     BeakFilter? filter,
@@ -223,7 +269,21 @@ abstract base class BeakModel {
 /// This is the one place that decides, so every data source agrees. A value
 /// the column cannot read keeps its literal form rather than being dropped.
 BeakValue beakValueForColumn(BeakColumn? column, Object? raw) {
-  final BeakValue value = BeakValue.of(raw);
+  if (column is BeakJsonColumn &&
+      !column.semantic.hasCodec &&
+      raw is BeakJson) {
+    return BeakStringValue(raw.encode());
+  }
+  if (column != null && column.semantic.hasCodec) {
+    // Typed callers and drivers meet at the same canonical primitive shape.
+    // Preserve malformed driver data so boundary validation can report it.
+    try {
+      return column.semantic.encode(raw);
+    } on FormatException {
+      return BeakValue.of(raw);
+    }
+  }
+  final BeakValue value = BeakValue.of(raw is Enum ? raw.name : raw);
   return switch (column) {
         BeakBoolColumn() => switch (column.readValue(value)) {
           final bool parsed => BeakBoolValue(parsed),

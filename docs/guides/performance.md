@@ -103,16 +103,18 @@ same fact twice, once unreadably. You get "Beverages" instead of
 ## A show page is one query too
 
 The generated show page loads the record and the relations its layout renders in
-a single call, because `getOne` cannot carry eager loads:
+one request. With no additional relation requests it uses `getOne`; requested
+eager relations use a single filtered query because `getOne` cannot carry them.
 
 ```dart title="packages/beak_frontend/lib/src/data/beak_relation_loads.dart"
 /// Loads the [id] record of [model] with [relations] eager-loaded, in one
-/// query.
+/// request.
 ///
-/// [BeakDataSource.getOne] cannot carry eager loads, so a detail page built
-/// on it paid one round trip for the record and one more per relation panel.
-/// This asks for all of it at once; the caller reads each relation off
-/// [BeakRecord.relations].
+/// Without additional relation requests, use [BeakDataSource.getOne]: a
+/// transport can support record lookup without allowing primary-key filters
+/// on its list queries. Any relations already included in that record survive.
+/// When relations are requested, load them with the record in a single query;
+/// the caller reads each relation off [BeakRecord.relations].
 ```
 
 The relation managers on that page are then seeded with what already arrived, so
@@ -198,17 +200,9 @@ to melt a dashboard. Beak's stat tiles and KPI blocks never do that. They carry
 a `BeakAggregateSpec`, which the backend pushes down into a `COUNT`, `SUM`, or
 `AVG` over a filtered query. No rows cross the wire.
 
-```dart title="examples/store/lib/screens/restock_screen.dart"
-          BeakMetricBlock(
-            span: BeakSpan(columns: 6),
-            label: 'Stock on hand',
-            aggregate: BeakAggregateSpec.sum(
-              table: 'products',
-              column: ProductColumns.stock,
-            ),
-            icon: OiIcons.package,
-          ),
-```
+The shop's `overview.dart` uses typed count aggregates for open orders and
+low-stock variants. Its `ShopReceivablesCard` sums invoice amounts on the source
+and formats the resulting minor units without fetching all invoices.
 
 The translator builds the same scoped, filtered query it would for a list, then
 hands it to the aggregate terminal instead of a row fetch:
@@ -255,12 +249,10 @@ A panel with forty resources in the sidebar is slow for the person using it. Any
 resource can be kept out of the navigation from `beak.yaml` without losing
 anything else:
 
-```yaml title="examples/store/beak.yaml"
-  # Lines are always reached through their order, never from the sidebar —
-  # but they keep their API, their model and their relationships.
-  order_items:
-    hidden: true
-```
+The canonical shop registers `OrderResource` in the panel and reaches owned order
+items through `OrderModel.items.tableForm(...)`; it does not need a separate line
+item navigation entry. Schema registration still provides the relationship
+metadata and API contracts.
 
 The model stays registered, the REST endpoints stay generated, and the resource
 stays reachable as the far side of a relationship. All it loses is the sidebar

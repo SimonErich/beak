@@ -50,14 +50,14 @@ enum BeakColumnKind {
   /// The kind a field declared as [typeName] becomes, or `null` when the type
   /// names something else (a relationship, or an unsupported type).
   static BeakColumnKind? ofType(String typeName) => switch (typeName) {
-    'String' => string,
+    'String' || 'BeakDate' || 'BeakTime' => string,
     'BeakText' => text,
     'BeakRichText' => richText,
-    'int' => integer,
+    'int' || 'Duration' || 'BeakDecimal' => integer,
     'double' => decimal,
     'bool' => boolean,
     'DateTime' => dateTime,
-    'BeakJson' => json,
+    'BeakJson' || 'BeakJsonObject' => json,
     'BeakHexColor' => color,
     'BeakImageRef' => image,
     'BeakFileRef' => file,
@@ -100,6 +100,7 @@ final class BeakColumnIr {
     required this.kind,
     required this.isRequired,
     this.enumTypeName,
+    this.declaredValueType,
     this.arguments = const {},
     this.docComment,
   });
@@ -122,6 +123,9 @@ final class BeakColumnIr {
   /// For [BeakColumnKind.enumeration], the enum's Dart type name.
   final String? enumTypeName;
 
+  /// Semantic Dart type when it differs from its physical column reader.
+  final String? declaredValueType;
+
   /// Extra named arguments, as source text, keyed by parameter name.
   final Map<String, String> arguments;
 
@@ -135,18 +139,22 @@ final class BeakColumnIr {
   bool get isUnique => arguments['unique'] == 'true';
 
   /// Whether the field declares a value for rows that do not supply one.
-  bool get hasDefault => arguments.containsKey('defaultValue');
+  bool get hasDefault =>
+      arguments.containsKey('defaultValue') &&
+      arguments['defaultValue'] != 'null';
 
   /// The Dart type this column reads its values as.
-  String get valueType => switch (kind) {
-    BeakColumnKind.integer => 'int',
-    BeakColumnKind.decimal => 'double',
-    BeakColumnKind.boolean => 'bool',
-    BeakColumnKind.dateTime => 'DateTime',
-    BeakColumnKind.enumeration => enumTypeName!,
-    BeakColumnKind.custom => 'Object',
-    _ => 'String',
-  };
+  String get valueType =>
+      declaredValueType ??
+      switch (kind) {
+        BeakColumnKind.integer => 'int',
+        BeakColumnKind.decimal => 'double',
+        BeakColumnKind.boolean => 'bool',
+        BeakColumnKind.dateTime => 'DateTime',
+        BeakColumnKind.enumeration => enumTypeName!,
+        BeakColumnKind.custom => 'Object',
+        _ => 'String',
+      };
 }
 
 /// One relationship, as read from a schema field.
@@ -166,6 +174,7 @@ final class BeakRelationIr {
     this.arguments = const {},
     this.docComment,
     this.generateInverse = true,
+    this.isRequired = false,
   });
 
   /// The Dart field this relationship came from.
@@ -209,6 +218,9 @@ final class BeakRelationIr {
 
   /// Whether the other side gets the mirrored relationship.
   final bool generateInverse;
+
+  /// Whether the schema declares a non-nullable to-one relationship.
+  final bool isRequired;
 }
 
 /// One resource, as read from a schema class.
@@ -224,6 +236,8 @@ final class BeakSchemaIr {
     required this.softDeletes,
     required this.timestamps,
     required this.managesSchema,
+    this.hasValidationRules = false,
+    this.hasBehavior = false,
     this.docComment,
   });
 
@@ -253,6 +267,12 @@ final class BeakSchemaIr {
 
   /// Whether Beak owns this resource's schema.
   final bool managesSchema;
+
+  /// Whether the schema supplies a static record-validation rule getter.
+  final bool hasValidationRules;
+
+  /// Whether the schema supplies a static shared model-behavior getter.
+  final bool hasBehavior;
 
   /// The class's own doc comment.
   final String? docComment;

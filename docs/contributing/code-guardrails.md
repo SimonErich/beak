@@ -126,7 +126,7 @@ Future<void> delete(String table, Object id, {bool force = false});
 `WormDataSource` (backend, over the worm ORM) and `HttpBeakDataSource`
 (frontend, over REST) both implement it. Keep the seam clean: worm types never
 leak past `beak_backend`, obers types never leak past `beak_frontend`, and
-`beak_core` depends on neither. A future `beak_serverpod` should be able to add a
+`beak_core` depends on neither. The `beak_serverpod` integration supplies a
 `ServerpodDataSource` without touching `beak_core` or `beak_backend`. The
 [data source seam](../architecture/data-source-seam.md) page has the full story.
 

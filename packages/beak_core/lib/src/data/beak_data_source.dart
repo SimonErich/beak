@@ -7,8 +7,8 @@ import '../query/beak_record.dart';
 ///
 /// Backend handlers and services speak only this interface (`WormDataSource`
 /// is the default implementation, `beak_frontend`'s HTTP client another,
-/// and a future `beak_serverpod` package can supply one more without
-/// touching `beak_core`). Implementations
+/// and `beak_serverpod` supplies typed RPC bindings without database access).
+/// Implementations
 /// throw typed `BeakException`s (`BeakNotFoundException` for missing
 /// records, `BeakConfigurationException` for unknown tables/relations) and
 /// never leak ORM types.

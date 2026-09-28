@@ -31,6 +31,7 @@ final class _MediaModel extends BeakModel {
       maxDimensions: BeakDimensions.square(8),
       transforms: [
         BeakThumbnailTransform(size: BeakDimensions.square(2), name: 'thumb'),
+        BeakThumbnailTransform(size: BeakDimensions.square(1), name: 'tiny'),
       ],
     ),
     BeakImageColumn(
@@ -90,6 +91,77 @@ void main() {
     }
     fail('expected a BeakValidationException');
   }
+
+  test('a failed rendition removes already stored files', () async {
+    final failing = _FailSecondWrite(storage);
+    final service = UploadService(
+      registry: BeakModelRegistry()..register(const _MediaModel()),
+      storage: failing,
+      transformRunner: const ImageTransformRunner(),
+      generateKeyId: () => 'partial',
+    );
+    await expectLater(
+      service.handle(table: 'media', columnKey: 'avatar', upload: pngUpload()),
+      throwsA(isA<BeakStorageException>()),
+    );
+    expect(await storage.exists('avatars/partial.png'), false);
+  });
+
+  test(
+    'cleanup continues after a custom driver exception and preserves upload failure',
+    () async {
+      final failing = _FailSecondWrite(
+        storage,
+        failAt: 3,
+        failFirstDelete: true,
+      );
+      final service = UploadService(
+        registry: BeakModelRegistry()..register(const _MediaModel()),
+        storage: failing,
+        transformRunner: const ImageTransformRunner(),
+        generateKeyId: () => 'partial',
+      );
+      await expectLater(
+        service.handle(
+          table: 'media',
+          columnKey: 'avatar',
+          upload: pngUpload(),
+        ),
+        throwsA(
+          isA<BeakStorageException>().having(
+            (error) => error.message,
+            'original failure',
+            'Rendition unavailable',
+          ),
+        ),
+      );
+      expect(failing.deleted, [
+        'avatars/partial.png',
+        'avatars/partial_thumb.png',
+      ]);
+      expect(await storage.exists('avatars/partial_thumb.png'), isFalse);
+    },
+  );
+
+  test(
+    'stored URLs reject other columns and traversal before driver access',
+    () async {
+      final saved = await service.handle(
+        table: 'media',
+        columnKey: 'attachment',
+        upload: pdfUpload(),
+      );
+      expect(await service.url('media', 'attachment', saved.key), saved.url);
+      await expectLater(
+        service.url('media', 'avatar', saved.key),
+        throwsA(isA<BeakValidationException>()),
+      );
+      await expectLater(
+        service.url('media', 'attachment', 'files/../secret.pdf'),
+        throwsA(isA<BeakValidationException>()),
+      );
+    },
+  );
 
   group('file columns', () {
     test('stores a valid file under a minted key', () async {
@@ -267,4 +339,43 @@ void main() {
       );
     });
   });
+}
+
+final class _FailSecondWrite implements BeakStorageDriver {
+  _FailSecondWrite(
+    this.delegate, {
+    this.failAt = 2,
+    this.failFirstDelete = false,
+  });
+  final int failAt;
+  final bool failFirstDelete;
+  final deleted = <String>[];
+  final BeakStorageDriver delegate;
+  @override
+  String get id => delegate.id;
+  int writes = 0;
+  @override
+  Future<BeakStoredFile> put(BeakUpload upload, {required String path}) {
+    if (++writes == failAt) {
+      throw const BeakStorageException('Rendition unavailable');
+    }
+    return delegate.put(upload, path: path);
+  }
+
+  @override
+  Future<void> delete(String key) {
+    deleted.add(key);
+    if (failFirstDelete && deleted.length == 1) {
+      throw const FormatException('Custom driver cleanup failure');
+    }
+    return delegate.delete(key);
+  }
+
+  @override
+  Future<bool> exists(String key) => delegate.exists(key);
+  @override
+  Future<Uint8List> get(String key) => delegate.get(key);
+  @override
+  Future<Uri> url(String key, {Duration? expiresIn}) =>
+      delegate.url(key, expiresIn: expiresIn);
 }

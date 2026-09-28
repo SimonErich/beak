@@ -14,6 +14,7 @@ final class QueryDescriptor {
   /// Creates a [QueryDescriptor].
   const QueryDescriptor({
     required this.table,
+    this.tableAlias,
     this.columns = const <String>[],
     this.where,
     this.orderBy = const <SortClause>[],
@@ -27,6 +28,9 @@ final class QueryDescriptor {
 
   /// The target table name.
   final String table;
+
+  /// Optional SQL table alias, also used for correlated in-memory predicates.
+  final String? tableAlias;
 
   /// Columns to project. Empty means all columns.
   final List<String> columns;
@@ -60,6 +64,7 @@ final class QueryDescriptor {
   /// reset [where] back to `null`.
   QueryDescriptor copyWith({
     String? table,
+    String? tableAlias,
     List<String>? columns,
     PredicateTree? where,
     bool clearWhere = false,
@@ -72,6 +77,7 @@ final class QueryDescriptor {
     List<HavingClause>? having,
   }) => QueryDescriptor(
     table: table ?? this.table,
+    tableAlias: tableAlias ?? this.tableAlias,
     columns: columns ?? this.columns,
     where: clearWhere ? null : (where ?? this.where),
     orderBy: orderBy ?? this.orderBy,
@@ -87,6 +93,7 @@ final class QueryDescriptor {
   Map<String, Object?> toMap() => <String, Object?>{
     'type': 'query',
     'table': table,
+    if (tableAlias != null) 'tableAlias': tableAlias,
     if (columns.isNotEmpty) 'columns': columns,
     if (where != null) 'where': where!.toMap(),
     if (joins.isNotEmpty)

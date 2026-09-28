@@ -116,12 +116,12 @@ void main() {
 
     test('names the apps/ to examples/ move rather than the missing file', () {
       final problems = problemsIn(
-        '```dart title="apps/reference_admin/lib/main.dart"\n'
+        '```dart title="apps/retired_example/lib/main.dart"\n'
         'void main() {}\n'
         '```',
       );
       expect(messagesOf(problems), [
-        'fence titled "apps/reference_admin/lib/main.dart" — apps/ is now '
+        'fence titled "apps/retired_example/lib/main.dart" — apps/ is now '
             'examples/',
       ]);
     });

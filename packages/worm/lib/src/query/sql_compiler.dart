@@ -33,6 +33,7 @@ final class SqlCompiler {
     buffer
       ..write(' FROM ')
       ..write(descriptor.table);
+    if (descriptor.tableAlias case final alias?) buffer.write(' AS $alias');
     for (final join in descriptor.joins) {
       buffer
         ..write(' ${join.kind.sql} ')

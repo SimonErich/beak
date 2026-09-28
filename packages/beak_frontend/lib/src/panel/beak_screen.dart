@@ -22,7 +22,7 @@ import 'beak_panel_config.dart';
 /// );
 /// ```
 @immutable
-final class BeakScreen {
+class BeakScreen {
   /// Creates a custom screen routed at [path].
   const BeakScreen({
     required this.path,
@@ -58,9 +58,11 @@ final class BeakScreen {
   /// reached only by navigation (e.g. an invoice document).
   final bool showInNav;
 
-  /// Whether to wrap the body in the standard page chrome (`OiResourcePage`
-  /// header + padding). Set false for full-bleed screens like a calendar or
-  /// kanban board.
+  /// Whether to provide the standard page header, gutters and scrolling.
+  /// The frame does not add a card or background behind the body: card,
+  /// chart and table blocks own their surfaces. Wrap the body in a
+  /// [BeakCardBlock] to deliberately place it on one shared surface.
+  /// Set false for full-bleed screens like a calendar or kanban board.
   final bool framed;
 
   /// The label shown in navigation and the page header.

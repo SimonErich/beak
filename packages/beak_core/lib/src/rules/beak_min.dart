@@ -14,6 +14,8 @@ final class BeakMin extends BeakRule {
   @override
   String? validate(Object? value) => switch (value) {
     final num number when number < min => 'Must be at least $min.',
+    final BeakDecimal amount when _compareDecimalBound(amount, min) < 0 =>
+      'Must be at least $min.',
     _ => null,
   };
 }

@@ -1,20 +1,23 @@
+import 'dart:convert';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 import 'package:obers_ui_charts/obers_ui_charts.dart';
+import 'package:signals/signals_flutter.dart';
 
 import '../dashboard/beak_chart.dart';
 import '../dashboard/beak_stat.dart';
 import '../data/beak_resource_repository.dart';
-import '../data/reference_cache.dart';
+import '../data/beak_data_changes.dart';
+import '../query/beak_query_scope.dart';
+import '../localization/beak_localizations.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
-import '../form/beak_form_scope.dart';
-import '../form/field_widget_mapper.dart';
-import '../form/relation_field.dart';
+import '../formatting/beak_formatting.dart';
 import '../table/beak_data_table.dart';
 import '../table/column_cell_renderer.dart';
 import 'beak_block.dart';
@@ -33,6 +36,7 @@ part 'views/beak_invoice_block_view.dart';
 part 'views/beak_kanban_block_view.dart';
 part 'views/beak_kpi_block_view.dart';
 part 'views/beak_metric_block_view.dart';
+part 'views/beak_summary_block_view.dart';
 part 'views/beak_pricing_block_view.dart';
 part 'views/beak_carousel_block_view.dart';
 part 'views/beak_map_block_view.dart';
@@ -86,6 +90,7 @@ class BeakBlockHost extends StatelessWidget {
     ),
     final BeakTableBlock table => _BeakTableBlockView(block: table),
     final BeakMetricBlock metric => _BeakMetricBlockView(block: metric),
+    final BeakSummaryBlock summary => _BeakSummaryBlockView(block: summary),
     final BeakMapBlock map => _BeakMapBlockView(block: map),
     final BeakTileMapBlock tileMap => _BeakTileMapBlockView(block: tileMap),
     final BeakCarouselBlock carousel => _BeakCarouselBlockView(block: carousel),
@@ -132,26 +137,85 @@ class BeakBlockHost extends StatelessWidget {
     children: [for (final child in block.children) BeakBlockHost(block: child)],
   );
 
-  Widget _row(BuildContext context, BeakRowBlock block) => OiRow(
-    breakpoint: context.breakpoint,
-    gap: OiResponsive<double>(block.gapInPixels),
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [for (final child in block.children) BeakBlockHost(block: child)],
-  );
+  Widget _row(BuildContext context, BeakRowBlock block) {
+    Widget row({bool expand = false}) => OiRow(
+      breakpoint: context.breakpoint,
+      gap: OiResponsive<double>(block.gapInPixels),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        for (final child in block.children)
+          if (expand)
+            Expanded(
+              flex: child.span?.columns ?? 1,
+              child: BeakBlockHost(block: child),
+            )
+          else
+            BeakBlockHost(block: child),
+      ],
+    );
+    if (!block.expand || block.children.isEmpty) return row();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedWidth) return row();
+        final available =
+            constraints.maxWidth -
+            block.gapInPixels * (block.children.length - 1);
+        final totalWeight = block.children.fold(
+          0,
+          (total, child) => total + (child.span?.columns ?? 1),
+        );
+        if (block.children.any(
+          (child) =>
+              available * (child.span?.columns ?? 1) / totalWeight <
+              block.minChildWidthInPixels,
+        )) {
+          return OiColumn(
+            breakpoint: context.breakpoint,
+            gap: OiResponsive<double>(block.gapInPixels),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final child in block.children) BeakBlockHost(block: child),
+            ],
+          );
+        }
+        return row(expand: true);
+      },
+    );
+  }
 
-  Widget _grid(BuildContext context, BeakGridBlock block) => OiGrid(
-    breakpoint: context.breakpoint,
-    columns: switch (block.columns) {
-      final int columns => OiResponsive<int>(columns),
-      null => null,
-    },
-    minColumnWidth: switch (block.minColumnWidthInPixels) {
-      final double width => OiResponsive<double>(width),
-      null => null,
-    },
-    gap: OiResponsive<double>(block.gapInPixels),
-    children: [for (final child in block.children) _spanned(child)],
-  );
+  Widget _grid(BuildContext context, BeakGridBlock block) {
+    Widget grid(int? columns) => OiGrid(
+      breakpoint: context.breakpoint,
+      columns: columns == null ? null : OiResponsive<int>(columns),
+      minColumnWidth: switch (block.minColumnWidthInPixels) {
+        final double width => OiResponsive<double>(width),
+        null => null,
+      },
+      gap: OiResponsive<double>(block.gapInPixels),
+      children: [for (final child in block.children) _spanned(child)],
+    );
+
+    final columns = block.columns;
+    if (columns == null || columns <= 1 || block.minChildWidthInPixels == 0) {
+      return grid(columns);
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trackWidth =
+            (constraints.maxWidth - block.gapInPixels * (columns - 1)) /
+            columns;
+        final stack =
+            constraints.hasBoundedWidth &&
+            block.children.any((child) {
+              final span = (child.span?.columns ?? 1).clamp(1, columns);
+              final width = trackWidth * span + block.gapInPixels * (span - 1);
+              return width < block.minChildWidthInPixels;
+            });
+        return grid(stack ? 1 : columns);
+      },
+    );
+  }
 
   /// Wraps a grid child in its [BeakBlock.span] placement, when declared.
   Widget _spanned(BeakBlock child) {
@@ -170,6 +234,7 @@ class BeakBlockHost extends StatelessWidget {
   }
 
   Widget _card(BeakCardBlock block) => OiCard(
+    headerGap: block.headerGap,
     title: switch (block.title) {
       final String title => OiLabel.h4(title),
       null => null,
@@ -261,13 +326,8 @@ class BeakBlockHost extends StatelessWidget {
     rightColumnWidth: block.rightWidthInPixels,
   );
 
-  /// Renders one field: an editable input inside a [BeakFormScope], otherwise
-  /// the read-only value from a [BeakRecordScope]; nothing outside both.
+  /// Renders one read-only field from the surrounding record scope.
   Widget _field(BuildContext context, BeakFieldBlock block) {
-    final form = BeakFormScope.of(context);
-    if (form != null) {
-      return _fieldInput(form, block.column);
-    }
     final scope = BeakRecordScope.of(context);
     if (scope == null) {
       return const SizedBox.shrink();
@@ -298,33 +358,6 @@ class BeakBlockHost extends StatelessWidget {
     };
   }
 
-  /// The editable input for [column] in a form scope: a belongs-to picker for
-  /// a foreign key, the type-mapped field otherwise; nothing for a column the
-  /// form did not register (e.g. the id or a detail-only field).
-  Widget _fieldInput(BeakFormScope form, BeakColumn column) {
-    final controller = form.controller;
-    if (!controller.hasFieldFor(column)) {
-      return const SizedBox.shrink();
-    }
-    for (final relation in form.model.relationships) {
-      if (relation is BeakBelongsTo && relation.foreignKey == column.key) {
-        return BeakBelongsToField(
-          controller: controller,
-          relation: relation,
-          dataSource: form.dataSource,
-          referenceCache: beakLocator<ReferenceCache>(),
-        );
-      }
-    }
-    return beakFormFieldFor(
-          controller: controller,
-          column: column,
-          uploader: form.uploader,
-          filePicker: form.filePicker,
-        ) ??
-        const SizedBox.shrink();
-  }
-
   Widget _fieldGroup(BuildContext context, BeakFieldGroupBlock block) => OiGrid(
     breakpoint: context.breakpoint,
     columns: OiResponsive<int>(block.columnCount),
@@ -336,23 +369,6 @@ class BeakBlockHost extends StatelessWidget {
   );
 
   Widget _relation(BuildContext context, BeakRelationBlock block) {
-    final form = BeakFormScope.of(context);
-    if (form != null) {
-      // In a form, a to-many relation can only be managed once the parent
-      // exists — create mode has no id to attach to yet.
-      final Object? editingId = form.recordId;
-      if (editingId == null) {
-        return OiLabel.caption(
-          'Save first to manage ${block.relationship.label.toLowerCase()}.',
-        );
-      }
-      return BeakRelationManager(
-        parentModel: form.model,
-        parentId: editingId,
-        relationship: block.relationship,
-        dataSource: form.dataSource,
-      );
-    }
     final scope = BeakRecordScope.of(context);
     if (scope == null) {
       return const SizedBox.shrink();
@@ -365,7 +381,7 @@ class BeakBlockHost extends StatelessWidget {
       parentModel: scope.model,
       parentId: id,
       relationship: block.relationship,
-      dataSource: beakLocator<BeakDataSource>(),
+      dataSource: beakDependencies(context)<BeakDataSource>(),
       // The page that loaded this record may have loaded its relations with
       // it; when it did, the manager paints without a query of its own.
       initialRecords: scope.record.relations[block.relationship.key],

@@ -47,6 +47,9 @@ final class MysqlCompiler {
       ..write(_projection(descriptor.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(descriptor.table));
+    if (descriptor.tableAlias case final alias?) {
+      sql.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendJoins(sql, descriptor.joins);
     _appendWhere(sql, descriptor.where, params);
     _appendGroupBy(sql, descriptor.groupBy);
@@ -54,6 +57,16 @@ final class MysqlCompiler {
     _appendOrderBy(sql, descriptor.orderBy);
     _appendLimitOffset(sql, descriptor.limit, descriptor.offset);
     return _result(sql, params);
+  }
+
+  /// Compiles a current single-row read, bypassing an InnoDB snapshot and
+  /// retaining update locks until the current transaction completes.
+  MysqlCompileResult compileCurrentSelect(QueryDescriptor descriptor) {
+    final compiled = compileSelect(descriptor.copyWith(limit: 1));
+    return MysqlCompileResult(
+      sql: '${compiled.sql} FOR UPDATE',
+      parameters: compiled.parameters,
+    );
   }
 
   void _appendJoins(StringBuffer sql, List<JoinClause> joins) {
@@ -593,6 +606,9 @@ final class MysqlCompiler {
       ..write(_projection(node.subquery.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(node.subquery.table));
+    if (node.subquery.tableAlias case final alias?) {
+      sub.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendWhere(sub, node.subquery.where, params);
     _appendOrderBy(sub, node.subquery.orderBy);
     _appendLimitOffset(sub, node.subquery.limit, node.subquery.offset);

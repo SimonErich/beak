@@ -11,10 +11,7 @@ failure. Attach rules with `@Column(rules: [...])` on a schema field; the same
 list drives both the form field in the panel and the request validator in the
 API, so client and server never disagree.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
-  late final double price;
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 Presence is not on the list. A non-nullable field gets `BeakRequired()` from its
 type, and a nullable one does not: `late final double price` is required,
@@ -80,7 +77,7 @@ non-empty. Whitespace-only strings count as empty. `false` and `0` are present
 values and pass.
 
 ```dart title="packages/beak_core/lib/src/rules/beak_required.dart"
-const BeakRequired();
+const BeakRequired({this.allowEmpty = false});
 ```
 
 `id`: `required`. Message: `This field is required.`
@@ -93,8 +90,9 @@ const BeakRequired();
 | `false`, `0`, `'a'`, a non-empty list | passes |
 
 !!! note "You do not write this one"
-    Beak adds `BeakRequired()` to every non-nullable field's column and to no
-    nullable one. Declaring the field as `String name` rather than `String?
+    Beak adds a presence rule to every non-nullable field's column and to no
+    nullable one. Primitive lists and typed objects use `allowEmpty: true`;
+    use `minItems: 1` or an explicit `BeakRequired()` to require content. Declaring the field as `String name` rather than `String?
     name` is how you require it, and that single decision covers the form
     validator, the API's validation and the column's `NOT NULL`. The rule is
     documented here because you will read it in generated code, and because a

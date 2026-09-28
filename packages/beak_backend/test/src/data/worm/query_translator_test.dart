@@ -309,14 +309,19 @@ void main() {
       );
     });
 
-    test('search ORs a case-insensitive contains over every column', () {
+    test('search uses text contains and typed numeric equality', () {
       final spec = const BeakQuerySpec(
         table: 'products',
         withTrashed: true,
       ).searching('beam', [ProductColumns.name, ProductColumns.price]);
+      expect(build(spec).toSql(), contains("(name ILIKE '%beam%')"));
+      final numeric = const BeakQuerySpec(
+        table: 'products',
+        withTrashed: true,
+      ).searching('4.5', [ProductColumns.name, ProductColumns.price]);
       expect(
-        build(spec).toSql(),
-        contains("(name ILIKE '%beam%' OR price ILIKE '%beam%')"),
+        build(numeric).toSql(),
+        contains("(name ILIKE '%4.5%' OR price = 4.5)"),
       );
     });
 

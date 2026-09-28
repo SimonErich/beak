@@ -24,13 +24,10 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_test': 90,
   // The examples earn their keep by being read and run, and much of what they
   // declare is data a widget suite instantiates without executing line by
-  // line. What has to work is checked directly instead: the store's API
-  // scenario exercises its models, policy and seeders end to end, and the
+  // line. What has to work is checked directly instead: the shop's API
+  // tests exercise its models, policy and seeders end to end, and the
   // coverage matrices fail when a feature stops being demonstrated at all.
   'quickstart': 50,
-  'store': 70,
-  'superdashboard': 85,
-  'embedded': 85,
 };
 
 /// Directories that hold gated packages, relative to the repo root.

@@ -51,7 +51,7 @@ flowchart LR
 `@Column` beside it for anything the field shares with every other column
 (`label`, `visibleOn`, and the rest).
 
-```dart title="examples/store/lib/models/product.dart"
+```dart title="Optional stock indicator schema"
   /// The stock indicator, drawn by the panel's registered renderer.
   @Custom('stock_bar')
   @Column(visibleOn: {BeakContext.table})
@@ -61,7 +61,7 @@ flowchart LR
 `beak prepare` turns that into a `BeakCustomColumn` constant in the part file
 beside your model, named after the field:
 
-```dart title="examples/store/lib/models/product.beak.dart"
+```dart title="Generated custom-column shape"
   /// The stock indicator, drawn by the panel's registered renderer.
   static const BeakCustomColumn stockLevel = BeakCustomColumn(
     key: 'stock_level',

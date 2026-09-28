@@ -175,7 +175,7 @@ Add a `beakStorageRegistry` function to `lib/server.dart` (`beak eject server`
 writes the starter). `beak prepare` notices it and hands it to the generated
 host:
 
-```dart title="examples/embedded/lib/server.dart"
+```dart title="Optional S3 registry in your server override"
 /// The storage drivers this app can resolve.
 ///
 /// `beak_backend` depends on no driver package on purpose, so an app that

@@ -40,9 +40,11 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
     this.defaultValue,
     this.badgeColors = const <Never, BeakColor>{},
     this.labelOf,
+    this.labels = const <Never, String>{},
   });
   // --8<-- [end:BeakEnumColumn]
 
@@ -50,6 +52,7 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
   final List<T> values;
 
   /// Pre-selected value in create forms, if any.
+  @override
   final T? defaultValue;
 
   /// Badge color per value; unmapped values use the theme default.
@@ -58,11 +61,15 @@ final class BeakEnumColumn<T extends Enum> extends BeakColumn
   /// Custom display labeller; defaults to the enum's `name`.
   final String Function(T value)? labelOf;
 
+  /// Declarative display labels; omitted values retain their stored enum name.
+  final Map<T, String> labels;
+
   /// The badge color configured for [value], or `null` when unmapped.
   BeakColor? badgeColorFor(T value) => badgeColors[value];
 
-  /// The display label of [value]: [labelOf] when set, else `value.name`.
-  String labelFor(T value) => labelOf?.call(value) ?? value.name;
+  /// The display label: [labelOf], then [labels], then the stored enum name.
+  String labelFor(T value) =>
+      labelOf?.call(value) ?? labels[value] ?? value.name;
 
   /// Returns the declared value whose `name` matches [name], or `null` when
   /// none does — the one way wire strings (query params, stored rows) decode

@@ -2,192 +2,20 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
-import '../actions/beak_action.dart';
-import '../blocks/beak_block.dart';
 import '../dashboard/beak_chart.dart';
+import '../data/beak_data_changes.dart';
 import '../dashboard/beak_stat.dart';
-import '../detail/beak_default_detail_layout.dart';
-import '../filters/beak_default_filters.dart';
-import '../filters/beak_filter_widget.dart';
-import '../form/beak_form_step.dart';
+import '../localization/beak_localizations.dart';
+import '../formatting/beak_formatting.dart';
 import 'beak_auth_config.dart';
 import 'beak_maintenance_config.dart';
 import 'beak_notifications.dart';
-import 'beak_resource_view.dart';
-import 'beak_routes.dart';
+import 'beak_navigation.dart';
+import 'beak_resource.dart';
 import 'beak_screen.dart';
+import 'beak_resource_screen.dart';
 
-/// A typed icon reference for panel navigation.
-///
-/// A zero-cost wrapper over [IconData] so resource declarations stay
-/// expressive (`BeakIconToken(OiIcons.package)`) without leaking raw icon
-/// plumbing into Beak's config surface. Wrap any obers_ui `OiIcons` value.
-extension type const BeakIconToken(IconData icon) {}
-
-/// One resource surfaced in the panel: a registered [BeakModel] plus its
-/// navigation presentation and the typed actions and filters its generated
-/// pages expose.
-///
-/// Declaring a resource is all it takes to get a full list/create/show/edit
-/// CRUD surface — no per-page code. The built-in view, edit, delete and
-/// create actions are always present; [recordActions], [bulkActions],
-/// [globalActions] and [filters] add to them.
-///
-/// ```dart
-/// BeakResource(
-///   model: const ProductModel(),
-///   icon: const BeakIconToken(OiIcons.package),
-///   filters: const [
-///     BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
-///     BeakTextFilter(column: ProductColumns.name, label: 'Name'),
-///   ],
-///   recordActions: const [
-///     BeakRecordAction(
-///       key: 'duplicate',
-///       label: 'Duplicate',
-///       icon: OiIcons.copy,
-///       onExecute: duplicateProduct,
-///     ),
-///   ],
-/// );
-/// ```
-final class BeakResource {
-  /// Creates a panel resource for [model], shown with [icon] and [label]
-  /// (defaults to the title-cased table name).
-  // --8<-- [start:BeakResource]
-  const BeakResource({
-    required this.model,
-    required this.icon,
-    this.label,
-    this.section,
-    this.recordActions = const [],
-    this.bulkActions = const [],
-    this.globalActions = const [],
-    this.filters = const [],
-    this.viewModes = const [BeakTableView()],
-    this.detail,
-    this.formSteps,
-    this.formLayout,
-  });
-  // --8<-- [end:BeakResource]
-
-  /// The model this resource exposes.
-  final BeakModel model;
-
-  /// The sidebar icon.
-  final BeakIconToken icon;
-
-  /// The navigation label override.
-  final String? label;
-
-  /// Optional sidebar group heading this resource is filed under.
-  final String? section;
-
-  /// Extra per-row actions on the list page (view/edit/delete are built
-  /// in).
-  final List<BeakRecordAction> recordActions;
-
-  /// Actions over the list page's selection.
-  final List<BeakBulkAction> bulkActions;
-
-  /// Extra page-level list actions (create is built in).
-  final List<BeakGlobalAction> globalActions;
-
-  /// The list page's filter controls.
-  final List<BeakFilterDef> filters;
-
-  /// The list page's selectable presentations; defaults to a single table
-  /// view. Declaring more than one adds a view-mode switcher to the list
-  /// page.
-  final List<BeakResourceView> viewModes;
-
-  /// A custom show-page layout: a record-bound [BeakBlock] tree (cards,
-  /// sections, tabs, grids composed of `BeakFieldBlock`/`BeakFieldGroupBlock`/
-  /// `BeakRelationBlock`) rendered inside the loaded record's scope.
-  ///
-  /// When `null`, [effectiveDetail] derives one from the model: a headline
-  /// card, the remaining fields, and a tab per to-many relationship.
-  final BeakBlock? detail;
-
-  /// When set, the create/edit form renders as a multi-step wizard over these
-  /// steps instead of a single scrolling form — for long, complex entities.
-  final List<BeakFormStep>? formSteps;
-
-  /// When set, the create/edit form renders through this record-bound block
-  /// layout — giving the form the same cards/tabs/columns structure as the
-  /// show page (pass the same block tree to [detail] and here). Ignored when
-  /// [formSteps] is set.
-  final BeakBlock? formLayout;
-
-  /// The label shown in navigation and page titles.
-  String get effectiveLabel => label ?? _titleCase(model.table);
-
-  /// The show-page layout: [detail] when declared, and otherwise the one
-  /// [model] implies — a headline card, the remaining fields, and a tab per
-  /// to-many relationship.
-  BeakBlock get effectiveDetail => detail ?? beakDefaultDetailLayout(model);
-
-  /// The filter bar the list page renders: [filters] when declared, and
-  /// otherwise the controls [model]'s `filterable` columns imply.
-  ///
-  /// Deriving them here rather than in the generator keeps `panel.g.dart`
-  /// unchanged and gives hand-written panels the same defaults.
-  List<BeakFilterDef> get effectiveFilters =>
-      filters.isNotEmpty ? filters : beakDefaultFiltersOf(model);
-
-  /// Returns a copy with the given parts replaced.
-  ///
-  /// The way to adjust one generated resource without ejecting the panel:
-  /// a `lib/resources/<table>.dart` returning `generated.copyWith(...)` keeps
-  /// every other resource generated and up to date.
-  ///
-  /// ```dart
-  /// BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  ///   filters: const [
-  ///     BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
-  ///   ],
-  /// );
-  /// ```
-  BeakResource copyWith({
-    BeakModel? model,
-    BeakIconToken? icon,
-    String? label,
-    String? section,
-    List<BeakRecordAction>? recordActions,
-    List<BeakBulkAction>? bulkActions,
-    List<BeakGlobalAction>? globalActions,
-    List<BeakFilterDef>? filters,
-    List<BeakResourceView>? viewModes,
-    BeakBlock? detail,
-    List<BeakFormStep>? formSteps,
-    BeakBlock? formLayout,
-  }) => BeakResource(
-    model: model ?? this.model,
-    icon: icon ?? this.icon,
-    label: label ?? this.label,
-    section: section ?? this.section,
-    recordActions: recordActions ?? this.recordActions,
-    bulkActions: bulkActions ?? this.bulkActions,
-    globalActions: globalActions ?? this.globalActions,
-    filters: filters ?? this.filters,
-    viewModes: viewModes ?? this.viewModes,
-    detail: detail ?? this.detail,
-    formSteps: formSteps ?? this.formSteps,
-    formLayout: formLayout ?? this.formLayout,
-  );
-
-  /// The list route of this resource.
-  String get route => BeakRoutes.list(model.table);
-
-  static String _titleCase(String table) => table
-      .split('_')
-      .map(
-        (word) => word.isEmpty
-            ? word
-            : '${word[0].toUpperCase()}${word.substring(1)}',
-      )
-      .join(' ');
-}
+export 'beak_resource.dart';
 
 /// Everything a Beak panel needs at startup: the resources, the backend
 /// origin, and optional theming.
@@ -236,18 +64,26 @@ final class BeakPanelConfig {
   const BeakPanelConfig({
     required this.title,
     required this.resources,
-    required this.apiBaseUrl,
+    this.apiBaseUrl = 'http://localhost:8080',
     this.pages = const [],
     this.auth,
     this.maintenance,
     this.theme,
     this.darkTheme,
     this.initialThemeMode = OiThemeMode.system,
+    this.locale,
+    this.formatting,
+    this.supportedLocales = BeakLocalizations.supportedLocales,
+    this.localizationsDelegates = const [],
     this.sidebarCollapsible = true,
     this.sidebarDefaultCollapsed = false,
     this.dashboardStats = const [],
     this.dashboardCharts = const [],
     this.notifications,
+    this.navigation,
+    this.refreshPolicy,
+    this.shellActions,
+    this.mapException,
   });
   // --8<-- [end:BeakPanelConfig]
 
@@ -256,6 +92,16 @@ final class BeakPanelConfig {
 
   /// The resources the panel exposes, in navigation order.
   final List<BeakResource> resources;
+
+  /// Resources in navigation order, retaining declaration order for equal ranks.
+  List<BeakResource> get navigationResources {
+    final indexed = resources.indexed.toList()
+      ..sort((left, right) {
+        final rank = left.$2.navigationRank.compareTo(right.$2.navigationRank);
+        return rank == 0 ? left.$1.compareTo(right.$1) : rank;
+      });
+    return [for (final entry in indexed) entry.$2];
+  }
 
   /// Origin of the `beak_backend` server (e.g. `http://localhost:8080`).
   final String apiBaseUrl;
@@ -278,6 +124,22 @@ final class BeakPanelConfig {
   /// The theme mode the panel starts in; toggled live from the shell.
   final OiThemeMode initialThemeMode;
 
+  /// Explicit app locale; `null` follows the platform's supported locale.
+  final Locale? locale;
+
+  /// Shared date, number and currency display policy.
+  final BeakFormatting? formatting;
+
+  /// Locales supported by the panel and its application-owned labels.
+  final Iterable<Locale> supportedLocales;
+
+  /// Application translation delegates, installed before Beak's default.
+  ///
+  /// Beak always appends its delegate. A custom delegate for [BeakLocalizations]
+  /// may override that default when translating framework text into another
+  /// language; application resource labels use their own delegate.
+  final Iterable<LocalizationsDelegate<Object?>> localizationsDelegates;
+
   /// Whether the sidebar can collapse to an icon rail.
   final bool sidebarCollapsible;
 
@@ -290,9 +152,23 @@ final class BeakPanelConfig {
   /// The dashboard's charts, in order.
   final List<BeakChart> dashboardCharts;
 
+  /// Shared opt-in periodic and foreground refresh for remote changes.
+  final BeakRefreshPolicy? refreshPolicy;
+
+  /// Optional primary rail and contextual navigation.
+  final BeakNavigation? navigation;
+
   /// Binds a model's rows to the shell's notification bell; `null` shows no
   /// bell.
   final BeakNotificationSource? notifications;
+
+  /// Host-owned shell controls, such as sign out or a locale selector.
+  final List<Widget> Function(BuildContext context)? shellActions;
+
+  /// Maps known host transport/domain failures for every bound resource.
+  /// Unknown exceptions propagate so programming failures are not hidden.
+  final BeakException? Function(Exception exception, StackTrace stackTrace)?
+  mapException;
 
   /// Returns a copy with the given parts replaced.
   ///
@@ -315,11 +191,20 @@ final class BeakPanelConfig {
     OiThemeData? theme,
     OiThemeData? darkTheme,
     OiThemeMode? initialThemeMode,
+    Locale? locale,
+    BeakFormatting? formatting,
+    Iterable<Locale>? supportedLocales,
+    Iterable<LocalizationsDelegate<Object?>>? localizationsDelegates,
     bool? sidebarCollapsible,
     bool? sidebarDefaultCollapsed,
     List<BeakStat>? dashboardStats,
     List<BeakChart>? dashboardCharts,
     BeakNotificationSource? notifications,
+    BeakNavigation? navigation,
+    BeakRefreshPolicy? refreshPolicy,
+    List<Widget> Function(BuildContext context)? shellActions,
+    BeakException? Function(Exception exception, StackTrace stackTrace)?
+    mapException,
   }) => BeakPanelConfig(
     title: title ?? this.title,
     resources: resources ?? this.resources,
@@ -330,12 +215,21 @@ final class BeakPanelConfig {
     theme: theme ?? this.theme,
     darkTheme: darkTheme ?? this.darkTheme,
     initialThemeMode: initialThemeMode ?? this.initialThemeMode,
+    locale: locale ?? this.locale,
+    formatting: formatting ?? this.formatting,
+    supportedLocales: supportedLocales ?? this.supportedLocales,
+    localizationsDelegates:
+        localizationsDelegates ?? this.localizationsDelegates,
     sidebarCollapsible: sidebarCollapsible ?? this.sidebarCollapsible,
     sidebarDefaultCollapsed:
         sidebarDefaultCollapsed ?? this.sidebarDefaultCollapsed,
     dashboardStats: dashboardStats ?? this.dashboardStats,
     dashboardCharts: dashboardCharts ?? this.dashboardCharts,
     notifications: notifications ?? this.notifications,
+    navigation: navigation ?? this.navigation,
+    refreshPolicy: refreshPolicy ?? this.refreshPolicy,
+    shellActions: shellActions ?? this.shellActions,
+    mapException: mapException ?? this.mapException,
   );
 
   /// Builds a [BeakModelRegistry] over every resource model, in declaration
@@ -347,7 +241,52 @@ final class BeakPanelConfig {
   BeakModelRegistry buildRegistry() {
     final registry = BeakModelRegistry();
     for (final resource in resources) {
+      for (final role in BeakScreenRole.values) {
+        resource.screenFor(role);
+      }
+      for (final field in resource.globalSearchSources) {
+        if (field.model.table != resource.model.table ||
+            field is! BeakScalarField<Object>) {
+          throw BeakConfigurationException(
+            'Global search for "${resource.model.table}" requires scalar fields rooted at that model.',
+          );
+        }
+      }
+      for (final screen in resource.screens) {
+        if (screen is BeakTableScreen &&
+            screen.query != null &&
+            screen.query!.table != resource.model.table) {
+          throw BeakConfigurationException(
+            'Table screen query must target "${resource.model.table}".',
+          );
+        }
+        if (screen is BeakFormScreen &&
+            screen.roles.contains(BeakScreenRole.list)) {
+          throw const BeakConfigurationException(
+            'A form screen cannot serve the list route.',
+          );
+        }
+      }
       registry.register(resource.model);
+    }
+    void registerRelated(BeakModel model, Set<String> visited) {
+      if (!visited.add(model.table)) return;
+      for (final related in model.relatedModels) {
+        final existing = registry.byTable(related.table);
+        if (existing == null) {
+          registry.register(related);
+        } else if (existing.runtimeType != related.runtimeType) {
+          throw BeakConfigurationException(
+            'Conflicting models for related table "${related.table}".',
+          );
+        }
+        registerRelated(existing ?? related, visited);
+      }
+    }
+
+    final visited = <String>{};
+    for (final resource in resources) {
+      registerRelated(resource.model, visited);
     }
     return registry;
   }

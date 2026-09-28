@@ -67,6 +67,98 @@ abstract final class NoteColumns {
   ];
 }
 
+/// Typed configuration references for Note.
+final class NoteFields {
+  /// Creates fields rooted at [model], optionally through [path].
+  const NoteFields({
+    BeakModel model = const NoteModel(),
+    List<BeakRelationship> path = const [],
+  }) : _model = model,
+       _path = path;
+  final BeakModel _model;
+  final List<BeakRelationship> _path;
+
+  /// Id.
+  BeakScalarField<String> get id => BeakScalarField<String>(
+    model: _model,
+    column: NoteColumns.id,
+    path: _path,
+    isRequired: false,
+  );
+
+  /// Title.
+  BeakScalarField<String> get title => BeakScalarField<String>(
+    model: _model,
+    column: NoteColumns.title,
+    path: _path,
+    isRequired: true,
+  );
+
+  /// Body.
+  BeakScalarField<String> get body => BeakScalarField<String>(
+    model: _model,
+    column: NoteColumns.body,
+    path: _path,
+    isRequired: false,
+  );
+
+  /// Pinned.
+  BeakScalarField<bool> get pinned => BeakScalarField<bool>(
+    model: _model,
+    column: NoteColumns.pinned,
+    path: _path,
+    isRequired: true,
+  );
+
+  /// Created.
+  BeakScalarField<DateTime> get createdAt => BeakScalarField<DateTime>(
+    model: _model,
+    column: NoteColumns.createdAt,
+    path: _path,
+    isRequired: false,
+  );
+
+  /// Updated.
+  BeakScalarField<DateTime> get updatedAt => BeakScalarField<DateTime>(
+    model: _model,
+    column: NoteColumns.updatedAt,
+    path: _path,
+    isRequired: false,
+  );
+}
+
+/// A to-one path to Note, retaining its root owner.
+final class NoteToOneField extends BeakToOneField {
+  /// Creates a typed relationship path.
+  const NoteToOneField({
+    required super.model,
+    required super.relation,
+    super.path,
+    super.isRequired,
+  }) : super(target: const NoteModel());
+
+  /// Every target field, including names reserved by the path API.
+  NoteFields get fields => NoteFields(model: model, path: [...path, relation]);
+
+  /// Id.
+  BeakScalarField<String> get id => fields.id;
+
+  /// Title.
+  BeakScalarField<String> get title => fields.title;
+
+  /// Body.
+  BeakScalarField<String> get body => fields.body;
+
+  /// Pinned.
+  BeakScalarField<bool> get pinned => fields.pinned;
+
+  /// Created.
+  BeakScalarField<DateTime> get createdAt => fields.createdAt;
+
+  /// Updated.
+  BeakScalarField<DateTime> get updatedAt => fields.updatedAt;
+}
+
 /// A note.
 ///
 /// Declared once. `beak prepare` generates the typed columns, the model, the
@@ -75,6 +167,43 @@ abstract final class NoteColumns {
 final class NoteModel extends BeakModel {
   /// Creates the notes model.
   const NoteModel();
+
+  /// Typed field and relation references, including reserved names.
+  static const NoteFields fields = NoteFields();
+
+  /// Typed reference to [id] in this model.
+  static final id = fields.id;
+
+  /// Typed reference to [title] in this model.
+  static final title = fields.title;
+
+  /// Typed reference to [body] in this model.
+  static final body = fields.body;
+
+  /// Typed reference to [pinned] in this model.
+  static final pinned = fields.pinned;
+
+  /// Typed reference to [createdAt] in this model.
+  static final createdAt = fields.createdAt;
+
+  /// Typed reference to [updatedAt] in this model.
+  static final updatedAt = fields.updatedAt;
+
+  /// Declarative source for record choices.
+  static BeakOptionQuery options({BeakFilter? filter}) => BeakOptionQuery(
+    model: const NoteModel(),
+    query: const NoteModel().query(filter: filter),
+  );
+
+  /// Searches the model display and searchable columns.
+  static BeakOptionQuery search(String term, {BeakFilter? filter}) =>
+      BeakOptionQuery(
+        model: const NoteModel(),
+        query: const NoteModel().query(
+          filter: filter,
+          search: BeakSearch(term, const ['title']),
+        ),
+      );
 
   @override
   String get table => 'notes';
@@ -102,6 +231,37 @@ enum _NoteModelFormSlot {
   s3,
   s4,
   s5,
+}
+
+/// A live, nullable view of an incomplete Note draft.
+final class NoteDraft {
+  /// Reads values through the session so dependencies stay observable.
+  const NoteDraft(this._reader);
+  final BeakDraftReader _reader;
+
+  /// Id, or null while incomplete.
+  String? get id => _reader.read(NoteModel.fields.id);
+
+  /// Title, or null while incomplete.
+  String? get title => _reader.read(NoteModel.fields.title);
+
+  /// Body, or null while incomplete.
+  String? get body => _reader.read(NoteModel.fields.body);
+
+  /// Pinned, or null while incomplete.
+  bool? get pinned => _reader.read(NoteModel.fields.pinned);
+
+  /// Created, or null while incomplete.
+  DateTime? get createdAt => _reader.read(NoteModel.fields.createdAt);
+
+  /// Updated, or null while incomplete.
+  DateTime? get updatedAt => _reader.read(NoteModel.fields.updatedAt);
+}
+
+/// Typed access to live Note form values.
+extension NoteDraftAccess on BeakDraftReader {
+  /// Nullable values backed by this tracked reader.
+  NoteDraft get asNote => NoteDraft(this);
 }
 
 /// A typed, zero-cost view over a notes record.

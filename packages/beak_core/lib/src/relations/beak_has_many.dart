@@ -26,10 +26,15 @@ final class BeakHasMany extends BeakRelationship {
     required this.foreignKey,
     super.searchColumnKeys,
     this.onDelete = BeakOnDelete.restrict,
+    this.owned = false,
   });
 
   /// The column on the related table pointing back at this model's id.
   final String foreignKey;
+
+  /// Whether children belong exclusively to the parent and may be deleted by
+  /// an explicitly configured relationship editor.
+  final bool owned;
 
   /// What happens to the related rows when a record of this model is
   /// deleted. Defaults to [BeakOnDelete.restrict] — never orphan or drop

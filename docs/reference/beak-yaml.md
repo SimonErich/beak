@@ -10,24 +10,7 @@ the panel is called, where it calls, and how each discovered resource appears
 in the sidebar. Every key is optional. Delete the file and Beak still boots,
 titling the panel after the package.
 
-```yaml title="examples/store/beak.yaml"
-name: Beak Store
-
-api:
-  baseUrl: http://localhost:8080
-
-resources:
-  products:
-    icon: package
-    section: Catalog
-  # ... one entry per resource ...
-  orders:
-    icon: receipt
-    section: Sales
-  # ...
-  order_items:
-    hidden: true
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 ## Top level
 

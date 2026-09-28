@@ -78,6 +78,17 @@ final class UploadService {
   /// Deletes the stored file under [key], which must belong to the storage
   /// path of `table.columnKey`.
   Future<void> remove(String table, String columnKey, String key) async {
+    await _requireKey(table, columnKey, key);
+    await storage.delete(key);
+  }
+
+  /// Resolves only existing keys belonging to this column's storage path.
+  Future<Uri> url(String table, String columnKey, String key) async {
+    await _requireKey(table, columnKey, key);
+    return storage.url(key);
+  }
+
+  Future<void> _requireKey(String table, String columnKey, String key) async {
     final String storagePath = switch (_columnOf(table, columnKey)) {
       BeakUploadColumn(:final storagePath) => storagePath,
       final BeakColumn other => throw BeakValidationException(
@@ -85,7 +96,9 @@ final class UploadService {
         'uploads need a file or image column.',
       ),
     };
-    if (!key.startsWith('$storagePath/')) {
+    if (!key.startsWith('$storagePath/') ||
+        key.split('/').any((segment) => segment == '..' || segment == '.') ||
+        key.contains('\\')) {
       throw BeakValidationException(
         'Key "$key" does not belong to column "$columnKey" '
         '(expected the "$storagePath/" prefix).',
@@ -94,7 +107,6 @@ final class UploadService {
     if (!await storage.exists(key)) {
       throw BeakNotFoundException('No stored file "$key".');
     }
-    await storage.delete(key);
   }
 
   BeakColumn _columnOf(String table, String columnKey) {
@@ -161,25 +173,41 @@ final class UploadService {
       path: column.storagePath,
     );
     final variants = <String, BeakStoredFileVariant>{};
-    for (final MapEntry(:key, :value) in transformed.variants.entries) {
-      final variantStored = await storage.put(
-        BeakUpload(
-          filename: _filenameFor(
-            '${keyId}_$key',
-            value.mimeType,
-            fallback: upload,
+    try {
+      for (final MapEntry(:key, :value) in transformed.variants.entries) {
+        final variantStored = await storage.put(
+          BeakUpload(
+            filename: _filenameFor(
+              '${keyId}_$key',
+              value.mimeType,
+              fallback: upload,
+            ),
+            mimeType: value.mimeType,
+            bytes: value.bytes,
           ),
-          mimeType: value.mimeType,
-          bytes: value.bytes,
-        ),
-        path: column.storagePath,
-      );
-      variants[key] = BeakStoredFileVariant(
-        key: variantStored.key,
-        url: variantStored.url,
-        widthInPixels: value.dimensions.widthInPixels,
-        heightInPixels: value.dimensions.heightInPixels,
-      );
+          path: column.storagePath,
+        );
+        variants[key] = BeakStoredFileVariant(
+          key: variantStored.key,
+          url: variantStored.url,
+          widthInPixels: value.dimensions.widthInPixels,
+          heightInPixels: value.dimensions.heightInPixels,
+        );
+      }
+    } on Exception {
+      // A rendition failure must not strand successfully written predecessors.
+      for (final key in [
+        mainStored.key,
+        ...variants.values.map((v) => v.key),
+      ]) {
+        try {
+          await storage.delete(key);
+        } on Exception {
+          // Preserve the original storage failure. Hosts can collect orphaned
+          // files after infrastructure recovery.
+        }
+      }
+      rethrow;
     }
     return BeakStoredFile(
       key: mainStored.key,

@@ -1,0 +1,23 @@
+name: beak_serverpod_generator
+description: Resolved Dart model companions for Serverpod-backed Beak resources.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  analyzer: ^10.0.1
+  args: ^2.7.0
+  dart_style: ^3.1.0
+  path: ^1.9.0
+  yaml: ^3.1.3
+
+dev_dependencies:
+  beak_core:
+    path: ../beak_core
+  beak_serverpod:
+    path: ../beak_serverpod
+  lints: ^6.0.0
+  test: ^1.25.6
+  uuid: ^4.5.3

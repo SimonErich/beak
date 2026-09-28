@@ -2,10 +2,13 @@
 library;
 
 import '../adapter/database_adapter.dart';
+import '../adapter/schema_reset_capable.dart';
 import '../exception/migration_exception.dart';
+import '../query/schema_descriptor.dart';
 import '../schema/schema_facade.dart';
 import '../seeder/environment.dart';
 import '../seeder/seeder_base.dart';
+import '../seeder/seeder_record.dart';
 import '../seeder/seeder_runner.dart';
 import 'migration_base.dart';
 import 'migration_dependency_sorter.dart';
@@ -122,7 +125,7 @@ final class MigrationRunner {
     await migrate();
   }
 
-  /// Drop the tracking table and re-apply every migration from
+  /// Revert known applied migrations, reset seed tracking, and rebuild from
   /// scratch. Schema-level destructive — caller must gate on
   /// `--force` in production.
   ///
@@ -133,14 +136,45 @@ final class MigrationRunner {
   /// (empty when `seed: false` or when no seeder is registered for
   /// the active environment).
   Future<List<String>> fresh({bool seed = false}) async {
+    await _store.ensureTable();
+    final applied = await _store.appliedNames();
+    // Resolve all names before the first destructive operation. Missing code
+    // must never erase history or guess which application tables to drop.
+    for (final name in applied) {
+      _byName(name);
+    }
+    if (adapter case final SchemaResetCapable resetter) {
+      await resetter.resetSchema(
+        (transaction) => MigrationRunner(
+          adapter: transaction,
+          migrations: migrations,
+        )._rebuild(applied),
+      );
+    } else {
+      await _rebuild(applied);
+    }
+    if (!seed) return const <String>[];
+    return _runSeeders();
+  }
+
+  Future<void> _rebuild(Set<String> applied) async {
+    for (final migration in migrations.reversed) {
+      if (!applied.contains(migration.name)) continue;
+      await _runDown(migration);
+      await _store.remove(migration.name);
+    }
+    await adapter.executeSchema(
+      const SchemaDescriptor.dropTable(
+        table: SeederRecord.tableName,
+        ifExists: true,
+      ),
+    );
     await _store.dropTable();
     await _store.ensureTable();
     for (final m in migrations) {
       await _runUp(m);
       await _store.insert(m.name, 1);
     }
-    if (!seed) return const <String>[];
-    return _runSeeders();
   }
 
   /// Alias for [migrate]. Provided so call sites can read

@@ -89,14 +89,14 @@ void main() {
     await tester.tap(find.text('Create').first);
     await tester.pumpAndSettle();
     expect(find.byType(BeakResourceCreatePage), findsOneWidget);
-    expect(find.byType(BeakDataForm), findsOneWidget);
+    expect(find.byType(BeakConfiguredForm), findsOneWidget);
 
     await tester.enterText(find.byType(EditableText).first, 'Second note');
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
-        of: find.byType(BeakDataForm),
-        matching: find.text('Create'),
+        of: find.byType(BeakConfiguredForm),
+        matching: find.text('Save'),
       ),
     );
     await tester.pumpAndSettle();
@@ -170,9 +170,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    dataSource.clearRecordedCalls();
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     expect(find.byType(BeakResourceEditPage), findsOneWidget);
+    expect(
+      tester.widget<BeakPageScaffold>(find.byType(BeakPageScaffold)).title,
+      'First note',
+    );
+    expect(find.text('Edit Notes'), findsNothing);
+    expect(find.textContaining('Edit Notes ·'), findsNothing);
+    expect(
+      dataSource.queryCalls,
+      hasLength(1),
+      reason: 'The heading needs no additional record fetch.',
+    );
+    expect(dataSource.getOneCalls, isEmpty);
     expect(find.text('First note'), findsWidgets);
 
     await tester.enterText(find.byType(EditableText).last, 'Renamed note');

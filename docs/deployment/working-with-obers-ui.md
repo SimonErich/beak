@@ -33,18 +33,18 @@ dependencies:
   # ...
   obers_ui:
     git:
-      url: https://github.com/SimonErich/obers_ui.git
-      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
+      url: https://github.com/SimonErich/obers_ui
+      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
   obers_ui_autoforms:
     git:
-      url: https://github.com/SimonErich/obers_ui.git
+      url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_autoforms
-      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
+      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
   obers_ui_charts:
     git:
-      url: https://github.com/SimonErich/obers_ui.git
+      url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_charts
-      ref: 9fad953d77e90d2aaf2399a7b1b2085c5dd504ca
+      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
 ```
 
 Three details worth knowing:
@@ -85,7 +85,7 @@ melos run link-obers-ui
 ```
 
 That writes path `dependency_overrides` into the `pubspec_overrides.yaml` of
-every package that declares obers_ui, currently those two, and re-bootstraps.
+every Flutter package or example that depends on the Beak UI, including transitive consumers, and re-bootstraps. All three Obers packages are overridden together, so applications do not accidentally mix local widgets with cached charts or autoforms.
 Melos manages only the entries listed in each file's
 `# melos_managed_dependency_overrides:` header, so these survive later
 bootstraps. When you are done:
@@ -94,7 +94,7 @@ bootstraps. When you are done:
 melos run link-obers-ui -- --unlink
 ```
 
-Both files are git-ignored, so a link never leaks into a commit.
+The override files are git-ignored, so a link never leaks into a commit.
 
 !!! tip "Why not melos's dependencyOverridePaths"
     Melos can do this itself, but it applies the overrides to *every* package
@@ -102,6 +102,12 @@ Both files are git-ignored, so a link never leaks into a commit.
     into `beak_core`, `beak_cli`, `beak_image` and the storage drivers, and
     makes `dart pub get` there require Flutter. `link-obers-ui` touches only
     the packages that actually depend on obers_ui.
+
+## Application themes
+
+`BeakPanel.theme` and `darkTheme` take Obers theme data. Prefer semantic colors, typography and component theme settings over application wrappers around each input or card. The Foodio example keeps its palette, typography and icon choices under `lib/theme/`; the resource definitions consume the same table, form, summary and command components as other Beak panels.
+
+When a prototype exposes a missing component behavior, extend the shared Obers component and add its interaction or layout regression there. Beak should bind domain state and permissions; an example should configure those bindings.
 
 ## Continue reading
 

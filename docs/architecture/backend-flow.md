@@ -45,14 +45,18 @@ Future<void> main() async {
 BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
   environment: environment,
   registry: buildBeakRegistry(),
-  migrations: const [CreateNotesTable()],
+  migrations: const [
+    BeakCommitReceiptsMigration(),
+    BeakOutboxMigration(),
+    CreateNotesTable(),
+  ],
   seeders: const [],
 );
 ```
 
 `BeakServeHost` owns the lifecycle: resolve the environment into a `BeakBackendConfig`, open the adapter the `DATABASE_URL` scheme names (SQLite for `sqlite:`, Postgres otherwise), resolve the upload driver, build the server, bind the port. The same host backs the migration CLI through `runCli`, so the schema and the API can never come from different registries. `serve()` and `runCli()` are the two ways in.
 
-A project that needs more than the defaults writes `lib/server.dart`, and the generated host passes it through as `configure`. It receives everything Beak already resolved and returns the server to serve, which is where `examples/store` adds its auth accounts and its row policy. Everything below this point happens inside the handler that host built.
+A project that needs more than the defaults writes `lib/server.dart`, and the generated host passes it through as `configure`. It receives everything Beak already resolved and returns the server to serve, which is where the canonical shop installs transactional business rules. Authentication and row/field policies can be configured through the same override. Everything below this point happens inside the handler that host built.
 
 ## The middleware stack
 
@@ -124,16 +128,7 @@ The response body is a small envelope: `{code, message, fieldErrors?, requestId?
 `BeakCrudHandlers` are thin. Each handler consults the policy, decodes the request into typed `beak_core` values, calls the service, and encodes the result. No business logic lives here, and malformed input is a user error, never a `500`.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-Future<Response> create(Request request) async {
-  _require(
-    request,
-    policy.canCreate(beakPrincipal(request), service.model.table),
-    'create',
-  );
-  final record = await _readRecord(request);
-  final created = await service.create(record);
-  return _json(201, created.toJson());
-}
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:create"
 ```
 
 Notice `_readRecord`: it parses a flat `{column: value}` body into a typed `BeakRecord`, and when a value is malformed it re-throws as a `BeakValidationException` so the client sees a `422`, not a `500`.
@@ -157,12 +152,22 @@ try {
 
 `BeakResourceService` is where the rules live. On create it mints a uuid for string-keyed models, stamps `created_at` and `updated_at` when the model declares them, and runs validation before anything touches the data source.
 
+Server revision timestamps use UTC milliseconds so Dart and JavaScript clients
+retain the same value. Updates advance by at least one millisecond even when the
+clock has not advanced. Graph commits accept a browser's truncated view of a
+legacy microsecond timestamp, then compare the exact stored timestamp in the SQL
+update predicate. An older revision remains a conflict; rounding never replaces
+the database's conditional write.
+
 ```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-Future<BeakRecord> create(BeakRecord input) {
-  final prepared = _withCreateDefaults(input);
-  validation.validate(model, prepared, isCreate: true);
-  return dataSource.create(model.table, prepared);
-}
+  Future<BeakRecord> create(
+    BeakRecord input, {
+    BeakValidationQuery? validationQuery,
+  }) async {
+    final prepared = prepareCreate(input);
+    await validateCandidate(prepared, validationQuery: validationQuery);
+    return dataSource.create(model.table, prepared);
+  }
 ```
 
 It also guards that a posted spec targets its own model, so a query aimed at the wrong table is a `422` rather than a leak across resources:

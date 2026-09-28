@@ -155,10 +155,7 @@ void main() {
   ) async {
     await pumpManager(tester, ArticleRelations.category);
 
-    expect(
-      find.text('Category is not a to-many relationship.'),
-      findsOneWidget,
-    );
+    expect(find.text('Unavailable'), findsOneWidget);
   });
 
   group('paging', () {

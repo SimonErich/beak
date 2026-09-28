@@ -43,6 +43,82 @@ void main() {
       expect(find.text('left'), findsOneWidget);
     });
 
+    testWidgets('expanded rows allocate proportions after actual child gaps', (
+      tester,
+    ) async {
+      const block = BeakRowBlock(
+        expand: true,
+        gapInPixels: 24,
+        children: [
+          BeakTextBlock('wide', span: BeakSpan(columns: 5)),
+          BeakTextBlock('narrow', span: BeakSpan(columns: 3)),
+          BeakTextBlock('medium', span: BeakSpan(columns: 4)),
+        ],
+      );
+      Future<void> atWidth(double width) => tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: const BeakBlockHost(block: block),
+            ),
+          ),
+        ),
+      );
+      await tester.binding.setSurfaceSize(const Size(1400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await atWidth(1048);
+      expect(
+        tester.getSize(find.text('wide')).width,
+        closeTo(1000 * 5 / 12, .001),
+      );
+      expect(tester.getSize(find.text('narrow')).width, closeTo(250, .001));
+      expect(
+        tester.getSize(find.text('medium')).width,
+        closeTo(1000 * 4 / 12, .001),
+      );
+      expect(
+        tester.getTopLeft(find.text('narrow')).dx -
+            tester.getTopRight(find.text('wide')).dx,
+        24,
+      );
+      await atWidth(500);
+      expect(tester.getSize(find.text('wide')).width, 500);
+      expect(tester.getSize(find.text('narrow')).width, 500);
+      expect(
+        tester.getTopLeft(find.text('narrow')).dy,
+        greaterThan(tester.getBottomLeft(find.text('wide')).dy),
+      );
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Contained cards stack even inside a wide desktop viewport.',
+      );
+    });
+
+    testWidgets('expanded rows stay usable with unbounded width', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: const SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: BeakBlockHost(
+              block: BeakRowBlock(
+                expand: true,
+                children: [BeakTextBlock('first'), BeakTextBlock('second')],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('first'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('grid honors per-child spans via OiSpan', (tester) async {
       await pumpBlock(
         tester,

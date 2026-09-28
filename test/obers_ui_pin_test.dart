@@ -24,6 +24,30 @@ Iterable<File> _workspacePubspecs() sync* {
 }
 
 void main() {
+  group('transitive local UI resolution', () {
+    test('links all coordinated UI packages at the application root', () {
+      expect(
+        obersUiOverridesFor(
+          'dependencies:\n  beak:\n    path: ../../packages/beak\n',
+        ),
+        obersUiPackagePaths.keys.toList(),
+      );
+      expect(
+        obersUiOverridesFor(
+          'dependencies:\n  beak_frontend:\n    path: ../beak_frontend\n',
+        ),
+        obersUiPackagePaths.keys.toList(),
+      );
+    });
+    test('does not introduce Flutter into pure Dart packages', () {
+      expect(
+        obersUiOverridesFor(
+          'dependencies:\n  beak_core:\n    path: ../beak_core\n',
+        ),
+        isEmpty,
+      );
+    });
+  });
   group('the obers_ui dependency pin', () {
     // Six refs to the same SHA across two pubspecs is a drift surface.
     // These tests are what make repeating it safe.

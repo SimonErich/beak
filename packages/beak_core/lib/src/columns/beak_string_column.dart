@@ -28,6 +28,8 @@ final class BeakStringColumn extends BeakColumn with BeakTypedColumn<String> {
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
     this.placeholder = '',
     this.maxLength,
   });

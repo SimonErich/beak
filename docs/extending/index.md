@@ -35,6 +35,7 @@ the rest of the framework holds:
 | A custom column | a table or detail cell needs a widget no built-in column renders (a sparkline, a bespoke status pill). | [Custom columns](custom-columns.md) |
 | A widget block | a page needs a subtree no block in the union covers. | [Custom blocks and widgets](custom-blocks-and-widgets.md) |
 | A custom screen | you want a whole free-form page, not a resource's generated CRUD. | [Custom screens and pages](custom-screens-and-pages.md) |
+| A model-owned transport | resources use an existing backend and share live permissions or separate write commands. | [Model-owned transports](model-transports.md) |
 | A custom data source | your records live behind something other than the generated REST API. | [Custom data sources](custom-data-sources.md) |
 | A custom storage driver | uploaded files belong in a store beyond memory, local disk, S3, or FTP. | [Custom storage drivers](custom-storage-drivers.md) |
 | Beak widgets on their own | you want one Beak surface inside an app that is not a full panel. | [Using Beak widgets standalone](using-beak-widgets-standalone.md) |
@@ -80,8 +81,8 @@ lives.
   this way. `BeakDataSource` and `BeakStorageDriver` are plain interfaces in
   `package:beak/beak.dart`; you write a class, register it, and the rest of the
   stack calls it through the same methods it calls the built-ins with. This is
-  the seam that lets a future `beak_serverpod` slot in without a line of change
-  to the packages above it.
+  the seam used by `beak_serverpod` to keep backend-specific transport out of
+  the packages above it.
 
 Widget blocks and screens sit between the two: they take a `WidgetBuilder` or a
 `BeakBlock` body, which is Flutter itself, framed by Beak's chrome.

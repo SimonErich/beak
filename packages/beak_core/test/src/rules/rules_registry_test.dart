@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 /// variant breaks compilation (and this suite) until it is registered here
 /// with a test file of its own.
 String idOf(BeakRule rule) => switch (rule) {
+  BeakFutureDate() => 'future_date',
   BeakRequired() => 'required',
   BeakMinLength() => 'min_length',
   BeakMaxLength() => 'max_length',
@@ -20,6 +21,7 @@ String idOf(BeakRule rule) => switch (rule) {
 
 /// One instance of every concrete rule.
 const List<BeakRule> allRules = [
+  BeakFutureDate(),
   BeakRequired(),
   BeakMinLength(1),
   BeakMaxLength(1),

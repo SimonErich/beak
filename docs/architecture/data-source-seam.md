@@ -1,15 +1,15 @@
 ---
 title: The data source seam
-description: How BeakDataSource lets the panel and the server run the same operations over worm, HTTP, or a future Serverpod transport.
+description: How BeakDataSource lets the panel and the server run the same operations over Worm, HTTP and typed Serverpod operations.
 ---
 
 # The data source seam
 
-After this page you can name the single interface every Beak data operation goes through, explain why the worm-backed server and the HTTP-backed panel are interchangeable, and describe exactly what a future `ServerpodDataSource` would and would not touch.
+After this page you can name the single interface every Beak data operation goes through, explain why the worm-backed server and the HTTP-backed panel are interchangeable, and describe how model-owned Serverpod transports preserve that boundary.
 
-Beak has one data boundary, and it is an interface, not a class. `BeakDataSource` lives in `beak_core`, speaks only `beak_core` types, and both sides of Beak implement it: the server over the worm ORM, the panel over REST. That symmetry is the reason worm never leaks into the frontend and HTTP never leaks into a service, and it is the reason a new transport can slot in without editing the code that uses it.
+Beak has one data boundary, and it is an interface, not a class. `BeakDataSource` lives in `beak_core`, speaks only `beak_core` types, and both sides of Beak implement it: the server over the Worm ORM, the panel over REST or typed Serverpod RPCs. That symmetry is the reason worm never leaks into the frontend and HTTP never leaks into a service, and it is the reason a new transport can slot in without editing the code that uses it.
 
-The interface is `packages/beak_core/lib/src/data/beak_data_source.dart`; the two implementations are `packages/beak_backend/lib/src/data/worm/worm_data_source.dart` and `packages/beak_frontend/lib/src/data/http_beak_data_source.dart`.
+The interface is `packages/beak_core/lib/src/data/beak_data_source.dart`; runtime implementations include `packages/beak_backend/lib/src/data/worm/worm_data_source.dart`, `packages/beak_frontend/lib/src/data/http_beak_data_source.dart` and `packages/beak_serverpod/lib/src/data_source.dart`.
 
 ## The interface
 
@@ -28,15 +28,20 @@ The interface is `packages/beak_core/lib/src/data/beak_data_source.dart`; the tw
 | `detach(table, id, relationKey, relatedIds)` | `Future<void>` | Unlink to-many relations. |
 | `aggregate(spec)` | `Future<num>` | Compute a count/sum/avg over matching rows. |
 
-`restore` is the one operation that deliberately reaches past the soft-delete scope, because the row it wants is by definition already outside it. It throws `BeakValidationException` when the model does not soft-delete at all: reporting success for a row that was hard-deleted would be a lie.
+The table describes the full vocabulary and default Worm behavior. Adapters may
+support a narrower operation set, advertise that through model capabilities, and
+reject unsupported calls explicitly. Serverpod archive and cleanup semantics stay
+inside the bound domain operation.
+
+For Worm, `restore` is the one operation that deliberately reaches past the soft-delete scope, because the row it wants is by definition already outside it. It throws `BeakValidationException` when the model does not soft-delete at all: reporting success for a row that was hard-deleted would be a lie.
 
 The interface's own doc comment states the contract implementations sign up to:
 
 ```dart title="packages/beak_core/lib/src/data/beak_data_source.dart"
 /// Backend handlers and services speak only this interface (`WormDataSource`
 /// is the default implementation, `beak_frontend`'s HTTP client another,
-/// and a future `beak_serverpod` package can supply one more without
-/// touching `beak_core`). Implementations
+/// and `beak_serverpod` supplies typed RPC bindings without database access).
+/// Implementations
 /// throw typed `BeakException`s (`BeakNotFoundException` for missing
 /// records, `BeakConfigurationException` for unknown tables/relations) and
 /// never leak ORM types.
@@ -50,7 +55,7 @@ Two rules carry across every implementation: failures are the typed `BeakExcepti
 `WormDataSource` is the default implementation Beak ships. It translates every operation to worm against an injected `DatabaseAdapter`, honoring model metadata (primary keys, soft deletes, relationships) with no per-model code. One instance serves every registered model because the `BeakModelRegistry` resolves each table name to its `BeakModel`.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-final class WormDataSource implements BeakDataSource {
+final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   WormDataSource(
     this.registry, {
     required DatabaseAdapter adapter,
@@ -92,27 +97,41 @@ Because the adapter is injected, the same class runs against SQLite (the default
 The panel implements the exact same interface over the typed REST client. Every method forwards to `BeakClient`, so widgets and view models stay transport-blind.
 
 ```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
-final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
+final class HttpBeakDataSource
+    implements
+        BeakDataSource,
+        BeakCapabilityDataSource,
+        BeakSummaryDataSource,
+        BeakExportDataSource,
+        BeakValidationDataSource,
+        BeakManagedUploadClient,
+        BeakUploadUrlClient,
+        BeakCommitDataSource {
+  /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
+  /// The transport the source delegates to.
   final BeakClient client;
 
-  @override
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
-      client.query(spec.table, spec);
+  // ... validation and remaining CRUD forwarding ...
 
   @override
-  Future<BeakRecord?> getOne(String table, Object id) =>
-      client.getOne(table, id);
+  BeakCommitCapabilities get commitCapabilities =>
+      const BeakCommitCapabilities(durableReceipts: true);
 
   @override
-  Future<BeakRecord> create(String table, BeakRecord data) =>
-      client.create(table, data);
+  Future<BeakSaveResult> commit(BeakSavePlan plan) => client.commit(plan);
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
+
+  // ...
+}
 ```
 
-That is the whole class: a thin adapter from the interface to HTTP. It additionally implements `BeakUploadClient` so image and file fields can upload through the same object.
+The class delegates data operations, uploads, and graph commit/recovery through the same client. `BeakCommitDataSource` advertises durable receipt support; the backend determines whether a graph can commit atomically.
 
-## The third implementation: `InMemoryBeakDataSource`
+## The test implementation: `InMemoryBeakDataSource`
 
 `package:beak/testing.dart` ships a complete implementation over plain maps. Complete is the operative word. It honours filters, sorts, search, relation loads, pagination and soft deletes, so a widget test that pumps a real `BeakDataTable` over it proves the table's paging and filtering actually work.
 
@@ -145,39 +164,57 @@ flowchart TB
 The seam buys three things:
 
 - **A test seam.** Frontend tests inject an `InMemoryBeakDataSource` and never spin up a server; backend tests inject a `WormDataSource` over an `InMemoryAdapter` or `sqlite::memory:`. Neither has to mock a transport.
-- **Transport blindness.** A `BeakDataTable` or a `BeakDataForm` calls `query` and `create`. It cannot tell, and does not care, whether the bytes end up in Postgres or on the far side of an HTTP hop.
+- **Transport blindness.** A data table queries through `BeakDataSource`; a configured form saves through the optional commit capability. Both use declared source capabilities rather than assuming a particular database or HTTP transport.
 - **A clean extension point.** Adding a data backend means writing one class, not editing the panel.
 
-## The future: `ServerpodDataSource`
+## Serverpod model transports
 
-The seam's payoff is a package that does not exist yet. Beak's default stack is worm over SQLite or Postgres, but the architecture reserves room for a `beak_serverpod` package to add a `ServerpodDataSource`. Both implementations spell out the promise in their own docs. The server side:
+The existing `beak_serverpod` package implements this seam over typed Serverpod
+client operations. Its companion generator resolves the application's generated
+Dart model **and endpoint** signatures, emitting a `<Model>Resource` that is itself
+a `BeakModel` with a stable data source. It does not extend a generated Serverpod
+entity or create a second persistence schema.
 
-```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-/// This is the concrete implementation Beak ships; a future
-/// `ServerpodDataSource` would satisfy the same [BeakDataSource] interface
-/// without touching `beak_core` or `beak_backend`. Wire one over any worm
-```
+A normal panel registers resources once. The panel discovers their model-owned sources and evaluates live presentation
+permissions and bound operation capabilities. Its shared dispatcher keeps command
+edit-prefill inside the same mapped error boundary as other data operations.
+Separate generated create/edit metadata supports command DTOs whose shape differs
+from a read projection. Models without an owned source keep using the panel's
+default HTTP/Worm source.
 
-And the client side:
+Generated Serverpod calls preserve named/positional arguments, typed IDs, query
+pagination defaults and the endpoint's returned total. Compatible create/update
+commands use generated forms; domain commands returning different results retain
+custom workflows. Ordinary delete uses the bound archive/delete method. Unsupported
+predicates, ambiguous contracts and unbound operations fail explicitly. Relation
+writes, restore and force-delete are not inferred from model fields.
 
-```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
-/// This is the production source [registerBeakDependencies] wires up over a
-/// [BeakClient] pointed at `apiBaseUrl`; tests inject a fake
-/// [BeakDataSource] instead. Because it is source-agnostic, a future
-/// transport (e.g. Serverpod) can replace it without touching the rest of
-/// the frontend.
-```
+Serverpod owns authentication, server authorization, transactions and cleanup.
+The framework's auth provider/screens are a separate frontend boundary configured
+once by the host. `beak_serverpod_flutter` adapts the existing Serverpod client and
+Flutter session manager to `BeakAuthAdapter`; it does not discover auth endpoints
+or introduce a second session. Resource generation never creates accounts, grants
+permissions or opens a database connection. Client permissions govern UI behavior only and
+cannot replace endpoint checks.
 
-Concretely, that new package would implement the ten methods over Serverpod's client, map Serverpod's errors to the `BeakException` family, and register itself with the frontend's DI. It would not touch `beak_core` (the interface is already there), it would not touch `beak_backend` (worm is one implementation among peers, not a hard dependency of the seam), and no widget or view model would change, because they were never written against worm or HTTP in the first place.
+The low-level `ServerpodResource` constructor remains available for a contract
+outside the generator's documented conventions. Its typed callbacks and generated
+codecs still use the same dispatcher, so a custom integration does not require
+new widget or view-model implementations.
 
-It would also have something to prove itself against. `runBeakDataSourceContract` is the executable half of this page: hand it a builder and a seeder and it runs every edge the interface has, from `getOne` returning `null` rather than throwing to soft deletes hiding from `query` but not from `withTrashed`.
+See [model-owned transports](../extending/model-transports.md), the
+[Serverpod runtime guide](https://github.com/SimonErich/beak/blob/main/packages/beak_serverpod/README.md), and the
+[generator conventions](https://github.com/SimonErich/beak/blob/main/packages/beak_serverpod_generator/README.md).
+The bridge's tests compile and execute generated calls against typed fixture
+endpoints; the generic data-source contract suite remains available to adapters
+that implement its complete operation vocabulary.
 
 ## Keeping types from leaking
 
 The seam only works if the boundary holds, and Beak enforces that structurally.
 
 - **worm is imported by exactly one runtime package.** `beak_backend` is the only one that depends on the ORM. `WormRecordModel` and `QueryBuilder` appear inside `WormDataSource`; they never appear in a return type or a `beak_core` symbol. (`package:beak/migrations.dart` re-exports worm's `Migration` and `Schema`, because a migration is worm's, but that library is on the server side of the wall.)
-- **obers_ui lives on the other side.** `beak_frontend` is the only Flutter package, and its widgets never see `dart:io` or Shelf.
+- **obers_ui lives on the other side.** `beak_frontend` owns the visual components, and its widgets never see `dart:io` or Shelf. The separate `beak_serverpod_flutter` auth adapter imports the Serverpod Flutter session client without pulling it into `beak_core`.
 - **The interface is the vocabulary.** Everything crossing the seam is a `BeakQuerySpec`, `BeakRecord`, `BeakPage`, or `BeakAggregateSpec`, all defined in `beak_core`, the pure-Dart package both sides share.
 
 Hold those three lines and the framework stays layered: a change to the ORM cannot ripple into the panel, and a change to the panel cannot reach the database.

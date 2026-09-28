@@ -4,6 +4,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../table/column_cell_renderer.dart';
+import '../localization/beak_localizations.dart';
 
 /// The generated read-only record view: a model's detail-context columns
 /// rendered as labelled rows, with every value formatted by the shared
@@ -38,7 +39,7 @@ class BeakDetailView extends HookWidget {
         if (column.visibleOn.contains(BeakContext.detail)) column,
     ];
     return OiCard(
-      title: const OiLabel.h4('Details'),
+      title: OiLabel.h4(BeakLocalizations.of(context).details),
       child: OiGrid(
         breakpoint: context.breakpoint,
         minColumnWidth: const OiResponsive<double>(240),

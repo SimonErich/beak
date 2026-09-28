@@ -5,66 +5,48 @@ tables, forms, detail views, actions, filters, and dashboards on obers_ui.
 
 Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
-[architecture guide](../../docs/architecture.md) for how the packages fit
+[architecture guide](../../docs/architecture/index.md) for how the packages fit
 together.
 
 ## What it is
 
-The presentation layer of the Beak stack. Hand `BeakPanel` a
-`BeakPanelConfig` — a list of `BeakResource`s over your `beak_core` models,
-plus optional dashboard stats and charts — and it stands up the entire app:
-obers_ui theming, a go_router over every resource, generated
-list/create/show/edit CRUD pages, and the HTTP data layer wired into GetIt.
-Flutter, obers_ui-only (no Material); `HookWidget` + Signals + GetIt +
-go_router throughout. The primary entry points are `BeakPanel` and
-`BeakPanelConfig`.
+The presentation layer of Beak. Pass resource objects to `BeakPanel` to install
+navigation, list/read/create/edit routes, model-driven inputs, validation and
+graph persistence. Resource screens describe layout; `BeakFormSession` owns
+state and related drafts. Custom pages and widgets reuse the panel's data,
+formatting and refresh scopes.
 
 ## Usage
 
+With your generated models and resource definitions imported:
+
 ```dart
-import 'package:beak_frontend/beak_frontend.dart';
-import 'package:flutter/widgets.dart';
-import 'package:obers_ui/obers_ui.dart';
-
-final config = BeakPanelConfig(
-  title: 'Beak Admin',
-  apiBaseUrl: 'http://localhost:8080',
-  resources: const [
-    BeakResource(
-      model: ProductModel(),
-      icon: BeakIconToken(OiIcons.package),
-      filters: [
-        BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
-        BeakTextFilter(column: ProductColumns.name, label: 'Name'),
-      ],
-      recordActions: [
-        BeakRecordAction(
-          key: 'duplicate',
-          label: 'Duplicate',
-          icon: OiIcons.copy,
-          onExecute: duplicateProduct,
-        ),
-      ],
-    ),
-    BeakResource(model: UserModel(), icon: BeakIconToken(OiIcons.users)),
-  ],
-);
-
-void main() => runApp(BeakPanel(config: config));
+void main() => runApp(BeakPanel(
+  title: 'Shop',
+  resources: [ProductResource(), UserResource()],
+  pages: [shopOverview(), shopOperations()],
+));
 ```
 
-Tests inject a fake source so no HTTP is issued:
-`BeakPanel(config: config, dataSource: fakeSource)`.
+`BeakPanel.fromConfig(config: config)` also accepts a generated or host-built
+`BeakPanelConfig`. Tests may supply `dataSource: fakeSource` to either constructor.
+See the [canonical shop entrypoint](../../examples/clean_beak_config/lib/main.dart)
+and [declarative resources guide](../../docs/concepts/declarative-resources.md)
+for complete runnable definitions.
 
 ## Key types
 
-- `BeakPanel` — root `HookWidget`; builds theme, router, and DI from a config.
+- `BeakPanel` — root widget with a scoped theme, router and data services.
 - `BeakPanelConfig` — the declarative panel definition (resources, apiBaseUrl,
   dashboards, theming).
 - `BeakResource` — one model surfaced as list/detail/form pages, with its
   actions and filters.
-- `BeakRecordAction` / `BeakBulkAction` / `BeakGlobalAction` — typed action
-  hooks over records, selections, and pages.
+- `BeakFormScreen` / `BeakWizardScreen` — layouts for ordinary and stepped forms.
+- `BeakFormSections` — reusable sections projected into forms, tabs or steps.
+- `BeakFormSession` / `BeakDraftScope` — state access for custom form widgets.
+- `BeakRecordAction` / `BeakBulkAction` / `BeakGlobalAction` — presentation action
+  hooks; model lifecycle actions are authoritative `BeakModelAction` declarations.
+- `BeakImportView` / `BeakBulkEditView` — typed preview, validation and commit outcomes.
 - `BeakSelectFilter` / `BeakTextFilter` / `BeakBoolFilter` — list-page filter
   controls bound to typed columns.
 - `BeakStat` / `BeakChart` — dashboard aggregate tiles and charts.
@@ -73,7 +55,7 @@ Tests inject a fake source so no HTTP is issued:
 ## Status
 
 Pre-1.0, part of the Beak monorepo. Consumed by the
-[reference admin](../../apps/reference_admin). Contributions welcome — see
+[canonical shop](../../examples/clean_beak_config). Contributions welcome — see
 [CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
 
 ## License

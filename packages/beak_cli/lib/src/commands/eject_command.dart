@@ -267,10 +267,9 @@ import 'package:beak/panel.dart';
 
 /// Which auth routes the panel mounts, and what they call.
 ///
-/// With no `onLogin`, the panel signs in against the generated
-/// `/api/auth/login` and remembers the session, so a project whose
-/// `lib/server.dart` configures auth needs nothing here. Supply one to
-/// authenticate somewhere else.
+/// The default adapter uses the server's generated `/api/auth/login`.
+/// Supply a BeakAuthAdapter for another backend. Registration and password
+/// recovery stay disabled unless both configured and supported by the adapter.
 BeakAuthConfig beakAuth() => const BeakAuthConfig();
 ''';
 

@@ -4,6 +4,8 @@ import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../auth/beak_policy.dart';
+import '../auth/beak_field_policy.dart';
+import '../auth/beak_query_authorizer.dart';
 import '../server/middleware/auth_middleware.dart';
 import 'global_search_service.dart';
 
@@ -50,11 +52,16 @@ final class BeakSearchHandlers {
       term,
       perModel: perModel,
       tables: viewableTables,
-      scopes: {
-        for (final table in viewableTables)
-          if (beakRowScope(policy, principal, table) case final BeakFilter s)
-            table: s,
-      },
+      canReadField: BeakFieldAccess(
+        registry: service.registry,
+        policy: policy,
+        principal: principal,
+      ).canRead,
+      authorizeQuery: BeakQueryAuthorizer(
+        registry: service.registry,
+        policy: policy,
+        principal: principal,
+      ).authorizeQuery,
     );
     final grouped = <String, List<Map<String, Object?>>>{};
     for (final hit in hits) {

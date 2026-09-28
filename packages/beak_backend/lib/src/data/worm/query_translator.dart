@@ -129,13 +129,36 @@ final class WormQueryTranslator {
   ///
   /// Throws a [BeakConfigurationException] when the filter references an
   /// unknown column or carries an operand its operator cannot use.
-  PredicateTree? predicateFor(BeakFilter? filter, BeakModel model) =>
-      switch (filter) {
-        null => null,
-        final BeakFieldFilter field => _leafFor(field, model),
-        final BeakAndFilter and => _composite(and.filters, model, isAnd: true),
-        final BeakOrFilter or => _composite(or.filters, model, isAnd: false),
-      };
+  PredicateTree? predicateFor(
+    BeakFilter? filter,
+    BeakModel model, {
+    String? qualifier,
+    int depth = 0,
+  }) => switch (filter) {
+    null => null,
+    final BeakFieldFilter field => _leafFor(field, model, qualifier, depth),
+    final BeakAndFilter and => _composite(
+      and.filters,
+      model,
+      isAnd: true,
+      qualifier: qualifier,
+      depth: depth,
+    ),
+    final BeakOrFilter or => _composite(
+      or.filters,
+      model,
+      isAnd: false,
+      qualifier: qualifier,
+      depth: depth,
+    ),
+    BeakRelationFilter(:final relationKey, :final filter) => _relationPredicate(
+      model,
+      relationKey,
+      filter,
+      qualifier,
+      depth,
+    ),
+  };
 
   /// The column of [model] under [columnKey].
   ///
@@ -151,10 +174,14 @@ final class WormQueryTranslator {
     List<BeakFilter> children,
     BeakModel model, {
     required bool isAnd,
+    String? qualifier,
+    int depth = 0,
   }) {
     final trees = <PredicateTree>[
       for (final child in children)
-        if (predicateFor(child, model) case final PredicateTree tree) tree,
+        if (predicateFor(child, model, qualifier: qualifier, depth: depth)
+            case final PredicateTree tree)
+          tree,
     ];
     if (trees.isEmpty) {
       return null;
@@ -169,10 +196,33 @@ final class WormQueryTranslator {
     return combined.group();
   }
 
-  PredicateTree _leafFor(BeakFieldFilter filter, BeakModel model) {
+  PredicateTree _leafFor(
+    BeakFieldFilter filter,
+    BeakModel model,
+    String? qualifier,
+    int depth,
+  ) {
+    final separator = filter.columnKey.indexOf('.');
+    if (separator >= 0) {
+      return _relationPredicate(
+        model,
+        filter.columnKey.substring(0, separator),
+        BeakFieldFilter.forKey(
+          filter.columnKey.substring(separator + 1),
+          filter.operator,
+          filter.value,
+        ),
+        qualifier,
+        depth,
+      );
+    }
     final String columnKey = columnOrThrow(model, filter.columnKey).key;
-    Predicate predicate(Operator operator, Object? value) =>
-        Predicate(fieldName: columnKey, operator: operator, value: value);
+    Predicate predicate(Operator operator, Object? value) => Predicate(
+      fieldName: columnKey,
+      tableName: qualifier,
+      operator: operator,
+      value: value,
+    );
     return LeafNode(switch (filter.operator) {
       BeakOperator.eq => predicate(Operator.eq, filter.value.raw),
       BeakOperator.neq => predicate(Operator.neq, filter.value.raw),
@@ -212,6 +262,107 @@ final class WormQueryTranslator {
     });
   }
 
+  PredicateTree _relationPredicate(
+    BeakModel owner,
+    String relationKey,
+    BeakFilter filter,
+    String? qualifier,
+    int depth,
+  ) {
+    if (depth >= 16) {
+      throw const BeakConfigurationException(
+        'Relationship filter exceeds 16 levels.',
+      );
+    }
+    final relation = relationshipOrThrow(owner, relationKey);
+    final related = registry.byTableOrThrow(relation.relatedTable);
+    final alias = 'beak_relation_$depth';
+    final ownerAlias = qualifier ?? owner.table;
+    PredicateTree? condition = predicateFor(
+      filter,
+      related,
+      qualifier: alias,
+      depth: depth + 1,
+    );
+    if (related.softDeletes) {
+      final visible = LeafNode(
+        Predicate(
+          fieldName: 'deleted_at',
+          tableName: alias,
+          operator: Operator.isNull,
+          value: null,
+        ),
+      );
+      condition = condition == null ? visible : condition.and(visible).group();
+    }
+    PredicateTree correlate(
+      String leftField,
+      String leftTable,
+      String rightField,
+      String rightTable,
+    ) => ColumnNode(
+      leftField: leftField,
+      leftTable: leftTable,
+      rightField: rightField,
+      rightTable: rightTable,
+      operator: Operator.eq,
+    );
+    if (relation case BeakBelongsToMany(
+      :final pivotTable,
+      :final foreignPivotKey,
+      :final relatedPivotKey,
+    )) {
+      final pivotAlias = 'beak_pivot_$depth';
+      final targetLink = correlate(
+        related.primaryKey.key,
+        alias,
+        relatedPivotKey,
+        pivotAlias,
+      );
+      final target = ExistsNode(
+        QueryDescriptor(
+          table: related.table,
+          tableAlias: alias,
+          where: condition == null
+              ? targetLink
+              : targetLink.and(condition).group(),
+        ),
+      );
+      return ExistsNode(
+        QueryDescriptor(
+          table: pivotTable,
+          tableAlias: pivotAlias,
+          where: correlate(
+            foreignPivotKey,
+            pivotAlias,
+            owner.primaryKey.key,
+            ownerAlias,
+          ).and(target).group(),
+        ),
+      );
+    }
+    final link = switch (relation) {
+      BeakBelongsTo(:final foreignKey) => correlate(
+        related.primaryKey.key,
+        alias,
+        foreignKey,
+        ownerAlias,
+      ),
+      BeakHasMany(:final foreignKey) || BeakHasOne(:final foreignKey) =>
+        correlate(foreignKey, alias, owner.primaryKey.key, ownerAlias),
+      BeakBelongsToMany() => throw StateError(
+        'Pivot relation already handled.',
+      ),
+    };
+    return ExistsNode(
+      QueryDescriptor(
+        table: related.table,
+        tableAlias: alias,
+        where: condition == null ? link : link.and(condition).group(),
+      ),
+    );
+  }
+
   String _stringOperand(BeakFieldFilter filter) => switch (filter.value.raw) {
     final String value => value,
     final Object? other => throw BeakConfigurationException(
@@ -241,29 +392,8 @@ final class WormQueryTranslator {
       };
 
   PredicateTree? _searchPredicate(BeakSearch? search, BeakModel model) {
-    if (search == null) {
-      return null;
-    }
-    final String term = search.term.trim();
-    if (term.isEmpty || search.columnKeys.isEmpty) {
-      return null;
-    }
-    final String pattern = '%$term%';
-    final leaves = <PredicateTree>[
-      for (final columnKey in search.columnKeys)
-        LeafNode(
-          Predicate(
-            fieldName: columnOrThrow(model, columnKey).key,
-            operator: Operator.ilike,
-            value: pattern,
-          ),
-        ),
-    ];
-    var combined = leaves.first;
-    for (final leaf in leaves.skip(1)) {
-      combined = combined.or(leaf);
-    }
-    return combined.group();
+    final tree = predicateFor(beakSearchFilter(search, model, registry), model);
+    return tree is GroupNode ? tree : tree?.group();
   }
 
   QueryBuilder<WormRecordModel> _applyRelationLoads(
@@ -273,46 +403,19 @@ final class WormQueryTranslator {
   ) {
     var result = builder;
     for (final load in loads) {
-      final relationship = relationshipOrThrow(model, load.relationKey);
-      if (load.filter != null) {
-        if (load.nested.isNotEmpty) {
-          throw BeakConfigurationException(
-            'Relation load "${load.relationKey}" cannot combine a '
-            'constraint with nested loads.',
-          );
-        }
-        final related = registry.byTableOrThrow(relationship.relatedTable);
-        result = result.withRelation(
-          RelationField<Model, Model>(
-            relationship.key,
-            foreignKey: _relationForeignKey(relationship),
-          ),
-          predicateFor(load.filter, related),
-        );
-        continue;
-      }
-      result = result.withRelationPaths(_pathsFor(model, load));
+      result = result.withEagerLoad(_eagerLoad(model, load));
     }
     return result;
   }
 
-  List<String> _pathsFor(BeakModel owner, BeakRelationLoad load) {
-    final relationship = relationshipOrThrow(owner, load.relationKey);
-    if (load.filter != null) {
-      throw BeakConfigurationException(
-        'Nested relation load "${load.relationKey}" cannot carry a '
-        'constraint.',
-      );
-    }
-    if (load.nested.isEmpty) {
-      return [relationship.key];
-    }
-    final related = registry.byTableOrThrow(relationship.relatedTable);
-    return [
-      for (final child in load.nested)
-        for (final tail in _pathsFor(related, child))
-          '${relationship.key}.$tail',
-    ];
+  EagerLoad _eagerLoad(BeakModel owner, BeakRelationLoad load) {
+    final relation = relationshipOrThrow(owner, load.relationKey);
+    final related = registry.byTableOrThrow(relation.relatedTable);
+    return EagerLoad(
+      relation.key,
+      constrain: predicateFor(load.filter, related),
+      nested: [for (final child in load.nested) _eagerLoad(related, child)],
+    );
   }
 
   /// The relationship named [relationKey] on [model].
@@ -325,14 +428,6 @@ final class WormQueryTranslator {
       (throw BeakConfigurationException(
         'Model "${model.table}" has no relation "$relationKey".',
       ));
-
-  String _relationForeignKey(BeakRelationship relationship) =>
-      switch (relationship) {
-        BeakBelongsTo(:final foreignKey) => foreignKey,
-        BeakHasOne(:final foreignKey) => foreignKey,
-        BeakHasMany(:final foreignKey) => foreignKey,
-        BeakBelongsToMany(:final foreignPivotKey) => foreignPivotKey,
-      };
 
   ({
     Map<String, Relation<Model, Model>> flat,

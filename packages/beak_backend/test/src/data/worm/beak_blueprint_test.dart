@@ -293,6 +293,33 @@ void main() {
       expect(active.nullable, isFalse);
     });
 
+    test(
+      'nullable booleans preserve null and semantic defaults use physical units',
+      () {
+        final table = BlueprintTable('example');
+        BeakBlueprint.defineColumn(
+          table,
+          const BeakBoolColumn(
+            key: 'optional',
+            label: 'Optional',
+            tristate: true,
+          ),
+        );
+        BeakBlueprint.defineColumn(
+          table,
+          const BeakIntColumn(
+            key: 'money',
+            label: 'Money',
+            semantic: BeakSemantic.money(),
+            defaultValue: BeakDecimal(1234),
+          ),
+        );
+        expect(columnOf(table, 'optional').nullable, isTrue);
+        expect(columnOf(table, 'optional').defaultValue, isNull);
+        expect(columnOf(table, 'money').defaultValue, 1234);
+      },
+    );
+
     test('bridges an enum default into the schema default', () {
       // Closes the drift surface where a migration restated the model default.
       final status = columnOf(table, 'status');

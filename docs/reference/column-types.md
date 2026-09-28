@@ -19,16 +19,7 @@ You do not construct a column. You declare a field on an `@Resource` class, and
 late final String name;
 ```
 
-```dart title="examples/store/lib/models/category.beak.dart"
-  /// What the category is called.
-  static const BeakStringColumn name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    rules: [BeakRequired(), BeakMaxLength(120)],
-    searchable: true,
-    sortable: true,
-  );
-```
+[See the maintained schema examples](../models/column-types.md).
 
 That constant is what you reference everywhere else (`CategoryColumns.name`),
 and it feeds six mouths: the table cell, the form field, the detail row, the
@@ -135,16 +126,7 @@ columns](../models/files-and-storage-columns.md).
 A single-line string, rendered as plain text everywhere. Declared as `String`,
 and the workhorse for names, references and codes.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Display()
-  @Column(
-    searchable: true,
-    sortable: true,
-    indexed: true,
-    rules: [BeakMaxLength(255)],
-  )
-  late final String name;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_string_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_string_column.dart:BeakStringColumn"
@@ -163,10 +145,7 @@ A multiline text column: a textarea in forms, truncated text in table cells, and
 the full text in detail views. Declared as `BeakText`. It adds no fields of its
 own.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakText? summary;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_text_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_text_column.dart:BeakTextColumn"
@@ -180,10 +159,7 @@ A rich-text column: a WYSIWYG editor in forms, rendered markup in tables and
 detail views. Declared as `BeakRichText`. Values are stored as the raw markup
 source string, not as parsed nodes. No extra fields.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakRichText? description;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_rich_text_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_rich_text_column.dart:BeakRichTextColumn"
@@ -199,10 +175,7 @@ never surfaces a raw `Map<String, dynamic>`. Parse the text into a typed,
 pattern-matchable tree with `BeakJson.decode` when you need structured access.
 No extra fields.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakJson? metadata;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_json_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_json_column.dart:BeakJsonColumn"
@@ -219,10 +192,7 @@ An integer column, rendered as a locale-aware number. Declared as `int`.
 to reject out-of-range values on submit as well. `prefix`/`suffix` carry a unit
 into the rendering.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(suffix: ' pcs', min: 0, sortable: true)
-  late final int stock;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_int_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_int_column.dart:BeakIntColumn"
@@ -243,10 +213,7 @@ A fractional-number column with fixed `precision`, declared as `double`. A
 `prefix` or `suffix` (a currency symbol or a unit) switches its render intent
 from `number` to `currency`.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
-  late final double price;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_decimal_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_decimal_column.dart:BeakDecimalColumn"
@@ -267,10 +234,7 @@ otherwise `number`, on every surface.
 A boolean column, declared as `bool`: a toggle in forms, a yes/no indicator
 elsewhere. `trueLabel`/`falseLabel` override the default state text.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(filterable: true)
-  late final bool featured;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_bool_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_bool_column.dart:BeakBoolColumn"
@@ -291,10 +255,7 @@ A date/time column, declared as `DateTime`. Tables and detail views follow
 `format`; forms and filters always use an absolute date picker regardless of
 `format`.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(sortable: true, format: BeakDateFormat.relative)
-  late final DateTime? publishedAt;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_date_time_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_date_time_column.dart:BeakDateTimeColumn"
@@ -334,15 +295,7 @@ select control in forms. Declare the field as the enum and Beak reads its values
 off the type; `@Badges` assigns a colour per value and is generic, so the map's
 keys are checked against *this* field's enum.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(filterable: true)
-  @Badges({
-    ProductStatus.draft: BeakColor.muted,
-    ProductStatus.published: BeakColor.success,
-    ProductStatus.archived: BeakColor.warning,
-  })
-  late final ProductStatus status;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_enum_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_enum_column.dart:BeakEnumColumn"
@@ -368,10 +321,7 @@ Value type `T`. Renders as `badge` on every surface. Helper methods:
 A color column holding hex strings (e.g. `#663399`), rendered as a swatch with a
 color picker in forms. Declared as `BeakHexColor`. No extra fields.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakHexColor? swatch;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_color_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_color_column.dart:BeakColorColumn"
@@ -394,21 +344,7 @@ and the `transforms` pipeline run server-side on upload and are mirrored
 client-side for fast feedback, so a client that skips the panel does not skip
 the check.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Image(
-    storagePath: 'products',
-    maxSizeInBytes: 5 * 1024 * 1024,
-    allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
-    thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-    transforms: [
-      BeakThumbnailTransform(
-        size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-      ),
-      BeakFormatTransform.webp(),
-    ],
-  )
-  late final BeakImageRef? image;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_image_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_image_column.dart:BeakImageColumn"
@@ -432,14 +368,7 @@ Values are stored file keys/URLs; rendering goes through the custom escape hatch
 (a download/preview widget in `beak_frontend`). Use `BeakImageColumn` instead
 for images. It adds no fields beyond the shared upload three.
 
-```dart title="examples/store/lib/models/product.dart"
-  @FileField(
-    storagePath: 'products/specs',
-    maxSizeInBytes: 10 * 1024 * 1024,
-    allowedTypes: [BeakFileType.pdf],
-  )
-  late final BeakFileRef? specSheet;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_file_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_file_column.dart:BeakFileColumn"
@@ -457,11 +386,7 @@ columns; reach for this for bespoke cells (a sparkline, a stock bar) that no
 built-in column covers. The same tag value must be registered on the frontend so
 the renderer can be located.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Custom('stock_bar')
-  @Column(visibleOn: {BeakContext.table})
-  late final Object? stockLevel;
-```
+[See the maintained schema examples](../models/column-types.md).
 
 ```dart title="packages/beak_core/lib/src/columns/beak_custom_column.dart"
 --8<-- "packages/beak_core/lib/src/columns/beak_custom_column.dart:BeakCustomColumn"

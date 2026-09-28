@@ -40,14 +40,16 @@ const BeakOverlays(this.context);
 ```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
 Future<bool> confirm({
   required String title,
-  String message = 'Please confirm this action.',
-  String confirmLabel = 'Confirm',
-  String cancelLabel = 'Cancel',
+  String? message,
+  String? confirmLabel,
+  String? cancelLabel,
   bool destructive = true,
 }) async {
   // ...shows an OiDialog.confirm and resolves true on accept
 }
 ```
+
+Omitted messages and button labels use the current `BeakLocalizations`.
 
 An action can call it directly for a tailored prompt, rather than relying on the automatic dialog that `requiresConfirmation` raises. An archive action of your own might read:
 
@@ -74,14 +76,19 @@ BeakRecordAction(
 Future<void> modal({
   required String title,
   required BeakBlock body,
-  String dismissLabel = 'Close',
+  String? dismissLabel,
 }) => showOiDialog<void>(
   context,
   builder: (dialogContext, close) => OiDialog.standard(
     label: title,
     title: title,
     content: BeakBlockHost(block: body),
-    actions: [OiButton.secondary(label: dismissLabel, onTap: close)],
+    actions: [
+      OiButton.secondary(
+        label: dismissLabel ?? BeakLocalizations.of(context).close,
+        onTap: close,
+      ),
+    ],
   ),
 );
 ```

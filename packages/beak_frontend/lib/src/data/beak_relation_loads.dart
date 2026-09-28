@@ -37,12 +37,13 @@ BeakQuerySpec beakWithToOneLoads(BeakQuerySpec spec, BeakModel model) {
 }
 
 /// Loads the [id] record of [model] with [relations] eager-loaded, in one
-/// query.
+/// request.
 ///
-/// [BeakDataSource.getOne] cannot carry eager loads, so a detail page built
-/// on it paid one round trip for the record and one more per relation panel.
-/// This asks for all of it at once; the caller reads each relation off
-/// [BeakRecord.relations].
+/// Without additional relation requests, use [BeakDataSource.getOne]: a
+/// transport can support record lookup without allowing primary-key filters
+/// on its list queries. Any relations already included in that record survive.
+/// When relations are requested, load them with the record in a single query;
+/// the caller reads each relation off [BeakRecord.relations].
 ///
 /// A missing record is a [BeakErr] holding a [BeakNotFoundException], the
 /// same outcome `getOne` produces.
@@ -52,6 +53,9 @@ Future<BeakResult<BeakRecord>> beakLoadRecordWithRelations(
   required Object id,
   required List<BeakRelationship> relations,
 }) async {
+  if (relations.isEmpty) {
+    return repository.getOne(model.table, id);
+  }
   var spec = BeakQuerySpec(table: model.table).withFilter(
     BeakFieldFilter.forKey(
       model.primaryKey.key,
@@ -72,4 +76,51 @@ Future<BeakResult<BeakRecord>> beakLoadRecordWithRelations(
     ),
     BeakErr(:final error) => BeakErr(error),
   };
+}
+
+/// Eager-loads paths and relationship dependencies used by typed bindings.
+/// Explicit constraints are retained when several fields share a relation.
+BeakQuerySpec beakWithFieldLoads(
+  BeakQuerySpec spec,
+  Iterable<BeakFieldRef<Object>> fields,
+) {
+  List<BeakRelationLoad> insert(
+    List<BeakRelationLoad> loads,
+    List<BeakRelationship> path,
+  ) {
+    if (path.isEmpty) return loads;
+    final head = path.first;
+    final existing = loads
+        .where((load) => load.relationKey == head.key)
+        .firstOrNull;
+    final next = BeakRelationLoad(
+      head.key,
+      filter: existing?.filter,
+      nested: insert(existing?.nested ?? const [], path.sublist(1)),
+    );
+    return [...loads.where((load) => load.relationKey != head.key), next];
+  }
+
+  var loads = spec.relationLoads;
+  for (final field in fields) {
+    if (field.model.table != spec.table) {
+      throw BeakConfigurationException(
+        'Field "${field.qualifiedKey}" belongs to "${field.model.table}", not "${spec.table}".',
+      );
+    }
+    loads = insert(loads, [
+      ...field.path,
+      if (field is BeakToOneField) field.relation,
+      if (field is BeakToManyField) field.relation,
+    ]);
+  }
+  return BeakQuerySpec(
+    table: spec.table,
+    filter: spec.filter,
+    sorts: spec.sorts,
+    search: spec.search,
+    relationLoads: loads,
+    pagination: spec.pagination,
+    withTrashed: spec.withTrashed,
+  );
 }

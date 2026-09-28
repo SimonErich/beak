@@ -67,11 +67,35 @@ The backend's `ValidationService` collects every rule failure, keys the messages
 by column, and throws once so a form can highlight each offending input:
 
 ```dart title="packages/beak_backend/lib/src/service/validation_service.dart"
-if (fieldErrors.isNotEmpty) {
-  throw BeakValidationException(
-    'Validation failed for "${model.table}".',
-    fieldErrors: fieldErrors,
-  );
+/// Applies the shared core validator at the backend write boundary.
+final class ValidationService {
+  /// Creates the stateless validation boundary.
+  const ValidationService();
+
+  /// Rejects malformed fields and shared model rules with structured errors.
+  /// [initial] supplies omitted fields and relations for partial updates.
+  /// Graph commits defer record rules until the final transaction state exists.
+  void validate(
+    BeakModel model,
+    BeakRecord input, {
+    required bool isCreate,
+    BeakRecord? initial,
+    bool includeRecordRules = true,
+  }) {
+    final errors = const BeakValidation().validate(
+      model,
+      input,
+      isCreate: isCreate,
+      initial: initial,
+      includeRecordRules: includeRecordRules,
+    );
+    if (errors.isNotEmpty) {
+      throw BeakValidationException(
+        'Validation failed for "${model.table}".',
+        fieldErrors: errors,
+      );
+    }
+  }
 }
 ```
 
@@ -245,12 +269,19 @@ View models never `try/catch`. The frontend's `BeakResourceRepository` is the
 catch boundary: it wraps each data-source call, and any thrown `BeakException`
 surfaces as a `BeakErr`, so callers switch on an outcome instead of catching.
 
-```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
-Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
+```dart title="packages/beak_frontend/lib/src/data/beak_run.dart"
+Future<BeakResult<T>> beakRun<T>(
+  Future<T> Function() operation, {
+  BeakException? Function(Exception exception, StackTrace stack)? mapException,
+}) async {
   try {
-    return BeakOk(await run());
+    return BeakOk(await operation());
   } on BeakException catch (exception) {
     return BeakErr(exception);
+  } on Exception catch (exception, stack) {
+    final mapped = mapException?.call(exception, stack);
+    if (mapped != null) return BeakErr(mapped);
+    rethrow;
   }
 }
 ```

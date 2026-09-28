@@ -7,14 +7,14 @@ description: Which Beak package depends on which, why beak_core sits at the base
 
 After this page you will know what each package is allowed to import, and therefore where a given piece of code has to live. The dependency edges are not incidental: they are how Beak keeps the ORM out of the frontend and the UI toolkit out of the backend.
 
-Your project depends on exactly one package, `beak`. Inside the repo, `beak` is a thin facade over four framework packages, alongside a handful of opt-in ones, all under `packages/`, with the four demo projects under `examples/` sitting on top. The whole design rests on one package at the base.
+Your project depends on exactly one package, `beak`. Inside the repo, `beak` is a thin facade over four framework packages, alongside a handful of opt-in ones, all under `packages/`, with the two example projects under `examples/` sitting on top. The whole design rests on one package at the base.
 
 ## The graph
 
 ```mermaid
 flowchart TD
   subgraph examples
-    EX[quickstart · store · superdashboard · embedded]
+    EX[quickstart · clean_beak_config]
   end
 
   EX --> UMB[beak]
@@ -84,7 +84,7 @@ Because it is pure and central, `beak_core` is the package with the strictest re
 
 ### Only beak_backend imports worm at runtime
 
-The worm ORM (with the `worm_postgres` and `worm_sqlite` drivers) appears in exactly one runtime package: `beak_backend`. That is where `WormDataSource` translates a `BeakQuerySpec` into a worm predicate tree and runs it. No other package, and no app widget, ever sees a worm type. This is what lets a future data backend, for example a `beak_serverpod`, implement the same `BeakDataSource` interface without disturbing anything above or below.
+The worm ORM (with the `worm_postgres` and `worm_sqlite` drivers) appears in exactly one runtime package: `beak_backend`. That is where `WormDataSource` translates a `BeakQuerySpec` into a worm predicate tree and runs it. No other package, and no app widget, ever sees a worm type. This is what lets the `beak_serverpod` transport implement the same `BeakDataSource` interface without disturbing anything above or below.
 
 `beak` re-exports worm through `package:beak/migrations.dart`, because migrations and seeders are worm's own `Migration` and `Seeder` and there is no value in wrapping them. That export sits on the server side of the wall, not the panel side.
 
@@ -101,11 +101,9 @@ The worm ORM (with the `worm_postgres` and `worm_sqlite` drivers) appears in exa
 
 `beak_backend` depends on neither storage driver. `beak_core` defines `BeakStorageConfig` and the `BeakStorageDriver` interface; a driver package implements one and registers itself. An app that uploads to S3 declares `beak_storage_s3` in its own pubspec and names the drivers it can resolve in `lib/server.dart`, which the generated host picks up:
 
-```dart title="examples/embedded/lib/server.dart"
---8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
-```
+The optional registration is described in [custom storage drivers](../extending/custom-storage-drivers.md).
 
-That is why `beak_storage_s3` hangs off the graph on a dotted line, and why a project that never names the S3 driver never resolves `minio` at all. Uploads still work on that project: with `BEAK_STORAGE_DRIVER` unset the host falls back to a local-disk driver from `beak_core`. `embedded` and `superdashboard` are the examples that opt in to S3.
+That is why `beak_storage_s3` hangs off the graph on a dotted line, and why a project that never names the S3 driver never resolves `minio` at all. Uploads still work on that project: with `BEAK_STORAGE_DRIVER` unset the host falls back to a local-disk driver from `beak_core`. The canonical shop uses local storage unless its host is configured otherwise.
 
 ### The wall is checked, not trusted
 
@@ -118,16 +116,16 @@ The second one earns its keep because `dart:io` is not a compile error on the we
 
 ## Where the examples fit
 
-There are four projects under `examples/`, and each is a **single package** holding both halves: the models, the generated wiring, the Flutter panel and the Shelf server, in one pubspec.
+Two projects remain under `examples/`, each a single package containing authored
+models, generated wiring, Flutter UI and the Shelf host.
 
-| Example | What it is for |
+| Example | Purpose |
 | --- | --- |
-| `quickstart` | Exactly what `beak create` writes. One model, nothing else. |
-| `store` | The teaching example: seven schemas, every column kind, all four relationship kinds, auth and a row policy. Runs on `:8080`. |
-| `superdashboard` | 49 models at scale, every block and view mode. Runs on `:8180`. |
-| `embedded` | Beak mounted inside an app that already exists. |
+| `quickstart` | Minimal generated project with one Note model. |
+| `clean_beak_config` | Canonical shop, including declarative workflows, semantic fields, custom screens, embedded widgets, imports and variant generation. |
 
-One package rather than two is the payoff of the graph. A shared model set used to need its own package so a Flutter app and a Dart server could both import it; now both entrypoints live beside the models and the import guard is what keeps them apart. `store`'s pubspec is `beak`, `flutter`, and its dev dependencies. That is the whole list.
+Model libraries import only shared Dart contracts; server and panel code import
+separate barrels. The web import guard enforces that separation.
 
 ## Continue reading
 

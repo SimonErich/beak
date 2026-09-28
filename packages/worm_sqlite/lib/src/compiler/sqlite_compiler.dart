@@ -25,6 +25,9 @@ final class SqliteCompiler {
       ..write(_projection(descriptor.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(descriptor.table));
+    if (descriptor.tableAlias case final alias?) {
+      sql.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendJoins(sql, descriptor.joins);
     _appendWhere(sql, descriptor.where, params);
     _appendGroupBy(sql, descriptor.groupBy);

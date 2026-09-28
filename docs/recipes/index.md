@@ -1,48 +1,27 @@
 ---
 title: Recipes
-description: Short, worked answers to the things you do most in Beak. One page each, every snippet lifted from a running example.
+description: Find a maintained configuration for a common admin task.
 ---
 
 # Recipes
 
-Small, worked answers to "how do I do that one thing". Each is a few lines of
-real code and a link to the page that covers it in depth. Every snippet is
-lifted from a running example app or from Beak's own source, and the docs
-build fails if one stops matching its file.
+- [Add a resource](add-a-resource.md): Declare a schema and register its screen configuration.
 
-Unless a recipe says otherwise, the code is from the store example
-(`examples/store`, served on port 8080). Two snippets come from the showcase
-app (`examples/superdashboard`, port 8180) and from `beak_core`; both are
-labelled where they appear.
+- [A belongs-to picker](a-belongs-to-picker.md): Use shared eligibility rules for a dependent selection.
 
-## Schema
+- [A dashboard KPI](a-dashboard-kpi.md): Load counts and monetary metrics on a custom page.
 
-| Recipe | What it answers |
-| --- | --- |
-| [Add a resource end-to-end](add-a-resource.md) | What one annotated class buys you |
-| [An enum badge column](an-enum-badge-column.md) | A select in the form, a coloured badge everywhere else |
-| [A belongs-to picker](a-belongs-to-picker.md) | A searchable picker and a linked label, from one field |
+- [A kanban view](a-kanban-view.md): Map model fields to a specialized workflow board.
 
-## Panel
+- [A multi-step form](a-multi-step-form.md): Project reusable sections into a validated wizard.
 
-| Recipe | What it answers |
-| --- | --- |
-| [A custom row action](a-row-action.md) | A verb the CRUD basics do not cover |
-| [A kanban view](a-kanban-view.md) | A board alongside the table |
-| [A KPI on the dashboard](a-dashboard-kpi.md) | A number computed in the database |
-| [Split a long form into steps](a-multi-step-form.md) | A wall of inputs, paced |
-| [Hide a resource from the sidebar](hide-a-resource.md) | A model with an API but no nav entry |
+- [A row action](a-row-action.md): Declare a server-owned transition once for forms and tables.
 
-## Data
+- [An enum badge column](an-enum-badge-column.md): Render a typed state with labels and colors.
 
-| Recipe | What it answers |
-| --- | --- |
-| [Export to CSV](export-to-csv.md) | The generated export route, honouring the current filters |
+- [Hide a resource](hide-a-resource.md): Keep related models registered without adding navigation.
 
 ## Continue reading
 
-- [Actions](../panel/actions.md) the full action model behind the row-action recipe.
-- [Dashboards](../panel/dashboards.md) more on KPI blocks, metrics, and charts.
-- [Relationships](../models/relationships.md) all four relation kinds and how they render.
-- [beak.yaml](../reference/beak-yaml.md) every key that shapes the panel from outside Dart.
-- [Performance](../guides/performance.md) why aggregate KPIs and eager-loaded pickers keep query counts flat.
+- [Declarative resources](../concepts/declarative-resources.md)
+- [Custom screens](../extending/custom-screens-and-pages.md)

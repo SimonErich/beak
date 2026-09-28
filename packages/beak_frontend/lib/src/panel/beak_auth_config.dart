@@ -1,64 +1,44 @@
 import 'package:meta/meta.dart';
 
-/// Declarative authentication configuration for a panel.
+import '../auth/beak_auth_adapter.dart';
+
+/// Authentication screens over one existing backend session authority.
 ///
-/// When set on `BeakPanelConfig.auth`, the router mounts `/login` (always),
-/// plus `/register` and `/recover` when enabled, each rendered with
-/// obers_ui's `OiAuthPage`.
-///
-/// The callbacks are overrides, not requirements: with no [onLogin] the panel
-/// signs in against the generated `/api/auth/login` through the registered
-/// `BeakSessionStore`, and every later request carries the session. Supply one
-/// to authenticate somewhere else. Each returns `true` on success so the auth
-/// screen can advance.
-///
-/// ```dart
-/// // Server-side auth, already configured in lib/server.dart:
-/// const BeakAuthConfig();
-///
-/// // Or somewhere else entirely:
-/// BeakAuthConfig(
-///   onLogin: (email, password) async => mySso.signIn(email, password),
-/// );
-/// ```
+/// Registration and recovery require both opt-in and an adapter capability;
+/// absent operations never report success.
 @immutable
 final class BeakAuthConfig {
-  /// Creates an auth configuration.
+  /// Configures built-in authentication screens; public registration is off.
   const BeakAuthConfig({
-    this.register = true,
-    this.recover = true,
-    this.onLogin,
-    this.onRegister,
-    this.onRecover,
+    this.adapter,
+    this.register = false,
+    this.recover = false,
     this.idleLockTimeout,
     this.lockUserName,
     this.onUnlock,
   });
 
-  /// Whether a `/register` route is mounted.
+  /// Backend authority; null uses the registered HTTP session store.
+  final BeakAuthAdapter? adapter;
+
+  /// Opt-in to the adapter's registration flow.
   final bool register;
 
-  /// Whether a `/recover` (forgot-password) route is mounted.
+  /// Opt-in to the adapter's password recovery flow.
   final bool recover;
 
-  /// Validates a sign-in; returns `true` on success.
-  final Future<bool> Function(String email, String password)? onLogin;
+  /// Both registration opt-in and transport capability are present.
+  bool get allowsRegistration => register && adapter?.registration != null;
 
-  /// Handles a registration; returns `true` on success.
-  final Future<bool> Function(String name, String email, String password)?
-  onRegister;
+  /// Both recovery opt-in and transport capability are present.
+  bool get allowsRecovery => recover && adapter?.recovery != null;
 
-  /// Handles a password-recovery request; returns `true` on success.
-  final Future<bool> Function(String email)? onRecover;
-
-  /// When set, the panel locks to `/lock` after this much inactivity inside
-  /// the shell; `null` never auto-locks.
+  /// Optional inactivity timeout before opening the configured lock screen.
   final Duration? idleLockTimeout;
 
-  /// The name shown on the lock screen (defaults to the panel title).
+  /// Display name used on the lock screen.
   final String? lockUserName;
 
-  /// Validates the unlock password; returns `true` to unlock. `null` accepts
-  /// any password (demo-friendly).
+  /// Validates unlocking; an absent callback never accepts a password.
   final Future<bool> Function(String password)? onUnlock;
 }

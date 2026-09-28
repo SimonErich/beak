@@ -12,6 +12,7 @@ import '../storage/file_rules/beak_file_type.dart';
 import '../storage/transforms/beak_image_transform.dart';
 import 'beak_json.dart';
 import 'beak_render_config.dart';
+import 'beak_semantic.dart';
 
 part 'beak_bool_column.dart';
 part 'beak_color_column.dart';
@@ -74,12 +75,15 @@ sealed class BeakColumn {
       BeakContext.detail,
     },
     this.sortable = false,
-    this.searchable = false,
+    bool searchable = false,
     this.filterable = false,
     this.indexed = false,
     this.unique = false,
     this.rules = const [],
-  });
+    this.semantic = const BeakSemantic(),
+    Object? defaultValue,
+  }) : _defaultValue = defaultValue,
+       _searchable = searchable;
   // --8<-- [end:BeakColumn]
 
   /// Storage/DB column name (snake_case). Beak wires it internally; users
@@ -98,7 +102,11 @@ sealed class BeakColumn {
   final bool sortable;
 
   /// Whether search includes this column.
-  final bool searchable;
+  final bool _searchable;
+
+  /// Secrets never participate in automatic search, even if requested.
+  bool get searchable =>
+      _searchable && semantic.kind != BeakSemanticKind.password;
 
   /// Whether table views may filter by this column.
   final bool filterable;
@@ -121,6 +129,15 @@ sealed class BeakColumn {
 
   /// Declarative validation rules enforced on input, in order.
   final List<BeakRule> rules;
+
+  /// Domain-specific behavior and the lossless storage codec.
+  final BeakSemantic semantic;
+
+  /// Initial value for new records when the caller has not supplied one.
+  final Object? _defaultValue;
+
+  /// Initial value for new records; enum columns narrow its return type.
+  Object? get defaultValue => _defaultValue;
 
   /// The per-context render configuration of this column.
   BeakRenderConfig get renderConfig;
@@ -237,6 +254,8 @@ sealed class BeakUploadColumn extends BeakColumn {
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
     this.maxSizeInBytes,
     this.allowedTypes = const [],
   });

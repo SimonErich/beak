@@ -86,6 +86,31 @@ void main() {
   }
 
   group('execution', () {
+    testWidgets(
+      'failed custom actions report a safe error and can be retried',
+      (tester) async {
+        var calls = 0;
+        await pumpHost(tester, [
+          BeakRecordAction(
+            key: 'fail',
+            label: 'Try operation',
+            onExecute: (_, _) async {
+              calls++;
+              throw const BeakValidationException('Cannot change this record.');
+            },
+          ),
+        ], record: note);
+        await tester.tap(find.text('Try operation'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Cannot change this record.'), findsOneWidget);
+        await tester.tap(find.text('Try operation'));
+        await tester.pumpAndSettle();
+        expect(calls, 2);
+        await tester.pump(const Duration(seconds: 10));
+        await tester.pumpAndSettle();
+      },
+    );
     testWidgets('a record action receives its record', (tester) async {
       BeakRecord? executed;
       await pumpHost(tester, [

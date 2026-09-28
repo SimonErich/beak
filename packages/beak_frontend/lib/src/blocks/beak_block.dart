@@ -34,6 +34,7 @@ part 'beak_kpi_block.dart';
 part 'beak_markdown_block.dart';
 part 'beak_masonry_block.dart';
 part 'beak_metric_block.dart';
+part 'beak_summary_block.dart';
 part 'beak_pricing_block.dart';
 part 'beak_profile_block.dart';
 part 'beak_progress_block.dart';
@@ -94,13 +95,13 @@ sealed class BeakBlock {
   /// Creates a block, optionally sized by [span] inside grid parents.
   const BeakBlock({this.span});
 
-  /// How many grid tracks this block occupies when it is a direct child
-  /// of a [BeakGridBlock]; ignored elsewhere.
+  /// Grid tracks occupied inside a [BeakGridBlock]. An expanded [BeakRowBlock]
+  /// uses its columns as relative width weights instead; ignored elsewhere.
   final BeakSpan? span;
 }
 // --8<-- [end:BeakBlock]
 
-/// Grid placement of a block inside a [BeakGridBlock].
+/// Grid placement or relative width in an expanded [BeakRowBlock].
 @immutable
 final class BeakSpan {
   /// Creates a span covering [columns] × [rows] grid tracks.

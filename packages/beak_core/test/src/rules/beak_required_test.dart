@@ -26,6 +26,23 @@ void main() {
     expect(rule.validate(const [1]), isNull);
   });
 
+  test(
+    'allowEmpty distinguishes nonnull collections from minimum item counts',
+    () {
+      const nonnull = BeakRequired(allowEmpty: true);
+      expect(nonnull.validate(null), message);
+      for (final value in <Object>[
+        '',
+        <String>[],
+        <String, Object?>{},
+        const BeakJsonObject({}),
+      ]) {
+        expect(nonnull.validate(value), isNull);
+        expect(rule.validate(value), message);
+      }
+    },
+  );
+
   test('has a stable id', () {
     expect(rule.id, 'required');
   });

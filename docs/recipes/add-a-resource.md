@@ -1,30 +1,17 @@
 ---
-title: Add a resource end-to-end
-description: One annotated class, one command, and the table, API, form, table view and detail page exist.
+title: Add a resource
+description: Declare a schema and register its screen configuration.
 ---
 
-# Add a resource end-to-end
+# Add a resource
 
-Write one annotated class under `lib/models/`. The field's type picks the column
-kind, and its nullability decides whether the value is required:
+Add a schema below `lib/`, run `beak prepare`, review its migration and register a `BeakResource` in the panel. Place screen definitions beside the resource. The category resource shows a complete configuration.
 
-```dart title="examples/store/lib/models/tag.dart"
---8<-- "examples/store/lib/models/tag.dart"
+```dart title="examples/clean_beak_config/lib/resources/categories/category_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart"
 ```
-
-Then run the generator:
-
-```bash
-beak prepare
-```
-
-That writes `tag.beak.dart` beside it (`TagColumns`, `TagRelations`,
-`TagModel`, a typed record view), adds the model to `beakModels` and the
-registry, adds the resource to the panel config, and writes the migration the
-new table needs. You register nothing. Give it an icon and a sidebar section in
-`beak.yaml` if the defaults are not what you want.
 
 ## Continue reading
 
-- [Defining a resource](../models/defining-models.md)
-- [Generated code](../models/generated-code.md)
+- [Related guide](../panel/resources.md)
+- [All recipes](index.md)

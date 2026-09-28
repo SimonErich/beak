@@ -33,12 +33,120 @@ void main() {
     );
   }
 
+  test('export overrides round trip and reject malformed metadata', () {
+    const display = BeakExportFormat(
+      BeakValueFormat.currency,
+      minorUnits: true,
+      scale: 3,
+    );
+    final restored = BeakExportFormat.fromJson(display.toJson());
+    expect(restored.format, display.format);
+    expect(restored.minorUnits, true);
+    expect(restored.scale, 3);
+    expect(BeakExportFormat.fromJson({'format': 'number'}).scale, 2);
+    for (final invalid in <Map<String, Object?>>[
+      {},
+      {'format': 'unknown'},
+      {'format': 'currency', 'minorUnits': 'yes'},
+      {'format': 'currency', 'scale': '2'},
+      {'format': 'currency', 'scale': -1},
+      {'format': 'currency', 'scale': 13},
+    ]) {
+      expect(() => BeakExportFormat.fromJson(invalid), throwsFormatException);
+    }
+  });
+
   Map<String, Object?> recordJson(Map<String, Object?> values) => {
     'values': values,
     'relations': const <String, Object?>{},
   };
 
   group('request shapes', () {
+    test('summary transports typed population and bounded results', () async {
+      final response = BeakSummaryResult(
+        rows: [
+          BeakSummaryRow(
+            group: const BeakStringValue('paid'),
+            values: {'orders': 412},
+          ),
+        ],
+        truncated: true,
+      );
+      final api = client(response.toJson());
+      final spec = BeakSummarySpec.forKeys(
+        table: 'orders',
+        groupByKey: 'status',
+        measures: const [BeakSummaryMeasure.count('orders')],
+      );
+      final result = await api.summary(spec);
+      expect(requests.single.url.path, '/api/orders/summary');
+      expect(jsonDecode(bodies.single), spec.toJson());
+      expect(result.toJson(), response.toJson());
+    });
+    test(
+      'capabilities uses encoded identity and authenticated transport',
+      () async {
+        final api = client({
+          'readableFields': ['name'],
+          'writableFields': <String>[],
+        }, token: 'session');
+        final access = await api.capabilities('products', id: 'id / one');
+        expect(access.canRead('name'), isTrue);
+        expect(access.canWrite('name'), isFalse);
+        expect(requests.single.url.queryParameters['id'], 'id / one');
+        expect(requests.single.headers['authorization'], 'Bearer session');
+        api.close();
+      },
+    );
+    test(
+      'commit submits a frozen graph and recovers its durable receipt',
+      () async {
+        final receipt = BeakSaveResult(
+          saveId: 'save / 1',
+          mode: BeakSaveMode.atomic,
+          outcomes: [],
+        );
+        final api = client(receipt.toJson());
+        final plan = BeakSavePlan(
+          saveId: receipt.saveId,
+          root: const BeakRecordRef.existing('notes', 'n1'),
+          operations: [],
+        );
+        expect((await api.commit(plan)).toJson(), receipt.toJson());
+        expect(requests.last.method, 'POST');
+        expect(requests.last.url.path, '/api/commits');
+        expect(jsonDecode(bodies.last), plan.toJson());
+        expect(
+          (await api.recoverCommit(receipt.saveId)).toJson(),
+          receipt.toJson(),
+        );
+        expect(requests.last.method, 'GET');
+        expect(requests.last.url.pathSegments.last, receipt.saveId);
+        api.close();
+      },
+    );
+    test(
+      'validation submits candidate state and decodes structured errors',
+      () async {
+        final api = client({
+          'fieldErrors': {
+            'title': ['Already used.'],
+          },
+        });
+        final candidate = BeakValidationRequest(
+          table: 'notes',
+          record: BeakRecord.fromRow({'title': 'Same'}),
+          recordId: 'existing',
+        );
+        expect((await api.validateRecord(candidate)).fieldErrors, {
+          'title': ['Already used.'],
+        });
+        expect(requests.single.method, 'POST');
+        expect(requests.single.url.path, '/api/notes/validate');
+        expect(jsonDecode(bodies.single), candidate.toJson());
+        api.close();
+      },
+    );
     test('query posts the spec to /api/{table}/query', () async {
       final page = await client({
         'items': [
@@ -151,6 +259,48 @@ void main() {
       expect(requests.single.url.path, '/api/notes/n1/relations/labels/detach');
     });
 
+    test(
+      'discard removes variants and main key with authenticated idempotent requests',
+      () async {
+        final api = client(null, statusCode: 404, token: 'token');
+        final stored = BeakStoredFile(
+          key: 'photos/main.png',
+          url: Uri.parse('https://cdn/main.png'),
+          sizeInBytes: 2,
+          mimeType: 'image/png',
+          variants: {
+            'thumb': BeakStoredFileVariant(
+              key: 'photos/thumb.png',
+              url: Uri.parse('https://cdn/thumb.png'),
+            ),
+          },
+        );
+        await api.discardUpload('notes', 'avatar', stored);
+        expect(requests.map((r) => r.method), ['DELETE', 'DELETE']);
+        expect(bodies.map(jsonDecode), [
+          {'key': 'photos/thumb.png'},
+          {'key': 'photos/main.png'},
+        ]);
+        expect(
+          requests.every((r) => r.headers['authorization'] == 'Bearer token'),
+          true,
+        );
+        api.close();
+      },
+    );
+    test(
+      'upload URL lookup preserves storage key as encoded query data',
+      () async {
+        final api = client({'url': 'https://cdn.test/signed?token=123'});
+        expect(
+          await api.uploadUrl('notes', 'avatar', 'photos/a b.png'),
+          Uri.parse('https://cdn.test/signed?token=123'),
+        );
+        expect(requests.single.url.queryParameters['key'], 'photos/a b.png');
+        api.close();
+      },
+    );
+
     test('upload posts the file as multipart form data', () async {
       final storedJson = BeakStoredFile(
         key: 'avatars/a.png',
@@ -197,11 +347,57 @@ void main() {
       final String csv = await exporting.export(
         'notes',
         const BeakQuerySpec(table: 'notes'),
+        columns: const ['title'],
+        formats: const {'title': BeakExportFormat(BeakValueFormat.text)},
       );
 
       expect(requests.single.url.path, '/api/notes/export');
+      expect(
+        (jsonDecode((requests.single as http.Request).body) as Map)['columns'],
+        ['title'],
+      );
+      expect(
+        (jsonDecode((requests.single as http.Request).body) as Map)['formats'],
+        {'title': const BeakExportFormat(BeakValueFormat.text).toJson()},
+      );
       expect(csv, 'Id,Title\r\nn1,One\r\n');
     });
+
+    test(
+      'export forwards shared portable policy and explicit raw mode',
+      () async {
+        final exporting = client(null);
+        const policy = BeakFormatPolicy(
+          locale: 'de_AT',
+          currency: 'EUR',
+          timeZoneOffsetMinutes: 60,
+        );
+        await exporting.export(
+          'notes',
+          const BeakQuerySpec(table: 'notes'),
+          formatting: policy,
+        );
+        final Object? body = jsonDecode(bodies.single);
+        expect(body, containsPair('formatting', policy.toJson()));
+        await exporting.export(
+          'notes',
+          const BeakQuerySpec(table: 'notes'),
+          raw: true,
+        );
+        final Object? rawBody = jsonDecode(bodies.last);
+        expect(rawBody, containsPair('raw', true));
+        expect(
+          () => exporting.export(
+            'notes',
+            const BeakQuerySpec(table: 'notes'),
+            raw: true,
+            formatting: policy,
+          ),
+          throwsA(isA<BeakConfigurationException>()),
+        );
+        expect(bodies, hasLength(2));
+      },
+    );
 
     test('search flattens grouped hits in order', () async {
       final hits = await client({

@@ -31,9 +31,8 @@ it asserts on. Working with AI agents points at
 [Defining a resource](../models/defining-models.md) for the one class an agent
 writes. Follow the link when you want the why behind the recipe.
 
-Every snippet in this section is lifted from a running example, usually
-[`examples/store`](https://github.com/SimonErich/beak/tree/main/examples/store).
-Clone the repo and you can run the code you are reading.
+The canonical application is [`examples/clean_beak_config`](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
+Framework-specific guides also cite focused package implementations and tests.
 
 ## Continue reading
 

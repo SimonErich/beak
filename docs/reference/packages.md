@@ -12,11 +12,7 @@ An app depends on **one** package, `beak`. It re-exports each layer as its own
 library, so a project never keeps five version constraints in step by hand.
 Everything else on this page is either behind that umbrella or an opt-in extra.
 
-```yaml title="examples/store/pubspec.yaml"
-dependencies:
-  beak:
-    path: ../../packages/beak
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 ## `beak`, the umbrella
 
@@ -55,13 +51,7 @@ The `memory` and `local` storage drivers are in `beak_core`, so a project gets
 working uploads with no extra dependency at all. The two driver packages and
 `beak_image` are the opt-ins:
 
-```yaml title="examples/superdashboard/pubspec.yaml"
-dependencies:
-  beak:
-    path: ../../packages/beak
-  beak_storage_s3:
-    path: ../../packages/beak_storage_s3
-```
+[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
 
 !!! note "Server-only versus panel-only"
     `beak_backend`, the two storage drivers, and `beak_image` are pure
@@ -139,9 +129,9 @@ not a fixture, and the docs quote them rather than inventing code.
 | Example | What it is |
 | --- | --- |
 | `examples/quickstart` | Exactly what `beak create` produces: one `Note` resource, nothing else. The floor. |
-| `examples/store` | The teaching example, and the one this documentation quotes: a coffee roastery with every column kind, all four relationship kinds, soft deletes, timestamps, a policy, a wizard, a custom screen, and seeders. API on port `8080`. |
-| `examples/superdashboard` | 49 models at scale: a whole admin theme built from seeded data, every block and view mode, on port `8180`. |
-| `examples/embedded` | Beak inside an application that already exists: mounted under `/admin` in someone else's Shelf pipeline, with Beak blocks on a screen that is not a panel. |
+| `examples/clean_beak_config` | The teaching example, and the one this documentation quotes: a coffee roastery with every column kind, all four relationship kinds, soft deletes, timestamps, a policy, a wizard, a custom screen, and seeders. API on port `8080`. |
+| `examples/clean_beak_config` | 49 models at scale: a whole admin theme built from seeded data, every block and view mode, on port `8180`. |
+| `examples/clean_beak_config` | Beak inside an application that already exists: mounted under `/admin` in someone else's Shelf pipeline, with Beak blocks on a screen that is not a panel. |
 
 ## Versioning
 

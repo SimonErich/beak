@@ -63,7 +63,7 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  # Quote source rather than copying it: `--8<-- "examples/store/lib/..."`
+  # Quote source rather than copying it: `--8<-- "examples/clean_beak_config/lib/..."`
   # reads the file at build time, and `check_paths` fails the build when the
   # file moves instead of publishing an empty block.
   - pymdownx.snippets:
@@ -127,6 +127,7 @@ nav:
       - "6. Auth, tests, and shipping": tutorial/06-auth-tests-and-shipping.md
   - "Core concepts":
       - concepts/index.md
+      - "Declarative resources and forms": concepts/declarative-resources.md
       - "The one-definition promise": concepts/the-one-definition-promise.md
       - "The type-safety promise": concepts/the-type-safety-promise.md
       - "The four layers": concepts/the-four-layers.md
@@ -141,6 +142,9 @@ nav:
       - "Column basics": models/column-basics.md
       - "Column types": models/column-types.md
       - "Validation rules": models/validation-rules.md
+      - "Lifecycle and actions": models/behavior.md
+      - "Dynamic attributes and variants": models/dynamic-attributes-and-variants.md
+      - "Semantic fields": models/semantic-fields.md
       - "Relationships": models/relationships.md
       - "Files and storage columns": models/files-and-storage-columns.md
       - "Escape hatches": models/escape-hatches.md
@@ -150,10 +154,12 @@ nav:
           - backend/index.md
           - "Running the server": backend/running-the-server.md
           - "The generated API": backend/the-generated-api.md
+          - "Transactional business rules": backend/graph-business-rules.md
           - "Migrations": backend/migrations.md
           - "Seeding": backend/seeding.md
           - "Auth and policies": backend/auth-and-policies.md
           - "Search and export": backend/search-and-export.md
+          - "Durable effects": backend/durable-effects.md
           - "Uploads and storage wiring": backend/uploads-and-storage-wiring.md
           - "The data source seam": backend/the-data-source-seam.md
           - "Middleware": backend/middleware.md
@@ -161,11 +167,17 @@ nav:
           - panel/index.md
           - "Resources": panel/resources.md
           - "Tables and filters": panel/tables-and-filters.md
+          - "Composed lists and query state": panel/composed-lists.md
           - "View modes": panel/view-modes.md
           - "Forms": panel/forms.md
+          - "Uploads and galleries": panel/media-galleries.md
           - "Multi-step forms": panel/multi-step-forms.md
+          - "Workflow presentations": panel/workflow-presentations.md
+          - "Drafts and review": panel/drafts-and-review.md
+          - "Import and bulk editing": panel/import-and-bulk-edit.md
           - "Detail views and dual-mode blocks": panel/detail-and-dual-mode.md
           - "Actions": panel/actions.md
+          - "Printable record documents": panel/record-documents.md
           - "Overlays": panel/overlays.md
           - "Dashboards": panel/dashboards.md
           - "Custom screens": panel/custom-screens.md
@@ -184,6 +196,7 @@ nav:
       - "Charts and maps":
           - charts/index.md
           - "Chart basics": charts/chart-basics.md
+          - "Population summaries": charts/population-summaries.md
           - "Advanced charts": charts/advanced-charts.md
           - "Maps": charts/maps.md
       - "Styling and theming":
@@ -198,6 +211,7 @@ nav:
           - "Custom blocks and widgets": extending/custom-blocks-and-widgets.md
           - "Custom screens and pages": extending/custom-screens-and-pages.md
           - "Custom data sources": extending/custom-data-sources.md
+          - "Model-owned transports": extending/model-transports.md
           - "Custom storage drivers": extending/custom-storage-drivers.md
           - "Using Beak widgets standalone": extending/using-beak-widgets-standalone.md
   - "Guides":
@@ -249,6 +263,7 @@ nav:
           - "Package graph": architecture/package-graph.md
           - "Backend flow": architecture/backend-flow.md
           - "Frontend flow": architecture/frontend-flow.md
+          - "Foodio composition": architecture/foodio-composition.md
           - "The query contract": architecture/query-contract.md
           - "The data source seam": architecture/data-source-seam.md
           - "Block system internals": architecture/block-system-internals.md

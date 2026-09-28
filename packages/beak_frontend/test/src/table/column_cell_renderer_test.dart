@@ -33,6 +33,45 @@ void main() {
 
   tearDown(BeakCustomRenderers.reset);
 
+  testWidgets(
+    'plain field labels share currency formatting and password masking',
+    (tester) async {
+      final price = const BeakScalarField<int>(
+        model: _LabelModel(),
+        column: _LabelModel.price,
+      ).currency(minorUnits: true);
+      const password = BeakScalarField<String>(
+        model: _LabelModel(),
+        column: _LabelModel.password,
+      );
+      final record = BeakRecord.fromRow({
+        'price': 12345,
+        'password': 'never-visible',
+      });
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakFormattingScope(
+            formatting: const BeakFormatting(currency: 'EUR', locale: 'en_US'),
+            child: Builder(
+              builder: (context) => Column(
+                children: [
+                  Text(formatBeakField(context, field: price, record: record)),
+                  Text(
+                    formatBeakField(context, field: password, record: record),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('€123.45'), findsOneWidget);
+      expect(find.text('••••••••'), findsOneWidget);
+      expect(find.text('never-visible'), findsNothing);
+    },
+  );
+
   testWidgets('text and number intents render labels', (tester) async {
     await pumpCell(
       tester,
@@ -241,8 +280,34 @@ void main() {
       ),
       record: BeakRecord.fromRow(const {'trend': 7}),
     );
-    expect(find.textContaining('ghost'), findsOneWidget);
+    expect(find.text('Unavailable'), findsOneWidget);
   });
+
+  testWidgets(
+    'custom cells can render eager relations without a scalar value',
+    (tester) async {
+      const tag = BeakColumnTag('related-labels');
+      BeakCustomRenderers.register(
+        tag,
+        (context, column, record) => OiLabel.body(
+          record.relations[column.key]!.single['name']!.raw.toString(),
+        ),
+      );
+      await pumpCell(
+        tester,
+        column: const BeakCustomColumn(key: 'roles', label: 'Roles', tag: tag),
+        record: BeakRecord(
+          values: const {},
+          relations: {
+            'roles': [
+              BeakRecord.fromRow(const {'name': 'Administrator'}),
+            ],
+          },
+        ),
+      );
+      expect(find.text('Administrator'), findsOneWidget);
+    },
+  );
 
   testWidgets('null values render an em dash', (tester) async {
     await pumpCell(
@@ -298,4 +363,20 @@ void main() {
       );
     });
   });
+}
+
+final class _LabelModel extends BeakModel {
+  const _LabelModel();
+  static const price = BeakIntColumn(key: 'price', label: 'Price');
+  static const password = BeakStringColumn(
+    key: 'password',
+    label: 'Password',
+    semantic: BeakSemantic.password(),
+  );
+  @override
+  String get table => 'labels';
+  @override
+  String get displayColumnKey => 'price';
+  @override
+  List<BeakColumn> get columns => const [price, password];
 }

@@ -1,26 +1,17 @@
 ---
 title: An enum badge column
-description: A select in the form and a coloured badge everywhere else, from one field.
+description: Render a typed state with labels and colors.
 ---
 
 # An enum badge column
 
-Declare the field as your enum and Beak renders a select in the form and a
-badge everywhere else. `@Badges` maps each value to a colour, and the badge
-shows up in the table, the detail row and the filter without any per-surface
-code:
+Declare an enum field with a default when appropriate. `@Badges` can map enum values to presentation colors. Generated fields preserve enum typing in filters and forms. A model action should control workflow states that callers must not edit directly.
 
-```dart title="examples/store/lib/models/product.dart"
-  /// Lifecycle state, rendered as a coloured badge.
-  @Column(filterable: true)
-  @Badges({
-    ProductStatus.draft: BeakColor.muted,
-    ProductStatus.published: BeakColor.success,
-    ProductStatus.archived: BeakColor.warning,
-  })
-  late final ProductStatus status;
+```dart title="examples/clean_beak_config/lib/resources/orders/models/order.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/models/order.dart"
 ```
 
 ## Continue reading
 
-- [Column types](../models/column-types.md)
+- [Related guide](../models/column-types.md)
+- [All recipes](index.md)

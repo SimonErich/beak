@@ -4,6 +4,21 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import 'beak_action.dart';
+import '../data/beak_resource_repository.dart';
+import '../localization/beak_localizations.dart';
+
+/// Localizes framework actions while leaving caller-supplied labels intact.
+String beakActionLabel(BeakAction action, BuildContext context) {
+  final strings = BeakLocalizations.of(context);
+  return switch (action) {
+    BeakCreateAction() => strings.create,
+    BeakEditAction() => strings.edit,
+    BeakViewAction() => strings.view,
+    BeakDeleteAction() => strings.delete,
+    BeakArchiveAction() => strings.archive,
+    _ => action.label,
+  };
+}
 
 /// Runs [action] against its targets.
 ///
@@ -21,27 +36,32 @@ Future<void> executeBeakAction({
   BeakRecord? record,
   List<BeakRecord> records = const [],
 }) async {
+  if (!context.checkPermission(action)) return;
   if (action.requiresConfirmation) {
+    final label = beakActionLabel(action, context.buildContext);
     final bool confirmed = await context.overlays.confirm(
-      title: '${action.label}?',
-      confirmLabel: action.label,
+      title: '$label?',
+      confirmLabel: label,
       destructive: action.color == BeakColor.error,
     );
-    if (!confirmed) {
+    if (!confirmed || !context.checkPermission(action)) {
       return;
     }
   }
-  switch (action) {
-    case final BeakRecordAction recordAction:
-      final BeakRecord? target = record;
-      if (target != null) {
-        await recordAction.onExecute(target, context);
-      }
-    case final BeakBulkAction bulkAction:
-      await bulkAction.onExecute(records, context);
-    case final BeakGlobalAction globalAction:
-      await globalAction.onExecute(context);
-  }
+  final result = await BeakResourceRepository(context.dataSource).run(() async {
+    switch (action) {
+      case final BeakRecordAction recordAction:
+        final BeakRecord? target = record;
+        if (target != null) {
+          await recordAction.onExecute(target, context);
+        }
+      case final BeakBulkAction bulkAction:
+        await bulkAction.onExecute(records, context);
+      case final BeakGlobalAction globalAction:
+        await globalAction.onExecute(context);
+    }
+  });
+  if (result case BeakErr(:final error)) context.reportError(error);
 }
 // --8<-- [end:executeBeakAction]
 
@@ -90,23 +110,46 @@ class BeakActionButton extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    Future<void> run() => executeBeakAction(
-      action: action,
-      context: actionContext,
-      record: record,
-      records: records,
-    );
+    final pending = useState(false);
+    final label = beakActionLabel(action, context);
+    Future<void> run() async {
+      if (pending.value) return;
+      pending.value = true;
+      try {
+        await executeBeakAction(
+          action: action,
+          context: actionContext,
+          record: record,
+          records: records,
+        );
+      } finally {
+        if (context.mounted) pending.value = false;
+      }
+    }
+
     if (compact) {
       return OiButton.icon(
         icon: action.icon ?? OiIcons.play,
-        label: action.label,
-        onTap: run,
+        label: label,
+        onTap: pending.value ? null : run,
       );
     }
     return switch (action.color) {
-      BeakColor.primary => OiButton.primary(label: action.label, onTap: run),
-      BeakColor.error => OiButton.destructive(label: action.label, onTap: run),
-      _ => OiButton.secondary(label: action.label, onTap: run),
+      BeakColor.primary => OiButton.primary(
+        label: label,
+        icon: action.icon,
+        onTap: pending.value ? null : run,
+      ),
+      BeakColor.error => OiButton.destructive(
+        label: label,
+        icon: action.icon,
+        onTap: pending.value ? null : run,
+      ),
+      _ => OiButton.secondary(
+        label: label,
+        icon: action.icon,
+        onTap: pending.value ? null : run,
+      ),
     };
   }
 }

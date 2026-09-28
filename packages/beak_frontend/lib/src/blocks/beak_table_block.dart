@@ -7,7 +7,8 @@ part of 'beak_block.dart';
 /// Reuses the full `BeakDataTable` (server-side sort, filter, pagination,
 /// row actions), so a table on a page behaves exactly like a resource list.
 /// [initialSpec] seeds ordering and page size; [baseFilter] scopes the rows;
-/// [columns] narrows what is shown, for a table inside a card.
+/// [fields] selects the exact visible fields and their relationship loads;
+/// [columns] retains the conventional automatic relationship columns.
 ///
 /// ```dart
 /// BeakTableBlock(
@@ -26,6 +27,8 @@ final class BeakTableBlock extends BeakBlock {
     required this.model,
     this.title,
     this.columns,
+    this.fields,
+    this.enableDelete = true,
     this.initialSpec,
     this.baseFilter,
     this.actions = const [],
@@ -50,6 +53,14 @@ final class BeakTableBlock extends BeakBlock {
   /// A dashboard card is not a list page: three columns read at a glance
   /// where seventeen do not fit at all.
   final List<BeakColumn>? columns;
+
+  /// Exact ordered fields, including typed relationship paths and formatting.
+  /// Takes precedence over [columns] and suppresses automatic relation columns.
+  final List<BeakScalarField<Object>>? fields;
+
+  /// Adds the built-in delete action. Disable for read-only embedded listings.
+  /// Custom [actions] remain available independently.
+  final bool enableDelete;
 
   /// Seeds sort order and page size on first load.
   final BeakQuerySpec? initialSpec;

@@ -27,11 +27,13 @@ Here it is, whole:
 --8<-- "packages/beak_core/lib/src/data/beak_data_source.dart:BeakDataSource"
 ```
 
-Three implementations already ship. `WormDataSource` (backend) runs the methods
-against the worm ORM over SQLite or Postgres. `HttpBeakDataSource` (panel) runs
-them against the generated REST API over the typed `BeakClient`.
+Built-in implementations cover several transports. `WormDataSource` (backend)
+runs the methods against the worm ORM over SQLite or Postgres.
+`HttpBeakDataSource` (panel) runs them against the generated REST API over the
+typed `BeakClient`. `ServerpodDataSource` binds typed generated Serverpod client
+operations, explicitly rejecting unsupported capabilities.
 `InMemoryBeakDataSource` (in `package:beak/testing.dart`) runs them against maps
-and honours the whole spec. Yours is the fourth.
+and honours the whole spec. A custom source uses the same interface.
 
 ### What each method owes you
 
@@ -75,38 +77,35 @@ way. It also implements `BeakUploadClient` (the `upload` method) so a panel can
 push files through the same object.
 
 ```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
-final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
+final class HttpBeakDataSource
+    implements
+        BeakDataSource,
+        BeakCapabilityDataSource,
+        BeakSummaryDataSource,
+        BeakExportDataSource,
+        BeakValidationDataSource,
+        BeakManagedUploadClient,
+        BeakUploadUrlClient,
+        BeakCommitDataSource {
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
   /// The transport the source delegates to.
   final BeakClient client;
 
-  @override
-  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
-      client.query(spec.table, spec);
+  // ... validation and remaining CRUD forwarding ...
 
   @override
-  Future<BeakRecord?> getOne(String table, Object id) =>
-      client.getOne(table, id);
+  BeakCommitCapabilities get commitCapabilities =>
+      const BeakCommitCapabilities(durableReceipts: true);
 
   @override
-  Future<BeakRecord> create(String table, BeakRecord data) =>
-      client.create(table, data);
+  Future<BeakSaveResult> commit(BeakSavePlan plan) => client.commit(plan);
 
   @override
-  Future<BeakRecord> update(String table, Object id, BeakRecord data) =>
-      client.update(table, id, data);
+  Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
 
-  @override
-  Future<void> delete(String table, Object id, {bool force = false}) =>
-      client.delete(table, id, force: force);
-
-  @override
-  Future<BeakRecord> restore(String table, Object id) =>
-      client.restore(table, id);
-
-  // ...batchGet, attach, detach, upload and aggregate, delegating the same way...
+  // ...
 }
 ```
 
@@ -157,16 +156,12 @@ A `BeakDataSource` plugs into whichever side needs it.
     under it. The generated `BeakApp` forwards the parameter, so a widget test
     injects a fake without any wiring of its own.
 
-    ```dart title="examples/store/lib/beak/app.g.dart"
-      /// Creates the app; [dataSource] injects a fake in widget tests.
-      const BeakApp({this.dataSource, super.key});
+    The canonical shop's `test/custom_shop_test.dart` passes an injected source
+    directly to `BeakPanel`; no generated root wrapper is required.
 
-      /// Test seam replacing the HTTP-backed data source.
-      final BeakDataSource? dataSource;
-    ```
 
     Pass yours and the panel resolves it everywhere through
-    `beakLocator<BeakDataSource>()` instead of building an
+    `beakDependencies(context)<BeakDataSource>()` instead of building an
     `HttpBeakDataSource`.
 
 === "The server"
@@ -193,13 +188,15 @@ display key, and the primary key, and it names none of them to worm. That is the
 second half of what keeps the seam open: the interface is store-agnostic, and so
 is the model that describes each table.
 
-Because of that, a future `beak_serverpod` package can add a
-`ServerpodDataSource` without a line changing in Beak. You supply the same
-column and relationship metadata for your generated Serverpod classes (a
-hand-written `BeakModel` is a supported way to do it, see
-[Escape hatches](../models/escape-hatches.md)), implement the ten methods over
-the Serverpod client, and hand Beak the data source. The panel, the query
-contract, and the blocks never learn that the store changed.
+`beak_serverpod` supplies a `ServerpodDataSource` over typed generated client
+operations and codecs. Its models can bind the source directly, so declaring a
+resource also registers its transport. Generated field metadata and command
+codecs avoid maintaining a second handwritten schema. Serverpod endpoints keep
+ownership of authorization, validation and domain transactions.
+
+[Model-owned transports](model-transports.md) explains that shared panel
+contract: source registration, live permissions, separate command models,
+explicitly supported operations and confirmed archive actions.
 
 The same door is open for any store you like. Implement the interface, keep the
 three rules, run the contract suite, and Beak treats your source exactly like

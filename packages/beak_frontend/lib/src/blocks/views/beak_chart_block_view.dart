@@ -9,7 +9,7 @@ class _BeakChartBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final points = useState(const <BeakChartPoint>[]);
 
     useEffect(() {

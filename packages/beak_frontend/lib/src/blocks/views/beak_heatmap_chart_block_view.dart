@@ -8,7 +8,7 @@ class _BeakHeatmapChartBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final cells = useState(const <BeakMatrixCell>[]);
 
     useEffect(() {

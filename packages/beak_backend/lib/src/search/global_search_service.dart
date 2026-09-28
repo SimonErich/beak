@@ -40,27 +40,34 @@ final class GlobalSearchService {
     int perModel = 5,
     List<String>? tables,
     Map<String, BeakFilter>? scopes,
+    BeakQuerySpec Function(BeakQuerySpec spec)? authorizeQuery,
+    bool Function(String table, String key)? canReadField,
   }) async {
     final hits = <BeakSearchHit>[];
     for (final model in registry.all) {
       if (tables != null && !tables.contains(model.table)) {
         continue;
       }
+      if (!(canReadField?.call(model.table, model.displayColumnKey) ?? true) ||
+          !(canReadField?.call(model.table, model.primaryKey.key) ?? true)) {
+        continue;
+      }
       final searchableColumns = [
         for (final column in model.columns)
-          if (column.searchable) column,
+          if (column.searchable &&
+              (canReadField?.call(model.table, column.key) ?? true))
+            column,
       ];
       if (searchableColumns.isEmpty) {
         continue;
       }
-      final page = await dataSource.query(
-        BeakResourceService.scopedQuery(
-          BeakQuerySpec(table: model.table)
-              .searching(term, searchableColumns)
-              .paginate(page: 1, perPage: perModel),
-          scopes?[model.table],
-        ),
+      final spec = BeakResourceService.scopedQuery(
+        BeakQuerySpec(table: model.table)
+            .searching(term, searchableColumns)
+            .paginate(page: 1, perPage: perModel),
+        scopes?[model.table],
       );
+      final page = await dataSource.query(authorizeQuery?.call(spec) ?? spec);
       for (final record in page.items) {
         hits.add(
           BeakSearchHit(

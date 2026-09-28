@@ -1,17 +1,21 @@
 import 'package:beak_core/beak_core.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:mime/mime.dart';
 
 import '../data/beak_upload_repository.dart';
 import 'beak_form_controller_builder.dart';
+import 'beak_draft_uploads.dart';
+import 'beak_resolved_image.dart';
 
 /// Supplies a picked file's bytes and metadata, or `null` when the user
 /// cancelled.
 ///
 /// Platform pickers surface names only; Beak needs bytes to validate and
-/// upload, so the app injects the picking strategy (the reference app wires
-/// a `file_picker`-based one).
+/// upload. The native picker is automatic; apps may override it for cameras or
+/// existing asset libraries.
 ///
 /// ```dart
 /// Future<BeakUpload?> pickImageFromDisk() async {
@@ -31,15 +35,35 @@ import 'beak_form_controller_builder.dart';
 typedef BeakFilePicker = Future<BeakUpload?> Function();
 // --8<-- [end:BeakFilePicker]
 
+/// Default platform picker; hosts may replace it with camera or asset selection.
+Future<BeakUpload?> beakPickFile({int? maxSizeInBytes}) async {
+  final file = await openFile();
+  if (file == null) return null;
+  if (maxSizeInBytes != null && await file.length() > maxSizeInBytes) {
+    throw BeakValidationException(
+      'The file exceeds the limit of $maxSizeInBytes bytes.',
+    );
+  }
+  final bytes = await file.readAsBytes();
+  return BeakUpload(
+    filename: file.name,
+    mimeType:
+        lookupMimeType(file.name, headerBytes: bytes) ??
+        file.mimeType ??
+        'application/octet-stream',
+    bytes: bytes,
+  );
+}
+
 /// The form field for [BeakImageColumn]/[BeakFileColumn]: picking a file
 /// validates the column's size/type rules client-side (identical messages
 /// to the backend), uploads through the configured [BeakUploadClient], and
 /// stores the returned storage key as the field value — with a thumbnail
 /// preview for images.
 ///
-/// [BeakDataForm] wires one automatically for each upload column; construct
-/// it directly only in a hand-composed form. Without both an [uploader] and
-/// a [filePicker] it renders read-only.
+/// [BeakConfiguredForm] wires one automatically for each upload column; construct
+/// it directly only in a hand-composed form. Without an [uploader] it renders
+/// read-only. A [filePicker] override is optional.
 ///
 /// ```dart
 /// BeakUploadField(
@@ -52,12 +76,14 @@ typedef BeakFilePicker = Future<BeakUpload?> Function();
 class BeakUploadField extends HookWidget {
   /// Creates the upload field for [column] bound to [controller].
   ///
-  /// Without an [uploader] and a [filePicker] the field renders read-only.
+  /// Without an [uploader] the field renders read-only.
   const BeakUploadField({
     required this.controller,
     required this.column,
     this.uploader,
     this.filePicker,
+    this.label,
+    this.enabled = true,
     super.key,
   });
 
@@ -73,6 +99,12 @@ class BeakUploadField extends HookWidget {
   /// The picking strategy, if configured.
   final BeakFilePicker? filePicker;
 
+  /// Optional placement label overriding the model label.
+  final String? label;
+
+  /// Whether picking another file is currently allowed.
+  final bool enabled;
+
   @override
   Widget build(BuildContext context) {
     final Enum slot = controller.slotOf(column);
@@ -82,21 +114,42 @@ class BeakUploadField extends HookWidget {
     final busy = useState(false);
 
     final BeakUploadClient? client = uploader;
-    final BeakFilePicker? picker = filePicker;
+    final BeakFilePicker picker =
+        filePicker ??
+        () => beakPickFile(
+          maxSizeInBytes: switch (column) {
+            BeakUploadColumn(:final maxSizeInBytes) => maxSizeInBytes,
+            _ => null,
+          },
+        );
 
     Future<void> pick() async {
-      if (client == null || picker == null || busy.value) {
-        return;
-      }
-      final BeakUpload? file = await picker();
-      if (file == null) {
+      if (client == null || busy.value || !enabled) {
         return;
       }
       busy.value = true;
       feedback.value = null;
+      final BeakUpload? file;
+      try {
+        file = await picker();
+      } on Exception catch (error) {
+        if (context.mounted) {
+          busy.value = false;
+          feedback.value = error is BeakException
+              ? error.message
+              : 'Unable to open the file. Please try again.';
+        }
+        return;
+      }
+      if (!context.mounted) return;
+      if (file == null) {
+        busy.value = false;
+        return;
+      }
       final result = await BeakUploadRepository(
         client,
       ).upload(controller.model.table, column, file);
+      if (!context.mounted) return;
       busy.value = false;
       switch (result) {
         case BeakOk(:final value):
@@ -114,31 +167,70 @@ class BeakUploadField extends HookWidget {
 
     final String? storedKey = controller.get<String>(slot);
     final String? message = feedback.value ?? controller.getError(slot);
-    final BeakStoredFile? preview = stored.value;
+    final BeakStoredFile? preview = storedKey == null
+        ? null
+        : (client is BeakDraftUploads
+              ? client.preview(storedKey)
+              : stored.value);
     final bool isImage = switch (column) {
       BeakImageColumn() => true,
       _ => false,
     };
+    final previewRequest = useMemoized(
+      () =>
+          isImage &&
+              storedKey != null &&
+              preview == null &&
+              client is BeakUploadUrlClient
+          ? switch (client) {
+              final BeakUploadUrlClient resolver => resolver.uploadUrl(
+                controller.model.table,
+                column.key,
+                storedKey,
+              ),
+              _ => null,
+            }
+          : null,
+      [client, storedKey, isImage],
+    );
+    final resolved = useFuture(previewRequest);
+    final imageUrl =
+        preview?.variants['thumbnail']?.url ?? preview?.url ?? resolved.data;
 
     return OiColumn(
       breakpoint: context.breakpoint,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        OiLabel.smallStrong(column.label),
-        if (preview != null && isImage)
-          OiImage(
-            src: (preview.variants['thumbnail']?.url ?? preview.url).toString(),
+        OiLabel.smallStrong(label ?? column.label),
+        if (imageUrl != null && isImage)
+          BeakResolvedImage(
+            src: imageUrl.toString(),
             alt: column.label,
             width: 80,
             height: 80,
             fit: BoxFit.cover,
             errorWidget: const OiIcon.decorative(icon: OiIcons.image),
           ),
-        if (storedKey != null) OiLabel.caption(storedKey),
+        if (storedKey != null)
+          OiLabel.caption(
+            (client is BeakDraftUploads ? client.filename(storedKey) : null) ??
+                storedKey.split('/').last,
+          ),
         OiButton.secondary(
-          label: busy.value ? 'Uploading…' : 'Choose file',
-          onTap: client == null || picker == null || busy.value ? null : pick,
+          label: busy.value ? 'Preparing file…' : 'Choose file',
+          enabled: client != null && !busy.value && enabled,
+          onTap: client == null || busy.value || !enabled ? null : pick,
         ),
+        if (storedKey != null && enabled)
+          OiButton.ghost(
+            label: 'Remove file',
+            onTap: busy.value
+                ? null
+                : () {
+                    stored.value = null;
+                    controller.set<String>(slot, null);
+                  },
+          ),
         if (message != null) OiLabel.caption(message),
       ],
     );
