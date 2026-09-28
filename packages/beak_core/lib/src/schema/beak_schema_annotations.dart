@@ -32,8 +32,20 @@ import '../storage/transforms/beak_image_transform.dart';
 /// }
 /// ```
 ///
-/// `beak prepare` reads this and generates `ProductColumns`,
-/// `ProductRelations`, `ProductModel` and `ProductRecord` into a part file.
+/// `beak prepare` reads this and generates the rest into a
+/// `product.beak.dart` part: `ProductModel`, whose static field references
+/// (`ProductModel.name`, `ProductModel.category`) are what panel code
+/// configures tables, forms and filters with; the `ProductColumns` and
+/// `ProductRelations` constants migrations build from; and the typed
+/// `record.asProduct` and `draft.asProduct` views.
+///
+/// The model may take shared rules from static getters on the class, which
+/// the generator forwards: `validationRules`, `behavior`, `permissions` and
+/// `capabilities`.
+///
+/// ```dart
+/// static BeakPermissions get permissions => const BeakPermissions.allowAll();
+/// ```
 @immutable
 abstract base class BeakSchema {
   /// Enables `const` construction by subclasses. Never actually construct one.
@@ -81,6 +93,16 @@ final class Resource {
 /// The field's Dart type selects the column *kind*; this only carries what
 /// the type cannot express. Nullability decides required-ness: a non-nullable
 /// field gets [BeakRequired], a nullable one does not.
+///
+/// Bounds are rules, declared once: `rules: [BeakMaxLength(120)]` on a
+/// `String` field validates the input *and* sizes the stored column, and
+/// `rules: [BeakMin(0), BeakMax(10)]` on an `int` field validates and bounds
+/// the form's stepper.
+///
+/// ```dart
+/// @Column(searchable: true, rules: [BeakMaxLength(120)])
+/// late final String name;
+/// ```
 @immutable
 final class Column {
   /// Configures the annotated field's column.
@@ -98,9 +120,6 @@ final class Column {
     this.suffix,
     this.precision,
     this.totalDigits,
-    this.min,
-    this.max,
-    this.maxLength,
     this.format,
     this.placeholder,
     this.trueLabel,
@@ -140,6 +159,10 @@ final class Column {
   final bool unique;
 
   /// Validation rules, enforced on both the client and the API.
+  ///
+  /// `BeakMaxLength` on a `String` field also sets the stored column length,
+  /// and `BeakMin`/`BeakMax` on an `int` field also bound the form input, so
+  /// a limit is written once and means the same thing everywhere.
   final List<BeakRule> rules;
 
   /// Currency or unit prefix, for numeric columns.
@@ -158,15 +181,6 @@ final class Column {
   ///
   /// The SQL precision of `NUMERIC(totalDigits, precision)`; defaults to 10.
   final int? totalDigits;
-
-  /// Lowest accepted value, for an `int` field.
-  final int? min;
-
-  /// Highest accepted value, for an `int` field.
-  final int? max;
-
-  /// Longest accepted text, for a `String` field.
-  final int? maxLength;
 
   /// Rendering format, for a `DateTime` field.
   final BeakDateFormat? format;
@@ -313,7 +327,7 @@ final class BelongsTo {
   const BelongsTo({
     this.label,
     this.foreignKey,
-    this.searchOn = const [],
+    this.searchOn = const <Symbol>[],
     this.onDelete = BeakOnDelete.setNull,
     this.inverse = true,
   });
@@ -324,14 +338,21 @@ final class BelongsTo {
   /// reading "Customer" is not filed under "User".
   final String? label;
 
-  /// Columns of the related table the picker searches, by key.
+  /// Fields of the related schema the picker searches, as symbols.
   ///
   /// Defaults to the related model's display column. Widen it when a person
   /// looks a record up by something other than its name — an email, a
-  /// reference number. Each key is checked against the related schema, so a
-  /// typo is an error naming the field rather than a picker that finds
-  /// nothing.
-  final List<String> searchOn;
+  /// reference number:
+  ///
+  /// ```dart
+  /// @BelongsTo(searchOn: [#email, #lastName])
+  /// late final User customer;
+  /// ```
+  ///
+  /// Each symbol names a field of the related schema class, and the
+  /// generator resolves it to that field's column, so a typo is an error
+  /// naming the field rather than a picker that finds nothing.
+  final List<Symbol> searchOn;
 
   /// Foreign-key column. Defaults to the snake-cased field name plus `_id`.
   final String? foreignKey;
@@ -402,7 +423,7 @@ final class BelongsToMany {
     this.pivotTable,
     this.foreignPivotKey,
     this.relatedPivotKey,
-    this.searchOn = const [],
+    this.searchOn = const <Symbol>[],
     this.allowCreate = false,
     this.maxAllowed,
     this.onDelete = BeakOnDelete.cascade,
@@ -412,10 +433,12 @@ final class BelongsToMany {
   /// Human-readable label. Defaults to the title-cased field name.
   final String? label;
 
-  /// Columns of the related table the picker searches, by key.
+  /// Fields of the related schema the picker searches, as symbols such as
+  /// `#name`.
   ///
-  /// Defaults to the related model's display column.
-  final List<String> searchOn;
+  /// Defaults to the related model's display column. Checked against the
+  /// related schema like [BelongsTo.searchOn].
+  final List<Symbol> searchOn;
 
   /// Join table. Defaults to the two singular table names, sorted, joined by
   /// an underscore.

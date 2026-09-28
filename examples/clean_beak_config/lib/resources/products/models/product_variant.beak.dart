@@ -52,6 +52,7 @@ abstract final class ProductVariantColumns {
     label: 'Stock',
     rules: [BeakRequired(), BeakMin(0)],
     sortable: true,
+    min: 0,
   );
 
   /// Whether this variant can be added to a new invoice.

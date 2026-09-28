@@ -1,6 +1,6 @@
 name: beak_cli
-description: Scaffolding CLI for Beak projects (make:resource and friends).
-version: 0.0.1
+description: The beak command, which scaffolds, generates, migrates and diagnoses Beak projects.
+version: 0.9.0
 publish_to: none
 repository: https://github.com/SimonErich/beak/tree/main/packages/beak_cli
 homepage: https://github.com/SimonErich/beak
@@ -9,6 +9,10 @@ topics: [admin-panel, cli, scaffolding, codegen]
 
 environment:
   sdk: ^3.11.0
+
+# `dart pub global activate` puts `beak` on PATH only when it is declared.
+executables:
+  beak: beak
 
 dependencies:
   # Unresolved AST parsing only (parseString): fast, and stable across

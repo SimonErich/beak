@@ -27,6 +27,7 @@ abstract final class DishVariantColumns {
     label: 'Price Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Weight grams.
@@ -35,6 +36,7 @@ abstract final class DishVariantColumns {
     label: 'Weight Grams',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Is default.

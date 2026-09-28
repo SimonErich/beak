@@ -248,6 +248,20 @@ abstract final class BeakSchemaEmitter {
           '  BeakModelBehavior get behavior => ${schema.className}.behavior;',
         );
     }
+    if (schema.hasPermissions) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  BeakPermissions get permissions => ${schema.className}.permissions;',
+        );
+    }
+    if (schema.hasCapabilities) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  Set<BeakOperation> get capabilities => ${schema.className}.capabilities;',
+        );
+    }
     if (schema.relations.isNotEmpty) {
       buffer
         ..writeln('  @override')
@@ -673,10 +687,20 @@ abstract final class BeakSchemaEmitter {
   ///
   /// The related model's display column, unless the relationship named
   /// others: a person looks a customer up by email as readily as by name.
+  ///
+  /// `searchOn` names fields; the stored key each one resolves to is the
+  /// related schema's business, so `#firstName` becomes `first_name` here
+  /// without the author ever spelling it.
   static String _searchKeysOf(BeakRelationIr relation, BeakSchemaIr related) {
+    final keyOf = {
+      for (final column in related.columns) column.fieldName: column.columnKey,
+    };
     final List<String> keys = relation.searchOn.isEmpty
         ? [related.displayColumnKey]
-        : relation.searchOn;
+        : [
+            for (final field in relation.searchOn)
+              if (keyOf[field] case final String key) key,
+          ];
     return '[${keys.map((key) => "'$key'").join(', ')}]';
   }
 

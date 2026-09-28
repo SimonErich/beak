@@ -65,6 +65,7 @@ abstract final class OrganizationColumns {
     label: 'Default Budget Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 12000,
+    min: 0,
   );
 
   /// Approval threshold cents.
@@ -73,6 +74,7 @@ abstract final class OrganizationColumns {
     label: 'Approval Threshold Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 4000,
+    min: 0,
   );
 
   /// Active.

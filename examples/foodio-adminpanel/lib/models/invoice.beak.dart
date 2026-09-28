@@ -57,6 +57,7 @@ abstract final class InvoiceColumns {
     label: 'Gross Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Net cents.
@@ -65,6 +66,7 @@ abstract final class InvoiceColumns {
     label: 'Net Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Tax cents.
@@ -73,6 +75,7 @@ abstract final class InvoiceColumns {
     label: 'Tax Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Issue date.

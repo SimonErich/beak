@@ -4,7 +4,7 @@ library;
 
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 import '../support/served_project.dart';
@@ -66,7 +66,9 @@ dependencies:
       await _insertProduct(project, name: 'Espresso Beans', price: 12.5);
 
       // Week two: the catalog needs a stock count.
-      final schema = File('${project.path}/lib/models/product.dart');
+      final schema = File(
+        '${project.path}/lib/resources/products/models/product.dart',
+      );
       schema.writeAsStringSync(
         schema.readAsStringSync().replaceFirst('}', '''
   /// Units in stock.

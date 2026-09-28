@@ -192,10 +192,12 @@ final class BeakRelationIr {
   /// Class name of the schema on the other side.
   final String relatedSchema;
 
-  /// Columns of the related table a picker searches, by key.
+  /// Fields of the related schema a picker searches, by Dart field name.
   ///
-  /// Empty means "the related model's display column", which is what a
-  /// picker wants unless a person looks records up by something else.
+  /// Read from `searchOn: [#email]`, and resolved to column keys only when
+  /// emitted, against the related schema. Empty means "the related model's
+  /// display column", which is what a picker wants unless a person looks
+  /// records up by something else.
   final List<String> searchOn;
 
   /// Foreign-key column, when the kind has one.
@@ -238,6 +240,8 @@ final class BeakSchemaIr {
     required this.managesSchema,
     this.hasValidationRules = false,
     this.hasBehavior = false,
+    this.hasPermissions = false,
+    this.hasCapabilities = false,
     this.docComment,
   });
 
@@ -273,6 +277,12 @@ final class BeakSchemaIr {
 
   /// Whether the schema supplies a static shared model-behavior getter.
   final bool hasBehavior;
+
+  /// Whether the schema supplies `static BeakPermissions get permissions`.
+  final bool hasPermissions;
+
+  /// Whether the schema supplies `static Set<BeakOperation> get capabilities`.
+  final bool hasCapabilities;
 
   /// The class's own doc comment.
   final String? docComment;

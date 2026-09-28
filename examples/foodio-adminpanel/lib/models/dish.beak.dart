@@ -63,6 +63,7 @@ abstract final class DishColumns {
     label: 'Tax Basis Points',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 1000,
+    min: 0,
   );
 
   /// Food.

@@ -27,6 +27,7 @@ abstract final class OrderItemColumns {
     label: 'Quantity',
     rules: [BeakRequired(), BeakMin(1)],
     defaultValue: 1,
+    min: 1,
   );
 
   /// Position.
@@ -35,6 +36,7 @@ abstract final class OrderItemColumns {
     label: 'Position',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Unit price cents.
@@ -43,6 +45,7 @@ abstract final class OrderItemColumns {
     label: 'Unit Price Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Options price cents.
@@ -51,6 +54,7 @@ abstract final class OrderItemColumns {
     label: 'Options Price Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Tax basis points.
@@ -59,6 +63,7 @@ abstract final class OrderItemColumns {
     label: 'Tax Basis Points',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 1000,
+    min: 0,
   );
 
   /// Variant name.
@@ -96,6 +101,7 @@ abstract final class OrderItemColumns {
     label: 'Gross Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Discount cents.
@@ -104,6 +110,7 @@ abstract final class OrderItemColumns {
     label: 'Discount Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Net cents.
@@ -112,6 +119,7 @@ abstract final class OrderItemColumns {
     label: 'Net Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Tax cents.
@@ -120,6 +128,7 @@ abstract final class OrderItemColumns {
     label: 'Tax Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Foreign key backing [order].

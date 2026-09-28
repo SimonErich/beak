@@ -24,11 +24,15 @@ final class ProductImage extends BeakSchema {
 
   /// Alternate text describing the product in the image.
   @Display()
-  @Column(label: 'Image description', maxLength: 240, searchable: true)
+  @Column(
+    label: 'Image description',
+    rules: [BeakMaxLength(240)],
+    searchable: true,
+  )
   late final String caption;
 
   /// Gallery position, zero being the product cover.
-  @Column(min: 0, sortable: true)
+  @Column(rules: [BeakMin(0)], sortable: true)
   late final int position;
 
   /// Product owning this picture.

@@ -5,7 +5,7 @@
 /// fixture is the difference between one schema to keep honest and three.
 library;
 
-import 'package:beak_cli/beak_cli.dart';
+import 'beak_cli_internals.dart';
 
 /// Canned `information_schema` rows, so introspection is tested without a
 /// server. The shapes match what Postgres actually returns.

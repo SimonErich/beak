@@ -106,9 +106,11 @@ abstract final class BeakDriftMigrationEmitter {
     }
     final tables = byTable.keys.toList()..sort();
 
+    // Relative to lib/migrations/, like the create migration's import: a
+    // schema may live anywhere under lib/, a resource folder included.
     final imports = <String>{
       for (final table in tables)
-        "import '../models/${_libraryOf(byTable[table]!.first.schema)}';",
+        "import '../${byTable[table]!.first.schema.libraryPath}';",
     };
 
     final buffer = StringBuffer()
@@ -161,12 +163,6 @@ abstract final class BeakDriftMigrationEmitter {
       ..writeln('}');
     return BeakEmitters.format(buffer.toString());
   }
-
-  /// The `lib/models/`-relative library a schema is declared in.
-  static String _libraryOf(BeakSchemaIr schema) =>
-      schema.libraryPath.startsWith('models/')
-      ? schema.libraryPath.substring('models/'.length)
-      : schema.libraryPath;
 
   /// `AddStockToProducts` -> `add_stock_to_products`.
   static String _snakeOf(String className) => className

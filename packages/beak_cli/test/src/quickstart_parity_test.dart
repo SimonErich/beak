@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// `examples/quickstart` is documented as byte-identical to what

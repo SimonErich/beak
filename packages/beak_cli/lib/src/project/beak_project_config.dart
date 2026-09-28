@@ -22,7 +22,7 @@ final class BeakProjectConfigException implements Exception {
 /// Where the panel points its API calls.
 final class BeakApiSettings {
   /// Creates API settings.
-  const BeakApiSettings({this.baseUrl = 'http://localhost:8080'});
+  const BeakApiSettings({this.baseUrl = defaultBaseUrl});
 
   /// Origin the panel calls, compiled in.
   ///
@@ -32,6 +32,13 @@ final class BeakApiSettings {
 
   /// Whether [baseUrl] resolves at runtime rather than being a fixed origin.
   bool get isAuto => baseUrl == 'auto';
+
+  /// Whether [baseUrl] is the origin `BeakPanel` already defaults to, so an
+  /// authored entrypoint need not say it.
+  bool get isDefault => baseUrl == defaultBaseUrl;
+
+  /// Where the panel calls when nothing says otherwise.
+  static const String defaultBaseUrl = 'http://localhost:8080';
 
   /// A Dart expression evaluating to the base URL.
   String get expression => isAuto
@@ -196,7 +203,7 @@ final class BeakProjectConfig {
       api: BeakApiSettings(
         baseUrl:
             _optionalString(api?['baseUrl'], 'api.baseUrl') ??
-            'http://localhost:8080',
+            BeakApiSettings.defaultBaseUrl,
       ),
       server: BeakServerSettings(
         port: _optionalPort(server?['port'], 'server.port'),
@@ -394,13 +401,14 @@ List<BeakDiscoveryIssue> beakConfigIssues(
           path: 'beak.yaml',
           message:
               'resources.$key names no discovered table'
-              '${_didYouMean(key, tables)}.',
+              '${beakDidYouMean(key, tables)}.',
         ),
   ];
 }
 
-/// A `did you mean` hint naming the closest table, when one is close enough.
-String _didYouMean(String key, Set<String> tables) {
+/// A ` — did you mean orders?` hint naming the table in [tables] closest to
+/// [key], when one is close enough to be worth suggesting, and otherwise ''.
+String beakDidYouMean(String key, Set<String> tables) {
   var best = '';
   var bestDistance = 1 << 30;
   for (final table in tables) {

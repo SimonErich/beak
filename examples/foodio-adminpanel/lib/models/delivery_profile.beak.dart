@@ -73,6 +73,7 @@ abstract final class DeliveryProfileColumns {
     label: 'Monthly Budget Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 12000,
+    min: 0,
   );
 
   /// Approval threshold cents.
@@ -81,6 +82,7 @@ abstract final class DeliveryProfileColumns {
     label: 'Approval Threshold Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 4000,
+    min: 0,
   );
 
   /// Is default.

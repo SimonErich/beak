@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -210,7 +210,11 @@ void main() {
       final checks = await diagnose(environmentFor(root));
       final check = checkMatching(checks, 'no models found');
       expect(check.status, BeakCheckStatus.warn);
-      expect(check.remedy, contains('lib/models/'));
+      // Models are found anywhere under lib/, so the remedy names the
+      // command that writes one where the scaffold keeps them.
+      expect(check.label, isNot(contains('lib/models/')));
+      expect(check.remedy, contains('beak make:resource'));
+      expect(check.remedy, contains('lib/resources/'));
     });
 
     test('a discovery issue is surfaced as a failure', () async {

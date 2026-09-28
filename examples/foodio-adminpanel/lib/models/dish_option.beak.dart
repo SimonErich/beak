@@ -27,6 +27,7 @@ abstract final class DishOptionColumns {
     label: 'Price Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Allergens.

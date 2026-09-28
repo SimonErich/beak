@@ -23,6 +23,7 @@ abstract final class InvoiceItemColumns {
     key: 'quantity',
     label: 'Quantity',
     rules: [BeakRequired(), BeakMin(1)],
+    min: 1,
   );
 
   /// Net unit price; blank derives a catalog price before saving.

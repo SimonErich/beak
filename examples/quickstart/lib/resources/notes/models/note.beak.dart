@@ -22,6 +22,7 @@ abstract final class NoteColumns {
     rules: [BeakRequired(), BeakMaxLength(255)],
     searchable: true,
     sortable: true,
+    maxLength: 255,
   );
 
   /// The note itself.
@@ -162,8 +163,8 @@ final class NoteToOneField extends BeakToOneField {
 /// A note.
 ///
 /// Declared once. `beak prepare` generates the typed columns, the model, the
-/// relationships (both sides), and a typed record view into `note.beak.dart`
-/// — there is no registry to edit and no resource to register.
+/// relationships (both sides), and a typed record view into `note.beak.dart`,
+/// so there is no registry to edit.
 final class NoteModel extends BeakModel {
   /// Creates the notes model.
   const NoteModel();

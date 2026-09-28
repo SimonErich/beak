@@ -6,8 +6,8 @@ part 'note.beak.dart';
 /// A note.
 ///
 /// Declared once. `beak prepare` generates the typed columns, the model, the
-/// relationships (both sides), and a typed record view into `note.beak.dart`
-/// — there is no registry to edit and no resource to register.
+/// relationships (both sides), and a typed record view into `note.beak.dart`,
+/// so there is no registry to edit.
 @Resource(timestamps: true)
 final class Note extends BeakSchema {
   /// What the note is called.

@@ -34,6 +34,8 @@ abstract final class VoucherColumns {
     label: 'Percent Basis Points',
     rules: [BeakRequired(), BeakMin(0), BeakMax(10000)],
     defaultValue: 1500,
+    min: 0,
+    max: 10000,
   );
 
   /// Maximum discount cents.
@@ -42,6 +44,7 @@ abstract final class VoucherColumns {
     label: 'Maximum Discount Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 1000,
+    min: 0,
   );
 
   /// Food only.

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -76,6 +76,13 @@ final class Order extends BeakSchema {
   late final BeakJson? document;
   late final bool? approved;
   static List<BeakRecordRule> get validationRules => [];
+  static BeakPermissions get permissions => BeakPermissions({
+    BeakOperation.read: () => true,
+  });
+  static Set<BeakOperation> get capabilities => const {
+    BeakOperation.read,
+    BeakOperation.create,
+  };
   static BeakModelBehavior get behavior => BeakModelBehavior(values: [
     BeakValueBehavior<int>.suggested(field: OrderModel.quantity,
       resolve: (_) => 3),
@@ -127,6 +134,8 @@ void main() {
   BeakModelRegistry().register(const OrderModel());
   final suggested = const OrderModel().behavior.apply(const BeakRecord(values: {}));
   if (OrderModel.quantity.readFrom(suggested) != 3) throw StateError('generated behavior not forwarded');
+  if (!const OrderModel().permissions.allows(BeakOperation.read) || const OrderModel().permissions.allows(BeakOperation.delete)) throw StateError('generated permissions not forwarded');
+  if (const OrderModel().capabilities.contains(BeakOperation.delete)) throw StateError('generated capabilities not forwarded');
   final money = BeakDecimal.parse('1.250', scale: 3);
   var record = const BeakRecord(values: {});
   record = OrderModel.total.writeTo(record, money);

@@ -1,8 +1,9 @@
 import 'dart:io';
 
+import 'package:worm/worm.dart';
+import 'package:worm_postgres/worm_postgres.dart';
 import 'package:worm_sqlite/worm_sqlite.dart';
 
-import '../commands/introspect_command.dart';
 import 'beak_schema_introspection.dart';
 import 'postgres_introspector.dart';
 import 'sqlite_introspector.dart';
@@ -25,7 +26,7 @@ bool beakIsSqliteUrl(Uri url) => url.scheme == 'sqlite' || url.scheme == 'file';
 
 /// Whether Beak can read the schema of the database [url] names.
 bool beakCanReadSchema(Uri url) =>
-    isIntrospectableUrl(url) || beakSqliteFileOf(url) != null;
+    _isPostgresUrl(url) || beakSqliteFileOf(url) != null;
 
 /// The file a SQLite [url] names, or `null` when it names something else.
 ///
@@ -93,7 +94,7 @@ Future<List<IntrospectedTable>> beakReadLiveSchema(
     }
   }
   final (BeakSqlReader query, Future<void> Function() close) =
-      await openPostgresConnection(url);
+      await _openPostgres(url);
   try {
     return await PostgresIntrospector(query).read();
   } finally {
@@ -153,4 +154,38 @@ Uri beakResolvedDatabaseUrl(Uri url, Directory root) {
   // [Uri.decodeFull] the exact inverse.
   final String escaped = '${root.path}/$file'.replaceAll('%', '%25');
   return Uri(scheme: 'sqlite', path: escaped);
+}
+
+/// Whether [url] names a Postgres server.
+bool _isPostgresUrl(Uri url) =>
+    const {'postgres', 'postgresql'}.contains(url.scheme);
+
+/// Connects to the Postgres server [url] names, returning a reader over the
+/// connection and the function that closes it.
+Future<(BeakSqlReader, Future<void> Function())> _openPostgres(Uri url) async {
+  final String? userInfo = url.userInfo.isEmpty ? null : url.userInfo;
+  final int separator = userInfo?.indexOf(':') ?? -1;
+  final adapter = PostgresAdapter(
+    pool: PostgresConnectionPool.fromConfig(
+      ConnectionConfig(
+        driver: 'postgres',
+        host: url.host,
+        port: url.hasPort ? url.port : 5432,
+        database: url.pathSegments.isEmpty
+            ? 'postgres'
+            : url.pathSegments.first,
+        username: userInfo == null
+            ? null
+            : Uri.decodeComponent(
+                separator < 0 ? userInfo : userInfo.substring(0, separator),
+              ),
+        password: userInfo == null || separator < 0
+            ? null
+            : Uri.decodeComponent(userInfo.substring(separator + 1)),
+        useSsl: url.queryParameters['sslmode'] == 'require',
+      ),
+    ),
+  );
+  await adapter.connect();
+  return ((String sql) => adapter.rawQuery(sql, const []), adapter.disconnect);
 }

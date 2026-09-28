@@ -71,7 +71,7 @@ final class OrderItem extends BeakSchema {
   late final String? label;
 
   /// Positive quantity of the selected product.
-  @Column(label: 'Quantity', min: 1, rules: [BeakMin(1)])
+  @Column(label: 'Quantity', rules: [BeakMin(1)])
   late final int quantity;
 
   /// Owning order; wired automatically when the graph is saved.

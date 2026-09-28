@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// The zero-config proof, end to end: `beak make:resource Widget` in a fresh
-/// project must compile, pass the repo's strict analysis, create its own
-/// table, and serve a working API — with no database, no `.env` and no
-/// configuration of any kind.
+/// project must compile, pass the repo's strict analysis (before and after
+/// `beak eject main`), create its own table, and serve a working API, with
+/// no database, no `.env` and no configuration of any kind.
 ///
 /// The project depends on Beak the way a user's does: the umbrella, and
 /// nothing else. Anything narrower would let a
@@ -89,6 +89,62 @@ dev_dependencies:
         reason: '${analyze.stdout}\n${analyze.stderr}',
       );
 
+      // The authored entrypoint `beak eject main` hands over is a file the
+      // project now owns and lints, so it has to pass the same analysis.
+      // A panel override and sidebar settings make it the config form,
+      // the one `BeakPanel(resources:)` cannot express; `beak create
+      // --authored` below proves the plain form.
+      expect(await createBeakRunner(environment).run(['eject', 'panel']), 0);
+      File(
+        '${temp.path}/beak.yaml',
+      ).writeAsStringSync('theme:\n  sidebar:\n    startCollapsed: true\n');
+      expect(await createBeakRunner(environment).run(['eject', 'main']), 0);
+      final String ejected = File(
+        '${temp.path}/lib/main.dart',
+      ).readAsStringSync();
+      expect(ejected, contains('config: panel.beakPanel('));
+      // Constant throughout, so `const` once, on the config.
+      expect(ejected, contains('const BeakPanelConfig('));
+      expect(ejected, contains('resources: [WidgetResource()]'));
+      expect(ejected, contains('sidebarDefaultCollapsed: true'));
+      final ProcessResult authored = await run([
+        'dart',
+        'analyze',
+        '--fatal-infos',
+        '--fatal-warnings',
+        '.',
+      ]);
+      expect(
+        authored.exitCode,
+        0,
+        reason: '${authored.stdout}\n${authored.stderr}',
+      );
+
+      // A theme override is a call, so the config is no longer constant and
+      // must lose its `const` while the resources keep theirs. Deleting the
+      // entrypoint hands it back to `beak prepare` for a second eject.
+      File('${temp.path}/lib/main.dart').deleteSync();
+      expect(await createBeakRunner(environment).run(['eject', 'theme']), 0);
+      expect(await createBeakRunner(environment).run(['eject', 'main']), 0);
+      final String themed = File(
+        '${temp.path}/lib/main.dart',
+      ).readAsStringSync();
+      expect(themed, contains('theme: theme.beakLightTheme()'));
+      expect(themed, isNot(contains('const BeakPanelConfig(')));
+      expect(themed, contains('const WidgetResource()'));
+      final ProcessResult themedAnalyze = await run([
+        'dart',
+        'analyze',
+        '--fatal-infos',
+        '--fatal-warnings',
+        '.',
+      ]);
+      expect(
+        themedAnalyze.exitCode,
+        0,
+        reason: '${themedAnalyze.stdout}\n${themedAnalyze.stderr}',
+      );
+
       // The generated migration, on the default SQLite file. No DATABASE_URL,
       // no services, nothing to install.
       final ProcessResult migrate = await run([
@@ -129,6 +185,80 @@ dev_dependencies:
         jsonDecode(body),
         containsPair('total', 0),
         reason: 'the table exists and is empty, which is the whole claim',
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  _authoredScaffoldAnalyzes();
+}
+
+/// `beak create --authored`, as a whole project: the owned entrypoint, its
+/// resource class, the generated wiring and the smoke test that pumps it.
+///
+/// Each piece is asserted on as text elsewhere; only analyzing the project
+/// as a whole shows they still agree on the panel's API, so renaming
+/// `buildPanel` or `InMemoryBeakDataSource` cannot pass unnoticed.
+void _authoredScaffoldAnalyzes() {
+  test(
+    'an authored scaffold is formatted and passes strict analysis',
+    () async {
+      final Directory repoRoot = Directory.current.parent.parent;
+      final Directory temp = Directory.systemTemp.createTempSync(
+        'beak_authored',
+      );
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final out = StringBuffer();
+      final int? code =
+          await createBeakRunner(
+            BeakCliEnvironment(
+              out: out,
+              rootDirectory: temp,
+              now: () => DateTime.utc(2026, 7, 3, 12),
+              probe: (host, port) async => false,
+              // Only `flutter create --platforms=web` is spawned, for web/
+              // assets that analysis and the widget test do not need.
+              runProcess: (executable, arguments, {workingDirectory}) async =>
+                  0,
+            ),
+          ).run([
+            'create',
+            'authored_probe',
+            '--authored',
+            '--beak-path',
+            repoRoot.path,
+          ]);
+      expect(code, 0, reason: '$out');
+
+      final String project = '${temp.path}/authored_probe';
+      Future<ProcessResult> run(List<String> command) => Process.run(
+        command.first,
+        command.skip(1).toList(),
+        workingDirectory: project,
+      );
+      void expectSuccess(ProcessResult result) => expect(
+        result.exitCode,
+        0,
+        reason: '${result.stdout}\n${result.stderr}',
+      );
+
+      expectSuccess(await run(['flutter', 'pub', 'get']));
+      // As scaffolded, so the first `dart format` in a new project is a
+      // no-op.
+      expectSuccess(
+        await run(['dart', 'format', '--set-exit-if-changed', 'lib', 'test']),
+      );
+      // The scaffold's own analysis options, which include the generated
+      // files, and then the repo's stricter ones over what the project owns.
+      expectSuccess(
+        await run(['dart', 'analyze', '--fatal-infos', '--fatal-warnings']),
+      );
+      File('$project/analysis_options.yaml').writeAsStringSync(
+        File('${repoRoot.path}/analysis_options.yaml').readAsStringSync(),
+      );
+      expectSuccess(
+        await run(['dart', 'analyze', '--fatal-infos', '--fatal-warnings']),
       );
     },
     timeout: const Timeout(Duration(minutes: 5)),

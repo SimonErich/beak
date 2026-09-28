@@ -32,18 +32,18 @@ abstract final class ProductImageColumns {
   static const BeakStringColumn caption = BeakStringColumn(
     key: 'caption',
     label: 'Image description',
-    rules: [BeakRequired()],
-    maxLength: 240,
+    rules: [BeakRequired(), BeakMaxLength(240)],
     searchable: true,
+    maxLength: 240,
   );
 
   /// Gallery position, zero being the product cover.
   static const BeakIntColumn position = BeakIntColumn(
     key: 'position',
     label: 'Position',
-    rules: [BeakRequired()],
-    min: 0,
+    rules: [BeakRequired(), BeakMin(0)],
     sortable: true,
+    min: 0,
   );
 
   /// Foreign key backing [product].

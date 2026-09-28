@@ -14,11 +14,11 @@ import 'prepare_command.dart';
 ///
 /// ```console
 /// $ beak dev
-///   1 model · 0 screens · 0 overrides
+///   1 model · 0 resource classes · 0 screens · 0 overrides
 ///   generated  up to date (7 files)
-///   api        starting on http://localhost:8080
 ///   panel      run this in another terminal:
 ///                flutter run -d chrome
+///   api        starting…
 /// ```
 final class DevCommand extends Command<int> {
   /// Creates the command against [environment].

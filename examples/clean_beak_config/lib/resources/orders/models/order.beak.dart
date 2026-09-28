@@ -19,6 +19,7 @@ abstract final class OrderColumns {
     rules: [BeakRequired(), BeakMaxLength(80)],
     searchable: true,
     sortable: true,
+    maxLength: 80,
   );
 
   /// Current fulfilment state.

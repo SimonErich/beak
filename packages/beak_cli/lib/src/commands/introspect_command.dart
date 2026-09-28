@@ -1,19 +1,9 @@
 import 'package:args/command_runner.dart';
-import 'package:worm/worm.dart';
-import 'package:worm_postgres/worm_postgres.dart';
 
 import '../cli_runner.dart';
 import '../introspect/beak_introspection_emitter.dart';
 import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
-import '../introspect/postgres_introspector.dart';
-
-/// Opens a connection and returns a reader over it, plus how to close it.
-///
-/// Injected so the command can be tested without a database, and so the CLI
-/// depends on a driver only where it actually connects.
-typedef BeakDatabaseOpener =
-    Future<(BeakSqlReader, Future<void> Function())> Function(Uri url);
 
 /// Writes Beak schema classes for the tables an existing database already has.
 ///
@@ -31,7 +21,8 @@ typedef BeakDatabaseOpener =
 ///   ! orders.card_token looks like a secret and was omitted
 /// ```
 final class IntrospectCommand extends Command<int> {
-  /// Creates the command against [environment], connecting through [open].
+  /// Creates the command against [environment], reading the live schema
+  /// through [readSchema] (a real connection unless a test supplies one).
   IntrospectCommand(this.environment, {BeakLiveSchemaReader? readSchema})
     : _readSchema = readSchema ?? beakReadLiveSchema {
     argParser
@@ -166,42 +157,4 @@ final class IntrospectCommand extends Command<int> {
           table,
     ];
   }
-}
-
-/// Whether Beak can introspect the database [url] names.
-bool isIntrospectableUrl(Uri url) =>
-    const {'postgres', 'postgresql'}.contains(url.scheme);
-
-/// Connects to [url] and returns a reader over it, plus its closer.
-///
-/// The default [BeakDatabaseOpener]; tests pass their own so introspection
-/// can be exercised against canned rows.
-Future<(BeakSqlReader, Future<void> Function())> openPostgresConnection(
-  Uri url,
-) async {
-  final String? userInfo = url.userInfo.isEmpty ? null : url.userInfo;
-  final int separator = userInfo?.indexOf(':') ?? -1;
-  final adapter = PostgresAdapter(
-    pool: PostgresConnectionPool.fromConfig(
-      ConnectionConfig(
-        driver: 'postgres',
-        host: url.host,
-        port: url.hasPort ? url.port : 5432,
-        database: url.pathSegments.isEmpty
-            ? 'postgres'
-            : url.pathSegments.first,
-        username: userInfo == null
-            ? null
-            : Uri.decodeComponent(
-                separator < 0 ? userInfo : userInfo.substring(0, separator),
-              ),
-        password: userInfo == null || separator < 0
-            ? null
-            : Uri.decodeComponent(userInfo.substring(separator + 1)),
-        useSsl: url.queryParameters['sslmode'] == 'require',
-      ),
-    ),
-  );
-  await adapter.connect();
-  return ((String sql) => adapter.rawQuery(sql, const []), adapter.disconnect);
 }

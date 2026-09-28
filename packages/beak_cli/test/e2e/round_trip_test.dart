@@ -4,7 +4,7 @@ library;
 
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 import 'package:worm_postgres/worm_postgres.dart';
@@ -59,15 +59,13 @@ void main() {
     await rebuilt.disconnect();
   });
 
-  test(
-    'a schema survives introspect, generate, and migrate',
-    () async {
-      final project = Directory.systemTemp.createTempSync('beak_round_trip_');
-      addTearDown(() => project.deleteSync(recursive: true));
-      final Directory repoRoot = Directory.current.parent.parent;
-      // A real project: the generated entrypoints import `package:shop`, and
-      // the models import `package:beak`.
-      File('${project.path}/pubspec.yaml').writeAsStringSync('''
+  test('a schema survives introspect, generate, and migrate', () async {
+    final project = Directory.systemTemp.createTempSync('beak_round_trip_');
+    addTearDown(() => project.deleteSync(recursive: true));
+    final Directory repoRoot = Directory.current.parent.parent;
+    // A real project: the generated entrypoints import `package:shop`, and
+    // the models import `package:beak`.
+    File('${project.path}/pubspec.yaml').writeAsStringSync('''
 name: shop
 publish_to: none
 environment:
@@ -80,65 +78,74 @@ dependencies:
     sdk: flutter
 ''');
 
-      final environment = BeakCliEnvironment(
-        out: StringBuffer(),
-        rootDirectory: project,
-        now: () => DateTime.utc(2026, 7, 28, 12),
-        probe: (host, port) async => false,
-      );
+    final environment = BeakCliEnvironment(
+      out: StringBuffer(),
+      rootDirectory: project,
+      now: () => DateTime.utc(2026, 7, 28, 12),
+      probe: (host, port) async => false,
+    );
 
-      // 1. Read the schema out of the database that already had it.
-      final int? introspected = await createBeakRunner(
-        environment,
-      ).run(['introspect', databaseFor('origin').toString()]);
-      expect(introspected, 0);
+    // 1. Read the schema out of the database that already had it.
+    final int? introspected = await createBeakRunner(
+      environment,
+    ).run(['introspect', databaseFor('origin').toString()]);
+    expect(introspected, 0);
+    expect(
+      Directory(
+        '${project.path}/lib/models',
+      ).listSync().map((entity) => entity.uri.pathSegments.last),
+      containsAll(<String>['category.dart', 'product.dart']),
+    );
+
+    // 2. Adopt the tables. Introspection says another system owns their
+    // schema, which is true of the database they were read from; the
+    // rebuild is Beak's to create, so the classes take ownership first.
+    for (final file in Directory(
+      '${project.path}/lib/models',
+    ).listSync().whereType<File>()) {
+      // However the formatter laid the annotation out.
+      file.writeAsStringSync(
+        file.readAsStringSync().replaceAll(
+          RegExp(r'managesSchema: false,?\s*'),
+          '',
+        ),
+      );
+    }
+
+    // 3. Derive everything else from what was written, migrations included.
+    final BeakPrepareResult prepared = runPrepare(environment);
+    expect(prepared.isSuccess, isTrue, reason: '${prepared.discovery.issues}');
+
+    // 4. Apply them to a database that has nothing.
+    final ProcessResult pubGet = await Process.run('flutter', [
+      'pub',
+      'get',
+    ], workingDirectory: project.path);
+    expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}\n${pubGet.stderr}');
+    await _runMigrations(project, databaseFor('rebuilt'));
+
+    // 5. The two schemas must agree, in the detail that a query depends on.
+    final Map<String, List<_Column>> before = await _columns(origin);
+    final Map<String, List<_Column>> after = await _columns(rebuilt);
+
+    expect(after.keys, containsAll(before.keys));
+    for (final table in before.keys) {
       expect(
-        Directory(
-          '${project.path}/lib/models',
-        ).listSync().map((entity) => entity.uri.pathSegments.last),
-        containsAll(<String>['category.dart', 'product.dart']),
+        after[table],
+        before[table],
+        reason: 'the $table table came back different',
       );
+    }
 
-      // 2. Derive everything else from what was written, migrations included.
-      final BeakPrepareResult prepared = runPrepare(environment);
-      expect(
-        prepared.isSuccess,
-        isTrue,
-        reason: '${prepared.discovery.issues}',
-      );
-
-      // 3. Apply them to a database that has nothing.
-      final ProcessResult pubGet = await Process.run('flutter', [
-        'pub',
-        'get',
-      ], workingDirectory: project.path);
-      expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}\n${pubGet.stderr}');
-      await _runMigrations(project, databaseFor('rebuilt'));
-
-      // 4. The two schemas must agree, in the detail that a query depends on.
-      final Map<String, List<_Column>> before = await _columns(origin);
-      final Map<String, List<_Column>> after = await _columns(rebuilt);
-
-      expect(after.keys, containsAll(before.keys));
-      for (final table in before.keys) {
-        expect(
-          after[table],
-          before[table],
-          reason: 'the $table table came back different',
-        );
-      }
-
-      expect(
-        await _indexedColumns(rebuilt),
-        containsAll(await _indexedColumns(origin)),
-      );
-      expect(
-        await _foreignKeys(rebuilt),
-        containsAll(await _foreignKeys(origin)),
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
+    expect(
+      await _indexedColumns(rebuilt),
+      containsAll(await _indexedColumns(origin)),
+    );
+    expect(
+      await _foreignKeys(rebuilt),
+      containsAll(await _foreignKeys(origin)),
+    );
+  }, timeout: const Timeout(Duration(minutes: 6)));
 }
 
 /// One column, in the detail a rebuilt schema has to reproduce.

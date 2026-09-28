@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A schema over [table] declaring [fields].
@@ -186,6 +186,39 @@ void main() {
       );
 
       expect(source, contains("import '../models/product.dart'"));
+    });
+
+    test('imports a schema that lives in a resource folder', () {
+      // It stripped a leading `models/` and prefixed `../models/` again, so a
+      // schema under lib/resources/<feature>/models/ became
+      // `../models/resources/products/models/product.dart`, which is no file.
+      final BeakSchemaIr product = schemaWith('Product', 'products', [
+        'name',
+        'stock',
+      ]);
+      final source = emitFor(
+        schemas: [
+          BeakSchemaIr(
+            className: product.className,
+            table: product.table,
+            libraryPath: 'resources/products/models/product.dart',
+            columns: product.columns,
+            relations: product.relations,
+            displayColumnKey: product.displayColumnKey,
+            softDeletes: false,
+            timestamps: false,
+            managesSchema: true,
+          ),
+        ],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      );
+
+      expect(
+        source,
+        contains("import '../resources/products/models/product.dart'"),
+      );
     });
 
     test('is nothing at all when there is nothing to add', () {

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A schema class whose `stock` field is [required] or nullable.

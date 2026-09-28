@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
@@ -30,7 +31,7 @@ final class BeakSchemaReader {
   (List<BeakSchemaIr>, List<BeakDiscoveryIssue>) read() {
     final schemas = <BeakSchemaIr>[];
     final issues = <BeakDiscoveryIssue>[];
-    // Enums declared anywhere under lib/models/. An unresolved parse cannot
+    // Enums declared anywhere under lib/. An unresolved parse cannot
     // tell `ProductStatus` from `Uri` by name alone, so collect the real
     // declarations and treat anything else as an error the author can fix.
     final enums = <String>{};
@@ -117,6 +118,8 @@ final class BeakSchemaReader {
           managesSchema: schema.managesSchema,
           hasValidationRules: schema.hasValidationRules,
           hasBehavior: schema.hasBehavior,
+          hasPermissions: schema.hasPermissions,
+          hasCapabilities: schema.hasCapabilities,
           docComment: schema.docComment,
         ),
     ];
@@ -337,25 +340,28 @@ final class BeakSchemaReader {
         softDeletes: softDeletes,
         timestamps: timestamps,
         managesSchema: options['managesSchema'] != 'false',
-        hasValidationRules: declaration.members
-            .whereType<MethodDeclaration>()
-            .any(
-              (member) =>
-                  member.isStatic &&
-                  member.isGetter &&
-                  member.name.lexeme == 'validationRules',
-            ),
-        hasBehavior: declaration.members.whereType<MethodDeclaration>().any(
-          (member) =>
-              member.isStatic &&
-              member.isGetter &&
-              member.name.lexeme == 'behavior',
+        hasValidationRules: _declaresStaticGetter(
+          declaration,
+          'validationRules',
         ),
+        hasBehavior: _declaresStaticGetter(declaration, 'behavior'),
+        hasPermissions: _declaresStaticGetter(declaration, 'permissions'),
+        hasCapabilities: _declaresStaticGetter(declaration, 'capabilities'),
         docComment: _docCommentOf(declaration),
       ),
       issues,
     );
   }
+
+  /// Whether [declaration] has a `static get [name]`, which the generated
+  /// model forwards to so shared rules live on the schema class.
+  static bool _declaresStaticGetter(
+    ClassDeclaration declaration,
+    String name,
+  ) => declaration.members.whereType<MethodDeclaration>().any(
+    (member) =>
+        member.isStatic && member.isGetter && member.name.lexeme == name,
+  );
 
   /// Reads one field as a column, a relationship, or an issue.
   _FieldResult _readField({
@@ -487,6 +493,27 @@ final class BeakSchemaReader {
       );
     }
 
+    // Bounds used to be `@Column` options as well as rules, and the two
+    // disagreed: `maxLength:` sized the column without validating it. A rule
+    // is now the one place a bound is written, so the old spelling says
+    // which rule replaces it rather than failing inside the part file.
+    for (final (option, rule) in const [
+      ('maxLength', 'BeakMaxLength'),
+      ('min', 'BeakMin'),
+      ('max', 'BeakMax'),
+    ]) {
+      if (options[option] case final String value) {
+        return _FieldIssue(
+          BeakDiscoveryIssue(
+            path: 'lib/$path',
+            message:
+                '$className.$fieldName: @Column($option:) was removed. '
+                'Declare the bound as a rule instead: rules: [$rule($value)].',
+          ),
+        );
+      }
+    }
+
     // An option the kind cannot take would compile-error inside the part
     // file, which is a file the project is told never to edit. Name it here
     // instead, at the declaration that asked for it.
@@ -535,6 +562,7 @@ final class BeakSchemaReader {
       if (badges != null) 'badgeColors': _positionalArguments(badges).first,
       if (enumLabels != null) 'labels': _positionalArguments(enumLabels).first,
       if (kind == BeakColumnKind.enumeration) 'values': '$typeName.values',
+      ..._boundsOf(options['rules'], kind, typeName),
     };
 
     return _FieldColumn(
@@ -553,6 +581,46 @@ final class BeakSchemaReader {
     );
   }
 
+  /// The column sizing a field's [rules] imply, as column arguments.
+  ///
+  /// A bound is declared once, as a rule, and means the same thing in every
+  /// layer: `BeakMaxLength` on a `String` also sets the stored length, and
+  /// `BeakMin`/`BeakMax` on an `int` also bound the form's stepper. When a
+  /// list repeats a rule, the tightest bound wins, since that is the one a
+  /// value has to satisfy anyway. Anything that is not an integer literal is
+  /// left to validation alone.
+  static Map<String, String> _boundsOf(
+    String? rules,
+    BeakColumnKind kind,
+    String typeName,
+  ) {
+    if (rules == null) {
+      return const {};
+    }
+    List<int> valuesOf(String rule) => [
+      for (final match in RegExp(
+        '\\b$rule\\(\\s*(-?\\d+)\\s*\\)',
+      ).allMatches(rules))
+        int.parse(match.group(1)!),
+    ];
+    int? tightest(List<int> values, int Function(int, int) pick) =>
+        values.isEmpty ? null : values.reduce(pick);
+
+    return switch ((kind, typeName)) {
+      (BeakColumnKind.string, 'String') => {
+        if (tightest(valuesOf('BeakMaxLength'), math.min) case final int length)
+          'maxLength': '$length',
+      },
+      (BeakColumnKind.integer, 'int') => {
+        if (tightest(valuesOf('BeakMin'), math.max) case final int min)
+          'min': '$min',
+        if (tightest(valuesOf('BeakMax'), math.min) case final int max)
+          'max': '$max',
+      },
+      _ => const {},
+    };
+  }
+
   /// Whether `@Column`'s [option] means anything for a [kind] column.
   ///
   /// Everything not listed here is shared by every kind.
@@ -563,8 +631,7 @@ final class BeakSchemaReader {
           BeakColumnKind.decimal,
         }.contains(kind),
         'precision' || 'totalDigits' => kind == BeakColumnKind.decimal,
-        'min' || 'max' => kind == BeakColumnKind.integer,
-        'maxLength' || 'placeholder' => kind == BeakColumnKind.string,
+        'placeholder' => kind == BeakColumnKind.string,
         'format' => kind == BeakColumnKind.dateTime,
         'trueLabel' || 'falseLabel' => kind == BeakColumnKind.boolean,
         'defaultValue' => true,
@@ -576,8 +643,7 @@ final class BeakSchemaReader {
     'prefix' || 'suffix' => 'Units belong on a number column.',
     'precision' => 'Decimal places belong on a `double` field.',
     'totalDigits' => 'A stored width belongs on a `double` field.',
-    'min' || 'max' => 'Bounds belong on an `int` field; use rules otherwise.',
-    'maxLength' || 'placeholder' => 'That belongs on a `String` field.',
+    'placeholder' => 'That belongs on a `String` field.',
     'format' => 'A date format belongs on a `DateTime` field.',
     'trueLabel' || 'falseLabel' => 'State labels belong on a `bool` field.',
     'defaultValue' => 'A default must match the declared field type.',
@@ -613,12 +679,25 @@ final class BeakSchemaReader {
     }
 
     final Map<String, String> options = _namedArguments(annotation);
+    final String? searchOn = options['searchOn'];
+    if (searchOn != null && RegExp('[\'"]').hasMatch(searchOn)) {
+      final symbols = _stringList(searchOn).map(_camelCaseOf).map((f) => '#$f');
+      return _FieldIssue(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className.$fieldName: searchOn takes the related schema\'s '
+              'fields as symbols, not column keys as strings. Write '
+              'searchOn: [${symbols.join(', ')}].',
+        ),
+      );
+    }
     return _FieldRelation(
       BeakRelationIr(
         fieldName: fieldName,
         key: fieldName,
         label: _unquote(options['label']) ?? titleCaseOf(fieldName),
-        searchOn: _stringList(options['searchOn']),
+        searchOn: _symbolList(searchOn),
         kind: kind,
         relatedSchema: related,
         foreignKey:
@@ -655,16 +734,25 @@ final class BeakSchemaReader {
     );
   }
 
-  /// The strings of a `['a', 'b']` literal, or empty.
-  static List<String> _stringList(String? source) {
+  /// The strings of a `['a', 'b']` literal.
+  static List<String> _stringList(String source) => [
+    for (final match in RegExp('[\'"]([^\'"]*)[\'"]').allMatches(source))
+      match.group(1)!,
+  ];
+
+  /// The names of a `[#a, #b]` symbol list, or empty.
+  static List<String> _symbolList(String? source) {
     if (source == null) {
       return const [];
     }
     return [
-      for (final match in RegExp(r"'([^']*)'").allMatches(source))
-        match.group(1)!,
+      for (final match in RegExp(r'#(\w+)').allMatches(source)) match.group(1)!,
     ];
   }
+
+  /// `first_name` -> `firstName`, for the hint that replaces a column key.
+  static String _camelCaseOf(String snake) =>
+      snake.replaceAllMapped(RegExp('_([a-z0-9])'), (m) => m[1]!.toUpperCase());
 
   /// The conventional foreign key for [kind].
   String? _defaultForeignKey({
@@ -700,14 +788,15 @@ final class BeakSchemaReader {
           );
           continue;
         }
-        // `searchOn` is the one place a schema class names a column of
-        // another table by key. Checking it here is what keeps that from
-        // being a string that can be quietly wrong.
-        final Set<String> keys = {
-          for (final column in related.columns) column.columnKey,
+        // `searchOn` is the one place a schema class names a field of
+        // another schema. A symbol is not checked by the compiler, so it is
+        // checked here, like `currencyFrom`: a typo is an error at the
+        // declaration rather than a picker that quietly finds nothing.
+        final Set<String> fields = {
+          for (final column in related.columns) column.fieldName,
         };
-        for (final key in relation.searchOn) {
-          if (keys.contains(key)) {
+        for (final field in relation.searchOn) {
+          if (fields.contains(field)) {
             continue;
           }
           issues.add(
@@ -715,8 +804,8 @@ final class BeakSchemaReader {
               path: 'lib/${schema.libraryPath}',
               message:
                   '${schema.className}.${relation.fieldName} searches '
-                  '"$key", which ${related.className} has no column for. '
-                  'Its columns are: ${(keys.toList()..sort()).join(', ')}.',
+                  '#$field, which is not a field of ${related.className}. '
+                  'Its fields are: ${(fields.toList()..sort()).join(', ')}.',
             ),
           );
         }

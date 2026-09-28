@@ -61,7 +61,7 @@ final class Order extends BeakSchema {
 
   /// The customer placing the order.
   @BelongsTo(
-    searchOn: ['email', 'first_name', 'last_name'],
+    searchOn: [#email, #firstName, #lastName],
     inverse: false,
     onDelete: BeakOnDelete.restrict,
   )

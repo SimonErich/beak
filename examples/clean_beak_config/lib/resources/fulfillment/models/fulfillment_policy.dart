@@ -8,7 +8,7 @@ part 'fulfillment_policy.beak.dart';
 final class FulfillmentPolicy extends BeakSchema {
   /// Friendly policy title.
   @Display()
-  @Column(searchable: true, maxLength: 120)
+  @Column(searchable: true, rules: [BeakMaxLength(120)])
   late final String name;
 
   /// Stable unique URL-safe identifier.
@@ -61,7 +61,11 @@ final class FulfillmentPolicy extends BeakSchema {
   late final double? maximumWeight;
 
   /// Maximum accepted attachment length in bytes.
-  @Column(semantic: BeakSemantic.fileSize(), min: 0, defaultValue: 10485760)
+  @Column(
+    semantic: BeakSemantic.fileSize(),
+    rules: [BeakMin(0)],
+    defaultValue: 10485760,
+  )
   late final int attachmentLimit;
 
   /// First business day to apply this policy; never shifts with timezone.

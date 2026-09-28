@@ -12,11 +12,15 @@ import '../schema/beak_schema_reader.dart';
 
 /// Regenerates the wiring a Beak project needs, from what it declares.
 ///
-/// This is the command that makes entrypoints disappear. It scans
-/// `lib/models/`, `lib/screens/`, `lib/migrations/` and `lib/seeders/`, reads
-/// `beak.yaml`, and writes the registry, the panel config, the app widget, the
-/// server host, and the three entrypoints — so a project contains only the
-/// declarations that are actually its own.
+/// This is the command that makes entrypoints disappear. It reads every
+/// schema class under `lib/` and writes its `.beak.dart` part, finds the
+/// models and `BeakResource` classes anywhere under `lib/`, the screens under
+/// `lib/screens/`, the migrations and seeders, reads `beak.yaml`, and writes
+/// the registry, the panel config, the app widget, the server host, and the
+/// three entrypoints, so a project contains only the declarations that are
+/// actually its own. An entrypoint without the generated header belongs to
+/// the project and is left alone: that is how an authored `lib/main.dart`,
+/// the one `beak eject main` writes, stays authored.
 ///
 /// Idempotent: a file whose contents are unchanged is not rewritten, which is
 /// what keeps `beak dev` from thrashing Flutter's file watcher.
@@ -32,7 +36,8 @@ final class PrepareCommand extends Command<int> {
 
   @override
   String get description =>
-      'Regenerate the Beak wiring from lib/models, lib/screens and beak.yaml.';
+      'Regenerate the Beak wiring from the schema classes, resource classes, '
+      'screens and beak.yaml.';
 
   @override
   Future<int> run() async => runPrepare(environment).exitCode;

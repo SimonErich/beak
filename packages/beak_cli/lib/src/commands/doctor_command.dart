@@ -196,10 +196,11 @@ Future<List<BeakCheck>> diagnose(
           ? BeakCheckStatus.warn
           : BeakCheckStatus.ok,
       label: discovery.models.isEmpty
-          ? 'no models found under lib/models/'
+          ? 'no models found under lib/'
           : 'discovered ${discovery.summary}',
       remedy: discovery.models.isEmpty
-          ? 'add a BeakModel subclass under lib/models/'
+          ? 'run `beak make:resource <Name>`, which writes a schema class '
+                'under lib/resources/<plural>/models/'
           : null,
     ),
   );

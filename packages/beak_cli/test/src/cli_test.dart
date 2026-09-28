@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -80,7 +80,7 @@ void main() {
       ]);
 
       expect(code, 0);
-      final String source = read('lib/models/widget.dart');
+      final String source = read('lib/resources/widgets/models/widget.dart');
       expect(source, contains('@Resource(timestamps: true)'));
       expect(source, contains('final class Widget extends BeakSchema'));
       expect(source, contains("part 'widget.beak.dart';"));
@@ -109,7 +109,9 @@ void main() {
       await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
 
       expect(
-        File('${root.path}/lib/models/widget.beak.dart').existsSync(),
+        File(
+          '${root.path}/lib/resources/widgets/models/widget.beak.dart',
+        ).existsSync(),
         isTrue,
       );
       expect(
@@ -131,9 +133,71 @@ void main() {
     test('with no fields it scaffolds a display column to edit', () async {
       await runner.run(['make:resource', 'Widget']);
 
-      final String source = read('lib/models/widget.dart');
+      final String source = read('lib/resources/widgets/models/widget.dart');
       expect(source, contains('@Display()'));
       expect(source, contains('late final String name;'));
+    });
+
+    test('writes a resource class beside the schema folder', () async {
+      await runner.run([
+        'make:resource',
+        'OrderItem',
+        '--fields',
+        'sku:string!',
+      ]);
+
+      final String source = read(
+        'lib/resources/order_items/order_item_resource.dart',
+      );
+      expect(
+        source,
+        contains('final class OrderItemResource extends BeakResource'),
+      );
+      expect(source, contains("import 'models/order_item.dart';"));
+      expect(source, contains('model: const OrderItemModel()'));
+      expect(source, contains('`beak prepare` finds this class'));
+    });
+
+    test('prepare picks the class up for the generated panel', () async {
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      expect(read('lib/beak/panel.g.dart'), contains('WidgetResource()'));
+      expect(out.toString(), contains('1 resource class'));
+    });
+
+    test('in an authored project, prints the line to register it', () async {
+      File('${root.path}/lib/main.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('void main() {}\n');
+
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      final String printed = out.toString();
+      expect(printed, contains('lib/main.dart'));
+      expect(
+        printed,
+        contains("import 'resources/widgets/widget_resource.dart';"),
+      );
+      expect(printed, contains('WidgetResource(),'));
+      final String source = read('lib/resources/widgets/widget_resource.dart');
+      expect(source, contains('`resources: [...]` list in `lib/main.dart`'));
+      expect(source, isNot(contains('`beak prepare` finds this class')));
+    });
+
+    test('a generated entrypoint needs no registration hint', () async {
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      expect(out.toString(), isNot(contains('BeakPanel(resources:')));
+    });
+
+    test('refuses to overwrite a schema that already exists', () async {
+      File('${root.path}/lib/resources/widgets/models/widget.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('// mine\n');
+
+      expect(await runner.run(['make:resource', 'Widget']), 1);
+      expect(read('lib/resources/widgets/models/widget.dart'), '// mine\n');
+      expect(out.toString(), contains('already exists'));
     });
   });
 

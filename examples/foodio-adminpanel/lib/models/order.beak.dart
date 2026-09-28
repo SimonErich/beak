@@ -28,6 +28,7 @@ abstract final class OrderColumns {
     label: 'Number',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Series.
@@ -277,6 +278,7 @@ abstract final class OrderColumns {
     label: 'Delivery Note',
     rules: [BeakMaxLength(200)],
     defaultValue: '',
+    maxLength: 200,
   );
 
   /// Contact phone.
@@ -349,6 +351,8 @@ abstract final class OrderColumns {
     label: 'Voucher Rate Basis Points',
     rules: [BeakRequired(), BeakMin(0), BeakMax(10000)],
     defaultValue: 0,
+    min: 0,
+    max: 10000,
   );
 
   /// Captured voucher cap; null means unlimited.
@@ -446,6 +450,7 @@ abstract final class OrderColumns {
     label: 'Budget Amount Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Subtotal cents.
@@ -454,6 +459,7 @@ abstract final class OrderColumns {
     label: 'Subtotal Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Voucher discount cents.
@@ -462,6 +468,7 @@ abstract final class OrderColumns {
     label: 'Voucher Discount Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Manual discount cents.
@@ -470,6 +477,7 @@ abstract final class OrderColumns {
     label: 'Manual Discount Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Discount cents.
@@ -478,6 +486,7 @@ abstract final class OrderColumns {
     label: 'Discount Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Gross cents.
@@ -487,6 +496,7 @@ abstract final class OrderColumns {
     rules: [BeakRequired(), BeakMin(0)],
     sortable: true,
     defaultValue: 0,
+    min: 0,
   );
 
   /// Net cents.
@@ -495,6 +505,7 @@ abstract final class OrderColumns {
     label: 'Net Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Tax cents.
@@ -503,6 +514,7 @@ abstract final class OrderColumns {
     label: 'Tax Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Food tax cents.
@@ -511,6 +523,7 @@ abstract final class OrderColumns {
     label: 'Food Tax Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Drink tax cents.
@@ -519,6 +532,7 @@ abstract final class OrderColumns {
     label: 'Drink Tax Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Item count.
@@ -528,6 +542,7 @@ abstract final class OrderColumns {
     rules: [BeakRequired(), BeakMin(0)],
     sortable: true,
     defaultValue: 0,
+    min: 0,
   );
 
   /// Payment link.

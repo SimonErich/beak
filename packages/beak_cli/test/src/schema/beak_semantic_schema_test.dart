@@ -1,4 +1,4 @@
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 import 'beak_schema_test.dart' show readSchemas;

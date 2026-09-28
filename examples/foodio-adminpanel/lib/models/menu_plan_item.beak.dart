@@ -37,6 +37,7 @@ abstract final class MenuPlanItemColumns {
     label: 'Position',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Foreign key backing [menuPlan].

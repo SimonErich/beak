@@ -1,4 +1,4 @@
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A schema over [table] with one string column, plus any [relations].

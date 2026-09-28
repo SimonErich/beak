@@ -1,13 +1,16 @@
-/// The source `beak make:*` scaffolds.
+/// The source `beak make:resource`, `beak eject resource` and `beak create`
+/// scaffold.
 ///
-/// One template: the annotated schema class. Everything downstream of it —
-/// the typed columns, the model, both sides of every relationship, the typed
-/// record view and the migration — is derived by `beak prepare` from that one
-/// declaration, so `--fields` is written exactly once and has nowhere to
-/// drift out of step.
+/// Two templates. The annotated schema class is the one declaration a
+/// resource's data comes from: the typed columns, the model, both sides of
+/// every relationship, the typed record view and the migration are derived
+/// by `beak prepare` from it, so `--fields` is written exactly once and has
+/// nowhere to drift out of step. The `BeakResource` class beside it is how
+/// the panel presents that model, and is the project's to edit.
 library;
 
 import 'field_spec.dart';
+import 'project/beak_emitters.dart';
 
 /// Returns the Dart source of the `@Resource` schema class for
 /// [resourceName].
@@ -93,4 +96,70 @@ String _authoringTypeOf(BeakFieldKind kind) => switch (kind) {
 String _labelOf(BeakFieldSpec field) {
   final String spaced = field.name.replaceAll('_', ' ');
   return '${spaced[0].toUpperCase()}${spaced.substring(1)}';
+}
+
+/// Returns the Dart source of a `BeakResource` subclass named [className],
+/// configuring the model [modelClass] that [modelImport] declares.
+///
+/// The class has a `const` zero-argument constructor, which is what lets the
+/// generated panel find and build it. [icon], [title] and [navigationGroup]
+/// seed it with the presentation `beak.yaml` gave the model's default
+/// resource, so taking the resource over changes nothing on screen until the
+/// first edit. [icon] names an `OiIcons` member and falls back to the
+/// generated default, `table`.
+///
+/// [authored] is for a project whose `lib/main.dart` it owns: nothing is
+/// generated around the class there, so its doc comment says it shows up
+/// once the entrypoint's `resources: [...]` lists it, rather than that
+/// `beak prepare` swaps it in for a generated default.
+///
+/// ```dart
+/// final source = generateResourceClass(
+///   className: 'ProductResource',
+///   modelClass: 'ProductModel',
+///   modelImport: 'models/product.dart',
+///   table: 'products',
+/// );
+/// // source declares `final class ProductResource extends BeakResource`.
+/// ```
+String generateResourceClass({
+  required String className,
+  required String modelClass,
+  required String modelImport,
+  required String table,
+  String? icon,
+  String? title,
+  String? navigationGroup,
+  bool authored = false,
+}) {
+  final String words = table.replaceAll('_', ' ');
+  final arguments = <String>[
+    'model: const $modelClass()',
+    'icon: const BeakIconToken(OiIcons.${icon ?? 'table'})',
+    if (title != null) "title: '${BeakEmitters.escape(title)}'",
+    if (navigationGroup != null)
+      "navigationGroup: '${BeakEmitters.escape(navigationGroup)}'",
+  ];
+  final String howItIsShown = authored
+      ? '''
+/// The panel shows it once the `resources: [...]` list in `lib/main.dart`
+/// includes it, and every `BeakResource` option set here shows up there.'''
+      : '''
+/// `beak prepare` finds this class and uses it in place of the default
+/// resource for $words, so every `BeakResource` option set here shows up in
+/// the panel. Every other resource stays as Beak generates it.''';
+  return """
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+
+import '$modelImport';
+
+/// How the panel presents $words: its table, filters, actions and pages.
+///
+$howItIsShown
+final class $className extends BeakResource {
+  /// Creates the $words resource.
+  const $className() : super(${arguments.join(', ')});
+}
+""";
 }

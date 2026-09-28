@@ -1,12 +1,13 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
-import 'commands/eject_command.dart';
 import 'commands/doctor_command.dart';
+import 'commands/eject_command.dart';
 import 'commands/introspect_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
@@ -17,6 +18,7 @@ import 'schema/beak_drift_migration_emitter.dart';
 import 'schema/beak_schema_drift.dart';
 import 'schema/beak_schema_reader.dart';
 import 'templates.dart';
+import 'version.dart';
 
 /// A TCP reachability probe over a host and port.
 ///
@@ -168,10 +170,7 @@ final class BeakCliEnvironment {
 /// ]) ?? 0;
 /// ```
 CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
-    CommandRunner<int>(
-        'beak',
-        'Beak — scaffold, generate, and diagnose admin panels.',
-      )
+    _BeakCommandRunner(environment)
       ..addCommand(CreateCommand(environment))
       ..addCommand(PrepareCommand(environment))
       ..addCommand(DevCommand(environment))
@@ -182,6 +181,30 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(MakeResourceCommand(environment))
       ..addCommand(MakeMigrationCommand(environment))
       ..addCommand(DoctorCommand(environment));
+
+/// The `beak` runner: the commands, plus the top-level `--version` flag.
+final class _BeakCommandRunner extends CommandRunner<int> {
+  _BeakCommandRunner(this.environment)
+    : super('beak', 'Beak: scaffold, generate, and diagnose admin panels.') {
+    argParser.addFlag(
+      'version',
+      help: 'Print the beak version and exit.',
+      negatable: false,
+    );
+  }
+
+  /// Where `--version` prints.
+  final BeakCliEnvironment environment;
+
+  @override
+  Future<int?> runCommand(ArgResults topLevelResults) async {
+    if (topLevelResults.flag('version')) {
+      environment.out.writeln('beak $beakCliVersion');
+      return 0;
+    }
+    return super.runCommand(topLevelResults);
+  }
+}
 
 /// Shared argument handling of the `make:*` commands.
 abstract base class _MakeCommand extends Command<int> {
@@ -226,13 +249,17 @@ abstract base class _MakeCommand extends Command<int> {
 
 /// The `beak make:resource Name --fields ...` command.
 ///
-/// Writes one file under [BeakCliEnvironment.rootDirectory] — the annotated
-/// schema class at `lib/models/<snake>.dart` — and then runs `beak prepare`,
-/// which derives the columns, the model, both sides of every relationship,
-/// the panel wiring and the create-table migration from it. `--fields` is
-/// written once, so there is no second place for the field list to drift out
-/// of step. Registered on the runner by [createBeakRunner]; run it rather
-/// than constructing it directly.
+/// Writes two files under [BeakCliEnvironment.rootDirectory], in the feature
+/// folder of the resource's table: the annotated schema class at
+/// `lib/resources/<plural>/models/<snake>.dart`, and the `BeakResource` class
+/// presenting it at `lib/resources/<plural>/<snake>_resource.dart`. Then it
+/// runs `beak prepare`, which derives the columns, the model, both sides of
+/// every relationship, the panel wiring and the create-table migration from
+/// the schema. `--fields` is written once, so there is no second place for
+/// the field list to drift out of step. In a project whose `lib/main.dart`
+/// is authored, it prints the line that registers the new class there.
+/// Registered on the runner by [createBeakRunner]; run it rather than
+/// constructing it directly.
 ///
 /// ```console
 /// $ beak make:resource Product \
@@ -246,19 +273,51 @@ final class MakeResourceCommand extends _MakeCommand {
   String get name => 'make:resource';
 
   @override
-  String get description => 'Scaffold a resource: one annotated schema class.';
+  String get description =>
+      'Scaffold a resource: its schema class and its resource class.';
 
   @override
   Future<int> run() async {
     final String resource = resourceName();
-    // One file, and `--fields` written once. `prepare` derives the columns,
-    // the model, both sides of every relationship and the migration from it —
-    // so there is no second place for the field list to drift out of step.
-    environment.writeFile(
-      'lib/models/${snakeCaseOf(resource)}.dart',
-      generateSchemaClass(resource, fields()),
+    final String snake = snakeCaseOf(resource);
+    final String table = tableNameOf(resource);
+    final String folder = 'lib/resources/$table';
+    final String schemaPath = '$folder/models/$snake.dart';
+    final String resourcePath = '$folder/${snake}_resource.dart';
+    final bool authored = EjectCommand.isAuthoredEntrypoint(
+      environment.rootDirectory,
     );
-    return runPrepare(environment).exitCode;
+    for (final path in [schemaPath, resourcePath]) {
+      if (File(p.join(environment.rootDirectory.path, path)).existsSync()) {
+        environment.out.writeln(
+          '  $path already exists — pick another name, or edit it',
+        );
+        return 1;
+      }
+    }
+    environment
+      ..writeFile(schemaPath, generateSchemaClass(resource, fields()))
+      ..writeFile(
+        resourcePath,
+        generateResourceClass(
+          className: '${resource}Resource',
+          modelClass: '${resource}Model',
+          modelImport: 'models/$snake.dart',
+          table: table,
+          authored: authored,
+        ),
+      );
+    final int exitCode = runPrepare(environment).exitCode;
+    if (authored) {
+      // `prepare` never touches an authored entrypoint, so the class is not
+      // in the panel until someone adds it.
+      environment.out
+        ..writeln()
+        ..writeln('  lib/main.dart is yours; register the resource there:')
+        ..writeln("    import 'resources/$table/${snake}_resource.dart';")
+        ..writeln('    const ${resource}Resource(),  // in resources: [...]');
+    }
+    return exitCode;
   }
 }
 

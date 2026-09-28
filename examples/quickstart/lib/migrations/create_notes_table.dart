@@ -1,6 +1,6 @@
 import 'package:beak/migrations.dart';
 
-import '../models/note.dart';
+import '../resources/notes/models/note.dart';
 
 /// Creates the notes table.
 ///

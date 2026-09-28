@@ -18,6 +18,7 @@ abstract final class ProfileColumns {
     label: 'Name',
     rules: [BeakRequired(), BeakMaxLength(120)],
     searchable: true,
+    maxLength: 120,
   );
 
   /// Delivery address for this profile.

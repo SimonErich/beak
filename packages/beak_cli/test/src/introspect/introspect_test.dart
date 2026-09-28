@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 import '../../support/fake_database.dart';
@@ -159,6 +159,25 @@ void main() {
       expect(source, contains('@Resource('));
       expect(source, contains('final class Product extends BeakSchema'));
       expect(source, contains("part 'product.beak.dart';"));
+    });
+
+    test('leaves the schema to the database it was read from', () {
+      // Without it, `beak prepare` wrote a create migration for every table
+      // the database already had, and `beak migrate` then failed on the
+      // first of them.
+      for (final file in files.values) {
+        if (file.contents.contains('extends BeakSchema')) {
+          expect(file.contents, contains('managesSchema: false'));
+        }
+      }
+      expect(files['products']!.contents, contains('managesSchema: false'));
+    });
+
+    test('a length becomes a rule, and the rule sizes the column', () {
+      // One declaration: `BeakMaxLength` validates and sizes the VARCHAR.
+      final source = files['categories']!.contents;
+      expect(source, contains('BeakMaxLength(60)'));
+      expect(source, isNot(contains('maxLength: 60')));
     });
 
     test('carries soft deletes and timestamps onto the annotation', () {

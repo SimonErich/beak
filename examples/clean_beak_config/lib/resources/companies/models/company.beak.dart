@@ -18,6 +18,7 @@ abstract final class CompanyColumns {
     label: 'Name',
     rules: [BeakRequired(), BeakMaxLength(120)],
     searchable: true,
+    maxLength: 120,
   );
 
   /// Every column, in declaration order.

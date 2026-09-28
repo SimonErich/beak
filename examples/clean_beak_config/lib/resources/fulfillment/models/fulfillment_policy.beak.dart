@@ -16,7 +16,7 @@ abstract final class FulfillmentPolicyColumns {
   static const BeakStringColumn name = BeakStringColumn(
     key: 'name',
     label: 'Name',
-    rules: [BeakRequired()],
+    rules: [BeakRequired(), BeakMaxLength(120)],
     searchable: true,
     maxLength: 120,
   );
@@ -97,10 +97,10 @@ abstract final class FulfillmentPolicyColumns {
   static const BeakIntColumn attachmentLimit = BeakIntColumn(
     key: 'attachment_limit',
     label: 'Attachment Limit',
-    rules: [BeakRequired()],
+    rules: [BeakRequired(), BeakMin(0)],
     semantic: BeakSemantic.fileSize(),
-    min: 0,
     defaultValue: 10485760,
+    min: 0,
   );
 
   /// First business day to apply this policy; never shifts with timezone.

@@ -27,6 +27,7 @@ abstract final class OrderItemOptionColumns {
     label: 'Unit Price Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Allergens.

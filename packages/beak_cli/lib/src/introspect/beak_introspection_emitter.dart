@@ -144,6 +144,9 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln()
       ..writeln('/// The ${table.name} resource, read from the database.')
       ..writeln('@Resource(');
+    // The table exists already, and something else created it. Owning its
+    // schema would have `beak prepare` write a create migration for it.
+    buffer.writeln('  managesSchema: false,');
     if (table.name != tableNameOf(className)) {
       buffer.writeln("  table: '${table.name}',");
     }
@@ -278,7 +281,6 @@ abstract final class BeakIntrospectionEmitter {
       'filterable: true',
     if (column.isIndexed && !column.isUnique) 'indexed: true',
     if (column.isUnique) 'unique: true',
-    if (_lengthOf(column) case final int length) 'maxLength: $length',
     ..._numericWidthOf(column),
     if (_extraRulesOf(column) case final String rules) 'rules: [$rules]',
   ];

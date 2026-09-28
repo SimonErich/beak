@@ -37,6 +37,8 @@ abstract final class DeliverySlotColumns {
     label: 'Start Minute',
     rules: [BeakRequired(), BeakMin(0), BeakMax(1439)],
     defaultValue: 0,
+    min: 0,
+    max: 1439,
   );
 
   /// End minute.
@@ -45,6 +47,8 @@ abstract final class DeliverySlotColumns {
     label: 'End Minute',
     rules: [BeakRequired(), BeakMin(1), BeakMax(1440)],
     defaultValue: 30,
+    min: 1,
+    max: 1440,
   );
 
   /// Capacity.
@@ -53,6 +57,7 @@ abstract final class DeliverySlotColumns {
     label: 'Capacity',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 120,
+    min: 0,
   );
 
   /// Reserved orders.
@@ -61,6 +66,7 @@ abstract final class DeliverySlotColumns {
     label: 'Reserved Orders',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Route code.

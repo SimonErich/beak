@@ -17,6 +17,7 @@ abstract final class InvoiceVoucherColumns {
     key: 'position',
     label: 'Position',
     rules: [BeakRequired(), BeakMin(0)],
+    min: 0,
   );
 
   /// Code captured when the invoice is saved.

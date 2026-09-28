@@ -40,6 +40,7 @@ abstract final class BudgetAccountColumns {
     label: 'Allowance Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 12000,
+    min: 0,
   );
 
   /// Reserved cents.
@@ -48,6 +49,7 @@ abstract final class BudgetAccountColumns {
     label: 'Reserved Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Spent cents.
@@ -56,6 +58,7 @@ abstract final class BudgetAccountColumns {
     label: 'Spent Cents',
     rules: [BeakRequired(), BeakMin(0)],
     defaultValue: 0,
+    min: 0,
   );
 
   /// Foreign key backing [profile].

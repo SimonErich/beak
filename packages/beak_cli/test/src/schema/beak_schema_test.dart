@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A project with [files] under `lib/models/`.
@@ -129,6 +129,40 @@ final class Ticket extends BeakSchema {
     final categorySource = BeakSchemaEmitter.emit(category, schemas);
     expect(categorySource, contains('BeakScalarField<String> get behavior'));
     expect(categorySource, isNot(contains('static final behavior =')));
+  });
+
+  test('permissions and capabilities declared on the schema are forwarded', () {
+    // They were reserved names the emitter never forwarded, so a schema class
+    // had no way to state who may do what with its own records.
+    final (schemas, issues) = readSchemas({
+      'category.dart': categorySchema,
+      'product.dart': productSchema.replaceFirst(
+        'late final String name;',
+        '''late final String name;
+  static BeakPermissions get permissions => const BeakPermissions.allowAll();
+  static Set<BeakOperation> get capabilities => const {BeakOperation.read};''',
+      ),
+    });
+    expect(issues, isEmpty);
+    final product = schemaNamed(schemas, 'Product');
+    final category = schemaNamed(schemas, 'Category');
+    expect(product.hasPermissions, isTrue);
+    expect(product.hasCapabilities, isTrue);
+    expect(category.hasPermissions, isFalse);
+    expect(category.hasCapabilities, isFalse);
+
+    final productSource = BeakSchemaEmitter.emit(product, schemas);
+    expect(
+      productSource,
+      contains('BeakPermissions get permissions => Product.permissions;'),
+    );
+    expect(
+      productSource,
+      contains('Set<BeakOperation> get capabilities => Product.capabilities;'),
+    );
+    final categorySource = BeakSchemaEmitter.emit(category, schemas);
+    expect(categorySource, isNot(contains('get permissions')));
+    expect(categorySource, isNot(contains('get capabilities')));
   });
 
   test(
@@ -668,6 +702,100 @@ final class Thing extends BeakSchema {
     });
   });
 
+  group('rules size the column', () {
+    const thing = """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  @Column(rules: [BeakMaxLength(120)])
+  late final String name;
+
+  @Column(rules: [BeakMin(1), BeakMax(99)])
+  late final int quantity;
+
+  @Column(rules: [BeakMin(0)])
+  late final double price;
+
+  @Column(rules: [BeakMaxLength(40), BeakMaxLength(12)])
+  late final String? code;
+}
+""";
+
+    late String emitted;
+
+    setUp(() {
+      final (schemas, issues) = readSchemas({'thing.dart': thing});
+      expect(issues, isEmpty);
+      emitted = BeakSchemaEmitter.emit(schemaNamed(schemas, 'Thing'), schemas);
+    });
+
+    String constantOf(String field) => emitted
+        .split('static const ')
+        .firstWhere((chunk) => chunk.contains(' $field = '));
+
+    test('BeakMaxLength validates and sets the stored length', () {
+      // `@Column(maxLength:)` sized the VARCHAR without validating, and the
+      // rule validated without sizing it. One declaration now does both.
+      expect(constantOf('name'), contains('BeakMaxLength(120)'));
+      expect(constantOf('name'), contains('maxLength: 120'));
+    });
+
+    test('BeakMin and BeakMax bound an int column', () {
+      expect(constantOf('quantity'), contains('min: 1'));
+      expect(constantOf('quantity'), contains('max: 99'));
+    });
+
+    test('a bound on a double validates but sizes nothing', () {
+      // A decimal column has no stepper bounds to lift into.
+      expect(constantOf('price'), contains('BeakMin(0)'));
+      expect(constantOf('price'), isNot(contains('min: 0')));
+    });
+
+    test('the tightest of several lengths wins', () {
+      expect(constantOf('code'), contains('maxLength: 12'));
+    });
+  });
+
+  group('removed @Column options', () {
+    for (final (option, rule) in [
+      ('maxLength: 5', 'BeakMaxLength(5)'),
+      ('min: 0', 'BeakMin(0)'),
+      ('max: 9', 'BeakMax(9)'),
+    ]) {
+      test('$option names the rule that replaces it', () {
+        final (_, issues) = readSchemas({
+          'thing.dart':
+              """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  late final String name;
+
+  @Column($option)
+  late final int count;
+}
+""",
+        });
+
+        expect(issues, hasLength(1));
+        expect(
+          issues.single.message,
+          allOf(contains('Thing.count'), contains('rules: [$rule]')),
+        );
+      });
+    }
+  });
+
   group('relationship labels and picker search', () {
     const files = {
       'user.dart': """
@@ -683,6 +811,8 @@ final class User extends BeakSchema {
 
   @Column(searchable: true)
   late final String email;
+
+  late final String? firstName;
 }
 """,
       'order.dart': """
@@ -698,7 +828,7 @@ final class Order extends BeakSchema {
   @Display()
   late final String reference;
 
-  @BelongsTo(label: 'Customer', searchOn: ['name', 'email'])
+  @BelongsTo(label: 'Customer', searchOn: [#name, #email, #firstName])
   late final User? user;
 }
 """,
@@ -729,14 +859,19 @@ final class Order extends BeakSchema {
         schemas,
       );
 
-      expect(emitted, contains("searchColumnKeys: ['name', 'email']"));
+      // Field symbols, resolved to the columns they name: `#firstName` is
+      // stored as `first_name`, which the author never had to spell.
+      expect(
+        emitted,
+        contains("searchColumnKeys: ['name', 'email', 'first_name']"),
+      );
     });
 
     test('searchOn defaults to the related display column', () {
       final (schemas, _) = readSchemas({
         ...files,
         'order.dart': files['order.dart']!.replaceAll(
-          "@BelongsTo(label: 'Customer', searchOn: ['name', 'email'])",
+          "@BelongsTo(label: 'Customer', searchOn: [#name, #email, #firstName])",
           '@BelongsTo()',
         ),
       });
@@ -748,25 +883,45 @@ final class Order extends BeakSchema {
       expect(emitted, contains("searchColumnKeys: ['name']"));
     });
 
-    test('a searchOn key the other table has not is named, with the list', () {
-      // The one place a schema class names another table's column by key, so
-      // it is the one place that has to be checked.
+    test(
+      'a searchOn field the other schema has not is named, with the list',
+      () {
+        // The one place a schema class names another schema's field, so it is
+        // the one place that has to be checked: a typo is an error at the
+        // declaration, not a picker that quietly finds nothing.
+        final (_, issues) = readSchemas({
+          ...files,
+          'order.dart': files['order.dart']!.replaceAll(
+            'searchOn: [#name, #email, #firstName]',
+            'searchOn: [#naem]',
+          ),
+        });
+
+        expect(issues, hasLength(1));
+        expect(
+          issues.single.message,
+          allOf(
+            contains('Order.user'),
+            contains('#naem'),
+            contains('email, firstName, id, name'),
+          ),
+        );
+      },
+    );
+
+    test('a searchOn written as strings says what it takes now', () {
       final (_, issues) = readSchemas({
         ...files,
         'order.dart': files['order.dart']!.replaceAll(
-          "searchOn: ['name', 'email']",
-          "searchOn: ['naem']",
+          'searchOn: [#name, #email, #firstName]',
+          "searchOn: ['email']",
         ),
       });
 
       expect(issues, hasLength(1));
       expect(
         issues.single.message,
-        allOf(
-          contains('Order.user'),
-          contains('"naem"'),
-          contains('email, id, name'),
-        ),
+        allOf(contains('Order.user'), contains('#email')),
       );
     });
   });
