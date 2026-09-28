@@ -65,7 +65,7 @@ void main() {
     },
   );
 
-  for (final width in [375.0, 1440.0]) {
+  for (final width in [375.0, 600.0, 1440.0]) {
     testWidgets(
       'custom operations fits $width pixels and refreshes committed receivables',
       (tester) async {

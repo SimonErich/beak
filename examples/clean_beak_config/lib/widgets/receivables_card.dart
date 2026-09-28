@@ -12,6 +12,12 @@ class ShopReceivablesCard extends HookWidget {
   /// Embeds the billing summary in any panel page or custom composition.
   const ShopReceivablesCard({super.key});
 
+  /// The narrowest card width at which every action fits at its label's width.
+  ///
+  /// A button never shrinks below its label, so on a narrower card the
+  /// actions stack at the card's width instead of wrapping past its edge.
+  static const _actionsRowMinWidthInPixels = 320.0;
+
   @override
   Widget build(BuildContext context) {
     final source = beakDependencies(context)<BeakDataSource>();
@@ -61,22 +67,35 @@ class ShopReceivablesCard extends HookWidget {
                   : 'Issued invoices awaiting payment. Drafts and cancelled documents are excluded.',
             ),
           ],
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              OiButton.secondary(
-                label: 'Review invoices',
-                onTap: () =>
-                    context.go(BeakRoutes.list(const InvoiceModel().table)),
-              ),
-              OiButton.ghost(
-                label: 'Refresh receivables',
-                onTap: snapshot.connectionState == ConnectionState.done
-                    ? () => attempt.value++
-                    : null,
-              ),
-            ],
+          // The card's own width decides, not the viewport's: beside a panel
+          // sidebar a card can be narrower than it is on a phone.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked =
+                  constraints.maxWidth < _actionsRowMinWidthInPixels;
+              final actions = [
+                OiButton.secondary(
+                  label: 'Review invoices',
+                  fullWidth: stacked,
+                  onTap: () =>
+                      context.go(BeakRoutes.list(const InvoiceModel().table)),
+                ),
+                OiButton.ghost(
+                  label: 'Refresh receivables',
+                  fullWidth: stacked,
+                  onTap: snapshot.connectionState == ConnectionState.done
+                      ? () => attempt.value++
+                      : null,
+                ),
+              ];
+              return stacked
+                  ? OiColumn(
+                      breakpoint: context.breakpoint,
+                      gap: const OiResponsive(8),
+                      children: actions,
+                    )
+                  : Wrap(spacing: 12, runSpacing: 8, children: actions);
+            },
           ),
         ],
       ),

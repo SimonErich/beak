@@ -1,5 +1,4 @@
 import 'package:beak/migrations.dart';
-import 'package:worm_sqlite/worm_sqlite.dart';
 
 import '../resources/products/models/product.dart';
 import '../resources/orders/models/order_item.dart';
@@ -23,34 +22,26 @@ final class ExpandShopCatalog extends Migration {
       OnDelete onDelete = OnDelete.setNull,
     }) async {
       if (existing[tableName]?.contains(column.key) ?? false) return;
-      if (target != null && schema.adapter is SqliteAdapter) {
-        // SQLite supports a nullable inline reference when adding a column,
-        // although it cannot add a stand-alone constraint to an existing table.
-        final action = onDelete == OnDelete.restrict ? 'RESTRICT' : 'SET NULL';
-        await schema.adapter.rawExecute(
-          'ALTER TABLE "$tableName" ADD COLUMN "${column.key}" TEXT REFERENCES "$target" ("id") ON DELETE $action',
-          [],
+      // A reference declared in the same alter as its column is additive on
+      // every database, SQLite included: it becomes the new column's inline
+      // REFERENCES clause, so no table is rebuilt and no row is replaced.
+      await schema.alter(tableName, (table) {
+        BeakBlueprint.defineColumn(
+          table,
+          column,
+          isForeignKey: target != null,
+          columnDefaults: const {'active': true},
         );
-        await schema.alter(tableName, (table) => table.index([column.key]));
-      } else {
-        await schema.alter(tableName, (table) {
-          BeakBlueprint.defineColumn(
-            table,
-            column,
-            isForeignKey: target != null,
-            columnDefaults: const {'active': true},
+        if (target != null) {
+          table.index([column.key]);
+          table.foreign(
+            column: column.key,
+            references: 'id',
+            onTable: target,
+            onDelete: onDelete,
           );
-          if (target != null) {
-            table.index([column.key]);
-            table.foreign(
-              column: column.key,
-              references: 'id',
-              onTable: target,
-              onDelete: onDelete,
-            );
-          }
-        });
-      }
+        }
+      });
     }
 
     await add('orders', OrderColumns.status);

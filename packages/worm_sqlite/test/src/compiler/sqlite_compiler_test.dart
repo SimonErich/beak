@@ -8,6 +8,12 @@ PredicateTree _leaf({
   Object? value,
 }) => LeafNode(Predicate(fieldName: field, operator: op, value: value));
 
+const _brandReference = 'REFERENCES "brands" ("id") ON DELETE SET NULL';
+
+const _namedBrandReference =
+    'ALTER TABLE "products" ADD COLUMN "brand_id" TEXT CONSTRAINT '
+    '"products_brand_fk" REFERENCES "brands" ("id") ON DELETE RESTRICT';
+
 void main() {
   const compiler = SqliteCompiler();
 
@@ -304,6 +310,128 @@ void main() {
             referencedColumns: <String>['id'],
           ),
         ),
+      ], contains('only be declared in CREATE TABLE'));
+    });
+
+    test('adds a column with its foreign key as one inline reference', () {
+      // SQLite cannot attach a constraint to a column that already exists,
+      // but ADD COLUMN accepts a REFERENCES clause for the column it adds:
+      // the additive way to relate an existing table, with no rebuild.
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaAddColumn(
+            SchemaColumn(
+              name: 'brand_id',
+              type: ColumnType.uuid,
+              nullable: true,
+            ),
+          ),
+          SchemaAddForeignKey(
+            SchemaForeignKey(
+              columns: <String>['brand_id'],
+              referencedTable: 'brands',
+              referencedColumns: <String>['id'],
+              onDelete: OnDelete.setNull,
+            ),
+          ),
+          SchemaAddIndex(
+            SchemaIndex(
+              name: 'products_brand_id_idx',
+              columns: <String>['brand_id'],
+            ),
+          ),
+        ]),
+        <String>[
+          'ALTER TABLE "products" ADD COLUMN "brand_id" TEXT $_brandReference',
+          'CREATE INDEX "products_brand_id_idx" ON "products" ("brand_id")',
+        ],
+      );
+    });
+
+    test('keeps the name of a foreign key it inlines', () {
+      expect(
+        sqlFor(const <SchemaAlteration>[
+          SchemaAddForeignKey(
+            SchemaForeignKey(
+              name: 'products_brand_fk',
+              columns: <String>['brand_id'],
+              referencedTable: 'brands',
+              referencedColumns: <String>['id'],
+              onDelete: OnDelete.restrict,
+            ),
+          ),
+          SchemaAddColumn(
+            SchemaColumn(
+              name: 'brand_id',
+              type: ColumnType.uuid,
+              nullable: true,
+            ),
+          ),
+        ]),
+        <String>[_namedBrandReference],
+      );
+    });
+
+    test('refuses a reference on an added column with a non-null default', () {
+      // With foreign keys enforced, SQLite rejects the ADD COLUMN outright:
+      // every existing row would point at the default.
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddColumn(
+          SchemaColumn(
+            name: 'brand_id',
+            type: ColumnType.uuid,
+            nullable: true,
+            defaultValue: 'house',
+          ),
+        ),
+        SchemaAddForeignKey(
+          SchemaForeignKey(
+            columns: <String>['brand_id'],
+            referencedTable: 'brands',
+            referencedColumns: <String>['id'],
+          ),
+        ),
+      ], contains('default of NULL'));
+    });
+
+    test('refuses a composite foreign key even over added columns', () {
+      // An inline REFERENCES names one column; a composite key is a table
+      // constraint, which only CREATE TABLE can declare.
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddColumn(
+          SchemaColumn(name: 'brand_id', type: ColumnType.uuid, nullable: true),
+        ),
+        SchemaAddColumn(
+          SchemaColumn(name: 'region', type: ColumnType.string, nullable: true),
+        ),
+        SchemaAddForeignKey(
+          SchemaForeignKey(
+            columns: <String>['brand_id', 'region'],
+            referencedTable: 'brands',
+            referencedColumns: <String>['id', 'region'],
+          ),
+        ),
+      ], contains('only be declared in CREATE TABLE'));
+    });
+
+    test('refuses a reference whose parent columns do not match', () {
+      expectRefused(const <SchemaAlteration>[
+        SchemaAddColumn(
+          SchemaColumn(name: 'brand_id', type: ColumnType.uuid, nullable: true),
+        ),
+        SchemaAddForeignKey(
+          SchemaForeignKey(
+            columns: <String>['brand_id'],
+            referencedTable: 'brands',
+            referencedColumns: <String>['id', 'region'],
+          ),
+        ),
+      ], contains('only be declared in CREATE TABLE'));
+    });
+
+    test('refuses dropping a foreign key', () {
+      expectRefused(const <SchemaAlteration>[
+        SchemaDropForeignKey('products_brand_fk'),
       ], contains('only be declared in CREATE TABLE'));
     });
 

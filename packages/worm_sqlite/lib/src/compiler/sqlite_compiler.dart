@@ -184,14 +184,53 @@ final class SqliteCompiler {
       SchemaOperation.truncate => <SqliteCompileResult>[
         SqliteCompileResult(sql: 'DELETE FROM $table'),
       ],
-      SchemaOperation.alter => <SqliteCompileResult>[
-        for (final alteration in descriptor.alterations)
-          SqliteCompileResult(
-            sql: _alterSql(alteration, table, descriptor.table),
-          ),
-      ],
+      SchemaOperation.alter => _compileAlter(descriptor, table),
     };
   }
+
+  /// The statements an alter compiles to, one per alteration.
+  ///
+  /// A foreign key over exactly one column the same alter adds is not a
+  /// statement of its own: it becomes that column's inline `REFERENCES`
+  /// clause. SQLite accepts a reference on `ADD COLUMN`; what it cannot do is
+  /// attach a constraint to a column that already exists, which [_alterSql]
+  /// still refuses.
+  List<SqliteCompileResult> _compileAlter(
+    SchemaDescriptor descriptor,
+    String table,
+  ) {
+    final added = <String>{
+      for (final alteration in descriptor.alterations)
+        if (alteration case SchemaAddColumn(:final column)) column.name,
+    };
+    final references = <String, SchemaForeignKey>{
+      for (final alteration in descriptor.alterations)
+        if (alteration case SchemaAddForeignKey(:final foreignKey))
+          if (foreignKey case SchemaForeignKey(
+            columns: [final column],
+            referencedColumns: [_],
+          ) when added.contains(column))
+            column: foreignKey,
+    };
+    return <SqliteCompileResult>[
+      for (final alteration in descriptor.alterations)
+        if (!_isInlined(alteration, references))
+          SqliteCompileResult(
+            sql: _alterSql(alteration, table, descriptor.table, references),
+          ),
+    ];
+  }
+
+  /// Whether [alteration] is a foreign key carried by the column it names.
+  bool _isInlined(
+    SchemaAlteration alteration,
+    Map<String, SchemaForeignKey> references,
+  ) => switch (alteration) {
+    SchemaAddForeignKey(:final foreignKey) => references.values.any(
+      (inlined) => identical(inlined, foreignKey),
+    ),
+    _ => false,
+  };
 
   /// The SQL one alteration compiles to.
   ///
@@ -201,7 +240,15 @@ final class SqliteCompiler {
   /// generated columns and custom collations that `introspectSchema` cannot
   /// see, so a migration that looked like it added a column would quietly
   /// destroy something else. A named refusal is better than a silent loss.
-  String _alterSql(SchemaAlteration alteration, String table, String rawTable) {
+  ///
+  /// [references] are the foreign keys [_compileAlter] folded into the
+  /// columns they name, keyed by column.
+  String _alterSql(
+    SchemaAlteration alteration,
+    String table,
+    String rawTable,
+    Map<String, SchemaForeignKey> references,
+  ) {
     switch (alteration) {
       case SchemaAddColumn(:final column, :final ifNotExists):
         if (ifNotExists) {
@@ -226,7 +273,22 @@ final class SqliteCompiler {
                 'make it nullable.',
           );
         }
-        return 'ALTER TABLE $table ADD COLUMN ${_columnDefinition(column)}';
+        final definition = _columnDefinition(column);
+        final reference = references[column.name];
+        if (reference == null) {
+          return 'ALTER TABLE $table ADD COLUMN $definition';
+        }
+        if (column.defaultValue != null) {
+          throw _unsupported(
+            'alter.addColumn.foreignKey',
+            'SQLite can only add a referencing column with a default of '
+                'NULL — every existing row would point at the default. Drop '
+                'the default of "${column.name}", or backfill it in a later '
+                'migration.',
+          );
+        }
+        return 'ALTER TABLE $table ADD COLUMN $definition '
+            '${_references(reference)}';
       case SchemaDropColumn(:final column, :final ifExists):
         if (ifExists) {
           throw _unsupported(
@@ -251,9 +313,10 @@ final class SqliteCompiler {
       case SchemaDropForeignKey():
         throw _unsupported(
           'alter.foreignKey',
-          'SQLite cannot add or drop a foreign key on an existing table; a '
-              'constraint can only be declared in CREATE TABLE. Rebuild the '
-              'table with adapter.rawExecute, or point DATABASE_URL at '
+          'SQLite cannot add or drop a foreign key on an existing column; a '
+              'constraint can only be declared in CREATE TABLE, or as the '
+              'reference of a single column added in the same alter. Rebuild '
+              'the table with adapter.rawExecute, or point DATABASE_URL at '
               'Postgres.',
         );
     }
@@ -326,14 +389,23 @@ final class SqliteCompiler {
 
   String _foreignKeyConstraint(SchemaForeignKey key) {
     final locals = key.columns.map(_quoteIdent).join(', ');
+    return _references(key, prefix: 'FOREIGN KEY ($locals) ');
+  }
+
+  /// The optionally named `REFERENCES … ON DELETE …` clause of [key], with
+  /// [prefix] between the name and the reference.
+  ///
+  /// Shared by the table constraint and the inline column reference, so the
+  /// two spellings of one foreign key cannot drift apart.
+  String _references(SchemaForeignKey key, {String prefix = ''}) {
     final remotes = key.referencedColumns.map(_quoteIdent).join(', ');
     final buffer = StringBuffer();
     if (key.name case final String name) {
       buffer.write('CONSTRAINT ${_quoteIdent(name)} ');
     }
     buffer
-      ..write('FOREIGN KEY ($locals) REFERENCES ')
-      ..write('${_quoteIdent(key.referencedTable)} ($remotes)')
+      ..write(prefix)
+      ..write('REFERENCES ${_quoteIdent(key.referencedTable)} ($remotes)')
       ..write(' ON DELETE ${_onDeleteSql(key.onDelete)}');
     return buffer.toString();
   }

@@ -7,7 +7,48 @@ import 'package:clean_beak_config/beak/registry.g.dart';
 import 'package:clean_beak_config/seeders/shop_seeder.dart';
 import 'package:test/test.dart';
 
+/// The catalog references the additive migration declares, as
+/// `table.column -> parent (on delete)`.
+const _catalogReferences = {
+  'products.category_id -> categories (SET NULL)',
+  'products.tax_rate_id -> tax_rates (SET NULL)',
+  'order_items.variant_id -> product_variants (RESTRICT)',
+  'order_items.tax_rate_id -> tax_rates (RESTRICT)',
+};
+
+/// Every foreign-key constraint SQLite enforces on the catalog tables.
+Future<Set<String>> _references(DatabaseAdapter adapter) async => {
+  for (final table in ['products', 'order_items'])
+    for (final key in await adapter.rawQuery(
+      'SELECT * FROM pragma_foreign_key_list(?)',
+      [table],
+    ))
+      '$table.${key['from']} -> ${key['table']} (${key['on_delete']})',
+};
+
 void main() {
+  test('a fresh database declares every catalog reference', () async {
+    final host = beakHost(
+      environment: const {
+        'DATABASE_URL': 'sqlite::memory:',
+        'BEAK_STORAGE_DRIVER': 'none',
+      },
+    );
+    final adapter = adapterFromUrl(host.config.databaseUrl);
+    await adapter.connect();
+    addTearDown(() async {
+      await adapter.disconnect();
+      await Worm.reset();
+    });
+
+    await MigrationRunner(
+      adapter: adapter,
+      migrations: host.migrations,
+    ).fresh();
+
+    expect(await _references(adapter), containsAll(_catalogReferences));
+  });
+
   test(
     'additive shop upgrade preserves legacy records and seeding preserves edits',
     () async {
@@ -75,6 +116,13 @@ void main() {
       );
       expect(schema['order_items'], containsAll(['variant_id', 'tax_rate_id']));
       expect(schema['product_variants'], contains('combination_key'));
+      expect(
+        await _references(adapter),
+        containsAll(_catalogReferences),
+        reason:
+            'An upgraded database enforces the same references as a '
+            'fresh one.',
+      );
       for (final model in beakModels) {
         for (final relation in model.relationships) {
           switch (relation) {

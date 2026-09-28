@@ -8,6 +8,7 @@
 library;
 
 import 'package:test/test.dart';
+import 'package:worm/src/exception/foreign_key_exception.dart';
 import 'package:worm/src/exception/unsupported_operation_exception.dart';
 import 'package:worm/src/query/insert_descriptor.dart';
 import 'package:worm/src/query/operator.dart';
@@ -16,6 +17,7 @@ import 'package:worm/src/query/predicate_tree.dart';
 import 'package:worm/src/query/query_descriptor.dart';
 import 'package:worm/src/query/schema_descriptor.dart';
 import 'package:worm/src/schema/column_type.dart';
+import 'package:worm/src/schema/on_delete.dart';
 import 'package:worm_sqlite/worm_sqlite.dart';
 
 void main() {
@@ -140,6 +142,90 @@ void main() {
     );
     final all = await adapter.select(const QueryDescriptor(table: 'products'));
     expect(all, hasLength(2));
+  });
+
+  test('a related column is added with a constraint SQLite enforces', () async {
+    await adapter.executeSchema(
+      const SchemaDescriptor.createTable(
+        table: 'brands',
+        columns: <SchemaColumn>[
+          SchemaColumn(name: 'id', type: ColumnType.uuid, isPrimaryKey: true),
+        ],
+      ),
+    );
+    await adapter.insert(
+      const InsertDescriptor(
+        table: 'brands',
+        values: <String, Object?>{'id': 'b1'},
+      ),
+    );
+    await adapter.insert(
+      const InsertDescriptor(
+        table: 'products',
+        values: <String, Object?>{'id': 'p1', 'name': 'Hammer'},
+      ),
+    );
+
+    await alter(const <SchemaAlteration>[
+      SchemaAddColumn(
+        SchemaColumn(name: 'brand_id', type: ColumnType.uuid, nullable: true),
+      ),
+      SchemaAddForeignKey(
+        SchemaForeignKey(
+          columns: <String>['brand_id'],
+          referencedTable: 'brands',
+          referencedColumns: <String>['id'],
+          onDelete: OnDelete.setNull,
+        ),
+      ),
+    ]);
+
+    final keys = await adapter.rawQuery(
+      "SELECT * FROM pragma_foreign_key_list('products')",
+      const <Object?>[],
+    );
+    expect(keys.single['table'], 'brands');
+    expect(keys.single['from'], 'brand_id');
+    expect(keys.single['on_delete'], 'SET NULL');
+    final existing = await adapter.select(
+      const QueryDescriptor(table: 'products'),
+    );
+    expect(existing.single['brand_id'], isNull);
+
+    await expectLater(
+      adapter.insert(
+        const InsertDescriptor(
+          table: 'products',
+          values: <String, Object?>{
+            'id': 'p2',
+            'name': 'Chisel',
+            'brand_id': 'missing',
+          },
+        ),
+      ),
+      throwsA(isA<ForeignKeyException>()),
+      reason: 'the reference is a constraint, not only a column',
+    );
+    await adapter.insert(
+      const InsertDescriptor(
+        table: 'products',
+        values: <String, Object?>{
+          'id': 'p3',
+          'name': 'Mallet',
+          'brand_id': 'b1',
+        },
+      ),
+    );
+    await adapter.rawExecute("DELETE FROM brands WHERE id = 'b1'", const []);
+    final mallet = await adapter.selectOne(
+      const QueryDescriptor(
+        table: 'products',
+        where: LeafNode(
+          Predicate(fieldName: 'id', operator: Operator.eq, value: 'p3'),
+        ),
+      ),
+    );
+    expect(mallet?['brand_id'], isNull);
   });
 
   test('an index can be added after the fact and is used', () async {

@@ -55,42 +55,42 @@ packages:
       path: "../../packages/beak"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.9.0"
   beak_backend:
     dependency: "direct overridden"
     description:
       path: "../../packages/beak_backend"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.9.0"
   beak_core:
     dependency: "direct overridden"
     description:
       path: "../../packages/beak_core"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.9.0"
   beak_frontend:
     dependency: "direct overridden"
     description:
       path: "../../packages/beak_frontend"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.9.0"
   beak_image:
     dependency: "direct overridden"
     description:
       path: "../../packages/beak_image"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.9.0"
   beak_test:
     dependency: "direct overridden"
     description:
       path: "../../packages/beak_test"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.9.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -1091,7 +1091,7 @@ packages:
     source: path
     version: "0.1.0"
   worm_sqlite:
-    dependency: "direct main"
+    dependency: transitive
     description:
       path: "../../packages/worm_sqlite"
       relative: true

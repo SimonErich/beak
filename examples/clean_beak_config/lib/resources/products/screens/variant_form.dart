@@ -23,7 +23,7 @@ BeakFormLayout variantForm({bool includeProduct = true}) => BeakFormLayout(
           children: [
             ProductVariantModel.price.inputCurrency(label: 'Net unit price'),
             ProductVariantModel.stock.inputNumber(label: 'Available units'),
-            ProductVariantModel.active.inputToggle(label: 'Available for sale'),
+            ProductVariantModel.active.inputToggle(label: 'For sale'),
           ],
         ),
       ],

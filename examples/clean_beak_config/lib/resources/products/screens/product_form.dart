@@ -42,9 +42,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                     ProductModel.taxRate.inputCombobox(
                       label: 'Default tax rate',
                     ),
-                    ProductModel.active.inputToggle(
-                      label: 'Available for sale',
-                    ),
+                    ProductModel.active.inputToggle(label: 'For sale'),
                   ],
                 ),
               ],
@@ -132,9 +130,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                   ],
                   advancedForm: BeakFormLayout(
                     children: [
-                      ProductVariantModel.active.inputToggle(
-                        label: 'Available for sale',
-                      ),
+                      ProductVariantModel.active.inputToggle(label: 'For sale'),
                       variantAttributes(),
                     ],
                   ),
