@@ -174,7 +174,8 @@ class BeakFormatPolicy {
   }
 
   /// Formats an absolute date using [datePattern].
-  String date(DateTime value, {String? pattern}) => _date(value, pattern ?? datePattern);
+  String date(DateTime value, {String? pattern}) =>
+      _date(value, pattern ?? datePattern);
 
   /// Formats an absolute date and time using [dateTimePattern].
   String dateTime(DateTime value) => _date(value, dateTimePattern);

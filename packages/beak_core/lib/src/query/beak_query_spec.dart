@@ -13,44 +13,36 @@ import '../common/json_support.dart';
 /// Beak's wire contract: a typed, losslessly JSON-serializable description
 /// of a query.
 ///
-/// The frontend composes a spec through the immutable copy-builders
-/// ([withFilter], [orderBy], [withRelation], [searching], [paginate]) using
-/// typed column and relationship constants — never key strings — and ships
-/// it as JSON; the backend decodes it with [fromJson] and translates it to
-/// the ORM's query builder. The spec references column and relation *keys*
-/// only, keeping it ORM-neutral.
+/// Application code starts a spec from its model — `const PostModel().query()`
+/// — and refines it through the immutable copy-builders ([withFilter],
+/// [orderBy], [withRelation], [searching], [paginate]) with the model's
+/// generated field references, never key strings. The frontend ships it as
+/// JSON; the backend decodes it with [fromJson] and translates it to the
+/// ORM's query builder. The spec references column and relation *keys* only,
+/// keeping it ORM-neutral.
 ///
 /// Each copy-builder returns a new spec, so they chain fluently and the
 /// original is never mutated:
 ///
 /// ```dart
-/// const status = BeakStringColumn(key: 'status', label: 'Status');
-/// const createdAt =
-///     BeakDateTimeColumn(key: 'created_at', label: 'Created at');
-/// const author = BeakBelongsTo(
-///   key: 'author',
-///   label: 'Author',
-///   relatedTable: 'users',
-///   displayColumnKey: 'name',
-///   foreignKey: 'author_id',
-/// );
-///
-/// final spec = const BeakQuerySpec(table: 'posts')
-///     .withRelation(author)
-///     .withFilter(BeakFieldFilter(
-///       column: status,
-///       operator: BeakOperator.eq,
-///       value: BeakValue.of('published'),
-///     ))
-///     .orderBy(createdAt, descending: true)
+/// final spec = const PostModel()
+///     .query(filter: PostModel.status.eq('published'))
+///     .withRelation(PostModel.author.relation)
+///     .orderBy(PostModel.createdAt.column, descending: true)
 ///     .paginate(page: 2, perPage: 50);
 ///
 /// // Ship it across the wire, then rebuild it losslessly on the backend.
 /// final BeakQuerySpec decoded = BeakQuerySpec.fromJson(spec.toJson());
 /// ```
+///
+/// The constructor, which takes the table's stored name, is the wire-level
+/// path for decoders and data-source adapters.
 @immutable
 final class BeakQuerySpec {
-  /// Creates a query over [table].
+  /// Creates a query over the table stored as [table].
+  ///
+  /// The wire-level constructor; application code calls `model.query()`,
+  /// which fills [table] in from the model.
   const BeakQuerySpec({
     required this.table,
     this.filter,

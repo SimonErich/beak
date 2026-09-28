@@ -13,71 +13,84 @@ together.
 
 `beak_core` is pure Dart with no ORM, HTTP-server, or Flutter dependency — it
 is the shared vocabulary every other Beak package speaks. You declare a
-resource as an annotated `BeakSchema`, and the generator creates columns,
-`BeakModel` descriptors and typed field references. That definition drives
-table, form, detail, validation, filtering and export. The
-`BeakQuerySpec` wire contract travels losslessly as JSON between frontend and
-backend, while `BeakDataSource` is the source-agnostic seam (including the Worm and Serverpod adapters) and `BeakClient` is the thin typed REST transport underneath.
+resource once, as an annotated `BeakSchema` class, and `beak prepare`
+generates the rest: the typed columns, the `BeakModel` descriptor and a typed
+field reference per property. That one definition drives the table, form,
+detail view, validation, filtering and export. The `BeakQuerySpec` wire
+contract travels losslessly as JSON between frontend and backend,
+`BeakDataSource` is the source-agnostic seam (the Worm and Serverpod adapters
+implement it), and `BeakClient` is the thin typed REST transport underneath.
+
+Applications reach it through the `beak` umbrella package:
+`package:beak/beak.dart` re-exports this package's barrel, and
+`package:beak/schema.dart` its annotations.
 
 ## Usage
 
-Most applications generate descriptors from schema annotations. The following
-is the lower-level equivalent for adapter or framework authors:
+Declare the resource as a schema class:
 
 ```dart
-import 'package:beak_core/beak_core.dart';
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
 
-abstract final class ProductColumns {
-  static const name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    searchable: true,
-    sortable: true,
-    rules: [BeakRequired(), BeakMaxLength(255)],
-  );
-  static const price = BeakDecimalColumn(
-    key: 'price',
-    label: 'Price',
-    prefix: '€',
-    filterable: true,
-    rules: [BeakRequired(), BeakMin(0)],
-  );
+part 'product.beak.dart';
 
-  static const List<BeakColumn> values = [name, price];
-}
+@Resource()
+final class Product extends BeakSchema {
+  /// What the product is called.
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(255)])
+  late final String name;
 
-final class ProductModel extends BeakModel {
-  const ProductModel();
+  /// Net unit price in euros.
+  @Column(prefix: '€', sortable: true, rules: [BeakMin(0)])
+  late final double price;
 
-  @override
-  String get table => 'products';
-  @override
-  String get displayColumnKey => 'name';
-  @override
-  List<BeakColumn> get columns => ProductColumns.values;
+  /// Whether the product can be sold.
+  @Column(defaultValue: true)
+  late final bool active;
 }
 ```
 
-Compose a query with the immutable copy-builders and ship it as JSON:
+Run `beak prepare`. It writes `product.beak.dart` next to the schema, with
+`ProductModel` and its typed field references (`ProductModel.name`,
+`ProductModel.price`, `ProductModel.active`). Queries start from the model, so
+no table or column name is ever typed as a string:
 
 ```dart
-final spec = const BeakQuerySpec(table: 'products')
-    .withFilter(BeakFieldFilter(
-      column: ProductColumns.price,
-      operator: BeakOperator.gte,
-      value: BeakValue.of(10),
-    ))
-    .orderBy(ProductColumns.name)
+final spec = const ProductModel()
+    .query(
+      filter: BeakFilter.allOf([
+        ProductModel.active.eq(true),
+        ProductModel.price.gte(10),
+      ]),
+    )
     .paginate(page: 1, perPage: 50);
 
 final decoded = BeakQuerySpec.fromJson(spec.toJson()); // lossless round-trip
 ```
+
+The model answers aggregates the same way, and a field reference reads its
+typed value back out of a loaded record:
+
+```dart
+final sellable = await source.aggregate(
+  const ProductModel().count(filter: ProductModel.active.eq(true)),
+);
+final page = await source.query(spec);
+final String firstName = ProductModel.name.require(page.items.first);
+```
+
+An adapter describing tables Beak does not generate can subclass `BeakModel`
+by hand; the generated part file is the reference for what to override.
 
 ## Key types
 
 - `BeakColumn` — sealed, `const`, define-once column (leaves: `BeakStringColumn`,
   `BeakDecimalColumn`, `BeakEnumColumn`, `BeakImageColumn`, …).
 - `BeakModel` — ORM-agnostic resource metadata: table, columns, relationships.
+- `BeakFieldRef` — the generated typed field references (`BeakScalarField`,
+  `BeakToOneField`, `BeakToManyField`) that build filters and read records.
 - `BeakQuerySpec` — the JSON-serializable query wire contract with copy-builders.
 - `BeakRelationship` — `BeakBelongsTo`, `BeakHasMany`, `BeakBelongsToMany`, …
 - `BeakRule` / `BeakRecordRule` — scalar, conditional, cross-field and collection validation.
@@ -92,8 +105,9 @@ final decoded = BeakQuerySpec.fromJson(spec.toJson()); // lossless round-trip
 ## Status
 
 Pre-1.0, part of the Beak monorepo. Consumed by the
-[canonical shop](../../examples/clean_beak_config). Contributions welcome — see
-[CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
+[canonical shop](../../examples/clean_beak_config) and the
+[foodio admin panel](../../examples/foodio-adminpanel). Contributions welcome —
+see [CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
 
 ## License
 

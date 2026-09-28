@@ -13,21 +13,33 @@ import '../query/beak_record.dart';
 /// records, `BeakConfigurationException` for unknown tables/relations) and
 /// never leak ORM types.
 ///
-/// ```dart
-/// // Query a page with a filter, eager-loading a relation.
-/// final page = await source.query(
-///   const BeakQuerySpec(
-///     table: 'products',
-///     relationLoads: [BeakRelationLoad('category')],
-///   ),
-/// );
-/// for (final record in page.items) {
-///   print(record['name']?.raw);
-/// }
+/// This is the wire-level seam, so it names a table by its stored name. Take
+/// that name, and every query, from the generated model and its field
+/// references rather than typing it:
 ///
-/// // Create, then attach tags through a to-many relation.
-/// final created = await source.create('products', newProduct);
-/// await source.attach('products', created['id']!.raw!, 'tags', [tagId]);
+/// ```dart
+/// const products = ProductModel();
+///
+/// // A page of sellable products, each with its category eagerly loaded.
+/// final page = await source.query(
+///   products
+///       .query(filter: ProductModel.active.eq(true))
+///       .withRelation(ProductModel.category.relation),
+/// );
+/// final names = [
+///   for (final record in page.items) ProductModel.name.require(record),
+/// ];
+///
+/// // Store a new product; the result carries database-assigned values.
+/// final created = await source.create(
+///   products.table,
+///   ProductModel.name.writeTo(const BeakRecord(values: {}), 'Espresso'),
+/// );
+///
+/// // How many products are on sale, counted by the source.
+/// final onSale = await source.aggregate(
+///   products.count(filter: ProductModel.active.eq(true)),
+/// );
 /// ```
 // --8<-- [start:BeakDataSource]
 abstract interface class BeakDataSource {

@@ -3,8 +3,8 @@
 /// Kept out of `package:beak/beak.dart` on purpose: `@Resource`, `@Column`
 /// and `@Image` are deliberately short names that would collide with Flutter's
 /// `Column` and `Image` widgets. A model file imports both libraries — this
-/// one for the annotations, the panel one for the types its generated part
-/// file names — and nothing else needs this at all.
+/// one for the annotations, `package:beak/beak.dart` for the types its
+/// generated part file names — and nothing else needs this at all.
 ///
 /// ```dart
 /// import 'package:beak/beak.dart';

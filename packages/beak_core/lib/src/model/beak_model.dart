@@ -27,35 +27,25 @@ import '../validation/beak_record_rule.dart';
 /// Persistence stays behind [BeakDataSource], so ORM-specific operations never
 /// leak into forms, tables or application screens.
 ///
-/// Subclass it once per resource, wiring up its columns, relationships, and
-/// delete semantics:
+/// `beak prepare` writes one subclass per `@Resource` schema class, named
+/// after it (`Product` becomes `ProductModel`), together with a typed field
+/// reference per property. Application code starts from those, so it never
+/// names a table or a column:
 ///
 /// ```dart
-/// final class ProductModel extends BeakModel {
-///   const ProductModel();
+/// const products = ProductModel();
 ///
-///   @override
-///   String get table => 'products';
-///
-///   @override
-///   String get displayColumnKey => 'name';
-///
-///   @override
-///   List<BeakColumn> get columns => ProductColumns.values;
-///
-///   @override
-///   List<BeakRelationship> get relationships => const [
-///     ProductRelations.category,
-///     ProductRelations.tags,
-///   ];
-///
-///   @override
-///   bool get softDeletes => true;
-/// }
+/// final sellable = products.query(filter: ProductModel.active.eq(true));
+/// final retired = products.count(filter: ProductModel.active.eq(false));
 /// ```
 ///
+/// Subclassing by hand is for an adapter describing tables Beak does not
+/// generate: override [table], [displayColumnKey] and [columns], plus
+/// [relationships] and [softDeletes] where the resource has them.
+///
 /// Register the instance in a [BeakModelRegistry] so the backend and frontend
-/// can resolve it by [table].
+/// can resolve it by [table]; the generated registry does this for every
+/// generated model.
 @immutable
 abstract base class BeakModel {
   /// Enables `const` construction by subclasses.
@@ -155,8 +145,10 @@ abstract base class BeakModel {
 
   /// A typed reference to this model's [table].
   ///
-  /// Hand this to any API that needs to name the table, so the name is
-  /// derived from the model instead of retyped as a string.
+  /// The same stored name as [table], wrapped as a value for code that passes
+  /// a table around. An API that takes a table name reads [table] instead,
+  /// and [query] and [count] need neither, so the name is always derived from
+  /// the model and never retyped as a string.
   BeakTableRef get ref => BeakTableRef.raw(table);
 
   /// A query over this model's table.
@@ -165,8 +157,8 @@ abstract base class BeakModel {
   /// here and no table string is ever written.
   ///
   /// ```dart
-  /// const ProductModel().query()
-  ///     .orderBy(ProductColumns.price, descending: true)
+  /// const ProductModel()
+  ///     .query(filter: ProductModel.active.eq(true))
   ///     .paginate(perPage: 10);
   /// ```
   ///

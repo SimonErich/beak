@@ -11,13 +11,20 @@
 /// declare an `OiAnnotationType` — one annotates an image, the other a chart
 /// axis — and a single re-export would make the name ambiguous for everyone.
 ///
+/// A screen's body is a block tree; a `BeakWidgetBlock` embeds obers_ui
+/// widgets where no declarative block fits:
+///
 /// ```dart
 /// import 'package:beak/panel.dart';
 /// import 'package:beak/ui.dart';
 ///
-/// final screen = BeakScreen(
+/// final welcome = BeakScreen(
 ///   path: '/welcome',
-///   builder: (context) => const OiCard(child: OiText('Hello')),
+///   title: 'Welcome',
+///   icon: const BeakIconToken(OiIcons.sparkles),
+///   body: BeakWidgetBlock(
+///     (context) => const OiCard(child: OiLabel.body('Hello')),
+///   ),
 /// );
 /// ```
 library;

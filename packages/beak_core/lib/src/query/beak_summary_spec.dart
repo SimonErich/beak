@@ -35,20 +35,22 @@ final class BeakSummaryMeasure {
 
   /// Strictly decodes a measure.
   factory BeakSummaryMeasure.fromJson(Map<String, Object?> json) {
-    final column = json['column'];
-    if (column != null && column is! String) {
-      throw const BeakConfigurationException(
+    final String? columnKey = switch (json['column']) {
+      null => null,
+      final String value => value,
+      _ => throw const BeakConfigurationException(
         'Summary column must be a string.',
-      );
-    }
+      ),
+    };
+    final Map<String, Object?>? filter = optionalJsonMap(
+      json,
+      'filter',
+      'BeakSummaryMeasure',
+    );
     return BeakSummaryMeasure.forKey(
       requireJsonString(json, 'key', 'BeakSummaryMeasure'),
-      columnKey: column as String?,
-      filter: json['filter'] == null
-          ? null
-          : BeakFilter.fromJson(
-              requireJsonMap(json, 'filter', 'BeakSummaryMeasure'),
-            ),
+      columnKey: columnKey,
+      filter: filter == null ? null : BeakFilter.fromJson(filter),
     );
   }
 }
@@ -162,16 +164,18 @@ final class BeakSummarySpec {
   /// Decodes and bounds an untrusted request before execution.
   factory BeakSummarySpec.fromJson(Map<String, Object?> json) {
     final query = BeakQuerySpec.fromJson(json);
-    final group = json['groupBy'];
-    final limit = json['limit'] ?? 100;
-    if ((group != null && group is! String) || limit is! int) {
-      throw const BeakConfigurationException(
+    final (String? groupByKey, int limit) = switch ((
+      json['groupBy'],
+      json['limit'],
+    )) {
+      (final String? group, final int? limit) => (group, limit ?? 100),
+      _ => throw const BeakConfigurationException(
         'Invalid summary group or limit type.',
-      );
-    }
+      ),
+    };
     return BeakSummarySpec.forKeys(
       table: query.table,
-      groupByKey: group as String?,
+      groupByKey: groupByKey,
       measures: requireJsonMapList(
         json['measures'],
         'measures',
@@ -207,14 +211,20 @@ final class BeakSummaryRow {
   /// Strictly decodes this row.
   factory BeakSummaryRow.fromJson(Map<String, Object?> json) {
     final raw = requireJsonMap(json, 'values', 'BeakSummaryRow');
-    if (raw.values.any((value) => value is! num)) {
-      throw const BeakConfigurationException('Summary values must be numeric.');
-    }
+    final values = <String, num>{
+      for (final MapEntry(:key, :value) in raw.entries)
+        key: switch (value) {
+          final num number => number,
+          _ => throw const BeakConfigurationException(
+            'Summary values must be numeric.',
+          ),
+        },
+    };
     return BeakSummaryRow(
       group: BeakValue.fromJson(
         requireJsonKey(json, 'group', 'BeakSummaryRow'),
       ),
-      values: {for (final entry in raw.entries) entry.key: entry.value! as num},
+      values: values,
     );
   }
 }
