@@ -47,6 +47,23 @@ void main() {
         isEmpty,
       );
     });
+    test('reads dependencies only, not an executable named like a panel', () {
+      expect(
+        obersUiOverridesFor(
+          'name: beak_cli\n'
+          'executables:\n  beak: beak\n'
+          'dependencies:\n  beak_core:\n    path: ../beak_core\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        obersUiOverridesFor(
+          'executables:\n  beak: beak\n'
+          'dev_dependencies:\n  beak_frontend:\n    path: ../beak_frontend\n',
+        ),
+        obersUiPackagePaths.keys.toList(),
+      );
+    });
   });
   group('pub workspace roots', () {
     const root = '''

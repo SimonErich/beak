@@ -36,11 +36,35 @@ const String blockMarker = '# beak: linked obers_ui checkout';
 
 /// Returns the obers_ui package names [pubspecSource] declares as
 /// dependencies, in the order [obersUiPackagePaths] lists them.
-List<String> obersUiDependenciesOf(String pubspecSource) => [
-  for (final package in obersUiPackagePaths.keys)
-    if (RegExp('^  $package:\$', multiLine: true).hasMatch(pubspecSource))
-      package,
-];
+List<String> obersUiDependenciesOf(String pubspecSource) {
+  final String declared = _declaredDependenciesOf(pubspecSource);
+  return [
+    for (final package in obersUiPackagePaths.keys)
+      if (RegExp('^  $package:\$', multiLine: true).hasMatch(declared)) package,
+  ];
+}
+
+/// The lines under `dependencies:` and `dev_dependencies:` of
+/// [pubspecSource], so a key elsewhere (an `executables:` entry named
+/// `beak`, say) is never mistaken for a dependency.
+String _declaredDependenciesOf(String pubspecSource) {
+  final buffer = StringBuffer();
+  var inside = false;
+  for (final line in pubspecSource.split('\n')) {
+    final bool topLevel =
+        line.isNotEmpty && !line.startsWith(RegExp(r'[ \t#]'));
+    if (topLevel) {
+      inside =
+          line.trimRight() == 'dependencies:' ||
+          line.trimRight() == 'dev_dependencies:';
+      continue;
+    }
+    if (inside) {
+      buffer.writeln(line);
+    }
+  }
+  return buffer.toString();
+}
 
 /// Coordinated overrides needed at an executable's own dependency root.
 ///
@@ -51,7 +75,7 @@ List<String> obersUiOverridesFor(String pubspecSource) {
   final usesPanel = RegExp(
     r'^  (beak|beak_frontend|beak_serverpod_flutter):',
     multiLine: true,
-  ).hasMatch(pubspecSource);
+  ).hasMatch(_declaredDependenciesOf(pubspecSource));
   return usesPanel || obersUiDependenciesOf(pubspecSource).isNotEmpty
       ? obersUiPackagePaths.keys.toList()
       : const [];
