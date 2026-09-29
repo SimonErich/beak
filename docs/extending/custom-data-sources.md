@@ -17,7 +17,7 @@ Your schema classes, columns and queries describe what you want, never which dat
 | Where a source plugs in | How | What it replaces |
 | --- | --- | --- |
 | One model | `BeakModel.dataSource` returns it | That model's transport only. See [Model-owned transports](model-transports.md). |
-| The whole panel | `BeakPanel(dataSource: source)` | Every transport, bound models included. The parameter is documented as the test seam. |
+| The whole panel | `BeakPanel(dataSource: source)` | Every transport, bound models included. A test passes a fake here, and a host with its own transport passes it in production (the Serverpod admin does). |
 | The server | `BeakServer(dataSource: source)` | The worm source behind the generated REST API, with the limits in [Rules and limits](#rules-and-limits). |
 
 You implement the interface, and the layers above cannot tell your source from `WormDataSource` (backend), `HttpBeakDataSource` (panel), `ServerpodDataSource` or `InMemoryBeakDataSource` (in `package:beak/testing.dart`).

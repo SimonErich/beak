@@ -55,7 +55,7 @@ Every call passes through one wrapper. A `BeakException` goes through untouched.
 --8<-- "packages/beak_frontend/lib/src/data/model_beak_data_source.dart:run"
 ```
 
-The wrapper covers record reads, mutations, aggregates, uploads and edit-command loading. `mapException` sits on `BeakPanelConfig`, not on the `BeakPanel(...)` shorthand, so a panel that needs it is built with `BeakPanel(config: BeakPanelConfig(...))`.
+The wrapper covers record reads, mutations, aggregates, uploads and edit-command loading. `BeakPanel(mapException: ...)` takes the mapper directly, and a panel built from a `BeakPanelConfig` sets it there, because `config:` together with another everyday option throws.
 
 ### Which source method the panel calls
 

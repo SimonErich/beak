@@ -62,7 +62,7 @@ That is the shape of the suite call for `WormDataSource`; yours passes your own 
 
 Every panel call passes through one wrapper. A `BeakException` goes through untouched. Any other `Exception` goes to `BeakPanelConfig.mapException`, which returns a localized `BeakException` for the failures it recognises and `null` for the rest, so a programming error stays loud. The wrapper covers record reads, mutations, aggregates, uploads and edit-command loading.
 
-`mapException` lives on `BeakPanelConfig`, not on the `BeakPanel(...)` shorthand. A panel that needs it is built with `BeakPanel(config: BeakPanelConfig(...))`.
+`BeakPanel(mapException: ...)` takes the mapper directly. A panel built from a `BeakPanelConfig` sets it there instead, because `config:` together with another everyday option throws.
 
 ## Rules and limits
 

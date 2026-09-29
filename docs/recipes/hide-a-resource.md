@@ -51,7 +51,7 @@ The panel builds its list of known models from the resources you give it, plus e
 ## How it works
 
 - The panel's registry is `resources` plus, recursively, every model a resource's model lists in `relatedModels`. A `@BelongsTo` or `@HasMany` puts the far model there.
-- A hidden model that a visible one relates to is fully usable in forms. A hidden model that nothing relates to is unknown to the panel, and anything that needs it fails with `No model registered for table "audit_entries".` (a saved-view store is the usual way to hit that, see [A saved list view](a-saved-list-view.md)).
+- A hidden model that a visible one relates to is fully usable in forms. A hidden model that nothing relates to is unknown to the panel, and anything that needs it fails with `No model registered for table "audit_entries".` (the model of a list's saved-view store is the exception: the panel registers it itself, see [A saved list view](a-saved-list-view.md)).
 - The table, the migration and the REST API are untouched. `POST /api/order_items/query` answers as before. Hiding is not access control. To keep people out of the data, use a server policy, see [Auth and policies](../backend/auth-and-policies.md).
 - `hidden` removes the whole default resource, not only the sidebar entry. Open the hidden model's route by hand (`/tags`) and the panel shows its 404 page.
 - A model with a `BeakResource` class ignores `hidden`: a class you wrote is always shown. `beak eject resource <table>` refuses a table marked hidden.

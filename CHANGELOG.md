@@ -19,11 +19,14 @@ Three things to know before you read on:
   depend on obers_ui by git commit (`c956d25634c93e23847ec5a4150c1d62fe3a7c90`, in
   the `pubspec.yaml` of both). Any `melos bootstrap`, and any project that
   resolves Beak from git, needs that commit to exist on
-  `github.com/SimonErich/obers_ui`. It does, but it predates components
-  `beak_frontend` uses (`OiFilterChip`, `OiPageLayout`, `OiCapacityIndicator`,
-  `OiFieldLabel`, `OiIcon.raw` and more), so the pin resolves and the panel then
-  fails to compile. The obers_ui state that has them is not published. Until the
-  pin moves to it, work against a local checkout with
+  `github.com/SimonErich/obers_ui`. It does, but it lacks 175 classes,
+  parameters and theme fields in 14 files that `beak_frontend` calls
+  (`OiPageLayout`, `OiFilterChip`, `OiCapacityIndicator`, `OiFieldLabel`,
+  `OiIcon.raw` and more, listed under Known issues), so the pin resolves and the
+  panel then fails to compile. The obers_ui state that has them is not
+  published. The fix is to commit and push those obers_ui changes and move the
+  SHA in every pubspec that pins it (`test/obers_ui_pin_test.dart` keeps the
+  copies identical). Until then, work against a local checkout with
   `melos run link-obers-ui`, and go back to the pin with
   `melos run unlink-obers-ui`.
 - **Nothing is tagged yet.** A scaffold written by `beak create` pins
@@ -353,6 +356,8 @@ migration table at the end collects the common ones.
 - Composed resource lists with query presets, grouped filters, saved views and
   shared query state for tables, operational summaries and exports. Conditional
   count and sum measures share the base filter, search and authorization scope.
+  The filter drawer has a `Saved views` picker beside `Save as view`, and the
+  panel registers the saved-view model itself, so it needs no resource.
 - Resource filter bars default to compact chips that open their typed editor in a
   popover, with a clear action (`BeakFilterBarPresentation`).
 - Configurable filter choice layouts, columns, all-value labels and advanced
@@ -486,6 +491,29 @@ migration table at the end collects the common ones.
   Navigation count styling and distributed, keyboard-accessible pagination come
   from shared obers_ui theme options in the Foodio example.
 
+#### beak_frontend: the panel shell, overlays and blocks
+
+- `BeakPanel(mapException:, maintenance:)`: the shorthand takes both, so a panel
+  that maps host exceptions or shows a maintenance page no longer needs
+  `BeakPanel(config: BeakPanelConfig(...))`. `BeakMaintenanceConfig.redirectTo`
+  (a `BeakMaintenancePage`) sends every other route to `/maintenance` or
+  `/coming-soon`, signed-out visitors included, and the other page stays
+  reachable for a preview.
+- `BeakOverlays.ask` returns a `BeakConfirmResult` (`confirmed`, `cancelled`,
+  `dismissed`), so a caller can tell Cancel from Escape, and
+  `BeakOverlays.sheetWithResult<T>` returns the sheet's value. A toast takes
+  `duration`, `actionLabel` and `onAction`.
+- `filter:` on the kanban, calendar, chat, inbox, file manager, pricing and FAQ
+  blocks.
+- `useBeakTableCapabilities(source, table, {recordId})` gives a custom screen
+  the server's `canCreate` and `canDelete` for the account.
+  `ModelBeakDataSource.onUnauthorized` reports the failure of a dead session.
+- `BeakFormLayout.fromModel(surface:)`, and `inputCombobox` takes
+  `descriptionBuilder`, `dependencies` and `disabledReason`.
+- `architecture_guard_test.dart` in `beak_frontend` fails a `StatefulWidget`,
+  `State` or `StatefulElement` subclass in the `lib/` of `beak_frontend` and
+  `beak_serverpod_flutter`.
+
 ### Changed
 
 - **Breaking, `beak_frontend`: one way to configure a resource.** `BeakResource`
@@ -498,6 +526,30 @@ migration table at the end collects the common ones.
   typed `field:` instead of a column. `BeakPanel.fromConfig` is removed (the
   `config:` parameter stays); the form controller types are no longer exported;
   `TableViewModel` is `BeakTableViewModel`.
+- **Breaking, `beak_frontend`: the panel shorthand and its checks.**
+  `BeakPanel.title` and `apiBaseUrl` are nullable (`Beak`, and the
+  `BEAK_API_BASE_URL` define else `http://localhost:8080`). `config:` together
+  with any other everyday option (`dataSource:` and `httpClient:` excepted) now
+  throws a `BeakConfigurationException` when the panel builds, where the config
+  used to win silently. `BeakPanelConfig` throws at boot for a navigation item
+  that names no resource or page, an unknown action key in `rowActions` or
+  `bulkActions`, two filters on one field, and `register: true` or
+  `recover: true` without an adapter.
+- **Breaking, `beak_frontend`: overlays, actions and the show page.**
+  `BeakOverlays.sheet` returns `Future<void>` and has no type parameter; use
+  `sheetWithResult<T>` for a value. `BeakRecordAction` roles no longer include
+  `create` by default, because a create page has no saved record. The generated
+  show page lists the columns visible on `BeakContext.detail`, not the form's.
+- `beak_frontend`: the kanban, calendar, chat, inbox, file manager, pricing and
+  FAQ blocks read up to 200 rows (`BeakPagination.maxPerPage`), say beneath
+  themselves when the query matched more, and refetch after a write to their
+  table. Kanban and calendar moves save as a graph commit, so a `graphOnly`
+  model can be moved. A rejected commit is an `unapplied` receipt with the
+  reason `rejected`, and a 404 on recovery is `unapplied` with `notReceived`,
+  so the form is editable again. A 401 from any request ends the session and the
+  router lands on `/login`. The idle lock is no longer held back by a form with
+  unsaved edits, and it covers full-screen forms. Sign-in accepts a user name as well as an email
+  ("Username or email"), and a denied action reads "Sie" in German.
 - **Breaking, `beak_frontend` and `beak_core`: no string references.** Model
   actions are referenced by object (`submitAction`, `bulkModelActions`,
   `BeakActionPresentation.model`, `snapshot(onAction:)`), and server preparers ask
@@ -670,6 +722,9 @@ migration table at the end collects the common ones.
   `BeakResourceService`, `ValidationService` and `beakRowScope`.
 - `beak_cli`: the unused `BeakDatabaseOpener` typedef; `isIntrospectableUrl` and
   `openPostgresConnection` are private to the live-schema reader.
+- `beak_frontend`: the `StatefulWidget` behind the form error anchor, now a hook
+  widget, and the list toolbar's `showSelector: false`, which hid the saved-view
+  picker.
 - The tracked `.flutter-plugins-dependencies` under `packages/beak_frontend`, and
   the obsolete `/SUPERDASHBOARD_STATE.md` ignore entry.
 - `package:minio` and, with it, the `dependency_overrides: xml: ^7.0.1` that a
@@ -797,6 +852,17 @@ migration table at the end collects the common ones.
   has-many load included a soft-deleted related row; an image that declared a
   huge bitmap was decoded before its size was checked; a port already in use
   ended in a stack trace and now in one line that names `PORT`.
+- `beak_frontend`: `.formatted(currency)` on a money `BeakDecimal` threw. A
+  form with no table for a relationship it adds rows to threw a bare
+  `StateError` (now a `BeakConfigurationException` that names the form and the
+  relationship), a `deleteOwned` table over a relationship that is not an owned
+  has-many failed only when a row was removed (now when the form builds), and an
+  empty `BeakTabsBlock` threw a `RangeError` (now it draws nothing, and an
+  `initialIndex` past the last tab selects the last one). A refused delete shows the server's message, and a summary
+  with a null capacity no longer throws. Timeline, calendar and notification
+  rows without a date are left out instead of dated today. `showCounts` applies
+  in every presentation, `BeakFormSections.tabs` spacing is right, and `/403`
+  has a way out.
 - `beak_cli`: a field named like a member the generated model or its typed record
   view owns (`summary`, `record`), a non-unique `@Display`, a bare `@Image()` or
   `@FileField()` and an untyped `BeakScreen` produced generated code that did not
@@ -812,15 +878,49 @@ migration table at the end collects the common ones.
 
 These are open at 0.9.0. None is listed as fixed above.
 
-- A default `beak create` scaffold pins `ref: v0.9.0`, which does not exist until
-  the release is tagged (use `--beak-path` or `--beak-ref` until then).
-  `beak create --beak-path` and `beak init --beak-path` write the path into the
-  pubspec as given, so a relative path resolves from the new project.
+- **Release blocker: the obers_ui pin.** `c956d25` is fetchable but older than
+  the panel. It lacks, among 175 declarations in 14 files: `OiIcon.raw`,
+  `OiPageLayout` and its `padding`, `titleVariant`, `titleContent`, `subtitle`,
+  `actionAlignment`, `compact`, `inverse`, `onDismiss` and `showSelectAll`;
+  `OiWizardLayout`, `OiWizardStepPresentation` and the wizard `labelStyle`,
+  `timeline`, `stepDetails`, `completedColor`, `currentOutlined` and
+  `indicatorSize`; `OiDisclosure` and its `collapsed`, `onCollapsedChanged`,
+  `collapseLeading`, `headerGap`, `inlineTitle` and `trailing`; `OiAddAction`,
+  `OiFilterChip`, `OiFieldLabel`, `OiDatePreset`, `OiRadioTile.card`,
+  `OiRadioTileIndicator`, `OiCapacityIndicator`, `OiBarPattern`,
+  `OiLegendMarkerShape.hatched`, `OiHatchPlaceholder`, `OiSidebarHeader` and
+  `OiSearchTrigger`; the theme fields `OiTextInputThemeData.labelStyle` and
+  `labelGap`, `OiComponentThemes.radio`, `radioTile` and `appShell`,
+  `OiChartThemeData.centerValueStyle` and `OiNavigationRailThemeData.itemHeight`;
+  many input parameters (`showSteppers`, `placeholder`, `suffix`, `presets`,
+  `valueAtEnd`, `labelMarkerColor` and more), the app-shell parameters, table
+  `cellPadding` and `overflowIcon`, badge `counter`, `token`, `borderRadius`,
+  `foregroundColor`, `highlightQuery` and `showDot`, and `style:` on several
+  text widgets. The fix is to commit and push the obers_ui changes and bump the
+  SHA in every pubspec that pins it.
+- **Release blocker: no `v0.9.0` tag.** A default `beak create` scaffold pins
+  `ref: v0.9.0`, which does not exist until the release is tagged (use
+  `--beak-path` or `--beak-ref` until then). `beak create --beak-path` and
+  `beak init --beak-path` write the path into the pubspec as given, so a relative
+  path resolves from the new project.
 - The tracked lockfiles of `clean_beak_config`, `foodio-adminpanel` and
   `showcase` record a linked obers_ui (`path: "../../../obers_ui"`) until they are
   re-resolved against the pin. Run `melos run unlink-obers-ui` before you tag.
-- `BeakWizardScreen` silently ignores several `BeakFormScreen` parameters.
-- A composed list saves a view but shows no picker to load one.
+- An action a composed list leaves out of `rowActions` moves to column placement
+  without a warning (neither `beak_core` nor `beak_frontend` has a logger to
+  warn with), so forgetting `delete` removes the row's delete button silently.
+- The chat block dates a message with no time as now, because `OiChatMessage`
+  needs a timestamp.
+- A `BeakConfigurationException` thrown on the client before a commit is sent is
+  classified as an unknown outcome, not a rejection. A receipt recovered after a
+  lost response keeps the save mode `staged`.
+- With a custom `auth.adapter` the panel registers no `BeakClient` and no
+  `BeakSessionStore`, by design: every model then needs a data source of its own,
+  or the panel a `dataSource:`.
+- Hard-coded English strings remain in the panel (the list toolbar, the
+  saved-views dialog, the review dialogs, the import view, the upload buttons);
+  they are not in `BeakLocalizations`. The gaps table in the theming docs lists
+  them.
 - SQLite: `migrate:refresh` cannot roll back a belongs-to column made by a
   create-table migration (a table-level foreign key). Postgres can. The order of
   create-table migrations was proven on SQLite only.
@@ -842,8 +942,7 @@ These are open at 0.9.0. None is listed as fixed above.
   applies through `beak migrate` but not when `bin/migrate.dart` runs directly.
 - The Serverpod admin app path is a proof, not a product: it has no uploads, no
   drift check between `.spy.yaml` files and the Beak schema classes, and no tested
-  deployment. `BeakPanel(...)` has no `mapException`; the bridge's exception
-  mapping needs `BeakPanel(config: BeakPanelConfig(...))`.
+  deployment.
 
 ### Migrating
 

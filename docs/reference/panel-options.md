@@ -637,7 +637,7 @@ The shell header also carries the command search (Ctrl or Cmd plus K), which lis
 
 ## mapException
 
-`BeakPanelConfig.mapException` is `BeakException? Function(Exception exception, StackTrace stackTrace)?`. It exists on `BeakPanelConfig` only, so a panel that needs it is built with `BeakPanel(config: BeakPanelConfig(...))`. It is handed to the panel's data source and wraps every operation on it:
+`BeakPanelConfig.mapException` is `BeakException? Function(Exception exception, StackTrace stackTrace)?`. `BeakPanel(mapException: ...)` takes the same parameter; with `config:` it goes on the config, because `config:` together with another everyday option throws. It is handed to the panel's data source and wraps every operation on it:
 
 - A `BeakException` passes through unchanged and the mapper is not called.
 - Any other `Exception` goes to the mapper. A non-null result is thrown in its place, with the original stack trace.

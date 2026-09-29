@@ -41,7 +41,6 @@ const List<String> webUnsafePackagePrefixes = [
   'package:beak_backend',
   'package:beak_image',
   'package:beak_storage_',
-  'package:minio',
   'package:postgres',
   'package:shelf',
   'package:worm',

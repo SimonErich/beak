@@ -65,7 +65,7 @@ Dropping a card writes the new enum name into `groupField`. It does not renumber
 --8<-- "examples/showcase/lib/pages/data_blocks.dart:calendar"
 ```
 
-Every record becomes one event. `titleField` labels it, `startField` places it and `endField` closes it. Without an end the event ends where it starts, and a record with no start is placed at the current time. `allDayField` is a boolean column, and a `categoryField` that is an enum column tints each event with the badge color of its value. `mode` (`OiCalendarMode.day`, `week` or `month`) is the view it opens in, `month` by default.
+Every record becomes one event. `titleField` labels it, `startField` places it and `endField` closes it. Without an end the event ends where it starts, and a record with no start is left out, because it has no place on a calendar. `allDayField` is a boolean column, and a `categoryField` that is an enum column tints each event with the badge color of its value. `mode` (`OiCalendarMode.day`, `week` or `month`) is the view it opens in, `month` by default.
 
 Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`.
 
@@ -75,7 +75,7 @@ Tapping an event calls `onEventTap` with the record. Dragging one writes the new
 --8<-- "examples/showcase/lib/pages/data_blocks.dart:taskTimeline"
 ```
 
-The timeline takes a whole `BeakQuerySpec`, so it is the one block here where you choose the filter, the sort and the page size yourself. Events are sorted newest first by `timeField`. It is read-only.
+The timeline takes a whole `BeakQuerySpec`, so it is the one block here where you choose the filter, the sort and the page size yourself. Events are sorted newest first by `timeField`, and a record with no time is left out. It is read-only.
 
 ## Writing from a view
 
@@ -90,7 +90,7 @@ A transition that needs input, or a guard that has a name, still belongs in a mo
 
 | Rule | What happens |
 | --- | --- |
-| A block loads up to 200 records of its model | Pass `filter:` to narrow them. When more match, a line beneath the block says how many are shown. Row policies on the server narrow what arrives too |
+| A board or a calendar loads up to 200 records of its model | Pass `filter:` to narrow them. When more match, a line beneath the block says how many are shown. Row policies on the server narrow what arrives too |
 | Blocks load again after a write to their table | A board or a calendar queries again when a form, an action or another block writes its table. Only a colleague's write in another browser needs a `refreshPolicy` |
 | The group field belongs to the block's model | Related fields throw when the board renders |
 | Card and event text is the stored value | Enum columns show the enum name |
@@ -138,7 +138,8 @@ $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
 | `sortField` | `BeakColumn?` | `null` | Orders cards inside a column |
 | `sortDescending` | `bool` | `false` | Direction of `sortField` |
 | `label` | `String` | `Board` | Accessibility label |
-| `onCardMove` | `void Function(BeakRecord)?` | `null` | Called after a drop, whether or not the write worked |
+| `onCardMove` | `void Function(BeakRecord)?` | `null` | Called after a drop the server accepted; a refused drop does not call it |
+| `filter` | `BeakFilter?` | `null` | Narrows the records the board lists. It reads at most 200, and a note says when more match |
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart"
 --8<-- "packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart:BeakCalendarBlockConstructor"
@@ -155,7 +156,8 @@ $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
 | `mode` | `OiCalendarMode` | `month` | Opening view: `day`, `week` or `month` |
 | `label` | `String` | `Calendar` | Accessibility label |
 | `onEventTap` | `void Function(BeakRecord)?` | `null` | Called with the tapped event's record |
-| `onEventMove` | `void Function(BeakRecord, DateTime, DateTime)?` | `null` | Called after a drag, whether or not the write worked |
+| `onEventMove` | `void Function(BeakRecord, DateTime, DateTime)?` | `null` | Called after a drag the server accepted; a refused drag does not call it |
+| `filter` | `BeakFilter?` | `null` | Narrows the records the calendar lists. It reads at most 200, and a note says when more match |
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_timeline_block.dart"
 --8<-- "packages/beak_frontend/lib/src/blocks/beak_timeline_block.dart:BeakTimelineBlockConstructor"
@@ -165,7 +167,7 @@ $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
 | --- | --- | --- |
 | `query` | `BeakQuerySpec` | Produces one row per event |
 | `titleField` | `BeakColumn` | Event title |
-| `timeField` | `BeakColumn` | Event time. A record without one is placed in 2026 |
+| `timeField` | `BeakColumn` | Event time. A record without one is left out |
 
 Every block also takes `span`, its width in a grid. The remaining blocks are on [Data blocks](../blocks/data-blocks.md).
 

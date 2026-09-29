@@ -252,7 +252,7 @@ These are the imports that do not go through `package:beak`. An app rarely needs
   | --- | --- |
   | `dart:io`, `dart:ffi`, `dart:mirrors` | Do not work in a browser |
   | `package:beak_backend`, `package:beak_image`, `package:beak_storage_*` | Server-side Beak packages |
-  | `package:minio`, `package:postgres`, `package:shelf`, `package:worm` (and `worm_*`) | Server-side third-party packages |
+  | `package:postgres`, `package:shelf`, `package:worm` (and `worm_*`) | Server-side third-party packages |
 
 - **`beak doctor` runs the same rule on your project.** It follows the imports from the panel entrypoint (`lib/main.dart`, or `panel.entrypoint` in `beak.yaml`) and from `lib/beak/app.g.dart`, and fails on any file it reaches that imports `package:beak/server.dart` or `package:beak/migrations.dart`:
 

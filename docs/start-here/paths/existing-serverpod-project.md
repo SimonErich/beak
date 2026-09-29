@@ -70,7 +70,7 @@ Generated /home/me/consumer/lib/beak/entry_resources.g.dart
 2. [Endpoint conventions](../../serverpod/bridge/endpoint-conventions.md), to check that your endpoints fit the generator.
 3. [Generating bridge resources](../../serverpod/bridge/generator.md) or [Bridge resources](../../serverpod/bridge/resources.md), for the generated or the hand-written binding.
 
-Domain errors from your endpoints reach the panel only through `BeakPanel(config: BeakPanelConfig(mapException: ...))`; the `BeakPanel(...)` shorthand has no `mapException`.
+Domain errors from your endpoints reach the panel through `mapException`, which `BeakPanel(mapException: ...)` and `BeakPanelConfig(mapException: ...)` both take. With `config:` it goes on the config, because `config:` together with another everyday option throws.
 
 ## Sign-in for both
 

@@ -5,7 +5,7 @@ reference. Verify constructor fields against current source before writing an
 example. Public barrels and dartdoc are authoritative; paths below are
 workspace-relative.
 
-Version: pre-1.0 (`0.0.x`, shared line). Each barrel exports a `beak*Version`.
+Version: pre-1.0 (`0.9.0`, lockstep line). Each barrel exports a `beak*Version`.
 
 ---
 
@@ -142,7 +142,8 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 `BeakMaxFileSize(maxSizeInBytes)`.
 
 ### Search
-- `BeakSearchHit`: `table`, `id`, `displayLabel`, `matchedColumnKey`.
+- No search type. A search is `BeakQuerySpec.searching(term, fields)` sent to
+  `POST /api/{table}/query`; the panel's command bar uses `globalSearchSources`.
 
 ### Storage (`src/storage/`)
 - `BeakStorageDriver` (interface): `id`, `put`, `get`, `delete`, `url`, `exists`.
@@ -217,31 +218,31 @@ Pure Dart. No Flutter, no worm. The shared vocabulary both sides speak.
 The Flutter panel. Built on obers_ui / obers_ui_autoforms / obers_ui_charts.
 
 ### Panel/config (`src/panel/`)
-- `BeakPanel` accepts explicit resources and pages; `BeakPanel.fromConfig`
-  accepts generated or host-built configuration. Both support transport overrides.
+- `BeakPanel` accepts explicit `resources:` and the everyday options, or a
+  complete `config:` (a generated or host-built `BeakPanelConfig`), never both.
+  Both forms support the transport overrides `dataSource:` and `httpClient:`.
 - `BeakPanelConfig`: `{title, resources, apiBaseUrl, pages=[], auth?,
   maintenance?, theme?, darkTheme?, initialThemeMode=system, locale?,
   supportedLocales=BeakLocalizations.supportedLocales, localizationsDelegates=[],
-  sidebarCollapsible,
-  sidebarDefaultCollapsed, dashboardStats=[], dashboardCharts=[], notifications?}`;
+  sidebarCollapsible, sidebarDefaultCollapsed, formatting?, home?,
+  notifications?, navigation?, refreshPolicy?, shellActions?, mapException?}`;
   `buildRegistry()`.
-- `BeakResource`: `{model, icon (BeakIconToken), label?, section?,
-  recordActions=[], bulkActions=[], globalActions=[], filters=[],
-  viewModes=[BeakTableView()], detail?, screens=[]}`;
+- `BeakResource`: `{model, icon (BeakIconToken), title?, navigationTitle?,
+  navigationGroup?, navigationRank=0, screens=[], globalSearchSources=[],
+  recordActions=[], bulkActions=[], globalActions=[], filters=[], ...}`;
   `effectiveLabel`, `route`.
 - `BeakIconToken` (extension type over IconData).
-- `BeakScreen`: `{path, title, icon, body (BeakBlock), label?, section?,
-  showInNav=true, framed=true}`.
+- `BeakScreen`: `{path, title, icon, body (BeakBlock), navigationTitle?,
+  navigationGroup?, showInNav=true, framed=true}`.
 - `BeakAuthConfig`: `{adapter?, register=false, recover=false,
   idleLockTimeout?, lockUserName?, onUnlock?}` (unlock callbacks return
   `Future<bool>`).
 - `BeakMaintenanceConfig`: `{maintenanceTitle, maintenanceDescription?,
-  estimatedReturn?, comingSoonTitle, comingSoonDescription?, launchAt?}`.
+  estimatedReturn?, comingSoonTitle, comingSoonDescription?, launchAt?,
+  redirectTo?}`.
 - `BeakThemeController` (`ValueNotifier<OiThemeMode>`).
-- `BeakResourceView` (sealed): `BeakTableView({initialSpec?, baseFilter?})`,
-  `BeakCalendarView({titleField, startField, endField?, allDayField?,
-  categoryField?, mode, label})`, `BeakKanbanView({groupField (BeakEnumColumn),
-  titleField, subtitleField?, sortField?, sortDescending, label})`.
+- Views other than the table are blocks on a `BeakScreen`: `BeakKanbanBlock`
+  and `BeakCalendarBlock` (see Blocks). There is no `viewModes` on a resource.
 - Command bar: `openBeakCommandBar(context, config)`,
   `beakNavigationCommands(config, go)`.
 - Notifications: `BeakNotificationSource({model, titleField, bodyField?,
@@ -259,19 +260,18 @@ one `BeakBlockHost` renderer. ~48 variants:
   `BeakTabsBlock({tabs, initialIndex=0})` + `BeakTabBlockItem({label, content,
   icon?})`, `BeakAccordionBlock` + `BeakAccordionBlockItem`,
   `BeakBreadcrumbsBlock` + `BeakBreadcrumbBlockItem`, `BeakMasonryBlock`,
-  `BeakThreePaneBlock`, `BeakWizardBlock({steps, stepperStyle, onComplete?})` +
-  `BeakBlockWizardStep`, plus `BeakCarouselBlock`, `BeakDividerBlock`,
+  `BeakThreePaneBlock`, plus `BeakCarouselBlock`, `BeakDividerBlock`,
   `BeakSpacerBlock`, `BeakTimelineBlock` (some categorized as display/data).
 - Display: `BeakTextBlock(text,{variant=body})` + `BeakTextVariant`
   {display,h1,h2,h3,h4,body,bodyStrong,small,caption}, `BeakImageBlock`,
   `BeakMarkdownBlock`, `BeakDividerBlock`, `BeakSpacerBlock`, `BeakWidgetBlock`
   (WidgetBuilder escape hatch), `BeakVideoBlock`, `BeakIconGalleryBlock` +
   `BeakIconGalleryItem`.
-- Data-bound: `BeakKpiBlock({title, value (BeakAggregateSpec), previous?, target?,
-  format=number, currencySymbol, decimals})` + `BeakKpiFormat`
-  {number,currency,percent}, `BeakChartBlock`, `BeakTableBlock({model, title?,
-  initialSpec?, baseFilter?, actions=[], onRowTap?, heightInPixels=360})`,
-  `BeakMetricBlock`, `BeakMapBlock`, `BeakTileMapBlock`, `BeakCarouselBlock`,
+- Data-bound: `BeakMetricBlock({label, aggregate, icon?, format=number
+  (BeakValueFormat: number, currency, percent), minorUnits=false, scale=2,
+  unit?, previous?, target?})`, `BeakChartBlock`, `BeakTableBlock({model,
+  title?, initialSpec?, baseFilter?, actions=[], onRowTap?,
+  heightInPixels=360})`, `BeakMapBlock`, `BeakTileMapBlock`, `BeakCarouselBlock`,
   `BeakRadialSliderBlock`, `BeakGalleryBlock`, `BeakTimelineBlock`,
   `BeakBubbleChartBlock`, `BeakCandlestickChartBlock`, `BeakHeatmapChartBlock`.
 - UI-kit: `BeakAlertBlock(message,{level=info})` + `BeakAlertLevel`
@@ -286,7 +286,7 @@ one `BeakBlockHost` renderer. ~48 variants:
   {columnCount=2})`, `BeakRelationBlock(relationship,{title?})`.
 
 ### Detail + configured forms
-- `BeakRecordScope` and `BeakDetailView` supply read-only record presentation.
+- `BeakRecordScope` supplies read-only record presentation to the record blocks.
 - `BeakRelationManager` manages persisted to-many relationships on detail pages.
 - `BeakFormScreen`, `BeakWizardScreen` and `BeakScreenRole` assign read,
   create and edit screens to resources.
@@ -306,8 +306,9 @@ one `BeakBlockHost` renderer. ~48 variants:
   preview, validation and per-record commit outcomes for batch work.
 
 ### Overlays / actions / filters / table / dashboard / data / DI
-- `BeakOverlays` (`const BeakOverlays(context)`): `confirm`, `modal`, `dialog<T>`,
-  `sheet<T>`, `toast`. `BeakActionContext` (`{buildContext, model, dataSource,
+- `BeakOverlays` (`const BeakOverlays(context)`): `confirm`, `ask`
+  (`BeakConfirmResult`), `modal`, `dialog<T>`, `sheet`, `sheetWithResult<T>`,
+  `toast`. `BeakActionContext` (`{buildContext, model, dataSource,
   router, refresh?}`; `overlays`).
 - `BeakAction` (sealed `{key, label, icon?, color?, requiresConfirmation}`):
   `BeakRecordAction`, `BeakBulkAction`, `BeakGlobalAction`; `BeakActionButton`;
@@ -315,12 +316,12 @@ one `BeakBlockHost` renderer. ~48 variants:
 - `BeakFilterDef` (sealed `{column, label}`): `BeakSelectFilter`, `BeakBoolFilter`,
   `BeakTextFilter`, `BeakDateRangeFilter`; `BeakFilterBar`.
 - `BeakDataTable` (HookWidget; server-side sort/filter/paginate), `BeakTableAction`.
-- `BeakStat`/`BeakStatCard`, `BeakChart`/`BeakChartCard`, `BeakDashboard`;
+- No dashboard type: a custom overview is a `BeakScreen` with `path: '/'`.
   `BeakChartType` {line,bar,pie,donut,area,radar,funnel}, `BeakChartPoint`,
   `BeakChartMapper`, `BeakBubblePoint/Mapper`, `BeakCandle/Mapper`,
-  `BeakMatrixCell/Mapper`, `beakChartWidget`.
+  `BeakMatrixCell/Mapper`.
 - `BeakResourceRepository` (returns `BeakResult<T>`), `HttpBeakDataSource`,
-  `ReferenceCache`, `BeakUploadRepository`, `BeakOptimistic.mutate`.
+  `BeakUploadRepository`, `BeakOptimistic.mutate`.
 - `beakLocator` (package-scoped GetIt), `registerBeakDependencies({config,
   locator?, dataSource?, httpClient?, tokenProvider?})`, `BeakViewModel`.
 
@@ -332,13 +333,13 @@ Shelf server. The only package that imports worm.
 - `BeakServer`: `{config, dataSource, registry, storage?, transformRunner?,
   policy=BeakAllowAllPolicy, authSessions?, router?, authGuard?, onRequest?,
   onUnexpectedError?}`; `handler`; `start() -> HttpServer`.
-- `beakApiRouter({registry, dataSource, validation, policy, auth?, uploads?, now?,
-  generateId?}) -> Handler` (mounts `/api/auth`, `GET /api/search`, per-model
-  `/api/{table}` with export + upload routes).
-- `beakResourceRouter(service, {policy}) -> Router`: `POST /query`,
+- `beakApiRouter({registry, dataSource, policy, auth?, storage?,
+  transformRunner?, now?, generateId?, preparePlan?, finalizePlan?, graphOnly,
+  ...}) -> Handler` (mounts `/api/auth`, per-model `/api/{table}` with export
+  and upload routes, and `POST /api/commits`).
+- The per-model router (internal, not exported): `POST /query`,
   `POST /aggregate`, `POST /validate`, `POST /batch`, `POST /`, `GET /<id>`, `PATCH /<id>`,
   `DELETE /<id>`, `POST /<id>/relations/<relationKey>/attach|detach`.
-- `BeakCrudHandlers`, `BeakResourceService`, `ValidationService`.
 - Auth (`src/auth/`): `BeakPolicy` (`canView/canCreate/canUpdate/canDelete/
   canDeleteUpload`), `BeakRowPolicy`, `BeakUploadReadPolicy.canViewUpload`,
   `BeakAllowAllPolicy`, `enforcePolicyDecision`, `BeakPrincipal`,
@@ -346,18 +347,17 @@ Shelf server. The only package that imports worm.
   `hashBeakPassword`, `BeakAuthHandlers`, `beakAuthRouter`, `TokenSessionStore`,
   `InMemoryTokenSessionStore`, `beakAuthMiddleware`, `beakPrincipal`.
 - Data/worm (`src/data/worm/`): `WormDataSource(registry, {adapter, now?})`,
-  `WormRecordModel`, `wormFieldForColumn`, `wormNumericFieldForColumn`,
-  `WormQueryTranslator`, `postgresConnectionConfig`, `postgresAdapterFromUrl`,
-  `initializeWormPostgres`.
-- Uploads/export/search: `UploadService`, `BeakUploadHandlers`,
-  `registerUploadRoutes`, `CsvExportService`, `BeakExportHandlers`,
-  `registerExportRoutes`, `GlobalSearchService`, `BeakSearchHandlers`.
+  `adapterFromUrl`, `initializeBeakDatabase`, `BeakBaselineMigration`,
+  `BeakBlueprint`. The query translator and record model are internal.
+- Uploads and CSV export are wired by `beakApiRouter`; their services and
+  handlers are internal. There is no global search endpoint: the panel searches
+  each model through `globalSearchSources`.
 - Middleware (`src/server/middleware/`): `beakRequestLogMiddleware`,
   `BeakRequestLogEntry`, `beakCorsMiddleware`, `beakJsonMiddleware`,
   `readJsonObject`, `readBeakSpec`, `beakErrorMappingMiddleware`.
 - Storage wiring: `createDefaultStorageRegistry`, `resolveStorage`.
 - Config: `BeakBackendConfig` (`{databaseUrl, port=8080, host='0.0.0.0'}`,
-  `fromEnv`), `BeakEnv` (`parse/loadFile/resolve`), `generateUuidV4`.
+  `fromEnv`), `BeakEnv` (`parse/loadFile/resolve`).
 
 ---
 
@@ -377,7 +377,7 @@ Shelf server. The only package that imports worm.
 
 ## beak_storage_s3 (`packages/beak_storage_s3/lib/beak_storage_s3.dart`)
 - `registerS3Storage(BeakStorageRegistry)`, `S3StorageDriver` (`+.fromConfig`),
-  `S3ObjectClient` (interface), `MinioS3ObjectClient`.
+  `S3ObjectClient` (interface), `HttpS3ObjectClient`.
 
 ## beak_storage_ftp (`packages/beak_storage_ftp/lib/beak_storage_ftp.dart`)
 - `registerFtpStorage(BeakStorageRegistry)`, `FtpStorageDriver` (`+.fromConfig`),

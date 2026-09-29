@@ -90,9 +90,9 @@ same `BeakPanel` from `lib/beak/panel.g.dart`. Both are supported, and
 
 `BeakPanel(title:, resources:, ...)` takes the everyday options: `theme`,
 `darkTheme`, `locale`, `formatting`, `pages`, `auth`, `navigation`,
-`refreshPolicy`, `apiBaseUrl` and `home`. The rest lives on `BeakPanelConfig`,
-which you pass as `BeakPanel(config: ...)` and never together with `resources:`:
-`mapException`, `maintenance`, `notifications`, `shellActions`,
+`refreshPolicy`, `apiBaseUrl`, `home`, `maintenance` and `mapException`. The rest
+lives on `BeakPanelConfig`, which you pass as `BeakPanel(config: ...)` and never
+together with the options above: `notifications`, `shellActions`,
 `initialThemeMode`, the sidebar flags, `supportedLocales` and
 `localizationsDelegates`.
 
@@ -163,16 +163,20 @@ any obers_ui widget). Against `beak_backend`, a form save goes through
   to build. Until the pin moves to a published commit that has them, work from a
   checkout of the Beak repo with an `obers_ui` checkout beside it and run
   `melos run link-obers-ui`.
-- **`BeakWizardScreen` takes a subset of `BeakFormScreen`'s options.** It has
-  no `layout`, `submitIcon`, `outlinedCancel`, `editingLabel`,
-  `showActionsWhileEditing`, `showChangeBar` or `asideFraction`.
+- **`BeakWizardScreen` takes every `BeakFormScreen` option but three.** It has
+  no `layout` (the steps are the layout), `recordHeader` or `editingLabel`,
+  which belong to the single-page heading. Write `BeakFormScreen(steps: [...])`
+  when you need one of them.
 - **Record blocks need a scope.** `BeakFieldBlock`, `BeakFieldGroupBlock` and
   `BeakRelationBlock` read a `BeakRecordScope`, and no built-in page mounts one.
   Wrap them yourself in a `BeakCustomResourceScreen`.
-- **Some blocks fetch once.** Metric and summary blocks refetch after a write
-  to their table. Chart, kanban and calendar blocks do not.
-- **`BeakPanel(resources: ...)` has no `mapException`.** Domain errors from a
-  custom source, such as the Serverpod bridge, need `BeakPanelConfig`.
+- **Blocks follow this panel's writes only.** A block that reads a table
+  refetches after a write made through the panel, chart, kanban and calendar
+  included. A colleague's write in another browser needs a `refreshPolicy`.
+- **`config:` excludes the everyday options.** `BeakPanel(config: ..., title:
+  ...)` throws a `BeakConfigurationException` when it builds, because the config
+  would win silently. Set the option on the `BeakPanelConfig`; `dataSource:` and
+  `httpClient:` still combine with `config:`.
 - **Authorization is not here.** Permissions hide controls. The server, through
   `BeakPolicies`, decides.
 

@@ -136,8 +136,8 @@ typed field descriptors and the codecs.
 
 Mount the resource like any other. Because the model brings its data source, the
 panel needs no `dataSource:`. To turn your domain exceptions into Beak's typed
-errors, set `mapException` once on the panel's `BeakPanelConfig`. The `BeakPanel`
-shorthand has no such parameter, so this is the form that carries it:
+errors, set `mapException` once on the panel: `BeakPanel(mapException: ...)`, or on
+the `BeakPanelConfig` you pass as `config:` (which excludes the everyday options):
 
 ```dart
 // Illustrative: `entries` is a ServerpodResource, `EntryLocked` your own exception.

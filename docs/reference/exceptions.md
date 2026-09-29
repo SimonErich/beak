@@ -300,7 +300,7 @@ View models never catch. The repository is the catch boundary and returns a `Bea
 --8<-- "packages/beak_frontend/lib/src/data/beak_run.dart:beakRun"
 ```
 
-A `BeakException` becomes a `BeakErr`. Any other `Exception` is offered to `mapException` and rethrown when the mapper returns `null` or is absent. An `Error` (a programming mistake) always propagates. `BeakPanelConfig.mapException` installs the same mapper for every resource of a panel; it is a field of `BeakPanelConfig`, not of the `BeakPanel(...)` shorthand.
+A `BeakException` becomes a `BeakErr`. Any other `Exception` is offered to `mapException` and rethrown when the mapper returns `null` or is absent. An `Error` (a programming mistake) always propagates. `BeakPanelConfig.mapException` installs the same mapper for every resource of a panel, and `BeakPanel(mapException: ...)` sets it without a config.
 
 `BeakFormSession` exposes the most recent load or save failure as `error` (`ReadonlySignal<BeakException?>`) and the latest receipt as `saveResult` (`ReadonlySignal<BeakSaveResult?>`). `hasUnknown` is `true` while any outcome is `unknown`, and a form with an unknown outcome refuses to save again until `recover()` has resolved it.
 

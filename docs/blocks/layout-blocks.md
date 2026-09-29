@@ -119,7 +119,7 @@ Use it last. The builder runs under the panel's scopes, so `beakDependencies(con
 
 - A screen's `body` is one block. Compose with a column, row or grid.
 - Layout blocks do not bound height. Blocks that draw need a height and take one (`heightInPixels` on charts, maps, tables, summaries). A card around them takes its natural height, and cards in a row or grid are not stretched to match each other.
-- `BeakTabsBlock` needs at least one tab and an `initialIndex` inside the list. Neither is asserted, so a violation is a `RangeError` when the tab renders.
+- `BeakTabsBlock` with no tabs renders nothing, and an `initialIndex` past the last tab selects the last one. Neither is asserted.
 - `BeakMasonryBlock` asserts `columns >= 1`, a `BeakSpan` asserts `columns >= 1` and `rows >= 1`, and a `BeakRowBlock` or `BeakGridBlock` asserts non-negative `minChildWidthInPixels`.
 - `BeakSectionBlock` puts an 8 pixel gap between its heading and its child. There is no parameter for it.
 - Forms are not made of these blocks. A form layout has its own `BeakCard`, `BeakColumns`, `BeakTabs` and `BeakWizardStep` nodes, which stay connected to the draft. See [The block system](../concepts/the-block-system.md) for why there are two families.

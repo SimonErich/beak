@@ -37,7 +37,7 @@ void main() {
         webUnsafeReason('package:beak_storage_s3/beak_storage_s3.dart'),
         isNotNull,
       );
-      expect(webUnsafeReason('package:minio/minio.dart'), isNotNull);
+      expect(webUnsafeReason('package:postgres/postgres.dart'), isNotNull);
     });
 
     test('accepts the panel stack', () {

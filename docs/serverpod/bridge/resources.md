@@ -76,7 +76,7 @@ BeakPanel(
 )
 ```
 
-`ServerpodDataSource` is the piece that routes by resource key, and a `ServerpodResource` builds one for itself. To turn your domain exceptions into Beak's typed errors, set `mapException` once on the panel's `BeakPanelConfig` (`BeakPanel(config: ...)`); it applies to every bound resource.
+`ServerpodDataSource` is the piece that routes by resource key, and a `ServerpodResource` builds one for itself. To turn your domain exceptions into Beak's typed errors, set `mapException` once on the panel, as `BeakPanel(mapException: ...)` or on the `BeakPanelConfig` you pass as `config:`; it applies to every bound resource.
 
 ## Rules and limits
 

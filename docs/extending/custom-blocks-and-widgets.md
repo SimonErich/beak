@@ -99,7 +99,7 @@ Before it offers an editing action, the widget asks the enclosing scope whether 
 | Refresh needs a change stream | Client | `useBeakDataRevision` reacts only when the source implements `BeakMutationSource`. The panel's registered source does. A raw `HttpBeakDataSource` you construct yourself does not. |
 | `set` is silent while saving | Client | While a save runs, or its outcome is unknown, `set` does nothing and `addRow` throws a `StateError`. Read `enabled` first. |
 | `set` writes this record only | Client | A field of another model, or a related path such as `ProductModel.category.name`, throws `BeakConfigurationException`. Write related fields on the row `addRow` or `rows` gives you. |
-| `addRow` needs the editor in the layout | Client | The layout must contain the relationship's table (`ProductModel.variants.tableForm(...)`). Without one, `addRow` fails with a bare `StateError` ("Bad state: No element"). An editor declared with `allowAdding: false` throws a `BeakConfigurationException` instead. The shop puts the table right below its builder. |
+| `addRow` needs the editor in the layout | Client | The layout must contain the relationship's table (`ProductModel.variants.tableForm(...)`). Without one, `addRow` throws a `BeakConfigurationException` that names the form and the relationship and tells you to place `tableForm` for it. An editor declared with `allowAdding: false` throws a `BeakConfigurationException` too. The shop puts the table right below its builder. |
 | Server rules still run | Server | Model behavior and record rules re-run when the form saves, whatever your widget staged. A custom widget cannot skip them. |
 | No Material | You | Use the `Oi*` controls, as Beak does. Beak's guard reads its own source, not your closure. |
 
