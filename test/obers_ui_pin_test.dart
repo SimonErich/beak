@@ -48,6 +48,58 @@ void main() {
       );
     });
   });
+  group('pub workspace roots', () {
+    const root = '''
+name: _
+publish_to: none
+
+workspace:
+  - bookshop_client
+  # beak members
+  - bookshop_server   # the server
+  - bookshop_admin
+
+dependency_overrides:
+  something:
+    path: ../something
+''';
+
+    test('lists the members a workspace root names', () {
+      expect(workspaceMembersOf(root), [
+        'bookshop_client',
+        'bookshop_server',
+        'bookshop_admin',
+      ]);
+    });
+
+    test('a package that is not a workspace root has no members', () {
+      expect(
+        workspaceMembersOf('name: beak_core\ndependencies:\n  meta: ^1.0.0\n'),
+        isEmpty,
+      );
+    });
+
+    test('links the root when any member is a panel', () {
+      expect(
+        obersUiOverridesForWorkspace([
+          'dependencies:\n  serverpod: 4.0.3\n',
+          'dependencies:\n  beak:\n    path: ../../../packages/beak\n',
+        ]),
+        obersUiPackagePaths.keys.toList(),
+      );
+    });
+
+    test('leaves a workspace without a panel member alone', () {
+      expect(
+        obersUiOverridesForWorkspace([
+          'dependencies:\n  serverpod: 4.0.3\n',
+          'dependencies:\n  beak_core:\n    path: ../beak_core\n',
+        ]),
+        isEmpty,
+      );
+    });
+  });
+
   group('the obers_ui dependency pin', () {
     // Six refs to the same SHA across two pubspecs is a drift surface.
     // These tests are what make repeating it safe.

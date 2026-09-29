@@ -1,0 +1,12 @@
+### Someone whose books the shop sells.
+class: Author
+table: author
+fields:
+  ### The name printed on the cover.
+  name: String
+
+  ### A short biography for the author page.
+  bio: String?
+
+  ### The author's own website.
+  website: String?

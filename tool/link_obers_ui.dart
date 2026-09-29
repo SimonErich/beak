@@ -5,7 +5,8 @@
 /// together want the opposite: their working copy, hot-reloadable.
 ///
 /// This writes path `dependency_overrides` into the `pubspec_overrides.yaml`
-/// of the packages that actually depend on obers_ui. Melos owns the entries
+/// of the packages that actually depend on obers_ui, and into the root of a pub
+/// workspace (`examples/serverpod`) when one of its members does. Melos owns the entries
 /// listed in each file's `# melos_managed_dependency_overrides:` header and
 /// leaves everything else alone, so these survive `melos bootstrap`.
 ///
@@ -55,6 +56,43 @@ List<String> obersUiOverridesFor(String pubspecSource) {
       ? obersUiPackagePaths.keys.toList()
       : const [];
 }
+
+/// The member directories a pub workspace root lists under `workspace:`, or
+/// an empty list when [pubspecSource] is not a workspace root.
+List<String> workspaceMembersOf(String pubspecSource) {
+  final List<String> lines = pubspecSource.split('\n');
+  final int start = lines.indexWhere(
+    (line) => line.trimRight() == 'workspace:',
+  );
+  if (start < 0) {
+    return const [];
+  }
+  final member = RegExp(r'^\s+-\s+([^\s#]+)\s*(#.*)?$');
+  final members = <String>[];
+  for (final line in lines.skip(start + 1)) {
+    if (line.trim().isEmpty || line.trimLeft().startsWith('#')) {
+      continue;
+    }
+    final RegExpMatch? match = member.firstMatch(line);
+    if (match == null) {
+      break;
+    }
+    members.add(match.group(1)!);
+  }
+  return members;
+}
+
+/// Overrides needed at the root of a pub workspace, given the pubspecs of its
+/// members.
+///
+/// Pub applies only the workspace root's `pubspec_overrides.yaml` to every
+/// member, so the root carries them when any member is a panel.
+List<String> obersUiOverridesForWorkspace(
+  Iterable<String> memberPubspecSources,
+) =>
+    memberPubspecSources.any((source) => obersUiOverridesFor(source).isNotEmpty)
+    ? obersUiPackagePaths.keys.toList()
+    : const [];
 
 /// Returns [overridesSource] with this tool's block removed.
 ///
@@ -128,9 +166,17 @@ void main(List<String> args) {
       if (!pubspec.existsSync()) {
         continue;
       }
-      final List<String> packages = obersUiOverridesFor(
-        pubspec.readAsStringSync(),
-      );
+      final String source = pubspec.readAsStringSync();
+      final List<String> members = workspaceMembersOf(source);
+      final List<String> packages = members.isEmpty
+          ? obersUiOverridesFor(source)
+          : obersUiOverridesForWorkspace([
+              for (final member in members)
+                if (File('${entity.path}/$member/pubspec.yaml')
+                    case final File memberPubspec
+                    when memberPubspec.existsSync())
+                  memberPubspec.readAsStringSync(),
+            ]);
       if (packages.isEmpty) {
         continue;
       }

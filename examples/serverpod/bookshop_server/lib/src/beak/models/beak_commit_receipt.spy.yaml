@@ -1,0 +1,20 @@
+### TOOL-OWNED by Beak. Do not edit.
+### Durable graph-commit receipts: idempotent replay and recovery.
+### Beak's form Save is a graph commit, so any Beak admin needs this table.
+class: BeakCommitReceipt
+serverOnly: true
+table: beak_commit_receipt
+fields:
+  ### (principal, saveId) namespace key.
+  receiptKey: String, unique
+
+  ### Hash of the submitted plan; a replay with another hash is rejected.
+  requestHash: String
+
+  ### The prepared plan, kept for recovery.
+  requestJson: String
+
+  ### The authoritative result (a pending marker while in flight).
+  resultJson: String
+
+  createdAt: DateTime, default=now

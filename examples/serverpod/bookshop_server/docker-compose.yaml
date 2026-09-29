@@ -1,0 +1,30 @@
+services:
+  # Development services
+  postgres:
+    image: ghcr.io/serverpod/postgres:16
+    ports:
+      - "8090:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: bookshop
+      POSTGRES_PASSWORD: "sPbIV1UlHCd-jSAzAjtlKgZ0A7I6dwni"
+    volumes:
+      - bookshop_data:/var/lib/postgresql/data
+
+
+  # Test services
+  postgres_test:
+    image: ghcr.io/serverpod/postgres:16
+    ports:
+      - "9090:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: bookshop_test
+      POSTGRES_PASSWORD: "dadXj4vVEhGrcIbNSOuVDKdMHq7y8hYQ"
+    volumes:
+      - bookshop_test_data:/var/lib/postgresql/data
+
+
+volumes:
+  bookshop_data:
+  bookshop_test_data:

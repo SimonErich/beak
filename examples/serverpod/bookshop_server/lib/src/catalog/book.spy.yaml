@@ -1,0 +1,28 @@
+### A title the shop stocks.
+class: Book
+table: book
+fields:
+  ### The title printed on the cover.
+  title: String
+
+  ### The ISBN, unique per edition.
+  isbn: String, unique
+
+  ### How the book is bound.
+  format: BookFormat
+
+  ### Shelf price in cents.
+  priceInCents: int
+
+  ### Copies on the shelf.
+  stock: int, default=0
+
+  ### First publication date.
+  publishedOn: DateTime?
+
+  ### What the shop pays the supplier. Never leaves the server: it is not
+  ### in the generated client, and the Beak model does not declare it.
+  supplierCostInCents: int?, scope=serverOnly
+
+  ### Who wrote it.
+  author: Author?, relation(onDelete=Cascade)
