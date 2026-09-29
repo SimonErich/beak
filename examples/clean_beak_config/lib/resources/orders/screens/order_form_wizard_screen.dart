@@ -39,7 +39,11 @@ BeakFormSections orderSections() => BeakFormSections(
             ),
             BeakCard(
               title: 'Customer',
-              children: [OrderModel.customer.inputCombobox()],
+              children: [
+                // --8<-- [start:orderCustomerPicker]
+                OrderModel.customer.inputCombobox(),
+                // --8<-- [end:orderCustomerPicker]
+              ],
             ),
           ],
         ),
@@ -54,13 +58,13 @@ BeakFormSections orderSections() => BeakFormSections(
             BeakCard(
               title: 'Delivery details',
               children: [
+                // --8<-- [start:orderProfilePicker]
                 OrderModel.profile.inputCombobox(),
+                // --8<-- [end:orderProfilePicker]
+                // --8<-- [start:orderDeliveryDateValidator]
                 OrderModel.deliveryDate.inputDateTime(
                   label: 'When should it arrive?',
                   description: 'Choose a practical delivery date and time.',
-                // --8<-- [start:orderProfilePicker]
-                // --8<-- [end:orderProfilePicker]
-                // --8<-- [start:orderDeliveryDateValidator]
                   validators: [
                     (value, state) =>
                         state.draft.id == null &&
@@ -70,11 +74,11 @@ BeakFormSections orderSections() => BeakFormSections(
                         : null,
                   ],
                 ),
+                // --8<-- [end:orderDeliveryDateValidator]
               ],
             ),
             BeakCard(
               title: 'Fulfillment notes',
-                // --8<-- [end:orderDeliveryDateValidator]
               children: [OrderModel.notes.inputText(label: 'Internal notes')],
             ),
           ],
@@ -85,11 +89,11 @@ BeakFormSections orderSections() => BeakFormSections(
       title: 'Order items',
       description: 'Add catalog items, variants or custom services.',
       children: [
+        // --8<-- [start:orderItemsTableForm]
         OrderModel.items.tableForm(
           label: 'Products and services',
           minRows: 1,
           removeBehavior: BeakRemoveBehavior.deleteOwned,
-        // --8<-- [start:orderItemsTableForm]
           children: [
             OrderItemModel.product.inputCombobox(),
             OrderItemModel.variant.inputCombobox(),
@@ -133,11 +137,11 @@ BeakFormSections orderSections() => BeakFormSections(
           summaryFormat: BeakValueFormat.currency,
           summaryLabel: 'Net items total',
         ),
+        // --8<-- [end:orderItemsTableForm]
       ],
     ),
     BeakSection(
       title: 'Adjustments & review',
-        // --8<-- [end:orderItemsTableForm]
       description: 'Review the order before saving.',
       children: [
         BeakCard(
@@ -202,11 +206,11 @@ BeakFormSections orderSections() => BeakFormSections(
   ],
 );
 
+// --8<-- [start:orderLineTotal]
 /// Net line calculation; invoice tax is calculated separately when invoicing.
 BeakDecimal lineTotal(BeakFormReader state) {
   final item = state.asOrderItem;
   final unitPrice =
-// --8<-- [start:orderLineTotal]
       item.overwritePrice ??
       item.variant?.price ??
       item.product?.price ??
