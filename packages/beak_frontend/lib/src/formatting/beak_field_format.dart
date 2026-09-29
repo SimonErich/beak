@@ -36,6 +36,7 @@ class BeakFormattedField<T extends Object> extends BeakScalarField<T> {
   String get label => _label;
 }
 
+// --8<-- [start:fieldPresentations]
 /// Declarative monetary presentation for generated numeric fields.
 extension BeakCurrencyPresentation<T extends num> on BeakScalarField<T> {
   /// Displays this amount using the panel's currency; cents remain integers.
@@ -58,3 +59,4 @@ extension BeakFieldPresentation<T extends Object> on BeakScalarField<T> {
   BeakFormattedField<T> formatted(BeakValueFormat format, {String? label}) =>
       BeakFormattedField<T>(field: this, format: format, label: label);
 }
+// --8<-- [end:fieldPresentations]

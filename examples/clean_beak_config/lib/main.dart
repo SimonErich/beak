@@ -27,6 +27,7 @@ void main() => runApp(
       color: const Color(0xFF82ACDF),
       brightness: Brightness.dark,
     ),
+    // --8<-- [start:shopFormatting]
     locale: const Locale('en'),
     formatting: const BeakFormatting(
       locale: 'de_AT',
@@ -34,6 +35,7 @@ void main() => runApp(
       datePattern: 'dd.MM.yyyy',
       dateTimePattern: 'dd.MM.yyyy HH:mm',
     ),
+    // --8<-- [end:shopFormatting]
     // --8<-- [end:shopBranding]
     pages: [shopOverview(), shopOperations()],
     resources: [

@@ -99,9 +99,11 @@ void main() {
         config: BeakPanelConfig(
           title: 'Panel',
           resources: const [],
+          // --8<-- [start:frenchPanelLocale]
           locale: const Locale('fr'),
           supportedLocales: const [Locale('fr')],
           localizationsDelegates: const [_FrenchBeakDelegate()],
+          // --8<-- [end:frenchPanelLocale]
           pages: [
             BeakScreen(
               path: '/',

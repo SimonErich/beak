@@ -1,61 +1,51 @@
 ---
 title: Theming and formatting
-description: "Style the panel: themes, colors, type, icons, and how values are formatted."
+description: Style the panel with one theme, resolve semantic colors, set type and icons, and choose how numbers, money, dates and built-in text are written.
 type: index
-audience: [beginner]
-status: draft
+audience: [beginner, expert]
+status: stable
 ---
 
 # Theming and formatting
 
-By the end of this section you will know exactly which knob controls the panel's
-look: the theme it boots with, the semantic colors your badges resolve to, the
-type ramp and icon set your screens draw from, and how dates, numbers and
-currency are formatted.
+A panel has two looks to get right. One is how it is drawn: colors, type, icons, dark mode. The other is how it writes: `1.234,50 €` or `€1,234.50`, `29.09.2026` or `Tue 29 Sep`, `Speichern` or `Save`. This section shows where each is set, so you can tell which knob to turn without reading the widget code.
 
-Beak does not ship its own design system. Every visible pixel comes from
-`obers_ui`, the same widget kit Beak's blocks are built on. That has one large
-consequence worth stating up front.
+Beak has no design system of its own. Every table, form, card and dialog is an `obers_ui` widget, and none of Beak's widgets import `package:flutter/material.dart` or `cupertino.dart`. They read colors, spacing, radii and text styles from one `OiThemeData`, so you style a panel by handing it a theme, not by overriding widgets one at a time.
 
-## No Material, ever
+Colors are roles, not values. A column or an action names `BeakColor.success`, and `beak_frontend` resolves it against the active theme, so the same schema draws its badges in a light theme and in a dark one.
 
-A Beak panel never imports `package:flutter/material.dart` or `cupertino.dart`.
-Buttons, cards, tables, inputs, and the app shell are all obers_ui widgets, and
-they read their colors, spacing, radii, and typography from a single
-`OiThemeData` object. You style the panel by handing Beak a theme, not by
-sprinkling widget-level overrides. One theme in, a consistent panel out.
-
-That also means colors are semantic, not literal. A `beak_core` column never
-names a hex value for a status badge. It names a role (`BeakColor.success`), and
-`beak_frontend` resolves that role against the active theme. Flip to dark mode
-and every badge, action, and status dot re-resolves without you touching a
-column. A `BeakColor` is declared once and read everywhere.
+Formatting is a separate axis. A theme never changes how a number looks, and a format policy never changes a color. They meet in one place, the panel's configuration.
 
 ## Which page to read
 
-| You want to… | Read | For |
+| You want to... | Read | For that |
 | --- | --- | --- |
-| Set light and dark themes once at the panel boundary | [Theming basics](theming-basics.md) | Guide for beginners |
-| Apply semantic colors consistently across built-in and custom content | [Colors and tokens](colors-and-tokens.md) | Guide for experts |
-| Use the theme type scale and typed navigation icons | [Typography and icons](typography-and-icons.md) | Guide for experts |
-| Set the locale, currency and date patterns a panel formats with | [Formatting and localization](formatting-and-localization.md) | Guide for beginners and experts |
+| Give the panel a light and a dark theme from one brand color, and pick the starting mode | [Theming basics](theming-basics.md) | The first theme, wired into a generated or an authored panel |
+| Know which theme color a `BeakColor` becomes, or build a full palette from a design system | [Colors and tokens](colors-and-tokens.md) | The mapping on badges, buttons and charts, and Foodio's palette |
+| Load a font, set the text styles, or replace every icon | [Typography and icons](typography-and-icons.md) | The type ramp, the variable-font trap and the icon map |
+| Set the locale, currency and date patterns, or switch Beak's own text to German | [Formatting and localization](formatting-and-localization.md) | `BeakFormatting`, the export policy and what is translated |
 
 ## Where the knobs live
 
-Two objects hold nearly all of it:
+Two objects carry nearly everything: `BeakPanelConfig`, the declarative surface an app sets, and `OiThemeData`, the theme value it hands over. The `BeakPanel(...)` shorthand takes some of the config's fields, and a generated panel sets the rest in `lib/panel.dart` and `lib/theme.dart`.
 
-- **`BeakPanelConfig`** carries `theme`, `darkTheme`, `initialThemeMode`,
-  `sidebarCollapsible`, and `sidebarDefaultCollapsed`. This is the declarative
-  surface app authors set.
-- **`OiThemeData`** (from obers_ui) is the theme itself: colors, typography,
-  spacing, radii, shadows. You hand one to the config, or let Beak default to
-  `OiThemeData.light()` and `OiThemeData.dark()`.
+| Knob | Set on | Page |
+| --- | --- | --- |
+| `theme`, `darkTheme` | `BeakPanel`, `BeakPanelConfig`, or `lib/theme.dart` in a generated panel | [Theming basics](theming-basics.md) |
+| `initialThemeMode` | `BeakPanelConfig` | [Theming basics](theming-basics.md) |
+| The theme toggle | `BeakNavigation.showThemeToggle` | [Theming basics](theming-basics.md) |
+| `sidebarCollapsible`, `sidebarDefaultCollapsed` | `BeakPanelConfig`, or `theme.sidebar` in `beak.yaml` | [Theming basics](theming-basics.md) |
+| A swatch, a surface, a text or a border color | the theme's `OiColorScheme` | [Colors and tokens](colors-and-tokens.md) |
+| Font family, text styles | `OiThemeData.light(fontFamily:)`, `textTheme` | [Typography and icons](typography-and-icons.md) |
+| Icons | `BeakIconToken` on a destination, `components.icon` on the theme | [Typography and icons](typography-and-icons.md) |
+| Numbers, money, dates, empty cells | `formatting:` | [Formatting and localization](formatting-and-localization.md) |
+| Language of Beak's controls | `locale:`, `supportedLocales`, `localizationsDelegates` | [Formatting and localization](formatting-and-localization.md) |
 
-Start with [Theming basics](theming-basics.md) to see both wired together, then
-follow the section down into colors, type, icons and formatting.
+Start with [Theming basics](theming-basics.md), which is short and covers the everyday case. Formatting is worth reading before the first release: the tables, the forms and the CSV export take their time zone from it, and the defaults do not all agree.
 
 ## Continue reading
 
-- [Theming basics](theming-basics.md): Set light and dark themes once at the panel boundary.
-- [Colors and tokens](colors-and-tokens.md): Apply semantic colors consistently across built-in and custom content.
-- [Typography and icons](typography-and-icons.md): Use the theme type scale and typed navigation icons.
+- [Theming basics](theming-basics.md) start here to theme a panel from one color.
+- [Formatting and localization](formatting-and-localization.md) the other half of how a panel looks.
+- [Foodio](../examples/foodio.md) a complete custom theme, type ramp and icon set in a real panel.
+- [Panel options](../reference/panel-options.md) every field of `BeakPanelConfig` and `BeakFormatting`.

@@ -84,6 +84,7 @@ BeakScreen shopOverview() => BeakScreen(
             child: BeakTableBlock(
               model: const InvoiceModel(),
               fields: [
+                // --8<-- [start:overviewFormattedFields]
                 InvoiceModel.number,
                 InvoiceModel.customerEmail.formatted(
                   BeakValueFormat.text,
@@ -93,6 +94,7 @@ BeakScreen shopOverview() => BeakScreen(
                   BeakValueFormat.date,
                   label: 'Due date',
                 ),
+                // --8<-- [end:overviewFormattedFields]
               ],
               enableDelete: false,
               initialSpec: const InvoiceModel().query(
