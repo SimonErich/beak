@@ -1,0 +1,5 @@
+name: The Aviary
+api:
+  baseUrl: http://localhost:8082
+server:
+  port: 8082
