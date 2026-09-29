@@ -1,59 +1,152 @@
 ---
 title: Drafts, review and conflicts
-description: Resume local work, inspect pending changes and resolve concurrent edits.
+description: Resume unfinished forms from local storage, review changes before they are sent, recover an interrupted save and resolve a clash with a newer version.
 type: guide
 audience: [expert]
-status: draft
+status: stable
 ---
 
 # Drafts, review and conflicts
 
-`BeakFormDrafts` gives a configured form a draft store and a stable namespace. `reviewBeforeSave` adds a change review before committing; `showInspector` exposes the session's resolved fields and pending graph for development.
+After this page you can let people leave a form and come back to it, show them what a save will change, and say what happens when a save is interrupted or someone else edited the same record.
+
+These are separate mechanisms, and none is on by default. `drafts` and `reviewBeforeSave` are one parameter each on the screen. Recovery of an interrupted save works in the open page without them, and across a reload only with `drafts`. Conflict detection needs a column on the model. A form without `drafts` keeps its edits only while the page is open.
+
+## At a glance
+
+The shop stores unfinished forms with a small factory, and the product form switches drafts and the review dialog on:
 
 ```dart title="examples/clean_beak_config/lib/shop_drafts.dart"
 --8<-- "examples/clean_beak_config/lib/shop_drafts.dart"
 ```
 
-## Persistence and identity
+```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductFormScreen"
+```
 
-The draft key combines screen identity, table, record identity and application-supplied context. The document carries the schema version. Include the tenant and authenticated user in that context. Browser storage is provided through `BeakBrowserDraftStore`; native applications can supply the `BeakDraftStore` interface. The shop's native fallback is in-memory and does not survive process exit.
+| Concern | Switch | Lives in | Survives a reload |
+| --- | --- | --- | --- |
+| Unfinished edits | `drafts` | A `BeakDraftStore` you choose | Yes, until retention runs out |
+| A look before sending | `reviewBeforeSave`, `showChangeBar` | The session | No, it is a view of the draft |
+| A save whose result is unknown | `drafts` plus a source with durable receipts | The store, and the server's receipt table | Yes |
+| A newer version on the server | The model's `updated_at` | The server | Not applicable |
 
-Persistence is debounced and retention is configurable. For an **unsubmitted draft**, restore is offered explicitly after loading current data. A schema-version mismatch is rejected with a notice, and an expired unsubmitted draft is removed. A confirmed successful save or explicit discard removes an ordinary saved draft.
+## Local drafts
 
-Passwords and local upload bytes are excluded. An uncommitted local file needs reselection after restoration. Browser draft storage is local application data; applications handling sensitive content should choose an appropriate store and retention policy.
+`BeakFormDrafts` names the store and the identity of the form:
 
-## Submission and interrupted saves
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `store` | required | A `BeakDraftStore`: `read`, `write` and `remove` on a string document |
+| `key` | required | A stable name for this form definition, such as `'product'` |
+| `context` | required | Who this draft belongs to: the signed-in user and the tenant, never an access token |
+| `schemaVersion` | `1` | Bump it when the form's meaning or shape changes, and old drafts are dropped |
+| `retention` | 7 days | Drafts older than this are discarded on load |
+| `debounce` | 300 ms | Delay before a run of edits is written |
 
-Before dispatching a save, Beak stores a redacted recovery snapshot containing the draft graph, save identity and operation-to-draft mapping. If that storage write fails, **the save is not dispatched** and the current edits remain available. This prevents a reload from losing the identity of a write that may already have reached the server.
+The storage key combines `context`, `key`, the table and the record id, so each record has its own draft, and every new-record form of that resource shares one. Two users of the same browser get two drafts, provided `context` tells them apart. A wrong `context` is how drafts leak between accounts, so build it from something the user cannot change.
 
-On reload, a pending submission is restored as a frozen form. Beak automatically calls `recover(saveId)` with the original save identity; **Check save status** remains available when the result is still uncertain. Stored operations are never automatically resubmitted, and editing or discarding the pending submission stays blocked until its outcome is known.
+Two stores ship. `BeakBrowserDraftStore` writes to `localStorage` and exists on the web only. `BeakMemoryDraftStore` lives as long as the process, which is why the shop uses it off the web and why its drafts do not survive an app restart. A native app that needs durable drafts implements `BeakDraftStore` over its own storage.
 
-A complete receipt clears the stored document and applies the confirmed record identities. Definite unapplied outcomes remain as correctable drafts; when a staged save partially succeeds, the confirmed operations are reconciled before the remaining changes become editable. A lost response keeps the recovery snapshot instead of turning the submission into a new save.
+While the form is dirty, edits are written after the debounce. A clean form removes its draft, a confirmed save removes it, and Discard removes it. The draft holds field values, staged and removed rows, records created inline and inline command arguments. It never holds a password, and it never holds file bytes: a staged upload is stored as empty, and the form asks you to pick the file again after a resume.
 
-Pending save identities survive normal draft retention expiry and schema-version mismatches so that the original transaction can still be checked. This exception applies to pending submissions, not ordinary unsubmitted drafts. Recovery requires a `BeakCommitDataSource` that can retrieve the original receipt; use a provider with durable receipts for recovery across process or server restarts.
+### Resuming
 
-Command arguments are excluded from the stored recovery metadata, alongside passwords and local file bytes. If a command was definitely unapplied and needs to be invoked again, its argument form collects those values again.
+Open a form that has a stored draft and the page shows a card, "An unfinished draft is available", with Resume draft and Discard saved draft. Until you choose, saving and moving between wizard steps are refused, and edits do not overwrite the stored candidate. An expired draft, or one written for another `schemaVersion` or `context`, is removed with a notice instead.
 
-## Review and concurrent edits
+Resume does not paste the old values over the record. It re-applies your changes on top of the record as it is now, so a field that only the server changed keeps the server's value. A field that both sides changed to different values becomes a conflict, see below.
 
-`session.reviewChanges` describes pending field and relationship changes. `refreshForConflicts` compares the draft's baseline, the local candidate and the latest remote record. Non-overlapping remote changes can be incorporated; a field changed on both sides requires an explicit local or remote choice. `resolveConflict` records that choice and advances the baseline revision. Saving remains blocked until conflicts are resolved.
+A wizard's header can offer the same thing on demand. `BeakFormHeader` with a draft store shows Save as draft and a "Draft saved" time, and writes nothing to the server.
 
-Restored nested drafts preserve owned rows, relationship identities and pending operations. The server still checks revisions at commit time; a clean client comparison does not bypass concurrency control.
+## When a save is interrupted
 
-## Duplicate an existing graph
+A save is one `POST /api/commits` with a save id, and the server keeps the receipt. A lost response is therefore recoverable, but only if the client knows which save to ask about. This is what the session does:
 
-Resource `duplication` configuration enables a Duplicate action that opens an
-unsaved create form. `BeakDuplicationSpec` names owned collections to copy and
-additional fields to reset. Shared references remain references; identities,
-revisions, unique values, secrets and snapshots are cleared. The product resource
-copies specifications and variants, including variant attributes, while resetting
-stock and SKU values. The administrator reviews the result before Save.
+1. Before sending, with `drafts` configured, it writes a recovery snapshot: the plan's shape, its save id and the mapping to local rows. Passwords, file bytes and command arguments are left out. If that write fails, nothing is sent and the edits stay, with the message "The recovery snapshot could not be stored. Nothing was submitted."
+2. It sends the plan. If the response is lost, every operation is recorded as unknown and the form freezes.
+3. The form asks the server for the receipt of the same save id (`GET /api/commits/<saveId>`). On a reload, this happens by itself, from the snapshot. "Check save status" repeats it by hand.
+4. The receipt decides. Nothing is ever sent again on its own.
 
-## Controlled escape hatches
+| Receipt | What the form does |
+| --- | --- |
+| Complete | Applies the real ids, clears the snapshot and the draft |
+| Some operations unapplied | Keeps the unapplied edits as a correctable draft. The banner says how many changes were saved, and the button reads "Save remaining changes" |
+| Some operations unknown | Stays frozen: no edits, no discard, no new save, until the outcome is known |
 
-`BeakFormReader` is the read-only reactive interface used by conditions and calculations. `BeakDraftScope` supplies typed editing and relationship operations for custom controls. The custom variant builder uses it to stage rows while Save, Cancel, validation and review stay under Beak's control. `session.explain()` exposes diagnostics without requiring application code to recreate form state.
+The snapshot survives retention and a `schemaVersion` bump, because the original transaction still has to be checked. The receipt has to survive too. `HttpBeakDataSource` reads it from the server's receipt table, which is durable. A source that is not commit-capable falls back to receipts held in memory, and those are gone after a reload.
+
+Without `drafts` there is no snapshot. The unknown state and the "Check save status" button still work in the open page, but a reload forgets which save was in flight.
+
+## Reviewing changes
+
+`reviewBeforeSave: true` inserts a step between Save and the request. The dialog lists each change: a field with its before and after values, a created record, a removed row. Back returns to the form and Continue sends the save. Password fields show no values.
+
+The dialog is built from three members of the session:
+
+| Member | Returns |
+| --- | --- |
+| `session.reviewChanges` | Every field and relationship change, as `BeakDraftChange` objects with a path, a label, a kind (`update`, `create`, `detach`, `delete`) and the before and after values |
+| `session.reviewChangeCount` | The number of operations, where a new row counts once |
+| `session.reviewChangeSummary` | The labels of those operations, joined with a dot |
+
+The count and the summary come from the same list without the fields inside newly created rows. They feed the change bar (`showChangeBar`), which pins "N unsaved changes", "N fields need attention", Discard changes and Save. A ghost button "Review changes" opens the dialog on demand when neither the change bar nor the rail is in use.
+
+`showInspector: true` adds "Inspect form" for development. It lists each field with its visibility, editability, origin, dependencies and rules, without values, so opening it exposes no secret. `session.explain()` returns the same list.
+
+## Concurrent edits
+
+Two protections stack.
+
+The server is the authority. When an edit loads a record that has `updated_at`, the plan carries it as `expectedUpdatedAt`, and the write is conditional on it. If the stored stamp moved, the operation is refused with "The record changed since it was loaded." and the whole graph rolls back. [Graph commits](../architecture/graph-commits.md#conditional-writes) has the mechanics. The precondition needs the column: `@Resource(timestamps: true)` adds it. Foodio's order has it. The shop's models do not, so shop edits are last write wins.
+
+The client merges. When a stored draft is resumed, or `session.refreshForConflicts()` is called, the session fetches the record again and lines up three versions: the baseline the draft started from, your value and the server's value. A field that only you changed keeps your value, a field that only the server changed takes the server's, and a field that both changed to different values turns into a card:
+
+- "Your draft: ..." and "Latest version: ..." for the field,
+- Keep draft and Use latest.
+
+A row you edited that someone else deleted becomes a conflict as well: keep it as a new record, or discard it. Save stays disabled until every conflict is resolved, and `resolveConflict(path, useRemote:)` records the choice.
+
+Duplicating a record is a separate feature: the copy opens as an unsaved create form. It is configured on the resource, see [Actions](../panel/actions.md#bulk-edits-and-duplication).
+
+## Rules and limits
+
+| Rule | Behavior |
+| --- | --- |
+| Drafts are opt in | No `drafts`, no local storage, no snapshot |
+| Web storage | `BeakBrowserDraftStore` throws `UnsupportedError` off the web. Choose the store by platform, as `shopDrafts` does with `kIsWeb` |
+| What is excluded | Passwords and file bytes are never stored. A resumed upload needs picking again |
+| Retention | Applies to unsent drafts only. A pending save is kept until its receipt is known |
+| Recovery needs a durable receipt | The server's receipt table survives a restart. The in-memory fallback does not |
+| Definite rejections look unknown | Any exception thrown by the transport, including an HTTP error such as 401, 403, 413 or 422, is recorded as unknown with the reason `responseUnavailable`. The check then asks for a receipt the server never wrote and gets a 404, so the form can stay frozen. This is how the code behaves today; a receipt that arrives normally (validation errors, conflicts) is not affected |
+| Stale writes | A refused save arrives as an unapplied receipt, not as an error. The form shows the receipt banner with the server's message and keeps the draft. The "Compare with latest version" button belongs to the error banner, which a receipt does not raise, so the merge is reached through resume or `refreshForConflicts()` |
+| Conflict detection needs `updated_at` | Models without it are last write wins |
+| Frozen forms | While a save is unknown, editing, discarding and a second save are refused |
+| Server rules | Validation and concurrency are enforced by the server. The draft is a convenience of the client |
+
+## Verify it
+
+The draft store, resume, snapshot and recovery paths are covered by package tests:
+
+```bash
+cd packages/beak_frontend
+flutter test test/src/form/resumable_draft_test.dart
+```
+
+The run ends with `All tests passed!`. To see the pieces, run Foodio (API on port 8081), start a new order, fill the first step, then reload the page: the "An unfinished draft is available" card offers to resume it. The order wizard stores its draft in the browser.
+
+## Reference
+
+| Symbol | Where it is documented |
+| --- | --- |
+| `BeakFormDrafts`, `BeakDraftStore`, `BeakMemoryDraftStore`, `BeakBrowserDraftStore` | `packages/beak_frontend/lib/src/form/beak_form_drafts.dart` |
+| `BeakDraftChange`, `BeakDraftChangeKind`, `BeakDraftConflict`, `BeakFieldExplanation` | `packages/beak_frontend/lib/src/form/beak_form_drafts.dart` |
+| `reviewBeforeSave`, `showInspector`, `drafts`, `showChangeBar` | [Screens and form layouts](../reference/screens-and-layouts.md#beakformscreen) |
+| `BeakFormHeader` | [Screens and form layouts](../reference/screens-and-layouts.md#beakformheader) |
+| `BeakFormSession` members: `reviewChanges`, `refreshForConflicts`, `resolveConflict`, `recover`, `explain` | `packages/beak_frontend/lib/src/form/beak_form_draft_runtime.dart`, `packages/beak_frontend/lib/src/form/beak_form_session.dart` |
 
 ## Continue reading
 
-- [Forms](form-screens.md)
-- [Dynamic attributes and variants](../models/dynamic-attributes-and-variants.md)
+- [Graph commits](../architecture/graph-commits.md) plans, receipts, idempotent replay and conditional writes on the server.
+- [Uploads and galleries](uploads-and-galleries.md) what happens to staged files when a save fails or is unknown.
+- [Imports and bulk edits](imports-and-bulk-edits.md) the same receipts, one per record.
+- [Results and errors](../concepts/results-and-errors.md) how failures become typed values.

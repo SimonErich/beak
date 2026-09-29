@@ -1,195 +1,195 @@
 ---
 title: Form screens
-description: Use one declarative form runtime for values, rules, related drafts and saves.
+description: Write one BeakFormScreen and get the create, edit and read pages of a resource from the same typed layout of cards, columns, tabs and inputs.
 type: guide
 audience: [beginner]
-status: draft
+status: stable
 ---
 
 # Form screens
 
-Place generated typed inputs inside a `BeakFormLayout`. A resource supplies its model, identity and data source; `BeakConfiguredForm` provides the same runtime when embedded directly.
+After this page you can write a form for a resource once and get its create page, its edit page and its read page from it. You will also know which parts of that form the server never sees.
+
+Beak already generates a form for every resource, one input per column. You write a screen when that default is not enough: grouping, conditions, a different control, a table of related rows.
+
+## At a glance
+
+A `BeakFormScreen` goes into the resource's `screens:` list. Its `layout` is a tree of typed placements, and `roles` names the routes that render it. The shop's customer form serves all three:
 
 ```dart title="examples/clean_beak_config/lib/resources/users/screens/user_form_screen.dart"
 --8<-- "examples/clean_beak_config/lib/resources/users/screens/user_form_screen.dart"
 ```
 
-## Layout and behavior
+Three things to notice:
 
-Use `BeakCard`, `BeakColumns`, `BeakSection` and `BeakTabs` for structure. `BeakFormSections` reuses a section definition across plain, tabbed and wizard presentations. Conditions can apply to a group or an individual input.
+- `UserModel.email.inputText()` is a method on a generated field, so there is no string key anywhere in the tree. A typo is a compile error.
+- `visibleIf` receives the live draft. `state.asUser.companyId` is a typed view that `beak prepare` generates next to the model, so the toggle appears the moment a company is picked.
+- `UserModel.profiles.tableForm(...)` edits the customer's delivery profiles inside the same form. Those rows are saved with the customer, in one commit. [Related records in forms](related-records.md) covers that part.
 
-Model rules and behavior supply shared constraints and values. Placement rules add local restrictions. Model value lifecycles distinguish defaults, suggestions, derived values and action snapshots. Explicit custom calculations and validators remain ordinary Dart functions.
+## Roles: one layout, three routes
 
-## Choice cards
+`roles` decides where the layout is used. A form screen serves `create` and `edit` unless you say otherwise.
 
-`inputRadio(cards: true)` presents typed scalar choices as bordered radio cards.
+| Role | Route | The layout renders as |
+| --- | --- | --- |
+| `create` | `/<table>/create` | An empty draft, with model defaults applied |
+| `edit` | `/<table>/<id>/edit` | A draft loaded from the record |
+| `read` | `/<table>/<id>` | The same tree with values instead of editors |
 
-Choice presentation follows the panel theme: Obers `radio.groupLabelStyle`
-styles the section heading, while `radio` controls the indicator and `radioTile`
-controls card padding, radius, minimum height and selected outlines. The same
-card theme applies to relationship choices. Outline changes do not move content
-or create extra state; the form keeps owning binding and validation.
-`BeakInputOption.description` supplies supporting text and `icon` an optional
-Obers icon. The field keeps its normal binding, model validation, disabled
-options and read-mode labels.
+Leave `read` out and the show page keeps its generated layout (the resource's inputs as values, plus a tab for each to-many relationship). Add it and the show page renders your layout, with an Edit button that flips the same page into edit mode in place. [Detail views](detail-views.md) covers what read mode looks like.
 
-```dart
-OrderModel.paymentMode.inputRadio(
-  label: 'Payment method',
-  cards: true,
-  options: (state) => const [
-    BeakInputOption(
-      'monthlyInvoice',
-      'Company invoice',
-      description: 'Billed to the company profile',
-      icon: OiIcons.landmark,
-    ),
-    BeakInputOption(
-      'paymentLink',
-      'Payment link',
-      description: 'The customer pays before preparation',
-      icon: OiIcons.link,
-    ),
-  ],
-)
+What happens after Save depends on where the form ran:
+
+| Form | After a confirmed save |
+| --- | --- |
+| Create page | Back to where you came from (the `returnTo` query parameter, else the list) |
+| Edit page | The record's show page |
+| Read page in edit mode | Back to read mode, same page |
+
+Cancel and navigation both stop at a confirmation when the draft has unsaved changes.
+
+The Edit button is offered only when the resource allows it (`canEdit` on the resource, plus the model's update permission) and the model's `editableWhen` accepts the loaded record. Those checks hide UI, they do not enforce anything. The server checks again on every write.
+
+## The layout tree
+
+Containers group, inputs edit, and everything sits over one draft. The ones you will use in most forms:
+
+| Node | Use it for |
+| --- | --- |
+| `BeakColumns` | Side-by-side groups that stack on narrow screens |
+| `BeakCard` | A titled surface, optionally collapsible |
+| `BeakSection` | A heading with a description and no border |
+| `BeakTabs` and `BeakTab` | Tabbed groups; every tab is validated and saved together |
+| `BeakFormLayout` | A plain group that carries a `visibleIf` or `enabledIf` for its children |
+
+Every node accepts `visibleIf` and `enabledIf`. A hidden input is not validated and is not submitted, so a condition is also a rule about what counts as part of the record. The category form nests tabs, a section and a table editor, and hides one input unless the row is a choice attribute:
+
+```dart title="examples/clean_beak_config/lib/resources/categories/screens/category_form.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/screens/category_form.dart"
 ```
 
-The options callback receives the tracked form reader, so options can follow
-other fields without a separate controller. Relationship records use
-`inputCards(template: ...)`, described in [Workflow presentations](workflow-presentations.md).
+`state.read(field)` is the typed reader behind every condition, and it records the dependency, so the node recomputes when that field changes. [Screens and form layouts](../reference/screens-and-layouts.md) lists every container and its parameters.
 
-## Exact code lookup
+## When you configure nothing
 
-Use `inputCode` for a voucher, reference or other unique identifier. Beak provides
-the text input, Apply/Remove actions, loading and error states. Applying a code
-only stages the relationship; the normal form submission persists it.
+A resource without a form screen gets `BeakFormLayout.fromModel`: one input per column that is visible in the form context, in declaration order, and a combobox for each belongs-to whose target model is registered. The primary key and custom columns are skipped. That is enough for a lot of resources, and it is why the quickstart has no form code.
 
-```dart
-OrderModel.voucher.inputCode(
-  label: 'Voucher code',
-  codeField: VoucherModel.code,
-  normalizeCode: (code) => code.toUpperCase(),
-  placeholder: 'e.g. WELCOME10',
-  template: BeakRecordTemplate.fields(
-    title: VoucherModel.code,
-    subtitle: [VoucherModel.description],
-  ),
-)
+The input each column gets is in the [automatic editors table](../reference/input-builders.md#automatic-editors). Write a screen when you need grouping, conditions, a different control or a related-row editor.
+
+## One set of sections, three presentations
+
+An order can be created step by step and read as tabs. `BeakFormSections` holds the sections once and projects them as a stacked form, as tabs or as wizard steps. Conditions stay attached to the section.
+
+```dart title="examples/clean_beak_config/lib/resources/orders/order_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/order_resource.dart"
 ```
 
-`codeField` must be a string field directly on the related model. The exact
-query retains the model's eligibility constraints, dependent filters and access
-policy. Unknown, unavailable and ambiguous codes are rejected. A changed
-dependency invalidates an outstanding lookup; a network error remains visible
-and retryable. `normalizeCode` is optional; omit it for case-sensitive identifiers.
+`OrderFormWizardScreen` builds its steps from `orderSections().steps`, and the read screen shows `orderSections().tabs`. The projections copy titles, descriptions and conditions. They do not copy every styling option of a section (the reference lists the gaps), so a section that needs its own look is written per presentation. [Multi-step forms](multi-step-forms.md) picks up from here.
 
-## Calculated fields and requirements
+## Values that are not fields
 
-`BeakCalculated` reads the same draft without adding a stored model field.
-Its default presentation is inline text. `presentation: BeakCalculatedPresentation.field`
-shows a labelled, subdued value, while `.checkbox` displays a locked boolean
-requirement such as automatic company approval. Supply `dependencies` for
-related values used by the calculation; they are loaded and checked for read
-access before rendering. `labelBuilder` and `description` can explain the current
-calculated result. These presentations never add writes to the save graph.
+Some values belong on the screen and nowhere in the table: a line total, a summary, a guidance line. `BeakCalculated` reads the draft, formats the result and never submits it. The invoice review is a card of them:
 
-An ordinary editable checkbox can use `inputCheckbox(labelBuilder: ...)` to
-name its current recipient or other draft context. Its boolean value still uses
-the normal model binding and validation.
-
-## Date shortcuts and multiline text
-
-`inputDate(shortcuts: (state) => [...])` places typed `BeakInputOption<BeakDate>`
-shortcuts beside the normal calendar picker. They are suggestions, so a different
-calendar date remains valid unless model/placement rules reject it. Disabled
-shortcuts cannot be selected. The callback uses the same tracked draft reader
-as other input configuration; date values never pass through an instant timezone.
-
-```dart
-OrderModel.deliveryDate.inputDate(
-  label: 'Delivery date',
-  shortcuts: (_) => [BeakInputOption(tomorrow, 'Tomorrow')],
-)
-OrderModel.deliveryNote.inputText(maxLines: 3)
+```dart title="examples/clean_beak_config/lib/resources/invoices/screens/invoice_form.dart"
+--8<-- "examples/clean_beak_config/lib/resources/invoices/screens/invoice_form.dart:invoiceReview"
 ```
 
-`inputText(maxLines: 3)` keeps an ordinary string column and uses a three-line
-editor. A model `BeakMaxLength` rule supplies its character limit and counter;
-server validation continues enforcing the same rule.
+An input can also follow other fields with `derive:`. The input is then disabled and takes the computed value, which is right for a name copied from a definition and wrong for anything the user should be able to overwrite. If the value should be saved and stay editable, make it a model default or a suggestion in [model behavior](../models/behavior.md), which also runs on the server.
 
-## Drafts
+## Rules only the form knows
 
-Related edits, new picker records and uploads belong to the form draft. A modal checkpoint supports cancellation without persisting intermediate work. Validation observes current dependencies and ignores stale asynchronous responses.
+`validate:` and `validators:` on a placement run in the form and nowhere else. The order wizard uses one to refuse a delivery date in the past when creating:
 
-The final submission validates visible submitted values and produces a graph save plan. The source reports its atomic or staged guarantee; the UI preserves an interrupted draft and recovery information. Hidden fields are excluded unless their placement explicitly opts into submission.
+```dart title="examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart:orderDeliveryDateValidator"
+```
 
-## Escape hatches
+That is a usability rule. The API accepts a past date, because historical orders are legitimate. A rule the API must enforce belongs on the schema (`rules:` on the column, or `validationRules`), where the same definition runs in the form and on the server. [Validation](../models/validation.md) covers both.
 
-`onSession` exposes the live session for a custom editor or workflow. Use its typed draft operations rather than maintaining a parallel state map. Read mode uses the same layout and panel-wide formatters.
+## Review, inspect, resume
+
+Three switches on the screen change how a save feels without changing what it does:
+
+| Parameter | Effect |
+| --- | --- |
+| `reviewBeforeSave` | Save opens a "Review changes" dialog listing each changed field (before and after), with Back and Continue |
+| `drafts` | Stores the unfinished form locally so it can be resumed, see [Drafts, review and conflicts](drafts-and-review.md) |
+| `showInspector` | Adds an "Inspect form" button that lists every field with its visibility, dependencies and validation, for development |
+
+The product form turns on the first two:
+
+```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductFormScreen"
+```
+
+## A widget of your own
+
+When a piece of the form is not an input, `BeakFormWidget` puts any widget inside the layout and hands it the draft. The shop's variant builder is one: it previews combinations of sizes and finishes and adds the chosen ones as ordinary unsaved variant rows, so Save, Cancel, validation and review stay under Beak's control.
+
+```dart title="examples/clean_beak_config/lib/resources/products/screens/product_form.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:variantBuilderWidget"
+```
+
+`showOnRead: false` keeps it off the read page, where a builder makes no sense. Inside the widget, `BeakDraftScope.of(context)` says whether editing is allowed right now, and the `draft` argument is the same object the inputs edit:
+
+```dart title="examples/clean_beak_config/lib/resources/products/screens/variant_builder.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/screens/variant_builder.dart:variantBuilderEnabled"
+```
+
+## Outside a resource
+
+`BeakConfiguredForm` is the widget every screen mounts. Use it directly when a form has to live outside a resource route, in a dialog or a custom page. It takes the model, a data source and the same `layout` or `steps`:
+
+```dart title="examples/clean_beak_config/test/shop_widget_test.dart"
+--8<-- "examples/clean_beak_config/test/shop_widget_test.dart:standaloneForm"
+```
+
+`onSession` hands you the `BeakFormSession`, which is how a test reads the draft. A `BeakFormScreen` does not expose it. [Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md) covers the rest of the embedding story.
+
+## Rules and limits
+
+| Rule | Behavior |
+| --- | --- |
+| One screen per role | Two screens claiming the same role on one resource throw a `BeakConfigurationException` when the panel starts |
+| No list route | A `BeakFormScreen` with the `list` role throws at startup. The list is a `BeakTableScreen` |
+| Default roles | `create` and `edit`. The show page uses the generated layout until you add `read` |
+| Show page columns | The generated show page lists the columns visible in the form context. `visibleOn: {detail}` alone does not add a column to it |
+| Form-only rules | `validate:` and `validators:` are not sent to the server. Put a rule the API must enforce on the schema |
+| Hidden means absent | A hidden input is skipped by validation and left out of the submitted record, unless `submitWhenHidden` is true |
+| Locked fields | A field the account cannot write, or that model behavior controls, is disabled and left out of the submitted record |
+| Calculated values | `BeakCalculated`, summaries, metrics and capacity bars display values. None of them is submitted or validated |
+| Presentation permissions | Hiding an Edit button or a field is a courtesy. The server enforces `BeakPolicies` on every write |
+| Wizard parameters | `BeakWizardScreen` forwards 22 of the 29 parameters of `BeakFormScreen`. Use `BeakFormScreen(steps: [...])` when you need the rest |
+
+## Verify it
+
+The form runtime is covered by package tests, and the shop's forms have their own. From the repository root:
+
+```bash
+cd packages/beak_frontend
+flutter test test/src/form/beak_configured_form_test.dart
+```
+
+```bash
+cd examples/clean_beak_config
+flutter test test/fulfillment_form_test.dart test/order_form_test.dart test/invoice_form_test.dart
+```
+
+The second command runs six tests and ends with `All tests passed!`. To see a form rather than test one, run the shop (`examples/clean_beak_config`, API on port 8080) and open Customers, then a customer, then Edit.
+
+## Reference
+
+| Symbol | Where it is documented |
+| --- | --- |
+| `BeakFormScreen`, `BeakWizardScreen`, `BeakScreenRole` | [Screens and form layouts](../reference/screens-and-layouts.md#screens) |
+| `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakColumns`, `BeakTabs`, `BeakFormSections` | [Screens and form layouts](../reference/screens-and-layouts.md#layout-containers) |
+| `BeakCalculated`, `BeakFormWidget`, `BeakFormReader`, `BeakDraftScope` | [Screens and form layouts](../reference/screens-and-layouts.md#draft-access) |
+| `inputText`, `inputCombobox`, `tableForm` and every other builder | [Input builders](../reference/input-builders.md) |
+| `BeakConfiguredForm`, `BeakFormSession` | `packages/beak_frontend/lib/src/form/beak_configured_form.dart`, `packages/beak_frontend/lib/src/form/beak_form_session.dart` |
 
 ## Continue reading
 
-- [Multi-step forms](multi-step-forms.md)
-- [Shared model behavior](../models/behavior.md)
-
-### Preferred eligible choices
-
-`inputCards(defaultOptionMatch: ..., selectDefaultOption: true)` can resolve a
-recurring preference into a currently eligible option. Declare the fields used
-by the matcher in `dependencies`, and put date, availability and ownership
-restrictions in `options`. Matching runs only against loaded options when the
-selection is blank and the search term is empty; disabled options are excluded.
-A valid manual choice is preserved. `defaultOptionMatch` also identifies the
-choice's Default badge without enabling selection unless `selectDefaultOption`
-is set. Existing `defaultOption` can reference a concrete related record.
-
-### Pending edit indicators
-
-Set `BeakFormLayout(showChangeIndicators: true, children: [...])` to mark
-editable fields that differ from an existing record's loaded baseline. Markers
-use the existing typed draft comparison; restoring a value or discarding the
-draft removes them. New-record forms and read-only or inaccessible fields do
-not show modified markers. Inline command argument forms inherit their owning
-persisted edit context. Compact relationship rows mark newly added items until
-they are removed or saved. This presentation does not add a history store. The marker theme wrapper remains
-mounted as a field changes, preserving focus, cursor position and IME composition.
-
-`BeakFormSession.compactReviewChanges` returns actual graph operations, excluding
-field updates already represented by a newly created row.
-`reviewChangeCount` and `reviewChangeSummary` derive from that same list. The full
-`reviewChanges` remains available for the detailed review. The shared floating
-bar uses the compact count and labels rather than a separate app counter; its
-error action opens the first invalid region and focuses the matching editor,
-including keyboard activation.
-
-### Shared action and heading presentation
-
-`BeakConfiguredForm` accepts `editLabel`, `prominentEdit`, `compactActions`,
-`submitIcon`, `outlinedCancel` and `showActionsWhileEditing`. These change the
-existing controls' presentation; model commands still resolve permissions,
-arguments and execution through the same session. Defaults retain the ordinary
-Edit button, visible commands and existing save/cancel treatment.
-
-`BeakRelationAdd(presentation: BeakRelationAddPresentation.search, ...)` opens
-the declared collection editor through the same draft checkpoint as the dashed
-presentation. Its search-shaped surface remains one named action button; it
-does not create another query or editable text field. Cancelling restores the
-checkpoint, and row permissions and table availability still apply.
-
-`inputRadio(groupLabelAsField: true)` uses the text-input label style and label
-gap for a field heading. The default uses the radio group's heading role and
-`groupLabelSpacing`; spacing between options remains 8px. Quantity inputs accept
-`inputQuantity(controlWidth: 90)` without bypassing numeric bounds or binding.
-`BeakFormCapacity.valueStyle` styles the displayed ratio independently of its
-label; omitting it preserves the earlier label-style fallback.
-
-
-Relationship `inputCards(cardPadding: ...)` overrides the declared choice inset;
-its nullable default preserves existing rich and compact card spacing. Scalar
-`inputRadio(cardPadding: ...)` has a separate choice-card placement override.
-The shared radio tile still paints its selected outline over the same bounds.
-
-
-Multiline scalar placements can set `inputText(multilineContentPadding: ...)`.
-The nullable override is scoped to that editor and resolves the current text
-direction; other multiline notes retain the input theme's padding and height.
+- [Inputs](inputs.md) choosing the right input for each field type.
+- [Related records in forms](related-records.md) pickers, table editors and catalogs inside a form.
+- [Multi-step forms](multi-step-forms.md) the same sections as validated steps.
+- [Detail views](detail-views.md) the read role and the generated show page.
