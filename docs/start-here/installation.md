@@ -1,98 +1,160 @@
 ---
 title: Installation
-description: Install the Beak CLI and scaffold your first admin panel. No Docker, no database to set up.
+description: Install the beak command and create a project, including the two pre-release workarounds for the missing v0.9.0 tag and the obers_ui pin.
 type: guide
 audience: [beginner]
-status: draft
+status: stable
 ---
 
 # Installation
 
-After this page you have the `beak` command on your path and a project it
-created. The [Quickstart](quickstart.md) picks up from here.
+After this page you have the `beak` command on your path and a project it created, resolved and generated. The [Quickstart](quickstart.md) picks up from there.
 
-## Prerequisites
+Two things are not finished yet, and this page says so where they bite: Beak `0.9.0` is not tagged, and the obers_ui commit Beak pins is older than the code. Both go away at release. Until then the steps below are the ones that work.
 
-| Tool | Version | Why you need it |
+## At a glance
+
+| You need | Version | Why |
 | --- | --- | --- |
 | Dart SDK | `^3.11` | The CLI and the server half. |
-| Flutter | stable, `3.41` or newer | The panel. |
+| Flutter | `3.41` or newer | The panel. `beak create` calls `flutter pub get` and `flutter create`. |
+| git | any | The CLI and the obers_ui pin come from git. |
 
-That is the whole list. A new project's database is a SQLite file Beak creates
-on first run, so there is nothing to install, start, or configure before you
-see a panel. Docker and Postgres become relevant later, when you want a server
-database or object storage, and both are opt-in.
+That is the whole list. A new project's database is a SQLite file Beak creates on first run, so there is nothing to install or start before you see a panel. Docker and Postgres show up later, and only if you want them.
+
+| Step | Command |
+| --- | --- |
+| Get the code | `git clone https://github.com/SimonErich/beak.git` |
+| Install the CLI | `dart pub global activate --source path beak/packages/beak_cli` |
+| Create a project | `beak create acme_admin --beak-path "$PWD/beak"` |
+| Point the panel at a working obers_ui | `pubspec_overrides.yaml`, [below](#link-obers_ui-until-the-pin-moves) |
 
 ## Install the CLI
 
+Clone the repository once, then activate the `beak_cli` package from the checkout:
+
+```bash
+git clone https://github.com/SimonErich/beak.git
+dart pub global activate --source path beak/packages/beak_cli
+```
+
+The pubspec declares `beak` as an executable, so activation puts a `beak` command on your `PATH`. If the shell cannot find it, add pub's bin directory (`$HOME/.pub-cache/bin` on macOS and Linux, `%LOCALAPPDATA%\Pub\Cache\bin` on Windows).
+
+```console
+$ beak --version
+beak 0.9.0
+```
+
+A project never depends on `beak_cli`. The CLI is a tool you install once; the project depends on the `beak` package.
+
+Once a release is tagged you can skip the clone and activate straight from git:
+
 ```bash
 dart pub global activate --source git https://github.com/SimonErich/beak.git \
-  --git-path packages/beak_cli
+  --git-path packages/beak_cli --git-ref v0.9.0
 ```
 
-Check it:
+That form needs a ref that exists. `v0.9.0` does not yet, which is the next section.
 
-```bash
-beak --help
-```
+## The release is not tagged yet
 
-If the command is not found, add pub's bin directory to your `PATH`
-(`$HOME/.pub-cache/bin` on macOS and Linux, `%LOCALAPPDATA%\Pub\Cache\bin` on
-Windows).
+A plain `beak create` writes a pubspec that depends on Beak by git, at the tag that matches the CLI version:
 
-## Create a project
-
-```bash
-beak create acme_admin
-cd acme_admin
-```
-
-`beak create` writes the files you own, delegates `web/` to
-`flutter create --platforms=web`, and then runs `beak prepare` for you, so the
-project is runnable as created rather than one command short of it. What you
-own is small:
-
-```text
-acme_admin/
-├── pubspec.yaml            one dependency: beak
-├── beak.yaml               title, API origin, icons, sections (every key optional)
-├── analysis_options.yaml
-├── AGENTS.md               what an AI coding agent needs to know about the layout
-├── README.md
-├── .gitignore
-├── lib/models/note.dart    one @Resource class, the example to replace
-├── test/widget_test.dart   boots the panel against an in-memory data source
-└── web/                    Flutter's own web scaffold
-```
-
-The `beak prepare` that follows generates nine more files: the model's part
-file (`lib/models/note.beak.dart`), the migration that table needs
-(`lib/migrations/create_notes_table.dart`), the four wiring files under
-`lib/beak/`, and the three entrypoints (`lib/main.dart`, `bin/serve.dart`,
-`bin/migrate.dart`).
-
-Everything else (the panel, the router, the REST API, the query layer) comes
-from the `beak` package itself. You never edit generated code, and you can take
-any Beak default over with `beak eject` when you want to. See
-[Project structure](project-structure.md) for what each of those files is.
-
-## One dependency
-
-A generated `pubspec.yaml` names Beak once:
-
-```yaml
+```yaml title="acme_admin/pubspec.yaml (default beak create)"
 dependencies:
   beak:
     git:
       url: https://github.com/SimonErich/beak.git
+      ref: v0.9.0
       path: packages/beak
-  flutter:
-    sdk: flutter
 ```
 
-The `beak` package re-exports each layer as its own library, so you import the
-one you need and never keep five version constraints in step. Which library a
-file imports says what that file is:
+`v0.9.0` does not exist until the release is cut, so today `flutter pub get` fails:
+
+```console
+$ beak create demo
+  created demo/pubspec.yaml
+  ...
+Resolving dependencies...
+Because demo depends on beak from git which doesn't exist (Could not find git ref 'v0.9.0' ...), version solving failed.
+  `flutter pub get` failed (exit 69). Fix what it reports, then run `flutter pub get` and `beak prepare` in demo.
+```
+
+The files are written, so nothing is lost, but the project is not resolved. Tell `create` where Beak is instead. The two flags are alternatives, and passing both is a usage error.
+
+| Flag | What it does | Use it when |
+| --- | --- | --- |
+| `--beak-path <repo root>` | Writes a `path:` dependency on `<repo root>/packages/beak`. | You have a checkout, which is the case after the clone above. |
+| `--beak-ref <ref>` | Keeps the git dependency, pinned to a branch, tag or commit. | The ref exists on `github.com/SimonErich/beak`. |
+
+The argument of `--beak-path` is the root of the checkout. The CLI appends `/packages/beak` itself, so pointing it at `beak/packages/beak` writes a path that does not exist and `flutter pub get` fails. It also writes the path exactly as you typed it, and pub reads a relative one relative to the new project, so pass an absolute path:
+
+```bash
+beak create acme_admin --beak-path "$PWD/beak"
+```
+
+Move the checkout and `flutter pub get` breaks, which is one more reason to switch to the tag when it exists.
+
+## Link obers_ui until the pin moves
+
+Beak's panel is built on obers_ui, and `beak` pins it by git commit, not by version. Two consequences follow.
+
+- **The pinned commit has to be fetchable.** Every `flutter pub get`, and every `melos bootstrap` in a clone of Beak, downloads it from `github.com/SimonErich/obers_ui`. It exists today. If that repository or the commit ever disappears, resolution fails and nothing on this page helps.
+- **The pinned commit is older than the code.** `beak_frontend` uses obers_ui APIs the pinned commit does not have. A project resolved from the pin fails when it compiles the panel:
+
+```console
+$ flutter test
+.../beak_frontend/lib/src/blocks/beak_block_host.dart:241:5: Error: No named parameter with the name 'headerGap'.
+.../beak_frontend/lib/src/blocks/views/beak_summary_block_view.dart:226:38: Error: Member not found: 'OiIcon.raw'.
+```
+
+Until the pin catches up, give the project a checkout of obers_ui to resolve against. Clone [obers_ui](https://github.com/SimonErich/obers_ui) next to the project and add a `pubspec_overrides.yaml` beside `pubspec.yaml`:
+
+```yaml title="acme_admin/pubspec_overrides.yaml"
+dependency_overrides:
+  obers_ui:
+    path: ../obers_ui
+  obers_ui_autoforms:
+    path: ../obers_ui/packages/obers_ui_autoforms
+  obers_ui_charts:
+    path: ../obers_ui/packages/obers_ui_charts
+```
+
+Then run `flutter pub get` again. With that file a freshly created project passes its own `flutter test`. The API half (`beak migrate`, `beak dev`) never touches obers_ui, so it works without the file.
+
+Inside a clone of the Beak repository `melos run link-obers-ui` does the same for every package and example. [Working with obers_ui](../contributing/working-with-obers-ui.md) covers it.
+
+## Create a project
+
+```bash
+beak create acme_admin --beak-path "$PWD/beak"
+cd acme_admin
+```
+
+`beak create` runs in this order: it writes the files you own, lets `flutter create --platforms=web` write `web/`, runs `flutter pub get`, runs `beak prepare` to generate the wiring, and installs the agent files and workflow skills. What you own is small:
+
+```text
+acme_admin/
+├── pubspec.yaml                          one dependency: beak
+├── beak.yaml                             title, API origin, per-table icon and section
+├── analysis_options.yaml
+├── AGENTS.md  CLAUDE.md                  what a coding agent needs to know about the layout
+├── README.md  .gitignore
+├── lib/resources/notes/models/note.dart  one @Resource class, the example to replace
+├── test/widget_test.dart                 boots the panel against an in-memory data source
+└── web/                                  Flutter's own web scaffold
+```
+
+`beak prepare` adds the generated half: the model's part file (`note.beak.dart`), the create-table migration, four wiring files under `lib/beak/`, and the entrypoints `lib/main.dart`, `bin/serve.dart` and `bin/migrate.dart`. [Project structure](project-structure.md) says which of those you may edit (none of the generated ones) and how to take a default over.
+
+The flags of `beak create` are in the [Reference](#reference) below. Two are worth knowing on day one:
+
+- `--authored` writes a `lib/main.dart` you own instead of the generated one. [Two ways to boot a panel](generated-or-authored.md) explains the choice.
+- `--no-pub` writes the files and prints the commands to run, for a machine without a network.
+
+## One dependency
+
+The generated `pubspec.yaml` names Beak once. The `beak` package re-exports each layer as its own library, so you import the one a file needs and never keep five version constraints in step:
 
 | Library | What it holds |
 | --- | --- |
@@ -100,113 +162,66 @@ file imports says what that file is:
 | `package:beak/schema.dart` | The annotations a schema class carries: `@Resource`, `@Column`, `@BelongsTo`. |
 | `package:beak/panel.dart` | The panel: `BeakPanel`, resources, blocks, tables, forms. |
 | `package:beak/server.dart` | The Shelf host, its config, storage wiring, auth, policy. |
-| `package:beak/migrations.dart` | The schema DSL for migrations and seeders. |
-| `package:beak/testing.dart` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, fixtures, and the executable data-source contract. |
-| `package:beak/ui.dart` | obers_ui, for a screen that draws its own widgets. |
+| `package:beak/migrations.dart` | The migration and seeder DSL. |
+| `package:beak/testing.dart` | `InMemoryBeakDataSource`, fixtures and the data-source contract suite. |
+| `package:beak/ui.dart` | obers_ui and obers_ui_autoforms, for a screen that draws its own widgets. |
 | `package:beak/charts.dart` | obers_ui_charts. |
 
-A file under `lib/models/` imports `beak.dart` and `schema.dart`, and nothing
-else. `panel.dart`, `server.dart` and `migrations.dart` re-export `beak.dart`,
-so everything else usually needs one import.
+A schema class imports `beak.dart` and `schema.dart` and nothing else. `beak.dart` carries no widgets on purpose: `bin/serve.dart` reaches your schema classes, and a server that pulled in `dart:ui` would stop compiling ahead of time. [Libraries](../reference/libraries.md) has the full split.
 
-!!! note "Why `beak.dart` carries no widgets"
-    `bin/serve.dart` reaches the generated registry, and the registry reaches
-    your models. If any of those pulled in `dart:ui`, the server would stop
-    compiling ahead of time. Keeping the widgets in `panel.dart` makes that
-    mistake impossible, and `beak doctor` catches it if a panel file imports
-    the server by hand.
+## Rules and limits
 
-## Resolve and run
+- **No database step.** With no `DATABASE_URL`, the database is `beak.db` beside the project, and `beak doctor` counts that as a pass. Put `DATABASE_URL=postgres://...` in a `.env` when you want Postgres. [Databases](../backend/databases.md) covers it.
+- **Beak never changes a database on boot.** `beak migrate` applies migrations, and you run it on purpose, once per schema change.
+- **`beak create` into a directory that already has files overwrites `pubspec.yaml`, `beak.yaml`, `lib/main.dart`, `AGENTS.md` and `README.md`.** Create into a new directory. To add Beak to a Flutter app you already have, use [`beak init`](paths/existing-flutter-app.md) instead.
+- **`beak prepare`, `dev` and `migrate` do not check that they run inside a Beak project.** In an empty directory `beak prepare` writes `bin/` and `lib/` there. Run them from the project root.
+- **A `--beak-path` dependency is local.** The scaffold records the checkout's path, so it is a convenience for your machine and not something to commit for a team.
+- **The panel does not compile against the pinned obers_ui yet.** See [Link obers_ui](#link-obers_ui-until-the-pin-moves) above; the API and the migrations are unaffected.
 
-```bash
-flutter pub get
-beak migrate
-beak dev
-```
-
-`beak migrate` applies the migration `beak prepare` wrote. Beak never alters a
-database on boot, so this is a step you take deliberately, once per schema
-change.
-
-`beak dev` regenerates the wiring and serves the API on
-`http://localhost:8080`. It prints the `flutter run` line for the panel rather
-than spawning it, so paste that into a second terminal:
+## Verify it
 
 ```console
-$ beak dev
-  1 model · 0 screens · 0 overrides
-  generated  up to date (7 files)
-  panel      run this in another terminal:
-               flutter run -d chrome
-  api        starting…
+$ beak --version
+beak 0.9.0
+$ cd acme_admin
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 1 model · 0 resource classes · 0 screens · 0 overrides
+  OK   generated files up to date
+  OK   every model has a migration
+  OK   web/ scaffold present
+  OK   no panel file imports the server
+  ...
+All checks passed.
 ```
 
-With no `DATABASE_URL`, the database is a SQLite file (`beak.db`, git-ignored)
-beside the project. Nothing to install and nothing to start.
-
-## A real database
-
-When you want Postgres, put a `DATABASE_URL` in a `.env` beside your
-`pubspec.yaml`:
+Then run the project's own test, which boots the panel against an in-memory data source:
 
 ```bash
-DATABASE_URL=postgres://user:pass@localhost:5432/acme
+flutter test
 ```
 
-Uploads land under `storage/uploads` and are served by the Beak server itself
-until `BEAK_STORAGE_DRIVER` says otherwise. Point them at S3 or MinIO with:
+It passes once obers_ui resolves against a checkout that has the newer APIs, and fails to compile the panel before that.
 
-```bash
-BEAK_STORAGE_DRIVER=s3
-BEAK_S3_ENDPOINT=http://localhost:9000
-BEAK_S3_BUCKET=acme-uploads
-BEAK_S3_ACCESS_KEY=...
-BEAK_S3_SECRET_KEY=...
-BEAK_S3_REGION=us-east-1
-BEAK_S3_USE_PATH_STYLE=true
-```
+## Reference
 
-The S3 driver is registered by the project, not by Beak: declare a
-`beakStorageRegistry()` in `lib/server.dart` and `beak prepare` wires it into
-the host. See
-[Uploads and storage wiring](../backend/uploads-and-storage-wiring.md).
+`beak create <name>` takes exactly one argument, a `lower_snake_case` package name.
 
-`.env` is git-ignored by the generated `.gitignore`. Check the whole setup at
-any time:
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--beak-path <repo root>` | none | Depend on a local checkout. The CLI appends `packages/beak`. |
+| `--beak-ref <ref>` | `v0.9.0` (derived from the CLI version) | The git ref of the git dependency. Mutually exclusive with `--beak-path`. |
+| `--authored` | off | Write a `lib/main.dart` the project owns, listing a `NoteResource`. |
+| `--[no-]example` | on | Write the `Note` schema class. `--no-example` starts empty; add the first resource with `beak make:resource`. |
+| `--[no-]pub` | on | Run `flutter pub get`, `beak prepare` and the agent files. `--no-pub` stops after writing files. |
+| `--skills claude,agents,cursor\|none` | the agent folders the project has, then `claude` and `agents` | Where to install the workflow skills. |
 
-```bash
-beak doctor
-```
-
-No `DATABASE_URL` is a passing check, not a warning: it is the supported
-zero-setup default.
-
-## Pointing Beak at a database you already have
-
-Point Beak at it and it writes the models for you:
-
-```bash
-beak introspect postgres://user:pass@localhost:5432/existing_app
-beak prepare
-```
-
-It reads types, nullability, defaults, foreign keys and enum labels, and writes
-the same annotated classes you would have written by hand. The result is an
-ordinary Beak project whose first draft happened to come from a database. Edit
-it and it stays yours.
-
-## Working on Beak itself
-
-Contributors clone the monorepo instead. See
-[Contributing](../contributing/index.md) for the Melos workspace, the
-four-command gate, and the Docker stack the integration tests use.
+The full command list is in [CLI commands](../reference/cli-commands.md).
 
 ## Continue reading
 
-- [Quickstart](quickstart.md) a resource, a migration, and a running panel.
-- [Project structure](project-structure.md) what each folder is for, and which
-  files you can take over.
-- [Libraries](../reference/libraries.md) the eight libraries in full, and why
-  the split is enforced rather than trusted.
-- [CLI commands](../reference/cli-commands.md) `create`, `prepare`, `dev`,
-  `migrate`, `introspect`, `eject`, `doctor` and their flags.
+- [Quickstart](quickstart.md): migrate, serve and open the panel of the project you just created.
+- [Project structure](project-structure.md): what every file in it is for, and which ones you may edit.
+- [Choose your path](paths/index.md): start from a database, a Flutter app, a Serverpod workspace or a backend you already have.
+- [CLI commands](../reference/cli-commands.md): every command and flag.

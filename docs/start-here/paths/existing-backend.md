@@ -1,17 +1,103 @@
 ---
 title: An existing backend
-description: Keep your REST or RPC backend and let the Beak panel talk to it.
+description: Keep your REST or RPC backend and let the Beak panel talk to it through model-owned transports, with your own permissions, error mapping and a contract suite.
 type: guide
 audience: [expert]
-status: draft
+status: stable
 ---
 
 # An existing backend
 
-This page is a draft. It will cover keeping an existing backend: model-owned transports, capabilities, exception mapping and the data source contract suite.
+You have a backend that already owns its models, authorization and business operations, and you want Beak's panel in front of it. After this page you know which of the three ways to connect fits, what the panel does and does not do on top of your API, and how to prove your adapter behaves.
+
+Beak's default backend is a Shelf server over the worm ORM, and none of it is needed here. The panel talks to a `BeakDataSource`, an interface in `beak_core`, and a source is whatever you write behind it.
+
+## At a glance
+
+| Way | Beak runs | Your backend stays | Pick it when |
+| --- | --- | --- | --- |
+| Model-owned transport | The panel only | The API, its auth and its rules | You have a REST or RPC API and will not move the data |
+| Beak server over your database | The whole stack | Only the database | You own the database and would rather not maintain the API ([An existing database](existing-database.md)) |
+| A custom source on Beak's server | The panel and the generated routes | Your storage | The storage is not SQL. Saves are limited today, see below |
+
+This page is about the first row. You bind a transport to a `BeakModel` once, register the resource once, and the panel finds the transport by itself. There is no second list mapping resources to sources.
+
+```dart title="packages/beak_frontend/test/src/panel/model_configuration_test.dart"
+--8<-- "packages/beak_frontend/test/src/panel/model_configuration_test.dart:BoundModel"
+```
+
+A `BeakModel` is metadata plus five optional hooks, and the two that matter first are these:
+
+| Hook | Default | What the panel does with it |
+| --- | --- | --- |
+| `dataSource` | `null` | Routes every query and write for `table` to it. Return a stable instance. |
+| `capabilities` | read, create, update, delete | Hides what the transport cannot do. An API without an update endpoint drops `update`, and the edit action disappears. |
+| `permissions` | `BeakPermissions.allowAll()` | Live yes-or-no callbacks per operation, read each time, so a refresh changes access without rebuilding anything. |
+| `createModel`, `editModel` | `null` | Separate column sets for the create and edit forms, when your write commands differ from your read DTOs. |
+
+## Build it
+
+1. **Write the model by hand.** A `@Resource` schema class forwards only `permissions` and `capabilities`, and reserves the names `dataSource`, `createModel` and `editModel`. For a foreign API, subclass `BeakModel` directly: a `const` class with a zero-argument constructor anywhere under `lib/` is picked up by `beak prepare` and listed in the generated registry.
+2. **Write the data source.** Implement `BeakDataSource`: `query`, `getOne`, `create`, `update`, `delete`, `restore`, `batchGet`, `attach`, `detach`, `aggregate`. Your adapter converts DTOs to `BeakRecord`, translates the query operations it supports, and calls your existing commands. What it must not do is ignore a filter or a sort it cannot honour: throw a typed exception, or the panel shows an unfiltered list as if it were the answer. [Custom data sources](../../extending/custom-data-sources.md) has the contract per method.
+3. **Implement `BeakCommitDataSource` if your API can save a graph atomically.** Then a form save is one `commit(plan)` and a crashed save can be resumed with `recover(saveId)`. Without it the panel runs a staged save: one `create` or `update` per operation, in dependency order, stopping at the first failure.
+4. **Prove it with the contract suite.** `runBeakDataSourceContract` is the executable specification, and every source Beak ships runs it. It checks the edges that only bite in production: `getOne` returning `null` instead of throwing, `update` throwing when the row is gone, `aggregate` returning `0` over an empty set.
+5. **Register the resource and mount the panel.** A `BeakResource` selects the model and adds presentation. If sign-in belongs to your backend, give the panel a `BeakAuthConfig(adapter: ...)`, and bind every model or pass one `dataSource:` to the panel, because with external authentication no HTTP source exists.
+
+```dart title="packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart"
+--8<-- "packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart:contract"
+```
+
+That is the shape of the suite call for `WormDataSource`; yours passes your own `create` and `seed`. [Custom data sources](../../extending/custom-data-sources.md#prove-it-with-the-contract-suite) explains each argument.
+
+## Which source method the panel calls
+
+| Panel action | Source implements `BeakCommitDataSource` | Otherwise |
+| --- | --- | --- |
+| Form save (create or edit) | `commit(plan)`, resumed with `recover(saveId)` | A staged save, in dependency order, stopping at the first failed or uncertain write |
+| Delete and archive | A one-operation `commit` that keeps the model's soft delete | `delete(table, id)` |
+| Record page (show, edit) | One `query` filtered on the primary key, with the relations the layout needs | The same |
+| Edit page of a model with `editModel` | `loadEditValues(table, id)` when the source implements `BeakEditDataSource` | `getOne`, then the form prefills from the read record |
+
+## Map your errors
+
+Every panel call passes through one wrapper. A `BeakException` goes through untouched. Any other `Exception` goes to `BeakPanelConfig.mapException`, which returns a localized `BeakException` for the failures it recognises and `null` for the rest, so a programming error stays loud. The wrapper covers record reads, mutations, aggregates, uploads and edit-command loading.
+
+`mapException` lives on `BeakPanelConfig`, not on the `BeakPanel(...)` shorthand. A panel that needs it is built with `BeakPanel(config: BeakPanelConfig(...))`.
+
+## Rules and limits
+
+- **The panel checks are presentation.** `capabilities` and `permissions` hide controls. Your backend has to authorize every call again.
+- **No Beak validation on your server.** Beak's rules run in the panel's forms. Your API stays the authority on what is valid, and the panel shows whatever error you map.
+- **A custom source on Beak's own server loses saves.** `POST /api/commits` is mounted only for `WormDataSource`, and the panel's HTTP source always saves through it. With another server-side source, panel reads work and saves and deletes answer `404`. Prefer the transport route above, where the panel calls your API directly.
+- **`BeakServerDefaults.build` takes no `dataSource:` or `storage:`.** Serving a custom source means building the `BeakServer` by hand in `lib/server.dart` (`beak eject server` writes the file).
+- **Filters you cannot honour are errors.** A bridge-style source that supports only equality filters must throw on the rest; the query spec is Beak's full vocabulary.
+- **A staged save is not atomic.** It stops at the first failed or uncertain write, and the operations before it stay written. A save that touches models bound to different sources is staged too, even when each source could commit on its own.
+- **The Serverpod bridge is this pattern, generated.** `ServerpodResource` is a `BeakModel` that sets all five hooks from a Serverpod client. If your backend is Serverpod, start at [An existing Serverpod project](existing-serverpod-project.md).
+
+## Verify it
+
+Run the contract suite against your source, then boot the panel against it in a widget test:
+
+```console
+$ dart test test/my_data_source_contract_test.dart
+00:00 +29: MyDataSource satisfies the BeakDataSource contract ...
+00:00 +30: All tests passed!
+```
+
+The test count depends on the columns you pass: without a numeric column the sum and average tests are skipped. Then `flutter test`, with your model and a fake transport behind a `BeakPanel`, checks the wiring end to end. [Testing](../../shipping/testing.md) has the harness.
+
+## Reference
+
+| Piece | Where it lives |
+| --- | --- |
+| `BeakDataSource`, `BeakCommitDataSource`, `BeakEditDataSource` | `package:beak/beak.dart` |
+| `BeakModel`, `BeakPermissions`, `BeakOperation` | `package:beak/beak.dart` |
+| `BeakPanel`, `BeakPanelConfig(mapException:)`, `BeakAuthConfig` | `package:beak/panel.dart` |
+| `runBeakDataSourceContract`, `InMemoryBeakDataSource` | `package:beak/testing.dart` |
 
 ## Continue reading
 
-- [Choose your path](index.md): Pick the starting situation that matches your project and follow its first pages.
-- [Contributing to Beak](contributing.md): Clone the repository, get the gate green and pick work to do.
-- [An existing Serverpod project](existing-serverpod-project.md): Route an existing Serverpod project to the admin app or to the client bridge.
+- [Model-owned transports](../../extending/model-transports.md): the hooks, capabilities, permissions and the command models in full.
+- [Custom data sources](../../extending/custom-data-sources.md): the interface, its contract per method and the suite.
+- [Client bridge](../../serverpod/bridge/index.md): a finished example of the same pattern.
+- [Choose your path](index.md): the other starting points.
