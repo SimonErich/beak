@@ -1,43 +1,53 @@
 ---
 title: Backend flow
-description: Follow a request through Handler, Service and DataSource and the single error catch boundary.
+description: Follow a request through Handler, Service and DataSource, and find the one place an exception becomes an HTTP status.
 type: concept
 audience: [contributor, expert]
-status: draft
+status: stable
 ---
 
 # Backend flow
 
-After this page you will be able to trace a request from the socket to the database and back, name which layer owns which job, and know exactly where an exception becomes an HTTP status code. This is the server side of Beak's [four layers](../concepts/the-four-layers.md).
+The server is three layers, `Handler (Shelf) -> Service -> DataSource`, inside a middleware stack whose job is to turn typed exceptions into JSON. After this page you can trace a request from the socket to the database and back, name the layer that owns each decision, and say where an exception becomes a status code. No endpoint in the surface is hand-written: registering a model generates its routes.
 
-The backend flow is `Handler (Shelf) -> Service -> DataSource`, wrapped in a middleware stack whose outermost concern is turning typed exceptions into JSON. No endpoint in the whole surface is hand-written: declaring a resource generates its routes.
-
-## The path of a request
+## The idea in one picture
 
 ```mermaid
 flowchart TD
-  REQ[HTTP request] --> MW
-  subgraph MW[Middleware stack]
-    LOG[request log] --> CORS --> JSON[JSON] --> ERR[error mapping] --> AUTH[auth]
-  end
-  MW --> H[Handler: BeakCrudHandlers]
-  H -->|policy check + decode body| S[Service: BeakResourceService]
-  S -->|validate + defaults| DS[DataSource: WormDataSource]
-  DS -->|translate spec| WORM[worm]
-  WORM --> DB[(SQLite or Postgres)]
-  ERR -. maps BeakException .-> RESP[status + JSON envelope]
+  REQ[HTTP request] --> LOG[request log]
+  LOG --> CORS[CORS]
+  CORS --> JSON[JSON content type]
+  JSON --> ERR[error mapping<br/>the single catch boundary]
+  ERR --> AUTH["auth: resolve the principal"]
+  AUTH --> PMW[project middleware]
+  PMW --> ROUTER{router}
+  ROUTER -->|"/healthz, /readyz"| HEALTH[health probes]
+  ROUTER -->|"/api/commits"| GRAPH[BeakGraphCommitService]
+  ROUTER -->|"/api/{table}/..."| H["Handler<br/>BeakCrudHandlers"]
+  H -->|policy, field access, row scope| S["Service<br/>BeakResourceService"]
+  S --> DS["DataSource<br/>WormDataSource"]
+  GRAPH --> DS
+  DS --> WORM[worm adapter] --> DB[(SQLite or Postgres)]
+  ERR -. "BeakException to status + JSON" .-> RESP[response]
 ```
 
-Each layer has one job and refuses the others.
+Each layer has one job and refuses the others. The handler decides who may do a thing, the service decides whether the thing is valid, the data source does the I/O. Everything below the error-mapping middleware throws, and nothing below it formats an error.
 
-## Where the server comes from
+## How it works
 
-Before the first request there is a host. `bin/serve.dart` asks for it, binds it, and closes it again on SIGINT or SIGTERM:
+### Where the server comes from
+
+Before the first request there is a host. `bin/serve.dart` asks for it, binds it, and closes it on SIGINT or SIGTERM. It is generated and names no resource:
 
 ```dart title="examples/quickstart/bin/serve.dart"
 /// Serves the API until SIGINT or SIGTERM, then shuts down and exits.
 Future<void> main() async {
-  ...
+  // Watching first: a signal that arrives while the server boots, or right
+  // after it says it is listening, must stop it cleanly rather than kill it.
+  final Future<ProcessSignal> stopped = Future.any([
+    ProcessSignal.sigint.watch().first,
+    if (!Platform.isWindows) ProcessSignal.sigterm.watch().first,
+  ]);
   final HttpServer server = await beakHost().serve();
   stderr.writeln('listening on http://${server.address.host}:${server.port}');
   await stopped;
@@ -47,7 +57,7 @@ Future<void> main() async {
 }
 ```
 
-`beakHost()` lives in `lib/beak/server.g.dart`, where `beak prepare` wrote what it found on disk: the registry, the migrations under `lib/migrations/`, the seeders under `lib/seeders/`, and the `lib/server.dart` override if the project has one.
+`beakHost()` lives in `lib/beak/server.g.dart`. `beak prepare` fills it with what it found on disk: the registry, the migrations under `lib/migrations/`, the seeders under `lib/seeders/`, and `lib/server.dart` as `configure` when the project has one.
 
 ```dart title="examples/quickstart/lib/beak/server.g.dart"
 BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
@@ -62,163 +72,141 @@ BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
 );
 ```
 
-`BeakServeHost` owns the lifecycle: resolve the environment into a `BeakBackendConfig`, open the adapter the `DATABASE_URL` scheme names (SQLite for `sqlite:`, Postgres otherwise), resolve the upload driver, build the server, bind the port. The same host backs the migration CLI through `runCli`, so the schema and the API can never come from different registries. `serve()` and `runCli()` are the two ways in.
+`BeakServeHost` owns the lifecycle. It resolves the environment (`.env` overlaid by the process environment) into a `BeakBackendConfig`, opens the adapter the `DATABASE_URL` scheme names, resolves the upload driver, builds the server and binds the port. With nothing configured that is a SQLite file `beak.db` beside the project, port `8080`, host `0.0.0.0` and local-disk uploads, so a first run needs no Docker and no `.env`.
 
-A project that needs more than the defaults writes `lib/server.dart`, and the generated host passes it through as `configure`. It receives everything Beak already resolved and returns the server to serve, which is where the canonical shop installs transactional business rules. Authentication and row/field policies can be configured through the same override. Everything below this point happens inside the handler that host built.
+`BeakCommitReceiptsMigration` and `BeakOutboxMigration` at the top of the list are Beak's own framework tables. Yours follow, ordered by their declared `name`.
 
-## The middleware stack
+`serve()` and `runCli()` are the two ways in, and both use the same registry and migration list, so the schema and the API cannot come from different sources. `bin/migrate.dart` is one line: `exit(await beakHost().runCli(args))`.
 
-`BeakServer` composes the whole pipeline as a single Shelf `Handler`, outermost first.
+Migrations are never applied on boot, with one exception: a `sqlite::memory:` database dies with the process, so `serve()` migrates and seeds it itself. Every other database is migrated by `beak migrate`.
 
-```dart
-Handler get handler => const Pipeline()
-    .addMiddleware(beakRequestLogMiddleware(onRequest: _onRequest))
-    .addMiddleware(beakCorsMiddleware())
-    .addMiddleware(beakJsonMiddleware())
-    .addMiddleware(
-      beakErrorMappingMiddleware(onUnexpectedError: _onUnexpectedError),
-    )
-    .addMiddleware(beakAuthMiddleware(guard: _authGuard))
-    .addHandler(_router);
+Uploads land on local disk under `storage/uploads`, served by the same server at `/uploads`, until `BEAK_STORAGE_DRIVER` says otherwise. [Storage internals](storage-internals.md) covers the selection.
+
+A project that needs more than the defaults writes `lib/server.dart` with a top-level `beakServer(BeakServerDefaults defaults)`. It receives everything the host resolved (`config`, `registry`, `dataSource`, `storage`, `environment`) and returns `defaults.build(...)`. That is where a policy, extra middleware, extra routes, a graph preparer, `graphOnly` and an outbox schedule are installed.
+
+### The middleware stack
+
+`BeakServer` composes one Shelf `Handler`. The order is the design:
+
+```dart title="packages/beak_backend/lib/src/server/beak_server.dart"
+--8<-- "packages/beak_backend/lib/src/server/beak_server.dart:BeakServerHandler"
 ```
 
-The order matters. The request log wraps everything so every request is recorded whatever happens inside. CORS and JSON prepare the request. The error-mapping middleware sits just outside auth and the router, so any exception thrown by authorization, handlers, services, or the data source is caught in one place.
+- The request log wraps everything, so a request is recorded whatever happens inside. It honours an incoming `x-request-id` or mints one, and by default writes `[id] METHOD /path -> status (ms)` to stderr.
+- CORS answers `OPTIONS` preflights with a `204` and adds its headers to every other response, error responses included. The default origin is `*`.
+- The JSON middleware sets `content-type: application/json` on responses that named none.
+- Error mapping sits just outside auth and the router, so anything thrown by authorization, a handler, a service or the data source is caught in one place.
+- Auth resolves a `BeakPrincipal` from the request and stores it in the request context. With no guard every request is anonymous.
+- Your `middleware:` runs after auth and inside error mapping. It sees the principal, and the typed exceptions it throws become JSON.
 
-## The error-mapping middleware: the single catch boundary
+Project `routes:` go in front of the generated API through a `Cascade`. A route of yours wins on the same path, and a `404` or `405` from it falls through to the generated one.
 
-This is the one place the backend turns a thrown value into a response. Everything below it throws; nothing below it formats an error.
+### The error-mapping middleware
+
+This is the one place the backend turns a thrown value into a response.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-(Handler inner) => (Request request) async {
-  try {
-    return await inner(request);
-  } on BeakException catch (exception) {
-    return _exceptionResponse(exception, request);
-  } catch (error, stackTrace) {
-    onUnexpectedError?.call(error, stackTrace);
-    return _jsonResponse(500, {
-      'code': 'internal',
-      'message': 'Internal server error.',
-      ..._requestIdEntry(request),
-    });
-  }
-};
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:beakErrorMappingMiddleware"
 ```
 
-A recognized `BeakException` maps to its status code; anything else becomes an opaque `500` whose body reveals nothing internal. The mapping is a single exhaustive switch over the sealed family:
+A `BeakException` maps to its status through an exhaustive switch over the sealed family, so a new exception type cannot ship without a status:
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-final int statusCode = switch (exception) {
-  BeakValidationException() => 422,
-  BeakNotFoundException() => 404,
-  BeakAuthenticationException() => 401,
-  BeakAuthorizationException() => 403,
-  BeakConflictException() => 409,
-  BeakConfigurationException() => 500,
-  BeakStorageException() => 500,
-};
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:exceptionStatus"
 ```
 
-The response body is a small envelope: `{code, message, fieldErrors?, requestId?}`. Validation failures carry their per-column `fieldErrors`, which is exactly what a form needs to light up the offending inputs. See [Exceptions](../reference/exceptions.md) for the full family and [Results and errors](../concepts/results-and-errors.md) for how the client consumes this envelope.
+The body is `{code, message, fieldErrors?, requestId?}`. Validation failures carry `fieldErrors` keyed by column, which is what a form needs to mark the offending inputs. Anything that is not a `BeakException` becomes an opaque `500` with `code: internal`, is reported to `onUnexpectedError` (stderr by default), and reveals nothing else.
 
 | Exception | Status | Meaning |
 | --- | --- | --- |
-| `BeakValidationException` | 422 | a rule failed, or the body was malformed |
-| `BeakNotFoundException` | 404 | no such record, table, or relation |
-| `BeakAuthenticationException` | 401 | not signed in |
+| `BeakValidationException` | 422 | a rule failed, a body or spec was malformed, an unknown field was named |
+| `BeakNotFoundException` | 404 | no such record, table, relation or route |
+| `BeakAuthenticationException` | 401 | not signed in, or the token is invalid |
 | `BeakAuthorizationException` | 403 | signed in, not permitted |
-| `BeakConflictException` | 409 | a uniqueness or state conflict |
-| `BeakConfigurationException` / `BeakStorageException` | 500 | a server-side misconfiguration |
-| anything else | 500 | opaque, reported to `onUnexpectedError` |
+| `BeakConflictException` | 409 | a stale revision, a reused save id, a uniqueness clash |
+| `BeakConfigurationException` | 500 | the server or a request is misconfigured, with its message |
+| `BeakStorageException` | 500 | a storage driver failed, with its message |
+| anything else | 500 | opaque, sent to `onUnexpectedError` |
 
-## The Handler: parse, authorize, route
+Only untyped failures are opaque. The message of a typed `500` goes to the client as written, which is convenient for a `BeakConfigurationException` and something to keep in mind for a storage driver, whose message quotes the underlying error. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
 
-`BeakCrudHandlers` are thin. Each handler consults the policy, decodes the request into typed `beak_core` values, calls the service, and encodes the result. No business logic lives here, and malformed input is a user error, never a `500`.
+### The Handler: authorize, parse, delegate
+
+`BeakCrudHandlers` are the authorization layer, not just a router. For each request a handler consults the `BeakPolicy`, the field policy and the row scope, decodes the body into typed `beak_core` values, calls the service, and encodes the result with the fields the principal may read.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
 --8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:create"
 ```
 
-Notice `_readRecord`: it parses a flat `{column: value}` body into a typed `BeakRecord`, and when a value is malformed it re-throws as a `BeakValidationException` so the client sees a `422`, not a `500`.
+Read the order. The policy check comes first, then the body is parsed into a `BeakRecord` (a malformed value is a `BeakValidationException`, so a `422` and never a `500`), then the write is checked against the field policy, then every foreign key is checked for visibility to this principal, and only then does the service run. The response goes through `redact` on the way out.
 
-```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-try {
-  return BeakRecord(
-    values: {
-      for (final MapEntry(:key, :value) in body.entries)
-        key: BeakValue.fromJson(value),
-    },
-  );
-} on BeakConfigurationException catch (exception) {
-  throw BeakValidationException(
-    'Malformed record body: ${exception.message}',
-  );
-}
-```
+The row scope is worth its own sentence. `_scope(request)` reads the scope once per handler and hands it to the service, which enforces it. A handler cannot forget to apply it, because no handler decides whether to. A record outside the scope answers `404`, not `403`: telling an unauthorized caller that a row exists is itself a leak.
 
-## The Service: logic and typed exceptions
+### The Service: validate, default, throw
 
-`BeakResourceService` is where the rules live. On create it mints a uuid for string-keyed models, stamps `created_at` and `updated_at` when the model declares them, and runs validation before anything touches the data source.
-
-Server revision timestamps use UTC milliseconds so Dart and JavaScript clients
-retain the same value. Updates advance by at least one millisecond even when the
-clock has not advanced. Graph commits accept a browser's truncated view of a
-legacy microsecond timestamp, then compare the exact stored timestamp in the SQL
-update predicate. An older revision remains a conflict; rounding never replaces
-the database's conditional write.
+`BeakResourceService` holds the write logic. On create it fills declared defaults, mints a uuid for string-keyed models, stamps `created_at` and `updated_at` when the model has them, and validates the whole candidate before the data source is touched.
 
 ```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-  Future<BeakRecord> create(
-    BeakRecord input, {
-    BeakValidationQuery? validationQuery,
-  }) async {
-    final prepared = prepareCreate(input);
-    await validateCandidate(prepared, validationQuery: validationQuery);
-    return dataSource.create(model.table, prepared);
-  }
+--8<-- "packages/beak_backend/lib/src/service/beak_resource_service.dart:create"
 ```
 
-It also guards that a posted spec targets its own model, so a query aimed at the wrong table is a `422` rather than a leak across resources:
+On update it runs the same validation with partial-update semantics, advances `updated_at` by at least one millisecond even when the clock has not moved, and checks an `If-Unmodified-Since` header when the caller sent one. A stale value is a `BeakConflictException`, a `409`. The header is opt-in: a script that sends none updates unconditionally.
 
-```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-void _requireSpecTargets(String table, String specKind) {
-  if (table != model.table) {
-    throw BeakValidationException(
-      '$specKind spec targets "$table" but this endpoint serves '
-      '"${model.table}".',
-    );
-  }
-}
-```
+The service also refuses a spec aimed at another table than its own (a `422`), and it never imports a Shelf type. It throws.
 
-Validation itself is a stateless boundary, `ValidationService`, that runs each column's declared `BeakRule` list, rejects unknown keys, enforces `BeakRequired` on create, and aggregates every violation under its column key into the `fieldErrors` map the middleware later serializes. The service never imports a Shelf type, and it never formats an error response; it throws.
+The same service class also runs inside graph commits, once per table a commit writes, so a form save and a plain `POST` share one set of defaults. That path is in [Graph commits](graph-commits.md).
 
-## The DataSource: raw I/O, exceptions propagate
+### The DataSource: raw I/O
 
-`WormDataSource` implements the `BeakDataSource` interface over the worm ORM. It does raw reads and writes and lets exceptions propagate up to the catch boundary. The one translation step here is `WormQueryTranslator`, which turns a `BeakQuerySpec` into a worm predicate tree. This is the only layer that knows worm exists, and worm types never travel above it. The full contract lives in [The data source seam](data-source-seam.md).
+`WormDataSource` implements `BeakDataSource` over the worm ORM, translates a `BeakQuerySpec` with `WormQueryTranslator`, and lets exceptions propagate. It is the only layer that knows worm exists. [The query contract](query-contract.md) covers the translation and [The data source seam](data-source-seam.md) the interface.
 
-The adapter under it is injected, and the URL scheme picks it: a project with no `DATABASE_URL` runs on the SQLite file `sqlite:beak.db`, a `postgres://` URL runs on Postgres, and a test hands the host `sqlite::memory:`. Nothing above the data source can tell which.
+The adapter under it is injected, and the `DATABASE_URL` scheme picks it: `sqlite:` gets SQLite, anything else Postgres, and a test hands the host `sqlite::memory:` or worm's `InMemoryAdapter`. Nothing above the data source can tell which.
 
-## The whole surface is generated
+### The generated surface
 
-There are no per-model endpoint files. `beakApiRouter` walks the `BeakModelRegistry` and mounts one resource router per model under `/api/{table}`, each backed by its own service.
+There are no per-model endpoint files. `beakApiRouter` walks the registry and mounts one resource router per model under `/api/{table}`:
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
 --8<-- "packages/beak_backend/lib/src/endpoints/beak_resource_router.dart:beakResourceRouter"
 ```
 
-On top of these, `beakApiRouter` adds the global search endpoint (`GET /api/search`), the auth surface (mounted at `/api/auth` when auth is configured), CSV export routes, and per-column upload routes when storage is wired. Declaring a resource is all it takes to get its whole REST surface. See [The generated API](../reference/rest-api.md) for the endpoint list and payloads.
+Beside the per-model routers it mounts, where they apply:
 
-Two routes sit deliberately outside `/api`, mounted before everything else so the auth middleware cannot guard them:
+- `POST /api/auth/login`, `POST /api/auth/logout` and `GET /api/auth/me`, when sessions are configured.
+- `POST /api/commits` and `GET /api/commits/{saveId}` for graph saves.
+- `POST /api/{table}/export` for CSV, and `POST`, `GET` and `DELETE /api/{table}/{columnKey}/upload` when storage is set.
+- A public `GET` route for the files of the local-disk driver, under the path of its public base URL (`/uploads` by default). It consults no policy, and the storage keys are unguessable uuids.
 
-- `GET /healthz` returns 200 as long as the process is serving, and never touches the database. A database outage must not trigger a restart loop.
-- `GET /readyz` runs a `count` through the data source and returns 200 or a 503 carrying the real error. A database blip should move traffic away, not kill the process.
+A model that is listed in `graphOnly`, declares behavior, is an owned child of a model with `editableWhen`, or is loaded by another model's shared rules has its direct `POST`, `PATCH`, `DELETE`, restore and attach/detach routes closed. They answer `422` and say to save through a graph commit. Reads stay open. There is no global search route: search is a field of the query spec.
 
-When the local-disk upload driver is in use, its file-serving route is mounted the same way, so an upload's URL resolves without a CDN or a proxy in front.
+[The generated API](../reference/rest-api.md) lists every route with its payloads.
+
+Two routes sit outside `/api`:
+
+```dart title="packages/beak_backend/lib/src/endpoints/health_router.dart"
+--8<-- "packages/beak_backend/lib/src/endpoints/health_router.dart:beakHealthRouter"
+```
+
+`/healthz` returns `200` while the process serves and never touches the database, so a database outage cannot start a restart loop. `/readyz` counts rows of the first registered model and answers `200`, or `503` with `{"status": "unavailable", "detail": "the data source did not answer"}`. The real error goes to `onUnexpectedError`, since the probe is unauthenticated. Neither route consults a policy. The auth middleware still runs ahead of them, so a probe carrying an invalid Bearer token gets a `401`.
+
+## Why it is shaped this way
+
+- One catch boundary. Services and data sources throw and never format. Adding a layer of `try/catch` in a handler would create a second place that decides status codes, and the two would drift.
+- Typed exceptions, exhaustive switch. The status table is a `switch` over a sealed class. A new failure kind is a compile error until someone decides its status.
+- Authorization before logic. A request that may not happen is refused before anything is parsed further, validated or queried.
+- Generated routes. A hand-written endpoint is a place the row scope, the field policy or the `graphOnly` rule can be skipped. There are none to skip.
+
+## What it means for you
+
+- The default policy is `BeakAllowAllPolicy`. A server you build with `defaults.build()` and no `policy:` is open, which suits the first hour and nothing after it. Pass a `BeakPolicies` rule set, which denies everything it does not list. [Auth and policies](../backend/auth-and-policies.md) has the details.
+- Throw a typed exception from your own middleware or rules and you get the right status for free. Throw anything else and you get a `500` with a log line.
+- Put invariants in the service or a graph preparer, not in a handler. A handler you add is a new way around them.
+- `CORS` allows any origin until you pass `corsOrigin`. Set it in production.
+- `GET /readyz` answers for the first registered model only. A broken table elsewhere does not fail readiness.
 
 ## Continue reading
 
-- [Frontend flow](frontend-flow.md) the mirror image on the client, where the repository plays the role the middleware plays here.
-- [The data source seam](data-source-seam.md) the `BeakDataSource` contract the service writes through.
-- [The generated API](../reference/rest-api.md) the routes this flow produces, with request and response shapes.
-- [Running the server](../backend/running-the-server.md) `BeakServeHost` from a project's point of view, including the `lib/server.dart` override.
+- [Frontend flow](frontend-flow.md) the mirror image on the panel, where the repository plays the role the middleware plays here.
+- [Graph commits](graph-commits.md) how a form save is planned, validated and written in one transaction.
+- [Running the server](../backend/running-the-server.md) `BeakServeHost` from a project's point of view, including `lib/server.dart`.
+- [The generated API](../reference/rest-api.md) the routes this flow serves, with request and response shapes.

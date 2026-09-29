@@ -1,267 +1,192 @@
 ---
 title: Storage internals
-description: See how a storage config resolves to a driver and how the validator and transform pipeline run.
+description: How a storage config resolves to a driver, and how an upload is validated, transformed and stored on the way to a key.
 type: concept
 audience: [contributor, expert]
-status: draft
+status: stable
 ---
 
 # Storage internals
 
-After this page you can trace an uploaded file from a `BeakStorageConfig` to a stored object with a public URL, explain why the S3 and FTP drivers are unit-testable without a server, and describe the validate-transform-store pipeline that runs on every upload.
+Beak stores files through a pluggable driver. `beak_core` owns the abstraction (the config, the driver interface, the registry, the key rules, the validator and the transform spec) and ships two drivers, `memory` and `local`. Driver packages add the rest. After this page you can trace an upload from a `BeakStorageConfig` to a stored key with a URL, say why the S3 and FTP drivers are testable without a server, and name the checks every upload passes.
 
-Beak stores files through a pluggable driver system. `beak_core` owns the abstraction (the config, the driver interface, the registry, the key rules, the validator, and the transform spec) and ships two drivers, `memory` and `local`. Driver packages add the rest: `beak_storage_s3`, `beak_storage_ftp`, and the pixel codec in `beak_image`. Nothing about S3 or FTP is hard-wired into core; they plug in at app init.
+## The idea in one picture
 
-The abstraction lives in `packages/beak_core/lib/src/storage/`; the drivers live in `packages/beak_storage_s3`, `packages/beak_storage_ftp`, and `packages/beak_image`.
+```mermaid
+flowchart LR
+  ENV[".env / environment<br/>BEAK_STORAGE_DRIVER"] --> SET[BeakStorageSettings.fromEnv]
+  SET --> CFG["BeakStorageConfig<br/>memory, local, s3, ftp"]
+  CFG --> REG[BeakStorageRegistry.resolve]
+  REG --> DRV[BeakStorageDriver]
 
-## Config resolves to a driver
+  REQ["POST /api/{table}/{column}/upload"] --> H["BeakUploadHandlers<br/>policy, field access, bounded read"]
+  H --> SVC[UploadService]
+  SVC --> VAL["BeakUploadValidator<br/>size, type"]
+  SVC --> RUN["BeakTransformRunner<br/>decode, dimensions, transform"]
+  SVC -->|put| DRV
+  DRV --> OUT["BeakStoredFile<br/>key, url, variants"]
+```
 
-Storage selection is pure data. `BeakStorageConfig` is a sealed family (`memory`, `local`, `s3`, `ftp`), each carrying its driver's settings and a `driverId`. Configs that hold secrets redact them in `toString`.
+The abstraction is in `packages/beak_core/lib/src/storage/`. The drivers are in `packages/beak_storage_s3`, `packages/beak_storage_ftp` and, for the pixel work, `packages/beak_image`. Nothing about S3 or FTP is wired into core. They plug in at startup.
+
+## How it works
+
+### A config resolves to a driver
+
+Selecting storage is pure data. `BeakStorageConfig` is a sealed family, one variant per driver, each carrying that driver's settings and a `driverId`. Variants that hold secrets redact them in `toString`.
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_config.dart"
-@immutable
-sealed class BeakStorageConfig {
-  const BeakStorageConfig();
-
-  /// Identifier of the driver this config is consumed by
-  /// (`'memory'`, `'local'`, `'s3'`, `'ftp'`).
-  String get driverId;
-}
+--8<-- "packages/beak_core/lib/src/storage/beak_storage_config.dart:BeakStorageConfig"
 ```
 
-A `BeakStorageRegistry` maps each `driverId` to a factory. Only the web-safe `memory` driver is pre-registered; everything else is added at app init, and `resolve` builds the driver a config selects:
+A `BeakStorageRegistry` maps each `driverId` to a factory. Only `memory` is pre-registered, because it is the only one that is safe on the web. Everything else is added at startup, and `resolve` builds the driver a config selects:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_registry.dart"
-BeakStorageRegistry() {
-  register('memory', BeakMemoryStorageDriver.fromConfig);
-}
-
-// ...
-
-BeakStorageDriver resolve(BeakStorageConfig config) {
-  final BeakStorageDriverFactory? factory =
-      _factoriesByDriverId[config.driverId];
-  if (factory == null) {
-    throw BeakConfigurationException(
-      'No storage driver is registered for "${config.driverId}". '
-      'Registered drivers: ${driverIds.join(', ')}.',
-    );
-  }
-  return factory(config);
-}
+--8<-- "packages/beak_core/lib/src/storage/beak_storage_registry.dart:resolve"
 ```
 
-The backend does the wiring once at startup. `createDefaultStorageRegistry` adds `local` (it needs `dart:io`) on top of core's `memory`, and `resolveStorage` turns the configured config into a driver:
+The backend adds `local`, which needs `dart:io`, on top:
 
 ```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
 --8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
 ```
 
-Driver packages are deliberately not wired in here. Depending on `beak_storage_s3` from `beak_backend` would put `minio` in the dependency graph of every Beak backend, uploads or not. Your app adds the driver it uses at init instead, with one line: `registerS3Storage(registry)`. The config stays plain data from `beak_core`, so only that one line names the driver package.
+Driver packages are deliberately absent. If `beak_backend` depended on `beak_storage_s3`, `minio` would be in the dependency graph of every Beak server, uploads or not. Your app adds the driver it uses in `lib/server.dart` by returning a registry from `beakStorageRegistry()`, which the generated host passes on as `storageRegistry`:
 
-## The driver interface
-
-Every driver satisfies one interface: put a file, read it, delete it, mint a URL, check existence. Keys are relative, `/`-separated paths.
-
-```dart title="packages/beak_core/lib/src/storage/beak_storage_driver.dart"
-abstract interface class BeakStorageDriver {
-  String get id;
-
-  Future<BeakStoredFile> put(BeakUpload upload, {required String path});
-
-  Future<Uint8List> get(String key);
-
-  Future<void> delete(String key);
-
-  Future<Uri> url(String key, {Duration? expiresIn});
-
-  Future<bool> exists(String key);
+```dart title="packages/beak_storage_s3/lib/src/s3_storage_driver.dart"
+void registerS3Storage(BeakStorageRegistry registry) {
+  registry.register('s3', S3StorageDriver.fromConfig);
 }
 ```
 
-`url` builds an address without probing storage, and `exists` reports a boolean rather than throwing, so callers can ask cheaply. The other methods throw `BeakStorageException` for malformed keys or missing files.
+A driver that is selected but not registered fails at boot, by name, with the list of registered drivers.
 
-## Drivers sit behind a thin transport seam
+### Which driver a server picks
 
-The S3 and FTP drivers do not talk to the network directly. Each one delegates raw I/O to a narrow seam interface, so the driver's own logic (key building, URL shaping, error mapping) is unit-testable against a fake with no server in sight.
+`BeakServeHost.resolveStorageDriver` reads the environment. With nothing configured the answer is local disk under `storage/uploads`, served by the same server at `/uploads`, the same posture as the database, which is a SQLite file until `DATABASE_URL` says otherwise. An upload column works on a fresh project with no setup, and a deployment changes it with one variable.
+
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+--8<-- "packages/beak_backend/lib/src/server/beak_serve_host.dart:resolveStorageDriver"
+```
+
+`BEAK_STORAGE_DRIVER` accepts:
+
+```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
+--8<-- "packages/beak_backend/lib/src/server/beak_storage_settings.dart:supportedDrivers"
+```
+
+`none` turns the upload endpoints off outright. `s3` and `ftp` each require their own variables (`BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_FTP_HOST` and so on), and a missing one fails at boot with the variable named. [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) lists all of them.
+
+### The driver interface
+
+Every driver does five things: put a file, read it, delete it, mint a URL, check existence. Keys are relative, `/`-separated paths.
+
+```dart title="packages/beak_core/lib/src/storage/beak_storage_driver.dart"
+--8<-- "packages/beak_core/lib/src/storage/beak_storage_driver.dart:BeakStorageDriver"
+```
+
+`url` builds an address without probing storage, and `exists` returns a boolean for a missing file instead of throwing, so both are cheap to ask. `get` and `delete` throw a `BeakStorageException` for a missing file, and every method throws one for a malformed key.
+
+### Drivers sit on a transport seam
+
+The S3 and FTP drivers do not talk to the network directly. Each delegates raw I/O to a narrow interface, so the driver's own logic (key building, URL shaping, error mapping) can be tested against a fake with no server.
 
 For S3 the seam is `S3ObjectClient`, five raw object operations:
 
 ```dart title="packages/beak_storage_s3/lib/src/s3_object_client.dart"
-abstract interface class S3ObjectClient {
-  Future<void> putObject({
-    required String bucket,
-    required String key,
-    required Uint8List bytes,
-    required String contentType,
-  });
-  Future<Uint8List?> getObject({required String bucket, required String key});
-  Future<void> removeObject({required String bucket, required String key});
-  Future<bool> objectExists({required String bucket, required String key});
-  Future<Uri> presignedGetUrl({
-    required String bucket,
-    required String key,
-    required Duration expiresIn,
-  });
-}
+--8<-- "packages/beak_storage_s3/lib/src/s3_object_client.dart:S3ObjectClient"
 ```
 
-The driver builds itself from config and takes the production client by default, but accepts an injected one for tests:
+The driver builds itself from a config and takes the production client by default. A test injects its own:
 
 ```dart title="packages/beak_storage_s3/lib/src/s3_storage_driver.dart"
-S3StorageDriver(BeakS3Config config, {S3ObjectClient? client})
-  : _config = config,
-    _client = client ?? MinioS3ObjectClient(config);
-
-factory S3StorageDriver.fromConfig(BeakStorageConfig config) =>
-    switch (config) {
-      BeakS3Config() => S3StorageDriver(config),
-      _ => throw BeakConfigurationException(
-        'S3StorageDriver requires a BeakS3Config, '
-        'got ${config.runtimeType}.',
-      ),
-    };
+--8<-- "packages/beak_storage_s3/lib/src/s3_storage_driver.dart:constructors"
 ```
 
-Every operation runs inside a `_guard` that rethrows Beak's own exceptions untouched and wraps any client or transport error in a `BeakStorageException`, so no raw S3 or socket error ever crosses the driver boundary:
+Every operation runs inside a `_guard` that lets Beak's own exceptions through and wraps any client or transport error in a `BeakStorageException`, so no raw S3 error crosses the driver boundary:
 
 ```dart title="packages/beak_storage_s3/lib/src/s3_storage_driver.dart"
-Future<T> _guard<T>(
-  String operationName,
-  String key,
-  Future<T> Function() operation,
-) async {
-  try {
-    return await operation();
-  } on BeakException {
-    rethrow;
-  } on Object catch (error) {
-    throw BeakStorageException('S3 $operationName failed for "$key": $error');
-  }
-}
+--8<-- "packages/beak_storage_s3/lib/src/s3_storage_driver.dart:guard"
 ```
 
-The FTP driver mirrors the pattern: an `FtpTransport` seam (a minimal RFC 959 socket client and an in-process test server), an `FtpProtocolException` carrying the reply code, and a `_guard` that turns a `550` reply into a not-found `BeakStorageException`. FTP has no expiring links, so its `url` ignores `expiresIn` and serves from the configured public base. Writing a driver is the same exercise both times: implement five methods, hide the wire behind a seam, map every failure to `BeakStorageException`.
+The FTP driver mirrors this with a four-method `FtpTransport` (`SocketFtpTransport` speaks plain FTP over a socket, and the package's tests run against a small in-process FTP server), an `FtpProtocolException` that carries the reply code, and a guard that reads a `550` reply as "no such file". FTP has no expiring links, so its `url` ignores `expiresIn` and serves from the configured public base. A driver is therefore the same small exercise each time: implement five methods, hide the wire behind an interface, map every failure to `BeakStorageException`.
 
-## Keys are validated, and minted server-side
+### Keys are validated, and never chosen by the client
 
-Storage keys are the security surface, so `BeakStorageKeys` is strict about them. `validate` rejects empty keys, backslashes, absolute paths, and any `.` or `..` segment, which closes off path traversal:
+Storage keys are the security surface, so `BeakStorageKeys.validate` is strict. It rejects empty keys, backslashes, absolute paths, and any empty, `.` or `..` segment, which closes path traversal:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_key.dart"
-static void validate(String key) {
-  if (key.isEmpty) {
-    throw const BeakStorageException('Storage keys must not be empty.');
-  }
-  if (key.contains(r'\')) {
-    throw BeakStorageException(
-      'Storage key "$key" must use "/" separators, not backslashes.',
-    );
-  }
-  if (key.startsWith('/')) {
-    throw BeakStorageException(
-      'Storage key "$key" must be relative, not absolute.',
-    );
-  }
-  for (final String segment in key.split('/')) {
-    if (segment.isEmpty || segment == '.' || segment == '..') {
-      throw BeakStorageException(
-        'Storage key "$key" contains the invalid segment "$segment".',
-      );
-    }
-  }
-}
+--8<-- "packages/beak_core/lib/src/storage/beak_storage_key.dart:validate"
 ```
 
-`join` builds a validated `path/filename` key, and `appendToBaseUrl` is the one way every driver turns a base URL plus a key into a public URL. Equally important, the upload service never trusts a client filename for a key: it mints a fresh uuid-based name and derives the extension from the validated MIME type. A client cannot choose where its bytes land.
+Every driver calls it on every operation, and `BeakStorageKeys.join` and `appendToBaseUrl` are the one way a path, a filename and a base URL become a key and a public URL.
 
-## The upload pipeline: validate, transform, store
+The upload service never trusts the filename for the key. It mints a fresh uuid-based name and derives the extension from the MIME type it accepted, falling back to the extension of the uploaded name. A client cannot choose where its bytes land. The service also checks that a key it is asked to resolve or delete starts with the `storagePath` of the column named in the route, so a key from one column cannot be used against another.
 
-`UploadService` is the logic layer behind the upload endpoints. It resolves the target column, enforces the column's file rules, runs the image transform pipeline, and stores every result through the configured driver. Handlers stay parse-thin; the service throws typed exceptions only.
+### The upload path
 
-Two shared pieces do the heavy lifting. `BeakUploadValidator` is the same validator the client runs before it uploads, so the browser and the server reject a too-large or wrong-type file with byte-identical messages. It is pure logic: the caller decodes image dimensions and passes them in, keeping the validator free of any image codec.
+An upload is a `POST` of `multipart/form-data` with one field named `file`. `BeakUploadHandlers` first runs the same gates as any write: the field policy for that column, the resource's `canCreate`, and the size limit while the body is still streaming. The handler stops reading as soon as the part passes `maxSizeInBytes` and answers `422` with a `size` field error, so an oversize file is never buffered whole.
+
+```dart title="packages/beak_backend/lib/src/uploads/upload_handler.dart"
+--8<-- "packages/beak_backend/lib/src/uploads/upload_handler.dart:upload"
+```
+
+`UploadService` then works from the column, not from the request. It looks up the file or image column by table and key (an unknown one is a `404`, a column that stores no file a `422`), applies the column's rules, and stores the result.
+
+`BeakUploadValidator` is pure logic. The panel runs the same validator before it uploads, so the browser and the server reject a too-large or wrong-type file with the same words. The client checks size and type only. Decoding to get dimensions stays on the server.
 
 ```dart title="packages/beak_core/lib/src/storage/beak_upload_validator.dart"
-BeakResult<BeakUpload> validate(
-  BeakUpload upload, {
-  int? maxSizeInBytes,
-  List<BeakFileType> allowedTypes = const [],
-  BeakDimensions? maxDimensions,
-  double? aspectRatio,
-  BeakDimensions? actualDimensions,
-}) {
+--8<-- "packages/beak_core/lib/src/storage/beak_upload_validator.dart:validateSignature"
 ```
 
-Violations aggregate into a `BeakValidationException` keyed by aspect (`size`, `type`, `dimensions`, `aspectRatio`), so a form can surface each problem next to its cause.
+Violations aggregate into one `BeakValidationException` keyed by aspect (`size`, `type`, `dimensions`, `aspectRatio`), so a form shows each problem next to its cause. For a plain file column the MIME type and the extension are both what the client declared, and nothing inspects the bytes. An image column decodes them, which is a real check.
 
-For an image column, the service decodes to get real pixel dimensions, validates against them, runs the column's transform pipeline when it has one, and stores the primary image plus every thumbnail variant:
+For an image column the service decodes first, to get true pixel dimensions, validates against them, runs the column's transforms if it has any, and stores the main image plus every thumbnail variant:
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_service.dart"
-final decoded = await transformRunner.run(upload.bytes, const []);
-_validator
-    .validate(
-      upload,
-      maxSizeInBytes: column.maxSizeInBytes,
-      allowedTypes: column.allowedTypes,
-      maxDimensions: column.maxDimensions,
-      aspectRatio: column.aspectRatio,
-      actualDimensions: decoded.dimensions,
-    )
-    .valueOrThrow;
-final transformed = column.transforms.isEmpty
-    ? decoded
-    : await transformRunner.run(upload.bytes, column.transforms);
+--8<-- "packages/beak_backend/lib/src/uploads/upload_service.dart:imagePipeline"
 ```
 
-An empty pipeline is a decoding pass-through: it yields the source bytes plus decoded dimensions, or a validation failure for bytes that are not a decodable raster image.
+An empty pipeline is a decoding pass-through: it yields the source bytes and the decoded dimensions, or a validation error for bytes that are not a decodable raster image. If storing a rendition fails, the service deletes the main image and the renditions already written before it rethrows, so a failed upload does not leave orphans behind it.
 
-## Transform spec and runner are split on purpose
+### Transform spec and runner are split on purpose
 
-The transform pipeline is a sealed, serializable spec, and its execution is a separate interface. `BeakImageTransform` describes steps (resize, re-encode, thumbnail) with named factories, and the whole pipeline can travel over the wire:
+The pipeline is a sealed, JSON-serializable spec. Its execution is a separate interface, because `beak_core` ships no pixel codec.
 
 ```dart title="packages/beak_core/lib/src/storage/transforms/beak_image_transform.dart"
-const factory BeakImageTransform.resize({
-  int? widthInPixels,
-  int? heightInPixels,
-  BeakImageFit fit,
-}) = BeakResizeTransform;
-
-const factory BeakImageTransform.format({
-  required BeakImageFormat format,
-  int quality,
-}) = BeakFormatTransform;
-
-const factory BeakImageTransform.webp({int quality}) =
-    BeakFormatTransform.webp;
-
-const factory BeakImageTransform.thumbnail({
-  required BeakDimensions size,
-  String name,
-}) = BeakThumbnailTransform;
+--8<-- "packages/beak_core/lib/src/storage/transforms/beak_image_transform.dart:factories"
 ```
-
-But `beak_core` deliberately ships no pixel codec. It defines only the runner interface:
 
 ```dart title="packages/beak_core/lib/src/storage/transforms/beak_transform_runner.dart"
-abstract interface class BeakTransformRunner {
-  Future<BeakTransformedImage> run(
-    Uint8List source,
-    List<BeakImageTransform> pipeline,
-  );
-}
+--8<-- "packages/beak_core/lib/src/storage/transforms/beak_transform_runner.dart:BeakTransformRunner"
 ```
 
-The concrete runner lives in `beak_image`, where `ImageTransformRunner` executes pipelines with `package:image`. It switches over the sealed steps in declaration order, cover-crops thumbnails to their exact size, and rejects a duplicate variant name. Keeping the codec in a leaf package means `beak_core` stays pure Dart with no heavy image dependency, and a different backend could supply a different runner without changing the spec.
+The concrete runner is `ImageTransformRunner` in `beak_image`, built on `package:image`. It accepts PNG, JPEG, WebP and GIF, runs the steps in declaration order, cover-crops thumbnails to their exact size, encodes each thumbnail in the format the pipeline has reached at that point, and rejects two thumbnails with the same name. WebP output uses the lossless encoder, so a quality setting applies to JPEG only. A GIF keeps its first frame.
 
-## Why this shape
+### Reading a file back
 
-- **Config is data, drivers are plugins.** A sealed config plus a registry means an app selects storage without importing a driver package, and a new driver registers a factory instead of editing core.
-- **Seams make drivers testable.** Because each driver talks to a narrow transport interface, its logic is proven against a fake, and its `_guard` guarantees only `BeakStorageException` escapes.
-- **One validator, two runtimes.** The client and the server share `BeakUploadValidator`, so what the browser accepts is exactly what the server accepts.
-- **Keys are never client-chosen.** Validation rejects traversal, and the service mints keys, so uploads cannot escape their storage path.
+`GET /api/{table}/{column}/upload?key=` resolves a stored key to a URL after the read policy, the field policy and, when the model has a row scope, a check that a record the principal can see references that key. `DELETE` on the same path removes a stored file, gated by `canDeleteUpload`. The local-disk driver's files are served by a public route with no policy, so their protection is that the names are unguessable.
+
+## Why it is shaped this way
+
+- Config is data, drivers are plug-ins. A sealed config plus a registry means an app selects storage without importing a driver package, and a new driver registers a factory and does not edit core.
+- Seams make drivers testable. Each driver talks to a narrow transport interface, so its logic is proven against a fake and only `BeakStorageException` can escape.
+- One validator, two runtimes. The client and the server share `BeakUploadValidator`, so what the browser accepts for size and type is what the server accepts.
+- The codec is a leaf. `beak_core` stays pure Dart and light, and a different runner could replace `beak_image` without changing the spec.
+- Keys are never client-chosen. Validation rejects traversal, and the service mints the names.
+
+## What it means for you
+
+- Declare rules on the column (`maxSizeInBytes`, `allowedTypes`, `maxDimensions`, `aspectRatio`, `transforms`). They run on the client for size and type and on the server for everything. [Files and storage columns](../models/files-and-storage-columns.md) has the column side.
+- Add `registerS3Storage` or `registerFtpStorage` to your `beakStorageRegistry()` before you set `BEAK_STORAGE_DRIVER=s3` or `ftp`.
+- Put a real limit on image columns. The size limit counts compressed bytes and the dimension limit is checked after the decode, so a small file that expands to a very large bitmap costs memory before it is rejected.
+- Signed URLs are not used on this path. `UploadService.url` calls the driver without an expiry, so `S3StorageDriver.url` returns the public URL. A private bucket needs a `publicBaseUrl` in front of it.
+- A test injects a fake `S3ObjectClient` or `FtpTransport`, or uses the `memory` driver, and needs no server.
+- A storage failure reaches the client as a `500` with the driver's message. Keep endpoints and credentials out of exceptions you raise from a custom driver.
 
 ## Continue reading
 
-- [Files and storage columns](../models/files-and-storage-columns.md) declaring image and file columns with rules and transforms.
-- [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) configuring storage on the server.
+- [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) configuring storage on the server, variable by variable.
 - [Custom storage drivers](../extending/custom-storage-drivers.md) writing a driver behind its own transport seam.
+- [Files and storage columns](../models/files-and-storage-columns.md) declaring image and file columns with rules and transforms.
 - [Security](../shipping/security.md) the upload and key-validation surface in context.
