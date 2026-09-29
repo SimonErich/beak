@@ -32,13 +32,18 @@ Each layer has one job and refuses the others.
 
 ## Where the server comes from
 
-Before the first request there is a host. `bin/serve.dart` asks for it and binds it:
+Before the first request there is a host. `bin/serve.dart` asks for it, binds it, and closes it again on SIGINT or SIGTERM:
 
 ```dart title="examples/quickstart/bin/serve.dart"
-/// Serves the API.
+/// Serves the API until SIGINT or SIGTERM, then shuts down and exits.
 Future<void> main() async {
+  ...
   final HttpServer server = await beakHost().serve();
   stderr.writeln('listening on http://${server.address.host}:${server.port}');
+  await stopped;
+  stderr.writeln('shutting down');
+  await server.close();
+  exit(0);
 }
 ```
 
