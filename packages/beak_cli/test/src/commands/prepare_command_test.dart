@@ -758,4 +758,125 @@ final class NoteResource extends BeakResource {
       expect(out.toString(), contains('1 resource class'));
     });
   });
+
+  group('agent files', () {
+    late StringBuffer out;
+
+    Future<int> prepare(Directory root) async {
+      out = StringBuffer();
+      return await createBeakRunner(
+            environmentFor(root, out: out),
+          ).run(['prepare']) ??
+          0;
+    }
+
+    Directory beakProject({Map<String, String> files = const {}}) =>
+        projectWith({
+          'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: any\n',
+          'lib/models/note.dart': noteModel,
+          ...files,
+        });
+
+    test(
+      'follow a successful prepare: one line, AGENTS.md and CLAUDE.md',
+      () async {
+        final root = beakProject();
+
+        expect(await prepare(root), 0);
+
+        expect(
+          out.toString(),
+          contains('  agents     AGENTS.md created · CLAUDE.md created'),
+        );
+        expect(read(root, 'CLAUDE.md'), '@AGENTS.md\n');
+        expect(read(root, 'AGENTS.md'), contains('BEGIN:beak-agent-rules'));
+        expect(
+          read(root, 'AGENTS.md'),
+          contains('`lib/resources/*/models/*.dart`'),
+        );
+      },
+    );
+
+    test('a second prepare finds them up to date', () async {
+      final root = beakProject();
+      await prepare(root);
+      final agents = File('${root.path}/AGENTS.md')
+        ..setLastModifiedSync(DateTime(2020));
+
+      expect(await prepare(root), 0);
+
+      expect(out.toString(), contains('  agents     up to date'));
+      expect(agents.lastModifiedSync(), DateTime(2020));
+    });
+
+    test('say the docs wait for pub get instead of failing prepare', () async {
+      final root = beakProject();
+
+      expect(await prepare(root), 0);
+
+      expect(out.toString(), contains('docs not materialized: '));
+      expect(out.toString(), contains('flutter pub get'));
+    });
+
+    test('instructions: none in beak.yaml leaves AGENTS.md alone', () async {
+      final root = beakProject(
+        files: {'beak.yaml': 'agents:\n  instructions: none\n'},
+      );
+
+      expect(await prepare(root), 0);
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(File('${root.path}/CLAUDE.md').existsSync(), isFalse);
+    });
+
+    test('a damaged marker is a printed line, not a failed prepare', () async {
+      final root = beakProject(
+        files: {'AGENTS.md': '<!-- BEGIN:beak-agent-rules -->\n'},
+      );
+
+      expect(await prepare(root), 0);
+
+      expect(out.toString(), contains('  !          AGENTS.md: '));
+      expect(read(root, 'AGENTS.md'), '<!-- BEGIN:beak-agent-rules -->\n');
+    });
+
+    test('are not written when generation fails', () async {
+      final root = beakProject(
+        files: {
+          'lib/models/broken.dart': '''
+import 'package:beak_core/beak_core.dart';
+
+final class BrokenModel extends BeakModel {
+  BrokenModel(this.table);
+  @override
+  final String table;
+}
+''',
+        },
+      );
+
+      expect(await prepare(root), 1);
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(out.toString(), isNot(contains('agents     ')));
+    });
+
+    test('are not written for a project without a Beak dependency', () async {
+      final root = projectWith({'lib/models/note.dart': noteModel});
+
+      expect(await prepare(root), 0);
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(out.toString(), isNot(contains('agents     ')));
+    });
+
+    test('are not touched by the other commands that prepare', () async {
+      final root = beakProject();
+      out = StringBuffer();
+
+      runPrepare(environmentFor(root, out: out));
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+    });
+  });
 }

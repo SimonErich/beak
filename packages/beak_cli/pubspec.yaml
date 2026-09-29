@@ -19,6 +19,8 @@ dependencies:
   # analyzer releases in a way the element model is not.
   analyzer: ^8.4.0
   args: ^2.7.0
+  # sha256 of the docs bundle's files and of installed skills.
+  crypto: ^3.0.6
   # Formats emitted code so `dart format` on a generated project is a no-op.
   dart_style: ^3.1.0
   # Joins generated-file paths without assuming a separator.

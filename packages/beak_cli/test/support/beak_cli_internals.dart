@@ -7,9 +7,13 @@
 library;
 
 export 'package:beak_cli/beak_cli.dart';
+export 'package:beak_cli/src/agents/beak_agent_files.dart';
+export 'package:beak_cli/src/agents/beak_skill_installer.dart';
 export 'package:beak_cli/src/cli_runner.dart';
+export 'package:beak_cli/src/commands/agents_command.dart';
 export 'package:beak_cli/src/commands/create_command.dart';
 export 'package:beak_cli/src/commands/dev_command.dart';
+export 'package:beak_cli/src/commands/docs_command.dart';
 export 'package:beak_cli/src/commands/doctor_command.dart';
 export 'package:beak_cli/src/commands/eject_command.dart';
 export 'package:beak_cli/src/commands/init_command.dart';

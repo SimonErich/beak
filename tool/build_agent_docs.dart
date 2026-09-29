@@ -20,9 +20,17 @@
 /// sha256 per file, so a project can tell in one read that its copy is
 /// current). The output is deterministic: no timestamps, sorted keys.
 ///
+/// `docs/_agents/blocks/*.md` are the templates of the managed block that
+/// `beak agents` writes into a project's `AGENTS.md`. They travel in the
+/// bundle (under `_agents/blocks/`), so a project gets the rules of the Beak
+/// version it resolved, and they are also compiled into
+/// `packages/beak_cli/lib/src/agents/block_templates.g.dart`, the fallback
+/// the CLI renders when a project has no bundle yet.
+///
 /// `--check` builds in memory and fails on any difference from disk. It
 /// also checks the corrections table on the AI index page (see
-/// [checkCorrectionsTable]).
+/// [checkCorrectionsTable]) and the block templates (see
+/// [checkBlockTemplate]).
 ///
 /// Run from the repo root.
 library;
@@ -49,6 +57,46 @@ const String agentDocsIndex = 'ai-index.md';
 /// The command that regenerates the bundle, printed by `--check`.
 const String regenerateHint = 'run: melos run agent-docs';
 
+/// Where the block templates are written, relative to the repo root.
+///
+/// The CLI's fallback templates, byte-equal to `docs/_agents/blocks`.
+const String blockTemplatesSource =
+    'packages/beak_cli/lib/src/agents/block_templates.g.dart';
+
+/// Where the block templates live, relative to `docs/`.
+const String _blocksDirectory = '_agents/blocks';
+
+/// The block templates the CLI renders, by file stem, in the order the
+/// generated Dart lists them.
+const List<String> agentBlockNames = [
+  'embedded',
+  'serverpod-admin',
+  'standalone',
+  'workspace-root',
+];
+
+/// The `{{name}}` placeholders the CLI's renderer supplies.
+const Set<String> blockPlaceholders = {
+  'version',
+  'docsIndex',
+  'schemaGlob',
+  'panelEntry',
+  'skills',
+  'adminDir',
+  'serverPkg',
+  'clientPkg',
+  'schemaPkg',
+};
+
+/// The `{{#name}}` / `{{^name}}` sections the CLI's renderer evaluates.
+const Set<String> blockSections = {'mainIsGenerated', 'serverpod'};
+
+/// The line that opens a managed block.
+const String blockBegin = '<!-- BEGIN:beak-agent-rules -->';
+
+/// The line that closes a managed block.
+const String blockEnd = '<!-- END:beak-agent-rules -->';
+
 /// The docs page the AI index is built from, relative to `docs/`.
 const String _indexSource = 'ai/index.md';
 
@@ -58,7 +106,7 @@ const String _correctionsColumn = 'Beak 0.9 does';
 /// What a build produced: the bundle's files, or why it cannot be built.
 final class AgentDocsBuild {
   /// A build that produced [files] and found [problems].
-  const AgentDocsBuild(this.files, this.problems);
+  const AgentDocsBuild(this.files, this.problems, {this.companions = const {}});
 
   /// Every file of the bundle, keyed by path relative to the bundle root.
   ///
@@ -67,6 +115,13 @@ final class AgentDocsBuild {
 
   /// One line per thing that stops the bundle from being built.
   final List<String> problems;
+
+  /// Generated files that live outside the bundle, keyed by path relative
+  /// to the repo root.
+  ///
+  /// Empty when there are [problems], and when the repository has no block
+  /// templates.
+  final Map<String, String> companions;
 }
 
 /// Builds the bundle for the repository at [root], in memory.
@@ -164,11 +219,190 @@ AgentDocsBuild buildAgentDocs(Directory root) {
       ),
     );
   }
+  final Map<String, String>? blocks = _blockTemplates(root, problems);
   if (problems.isNotEmpty) {
     return AgentDocsBuild(const {}, problems);
   }
+  if (blocks != null) {
+    for (final block in blocks.entries) {
+      files['$_blocksDirectory/${block.key}.md'] = block.value;
+    }
+  }
   files['manifest.json'] = _manifest(files, version, sources.length);
-  return AgentDocsBuild(files, problems);
+  return AgentDocsBuild(
+    files,
+    problems,
+    companions: blocks == null
+        ? const {}
+        : {blockTemplatesSource: _blockTemplatesDart(blocks)},
+  );
+}
+
+/// The block templates of `docs/_agents/blocks`, by file stem, or `null`
+/// when the repository has none.
+///
+/// Every template the CLI renders must be there, and each must pass
+/// [checkBlockTemplate]; whatever is wrong is added to [problems].
+Map<String, String>? _blockTemplates(Directory root, List<String> problems) {
+  final directory = Directory('${root.path}/docs/$_blocksDirectory');
+  if (!directory.existsSync()) {
+    return null;
+  }
+  final List<File> files = [
+    for (final entity in directory.listSync(followLinks: false))
+      if (entity is File && entity.path.endsWith('.md')) entity,
+  ]..sort((a, b) => a.path.compareTo(b.path));
+  final templates = <String, String>{};
+  for (final file in files) {
+    final String stem = file.uri.pathSegments.last.replaceAll(
+      RegExp(r'\.md$'),
+      '',
+    );
+    final String path = 'docs/$_blocksDirectory/$stem.md';
+    if (!agentBlockNames.contains(stem)) {
+      problems.add(
+        '$path: not a block template the CLI knows '
+        '(${agentBlockNames.join(', ')})',
+      );
+      continue;
+    }
+    final String source = file.readAsStringSync().replaceAll('\r\n', '\n');
+    problems.addAll(checkBlockTemplate(path, source));
+    templates[stem] = source;
+  }
+  for (final name in agentBlockNames.where((n) => !templates.containsKey(n))) {
+    if (!files.any((file) => file.path.endsWith('/$name.md'))) {
+      problems.add(
+        'docs/$_blocksDirectory/$name.md: missing; the CLI needs '
+        '${agentBlockNames.sublist(0, agentBlockNames.length - 1).join(', ')} '
+        'and ${agentBlockNames.last}',
+      );
+    }
+  }
+  return templates;
+}
+
+/// The problems in the block template [source] found at [path].
+///
+/// A template is the managed block itself: it opens with [blockBegin] and
+/// ends with [blockEnd], each appearing once. Inside it, `{{name}}` must be a
+/// placeholder in [blockPlaceholders]; `{{#name}}`, `{{^name}}` and
+/// `{{/name}}` are sections over [blockSections], alone on their line and
+/// balanced. The templates go into a Dart raw string and into a Markdown
+/// file whose house style bans the em-dash, so neither `'''` nor U+2014 may
+/// appear.
+List<String> checkBlockTemplate(String path, String source) {
+  final problems = <String>[];
+  final List<String> lines = source.split('\n');
+  final String last = lines.lastWhere(
+    (line) => line.trim().isNotEmpty,
+    orElse: () => '',
+  );
+  if (lines.first != blockBegin || last != blockEnd) {
+    return ['$path: must open with $blockBegin and end with $blockEnd'];
+  }
+  for (final marker in [blockBegin, blockEnd]) {
+    if (lines.where((line) => line == marker).length != 1) {
+      return ['$path: the markers must appear exactly once each'];
+    }
+  }
+  final tag = RegExp(r'\{\{([#^/]?)\s*([^}]*?)\s*\}\}');
+  final open = <({String written, String name, int line})>[];
+  for (var index = 0; index < lines.length; index += 1) {
+    final String line = lines[index];
+    final int number = index + 1;
+    if (line.contains('\u2014')) {
+      problems.add('$path:$number: no em-dashes in the templates');
+    }
+    if (line.contains("'''")) {
+      problems.add(
+        '$path:$number: a triple quote cannot go in the generated Dart string',
+      );
+    }
+    for (final match in tag.allMatches(line)) {
+      final String kind = match[1]!;
+      final String name = match[2]!;
+      final String written = match[0]!;
+      if (kind.isEmpty) {
+        if (!blockPlaceholders.contains(name)) {
+          problems.add('$path:$number: unknown placeholder $written');
+        }
+        continue;
+      }
+      if (!blockSections.contains(name)) {
+        problems.add('$path:$number: unknown section $written');
+        continue;
+      }
+      if (line.trim() != written) {
+        problems.add('$path:$number: a section tag must be alone on its line');
+      }
+      if (kind != '/') {
+        open.add((written: written, name: name, line: number));
+        continue;
+      }
+      final int position = open.lastIndexWhere((entry) => entry.name == name);
+      if (position == -1) {
+        problems.add('$path:$number: $written closes nothing');
+        continue;
+      }
+      if (position != open.length - 1) {
+        problems.add(
+          '$path:$number: $written closes the section '
+          '${open.last.written}',
+        );
+      }
+      open.removeRange(position, open.length);
+    }
+  }
+  for (final entry in open) {
+    problems.add(
+      '$path:${entry.line}: the section ${entry.written} is never closed',
+    );
+  }
+  return problems;
+}
+
+/// `block_templates.g.dart`: one raw-string constant per template.
+String _blockTemplatesDart(Map<String, String> blocks) {
+  final buffer = StringBuffer()
+    ..writeln('// GENERATED CODE - DO NOT MODIFY BY HAND.')
+    ..writeln(
+      '// Source: docs/$_blocksDirectory/*.md. Regenerate: melos run agent-docs.',
+    )
+    ..writeln()
+    ..writeln('/// The block templates compiled into the CLI.')
+    ..writeln('///')
+    ..writeln(
+      '/// `beak agents` renders the templates that ship in the project\'s',
+    )
+    ..writeln(
+      '/// docs bundle, so its rules match the Beak version the project',
+    )
+    ..writeln('/// resolved. These are what it renders when there is no bundle')
+    ..writeln('/// yet, and each is byte-equal to its file in the repository.')
+    ..writeln('library;');
+  for (final name in agentBlockNames) {
+    final String? source = blocks[name];
+    if (source == null) {
+      continue;
+    }
+    buffer
+      ..writeln()
+      ..writeln('/// The `$name` block template.')
+      ..writeln("const String ${_blockConstantOf(name)} = r'''")
+      ..write(source)
+      ..writeln("''';");
+  }
+  return buffer.toString();
+}
+
+/// `serverpod-admin` -> `beakServerpodAdminBlockTemplate`.
+String _blockConstantOf(String name) {
+  final String pascal = name
+      .split('-')
+      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+      .join();
+  return 'beak${pascal}BlockTemplate';
 }
 
 /// The scalar at top-level [key] of the YAML file [yaml], or `null`.
@@ -760,18 +994,43 @@ int runAgentDocs({
     for (final path in onDisk.keys)
       if (!build.files.containsKey(path)) path,
   ]..sort();
+  // Generated files outside the bundle: named by their repo-relative path.
+  final staleCompanions = <String>[];
+  final missingCompanions = <String>[];
+  for (final companion in build.companions.entries) {
+    final file = File('${root.path}/${companion.key}');
+    if (!file.existsSync()) {
+      missingCompanions.add(companion.key);
+    } else if (!_sameBytes(
+      file.readAsBytesSync(),
+      utf8.encode(companion.value),
+    )) {
+      staleCompanions.add(companion.key);
+    }
+  }
 
   if (check) {
     for (final entry in {
-      'stale': stale,
-      'missing': missing,
-      'extra': extra,
+      'stale': [
+        for (final path in stale) '$agentDocsDirectory/$path',
+        ...staleCompanions,
+      ],
+      'missing': [
+        for (final path in missing) '$agentDocsDirectory/$path',
+        ...missingCompanions,
+      ],
+      'extra': [for (final path in extra) '$agentDocsDirectory/$path'],
     }.entries) {
       for (final path in entry.value) {
-        err.writeln('${entry.key}: $agentDocsDirectory/$path');
+        err.writeln('${entry.key}: $path');
       }
     }
-    final bool clean = stale.isEmpty && missing.isEmpty && extra.isEmpty;
+    final bool clean =
+        stale.isEmpty &&
+        missing.isEmpty &&
+        extra.isEmpty &&
+        staleCompanions.isEmpty &&
+        missingCompanions.isEmpty;
     if (!clean) {
       err.writeln(regenerateHint);
     }
@@ -791,6 +1050,19 @@ int runAgentDocs({
     'Agent docs bundle: ${build.files.length} files, '
     '${missing.length + stale.length} written, ${extra.length} removed.',
   );
+  for (final companion in build.companions.entries) {
+    final bool changed =
+        missingCompanions.contains(companion.key) ||
+        staleCompanions.contains(companion.key);
+    if (changed) {
+      File('${root.path}/${companion.key}')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(utf8.encode(companion.value));
+    }
+    out.writeln(
+      'Block templates: ${companion.key} ${changed ? 'written' : 'up to date'}.',
+    );
+  }
   return 0;
 }
 

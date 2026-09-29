@@ -295,14 +295,92 @@ void main() {
 
     test('AGENTS.md shows field references, not column constants', () {
       expect(agents(), isNot(contains('NoteColumns')));
-      expect(agents(), contains('NoteModel.title'));
-      expect(agents(), isNot(contains('run the panel')));
+      expect(
+        agents(),
+        contains('Reference fields through the generated model'),
+      );
+      expect(agents(), contains('`ProductModel.name`'));
+      expect(agents(), contains('serves the API only'));
       expect(agents(), contains('flutter run'));
     });
 
     test('both say how to switch to an authored entrypoint', () {
       expect(agents(), contains('beak eject main'));
       expect(readme(), contains('beak eject main'));
+    });
+  });
+
+  group('the agent files', () {
+    test(
+      'AGENTS.md is the new-file template around the standalone block',
+      () async {
+        await create(['acme_admin']);
+
+        final String agents = read('acme_admin/AGENTS.md');
+        expect(
+          agents,
+          startsWith('# Acme Admin\n\n<!-- BEGIN:beak-agent-rules -->\n'),
+        );
+        expect(agents, contains('This is a Beak $beakCliVersion admin panel'));
+        expect(agents, contains('`.dart_tool/beak/docs/ai-index.md`'));
+        expect(agents, contains('`lib/resources/*/models/*.dart`'));
+        expect(agents, contains('`lib/main.dart` is generated'));
+        expect(agents, contains('<!-- END:beak-agent-rules -->'));
+        expect(agents, contains('## This project'));
+        expect(agents, isNot(contains('lib/screens')));
+      },
+    );
+
+    test('CLAUDE.md imports it', () async {
+      await create(['acme_admin']);
+
+      expect(read('acme_admin/CLAUDE.md'), '@AGENTS.md\n');
+    });
+
+    test(
+      'an authored project says lib/main.dart is where resources are registered',
+      () async {
+        await create(['acme_admin', '--authored']);
+
+        final String agents = read('acme_admin/AGENTS.md');
+        expect(
+          agents,
+          contains('`lib/main.dart` registers each `BeakResource`'),
+        );
+        expect(agents, isNot(contains('is generated')));
+      },
+    );
+
+    test('the refresh after the scaffold finds them current', () async {
+      await create(['acme_admin']);
+
+      expect(
+        out.toString(),
+        contains('  agents     up to date · docs not materialized: '),
+      );
+      expect(out.toString(), contains('flutter pub get'));
+    });
+
+    test('beak agents --check then agrees, in both variants', () async {
+      for (final variant in [
+        const <String>[],
+        const ['--authored'],
+      ]) {
+        root.listSync().forEach((entity) => entity.deleteSync(recursive: true));
+        await create(['acme_admin', ...variant]);
+        final probe = BeakCliEnvironment(
+          out: StringBuffer(),
+          rootDirectory: Directory('${root.path}/acme_admin'),
+          now: () => DateTime.utc(2026, 7, 26, 12),
+          probe: (host, port) async => false,
+        );
+
+        expect(
+          await createBeakRunner(probe).run(['agents', '--check']),
+          0,
+          reason: variant.join(' '),
+        );
+      }
     });
   });
 
@@ -340,7 +418,7 @@ void main() {
       expect(files.map((file) => file.path), contains('acme_admin/beak.yaml'));
       expect(
         files.firstWhere((file) => file.path.endsWith('AGENTS.md')).contents,
-        contains('Never write a column key or table name as a string'),
+        contains('Reference fields through the generated model'),
       );
     });
   });

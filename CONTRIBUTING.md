@@ -5,6 +5,8 @@ green gate, and explains the rules a change must satisfy to be merged.
 
 By participating you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
+Coding agents: [AGENTS.md](AGENTS.md) is the short version of these rules, plus the commands that regenerate what the repository commits.
+
 ## Prerequisites
 
 - **Dart** `^3.11` and **Flutter** (stable channel).

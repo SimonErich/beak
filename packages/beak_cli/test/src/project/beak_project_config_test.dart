@@ -141,6 +141,110 @@ resources:
     });
   });
 
+  group('agents', () {
+    Matcher rejects(String message) => throwsA(
+      isA<BeakProjectConfigException>().having(
+        (e) => e.message,
+        'message',
+        contains(message),
+      ),
+    );
+
+    test('default to instructions everywhere, docs on, skills detected', () {
+      for (final config in [
+        parse(''),
+        parse('name: Acme\n'),
+        parse('agents: {}\n'),
+        BeakProjectConfig.defaults(packageName: 'acme_admin'),
+      ]) {
+        expect(config.agents.instructions, BeakAgentInstructions.all);
+        expect(config.agents.docs, isTrue);
+        expect(config.agents.skills, isNull);
+      }
+    });
+
+    test('read every key', () {
+      final config = parse(
+        'agents:\n'
+        '  instructions: package\n'
+        '  docs: false\n'
+        '  skills: [claude, cursor]\n',
+      );
+
+      expect(config.agents.instructions, BeakAgentInstructions.package);
+      expect(config.agents.docs, isFalse);
+      expect(config.agents.skills, [
+        BeakSkillTarget.claude,
+        BeakSkillTarget.cursor,
+      ]);
+    });
+
+    test('name each instructions choice', () {
+      for (final choice in BeakAgentInstructions.values) {
+        expect(
+          parse(
+            'agents:\n  instructions: ${choice.name}\n',
+          ).agents.instructions,
+          choice,
+        );
+      }
+    });
+
+    test('an empty skills list means never install skills', () {
+      expect(parse('agents:\n  skills: []\n').agents.skills, isEmpty);
+    });
+
+    test('a repeated skills target counts once', () {
+      expect(parse('agents:\n  skills: [claude, claude]\n').agents.skills, [
+        BeakSkillTarget.claude,
+      ]);
+    });
+
+    test('an unknown agents key is an error naming it', () {
+      expect(
+        () => parse('agents:\n  rules: all\n'),
+        rejects('unknown key "agents.rules"'),
+      );
+    });
+
+    test('an unknown instructions choice lists the choices', () {
+      expect(
+        () => parse('agents:\n  instructions: some\n'),
+        rejects('agents.instructions must be one of: all, package, none'),
+      );
+      expect(
+        () => parse('agents:\n  instructions: 3\n'),
+        rejects('agents.instructions must be one of'),
+      );
+    });
+
+    test('docs must be true or false', () {
+      expect(
+        () => parse('agents:\n  docs: yes please\n'),
+        rejects('agents.docs must be true or false'),
+      );
+    });
+
+    test('skills must be a list of known targets', () {
+      expect(
+        () => parse('agents:\n  skills: claude\n'),
+        rejects('agents.skills must be a list'),
+      );
+      expect(
+        () => parse('agents:\n  skills: [claude, vim]\n'),
+        rejects('agents.skills has "vim"; expected claude, agents or cursor'),
+      );
+      expect(
+        () => parse('agents:\n  skills: [3]\n'),
+        rejects('agents.skills has "3"'),
+      );
+    });
+
+    test('agents must be a mapping', () {
+      expect(() => parse('agents: all\n'), rejects('agents must be a mapping'));
+    });
+  });
+
   group('api base url', () {
     test('compiles a fixed origin in, overridable at build time', () {
       expect(

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import '../agents/beak_skill_installer.dart';
 import 'beak_discovery.dart';
 
 /// Thrown when `beak.yaml` cannot be understood.
@@ -94,6 +95,43 @@ final class BeakPanelSettings {
   static const String defaultEntrypoint = 'lib/main.dart';
 }
 
+/// Which `AGENTS.md` files `beak prepare` and `beak agents` may write.
+enum BeakAgentInstructions {
+  /// The project's own, and the workspace root's when it is a member of one.
+  all,
+
+  /// The project's own only; a workspace root is left alone.
+  package,
+
+  /// None: Beak never touches `AGENTS.md` or `CLAUDE.md`.
+  none,
+}
+
+/// What Beak writes for coding agents, and where.
+///
+/// Every default is on. A project that would rather keep agent files out of
+/// its tree says so here and Beak stops, rather than writing and hoping
+/// nobody minds.
+final class BeakAgentSettings {
+  /// Creates agent settings.
+  const BeakAgentSettings({
+    this.instructions = BeakAgentInstructions.all,
+    this.docs = true,
+    this.skills,
+  });
+
+  /// Which `AGENTS.md` files Beak keeps its block in.
+  final BeakAgentInstructions instructions;
+
+  /// Whether `beak prepare` copies the version-matched docs into
+  /// `.dart_tool/beak/docs`.
+  final bool docs;
+
+  /// The folders `beak agents` installs skills into, or `null` to use the
+  /// agent folders the workspace already has. An empty list installs none.
+  final List<BeakSkillTarget>? skills;
+}
+
 /// Per-resource presentation the panel reads before falling back to defaults.
 final class BeakResourceOverride {
   /// Creates an override for one table.
@@ -136,6 +174,7 @@ final class BeakProjectConfig {
     this.api = const BeakApiSettings(),
     this.server = const BeakServerSettings(),
     this.panel = const BeakPanelSettings(),
+    this.agents = const BeakAgentSettings(),
     this.resources = const {},
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
@@ -167,6 +206,7 @@ final class BeakProjectConfig {
       'api',
       'server',
       'panel',
+      'agents',
       'theme',
       'resources',
     }, '');
@@ -182,6 +222,14 @@ final class BeakProjectConfig {
     final YamlMap? panel = _optionalMap(root['panel'], 'panel');
     if (panel != null) {
       _rejectUnknownKeys(panel, const {'entrypoint'}, 'panel.');
+    }
+    final YamlMap? agents = _optionalMap(root['agents'], 'agents');
+    if (agents != null) {
+      _rejectUnknownKeys(agents, const {
+        'instructions',
+        'docs',
+        'skills',
+      }, 'agents.');
     }
     final YamlMap? theme = _optionalMap(root['theme'], 'theme');
     if (theme != null) {
@@ -244,6 +292,11 @@ final class BeakProjectConfig {
           'panel.entrypoint',
         ),
       ),
+      agents: BeakAgentSettings(
+        instructions: _instructionsOf(agents?['instructions']),
+        docs: _optionalBool(agents?['docs'], 'agents.docs') ?? true,
+        skills: _skillTargetsOf(agents?['skills']),
+      ),
       resources: resources,
       sidebarCollapsible:
           _optionalBool(sidebar?['collapsible'], 'theme.sidebar.collapsible') ??
@@ -283,6 +336,9 @@ final class BeakProjectConfig {
 
   /// Where the panel is booted from.
   final BeakPanelSettings panel;
+
+  /// What Beak writes for coding agents.
+  final BeakAgentSettings agents;
 
   /// Per-table presentation overrides, keyed by table name.
   final Map<String, BeakResourceOverride> resources;
@@ -391,6 +447,51 @@ final class BeakProjectConfig {
       );
     }
     return name;
+  }
+
+  /// The `agents.instructions` choice; `all` when it is not written.
+  static BeakAgentInstructions _instructionsOf(Object? value) {
+    final Object? raw = value is YamlNode ? value.value : value;
+    if (raw == null) {
+      return BeakAgentInstructions.all;
+    }
+    for (final choice in BeakAgentInstructions.values) {
+      if (raw == choice.name) {
+        return choice;
+      }
+    }
+    throw BeakProjectConfigException(
+      'agents.instructions must be one of: '
+      '${BeakAgentInstructions.values.map((choice) => choice.name).join(', ')} '
+      '(got "$raw").',
+    );
+  }
+
+  /// The `agents.skills` targets, or `null` when the key is not written.
+  static List<BeakSkillTarget>? _skillTargetsOf(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is! YamlList) {
+      throw const BeakProjectConfigException(
+        'agents.skills must be a list, such as [claude, agents].',
+      );
+    }
+    final targets = <BeakSkillTarget>[];
+    for (final entry in value) {
+      final BeakSkillTarget? target = entry is String
+          ? BeakSkillTarget.parse(entry)
+          : null;
+      if (target == null) {
+        throw BeakProjectConfigException(
+          'agents.skills has "$entry"; expected claude, agents or cursor.',
+        );
+      }
+      if (!targets.contains(target)) {
+        targets.add(target);
+      }
+    }
+    return targets;
   }
 
   static bool? _optionalBool(Object? value, String key) {

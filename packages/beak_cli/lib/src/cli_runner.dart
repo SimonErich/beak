@@ -4,8 +4,10 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import 'commands/agents_command.dart';
 import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
+import 'commands/docs_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/eject_command.dart';
 import 'commands/init_command.dart';
@@ -157,7 +159,8 @@ final class BeakCliEnvironment {
 
 /// Builds the `beak` [CommandRunner] with every command registered against
 /// [environment]: `create`, `init`, `prepare`, `dev`, `introspect`, `eject`,
-/// `migrate`, `seed`, `make:resource`, `make:migration` and `doctor`.
+/// `docs`, `agents`, `migrate`, `seed`, `make:resource`, `make:migration`
+/// and `doctor`.
 ///
 /// The returned runner's `run` completes with the process exit code (or
 /// `null` for `--help`); it throws [UsageException] on bad input, which the
@@ -178,7 +181,15 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(PrepareCommand(environment))
       ..addCommand(DevCommand(environment))
       ..addCommand(IntrospectCommand(environment))
-      ..addCommand(InitCommand(environment))
+      ..addCommand(
+        InitCommand(
+          environment,
+          refreshAgentFiles: (env) async =>
+              refreshAgentFiles(env, installSkills: true),
+        ),
+      )
+      ..addCommand(DocsCommand(environment))
+      ..addCommand(AgentsCommand(environment))
       ..addCommand(EjectCommand(environment))
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))

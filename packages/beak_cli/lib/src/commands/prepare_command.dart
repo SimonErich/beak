@@ -9,6 +9,7 @@ import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_reader.dart';
+import 'agents_command.dart';
 
 /// Regenerates the wiring a Beak project needs, from what it declares.
 ///
@@ -24,6 +25,11 @@ import '../schema/beak_schema_reader.dart';
 ///
 /// Idempotent: a file whose contents are unchanged is not rewritten, which is
 /// what keeps `beak dev` from thrashing Flutter's file watcher.
+///
+/// When generation succeeds it also brings the files a coding agent reads up
+/// to date (the docs of the resolved Beak version and the managed block in
+/// `AGENTS.md`), as `beak.yaml`'s `agents:` section allows, and says so in
+/// one line.
 final class PrepareCommand extends Command<int> {
   /// Creates the command against [environment].
   PrepareCommand(this.environment);
@@ -40,7 +46,15 @@ final class PrepareCommand extends Command<int> {
       'screens and beak.yaml.';
 
   @override
-  Future<int> run() async => runPrepare(environment).exitCode;
+  Future<int> run() async {
+    final BeakPrepareResult result = runPrepare(environment);
+    if (result.isSuccess) {
+      // The agent files describe what was just generated, so they follow it.
+      // A problem there is a line of output, never a failed prepare.
+      refreshAgentFiles(environment);
+    }
+    return result.exitCode;
+  }
 }
 
 /// What a `prepare` run did.

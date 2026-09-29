@@ -50,6 +50,34 @@ databases, owned overrides, fixture data and setup checks. See the
 [command reference](../../docs/reference/cli-commands.md) for flags and
 deployment workflows.
 
+## For coding agents
+
+An agent's training data is older than the Beak it is asked to write. Two
+commands put the right version in front of it:
+
+```console
+$ beak docs           # copy the docs of the resolved Beak to .dart_tool/beak/docs
+$ beak agents         # AGENTS.md block, CLAUDE.md, the docs, and workflow skills
+$ beak agents --check # write nothing; exit 1 while AGENTS.md, CLAUDE.md or skills would change
+```
+
+`beak prepare` refreshes the docs and the `AGENTS.md` block too. Beak only edits
+between the `<!-- BEGIN:beak-agent-rules -->` and `<!-- END:beak-agent-rules -->`
+markers and leaves every other byte of the file alone; a file with damaged
+markers is refused, not guessed at. `CLAUDE.md` is created holding `@AGENTS.md`
+unless one exists. The `agents:` section of `beak.yaml` turns any of it off:
+
+```yaml
+agents:
+  instructions: all   # all | package | none
+  docs: true
+  skills: [claude, agents]   # claude | agents | cursor; [] installs none
+```
+
+`--print` renders the block for a project that would rather paste it in, and
+`--remove` undoes it. `beak doctor` reports the state of all of it in its
+`agents` group.
+
 ## Generated or authored panel
 
 A project boots its panel one of two ways.

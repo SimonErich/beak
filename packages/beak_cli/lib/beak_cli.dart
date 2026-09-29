@@ -1,5 +1,6 @@
-/// Beak's command-line tool: `beak create`, `prepare`, `dev`, `migrate`,
-/// `eject`, `introspect`, `make:resource`, `make:migration` and `doctor`.
+/// Beak's command-line tool: `beak create`, `init`, `prepare`, `dev`,
+/// `migrate`, `eject`, `introspect`, `docs`, `agents`, `make:resource`,
+/// `make:migration` and `doctor`.
 ///
 /// The public surface is the runner and the seams it runs against, which is
 /// all a `bin/` entry point needs. Everything the commands are built from,

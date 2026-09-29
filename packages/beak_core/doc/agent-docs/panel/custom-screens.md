@@ -27,31 +27,26 @@ BeakScreen shopOverview() => BeakScreen(
           BeakMetricBlock(
             label: 'Products',
             icon: OiIcons.package,
-            aggregate: BeakAggregateSpec.count(
-              table: const ProductModel().table,
-            ),
+            aggregate: const ProductModel().count(),
           ),
           BeakMetricBlock(
             label: 'Orders to fulfill',
             icon: OiIcons.shoppingCart,
-            aggregate: BeakAggregateSpec.count(
-              table: const OrderModel().table,
+            aggregate: const OrderModel().count(
               filter: fulfillmentQueueFilter(),
             ),
           ),
           BeakMetricBlock(
             label: 'Awaiting payment',
             icon: OiIcons.receiptText,
-            aggregate: BeakAggregateSpec.count(
-              table: const InvoiceModel().table,
+            aggregate: const InvoiceModel().count(
               filter: InvoiceModel.status.eq(InvoiceStatus.issued),
             ),
           ),
           BeakMetricBlock(
             label: 'Low-stock variants',
             icon: OiIcons.layers,
-            aggregate: BeakAggregateSpec.count(
-              table: const ProductVariantModel().table,
+            aggregate: const ProductVariantModel().count(
               filter: ProductVariantModel.stock.lte(5),
             ),
           ),
@@ -72,7 +67,7 @@ BeakScreen shopOverview() => BeakScreen(
               ],
               enableDelete: false,
               initialSpec: const OrderModel().query(
-                sorts: [BeakSort(OrderModel.deliveryDate.key)],
+                sorts: [OrderModel.deliveryDate.ascending()],
                 pagination: const BeakPagination(perPage: 5),
               ),
               baseFilter: BeakAndFilter([
@@ -98,7 +93,7 @@ BeakScreen shopOverview() => BeakScreen(
               ],
               enableDelete: false,
               initialSpec: const InvoiceModel().query(
-                sorts: [BeakSort(InvoiceModel.dueAt.key)],
+                sorts: [InvoiceModel.dueAt.ascending()],
                 pagination: const BeakPagination(perPage: 5),
               ),
               baseFilter: InvoiceModel.status.eq(InvoiceStatus.issued),

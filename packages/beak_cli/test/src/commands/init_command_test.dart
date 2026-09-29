@@ -555,6 +555,29 @@ analyzer:
       expect(refreshed, 1);
     });
 
+    test(
+      'the real hand-over writes the embedded block and CLAUDE.md',
+      () async {
+        expect(await init([]), 0);
+
+        final String agents = read('AGENTS.md');
+        expect(
+          agents,
+          startsWith('# My App\n\n<!-- BEGIN:beak-agent-rules -->'),
+        );
+        expect(
+          agents,
+          contains('This app contains a Beak $beakCliVersion admin panel'),
+        );
+        expect(agents, contains('flutter run -t lib/admin_main.dart'));
+        expect(read('CLAUDE.md'), '@AGENTS.md\n');
+        expect(
+          out.toString(),
+          contains('  agents     AGENTS.md created · CLAUDE.md created'),
+        );
+      },
+    );
+
     test('does not refresh agent files without packages to read', () async {
       await initCounting(['--no-pub']);
 

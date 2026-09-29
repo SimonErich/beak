@@ -709,7 +709,7 @@ void main() {
     test('the unpublished folders stay out of the bundle', () {
       final Map<String, String> files = bundleOf({
         'docs/_internal/notes.md': '# Notes\n',
-        'docs/_agents/blocks/standalone.md': '# Block\n',
+        'docs/_agents/notes.md': '# Notes\n',
         'docs/assets/readme.md': '# Assets\n',
       });
       expect(
@@ -1109,6 +1109,247 @@ void main() {
         'docs/ai/index.md:11: the corrections table names `NewThing`, '
             'which no packages/*/lib source contains',
       ]);
+    });
+  });
+
+  group('block templates', () {
+    /// A valid template: markers, one placeholder, one section.
+    String template(String name, {String body = ''}) =>
+        '<!-- BEGIN:beak-agent-rules -->\n'
+        '## $name\n'
+        '\n'
+        'Beak {{version}} at `{{docsIndex}}`.\n'
+        '$body'
+        '<!-- END:beak-agent-rules -->\n';
+
+    const List<String> names = [
+      'embedded',
+      'serverpod-admin',
+      'standalone',
+      'workspace-root',
+    ];
+
+    /// The four templates, with [overrides] on top; a `null` removes one.
+    Map<String, String?> blocks([
+      Map<String, String?> overrides = const {},
+    ]) => {
+      for (final name in names) 'docs/_agents/blocks/$name.md': template(name),
+      ...overrides,
+    };
+
+    /// The problems of a repository whose standalone template is [source].
+    List<String> problemsOfStandalone(String source) =>
+        problemsOf(blocks({'docs/_agents/blocks/standalone.md': source}));
+
+    test('the templates are bundled verbatim next to the pages', () {
+      final Map<String, String> files = bundleOf(blocks());
+      for (final name in names) {
+        expect(files['_agents/blocks/$name.md'], template(name));
+      }
+      final Object? manifest = jsonDecode(files['manifest.json']!);
+      final Object? listed = switch (manifest) {
+        {'files': final Map<String, Object?> files} => files,
+        _ => null,
+      };
+      expect(
+        listed,
+        containsPair(
+          '_agents/blocks/standalone.md',
+          sha256.convert(utf8.encode(template('standalone'))).toString(),
+        ),
+      );
+      expect(
+        switch (manifest) {
+          {'pages': final int pages} => pages,
+          _ => null,
+        },
+        4,
+        reason: 'the templates are not pages',
+      );
+    });
+
+    test('a repository without the folder has neither templates nor code', () {
+      final AgentDocsBuild build = buildAgentDocs(makeRepo());
+      expect(build.files.keys.where((k) => k.startsWith('_agents')), isEmpty);
+      expect(build.companions, isEmpty);
+    });
+
+    test('a missing template is a problem naming what the CLI needs', () {
+      expect(problemsOf(blocks({'docs/_agents/blocks/embedded.md': null})), [
+        'docs/_agents/blocks/embedded.md: missing; the CLI needs '
+            'embedded, serverpod-admin, standalone and workspace-root',
+      ]);
+    });
+
+    test('a template the CLI does not know is a problem', () {
+      expect(
+        problemsOf(blocks({'docs/_agents/blocks/mystery.md': template('m')})),
+        [
+          'docs/_agents/blocks/mystery.md: not a block template the CLI '
+              'knows (embedded, serverpod-admin, standalone, workspace-root)',
+        ],
+      );
+    });
+
+    test('an unknown placeholder is a problem on its line', () {
+      expect(problemsOfStandalone(template('s', body: '{{nope}}\n')), [
+        'docs/_agents/blocks/standalone.md:5: unknown placeholder {{nope}}',
+      ]);
+    });
+
+    test('every placeholder the renderer supplies is accepted', () {
+      final String body = [
+        for (final name in blockPlaceholders) '{{$name}}\n',
+      ].join();
+      expect(problemsOfStandalone(template('s', body: body)), isEmpty);
+    });
+
+    test('section tags must be known, alone on their line and balanced', () {
+      expect(
+        problemsOfStandalone(
+          template('s', body: '{{#mystery}}\n{{/mystery}}\n'),
+        ),
+        [
+          'docs/_agents/blocks/standalone.md:5: unknown section {{#mystery}}',
+          'docs/_agents/blocks/standalone.md:6: unknown section {{/mystery}}',
+        ],
+      );
+      expect(
+        problemsOfStandalone(
+          template('s', body: 'text {{#serverpod}}\n{{/serverpod}}\n'),
+        ),
+        [
+          'docs/_agents/blocks/standalone.md:5: a section tag must be alone '
+              'on its line',
+        ],
+      );
+      expect(problemsOfStandalone(template('s', body: '{{#serverpod}}\nx\n')), [
+        'docs/_agents/blocks/standalone.md:5: the section '
+            '{{#serverpod}} is never closed',
+      ]);
+      expect(problemsOfStandalone(template('s', body: '{{/serverpod}}\n')), [
+        'docs/_agents/blocks/standalone.md:5: {{/serverpod}} closes '
+            'nothing',
+      ]);
+      expect(
+        problemsOfStandalone(
+          template(
+            's',
+            body: '{{#serverpod}}\n{{^mainIsGenerated}}\n{{/serverpod}}\n',
+          ),
+        ),
+        [
+          'docs/_agents/blocks/standalone.md:7: {{/serverpod}} closes the '
+              'section {{^mainIsGenerated}}',
+        ],
+      );
+      expect(
+        problemsOfStandalone(
+          template(
+            's',
+            body:
+                '{{#serverpod}}\nx\n{{/serverpod}}\n'
+                '{{^serverpod}}\ny\n{{/serverpod}}\n',
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('the markers are required, first and last', () {
+      expect(problemsOfStandalone('## No markers\n'), [
+        'docs/_agents/blocks/standalone.md: must open with '
+            '<!-- BEGIN:beak-agent-rules --> and end with '
+            '<!-- END:beak-agent-rules -->',
+      ]);
+      expect(
+        problemsOfStandalone(
+          '<!-- BEGIN:beak-agent-rules -->\n'
+          '<!-- BEGIN:beak-agent-rules -->\n'
+          '<!-- END:beak-agent-rules -->\n',
+        ),
+        [
+          'docs/_agents/blocks/standalone.md: the markers must appear '
+              'exactly once each',
+        ],
+      );
+    });
+
+    test('an em-dash or a triple quote is a problem on its line', () {
+      expect(problemsOfStandalone(template('s', body: 'a \u2014 b\n')), [
+        'docs/_agents/blocks/standalone.md:5: no em-dashes in the templates',
+      ]);
+      expect(problemsOfStandalone(template('s', body: "it's ''' here\n")), [
+        'docs/_agents/blocks/standalone.md:5: a triple quote cannot go in '
+            'the generated Dart string',
+      ]);
+    });
+
+    test('the CLI fallback is generated byte for byte from the templates', () {
+      final AgentDocsBuild build = buildAgentDocs(makeRepo(blocks()));
+      expect(build.companions.keys, [blockTemplatesSource]);
+      final String source = build.companions[blockTemplatesSource]!;
+      expect(source, startsWith('// GENERATED CODE'));
+      for (final (constant, name) in [
+        ('beakEmbeddedBlockTemplate', 'embedded'),
+        ('beakServerpodAdminBlockTemplate', 'serverpod-admin'),
+        ('beakStandaloneBlockTemplate', 'standalone'),
+        ('beakWorkspaceRootBlockTemplate', 'workspace-root'),
+      ]) {
+        expect(
+          source,
+          contains("const String $constant = r'''\n${template(name)}''';"),
+        );
+      }
+    });
+
+    test('a run writes the fallback, and --check then covers it', () {
+      final Directory root = makeRepo(blocks());
+      final Run written = run(root);
+      expect(written.code, 0);
+      expect(
+        written.out,
+        'Agent docs bundle: 13 files, 13 written, 0 removed.\n'
+        'Block templates: $blockTemplatesSource written.\n',
+      );
+      final File fallback = File('${root.path}/$blockTemplatesSource');
+      expect(fallback.existsSync(), isTrue);
+      expect(run(root, check: true).code, 0);
+      expect(
+        run(root).out,
+        'Agent docs bundle: 13 files, 0 written, 0 removed.\n'
+        'Block templates: $blockTemplatesSource up to date.\n',
+      );
+
+      fallback.writeAsStringSync('// edited\n');
+      final Run stale = run(root, check: true);
+      expect(stale.code, 1);
+      expect(stale.err, contains('stale: $blockTemplatesSource'));
+      fallback.deleteSync();
+      expect(
+        run(root, check: true).err,
+        contains('missing: $blockTemplatesSource'),
+      );
+      expect(run(root).code, 0);
+      expect(run(root, check: true).code, 0);
+    });
+
+    test('the template bytes in the bundle follow an edit', () {
+      final Directory root = makeRepo(blocks());
+      run(root);
+      File(
+        '${root.path}/docs/_agents/blocks/standalone.md',
+      ).writeAsStringSync(template('standalone', body: 'Changed.\n'));
+      final Run checked = run(root, check: true);
+      expect(checked.code, 1);
+      expect(
+        checked.err,
+        allOf(
+          contains('stale: $agentDocsDirectory/_agents/blocks/standalone.md'),
+          contains('stale: $blockTemplatesSource'),
+          contains('stale: $agentDocsDirectory/manifest.json'),
+        ),
+      );
     });
   });
 }

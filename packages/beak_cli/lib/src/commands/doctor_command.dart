@@ -2,7 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
 
+import '../agents/beak_agent_files.dart';
+import '../agents/beak_claude_md.dart';
+import '../agents/beak_docs_bundle.dart';
+import '../agents/beak_package_config.dart';
+import '../agents/beak_project_kind.dart';
+import '../agents/beak_skill_installer.dart';
+import '../agents/beak_workspace.dart';
 import '../cli_runner.dart';
 import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
@@ -14,6 +23,7 @@ import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import '../version.dart';
 import 'prepare_command.dart';
 
 /// How a single check came out.
@@ -31,7 +41,12 @@ enum BeakCheckStatus {
 /// One diagnostic, with the fix when there is one.
 final class BeakCheck {
   /// Creates a check result.
-  const BeakCheck({required this.status, required this.label, this.remedy});
+  const BeakCheck({
+    required this.status,
+    required this.label,
+    this.remedy,
+    this.group,
+  });
 
   /// Whether it passed.
   final BeakCheckStatus status;
@@ -42,11 +57,16 @@ final class BeakCheck {
   /// The command or edit that fixes it, when a fix exists.
   final String? remedy;
 
+  /// The family of checks this belongs to, such as `agents`, or `null` for
+  /// the project checks.
+  final String? group;
+
   /// This check as JSON, for `beak doctor --json`.
   Map<String, Object?> toJson() => {
     'status': status.name,
     'label': label,
     if (remedy case final String remedy) 'remedy': remedy,
+    if (group case final String group) 'group': group,
   };
 }
 
@@ -286,6 +306,7 @@ Future<List<BeakCheck>> diagnose(
   checks.addAll(
     await _databaseChecks(environment, root, readSchema, schemas, schemaIssues),
   );
+  checks.addAll(agentChecks(root, config: config));
   return checks;
 }
 
@@ -701,4 +722,252 @@ Future<List<BeakCheck>> _driftChecks(
         remedy: 'write a migration with `beak make:migration`, then `migrate`',
       ),
   ];
+}
+
+/// What a coding agent needs in the project, one check each.
+///
+/// The `agents` group: the managed block in `AGENTS.md` (present, current,
+/// not damaged), the `CLAUDE.md` that makes Claude Code read it, the size
+/// Codex will read of it, the docs bundle copied for the resolved Beak, the
+/// skills installed, and whether this CLI is the one the project's Beak was
+/// released with. All warnings: none of it stops the project from building.
+/// Empty for a project that does not depend on Beak.
+List<BeakCheck> agentChecks(
+  Directory root, {
+  required BeakProjectConfig config,
+}) {
+  final BeakProjectKind? kind = BeakProjectKind.detect(root, config: config);
+  if (kind == null) {
+    return const [];
+  }
+  final BeakAgentReport? report = syncAgentFiles(
+    root,
+    options: const BeakAgentOptions(check: true, installSkills: false),
+  );
+  if (report == null) {
+    return const [];
+  }
+  final workspace = BeakWorkspace.locate(root);
+  final BeakPackageConfig? packages = BeakPackageConfig.read(
+    workspace.packageConfigFile,
+  );
+  BeakCheck check(BeakCheckStatus status, String label, {String? remedy}) =>
+      BeakCheck(status: status, label: label, remedy: remedy, group: 'agents');
+  final checks = <BeakCheck>[];
+
+  if (config.agents.instructions == BeakAgentInstructions.none) {
+    checks.add(
+      check(BeakCheckStatus.ok, 'agent instructions are disabled in beak.yaml'),
+    );
+  } else {
+    for (final change in report.files.where((change) => !change.isClaude)) {
+      checks.add(switch (change.action) {
+        BeakFileAction.unchanged => check(
+          BeakCheckStatus.ok,
+          '${change.label} has the Beak ${report.version} block',
+        ),
+        BeakFileAction.updated => check(
+          BeakCheckStatus.warn,
+          '${change.label} has an out-of-date Beak block',
+          remedy: 'beak prepare',
+        ),
+        _ => check(
+          BeakCheckStatus.warn,
+          '${change.label} has no Beak block',
+          remedy: 'beak agents',
+        ),
+      });
+    }
+    for (final problem in report.problems) {
+      checks.add(
+        check(
+          BeakCheckStatus.warn,
+          problem,
+          remedy: 'fix or delete the markers, then run `beak agents`',
+        ),
+      );
+    }
+  }
+
+  final agentsMd = File(p.join(root.path, 'AGENTS.md'));
+  if (agentsMd.existsSync()) {
+    if (config.agents.instructions != BeakAgentInstructions.none) {
+      checks.add(switch (BeakClaudeMd.pairing(root)) {
+        BeakClaudePairing.paired => check(
+          BeakCheckStatus.ok,
+          'CLAUDE.md reads AGENTS.md',
+        ),
+        BeakClaudePairing.unread => check(
+          BeakCheckStatus.warn,
+          'AGENTS.md exists but no CLAUDE.md reads it, and Claude Code reads '
+          'AGENTS.md only when there is no CLAUDE.md',
+          remedy: 'beak agents',
+        ),
+        BeakClaudePairing.brokenDotClaudeImport => check(
+          BeakCheckStatus.warn,
+          '.claude/CLAUDE.md imports `@AGENTS.md`, which resolves next to '
+          'that file',
+          remedy: 'use `@../AGENTS.md`',
+        ),
+      });
+    }
+    final int kib = (agentsMd.lengthSync() / 1024).ceil();
+    checks.add(
+      kib <= 32
+          ? check(BeakCheckStatus.ok, 'AGENTS.md is $kib KiB')
+          : check(
+              BeakCheckStatus.warn,
+              'AGENTS.md is $kib KiB, and Codex reads only the first 32 KiB',
+              remedy: 'move the detail into files AGENTS.md points to',
+            ),
+    );
+  }
+
+  checks.add(_docsCheck(config, report, workspace, check));
+
+  final List<BeakInstalledSkill> skills = installedSkills(workspace, packages);
+  final outdated = <String>{
+    for (final skill in skills)
+      if (skill.status == BeakInstalledSkillStatus.outdated ||
+          skill.status == BeakInstalledSkillStatus.orphaned)
+        skill.name,
+  };
+  final edited = <String>{
+    for (final skill in skills)
+      if (skill.status == BeakInstalledSkillStatus.modified) skill.name,
+  };
+  if (outdated.isNotEmpty) {
+    checks.add(
+      check(
+        BeakCheckStatus.warn,
+        'Beak skills out of date: ${(outdated.toList()..sort()).join(', ')}',
+        remedy: 'beak agents',
+      ),
+    );
+  } else if (skills.isEmpty) {
+    checks.add(
+      check(
+        BeakCheckStatus.ok,
+        'no Beak skills installed',
+        remedy: 'optional: `beak agents` installs them',
+      ),
+    );
+  } else {
+    final int count = {for (final skill in skills) skill.name}.length;
+    checks.add(
+      check(
+        BeakCheckStatus.ok,
+        '$count Beak skill${count == 1 ? '' : 's'} installed, all current',
+      ),
+    );
+  }
+  if (edited.isNotEmpty) {
+    checks.add(
+      check(
+        BeakCheckStatus.ok,
+        'Beak skills edited locally, kept as they are: '
+        '${(edited.toList()..sort()).join(', ')}',
+      ),
+    );
+  }
+
+  final String? projectVersion =
+      packages?.umbrella?.version ?? packages?.core?.version;
+  if (projectVersion != null) {
+    checks.add(_skewCheck(projectVersion, check));
+  }
+  return checks;
+}
+
+/// Whether the docs bundle in the workspace is the one the project resolved.
+BeakCheck _docsCheck(
+  BeakProjectConfig config,
+  BeakAgentReport report,
+  BeakWorkspace workspace,
+  BeakCheck Function(BeakCheckStatus, String, {String? remedy}) check,
+) {
+  if (!config.agents.docs) {
+    return check(BeakCheckStatus.ok, 'docs bundle is disabled in beak.yaml');
+  }
+  return switch (report.docs) {
+    BeakDocsReady(:final status, :final version) => switch (status) {
+      BeakDocsStatus.pending => _staleDocs(workspace, version, check),
+      _ => check(
+        BeakCheckStatus.ok,
+        'docs bundle for Beak $version is in ${BeakWorkspace.docsPath}',
+      ),
+    },
+    BeakDocsUnavailable(:final reason) => check(
+      BeakCheckStatus.warn,
+      'docs bundle unavailable: $reason',
+      remedy: 'flutter pub get',
+    ),
+    null => check(BeakCheckStatus.ok, 'docs bundle not checked'),
+  };
+}
+
+/// The check for a docs copy that is missing or of another version.
+BeakCheck _staleDocs(
+  BeakWorkspace workspace,
+  String resolvedVersion,
+  BeakCheck Function(BeakCheckStatus, String, {String? remedy}) check,
+) {
+  final manifest = File(p.join(workspace.docsDirectory.path, 'manifest.json'));
+  String? copied;
+  if (manifest.existsSync()) {
+    try {
+      if (jsonDecode(manifest.readAsStringSync()) case {
+        'beak': final String version,
+      }) {
+        copied = version;
+      }
+    } on FormatException {
+      copied = null;
+    }
+  }
+  return copied == null
+      ? check(
+          BeakCheckStatus.warn,
+          'docs bundle not materialized in ${BeakWorkspace.docsPath}',
+          remedy: 'beak docs',
+        )
+      : check(
+          BeakCheckStatus.warn,
+          'docs bundle is Beak $copied but the project resolved Beak '
+          '$resolvedVersion',
+          remedy: 'beak prepare',
+        );
+}
+
+/// Whether this CLI shares a minor version with the project's Beak.
+BeakCheck _skewCheck(
+  String projectVersion,
+  BeakCheck Function(BeakCheckStatus, String, {String? remedy}) check,
+) {
+  final Version? project = _parse(projectVersion);
+  final Version? cli = _parse(beakCliVersion);
+  if (project == null ||
+      cli == null ||
+      (project.major == cli.major && project.minor == cli.minor)) {
+    return check(
+      BeakCheckStatus.ok,
+      'CLI $beakCliVersion matches project Beak $projectVersion',
+    );
+  }
+  return check(
+    BeakCheckStatus.warn,
+    'CLI $beakCliVersion, project Beak $projectVersion',
+    remedy:
+        'reactivate the CLI with `dart pub global activate --source git '
+        'https://github.com/SimonErich/beak.git --git-path packages/beak_cli '
+        '--git-ref v$projectVersion`',
+  );
+}
+
+Version? _parse(String version) {
+  try {
+    return Version.parse(version);
+  } on FormatException {
+    return null;
+  }
 }

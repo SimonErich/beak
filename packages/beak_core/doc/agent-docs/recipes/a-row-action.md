@@ -29,6 +29,60 @@ enum InvoiceStatus {
   cancelled,
 }
 
+/// The invoice's business commands, each declared once and referenced by
+/// object wherever a screen, list or server rule mentions it.
+abstract final class InvoiceActions {
+  /// Issues a draft invoice and locks its contents.
+  static final issue = BeakModelAction(
+    name: 'issue',
+    allowOnCreate: true,
+    label: 'Issue invoice',
+    description:
+        'Issue this invoice and lock its customer, prices, discounts and taxes.',
+    availableWhen: (record) =>
+        InvoiceModel.status.readFrom(record) == InvoiceStatus.draft,
+    values: [
+      BeakValueBehavior.derived(
+        field: InvoiceModel.status,
+        resolve: (_) => InvoiceStatus.issued,
+      ),
+    ],
+  );
+
+  /// Records that an issued invoice has been paid.
+  static final markPaid = BeakModelAction(
+    name: 'markPaid',
+    label: 'Mark paid',
+    description: 'Record that this invoice has been paid.',
+    availableWhen: (record) =>
+        InvoiceModel.status.readFrom(record) == InvoiceStatus.issued,
+    values: [
+      BeakValueBehavior.derived(
+        field: InvoiceModel.status,
+        resolve: (_) => InvoiceStatus.paid,
+      ),
+    ],
+  );
+
+  /// Closes an invoice without payment while keeping it for reference.
+  static final cancel = BeakModelAction(
+    name: 'cancel',
+    label: 'Cancel invoice',
+    description:
+        'Keep this invoice for reference and close it without payment.',
+    availableWhen: (record) => {
+      InvoiceStatus.draft,
+      InvoiceStatus.issued,
+    }.contains(InvoiceModel.status.readFrom(record)),
+    values: [
+      BeakValueBehavior.derived(
+        field: InvoiceModel.status,
+        resolve: (_) => InvoiceStatus.cancelled,
+      ),
+    ],
+  );
+}
+
 /// An invoice whose saved values snapshot the catalog at save time.
 @Resource(timestamps: true)
 final class Invoice extends BeakSchema {
@@ -57,50 +111,9 @@ final class Invoice extends BeakSchema {
         InvoiceStatus.draft,
     deletableWhen: (_) => false,
     actions: [
-      BeakModelAction(
-        name: 'issue',
-        allowOnCreate: true,
-        label: 'Issue invoice',
-        description:
-            'Issue this invoice and lock its customer, prices, discounts and taxes.',
-        availableWhen: (record) =>
-            InvoiceModel.status.readFrom(record) == InvoiceStatus.draft,
-        values: [
-          BeakValueBehavior.derived(
-            field: InvoiceModel.status,
-            resolve: (_) => InvoiceStatus.issued,
-          ),
-        ],
-      ),
-      BeakModelAction(
-        name: 'markPaid',
-        label: 'Mark paid',
-        description: 'Record that this invoice has been paid.',
-        availableWhen: (record) =>
-            InvoiceModel.status.readFrom(record) == InvoiceStatus.issued,
-        values: [
-          BeakValueBehavior.derived(
-            field: InvoiceModel.status,
-            resolve: (_) => InvoiceStatus.paid,
-          ),
-        ],
-      ),
-      BeakModelAction(
-        name: 'cancel',
-        label: 'Cancel invoice',
-        description:
-            'Keep this invoice for reference and close it without payment.',
-        availableWhen: (record) => {
-          InvoiceStatus.draft,
-          InvoiceStatus.issued,
-        }.contains(InvoiceModel.status.readFrom(record)),
-        values: [
-          BeakValueBehavior.derived(
-            field: InvoiceModel.status,
-            resolve: (_) => InvoiceStatus.cancelled,
-          ),
-        ],
-      ),
+      InvoiceActions.issue,
+      InvoiceActions.markPaid,
+      InvoiceActions.cancel,
     ],
   );
 

@@ -19,9 +19,7 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakKanbanBlock(
 ///   model: const TaskModel(),
-///   // The board needs the typed enum column, which the generated
-///   // TaskColumns keeps; `TaskModel.status.column` is a plain BeakColumn.
-///   groupField: TaskColumns.status,
+///   groupField: TaskModel.status,
 ///   titleField: TaskModel.title.column,
 ///   subtitleField: TaskModel.assignee.column,
 ///   onCardMove: (record) => lastMoved.value = TaskModel.id.readFrom(record),
@@ -44,8 +42,22 @@ final class BeakKanbanBlock extends BeakBlock {
   /// The model whose records become cards.
   final BeakModel model;
 
-  /// The enum column whose values define the board's columns.
-  final BeakEnumColumn<Enum> groupField;
+  /// The enum field whose values define the board's columns.
+  final BeakScalarField<Enum> groupField;
+
+  /// The enum column behind [groupField].
+  ///
+  /// Throws a [BeakConfigurationException] when [groupField] is not an enum
+  /// column of [model] itself.
+  BeakEnumColumn<Enum> get groupColumn => switch (groupField.column) {
+    final BeakEnumColumn<Enum> column
+        when groupField.path.isEmpty && groupField.model.table == model.table =>
+      column,
+    _ => throw BeakConfigurationException(
+      'Kanban group field "${groupField.qualifiedKey}" must be an enum field '
+      'of ${model.table}.',
+    ),
+  };
 
   /// Column supplying each card's title.
   final BeakColumn titleField;

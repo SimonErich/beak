@@ -37,7 +37,7 @@ BeakScreen shopOperations() => BeakScreen(
           ],
           enableDelete: false,
           initialSpec: const OrderModel().query(
-            sorts: [BeakSort(OrderModel.deliveryDate.key)],
+            sorts: [OrderModel.deliveryDate.ascending()],
             pagination: const BeakPagination(perPage: 10),
           ),
           baseFilter: fulfillmentQueueFilter(),
@@ -57,7 +57,7 @@ BeakScreen shopOperations() => BeakScreen(
           ],
           enableDelete: false,
           initialSpec: const ProductVariantModel().query(
-            sorts: [BeakSort(ProductVariantModel.stock.key)],
+            sorts: [ProductVariantModel.stock.ascending()],
             pagination: const BeakPagination(perPage: 10),
           ),
           baseFilter: BeakAndFilter([
