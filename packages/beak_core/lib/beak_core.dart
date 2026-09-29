@@ -38,6 +38,7 @@ export 'src/model/beak_permissions.dart';
 export 'src/query/beak_aggregate_spec.dart';
 export 'src/query/beak_summary_spec.dart';
 export 'src/query/beak_filter.dart';
+export 'src/query/beak_like_pattern.dart';
 export 'src/query/beak_operator.dart';
 export 'src/query/beak_page.dart';
 export 'src/query/beak_pagination.dart';

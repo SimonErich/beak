@@ -198,16 +198,16 @@ still run through `BeakServeHost.runCli`, which the generated
   data source is a `WormDataSource`, and `preparePlan`, `finalizePlan` and
   `graphOnly` throw at startup with any other. A panel that saves through a
   different source has no commit route to call.
-- **No page-size ceiling.** `perPage` is whatever the client sends.
-- **Substring filters are wildcards.** `contains`, `startsWith`, `endsWith` and
-  the automatic search build a pattern around the term without escaping `%` and
-  `_`, so a term containing them matches more than it says.
+- **The page-size ceiling is 200, and fixed for the generated server.**
+  `BeakQueryAuthorizer` and `BeakCrudHandlers` take a `maxPerPage`, but
+  `BeakServer` does not pass one through yet. A request for more rows is served
+  at the ceiling and the page envelope says so.
 - **Upload URLs are not signed.** `GET .../upload` asks the driver for a plain
   URL, so a private S3 bucket does not serve through it.
 - **Unexpected failures are opaque.** Anything that is not a `BeakException`
   becomes a 500 with code `internal` and a fixed message. The raw error goes to
   `onUnexpectedError`, not to the client, and `BeakClient` reads that code as a
-  `BeakConfigurationException`.
+  `BeakInternalException`.
 
 ## Continue reading
 

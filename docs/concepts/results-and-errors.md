@@ -43,6 +43,9 @@ Every failure Beak raises is a `BeakException`. The family is sealed, and each v
 | `BeakConflictException` | `conflict` | 409 | a concurrent change, or a save id reused with different content |
 | `BeakConfigurationException` | `configuration` | 500 | Beak is set up wrong; a developer error |
 | `BeakStorageException` | `storage` | 500 | a storage driver failed |
+| `BeakInternalException` | `internal` | 500 | the server failed unexpectedly, or a proxy answered with a 5xx |
+| `BeakPayloadTooLargeException` | `payload_too_large` | 413 | a request body is larger than the host accepts |
+| `BeakTransportException` | `transport` | 502 | a fault outside Beak's API that no other type fits |
 
 Services and data sources throw and stay short. One middleware turns the exception into a response:
 
@@ -50,13 +53,13 @@ Services and data sources throw and stay short. One middleware turns the excepti
 --8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:exceptionStatus"
 ```
 
-Anything that isn't a `BeakException` becomes `{"code":"internal","message":"Internal server error."}` with a 500, and the real error goes to `onUnexpectedError`. The client never sees it. Here is what a caller gets for a missing receipt, an unregistered table and a body that isn't JSON:
+Anything that isn't a `BeakException` becomes `{"code":"internal","message":"Internal server error."}` with a 500, and the real error goes to `onUnexpectedError`. The client never sees it. Here is what a caller gets for a missing receipt, a spec that names a table nobody registered and a body that isn't JSON:
 
 ```console
 $ curl -s localhost:8080/api/commits/nope
 {"code":"not_found","message":"No receipt for save \"nope\".","requestId":"b68cac8d1c399273"}
 $ curl -s -XPOST localhost:8080/api/notes/query -d '{"table":"orders"}'
-{"code":"configuration","message":"No model registered for table \"orders\".","requestId":"ecc6eaef760e06cb"}
+{"code":"validation","message":"Unknown table \"orders\".","requestId":"ecc6eaef760e06cb"}
 $ curl -s -XPOST localhost:8080/api/notes/query -d 'not json'
 {"code":"validation","message":"Request body is not valid JSON: Unexpected character.","requestId":"40f1b3481447cc1f"}
 ```
@@ -71,13 +74,13 @@ The `requestId` also tags the server's request log line, so a bug report can be 
 --8<-- "packages/beak_core/lib/src/client/beak_client.dart:ensureSuccess"
 ```
 
-The last arm is worth knowing. A code it doesn't recognise, including `internal`, becomes a `BeakConfigurationException`. The panel's `BeakLocalizations.errorMessage` treats that type, and `BeakStorageException`, as infrastructure detail and shows a generic "The operation could not be completed." instead of the message:
+The last arm is worth knowing. A code it doesn't recognise, or none at all, falls back to the HTTP status: `401`, `403`, `404`, `409`, `413` and `422` map to their types, every `5xx` to `BeakInternalException` and anything else to `BeakTransportException`. So a server failure is never reported as a configuration problem, and a proxy's HTML error page is a `BeakInternalException` with the message `HTTP 502.`. The panel's `BeakLocalizations.errorMessage` treats `BeakConfigurationException` and `BeakStorageException` as infrastructure detail and shows a generic "The operation could not be completed." instead of the message:
 
 ```dart title="packages/beak_frontend/lib/src/localization/beak_localizations.dart"
 --8<-- "packages/beak_frontend/lib/src/localization/beak_localizations.dart:errorMessage"
 ```
 
-So a 500 from your own code never leaks its message into the UI, and a validation message always does.
+So a configuration or storage message never leaks into the UI, and a validation message always does. An untyped failure on the server reaches the panel as a `BeakInternalException` whose message is the fixed `Internal server error.`.
 
 ### The repository turns it into a value
 

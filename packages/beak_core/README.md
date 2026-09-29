@@ -135,14 +135,16 @@ in the Beak repo), not written by hand.
 
 ## Limits
 
-- `BeakClient` has a case for `validation`, `not_found`, `authentication`,
-  `authorization`, `conflict` and `storage`. Any other code, including the
-  server's own `internal`, becomes a `BeakConfigurationException`, so a 500 and
-  a misconfiguration look alike on the client.
-- `BeakDateTimeValue.toJson` writes a local `DateTime` without an offset. Pass
-  UTC values in a query that crosses machines.
-- `BeakPagination` has a floor (`perPage >= 1`) and no ceiling. The server does
-  not cap it either.
+- `BeakClient` reads an error body by its `code`, and falls back to the HTTP
+  status when the code is missing or unknown: `internal` and every other `5xx`
+  become `BeakInternalException`, `payload_too_large` and `413` become
+  `BeakPayloadTooLargeException`, and `transport` or a status Beak does not use
+  become `BeakTransportException`. `BeakConfigurationException` is left for the
+  server's own `configuration`.
+- `BeakPagination` has a floor (`perPage >= 1`) and no ceiling of its own. The
+  server serves at most `BeakPagination.maxPerPage` (200) rows a page.
+- There is no `min` or `max` aggregate. `sum` and `avg` of an exact-decimal
+  field go through `model.sumDecimal` and `model.avgDecimal`.
 
 ## Continue reading
 

@@ -153,7 +153,7 @@ Read the value with `record[column.key]?.raw`, or through the generated column (
 | --- | --- | --- |
 | Custom columns are display-only in forms | Client: the form controller and the input mapper both skip a `BeakCustomColumn` | No input is generated. Values arrive through the API or a seeder. |
 | No filter control | Client: `filterFor` returns null for it | The filter bar derives nothing. `filterable: true` has no effect. |
-| `searchable: true` breaks search | Server: the search filter throws | Typing a search term raises a `BeakConfigurationException` saying the column "does not support automatic search". Leave `searchable` off. |
+| `searchable: true` breaks search | Server: the search filter throws | Typing a search term is refused with a `422` (`BeakValidationException`) saying the column "does not support automatic search". Leave `searchable` off. |
 | Cannot be a summary group | Server: `WormDataSource` | A summary grouped by a custom column throws `Summary groups must be scalar columns.` |
 | No validation of the payload | Server: the type check returns null for the kind | Nothing checks the shape of the value. Add a `BeakRule` or a record rule if the shape matters. |
 | Stored as `text` | Migration: `BeakBlueprint.defineColumns` | A `BeakCustomColumn` and a `BeakTextColumn` get the same DDL. |

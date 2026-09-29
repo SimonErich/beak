@@ -290,7 +290,9 @@ final class Predicate {
     required Operator operator,
     String? tableName,
     Object? value,
+    String? escape,
   });
+  String? get escape;
   String get qualifiedName;
   Map<String, Object?> toMap();
 }
@@ -313,6 +315,7 @@ The immutable value object inside every [LeafNode](#leafnode). Adapters consume 
 
 - `value` shapes vary by operator: a `(lower, upper)` record for `between` / `notBetween`, a `List` for `inList` / `notInList`, `null` for `isNull` / `isNotNull`, and the right-hand scalar otherwise.
 - `toMap()` omits the `value` key for `isNull` / `isNotNull` and encodes records as `{'lower': ..., 'upper': ...}` for stable golden snapshots.
+- `escape` is one character, or `null`. With `escape: r'\'`, a `like`, `notLike` or `ilike` pattern reads `\%`, `\_` and `\\` as the literal characters, and every adapter states it in the SQL (`ESCAPE '\'`; MySQL doubles the backslash) or its evaluator. Without it the pattern keeps each database's own default, which differs: SQLite has none, PostgreSQL and MySQL use a backslash. The field helpers `contains`, `startsWith` and `endsWith` do not set it.
 
 **Related:** [LeafNode](#leafnode), [adapter API](./adapter-api.md)
 

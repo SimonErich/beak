@@ -99,6 +99,15 @@ void main() {
       });
     });
 
+    test('serializes a local DateTime as the UTC instant it names', () {
+      final local = DateTime(2026, 3, 14, 9, 26, 53);
+      expect(BeakDateTimeValue(local).toJson(), {
+        'type': 'dateTime',
+        'value': local.toUtc().toIso8601String(),
+      });
+      expect(local.toUtc().toIso8601String(), endsWith('Z'));
+    });
+
     test('serializes lists element-wise', () {
       expect(
         const BeakListValue([BeakIntValue(1), BeakStringValue('two')]).toJson(),
@@ -209,12 +218,20 @@ void main() {
       }
     });
 
-    test('local DateTimes survive a full JSON string cycle', () {
+    test('local DateTimes survive a full JSON string cycle as UTC', () {
       final local = BeakDateTimeValue(DateTime(2026, 3, 14, 9, 26, 53));
       final decoded = BeakValue.fromJson(
         jsonDecode(jsonEncode(local.toJson())),
       );
       expect(decoded, local);
+      expect(
+        decoded,
+        isA<BeakDateTimeValue>().having(
+          (value) => value.value.isUtc,
+          'isUtc',
+          isTrue,
+        ),
+      );
     });
   });
 
@@ -251,6 +268,15 @@ void main() {
       );
       expect(
         BeakDateTimeValue(runtimeValue(utcInstant)).hashCode,
+        BeakDateTimeValue(utcInstant).hashCode,
+      );
+      expect(
+        BeakDateTimeValue(utcInstant.toLocal()),
+        BeakDateTimeValue(utcInstant),
+        reason: 'one instant is one value, whichever zone spells it',
+      );
+      expect(
+        BeakDateTimeValue(utcInstant.toLocal()).hashCode,
         BeakDateTimeValue(utcInstant).hashCode,
       );
       expect(

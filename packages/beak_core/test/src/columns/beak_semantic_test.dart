@@ -167,6 +167,134 @@ void main() {
     },
   );
 
+  test('a whole number of units becomes a decimal, anything else is null', () {
+    expect(
+      BeakDecimal.tryFromUnits(12345, scale: 3),
+      BeakDecimal.parse('12.345', scale: 3),
+    );
+    expect(BeakDecimal.tryFromUnits(-5), BeakDecimal.parse('-0.05'));
+    expect(BeakDecimal.tryFromUnits(300.0), BeakDecimal.parse('3'));
+    for (final invalid in <num>[
+      1.5,
+      double.infinity,
+      double.nan,
+      BeakDecimal.maxUnits + 1,
+    ]) {
+      expect(BeakDecimal.tryFromUnits(invalid), isNull, reason: '$invalid');
+    }
+  });
+
+  test('a fractional average rounds only in the mode the caller names', () {
+    BeakDecimal round(num units, BeakRounding rounding) =>
+        BeakDecimal.fromRoundedUnits(units, scale: 2, rounding: rounding);
+    const cases = <(num, BeakRounding, int)>[
+      (10.5, BeakRounding.floor, 10),
+      (10.5, BeakRounding.ceiling, 11),
+      (10.5, BeakRounding.halfAwayFromZero, 11),
+      (10.5, BeakRounding.halfToEven, 10),
+      (11.5, BeakRounding.halfToEven, 12),
+      (10.4, BeakRounding.halfToEven, 10),
+      (10.6, BeakRounding.halfToEven, 11),
+      (-10.5, BeakRounding.floor, -11),
+      (-10.5, BeakRounding.ceiling, -10),
+      (-10.5, BeakRounding.halfAwayFromZero, -11),
+      (-10.5, BeakRounding.halfToEven, -10),
+      (7, BeakRounding.halfToEven, 7),
+    ];
+    for (final (units, rounding, expected) in cases) {
+      expect(
+        round(units, rounding),
+        BeakDecimal(expected),
+        reason: '$units $rounding',
+      );
+    }
+    for (final invalid in <num>[
+      double.nan,
+      double.infinity,
+      BeakDecimal.maxUnits * 2,
+    ]) {
+      expect(
+        () => round(invalid, BeakRounding.halfToEven),
+        throwsFormatException,
+        reason: '$invalid',
+      );
+    }
+  });
+
+  test('typed exact average rounds explicitly and names its spec', () async {
+    const column = BeakIntColumn(
+      key: 'amount',
+      label: 'Amount',
+      semantic: BeakSemantic.money(currency: 'EUR'),
+    );
+    const field = BeakScalarField<BeakDecimal>(
+      model: _SemanticModel(),
+      column: column,
+    );
+    final source = _AggregateSource(1234.5);
+    expect(
+      await field.avg(source, rounding: BeakRounding.halfAwayFromZero),
+      BeakDecimal.parse('12.35'),
+    );
+    expect(source.spec!.function, BeakAggregateFunction.avg);
+    expect(source.spec!.columnKey, 'amount');
+    expect(field.scale, 2);
+    expect(
+      await field.avg(source, rounding: BeakRounding.floor, withTrashed: true),
+      BeakDecimal.parse('12.34'),
+    );
+    expect(source.spec!.withTrashed, isTrue);
+    for (final unrepresentable in <num>[
+      double.nan,
+      double.infinity,
+      BeakDecimal.maxUnits * 2,
+    ]) {
+      expect(
+        () => field.avg(
+          _AggregateSource(unrepresentable),
+          rounding: BeakRounding.halfToEven,
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+        reason: '$unrepresentable',
+      );
+    }
+  });
+
+  test('exact decimal helpers refuse a field that is not an exact decimal', () {
+    const label = BeakScalarField<BeakDecimal>(
+      model: _SemanticModel(),
+      column: BeakStringColumn(key: 'label', label: 'Label'),
+    );
+    const related = BeakScalarField<BeakDecimal>(
+      model: _SemanticModel(),
+      column: BeakIntColumn(
+        key: 'amount',
+        label: 'Amount',
+        semantic: BeakSemantic.money(currency: 'EUR'),
+      ),
+      path: [
+        BeakBelongsTo(
+          key: 'parent',
+          label: 'Parent',
+          relatedTable: 'semantic',
+          displayColumnKey: 'amount',
+          foreignKey: 'parent_id',
+        ),
+      ],
+    );
+    for (final field in [label, related]) {
+      expect(() => field.scale, throwsA(isA<BeakConfigurationException>()));
+      expect(
+        () => field.avg(_AggregateSource(1), rounding: BeakRounding.floor),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+      expect(
+        () => field.sum(_AggregateSource(1)),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    }
+  });
+
   test(
     'date and time boundaries reject malformed syntax and preserve ordering',
     () {

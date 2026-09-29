@@ -137,8 +137,9 @@ final class WormQueryTranslator {
   /// Translates [filter] into a worm predicate tree for [model], or `null`
   /// for an absent/empty filter.
   ///
-  /// Throws a [BeakConfigurationException] when the filter references an
-  /// unknown column or carries an operand its operator cannot use.
+  /// Throws a [BeakValidationException] when the filter references an
+  /// unknown column or relation or carries an operand its operator cannot
+  /// use: those are mistakes in the spec, which a server answers with a 422.
   // --8<-- [start:predicateFor]
   PredicateTree? predicateFor(
     BeakFilter? filter,
@@ -174,11 +175,10 @@ final class WormQueryTranslator {
 
   /// The column of [model] under [columnKey].
   ///
-  /// Throws a [BeakConfigurationException] for unknown keys, naming both
-  /// sides.
+  /// Throws a [BeakValidationException] for unknown keys, naming both sides.
   BeakColumn columnOrThrow(BeakModel model, String columnKey) =>
       model.columnByKey(columnKey) ??
-      (throw BeakConfigurationException(
+      (throw BeakValidationException(
         'Model "${model.table}" has no column "$columnKey".',
       ));
 
@@ -235,6 +235,15 @@ final class WormQueryTranslator {
       operator: operator,
       value: value,
     );
+    // Every pattern states its escape character, so `\%` is a literal `%` on
+    // every database (see [beakLikeEscape]).
+    Predicate pattern(Operator operator, String value) => Predicate(
+      fieldName: columnKey,
+      tableName: qualifier,
+      operator: operator,
+      value: value,
+      escape: beakLikeEscape,
+    );
     return LeafNode(switch (filter.operator) {
       BeakOperator.eq => predicate(Operator.eq, filter.value.raw),
       BeakOperator.neq => predicate(Operator.neq, filter.value.raw),
@@ -242,21 +251,21 @@ final class WormQueryTranslator {
       BeakOperator.gte => predicate(Operator.gte, filter.value.raw),
       BeakOperator.lt => predicate(Operator.lt, filter.value.raw),
       BeakOperator.lte => predicate(Operator.lte, filter.value.raw),
-      BeakOperator.like => predicate(Operator.like, _stringOperand(filter)),
-      BeakOperator.ilike => predicate(Operator.ilike, _stringOperand(filter)),
+      BeakOperator.like => pattern(Operator.like, _stringOperand(filter)),
+      BeakOperator.ilike => pattern(Operator.ilike, _stringOperand(filter)),
       // --8<-- [start:substringOperators]
-      BeakOperator.contains => predicate(
+      BeakOperator.contains => pattern(
         Operator.ilike,
-        '%${_stringOperand(filter)}%',
+        '%${beakEscapeLike(_stringOperand(filter))}%',
       ),
       // --8<-- [end:substringOperators]
-      BeakOperator.startsWith => predicate(
+      BeakOperator.startsWith => pattern(
         Operator.ilike,
-        '${_stringOperand(filter)}%',
+        '${beakEscapeLike(_stringOperand(filter))}%',
       ),
-      BeakOperator.endsWith => predicate(
+      BeakOperator.endsWith => pattern(
         Operator.ilike,
-        '%${_stringOperand(filter)}',
+        '%${beakEscapeLike(_stringOperand(filter))}',
       ),
       BeakOperator.isNull => predicate(Operator.isNull, null),
       BeakOperator.isNotNull => predicate(Operator.isNotNull, null),
@@ -283,12 +292,12 @@ final class WormQueryTranslator {
     String? qualifier,
     int depth,
   ) {
-    if (depth >= 16) {
-      throw const BeakConfigurationException(
-        'Relationship filter exceeds 16 levels.',
+    if (depth >= _maxRelationFilterDepth) {
+      throw const BeakValidationException(
+        'Relationship filter exceeds $_maxRelationFilterDepth levels.',
       );
     }
-    final relation = relationshipOrThrow(owner, relationKey);
+    final relation = _relationOrReject(owner, relationKey);
     final related = registry.byTableOrThrow(relation.relatedTable);
     final alias = 'beak_relation_$depth';
     final ownerAlias = qualifier ?? owner.table;
@@ -377,9 +386,12 @@ final class WormQueryTranslator {
     );
   }
 
+  /// How many relationships deep a filter may reach.
+  static const int _maxRelationFilterDepth = 16;
+
   String _stringOperand(BeakFieldFilter filter) => switch (filter.value.raw) {
     final String value => value,
-    final Object? other => throw BeakConfigurationException(
+    final Object? other => throw BeakValidationException(
       'Operator "${filter.operator.name}" on "${filter.columnKey}" needs a '
       'string operand, got $other.',
     ),
@@ -387,7 +399,7 @@ final class WormQueryTranslator {
 
   List<Object?> _listOperand(BeakFieldFilter filter) => switch (filter.value) {
     final BeakListValue list => list.raw,
-    final BeakValue other => throw BeakConfigurationException(
+    final BeakValue other => throw BeakValidationException(
       'Operator "${filter.operator.name}" on "${filter.columnKey}" needs a '
       'list operand, got $other.',
     ),
@@ -399,7 +411,7 @@ final class WormQueryTranslator {
           values.first.raw,
           values.last.raw,
         ),
-        final BeakValue other => throw BeakConfigurationException(
+        final BeakValue other => throw BeakValidationException(
           'Operator "${filter.operator.name}" on "${filter.columnKey}" needs '
           'exactly two bounds, got $other.',
         ),
@@ -423,7 +435,7 @@ final class WormQueryTranslator {
   }
 
   EagerLoad _eagerLoad(BeakModel owner, BeakRelationLoad load) {
-    final relation = relationshipOrThrow(owner, load.relationKey);
+    final relation = _relationOrReject(owner, load.relationKey);
     final related = registry.byTableOrThrow(relation.relatedTable);
     return EagerLoad(
       relation.key,
@@ -432,11 +444,21 @@ final class WormQueryTranslator {
     );
   }
 
+  /// The relationship a spec names by [relationKey] on [model].
+  ///
+  /// Throws a [BeakValidationException] when the model declares none: the
+  /// spec is what is wrong.
+  BeakRelationship _relationOrReject(BeakModel model, String relationKey) =>
+      model.relationshipByKey(relationKey) ??
+      (throw BeakValidationException(
+        'Model "${model.table}" has no relation "$relationKey".',
+      ));
+
   /// The relationship named [relationKey] on [model].
   ///
   /// Throws a [BeakConfigurationException] when the model declares none —
-  /// the single relation-or-throw lookup both the translator and the data
-  /// source use.
+  /// the lookup the data source uses for attach and detach, where the caller
+  /// is trusted code naming a relation it was wired with.
   BeakRelationship relationshipOrThrow(BeakModel model, String relationKey) =>
       model.relationshipByKey(relationKey) ??
       (throw BeakConfigurationException(

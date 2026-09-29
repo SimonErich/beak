@@ -685,6 +685,12 @@ final class PostgresCompiler {
     return buffer.toString();
   }
 
+  /// The `ESCAPE` clause for [predicate]'s pattern, or nothing when the
+  /// pattern keeps PostgreSQL's default escape character.
+  String _escapeClause(Predicate predicate) => predicate.escape == null
+      ? ''
+      : " ESCAPE '${predicate.escape!.replaceAll("'", "''")}'";
+
   String _compilePredicate(Predicate predicate, List<Object?> params) {
     final column = _qualified(predicate.tableName, predicate.fieldName);
     return switch (predicate.operator) {
@@ -694,11 +700,15 @@ final class PostgresCompiler {
       Operator.gte => '$column >= ${_placeholder(params, predicate.value)}',
       Operator.lt => '$column < ${_placeholder(params, predicate.value)}',
       Operator.lte => '$column <= ${_placeholder(params, predicate.value)}',
-      Operator.like => '$column LIKE ${_placeholder(params, predicate.value)}',
+      Operator.like =>
+        '$column LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.notLike =>
-        '$column NOT LIKE ${_placeholder(params, predicate.value)}',
+        '$column NOT LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.ilike =>
-        '$column ILIKE ${_placeholder(params, predicate.value)}',
+        '$column ILIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.isNull => '$column IS NULL',
       Operator.isNotNull => '$column IS NOT NULL',
       Operator.inList => _compileInList(

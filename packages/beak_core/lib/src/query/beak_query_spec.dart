@@ -259,6 +259,9 @@ final class BeakSearch {
 
   /// Decodes [json] (produced by [toJson]).
   ///
+  /// Both `term` and `columns` are required: a search without either has
+  /// nothing to look for or nowhere to look.
+  ///
   /// Throws a [BeakConfigurationException] on malformed input.
   static BeakSearch fromJson(Map<String, Object?> json) {
     final columnKeys = switch (requireJsonKey(json, 'columns', 'BeakSearch')) {

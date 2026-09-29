@@ -93,7 +93,7 @@ Put the secret you hash with in the resolved environment and read it through `de
 
 Authentication answers "who". A policy answers "may they". Every generated handler asks the policy before it acts, and a denial becomes the right status by itself: 401 for an anonymous caller, 403 for a signed-in one.
 
-The default is `BeakAllowAllPolicy`, which permits everything. It exists so a new panel works before any auth does, and it is also why a server that ships without a policy ships an open door. Nothing warns at boot when the server is bound to a public address with it. `BeakServeHost` binds `0.0.0.0` by default, so that is the shipped combination until you change it.
+The default is `BeakAllowAllPolicy`, which permits everything. It exists so a new panel works before any auth does, and it is also why a server that ships without a policy ships an open door. `BeakServeHost` binds `0.0.0.0` by default, so that is the shipped combination until you change it. A server that listens beyond loopback with it prints one line at boot, `warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, ...`, and serves anyway. Treat the line as a failed check, not a notice.
 
 `BeakPolicies` is the production shape. It denies whatever it does not list. Each `BeakModelRules` states who may read, write and delete a model, which rows a principal sees, which fields the server owns and who may run each named action. A part left out is denied:
 
@@ -174,7 +174,7 @@ Response headers come from three places. `dart:io` adds `x-content-type-options:
 
 ## Errors, logs and what a response reveals
 
-The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). Two typed exceptions are 500s that carry their message as written: `BeakConfigurationException` and `BeakStorageException`. A storage driver's message can include an endpoint or a bucket name, so treat the body of a 500 from an upload route as visible to the caller.
+The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). Three typed exceptions are 500s that carry their message as written: `BeakConfigurationException`, `BeakStorageException` and `BeakInternalException`. A storage driver's message can include an endpoint or a bucket name, so treat the body of a 500 from an upload route as visible to the caller.
 
 The request log records the method, the path (without the query string), the status, the duration and the request id. It never records bodies or tokens. The probes `GET /healthz` and `GET /readyz` sit outside `/api` and outside authentication, on purpose, and a failing `/readyz` names no cause.
 
@@ -184,10 +184,9 @@ These are limits of the current implementation. Each is worth a decision before 
 
 | Gap | What happens | What to do |
 | --- | --- | --- |
-| No server ceiling on `perPage` | A request for 100,000 rows gets them | Cap at the proxy or in middleware |
+| The `perPage` ceiling is 200 and is not configurable through `BeakServer` yet | A request for 100,000 rows gets 200 and an envelope that says so | Nothing, unless 200 is too generous; a lower ceiling needs a hand-built `BeakCrudHandlers(maxPerPage: ...)` |
 | No request-size limit for JSON | Bodies are read whole | `client_max_body_size` at the proxy |
 | No rate limiting, on login or anywhere | Unlimited attempts | A proxy rule, or a Shelf middleware in `middleware:` |
-| `%` and `_` are not escaped in `contains`, `startsWith`, `endsWith` and search | A caller can use them as wildcards in the search term | Harmless for authorization, but it changes results and cost |
 | CSV export writes cell text as it is | A cell that begins with `=`, `+`, `-` or `@` runs as a formula when opened in a spreadsheet | Restrict who can write those fields, or post-process exports |
 | Unrestricted file columns keep the client's extension | See Uploads | Always set `allowedTypes` |
 | Image decoding happens on the request isolate before the dimension check | A very large image stalls the process for seconds | Set `maxSizeInBytes`; see [Performance](performance.md) |

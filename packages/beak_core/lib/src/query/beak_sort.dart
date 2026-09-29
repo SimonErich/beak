@@ -14,10 +14,13 @@ final class BeakSort {
 
   /// Decodes [json] (produced by [toJson]).
   ///
+  /// `column` is required. `descending` is optional and defaults to `false`,
+  /// so `{"column": "name"}` sorts ascending.
+  ///
   /// Throws a `BeakConfigurationException` on malformed input.
   static BeakSort fromJson(Map<String, Object?> json) => BeakSort(
     requireJsonString(json, 'column', 'BeakSort'),
-    descending: requireJsonBool(json, 'descending', 'BeakSort'),
+    descending: optionalJsonBool(json, 'descending', 'BeakSort', orElse: false),
   );
 
   /// Key of the column to order by.

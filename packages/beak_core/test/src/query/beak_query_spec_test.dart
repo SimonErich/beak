@@ -101,6 +101,29 @@ void main() {
       );
     });
 
+    test('fromJson names the missing key', () {
+      expect(
+        () => BeakSearch.fromJson(const {'columns': <Object?>[]}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"term"'),
+          ),
+        ),
+      );
+      expect(
+        () => BeakSearch.fromJson(const {'term': 'a'}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"columns"'),
+          ),
+        ),
+      );
+    });
+
     test('equal searches compare equal and hash consistently', () {
       expect(
         BeakSearch(runtimeValue('a'), const ['b']),
@@ -366,6 +389,28 @@ void main() {
       expect(spec.relationLoads, isEmpty);
       expect(spec.pagination, const BeakPagination());
       expect(spec.withTrashed, isFalse);
+    });
+
+    test('nested objects written by hand may omit their optional keys', () {
+      final spec = BeakQuerySpec.fromJson(<String, Object?>{
+        'table': 'posts',
+        'sorts': [
+          {'column': 'title'},
+        ],
+        'search': {
+          'term': 'ada',
+          'columns': ['title'],
+        },
+        'relations': [
+          {'relation': 'author'},
+        ],
+        'pagination': {'perPage': 10},
+      });
+
+      expect(spec.sorts, const [BeakSort('title')]);
+      expect(spec.search, const BeakSearch('ada', ['title']));
+      expect(spec.relationLoads, const [BeakRelationLoad('author')]);
+      expect(spec.pagination, const BeakPagination(perPage: 10));
     });
 
     test('an omitted section decodes exactly as an explicit null', () {

@@ -5,6 +5,7 @@ import '../common/beak_exception.dart';
 import '../model/beak_model.dart';
 import '../model/beak_model_registry.dart';
 import 'beak_filter.dart';
+import 'beak_like_pattern.dart';
 import 'beak_operator.dart';
 import 'beak_query_spec.dart';
 import 'beak_value.dart';
@@ -14,6 +15,10 @@ import 'beak_value.dart';
 /// Text uses case-insensitive contains. Numbers, booleans and timestamps use
 /// typed equality, avoiding database-specific implicit string conversions.
 /// A term that cannot represent any selected field matches no records.
+///
+/// A search that names a field which does not exist, or cannot be searched,
+/// throws a [BeakValidationException]: the search came in with the request,
+/// so the request is what is wrong.
 BeakFilter? beakSearchFilter(
   BeakSearch? search,
   BeakModel model,
@@ -29,7 +34,7 @@ BeakFilter? beakSearchFilter(
   for (final path in search.columnKeys) {
     final parts = path.split('.');
     if (parts.length > 17) {
-      throw const BeakConfigurationException(
+      throw const BeakValidationException(
         'Search relationship path is too deep.',
       );
     }
@@ -37,7 +42,7 @@ BeakFilter? beakSearchFilter(
     for (final part in parts.take(parts.length - 1)) {
       final relation = owner.relationshipByKey(part);
       if (relation == null) {
-        throw BeakConfigurationException(
+        throw BeakValidationException(
           'Model "${owner.table}" has no relation "$part".',
         );
       }
@@ -45,12 +50,12 @@ BeakFilter? beakSearchFilter(
     }
     final column = owner.columnByKey(parts.last);
     if (column == null) {
-      throw BeakConfigurationException(
+      throw BeakValidationException(
         'Model "${owner.table}" has no column "${parts.last}".',
       );
     }
     if (column.semantic.kind == BeakSemanticKind.password) {
-      throw BeakConfigurationException(
+      throw BeakValidationException(
         'Password column "$path" cannot be searched.',
       );
     }
@@ -83,8 +88,7 @@ BeakFilter? beakSearchFilter(
         _ => null,
       },
       BeakDateTimeColumn() => DateTime.tryParse(term),
-      BeakJsonColumn() ||
-      BeakCustomColumn() => throw BeakConfigurationException(
+      BeakJsonColumn() || BeakCustomColumn() => throw BeakValidationException(
         'Column "$path" does not support automatic search.',
       ),
       _ => term,
@@ -94,7 +98,7 @@ BeakFilter? beakSearchFilter(
       BeakFieldFilter.forKey(
         path,
         value is String ? BeakOperator.ilike : BeakOperator.eq,
-        BeakValue.of(value is String ? '%$value%' : value),
+        BeakValue.of(value is String ? '%${beakEscapeLike(value)}%' : value),
       ),
     );
   }

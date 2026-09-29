@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
 import '../columns/beak_json.dart';
+import '../columns/beak_semantic_values.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
 import '../data/beak_data_source.dart';
@@ -226,6 +227,47 @@ abstract base class BeakModel {
     withTrashed: withTrashed,
   );
 
+  /// Sums the exact-decimal or money [field] over this model's rows.
+  ///
+  /// The request is the same as [sum]'s on the wire: the server adds stored
+  /// integer units, which is exact. Read the result as an amount with the
+  /// field's own `field.sum(source)`.
+  ///
+  /// Throws a [BeakConfigurationException] for a field of another model, one
+  /// reached through a relationship, or one without exact-decimal or money
+  /// semantics.
+  ///
+  /// ```dart
+  /// const OrderModel().sumDecimal(OrderModel.total,
+  ///     filter: OrderModel.paid.eq(true));
+  /// ```
+  BeakAggregateSpec sumDecimal(
+    BeakScalarField<BeakDecimal> field, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.sum(
+    table: table,
+    column: _ownDecimalColumn(field),
+    filter: filter,
+    withTrashed: withTrashed,
+  );
+
+  /// Averages the exact-decimal or money [field] over this model's rows.
+  ///
+  /// The result is a number of stored units and is usually fractional; bring
+  /// it to an amount with the field's `field.avg(source, rounding: ...)`,
+  /// which makes the rounding explicit. Fails like [sumDecimal].
+  BeakAggregateSpec avgDecimal(
+    BeakScalarField<BeakDecimal> field, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.avg(
+    table: table,
+    column: _ownDecimalColumn(field),
+    filter: filter,
+    withTrashed: withTrashed,
+  );
+
   /// A grouped summary over this model's rows.
   ///
   /// [groupBy] is one of this model's own fields; omit it for a single total
@@ -261,6 +303,11 @@ abstract base class BeakModel {
     withTrashed: withTrashed,
   );
   // --8<-- [end:BeakModelSummary]
+
+  BeakColumn _ownDecimalColumn(BeakScalarField<BeakDecimal> field) {
+    _ownColumn(field);
+    return field.exactColumn;
+  }
 
   BeakColumn _ownColumn(BeakScalarField<Object> field) {
     if (field.path.isNotEmpty || field.model.table != table) {

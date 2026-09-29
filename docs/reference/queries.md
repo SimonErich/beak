@@ -93,7 +93,7 @@ const BeakQuerySpec({
 | `pagination` | `BeakPagination` | `BeakPagination()` | `pagination` | Page window, default page 1 of 25 |
 | `withTrashed` | `bool` | `false` | `withTrashed` | Include soft-deleted rows. Only models with `softDeletes` are affected |
 
-`toJson()` writes every key. `BeakQuerySpec.fromJson` needs only `table`; every other key falls back to the default in the table, so `{"table": "book"}` is a valid request body. A key that is present must have the right type, and the objects inside `sorts`, `relations` and `pagination` must carry all of their own keys (see [Required keys](#required-keys)).
+`toJson()` writes every key. `BeakQuerySpec.fromJson` needs only `table`; every other key falls back to the default in the table, so `{"table": "book"}` is a valid request body. A key that is present must have the right type, and the objects inside `sorts`, `relations`, `search` and `pagination` take their own defaults for what they omit (see [Required keys](#required-keys)).
 
 Real output of `toJson()` for a spec built against the `Book` and `Author` models of `examples/serverpod`:
 
@@ -217,7 +217,7 @@ That snippet is illustrative. `BookColumns.priceInCents` is the generated column
 
 ### Operators
 
-`BeakOperator` values serialize by name. The server translates each to a worm operator; the three substring operators have no worm counterpart and become `ilike` with a wildcard pattern.
+`BeakOperator` values serialize by name. The server translates each to a worm operator; the three substring operators have no worm counterpart and become `ilike` with a wildcard pattern built from the escaped operand.
 
 | Operator | SQL meaning | Operand | Server translation |
 | --- | --- | --- | --- |
@@ -229,9 +229,9 @@ That snippet is illustrative. `BookColumns.priceInCents` is the generated column
 | `lte` | `<=` | Any scalar | `Operator.lte` |
 | `like` | `LIKE`, case-sensitive | String pattern | `Operator.like` |
 | `ilike` | `LIKE`, case-insensitive | String pattern | `Operator.ilike` |
-| `contains` | Substring | String | `Operator.ilike` with `%value%` |
-| `startsWith` | Prefix | String | `Operator.ilike` with `value%` |
-| `endsWith` | Suffix | String | `Operator.ilike` with `%value` |
+| `contains` | Substring | String | `Operator.ilike` with `%value%`, `value` escaped |
+| `startsWith` | Prefix | String | `Operator.ilike` with `value%`, `value` escaped |
+| `endsWith` | Suffix | String | `Operator.ilike` with `%value`, `value` escaped |
 | `isNull` | `IS NULL` | None (`BeakNullValue`) | `Operator.isNull` |
 | `isNotNull` | `IS NOT NULL` | None (`BeakNullValue`) | `Operator.isNotNull` |
 | `inList` | `IN (...)` | `BeakListValue` | `Operator.inList` |
@@ -239,7 +239,7 @@ That snippet is illustrative. `BookColumns.priceInCents` is the generated column
 | `between` | `BETWEEN`, inclusive | `BeakListValue` of exactly two values | `Operator.between` |
 | `notBetween` | `NOT BETWEEN`, inclusive | `BeakListValue` of exactly two values | `Operator.notBetween` |
 
-`ilike` compiles to `ILIKE` on Postgres and to `LIKE` on SQLite (`packages/worm_postgres/lib/src/compiler/postgres_compiler.dart`, `packages/worm_sqlite/lib/src/compiler/sqlite_compiler.dart`). The operand of `contains`, `startsWith` and `endsWith` is not escaped, so `%` and `_` in it act as wildcards. An operand of the wrong shape for its operator (a number for `contains`, a scalar for `inList`, three values for `between`) is a `BeakConfigurationException` from the translator, which the API returns as a `500` (see [Rules and limits](#rules-and-limits)).
+`ilike` compiles to `ILIKE` on Postgres and to `LIKE` on SQLite (`packages/worm_postgres/lib/src/compiler/postgres_compiler.dart`, `packages/worm_sqlite/lib/src/compiler/sqlite_compiler.dart`). Every pattern the server builds states its escape character, a backslash, in the SQL (`ESCAPE '\'`), because SQLite has no default one and PostgreSQL and MySQL disagree on theirs. The operand of `contains`, `startsWith` and `endsWith` is escaped with `beakEscapeLike` (`packages/beak_core/lib/src/query/beak_like_pattern.dart`), so `50%` finds the text `50%` and not every row that contains `50`. The operand of `like` and `ilike` is a pattern: `%` and `_` are wildcards in it, and a backslash makes the next character literal, so `50\%` matches the text `50%`. An operand of the wrong shape for its operator (a number for `contains`, a scalar for `inList`, three values for `between`) is a `BeakValidationException` from the translator, which the API returns as a `422` (see [Rules and limits](#rules-and-limits)).
 
 ## Values on the wire
 
@@ -252,7 +252,7 @@ That snippet is illustrative. `BookColumns.priceInCents` is the generated column
 | `BeakIntValue` | `int` | `42` | |
 | `BeakDoubleValue` | `double` | `1.5` | A JSON number with a fraction decodes to this |
 | `BeakStringValue` | `String` | `"text"` | Also the wire form of an enum name and of a `BeakDate` |
-| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "2026-01-05T00:00:00.000Z"}` | Tagged so it never decodes as a plain string. The value is `toIso8601String()` of the `DateTime` as given: a UTC value carries `Z`, a local one carries no offset |
+| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "2026-01-05T00:00:00.000Z"}` | Tagged so it never decodes as a plain string. The value is always the UTC instant, `toUtc().toIso8601String()`, so a local `DateTime` travels with a `Z` and names the same moment for the server. Two values are equal when they name the same instant |
 | `BeakListValue` | `List<BeakValue>` | `[1, 2, 3]` | Operand of `inList`, `notInList`, `between`, `notBetween` |
 
 Every variant exposes `raw` (plain Dart; a `BeakDateTimeValue` unwraps to a `DateTime`) and `toJson()`.
@@ -315,7 +315,7 @@ const BeakSort(this.columnKey, {this.descending = false});
 | `columnKey` | `String` | required | Key of a column of the queried model |
 | `descending` | `bool` | `false` | Sort largest first |
 
-JSON: `{"column": "title", "descending": false}`. Both keys are required when decoding. Sorts apply in list order. Typed code can only sort by a field of the model itself: `ascending()`, `descending()` and `orderBy` throw for a field reached through a relationship.
+JSON: `{"column": "title", "descending": false}`. `column` is required when decoding and `descending` defaults to `false`, so `{"column": "title"}` sorts ascending. Sorts apply in list order. Typed code can only sort by a field of the model itself: `ascending()`, `descending()` and `orderBy` throw for a field reached through a relationship, and the server answers a hand-written dotted key such as `category.name` with a `422`.
 
 ## Search
 
@@ -335,7 +335,7 @@ BeakFilter? beakSearchFilter(
 
 | Column kind | Predicate the term becomes |
 | --- | --- |
-| Any string-backed column: `String`, `BeakText`, rich text, enum (matches the stored name), color, image and file references | `ilike` with `%term%` |
+| Any string-backed column: `String`, `BeakText`, rich text, enum (matches the stored name), color, image and file references | `ilike` with `%term%`, with `%`, `_` and `\` in the term escaped |
 | `int` | `eq` when the term parses as an integer, otherwise the column is skipped |
 | `double` | `eq` when the term parses as a number, otherwise skipped |
 | `bool` | `eq` for the terms `true` and `false`, otherwise skipped |
@@ -348,8 +348,8 @@ Rules:
 
 - A search with a blank term (after trimming) or no columns adds no predicate.
 - The term is trimmed before use. When no column can represent the term, the search matches no records.
-- A password column, a JSON column (which includes list and object fields) or a custom column in the list is a `BeakConfigurationException`.
-- A path of more than 17 segments is a `BeakConfigurationException`.
+- A column or relationship that does not exist, a password column, a JSON column (which includes list and object fields) or a custom column in the list is a `BeakValidationException`, a `422` on the API.
+- A path of more than 17 segments is a `BeakValidationException`.
 - The API folds the search into `filter` before execution, so the query that reaches the database carries no separate search.
 
 ## Relation loads
@@ -370,7 +370,7 @@ const BeakRelationLoad(
 | `filter` | `BeakFilter?` | `null` | `filter` | Constrains which related rows load |
 | `nested` | `List<BeakRelationLoad>` | `[]` | `nested` | Relations of the related model to load in turn |
 
-All three JSON keys are required when decoding (`filter` may be `null`). A dotted `relation` such as `items.product` is accepted by the API and expanded into nested loads. The API also intersects every load with the related model's row policy, so a load never returns rows the caller could not query directly. `BeakToOneField.relationLoad` builds the nested chain for a field reached through several relationships.
+Only `relation` is required when decoding: `filter` and `nested` default to no constraint and no nested loads, so `{"relation": "author"}` loads the bare relation. A dotted `relation` such as `items.product` is accepted by the API and expanded into nested loads. The API also intersects every load with the related model's row policy, so a load never returns rows the caller could not query directly. `BeakToOneField.relationLoad` builds the nested chain for a field reached through several relationships.
 
 ## Pagination and pages
 
@@ -380,7 +380,9 @@ const BeakPagination({this.page = 1, this.perPage = 25})
       assert(perPage >= 1, 'perPage must be >= 1');
 ```
 
-`BeakPagination.fromJson` requires both keys and throws a `BeakConfigurationException` for a value below 1. The server turns the window into `limit(perPage)` and `offset((page - 1) * perPage)`.
+`BeakPagination.fromJson` takes both keys as optional (`page` 1, `perPage` 25) and throws a `BeakConfigurationException` for a value below 1. The server turns the window into `limit(perPage)` and `offset((page - 1) * perPage)`.
+
+`BeakPagination.maxPerPage` (200) is the largest page a server serves. A query that asks for more is answered with 200 rows and an envelope whose `perPage` says 200, so a client that needs the rest pages through it, and one that needs a total asks a summary or an aggregate. `BeakQueryAuthorizer` and `BeakCrudHandlers` take a `maxPerPage` to change the ceiling for one handler; the generated server does not expose it yet. A page whose offset would pass 2^53 - 1 rows is a `422`.
 
 The response is a `BeakPage<T>`.
 
@@ -475,7 +477,9 @@ BeakAggregateSpec sum(
   "withTrashed": false }
 ```
 
-The API answers `{"value": <number>}`. `sum` and `avg` over no rows return `0`. Sums and averages are in stored units: an exact decimal or money column is a count of minor units. `BeakScalarField<BeakDecimal>.sum(source)` runs the sum and returns a `BeakDecimal` at the semantic scale; it throws when the result is fractional or outside the safe integer range and never rounds.
+The API answers `{"value": <number>}`. `sum` and `avg` over no rows return `0`. Sums and averages are in stored units: an exact decimal or money column is a count of minor units. `BeakScalarField<BeakDecimal>.sum(source)` runs the sum and returns a `BeakDecimal` at the semantic scale; it throws when the result is fractional or outside the safe integer range and never rounds. An average of whole units is rarely whole, so `BeakScalarField<BeakDecimal>.avg(source, rounding: ...)` takes the rounding you mean (`BeakRounding.floor`, `ceiling`, `halfAwayFromZero` or `halfToEven`).
+
+`model.sum` and `model.avg` take `BeakScalarField<num>`, which a money field is not. For an exact-decimal or money field use `model.sumDecimal(field)` and `model.avgDecimal(field)`. They put the same request on the wire (stored units are integers, so the sum is exact) and throw a `BeakConfigurationException` for a field of another model, one reached through a relationship, or one without exact-decimal or money semantics. There is no `min` or `max` aggregate. The server answers a `sum` or `avg` over a column that is not numeric, or a dotted column, with a `422`.
 
 ## Summaries
 
@@ -505,13 +509,23 @@ BeakSummarySpec summary({
 A measure is declared once and read back by object.
 
 ```dart title="packages/beak_core/lib/src/query/beak_summary_spec.dart"
-const BeakSummaryMeasure.count(this.key, {this.filter}) : columnKey = null;
+const BeakSummaryMeasure.count(this.key, {this.filter})
+    : columnKey = null,
+      scale = null;
 BeakSummaryMeasure.sum(
   this.key, {
   required BeakScalarField<num> field,
   this.filter,
-}) : columnKey = field.rootKey;
-const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter});
+}) : columnKey = field.rootKey,
+       scale = null;
+BeakSummaryMeasure.sumDecimal(
+  this.key, {
+  required BeakScalarField<BeakDecimal> field,
+  this.filter,
+}) : columnKey = field.exactColumn.key,
+       scale = field.scale;
+const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter})
+    : scale = null;
 ```
 
 | Measure field | Meaning |
@@ -519,8 +533,9 @@ const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter});
 | `key` | Names the value in the response; 1 to 80 characters, unique within the spec |
 | `columnKey` | Numeric column to sum, or `null` to count. `count` counts records, including those whose group is `null` |
 | `filter` | Predicate ANDed with the spec's shared population for this measure only |
+| `scale` | Decimal places of a `sumDecimal` measure, otherwise `null`. Client-side only; it never travels |
 
-Summaries offer `count` and `sum`, no `avg`. A `sum` over an empty group is `0`.
+Summaries offer `count` and `sum`, no `avg`. A `sum` over an empty group is `0`. `BeakSummaryMeasure.sumDecimal` sums an exact-decimal or money field: the wire form is the same as `sum`'s, and `row.decimalOf(measure)` reads the total back as a `BeakDecimal` at the field's scale. It throws a `BeakConfigurationException` for a measure that is not a decimal sum and for a value that is not a whole number of stored units. It never rounds.
 
 `BeakSummaryResult` is the response: `rows` (a `List<BeakSummaryRow>`) and `truncated` (`true` when more groups exist than `limit`). A `BeakSummaryRow` has `group` (a `BeakValue`, `BeakNullValue` for the null group and for a total row) and `values` (`Map<String, num>` by measure key); read one value with `row.valueOf(measure)`. Rows are ordered by group: `null` first, numbers ascending, everything else by its string form. Real `toJson()` output for `summary(groupBy: BookModel.format, measures: [books, stock])`, the request body:
 
@@ -589,7 +604,7 @@ When a list declares no search fields, the search runs over the model's `searcha
 
 ## Required keys
 
-When the API decodes a spec, absent keys fall back to defaults only at the top level of a query, an aggregate and a summary. Objects nested inside them must be complete.
+When the API decodes a spec, absent keys fall back to the defaults the constructors declare, at the top level and in the objects nested inside a query. A key that is present must have the right type. Two things have no default: a sort without a column, a relation load without a relation, and a search without a term or columns are rejected with a message naming the missing key.
 
 | Object | Required keys | Optional keys |
 | --- | --- | --- |
@@ -597,31 +612,33 @@ When the API decodes a spec, absent keys fall back to defaults only at the top l
 | Field filter | `type`, `column`, `operator`, `value` (may be `null`) | |
 | And / or filter | `type`, `filters` | |
 | Relation filter | `type`, `relation`, `filter` | |
-| `BeakSort` | `column`, `descending` | |
+| `BeakSort` | `column` | `descending` (`false`) |
 | `BeakSearch` | `term`, `columns` | |
-| `BeakRelationLoad` | `relation`, `filter` (may be `null`), `nested` | |
-| `BeakPagination` | `page`, `perPage` | |
+| `BeakRelationLoad` | `relation` | `filter` (none), `nested` (none) |
+| `BeakPagination` | | `page` (`1`), `perPage` (`25`) |
 | `BeakAggregateSpec` | `table`, `function` | `column`, `filter`, `withTrashed` |
 | `BeakSummarySpec` | `table`, `measures` | `groupBy`, `filter`, `search`, `limit`, `withTrashed` |
 | `BeakSummaryMeasure` | `key` | `column`, `filter` |
 
 ## Rules and limits
 
-What the API rejects, and with which status. `422` carries a message safe to show; `500` is a `BeakConfigurationException`.
+What the API rejects, and with which status. `422` carries a message safe to show; `500` is a `BeakConfigurationException`, which now means the server is wired wrong and never that the caller's spec was.
 
 | Condition | Result |
 | --- | --- |
 | Body is not valid JSON, or not a JSON object | `422` |
 | Spec fails to decode (missing key, wrong type, unknown operator, unknown filter `type`, bad timestamp) | `422`, message begins `Malformed spec body:` |
-| `table` differs from the route's table | `422` |
+| `table` differs from the route's table, or names a table nobody registered | `422` |
 | Caller may not view the model | `401` when anonymous, `403` when signed in |
 | Sort, filter or relation names an unknown field or relationship | `422` |
 | Sort, filter or relation names a field or relationship the caller may not read | `401` when anonymous, `403` when signed in |
 | Filter or load nested deeper than 64 levels | `422` |
-| Relationship filter nested more than 16 levels deep | `500` |
-| Operand of the wrong shape for the operator | `500` |
-| Search over a password, JSON or custom column, or a search path over 17 segments | `500` |
-| Sort key with a dot | `500` (the translator resolves sorts against the model's own columns) |
+| Relationship filter nested more than 16 levels deep | `422` |
+| Operand of the wrong shape for the operator | `422` |
+| Search over an unknown, password, JSON or custom column, or a search path over 17 segments | `422` |
+| Sort key, aggregate column, summary group or summary measure column with a dot | `422` (these work on the queried table's own columns) |
+| Aggregate `sum` or `avg` over a column that is not numeric | `422` |
+| Page whose offset passes 2^53 - 1 rows | `422` |
 | Summary: no measures, more than 8, duplicate or over-long key, `limit` outside 1 to 500 | `422` |
 | Summary: group is a JSON or custom column, or a measure column is not numeric | `422` |
 | Summary against a data source without `BeakSummaryDataSource` | `500` |
@@ -632,9 +649,9 @@ Behaviors that follow from the contract:
 - Soft-deleting models hide deleted rows unless `withTrashed` is `true`. A relation filter always ignores soft-deleted related rows.
 - Search and filters combine with AND. A `BeakChoiceFilter` ORs its own choices before that.
 - `total` is a count of the filtered population, computed by a separate `COUNT` before the page is read.
-- Nothing caps `perPage` on the API. The panel's `BeakQueryState` stops at 1000; a client posting `perPage: 1000000` gets the page it asked for.
+- A page size above 200 (`BeakPagination.maxPerPage`) is served as 200, and the envelope's `perPage` reports the size used. The panel's `BeakQueryState` accepts up to 1000, so a list that asks for more than 200 rows per page receives 200.
 - A query costs one `COUNT`, one page `SELECT`, and one batched query per eager-loaded relation level.
-- `contains`, `startsWith`, `endsWith` and the search do not escape `%` and `_` in the term.
+- `contains`, `startsWith`, `endsWith` and the search escape `%`, `_` and `\` in the term, so they match the text they were given.
 - Number operands are compared by the database. A JSON `2000` decodes to `BeakIntValue`, `2000.0` to `BeakDoubleValue`.
 
 ## Source
@@ -646,6 +663,7 @@ Behaviors that follow from the contract:
 - `packages/beak_core/lib/src/query/beak_sort.dart`, `beak_pagination.dart`, `beak_page.dart`, `beak_record.dart`, `beak_relation_load.dart`, `beak_table_ref.dart`.
 - `packages/beak_core/lib/src/query/beak_aggregate_spec.dart`, `beak_summary_spec.dart`: aggregates and summaries.
 - `packages/beak_core/lib/src/query/beak_search_filter.dart`: `beakSearchFilter`.
+- `packages/beak_core/lib/src/query/beak_like_pattern.dart`: `beakLikeEscape`, `beakEscapeLike` and `beakLikeRegExp`, which a data source that evaluates a pattern in Dart uses to match the way the databases do.
 - `packages/beak_core/lib/src/model/beak_field_ref.dart`: field references, typed predicates, `BeakOptionQuery`.
 - `packages/beak_core/lib/src/model/beak_model.dart`: `query`, `count`, `sum`, `avg`, `summary`.
 - `packages/beak_backend/lib/src/data/worm/query_translator.dart`: spec to worm translation.

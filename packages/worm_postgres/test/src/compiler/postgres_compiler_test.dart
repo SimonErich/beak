@@ -86,6 +86,45 @@ void main() {
       expect(result.sql, contains('"name" ILIKE \$1'));
     });
 
+    test('an escape character is stated in an ESCAPE clause', () {
+      const escapeClause = r"ESCAPE '\'";
+      for (final (op, keyword) in const [
+        (Operator.like, 'LIKE'),
+        (Operator.notLike, 'NOT LIKE'),
+        (Operator.ilike, 'ILIKE'),
+      ]) {
+        final result = compiler.compileSelect(
+          QueryDescriptor(
+            table: 'users',
+            where: LeafNode(
+              Predicate(
+                fieldName: 'name',
+                operator: op,
+                value: r'a\%',
+                escape: r'\',
+              ),
+            ),
+          ),
+        );
+        expect(
+          result.sql,
+          contains('"name" $keyword \$1 $escapeClause'),
+          reason: '$op',
+        );
+        expect(result.parameters, <Object?>[r'a\%']);
+      }
+    });
+
+    test('a pattern without an escape character keeps the default', () {
+      final result = compiler.compileSelect(
+        QueryDescriptor(
+          table: 'users',
+          where: _leaf(field: 'name', op: Operator.like, value: 'A%'),
+        ),
+      );
+      expect(result.sql, isNot(contains('ESCAPE')));
+    });
+
     test('isNull emits IS NULL without consuming parameters', () {
       final result = compiler.compileSelect(
         QueryDescriptor(

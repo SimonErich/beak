@@ -196,6 +196,45 @@ void main() {
       expect(related(media, 'children'), isEmpty);
     });
 
+    test(
+      'a filter reaching more than 16 relationships deep is a spec error',
+      () async {
+        final path = '${List.filled(20, 'parent').join('.')}.name';
+        await expectLater(
+          dataSource.query(
+            BeakQuerySpec(
+              table: 'folders',
+              filter: BeakFieldFilter.forKey(
+                path,
+                BeakOperator.eq,
+                const BeakStringValue('root'),
+              ),
+            ),
+          ),
+          throwsA(
+            isA<BeakValidationException>().having(
+              (error) => error.message,
+              'message',
+              contains('16 levels'),
+            ),
+          ),
+        );
+        await expectLater(
+          dataSource.query(
+            BeakQuerySpec(
+              table: 'folders',
+              filter: BeakFieldFilter.forKey(
+                '${List.filled(3, 'parent').join('.')}.name',
+                BeakOperator.eq,
+                const BeakStringValue('root'),
+              ),
+            ),
+          ),
+          completes,
+        );
+      },
+    );
+
     test('eager-loads the self-referential parent side', () async {
       await seedTree();
 

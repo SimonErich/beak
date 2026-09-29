@@ -30,10 +30,13 @@ The family lives in `beak_core`, so server code, panel code and tests share the 
 | `BeakConflictException` | `conflict` | 409 | Duplicate unique value, stale version, reused `saveId` or effect identity | none |
 | `BeakConfigurationException` | `configuration` | 500 | Beak is wired wrong: unregistered model, invalid environment value, unsupported data source | none |
 | `BeakStorageException` | `storage` | 500 | A storage driver failed, or a storage key is invalid | none |
+| `BeakInternalException` | `internal` | 500 | The server failed unexpectedly; also what the client reports for a 5xx it cannot type | none |
+| `BeakPayloadTooLargeException` | `payload_too_large` | 413 | A request body is larger than the server, proxy or tunnel accepts | none |
+| `BeakTransportException` | `transport` | 502 | A response never reached Beak's error format and no other type fits | none |
 | `BeakRecordShapeException` | `configuration` | 500 | `require` on a column or typed field found no readable value | `columnKey`, `expectedType` |
 | any other `Object` thrown on the server | `internal` | 500 | A bug or an infrastructure failure | none (the body is fixed) |
 
-`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers seven direct variants; the eighth type rides along with its parent.
+`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers ten direct variants; `BeakRecordShapeException` rides along with its parent. The server answers an untyped failure with the fixed `internal` body. `BeakInternalException` is the type a client rebuilds from that body, and what server code throws when it wants a 500 with a message of its own. `BeakTransportException` is a client-side type: the server never sends `transport`, but the Serverpod tunnel does.
 
 ## The base type
 
@@ -59,7 +62,7 @@ Because the class is `sealed`, a `switch` over a `BeakException` is checked for 
 
 `fieldErrors` maps a column key (or a relationship key) to every message for that field. The server collects all rule failures before it throws, so a form can mark every input at once.
 
-The other six take a message and set their `code`:
+The other nine take a message and set their `code`:
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
 --8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakOtherExceptions"
@@ -95,7 +98,13 @@ Messages below were captured from a running quickstart server unless marked "sou
 | An upload key does not start with the column's storage path | `Key "other/x.png" does not belong to column "image" (expected the "product-images/" prefix).` |
 | `batch`, `attach` or `detach` got bad ids | `Ids must be integers or strings, got 1.5.` |
 | Login body lacks a string | `Request body must carry a "password" string, got null.` |
-| A query names an unknown field or relationship | `Unknown field "nope" on "notes".`, `Unknown relationship "title".` |
+| A query names an unknown table, field or relationship | `Unknown table "ghosts".`, `Unknown field "nope" on "notes".`, `Unknown relationship "title".` |
+| A sort, aggregate column, summary group or summary measure reaches through a relationship | `Sort key "category.name" must be a column of "products" itself, not a field reached through a relationship.` |
+| An aggregate sums or averages a column that is not numeric | `Aggregate column "title" must be numeric.` |
+| A filter operand does not fit its operator | `Operator "contains" on "title" needs a string operand, got 5.`, `Operator "between" on "rating" needs exactly two bounds, ...` |
+| A search names a column or relationship that does not exist, or one that cannot be searched | `Model "notes" has no column "bogus".`, `Password column "secret" cannot be searched.` |
+| A relationship filter reaches more than 16 levels | `Relationship filter exceeds 16 levels.` |
+| A page whose offset no database can address | `Page 9007199254740992 is out of range for 200 records per page.` |
 
 ### not_found (404)
 
@@ -149,15 +158,15 @@ An integer primary key with a non-integer path id is a 404, never a crash. A row
 
 | Cause | Message |
 | --- | --- |
-| A spec names a table nobody registered | `No model registered for table "ghosts".` |
+| A model's relationship points at a table nobody registered | `No model registered for table "ghosts".` |
 | `DATABASE_URL`, `PORT` or `HOST` is malformed | `PORT must be an integer between 1 and 65535, got "x".` (source) |
-| `graphOnly` lists a table but no `preparePlan` was given | `Graph-only resources require an authoritative graph preparer.` (source) |
 | A preparer, finalizer or model behavior meets a non-transactional data source | `Graph preparation requires a transactional data source.` (source) |
 | The data source cannot summarize | `This data source does not support summaries.` (source) |
 | A storage driver is selected but not registered | `No storage driver is registered for "s3". Registered drivers: memory, local.` (source, raised at boot) |
-| The client received a code it does not know | see [What the client rebuilds](#what-the-client-rebuilds) |
 
 ### storage (500)
+
+The messages below are what the exception carries. Over HTTP every one of them becomes `File storage failed.`, and the original goes to `onUnexpectedError`.
 
 | Cause | Message |
 | --- | --- |
@@ -165,7 +174,17 @@ An integer primary key with a non-integer path id is a 404, never a crash. A row
 | A key is empty, absolute, uses backslashes or has a `.` or `..` segment | `Storage key "x" must be relative, not absolute.` (source) |
 | S3 or FTP failed | `S3 <operation> failed for "<key>": <driver error>` |
 
-The S3 driver appends the driver's own error text to the message, and the middleware sends typed messages as written, so that text reaches the caller.
+The S3 driver appends the driver's own error text to the message. The middleware does not send it: the caller gets `{"code":"storage","message":"File storage failed."}`. Code that calls a driver directly sees the full text.
+
+### internal (500), payload_too_large (413) and transport (502)
+
+| Cause | Type and message |
+| --- | --- |
+| Any exception that is not a `BeakException` reaches the middleware | `internal`, always `Internal server error.` |
+| Server code throws `BeakInternalException` | `internal`, the message it carries |
+| The client reads a `5xx` with no Beak error code (a proxy's error page, an empty body) | `BeakInternalException`, message `HTTP 502.` |
+| The client reads a `413`, or the tunnel reports one (Serverpod's `maxRequestSize`) | `BeakPayloadTooLargeException` |
+| The client reads a status Beak does not use (a `400` or `3xx` with no Beak code), or the tunnel reports a fault it cannot name | `BeakTransportException` |
 
 ## How an exception becomes a response
 
@@ -207,7 +226,7 @@ An error that is not a `BeakException` is passed to `onUnexpectedError` (default
 
 ## What the client rebuilds
 
-`BeakClient` decodes every non-2xx response by `code`, never by status. It is the transport under `HttpBeakDataSource`, so panel code sees the same types.
+`BeakClient` decodes every non-2xx response by `code`. When the body has no code, or one this client does not know, the HTTP status decides. It is the transport under `HttpBeakDataSource`, so panel code sees the same types.
 
 ```dart title="packages/beak_core/lib/src/client/beak_client.dart"
 --8<-- "packages/beak_core/lib/src/client/beak_client.dart:ensureSuccess"
@@ -219,15 +238,18 @@ The message is the body's `message`, or `HTTP <status>.` when the body is not a 
 | --- | --- |
 | `422` `{"code":"validation","fieldErrors":{...}}` | `BeakValidationException` with `fieldErrors` |
 | `404` `{"code":"not_found"}` | `BeakNotFoundException` |
-| `500` `{"code":"internal"}` | `BeakConfigurationException`, message `Internal server error.` |
-| `502` with an HTML body | `BeakConfigurationException`, message `HTTP 502.` |
-| `413` `{"code":"payload_too_large"}` | `BeakConfigurationException` |
+| `500` `{"code":"internal"}` | `BeakInternalException`, message `Internal server error.` |
+| `500` `{"code":"configuration"}` | `BeakConfigurationException` |
+| `502` with an HTML body | `BeakInternalException`, message `HTTP 502.` |
+| `413` `{"code":"payload_too_large"}` | `BeakPayloadTooLargeException` |
+| `422` with no body | `BeakValidationException`, message `HTTP 422.` |
+| `400` with no Beak code | `BeakTransportException`, message `HTTP 400.` |
 
-Two consequences follow from the `_ => BeakConfigurationException` branch. A genuine server-side configuration failure and an untyped `internal` failure look the same to the caller, and a proxy error page is reported as a configuration problem. Switch on the exception type for `validation`, `not_found`, `authentication`, `authorization`, `conflict` and `storage`, and treat `BeakConfigurationException` as "the call failed for a reason the contract does not name".
+The status fallback maps `401`, `403`, `404`, `409`, `413` and `422` to their types, every `5xx` to `BeakInternalException` and everything else to `BeakTransportException`. So a server that failed on its own account is never reported as a configuration problem, and a proxy error page is reported as what it is, a failure that is not the caller's fault. Switch on the exception type. `BeakConfigurationException` is left for the case the server itself names: Beak is wired wrong.
 
 Two calls change the rule for a single status. `BeakClient.getOne` returns `null` on a 404 instead of throwing. `BeakClient.discardUpload` skips a 404, so an interrupted cleanup can be retried.
 
-The Serverpod tunnel (`packages/beak_serverpod/lib/src/tunnel_http_client.dart`) builds the same envelope for faults that never reached Beak: `401` becomes `authentication`, `403` `authorization`, `404` `not_found`, `409` `conflict`, `413` `payload_too_large`, anything else `transport`. The last two hit the fallback above.
+The Serverpod tunnel (`packages/beak_serverpod/lib/src/tunnel_http_client.dart`) builds the same envelope for faults that never reached Beak: `401` becomes `authentication`, `403` `authorization`, `404` `not_found`, `409` `conflict`, `413` `payload_too_large`, anything else `transport`. The client rebuilds all of them as their own types.
 
 ## Failures inside a receipt
 
@@ -299,8 +321,7 @@ These are not `BeakException`s, because nothing maps them to an HTTP response.
 - Switch on `code` or on the exception type. Never parse `message`.
 - Only `BeakValidationException` carries `fieldErrors`. A `BeakSaveError` also carries them, so a form can show receipt errors on the fields.
 - `code` values are strings, not an enum. `BeakSaveError.code` and `BeakOperationResult.reason` are plain strings on the wire, so a client matches them with a default branch.
-- An untyped `internal` failure and a real `configuration` failure decode to the same type on the client.
-- Typed 500 messages are sent as written. Keep secrets out of the message of an exception you throw from a policy, preparer or driver.
+- Typed 500 messages, including `BeakInternalException`'s, are sent as written, except `BeakStorageException`, which is replaced by `File storage failed.` and reported to `onUnexpectedError`. Keep secrets out of the message of an exception you throw from a policy or preparer.
 - `BeakException` is not thrown for HTTP-level transport faults such as a refused connection. `BeakClient` lets the `http` package's `ClientException` propagate, and `beakRun` rethrows it unless `mapException` maps it.
 
 ## Source

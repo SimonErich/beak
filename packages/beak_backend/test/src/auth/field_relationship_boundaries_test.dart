@@ -166,10 +166,6 @@ void main() {
           table: 'products',
           search: BeakSearch('Private', ['reviews.body']),
         ),
-        const BeakQuerySpec(
-          table: 'products',
-          sorts: [BeakSort('reviews.rating')],
-        ),
       ]) {
         final response = await request(
           policy,
@@ -178,6 +174,17 @@ void main() {
         );
         expect(response.statusCode, 401);
       }
+      // Sorting works on the table's own columns, so a sort through the
+      // relation is refused as a malformed spec before any policy is asked.
+      final sortThroughRelation = await request(
+        policy,
+        '/products/query',
+        const BeakQuerySpec(
+          table: 'products',
+          sorts: [BeakSort('reviews.rating')],
+        ).toJson(),
+      );
+      expect(sortThroughRelation.statusCode, 422);
       final fields = BeakFieldAccess(
         registry: registry,
         policy: policy,

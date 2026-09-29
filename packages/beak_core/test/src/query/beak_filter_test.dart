@@ -88,6 +88,30 @@ void main() {
     test('pins the exact JSON map of a representative nested tree', () {
       expect(representativeTree().toJson(), representativeJson);
     });
+
+    test('a date range of local days travels as UTC instants and decodes '
+        'to the same range', () {
+      final filter = BeakFieldFilter.forKey(
+        'created_at',
+        BeakOperator.between,
+        BeakListValue([
+          BeakDateTimeValue(DateTime(2026, 3, 1)),
+          BeakDateTimeValue(DateTime(2026, 4, 1)),
+        ]),
+      );
+      final wire = filter.toJson();
+      expect(wire['value'], [
+        {
+          'type': 'dateTime',
+          'value': DateTime(2026, 3, 1).toUtc().toIso8601String(),
+        },
+        {
+          'type': 'dateTime',
+          'value': DateTime(2026, 4, 1).toUtc().toIso8601String(),
+        },
+      ]);
+      expect(BeakFilter.fromJson(wire), filter);
+    });
   });
 
   group('fromJson', () {

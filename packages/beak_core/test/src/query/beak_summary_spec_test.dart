@@ -102,6 +102,101 @@ void main() {
       resultWire,
     );
   });
+  const money = BeakIntColumn(
+    key: 'total',
+    label: 'Total',
+    semantic: BeakSemantic.money(scale: 3, currency: 'EUR'),
+  );
+  const totalField = BeakScalarField<BeakDecimal>(model: orders, column: money);
+  final revenue = BeakSummaryMeasure.sumDecimal('revenue', field: totalField);
+
+  test(
+    'exact decimal measures sum the stored units and put the numeric wire form on the wire',
+    () {
+      expect(revenue.columnKey, 'total');
+      expect(
+        revenue.toJson(),
+        BeakSummaryMeasure.sum(
+          'revenue',
+          field: const BeakScalarField<int>(model: orders, column: money),
+        ).toJson(),
+      );
+      final decoded = BeakSummarySpec.fromJson(
+        overTheWire(orders.summary(measures: [revenue]).toJson()),
+      );
+      expect(decoded.measures.single.columnKey, 'total');
+      expect(decoded.measures.single.scale, isNull);
+    },
+  );
+
+  test(
+    'exact decimal measures: a row reads the sum back as an exact decimal',
+    () {
+      final row = BeakSummaryRow(
+        group: const BeakStringValue('paid'),
+        values: {'revenue': 12345, 'count': 3},
+      );
+      expect(row.decimalOf(revenue), BeakDecimal.parse('12.345', scale: 3));
+      expect(
+        BeakSummaryRow(
+          group: const BeakNullValue(),
+          values: const {},
+        ).decimalOf(revenue),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'exact decimal measures: a fractional or out-of-range sum is refused, never rounded',
+    () {
+      for (final value in <num>[1.5, BeakDecimal.maxUnits + 1]) {
+        expect(
+          () => BeakSummaryRow(
+            group: const BeakNullValue(),
+            values: {'revenue': value},
+          ).decimalOf(revenue),
+          throwsA(isA<BeakConfigurationException>()),
+          reason: '$value',
+        );
+      }
+    },
+  );
+
+  test('exact decimal measures: only a decimal sum reads as a decimal', () {
+    final row = BeakSummaryRow(
+      group: const BeakNullValue(),
+      values: {'count': 3, 'gross': 10},
+    );
+    expect(
+      () => row.decimalOf(paidCount),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+    expect(
+      () => row.decimalOf(grossSum),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+  });
+
+  test(
+    'exact decimal measures reject a field that is not an exact decimal or is not a root '
+    'field',
+    () {
+      const label = BeakScalarField<BeakDecimal>(model: orders, column: group);
+      const related = BeakScalarField<BeakDecimal>(
+        model: orders,
+        column: money,
+        path: [_customer],
+      );
+      for (final field in [label, related]) {
+        expect(
+          () => BeakSummaryMeasure.sumDecimal('x', field: field),
+          throwsA(isA<BeakConfigurationException>()),
+        );
+      }
+    },
+  );
+
   test('a model builds a summary from typed fields', () {
     final built = orders.summary(
       groupBy: statusField,
@@ -174,6 +269,18 @@ void main() {
     expect(grouped.groupByKey, 'status');
     expect(grouped.limit, 7);
     expect(grouped.measures.single.columnKey, 'cents');
+  });
+  test('a result whose truncated flag is not a boolean is rejected', () {
+    for (final json in <Map<String, Object?>>[
+      {'rows': <Object?>[], 'truncated': 'yes'},
+      {'rows': <Object?>[]},
+    ]) {
+      expect(
+        () => BeakSummaryResult.fromJson(json),
+        throwsA(isA<BeakConfigurationException>()),
+        reason: '$json',
+      );
+    }
   });
   test('integer and fractional values decode unchanged', () {
     final row = BeakSummaryRow.fromJson({

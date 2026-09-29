@@ -646,6 +646,16 @@ final class MysqlCompiler {
     return node.sql;
   }
 
+  /// The `ESCAPE` clause for [predicate]'s pattern, or nothing when the
+  /// pattern keeps MySQL's default escape character. MySQL reads a backslash
+  /// in a string literal as its own escape, so it is doubled.
+  String _escapeClause(Predicate predicate) {
+    final escape = predicate.escape;
+    if (escape == null) return '';
+    final quoted = escape.replaceAll(r'\', r'\\').replaceAll("'", "''");
+    return " ESCAPE '$quoted'";
+  }
+
   String _compilePredicate(Predicate predicate, List<Object?> params) {
     final column = _qualified(predicate.tableName, predicate.fieldName);
     return switch (predicate.operator) {
@@ -655,11 +665,15 @@ final class MysqlCompiler {
       Operator.gte => '$column >= ${_placeholder(params, predicate.value)}',
       Operator.lt => '$column < ${_placeholder(params, predicate.value)}',
       Operator.lte => '$column <= ${_placeholder(params, predicate.value)}',
-      Operator.like => '$column LIKE ${_placeholder(params, predicate.value)}',
+      Operator.like =>
+        '$column LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.notLike =>
-        '$column NOT LIKE ${_placeholder(params, predicate.value)}',
+        '$column NOT LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.ilike =>
-        'LOWER($column) LIKE LOWER(${_placeholder(params, predicate.value)})',
+        'LOWER($column) LIKE LOWER(${_placeholder(params, predicate.value)})'
+            '${_escapeClause(predicate)}',
       Operator.isNull => '$column IS NULL',
       Operator.isNotNull => '$column IS NOT NULL',
       Operator.inList => _compileInList(

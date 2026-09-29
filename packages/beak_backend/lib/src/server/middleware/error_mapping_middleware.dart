@@ -13,6 +13,11 @@ typedef BeakUnexpectedErrorListener =
 /// The catch boundary of the HTTP layer: maps every [BeakException] to its
 /// status code and JSON body, and everything else to an opaque 500 (reported
 /// to [onUnexpectedError]) so internals never leak to clients.
+///
+/// A [BeakStorageException] is the one typed failure that is also opaque: its
+/// message quotes the storage system behind the driver, so the caller gets
+/// `File storage failed.` and [onUnexpectedError] gets the exception with its
+/// detail.
 // --8<-- [start:beakErrorMappingMiddleware]
 Middleware beakErrorMappingMiddleware({
   BeakUnexpectedErrorListener? onUnexpectedError,
@@ -20,7 +25,18 @@ Middleware beakErrorMappingMiddleware({
     (Handler inner) => (Request request) async {
       try {
         return await inner(request);
-      } on BeakException catch (exception) {
+      } on BeakException catch (exception, stackTrace) {
+        if (exception is BeakStorageException) {
+          // A driver's message quotes the failure of the system behind it
+          // (an endpoint, a bucket, a host). The operator gets all of it; the
+          // caller learns only that storage failed.
+          onUnexpectedError?.call(exception, stackTrace);
+          return _jsonResponse(500, {
+            'code': exception.code,
+            'message': 'File storage failed.',
+            ..._requestIdEntry(request),
+          });
+        }
         return _exceptionResponse(exception, request);
       } catch (error, stackTrace) {
         onUnexpectedError?.call(error, stackTrace);
@@ -43,6 +59,9 @@ Response _exceptionResponse(BeakException exception, Request request) {
     BeakConflictException() => 409,
     BeakConfigurationException() => 500,
     BeakStorageException() => 500,
+    BeakInternalException() => 500,
+    BeakPayloadTooLargeException() => 413,
+    BeakTransportException() => 502,
   };
   // --8<-- [end:exceptionStatus]
   final Map<String, List<String>> fieldErrors = switch (exception) {

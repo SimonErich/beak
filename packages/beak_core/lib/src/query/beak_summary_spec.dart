@@ -1,3 +1,4 @@
+import '../columns/beak_semantic_values.dart';
 import '../common/beak_exception.dart';
 import '../common/json_support.dart';
 import '../model/beak_field_ref.dart';
@@ -13,7 +14,9 @@ import 'beak_value.dart';
 final class BeakSummaryMeasure {
   /// Counts records, including records whose grouped value is null.
   // --8<-- [start:BeakSummaryMeasure]
-  const BeakSummaryMeasure.count(this.key, {this.filter}) : columnKey = null;
+  const BeakSummaryMeasure.count(this.key, {this.filter})
+    : columnKey = null,
+      scale = null;
 
   /// Sums a numeric field of the summarized model, with zero for an empty
   /// population.
@@ -24,10 +27,29 @@ final class BeakSummaryMeasure {
     this.key, {
     required BeakScalarField<num> field,
     this.filter,
-  }) : columnKey = field.rootKey;
+  }) : columnKey = field.rootKey,
+       scale = null;
+
+  /// Sums an exact-decimal or money field of the summarized model, with zero
+  /// for an empty population.
+  ///
+  /// The wire form is the same as [BeakSummaryMeasure.sum]'s (stored integer
+  /// units are added, which is exact); the difference is on this side of the
+  /// wire, where the row reads the total back as an amount with
+  /// [BeakSummaryRow.decimalOf].
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship or one without exact-decimal or money semantics.
+  BeakSummaryMeasure.sumDecimal(
+    this.key, {
+    required BeakScalarField<BeakDecimal> field,
+    this.filter,
+  }) : columnKey = field.exactColumn.key,
+       scale = field.scale;
 
   /// Wire constructor. A null column denotes a count.
-  const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter});
+  const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter})
+    : scale = null;
   // --8<-- [end:BeakSummaryMeasure]
 
   /// Stable result key, independent of a translated display label.
@@ -35,6 +57,13 @@ final class BeakSummaryMeasure {
 
   /// Numeric storage column to sum, or null to count.
   final String? columnKey;
+
+  /// Decimal places of the summed amount for a measure built with
+  /// [BeakSummaryMeasure.sumDecimal], otherwise null.
+  ///
+  /// Client-side only: it never travels, because the row is read with the
+  /// same measure instance that asked for it.
+  final int? scale;
 
   /// Additional predicate intersected with the summary's shared population.
   final BeakFilter? filter;
@@ -211,6 +240,28 @@ final class BeakSummaryRow {
 
   /// The value computed for [measure], or null when the response has none.
   num? valueOf(BeakSummaryMeasure measure) => values[measure.key];
+
+  /// The exact amount computed for a [BeakSummaryMeasure.sumDecimal]
+  /// [measure], or null when the response has none.
+  ///
+  /// Throws a [BeakConfigurationException] for a measure that is not a
+  /// decimal sum, and for a value that is not a whole number of stored units
+  /// (this never rounds money).
+  BeakDecimal? decimalOf(BeakSummaryMeasure measure) {
+    final int scale =
+        measure.scale ??
+        (throw BeakConfigurationException(
+          'Measure "${measure.key}" is not a decimal sum; read it with '
+          'valueOf.',
+        ));
+    final num? units = values[measure.key];
+    if (units == null) return null;
+    return BeakDecimal.tryFromUnits(units, scale: scale) ??
+        (throw BeakConfigurationException(
+          'Measure "${measure.key}" holds $units, which is not a whole '
+          'number of stored units.',
+        ));
+  }
 
   /// Encodes this row.
   Map<String, Object?> toJson() => {'group': group.toJson(), 'values': values};

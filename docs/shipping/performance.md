@@ -86,7 +86,7 @@ Every list query carries a paging window, whether you set one or not. The defaul
 
 Three properties follow from the design, and each has a consequence:
 
-- The server has no ceiling on `perPage`. A request asking for 100,000 rows gets `LIMIT 100000`; the endpoint tests' fixture answered it in full. The panel's query controller rejects more than 1,000 rows per page, but a script is not the panel. Cap it at the proxy or in a `defaults.build(middleware: [...])` entry if the API is reachable by anyone you do not trust. [Security](security.md) lists it with the other limits.
+- The server serves at most 200 rows a page (`BeakPagination.maxPerPage`). A request for 100,000 rows gets `LIMIT 200` and an envelope whose `perPage` says 200, while `total` still counts the whole filtered set. The panel's query controller still accepts up to 1,000, so a list that asks for more than 200 receives 200. Ask a summary or an aggregate for totals instead of fetching rows to add up. [Security](security.md) lists it with the other limits.
 - Paging is offset paging. Page 400 at 25 rows asks the database to skip 9,975 rows first. Deep pages get slower with depth, and Beak has no keyset (cursor) option. For an export or a scan, use the export route, which pages internally, and not a loop over deep pages.
 - Every page runs a `COUNT` over the whole filtered set. The `total` beside the pager is exact, and an exact count on a large table is work the database repeats for each page turn and each keystroke in a search box. Keep filters selective and indexed. There is no switch to turn the count off.
 
@@ -155,7 +155,7 @@ The server compressed neither the JSON page nor the streamed CSV export that wer
 
 | Limit | Where it is enforced | What to do |
 | --- | --- | --- |
-| `perPage` has no server ceiling | Nowhere; the translator applies whatever the spec says | Cap in a proxy rule or middleware for untrusted callers |
+| `perPage` is capped at 200 | `BeakQueryAuthorizer`, on `POST /query` | Nothing; for a lower ceiling build `BeakCrudHandlers` with `maxPerPage` |
 | Request body size is unbounded for JSON | Nowhere in Beak | Set `client_max_body_size` (nginx) or the equivalent at the proxy |
 | Upload size is bounded only when the column sets `maxSizeInBytes` | The upload handler, before it buffers the part | Set it on every `@Image` and `@FileField` |
 | Relation filters nest at most 16 levels, summaries carry 1 - 8 measures | The translator and `BeakSummarySpec` | Nothing to do, these are guards |

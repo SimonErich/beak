@@ -42,6 +42,18 @@ void main() {
       );
     },
   );
+  test('wildcard characters in a term are searched for, not obeyed', () {
+    expect(
+      search(r'50%_off\', ['name']),
+      const BeakOrFilter([
+        BeakFieldFilter.forKey(
+          'name',
+          BeakOperator.ilike,
+          BeakStringValue(r'%50\%\_off\\%'),
+        ),
+      ]),
+    );
+  });
   test('semantic searches normalize exact amounts and calendar values', () {
     for (final (key, term, value) in <(String, String, BeakValue)>[
       ('amount', '12.345', const BeakIntValue(12345)),
@@ -73,7 +85,7 @@ void main() {
     expect(model.columnByKey('secret')!.searchable, isFalse);
     expect(
       () => search('secret', ['secret']),
-      throwsA(isA<BeakConfigurationException>()),
+      throwsA(isA<BeakValidationException>()),
     );
   });
   test('a related numeric identifier remains an equality predicate', () {
@@ -99,7 +111,7 @@ void main() {
     ]) {
       expect(
         () => search('Tea', [key]),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(isA<BeakValidationException>()),
       );
     }
   });

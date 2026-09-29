@@ -149,7 +149,7 @@ void main() {
           ),
         ),
       ),
-      throwsA(isA<BeakConfigurationException>()),
+      throwsA(isA<BeakValidationException>()),
     );
   });
 

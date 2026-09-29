@@ -145,7 +145,8 @@ void main() {
         (401, isA<BeakAuthenticationException>()),
         (404, isA<BeakNotFoundException>()),
         (409, isA<BeakConflictException>()),
-        (413, isA<BeakConfigurationException>()),
+        (413, isA<BeakPayloadTooLargeException>()),
+        (502, isA<BeakTransportException>()),
       ]) {
         final typed = BeakClient(
           baseUrl: 'http://beak.tunnel',

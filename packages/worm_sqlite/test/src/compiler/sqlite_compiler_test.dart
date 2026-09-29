@@ -56,6 +56,50 @@ void main() {
     });
   });
 
+  group('SqliteCompiler LIKE escaping', () {
+    PredicateTree like(Operator op, {String? escape}) => LeafNode(
+      Predicate(fieldName: 'name', operator: op, value: r'a\%', escape: escape),
+    );
+
+    test('declares the escape character in the ESCAPE clause', () {
+      for (final (op, keyword) in const [
+        (Operator.like, 'LIKE'),
+        (Operator.ilike, 'LIKE'),
+        (Operator.notLike, 'NOT LIKE'),
+      ]) {
+        final result = compiler.compileSelect(
+          QueryDescriptor(
+            table: 'users',
+            where: like(op, escape: r'\'),
+          ),
+        );
+        expect(
+          result.sql,
+          'SELECT * FROM "users" WHERE "name" $keyword ? ESCAPE \'\\\'',
+          reason: '$op',
+        );
+        expect(result.parameters, <Object?>[r'a\%']);
+      }
+    });
+
+    test('leaves the SQL alone when the predicate names no escape', () {
+      final result = compiler.compileSelect(
+        QueryDescriptor(table: 'users', where: like(Operator.like)),
+      );
+      expect(result.sql, 'SELECT * FROM "users" WHERE "name" LIKE ?');
+    });
+
+    test('quotes an escape character that needs it', () {
+      final result = compiler.compileSelect(
+        QueryDescriptor(
+          table: 'users',
+          where: like(Operator.like, escape: "'"),
+        ),
+      );
+      expect(result.sql, endsWith("ESCAPE ''''"));
+    });
+  });
+
   group('SqliteCompiler.compileInsert', () {
     test('emits a parameterised INSERT', () {
       final result = compiler.compileInsert(

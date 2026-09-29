@@ -400,9 +400,31 @@ final class BeakClient {
       'authorization' => BeakAuthorizationException(message),
       'conflict' => BeakConflictException(message),
       'storage' => BeakStorageException(message),
-      _ => BeakConfigurationException(message),
+      'configuration' => BeakConfigurationException(message),
+      'internal' => BeakInternalException(message),
+      'payload_too_large' => BeakPayloadTooLargeException(message),
+      'transport' => BeakTransportException(message),
+      _ => _exceptionForStatus(response.statusCode, message, body),
     };
   }
+
+  /// The exception a status alone implies, for a response that carries no
+  /// Beak error code: a proxy's HTML page, an empty body, a code from a newer
+  /// server.
+  BeakException _exceptionForStatus(
+    int statusCode,
+    String message,
+    Map<String, Object?> body,
+  ) => switch (statusCode) {
+    401 => BeakAuthenticationException(message),
+    403 => BeakAuthorizationException(message),
+    404 => BeakNotFoundException(message),
+    409 => BeakConflictException(message),
+    413 => BeakPayloadTooLargeException(message),
+    422 => BeakValidationException(message, fieldErrors: _fieldErrors(body)),
+    >= 500 => BeakInternalException(message),
+    _ => BeakTransportException(message),
+  };
   // --8<-- [end:ensureSuccess]
 
   Map<String, Object?> _errorBody(http.Response response) {

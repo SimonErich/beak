@@ -136,6 +136,26 @@ final class BeakTime implements Comparable<BeakTime> {
       '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}:${second.toString().padLeft(2, '0')}${microsecond == 0 ? '' : '.${microsecond.toString().padLeft(6, '0')}'}';
 }
 
+/// How a fractional count of storage units becomes a whole one.
+///
+/// Money that is averaged or divided has no exact answer, so Beak never picks
+/// a mode for you: name the one your ledger uses.
+enum BeakRounding {
+  /// Toward negative infinity: 10.5 becomes 10, -10.5 becomes -11.
+  floor,
+
+  /// Toward positive infinity: 10.5 becomes 11, -10.5 becomes -10.
+  ceiling,
+
+  /// To the nearest whole unit, a tie going away from zero: 10.5 becomes 11,
+  /// -10.5 becomes -11.
+  halfAwayFromZero,
+
+  /// To the nearest whole unit, a tie going to the even neighbour (banker's
+  /// rounding): 10.5 becomes 10, 11.5 becomes 12.
+  halfToEven,
+}
+
 /// An exact fixed-scale decimal, stored and transported as integer units.
 ///
 /// The coefficient is limited to ±(2^53−1), keeping values lossless in native
@@ -180,6 +200,50 @@ final class BeakDecimal implements Comparable<BeakDecimal> {
         BigInt.parse('${match[2]}${fraction.padRight(scale, '0')}') *
         (match[1] == '-' ? -BigInt.one : BigInt.one);
     return _checked(coefficient, scale);
+  }
+
+  /// The decimal of [units] whole storage units at [scale], or null when
+  /// [units] is not a whole number inside the safe integer range.
+  ///
+  /// Aggregates arrive as `num`: a sum of stored units is whole, an average
+  /// usually is not (use [BeakDecimal.fromRoundedUnits] for that).
+  static BeakDecimal? tryFromUnits(num units, {int scale = 2}) {
+    if (!units.isFinite ||
+        units.abs() > maxUnits ||
+        units != units.truncateToDouble()) {
+      return null;
+    }
+    return BeakDecimal(units.toInt(), scale: scale);
+  }
+
+  /// The decimal of [units] storage units at [scale], rounded to a whole
+  /// number of units as [rounding] says.
+  ///
+  /// Throws a [FormatException] when [units] is not finite or the rounded
+  /// value leaves the safe integer range.
+  factory BeakDecimal.fromRoundedUnits(
+    num units, {
+    required BeakRounding rounding,
+    int scale = 2,
+  }) {
+    if (!units.isFinite) {
+      throw FormatException('Expected a finite amount of units.', '$units');
+    }
+    final int whole = switch (rounding) {
+      BeakRounding.floor => units.floor(),
+      BeakRounding.ceiling => units.ceil(),
+      BeakRounding.halfAwayFromZero => units.round(),
+      BeakRounding.halfToEven => _roundHalfToEven(units),
+    };
+    return _checked(BigInt.from(whole), scale);
+  }
+
+  static int _roundHalfToEven(num units) {
+    final int lower = units.floor();
+    final num fraction = units - lower;
+    if (fraction < 0.5) return lower;
+    if (fraction > 0.5) return lower + 1;
+    return lower.isEven ? lower : lower + 1;
   }
 
   /// Parses an exact decimal, returning null on syntax, scale, or range errors.

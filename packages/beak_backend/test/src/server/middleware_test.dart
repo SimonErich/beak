@@ -277,7 +277,9 @@ void main() {
         (BeakAuthorizationException('forbidden'), 403),
         (BeakConflictException('duplicate'), 409),
         (BeakConfigurationException('broken setup'), 500),
-        (BeakStorageException('disk on fire'), 500),
+        (BeakInternalException('Internal server error.'), 500),
+        (BeakPayloadTooLargeException('too big'), 413),
+        (BeakTransportException('bad gateway'), 502),
       ];
       for (final (exception, expectedStatus) in cases) {
         final response = await throwing(exception)(_get('products'));

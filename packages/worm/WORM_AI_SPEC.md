@@ -2603,7 +2603,7 @@ User$.name.endsWith('ce');           // LIKE '%ce'
 Notes:
 - `whereIn`/`whereNotIn` are the only long-form extension aliases; byte-identical trees to `inList`/`notInList`.
 - `isNull()`/`isNotNull()` take no arguments and carry a `null` operand.
-- `contains`/`startsWith`/`endsWith` wrap input in `%`; literal `%` or `_` in the input are NOT escaped and keep LIKE-wildcard meaning. `like`/`notLike`/`ilike` pass the pattern verbatim.
+- `contains`/`startsWith`/`endsWith` wrap input in `%`; literal `%` or `_` in the input are NOT escaped and keep LIKE-wildcard meaning. `like`/`notLike`/`ilike` pass the pattern verbatim. A hand-built `Predicate(..., escape: r'\')` makes `\%`, `\_` and `\\` literal in a `like`/`notLike`/`ilike` pattern on every adapter (`ESCAPE '\'` in SQL).
 
 ### 6.5 Operator enum
 

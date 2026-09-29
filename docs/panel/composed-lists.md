@@ -48,7 +48,7 @@ Every key is in the [Reference](#reference). Two things about the start values. 
 | `search` | `String` | `''` | The search term |
 | `sorts` | `List<BeakSort>` | `[]` | Current ordering. A header click replaces it with one sort |
 | `page` | `int` | `1` | One-based page |
-| `perPage` | `int` | `15` | Page length, 1 to 1000 |
+| `perPage` | `int` | `15` | Page length, 1 to 1000. The server serves at most 200 rows a page, so a longer page arrives as 200 |
 | `visibleColumns` | `List<String>?` | `null` | Chosen column keys in order. `null` means the preset's or the list's columns |
 | `showHeader` | `bool?` | `null` | Whether the overview is shown. `null` follows `headerInitiallyVisible` |
 

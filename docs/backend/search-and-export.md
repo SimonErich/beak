@@ -48,7 +48,7 @@ The term is trimmed, and a blank term adds no predicate at all, so every row mat
 
 | Column | Predicate |
 | --- | --- |
-| Text, long text, rich text, enum names, colors, file keys | Case-insensitive `LIKE '%term%'` |
+| Text, long text, rich text, enum names, colors, file keys | Case-insensitive `LIKE '%term%'`, with `%`, `_` and `\` in the term matched literally |
 | Integer, decimal, boolean, timestamp | Typed equality when the term parses as that type, otherwise the column is skipped |
 | Exact decimal, money, date, time, duration | Typed equality through the column's codec, skipped when the term does not parse |
 
@@ -67,10 +67,10 @@ $ curl ... -d '{"table":"products","search":{"term":"zzz","columns":["name"]}}'
 | --- | --- |
 | A column the caller may not read, or a relationship on the path they may not read | `401` anonymous, `403` signed in. The search is refused, not silently narrowed, because a narrowed search would still leak |
 | A related model the caller may not view | The same, and each hop applies that model's row scope |
-| A password column | `500` `configuration`: `Password column "..." cannot be searched.` |
-| A JSON or custom column | `500` `configuration`. `searchable: true` on a custom column fails here, at search time |
-| A column or relationship that does not exist | `500` `configuration`: `Model "products" has no column "nope".` A client mistake that arrives as a server error |
-| A path longer than 17 segments | `500` `configuration` |
+| A password column | `422`: `Password column "..." cannot be searched.` |
+| A JSON or custom column | `422`. `searchable: true` on a custom column fails here, at search time |
+| A column or relationship that does not exist | `422`: `Model "products" has no column "nope".` |
+| A path longer than 17 segments | `422` |
 
 ### The command bar
 
@@ -148,9 +148,9 @@ From Dart, `BeakClient.export(table, spec, formatting:, columns:, formats:, raw:
 | Rule | Consequence |
 | --- | --- |
 | No global search route | Search across resources is one query per resource, made by the client |
-| `%` and `_` in a term are not escaped | They act as wildcards: searching `%` matches every row. `contains`, `startsWith` and `endsWith` filters behave the same |
+| `%`, `_` and `\` in a term match themselves | Searching `%` finds the rows that contain a percent sign. `contains`, `startsWith` and `endsWith` filters behave the same. A `like` or `ilike` operand is a pattern, so there `%` and `_` stay wildcards and a backslash escapes the next character |
 | Text matching is `LIKE` | Case-insensitive on Postgres. On SQLite only for ASCII letters: `plain` matches `PLAIN`, and `äpf` does not match `Äpfel` |
-| A bad column in `search` is a `500` | Validate keys in your client. The panel only sends keys from your resource definition |
+| A bad column in `search` is a `422` | Validate keys in your client. The panel only sends keys from your resource definition |
 | A search over an unreadable column is refused | Do not put a field in `globalSearchSources` that some roles cannot read, or their search fails as a whole |
 | An export has no row limit | Every matching row is streamed. Filter it, and put a proxy timeout in front of a very large table |
 | A failure after the first page truncates the file | The response is already `200`. Compare the row count with `total` from a query if the file matters |
@@ -187,4 +187,4 @@ Three lines are the header and two rows. Then check the policy the same way you 
 - [Queries](../reference/queries.md) the spec both routes take, with filters, sorts and pagination.
 - [Export to CSV](../recipes/export-to-csv.md) the panel button and the client call in a recipe.
 - [Auth and policies](auth-and-policies.md) the read, field and row rules a search and an export obey.
-- [Security](../shipping/security.md) the known gaps around wildcards and spreadsheet formulas.
+- [Security](../shipping/security.md) the known gap around spreadsheet formulas.

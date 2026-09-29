@@ -41,9 +41,13 @@ final class BeakRelationLoad {
 
   /// Decodes [json] (produced by [toJson]).
   ///
+  /// `relation` is required. `filter` and `nested` are optional: absent or
+  /// `null` they mean no constraint and no nested loads, so `{"relation":
+  /// "author"}` loads the bare relation.
+  ///
   /// Throws a [BeakConfigurationException] on malformed input.
   static BeakRelationLoad fromJson(Map<String, Object?> json) {
-    final Map<String, Object?>? filterJson = requireJsonMapOrNull(
+    final Map<String, Object?>? filterJson = optionalJsonMap(
       json,
       'filter',
       'BeakRelationLoad',
@@ -55,8 +59,8 @@ final class BeakRelationLoad {
       requireJsonString(json, 'relation', 'BeakRelationLoad'),
       filter: filter,
       nested: [
-        for (final child in requireJsonMapList(
-          requireJsonKey(json, 'nested', 'BeakRelationLoad'),
+        for (final child in optionalJsonMapList(
+          json,
           'nested',
           'BeakRelationLoad',
         ))

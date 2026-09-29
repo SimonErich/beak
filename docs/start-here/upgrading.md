@@ -127,7 +127,7 @@ query: const OrderItemModel().summary(
 ),
 ```
 
-A typed summary takes numeric fields, so it cannot sum a `BeakDecimal` money column yet. Use an aggregate (`field.sum(source)`) for that.
+`BeakSummaryMeasure.sum` takes numeric fields. For a `BeakDecimal` money column use `BeakSummaryMeasure.sumDecimal(key, field: OrderModel.total)`, and read the total with `row.decimalOf(measure)`.
 
 ## Units in names
 

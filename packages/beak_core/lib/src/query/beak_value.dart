@@ -186,6 +186,11 @@ final class BeakBoolValue extends BeakValue {
 }
 
 /// A timestamp comparison operand, encoded as a tagged ISO-8601 object.
+///
+/// The wire form is always the UTC instant (`2026-06-01T12:30:45.123Z`): a
+/// local [DateTime] would otherwise travel as an offset-less string that the
+/// server reads in its own time zone. Two values are equal when they name the
+/// same instant, so a local timestamp equals its UTC decoding.
 final class BeakDateTimeValue extends BeakValue {
   /// Creates a timestamp operand holding [value].
   const BeakDateTimeValue(this.value);
@@ -197,14 +202,17 @@ final class BeakDateTimeValue extends BeakValue {
   Object? get raw => value;
 
   @override
-  Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
+  Object? toJson() => {
+    'type': 'dateTime',
+    'value': value.toUtc().toIso8601String(),
+  };
 
   @override
   bool operator ==(Object other) =>
-      other is BeakDateTimeValue && other.value == value;
+      other is BeakDateTimeValue && other.value.isAtSameMomentAs(value);
 
   @override
-  int get hashCode => value.hashCode;
+  int get hashCode => value.microsecondsSinceEpoch.hashCode;
 
   @override
   String toString() => 'BeakDateTimeValue($value)';

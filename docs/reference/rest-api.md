@@ -28,8 +28,8 @@ import 'package:beak/server.dart'; // beakApiRouter, BeakServer, BeakServeHost, 
 
 | Method | Path | Purpose | Gate | Success | Mounted when |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/api/commits` | Run a graph save plan | Per operation: field write access, `canCreate` / `canUpdate` / `canDelete`, owner `canUpdate`, row scope | `200` receipt | data source is a `WormDataSource` |
-| `GET` | `/api/commits/{saveId}` | Read a stored receipt | `canView` on every table of the plan, row scope on applied records | `200` receipt | same |
+| `POST` | `/api/commits` | Run a graph save plan | Per operation: field write access, `canCreate` / `canUpdate` / `canDelete`, owner `canUpdate`, row scope | `200` receipt | always |
+| `GET` | `/api/commits/{saveId}` | Read a stored receipt | `canView` on every table of the plan, row scope on applied records | `200` receipt | always |
 | `GET` | `/api/{table}/capabilities` | Field access of the caller | `canView` | `200` | always |
 | `POST` | `/api/{table}/query` | Run a `BeakQuerySpec` | `canView`, row scope, field read access | `200` page | always |
 | `POST` | `/api/{table}/validate` | Check async rules without writing | Field write access, `canCreate` (no `recordId`) or `canUpdate` | `200` report | always |
@@ -66,8 +66,8 @@ The route table itself is short. Everything under `/api/{table}` except `export`
 | --- | --- |
 | Base path | `/api/{table}` for resources, `/api/commits`, `/api/auth`. The probes and the local file route sit outside `/api`. |
 | Request bodies | JSON objects. Invalid JSON, or JSON that is not an object, is a `422`. |
-| Spec bodies | A `BeakQuerySpec` needs only `table`; missing keys take their defaults, so `{"table":"notes"}` is a valid query. Nested objects (sorts, relation loads, pagination) need all their keys, see [Queries](queries.md#required-keys). A spec that cannot be decoded is a `422 Malformed spec body: ...`. |
-| Spec table | The `table` of a query, aggregate, summary or export body must equal the `{table}` of the path, or the request is a `422`. A spec `table` that nobody registered is a `500 configuration` (see Rules and limits). A path `{table}` nobody registered is a `404`. |
+| Spec bodies | A `BeakQuerySpec` needs only `table`; missing keys take their defaults, so `{"table":"notes"}` is a valid query. Nested objects take their defaults too: a sort needs its `column`, a relation load its `relation`, a search its `term` and `columns`, and pagination can be empty. See [Queries](queries.md#required-keys). A spec that cannot be decoded is a `422 Malformed spec body: ...`. |
+| Spec table | The `table` of a query, aggregate, summary or export body must equal the `{table}` of the path, or the request is a `422`. That includes a spec `table` that nobody registered (`Unknown table "ghosts".`). A path `{table}` nobody registered is a `404`. |
 | Response bodies | JSON with `content-type: application/json; charset=utf-8`. Export answers CSV, the local file route answers the file's MIME type. |
 | Ids in paths | The `{id}` segment is coerced to the primary-key type. For an integer key a non-integer id is a `404`. |
 | Auth header | `Authorization: Bearer <token>`. No header means anonymous. When the server has an auth guard (any `BeakAuthSessions`, or an `authGuard`), a header that is not `Bearer`, or a token the store does not know, is a `401` on every route, including the probes. Without a guard the header is ignored. |
@@ -101,7 +101,7 @@ On writes the same value shapes are accepted: primitives, lists, `null` and the 
 { "items": [ { "values": { "...": "..." }, "relations": {} } ], "total": 1, "page": 1, "perPage": 25 }
 ```
 
-`total` counts all pages, `page` is 1-based, `perPage` defaults to `25`. The server applies no ceiling to `perPage`.
+`total` counts all pages, `page` is 1-based, `perPage` defaults to `25`. The server serves at most 200 rows per page (`BeakPagination.maxPerPage`): a request for more is answered with 200 and the envelope's `perPage` says so, while `total` still counts every row. Page through the rest.
 
 ## Graph commits
 
@@ -111,7 +111,7 @@ On writes the same value shapes are accepted: primitives, lists, `null` and the 
 --8<-- "packages/beak_backend/lib/src/endpoints/commit_router.dart:registerBeakCommitRoutes"
 ```
 
-The routes exist only for a `WormDataSource`, and the `_beak_commit_receipts` table must exist (`BeakCommitReceiptsMigration` is in every generated `migrations:` list). Behind any other data source the request is a `404 No handler`.
+The routes exist for every data source. Over a `WormDataSource` the `_beak_commit_receipts` table must exist (`BeakCommitReceiptsMigration` is in every generated `migrations:` list). Over any other source the save is `staged`: the same authorization, the writes one by one through the source's CRUD calls with no rollback, and receipts kept in memory (see [Graph commits](../architecture/graph-commits.md)).
 
 ### Request
 
@@ -218,7 +218,7 @@ The receipt key is the hash of the principal id and the `saveId`, so two users c
 | Same `saveId`, different plan | `409 conflict`, `Save identity was reused with different content.` |
 | Another principal, same `saveId` | A separate save |
 | Plan body not decodable | `422 validation`, `Malformed spec body: ...` |
-| Plan decodes but is invalid (unknown field, unregistered table, duplicate operation id, cycle) | `500 configuration`, for example `Unknown field "nope".` |
+| Plan decodes but is invalid (unknown field, unregistered table, duplicate operation id, cycle) | `422 validation`, for example `Invalid save plan: Unknown field "nope".` |
 | Token invalid or expired | `401` from the auth guard, before the plan is read. A denied operation is inside the receipt instead. |
 
 `GET /api/commits/{saveId}` reads the stored receipt and repeats nothing. It answers `404 No receipt for save "..."` for an id the principal never used. It needs `canView` on every table in the plan, checks that applied records are still inside the caller's row scope, and redacts fields the caller may not read. A rejected atomic save is final for its `saveId`; a script that retries must mint a new one. Receipts are never deleted.
@@ -239,7 +239,7 @@ curl -s -X PATCH localhost:8080/api/notes/abc -H 'content-type: application/json
 { "code": "validation", "message": "This resource must be saved through a graph commit.", "requestId": "a67e71ae93c9b967" }
 ```
 
-The closed routes are create, update, delete, restore, attach and detach. Reads, `validate`, `capabilities`, `export` and the upload routes stay open. Naming a table in `graphOnly` without a `preparePlan` throws a `BeakConfigurationException` at build time.
+The closed routes are create, update, delete, restore, attach and detach. Reads, `validate`, `capabilities`, `export` and the upload routes stay open. `graphOnly` needs no `preparePlan`: without one, the direct routes are closed and the commit route saves the table under the usual authorization and validation.
 
 ## Capabilities and validation
 
@@ -486,14 +486,16 @@ Every failure is one JSON object. `beakErrorMappingMiddleware` maps the sealed `
 
 | `code` | Status | Meaning on this API |
 | --- | --- | --- |
-| `validation` | `422` | Bad JSON, bad spec, failed rule, read-only field, graph-only route, upload rule. Carries `fieldErrors` when the failure is per field. |
+| `validation` | `422` | Bad JSON, bad spec (including an unknown table, field or relationship, or an operand that does not fit its operator), failed rule, read-only field, graph-only route, upload rule. Carries `fieldErrors` when the failure is per field. |
 | `not_found` | `404` | Unknown route, record (or one outside the row scope), relation, upload key or receipt |
 | `authentication` | `401` | No valid session, wrong login, or a policy that denied an anonymous request |
 | `authorization` | `403` | A policy denied a signed-in principal |
 | `conflict` | `409` | Stale `If-Unmodified-Since`, reused `saveId` with another plan, duplicate unique value |
-| `configuration` | `500` | Beak is wired wrong, or a spec names an unregistered table |
+| `configuration` | `500` | Beak is wired wrong: a model relates to a table nobody registered, an environment value is malformed |
 | `storage` | `500` | A storage driver failed |
 | `internal` | `500` | Anything untyped. The body is always `Internal server error.` |
+| `payload_too_large` | `413` | A body larger than the host accepts. Beak itself does not send it; a proxy or the Serverpod tunnel does. |
+| `transport` | `502` | A fault outside Beak's API (a tunnel's own error). Beak itself does not send it. |
 
 [Exceptions](exceptions.md) lists what raises each code and how `BeakClient` turns a body back into a type.
 
@@ -501,11 +503,12 @@ Every failure is one JSON object. `beakErrorMappingMiddleware` maps the sealed `
 
 - `BeakPolicies` denies whatever it does not list. The default `BeakAllowAllPolicy` allows every route above to every caller, which suits tests and first runs only.
 - Row scoping is enforced in the service layer for query, aggregate, summary, batch, get, update, delete, restore, attach, detach, export, uploads and graph commits. An excluded row reports as `404`, never `403`.
-- The graph-commit routes exist only for a `WormDataSource`. `HttpBeakDataSource.commit` always uses them, so a server on another data source serves reads and answers writes with `404`.
-- A spec whose `table` is not registered answers `500 configuration` instead of a `4xx`. A commit plan that decodes but is invalid (unknown field, unregistered table, cycle) also answers `500 configuration`.
-- The server applies no ceiling to `perPage`.
-- `%` and `_` in `contains`, `startsWith`, `endsWith` and search terms are not escaped, so they act as wildcards.
-- A dotted sort key such as `category.name` passes the authorizer and fails in the query translator with `500 configuration` (`Model "products" has no column "category.name".`). Sort by a column of the queried table.
+- The graph-commit routes exist for every data source, but only a `WormDataSource` on a transactional adapter saves atomically. Any other source saves `staged`, with in-memory receipts.
+- A commit plan that decodes but is invalid (unknown field, unregistered table, cycle) answers `422 validation`.
+- A page size above 200 is served as 200. A page whose offset would pass 2^53 - 1 rows is a `422`.
+- `%`, `_` and `\` in `contains`, `startsWith`, `endsWith` and search terms match themselves. In a `like` or `ilike` operand, which is a pattern, `%` and `_` are wildcards and a backslash escapes the next character: `50\%` matches the text `50%`.
+- Timestamps in a spec travel as UTC instants, `2026-06-01T12:30:45.123Z`, whatever zone the client built them in.
+- A dotted sort key such as `category.name`, and an aggregate or summary column reached through a relationship, is a `422`. Sort by a column of the queried table.
 - `PUT` is listed in `access-control-allow-methods`, but no route uses it.
 - `If-Unmodified-Since` guards `PATCH` only. Graph commits carry their own `expectedUpdatedAt`.
 - Behind the Serverpod admin app the `/api` routes run through a tunnel with the same paths and bodies. `/api/auth/**`, the probes and the file route are not forwarded, see [Serverpod](../serverpod/index.md).

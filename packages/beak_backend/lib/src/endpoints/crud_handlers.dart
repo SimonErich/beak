@@ -23,6 +23,7 @@ final class BeakCrudHandlers {
     this.service, {
     this.policy = const BeakAllowAllPolicy(),
     this.registry,
+    this.maxPerPage = BeakPagination.maxPerPage,
   });
 
   /// The per-model service the handlers delegate to.
@@ -33,6 +34,10 @@ final class BeakCrudHandlers {
 
   /// Complete metadata for authorizing relationship paths.
   final BeakModelRegistry? registry;
+
+  /// Largest page size `POST /query` serves; a larger request is answered at
+  /// this size (default [BeakPagination.maxPerPage]).
+  final int maxPerPage;
 
   BeakFieldAccess _fields(Request request) => BeakFieldAccess(
     registry:
@@ -65,6 +70,7 @@ final class BeakCrudHandlers {
         (BeakModelRegistry()..register(service.model)),
     policy: policy,
     principal: beakPrincipal(request),
+    maxPerPage: maxPerPage,
   );
 
   /// The row scope [policy] applies to this model for [request]'s principal.

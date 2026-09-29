@@ -61,7 +61,7 @@ A status filter, a date filter and a search box therefore produce one `BeakAndFi
 
 ### On the wire
 
-`toJson` writes every key, always. `fromJson` requires `table` and falls back to the constructor defaults for the rest, so `{"table": "products"}` is a valid request body for someone poking at the API with curl, while a spec that made the round trip is exactly the spec that left. The fixture below is the one Beak's golden test pins byte for byte:
+`toJson` writes every key, always. `fromJson` requires `table` and falls back to the constructor defaults for the rest, in the nested objects too (a sort without `descending` sorts ascending, a relation load without `nested` loads the bare relation, empty pagination is page 1 of 25), so `{"table": "products"}` is a valid request body for someone poking at the API with curl, while a spec that made the round trip is exactly the spec that left. The fixture below is the one Beak's golden test pins byte for byte:
 
 ```dart title="packages/beak_core/test/src/query/beak_query_spec_test.dart"
 --8<-- "packages/beak_core/test/src/query/beak_query_spec_test.dart:richSpec"
@@ -89,7 +89,7 @@ An operand is a `BeakValue`, a sealed family, so both sides know its type withou
 | `BeakIntValue` | `int` | the number |
 | `BeakDoubleValue` | `double` | the number |
 | `BeakBoolValue` | `bool` | the boolean |
-| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "<ISO-8601>"}` |
+| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "<ISO-8601, UTC>"}` |
 | `BeakNullValue` | `null` | `null` |
 | `BeakListValue` | `List` | an array, elements encoded recursively |
 
@@ -99,7 +99,7 @@ Decoding reads the table backwards:
 --8<-- "packages/beak_core/lib/src/query/beak_value.dart:fromJson"
 ```
 
-The `dateTime` tag is the only map-shaped value, so a string is never guessed to be a timestamp. `raw` unwraps a `BeakDateTimeValue` to a real `DateTime`, `toJson` produces the tagged object, and the translator reads `raw` while the wire carries `toJson`.
+The `dateTime` tag is the only map-shaped value, so a string is never guessed to be a timestamp. `raw` unwraps a `BeakDateTimeValue` to a real `DateTime`, `toJson` produces the tagged object, and the translator reads `raw` while the wire carries `toJson`. The wire always carries the UTC instant, so a local `DateTime` gets its `Z` and names the same moment on the server, and two values are equal when they name the same instant.
 
 Money, calendar dates and durations have no variant of their own. A field with a semantic codec encodes them into these same primitives before they reach a filter (exact decimals become integer units), so the contract does not grow when a column kind is added.
 
@@ -137,19 +137,19 @@ Predicates form a sealed tree. Each node tags itself with a `type` on the wire a
 | Operator | Operand | Becomes |
 | --- | --- | --- |
 | `eq`, `neq`, `gt`, `gte`, `lt`, `lte` | any scalar | the comparison of the same name |
-| `like`, `ilike` | string | the raw pattern |
-| `contains`, `startsWith`, `endsWith` | string | `ilike` with `%v%`, `v%`, `%v` |
+| `like`, `ilike` | string | the raw pattern, with a backslash as its escape character |
+| `contains`, `startsWith`, `endsWith` | string | `ilike` with `%v%`, `v%`, `%v`, where `v` is escaped |
 | `isNull`, `isNotNull` | none | `IS NULL`, `IS NOT NULL` |
 | `inList`, `notInList` | `BeakListValue` | list membership |
 | `between`, `notBetween` | `BeakListValue` of exactly two | an inclusive range |
 
-An operand of the wrong shape is a `BeakConfigurationException` from the translator. The translator's `switch` over `BeakOperator` is exhaustive, so an operator without a translation does not compile.
+`v` is the operand run through `beakEscapeLike`, so `%`, `_` and a backslash in it match themselves, and every pattern names its escape character in the SQL (`ESCAPE '\'`): SQLite has no default one and the other databases do not agree on theirs. An operand of the wrong shape is a `BeakValidationException` from the translator, a 422 on the wire. The translator's `switch` over `BeakOperator` is exhaustive, so an operator without a translation does not compile.
 
 ### On the server
 
 Two steps sit between the decoded spec and the database.
 
-The authorizer rewrites the spec before anything runs. It checks that the principal may view the table, that every sort, filter and search path names a real, readable field, and that every relationship it traverses is readable. It ANDs in the row scope of the model and of each related model, and it folds a search into the filter, so the spec the translator sees has no `search` left. A dotted key such as `customer.name` becomes a nested `BeakRelationFilter` with the related model's row scope inside it. An unknown field is a `BeakValidationException`, which is a 422.
+The authorizer rewrites the spec before anything runs. It checks that the principal may view the table, that every sort, filter and search path names a real, readable field, and that every relationship it traverses is readable. It ANDs in the row scope of the model and of each related model, and it folds a search into the filter, so the spec the translator sees has no `search` left. A dotted key such as `customer.name` becomes a nested `BeakRelationFilter` with the related model's row scope inside it. An unknown table, field or relationship is a `BeakValidationException`, which is a 422, and so is a sort, aggregate or summary column reached through a relationship. The authorizer is also where the server's limits apply: a page size above 200 (`BeakPagination.maxPerPage`) is served as 200, and the envelope reports the size used.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
 --8<-- "packages/beak_backend/lib/src/data/worm/query_translator.dart:builderFor"
@@ -167,7 +167,7 @@ Predicates on related records become correlated `EXISTS` subqueries, not joins. 
 --8<-- "packages/beak_backend/lib/src/data/worm/worm_data_source.dart:query"
 ```
 
-Search is typed by the field, not by the database. Text columns match with a case-insensitive contains. Numbers, booleans and timestamps match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
+Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. Numbers, booleans and timestamps match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
 
 ## Why it is shaped this way
 
@@ -180,10 +180,10 @@ Search is typed by the field, not by the database. Text columns match with a cas
 
 - Build specs from the model and its generated fields. `BeakFieldFilter.forKey` is for decoders and adapters.
 - Load what you render. A relation you did not put in `relationLoads` is not on the record, and reading it gives `null`.
-- Sort on the model's own columns. `orderBy` throws for a field reached through a relationship. A hand-written spec that sorts on a dotted key passes the authorizer and then fails in the translator with a `BeakConfigurationException`, which the error middleware answers with a 500.
-- Send timestamps as UTC. `BeakDateTimeValue.toJson` writes `toIso8601String()`, which gives a local `DateTime` no offset, and the server reads an offset-less value in its own zone.
-- Expect the server to run what you ask for. `perPage` has no ceiling in the contract, so a page size of a million is a million rows.
-- `contains`, `startsWith` and `endsWith` do not escape `%` and `_` in the operand. A user who searches for `50%` gets a wildcard.
+- Sort on the model's own columns. `orderBy` throws for a field reached through a relationship, and a hand-written spec that sorts on a dotted key is refused by the authorizer with a 422.
+- Timestamps are safe to build in local time. `BeakDateTimeValue.toJson` writes the UTC instant, so the server never reads an offset-less value in its own zone.
+- Ask for at most 200 rows a page. The server serves 200 for a bigger request and says so in the envelope's `perPage`; page through the rest, or ask a summary for the totals.
+- A user who searches for `50%` finds the text `50%`. In a `like` or `ilike` operand, which is a pattern, `%` and `_` are still wildcards and a backslash escapes the next character.
 - Relationship filters stop at 16 levels in the translator and at 64 in the authorizer. Nothing in a real screen comes close.
 
 ## Continue reading

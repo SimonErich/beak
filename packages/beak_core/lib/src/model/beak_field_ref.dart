@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
+import '../columns/beak_semantic.dart';
 import '../columns/beak_semantic_values.dart';
 import '../data/beak_commit.dart';
 import '../data/beak_data_source.dart';
@@ -232,6 +233,31 @@ extension BeakComparableFieldPredicates<T extends Comparable<T>>
 
 /// Exact aggregation for fixed-scale decimal and monetary fields.
 extension BeakExactDecimalAggregates on BeakScalarField<BeakDecimal> {
+  /// The storage column of this field, verified to be a field of its own
+  /// model that carries exact-decimal or money semantics.
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship and for a column without those semantics.
+  BeakColumn get exactColumn {
+    final bool isExact = switch (column.semantic.kind) {
+      BeakSemanticKind.exactDecimal || BeakSemanticKind.money => true,
+      _ => false,
+    };
+    if (path.isNotEmpty || !isExact) {
+      throw BeakConfigurationException(
+        'Exact aggregates need a root exact-decimal or money field, but '
+        '"$qualifiedKey" is not one.',
+      );
+    }
+    return column;
+  }
+
+  /// The number of decimal places this field stores.
+  ///
+  /// Throws a [BeakConfigurationException] under the same conditions as
+  /// [exactColumn].
+  int get scale => exactColumn.semantic.scale;
+
   /// Sums this root field, returning its semantic amount rather than storage units.
   ///
   /// Providers must return an integral, safe-range coefficient. Fractional or
@@ -241,27 +267,54 @@ extension BeakExactDecimalAggregates on BeakScalarField<BeakDecimal> {
     BeakFilter? filter,
     bool withTrashed = false,
   }) async {
-    if (path.isNotEmpty || !column.semantic.hasCodec) {
-      throw const BeakConfigurationException(
-        'Exact sums require a root exact-decimal field.',
-      );
-    }
+    final BeakColumn exact = exactColumn;
     final units = await source.aggregate(
       BeakAggregateSpec.sum(
         table: model.table,
-        column: column,
+        column: exact,
         filter: filter,
         withTrashed: withTrashed,
       ),
     );
-    if (!units.isFinite ||
-        units.abs() > BeakDecimal.maxUnits ||
-        units != units.truncateToDouble()) {
+    return BeakDecimal.tryFromUnits(units, scale: exact.semantic.scale) ??
+        (throw BeakConfigurationException(
+          'SUM of "$qualifiedKey" cannot be represented as exact decimal '
+          'units.',
+        ));
+  }
+
+  /// Averages this root field, returning its semantic amount.
+  ///
+  /// An average of whole units is rarely whole, so the caller names the
+  /// [rounding] the result is brought to the field's scale with. Throws a
+  /// [BeakConfigurationException] when the average cannot be represented.
+  Future<BeakDecimal> avg(
+    BeakDataSource source, {
+    required BeakRounding rounding,
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) async {
+    final BeakColumn exact = exactColumn;
+    final units = await source.aggregate(
+      BeakAggregateSpec.avg(
+        table: model.table,
+        column: exact,
+        filter: filter,
+        withTrashed: withTrashed,
+      ),
+    );
+    try {
+      return BeakDecimal.fromRoundedUnits(
+        units,
+        scale: exact.semantic.scale,
+        rounding: rounding,
+      );
+    } on FormatException {
       throw BeakConfigurationException(
-        'SUM of "$qualifiedKey" cannot be represented as exact decimal units.',
+        'AVG of "$qualifiedKey" cannot be represented as exact decimal '
+        'units.',
       );
     }
-    return BeakDecimal(units.toInt(), scale: column.semantic.scale);
   }
 }
 

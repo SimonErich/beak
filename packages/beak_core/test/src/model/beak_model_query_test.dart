@@ -5,7 +5,12 @@ abstract final class _ProductColumns {
   static const id = BeakStringColumn(key: 'id', label: 'Id');
   static const name = BeakStringColumn(key: 'name', label: 'Name');
   static const price = BeakDecimalColumn(key: 'price', label: 'Price');
-  static const List<BeakColumn> values = [id, name, price];
+  static const cost = BeakIntColumn(
+    key: 'cost',
+    label: 'Cost',
+    semantic: BeakSemantic.money(currency: 'EUR'),
+  );
+  static const List<BeakColumn> values = [id, name, price, cost];
 }
 
 final class _ProductModel extends BeakModel {
@@ -193,6 +198,54 @@ void main() {
           throwsA(isA<BeakConfigurationException>()),
         );
       }
+    });
+
+    group('exact decimals', () {
+      const cost = BeakScalarField<BeakDecimal>(
+        model: model,
+        column: _ProductColumns.cost,
+      );
+
+      test('sumDecimal and avgDecimal name the money column', () {
+        final sum = model.sumDecimal(cost, filter: published);
+        expect(sum.function, BeakAggregateFunction.sum);
+        expect(sum.columnKey, 'cost');
+        expect(sum.filter, published);
+        final avg = model.avgDecimal(cost, withTrashed: true);
+        expect(avg.function, BeakAggregateFunction.avg);
+        expect(avg.columnKey, 'cost');
+        expect(avg.withTrashed, isTrue);
+      });
+
+      test('put the same request on the wire as the numeric builders', () {
+        const numeric = BeakScalarField<int>(
+          model: model,
+          column: _ProductColumns.cost,
+        );
+        expect(model.sumDecimal(cost).toJson(), model.sum(numeric).toJson());
+        expect(model.avgDecimal(cost).toJson(), model.avg(numeric).toJson());
+      });
+
+      test('accept only the model\'s own exact-decimal fields', () {
+        const foreign = BeakScalarField<BeakDecimal>(
+          model: _OtherModel(),
+          column: _ProductColumns.cost,
+        );
+        const notDecimal = BeakScalarField<BeakDecimal>(
+          model: model,
+          column: _ProductColumns.name,
+        );
+        for (final field in [foreign, notDecimal]) {
+          expect(
+            () => model.sumDecimal(field),
+            throwsA(isA<BeakConfigurationException>()),
+          );
+          expect(
+            () => model.avgDecimal(field),
+            throwsA(isA<BeakConfigurationException>()),
+          );
+        }
+      });
     });
 
     test('serialize identically to the hand-written constructors', () {

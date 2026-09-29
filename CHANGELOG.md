@@ -682,14 +682,6 @@ These are open at 0.9.0. None is listed as fixed above.
   lockfiles of `clean_beak_config`, `foodio-adminpanel` and `showcase` record a
   linked obers_ui (`path: "../../../obers_ui"`) until they are re-resolved against
   the pin.
-- Typed summaries (`model.summary(...)`) take numeric fields, so they cannot sum a
-  `BeakDecimal` money column; aggregates can (`field.sum(source)`).
-- A dotted sort key (a field reached through a relation) passes the authorizer and
-  then fails in the query translator with a 500. `contains`, `startsWith`,
-  `endsWith` and search do not escape `%` and `_`. There is no server-side
-  `perPage` ceiling.
-- `BeakClient` maps unknown error codes (`internal`, `payload_too_large`,
-  transport failures) to `BeakConfigurationException`.
 - `BeakWizardScreen` silently ignores several `BeakFormScreen` parameters.
 - A `POST /api/commits` route is mounted only for `WormDataSource`, so a panel over
   another server-side source can read but not save.

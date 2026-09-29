@@ -453,9 +453,70 @@ void main() {
         'message': 'Disk on fire.',
       });
       await expectThrows<BeakConfigurationException>(500, const {
-        'code': 'internal',
-        'message': 'Server error.',
+        'code': 'configuration',
+        'message': 'No model registered.',
       });
+    });
+
+    test('a server failure is not reported as a configuration error', () async {
+      await expectLater(
+        client(const {
+          'code': 'internal',
+          'message': 'Internal server error.',
+        }, statusCode: 500).getOne('notes', 'n1'),
+        throwsA(
+          isA<BeakInternalException>()
+              .having(
+                (error) => error.message,
+                'message',
+                'Internal server error.',
+              )
+              .having(
+                (error) => error,
+                'not a config error',
+                isNot(isA<BeakConfigurationException>()),
+              ),
+        ),
+      );
+      await expectThrows<BeakPayloadTooLargeException>(413, const {
+        'code': 'payload_too_large',
+        'message': 'Too big.',
+      });
+      await expectThrows<BeakTransportException>(502, const {
+        'code': 'transport',
+        'message': 'Bad gateway.',
+      });
+    });
+
+    test('an unknown or missing code falls back to the HTTP status', () async {
+      const cases = <int, Type>{
+        401: BeakAuthenticationException,
+        403: BeakAuthorizationException,
+        404: BeakNotFoundException,
+        409: BeakConflictException,
+        413: BeakPayloadTooLargeException,
+        422: BeakValidationException,
+        500: BeakInternalException,
+        503: BeakInternalException,
+        400: BeakTransportException,
+        302: BeakTransportException,
+      };
+      for (final MapEntry(key: status, value: type) in cases.entries) {
+        for (final body in const <Map<String, Object?>?>[
+          {'code': 'something_new', 'message': 'Odd.'},
+          {'message': 'No code.'},
+          null,
+        ]) {
+          final Object? caught = await client(body, statusCode: status)
+              .delete('notes', 'n1')
+              .then<Object?>((_) => null, onError: (Object e) => e);
+          expect(
+            caught.runtimeType,
+            type,
+            reason: 'HTTP $status with body $body',
+          );
+        }
+      }
     });
 
     test('delete surfaces 404 as not-found', () {
@@ -471,15 +532,16 @@ void main() {
     test('an unparsable error body still maps by status', () {
       expect(
         () => client(null, statusCode: 500).delete('notes', 'n1'),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(isA<BeakInternalException>()),
       );
     });
 
-    test('a non-object JSON error body degrades to configuration', () {
+    test('a non-object JSON error body maps by status with a generic '
+        'message', () {
       expect(
         () => client(const [1, 2], statusCode: 404).delete('notes', 'n1'),
         throwsA(
-          isA<BeakConfigurationException>().having(
+          isA<BeakNotFoundException>().having(
             (exception) => exception.message,
             'message',
             'HTTP 404.',

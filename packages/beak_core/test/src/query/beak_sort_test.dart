@@ -25,14 +25,28 @@ void main() {
   });
 
   group('fromJson', () {
-    test('rejects JSON missing a key', () {
+    test('rejects JSON without the column', () {
       expect(
         () => BeakSort.fromJson(const {}),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"column"'),
+          ),
+        ),
       );
       expect(
-        () => BeakSort.fromJson(const {'column': 'a'}),
+        () => BeakSort.fromJson(const {'descending': true}),
         throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('sorts ascending when the direction is omitted', () {
+      expect(BeakSort.fromJson(const {'column': 'a'}), const BeakSort('a'));
+      expect(
+        BeakSort.fromJson(const {'column': 'a', 'descending': null}),
+        const BeakSort('a'),
       );
     });
 

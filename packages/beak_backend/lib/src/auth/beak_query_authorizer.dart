@@ -8,13 +8,25 @@ import 'beak_policy.dart';
 ///
 /// Related row scopes share the same existential predicate as the user's
 /// condition. An allowed sibling can never authorize matching a hidden child.
+///
+/// It is also where a posted spec meets the server's limits: a mistake in the
+/// spec (an unknown table, field or relationship, a sort or aggregate column
+/// reached through a relationship, a non-numeric aggregate column, a page past
+/// what an offset can address) is a [BeakValidationException], which the
+/// error middleware answers with a 422 rather than an opaque 500. A page size
+/// above [maxPerPage] is served at [maxPerPage]; the page envelope reports the
+/// size actually used.
 final class BeakQueryAuthorizer {
   /// Creates a request-local policy boundary over known model metadata.
+  ///
+  /// [maxPerPage] is the ceiling on a page size (default
+  /// [BeakPagination.maxPerPage]).
   const BeakQueryAuthorizer({
     required this.registry,
     required this.policy,
     required this.principal,
-  });
+    this.maxPerPage = BeakPagination.maxPerPage,
+  }) : assert(maxPerPage >= 1, 'maxPerPage must be >= 1');
 
   /// Registered models used to resolve paths.
   final BeakModelRegistry registry;
@@ -25,14 +37,17 @@ final class BeakQueryAuthorizer {
   /// Current authenticated identity.
   final BeakPrincipal? principal;
 
+  /// Largest page size a query may ask for; a larger one is clamped to it.
+  final int maxPerPage;
+
   BeakFieldAccess get _fields =>
       BeakFieldAccess(registry: registry, policy: policy, principal: principal);
 
   /// Authorizes filters, search paths, and every eager-loaded relationship.
   BeakQuerySpec authorizeQuery(BeakQuerySpec spec) {
-    final model = _model(spec.table);
+    final model = _rootModel(spec.table);
     for (final sort in spec.sorts) {
-      _requireFieldPath(model, sort.columnKey);
+      _requireOwnColumn(model, sort.columnKey, 'Sort key');
     }
     final search = spec.search;
     final predicates = <BeakFilter>[
@@ -49,15 +64,21 @@ final class BeakQueryAuthorizer {
       relationLoads: [
         for (final load in spec.relationLoads) _load(model, load, 0),
       ],
-      pagination: spec.pagination,
+      pagination: _boundedPagination(spec.pagination),
       withTrashed: spec.withTrashed,
     );
   }
 
   /// Applies identical authorization to aggregate predicates.
   BeakAggregateSpec authorizeAggregate(BeakAggregateSpec spec) {
+    final model = _rootModel(spec.table);
     if (spec.columnKey case final String key) {
-      _requireFieldPath(_model(spec.table), key);
+      final column = _requireOwnColumn(model, key, 'Aggregate column');
+      if (column is! BeakIntColumn && column is! BeakDecimalColumn) {
+        throw BeakValidationException(
+          'Aggregate column "$key" must be numeric.',
+        );
+      }
     }
     final query = authorizeQuery(
       BeakQuerySpec(table: spec.table, filter: spec.filter),
@@ -73,10 +94,14 @@ final class BeakQueryAuthorizer {
 
   /// Authorizes every grouping and measure field and the shared population.
   BeakSummarySpec authorizeSummary(BeakSummarySpec spec) {
-    final model = _model(spec.table);
-    if (spec.groupByKey case final key?) _requireFieldPath(model, key);
+    final model = _rootModel(spec.table);
+    if (spec.groupByKey case final key?) {
+      _requireOwnColumn(model, key, 'Summary group');
+    }
     for (final measure in spec.measures) {
-      if (measure.columnKey case final key?) _requireFieldPath(model, key);
+      if (measure.columnKey case final key?) {
+        _requireOwnColumn(model, key, 'Summary measure column');
+      }
     }
     final query = authorizeQuery(
       BeakQuerySpec(
@@ -111,6 +136,15 @@ final class BeakQueryAuthorizer {
   /// still require view access.
   BeakFilter? scopeFor(BeakModel model) => _scope(model, const {}, 0);
 
+  /// The model a posted spec targets: an unregistered table is a mistake in
+  /// the spec, not in the server's wiring.
+  BeakModel _rootModel(String table) {
+    if (registry.byTable(table) == null) {
+      throw BeakValidationException('Unknown table "$table".');
+    }
+    return _model(table);
+  }
+
   BeakModel _model(String table) {
     final model = registry.byTableOrThrow(table);
     enforcePolicyDecision(
@@ -122,22 +156,45 @@ final class BeakQueryAuthorizer {
     return model;
   }
 
-  void _requireFieldPath(BeakModel model, String key) {
-    final parts = key.split('.');
-    var current = model;
-    for (final part in parts.take(parts.length - 1)) {
-      final relation = current.relationshipByKey(part);
-      if (relation == null) {
-        throw BeakValidationException('Unknown relationship "$part".');
-      }
-      _fields.requireReadRelation(current, relation);
-      current = _model(relation.relatedTable);
+  /// [pagination] with the page size held to [maxPerPage] and the offset it
+  /// implies kept inside what a database can address.
+  BeakPagination _boundedPagination(BeakPagination pagination) {
+    final int perPage = pagination.perPage > maxPerPage
+        ? maxPerPage
+        : pagination.perPage;
+    final BigInt offsetInRows =
+        BigInt.from(pagination.page - 1) * BigInt.from(perPage);
+    if (offsetInRows > BigInt.from(_maxOffsetInRows)) {
+      throw BeakValidationException(
+        'Page ${pagination.page} is out of range for $perPage records per '
+        'page.',
+      );
     }
-    final column = current.columnByKey(parts.last);
+    return BeakPagination(page: pagination.page, perPage: perPage);
+  }
+
+  /// The largest offset a query may skip: the largest integer every
+  /// supported runtime and database represents exactly.
+  static const int _maxOffsetInRows = 9007199254740991;
+
+  /// The column of [model] named [key], read-checked, for a use that works on
+  /// the model's own columns (sorting, aggregating, grouping).
+  ///
+  /// A key that reaches through a relationship is rejected here, where the
+  /// caller can be told why, rather than deeper in the query translation.
+  BeakColumn _requireOwnColumn(BeakModel model, String key, String use) {
+    if (key.contains('.')) {
+      throw BeakValidationException(
+        '$use "$key" must be a column of "${model.table}" itself, not a '
+        'field reached through a relationship.',
+      );
+    }
+    final column = model.columnByKey(key);
     if (column == null) {
-      throw BeakValidationException('Unknown field "${parts.last}".');
+      throw BeakValidationException('Unknown field "$key".');
     }
-    _fields.requireReadColumn(current, column);
+    _fields.requireReadColumn(model, column);
+    return column;
   }
 
   BeakFilter? _scope(BeakModel model, Set<String> activeScopes, int depth) {
