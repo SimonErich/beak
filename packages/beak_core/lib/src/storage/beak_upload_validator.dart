@@ -41,6 +41,7 @@ final class BeakUploadValidator {
   /// Returns the upload unchanged when every rule passes, or a
   /// [BeakValidationException] aggregating one message list per violated
   /// aspect under the keys `size`, `type`, `dimensions` and `aspectRatio`.
+  // --8<-- [start:validateSignature]
   BeakResult<BeakUpload> validate(
     BeakUpload upload, {
     int? maxSizeInBytes,
@@ -49,6 +50,7 @@ final class BeakUploadValidator {
     double? aspectRatio,
     BeakDimensions? actualDimensions,
   }) {
+    // --8<-- [end:validateSignature]
     final Map<String, List<String>> fieldErrors = {};
     void report(String aspect, String message) =>
         fieldErrors.putIfAbsent(aspect, () => []).add(message);

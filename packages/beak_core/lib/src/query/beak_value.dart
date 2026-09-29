@@ -30,6 +30,7 @@ sealed class BeakValue {
   /// BeakValue.of([1, 2, 3]);         // BeakListValue of BeakIntValues
   /// BeakValue.of(DateTime.utc(2026)); // BeakDateTimeValue
   /// ```
+  // --8<-- [start:of]
   static BeakValue of(Object? raw) => switch (raw) {
     null => const BeakNullValue(),
     final BeakValue value => value,
@@ -45,10 +46,12 @@ sealed class BeakValue {
       'BeakValue does not support ${raw.runtimeType} values (got $raw).',
     ),
   };
+  // --8<-- [end:of]
 
   /// Decodes [json] (produced by [toJson]) back into a typed value.
   ///
   /// Throws a [BeakConfigurationException] on malformed input.
+  // --8<-- [start:fromJson]
   static BeakValue fromJson(Object? json) => switch (json) {
     null => const BeakNullValue(),
     final bool value => BeakBoolValue(value),
@@ -63,6 +66,7 @@ sealed class BeakValue {
     ),
     _ => throw BeakConfigurationException('Malformed BeakValue JSON: $json.'),
   };
+  // --8<-- [end:fromJson]
 
   static DateTime _parseInstant(String iso) {
     final DateTime? parsed = DateTime.tryParse(iso);

@@ -143,6 +143,7 @@ final class BeakQuerySpec {
     'withTrashed': withTrashed,
   };
 
+  // --8<-- [start:withFilter]
   /// Returns a copy with [filter] AND-merged into the existing predicate:
   /// the first filter is taken as-is, later ones join an ever-growing
   /// conjunction.
@@ -156,6 +157,7 @@ final class BeakQuerySpec {
       final BeakFilter existing => BeakAndFilter([existing, filter]),
     },
   );
+  // --8<-- [end:withFilter]
 
   /// Returns a copy additionally ordered by [field].
   ///

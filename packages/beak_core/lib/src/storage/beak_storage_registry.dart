@@ -36,9 +36,11 @@ typedef BeakStorageDriverFactory =
 /// ```
 final class BeakStorageRegistry {
   /// Creates a registry with the web-safe `memory` driver registered.
+  // --8<-- [start:constructor]
   BeakStorageRegistry() {
     register('memory', BeakMemoryStorageDriver.fromConfig);
   }
+  // --8<-- [end:constructor]
 
   final Map<String, BeakStorageDriverFactory> _factoriesByDriverId = {};
 
@@ -60,6 +62,7 @@ final class BeakStorageRegistry {
   /// Throws a [BeakConfigurationException] when no factory is registered
   /// for [BeakStorageConfig.driverId] — typically a missing driver package
   /// registration.
+  // --8<-- [start:resolve]
   BeakStorageDriver resolve(BeakStorageConfig config) {
     final BeakStorageDriverFactory? factory =
         _factoriesByDriverId[config.driverId];
@@ -71,6 +74,7 @@ final class BeakStorageRegistry {
     }
     return factory(config);
   }
+  // --8<-- [end:resolve]
 
   /// Every registered driver id, in registration order.
   List<String> get driverIds => List.unmodifiable(_factoriesByDriverId.keys);

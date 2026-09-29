@@ -58,6 +58,7 @@ sealed class BeakImageTransform {
 
   /// Resizes to [widthInPixels] and/or [heightInPixels] using [fit]; the
   /// aspect ratio is preserved when only one target dimension is given.
+  // --8<-- [start:factories]
   const factory BeakImageTransform.resize({
     int? widthInPixels,
     int? heightInPixels,
@@ -79,6 +80,7 @@ sealed class BeakImageTransform {
     required BeakDimensions size,
     String name,
   }) = BeakThumbnailTransform;
+  // --8<-- [end:factories]
 
   /// Decodes [json] (produced by [toJson]) back into a transform step.
   ///

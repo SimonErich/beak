@@ -11,6 +11,7 @@ import 'beak_image_transform.dart';
 /// driver-level packages that bring an image library. The upload
 /// endpoint decodes, runs the configured pipeline through this interface and
 /// stores the results via the configured `BeakStorageDriver`.
+// --8<-- [start:BeakTransformRunner]
 abstract interface class BeakTransformRunner {
   /// Runs [pipeline] over [source] in order and returns the transformed
   /// primary image plus any named variants (e.g. thumbnails).
@@ -19,6 +20,7 @@ abstract interface class BeakTransformRunner {
     List<BeakImageTransform> pipeline,
   );
 }
+// --8<-- [end:BeakTransformRunner]
 
 /// The output of a transform pipeline: encoded bytes plus decoded metadata.
 ///

@@ -60,6 +60,7 @@ sealed class BeakFilter {
   /// Decodes [json] (produced by [toJson]) back into a predicate tree.
   ///
   /// Throws a [BeakConfigurationException] on malformed input.
+  // --8<-- [start:fromJson]
   static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
     {'type': 'field'} => _fieldFromJson(json),
     {'type': 'and'} => BeakAndFilter(_childrenFromJson(json, 'BeakAndFilter')),
@@ -70,6 +71,7 @@ sealed class BeakFilter {
     ),
     _ => throw BeakConfigurationException('Malformed BeakFilter JSON: $json.'),
   };
+  // --8<-- [end:fromJson]
 
   static BeakFieldFilter _fieldFromJson(Map<String, Object?> json) =>
       BeakFieldFilter.forKey(
@@ -142,6 +144,7 @@ final class BeakFieldFilter extends BeakFilter {
   /// Creates a predicate on [column] — the type-safe path: the column
   /// constant supplies its own [columnKey], so callers never write key
   /// strings.
+  // --8<-- [start:fieldFilterConstructors]
   const BeakFieldFilter({
     required BeakColumn column,
     required this.operator,
@@ -158,6 +161,7 @@ final class BeakFieldFilter extends BeakFilter {
     this.value = const BeakNullValue(),
   ]) : _columnKey = columnKey,
        _column = null;
+  // --8<-- [end:fieldFilterConstructors]
 
   /// The column this predicate applies to, when built from a constant.
   ///

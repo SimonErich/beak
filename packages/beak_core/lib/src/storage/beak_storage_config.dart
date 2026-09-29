@@ -33,6 +33,7 @@ part 'drivers/beak_s3_config.dart';
 ///         publicBaseUrl: Uri.parse('http://localhost:8080/uploads'),
 ///       );
 /// ```
+// --8<-- [start:BeakStorageConfig]
 @immutable
 sealed class BeakStorageConfig {
   const BeakStorageConfig();
@@ -41,3 +42,4 @@ sealed class BeakStorageConfig {
   /// (`'memory'`, `'local'`, `'s3'`, `'ftp'`).
   String get driverId;
 }
+// --8<-- [end:BeakStorageConfig]

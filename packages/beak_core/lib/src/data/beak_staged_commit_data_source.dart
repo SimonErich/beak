@@ -63,6 +63,7 @@ Future<BeakSaveResult> executeBeakSavePlan({
     rootOperationId: rootOperation?.id,
   );
   if (previous?.hasUnknown ?? false) return snapshot();
+  // --8<-- [start:executeBeakSavePlanLoop]
   for (final op in ordered) {
     if (results[op.id]!.status == BeakWriteOutcome.applied) continue;
     final identities = snapshot().identities;
@@ -85,6 +86,7 @@ Future<BeakSaveResult> executeBeakSavePlan({
     await checkpoint?.call(snapshot());
     if (results[op.id]!.status != BeakWriteOutcome.applied) break;
   }
+  // --8<-- [end:executeBeakSavePlanLoop]
   return snapshot();
 }
 

@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import '../common/beak_exception.dart';
 import '../model/beak_field_ref.dart';
+import '../model/beak_field_value.dart';
 import '../model/beak_model.dart';
 import '../model/beak_model_registry.dart';
 import '../query/beak_filter.dart';
@@ -41,6 +42,9 @@ final class BeakCandidateNode {
 
   /// Proposed scalar record. [BeakCandidateGraph.materialize] loads relations.
   BeakRecord get record => BeakRecord(values: Map.unmodifiable(_values));
+
+  /// Whether this node is a record of [model].
+  bool isOf(BeakModel model) => ref.isOf(model);
 
   /// Whether the request or a calculation affects this node.
   bool get changed => _changed;
@@ -608,6 +612,38 @@ final class BeakCandidateGraph {
     }
   }
 
+  /// Writes several typed scalars at once.
+  ///
+  /// Every field must be a root field of [node]'s model; build the pairs with
+  /// [BeakScalarField.to].
+  void writeAll(BeakCandidateNode node, Iterable<BeakFieldValue> values) {
+    for (final value in values) {
+      node._check(value.field);
+    }
+    patch(node, node.model.record(values));
+  }
+
+  /// Returns [fields] to their persisted values, or clears them on a new record.
+  ///
+  /// The way a preparer keeps server-derived columns from being edited.
+  void restore(
+    BeakCandidateNode node,
+    Iterable<BeakScalarField<Object>> fields,
+  ) {
+    for (final field in fields) {
+      node._check(field);
+    }
+    patch(
+      node,
+      BeakRecord(
+        values: {
+          for (final field in fields)
+            field.key: node.initial?[field.key] ?? const BeakNullValue(),
+        },
+      ),
+    );
+  }
+
   /// Applies a typed record patch. Prefer [write] for individual fields.
   void patch(BeakCandidateNode node, BeakRecord patch) {
     if (node.deleted) {
@@ -709,6 +745,7 @@ final class BeakCandidateGraph {
     return BeakRecord(values: node.record.values, relations: relations);
   }
 
+  // --8<-- [start:BeakCandidateGraphBuild]
   /// Builds a new plan while preserving command, retry and operation identities.
   BeakSavePlan build() => BeakSavePlan(
     saveId: plan.saveId,
@@ -720,4 +757,5 @@ final class BeakCandidateGraph {
       ..._additions.values,
     ],
   );
+  // --8<-- [end:BeakCandidateGraphBuild]
 }

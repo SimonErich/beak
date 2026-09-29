@@ -235,6 +235,7 @@ void main() {
     );
   });
 
+  // --8<-- [start:nestedFieldWire]
   test('typed nested references read eager data and preserve query paths', () {
     const field = BeakScalarField<String>(
       model: _Model('orders'),
@@ -259,6 +260,7 @@ void main() {
       'value': const BeakStringValue('Ada').toJson(),
     });
   });
+  // --8<-- [end:nestedFieldWire]
 
   test('scalar predicates retain types, operators and null semantics', () {
     const name = BeakScalarField<String>(

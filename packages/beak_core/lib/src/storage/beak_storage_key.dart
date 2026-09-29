@@ -27,6 +27,7 @@ abstract final class BeakStorageKeys {
   /// `.` or `..` segments and without backslashes.
   ///
   /// Throws a [BeakStorageException] describing the first violation.
+  // --8<-- [start:validate]
   static void validate(String key) {
     if (key.isEmpty) {
       throw const BeakStorageException('Storage keys must not be empty.');
@@ -49,4 +50,5 @@ abstract final class BeakStorageKeys {
       }
     }
   }
+  // --8<-- [end:validate]
 }

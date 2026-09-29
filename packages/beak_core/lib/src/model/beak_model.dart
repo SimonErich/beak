@@ -18,6 +18,7 @@ import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
 import 'beak_field_ref.dart';
+import 'beak_field_value.dart';
 import 'beak_permissions.dart';
 import '../validation/beak_record_rule.dart';
 
@@ -267,6 +268,26 @@ abstract base class BeakModel {
       );
     }
     return field.column;
+  }
+
+  /// A record holding [values], each a root field of this model.
+  ///
+  /// The typed way to build a row to create or patch: nothing here names a
+  /// column key. Throws a [BeakConfigurationException] for a field of another
+  /// model or one reached through a relationship.
+  ///
+  /// ```dart
+  /// final note = const OrderNoteModel().record([
+  ///   OrderNoteModel.body.to('Call the customer'),
+  ///   OrderNoteModel.visibility.to('internal'),
+  /// ]);
+  /// ```
+  BeakRecord record(Iterable<BeakFieldValue> values) {
+    final entries = <String, BeakValue>{};
+    for (final BeakFieldValue(:field, :value) in values) {
+      entries[_ownColumn(field).key] = value;
+    }
+    return BeakRecord(values: entries);
   }
 
   /// The primary-key value of [record], or `null` when the record does not

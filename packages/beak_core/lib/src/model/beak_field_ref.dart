@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
 import '../columns/beak_semantic_values.dart';
+import '../data/beak_commit.dart';
 import '../data/beak_data_source.dart';
 import '../common/beak_exception.dart';
 import '../query/beak_aggregate_spec.dart';
@@ -13,6 +14,7 @@ import '../query/beak_relation_load.dart';
 import '../query/beak_sort.dart';
 import '../query/beak_value.dart';
 import '../relations/beak_relationship.dart';
+import 'beak_field_value.dart';
 import 'beak_model.dart';
 
 /// A model-owned field reference shared by queries, forms, and detail views.
@@ -49,6 +51,21 @@ abstract class BeakFieldRef<T extends Object> {
 
   /// Reads an already-loaded record without network or state side effects.
   T? readFrom(BeakRecord record);
+
+  /// A validation failure attached to this field.
+  ///
+  /// A server-side rule throws it so the form highlights the field, without
+  /// the rule ever spelling a column key:
+  ///
+  /// ```dart
+  /// if (quantity < 1) throw OrderItemModel.quantity.invalid('Order one.');
+  /// ```
+  BeakValidationException invalid(String message) => BeakValidationException(
+    message,
+    fieldErrors: {
+      key: [message],
+    },
+  );
 
   /// Resolves the owner record along an eagerly loaded to-one path.
   BeakRecord? ownerRecord(BeakRecord record) {
@@ -117,6 +134,12 @@ class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
 
   /// Encodes a typed value into this field's canonical storage representation.
   BeakValue encode(T? value) => beakValueForColumn(column, value);
+
+  /// Pairs this field with [value] for a typed write.
+  ///
+  /// Pass the pairs to a model's `record`, a save operation or the candidate
+  /// graph instead of naming the storage key.
+  BeakFieldValue to(T? value) => BeakFieldValue(this, encode(value));
 
   /// Returns a record with this root field replaced; relation paths are read-only.
   BeakRecord writeTo(BeakRecord record, T? value) {
@@ -282,6 +305,40 @@ class BeakToOneField extends BeakFieldRef<BeakRecord> {
     }
     return load;
   }
+
+  /// Pairs this belongs-to field with the [target] record it should reference.
+  ///
+  /// [target] may be a draft created earlier in the same save plan. Throws a
+  /// [BeakConfigurationException] for another relationship kind, a field
+  /// reached through a relationship, or a [target] of another model.
+  BeakFieldLink linkTo(BeakRecordRef target) {
+    if (relation is! BeakBelongsTo || path.isNotEmpty) {
+      throw BeakConfigurationException(
+        'Only a root belongs-to field can reference a record; "$qualifiedKey" '
+        'is not one.',
+      );
+    }
+    if (target.table != this.target.table) {
+      throw BeakConfigurationException(
+        'Field "$key" references ${this.target.table}, not ${target.table}.',
+      );
+    }
+    return BeakFieldLink(this, target);
+  }
+
+  /// A validation failure keyed by the foreign key that backs this field.
+  @override
+  BeakValidationException invalid(String message) => BeakValidationException(
+    message,
+    fieldErrors: {
+      switch (relation) {
+        BeakBelongsTo(:final foreignKey) => foreignKey,
+        _ => key,
+      }: [
+        message,
+      ],
+    },
+  );
 
   /// Matches the stored foreign key to a selected record's identity.
   BeakFilter eq(BeakRecord? record) =>

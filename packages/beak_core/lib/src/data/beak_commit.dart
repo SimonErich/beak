@@ -1,11 +1,15 @@
 import '../behavior/beak_model_behavior.dart';
 import '../common/beak_exception.dart';
 import '../common/json_support.dart';
+import '../model/beak_field_ref.dart';
+import '../model/beak_field_value.dart';
+import '../model/beak_model.dart';
 import '../model/beak_model_registry.dart';
 import '../query/beak_record.dart';
 import '../query/beak_value.dart';
 import '../relations/beak_relationship.dart';
 
+// --8<-- [start:BeakCommitDataSource]
 /// A backend's independent guarantees for a submitted change graph.
 final class BeakCommitCapabilities {
   /// Describes guarantees; ordinary CRUD alone implies none of them.
@@ -40,6 +44,7 @@ abstract interface class BeakCommitDataSource {
   /// Reads a previous save's receipt without repeating any mutation.
   Future<BeakSaveResult> recover(String saveId);
 }
+// --8<-- [end:BeakCommitDataSource]
 
 /// A saved identity or a local identity resolved by an earlier create.
 final class BeakRecordRef {
@@ -49,8 +54,18 @@ final class BeakRecordRef {
   /// Addresses a not-yet-persisted record within the save plan.
   const BeakRecordRef.draft(this.table, String this.draftId) : id = null;
 
+  /// Addresses the existing record of [model] with primary key [id].
+  BeakRecordRef.of(BeakModel model, Object id) : this.existing(model.table, id);
+
+  /// Addresses a not-yet-persisted record of [model] within the save plan.
+  BeakRecordRef.draftOf(BeakModel model, String draftId)
+    : this.draft(model.table, draftId);
+
   /// Resource identity.
   final String table;
+
+  /// Whether this reference addresses a record of [model].
+  bool isOf(BeakModel model) => table == model.table;
 
   /// Existing primary key, when present.
   final Object? id;
@@ -137,6 +152,69 @@ final class BeakSaveOperation {
        references = Map.unmodifiable(references),
        dependsOn = List.unmodifiable(dependsOn);
 
+  /// Creates the draft record of [model] identified by [draftId].
+  ///
+  /// The typed way to append a create to a plan: [values] and [links] name
+  /// fields of [model], and no table or column key is spelled out.
+  ///
+  /// ```dart
+  /// BeakSaveOperation.create(
+  ///   id: 'audit',
+  ///   model: const OrderActivityModel(),
+  ///   draftId: 'audit:$saveId',
+  ///   values: [OrderActivityModel.title.to('Draft created')],
+  ///   links: [OrderActivityModel.order.linkTo(order.ref)],
+  /// );
+  /// ```
+  ///
+  /// A row owned by another record passes that [owner] and the [through]
+  /// collection it joins, for example `owner: invoice, through:
+  /// InvoiceModel.items`.
+  factory BeakSaveOperation.create({
+    required String id,
+    required BeakModel model,
+    required String draftId,
+    List<BeakFieldValue> values = const [],
+    List<BeakFieldLink> links = const [],
+    BeakRecordRef? owner,
+    BeakToManyField? through,
+    List<String> dependsOn = const [],
+  }) => BeakSaveOperation(
+    id: id,
+    kind: BeakSaveOperationKind.create,
+    target: BeakRecordRef.draftOf(model, draftId),
+    values: model.record(values),
+    references: {
+      for (final link in links) _foreignKeyOf(model, link): link.target,
+    },
+    dependsOn: dependsOn,
+    owner: owner,
+    relationKey: _ownedVia(owner, through),
+  );
+
+  static String? _ownedVia(BeakRecordRef? owner, BeakToManyField? through) {
+    if ((owner == null) != (through == null)) {
+      throw const BeakConfigurationException(
+        'A nested row needs both its owner and the relationship it belongs to.',
+      );
+    }
+    return through?.key;
+  }
+
+  static String _foreignKeyOf(BeakModel model, BeakFieldLink link) {
+    final field = link.field;
+    if (field.model.table == model.table && field.path.isEmpty) {
+      if (field.relation case BeakBelongsTo(:final foreignKey)) {
+        return foreignKey;
+      }
+    }
+    throw BeakConfigurationException(
+      'Field "${field.qualifiedKey}" is not a root belongs-to field of '
+      '${model.table}.',
+    );
+  }
+
+  // --8<-- [start:BeakSaveOperationFields]
   /// Stable operation identity within this plan.
   final String id;
 
@@ -166,6 +244,18 @@ final class BeakSaveOperation {
 
   /// Optional write precondition; unsupported providers must reject it.
   final DateTime? expectedUpdatedAt;
+  // --8<-- [end:BeakSaveOperationFields]
+
+  /// Whether this operation writes [field] of its target model.
+  bool sets(BeakScalarField<Object> field) =>
+      field.model.table == target.table &&
+      field.path.isEmpty &&
+      values.values.containsKey(field.key);
+
+  /// Whether this operation acts through [relation]: a nested row of the owner's
+  /// collection, or a link written on it.
+  bool isVia(BeakFieldRef<Object> relation) =>
+      relationKey != null && relationKey == relation.key;
 
   /// Resolves supplied foreign references and an owned row's foreign key.
   BeakRecord resolveValues(
@@ -275,6 +365,7 @@ final class BeakSavePlan {
   }) : operations = List.unmodifiable(operations),
        arguments = _snapshot(arguments);
 
+  // --8<-- [start:BeakSavePlanFields]
   /// Stable retry identity.
   final String saveId;
 
@@ -289,6 +380,7 @@ final class BeakSavePlan {
 
   /// Typed inputs validated against the named command input model.
   final BeakRecord arguments;
+  // --8<-- [end:BeakSavePlanFields]
 
   /// Whether this plan executes [command] on its root.
   ///
@@ -429,6 +521,7 @@ final class BeakSavePlan {
   );
 }
 
+// --8<-- [start:BeakSaveOutcomes]
 /// Whether a write is confirmed saved, confirmed unsaved, or unresolved.
 enum BeakWriteOutcome {
   /// The write completed.
@@ -449,6 +542,7 @@ enum BeakSaveMode {
   /// Changes committed individually.
   staged,
 }
+// --8<-- [end:BeakSaveOutcomes]
 
 /// A serializable failure associated with an operation.
 final class BeakSaveError {

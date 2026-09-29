@@ -44,6 +44,7 @@ void main() {
 
   /// The concept example: with([author]), where(status eq active),
   /// where(lastActive lt cutoff), orderBy(createdAt desc), search, paginate.
+  // --8<-- [start:richSpec]
   BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
       .withRelation(author)
       .withFilter(
@@ -63,6 +64,7 @@ void main() {
       .orderBy(createdAtField, descending: true)
       .searching('ada', const [nameField, emailField])
       .paginate(page: 2, perPage: 50);
+  // --8<-- [end:richSpec]
 
   group('BeakSearch', () {
     test('pins the exact JSON map', () {
