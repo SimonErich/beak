@@ -1,6 +1,9 @@
 ---
 title: Seeding
 description: Populate repeatable development fixtures while preserving existing records.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Seeding
@@ -51,4 +54,4 @@ migrate-and-seed workflow.
 ## Continue reading
 
 - [Migrations](migrations.md).
-- [Testing](../guides/testing.md).
+- [Testing](../shipping/testing.md).

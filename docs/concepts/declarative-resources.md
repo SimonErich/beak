@@ -1,9 +1,12 @@
 ---
-title: Declarative resources and forms
+title: Declarative resources
 description: Separate model behavior, resource navigation and presentation while Beak owns the runtime.
+type: concept
+audience: [beginner, expert]
+status: draft
 ---
 
-# Declarative resources and forms
+# Declarative resources
 
 Define shared models, register resources and arrange their screens. Beak supplies fetching, typed binding, validation, relationship drafts, save plans and refresh. The maintained shop demonstrates the same configuration for CRUD, invoice workflows and custom content.
 
@@ -43,10 +46,10 @@ Model behavior centralizes initial values, suggestions, derivations, snapshots a
 
 A `BeakScreen` can host declarative blocks or a `BeakWidgetBlock`. A custom input can use `BeakDraftScope` to stage typed changes while Beak retains validation and saving. A custom dashboard can query the panel source and listen to its mutation stream. The shop's Operations page, receivables widget and variant builder demonstrate these three boundaries.
 
-See [Custom screens](../extending/custom-screens-and-pages.md) and [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) for compiling examples.
+See [Custom screens](../panel/custom-screens.md) and [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) for compiling examples.
 
 ## Continue reading
 
 - [Model behavior](../models/behavior.md)
-- [Forms](../panel/forms.md)
-- [Drafts and review](../panel/drafts-and-review.md)
+- [Forms](../forms/form-screens.md)
+- [Drafts and review](../forms/drafts-and-review.md)

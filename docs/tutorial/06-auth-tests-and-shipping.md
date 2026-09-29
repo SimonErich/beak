@@ -1,6 +1,9 @@
 ---
 title: Auth, tests, and shipping
 description: Verify the declarative contracts and configure authority before deployment.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
 # Auth, tests, and shipping
@@ -30,5 +33,5 @@ Back up the database before applying reviewed migrations. Retain commit receipts
 
 ## Continue reading
 
-- [Security](../guides/security.md)
-- [Deployment](../deployment/going-to-production.md)
+- [Security](../shipping/security.md)
+- [Deployment](../shipping/going-to-production.md)

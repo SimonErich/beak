@@ -1,6 +1,9 @@
 ---
 title: An enum badge column
 description: Render a typed state with labels and colors.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # An enum badge column
@@ -13,5 +16,5 @@ Declare an enum field with a default when appropriate. `@Badges` can map enum va
 
 ## Continue reading
 
-- [Related guide](../models/column-types.md)
+- [Related guide](../models/fields.md)
 - [All recipes](index.md)

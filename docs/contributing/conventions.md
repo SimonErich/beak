@@ -1,6 +1,9 @@
 ---
 title: Conventions
-description: The softer rules a reviewer looks for: Conventional Commits, reuse-first, const and final by default, typed exceptions, and tests that verify behavior.
+description: "Follow the softer rules a reviewer looks for: commits, reuse, const and final, typed exceptions and tests."
+type: guide
+audience: [contributor]
+status: draft
 ---
 
 # Conventions

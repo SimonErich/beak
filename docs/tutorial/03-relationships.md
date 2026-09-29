@@ -1,9 +1,12 @@
 ---
-title: Relationships
+title: Related records
 description: Configure related editors while Beak manages their draft graph.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
-# Relationships
+# Related records
 
 Declare a relationship on the schema and place its generated field in a form. Beak loads existing rows, tracks local changes and builds the save plan.
 

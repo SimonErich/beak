@@ -1,6 +1,9 @@
 ---
 title: Colors and tokens
 description: Apply semantic colors consistently across built-in and custom content.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Colors and tokens

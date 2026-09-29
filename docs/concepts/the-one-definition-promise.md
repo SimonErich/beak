@@ -1,6 +1,9 @@
 ---
 title: The one-definition promise
 description: Reuse schema metadata without confusing presentation with authority.
+type: concept
+audience: [beginner, expert]
+status: draft
 ---
 
 # The one-definition promise
@@ -15,5 +18,5 @@ Screen-specific labels, visibility and validators can refine a workflow. They do
 
 ## Continue reading
 
-- [Declarative resources](../concepts/declarative-resources.md)
-- [Custom screens](../extending/custom-screens-and-pages.md)
+- [Declarative resources](declarative-resources.md)
+- [Custom screens](../panel/custom-screens.md)

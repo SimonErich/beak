@@ -1,6 +1,9 @@
 ---
 title: A multi-step form
 description: Project reusable sections into a validated wizard.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # A multi-step form
@@ -13,5 +16,5 @@ Configure a `BeakWizardScreen` from `BeakWizardStep` nodes, or project shared `B
 
 ## Continue reading
 
-- [Related guide](../panel/multi-step-forms.md)
+- [Related guide](../forms/multi-step-forms.md)
 - [All recipes](index.md)

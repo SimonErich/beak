@@ -1,6 +1,9 @@
 ---
 title: Shaping the panel
 description: Arrange resources, forms and custom content without rebuilding data plumbing.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
 # Shaping the panel
@@ -30,4 +33,4 @@ A resource declares global search sources and table filters with typed fields. R
 ## Continue reading
 
 - [Testing and shipping](06-auth-tests-and-shipping.md)
-- [Custom screens](../extending/custom-screens-and-pages.md)
+- [Custom screens](../panel/custom-screens.md)

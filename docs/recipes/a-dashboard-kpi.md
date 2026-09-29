@@ -1,6 +1,9 @@
 ---
 title: A dashboard KPI
 description: Load counts and monetary metrics on a custom page.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # A dashboard KPI

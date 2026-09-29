@@ -1,6 +1,9 @@
 ---
 title: Files and storage columns
 description: Declare managed upload fields and ordered media collections.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Files and storage columns
@@ -15,5 +18,5 @@ New local files belong to the draft until commitment. Cancelling a draft cleans 
 
 ## Continue reading
 
-- [Media galleries](../panel/media-galleries.md)
+- [Media galleries](../forms/uploads-and-galleries.md)
 - [Upload wiring](../backend/uploads-and-storage-wiring.md)

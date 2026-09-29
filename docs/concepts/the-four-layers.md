@@ -1,6 +1,9 @@
 ---
 title: The four layers
 description: Understand shared metadata, persistence, presentation and generation.
+type: concept
+audience: [expert]
+status: draft
 ---
 
 # The four layers

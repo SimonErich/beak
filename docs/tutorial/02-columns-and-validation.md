@@ -1,6 +1,9 @@
 ---
 title: Columns and validation
 description: Use typed fields, semantic metadata and shared model constraints.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
 # Columns and validation
@@ -28,4 +31,4 @@ Placement validators can add screen-specific feedback. They do not replace the s
 ## Continue reading
 
 - [Relationships](03-relationships.md)
-- [Validation rules](../models/validation-rules.md)
+- [Validation rules](../models/validation.md)

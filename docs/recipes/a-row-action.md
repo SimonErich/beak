@@ -1,6 +1,9 @@
 ---
 title: A row action
 description: Declare a server-owned transition once for forms and tables.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # A row action

@@ -1,9 +1,13 @@
 ---
-title: Validation rules reference
-description: Every BeakRule subclass, its constructor arguments, exactly what it validates, and the message it emits.
+title: Validation rules
+description: Look up every validation rule, its arguments, what it checks and the message it emits.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
-# Validation rules reference
+# Validation rules
 
 This page lists every validation rule Beak ships: its constructor, what it
 checks, which values pass untouched, and the exact message it returns on
@@ -319,8 +323,8 @@ const BeakMaxFileSize(this.maxSizeInBytes);
 
 ## Continue reading
 
-- [Column types reference](column-types.md) every column you attach these rules to.
+- [Column types reference](field-types.md) every column you attach these rules to.
 - [Annotations](annotations.md) `@Column(rules: [...])` and everything else a field can say.
-- [Validation rules](../models/validation-rules.md) the guided tour, with worked form examples.
+- [Validation rules](../models/validation.md) the guided tour, with worked form examples.
 - [The type-safety promise](../concepts/the-type-safety-promise.md) why one rule list drives both client and server.
-- [Security](../guides/security.md) how server-side validation backs up the client.
+- [Security](../shipping/security.md) how server-side validation backs up the client.

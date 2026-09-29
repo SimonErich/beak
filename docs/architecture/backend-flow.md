@@ -1,6 +1,9 @@
 ---
 title: Backend flow
-description: The Handler to Service to DataSource path on the server, the error-mapping catch boundary, and how the whole REST surface is generated from a registry.
+description: Follow a request through Handler, Service and DataSource and the single error catch boundary.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # Backend flow
@@ -62,7 +65,7 @@ A project that needs more than the defaults writes `lib/server.dart`, and the ge
 
 `BeakServer` composes the whole pipeline as a single Shelf `Handler`, outermost first.
 
-```dart title="packages/beak_backend/lib/src/server/beak_server.dart"
+```dart
 Handler get handler => const Pipeline()
     .addMiddleware(beakRequestLogMiddleware(onRequest: _onRequest))
     .addMiddleware(beakCorsMiddleware())
@@ -199,7 +202,7 @@ There are no per-model endpoint files. `beakApiRouter` walks the `BeakModelRegis
 --8<-- "packages/beak_backend/lib/src/endpoints/beak_resource_router.dart:beakResourceRouter"
 ```
 
-On top of these, `beakApiRouter` adds the global search endpoint (`GET /api/search`), the auth surface (mounted at `/api/auth` when auth is configured), CSV export routes, and per-column upload routes when storage is wired. Declaring a resource is all it takes to get its whole REST surface. See [The generated API](../backend/the-generated-api.md) for the endpoint list and payloads.
+On top of these, `beakApiRouter` adds the global search endpoint (`GET /api/search`), the auth surface (mounted at `/api/auth` when auth is configured), CSV export routes, and per-column upload routes when storage is wired. Declaring a resource is all it takes to get its whole REST surface. See [The generated API](../reference/rest-api.md) for the endpoint list and payloads.
 
 Two routes sit deliberately outside `/api`, mounted before everything else so the auth middleware cannot guard them:
 
@@ -212,5 +215,5 @@ When the local-disk upload driver is in use, its file-serving route is mounted t
 
 - [Frontend flow](frontend-flow.md) the mirror image on the client, where the repository plays the role the middleware plays here.
 - [The data source seam](data-source-seam.md) the `BeakDataSource` contract the service writes through.
-- [The generated API](../backend/the-generated-api.md) the routes this flow produces, with request and response shapes.
+- [The generated API](../reference/rest-api.md) the routes this flow produces, with request and response shapes.
 - [Running the server](../backend/running-the-server.md) `BeakServeHost` from a project's point of view, including the `lib/server.dart` override.

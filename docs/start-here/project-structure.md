@@ -1,6 +1,9 @@
 ---
 title: Project structure
 description: Separate model behavior, resource navigation and screen layout in one application.
+type: guide
+audience: [beginner, agent]
+status: draft
 ---
 
 # Project structure

@@ -1,6 +1,9 @@
 ---
 title: Custom blocks and widgets
 description: Embed custom widgets while sharing Beak's data, formatting, refresh and draft infrastructure.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Custom blocks and widgets
@@ -61,5 +64,5 @@ same `Oi*` controls as Beak, without Material or Cupertino dependencies.
 
 ## Continue reading
 
-- [Custom screens](custom-screens-and-pages.md).
+- [Custom screens](../panel/custom-screens.md).
 - [Dynamic attributes and variants](../models/dynamic-attributes-and-variants.md).

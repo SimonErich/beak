@@ -1,6 +1,9 @@
 ---
 title: Package graph
-description: Which Beak package depends on which, why beak_core sits at the base, and where worm and obers_ui are allowed to appear.
+description: See which package depends on which and where worm and obers_ui may appear.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # Package graph

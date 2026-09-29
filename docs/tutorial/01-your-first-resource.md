@@ -1,6 +1,9 @@
 ---
 title: Your first resource
 description: Define a shared schema and register its presentation in a panel.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
 # Your first resource

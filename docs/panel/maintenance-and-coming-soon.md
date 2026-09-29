@@ -1,6 +1,9 @@
 ---
 title: Maintenance and coming soon
 description: Use dedicated presentation states while controlling service access separately.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Maintenance and coming soon
@@ -12,4 +15,4 @@ A presentation screen does not stop API traffic. Coordinate actual maintenance w
 ## Continue reading
 
 - [Custom screens](custom-screens.md)
-- [Production deployment](../deployment/going-to-production.md)
+- [Production deployment](../shipping/going-to-production.md)

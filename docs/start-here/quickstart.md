@@ -1,6 +1,9 @@
 ---
 title: Quickstart
 description: Generate and run the minimal maintained Beak application.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
 # Quickstart
@@ -18,8 +21,8 @@ beak dev
 
 The generated project starts with a note schema. Add fields and relationships, run `beak prepare`, review generated migrations and apply them explicitly. Generation does not change the database on startup.
 
-```dart title="examples/quickstart/lib/models/note.dart"
---8<-- "examples/quickstart/lib/models/note.dart"
+```dart title="examples/quickstart/lib/resources/notes/models/note.dart"
+--8<-- "examples/quickstart/lib/resources/notes/models/note.dart"
 ```
 
 Generated `.beak.dart` parts contain typed fields and record readers. The `lib/beak/` files connect the registry, default panel and server. For an authored interface, pass a list of resources to `BeakPanel` and place layouts beside those resources. The [shop tutorial](../tutorial/index.md) demonstrates that structure.

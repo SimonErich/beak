@@ -1,6 +1,9 @@
 ---
 title: Dynamic attributes and variants
 description: Share attribute metadata between editors and validation, then preview and stage variant combinations.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Dynamic attributes and variants

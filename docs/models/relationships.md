@@ -1,6 +1,9 @@
 ---
 title: Relationships
 description: Declare typed connections and ownership for pickers and nested editing.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Relationships
@@ -19,5 +22,5 @@ Queries request eager relation loads explicitly. Related table and global-search
 
 ## Continue reading
 
-- [Forms](../panel/forms.md)
-- [Validation](validation-rules.md)
+- [Forms](../forms/form-screens.md)
+- [Validation](validation.md)

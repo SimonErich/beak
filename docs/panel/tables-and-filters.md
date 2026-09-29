@@ -1,6 +1,9 @@
 ---
 title: Tables and filters
 description: Configure typed list projections, permanent scopes and interactive filters.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Tables and filters
@@ -35,4 +38,4 @@ shared across toolbar controls, staged drawers and saved views.
 ## Continue reading
 
 - [Resources](resources.md)
-- [Imports and bulk edits](import-and-bulk-edit.md)
+- [Imports and bulk edits](../forms/imports-and-bulk-edits.md)

@@ -236,7 +236,7 @@ service-backed database/storage integrations.
 The full documentation lives in [`docs/`](docs/) and is published as a
 searchable site (MkDocs Material, deployed to GitHub Pages). Good places to start:
 
-- [**Start here**](docs/start-here/index.md): what Beak is, why it exists, and a
+- [**Start here**](docs/index.md): what Beak is, why it exists, and a
   quickstart.
 - [**Tutorial: First Flight**](docs/tutorial/index.md): build the store example
   one concept at a time.
@@ -246,11 +246,11 @@ searchable site (MkDocs Material, deployed to GitHub Pages). Good places to star
   field, REST route, and CLI command, plus a [cheatsheet](docs/reference/cheatsheet.md).
 - [**Architecture deep dive**](docs/architecture/index.md): the package graph,
   the layer flows, and the `BeakDataSource` seam.
-- [**Deployment**](docs/deployment/index.md): the real Docker setup under
+- [**Deployment**](docs/shipping/index.md): the real Docker setup under
   [`deploy/`](deploy/).
 
 Preview the site locally with
-`pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects && mkdocs serve`.
+`pip install -r docs/requirements.txt && mkdocs serve`.
 Every public API also carries dartdoc; run `dart doc` in any package to browse
 it.
 

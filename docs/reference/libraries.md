@@ -1,6 +1,10 @@
 ---
 title: Libraries
-description: The eight libraries of package:beak, what each one is for, and why the split matters.
+description: Look up the libraries of package:beak, what each is for and what it may import.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # Libraries

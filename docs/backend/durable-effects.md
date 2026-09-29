@@ -1,6 +1,9 @@
 ---
 title: Durable effects
 description: Commit application effects with a graph save and deliver them through a retryable outbox.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Durable effects

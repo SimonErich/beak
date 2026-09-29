@@ -1,6 +1,9 @@
 ---
 title: Record blocks
 description: Read formatted fields and relationships from a record context.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Record blocks
@@ -13,5 +16,5 @@ description: Read formatted fields and relationships from a record context.
 
 ## Continue reading
 
-- [Block reference](../reference/blocks-index.md)
+- [Block reference](../reference/blocks.md)
 - [Custom widgets](../extending/custom-blocks-and-widgets.md)

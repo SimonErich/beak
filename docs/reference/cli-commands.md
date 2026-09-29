@@ -1,6 +1,10 @@
 ---
 title: CLI commands
-description: Every beak CLI command, its flags, the files it writes, and its exit codes.
+description: Look up every beak command, its flags, the files it writes and its exit codes.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # CLI commands

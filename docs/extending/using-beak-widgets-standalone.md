@@ -1,6 +1,9 @@
 ---
 title: Using Beak widgets standalone
 description: Embed Beak's forms, tables and data blocks in an existing Flutter application.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Using Beak widgets standalone

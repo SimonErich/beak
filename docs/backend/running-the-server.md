@@ -1,6 +1,9 @@
 ---
 title: Running the server
 description: Run the generated Shelf host, configure it, and test the same API in isolation.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Running the server
@@ -23,7 +26,7 @@ dart run bin/serve.dart
 The default local API listens on port 8080. `DATABASE_URL`, `HOST` and `PORT`
 configure the database and socket. The default SQLite file is suitable for local
 development; a deployment should choose its persistent database explicitly.
-See [environment and configuration](../deployment/environment-and-config.md).
+See [environment and configuration](../shipping/environment-and-config.md).
 
 ## Customize the generated host
 

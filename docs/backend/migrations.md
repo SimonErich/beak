@@ -1,6 +1,9 @@
 ---
 title: Migrations
 description: Create schemas from model metadata and evolve existing data with explicit migrations.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Migrations

@@ -1,6 +1,9 @@
 ---
 title: How data flows
-description: How BeakQuerySpec carries a query across the wire, round-trips losslessly, and becomes a worm query on the server.
+description: Follow a query from a table to the database and a save from a form to a receipt.
+type: concept
+audience: [expert]
+status: draft
 ---
 
 # How data flows
@@ -287,7 +290,7 @@ spec is the whole of what they share.
 !!! question "What this skipped"
 
     Eager loads, nested relation loads, and soft-delete scoping each have more
-    detail than fits here. [The data source seam](../backend/the-data-source-seam.md)
+    detail than fits here. [The data source seam](../architecture/data-source-seam.md)
     covers `WormDataSource` and the translator, and
     [Relationships](../models/relationships.md) covers how relation loads read
     a model's declared relations.
@@ -296,9 +299,9 @@ spec is the whole of what they share.
 
 - [The four layers](the-four-layers.md) the layers that build, ship, and
   translate the spec on each side.
-- [The generated API](../backend/the-generated-api.md) the `POST /query` route
+- [The generated API](../reference/rest-api.md) the `POST /query` route
   and the rest of the surface a registered model gets.
-- [The data source seam](../backend/the-data-source-seam.md) `WormDataSource`,
+- [The data source seam](../architecture/data-source-seam.md) `WormDataSource`,
   the translator, and the interface both sides implement.
 - [Relationships](../models/relationships.md) the relation constants that
   `withRelation` reads keys from.

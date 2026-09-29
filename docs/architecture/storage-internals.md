@@ -1,6 +1,9 @@
 ---
 title: Storage internals
-description: How BeakStorageConfig resolves to a driver, why drivers sit behind thin transport seams, and how the shared validator and transform pipeline run.
+description: See how a storage config resolves to a driver and how the validator and transform pipeline run.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # Storage internals
@@ -261,4 +264,4 @@ The concrete runner lives in `beak_image`, where `ImageTransformRunner` executes
 - [Files and storage columns](../models/files-and-storage-columns.md) declaring image and file columns with rules and transforms.
 - [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) configuring storage on the server.
 - [Custom storage drivers](../extending/custom-storage-drivers.md) writing a driver behind its own transport seam.
-- [Security](../guides/security.md) the upload and key-validation surface in context.
+- [Security](../shipping/security.md) the upload and key-validation surface in context.

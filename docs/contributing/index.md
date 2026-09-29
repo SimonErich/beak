@@ -1,6 +1,9 @@
 ---
 title: Contributing
-description: Get from a fresh clone to a green gate, run the docs locally, and learn the four commands every change must pass.
+description: Get from a fresh clone to a green gate and learn the commands every change must pass.
+type: index
+audience: [contributor]
+status: draft
 ---
 
 # Contributing
@@ -36,7 +39,7 @@ dart pub global activate melos 6.3.3
 `melos bootstrap` fetches it for you and a plain clone of this repo is all
 you need. If your change spans both repositories, clone obers_ui beside this one
 and run `melos run link-obers-ui` to swap the pin for your working copy.
-[Working with obers_ui](../deployment/working-with-obers-ui.md) has the
+[Working with obers_ui](working-with-obers-ui.md) has the
 details.
 
 ## Setup
@@ -64,7 +67,7 @@ Local dev ports are remapped so they do not collide with default installs
 | pgweb          | `28081`   | database browser              |
 
 `melos run down` stops the services and drops their volumes. The
-[dev infrastructure](../deployment/dev-infrastructure.md) page explains the
+[dev infrastructure](dev-infrastructure.md) page explains the
 compose stack in full.
 
 ## The gate (Definition of Done)
@@ -124,26 +127,30 @@ and the patterns that reach them.
 
 ## Running the docs locally
 
-The site is MkDocs with the Material theme, the minify plugin, and the redirects
-plugin that keeps moved pages' old addresses working. Install the three Python
-packages, then serve with live reload:
+The site is MkDocs with the Material theme, the minify and redirects plugins
+(the redirects keep moved pages' old addresses working) and the llmstxt plugin
+that writes `/llms.txt`. `docs/requirements.txt` pins all of them. Install them
+into a virtual environment outside the repo, then serve with live reload:
 
 ```bash
-pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects
-mkdocs serve
+python3 -m venv ~/.venvs/beak-docs
+~/.venvs/beak-docs/bin/pip install -r docs/requirements.txt
+~/.venvs/beak-docs/bin/mkdocs serve
 ```
 
 `mkdocs serve` hosts the site at `http://127.0.0.1:8000` and rebuilds on save.
-Before opening a docs PR, build with the strict flag so a broken cross-link fails
-the build the way CI will:
+Before opening a docs PR, run the structural check and build with the strict
+flag, so a broken cross-link or a stale nav entry fails the way CI will:
 
 ```bash
-mkdocs build --strict
+dart run tool/check_docs.dart
+~/.venvs/beak-docs/bin/mkdocs build --strict
 ```
 
 Every cross-link in these pages is a relative path to a `.md` file; `--strict`
 turns any dangling link into an error, which is why the whole site stays
-connected.
+connected. `dart run tool/check_docs.dart --release` additionally fails while
+any page is still marked `status: draft`.
 
 ## Commits and pull requests
 
@@ -156,9 +163,22 @@ connected.
 
 The [Conventions](conventions.md) page has the full commit and review rules.
 
+## Which page to read
+
+| You want to… | Read | For |
+| --- | --- | --- |
+| Read the hard rules a change must satisfy: no Material, no type escape hatches and the layering | [Code guardrails](code-guardrails.md) | Reference for contributors and agents |
+| Follow the softer rules a reviewer looks for: commits, reuse, const and final, typed exceptions and tests | [Conventions](conventions.md) | Guide for contributors |
+| Find where tests live per package, the harness each one uses and the coverage floor | [Writing tests](writing-tests.md) | Guide for contributors |
+| Write and check docs pages: the style guide, page templates, snippets and the docs gate | [Writing docs](writing-docs.md) | Guide for contributors and agents |
+| Cut a release: versions, the changelog, the obers_ui pin and the docs bundle | [Releasing](releasing.md) | Guide for contributors |
+| Run the optional local Postgres and MinIO stack and know which suites need it | [Dev infrastructure](dev-infrastructure.md) | Guide for contributors |
+| Pin obers_ui by git commit and develop against a local checkout when you need to | [Working with obers_ui](working-with-obers-ui.md) | Guide for contributors |
+| See how Beak is built inside: the principles, the package graph, the two flows and the seams | [Architecture](../architecture/index.md) | Section, 11 pages |
+
 ## Continue reading
 
 - [Code guardrails](code-guardrails.md) the hard rules the analyzer and reviewers enforce.
 - [Conventions](conventions.md) commits, reuse-first, typed exceptions, and test style.
 - [Writing tests](writing-tests.md) where tests live and the patterns per package.
-- [Writing a storage driver](writing-a-storage-driver.md) the worked example of extending Beak.
+- [Writing a storage driver](../extending/custom-storage-drivers.md) the worked example of extending Beak.

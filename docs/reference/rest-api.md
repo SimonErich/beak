@@ -1,6 +1,10 @@
 ---
 title: REST API
-description: Every endpoint the Beak backend generates for a model, with request bodies, response shapes, status codes, and the shared error envelope.
+description: Look up every endpoint the backend generates, with request bodies, responses and the error envelope.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # REST API
@@ -470,7 +474,7 @@ in the body and returns `204`, gated by `canDeleteUpload`.
 `GET /api/search` searches every model the caller may view and groups the hits by
 table.
 
-```dart title="packages/beak_backend/lib/src/search/search_router.dart"
+```dart
   Future<Response> search(Request request) async {
     final String term = request.url.queryParameters['q'] ?? '';
     if (term.trim().isEmpty) {
@@ -581,12 +585,12 @@ surfaces as a `BeakValidationException` with its `fieldErrors` intact.
 
 ## Continue reading
 
-- [The generated API](../backend/the-generated-api.md) the same surface from the server's point of view, and how to compose it.
+- [The generated API](rest-api.md) the same surface from the server's point of view, and how to compose it.
 - [Auth and policies](../backend/auth-and-policies.md) how a policy turns into the `401`/`403` you see above.
 - [Search and export](../backend/search-and-export.md) the services behind `/api/search` and `/export`.
 - [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) what the upload routes store and where.
 - [Exceptions](exceptions.md) the full `BeakException` family behind the error envelope.
-- [Configuration options](configuration-options.md) the env vars and config objects that stand this server up.
+- [Configuration options](configuration.md) the env vars and config objects that stand this server up.
 
 
 ## Resolving and discarding uploads

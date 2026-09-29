@@ -1,6 +1,9 @@
 ---
 title: Extending Beak
-description: When config runs out, drop to Flutter through a typed escape hatch without forking Beak.
+description: Drop to Flutter through a typed escape hatch when configuration runs out, without forking Beak.
+type: index
+audience: [expert]
+status: draft
 ---
 
 # Extending Beak
@@ -34,7 +37,7 @@ the rest of the framework holds:
 | --- | --- | --- |
 | A custom column | a table or detail cell needs a widget no built-in column renders (a sparkline, a bespoke status pill). | [Custom columns](custom-columns.md) |
 | A widget block | a page needs a subtree no block in the union covers. | [Custom blocks and widgets](custom-blocks-and-widgets.md) |
-| A custom screen | you want a whole free-form page, not a resource's generated CRUD. | [Custom screens and pages](custom-screens-and-pages.md) |
+| A custom screen | you want a whole free-form page, not a resource's generated CRUD. | [Custom screens and pages](../panel/custom-screens.md) |
 | A model-owned transport | resources use an existing backend and share live permissions or separate write commands. | [Model-owned transports](model-transports.md) |
 | A custom data source | your records live behind something other than the generated REST API. | [Custom data sources](custom-data-sources.md) |
 | A custom storage driver | uploaded files belong in a store beyond memory, local disk, S3, or FTP. | [Custom storage drivers](custom-storage-drivers.md) |
@@ -42,7 +45,7 @@ the rest of the framework holds:
 
 !!! tip "Try the typed path first"
     Before you open a hatch, check whether config already does it. A
-    [rich column type](../models/column-types.md), a
+    [rich column type](../models/fields.md), a
     [typed block](../blocks/index.md), or a
     [view mode](../panel/view-modes.md) keeps the one-definition guarantees the
     hatches trade away. The hatch is the answer when the typed path genuinely has
@@ -63,7 +66,7 @@ wiring, so an extension is picked up by living in the file the convention names.
 
 Each of those files receives what Beak derived and returns what you want, so it
 compiles and changes nothing until your first edit. `beak eject <part>` writes
-the starter for you. [Escape hatches](../models/escape-hatches.md) covers the
+the starter for you. [Escape hatches](index.md) covers the
 narrower ones (a single resource, a hand-written `BeakModel`, a table another
 system owns) in full.
 
@@ -87,10 +90,21 @@ lives.
 Widget blocks and screens sit between the two: they take a `WidgetBuilder` or a
 `BeakBlock` body, which is Flutter itself, framed by Beak's chrome.
 
+## Which page to read
+
+| You want to… | Read | For |
+| --- | --- | --- |
+| Render a table or detail cell with any obers_ui widget by pairing a @Custom field with a registered renderer | [Custom columns](custom-columns.md) | Guide for experts |
+| Embed custom widgets while sharing Beak's data, formatting, refresh and draft infrastructure | [Custom blocks and widgets](custom-blocks-and-widgets.md) | Guide for experts |
+| Implement the ten methods of BeakDataSource to back Beak with any store, prove it with the shipped contract suite, and keep the Serverpod seam open | [Custom data sources](custom-data-sources.md) | Guide for experts |
+| Bind an existing backend to Beak models, share live permissions, and configure commands and archive actions without duplicating panel wiring | [Model-owned transports](model-transports.md) | Guide for experts |
+| Implement BeakStorageDriver's six members, hide the wire behind a thin transport seam, and register the driver so an environment variable selects it | [Custom storage drivers](custom-storage-drivers.md) | Guide for experts and contributors |
+| Embed Beak's forms, tables and data blocks in an existing Flutter application | [Using Beak widgets standalone](using-beak-widgets-standalone.md) | Guide for experts |
+
 ## Continue reading
 
 - [Custom columns](custom-columns.md) render any cell with a registered builder.
 - [Custom blocks and widgets](custom-blocks-and-widgets.md) drop a raw `obers_ui` subtree into a block tree.
-- [Custom screens and pages](custom-screens-and-pages.md) add whole free-form pages to the panel.
-- [Escape hatches](../models/escape-hatches.md) the four convention files, narrowest first.
+- [Custom screens and pages](../panel/custom-screens.md) add whole free-form pages to the panel.
+- [Escape hatches](index.md) the four convention files, narrowest first.
 - [The block system](../concepts/the-block-system.md) the declarative vocabulary the hatches fall back from.

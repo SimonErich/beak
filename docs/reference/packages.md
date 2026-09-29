@@ -1,6 +1,10 @@
 ---
 title: Packages
-description: The beak umbrella and the packages behind it, what each one owns, which ones an app installs, and the four examples that exercise them.
+description: Look up the packages behind Beak, what each owns and which ones an app installs.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # Packages
@@ -138,7 +142,7 @@ not a fixture, and the docs quote them rather than inventing code.
 Every package shares one pre-1.0 version line and moves together. Each barrel
 exports its own version constant, so you can assert against it at runtime:
 
-```dart title="packages/beak_core/lib/beak_core.dart"
+```dart
 const String beakCoreVersion = '0.0.1';
 ```
 

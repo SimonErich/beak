@@ -1,6 +1,9 @@
 ---
 title: Why Beak?
 description: Understand where declarative configuration reduces repeated admin work.
+type: concept
+audience: [beginner, expert]
+status: draft
 ---
 
 # Why Beak?

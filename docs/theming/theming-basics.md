@@ -1,6 +1,9 @@
 ---
 title: Theming basics
 description: Set light and dark themes once at the panel boundary.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Theming basics

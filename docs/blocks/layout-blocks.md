@@ -1,6 +1,9 @@
 ---
 title: Layout blocks
 description: Arrange custom pages with columns, grids, cards and tabs.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Layout blocks
@@ -32,5 +35,5 @@ different minimum for compact content. Grids configured with
 
 ## Continue reading
 
-- [Block reference](../reference/blocks-index.md)
+- [Block reference](../reference/blocks.md)
 - [Custom widgets](../extending/custom-blocks-and-widgets.md)

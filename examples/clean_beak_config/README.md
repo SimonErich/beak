@@ -148,7 +148,7 @@ exact decimals and lists across HTTP/SQLite round trips. `ProductImage` and
 `ProductModel.images.galleryForm(...)` demonstrate an owned ordered gallery.
 
 See [semantic fields](../../docs/models/semantic-fields.md) and
-[uploads and galleries](../../docs/panel/media-galleries.md) for contracts and
+[uploads and galleries](../../docs/forms/uploads-and-galleries.md) for contracts and
 custom-transport extension points. Category attribute editors follow their selected
 definition's type while preserving the shop's existing string storage.
 
@@ -186,6 +186,6 @@ reads, relationship candidates and calculated patches. It does not implement its
 own graph overlay, persistence order or receipt protocol. `ShopTotals` remains the
 pure shared domain calculator.
 
-See [custom screens](../../docs/extending/custom-screens-and-pages.md),
+See [custom screens](../../docs/panel/custom-screens.md),
 [embedded widgets](../../docs/extending/custom-blocks-and-widgets.md), and
 [attributes and variants](../../docs/models/dynamic-attributes-and-variants.md).

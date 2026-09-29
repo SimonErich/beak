@@ -1,6 +1,9 @@
 ---
 title: Overlays
-description: The declarative overlay handle for confirmations, modals, value-returning dialogs, side sheets, and toasts, reached from an action's context.
+description: Open confirmations, modals, dialogs, side sheets and toasts from an action context.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Overlays

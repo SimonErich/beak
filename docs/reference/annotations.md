@@ -1,6 +1,10 @@
 ---
 title: Annotations
-description: Every annotation a schema class can carry, what it changes, and the Dart type each one applies to.
+description: Look up every annotation a schema class can carry, what it changes and where it applies.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # Annotations
@@ -167,5 +171,5 @@ for "long text" or "an uploaded image":
 ## Continue reading
 
 - [beak.yaml](beak-yaml.md) the presentation decisions that live outside the code.
-- [Column types](column-types.md) every column kind and the options it takes.
+- [Column types](field-types.md) every column kind and the options it takes.
 - [Validation rules](validation-rules.md) the rules you attach with `rules:`.

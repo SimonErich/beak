@@ -1,6 +1,9 @@
 ---
 title: Principles
-description: The invariants every part of Beak obeys, from define-once to no lazy loading, and why each one exists.
+description: Read the invariants every part of Beak obeys, from define-once to no lazy loading, and why.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # Principles

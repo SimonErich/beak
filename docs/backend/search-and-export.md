@@ -1,6 +1,9 @@
 ---
 title: Search and export
 description: Use typed search sources and export authorized records with a shared display policy.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Search and export

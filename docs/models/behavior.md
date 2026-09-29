@@ -1,6 +1,9 @@
 ---
 title: Model behavior
 description: Declare value lifecycles, shared guards and named business actions on the schema.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Model behavior

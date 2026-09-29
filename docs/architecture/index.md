@@ -1,9 +1,12 @@
 ---
-title: Architecture deep dive
-description: How Beak is built inside, for readers who want the principles behind the config, one page per seam.
+title: Architecture
+description: "See how Beak is built inside: the principles, the package graph, the two flows and the seams."
+type: index
+audience: [contributor, expert]
+status: draft
 ---
 
-# Architecture deep dive
+# Architecture
 
 This section is for the reader who wants to know why Beak is shaped the way it is: where a change belongs, which package owns which idea, and how a request travels from a table cell to the database and back. If you only want to ship a panel, the [Core concepts](../concepts/index.md) section is enough. Stay here if you want to extend Beak, review it, or trust it.
 
@@ -52,6 +55,21 @@ flowchart LR
 The client half never imports Shelf or worm. The server half never imports obers_ui or Flutter. The box in the middle, the serializable spec, is the only thing that crosses the wire, and it is pure `beak_core`, which you import as `package:beak/beak.dart`.
 
 That split is why the libraries are split. A model file imports `beak.dart` and `schema.dart` and nothing else, because `bin/serve.dart` reaches it through the generated registry, and a `dart:ui` import anywhere on that path would stop the server compiling ahead of time. See [Libraries](../reference/libraries.md) for the eight import points and what each one is allowed to reach.
+
+## Which page to read
+
+| You want to… | Read | For |
+| --- | --- | --- |
+| Read the invariants every part of Beak obeys, from define-once to no lazy loading, and why | [Principles](principles.md) | Concept for contributors and experts |
+| See which package depends on which and where worm and obers_ui may appear | [Package graph](package-graph.md) | Concept for contributors and experts |
+| Follow a request through Handler, Service and DataSource and the single error catch boundary | [Backend flow](backend-flow.md) | Concept for contributors and experts |
+| Follow the Widget, ViewModel, Repository and DataSource path, Signals state and the result boundary | [Frontend flow](frontend-flow.md) | Concept for contributors and experts |
+| See how the query spec, filters and values serialize losslessly and become a worm query | [The query contract](query-contract.md) | Concept for contributors and experts |
+| See how a graph save is planned, validated, committed transactionally and receipted | [Graph commits](graph-commits.md) | Concept for contributors and experts |
+| See how BeakDataSource lets the panel and the server run the same operations over worm, HTTP and Serverpod | [The data source seam](data-source-seam.md) | Concept for contributors and experts |
+| See how beak prepare discovers schemas, reads them and emits code and migrations | [Code generation](code-generation.md) | Concept for contributors |
+| See how one sealed block union and a single host render pages, view modes, detail views and forms | [Block system internals](block-system-internals.md) | Concept for contributors and experts |
+| See how a storage config resolves to a driver and how the validator and transform pipeline run | [Storage internals](storage-internals.md) | Concept for contributors and experts |
 
 ## Continue reading
 

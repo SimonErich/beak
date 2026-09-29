@@ -1,6 +1,9 @@
 ---
 title: The type-safety promise
 description: Use generated fields and typed values across queries and drafts.
+type: concept
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # The type-safety promise

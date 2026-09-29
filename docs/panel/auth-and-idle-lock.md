@@ -1,6 +1,9 @@
 ---
 title: Auth and idle-lock
 description: Configure Beak-owned login, registration and password recovery over one backend session authority.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Auth and idle-lock
@@ -141,7 +144,7 @@ identity preserves form controllers when access still allows the route.
 `ReferenceCache` invalidates cached relationship labels on auth-state changes;
 late responses from the previous account cannot populate the new account's
 cache. Persisted drafts need an account-specific storage context as described in
-[Drafts and review](drafts-and-review.md).
+[Drafts and review](../forms/drafts-and-review.md).
 
 The shell supplies a localized logout action when authentication is configured
 and `shellActions` is null. Supplying `shellActions` replaces that default;
@@ -172,5 +175,5 @@ flutter test
 ## Continue reading
 
 - [Auth and policies](../backend/auth-and-policies.md)
-- [The navigation shell](the-navigation-shell.md)
-- [Configuration options](../reference/configuration-options.md)
+- [The navigation shell](navigation.md)
+- [Configuration options](../reference/configuration.md)

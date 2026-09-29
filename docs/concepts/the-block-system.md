@@ -1,6 +1,9 @@
 ---
 title: The block system
 description: Separate custom page composition from draft-based forms.
+type: concept
+audience: [beginner, expert]
+status: draft
 ---
 
 # The block system
@@ -16,4 +19,4 @@ Blocks remain useful for dashboards, read views and specialized modules. Editing
 ## Continue reading
 
 - [Block catalog](../blocks/index.md)
-- [Forms](../panel/forms.md)
+- [Forms](../forms/form-screens.md)

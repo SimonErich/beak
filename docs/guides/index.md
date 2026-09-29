@@ -1,44 +1,33 @@
 ---
 title: Guides
-description: Task-focused recipes for testing, working with AI agents, performance, and security in a Beak project.
+description: Find the guide for your task, from models and forms to the backend, testing and recipes.
+type: index
+audience: [beginner, expert]
+status: stable
 ---
 
 # Guides
 
-The rest of the docs teach Beak one concept at a time. This section is the other
-way in: short, task-shaped guides you reach for when you already know roughly
-what you want and need the recipe. After this page you know which guide answers
-which question.
+Task-shaped pages for building a Beak panel and its backend. Each area below has a page to start with. If you want the reasons before the recipes, read the [Learn](../learn/index.md) tab first.
 
-## What is here
+The canonical application is [`examples/clean_beak_config`](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config). Framework-level guides also cite focused package implementations and tests.
 
-Each guide stands on its own. Read the one that matches the job in front of you.
+## Which page to read
 
-| Guide | Read it when you want to |
-| --- | --- |
-| [Testing](testing.md) | Prove a resource works without a live server: render the panel against `InMemoryBeakDataSource`, count a screen's round-trips with `BeakRecordingDataSource`, and boot your real API on `sqlite::memory:`. |
-| [Working with AI agents](working-with-ai-agents.md) | Point a coding agent at the `AGENTS.md` `beak create` wrote, have it add a resource as one annotated class, and rely on the analyzer and `beak doctor` to catch what it gets wrong. |
-| [Performance](performance.md) | Keep pages fast: a list page and a show page each cost one query with their relations, aggregates run in the database, and relation managers page their rows. |
-| [Security](security.md) | Close the seams in `lib/server.dart`: the auth guard, the policy, a row scope that narrows which rows a principal sees, upload validation, and CORS. |
-| [Recipes](../recipes/index.md) | Grab a copy-paste answer to a recurring task (a row action, a KPI, a kanban board, a picker, a CSV export) without reading a whole concept page. One page per recipe. |
-
-## How the guides relate to the rest of the docs
-
-A guide is a shortcut, not a replacement. Where a guide leans on a concept, it
-links to the page that explains it. Testing points at
-[Results and errors](../concepts/results-and-errors.md) for the exception family
-it asserts on. Working with AI agents points at
-[Defining a resource](../models/defining-models.md) for the one class an agent
-writes. Follow the link when you want the why behind the recipe.
-
-The canonical application is [`examples/clean_beak_config`](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
-Framework-specific guides also cite focused package implementations and tests.
+| You want to… | Read | For |
+| --- | --- | --- |
+| Define shared data, constraints and behavior once | [Models](../models/index.md) | Section, 10 pages |
+| Compose resource screens, workflows and custom pages | [The panel](../panel/index.md) | Section, 12 pages |
+| Route between form screens, inputs, related records, wizards, detail views, drafts and uploads | [Forms and records](../forms/index.md) | Section, 11 pages |
+| Compose custom page content from typed descriptions | [Blocks and charts](../blocks/index.md) | Section, 9 pages |
+| Style the panel: themes, colors, type, icons, and how values are formatted | [Theming and formatting](../theming/index.md) | Section, 5 pages |
+| See what the generated server gives you: routes, layers and the pages that configure each part | [The backend](../backend/index.md) | Section, 11 pages |
+| Drop to Flutter through a typed escape hatch when configuration runs out, without forking Beak | [Extending Beak](../extending/index.md) | Section, 7 pages |
+| Test a Beak project, then ship it: configuration, production images, security and performance | [Testing and shipping](../shipping/index.md) | Section, 6 pages |
+| Find a maintained configuration for a common admin task | [Recipes](../recipes/index.md) | Section, 15 pages |
 
 ## Continue reading
 
-- [Testing](testing.md) the test seams every Beak package is built on.
-- [Working with AI agents](working-with-ai-agents.md) why config-over-code is a
-  good fit for a coding agent.
-- [Performance](performance.md) how many queries each surface costs, and why.
-- [Security](security.md) the auth, policy, row-scope, and upload guards worth
-  knowing before you ship.
+- [Models](../models/index.md): Define shared data, constraints and behavior once.
+- [The panel](../panel/index.md): Compose resource screens, workflows and custom pages.
+- [Forms and records](../forms/index.md): Route between form screens, inputs, related records, wizards, detail views, drafts and uploads.

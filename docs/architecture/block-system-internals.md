@@ -1,6 +1,9 @@
 ---
 title: Block system internals
-description: How one sealed BeakBlock union and a single exhaustive BeakBlockHost render custom pages, view modes, detail, and forms.
+description: See how one sealed block union and a single host render pages, view modes, detail views and forms.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # Block system internals
@@ -153,5 +156,5 @@ The `BeakTabsBlock` stays a `const` description of tabs; the private host holds 
 - [The block system](../concepts/the-block-system.md) the same idea at concept level, with the three consumers.
 - [Blocks overview](../blocks/index.md) the full catalog of block types.
 - [Record blocks](../blocks/record-blocks.md) read-only field and group blocks, and relationship presentation.
-- [Detail views and dual-mode blocks](../panel/detail-and-dual-mode.md) using a configured form for read and edit roles.
-- [The widget escape hatch](../blocks/the-widget-escape-hatch.md) dropping to a raw widget when a block will not do.
+- [Detail views and dual-mode blocks](../forms/detail-views.md) using a configured form for read and edit roles.
+- [The widget escape hatch](../extending/custom-blocks-and-widgets.md) dropping to a raw widget when a block will not do.

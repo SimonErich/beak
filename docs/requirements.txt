@@ -1,0 +1,8 @@
+# The exact toolchain the docs build with, locally and in .github/workflows/docs.yml.
+# Install into a virtual environment outside the repo:
+#   python3 -m venv ~/.venvs/beak-docs && ~/.venvs/beak-docs/bin/pip install -r docs/requirements.txt
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-minify-plugin==0.8.0
+mkdocs-redirects==1.2.3
+mkdocs-llmstxt==0.5.0

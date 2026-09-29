@@ -1,6 +1,9 @@
 ---
 title: The data source seam
-description: How BeakDataSource lets the panel and the server run the same operations over Worm, HTTP and typed Serverpod operations.
+description: See how BeakDataSource lets the panel and the server run the same operations over worm, HTTP and Serverpod.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # The data source seam
@@ -221,8 +224,8 @@ Hold those three lines and the framework stays layered: a change to the ORM cann
 
 ## Continue reading
 
-- [The data source seam (backend view)](../backend/the-data-source-seam.md) how the server wires a `WormDataSource` over an adapter.
+- [The data source seam (backend view)](data-source-seam.md) how the server wires a `WormDataSource` over an adapter.
 - [Custom data sources](../extending/custom-data-sources.md) writing your own implementation of the interface.
 - [The query contract](query-contract.md) the `BeakQuerySpec` the seam consumes.
-- [Testing](../guides/testing.md) `InMemoryBeakDataSource`, the recording source, and the contract suite in practice.
+- [Testing](../shipping/testing.md) `InMemoryBeakDataSource`, the recording source, and the contract suite in practice.
 - [The four layers](../concepts/the-four-layers.md) where the data source sits in each flow.

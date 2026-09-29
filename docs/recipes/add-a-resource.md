@@ -1,6 +1,9 @@
 ---
 title: Add a resource
 description: Declare a schema and register its screen configuration.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # Add a resource

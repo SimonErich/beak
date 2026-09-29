@@ -1,6 +1,10 @@
 ---
 title: Exceptions
-description: The sealed BeakException family, each variant's stable code, the HTTP status it maps to, and when Beak throws it.
+description: Look up the exception family, each stable code, its HTTP status and when Beak throws it.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # Exceptions
@@ -32,7 +36,7 @@ form or toast can show.
 
 | Exception | `code` | HTTP status | Beak throws it when |
 | --- | --- | --- | --- |
-| `BeakValidationException` | `validation` | 422 | user-supplied data violates one or more column [rules](../models/validation-rules.md); carries per-field errors |
+| `BeakValidationException` | `validation` | 422 | user-supplied data violates one or more column [rules](../models/validation.md); carries per-field errors |
 | `BeakNotFoundException` | `not_found` | 404 | a requested record or resource does not exist for the given id |
 | `BeakAuthenticationException` | `authentication` | 401 | the request carries no valid identity: missing, invalid, or expired credentials |
 | `BeakAuthorizationException` | `authorization` | 403 | the authenticated principal is not allowed to perform the operation |
@@ -155,7 +159,7 @@ A [policy](../backend/auth-and-policies.md) denies an action to a signed-in
 principal. Note how the same guard picks the right exception based on whether a
 principal is present at all:
 
-```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
+```dart
 if (principal == null) {
   throw BeakAuthenticationException('Sign in to $action "$table".');
 }
@@ -187,7 +191,7 @@ final class BeakConfigurationException extends BeakException {
 }
 ```
 
-A developer mistake, not a user one: a [registry](../models/the-registry.md)
+A developer mistake, not a user one: a [registry](../models/generated-code.md)
 lookup for an unregistered table, a duplicate column key, a missing environment
 variable. It maps to `500` because it means the deployment is misconfigured. This
 is also the fallback the client decoder uses for an unrecognized error `code`.

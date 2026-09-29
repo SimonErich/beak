@@ -1,6 +1,9 @@
 ---
 title: Hide a resource
 description: Keep related models registered without adding navigation.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # Hide a resource

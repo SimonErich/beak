@@ -1,6 +1,9 @@
 ---
 title: Generated code
 description: Understand generated fields, record readers and preserved authored files.
+type: guide
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # Generated code

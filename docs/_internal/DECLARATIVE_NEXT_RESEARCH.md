@@ -13,9 +13,9 @@ APIs, use the maintained guides linked here rather than the proposal vocabulary.
   typed arguments, transactional validation, receipts and account capabilities.
 - [Relationships](../models/relationships.md): inferred eligibility and resource
   presentation defaults, owned drafts and typed candidate graphs.
-- [Drafts and review](../panel/drafts-and-review.md): storage, conflict resolution,
+- [Drafts and review](../forms/drafts-and-review.md): storage, conflict resolution,
   review and an explain inspector around the existing form session.
-- [Imports and bulk edits](../panel/import-and-bulk-edit.md): validation previews,
+- [Imports and bulk edits](../forms/imports-and-bulk-edits.md): validation previews,
   revisions, cancellation and per-record receipt recovery.
 - [Dynamic attributes and variants](../models/dynamic-attributes-and-variants.md):
   shared descriptors, reconciliation and bounded combination staging.

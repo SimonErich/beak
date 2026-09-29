@@ -1,6 +1,9 @@
 ---
 title: Frontend flow
-description: The generated wiring, the Widget to ViewModel to Repository to DataSource path, Signals state, the BeakResult catch boundary, and package-scoped GetIt.
+description: Follow the Widget, ViewModel, Repository and DataSource path, Signals state and the result boundary.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # Frontend flow
@@ -76,7 +79,7 @@ abstract base class BeakViewModel {
 
 `TableViewModel` is the concrete example. It owns the query spec, the current page, a loading flag, and the last error, each as a `ReadonlySignal`. A changed sort or filter intent rewrites the `BeakQuerySpec` and refetches through the repository. Repeating an unchanged intent sends no request; explicit refreshes and mutation refreshes always fetch fresh data. Note that it switches on a `BeakResult`; it does not catch.
 
-```dart title="packages/beak_frontend/lib/src/table/table_view_model.dart"
+```dart
 Future<void> refresh() async {
   if (isDisposed) return;
   final int requestId = ++_latestRequestId;
@@ -196,7 +199,7 @@ final GetIt beakLocator = GetIt.asNewInstance();
 
 `registerBeakDependencies` populates the chosen container from a `BeakPanelConfig`: the model registry, the `BeakClient` pointed at `apiBaseUrl`, the session store, the `BeakDataSource`, a reference cache, and the theme controller. Registration is synchronous, because the router built right after reads the locator on its first frame, and it allows reassignment so hot restarts and tests can call it repeatedly.
 
-```dart title="packages/beak_frontend/lib/src/di/beak_locator.dart"
+```dart
   final source = ModelBeakDataSource(
     registry: registry,
     fallback: fallback,

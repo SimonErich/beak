@@ -1,6 +1,9 @@
 ---
 title: Custom screens
 description: Compose dashboards and complete custom application screens from Beak blocks and widgets.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Custom screens
@@ -22,12 +25,12 @@ specific resource route. A custom widget inside an otherwise ordinary form uses
 `BeakFormWidget` and the existing draft session, so custom interactions still take
 part in save, cancel and validation.
 
-See [custom screens and pages](../extending/custom-screens-and-pages.md) for route
+See [custom screens and pages](custom-screens.md) for route
 options, [custom blocks and widgets](../extending/custom-blocks-and-widgets.md) for
 the embedded-widget example, and [dynamic attributes and variants](../models/dynamic-attributes-and-variants.md)
 for a custom editor that stages owned relationships.
 
 ## Continue reading
 
-- [Custom pages](../extending/custom-screens-and-pages.md).
+- [Custom pages](custom-screens.md).
 - [Custom widgets](../extending/custom-blocks-and-widgets.md).

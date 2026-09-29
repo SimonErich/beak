@@ -1,6 +1,10 @@
 ---
 title: Cheatsheet
 description: Find the configuration entrypoint for each common task.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # Cheatsheet
@@ -31,5 +35,5 @@ Generated fields are shared across these declarations. See each guide for the st
 
 ## Continue reading
 
-- [Forms](../panel/forms.md)
+- [Forms](../forms/form-screens.md)
 - [Model behavior](../models/behavior.md)

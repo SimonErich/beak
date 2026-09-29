@@ -1,6 +1,9 @@
 ---
 title: Module blocks
 description: Configure specialized calendar, kanban, inbox and file views.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Module blocks
@@ -13,5 +16,5 @@ Module blocks expose typed field mappings and callbacks for task-specific interf
 
 ## Continue reading
 
-- [Block reference](../reference/blocks-index.md)
+- [Block reference](../reference/blocks.md)
 - [Custom widgets](../extending/custom-blocks-and-widgets.md)

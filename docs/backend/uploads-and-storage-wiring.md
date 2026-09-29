@@ -1,6 +1,9 @@
 ---
 title: Uploads and storage wiring
-description: How a file column becomes an upload endpoint, the validate-transform-store pipeline each upload runs, and how you pick a storage driver with one environment variable.
+description: Turn a file column into an upload endpoint and choose a storage driver with one environment variable.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Uploads and storage wiring
@@ -17,7 +20,7 @@ and that is what wires into an endpoint here.
 
 The canonical shop declares its upload in `resources/products/models/product_image.dart`
 and places the owned collection with `ProductModel.images.galleryForm(...)`.
-See [uploads and galleries](../panel/media-galleries.md) for the complete example.
+See [uploads and galleries](../forms/uploads-and-galleries.md) for the complete example.
 
 `beak prepare` turns that into a `BeakImageColumn` on the generated model, which
 is what the upload service reads its rules from.
@@ -245,7 +248,7 @@ in the message.
 The repo's docker-compose stack ships a MinIO container, and the committed
 `.env.example` points at it with path-style on, so `melos run up` plus the sample
 values gives you a working S3-compatible target locally. See
-[Environment and config](../deployment/environment-and-config.md) for the full
+[Environment and config](../shipping/environment-and-config.md) for the full
 variable list.
 
 ## Turning uploads on
@@ -282,7 +285,7 @@ The driver goes into `BeakServer`, which builds the `UploadService` and register
 the upload routes for every model with a file column. A `null` driver means no
 upload endpoints at all.
 
-```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+```dart
 Future<HttpServer> serve() async {
   await initializeWormPostgres(config);
   final server = buildServer(
@@ -307,7 +310,7 @@ which the host reads as `storageRegistry`.
   ties the driver in.
 - [Custom storage drivers](../extending/custom-storage-drivers.md) writing a
   driver for a backend Beak does not ship.
-- [Environment and config](../deployment/environment-and-config.md) every
+- [Environment and config](../shipping/environment-and-config.md) every
   `BEAK_*` variable, including the storage set.
 - [Auth and policies](auth-and-policies.md) the `canCreate` and
   `canDeleteUpload` gates on the upload routes.

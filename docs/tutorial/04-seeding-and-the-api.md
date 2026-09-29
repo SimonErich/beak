@@ -1,6 +1,9 @@
 ---
 title: Seeding and the API
 description: Run the maintained shop against its generated server and SQLite database.
+type: tutorial
+audience: [beginner]
+status: draft
 ---
 
 # Seeding and the API

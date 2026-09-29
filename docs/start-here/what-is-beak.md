@@ -1,6 +1,9 @@
 ---
 title: What is Beak?
 description: Build Dart and Flutter admin interfaces from shared model and screen configuration.
+type: concept
+audience: [beginner]
+status: draft
 ---
 
 # What is Beak?

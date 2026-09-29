@@ -1,6 +1,9 @@
 ---
 title: View modes
 description: Keep shared model behavior while choosing a task-specific presentation.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # View modes

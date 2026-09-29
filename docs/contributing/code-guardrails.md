@@ -1,6 +1,9 @@
 ---
 title: Code guardrails
-description: The hard rules a change must satisfy: no Material, no type escape hatches, the fixed widget stack, the layering, and the source-agnostic seam.
+description: "Read the hard rules a change must satisfy: no Material, no type escape hatches and the layering."
+type: reference
+audience: [contributor, agent]
+status: draft
 ---
 
 # Code guardrails

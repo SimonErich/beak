@@ -1,6 +1,9 @@
 ---
 title: The backend
-description: How beak_backend turns a model registry into a full Shelf REST server through the Handler, Service, and DataSource layers.
+description: "See what the generated server gives you: routes, layers and the pages that configure each part."
+type: index
+audience: [beginner, expert]
+status: draft
 ---
 
 # The backend
@@ -21,7 +24,7 @@ Registering a model is all it takes to get its API. There is no second step wher
 declare routes. `beakApiRouter` walks the registry and mounts a full resource router
 per model, so the surface is a pure function of what you registered.
 
-```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
+```dart
   for (final model in registry.all) {
     final service = BeakResourceService(
       model,
@@ -102,13 +105,13 @@ default backend implementation is `WormDataSource`, built on the worm ORM. Becau
 handlers and services only ever see the interface, worm types never leak past
 `beak_backend`. A future data source (a different ORM, a remote API) can slot in
 without the handler or service layer noticing. That is
-[the data source seam](the-data-source-seam.md).
+[the data source seam](../architecture/data-source-seam.md).
 
 ## What is in this section
 
 - [Running the server](running-the-server.md): config from the environment, connecting
   worm to Postgres, and the `main()` that boots the reference backend.
-- [The generated API](the-generated-api.md): every route `beakApiRouter` and
+- [The generated API](../reference/rest-api.md): every route `beakApiRouter` and
   `beakResourceRouter` mount, per model.
 - [Transactional business rules](graph-business-rules.md): authoritative rules for complete record graphs.
 - [Migrations](migrations.md): the explicit, registered schema changes worm applies.
@@ -118,13 +121,28 @@ without the handler or service layer noticing. That is
 - [Search and export](search-and-export.md): the global search endpoint and CSV export.
 - [Uploads and storage wiring](uploads-and-storage-wiring.md): file columns, the upload
   endpoints, and picking a storage driver.
-- [The data source seam](the-data-source-seam.md): how `BeakDataSource` keeps worm
+- [The data source seam](../architecture/data-source-seam.md): how `BeakDataSource` keeps worm
   isolated.
 - [Middleware](middleware.md): the request pipeline and the single catch boundary.
+
+## Which page to read
+
+| You want to… | Read | For |
+| --- | --- | --- |
+| Run the generated Shelf host, configure it, and test the same API in isolation | [Running the server](running-the-server.md) | Guide for beginners and experts |
+| Run on SQLite by default, or point DATABASE_URL at Postgres | [Databases](databases.md) | Guide for beginners and experts |
+| Create schemas from model metadata and evolve existing data with explicit migrations | [Migrations](migrations.md) | Guide for beginners and experts |
+| Populate repeatable development fixtures while preserving existing records | [Seeding](seeding.md) | Guide for beginners |
+| Enforce account, row, action and field access on the server | [Auth and policies](auth-and-policies.md) | Guide for experts |
+| Prepare a typed candidate graph while preserving validation, authorization and idempotency | [Transactional business rules](graph-business-rules.md) | Guide for experts |
+| Commit application effects with a graph save and deliver them through a retryable outbox | [Durable effects](durable-effects.md) | Guide for experts |
+| Use typed search sources and export authorized records with a shared display policy | [Search and export](search-and-export.md) | Guide for experts |
+| Turn a file column into an upload endpoint and choose a storage driver with one environment variable | [Uploads and storage wiring](uploads-and-storage-wiring.md) | Guide for experts |
+| Read the Shelf pipeline around the generated router: logging, CORS, JSON defaults, error mapping and auth | [Middleware](middleware.md) | Guide for experts |
 
 ## Continue reading
 
 - [Running the server](running-the-server.md) boot the backend from a `main()`.
-- [The generated API](the-generated-api.md) the routes you get per model.
+- [The generated API](../reference/rest-api.md) the routes you get per model.
 - [The four layers](../concepts/the-four-layers.md) the same layering, from the
   concepts angle.

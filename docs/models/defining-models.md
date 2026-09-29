@@ -1,6 +1,9 @@
 ---
 title: Defining models
 description: Describe data once and generate typed model, field and record APIs.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Defining models

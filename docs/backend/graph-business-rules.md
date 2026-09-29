@@ -1,6 +1,9 @@
 ---
 title: Transactional business rules
 description: Prepare a typed candidate graph while preserving validation, authorization and idempotency.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Transactional business rules

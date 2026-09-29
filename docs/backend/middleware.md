@@ -1,6 +1,9 @@
 ---
 title: Middleware
-description: The Shelf pipeline BeakServer wraps around the generated router: request logging, CORS, JSON defaulting, the single error-mapping catch boundary, and auth.
+description: "Read the Shelf pipeline around the generated router: logging, CORS, JSON defaults, error mapping and auth."
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Middleware
@@ -18,7 +21,7 @@ The pipeline is built once, in `BeakServer.handler`. Middleware is added outermo
 first, so a request falls through the list top to bottom on the way in and climbs back
 out on the way to the response.
 
-```dart title="packages/beak_backend/lib/src/server/beak_server.dart"
+```dart
 Handler get handler => const Pipeline()
     .addMiddleware(beakRequestLogMiddleware(onRequest: _onRequest))
     .addMiddleware(beakCorsMiddleware())
@@ -164,7 +167,7 @@ policy is in [Auth and policies](auth-and-policies.md).
 
 ## Continue reading
 
-- [The generated API](the-generated-api.md) the router this pipeline wraps.
+- [The generated API](../reference/rest-api.md) the router this pipeline wraps.
 - [Auth and policies](auth-and-policies.md) the guard and policy the auth layer feeds.
 - [Exceptions reference](../reference/exceptions.md) the sealed family the error mapper
   switches on.

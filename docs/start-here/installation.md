@@ -1,6 +1,9 @@
 ---
 title: Installation
 description: Install the Beak CLI and scaffold your first admin panel. No Docker, no database to set up.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Installation

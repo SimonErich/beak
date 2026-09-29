@@ -1,6 +1,9 @@
 ---
 title: A belongs-to picker
 description: Use shared eligibility rules for a dependent selection.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # A belongs-to picker

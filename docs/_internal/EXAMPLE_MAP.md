@@ -14,7 +14,7 @@ its exact fixture counts, money and workflow contracts.
 
 | Topic | Source |
 | --- | --- |
-| Minimal project | `examples/quickstart/lib/main.dart`, `examples/quickstart/lib/models/note.dart` |
+| Minimal project | `examples/quickstart/lib/main.dart`, `examples/quickstart/lib/resources/notes/models/note.dart` |
 | Explicit panel registration | `examples/clean_beak_config/lib/main.dart` |
 | Resources, search, filters | `examples/clean_beak_config/lib/resources/products/product_resource.dart` |
 | Typed schemas | `examples/clean_beak_config/lib/resources/products/models/product.dart` |

@@ -43,12 +43,17 @@ form field, the detail row, the filter, the API validator, and the CSV column."
 
 ## Page structure (every page)
 
-1. **Front matter** (Material reads both keys):
+1. **Front matter** (Material reads `title`, `description` and `search`; the
+   docs gate, `dart run tool/check_docs.dart`, reads the rest):
 
    ```yaml
    ---
-   title: Defining models
-   description: One sentence a search result can show. What the page gives you.
+   title: Defining models          # equals the nav label; unique site-wide
+   description: One sentence a search result can show, 160 characters at most.
+   type: guide                     # index|tutorial|guide|concept|reference|recipe|example|ai
+   audience: [beginner, expert]    # beginner|expert|agent|contributor
+   status: draft                   # draft|preview|stable
+   search: {boost: 2}              # reference and ai pages only
    ---
    ```
 
@@ -64,6 +69,32 @@ form field, the detail row, the filter, the API validator, and the CSV column."
    - [Column types](column-types.md) every built-in column and its options.
    - [Validation rules](validation-rules.md) the rules you attach to a column.
    ```
+
+## Page types and status
+
+Every page has a `type`, and a page marked `status: stable` carries the
+headings its type promises. The gate enforces this for stable pages only, so a
+stub or a page awaiting its rewrite stays `status: draft`. `dart run
+tool/check_docs.dart --release` fails while any page is still a draft; that is
+the completeness ratchet the release branch runs.
+
+| Type | Headings a stable page carries |
+| --- | --- |
+| `index` | `## Which page to read`, a table with the columns You want to..., Read, For that links every page of the section |
+| `tutorial` | `## What you'll build`, `## Before you start`, `## Run it`, `## Checkpoint` |
+| `guide` | `## At a glance`, `## Rules and limits`, `## Verify it`, `## Reference` |
+| `concept` | `## The idea in one picture`, `## How it works`, `## Why it is shaped this way`, `## What it means for you` |
+| `reference` | `## Import`, `## Summary`, `## Source` |
+| `recipe` | `## Recipe`, `## How it works`, `## Variations`, `## Verify` |
+| `example` | `## At a glance`, `## Run it`, `## Tour`, `## Where things are`, `## Features shown`, `## Tests`, `## Limits` |
+| `ai` | `## Rules`, `## Machine-readable twin` |
+
+Other rules the gate enforces: a nav label equals the page title (the home page
+is exempt), every nav section opens on an `index.md` that links all of its
+children, backticked `packages/`, `examples/`, `tool/` and `deploy/` paths in
+prose exist, and every path listed in `docs/_internal/url-manifest.txt` is still
+a page or a `redirect_maps` key in `mkdocs.yml`. Move a page with `git mv` and
+add a redirect for the old path; never delete a published path.
 
 ## Formatting tools
 

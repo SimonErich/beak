@@ -1,6 +1,9 @@
 ---
 title: Data blocks
 description: Load aggregates and scoped tables on custom pages.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Data blocks
@@ -13,5 +16,5 @@ Data blocks resolve the panel source and provide their own loading, empty and er
 
 ## Continue reading
 
-- [Block reference](../reference/blocks-index.md)
+- [Block reference](../reference/blocks.md)
 - [Custom widgets](../extending/custom-blocks-and-widgets.md)

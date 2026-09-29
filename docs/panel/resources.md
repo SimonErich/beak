@@ -1,6 +1,9 @@
 ---
 title: Resources
 description: Configure navigation, search and conventional screens around a shared model.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Resources
@@ -19,5 +22,5 @@ Model-owned transports and an injected panel source use the same resource defini
 
 ## Continue reading
 
-- [Forms](forms.md)
+- [Forms](../forms/form-screens.md)
 - [Tables and filters](tables-and-filters.md)

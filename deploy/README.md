@@ -3,7 +3,7 @@
 This folder builds `examples/clean_beak_config`: a pure-Dart backend image,
 a Flutter-web panel image, and a compose stack that wires them to Postgres and
 MinIO. The prose version, with the production checklist and the tradeoffs, lives
-in the docs under [Deployment](../docs/deployment/index.md).
+in the docs under [Deployment](../docs/shipping/index.md).
 
 ## What is here
 

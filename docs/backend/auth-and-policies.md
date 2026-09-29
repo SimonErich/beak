@@ -1,6 +1,9 @@
 ---
 title: Auth and policies
 description: Enforce account, row, action and field access on the server.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Auth and policies

@@ -1,6 +1,9 @@
 ---
 title: Export to CSV
-description: The generated export route, honouring the same filters the view is showing.
+description: Export the records a list is showing to CSV, honoring the same filters.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # Export to CSV

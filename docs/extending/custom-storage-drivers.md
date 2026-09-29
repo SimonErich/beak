@@ -1,6 +1,9 @@
 ---
 title: Custom storage drivers
 description: Implement BeakStorageDriver's six members, hide the wire behind a thin transport seam, and register the driver so an environment variable selects it.
+type: guide
+audience: [expert, contributor]
+status: draft
 ---
 
 # Custom storage drivers
@@ -218,7 +221,7 @@ server.
     `BEAK_S3_SECRET_KEY` and `BEAK_FTP_PASSWORD` belong in the environment, not
     in a commit. Beak reads the real process environment first and an optional
     git-ignored `.env` second, so a deployment can set them without a file. See
-    [Environment and config](../deployment/environment-and-config.md).
+    [Environment and config](../shipping/environment-and-config.md).
 
 ## Where your config lives
 
@@ -234,7 +237,7 @@ upstream: a `BeakStorageConfig` subtype (its settings and `driverId`) in
 `beak_core`, and a driver package implementing `BeakStorageDriver` and exposing a
 `register<Name>Storage` function, exactly as `beak_storage_ftp` and
 `beak_storage_s3` are laid out. The [contributing
-guide](../contributing/writing-a-storage-driver.md) walks that split in detail.
+guide](custom-storage-drivers.md) walks that split in detail.
 
 Once registered, the server resolves your driver at startup and hands it to the
 upload service. Nothing else changes: file columns, validation, and the upload
@@ -244,5 +247,5 @@ route already speak `BeakStorageDriver`.
 
 - [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) the validate-transform-store pipeline your driver's `put` sits at the end of.
 - [Files and storage columns](../models/files-and-storage-columns.md) the `@Image` and `@FileField` annotations that produce the uploads.
-- [Writing a storage driver](../contributing/writing-a-storage-driver.md) the config-plus-package split for contributing a driver upstream.
+- [Writing a storage driver](custom-storage-drivers.md) the config-plus-package split for contributing a driver upstream.
 - [Custom data sources](custom-data-sources.md) the same pluggable pattern for records instead of files.

@@ -1,6 +1,9 @@
 ---
 title: Model-owned transports
 description: Bind an existing backend to Beak models, share live permissions, and configure commands and archive actions without duplicating panel wiring.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Model-owned transports
@@ -142,4 +145,4 @@ isolated widget tests, but it deliberately overrides every model binding.
 - [Serverpod generator](https://github.com/SimonErich/beak/blob/main/packages/beak_serverpod_generator/README.md) documents generated model resources and endpoint conventions.
 - [Custom data sources](custom-data-sources.md) defines the typed transport contract.
 - [Actions](../panel/actions.md) covers confirmation, errors and custom operations.
-- [Forms](../panel/forms.md) explains generated fields and command presentation.
+- [Forms](../forms/form-screens.md) explains generated fields and command presentation.

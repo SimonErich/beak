@@ -1,6 +1,9 @@
 ---
 title: Custom columns
 description: Render a table or detail cell with any obers_ui widget by pairing a @Custom field with a registered renderer.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Custom columns
@@ -9,7 +12,7 @@ After this page you can render a cell that no built-in column covers (a
 sparkline, a bespoke status pill, a tiny inline chart) by putting `@Custom` on a
 field of your schema class and registering a builder for its tag in the panel.
 
-Twelve of Beak's [thirteen column types](../models/column-types.md) are picked
+Twelve of Beak's [thirteen column types](../models/fields.md) are picked
 by a field's Dart type: `String`, `int`, `DateTime`, an enum, a `BeakImageRef`.
 The thirteenth is the escape hatch. `@Custom` names a tag instead of a type, and
 hands the drawing to a builder you write.
@@ -201,11 +204,11 @@ beside it.
 
 The generated `BeakCustomColumn` takes the same options plus `tag`, so a
 hand-written `BeakModel` can declare one directly. See
-[Escape hatches](../models/escape-hatches.md) for when that is the right move.
+[Escape hatches](index.md) for when that is the right move.
 
 ## Continue reading
 
-- [Column types](../models/column-types.md) the twelve typed columns to try before reaching for a custom one.
+- [Column types](../models/fields.md) the twelve typed columns to try before reaching for a custom one.
 - [Annotations](../reference/annotations.md) every annotation a schema class can carry, in full.
-- [Rendering per surface](../concepts/rendering-per-surface.md) how a column becomes a render intent and then a widget.
+- [Rendering per surface](../concepts/the-one-definition-promise.md) how a column becomes a render intent and then a widget.
 - [Custom blocks and widgets](custom-blocks-and-widgets.md) the same escape-hatch idea, one level up, for whole subtrees.

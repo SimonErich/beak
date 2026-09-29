@@ -1,6 +1,9 @@
 ---
 title: Semantic fields
 description: Define a field's meaning once for typed generation, inputs, validation, storage, filtering and display.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Semantic fields
@@ -128,7 +131,7 @@ model rules as top-level fields.
 
 `min`, `max`, `maxLength`, numeric precision and semantic validity are enforced in
 forms and API writes. Add scalar rules with `rules:` and shared record rules with
-the schema's static `validationRules` getter. See [validation rules](validation-rules.md).
+the schema's static `validationRules` getter. See [validation rules](validation.md).
 
 Placement `validate:` and custom callbacks can add workflow-specific feedback.
 They are not transmitted as executable server rules. Put authoritative constraints
@@ -142,8 +145,8 @@ needed.
 
 ## Continue reading
 
-- [Validation rules](validation-rules.md) for shared record and asynchronous checks.
-- [Forms](../panel/forms.md) for declarative layouts and custom control choices.
+- [Validation rules](validation.md) for shared record and asynchronous checks.
+- [Forms](../forms/form-screens.md) for declarative layouts and custom control choices.
 
 ### Date display and date entry
 

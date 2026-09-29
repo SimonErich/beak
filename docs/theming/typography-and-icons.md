@@ -1,6 +1,9 @@
 ---
 title: Typography and icons
 description: Use the theme type scale and typed navigation icons.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Typography and icons

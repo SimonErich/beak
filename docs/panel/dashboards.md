@@ -1,6 +1,9 @@
 ---
 title: Dashboards
 description: Combine live queries, aggregates and custom widgets on a page.
+type: guide
+audience: [beginner]
+status: draft
 ---
 
 # Dashboards

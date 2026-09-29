@@ -1,6 +1,9 @@
 ---
 title: Writing tests
-description: Where tests live per package and the harness each one uses: pure units for core, an InMemoryAdapter for the backend, the beak_test toolkit for the panel, golden JSON, and the coverage floor.
+description: Find where tests live per package, the harness each one uses and the coverage floor.
+type: guide
+audience: [contributor]
+status: draft
 ---
 
 # Writing tests
@@ -244,7 +247,7 @@ failure and integration tests when refactoring the example.
 
 ## Continue reading
 
-- [Testing guide](../guides/testing.md) the same patterns aimed at app authors.
+- [Testing guide](../shipping/testing.md) the same patterns aimed at app authors.
 - [Conventions](conventions.md) fakes over mocks and typed exceptions.
 - [Code guardrails](code-guardrails.md) the rules tests help prove.
 - [Contributing](index.md) the four-command gate the tests feed into.

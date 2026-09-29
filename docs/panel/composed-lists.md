@@ -1,6 +1,9 @@
 ---
 title: Composed lists and query state
 description: Share one typed query across list presets, filters, summaries, saved views and exports.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Composed lists and query state
@@ -204,7 +207,7 @@ labelled badges. `tone` applies to ordinary text as well as badges and may retur
 null to inherit the default foreground. Declare every field used by these
 callbacks in `dependencies`.
 
-The panel command runner coalesces concurrent invocations and retains uncertain outcomes when navigating between mounted pages. Its pending-action banner recovers the same save identity before another dispatch. A definite rejection can be corrected and retried. Pending commands are isolated by principal. This runner is a mounted-panel queue, not durable storage across browser reloads; configured form draft persistence has its separate [durable recovery contract](drafts-and-review.md).
+The panel command runner coalesces concurrent invocations and retains uncertain outcomes when navigating between mounted pages. Its pending-action banner recovers the same save identity before another dispatch. A definite rejection can be corrected and retried. Pending commands are isolated by principal. This runner is a mounted-panel queue, not durable storage across browser reloads; configured form draft persistence has its separate [durable recovery contract](../forms/drafts-and-review.md).
 
 With configured navigation, a record’s breadcrumb lives in the shell top bar; the body suppresses its duplicate trail. The current record nests under its resource, and selected ancestors expand automatically.
 `BeakNavigation(currentRecordBranch: true)` presents that context as a branch
@@ -245,7 +248,7 @@ The server exports every matching row, independent of the currently displayed pa
 ## Continue reading
 
 - [Tables and filters](tables-and-filters.md)
-- [The navigation shell](the-navigation-shell.md)
+- [The navigation shell](navigation.md)
 - [Actions](actions.md)
 - [Search and export](../backend/search-and-export.md)
 

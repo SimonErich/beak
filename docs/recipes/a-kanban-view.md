@@ -1,6 +1,9 @@
 ---
 title: A kanban view
 description: Map model fields to a specialized workflow board.
+type: recipe
+audience: [beginner, expert, agent]
+status: draft
 ---
 
 # A kanban view

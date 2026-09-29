@@ -1,6 +1,9 @@
 ---
 title: The query contract
-description: How BeakQuerySpec, BeakFilter, and BeakValue serialize losslessly and become a worm query on the backend.
+description: See how the query spec, filters and values serialize losslessly and become a worm query.
+type: concept
+audience: [contributor, expert]
+status: draft
 ---
 
 # The query contract
@@ -206,7 +209,7 @@ A test pins this table exhaustively, so adding an operator without teaching the 
 
 On the server, `WormQueryTranslator` turns a decoded spec into a worm `QueryBuilder`. It is the engine behind `WormDataSource`, and it is fully generic: it works off `BeakModel` metadata and the registry alone, so one code path serves every registered model. No per-model translation code exists anywhere.
 
-```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
+```dart
 QueryBuilder<WormRecordModel> builderFor(
   BeakQuerySpec spec,
   DatabaseAdapter adapter,
@@ -310,5 +313,5 @@ Three properties fall out of the design, and each one is an invariant the rest o
 
 - [How data flows](../concepts/how-data-flows.md) the same contract, told from the panel's point of view.
 - [The data source seam](data-source-seam.md) the interface that consumes a spec on either side.
-- [The generated API](../backend/the-generated-api.md) the routes a spec is posted to.
-- [Performance](../guides/performance.md) eager loading, pagination, and query counts in practice.
+- [The generated API](../reference/rest-api.md) the routes a spec is posted to.
+- [Performance](../shipping/performance.md) eager loading, pagination, and query counts in practice.

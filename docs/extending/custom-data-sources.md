@@ -1,6 +1,9 @@
 ---
 title: Custom data sources
 description: Implement the ten methods of BeakDataSource to back Beak with any store, prove it with the shipped contract suite, and keep the Serverpod seam open.
+type: guide
+audience: [expert]
+status: draft
 ---
 
 # Custom data sources
@@ -14,7 +17,7 @@ working.
 Beak's promise is that your schema classes, columns, and queries describe *what*
 you want, never *which* database answers. The seam that makes that true is a
 single interface. This page is the how-to side of it; for the why, read
-[The data source seam](../backend/the-data-source-seam.md).
+[The data source seam](../architecture/data-source-seam.md).
 
 ## The interface
 
@@ -204,8 +207,8 @@ the ones it ships with.
 
 ## Continue reading
 
-- [The data source seam](../backend/the-data-source-seam.md) the concept behind the interface, and how `WormDataSource` translates a spec to SQL.
+- [The data source seam](../architecture/data-source-seam.md) the concept behind the interface, and how `WormDataSource` translates a spec to SQL.
 - [How data flows](../concepts/how-data-flows.md) the serializable `BeakQuerySpec` your `query` method receives.
-- [Testing](../guides/testing.md) the in-memory source, the recording decorator, and the contract suite in context.
+- [Testing](../shipping/testing.md) the in-memory source, the recording decorator, and the contract suite in context.
 - [Results and errors](../concepts/results-and-errors.md) the sealed `BeakException` family your source throws.
 - [Custom storage drivers](custom-storage-drivers.md) the same pluggable pattern, one layer down, for files.

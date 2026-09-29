@@ -1,6 +1,10 @@
 ---
 title: beak.yaml
-description: Every key of the project file, what it decides, and what happens when you leave it out.
+description: Look up every key of the project file and what happens when you leave it out.
+type: reference
+audience: [expert, agent]
+status: draft
+search: {boost: 2}
 ---
 
 # beak.yaml

@@ -1,6 +1,9 @@
 ---
 title: Actions
 description: Expose model transitions and typed bulk edits with automatic validation and persistence.
+type: guide
+audience: [beginner, expert]
+status: draft
 ---
 
 # Actions
@@ -19,7 +22,7 @@ Availability is evaluated for presentation and rechecked on the server against t
 
 ## Bulk configuration
 
-`BeakBulkAction.edit` takes a key, label and typed `BeakFieldChange` values. The product resource demonstrates activation and deactivation of a selection. Beak loads selected records, previews shared validation, preserves revisions and executes a separate graph per record. See [Imports and bulk edits](import-and-bulk-edit.md) for progress and recovery semantics.
+`BeakBulkAction.edit` takes a key, label and typed `BeakFieldChange` values. The product resource demonstrates activation and deactivation of a selection. Beak loads selected records, previews shared validation, preserves revisions and executes a separate graph per record. See [Imports and bulk edits](../forms/imports-and-bulk-edits.md) for progress and recovery semantics.
 
 ## List placement and recovery
 
@@ -29,7 +32,7 @@ A composed list uses `BeakActionPresentation` to place configured commands inlin
 
 `BeakRecordAction`, `BeakBulkAction` and `BeakGlobalAction` remain presentation extension points for application-specific tasks. Their callbacks receive `BeakActionContext`, including the current model, source, router, overlays and refresh hook. They do not replace shared model actions for server-owned business transitions. Standard view, edit, create, delete and archive actions remain available.
 
-For delivery notes, receipts and similar record documents, use `BeakRecordAction.document`. Typed field bindings and collection columns define the content; Beak reloads the authorized persisted record, applies the panel's formatting and opens a print window or portable HTML download. See [Printable record documents](record-documents.md).
+For delivery notes, receipts and similar record documents, use `BeakRecordAction.document`. Typed field bindings and collection columns define the content; Beak reloads the authorized persisted record, applies the panel's formatting and opens a print window or portable HTML download. See [Printable record documents](../forms/record-documents.md).
 
 ## Contact and web links
 
@@ -62,8 +65,8 @@ contact control already present in a detail layout.
 ## Continue reading
 
 - [Model behavior](../models/behavior.md)
-- [Imports and bulk edits](import-and-bulk-edit.md)
-- [Printable record documents](record-documents.md)
+- [Imports and bulk edits](../forms/imports-and-bulk-edits.md)
+- [Printable record documents](../forms/record-documents.md)
 
 ## Presentation by resource role
 
