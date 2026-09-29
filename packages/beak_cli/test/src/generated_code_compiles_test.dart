@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../support/beak_cli_internals.dart';
+import '../support/run_tool.dart';
 import 'package:test/test.dart';
 
 /// The zero-config proof, end to end: `beak make:resource Widget` in a fresh
@@ -64,11 +65,8 @@ dev_dependencies:
         File('${repoRoot.path}/analysis_options.yaml').readAsStringSync(),
       );
 
-      Future<ProcessResult> run(List<String> command) => Process.run(
-        command.first,
-        command.skip(1).toList(),
-        workingDirectory: temp.path,
-      );
+      Future<ProcessResult> run(List<String> command) =>
+          runTool(command, workingDirectory: temp.path);
 
       final ProcessResult pubGet = await run(['flutter', 'pub', 'get']);
       expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}\n${pubGet.stderr}');
@@ -266,11 +264,8 @@ void _authoredScaffoldAnalyzes() {
       expect(code, 0, reason: '$out');
 
       final String project = '${temp.path}/authored_probe';
-      Future<ProcessResult> run(List<String> command) => Process.run(
-        command.first,
-        command.skip(1).toList(),
-        workingDirectory: project,
-      );
+      Future<ProcessResult> run(List<String> command) =>
+          runTool(command, workingDirectory: project);
       void expectSuccess(ProcessResult result) => expect(
         result.exitCode,
         0,

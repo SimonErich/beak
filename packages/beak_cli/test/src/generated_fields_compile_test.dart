@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../support/beak_cli_internals.dart';
+import '../support/run_tool.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -167,11 +168,10 @@ void main() {
   if (!OrderModel.customer.isRequired || !OrderModel.customerId.isRequired) throw StateError('lost nullability');
 }
 ''');
-      Future<ProcessResult> run(List<String> args) => Process.run(
+      Future<ProcessResult> run(List<String> args) => runTool([
         Platform.resolvedExecutable,
-        args,
-        workingDirectory: root.path,
-      );
+        ...args,
+      ], workingDirectory: root.path);
       final resolved = await run(['pub', 'get', '--offline']);
       expect(
         resolved.exitCode,

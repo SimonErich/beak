@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../support/beak_cli_internals.dart';
+import '../support/run_tool.dart';
 
 /// A package of schema classes, prepared by `beak prepare` and nothing else,
 /// resolves against `beak_core` alone, passes the repository's strict
@@ -108,11 +109,10 @@ void main() {
       ).run(['prepare']);
       expect(code, 0, reason: '$out');
 
-      Future<ProcessResult> run(List<String> args) => Process.run(
+      Future<ProcessResult> run(List<String> args) => runTool([
         Platform.resolvedExecutable,
-        args,
-        workingDirectory: root.path,
-      );
+        ...args,
+      ], workingDirectory: root.path);
       final resolved = await run(['pub', 'get', '--offline']);
       expect(
         resolved.exitCode,
