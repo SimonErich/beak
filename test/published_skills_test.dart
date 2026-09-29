@@ -5,17 +5,24 @@ import 'package:test/test.dart';
 import '../tool/published_skills.dart';
 
 /// A `SKILL.md` with the given front matter values and [body] lines.
+///
+/// [examplePrompt] closes the body with the section every skill ends with;
+/// pass `false` to test its absence.
 String skill({
   String name = 'beak-add-resource',
   String? description = 'Adds a resource.',
   List<String> body = const ['# Add a resource', '', 'Do the steps.'],
+  bool examplePrompt = true,
 }) =>
     '---\n'
     'name: $name\n'
     '${description == null ? '' : 'description: $description\n'}'
     '---\n'
     '\n'
-    '${body.join('\n')}\n';
+    '${[
+      ...body,
+      if (examplePrompt) ...['', '## Example prompt', '', 'Use the skill.'],
+    ].join('\n')}\n';
 
 /// A repository holding [files], and `docs/models/fields.md`.
 ///
@@ -182,8 +189,8 @@ void main() {
     List<String> body(int lines) => [
       for (var i = 0; i < lines; i += 1) 'Step $i.',
     ];
-    expect(messagesOf(skill(body: body(150))), isEmpty);
-    expect(messagesOf(skill(body: body(151))), [
+    expect(messagesOf(skill(body: body(146))), isEmpty);
+    expect(messagesOf(skill(body: body(147))), [
       'the body is 151 lines, over 150; move detail to references/',
     ]);
     expect(
@@ -279,6 +286,81 @@ void main() {
         'mentions `beak` commands, but createBeakRunner cannot be read from '
             'packages/beak_cli/lib/src/cli_runner.dart',
       ],
+    );
+  });
+
+  test('a skill ends with an example prompt', () {
+    expect(messagesOf(skill(examplePrompt: false)), [
+      'has no "## Example prompt" section with a prompt an agent can be given',
+    ]);
+    expect(
+      messagesOf(
+        skill(
+          examplePrompt: false,
+          body: ['# Add', '', '## Example prompt', '', '```text', '```'],
+        ),
+      ),
+      ['has no "## Example prompt" section with a prompt an agent can be given'],
+      reason: 'a heading with only a fence is not a prompt',
+    );
+    expect(
+      messagesOf(
+        skill(
+          examplePrompt: false,
+          body: [
+            '# Add',
+            '',
+            '## Example prompt',
+            '',
+            '```text',
+            'Use the beak-add-resource skill to add a Supplier.',
+            '```',
+          ],
+        ),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('a prompt heading followed by another heading has no prompt', () {
+    expect(
+      messagesOf(
+        skill(
+          examplePrompt: false,
+          body: ['## Example prompt', '', '## Gate', 'Run the tests.'],
+        ),
+      ),
+      ['has no "## Example prompt" section with a prompt an agent can be given'],
+    );
+  });
+
+  test('a reference the skill names must exist beside it', () {
+    expect(
+      messagesOf(
+        skill(body: ['Copy from `references/example.md`.']),
+        more: {
+          'packages/beak/skills/beak-add-resource/references/example.md':
+              '# Example\n',
+        },
+      ),
+      isEmpty,
+    );
+    expect(messagesOf(skill(body: ['Copy from `references/gone.md`.'])), [
+      'names `references/gone.md`, which the skill does not have',
+    ]);
+  });
+
+  test('a reference may name its sibling references too', () {
+    expect(
+      messagesOf(
+        skill(),
+        more: {
+          'packages/beak/skills/beak-add-resource/references/a.md':
+              'See `references/b.md` and `references/c.md`.\n',
+          'packages/beak/skills/beak-add-resource/references/b.md': '# B\n',
+        },
+      ),
+      ['names `references/c.md`, which the skill does not have'],
     );
   });
 

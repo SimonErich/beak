@@ -15,7 +15,10 @@
 ///   `references/`;
 /// - every `beak <command>` it tells an agent to run is a command
 ///   `createBeakRunner` registers;
-/// - every docs page it names exists.
+/// - every docs page it names exists;
+/// - every `references/<file>.md` it names exists beside it;
+/// - it ends with an `## Example prompt` section holding a paste-ready prompt,
+///   so a person can start the workflow without reading the skill first.
 ///
 /// The docs pages are named as the project sees them, under
 /// `.dart_tool/beak/docs/`, which is a copy of `docs/` plus the files the
@@ -36,6 +39,9 @@ const int maxSkillDescriptionLength = 1024;
 
 /// The longest `SKILL.md` body; anything longer belongs in `references/`.
 const int maxSkillBodyLines = 150;
+
+/// The heading of the section every skill closes with.
+const String examplePromptHeading = '## Example prompt';
 
 /// The files the docs bundle has at its root that `docs/` does not.
 const Set<String> bundleRootFiles = {
@@ -220,6 +226,13 @@ List<SkillProblem> _checkSkill(
     );
   }
 
+  if (!_hasExamplePrompt(body)) {
+    report(
+      'has no "$examplePromptHeading" section with a prompt an agent can be '
+      'given',
+    );
+  }
+
   final references = [
     skill.file,
     for (final entity in Directory(
@@ -228,7 +241,7 @@ List<SkillProblem> _checkSkill(
       if (entity is File && entity.path.endsWith('.md')) entity,
   ];
   for (final file in references) {
-    problems.addAll(_checkMentions(root, file, commands));
+    problems.addAll(_checkMentions(root, skill.file.parent, file, commands));
   }
   return problems;
 }
@@ -236,6 +249,7 @@ List<SkillProblem> _checkSkill(
 /// The problems in the `beak` commands and docs paths [file] mentions.
 List<SkillProblem> _checkMentions(
   Directory root,
+  Directory skillDirectory,
   File file,
   Set<String>? commands,
 ) {
@@ -259,7 +273,15 @@ List<SkillProblem> _checkMentions(
 
   final mentioned = <String>{};
   final docsPaths = <String>{};
+  final missingReferences = <String>{};
   for (final span in spans) {
+    final RegExpMatch? reference = RegExp(
+      r'^references/([\w.-]+\.md)$',
+    ).firstMatch(span);
+    if (reference != null &&
+        !File('${skillDirectory.path}/$span').existsSync()) {
+      missingReferences.add(span);
+    }
     final RegExpMatch? command = RegExp(
       r'^beak\s+([a-z][\w:-]*)',
     ).firstMatch(span);
@@ -303,7 +325,33 @@ List<SkillProblem> _checkMentions(
   for (final span in docsPaths.toList()..sort()) {
     problems.add(SkillProblem(path, 'names `$span`, which is not a docs page'));
   }
+  for (final span in missingReferences.toList()..sort()) {
+    problems.add(
+      SkillProblem(path, 'names `$span`, which the skill does not have'),
+    );
+  }
   return problems;
+}
+
+/// Whether [body] has an [examplePromptHeading] section with at least one line
+/// of prompt (a fence marker or a blank line is not a prompt).
+bool _hasExamplePrompt(List<String> body) {
+  final int heading = body.indexWhere(
+    (line) => line.trim() == examplePromptHeading,
+  );
+  if (heading == -1) {
+    return false;
+  }
+  for (final line in body.skip(heading + 1)) {
+    final String trimmed = line.trim();
+    if (trimmed.startsWith('## ')) {
+      return false;
+    }
+    if (trimmed.isNotEmpty && !trimmed.startsWith('```')) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// [path] relative to [root].
