@@ -1,6 +1,6 @@
 ---
 title: Blocks and charts
-description: Compose custom screens, list headers and dialogs from 47 typed blocks: layout, content, data, records, modules, charts and maps.
+description: Compose custom screens, list headers and dialogs from 47 typed blocks for layout, content, data, records, modules, charts and maps.
 type: index
 audience: [beginner, expert]
 status: stable
