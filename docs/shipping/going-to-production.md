@@ -34,14 +34,14 @@ flowchart LR
 
 The split follows a real boundary. The server is pure Dart and never imports Flutter or obers_ui, so it compiles to one executable and needs no Flutter in its runtime image. Only the panel needs a Flutter toolchain, and only at build time. `beak doctor` fails when a panel file imports server code, which matters because `dart:io` compiles for the web and only breaks when it runs.
 
-!!! warning "Three things fail in the deploy files today"
+!!! warning "Three known failures in the deploy files"
     These were found by running the steps for this page, and they are the first things to check on your copy.
 
-    - **`Dockerfile.server` runs `dart compile exe`, which the current Dart SDK refuses** for this dependency graph: `'dart compile' does not support build hooks, use 'dart build' instead. Packages with build hooks: sqlite3.` The working command is `dart build cli`, shown below.
-    - **`Dockerfile.web` cannot build until the obers_ui pin moves.** The pubspecs pin obers_ui by git commit, and at the commit pinned when this page was checked (`c956d25634c9`) the panel does not compile: resolving `beak_frontend` against it gives 175 analyzer errors, such as undefined `OiFieldLabel`, `OiBarPattern` and `headerGap`. The panel is written against a newer obers_ui than the one pinned. See [Working with obers_ui](../contributing/working-with-obers-ui.md) for the pin and how to move it.
-    - **The compose stack selects S3 storage, and the shop does not register the S3 driver.** The server exits at boot with `No storage driver is registered for "s3". Registered drivers: memory, local.` Use `local` (below) or register the driver in your own project.
+    - `Dockerfile.server` runs `dart compile exe`, which a current Dart SDK (3.13.2 here) refuses for this dependency graph: `'dart compile' does not support build hooks, use 'dart build' instead. Packages with build hooks: sqlite3.` The working command is `dart build cli`, shown below.
+    - `Dockerfile.web` cannot build until the obers_ui pin moves. The pubspecs pin obers_ui by git commit, and at the commit pinned when this page was checked (`c956d25634c9`) the panel does not compile: resolving `beak_frontend` against it gives 175 analyzer errors, such as undefined `OiFieldLabel`, `OiBarPattern` and `headerGap`. The panel is written against a newer obers_ui than the one pinned. See [Working with obers_ui](../contributing/working-with-obers-ui.md) for the pin and how to move it.
+    - The compose stack selects S3 storage, and the shop does not register the S3 driver. The server exits at boot with `No storage driver is registered for "s3". Registered drivers: memory, local.` Use `local` (below) or register the driver in your own project.
 
-    The server steps below were run on the host against Postgres 16. The two image builds were not repeated, because the first stops on the compile error above and the second on the pin.
+    The server steps below were run on the host against Postgres 16. The two images were not built: the first would stop on the compile error above and the second on the pin, and both were reproduced on the host.
 
 ## Build the server
 
@@ -226,11 +226,11 @@ The API is published on host port 8080 and the panel on 8090. Postgres and MinIO
 
 Read the file before you rely on it:
 
-- **The credentials live in two places.** The compose file sets `POSTGRES_PASSWORD: beak` and `MINIO_ROOT_PASSWORD: beaksecret`, and your `.env.prod` repeats them inside `DATABASE_URL` and `BEAK_S3_*`. Change both, or the server cannot log in. The `createbuckets` step hardcodes the MinIO login as well.
-- **The bucket is public.** `createbuckets` runs `mc anonymous set download`, so anyone with an object URL can read it. That matches how Beak treats uploads (see [Security](security.md)), and it is a choice you now know you made.
-- **Storage is `s3` in `.env.prod.example`.** Given the driver problem above, switch to `local` with a volume for `BEAK_LOCAL_ROOT_DIR`, or register the S3 driver in your project first. S3 file URLs are also built from `BEAK_S3_ENDPOINT`, which is `http://minio:9000` here and unreachable from a browser.
-- **`BEAK_AUTH_SECRET` does nothing.** No Beak code reads it.
-- **The server has no auth or policy.** The shop is a demonstration with no login. See the next section.
+- The credentials live in two places. The compose file sets `POSTGRES_PASSWORD: beak` and `MINIO_ROOT_PASSWORD: beaksecret`, and your `.env.prod` repeats them inside `DATABASE_URL` and `BEAK_S3_*`. Change both, or the server cannot log in. The `createbuckets` step hardcodes the MinIO login as well.
+- The bucket is public. `createbuckets` runs `mc anonymous set download`, so anyone with an object URL can read it. That matches how Beak treats uploads (see [Security](security.md)), and it is a choice you now know you made.
+- Storage is `s3` in `.env.prod.example`. Given the driver problem above, switch to `local` with a volume for `BEAK_LOCAL_ROOT_DIR`, or register the S3 driver in your project first. S3 file URLs are also built from `BEAK_S3_ENDPOINT`, which is `http://minio:9000` here and unreachable from a browser.
+- `BEAK_AUTH_SECRET` does nothing. No Beak code reads it.
+- The server has no auth or policy. The shop is a demonstration with no login. See the next section.
 
 ## What stays yours
 

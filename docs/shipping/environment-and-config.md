@@ -94,7 +94,9 @@ BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEA
 
 Two things need care on a real host.
 
-**The default URL points at `localhost`.** With nothing configured, an uploaded file's URL is built from the bind address, and `0.0.0.0` becomes `localhost`. The browser gets `http://localhost:8080/uploads/...`, which is right on your machine and wrong on a server. For local disk in production, choose the driver explicitly and give it the public address, on a directory that survives a restart:
+### The default URL points at `localhost`
+
+With nothing configured, an uploaded file's URL is built from the bind address, and `0.0.0.0` becomes `localhost`. The browser gets `http://localhost:8080/uploads/...`, which is right on your machine and wrong on a server. For local disk in production, choose the driver explicitly and give it the public address, on a directory that survives a restart:
 
 ```bash
 BEAK_STORAGE_DRIVER=local
@@ -104,7 +106,9 @@ BEAK_LOCAL_PUBLIC_BASE_URL=https://api.example.com/uploads
 
 The server mounts a read-only route at the path of the public URL (`/uploads`), so those files are served without a bucket, a CDN or a proxy rule. Point the variable at a CDN or the web server and that route stops being used.
 
-**A driver must be registered before the variable can select it.** `beak_backend` depends on no driver package, so `s3` and `ftp` fail with `No storage driver is registered for "s3". Registered drivers: memory, local.` until the project adds the driver package and declares a `beakStorageRegistry()` in `lib/server.dart`. `beak prepare` then hands it to the generated host. The shop's `lib/server.dart` does not, so pointing the shop at `s3` fails at boot; [Custom storage drivers](../extending/custom-storage-drivers.md) shows the registration.
+### A driver must be registered before the variable can select it
+
+`beak_backend` depends on no driver package, so `s3` and `ftp` fail with `No storage driver is registered for "s3". Registered drivers: memory, local.` until the project adds the driver package and declares a `beakStorageRegistry()` in `lib/server.dart`. `beak prepare` then hands it to the generated host. The shop's `lib/server.dart` does not, so pointing the shop at `s3` fails at boot; [Custom storage drivers](../extending/custom-storage-drivers.md) shows the registration.
 
 The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for path-style) unless its config carries a public base URL, and no environment variable sets that. An endpoint that is only reachable inside your network therefore hands the browser URLs it cannot open. Use `local`, or build the `BeakS3Config` in code.
 
@@ -167,7 +171,7 @@ BeakConfigurationException(configuration): BEAK_LOCAL_ROOT_DIR is required when 
 
 A driver name that does not exist fails the same way and lists the five that do.
 
-`beak doctor` reports which database it will use (`no DATABASE_URL — using the default SQLite file (beak.db)`), and checks the generated files against your schema.
+`beak doctor` reports which database it will use when `DATABASE_URL` is unset (the default SQLite file), and checks the generated files against your schema.
 
 ## Reference
 

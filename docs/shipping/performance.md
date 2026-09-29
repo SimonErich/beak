@@ -10,7 +10,7 @@ status: stable
 
 Beak's performance questions are mostly questions about counts: how many requests a screen makes, how many statements each request runs, and how much of a table a statement has to read. After this page you can say what a surface costs, which setting changes that, and which limits Beak leaves for your server and proxy to enforce.
 
-Nothing in Beak lazy-loads. A relation nobody asked for is not loaded, and nothing fetches it behind your back, so the classic N+1 query cannot creep in through a getter. The price is that the cost of a screen is written down in its query spec, where you can read it.
+Nothing in Beak lazy-loads. A relation nobody asked for is not loaded, and nothing fetches it behind your back, so the classic N+1 query cannot creep in through a getter. The bird makes one trip to the ground, with a shopping list. The price is that the cost of a screen is written down in its query spec, where you can read it.
 
 ## At a glance
 
@@ -86,9 +86,9 @@ Every list query carries a paging window, whether you set one or not. The defaul
 
 Three properties follow from the design, and each has a consequence:
 
-- **The server has no ceiling on `perPage`.** A request asking for 100,000 rows gets `LIMIT 100000`; the endpoint tests' fixture answered it in full. The panel's query controller rejects more than 1,000 rows per page, but a script is not the panel. Cap it at the proxy or in a `defaults.build(middleware: [...])` entry if the API is reachable by anyone you do not trust. [Security](security.md) lists it with the other limits.
-- **Paging is offset paging.** Page 400 asks the database to skip 10,000 rows first. Deep pages get slower with depth, and Beak has no keyset (cursor) option. For an export or a scan, use the export route, which pages internally, and not a loop over deep pages.
-- **Every page runs a `COUNT` over the whole filtered set.** The `total` beside the pager is exact, and an exact count on a large table is work the database repeats for each page turn and each keystroke in a search box. Keep filters selective and indexed. There is no switch to turn the count off.
+- The server has no ceiling on `perPage`. A request asking for 100,000 rows gets `LIMIT 100000`; the endpoint tests' fixture answered it in full. The panel's query controller rejects more than 1,000 rows per page, but a script is not the panel. Cap it at the proxy or in a `defaults.build(middleware: [...])` entry if the API is reachable by anyone you do not trust. [Security](security.md) lists it with the other limits.
+- Paging is offset paging. Page 400 at 25 rows asks the database to skip 9,975 rows first. Deep pages get slower with depth, and Beak has no keyset (cursor) option. For an export or a scan, use the export route, which pages internally, and not a loop over deep pages.
+- Every page runs a `COUNT` over the whole filtered set. The `total` beside the pager is exact, and an exact count on a large table is work the database repeats for each page turn and each keystroke in a search box. Keep filters selective and indexed. There is no switch to turn the count off.
 
 ## Indexes, sorting and search
 
@@ -115,7 +115,7 @@ Substring search is the one place an index cannot help. `contains` and every `se
 --8<-- "packages/beak_backend/lib/src/data/worm/query_translator.dart:substringOperators"
 ```
 
-A leading `%` cannot use a b-tree index, so a search reads the table. That is fine at thousands of rows and a decision at millions. Keep `searchable` to the columns people actually search, and prefer a `startsWith` filter or a selective filter beside the search term when a table gets large.
+A leading `%` cannot use a b-tree index, so a search reads the table. That is fine at thousands of rows and a decision at millions. Keep `searchable` to the columns people actually search, and put a selective filter (a status, a date range) beside the search term when a table gets large.
 
 ## Dashboards: one cheap statement per tile
 
@@ -125,7 +125,7 @@ A stat tile carries a `BeakAggregateSpec`, and the backend runs it as a `COUNT`,
 --8<-- "examples/clean_beak_config/lib/overview.dart:overviewMetricGrid"
 ```
 
-Four tiles are four requests and four statements, each returning a number. A tile that shows a comparison against a `prior` period runs two. A population summary (`model.summary(groupBy: ..., measures: [...])`) runs one grouped aggregate per measure, so eight measures is the ceiling and also eight statements. It returns at most `limit` groups (default 100, at most 500) and reports overflow.
+Four tiles are four requests and four statements, each returning a number. A tile that shows a comparison against a `prior` period runs two. A population summary (`model.summary(groupBy: ..., measures: [...])`) runs one grouped aggregate per measure, so eight measures is the ceiling and also eight statements. It returns at most `limit` groups (default 100, at most 500) and reports overflow, but the limit trims the response and not the work: the database still groups the whole matching population.
 
 The panel does not cache completed reads. It refetches a table, a tile or a summary after a write to the same table, and a form session coalesces identical requests that are in flight at the same moment, which keeps a form full of pickers from asking for the same catalog twice. `BeakPanel(refreshPolicy: BeakRefreshPolicy(interval: ...))` adds polling, and each tick runs every mounted surface's queries again. A page that is slow to compute is slow each time it opens.
 
@@ -133,17 +133,23 @@ The panel does not cache completed reads. It refetches a table, a tile or a summ
 
 Three properties of the running process matter once the data is large enough that the queries are fine.
 
-**One isolate handles all requests.** `shelf_io.serve` runs on the isolate that called it, so CPU work in a handler stops every other request in that process until it finishes. The place this shows is image uploads. An image column decodes the file to check it, and again to run its transforms, in pure Dart on that isolate. Decoding a 12-megapixel, 18 MiB JPEG stalled a test isolate for 1 - 3 seconds on the machine that wrote this page (noise compresses badly, so this is a worst case; a typical photo is faster). During that time the server answered nothing else. Set `maxSizeInBytes` on every image column, and run two or more server processes behind the proxy if uploads are common (the built-in login keeps its sessions per process, so read the note on that in [Security](security.md) first).
+### One isolate handles all requests
 
-**Graph commits run one at a time per process.** Every form save goes through `POST /api/commits`, and commits on one adapter are serialized in-process so snapshot-based transactions cannot interleave. A slow `preparePlan` hook therefore delays every other save on that process, not only its own. Keep hooks to reads the plan needs, and do slow work (email, webhooks) as a durable effect through the outbox, which runs after the transaction. Across several processes the receipt's primary key keeps a save from applying twice.
+`shelf_io.serve` runs on the isolate that called it, so CPU work in a handler stops every other request in that process until it finishes. The place this shows is image uploads. An image column decodes the file to check it, and again to run its transforms, in pure Dart on that isolate. Decoding a 12-megapixel, 18 MiB JPEG stalled a test isolate for 1 - 3 seconds on the machine that wrote this page (noise compresses badly, so this is a worst case; a typical photo is faster). During that time the server answered nothing else. Set `maxSizeInBytes` on every image column, and run two or more server processes behind the proxy if uploads are common (the built-in login keeps its sessions per process, so read the note on that in [Security](security.md) first).
 
-**Postgres gets a pool of ten connections.** `adapterFromUrl` defaults `poolSize` to 10, and `beak_backend` does not expose it through an environment variable. SQLite has one connection, so writes are serial by nature.
+### Graph commits run one at a time per process
+
+Every form save goes through `POST /api/commits`, and commits on one adapter are serialized in-process so snapshot-based transactions cannot interleave. A slow `preparePlan` hook therefore delays every other save on that process, not only its own. Keep hooks to reads the plan needs, and do slow work (email, webhooks) as a durable effect through the outbox, which runs after the transaction. Across several processes the receipt's primary key keeps a save from applying twice.
+
+### Postgres gets a pool of ten connections
+
+`adapterFromUrl` defaults `poolSize` to 10, and `beak_backend` does not expose it through an environment variable. SQLite runs on one connection.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
 --8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"
 ```
 
-The server did not compress the JSON page or the streamed CSV export I checked. Ask the proxy to (`gzip on;` in nginx), for the API's JSON and for the panel's static files alike. The repository's `deploy/nginx.conf` does not enable it yet, and the stock `nginx:alpine` configuration has it commented out, so the panel's JavaScript bundle is served as is.
+The server compressed neither the JSON page nor the streamed CSV export that were checked for this page. Ask the proxy to (`gzip on;` in nginx), for the API's JSON and for the panel's static files alike. The repository's `deploy/nginx.conf` does not enable it yet, and the stock `nginx:alpine` configuration has it commented out, so the panel's JavaScript bundle is served as is.
 
 ## Rules and limits
 
@@ -161,7 +167,7 @@ The server did not compress the JSON page or the streamed CSV export I checked. 
 
 Count statements before you tune anything. A widget test can assert how many `query` calls a screen makes, with `BeakRecordingDataSource`, and an API test can assert how many statements a request runs, by wrapping the adapter in worm's `LoggingAdapter`, as the test quoted above does. [Testing](testing.md) shows both.
 
-On a live Postgres database, log the slow statements and read their plans:
+On a live Postgres database, log the slow statements and read their plans (as a superuser, or through your provider's setting for the same option):
 
 ```console
 $ psql "$DATABASE_URL" -c "ALTER SYSTEM SET log_min_duration_statement = '200ms'"

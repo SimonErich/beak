@@ -10,7 +10,7 @@ status: stable
 
 After this page you can pick the cheapest test that answers your question about a Beak project: a panel over an in-memory data source, a form session with no screen at all, or the generated server running on an in-memory SQLite database. Every level has a helper in `package:beak/testing.dart` or an example to copy.
 
-A Beak project has two halves and they need different tests. The panel is Flutter and renders whatever its data source hands it. The server holds the parts you cannot leave to a client: policies, transactions, model behavior, database constraints. A widget test proves the first half, an API test proves the second, and neither one stands in for the other.
+A Beak project has two halves and they need different tests. The panel is Flutter and renders whatever its data source hands it. The server holds the parts you cannot leave to a client: policies, transactions, model behavior, database constraints. A widget test proves the first half, an API test proves the second, and neither one stands in for the other. A bird that only inspects its own beak has not tested the worm.
 
 ## At a glance
 
@@ -79,7 +79,7 @@ Seed it with typed records. `seed` replaces a model's rows and returns the sourc
         ]);
 ```
 
-Need a record and not care what is in it? `beakFakeRecord(const ProductModel())` builds one from the model's own column metadata and rules, so a `BeakMaxLength(60)` added tomorrow cannot leave a 200-character fixture behind. `BeakRecordFactory(seed: 7)` does the same for many records and is reproducible under the seed.
+When you need a record and do not care what is in it, `beakFakeRecord(const ProductModel())` builds one from the model's own column metadata and rules, so a `BeakMaxLength(60)` added tomorrow cannot leave a 200-character fixture behind. `BeakRecordFactory(seed: 7)` does the same for many records and is reproducible under the seed.
 
 The panel's layout breakpoints are wider than the default 800 by 600 test window. Widget tests that render a table or a form set a desktop-sized surface first, as the shop's do:
 
@@ -96,7 +96,7 @@ One widget needs no panel around it. `BeakConfiguredForm` takes the same source,
 
 ## Form logic without a screen
 
-A `BeakFormSession` is what sits behind every form. Build one over the in-memory source, set fields, and read derived values back. There is no widget, no pump and no settle, so these tests run in milliseconds.
+A `BeakFormSession` is what sits behind every form. Build one over the in-memory source, set fields, and read derived values back. There is no widget, no pump and no settle, so these tests are fast.
 
 ```dart title="examples/clean_beak_config/test/order_form_test.dart"
 --8<-- "examples/clean_beak_config/test/order_form_test.dart:formLogicInMemoryTest"
@@ -164,7 +164,7 @@ The whole shop API suite is a few seconds of test time. Each test gets its own d
 
 ### Test the policy at the server
 
-Authorization is the clearest case for a server test, because a widget test cannot see it. The rules below make notes readable by anyone signed in and scoped to the caller's own author. The tests then send real requests with real tokens:
+Authorization is the clearest case for a server test, because a widget test cannot see it. The rules below make notes readable by anyone signed in and scoped to the caller's own author. The tests then send requests through the real router with real session tokens:
 
 ```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
 --8<-- "packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart:rowScopedQueryTests"
@@ -174,7 +174,7 @@ An anonymous request is a 401. A signed-in caller with no rows gets an empty pag
 
 ## Migrations and schema parity
 
-Two questions belong in a test. Does an upgrade preserve the data already in the database, and do the models still match the tables the migrations build?
+Two things belong in a test: that an upgrade preserves the data already in the database, and that the models still match the tables the migrations build.
 
 The shop answers the first by migrating only the early part of its migration list, inserting legacy rows, running the rest and asserting the rows survived. Its `shop_migration_test.dart` also asserts the foreign keys a fresh database declares.
 

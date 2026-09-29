@@ -40,7 +40,8 @@ The smallest closed server names a policy, and, while you develop, a session sto
 ```
 
 ```dart
-// Illustrative: lib/server.dart wiring the two pieces above.
+// Illustrative: lib/server.dart. `notesPolicy` stands for the BeakPolicies
+// built by the first block and `sessions` for the function in the second.
 BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
   policy: notesPolicy,
   authSessions: sessions(),
@@ -142,10 +143,10 @@ An upload runs through the column's rules on the server before a byte is stored.
 
 What this does and does not check, verified against the running shop:
 
-- **Size** is checked while the part streams in, so an oversized file never buffers fully. That only happens when the column sets `maxSizeInBytes`. A column that sets none accepts any size.
-- **Type** is the MIME type the client declared plus the file extension. A GIF declared as `image/gif` on this column is a 422 (`The MIME type "image/gif" is not allowed`). An empty `allowedTypes` means unrestricted.
-- **Content** is checked only for image columns. They decode the bytes, so a text file named `x.png` is a 422 (`The uploaded file is not a supported raster image`). A file column does not look inside the file.
-- **The key** is minted on the server from a fresh uuid. The client's filename never reaches the key, so `../../other/logo.png` cannot choose where bytes land. The extension comes from the validated MIME type when Beak knows the type, and from the client's filename when it does not.
+- Size is checked while the part streams in, so an oversized file never buffers fully. That only happens when the column sets `maxSizeInBytes`. A column that sets none accepts any size.
+- Type is the MIME type the client declared plus the file extension. A GIF declared as `image/gif` on this column is a 422 (`The MIME type "image/gif" is not allowed`). An empty `allowedTypes` means unrestricted.
+- Content is checked only for image columns. They decode the bytes, so a text file named `x.png` is a 422 (`The uploaded file is not a supported raster image`). A file column does not look inside the file.
+- The key is minted on the server from a fresh uuid. The client's filename never reaches the key, so `../../other/logo.png` cannot choose where bytes land. The extension comes from the validated MIME type when Beak knows the type, and from the client's filename when it does not.
 
 That last point has a consequence. A file column with no `allowedTypes` accepts a file named `evil.html` declared as `text/html`, and stores it as `<uuid>.html`. The local driver serves stored files with a content type taken from the extension, so that file is an HTML page on your API's origin. Always list `allowedTypes`. Do not allow `BeakFileType.svg` (it can carry script) unless you serve uploads from a separate origin, and prefer to serve uploads from a separate origin regardless.
 
