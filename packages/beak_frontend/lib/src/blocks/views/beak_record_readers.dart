@@ -62,6 +62,7 @@ double? _readDouble(BeakRecord record, BeakColumn? column) {
 
 /// Resolves a semantic [BeakColor] to a concrete theme color, or `null` when
 /// [color] is unset.
+// --8<-- [start:resolveBeakColor]
 Color? _resolveBeakColor(BuildContext context, BeakColor? color) {
   final colors = context.colors;
   return switch (color) {
@@ -75,3 +76,4 @@ Color? _resolveBeakColor(BuildContext context, BeakColor? color) {
     BeakColor.muted => colors.textMuted,
   };
 }
+// --8<-- [end:resolveBeakColor]

@@ -52,6 +52,7 @@ abstract final class BeakCustomRenderers {
 }
 
 /// Maps Beak's semantic colors onto obers_ui badge colors.
+// --8<-- [start:oiBadgeColorFor]
 OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
   BeakColor.primary => OiBadgeColor.primary,
   BeakColor.secondary => OiBadgeColor.accent,
@@ -61,6 +62,7 @@ OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
   BeakColor.info => OiBadgeColor.info,
   BeakColor.muted => OiBadgeColor.neutral,
 };
+// --8<-- [end:oiBadgeColorFor]
 
 /// Renders [column]'s value from [record] by its render intent for
 /// [renderContext] — the single place intents become widgets, shared by

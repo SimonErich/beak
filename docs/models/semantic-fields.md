@@ -1,160 +1,190 @@
 ---
 title: Semantic fields
-description: Define a field's meaning once for typed generation, inputs, validation, storage, filtering and display.
+description: Give a field a meaning beyond its column, such as email, exact money, percentages, dates, lists or an embedded object, and see what each stores and shows.
 type: guide
 audience: [expert]
-status: draft
+status: stable
 ---
 
 # Semantic fields
 
-A Dart type selects physical storage. `@Column(semantic: ...)` adds meaning:
-email, exact money, units, structured values and more. Generated references retain
-the domain type, while codecs translate it to portable database and wire values.
-Use `.input()` to select the appropriate control automatically.
+A Dart type picks the physical column. A semantic says what the value means, and with it how to type it, check it, store it and show it. After this page you can choose the right meaning for email, money, percentages, calendar values, lists and embedded objects, and you know what each one puts in the database.
+
+You write the meaning once, on the schema field. The generated reference keeps the domain type (`BeakDecimal`, `BeakDate`, `List<String>`), a codec translates it to a portable database and wire value, and `.input()` picks the control. Changing a label or moving an input into a tab never changes how the value is stored.
+
+## At a glance
+
+The shop's `FulfillmentPolicy` uses most of them. This is its money and number fields:
 
 ```dart
-@Column(semantic: BeakSemantic.email())
-late final String? supportEmail;
-
-@Column(semantic: BeakSemantic.money(scale: 2), currencyFrom: #currency)
-late final BeakDecimal deliveryFee;
-
-@Column(defaultValue: 'EUR')
-late final String currency;
-
-late final BeakDate? effectiveDate;
-late final BeakTime? dispatchCutoff;
-late final Duration handlingTime;
-late final List<String> tags;
-late final bool? signatureRequired;
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:FulfillmentMoney"
 ```
 
 ```dart
-FulfillmentPolicyModel.deliveryFee.input(),
-FulfillmentPolicyModel.effectiveDate.input(),
-FulfillmentPolicyModel.tags.inputTags(),
-FulfillmentPolicyModel.signatureRequired.input(),
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:FulfillmentNumbers"
 ```
 
-The generated model drives validation and encoding. Changing a label or moving an
-input into a tab never changes its storage behavior. Defaults apply to new drafts
-and API creates; an existing explicit null is not replaced by a default.
+And this is all its form says about them. There is no per-type input, because `.input()` reads the column:
 
-## Supported meanings
+```dart
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/screens/fulfillment_policy_form.dart:fulfillmentPricingColumns"
+```
 
-| Definition | Domain value | Stored value / behavior |
-| --- | --- | --- |
-| `BeakSemantic.email()` | `String` | Email input and validation |
-| `url()` | `String` | Absolute HTTP(S) URL |
-| `phone()` | `String` | Telephone input and conservative syntax validation |
-| `slug()` | `String` | Lowercase hyphen-separated identifier |
-| `uuid()` | `String` | UUID syntax validation |
-| `password()` | `String` | Obscured editor and masked output; authentication services own hashing |
-| `BeakDate` | Calendar date | ISO date string, no timezone conversion |
-| `BeakTime` | Time of day | ISO time string, no calendar date or timezone |
-| `Duration` | Elapsed time | Integer microseconds |
-| `BeakDecimal` / `exactDecimal(scale: ...)` | Exact fixed-scale number | Integer units |
-| `money(scale: ..., currency: ...)` | `BeakDecimal` | Integer units plus explicit fixed or record currency |
-| `percentage(scale: ...)` | `double` | Scale is the stored value representing 100% |
-| `quantity(unit: 'kg')` | Numeric | Numeric storage with a display unit |
-| `fileSize()` | `int` | Byte count |
-| `List<String/int/double/bool>` | Typed immutable list | JSON with checked primitive items |
-| `BeakJsonObject` with `object(schema)` | Typed JSON object | JSON with declared child properties |
-| `bool?` | True / false / null | Three-state editor and nullable storage |
+The meanings, what they store and what the reader sees:
 
-`DateTime` remains an instant. Configure the panel's display timezone policy
-separately; use `BeakDate` for birthdays, due dates and other calendar-only values.
-A time such as a warehouse dispatch cutoff needs an application-defined warehouse
-location; a time-only value does not silently infer one.
+| Definition | Dart type | Stored as | Shown as |
+| --- | --- | --- | --- |
+| `BeakSemantic.email()` | `String` | Text | As typed. Checked as an email address |
+| `BeakSemantic.url()` | `String` | Text | As typed. Must be an absolute HTTP or HTTPS URL |
+| `BeakSemantic.phone()` | `String` | Text | As typed. Conservative syntax check |
+| `BeakSemantic.slug()` | `String` | Text | Lowercase letters, numbers and single hyphens |
+| `BeakSemantic.uuid()` | `String` | Text | Canonical hyphenated form |
+| `BeakSemantic.password()` | `String` | Text | Bullets. Form-only by default |
+| `BeakDate` | `BeakDate` | `YYYY-MM-DD` text | Date pattern, no timezone shift |
+| `BeakTime` | `BeakTime` | `HH:mm:ss` text | Time pattern, no date, no timezone |
+| `Duration` | `Duration` | Integer microseconds | `hh:mm:ss`, may pass 24 hours |
+| `BeakDecimal` | `BeakDecimal` | Integer units at the scale | Localized number at its own scale |
+| `BeakSemantic.exactDecimal(scale: n)` | `BeakDecimal` | Integer units | Same, with the scale you choose |
+| `BeakSemantic.money(...)` | `BeakDecimal` | Integer units | Amount with its currency |
+| `BeakSemantic.percentage(scale: n)` | `double` | As the column | Percent, `n` being the stored value for 100% |
+| `BeakSemantic.quantity(unit: 'kg')` | `int` or `double` | As the column | Number plus the unit |
+| `BeakSemantic.fileSize()` | `int` | Integer bytes | Binary units (KiB, MiB) |
+| `List<String>`, `List<int>`, `List<double>`, `List<bool>` | Typed list | JSON text | Items joined with commas |
+| `BeakSemantic.object(schema)` on `BeakJsonObject` | `BeakJsonObject` | JSON text | Recursive child editors |
+
+`BeakDate`, `BeakTime`, `Duration`, `BeakDecimal`, lists and `BeakJsonObject` carry their semantic without an annotation: the type implies it. The rest go into `@Column(semantic: ...)`, and `beak prepare` rejects a semantic on a Dart type it does not accept, naming the field.
+
+## Text with a meaning
+
+Email, URL, phone, slug and UUID are strings that get a syntax check on the client and on the server, and a text keyboard or preset in the input. These are the server messages, from one request that got each of them wrong:
+
+```json
+{"code":"validation","message":"Validation failed for \"fulfillment_policies\".","fieldErrors":{"code":["Use lowercase letters, numbers and single hyphens."],"support_email":["Must be a valid email address."],"support_phone":["Must be a valid phone number."],"tracking_url":["Must be a valid URL."], ...}}
+```
+
+`password()` obscures the input, masks the value everywhere else (a table cell, a CSV export) and is visible on the form only unless you say otherwise. It cannot be `@Display` or `searchable`. It does not hash anything: Beak stores the text you give it, so the value has to be a hash your authentication code made. A password field is a way to keep a secret off the screen, not a way to keep it safe at rest.
 
 ## Exact amounts and percentages
 
-`const BeakDecimal(12345, scale: 2)` means **123.45**. Arithmetic, comparison and
-encoding operate on integer units. Values exceeding the exact portable integer
-range or requiring unsupported fractional precision fail validation. Do not
-convert exact values to doubles for financial arithmetic.
+`BeakDecimal(12345, scale: 2)` means 123.45. The value is an integer count of units, and every operation works on integers: `+` and `-` keep the greater scale, `*` takes an `int` quantity, and comparison ignores scale, so 1.5 equals 1.50. The coefficient is limited to 9007199254740991, the largest integer JavaScript, JSON and SQL all hold exactly. A value beyond that, or one with more decimals than its scale, is a `FormatException` and a validation error.
 
-Currency display precision and storage scale are independent. Changing EUR to
-JPY, changing the locale or overriding display precision never changes a stored
-amount. `currencyFrom: #currency` resolves a schema member into a typed generated
-column reference; misspelled members fail generation.
+That leaves out multiplying two decimals, and that is deliberate: it forces you to decide how to round. The shop decides half-up, to a whole cent, with integer arithmetic:
 
-Percentage semantics are explicit:
-
-```dart
-// 0.2 means 20%.
-@Column(semantic: BeakSemantic.percentage(scale: 1))
-late final double fraction;
-
-// 20 means 20%.
-@Column(semantic: BeakSemantic.percentage(scale: 100))
-late final double percentagePoints;
+```dart title="examples/clean_beak_config/lib/domain/shop_totals.dart"
+/// [percent] of [amount], rounded half-up to a whole cent.
+static BeakDecimal percentOf(BeakDecimal amount, BeakDecimal percent) =>
+    BeakDecimal(
+      roundRatio(
+        _atScale(amount).units,
+        _atScale(percent).units,
+        _hundred.units,
+      ),
+    );
 ```
 
-## Choices and structured values
+Money adds a currency. `money(currency: 'EUR')` fixes it for the whole column, which is what the invoice does. `money(scale: 2)` together with `currencyFrom: #currency` reads it from a `String` field of the same record, so a euro policy and a dollar policy live in one table. `currencyFrom` is a `Symbol` that `beak prepare` resolves to the typed column, and a misspelled name is an error instead of a currency that never resolves.
 
-Enums supply labels and values automatically. `inputSelect()` and `inputRadio()`
-change the control. Primitive lists support `inputTags()`, `inputMultiSelect()` and
-`inputCheckboxGroup()`. Options can read the live typed draft; unavailable current
-selections remain visible and fail validation rather than disappearing.
+Display and storage scale are independent. An exact amount is shown at its own scale, so changing the panel locale changes the separators and the symbol, and never a stored unit.
+
+Percentages come in three shapes, and the field says which:
+
+| You store | Declare | 2.5% is stored as |
+| --- | --- | --- |
+| A ratio | `double` with `percentage(scale: 1)` | `0.025` |
+| Percentage points | `double` with `percentage(scale: 100)` | `2.5` |
+| An exact rate | `BeakDecimal` with `exactDecimal(scale: 2)` and `suffix: '%'` | `250` at scale 2 |
+
+The scale is the stored value that means 100%. The editor always shows percent, so an administrator types `2.5` in all three, and the codec converts. For the ratio shape, `beak prepare` adds `precision: 4` so the column keeps `0.025`, unless you pass a precision yourself. The shop's tax rate uses the third shape, which is the one to pick when the rate goes into a calculation (the shop's `ratePercent` feeds `percentOf` above).
+
+## Dates, times and durations
+
+Three types and an instant, each with one job:
+
+| Type | Means | Never does |
+| --- | --- | --- |
+| `DateTime` | An instant | Nothing to hide: it is shown in the panel's display timezone |
+| `BeakDate` | A calendar day (a birthday, a due date) | Convert through a timezone |
+| `BeakTime` | A time of day (a cutoff) | Carry a date or a zone |
+| `Duration` | Elapsed time | Wrap at 24 hours |
 
 ```dart
-FulfillmentPolicyModel.regions.inputCheckboxGroup(
-  options: (_) => const [
-    BeakInputOption('AT', 'Austria'),
-    BeakInputOption('DE', 'Germany'),
-  ],
-)
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:FulfillmentTimes"
 ```
 
-Declare embedded object properties with ordinary columns, then reuse the schema:
+A `BeakTime` does not know where it is 14:30. The warehouse cutoff above needs a location that the application defines, and Beak does not guess one. A `DateTime` is shown according to the panel's formatting policy (device time by default, or a fixed offset), see [Formatting and localization](../theming/formatting-and-localization.md). The policy keeps `datePattern` (display) and `dateInputPattern` (calendar controls and range endpoints) apart, so a table can show `Tue 29 Sep` while the calendar input asks for the year. The input pattern defaults to the display one, and the values stay typed dates either way.
+
+The editors parse strictly. `2026-02-30` is not a date, `25:00` is not a time, and a duration is written `hours:minutes:seconds`, for example `2:30:00`. Text that does not parse stays an error on the field and blocks the save. It is never replaced by a guess.
+
+A range is two fields and one rule. The fulfillment policy declares `BeakAfterField(promotionEndsAt, promotionStartsAt, inclusive: true)`, and `inputRange` and `inputDateRange` place both editors side by side, see [Validation](validation.md).
+
+## Choices, lists and objects
+
+Enums supply their own choices. `inputSelect()` and `inputRadio()` change the control, and `options:` can read the live draft (`(state) => ...`) when the choices depend on other fields. Primitive lists support `inputTags()`, `inputMultiSelect()` and `inputCheckboxGroup()`:
 
 ```dart
-abstract final class Address {
-  static const city = BeakStringColumn(
-    key: 'city', label: 'City', rules: [BeakRequired()],
-  );
-  static const schema = BeakObjectSchema(columns: [city]);
-}
-
-@Column(semantic: BeakSemantic.object(Address.schema))
-late final BeakJsonObject? address;
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/screens/fulfillment_policy_form.dart:fulfillmentCoverageCard"
 ```
 
-The editor renders child fields recursively. JSON syntax errors remain associated
-with the input and block submission; invalid editor text never replaces the last
-valid structured value. Primitive repeaters and object editors share the same
-model rules as top-level fields.
+A list is stored as JSON text and read back as an immutable typed list. Its bounds live in the semantic: `BeakSemantic.list(BeakPrimitiveType.string, minItems: 1, maxItems: 5, distinctItems: true, itemRules: [...])`. A `bool?` is a three-state field (true, false, unset), which the form draws as such; `signatureRequired` above uses it to mean "ask the carrier".
 
-## Constraints and extension points
+An embedded object declares its properties with ordinary columns and reuses the schema:
 
-`min`, `max`, `maxLength`, numeric precision and semantic validity are enforced in
-forms and API writes. Add scalar rules with `rules:` and shared record rules with
-the schema's static `validationRules` getter. See [validation rules](validation.md).
+```dart
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:DispatchAddress"
+```
 
-Placement `validate:` and custom callbacks can add workflow-specific feedback.
-They are not transmitted as executable server rules. Put authoritative constraints
-in model metadata or shared model rules. Custom widgets, custom columns and custom
-transports remain available for controls outside these conventions.
+```dart
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:FulfillmentStructures"
+```
 
-The complete example lives in
-`examples/clean_beak_config/lib/resources/fulfillment/`. Its generated schema,
-resource and form are separate files; no custom fetching or save controller is
-needed.
+The editor renders the child fields recursively, and the child rules run in the form and in the API. Unknown properties are rejected unless the schema says `allowUnknown: true`, which is also what a bare `BeakJsonObject` field with no schema gets. Free-form data that no schema describes is a `BeakJson` field (`providerOptions` above): the editor takes JSON text and reports `Must be valid JSON.` when it does not parse.
+
+## Rules and limits
+
+- **The semantic must fit the type.** `email()` on an `int`, or `money()` on a `double`, is an error from `beak prepare` naming the field.
+- **Money is never a `double`.** A `double` with a `€` prefix is still a floating-point number. Use `BeakDecimal` with `money` for anything that has to add up.
+- **The wire carries the stored form.** Over the REST route a money amount is integer units (`490`, not `"4.90"`), a duration is microseconds, and a list or an object is JSON text. The panel does the conversion for you, a script has to do it itself.
+- **Defaults apply to omissions.** A default fills a value that is left out of a create, and the form starts on it. An explicit `null` stays `null`, and a required field then fails.
+- **Display never converts storage.** Formatting changes what is shown and typed. It does not touch the stored value, the query value or the export of raw units.
+- **Scale is 0 to 12.** `BeakSemantic` asserts it.
+- **`placement validate:` is not a server rule.** A `validate:` or `validators:` callback on a screen runs in the form only. Put constraints that every caller must obey on the field or in `validationRules`.
+- **`percentage` and `quantity` do not change the column.** They are labels on a number, so `BeakMin` and `BeakMax` still do the bounding.
+
+## Verify it
+
+Send a record with a wrong value in each field and read the messages back. This is real output from the shop's server for a create with a bad email, phone, URL, calendar date, time, duration and list:
+
+```json
+{"code":"validation","message":"Validation failed for \"fulfillment_policies\".","fieldErrors":{"code":["Use lowercase letters, numbers and single hyphens."],"support_email":["Must be a valid email address."],"support_phone":["Must be a valid phone number."],"tracking_url":["Must be a valid URL."],"currency":["Must be one of: EUR, USD, GBP."],"delivery_fee":["Invalid money value."],"insurance_rate":["Must be at most 1."],"attachment_limit":["Must be at least 0.","Must be a nonnegative number of bytes."],"effective_date":["Expected a valid calendar date (YYYY-MM-DD)."],"dispatch_cutoff":["Expected a valid time (HH:mm[:ss[.ffffff]])."],"handling_time":["Invalid duration value."],"tags":["Invalid primitiveList value."]}}
+```
+
+And a valid one, to see what is stored. The response keeps the stored form: money in units, the date and time as text, the duration in microseconds, the list and the object as JSON text:
+
+```json
+{"values":{"id":"683fb11f-3e09-41e2-be58-63f9571bea05","name":"Standard Europe","code":"standard-europe","support_email":"help@example.com","currency":"EUR","delivery_fee":490,"insurance_rate":0.025,"maximum_weight":12.5,"attachment_limit":10485760,"effective_date":"2026-10-01","dispatch_cutoff":"14:30:00","handling_time":86400000000,"tags":"[\"fragile\",\"eu\"]","regions":"[\"AT\",\"DE\"]","signature_required":null,"speed":"standard","origin":"{\"street\":\"Hauptstr. 1\",\"postal_code\":\"1010\",\"city\":\"Wien\",\"email\":\"dock@example.com\"}","provider_options":null},"relations":{}}
+```
+
+The record rules, shared by the form and this request:
+
+```dart
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:FulfillmentRules"
+```
+
+## Reference
+
+| Symbol | Where | Purpose |
+| --- | --- | --- |
+| `BeakSemantic`, `BeakSemanticKind` | `beak_core` | The meaning and its codec |
+| `BeakDecimal`, `BeakDate`, `BeakTime` | `beak_core` | Exact and calendar values |
+| `BeakObjectSchema` | `beak_core` | The declared shape of an embedded object |
+| `BeakPrimitiveType` | `beak_core` | The item type of a list |
+| `BeakFormatPolicy` | `beak_core` | How each meaning is displayed |
+| `inputCurrency`, `inputDate`, `inputTime`, `inputDuration`, `inputTags`, `inputJson` | `beak_frontend` | Placements for a specific control |
+
+Every constructor, the parsing rules of `BeakDecimal` and the storage of each kind are in [Field types](../reference/field-types.md#semantic-kinds).
 
 ## Continue reading
 
-- [Validation rules](validation.md) for shared record and asynchronous checks.
-- [Forms](../forms/form-screens.md) for declarative layouts and custom control choices.
-
-### Date display and date entry
-
-`BeakFormatting` (and portable `BeakFormatPolicy`) accepts `dateInputPattern`
-separately from `datePattern`. It defaults to `datePattern` for existing panels.
-For example, `datePattern: 'EEE d MMM', dateInputPattern: 'd MMM yyyy'` displays
-compact dates in tables and summaries while calendar editors and filter endpoints
-include the year. Calendar controls, including the date part of timestamp inputs,
-use the same locale and input pattern. Selection retains typed `BeakDate` values
-or timezone-aware timestamp conversion; it does not parse the displayed label or
-change canonical API values. The portable policy preserves both patterns in JSON.
+- [Validation](validation.md) the rules a field or a record adds on top of its meaning.
+- [Inputs](../forms/inputs.md) every input placement and its options.
+- [Formatting and localization](../theming/formatting-and-localization.md) locale, currency and date patterns.

@@ -59,9 +59,9 @@ BeakFormSections orderSections() => BeakFormSections(
                   label: 'When should it arrive?',
                   description: 'Choose a practical delivery date and time.',
                 // --8<-- [start:orderProfilePicker]
-                  validators: [
                 // --8<-- [end:orderProfilePicker]
                 // --8<-- [start:orderDeliveryDateValidator]
+                  validators: [
                     (value, state) =>
                         state.draft.id == null &&
                             value != null &&
