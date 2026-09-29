@@ -21,6 +21,7 @@ import 'resources/vouchers/voucher_resource.dart';
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
+    // --8<-- [start:shopBranding]
     theme: OiThemeData.fromBrand(color: const Color(0xFF315D91)),
     darkTheme: OiThemeData.fromBrand(
       color: const Color(0xFF82ACDF),
@@ -33,6 +34,7 @@ void main() => runApp(
       datePattern: 'dd.MM.yyyy',
       dateTimePattern: 'dd.MM.yyyy HH:mm',
     ),
+    // --8<-- [end:shopBranding]
     pages: [shopOverview(), shopOperations()],
     resources: [
       OrderResource(),

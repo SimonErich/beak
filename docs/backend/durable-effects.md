@@ -1,43 +1,175 @@
 ---
 title: Durable effects
-description: Commit application effects with a graph save and deliver them through a retryable outbox.
+description: Queue a mail, a payment or a webhook inside the save that causes it, deliver it after the commit, and retry it until it lands or gives up.
 type: guide
 audience: [expert]
-status: draft
+status: stable
 ---
 
 # Durable effects
 
-A graph save may need to request a payment, send a confirmation, or notify another system. Use a transaction finalizer to enqueue that effect alongside the successful graph. Do not perform remote calls inside the database transaction or from a form callback.
+A save that places an order may also have to charge a card and send a confirmation. After this page you can queue those effects inside the save's own transaction, deliver them after it commits, and write a handler that survives being called twice.
 
-`BeakSavePlanFinalizer` receives the finalized plan, its result, the transaction-bound `WormDataSource`, and the principal. It runs after graph validation and before the durable save receipt is written. An exception rolls back both the records and queued effects. A replay of an already completed save returns its receipt without running the finalizer again. Finalizers require transactional graph support.
+Doing the remote call inside the transaction holds a database connection on a network call and cannot be rolled back. Doing it after the response loses it when the process dies in between. Beak writes down the intention inside the transaction, as a row in `_beak_outbox`, and delivers it from a loop. The row exists if and only if the save committed. [Graph commits](../architecture/graph-commits.md#effects-the-finalizer-and-the-outbox) has the reasoning. This page is how you use it.
 
-Configure `finalizePlan` on the server/defaults/API router. Generated hosts include `BeakOutboxMigration`; existing deployments apply the new migration through the normal migration runner.
+## At a glance
 
-```dart
-await BeakOutbox.enqueue(
-  transaction.adapter,
-  key: 'order-confirmation:$saveKey',
-  kind: 'order.confirmation',
-  payload: BeakRecord.fromRow({'order_id': orderId}),
-);
+| Piece | Job | Runs |
+| --- | --- | --- |
+| `finalizePlan` | Reads the saved graph and calls `BeakOutbox.enqueue` | Inside the save's transaction, after validation, before the receipt |
+| `BeakOutbox.enqueue` | Inserts one row: key, kind, payload | Same transaction, so a rolled-back save leaves no row |
+| `BeakOutboxSchedule` | The handlers, the interval, the retry policy | In the server process, started by `serve()` |
+| `BeakOutboxWorker.drain` | Claims due rows, calls the handler, records the outcome | Every `interval`, outside any transaction |
+| A `BeakEffectHandler` | Makes the remote call | Once per attempt, and more than once per effect over its lifetime |
+
+You wire the first three in `lib/server.dart`. Foodio's `beakServer` passes a preparer, a finalizer, a schedule and its `graphOnly` list:
+
+```dart title="examples/foodio-adminpanel/lib/server.dart"
+--8<-- "examples/foodio-adminpanel/lib/server.dart:foodioServer"
 ```
 
-Use stable effect keys derived from the save/command identity. Re-enqueueing the same key and payload is a no-op; reusing a key for different content is a conflict. Keep payloads small and persist the facts needed by the provider.
+`BeakOutboxMigration` creates the table and is in every generated host's migration list. A project that upgrades to a Beak with the outbox runs `beak prepare` and then `beak migrate`.
 
-## Worker lifecycle
+## Enqueue inside the save
 
-Construct a `BeakOutboxWorker` with the database adapter and a map of handlers, then call `drain()` from the host's worker loop. The worker claims pending entries with a compare-and-set lease. Expired leases can be reclaimed after a crash. Concurrent drains on one worker coalesce; separate workers use the database claim.
+`finalizePlan` receives the prepared plan, the result (with the real ids of drafts), the transaction-bound data source and the principal. It reads what it needs from the saved records and queues. A finalizer that throws a `BeakException` rolls back the records and the queued rows together, and the receipt is a rejection.
 
-Handlers receive a `BeakOutboxEffect` with its stable key, kind, payload and attempt count. Success marks the effect delivered. Failure stores a safe error code, schedules a retry, and eventually marks the entry failed after `maxAttempts`. Defaults are a two-minute lease, ten-second base retry delay and eight attempts; configure these for the provider's expected latency.
+Foodio writes every row the same way. The key is the save id plus the kind, so replaying the same save enqueues the same rows. The payload is a typed record, so no key is spelled as a string:
 
-Delivery is **at least once**. The provider must use the effect key as an idempotency key, because a process can fail after the provider succeeds but before the delivered marker commits. A lease alone cannot guarantee exactly-once external side effects. The worker does not hold a database transaction open during a remote call.
+```dart title="examples/foodio-adminpanel/lib/domain/foodio_effects.dart"
+--8<-- "examples/foodio-adminpanel/lib/domain/foodio_effects.dart:foodioQueueEffect"
+```
 
-When a handler updates an existing timestamped record directly inside its own database transaction, use `beakRevisionTimestamp(now, previous: storedUpdatedAt)` for the new revision. It preserves JavaScript millisecond precision and always advances beyond the stored value, including under a frozen or corrected clock. Read, validate and write the record in the same transaction; a provider result must invalidate browser drafts loaded before that result.
+Then the rules decide which effects a save earns. Placing an order queues a confirmation when the customer asked for one, and a payment request when payment is pending:
 
-Foodio uses persistent local payment/message adapters. Their receipts are stored in `payment_attempts` and `message_deliveries`, making retries observable without charging a real card or sending email. Its `bin/serve.dart` runs the worker and shuts it down with the server. A real integration replaces these handlers while retaining the same graph, receipt and outbox contracts.
+```dart title="examples/foodio-adminpanel/lib/domain/foodio_effects.dart"
+--8<-- "examples/foodio-adminpanel/lib/domain/foodio_effects.dart:foodioQueueOnPlace"
+```
+
+What `BeakOutbox.enqueue` guarantees: a non-empty `key` and `kind`, and idempotence. Enqueueing the same key with the same content is a no-op. The same key with different content is a `BeakConflictException`, and inside a finalizer that rejects the save. Keep payloads small and put the facts the provider needs in them (an order id, an amount in cents, a recipient), never credentials and never callbacks.
+
+A replay of a completed save returns its receipt and does not call the finalizer again. A finalizer requires transactional graph support.
+
+## Deliver after the commit
+
+`BeakOutboxSchedule` bundles the handlers with the retry policy, and `defaults.build(outbox: ...)` gives it to the server. `BeakServeHost.serve()` validates the schedule before it binds the port, starts the loop once the socket is bound, and stops it when the server closes, after the drain in flight finishes. Nothing else in the process needs a timer. Foodio's schedule drains every second and maps each effect kind to a provider:
+
+```dart title="examples/foodio-adminpanel/lib/domain/foodio_effects.dart"
+--8<-- "examples/foodio-adminpanel/lib/domain/foodio_effects.dart:foodioSchedule"
+```
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `interval` | 1 second | Pause between the start of one drain and the next |
+| `drainLimit` | 100 (1 to 1000) | Most effects one drain attempts |
+| `leaseDuration` | 2 minutes | How long a claimed row is off limits before another worker may take it |
+| `retryDelay` | 10 seconds | Base delay after a failure, multiplied by the attempt number |
+| `maxAttempts` | 8 | Failures before the row is marked `failed` |
+
+Set these to the provider's real latency. A payment call that takes 30 seconds and a lease of 2 minutes is fine, one that can take 5 minutes is not.
+
+A run against a scratch server with one healthy and one failing handler (`maxAttempts: 3`, `retryDelay: 2s`) shows the states a row passes through:
+
+```console
+$ sqlite3 beak.db "select id, status, attempt, last_error from _beak_outbox"
+ok1:created|pending|0|
+fail1:created|pending|0|
+$ sleep 12; sqlite3 beak.db "select id, status, attempt, last_error from _beak_outbox"
+ok1:created|delivered|1|
+fail1:created|failed|3|providerFailure
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending: enqueue
+  pending --> running: claimed with a lease
+  running --> delivered: handler returned
+  running --> pending: handler threw, attempts left
+  running --> failed: handler threw, attempts used up
+  running --> running: lease expired, claimed again
+```
+
+The claim is a compare-and-set on the row, so two workers, or two server processes, never hold the same effect at once. The worker does not keep a database transaction open during the remote call. The stored error is a category and never the provider's message: `BeakException.code` for a typed exception, `providerFailure` for anything else, so a provider that puts a token in its error text does not put it in your table.
+
+## Write a handler that survives a second delivery
+
+Delivery is at least once. A process can die after the provider says yes and before the delivered mark commits, and a slow handler can outlive its lease while another worker claims the row. The effect's `key` is the same on every attempt, and the provider has to use it as its idempotency key. If the provider has none, keep your own receipt keyed by it.
+
+Foodio's demo providers keep a receipt row per effect key, written in the same transaction as their other changes, and look it up first:
+
+```dart title="examples/foodio-adminpanel/lib/domain/foodio_effects.dart"
+--8<-- "examples/foodio-adminpanel/lib/domain/foodio_effects.dart:foodioDeliverOnce"
+```
+
+The same handlers also check that the effect is still wanted. A confirmation for an order that was cancelled before the worker got to it is recorded as `skipped` and sends nothing. Effects are queued by what was true at the save, and delivered later, so a handler that acts on stale intent is a bug waiting for a slow queue.
+
+When a handler updates a timestamped record itself, use `beakRevisionTimestamp(now, previous: storedUpdatedAt)` for the new `updated_at`. It stays exact through a browser's millisecond view and always advances past the stored value, even under a frozen or corrected clock. Read, validate and write in one transaction, so a form that was open before the provider's result fails its revision check and reloads.
+
+## Operate it
+
+Nothing requeues a `failed` row, prunes a `delivered` one, or orders effects. Look at the queue with SQL:
+
+```sql
+select id, kind, status, attempt, last_error from _beak_outbox where status = 'failed';
+```
+
+To try a failed effect again after fixing the provider, put the row back into its initial state, and the next drain claims it as attempt 1:
+
+```sql
+update _beak_outbox set status = 'pending', attempt = 0, available_at = 0, lease = '', last_error = ''
+where id = 'fail1:created';
+```
+
+A row that lacks a column the claim compares is corruption, because only `enqueue` writes the table. The drain marks it `failed` with `malformedRow`, delivers every other row, and then throws once, naming the rows it set aside.
+
+## Test it
+
+A test does not wait for a timer. It drives the worker itself: commit through the API, call `drain()`, and assert the outcome. `drain` returns the number of acknowledged deliveries, so a second call proves nothing is delivered twice:
+
+```dart title="examples/foodio-adminpanel/test/foodio_api_test.dart"
+--8<-- "examples/foodio-adminpanel/test/foodio_api_test.dart:foodioDrainOnce"
+```
+
+`FoodioEffects.worker(adapter)` is `schedule(adapter).worker(adapter, now: clock.read)`, so the test runs the same handlers as production on the demo clock. Do the same for your schedule: build the worker from it, and inject `now` to step through retries.
+
+## Rules and limits
+
+| Rule | Consequence |
+| --- | --- |
+| Delivery is at least once | The provider must treat `effect.key` as an idempotency key. A lease alone cannot make it exactly once |
+| Effects have no order | Two effects of one save may run in either order, on different workers |
+| Only `BeakServeHost.serve()` runs the loop | `buildServer` alone, a test, or an embedded host starts none. Call `server.outbox?.start(adapter, onError: ...)` yourself |
+| The loop runs in the server's isolate | A handler that blocks the isolate slows the API. Drains never overlap on one worker |
+| Nothing prunes or requeues | `delivered` and `failed` rows stay. Reset failed rows by hand, and delete old ones on your own schedule |
+| A handler without a registered kind is a failure | `No outbox handler registered for "kind".` counts as an attempt, so a typo burns all attempts |
+| Retry delay grows linearly | `retryDelay` times the attempt number: 10, 20, 30 seconds by default |
+| The outbox table is fixed | `BeakOutbox` writes `_beak_outbox` by name. Under Serverpod only the receipts table maps onto the host, so the outbox does not work there |
+| The payload is stored as JSON text | Keys are sorted first, so equal content compares equal and a re-enqueue with the same content is a no-op |
+| `finalizePlan` needs a transactional `WormDataSource` | The same requirement as `preparePlan`, see [Transactional business rules](graph-business-rules.md) |
+
+## Verify it
+
+Commit a save that should queue an effect, look at the queue, wait one interval, and look again. The row goes from `pending` to `delivered`, and your provider's own record of the effect key exists exactly once:
+
+```console
+$ sqlite3 beak.db "select id, status, attempt from _beak_outbox"
+ok1:created|pending|0
+$ sleep 2; sqlite3 beak.db "select id, status, attempt from _beak_outbox"
+ok1:created|delivered|1
+```
+
+Then send the same save again with the same `saveId`: the receipt comes back, no second row appears, and the provider is not called again. Kill the server between the commit and the first drain, restart it, and the row is delivered after the restart.
+
+## Reference
+
+- `packages/beak_backend/lib/src/service/beak_outbox.dart`: `BeakOutbox`, `BeakOutboxWorker`, `BeakOutboxSchedule`, `BeakOutboxLoop`, `BeakOutboxEffect`, `BeakOutboxMigration`.
+- `packages/beak_backend/lib/src/service/beak_revision_timestamp.dart`: `beakRevisionTimestamp`.
+- `packages/beak_backend/lib/src/server/beak_serve_host.dart`: where `serve()` starts and stops the loop.
+- `examples/foodio-adminpanel/lib/domain/foodio_effects.dart`: the finalizer, the schedule and the demo providers in full.
 
 ## Continue reading
 
-- [Transactional business rules](graph-business-rules.md)
-- [Composed lists and remote refresh](../panel/composed-lists.md)
+- [Transactional business rules](graph-business-rules.md) the preparer that decides what a save is before it queues anything.
+- [Composed lists](../panel/composed-lists.md#refresh) how the panel picks up a record a provider changed, through a refresh policy.
+- [Going to production](../shipping/going-to-production.md) running more than one server process against one outbox.
+- [Graph commits](../architecture/graph-commits.md) receipts, replay and recovery around the finalizer.

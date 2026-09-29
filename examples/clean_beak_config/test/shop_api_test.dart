@@ -421,6 +421,7 @@ void main() {
   test(
     'collection search and typed filters operate through the real SQLite API',
     () async {
+      // --8<-- [start:shopCollectionSearch]
       for (final search in const [
         BeakSearch('light', ['attributes.value']),
         BeakSearch('COF-ETH-1000', ['variants.sku']),
@@ -433,6 +434,7 @@ void main() {
           ShopSeedIds.filterCoffee,
         ]);
       }
+      // --8<-- [end:shopCollectionSearch]
       for (final search in const [
         BeakSearch('consultation', ['items.label']),
         BeakSearch('WELCOME10', ['vouchers.code_snapshot']),
