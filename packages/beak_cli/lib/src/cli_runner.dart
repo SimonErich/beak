@@ -71,7 +71,9 @@ final class BeakCliEnvironment {
     required this.now,
     required this.probe,
     BeakProcessRunner? runProcess,
-  }) : runProcess = runProcess ?? _neverRunsProcesses;
+    BeakProcessRunner? runInteractive,
+  }) : runProcess = runProcess ?? _neverRunsProcesses,
+       runInteractive = runInteractive ?? runProcess ?? _neverRunsProcesses;
 
   /// The sink command progress and generated-file logs are written to.
   final StringSink out;
@@ -91,6 +93,15 @@ final class BeakCliEnvironment {
   /// anything, so a test that does not opt in cannot start a real process by
   /// accident.
   final BeakProcessRunner runProcess;
+
+  /// Spawns an external command that talks to the person at the terminal.
+  ///
+  /// Its output goes straight to the terminal, as does its input, so the
+  /// migrations report what they applied, the dev server logs its requests and
+  /// `flutter pub get` shows its progress. [runProcess] is for commands whose
+  /// output is noise. Falls back to [runProcess] when not given, so a test
+  /// that records one runner sees every command.
+  final BeakProcessRunner runInteractive;
 
   /// The default runner: reports the command it declined to run.
   static Future<int> _neverRunsProcesses(
@@ -119,6 +130,16 @@ final class BeakCliEnvironment {
         runInShell: true,
       );
       return result.exitCode;
+    },
+    runInteractive: (executable, arguments, {workingDirectory}) async {
+      final process = await Process.start(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        runInShell: true,
+        mode: ProcessStartMode.inheritStdio,
+      );
+      return process.exitCode;
     },
     probe: (host, port) async {
       try {

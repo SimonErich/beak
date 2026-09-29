@@ -249,6 +249,213 @@ void main() {
     });
   });
 
+  group('the guard on the live schema', () {
+    // A fresh database gets every column from the create-table migration,
+    // which reads the model as it is now. Replaying an alter over it used to
+    // fail with `duplicate column name`, so every alteration asks first.
+    String emitted() => emitFor(
+      schemas: [
+        schemaWith('Product', 'products', ['name', 'stock', 'weight']),
+      ],
+      tables: [
+        tableWith('products', ['id', 'name']),
+      ],
+    )!;
+
+    test('up reads the live schema before altering anything', () {
+      final source = emitted();
+
+      expect(source, contains('await schema.adapter.introspectSchema()'));
+      expect(
+        source.indexOf('introspectSchema()'),
+        lessThan(source.indexOf("schema.alter('products'")),
+      );
+    });
+
+    test('adds a column only when the table does not have it', () {
+      final source = emitted();
+
+      expect(source, contains("if (!_has(live, 'products', 'stock'))"));
+      expect(source, contains("if (!_has(live, 'products', 'weight'))"));
+      expect(
+        source.indexOf("if (!_has(live, 'products', 'stock'))"),
+        lessThan(source.indexOf('ProductColumns.stock')),
+      );
+    });
+
+    test('guards each column alone, so a half-applied table finishes', () {
+      // One alter for both would add `stock` a second time when only
+      // `weight` was missing, and an alter with nothing to add is an error.
+      final source = emitted();
+
+      expect("schema.alter('products'".allMatches(source), hasLength(4));
+      expect('await schema.alter'.allMatches(source), hasLength(4));
+    });
+
+    test('rolls back a column only when the table has it', () {
+      final source = emitted();
+      final String down = source.substring(source.indexOf('downSchema'));
+
+      expect(down, contains('introspectSchema()'));
+      expect(down, contains("if (_has(live, 'products', 'stock'))"));
+      expect(down, contains("table.dropColumn('stock')"));
+    });
+
+    test('answers from the columns the adapter reports', () {
+      final source = emitted();
+
+      expect(source, contains('static bool _has('));
+      expect(source, contains('live[table]?.contains(column) ?? false'));
+    });
+
+    test('is valid Dart', () {
+      // The syntax check `dart format` runs: it throws on a parse error.
+      expect(() => BeakEmitters.format(emitted()), returnsNormally);
+    });
+  });
+
+  group('a belongs-to column', () {
+    BeakSchemaIr productBelongingToCategory({bool required = false}) {
+      final BeakSchemaIr base = schemaWith('Product', 'products', ['name']);
+      return BeakSchemaIr(
+        className: base.className,
+        table: base.table,
+        libraryPath: base.libraryPath,
+        columns: [
+          ...base.columns,
+          BeakColumnIr(
+            fieldName: 'categoryId',
+            columnKey: 'category_id',
+            label: 'Category',
+            kind: BeakColumnKind.string,
+            isRequired: required,
+          ),
+        ],
+        relations: [
+          const BeakRelationIr(
+            fieldName: 'category',
+            key: 'category',
+            label: 'Category',
+            kind: BeakRelationKind.belongsTo,
+            relatedSchema: 'Category',
+            foreignKey: 'category_id',
+          ),
+        ],
+        displayColumnKey: 'name',
+        softDeletes: false,
+        timestamps: false,
+        managesSchema: true,
+      );
+    }
+
+    String? emitBelongsTo() => emitFor(
+      schemas: [productBelongingToCategory()],
+      tables: [
+        tableWith('products', ['id', 'name']),
+      ],
+    );
+
+    test('is added as the key a create would make, not as a string', () {
+      // The schema lists the key as a `String` field, so mapping it like any
+      // other column produced a varchar where the create made a uuid.
+      expect(
+        emitBelongsTo(),
+        matches(
+          RegExp(
+            r'defineColumn\(\s*table,\s*ProductColumns\.categoryId,\s*'
+            r'isForeignKey: true',
+          ),
+        ),
+      );
+    });
+
+    test('is indexed, as every belongs-to key is on create', () {
+      expect(emitBelongsTo(), contains('table.index([relation.foreignKey])'));
+    });
+
+    test('carries its constraint, as the create does', () {
+      final source = emitBelongsTo()!;
+
+      expect(source, contains('table.foreign('));
+      expect(
+        source,
+        contains('final relation = ProductRelations.category;'),
+        reason: 'the constraint is read from the relationship, not restated',
+      );
+      expect(source, contains('onTable: relation.relatedTable'));
+      expect(source, contains('onDelete: wormOnDelete(relation.onDelete)'));
+    });
+
+    test('is dropped with its index first', () {
+      final source = emitBelongsTo()!;
+      final String down = source.substring(source.indexOf('downSchema'));
+
+      expect(down, contains("table.dropIndex('products_category_id_idx')"));
+      expect(
+        down.indexOf('dropIndex'),
+        lessThan(down.indexOf("dropColumn('category_id')")),
+      );
+    });
+
+    test('is guarded like any other column', () {
+      expect(
+        emitBelongsTo(),
+        contains("if (!_has(live, 'products', 'category_id'))"),
+      );
+    });
+
+    test('an ordinary column beside it is left alone', () {
+      final source = emitFor(
+        schemas: [
+          BeakSchemaIr(
+            className: 'Product',
+            table: 'products',
+            libraryPath: 'models/product.dart',
+            columns: [
+              ...productBelongingToCategory().columns,
+              const BeakColumnIr(
+                fieldName: 'stock',
+                columnKey: 'stock',
+                label: 'Stock',
+                kind: BeakColumnKind.integer,
+                isRequired: false,
+              ),
+            ],
+            relations: productBelongingToCategory().relations,
+            displayColumnKey: 'name',
+            softDeletes: false,
+            timestamps: false,
+            managesSchema: true,
+          ),
+        ],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      )!;
+
+      expect(
+        source,
+        contains('BeakBlueprint.defineColumn(table, ProductColumns.stock);'),
+      );
+      expect('isForeignKey: true'.allMatches(source), hasLength(1));
+    });
+
+    test('a required one is refused, as any required column is', () {
+      final drift = beakSchemaDrift(
+        schemas: [productBelongingToCategory(required: true)],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      );
+
+      expect(BeakDriftMigrationEmitter.addable(drift), isEmpty);
+      expect(
+        BeakDriftMigrationEmitter.unaddable(drift).keys.map((p) => p.columnKey),
+        ['category_id'],
+      );
+    });
+  });
+
   group('a column a live table cannot gain', () {
     List<BeakDrift> driftFor(BeakSchemaIr schema) => beakSchemaDrift(
       schemas: [schema],

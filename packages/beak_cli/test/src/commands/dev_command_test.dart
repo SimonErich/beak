@@ -1,7 +1,9 @@
 import 'dart:io';
 
-import '../../support/beak_cli_internals.dart';
+import 'package:args/command_runner.dart';
 import 'package:test/test.dart';
+
+import '../../support/beak_cli_internals.dart';
 
 const String noteModel = '''
 import 'package:beak_core/beak_core.dart';
@@ -14,6 +16,16 @@ final class NoteModel extends BeakModel {
   String get displayColumnKey => 'title';
   @override
   List<BeakColumn> get columns => const [];
+}
+''';
+
+const String brokenModel = '''
+import 'package:beak_core/beak_core.dart';
+
+final class BrokenModel extends BeakModel {
+  BrokenModel(this.table);
+  @override
+  final String table;
 }
 ''';
 
@@ -69,15 +81,9 @@ void main() {
     });
 
     test('a generation failure stops before spawning anything', () async {
-      File('${root.path}/lib/models/broken.dart').writeAsStringSync('''
-import 'package:beak_core/beak_core.dart';
-
-final class BrokenModel extends BeakModel {
-  BrokenModel(this.table);
-  @override
-  final String table;
-}
-''');
+      File(
+        '${root.path}/lib/models/broken.dart',
+      ).writeAsStringSync(brokenModel);
       expect(await run(['dev']), 1);
       expect(spawned, isEmpty);
       expect(out.toString(), contains('Cannot generate'));
@@ -89,14 +95,107 @@ final class BrokenModel extends BeakModel {
   });
 
   group('migrate', () {
-    test('regenerates, then delegates to the project CLI', () async {
+    test('regenerates, then runs the migrations', () async {
       expect(await run(['migrate']), 0);
       expect(spawned.single, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
     });
 
-    test('passes a subcommand through', () async {
-      await run(['migrate', 'fresh']);
-      expect(spawned.single, ['dart', 'run', 'bin/migrate.dart', 'fresh']);
+    const verbs = {
+      'up': 'migrate',
+      'status': 'migrate:status',
+      'down': 'migrate:rollback',
+      'fresh': 'migrate:fresh',
+      'refresh': 'migrate:refresh',
+    };
+    for (final MapEntry(key: verb, value: subcommand) in verbs.entries) {
+      test('beak migrate $verb runs worm $subcommand', () async {
+        expect(await run(['migrate', verb]), 0);
+        expect(spawned.single, ['dart', 'run', 'bin/migrate.dart', subcommand]);
+      });
+    }
+
+    test('forwards the flags of the verb it maps', () async {
+      await run(['migrate', '--pretend']);
+      await run(['migrate', '--step', '3']);
+      await run(['migrate', 'down', '--steps=2']);
+      await run(['migrate', 'fresh', '--seed', '--force']);
+      expect(spawned.map((command) => command.skip(3).join(' ')), [
+        'migrate --pretend',
+        'migrate --step=3',
+        'migrate:rollback --steps=2',
+        'migrate:fresh --seed --force',
+      ]);
+    });
+
+    test('passes what follows -- to the worm subcommand untouched', () async {
+      await run(['migrate', 'status', '--', '--some-flag', 'value']);
+      await run(['migrate', '--', '--pretend']);
+      expect(spawned.map((command) => command.skip(3).join(' ')), [
+        'migrate:status --some-flag value',
+        'migrate --pretend',
+      ]);
+    });
+
+    test('refuses a verb it does not know, before running anything', () async {
+      await expectLater(
+        run(['migrate', 'statsu']),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('statsu'), contains('status')),
+          ),
+        ),
+      );
+      expect(spawned, isEmpty);
+    });
+
+    test('refuses more than one verb', () async {
+      await expectLater(
+        run(['migrate', 'up', 'down']),
+        throwsA(isA<UsageException>()),
+      );
+      expect(spawned, isEmpty);
+    });
+
+    test('hands the terminal to the migrations, not a captured run', () async {
+      final interactive = <List<String>>[];
+      final captured = <List<String>>[];
+      final BeakCliEnvironment split = BeakCliEnvironment(
+        out: out,
+        rootDirectory: root,
+        now: () => DateTime.utc(2026, 7, 26, 12),
+        probe: (host, port) async => false,
+        runProcess: (executable, arguments, {workingDirectory}) async {
+          captured.add([executable, ...arguments]);
+          return 0;
+        },
+        runInteractive: (executable, arguments, {workingDirectory}) async {
+          interactive.add([executable, ...arguments]);
+          return 0;
+        },
+      );
+      await createBeakRunner(split).run(['migrate', 'status']);
+      await createBeakRunner(split).run(['seed']);
+      await createBeakRunner(split).run(['dev']);
+      expect(captured, isEmpty);
+      expect(interactive.map((command) => command.skip(2).join(' ')), [
+        'bin/migrate.dart migrate:status',
+        'bin/migrate.dart db:seed',
+        'bin/serve.dart',
+      ]);
+    });
+
+    test('surfaces the exit code of the migrations', () async {
+      expect(await run(['migrate', 'status'], exitCode: 2), 2);
+    });
+
+    test('a generation failure stops before spawning anything', () async {
+      File(
+        '${root.path}/lib/models/broken.dart',
+      ).writeAsStringSync(brokenModel);
+      expect(await run(['migrate']), 1);
+      expect(spawned, isEmpty);
     });
   });
 
@@ -106,18 +205,66 @@ final class BrokenModel extends BeakModel {
       expect(spawned.single, ['dart', 'run', 'bin/migrate.dart', 'db:seed']);
     });
 
-    test('a generation failure stops before spawning anything', () async {
-      File('${root.path}/lib/models/broken.dart').writeAsStringSync('''
-import 'package:beak_core/beak_core.dart';
+    test('forwards its flags', () async {
+      await run(['seed', '--class', 'UserSeeder', '--force', '--env=dev']);
+      expect(
+        spawned.single.skip(3).join(' '),
+        'db:seed --class=UserSeeder '
+        '--env=dev --force',
+      );
+    });
 
-final class BrokenModel extends BeakModel {
-  BrokenModel(this.table);
-  @override
-  final String table;
-}
-''');
+    test('passes what follows -- to db:seed untouched', () async {
+      await run(['seed', '--', '--anything']);
+      expect(spawned.single.skip(3).join(' '), 'db:seed --anything');
+    });
+
+    test('takes no positional argument', () async {
+      await expectLater(
+        run(['seed', 'UserSeeder']),
+        throwsA(isA<UsageException>()),
+      );
+      expect(spawned, isEmpty);
+    });
+
+    test('surfaces the exit code of the seeders', () async {
+      expect(await run(['seed'], exitCode: 1), 1);
+    });
+
+    test('a generation failure stops before spawning anything', () async {
+      File(
+        '${root.path}/lib/models/broken.dart',
+      ).writeAsStringSync(brokenModel);
       expect(await run(['seed']), 1);
       expect(spawned, isEmpty);
     });
+  });
+
+  group('the production runners', () {
+    late File script;
+
+    setUp(() {
+      script = File('${root.path}/exit_with.dart')
+        ..writeAsStringSync(
+          "import 'dart:io';\n"
+          'void main(List<String> args) => exit(int.parse(args.single));\n',
+        );
+    });
+
+    final BeakCliEnvironment production = BeakCliEnvironment.production();
+    for (final (label, runner) in [
+      ('runProcess', production.runProcess),
+      ('runInteractive', production.runInteractive),
+    ]) {
+      test('$label returns the exit code of the process', () async {
+        expect(
+          await runner(Platform.resolvedExecutable, [
+            script.path,
+            '7',
+          ], workingDirectory: root.path),
+          7,
+        );
+      });
+    }
   });
 }

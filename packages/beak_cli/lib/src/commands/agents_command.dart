@@ -118,7 +118,7 @@ final class AgentsCommand extends Command<int> {
             ? args.flag('instructions')
             : null,
         docs: args.wasParsed('docs') ? args.flag('docs') : null,
-        skills: _skills(args['skills']),
+        skills: parseSkillTargets(args['skills'], usage: invocation),
         check: check,
         dryRun: dryRun,
         force: args.flag('force'),
@@ -160,31 +160,37 @@ final class AgentsCommand extends Command<int> {
     }
     return 0;
   }
+}
 
-  /// The targets `--skills` names: `null` when it is not given, empty for
-  /// `none`.
-  List<BeakSkillTarget>? _skills(Object? value) {
-    if (value is! String) {
-      return null;
-    }
-    if (value.trim() == 'none') {
-      return const [];
-    }
-    final targets = <BeakSkillTarget>[];
-    for (final label in value.split(',')) {
-      final BeakSkillTarget? target = BeakSkillTarget.parse(label);
-      if (target == null) {
-        throw UsageException(
-          '--skills takes claude, agents, cursor or none (got "$label").',
-          invocation,
-        );
-      }
-      if (!targets.contains(target)) {
-        targets.add(target);
-      }
-    }
-    return targets;
+/// The targets a `--skills` value names: `null` when it is not given, empty
+/// for `none`.
+///
+/// Shared by `beak agents` and `beak create`, so the two accept the same
+/// spelling. [usage] is what a [UsageException] shows beside its message.
+List<BeakSkillTarget>? parseSkillTargets(
+  Object? value, {
+  required String usage,
+}) {
+  if (value is! String) {
+    return null;
   }
+  if (value.trim() == 'none') {
+    return const [];
+  }
+  final targets = <BeakSkillTarget>[];
+  for (final label in value.split(',')) {
+    final BeakSkillTarget? target = BeakSkillTarget.parse(label);
+    if (target == null) {
+      throw UsageException(
+        '--skills takes claude, agents, cursor or none (got "$label").',
+        usage,
+      );
+    }
+    if (!targets.contains(target)) {
+      targets.add(target);
+    }
+  }
+  return targets;
 }
 
 /// Brings a project's agent files up to date after a command that changes
@@ -195,10 +201,12 @@ final class AgentsCommand extends Command<int> {
 /// missing `pub get` or a damaged marker cannot stop code generation. A
 /// project without a Beak dependency is left alone without a word, and a
 /// package of schema classes with one line saying why. Skills are installed
-/// only when [installSkills] says so; `prepare` leaves them to `beak agents`.
+/// only when [installSkills] says so, into [skills] or else the default
+/// targets; `prepare` leaves them to `beak agents`.
 BeakAgentReport? refreshAgentFiles(
   BeakCliEnvironment environment, {
   bool installSkills = false,
+  List<BeakSkillTarget>? skills,
 }) {
   if (BeakProjectKind.isModelsOnly(environment.rootDirectory)) {
     environment.out.writeln(
@@ -209,7 +217,7 @@ BeakAgentReport? refreshAgentFiles(
   try {
     final BeakAgentReport? report = syncAgentFiles(
       environment.rootDirectory,
-      options: BeakAgentOptions(installSkills: installSkills),
+      options: BeakAgentOptions(installSkills: installSkills, skills: skills),
     );
     if (report == null) {
       return null;

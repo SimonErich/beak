@@ -33,7 +33,27 @@ $ beak dev
 
 `beak create` pins the project's Beak dependency to the release tag of this
 CLI (`v0.9.0`); `--beak-ref <ref>` pins another ref and `--beak-path <path>`
-uses a local checkout instead.
+uses a local checkout instead. It then runs `flutter pub get`, `beak prepare`
+and the agent files, so the project is runnable as created.
+
+| Flag | Effect |
+| --- | --- |
+| `--no-example` | Leave out the Note example: no schema class, no `resources:` block in `beak.yaml`. Start from `beak make:resource`. A panel needs a resource to show, so the generated widget test only checks the registry until you add one. |
+| `--no-pub` | Write the files and stop. Prints `flutter pub get`, `beak prepare` and `beak agents` for you to run, for a machine without a network. |
+| `--skills claude,agents,cursor\|none` | Where the workflow skills are installed, as for `beak agents`. Without it: the agent folders the project has, then `.claude` and `.agents`. |
+| `--authored` | Write a `lib/main.dart` the project owns. |
+
+`beak migrate` and `beak seed` run the project's own `bin/migrate.dart` after
+regenerating the wiring. Its output is yours and its exit code is theirs:
+
+```console
+$ beak migrate status              # migrate:status
+$ beak migrate                     # migrate, or: beak migrate up --pretend
+$ beak migrate down --steps 2      # migrate:rollback
+$ beak migrate fresh --seed        # migrate:fresh (also: refresh)
+$ beak seed --class UserSeeder     # db:seed
+$ beak migrate status -- --other   # what follows -- goes to worm untouched
+```
 
 ```console
 $ beak make:resource Product --fields name:string!,price:decimal!,active:bool
@@ -45,8 +65,14 @@ $ beak migrate
 `lib/resources/products/product_resource.dart`, then runs `beak prepare`,
 which derives the columns, the model, both sides of every relationship and the
 create-table migration from the schema. `make:migration` scaffolds an explicit
-schema change. `introspect`, `eject`, `seed` and `doctor` support existing
-databases, owned overrides, fixture data and setup checks. See the
+schema change; with `--from-drift` it fills the change in from the columns the
+schema classes have and the database has not. Each column is added only when
+the live table lacks it (a fresh database already has it from the create-table
+migration), and a belongs-to key gets its index and foreign key as on create.
+`introspect`, `eject`, `seed` and `doctor` support existing databases, owned
+overrides, fixture data and setup checks. `introspect` marks the display column
+by convention: `name`, `title`, `label`, `email`, then `code`, whichever text
+column the table has first in that order. See the
 [command reference](../../docs/reference/cli-commands.md) for flags and
 deployment workflows.
 
@@ -130,7 +156,8 @@ The library exports only that surface:
 - `createBeakRunner` builds the `beak` `CommandRunner<int>` with every command
   registered.
 - `BeakCliEnvironment` holds the injectable seams (output sink, root
-  directory, clock, port probe, process runner); use
+  directory, clock, port probe and two process runners: `runProcess` captures
+  a command's output, `runInteractive` hands it the terminal); use
   `BeakCliEnvironment.production()` outside tests.
 - `BeakPortProbe` and `BeakProcessRunner` are the types of the probe and
   process-runner seams.

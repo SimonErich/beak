@@ -125,6 +125,17 @@ abstract final class BeakDriftMigrationEmitter {
       ..writeln('///')
       ..writeln('/// Written from the difference between the schema classes')
       ..writeln('/// and the database, and yours from now on.')
+      ..writeln('///')
+      ..writeln(
+        '/// Every alteration first asks the database whether it is needed.',
+      )
+      ..writeln('/// A fresh database already has these columns, because the')
+      ..writeln(
+        '/// create-table migration reads the model as it is now, so an',
+      )
+      ..writeln(
+        '/// unguarded `alter` would fail there with a duplicate column.',
+      )
       ..writeln('final class $className extends Migration {')
       ..writeln('  /// Creates the migration.')
       ..writeln('  const $className();')
@@ -133,35 +144,111 @@ abstract final class BeakDriftMigrationEmitter {
       ..writeln("  String get name => '${timestamp}_${_snakeOf(className)}';")
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  Future<void> upSchema(Schema schema) async {');
+      ..writeln('  Future<void> upSchema(Schema schema) async {')
+      ..writeln('    final live = await schema.adapter.introspectSchema();');
     for (final table in tables) {
-      buffer.writeln("    await schema.alter('$table', (table) {");
       for (final column in byTable[table]!) {
-        // The same mapping the create migration used, so a column added here
-        // and a column created there cannot become different columns.
-        buffer.writeln(
-          '      BeakBlueprint.defineColumn('
-          'table, ${column.schema.columnsClass}.${column.column?.fieldName});',
-        );
+        buffer
+          ..writeln("    if (!_has(live, '$table', '${column.columnKey}')) {")
+          ..writeln("      await schema.alter('$table', (table) {");
+        _writeAddition(buffer, column);
+        buffer
+          ..writeln('      });')
+          ..writeln('    }');
       }
-      buffer.writeln('    });');
     }
     buffer
       ..writeln('  }')
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  Future<void> downSchema(Schema schema) async {');
+      ..writeln('  Future<void> downSchema(Schema schema) async {')
+      ..writeln('    final live = await schema.adapter.introspectSchema();');
     for (final table in tables) {
-      buffer.writeln("    await schema.alter('$table', (table) {");
       for (final column in byTable[table]!) {
-        buffer.writeln("      table.dropColumn('${column.columnKey}');");
+        buffer
+          ..writeln("    if (_has(live, '$table', '${column.columnKey}')) {")
+          ..writeln("      await schema.alter('$table', (table) {");
+        _writeRemoval(buffer, column);
+        buffer
+          ..writeln('      });')
+          ..writeln('    }');
       }
-      buffer.writeln('    });');
     }
     buffer
       ..writeln('  }')
+      ..writeln()
+      ..writeln(
+        '  /// Whether [column] is already in [table] of the live schema.',
+      )
+      ..writeln('  static bool _has(')
+      ..writeln('    Map<String, List<String>> live,')
+      ..writeln('    String table,')
+      ..writeln('    String column,')
+      ..writeln('  ) => live[table]?.contains(column) ?? false;')
       ..writeln('}');
     return BeakEmitters.format(buffer.toString());
+  }
+
+  /// The statements inside the `alter` that adds [missing].
+  ///
+  /// The same mapping the create migration used, so a column added here and a
+  /// column created there cannot become different columns.
+  static void _writeAddition(StringBuffer buffer, BeakMissingColumn missing) {
+    final BeakColumnIr column = missing.column!;
+    final String reference =
+        '${missing.schema.columnsClass}.${column.fieldName}';
+    final BeakRelationIr? relation = _belongsToBackedBy(missing);
+    if (relation == null) {
+      buffer.writeln('        BeakBlueprint.defineColumn(table, $reference);');
+      return;
+    }
+    // What `defineColumns` and `defineForeignKeys` do for a key on create: a
+    // nullable uuid, its index, and its constraint. The constraint is read
+    // from the relationship constant rather than restated, so the referenced
+    // table and the delete rule cannot disagree with the model.
+    buffer
+      ..writeln(
+        '        BeakBlueprint.defineColumn('
+        'table, $reference, isForeignKey: true);',
+      )
+      ..writeln(
+        '        final relation = '
+        '${missing.schema.relationsClass}.${relation.fieldName};',
+      )
+      ..writeln('        table.index([relation.foreignKey]);')
+      ..writeln('        table.foreign(')
+      ..writeln('          column: relation.foreignKey,')
+      ..writeln("          references: 'id',")
+      ..writeln('          onTable: relation.relatedTable,')
+      ..writeln('          onDelete: wormOnDelete(relation.onDelete),')
+      ..writeln('        );');
+  }
+
+  /// The statements inside the `alter` that takes [missing] away again.
+  ///
+  /// A key's index goes first: SQLite refuses to drop an indexed column, and
+  /// the index is Beak's own, named the way `table.index` names it.
+  static void _writeRemoval(StringBuffer buffer, BeakMissingColumn missing) {
+    if (_belongsToBackedBy(missing) != null) {
+      buffer.writeln(
+        "        table.dropIndex('${missing.table}_${missing.columnKey}_idx');",
+      );
+    }
+    buffer.writeln("        table.dropColumn('${missing.columnKey}');");
+  }
+
+  /// The belongs-to relationship whose key is [missing], if there is one.
+  ///
+  /// The schema lists such a key among its columns as a plain `String`, which
+  /// is right for reading it and wrong for creating it.
+  static BeakRelationIr? _belongsToBackedBy(BeakMissingColumn missing) {
+    for (final relation in missing.schema.relations) {
+      if (relation.kind == BeakRelationKind.belongsTo &&
+          relation.foreignKey == missing.columnKey) {
+        return relation;
+      }
+    }
+    return null;
   }
 
   /// `AddStockToProducts` -> `add_stock_to_products`.

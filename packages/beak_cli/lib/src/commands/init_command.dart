@@ -269,7 +269,7 @@ final class InitCommand extends Command<int> {
   /// Resolves packages, generates the wiring, and hands over to the agent
   /// files.
   Future<int> _finish(String entrypoint) async {
-    final int pubExit = await environment.runProcess('flutter', const [
+    final int pubExit = await environment.runInteractive('flutter', const [
       'pub',
       'get',
     ], workingDirectory: environment.rootDirectory.path);

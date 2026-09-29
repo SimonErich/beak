@@ -387,7 +387,7 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln('final class $className extends BeakSchema {');
 
     final foreignKeyColumns = {for (final fk in table.foreignKeys) fk.column};
-    var wroteDisplay = false;
+    final String? displayColumn = _displayColumnOf(table, foreignKeyColumns);
     for (final column in table.columns) {
       if (column.name == table.primaryKey ||
           foreignKeyColumns.contains(column.name) ||
@@ -421,11 +421,8 @@ abstract final class BeakIntrospectionEmitter {
           'cannot be a Dart enum value; it was read as text',
         );
       }
-      final bool isDisplay = !wroteDisplay && _isDisplayCandidate(column);
-      wroteDisplay = wroteDisplay || isDisplay;
-
       buffer.writeln('  /// ${_labelOf(column.name)}.');
-      if (isDisplay) {
+      if (column.name == displayColumn) {
         buffer.writeln('  @Display()');
       }
       buffer.writeln('  @Column(${_columnOptionsOf(column).join(', ')})');
@@ -598,15 +595,53 @@ abstract final class BeakIntrospectionEmitter {
     'citext',
   }.contains(dataType);
 
+  /// The columns that name a record, best first.
+  ///
+  /// A picker or a relation shows this column in place of an id, so the
+  /// convention is worth guessing: `name` says what a thing is called more
+  /// often than `title` does, and a person's `email` says more than a `code`.
+  static const List<String> _displayNames = [
+    'name',
+    'title',
+    'label',
+    'email',
+    'code',
+    'subject',
+  ];
+
+  /// Whether [column] holds text a person could recognise a record by.
+  ///
+  /// Text is `String` for a `varchar` and `BeakText` for a `text`, and SQLite
+  /// declares nearly every string as `TEXT`, so requiring `String` left the
+  /// zero-setup default without a single display column.
   static bool _isDisplayCandidate(IntrospectedColumn column) =>
-      const {
-        'name',
-        'title',
-        'label',
-        'email',
-        'subject',
-      }.contains(column.name) &&
-      _dartTypeOf(column) == 'String';
+      _displayNames.contains(column.name) &&
+      const {'String', 'BeakText'}.contains(_dartTypeOf(column));
+
+  /// The column of [table] the schema class marks `@Display()`, or `null`
+  /// when none of its columns is a candidate.
+  ///
+  /// The best-named candidate wins wherever it sits in the table. Declaration
+  /// order alone would pick the `code` that happens to come first over the
+  /// `name` beside it.
+  static String? _displayColumnOf(
+    IntrospectedTable table,
+    Set<String> foreignKeyColumns,
+  ) {
+    final Set<String> candidates = {
+      for (final column in table.columns)
+        if (column.name != table.primaryKey &&
+            !foreignKeyColumns.contains(column.name) &&
+            _isDisplayCandidate(column))
+          column.name,
+    };
+    for (final name in _displayNames) {
+      if (candidates.contains(name)) {
+        return name;
+      }
+    }
+    return null;
+  }
 
   static bool _isSortable(IntrospectedColumn column) => const {
     'integer',

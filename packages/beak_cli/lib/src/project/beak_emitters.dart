@@ -40,11 +40,13 @@ abstract final class BeakEmitters {
   /// Pinned rather than inferred: a formatter disagreeing with the SDK's
   /// would produce a diff nobody wrote, which is the classic way generated
   /// code breaks a `format --set-exit-if-changed` gate.
+  // --8<-- [start:beakEmitterFormat]
   static final Version languageVersion = Version(3, 11, 0);
 
   /// Formats [source] the way `dart format` would.
   static String format(String source) =>
       DartFormatter(languageVersion: languageVersion).format(source);
+  // --8<-- [end:beakEmitterFormat]
 
   /// Header stamped on every generated file.
   static const String header =
@@ -167,8 +169,12 @@ abstract final class BeakEmitters {
     final buffer = StringBuffer(header)
       ..writeln('library;')
       ..writeln()
-      ..writeln("import 'package:beak/panel.dart';")
-      ..writeln("import 'package:beak/ui.dart';");
+      ..writeln("import 'package:beak/panel.dart';");
+    // The icons are all it uses obers_ui for, and only a default resource
+    // names one: a project with no model yet would import it for nothing.
+    if (defaults.isNotEmpty) {
+      buffer.writeln("import 'package:beak/ui.dart';");
+    }
     if (config.api.isAuto) {
       buffer.writeln("import 'package:flutter/foundation.dart';");
     }

@@ -20,18 +20,22 @@ import '../support/served_project.dart';
 /// that makes you choose between a new column and your data has not shipped
 /// a migration story, it has shipped `migrate:fresh`.
 ///
+/// The other half of the promise is that the same migrations also build a
+/// database from nothing. A create migration reads the model as it is today, so
+/// a fresh database already has every column a later `alter` adds, and the
+/// alter has to notice rather than fail with a duplicate column.
+///
 /// Runs on the default SQLite file, so it needs nothing installed. It is
 /// tagged `e2e` for its cost rather than its dependencies: a `flutter pub
-/// get` and two `dart run`s are too slow for the main gate.
+/// get` and several `dart run`s are too slow for the main gate.
 void main() {
-  test(
-    'a column added after launch reaches the table, and the rows stay',
-    () async {
-      final Directory repoRoot = Directory.current.parent.parent;
-      final project = Directory.systemTemp.createTempSync('beak_evolve_');
-      addTearDown(() => project.deleteSync(recursive: true));
+  test('a column added after launch reaches the table, the rows stay, and the '
+      'same migrations build an empty database', () async {
+    final Directory repoRoot = Directory.current.parent.parent;
+    final project = Directory.systemTemp.createTempSync('beak_evolve_');
+    addTearDown(() => project.deleteSync(recursive: true));
 
-      File('${project.path}/pubspec.yaml').writeAsStringSync('''
+    File('${project.path}/pubspec.yaml').writeAsStringSync('''
 name: shop
 publish_to: none
 environment:
@@ -44,75 +48,148 @@ dependencies:
     sdk: flutter
 ''');
 
-      final environment = BeakCliEnvironment(
-        out: StringBuffer(),
-        rootDirectory: project,
-        now: () => DateTime.utc(2026, 7, 28, 12),
-        probe: (host, port) async => false,
-      );
+    // Migrations run in the order of their names, which start with this
+    // stamp, so a migration written later has to be stamped later.
+    var clock = DateTime.utc(2026, 7, 28, 12);
+    final environment = BeakCliEnvironment(
+      out: StringBuffer(),
+      rootDirectory: project,
+      now: () => clock,
+      probe: (host, port) async => false,
+    );
 
-      // Launch: one resource, its generated migration, one row of real data.
-      expect(
-        await createBeakRunner(environment).run([
-          'make:resource',
-          'Product',
-          '--fields',
-          'name:string!,price:decimal!',
-        ]),
-        0,
-      );
-      await _run(project, ['flutter', 'pub', 'get']);
-      await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
-      await _insertProduct(project, name: 'Espresso Beans', price: 12.5);
+    // Launch: one resource, its generated migration, one row of real data.
+    expect(
+      await createBeakRunner(environment).run([
+        'make:resource',
+        'Product',
+        '--fields',
+        'name:string!,price:decimal!',
+      ]),
+      0,
+    );
+    await _run(project, ['flutter', 'pub', 'get']);
+    await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
+    await _insertProduct(project, name: 'Espresso Beans', price: 12.5);
 
-      // Week two: the catalog needs a stock count.
-      final schema = File(
-        '${project.path}/lib/resources/products/models/product.dart',
-      );
-      schema.writeAsStringSync(
-        schema.readAsStringSync().replaceFirst('}', '''
+    // Week two: the catalog needs a stock count.
+    clock = clock.add(const Duration(days: 7));
+    final schema = File(
+      '${project.path}/lib/resources/products/models/product.dart',
+    );
+    schema.writeAsStringSync(
+      schema.readAsStringSync().replaceFirst('}', '''
   /// Units in stock.
   @Column(sortable: true)
   late final int? stock;
 }'''),
-      );
-      expect(runPrepare(environment).isSuccess, isTrue);
+    );
+    expect(runPrepare(environment).isSuccess, isTrue);
 
-      // The first migration is written once and never rewritten, and a Beak
-      // migration derives its columns from the model at runtime rather than
-      // naming them, so nothing static could work out what this database is
-      // missing. `--from-drift` looks instead.
-      expect(
-        await createBeakRunner(
-          environment,
-        ).run(['make:migration', 'AddStockToProducts', '--from-drift']),
-        0,
-      );
-      final alter = File(
-        '${project.path}/lib/migrations/add_stock_to_products.dart',
-      );
-      expect(alter.existsSync(), isTrue, reason: 'the scaffold names the file');
-      expect(
-        alter.readAsStringSync(),
-        contains('BeakBlueprint.defineColumn(table, ProductColumns.stock)'),
-        reason: 'the body was left empty rather than filled in from drift',
-      );
-      expect(runPrepare(environment).isSuccess, isTrue);
-      await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
+    // The first migration is written once and never rewritten, and a Beak
+    // migration derives its columns from the model at runtime rather than
+    // naming them, so nothing static could work out what this database is
+    // missing. `--from-drift` looks instead.
+    expect(
+      await createBeakRunner(
+        environment,
+      ).run(['make:migration', 'AddStockToProducts', '--from-drift']),
+      0,
+    );
+    final alter = File(
+      '${project.path}/lib/migrations/add_stock_to_products.dart',
+    );
+    expect(alter.existsSync(), isTrue, reason: 'the scaffold names the file');
+    expect(
+      alter.readAsStringSync(),
+      contains('BeakBlueprint.defineColumn(table, ProductColumns.stock)'),
+      reason: 'the body was left empty rather than filled in from drift',
+    );
+    expect(runPrepare(environment).isSuccess, isTrue);
+    await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
 
-      // The row is still there, and it can now carry the new column.
-      final List<Map<String, Object?>> rows = await _products(project);
-      expect(rows, hasLength(1));
-      expect(rows.single['name'], 'Espresso Beans');
-      expect(
-        rows.single.containsKey('stock'),
-        isTrue,
-        reason: 'the alter reached the table',
-      );
-      expect(rows.single['stock'], isNull, reason: 'nullable, so no backfill');
-    },
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
+    // The row is still there, and it can now carry the new column.
+    final List<Map<String, Object?>> rows = await _products(project);
+    expect(rows, hasLength(1));
+    expect(rows.single['name'], 'Espresso Beans');
+    expect(
+      rows.single.containsKey('stock'),
+      isTrue,
+      reason: 'the alter reached the table',
+    );
+    expect(rows.single['stock'], isNull, reason: 'nullable, so no backfill');
+
+    // Back down and up again: the alter is undone only where it left
+    // something, and applied only where it is missing. The rows go with the
+    // tables, so the next step starts from one again.
+    await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate:refresh']);
+    expect(await _products(project), isEmpty);
+    await _insertProduct(project, name: 'Espresso Beans', price: 12.5);
+
+    // Week three: products belong to a category, a table of its own and a
+    // key on the one that has data.
+    clock = clock.add(const Duration(days: 7));
+    expect(
+      await createBeakRunner(
+        environment,
+      ).run(['make:resource', 'Category', '--fields', 'name:string!']),
+      0,
+    );
+    schema.writeAsStringSync(
+      schema
+          .readAsStringSync()
+          .replaceFirst(
+            "part 'product.beak.dart';",
+            "import '../../categories/models/category.dart';\n\n"
+                "part 'product.beak.dart';",
+          )
+          .replaceFirstMapped(
+            RegExp(r'\}\s*$'),
+            (_) => '''
+  /// What kind of product it is.
+  @BelongsTo()
+  late final Category? category;
+}
+''',
+          ),
+    );
+    clock = clock.add(const Duration(days: 1));
+    expect(runPrepare(environment).isSuccess, isTrue);
+    clock = clock.add(const Duration(days: 1));
+    expect(
+      await createBeakRunner(
+        environment,
+      ).run(['make:migration', 'AddCategoryToProducts', '--from-drift']),
+      0,
+    );
+    final keyed = File(
+      '${project.path}/lib/migrations/add_category_to_products.dart',
+    ).readAsStringSync();
+    expect(keyed, contains('isForeignKey: true'));
+    expect(keyed, contains('table.foreign('));
+    expect(runPrepare(environment).isSuccess, isTrue);
+    await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
+
+    final List<Map<String, Object?>> keyedRows = await _products(project);
+    expect(keyedRows.single['name'], 'Espresso Beans');
+    expect(keyedRows.single.containsKey('category_id'), isTrue);
+
+    // From nothing. Every migration replays over a database whose create
+    // already made the columns the alters add, which used to stop at the
+    // first of them with `duplicate column name`.
+    for (final suffix in const ['', '-shm', '-wal', '-journal']) {
+      final file = File('${project.path}/beak.db$suffix');
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    }
+    await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
+    await _insertProduct(project, name: 'Decaf', price: 9, stock: 4);
+    final List<Map<String, Object?>> rebuilt = await _products(project);
+    expect(rebuilt.single['name'], 'Decaf');
+    expect(rebuilt.single['stock'], 4);
+    expect(rebuilt.single.containsKey('category_id'), isTrue);
+  }, timeout: const Timeout(Duration(minutes: 10)));
 }
 
 /// Runs [command] in [project], failing the test with its output.
@@ -134,9 +211,14 @@ Future<void> _insertProduct(
   Directory project, {
   required String name,
   required double price,
+  int? stock,
 }) => _throughTheApi(
   project,
-  (port) => postJson(port, '/api/products', {'name': name, 'price': price}),
+  (port) => postJson(port, '/api/products', {
+    'name': name,
+    'price': price,
+    'stock': ?stock,
+  }),
 );
 
 /// Every product, as the API reports it.
