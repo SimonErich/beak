@@ -8,7 +8,8 @@ import '../../support/api_models.dart';
 final class _DenyComments extends BeakAllowAllPolicy {
   const _DenyComments();
   @override
-  bool canCreate(BeakPrincipal? principal, String table) => table != 'comments';
+  bool canCreate(BeakPrincipal? principal, BeakModel model) =>
+      model is! CommentModel;
 }
 
 final class _HiddenCommentScope extends BeakAllowAllPolicy
@@ -16,18 +17,12 @@ final class _HiddenCommentScope extends BeakAllowAllPolicy
   const _HiddenCommentScope();
 
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      switch (table) {
-        'notes' => const BeakFieldFilter.forKey(
-          'comments.message',
-          BeakOperator.eq,
-          BeakStringValue('Hidden'),
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      switch (model) {
+        NoteModel() => NoteModel.comments.any(
+          CommentModel.message.eq('Hidden'),
         ),
-        'comments' => const BeakFieldFilter.forKey(
-          'message',
-          BeakOperator.eq,
-          BeakStringValue('Visible'),
-        ),
+        CommentModel() => CommentModel.message.eq('Visible'),
         _ => null,
       };
 }
@@ -37,14 +32,8 @@ final class _MineOnly extends BeakAllowAllPolicy implements BeakRowPolicy {
   const _MineOnly();
 
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'notes'
-      ? const BeakFieldFilter.forKey(
-          'title',
-          BeakOperator.eq,
-          BeakStringValue('Mine'),
-        )
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is NoteModel ? NoteModel.title.eq('Mine') : null;
 }
 
 final class _OwnedNote extends BeakModel {

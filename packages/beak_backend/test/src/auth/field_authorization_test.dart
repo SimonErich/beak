@@ -11,20 +11,22 @@ final class _Policy extends BeakAllowAllPolicy
     implements BeakFieldPolicy, BeakRowPolicy {
   const _Policy();
   @override
-  bool canReadField(BeakPrincipal? principal, String table, String key) =>
-      key != 'price' && key != 'body';
+  bool canReadField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) =>
+      !field.isSameFieldAs(ProductModel.price) &&
+      !field.isSameFieldAs(ReviewModel.body);
   @override
-  bool canWriteField(BeakPrincipal? principal, String table, String key) =>
-      key != 'price' && key != 'tags';
+  bool canWriteField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !field.isSameFieldAs(ProductModel.price) && field.key != 'tags';
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'products'
-      ? const BeakFieldFilter.forKey(
-          'price',
-          BeakOperator.gt,
-          BeakDoubleValue(0),
-        )
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is ProductModel ? ProductModel.price.gt(0) : null;
 }
 
 void main() {

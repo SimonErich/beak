@@ -16,24 +16,25 @@ final class _AdminOnlyWrites implements BeakPolicy {
       principal?.hasRole('admin') ?? false;
 
   @override
-  bool canView(BeakPrincipal? principal, String table) => principal != null;
+  bool canView(BeakPrincipal? principal, BeakModel model) => principal != null;
 
   @override
-  bool canCreate(BeakPrincipal? principal, String table) => _isAdmin(principal);
-
-  @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) =>
+  bool canCreate(BeakPrincipal? principal, BeakModel model) =>
       _isAdmin(principal);
 
   @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
+  bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) =>
+      _isAdmin(principal);
+
+  @override
+  bool canDelete(BeakPrincipal? principal, BeakModel model, Object id) =>
       _isAdmin(principal);
 
   @override
   bool canDeleteUpload(
     BeakPrincipal? principal,
-    String table,
-    String columnKey,
+    BeakModel model,
+    BeakUploadColumn column,
     String storageKey,
   ) => _isAdmin(principal);
 }

@@ -9,14 +9,8 @@ import '../../support/test_models.dart';
 final class _Visible extends BeakAllowAllPolicy implements BeakRowPolicy {
   const _Visible();
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'reviews'
-      ? const BeakFieldFilter.forKey(
-          'body',
-          BeakOperator.eq,
-          BeakStringValue('Visible'),
-        )
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is ReviewModel ? ReviewModel.body.eq('Visible') : null;
 }
 
 void main() {

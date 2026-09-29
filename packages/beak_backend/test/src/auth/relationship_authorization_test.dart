@@ -16,16 +16,12 @@ final class _Policy extends BeakAllowAllPolicy implements BeakRowPolicy {
   const _Policy({this.denyReviews = false});
   final bool denyReviews;
   @override
-  bool canView(BeakPrincipal? principal, String table) =>
-      !denyReviews || table != 'reviews';
+  bool canView(BeakPrincipal? principal, BeakModel model) =>
+      !denyReviews || model is! ReviewModel;
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      switch (table) {
-        'reviews' => const BeakFieldFilter.forKey(
-          'body',
-          BeakOperator.eq,
-          BeakStringValue('Visible'),
-        ),
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      switch (model) {
+        ReviewModel() => ReviewModel.body.eq('Visible'),
         _ => null,
       };
 }

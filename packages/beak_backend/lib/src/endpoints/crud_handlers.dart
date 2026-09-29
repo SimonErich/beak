@@ -44,7 +44,7 @@ final class BeakCrudHandlers {
   );
 
   Map<String, Object?> _recordJson(Request request, BeakRecord record) =>
-      _fields(request).redact(service.model.table, record).toJson();
+      _fields(request).redact(service.model, record).toJson();
 
   /// `GET /capabilities?id=` resolves access without exposing record values.
   Future<Response> capabilities(Request request) async {
@@ -54,7 +54,7 @@ final class BeakCrudHandlers {
     if (id != null) await service.getOne(id, scope: _scope(request));
     return _json(
       200,
-      _fields(request).capabilities(service.model.table, id: id).toJson(),
+      _fields(request).capabilities(service.model, id: id).toJson(),
     );
   }
 
@@ -73,7 +73,7 @@ final class BeakCrudHandlers {
   /// enforced — a handler that forgot to pass it would be a hole, so no
   /// handler decides whether to.
   BeakFilter? _scope(Request request) =>
-      _authorizer(request).scopeFor(service.model.table);
+      _authorizer(request).scopeFor(service.model);
 
   /// `POST /query` — runs a posted [BeakQuerySpec].
   // --8<-- [start:query]
@@ -128,14 +128,12 @@ final class BeakCrudHandlers {
       );
     }
     final id = candidate.recordId;
-    _fields(
-      request,
-    ).requireWrite(service.model.table, candidate.record.values.keys);
+    _fields(request).requireWrite(service.model, candidate.record.values.keys);
     _require(
       request,
       id == null
-          ? policy.canCreate(beakPrincipal(request), service.model.table)
-          : policy.canUpdate(beakPrincipal(request), service.model.table, id),
+          ? policy.canCreate(beakPrincipal(request), service.model)
+          : policy.canUpdate(beakPrincipal(request), service.model, id),
       id == null ? 'create' : 'update',
     );
     try {
@@ -170,11 +168,11 @@ final class BeakCrudHandlers {
   Future<Response> create(Request request) async {
     _require(
       request,
-      policy.canCreate(beakPrincipal(request), service.model.table),
+      policy.canCreate(beakPrincipal(request), service.model),
       'create',
     );
     final record = await _readRecord(request);
-    _fields(request).requireWrite(service.model.table, record.values.keys);
+    _fields(request).requireWrite(service.model, record.values.keys);
     await _requireForeignReferences(request, record);
     final created = await service.create(
       record,
@@ -191,11 +189,11 @@ final class BeakCrudHandlers {
     final Object recordId = _coerceId(id);
     _require(
       request,
-      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      policy.canUpdate(beakPrincipal(request), service.model, recordId),
       'update',
     );
     final record = await _readRecord(request);
-    _fields(request).requireWrite(service.model.table, record.values.keys);
+    _fields(request).requireWrite(service.model, record.values.keys);
     await _requireForeignReferences(request, record);
     final updated = await service.update(
       recordId,
@@ -215,7 +213,7 @@ final class BeakCrudHandlers {
     final Object recordId = _coerceId(id);
     _require(
       request,
-      policy.canDelete(beakPrincipal(request), service.model.table, recordId),
+      policy.canDelete(beakPrincipal(request), service.model, recordId),
       'delete',
     );
     final force = request.url.queryParameters['force'] == 'true';
@@ -252,7 +250,7 @@ final class BeakCrudHandlers {
     // inverse permission of removing it.
     _require(
       request,
-      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      policy.canUpdate(beakPrincipal(request), service.model, recordId),
       'restore',
     );
     final restored = await service.restore(recordId, scope: _scope(request));
@@ -282,10 +280,10 @@ final class BeakCrudHandlers {
     String relationKey,
   ) async {
     final Object recordId = _coerceId(id);
-    _fields(request).requireWrite(service.model.table, [relationKey]);
+    _fields(request).requireWrite(service.model, [relationKey]);
     _require(
       request,
-      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      policy.canUpdate(beakPrincipal(request), service.model, recordId),
       'update',
     );
     final ids = await _readIds(request);
@@ -302,10 +300,10 @@ final class BeakCrudHandlers {
     String relationKey,
   ) async {
     final Object recordId = _coerceId(id);
-    _fields(request).requireWrite(service.model.table, [relationKey]);
+    _fields(request).requireWrite(service.model, [relationKey]);
     _require(
       request,
-      policy.canUpdate(beakPrincipal(request), service.model.table, recordId),
+      policy.canUpdate(beakPrincipal(request), service.model, recordId),
       'update',
     );
     final ids = await _readIds(request);
@@ -335,27 +333,24 @@ final class BeakCrudHandlers {
         'Relationship authorization requires the complete model registry.',
       );
     }
-    final table = relation.relatedTable;
+    final related = models.byTableOrThrow(relation.relatedTable);
     final principal = beakPrincipal(request);
     enforcePolicyDecision(
-      allowed: policy.canView(principal, table),
+      allowed: policy.canView(principal, related),
       principal: principal,
       action: 'view',
-      table: table,
+      model: related,
     );
-    final relatedService = BeakResourceService(
-      models.byTableOrThrow(table),
-      service.dataSource,
-    );
-    final scope = _authorizer(request).scopeFor(table);
+    final relatedService = BeakResourceService(related, service.dataSource);
+    final scope = _authorizer(request).scopeFor(related);
     // Check the entire selection before the data source writes any links.
     for (final id in ids) {
       if (relation is BeakHasMany) {
         enforcePolicyDecision(
-          allowed: policy.canUpdate(principal, table, id),
+          allowed: policy.canUpdate(principal, related, id),
           principal: principal,
           action: 'update',
-          table: table,
+          model: related,
         );
       }
       await relatedService.getOne(id, scope: scope);
@@ -376,7 +371,7 @@ final class BeakCrudHandlers {
 
   void _requireView(Request request) => _require(
     request,
-    policy.canView(beakPrincipal(request), service.model.table),
+    policy.canView(beakPrincipal(request), service.model),
     'view',
   );
 
@@ -385,7 +380,7 @@ final class BeakCrudHandlers {
         allowed: allowed,
         principal: beakPrincipal(request),
         action: action,
-        table: service.model.table,
+        model: service.model,
       );
 
   /// Parses a flat `{column: value}` body into a typed record; malformed

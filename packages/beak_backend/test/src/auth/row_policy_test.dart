@@ -20,10 +20,8 @@ final class _OwnNotesOnly extends BeakAllowAllPolicy implements BeakRowPolicy {
   const _OwnNotesOnly();
 
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'notes'
-      ? BeakFieldFilter.forKey('author_id', BeakOperator.eq, BeakValue.of('a1'))
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is NoteModel ? NoteModel.authorId.eq('a1') : null;
 }
 
 void main() {
@@ -107,11 +105,7 @@ void main() {
         '/api/notes/query',
         body: {
           'table': 'notes',
-          'filter': BeakFieldFilter.forKey(
-            'author_id',
-            BeakOperator.eq,
-            BeakValue.of('a2'),
-          ).toJson(),
+          'filter': NoteModel.authorId.eq('a2').toJson(),
         },
       );
 
@@ -266,8 +260,17 @@ void main() {
   });
 
   test('beakRowScope reads a scope only from a row policy', () {
-    expect(beakRowScope(const BeakAllowAllPolicy(), null, 'notes'), isNull);
-    expect(beakRowScope(const _OwnNotesOnly(), null, 'notes'), isNotNull);
-    expect(beakRowScope(const _OwnNotesOnly(), null, 'authors'), isNull);
+    expect(
+      beakRowScope(const BeakAllowAllPolicy(), null, const NoteModel()),
+      isNull,
+    );
+    expect(
+      beakRowScope(const _OwnNotesOnly(), null, const NoteModel()),
+      isNotNull,
+    );
+    expect(
+      beakRowScope(const _OwnNotesOnly(), null, const AuthorModel()),
+      isNull,
+    );
   });
 }

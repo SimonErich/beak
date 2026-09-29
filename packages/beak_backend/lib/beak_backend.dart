@@ -9,7 +9,9 @@
 library;
 
 export 'src/auth/auth_router.dart';
+export 'src/auth/beak_access.dart';
 export 'src/auth/beak_auth_guard.dart';
+export 'src/auth/beak_policies.dart';
 export 'src/auth/beak_policy.dart' hide beakRowScope;
 export 'src/auth/beak_action_policy.dart';
 export 'src/auth/beak_field_policy.dart';

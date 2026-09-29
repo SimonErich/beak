@@ -97,11 +97,17 @@ final class _WorkflowNote extends BeakModel {
 final class _FieldPolicy extends BeakAllowAllPolicy implements BeakFieldPolicy {
   const _FieldPolicy();
   @override
-  bool canReadField(BeakPrincipal? principal, String table, String key) =>
-      key != 'body';
+  bool canReadField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !field.isSameFieldAs(_body);
   @override
-  bool canWriteField(BeakPrincipal? principal, String table, String key) =>
-      key != 'body' && key != 'rating';
+  bool canWriteField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !field.isSameFieldAs(_body) && !field.isSameFieldAs(_rating);
 }
 
 final class _DenyCommand extends BeakAllowAllPolicy
@@ -110,9 +116,9 @@ final class _DenyCommand extends BeakAllowAllPolicy
   @override
   bool canExecuteAction(
     BeakPrincipal? principal,
-    String table,
+    BeakModel model,
     Object? id,
-    String action,
+    BeakModelAction action,
   ) => false;
 }
 

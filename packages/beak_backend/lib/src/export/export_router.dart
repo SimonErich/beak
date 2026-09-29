@@ -33,10 +33,10 @@ final class BeakExportHandlers {
   // --8<-- [start:export]
   Future<Response> export(Request request) async {
     enforcePolicyDecision(
-      allowed: policy.canView(beakPrincipal(request), model.table),
+      allowed: policy.canView(beakPrincipal(request), model),
       principal: beakPrincipal(request),
       action: 'export',
-      table: model.table,
+      model: model,
     );
     final body = await readJsonObject(request);
     final spec = readBeakSpec(body, BeakQuerySpec.fromJson);
@@ -105,7 +105,7 @@ final class BeakExportHandlers {
           registry: service.registry,
           policy: policy,
           principal: beakPrincipal(request),
-        ).canRead(model.table, column.key),
+        ).canReadColumn(model, column),
       ),
       headers: {
         'content-type': 'text/csv; charset=utf-8',

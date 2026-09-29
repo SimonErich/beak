@@ -42,14 +42,8 @@ Request multipartRequest(
 base class _OwnedMedia extends BeakAllowAllPolicy implements BeakRowPolicy {
   const _OwnedMedia();
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'notes'
-      ? BeakFieldFilter(
-          column: NoteColumns.authorId,
-          operator: BeakOperator.eq,
-          value: BeakValue.of(principal?.id),
-        )
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is NoteModel ? NoteModel.authorId.eq(principal?.id) : null;
 }
 
 final class _BlockedMedia extends _OwnedMedia implements BeakUploadReadPolicy {
@@ -57,8 +51,8 @@ final class _BlockedMedia extends _OwnedMedia implements BeakUploadReadPolicy {
   @override
   bool canViewUpload(
     BeakPrincipal? principal,
-    String table,
-    String columnKey,
+    BeakModel model,
+    BeakUploadColumn column,
     String storageKey,
   ) => false;
 }
@@ -374,7 +368,9 @@ void main() {
       );
 
       expect(response.statusCode, 204);
-      expect(policy.uploadDeleteChecks, [('notes', 'avatar', stored.key)]);
+      expect(policy.uploadDeleteChecks, [
+        (const NoteModel(), NoteColumns.avatar, stored.key),
+      ]);
     });
   });
 
@@ -437,30 +433,30 @@ void main() {
 final class _RecordingUploadPolicy implements BeakPolicy {
   _RecordingUploadPolicy();
 
-  /// Every `(table, columnKey, storageKey)` triple `canDeleteUpload` saw.
-  final List<(String, String, String)> uploadDeleteChecks = [];
+  /// Every `(model, column, storageKey)` triple `canDeleteUpload` saw.
+  final List<(BeakModel, BeakUploadColumn, String)> uploadDeleteChecks = [];
 
   @override
-  bool canView(BeakPrincipal? principal, String table) => true;
+  bool canView(BeakPrincipal? principal, BeakModel model) => true;
 
   @override
-  bool canCreate(BeakPrincipal? principal, String table) => true;
+  bool canCreate(BeakPrincipal? principal, BeakModel model) => true;
 
   @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) => true;
+  bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) => true;
 
   @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
+  bool canDelete(BeakPrincipal? principal, BeakModel model, Object id) =>
       throw StateError('Upload removal must consult canDeleteUpload.');
 
   @override
   bool canDeleteUpload(
     BeakPrincipal? principal,
-    String table,
-    String columnKey,
+    BeakModel model,
+    BeakUploadColumn column,
     String storageKey,
   ) {
-    uploadDeleteChecks.add((table, columnKey, storageKey));
+    uploadDeleteChecks.add((model, column, storageKey));
     return true;
   }
 }

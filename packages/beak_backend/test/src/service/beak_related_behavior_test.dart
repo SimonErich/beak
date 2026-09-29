@@ -96,8 +96,8 @@ const _parent = BeakToOneField(
 final class _DenyParentUpdate extends BeakAllowAllPolicy {
   const _DenyParentUpdate();
   @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) =>
-      table != 'notes';
+  bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) =>
+      model.table != 'notes';
 }
 
 final class _SuggestedComment extends BeakModel {

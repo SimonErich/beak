@@ -22,22 +22,26 @@ final class _Links extends BeakAllowAllPolicy
   final bool scopeRows;
 
   @override
-  bool canReadField(BeakPrincipal? principal, String table, String key) =>
-      !(hideLink && table == 'reviews' && key == 'product_id');
+  bool canReadField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !(hideLink && field.isSameFieldAs(ReviewModel.productId));
 
   @override
-  bool canWriteField(BeakPrincipal? principal, String table, String key) =>
-      !(lockLink && table == 'reviews' && key == 'product_id');
+  bool canWriteField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !(lockLink && field.isSameFieldAs(ReviewModel.productId));
 
   @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) =>
-      !(lockRows && table == 'reviews');
+  bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) =>
+      !(lockRows && model is ReviewModel);
 
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      scopeRows && table == 'reviews'
-      ? const BeakFieldFilter.forKey('rating', BeakOperator.eq, BeakIntValue(1))
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      scopeRows && model is ReviewModel ? ReviewModel.rating.eq(1) : null;
 }
 
 final class _Money extends BeakModel {
@@ -62,37 +66,48 @@ final class _Money extends BeakModel {
 final class _CategoryScope extends BeakAllowAllPolicy implements BeakRowPolicy {
   const _CategoryScope();
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'categories'
-      ? const BeakFieldFilter.forKey('id', BeakOperator.eq, BeakIntValue(1))
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is CategoryModel ? CategoryModel.id.eq(1) : null;
 }
 
 final class _WriteOnly extends BeakAllowAllPolicy {
   const _WriteOnly();
   @override
-  bool canView(BeakPrincipal? principal, String table) => false;
+  bool canView(BeakPrincipal? principal, BeakModel model) => false;
 }
 
 final class _HiddenIdentity extends BeakAllowAllPolicy
     implements BeakFieldPolicy {
   const _HiddenIdentity();
   @override
-  bool canReadField(BeakPrincipal? principal, String table, String key) =>
-      key != 'id';
+  bool canReadField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !field.isSameFieldAs(ProductModel.id);
   @override
-  bool canWriteField(BeakPrincipal? principal, String table, String key) =>
-      true;
+  bool canWriteField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => true;
 }
 
 final class _ReadOnlyCategory extends BeakAllowAllPolicy
     implements BeakFieldPolicy {
   const _ReadOnlyCategory();
   @override
-  bool canReadField(BeakPrincipal? principal, String table, String key) => true;
+  bool canReadField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => true;
   @override
-  bool canWriteField(BeakPrincipal? principal, String table, String key) =>
-      table != 'products' || key != 'category';
+  bool canWriteField(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) => !field.isSameFieldAs(ProductModel.category);
 }
 
 void main() {
@@ -168,11 +183,14 @@ void main() {
         policy: policy,
         principal: null,
       );
-      expect(fields.capabilities('products').canRead('reviews'), isFalse);
+      expect(
+        fields.capabilities(const ProductModel()).canRead('reviews'),
+        isFalse,
+      );
       expect(
         fields
             .redact(
-              'products',
+              const ProductModel(),
               BeakRecord(
                 values: const {},
                 relations: {
@@ -293,8 +311,14 @@ void main() {
         policy: const _ReadOnlyCategory(),
         principal: null,
       );
-      expect(fields.capabilities('products').canWrite('category_id'), isFalse);
-      expect(fields.capabilities('categories').canWrite('products'), isFalse);
+      expect(
+        fields.capabilities(const ProductModel()).canWrite('category_id'),
+        isFalse,
+      );
+      expect(
+        fields.capabilities(const CategoryModel()).canWrite('products'),
+        isFalse,
+      );
       final inverse = await request(
         const _ReadOnlyCategory(),
         '/categories/1/relations/products/attach',

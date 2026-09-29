@@ -187,12 +187,6 @@ final class _VisibleReviews extends BeakAllowAllPolicy
   const _VisibleReviews();
 
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'reviews'
-      ? const BeakFieldFilter.forKey(
-          'body',
-          BeakOperator.eq,
-          BeakStringValue('Visible'),
-        )
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is ReviewModel ? ReviewModel.body.eq('Visible') : null;
 }

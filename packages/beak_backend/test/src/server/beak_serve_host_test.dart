@@ -21,22 +21,22 @@ final class _RecordingPolicy implements BeakPolicy {
   const _RecordingPolicy();
 
   @override
-  bool canView(BeakPrincipal? principal, String table) => false;
+  bool canView(BeakPrincipal? principal, BeakModel model) => false;
 
   @override
-  bool canCreate(BeakPrincipal? principal, String table) => false;
+  bool canCreate(BeakPrincipal? principal, BeakModel model) => false;
 
   @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) => false;
+  bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) => false;
 
   @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) => false;
+  bool canDelete(BeakPrincipal? principal, BeakModel model, Object id) => false;
 
   @override
   bool canDeleteUpload(
     BeakPrincipal? principal,
-    String table,
-    String columnKey,
+    BeakModel model,
+    BeakUploadColumn column,
     String storageKey,
   ) => false;
 }

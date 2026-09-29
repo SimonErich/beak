@@ -305,15 +305,18 @@ final class BeakGraphCommitService {
       policy: policy,
       principal: principal,
     );
-    access.requireWrite(op.target.table, {
+    final target = registry.byTableOrThrow(op.target.table);
+    access.requireWrite(target, {
       ...op.values.values.keys,
       ...op.references.keys,
     });
     if (op.owner case final parent?) {
-      access.requireWrite(parent.table, [op.relationKey!]);
+      access.requireWrite(registry.byTableOrThrow(parent.table), [
+        op.relationKey!,
+      ]);
     }
     if (op.related != null) {
-      access.requireWrite(op.target.table, [op.relationKey!]);
+      access.requireWrite(target, [op.relationKey!]);
     }
   }
 
@@ -390,18 +393,13 @@ final class BeakGraphCommitService {
     final root = await graph.load(plan.root);
     var arguments = plan.arguments;
     if (plan.action case final commandName?) {
+      final action = root.model.behavior.action(commandName);
       if (policy case final BeakActionPolicy actions) {
         _require(
-          actions.canExecuteAction(
-            principal,
-            root.ref.table,
-            root.ref.id,
-            commandName,
-          ),
+          actions.canExecuteAction(principal, root.model, root.ref.id, action),
           principal,
         );
       }
-      final action = root.model.behavior.action(commandName);
       if (plan.root.id == null && !action.allowOnCreate) {
         throw const BeakValidationException(
           'Save the record before executing this action.',
@@ -657,12 +655,14 @@ final class BeakGraphCommitService {
     );
     Object? readableId(BeakOperationResult outcome) {
       if (outcome.resolvedId == null) return null;
-      final table = plan.operations
-          .firstWhere((operation) => operation.id == outcome.id)
-          .target
-          .table;
-      final identity = registry.byTableOrThrow(table).primaryKey.key;
-      return policy.canView(principal, table) && access.canRead(table, identity)
+      final model = registry.byTableOrThrow(
+        plan.operations
+            .firstWhere((operation) => operation.id == outcome.id)
+            .target
+            .table,
+      );
+      return policy.canView(principal, model) &&
+              access.canReadColumn(model, model.primaryKey)
           ? outcome.resolvedId
           : null;
     }
@@ -684,10 +684,12 @@ final class BeakGraphCommitService {
             record: outcome.record == null
                 ? null
                 : access.redact(
-                    plan.operations
-                        .firstWhere((op) => op.id == outcome.id)
-                        .target
-                        .table,
+                    registry.byTableOrThrow(
+                      plan.operations
+                          .firstWhere((op) => op.id == outcome.id)
+                          .target
+                          .table,
+                    ),
                     outcome.record!,
                   ),
           ),
@@ -816,7 +818,7 @@ final class BeakGraphCommitService {
         ).validateCandidate(
           record,
           recordId: ref.id,
-          scope: authorizer.scopeFor(model.table),
+          scope: authorizer.scopeFor(model),
           validationQuery: (spec) =>
               data.query(authorizer.authorizeQuery(spec)),
         );
@@ -899,7 +901,10 @@ final class BeakGraphCommitService {
       plan.root.table,
       ...plan.operations.map((op) => op.target.table),
     }) {
-      _require(policy.canView(principal, table), principal);
+      _require(
+        policy.canView(principal, registry.byTableOrThrow(table)),
+        principal,
+      );
     }
     for (final outcome in result.outcomes) {
       if (outcome.status != BeakWriteOutcome.applied ||
@@ -933,7 +938,7 @@ final class BeakGraphCommitService {
         registry: registry,
         policy: policy,
         principal: principal,
-      ).scopeFor(table);
+      ).scopeFor(registry.byTableOrThrow(table));
 
   Future<BeakRecord> _read(
     BeakRecordRef ref,
@@ -941,7 +946,10 @@ final class BeakGraphCommitService {
     WormDataSource data,
     BeakPrincipal? principal,
   ) async {
-    _require(policy.canView(principal, ref.table), principal);
+    _require(
+      policy.canView(principal, registry.byTableOrThrow(ref.table)),
+      principal,
+    );
     return _service(
       ref.table,
       data,
@@ -968,16 +976,9 @@ final class BeakGraphCommitService {
           ? null
           : op.target.resolve(identities);
       final allowed = switch (op.kind) {
-        BeakSaveOperationKind.create => policy.canCreate(
-          principal,
-          model.table,
-        ),
-        BeakSaveOperationKind.delete => policy.canDelete(
-          principal,
-          model.table,
-          id!,
-        ),
-        _ => policy.canUpdate(principal, model.table, id!),
+        BeakSaveOperationKind.create => policy.canCreate(principal, model),
+        BeakSaveOperationKind.delete => policy.canDelete(principal, model, id!),
+        _ => policy.canUpdate(principal, model, id!),
       };
       _require(allowed, principal);
       final existing = id == null
@@ -986,7 +987,11 @@ final class BeakGraphCommitService {
       if (op.owner case final BeakRecordRef parent) {
         await _read(parent, identities, data, principal);
         _require(
-          policy.canUpdate(principal, parent.table, parent.resolve(identities)),
+          policy.canUpdate(
+            principal,
+            registry.byTableOrThrow(parent.table),
+            parent.resolve(identities),
+          ),
           principal,
         );
         final ownership = registry
@@ -1057,7 +1062,7 @@ final class BeakGraphCommitService {
           _require(
             policy.canUpdate(
               principal,
-              related.table,
+              registry.byTableOrThrow(related.table),
               related.resolve(identities),
             ),
             principal,

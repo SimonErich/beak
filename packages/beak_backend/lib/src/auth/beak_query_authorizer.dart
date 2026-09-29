@@ -37,7 +37,7 @@ final class BeakQueryAuthorizer {
     final search = spec.search;
     final predicates = <BeakFilter>[
       if (spec.filter != null) _filter(model, spec.filter!, const {}, 0),
-      if (scopeFor(spec.table) case final BeakFilter scope) scope,
+      if (scopeFor(model) case final BeakFilter scope) scope,
       if (beakSearchFilter(search, model, registry)
           case final BeakFilter searchFilter)
         _filter(model, searchFilter, const {}, 0),
@@ -109,17 +109,17 @@ final class BeakQueryAuthorizer {
   ///
   /// The caller checks the root operation permission; traversed relations
   /// still require view access.
-  BeakFilter? scopeFor(String table) =>
-      _scope(registry.byTableOrThrow(table), const {}, 0);
+  BeakFilter? scopeFor(BeakModel model) => _scope(model, const {}, 0);
 
   BeakModel _model(String table) {
+    final model = registry.byTableOrThrow(table);
     enforcePolicyDecision(
-      allowed: policy.canView(principal, table),
+      allowed: policy.canView(principal, model),
       principal: principal,
       action: 'view',
-      table: table,
+      model: model,
     );
-    return registry.byTableOrThrow(table);
+    return model;
   }
 
   void _requireFieldPath(BeakModel model, String key) {
@@ -133,14 +133,15 @@ final class BeakQueryAuthorizer {
       _fields.requireReadRelation(current, relation);
       current = _model(relation.relatedTable);
     }
-    if (current.columnByKey(parts.last) == null) {
+    final column = current.columnByKey(parts.last);
+    if (column == null) {
       throw BeakValidationException('Unknown field "${parts.last}".');
     }
-    _fields.requireRead(current.table, parts.last);
+    _fields.requireReadColumn(current, column);
   }
 
   BeakFilter? _scope(BeakModel model, Set<String> activeScopes, int depth) {
-    final scope = beakRowScope(policy, principal, model.table);
+    final scope = beakRowScope(policy, principal, model);
     if (scope == null) return null;
     if (activeScopes.contains(model.table)) {
       throw const BeakConfigurationException(
@@ -188,12 +189,13 @@ final class BeakQueryAuthorizer {
             depth + 1,
           );
         }
-        if (model.columnByKey(columnKey) == null) {
+        final column = model.columnByKey(columnKey);
+        if (column == null) {
           throw BeakValidationException(
             'Unknown field "$columnKey" on "${model.table}".',
           );
         }
-        if (activeScopes.isEmpty) _fields.requireRead(model.table, columnKey);
+        if (activeScopes.isEmpty) _fields.requireReadColumn(model, column);
         return filter;
       }(),
     };

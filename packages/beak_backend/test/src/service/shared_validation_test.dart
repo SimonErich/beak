@@ -54,14 +54,8 @@ final class _HiddenComments extends BeakAllowAllPolicy
     implements BeakRowPolicy {
   const _HiddenComments();
   @override
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table) =>
-      table == 'comments'
-      ? const BeakFieldFilter.forKey(
-          'message',
-          BeakOperator.eq,
-          BeakStringValue('Visible'),
-        )
-      : null;
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is CommentModel ? CommentModel.message.eq('Visible') : null;
 }
 
 void main() {
