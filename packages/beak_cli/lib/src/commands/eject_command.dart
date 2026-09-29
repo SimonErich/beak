@@ -19,6 +19,7 @@ import 'prepare_command.dart';
 /// in the way. Ejecting writes the default out as a file the project owns, so
 /// the first edit is a diff rather than a rewrite from the documentation.
 enum BeakEjectTarget {
+  // --8<-- [start:BeakEjectTarget]
   /// `lib/main.dart` — an authored `BeakPanel(resources: [...])` in place of
   /// the generated entrypoint.
   main('main', 'lib/main.dart, composed by you instead of generated'),

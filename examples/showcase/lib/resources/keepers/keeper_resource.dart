@@ -20,10 +20,12 @@ final class KeeperResource extends BeakResource {
           BeakTableScreen(
             fields: [KeeperModel.name, KeeperModel.email, KeeperModel.role],
           ),
+          // --8<-- [start:keeperReadScreen]
           BeakCustomResourceScreen(
             roles: const {BeakScreenRole.read},
             builder: (context, recordId) => KeeperSheet(recordId: recordId),
           ),
+          // --8<-- [end:keeperReadScreen]
         ],
       );
 }

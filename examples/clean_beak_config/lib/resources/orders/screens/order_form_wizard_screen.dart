@@ -5,6 +5,7 @@ import '../models/order.dart';
 import '../models/order_item.dart';
 import '../models/order_discount.dart';
 
+// --8<-- [start:orderWizardScreen]
 /// A staged order draft presented in four validated steps.
 final class OrderFormWizardScreen extends BeakWizardScreen {
   /// Fetching, relationship state, validation and saving are automatic.
@@ -18,6 +19,7 @@ final class OrderFormWizardScreen extends BeakWizardScreen {
 
 /// Shared structure for both the wizard and tabbed order detail view.
 List<BeakWizardStep> orderSteps() => orderSections().steps;
+// --8<-- [end:orderWizardScreen]
 
 /// Named sections projected into a wizard, tabs or an ordinary form.
 BeakFormSections orderSections() => BeakFormSections(
@@ -56,7 +58,10 @@ BeakFormSections orderSections() => BeakFormSections(
                 OrderModel.deliveryDate.inputDateTime(
                   label: 'When should it arrive?',
                   description: 'Choose a practical delivery date and time.',
+                // --8<-- [start:orderProfilePicker]
                   validators: [
+                // --8<-- [end:orderProfilePicker]
+                // --8<-- [start:orderDeliveryDateValidator]
                     (value, state) =>
                         state.draft.id == null &&
                             value != null &&
@@ -69,6 +74,7 @@ BeakFormSections orderSections() => BeakFormSections(
             ),
             BeakCard(
               title: 'Fulfillment notes',
+                // --8<-- [end:orderDeliveryDateValidator]
               children: [OrderModel.notes.inputText(label: 'Internal notes')],
             ),
           ],
@@ -83,6 +89,7 @@ BeakFormSections orderSections() => BeakFormSections(
           label: 'Products and services',
           minRows: 1,
           removeBehavior: BeakRemoveBehavior.deleteOwned,
+        // --8<-- [start:orderItemsTableForm]
           children: [
             OrderItemModel.product.inputCombobox(),
             OrderItemModel.variant.inputCombobox(),
@@ -130,6 +137,7 @@ BeakFormSections orderSections() => BeakFormSections(
     ),
     BeakSection(
       title: 'Adjustments & review',
+        // --8<-- [end:orderItemsTableForm]
       description: 'Review the order before saving.',
       children: [
         BeakCard(
@@ -198,9 +206,11 @@ BeakFormSections orderSections() => BeakFormSections(
 BeakDecimal lineTotal(BeakFormReader state) {
   final item = state.asOrderItem;
   final unitPrice =
+// --8<-- [start:orderLineTotal]
       item.overwritePrice ??
       item.variant?.price ??
       item.product?.price ??
       ShopMoney.zero;
   return unitPrice * (item.quantity ?? 0) - (item.discount ?? ShopMoney.zero);
 }
+// --8<-- [end:orderLineTotal]

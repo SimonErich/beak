@@ -33,6 +33,7 @@ final class BeakOverlays {
   /// The build context overlays mount from.
   final BuildContext context;
 
+  // --8<-- [start:BeakOverlaysConfirm]
   /// Asks the user to confirm, returning `true` only when they accept.
   ///
   /// The confirm button renders destructively when [destructive] is set.
@@ -71,7 +72,9 @@ final class BeakOverlays {
     );
     return result == true;
   }
+  // --8<-- [end:BeakOverlaysConfirm]
 
+  // --8<-- [start:BeakOverlaysModal]
   /// Shows a content [body] in a modal dialog with a single dismiss button.
   ///
   /// For a dialog that returns a value (a form's saved record), use
@@ -130,3 +133,4 @@ final class BeakOverlays {
     OiToast.show(context, message: message, level: level, position: position);
   }
 }
+  // --8<-- [end:BeakOverlaysToast]

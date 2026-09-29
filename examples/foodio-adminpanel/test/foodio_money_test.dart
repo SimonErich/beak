@@ -34,6 +34,7 @@ void main() {
     expect(edited.netCents, 3242);
     expect(edited.taxByRate, {1000: 300, 2000: 48});
   });
+  // --8<-- [start:foodioVoucherTest]
   test('wizard voucher applies 15 percent food discount with exact VAT', () {
     final total = FoodioTotals.calculate(
       [
@@ -65,6 +66,7 @@ void main() {
       total.taxCents,
     );
   });
+  // --8<-- [end:foodioVoucherTest]
   test('discount remainder is stable by identity across reordered lines', () {
     final lines = [
       for (final key in ['b', 'a', 'c'])

@@ -1,303 +1,322 @@
 ---
 title: Exceptions
-description: Look up the exception family, each stable code, its HTTP status and when Beak throws it.
+description: The sealed BeakException family, the code and HTTP status each variant carries, what throws it, and how the client, receipts and the panel decode it.
 type: reference
 audience: [expert, agent]
-status: draft
+status: stable
 search: {boost: 2}
 ---
 
 # Exceptions
 
-After this page you can name every failure Beak raises, know the `code` and HTTP
-status each one carries, and follow an error from the layer that throws it to the
-JSON on the wire to the `BeakResult` a view model reads.
+Beak raises one sealed family of failures, `BeakException`. Each variant has a stable `code` that travels in the JSON error body, an HTTP status the backend maps it to, and a place where it is rebuilt on the client. This page lists all of it, plus the receipt types that carry a failure inside a `200`.
 
-Beak has exactly one exception hierarchy. It is a **sealed** family rooted at
-`BeakException`, so the switch that maps an error to an HTTP response is checked
-for completeness at compile time. Add a variant and every mapper stops compiling
-until it handles the new case. There are no stray `Exception`s, no strings, and
-no `dynamic` payloads in Beak's error surface.
+## Import
+
+```dart
+import 'package:beak/beak.dart';
+```
+
+The family lives in `beak_core`, so server code, panel code and tests share the same types. The status mapping lives in `beak_backend` (`package:beak/server.dart`); `beakRun` lives in `beak_frontend` (`package:beak/panel.dart`).
+
+## Summary
+
+| Exception | `code` | HTTP status | Typical cause | Extra members |
+| --- | --- | --- | --- | --- |
+| `BeakValidationException` | `validation` | 422 | A rule failed, a body or spec is malformed, a read-only field was written, a graph-only route was called | `fieldErrors` |
+| `BeakNotFoundException` | `not_found` | 404 | Unknown record (or one outside the row scope), route, relationship, upload key or receipt | none |
+| `BeakAuthenticationException` | `authentication` | 401 | No valid identity: wrong login, unknown or expired token, or a policy that denied an anonymous request | none |
+| `BeakAuthorizationException` | `authorization` | 403 | A policy, field policy or row scope denied a signed-in principal | none |
+| `BeakConflictException` | `conflict` | 409 | Duplicate unique value, stale version, reused `saveId` or effect identity | none |
+| `BeakConfigurationException` | `configuration` | 500 | Beak is wired wrong: unregistered model, invalid environment value, unsupported data source | none |
+| `BeakStorageException` | `storage` | 500 | A storage driver failed, or a storage key is invalid | none |
+| `BeakRecordShapeException` | `configuration` | 500 | `require` on a column or typed field found no readable value | `columnKey`, `expectedType` |
+| any other `Object` thrown on the server | `internal` | 500 | A bug or an infrastructure failure | none (the body is fixed) |
+
+`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers seven direct variants; the eighth type rides along with its parent.
 
 ## The base type
-
-Every failure carries two things: a stable machine-readable `code` for wire
-formats and a human-readable `message` for people.
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
 --8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakException"
 ```
 
-The `code` is the contract. It travels in the JSON error body, and the frontend
-rebuilds the exact same typed exception from it. The `message` is free text a
-form or toast can show.
+| Member | Type | Meaning |
+| --- | --- | --- |
+| `code` | `String` | Stable machine-readable category. The only field a client should switch on. |
+| `message` | `String` | Text for a person. Not stable, do not parse it. |
+| `toString()` | `String` | `<runtimeType>(<code>): <message>` |
 
-## The seven variants at a glance
+Because the class is `sealed`, a `switch` over a `BeakException` is checked for completeness. Adding a variant breaks every mapper that does not handle it.
 
-| Exception | `code` | HTTP status | Beak throws it when |
-| --- | --- | --- | --- |
-| `BeakValidationException` | `validation` | 422 | user-supplied data violates one or more column [rules](../models/validation.md); carries per-field errors |
-| `BeakNotFoundException` | `not_found` | 404 | a requested record or resource does not exist for the given id |
-| `BeakAuthenticationException` | `authentication` | 401 | the request carries no valid identity: missing, invalid, or expired credentials |
-| `BeakAuthorizationException` | `authorization` | 403 | the authenticated principal is not allowed to perform the operation |
-| `BeakConflictException` | `conflict` | 409 | an operation conflicts with existing state: a duplicate unique value or a concurrent modification |
-| `BeakConfigurationException` | `configuration` | 500 | Beak itself is set up wrong: a missing driver, a duplicate column key, an unregistered model, a bad env value. A developer error, not user input |
-| `BeakStorageException` | `storage` | 500 | a storage driver fails to store, read, or delete a file |
+## The variants
 
-Anything that is **not** a `BeakException` never reaches the client typed. The
-error-mapping middleware turns it into an opaque `500` with `code: 'internal'` and
-reports it to the unexpected-error listener, so server internals never leak.
-
-## Each variant
-
-The constructors below are copied verbatim. Only `BeakValidationException` adds a
-field beyond `message`.
-
-### BeakValidationException
+`BeakValidationException` is the only variant with a payload.
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakValidationException extends BeakException {
-  const BeakValidationException(String message, {this.fieldErrors = const {}})
-    : super(code: 'validation', message: message);
-
-  /// Validation messages aggregated per column key.
-  final Map<String, List<String>> fieldErrors;
-
-  // ... a toString that appends fieldErrors ...
-}
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakValidationException"
 ```
 
-The backend's `ValidationService` collects every rule failure, keys the messages
-by column, and throws once so a form can highlight each offending input:
+`fieldErrors` maps a column key (or a relationship key) to every message for that field. The server collects all rule failures before it throws, so a form can mark every input at once.
 
-```dart title="packages/beak_backend/lib/src/service/validation_service.dart"
-/// Applies the shared core validator at the backend write boundary.
-final class ValidationService {
-  /// Creates the stateless validation boundary.
-  const ValidationService();
-
-  /// Rejects malformed fields and shared model rules with structured errors.
-  /// [initial] supplies omitted fields and relations for partial updates.
-  /// Graph commits defer record rules until the final transaction state exists.
-  void validate(
-    BeakModel model,
-    BeakRecord input, {
-    required bool isCreate,
-    BeakRecord? initial,
-    bool includeRecordRules = true,
-  }) {
-    final errors = const BeakValidation().validate(
-      model,
-      input,
-      isCreate: isCreate,
-      initial: initial,
-      includeRecordRules: includeRecordRules,
-    );
-    if (errors.isNotEmpty) {
-      throw BeakValidationException(
-        'Validation failed for "${model.table}".',
-        fieldErrors: errors,
-      );
-    }
-  }
-}
-```
-
-`fieldErrors` is the only structured payload in the family. It maps a column key
-to its list of messages (`{'price': ['Must be greater than 0']}`) and rides along
-in the JSON body under `fieldErrors`.
-
-### BeakNotFoundException
+The other six take a message and set their `code`:
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakNotFoundException extends BeakException {
-  const BeakNotFoundException(String message)
-    : super(code: 'not_found', message: message);
-}
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakOtherExceptions"
 ```
 
-Thrown by the service layer when a lookup by primary key comes back empty:
+`BeakRecordShapeException` is the one subclass:
 
-```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-Future<BeakRecord> getOne(Object id, {BeakFilter? scope}) async =>
-    await _findInScope(id, scope) ??
-    (throw BeakNotFoundException(
-      'No record of "${model.table}" with id "$id".',
-    ));
-```
+| Member | Type | Meaning |
+| --- | --- | --- |
+| `BeakRecordShapeException({required columnKey, required expectedType})` | constructor | Builds the message from both values |
+| `columnKey` | `String` | The column whose value could not be read |
+| `expectedType` | `Type` | The Dart type the column reads its values as |
 
-A record a [row policy](../backend/auth-and-policies.md) scope excludes reports
-as missing too, not as forbidden. Telling a caller that a row they cannot
-address exists is itself a leak.
+`BeakTypedColumn.require` and `BeakScalarField.require` throw it when the record has no readable value for the column (absent, `null`, or the wrong shape). Their counterpart `readFrom` returns `null` instead.
 
-### BeakAuthenticationException
+## What throws each variant
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakAuthenticationException extends BeakException {
-  const BeakAuthenticationException(String message)
-    : super(code: 'authentication', message: message);
-}
-```
+Messages below were captured from a running quickstart server unless marked "source". The exact text is not part of the contract, the `code` is.
 
-The 401 counterpart to authorization's 403. Raised when the login credentials are
-wrong or a guarded route is hit without a session:
+### validation (422)
 
-```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-throw const BeakAuthenticationException('Invalid username or password.');
-```
+| Cause | Message or field error |
+| --- | --- |
+| A column rule failed on create or update | `Validation failed for "notes".` with `fieldErrors: {"title": ["This field is required."]}` |
+| Body is not JSON, or not a JSON object | `Request body must be a JSON object, got [1].` |
+| A query, aggregate, summary, commit or validation body cannot be decoded | `Malformed spec body: BeakSavePlan JSON is missing the "root" key.` |
+| A spec names another table than the path | `Query spec targets "x" but this endpoint serves "notes".` (source) |
+| A direct write to a graph-only table | `This resource must be saved through a graph commit.` |
+| A read-only field was sent | `Read-only fields cannot be written.` with `fieldErrors: {"<key>": ["This field is read-only."]}` (source) |
+| `restore` on a model without soft deletes | `Model "notes" does not soft-delete, so there is nothing to restore.` |
+| `If-Unmodified-Since` is not ISO-8601 | `"if-unmodified-since" must be an ISO-8601 timestamp, got "yesterday".` |
+| Upload is not multipart, has no `file` part, exceeds the size limit, or breaks a type rule | `Upload requests must be multipart/form-data with a "file" field.`, `The multipart body has no "file" field.`, `fieldErrors: {"size": [...]}` |
+| An upload key does not start with the column's storage path | `Key "other/x.png" does not belong to column "image" (expected the "product-images/" prefix).` |
+| `batch`, `attach` or `detach` got bad ids | `Ids must be integers or strings, got 1.5.` |
+| Login body lacks a string | `Request body must carry a "password" string, got null.` |
+| A query names an unknown field or relationship | `Unknown field "nope" on "notes".`, `Unknown relationship "title".` |
 
-### BeakAuthorizationException
+### not_found (404)
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakAuthorizationException extends BeakException {
-  const BeakAuthorizationException(String message)
-    : super(code: 'authorization', message: message);
-}
-```
+| Cause | Message |
+| --- | --- |
+| Unknown or out-of-scope record | `No record of "notes" with id "zzz".` |
+| No route matches | `No handler for GET /api/nope.` |
+| Unknown relationship key on attach or detach | `Unknown relationship "nope".` |
+| Unknown upload column | `Model "notes" has no column "nope".` |
+| Upload key with no stored file | `No stored file "product-images/none.png".` |
+| `GET /api/commits/{saveId}` for an id the principal never used | `No receipt for save "nope".` |
+| A local-disk file route with no file, or a key that climbs out of the root | `No stored file at "none.txt".` |
 
-A [policy](../backend/auth-and-policies.md) denies an action to a signed-in
-principal. Note how the same guard picks the right exception based on whether a
-principal is present at all:
+An integer primary key with a non-integer path id is a 404, never a crash. A row that a row policy excludes reports as missing too, because "forbidden" would tell the caller the row exists.
 
-```dart
-if (principal == null) {
-  throw BeakAuthenticationException('Sign in to $action "$table".');
-}
-throw BeakAuthorizationException(
-  'Principal "${principal.id}" is not allowed to $action "$table".',
-);
-```
+### authentication (401)
 
-### BeakConflictException
+| Cause | Message |
+| --- | --- |
+| Wrong username or password | `Invalid username or password.` |
+| Token unknown, revoked or expired | `The session token is invalid or expired.` |
+| `Authorization` header is not `Bearer <token>` | `The authorization header must carry a Bearer token.` |
+| `GET /api/auth/me` without a session | `Sign in to continue.` |
+| `POST /api/auth/logout` without a header | `A Bearer token is required to log out.` |
+| A policy denied `null` principal | `Sign in to update "notes".` (the action varies) |
+| A graph operation was denied to `null` | `Authentication is required.` (inside a receipt) |
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakConflictException extends BeakException {
-  const BeakConflictException(String message)
-    : super(code: 'conflict', message: message);
-}
-```
+### authorization (403)
 
-The slot for state conflicts: a duplicate unique value or a concurrent
-modification. The 409 mapping and the wire decode are already in place, so a
-`BeakDataSource` (or a custom service) that surfaces a duplicate-key violation as
-`BeakConflictException` reaches the client fully typed.
+| Cause | Message |
+| --- | --- |
+| A policy denied a signed-in principal | `Principal "admin" is not allowed to update "notes".` (source, the action varies) |
+| A graph operation was denied | `This operation is not permitted.` (inside a receipt) |
+| A create fell outside the row scope | `The new record is outside your permitted scope.` (source) |
+| A field policy denied a field | `Principal "x" is not allowed to write field "y" of "notes".` (source) |
 
-### BeakConfigurationException
+`enforcePolicyDecision` picks between the two: a denied `null` principal raises `BeakAuthenticationException`, a denied principal raises `BeakAuthorizationException`.
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakConfigurationException extends BeakException {
-  const BeakConfigurationException(String message)
-    : super(code: 'configuration', message: message);
-}
-```
+### conflict (409)
 
-A developer mistake, not a user one: a [registry](../models/generated-code.md)
-lookup for an unregistered table, a duplicate column key, a missing environment
-variable. It maps to `500` because it means the deployment is misconfigured. This
-is also the fallback the client decoder uses for an unrecognized error `code`.
+| Cause | Message |
+| --- | --- |
+| A unique constraint fired on insert or update | `A value that must be unique is already in use.` |
+| `If-Unmodified-Since` is older than the stored `updated_at` | `Record "<id>" of "notes" changed since it was read (expected <a>, found <b>).` |
+| `expectedUpdatedAt` in a graph operation is stale | `The record changed since it was loaded.` (inside a receipt) |
+| A `saveId` was reused with a different plan | `Save identity was reused with different content.` |
+| An outbox effect identity was reused with different content | `Effect identity was reused with different content.` (source) |
+| The Serverpod auth adapter rate-limited a sign-in | `Too many sign-in attempts.` (source) |
 
-It has one subclass, `BeakRecordShapeException`, thrown by
-`BeakTypedColumn.require` when a record carries no readable value for the column
-(absent, null, or the wrong shape). It carries the `columnKey` and the
-`expectedType`, and it travels as `configuration` like any other, because a
-record missing a column the code demands is a wiring mistake.
+### configuration (500)
 
-### BeakStorageException
+| Cause | Message |
+| --- | --- |
+| A spec names a table nobody registered | `No model registered for table "ghosts".` |
+| `DATABASE_URL`, `PORT` or `HOST` is malformed | `PORT must be an integer between 1 and 65535, got "x".` (source) |
+| `graphOnly` lists a table but no `preparePlan` was given | `Graph-only resources require an authoritative graph preparer.` (source) |
+| A preparer, finalizer or model behavior meets a non-transactional data source | `Graph preparation requires a transactional data source.` (source) |
+| The data source cannot summarize | `This data source does not support summaries.` (source) |
+| A storage driver is selected but not registered | `No storage driver is registered for "s3". Registered drivers: memory, local.` (source, raised at boot) |
+| The client received a code it does not know | see [What the client rebuilds](#what-the-client-rebuilds) |
 
-```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-final class BeakStorageException extends BeakException {
-  const BeakStorageException(String message)
-    : super(code: 'storage', message: message);
-}
-```
+### storage (500)
 
-A [storage driver](../models/files-and-storage-columns.md) could not put, get, or
-delete a file, or a storage key failed validation. The built-in drivers throw it
-directly:
+| Cause | Message |
+| --- | --- |
+| A driver has no file under a key | `No file is stored under "key".` |
+| A key is empty, absolute, uses backslashes or has a `.` or `..` segment | `Storage key "x" must be relative, not absolute.` (source) |
+| S3 or FTP failed | `S3 <operation> failed for "<key>": <driver error>` |
 
-```dart title="packages/beak_core/lib/src/storage/drivers/beak_memory_storage_driver.dart"
-throw BeakStorageException('No file is stored under "$key".');
-```
+The S3 driver appends the driver's own error text to the message, and the middleware sends typed messages as written, so that text reaches the caller.
 
-## How an exception crosses the wire
+## How an exception becomes a response
 
-Exceptions are thrown by the [Service and DataSource layers](../concepts/the-four-layers.md)
-and never caught there. The backend has exactly one catch boundary, the
-error-mapping middleware, and it is an exhaustive switch:
+`beakErrorMappingMiddleware` is the only catch boundary of the HTTP layer. It sits inside the request-log, CORS and JSON middleware and outside authentication, so a `BeakAuthenticationException` thrown by the guard is mapped like any other.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-Response _exceptionResponse(BeakException exception, Request request) {
-  final int statusCode = switch (exception) {
-    BeakValidationException() => 422,
-    BeakNotFoundException() => 404,
-    BeakAuthenticationException() => 401,
-    BeakAuthorizationException() => 403,
-    BeakConflictException() => 409,
-    BeakConfigurationException() => 500,
-    BeakStorageException() => 500,
-  };
-  // ... encodes {code, message, fieldErrors?, requestId?} as JSON.
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:beakErrorMappingMiddleware"
+```
+
+```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:exceptionStatus"
+```
+
+The body is JSON with `content-type: application/json; charset=utf-8`.
+
+| Key | Present | Meaning |
+| --- | --- | --- |
+| `code` | always | The variant's `code`, or `internal` |
+| `message` | always | The exception's message, or `Internal server error.` |
+| `fieldErrors` | only for `BeakValidationException` with at least one entry | `{ "<key>": ["<message>", ...] }` |
+| `requestId` | when the request-log middleware is installed (it is, in `BeakServer`) | The incoming `x-request-id`, or one minted per request. The same value is echoed as the `x-request-id` response header. |
+
+Real bodies:
+
+```json
+{
+  "code": "validation",
+  "message": "Validation failed for \"notes\".",
+  "fieldErrors": { "title": ["This field is required."], "pinned": ["This field is required."] },
+  "requestId": "1c63e624ca6a571a"
 }
 ```
 
-!!! note "What just happened"
-    The middleware wraps the whole handler chain. A `BeakException` becomes its
-    status plus a `{code, message}` JSON body (with `fieldErrors` when present).
-    Any other throw becomes an opaque `500` with `code: 'internal'`, so a stack
-    trace never lands in a client.
+```json
+{ "code": "internal", "message": "Internal server error.", "requestId": "1103bf8bc84f1c1d" }
+```
 
-On the frontend, `BeakClient` reads that JSON back and rebuilds the same typed
-exception from the `code`, so the two sides speak one vocabulary:
+An error that is not a `BeakException` is passed to `onUnexpectedError` (default: stderr) and answered with the fixed `internal` body. Driver messages, host names and stack traces stay on the server. The per-route status codes are in the [REST API](rest-api.md).
+
+## What the client rebuilds
+
+`BeakClient` decodes every non-2xx response by `code`, never by status. It is the transport under `HttpBeakDataSource`, so panel code sees the same types.
 
 ```dart title="packages/beak_core/lib/src/client/beak_client.dart"
-throw switch (body['code']) {
-  'validation' => BeakValidationException(
-    message,
-    fieldErrors: _fieldErrors(body),
-  ),
-  'not_found' => BeakNotFoundException(message),
-  'authentication' => BeakAuthenticationException(message),
-  'authorization' => BeakAuthorizationException(message),
-  'conflict' => BeakConflictException(message),
-  'storage' => BeakStorageException(message),
-  _ => BeakConfigurationException(message),
-};
+--8<-- "packages/beak_core/lib/src/client/beak_client.dart:ensureSuccess"
 ```
 
-An unknown `code` falls back to `BeakConfigurationException`, because an error the
-client cannot categorize means the two sides disagree about the contract.
+The message is the body's `message`, or `HTTP <status>.` when the body is not a JSON object. Real decodes, from a `BeakClient` over a mock transport:
 
-## Where exceptions turn into results
+| Response | Thrown |
+| --- | --- |
+| `422` `{"code":"validation","fieldErrors":{...}}` | `BeakValidationException` with `fieldErrors` |
+| `404` `{"code":"not_found"}` | `BeakNotFoundException` |
+| `500` `{"code":"internal"}` | `BeakConfigurationException`, message `Internal server error.` |
+| `502` with an HTML body | `BeakConfigurationException`, message `HTTP 502.` |
+| `413` `{"code":"payload_too_large"}` | `BeakConfigurationException` |
 
-View models never `try/catch`. The frontend's `BeakResourceRepository` is the
-catch boundary: it wraps each data-source call, and any thrown `BeakException`
-surfaces as a `BeakErr`, so callers switch on an outcome instead of catching.
+Two consequences follow from the `_ => BeakConfigurationException` branch. A genuine server-side configuration failure and an untyped `internal` failure look the same to the caller, and a proxy error page is reported as a configuration problem. Switch on the exception type for `validation`, `not_found`, `authentication`, `authorization`, `conflict` and `storage`, and treat `BeakConfigurationException` as "the call failed for a reason the contract does not name".
+
+Two calls change the rule for a single status. `BeakClient.getOne` returns `null` on a 404 instead of throwing. `BeakClient.discardUpload` skips a 404, so an interrupted cleanup can be retried.
+
+The Serverpod tunnel (`packages/beak_serverpod/lib/src/tunnel_http_client.dart`) builds the same envelope for faults that never reached Beak: `401` becomes `authentication`, `403` `authorization`, `404` `not_found`, `409` `conflict`, `413` `payload_too_large`, anything else `transport`. The last two hit the fallback above.
+
+## Failures inside a receipt
+
+A graph commit answers `200` even when the save failed. The failure travels inside the receipt, so a retry never mistakes it for a transport error. See [REST API](rest-api.md#graph-commits) for the route and [Graph commits](../architecture/graph-commits.md) for the mechanics.
+
+| Type | Members | Meaning |
+| --- | --- | --- |
+| `BeakSaveError` | `code`, `message`, `fieldErrors` | A failure safe to serialize into a receipt |
+| `BeakOperationResult` | `id`, `status`, `draftId`, `resolvedId`, `table`, `record`, `error`, `reason` | One operation's outcome |
+| `BeakWriteOutcome` | `applied`, `unapplied`, `unknown` | Confirmed written, confirmed not written, cannot be proven either way |
+| `BeakSaveMode` | `atomic`, `staged` | One transaction, or one checkpoint per operation |
+| `BeakSaveResult` | `saveId`, `mode`, `outcomes`, `rootOperationId` | The receipt. `complete`, `hasUnknown` and `identities` are derived. |
+
+`BeakSaveError.fromException` keeps a recognized `BeakException` as is (a `BeakValidationException` keeps its `fieldErrors`) and turns anything else into code `unknown` with the message `The write outcome could not be confirmed.` Its `code` is a plain string holding the same values as `BeakException.code`.
+
+`BeakOperationResult.reason` is a plain string too. These are the values the code sets:
+
+| `reason` | Set by | Status | Meaning |
+| --- | --- | --- | --- |
+| `rejected` | server | `unapplied` | This operation carried the failure in `error` |
+| `rolledBack` | server | `unapplied` | Fine on its own, undone because another operation of the atomic plan failed |
+| `notStarted` | server, staged runner | `unapplied` | Placeholder before dispatch |
+| `inFlight` | staged runner | `unknown` | Checkpoint written before the operation ran |
+| `unsupportedBehavior` | staged runner | `unapplied` | The plan needs model behavior and the data source cannot commit atomically |
+| `responseUnavailable` | `BeakFormCommitRepository` | `unknown` | The commit call threw, so nothing is known |
+| `restoredPendingSave` | draft runtime | `unknown` | A reload found a stored snapshot of a save in flight |
+
+A `saveId` with an `unknown` outcome is never replayed. `GET /api/commits/{saveId}` resolves it. When a receipt has to become an exception again (a single-record delete through `ModelBeakDataSource`), the first outcome error is mapped back by `code`: `validation`, `authorization`, `authentication`, `not_found`, `configuration` and `storage` keep their type, and everything else becomes `BeakConflictException`.
+
+## Failures in the panel
+
+View models never catch. The repository is the catch boundary and returns a `BeakResult<T>`.
+
+```dart title="packages/beak_core/lib/src/common/beak_result.dart"
+--8<-- "packages/beak_core/lib/src/common/beak_result.dart:BeakResult"
+```
+
+| Type | Members |
+| --- | --- |
+| `BeakOk<T>` | `value`; `isOk` is `true` |
+| `BeakErr<T>` | `error` (a `BeakException`); `isOk` is `false`; `valueOrThrow` rethrows `error` |
+
+`BeakResourceRepository` wraps each data-source call with `beakRun`:
 
 ```dart title="packages/beak_frontend/lib/src/data/beak_run.dart"
-Future<BeakResult<T>> beakRun<T>(
-  Future<T> Function() operation, {
-  BeakException? Function(Exception exception, StackTrace stack)? mapException,
-}) async {
-  try {
-    return BeakOk(await operation());
-  } on BeakException catch (exception) {
-    return BeakErr(exception);
-  } on Exception catch (exception, stack) {
-    final mapped = mapException?.call(exception, stack);
-    if (mapped != null) return BeakErr(mapped);
-    rethrow;
-  }
-}
+--8<-- "packages/beak_frontend/lib/src/data/beak_run.dart:beakRun"
 ```
 
-From there a `BeakErr(BeakValidationException(...))` flows into a form's field
-errors, a `BeakErr(BeakNotFoundException(...))` into a "not found" state, and so
-on. See [Results and errors](../concepts/results-and-errors.md) for the full
-`BeakResult` story.
+A `BeakException` becomes a `BeakErr`. Any other `Exception` is offered to `mapException` and rethrown when the mapper returns `null` or is absent. An `Error` (a programming mistake) always propagates. `BeakPanelConfig.mapException` installs the same mapper for every resource of a panel; it is a field of `BeakPanelConfig`, not of the `BeakPanel(...)` shorthand.
+
+`BeakFormSession` exposes the most recent load or save failure as `error` (`ReadonlySignal<BeakException?>`) and the latest receipt as `saveResult` (`ReadonlySignal<BeakSaveResult?>`). `hasUnknown` is `true` while any outcome is `unknown`, and a form with an unknown outcome refuses to save again until `recover()` has resolved it.
+
+`BeakLocalizations.authError(BeakException)` turns an authentication failure into a fixed, localized sentence (English and German) and never shows the backend's message.
+
+## Exceptions outside the family
+
+These are not `BeakException`s, because nothing maps them to an HTTP response.
+
+| Type | Where | Behavior |
+| --- | --- | --- |
+| `BeakProjectConfigException` | `beak_cli` | `beak.yaml` cannot be read. The runner prints `beak.yaml: <message>` and exits `1`. |
+| `BeakIrreversibleMigrationException` | `beak_backend` | Rolling back the baseline migration `beak introspect` writes. Carries `migration`. |
+| `BeakTemplateException` | `beak_cli` | A block template in the agent files failed to render. |
+| `FtpProtocolException` | `beak_storage_ftp` | Low-level FTP failure. The driver wraps it as `BeakStorageException`. |
+| `UniqueConstraintException` | `worm` | Caught by the data source and the graph service and rethrown as `BeakConflictException`. |
+
+## Rules and limits
+
+- Switch on `code` or on the exception type. Never parse `message`.
+- Only `BeakValidationException` carries `fieldErrors`. A `BeakSaveError` also carries them, so a form can show receipt errors on the fields.
+- `code` values are strings, not an enum. `BeakSaveError.code` and `BeakOperationResult.reason` are plain strings on the wire, so a client matches them with a default branch.
+- An untyped `internal` failure and a real `configuration` failure decode to the same type on the client.
+- Typed 500 messages are sent as written. Keep secrets out of the message of an exception you throw from a policy, preparer or driver.
+- `BeakException` is not thrown for HTTP-level transport faults such as a refused connection. `BeakClient` lets the `http` package's `ClientException` propagate, and `beakRun` rethrows it unless `mapException` maps it.
+
+## Source
+
+- `packages/beak_core/lib/src/common/beak_exception.dart` defines the family.
+- `packages/beak_core/lib/src/common/beak_result.dart` defines `BeakResult`, `BeakOk` and `BeakErr`.
+- `packages/beak_core/lib/src/client/beak_client.dart` decodes error bodies.
+- `packages/beak_core/lib/src/data/beak_commit.dart` defines `BeakSaveError`, `BeakOperationResult` and `BeakSaveResult`.
+- `packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart` maps exceptions to responses.
+- `packages/beak_backend/lib/src/auth/beak_policy.dart` holds `enforcePolicyDecision`.
+- `packages/beak_frontend/lib/src/data/beak_run.dart` and `packages/beak_frontend/lib/src/data/beak_resource_repository.dart` are the panel's catch boundary.
+- `packages/beak_serverpod/lib/src/tunnel_http_client.dart` builds envelopes for transport faults.
 
 ## Continue reading
 
-- [Results and errors](../concepts/results-and-errors.md) how `BeakResult` wraps a failure so nobody up the stack needs a `try/catch`.
-- [Middleware](../backend/middleware.md) the request stack the error-mapping boundary sits in.
-- [Auth and policies](../backend/auth-and-policies.md) where the 401 and 403 exceptions come from.
-- [Glossary](glossary.md) the rest of Beak's vocabulary in one place.
+- [REST API](rest-api.md) lists the status each route returns and the request that provokes it.
+- [Results and errors](../concepts/results-and-errors.md) explains why view models never catch.
+- [Auth and policies](../backend/auth-and-policies.md) covers the 401 and 403 decisions.
+- [Middleware](../backend/middleware.md) places the error-mapping boundary in the request pipeline.

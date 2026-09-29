@@ -20,11 +20,14 @@ BeakTableScreen orderList() {
   final presets = OrderListPresets(filters: filters, columns: columns);
   return BeakTableScreen(
     query: const OrderModel()
+    // --8<-- [start:composedListQuery]
         .query()
         .orderBy(OrderModel.number, descending: true)
         .paginate(perPage: 15),
     definition: BeakListDefinition(
+    // --8<-- [end:composedListQuery]
       initialPreset: presets.today,
+      // --8<-- [start:composedListShape]
       filterSheetWidthInPixels: 480,
       recordNoun: 'orders',
       advancedFilterColumns: 2,
@@ -41,6 +44,8 @@ BeakTableScreen orderList() {
           '${counts[presets.today] ?? '—'} orders for today · ${counts[presets.attention] ?? '—'} need attention · updated 09:42',
       createLabel: 'New order',
       export: BeakListExport(
+      // --8<-- [end:composedListShape]
+      // --8<-- [start:composedListExport]
         fileName: 'orders.csv',
         fields: [
           OrderModel.reference,
@@ -54,8 +59,12 @@ BeakTableScreen orderList() {
         ],
       ),
       quickFilters: [date, status, organization, slot, payment],
+      // --8<-- [end:composedListExport]
+      // --8<-- [start:composedListQuickFilters]
       quickFilterLabels: {slot: 'Slot', payment: 'Payment'},
       rowActions: [
+      // --8<-- [end:composedListQuickFilters]
+      // --8<-- [start:composedListActions]
         const BeakActionPresentation(
           key: 'view',
           label: 'View order',
@@ -107,17 +116,24 @@ BeakTableScreen orderList() {
         ),
       ],
       savedViews: BeakSavedViewStore.model(
+      // --8<-- [end:composedListActions]
+      // --8<-- [start:composedListSavedViews]
         model: const SavedViewModel(),
         name: SavedViewModel.name,
         resource: SavedViewModel.resource,
         state: SavedViewModel.state,
       ),
       header: orderOverview(),
+      // --8<-- [end:composedListSavedViews]
+      // --8<-- [start:composedListOverview]
       collapsedHeader: orderCompactOverview(),
       showHeaderToggle: true,
       presets: presets.values,
+      // --8<-- [end:composedListOverview]
+      // --8<-- [start:composedListPresets]
       columns: columns,
       filters: [
+      // --8<-- [end:composedListPresets]
         date,
         status,
         BeakChoiceFilter(

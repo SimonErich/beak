@@ -5,6 +5,7 @@ import '_effect_payload.dart';
 import 'foodio_clock.dart';
 import 'order_behavior.dart';
 
+// --8<-- [start:foodioEffectKindList]
 /// The provider effects an order transaction can queue.
 enum FoodioEffectKind {
   /// Confirms a placed order to the customer.
@@ -22,6 +23,7 @@ enum FoodioEffectKind {
   /// Returns collected funds for a cancelled order.
   refund,
 }
+// --8<-- [end:foodioEffectKindList]
 
 /// Atomically enqueues effects. The worker performs them only after commit.
 final class FoodioEffects {

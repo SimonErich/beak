@@ -1,161 +1,226 @@
 ---
 title: Configuration and environment
-description: Look up every environment variable and every backend and storage configuration field, with defaults.
+description: Every environment variable, override file, backend config type and storage setting of a Beak app, with defaults and the code that reads them.
 type: reference
 audience: [expert, agent]
-status: draft
+status: stable
 search: {boost: 2}
 ---
 
 # Configuration and environment
 
-After this page you can configure a Beak app end to end: the project file the
-generator reads, the environment variables the server reads at startup, the
-storage configs those variables map to, and the typed config objects Beak
-generates from them, each with its default.
+A Beak app is configured in five places, and none of them reads another's keys. This page lists the environment, the override files, the typed backend configuration and the storage configs, each with its default and the code that reads it, plus a one-line index of the `beak.yaml` keys.
 
-Configuration lives in four places, and none of them reads another's keys.
+## Import
 
-| Where | Read when | Holds |
-| --- | --- | --- |
-| `beak.yaml` | `beak prepare` runs | Panel title, API origin, server binding, per-resource presentation |
-| The environment (and `.env`) | The server boots | Database URL, port, host, storage credentials |
-| Override files (`lib/panel.dart`, `lib/resources/<table>.dart`, …) | The app compiles | Anything holding a symbol or a closure |
-| The generated `lib/beak/*.g.dart` | Never by hand | The typed config objects the two above produce |
-
-## `beak.yaml`
-
-The project file. Read at *generate* time and emitted as typed Dart literals, so
-no map ever reaches runtime. Every key is optional: delete the file and Beak
-still boots, titling the panel after the package. An unknown key is an error
-naming the line, because a typo that quietly does nothing is worse than one that
-fails at generate time.
-
-[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
-
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `name` | string | title-cased package name | The panel title, in the shell and the browser tab. |
-| `api.baseUrl` | string | `http://localhost:8080` | The origin the panel calls. `auto` means "the origin the panel was served from", which is what a single-host deployment wants. |
-| `server.port` | int, `1`-`65535` | none (Beak's `8080`) | Default port the generated host binds. A real `PORT` still wins. |
-| `server.host` | string | none (Beak's `0.0.0.0`) | Default interface the generated host binds. A real `HOST` still wins. |
-| `resources.<table>.icon` | lowerCamelCase string | a default icon | Sidebar icon: any `OiIcons` name. |
-| `resources.<table>.label` | string | title-cased table name | Navigation label. |
-| `resources.<table>.section` | string | none | Sidebar group heading. |
-| `resources.<table>.hidden` | bool | `false` | `true` keeps the resource out of the sidebar. It keeps its model, its API and its relationships. |
-| `theme.sidebar.collapsible` | bool | `true` | Whether the sidebar can collapse to an icon rail. |
-| `theme.sidebar.startCollapsed` | bool | `false` | Whether it starts collapsed. |
-
-`resources` is keyed by **table name**, so a key naming no discovered table stops
-`beak prepare` with a message naming the line, and a did-you-mean. An `icon`
-that is not a lowerCamelCase identifier is rejected by name, because the value
-is spliced into generated Dart and a typo would otherwise surface as a compile
-error inside a file you did not write.
-
-`api.baseUrl` becomes a compile-time default the panel reads, so one build can
-point elsewhere without touching the file:
-
-```bash
-flutter build web --dart-define=BEAK_API_BASE_URL=https://api.example.com
+```dart
+import 'package:beak/server.dart';
 ```
 
-Full page, with what deliberately does not live here:
-[beak.yaml](beak-yaml.md).
+`package:beak/server.dart` exports `BeakBackendConfig`, `BeakEnv`, `BeakStorageSettings`, `BeakServeHost`, `BeakServerDefaults`, `BeakServer` and the storage wiring, and re-exports `package:beak/beak.dart` with the storage configs (`BeakS3Config`, `BeakFtpConfig`, `BeakLocalDiskStorageConfig`, `BeakMemoryStorageConfig`). It reaches `dart:io` and database drivers, so panel code never imports it. Panel configuration (`BeakPanel`, `BeakPanelConfig`) is in [Panel and resource options](panel-options.md).
+
+## Summary
+
+| Where | Read when | Holds | Reference |
+| --- | --- | --- | --- |
+| `beak.yaml` | `beak prepare` runs | Panel title, API origin, default server port and host, panel entrypoint, agent files, sidebar, default resource presentation | [Project file keys](#project-file-keys) |
+| The environment and `.env` | The server boots | Database URL, port, host, storage driver and credentials | [Environment variables](#environment-variables) |
+| Override files under `lib/` | The app compiles | Anything holding a symbol or a closure: panel config, themes, auth, server policy and middleware | [Override files](#override-files) |
+| `--dart-define` | The panel is built | The API origin | [The panel build](#the-panel-build) |
+| `lib/beak/*.g.dart` | Never by hand | The typed objects the four above produce | [Generated files](generated-files.md) |
+
+All variables at a glance:
+
+| Variable | Default | Read by |
+| --- | --- | --- |
+| `DATABASE_URL` | `sqlite:beak.db` | `BeakBackendConfig.fromEnv` |
+| `PORT` | `8080` | `BeakBackendConfig.fromEnv` |
+| `HOST` | `0.0.0.0` | `BeakBackendConfig.fromEnv` |
+| `WORM_ENV` | `development` | worm: migrations, seeders and the `--force` guard |
+| `BEAK_STORAGE_DRIVER` | local disk under `storage/uploads` | `BeakStorageSettings.fromEnv` |
+| `BEAK_S3_*` (6) | none | `BeakStorageSettings.fromEnv`, with `s3` |
+| `BEAK_FTP_*` (6) | none, port `21` | `BeakStorageSettings.fromEnv`, with `ftp` |
+| `BEAK_LOCAL_*` (2) | none | `BeakStorageSettings.fromEnv`, with `local` |
+| `BEAK_API_BASE_URL` | `http://localhost:8080` | the panel, as a compile-time define, not an environment variable |
 
 ## Environment variables
 
-The server reads these at startup. `BeakBackendConfig.fromEnv` validates the
-first three and throws a `BeakConfigurationException` on anything malformed;
-`BeakStorageSettings.fromEnv` reads the rest.
+The server reads its environment once, at startup, through `BeakEnv.resolve()`. `BeakBackendConfig.fromEnv` validates the first three variables and throws a `BeakConfigurationException` naming the problem on anything malformed. `BeakStorageSettings.fromEnv` reads the storage variables.
 
 ### The server
 
 | Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | no | `sqlite:beak.db` | The database connection URL. Must be an absolute URL with a scheme; anything but `sqlite:`/`file:` must also have a host, e.g. `postgres://user:pass@host:5432/db`. |
-| `PORT` | no | `8080` | The port the server listens on. An integer in `1`-`65535`. |
-| `HOST` | no | `0.0.0.0` | The interface the server binds. Must not be empty. |
+| `DATABASE_URL` | no | `sqlite:beak.db` | The database. An absolute URL with a scheme; every scheme except `sqlite:` and `file:` must also have a host |
+| `PORT` | no | `8080` | The listening port, an integer from 1 to 65535. `beak.yaml` `server.port` sets a default for it |
+| `HOST` | no | `0.0.0.0` | The interface to bind, not empty. `beak.yaml` `server.host` sets a default for it |
+| `WORM_ENV` | no | `development` | `development`, `staging`, `production` or `testing`, case-insensitive. Selects which seeders apply, and `production` makes `migrate fresh` and `migrate refresh` require `--force` |
 
-The SQLite default is the point: a new project runs with no Docker, no
-credentials and no `.env` at all. `sqlite:beak.db` is a file beside the process,
-`sqlite::memory:` a database that vanishes with it. Set `DATABASE_URL` to a
-`postgres://` URL when you want a server database.
+`DATABASE_URL` forms:
+
+| URL | Database |
+| --- | --- |
+| `sqlite:beak.db`, `file:beak.db` | A SQLite file beside the process. The default, so a new project needs no Docker and no credentials |
+| `sqlite:///abs/path/beak.db` | A SQLite file at an absolute path |
+| `sqlite::memory:` | In-memory SQLite. Vanishes with the process. `serve()` applies the migrations and seeders itself, because `beak migrate` is another process |
+| `postgres://user:pass@host:5432/db`, `postgresql://...` | Postgres. The port defaults to 5432, `?sslmode=require` turns TLS on, credentials are URL-decoded, the pool holds up to 10 connections |
+
+Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm.
+
+```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
+--8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"
+```
 
 ### Storage
 
-`BEAK_STORAGE_DRIVER` selects a driver and the rest configure it. Unset, the
-server falls back to local disk under `storage/uploads`, served by itself at
-`/uploads`, so an upload column works on a fresh project with no setup.
-`BEAK_STORAGE_DRIVER=none` turns the upload endpoints off outright. Any value
-outside the supported set throws at boot, naming the supported ones.
-
-| Variable | Required | Default | Meaning |
-| --- | --- | --- | --- |
-| `BEAK_STORAGE_DRIVER` | no | local disk under `storage/uploads` | One of `s3`, `ftp`, `local`, `memory`, `none`. |
-| `BEAK_S3_ENDPOINT` | with `s3` | none | The S3 API endpoint (AWS host or a MinIO URL). |
-| `BEAK_S3_BUCKET` | with `s3` | none | The bucket uploads land in. |
-| `BEAK_S3_ACCESS_KEY` | with `s3` | none | Access key id. A secret. |
-| `BEAK_S3_SECRET_KEY` | with `s3` | none | Secret access key. A secret. |
-| `BEAK_S3_REGION` | with `s3` | none | The bucket region, e.g. `us-east-1`. |
-| `BEAK_S3_USE_PATH_STYLE` | no | `false` | `true` uses path-style addressing (`endpoint/bucket/key`), which MinIO requires. Any other value is `false`. |
-| `BEAK_FTP_HOST` | with `ftp` | none | FTP server host name. |
-| `BEAK_FTP_USER` | with `ftp` | none | Login user name. A secret's other half. |
-| `BEAK_FTP_PASSWORD` | with `ftp` | none | Login password. A secret. |
-| `BEAK_FTP_BASE_DIR` | with `ftp` | none | Remote directory uploads are stored under. |
-| `BEAK_FTP_PUBLIC_BASE_URL` | with `ftp` | none | Base URL stored files are served from. |
-| `BEAK_FTP_PORT` | no | `21` | FTP server port. |
-| `BEAK_LOCAL_ROOT_DIR` | with `local` | none | Directory files are written under. |
-| `BEAK_LOCAL_PUBLIC_BASE_URL` | with `local` | none | Base URL the server serves `rootDir` from. Beak mounts a read-only route at its path, so an upload's URL resolves with no bucket, CDN or proxy. |
-
-A driver selected but not registered fails at boot by name: `beak_backend`
-depends on no driver package, so an app uploading to S3 adds
-`beak_storage_s3` and declares a `beakStorageRegistry()` in `lib/server.dart`,
-which `beak prepare` wires into the generated host. The `memory` and `local`
-drivers are in the box.
-
-[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
+`BEAK_STORAGE_DRIVER` selects a driver and the other variables configure it. Unset, the server uses local disk under `storage/uploads`, served by the server itself at `/uploads`, so an upload column works on a fresh project. `none` turns the upload routes off. Any other value throws at boot and names the supported ones.
 
 ```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
 --8<-- "packages/beak_backend/lib/src/server/beak_storage_settings.dart:supportedDrivers"
 ```
 
-A driver outside that set is still usable: register it and build its config
-yourself. `BeakStorageSettings` covers the ones configurable purely from
-environment variables.
+| Variable | With driver | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `BEAK_STORAGE_DRIVER` | all | no | local disk under `storage/uploads` | `s3`, `ftp`, `local`, `memory` or `none` |
+| `BEAK_S3_ENDPOINT` | `s3` | yes | none | The S3 endpoint, an AWS host or a MinIO URL |
+| `BEAK_S3_BUCKET` | `s3` | yes | none | The bucket uploads land in |
+| `BEAK_S3_ACCESS_KEY` | `s3` | yes | none | Access key id. A secret |
+| `BEAK_S3_SECRET_KEY` | `s3` | yes | none | Secret access key. A secret |
+| `BEAK_S3_REGION` | `s3` | yes | none | The bucket region, for example `eu-central-1` |
+| `BEAK_S3_USE_PATH_STYLE` | `s3` | no | `false` | Exactly `true` selects path-style addressing (`endpoint/bucket/key`), which MinIO needs. Any other value is `false` |
+| `BEAK_FTP_HOST` | `ftp` | yes | none | The FTP host |
+| `BEAK_FTP_USER` | `ftp` | yes | none | Login user |
+| `BEAK_FTP_PASSWORD` | `ftp` | yes | none | Login password. A secret |
+| `BEAK_FTP_BASE_DIR` | `ftp` | yes | none | The remote directory uploads are stored under |
+| `BEAK_FTP_PUBLIC_BASE_URL` | `ftp` | yes | none | The base URL stored files are served from |
+| `BEAK_FTP_PORT` | `ftp` | no | `21` | The FTP port. A value that is not an integer is `21` |
+| `BEAK_LOCAL_ROOT_DIR` | `local` | yes | none | The directory files are written under |
+| `BEAK_LOCAL_PUBLIC_BASE_URL` | `local` | yes | none | The URL prefix files are served from. Beak mounts a read-only route at its path, see [REST API](rest-api.md#local-files) |
 
-### Your own variables
-
-A `lib/server.dart` override reads everything else through
-`BeakServerDefaults.environment` rather than `Platform.environment`, so a test
-that injects an environment injects it into the policy and the auth config too:
-
-[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
+A missing required variable throws `<KEY> is required when BEAK_STORAGE_DRIVER=<driver>.` at boot. A driver that is selected but not registered fails at boot, naming the drivers that are: `beak_backend` depends on no driver package, so `s3` needs `beak_storage_s3` and a `beakStorageRegistry()` function in `lib/server.dart`, see [Storage registry](#storage-registry). The `memory` and `local` drivers are in the box. There is no variable for `BeakS3Config.publicBaseUrl` (a CDN in front of the bucket); build the config in code for that.
 
 ### How `.env` resolves
 
-`BeakEnv.resolve` overlays the `.env` file with the real process environment, so
-a deployment configures itself through real environment variables and never
-needs a file. Real environment variables always win over file values.
+`BeakEnv.resolve` overlays the `.env` file with the real process environment, and real variables always win. A deployment configures itself with real variables and never needs the file.
 
 ```dart title="packages/beak_backend/lib/src/config/env_loader.dart"
 --8<-- "packages/beak_backend/lib/src/config/env_loader.dart:resolve"
 ```
 
-`BeakEnv.parse` handles comments (`#`), blank lines, an optional `export `
-prefix, whitespace around `=`, and matching surrounding quotes. It splits on the
-first `=` only. A line without a separator, or with an invalid key, throws a
-`BeakConfigurationException`. A missing `.env` is not an error: it is the
-supported default.
+`BeakEnv.parse` accepts `#` comments, blank lines, an optional `export ` prefix, whitespace around `=` and matching surrounding quotes, and splits on the first `=` only. A line without `=` or with an invalid key throws `BeakConfigurationException`. A missing `.env` is not an error. `.env` is git-ignored by the scaffold; commit an `.env.example` instead, and keep secrets out of `beak.yaml`.
 
-Keep secrets out of the repository. A committed `.env.example` documents the
-keys; the real `.env` is git-ignored.
+`beak introspect --save-url` writes `DATABASE_URL` into `.env`.
 
-## `BeakBackendConfig`
+### Your own variables
 
-The typed, validated runtime configuration of a backend. The generated
-`BeakServeHost` builds it for you from the environment; construct it directly
-only when you have the parts already validated (tests, embedding). Its
-`toString` redacts the database credentials, so it is safe to log.
+A `lib/server.dart` override reads app-specific settings from `BeakServerDefaults.environment`, which is the same resolved map, and not from `Platform.environment`. A test that injects an environment into `BeakServeHost` then injects it into your policy and auth as well.
+
+### The panel build
+
+The panel is a compiled Flutter app and has no environment. Its API origin is a compile-time define:
+
+```bash
+flutter build web --dart-define=BEAK_API_BASE_URL=https://api.example.com
+```
+
+The generated panel reads `api.baseUrl` from `beak.yaml` as the default of that define. `api.baseUrl: auto` uses the origin the panel was served from and ignores the define. `BeakPanel(apiBaseUrl:)` has the same default in an authored panel.
+
+## Project file keys
+
+`beak.yaml` is read by the CLI at generate time and never at runtime. Its keys, in one line each; [beak.yaml](beak-yaml.md) has the defaults, the errors and what each way of booting does with them.
+
+| Key | Effect |
+| --- | --- |
+| `name` | The panel title |
+| `api.baseUrl` | The default of the `BEAK_API_BASE_URL` compile-time define, or `auto` for the serving origin |
+| `server.port`, `server.host` | Defaults for `PORT` and `HOST` in the generated host. A real variable wins |
+| `panel.entrypoint` | The Dart file that boots the panel in an app that keeps its own `lib/main.dart`. `prepare` then never writes `lib/main.dart`, `dev` prints `flutter run -t <file>`, and `doctor` checks that file |
+| `agents.instructions`, `agents.docs`, `agents.skills` | Which `AGENTS.md` files, docs copy and skill folders `prepare` and `beak agents` may write |
+| `theme.sidebar.collapsible`, `theme.sidebar.startCollapsed` | Sidebar behaviour |
+| `resources.<table>.icon`, `.label`, `.section`, `.hidden` | Presentation of the default resource of a model that has no `BeakResource` class |
+
+## Override files
+
+Each is optional, found by file name and function name, and wired in by `beak prepare`. `beak eject <target>` writes a starter that returns Beak's default.
+
+| File | Function | Read by | Purpose |
+| --- | --- | --- | --- |
+| `lib/panel.dart` | `BeakPanelConfig beakPanel(BeakPanelConfig defaults)` | `panel.g.dart` | The last word on the panel config |
+| `lib/theme.dart` | `OiThemeData beakLightTheme()`, `OiThemeData beakDarkTheme()` | `panel.g.dart` | Light and dark theme |
+| `lib/auth.dart` | `BeakAuthConfig beakAuth()` | `panel.g.dart` | Sign-in routes and adapter |
+| `lib/server.dart` | `BeakServer beakServer(BeakServerDefaults defaults)` | `server.g.dart` | Policy, sessions, middleware, routes, graph rules, outbox |
+| `lib/server.dart` | `BeakStorageRegistry beakStorageRegistry()` | `server.g.dart` | Extra storage drivers, independent of `beakServer` |
+
+```dart title="packages/beak_cli/lib/src/project/beak_discovery.dart"
+--8<-- "packages/beak_cli/lib/src/project/beak_discovery.dart:beakOverrideKind"
+```
+
+An authored `lib/main.dart` calls the first three only if its text does: `beak eject main` writes the call for each of those files that exists at that moment, and later ones you add by hand. The server files apply to both bootstraps.
+
+### BeakServerDefaults
+
+The argument of `beakServer`: everything `BeakServeHost` resolved.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `config` | `BeakBackendConfig` | Database URL, host and port |
+| `registry` | `BeakModelRegistry` | Every model the project registered |
+| `dataSource` | `WormDataSource` | The data source, over the database connection |
+| `storage` | `BeakStorageDriver?` | The resolved upload driver, `null` when uploads are off |
+| `environment` | `Map<String, String>` | The resolved environment, `.env` included |
+| `now` | `DateTime Function()?` | The host's clock, `null` for `DateTime.now` |
+
+`defaults.build(...)` returns the standard server. Every argument is optional; each is documented on `BeakServer.new`.
+
+| Parameter | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `policy` | `BeakPolicy` | `BeakAllowAllPolicy()` | Who may do what; see [Auth and policies](../backend/auth-and-policies.md) |
+| `authSessions` | `BeakAuthSessions?` | `null` | Mounts `POST /api/auth/login`, `/logout` and `GET /api/auth/me` and guards requests by their sessions |
+| `authGuard` | `BeakAuthGuard?` | sessions' store guard, else none | Identifies callers some other way |
+| `middleware` | `List<Middleware>` | `[]` | Shelf middleware, after authentication and inside the error mapping |
+| `routes` | `Handler?` | `null` | Extra endpoints, tried before the generated API |
+| `corsOrigin` | `String` | `*` | The origin browsers may call from |
+| `onRequest` | `BeakRequestLogger?` | one line per request to stderr | Request log |
+| `onUnexpectedError` | `BeakUnexpectedErrorListener?` | error and stack to stderr | Every failure no typed exception describes |
+| `preparePlan` | `BeakSavePlanPreparer?` | `null` | Transactional business rules for a graph commit |
+| `finalizePlan` | `BeakSavePlanFinalizer?` | `null` | Enqueues durable effects in the commit's transaction |
+| `graphOnly` | `List<BeakModel>` | `[]` | Models whose per-record write routes are closed |
+| `outbox` | `BeakOutboxSchedule?` | `null` | Delivers the effects `finalizePlan` enqueued while the host serves |
+| `generateId` | `String Function()?` | UUID v4 | The id mint behind every write |
+| `transformRunner` | `BeakTransformRunner?` | the `beak_image` runner | The image pipeline behind image uploads |
+
+`build` has no `storage:` or `dataSource:` parameter. A custom driver goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER`; a custom data source needs a hand-built `BeakServer`.
+
+The default policy allows everything and the default CORS origin is `*`. Set a policy before exposing the server.
+
+```dart title="examples/clean_beak_config/lib/server.dart"
+/// Adds the example's transactional shop invariants to the generated host.
+BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+  preparePlan: ShopGraphPreparer(defaults.registry).prepare,
+```
+
+### Storage registry
+
+```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
+--8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
+```
+
+`beakStorageRegistry()` returns the registry `BeakServeHost` resolves the selected driver from. Register a driver package on top of the default one:
+
+```dart
+// Illustrative: the shape of the function, with real names.
+BeakStorageRegistry beakStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
+  registerS3Storage(registry); // from package:beak_storage_s3
+  return registry;
+}
+```
+
+`registerS3Storage(registry)` and `registerFtpStorage(registry)` (from `beak_storage_ftp`) each add one factory to the registry passed in, and registering an id twice throws. See [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) and [Custom storage drivers](../extending/custom-storage-drivers.md).
+
+## BeakBackendConfig
+
+The typed, validated runtime configuration. The generated host builds it from the environment; construct it by hand only in tests or when embedding. Its `toString` redacts the database credentials, so it is safe to log.
 
 ```dart title="packages/beak_backend/lib/src/config/beak_backend_config.dart"
 --8<-- "packages/beak_backend/lib/src/config/beak_backend_config.dart:BeakBackendConfig"
@@ -163,27 +228,51 @@ only when you have the parts already validated (tests, embedding). Its
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `databaseUrl` | `Uri` | required | The database connection URL, credentials included (redacted by `toString`). |
-| `port` | `int` | `8080` (`defaultPort`) | The port the HTTP server listens on. |
-| `host` | `String` | `0.0.0.0` (`defaultHost`) | The interface the HTTP server binds. |
+| `databaseUrl` | `Uri` | required | The connection URL, credentials included |
+| `port` | `int` | `8080` | The listening port |
+| `host` | `String` | `0.0.0.0` | The bound interface |
 
-| Static | Value | Meaning |
-| --- | --- | --- |
-| `defaultDatabaseUrl` | `sqlite:beak.db` | The database a project gets when it names none. |
-| `defaultPort` | `8080` | The port when `PORT` is unset. |
-| `defaultHost` | `0.0.0.0` | The interface when `HOST` is unset. |
+| Static | Value |
+| --- | --- |
+| `BeakBackendConfig.defaultDatabaseUrl` | `sqlite:beak.db` |
+| `BeakBackendConfig.defaultPort` | `8080` |
+| `BeakBackendConfig.defaultHost` | `0.0.0.0` |
+
+`BeakBackendConfig.fromEnv({Map<String, String>? environment})` reads `DATABASE_URL`, `PORT` and `HOST`; without an argument it reads `Platform.environment` and not `.env`, so pass `BeakEnv.resolve()`.
+
+## BeakServeHost
+
+The server's lifecycle in one object: environment to config to database adapter to registry to a running server. `beak prepare` writes `beakHost()` into `lib/beak/server.g.dart`; you do not construct it.
+
+| Parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `registry` | `BeakModelRegistry` | required | Every model served |
+| `migrations` | `List<Migration>` | `[]` | Run by `beak migrate`; applied by `serve()` on in-memory SQLite |
+| `seeders` | `List<Seeder>` | `[]` | Run by `beak seed`; run by `serve()` on in-memory SQLite |
+| `storageRegistry` | `BeakStorageRegistry Function()?` | in-box drivers | Adds plug-in drivers |
+| `configure` | `BeakServerCustomizer?` | `defaults.build()` | Your `beakServer` |
+| `environment` | `Map<String, String>?` | `BeakEnv.resolve()` | The environment, injected in tests |
+| `now` | `DateTime Function()?` | `DateTime.now` | The clock |
+
+| Member | Meaning |
+| --- | --- |
+| `config` | The `BeakBackendConfig` resolved from `environment` |
+| `resolveStorageDriver()` | The driver the environment selects, `null` for `none`, local disk when unset |
+| `buildServer({adapter, storage})` | The server over an adapter without binding a port; the test seam |
+| `serve()` | Connects the database, builds the server, binds the listener and starts the outbox loop. Never migrates a file or Postgres database |
+| `runCli(args)` | The worm CLI (`migrate`, `db:seed`, and so on) over this host, which `bin/migrate.dart` calls |
+
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+--8<-- "packages/beak_backend/lib/src/server/beak_serve_host.dart:resolveStorageDriver"
+```
 
 ## Storage configs
 
-`BEAK_STORAGE_DRIVER` selects one of these sealed `BeakStorageConfig` variants.
-Each is pure data (credentials included) that the matching driver consumes;
-`beak_core` owns the config surface so an app configures storage without
-importing a driver package. Configs carrying secrets redact them in `toString`.
+`BEAK_STORAGE_DRIVER` selects one of the sealed `BeakStorageConfig` variants. Each is plain data that the matching driver consumes; `beak_core` owns them, so an app configures storage without importing a driver package. Configs with secrets redact them in `toString`.
 
-### S3 (`BeakS3Config`)
+### BeakS3Config
 
-For AWS S3, MinIO, and other S3-compatible stores. Consumed by
-`beak_storage_s3`.
+For AWS S3, MinIO and other S3-compatible stores. Consumed by `beak_storage_s3`.
 
 ```dart title="packages/beak_core/lib/src/storage/drivers/beak_s3_config.dart"
 --8<-- "packages/beak_core/lib/src/storage/drivers/beak_s3_config.dart:BeakS3Config"
@@ -191,15 +280,15 @@ For AWS S3, MinIO, and other S3-compatible stores. Consumed by
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `endpoint` | `Uri` | required | The S3 API endpoint (AWS host or MinIO URL). |
-| `bucket` | `String` | required | Bucket uploads are stored in. |
-| `accessKey` | `String` | required | Access key id (redacted in `toString`). |
-| `secretKey` | `String` | required | Secret access key (redacted in `toString`). |
-| `region` | `String` | required | Bucket region, e.g. `eu-central-1`. |
-| `usePathStyle` | `bool` | `false` | Path-style addressing (`endpoint/bucket/key`), as MinIO requires, instead of AWS virtual-host style. |
-| `publicBaseUrl` | `Uri?` | `null` | Overrides driver-generated file URLs (e.g. a CDN in front of the bucket); `null` lets the driver build endpoint URLs. |
+| `endpoint` | `Uri` | required | The S3 API endpoint |
+| `bucket` | `String` | required | The bucket |
+| `accessKey` | `String` | required | Access key id, redacted |
+| `secretKey` | `String` | required | Secret access key, redacted |
+| `region` | `String` | required | The bucket region |
+| `usePathStyle` | `bool` | `false` | Path-style addressing |
+| `publicBaseUrl` | `Uri?` | `null` | Replaces driver-generated file URLs, for a CDN in front of the bucket |
 
-### FTP (`BeakFtpConfig`)
+### BeakFtpConfig
 
 Consumed by `beak_storage_ftp`.
 
@@ -209,18 +298,16 @@ Consumed by `beak_storage_ftp`.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `host` | `String` | required | FTP server host name. |
-| `port` | `int` | `21` | FTP server port. |
-| `user` | `String` | required | Login user name. |
-| `password` | `String` | required | Login password (redacted in `toString`). |
-| `baseDir` | `String` | required | Remote directory uploads are stored under. |
-| `publicBaseUrl` | `Uri` | required | Base URL stored files are served from. |
+| `host` | `String` | required | FTP host |
+| `port` | `int` | `21` | FTP port |
+| `user` | `String` | required | Login user |
+| `password` | `String` | required | Login password, redacted |
+| `baseDir` | `String` | required | The remote directory |
+| `publicBaseUrl` | `Uri` | required | The base URL files are served from |
 
-### Local disk (`BeakLocalDiskStorageConfig`)
+### BeakLocalDiskStorageConfig
 
-Files land under a directory this server then serves. Pre-registered in
-`beak_core`, so no driver package is needed, and Beak mounts a read-only route
-at the public base URL's path for you.
+Files land in a directory this server then serves. Registered by `createDefaultStorageRegistry()`, no package needed.
 
 ```dart title="packages/beak_core/lib/src/storage/drivers/beak_local_disk_storage_config.dart"
 --8<-- "packages/beak_core/lib/src/storage/drivers/beak_local_disk_storage_config.dart:BeakLocalDiskStorageConfig"
@@ -228,132 +315,35 @@ at the public base URL's path for you.
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `rootDir` | `String` | required | Directory files are written under. |
-| `publicBaseUrl` | `Uri` | required | Base URL the server serves `rootDir` from. |
+| `rootDir` | `String` | required | Where files are written |
+| `publicBaseUrl` | `Uri` | required | The URL `rootDir` is served from |
 
-### Memory (`BeakMemoryStorageConfig`)
+### BeakMemoryStorageConfig
 
-Holds uploads in memory. It takes no fields and is meant for tests. Selected by
-`BEAK_STORAGE_DRIVER=memory` or `const BeakMemoryStorageConfig()`.
+Holds uploads in memory and takes no fields. For tests: `BEAK_STORAGE_DRIVER=memory` or `const BeakMemoryStorageConfig()`. It is registered by `BeakStorageRegistry` itself.
 
-## Direct `BeakPanel` configuration
+## Rules and limits
 
-`BeakPanel(resources: [...])` accepts resource objects directly, plus `title`,
-`theme`, `darkTheme`, `apiBaseUrl`, custom `pages`, `auth`, and `locale`.
-`dataSource` and `httpClient` provide transport/test overrides. The default API
-origin comes from `BEAK_API_BASE_URL`, falling back to `http://localhost:8080`.
-Use `BeakPanel.fromConfig(config: ...)` for the complete configuration below.
-Each panel owns a dependency scope; `beakDependencies(context)` resolves its
-services in custom child widgets.
+- Real environment variables beat `.env`, which beats `beak.yaml` defaults (`server.port`, `server.host`).
+- Nothing in `beak.yaml` reaches the server except the two `server` defaults.
+- Configuration errors are `BeakConfigurationException` (HTTP `500`, code `configuration`) and stop the boot; see [Exceptions](exceptions.md).
+- `BeakBackendConfig.toString` and the storage configs redact secrets.
+- The Postgres pool size (10) is not configurable from the environment.
+- `WORM_ENV` comes from the process environment. `.env` does not set it.
+- Configuration is read once at boot. Changing a variable needs a restart.
 
-## `BeakPanelConfig`
+## Source
 
-Everything a panel needs at startup, in one declarative value. In standalone
-projects, `beak prepare` generates it into `lib/beak/panel.g.dart` from `beak.yaml`
-and the discovered models and screens. Backend integrations can compose it
-directly. To change generated configuration, add `lib/panel.dart`
-(`beak eject panel`) and `copyWith` the parts you want different:
-
-```dart
-BeakPanelConfig beakPanel(BeakPanelConfig defaults) =>
-    defaults.copyWith(title: 'Acme, staging');
-```
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
---8<-- "packages/beak_frontend/lib/src/panel/beak_panel_config.dart:BeakPanelConfig"
-```
-
-| Field | Type | Default | Generated from |
-| --- | --- | --- | --- |
-| `title` | `String` | required | `name` in `beak.yaml` |
-| `resources` | `List<BeakResource>` | required | every model under `lib/models/` |
-| `apiBaseUrl` | `String` | required | `api.baseUrl` in `beak.yaml` |
-| `pages` | `List<BeakScreen>` | `const []` | `lib/dashboard.dart` when present, then every screen under `lib/screens/` |
-| `auth` | `BeakAuthConfig?` | `null` (a default `/login` only) | `lib/auth.dart`, when present |
-| `maintenance` | `BeakMaintenanceConfig?` | `null` (neither route) | `lib/panel.dart` |
-| `theme` | `OiThemeData?` | `null` (`OiThemeData.light()`) | `lib/theme.dart`, when present |
-| `darkTheme` | `OiThemeData?` | `null` (`OiThemeData.dark()`) | `lib/theme.dart`, when present |
-| `initialThemeMode` | `OiThemeMode` | `OiThemeMode.system` | `lib/panel.dart` |
-| `locale` | `Locale?` | `null` (platform selection) | `lib/panel.dart` |
-| `supportedLocales` | `Iterable<Locale>` | Beak's English/German locales | `lib/panel.dart` |
-| `localizationsDelegates` | `Iterable<LocalizationsDelegate<Object?>>` | `const []` (application additions) | `lib/panel.dart` |
-| `sidebarCollapsible` | `bool` | `true` | `theme.sidebar.collapsible` |
-| `sidebarDefaultCollapsed` | `bool` | `false` | `theme.sidebar.startCollapsed` |
-| `dashboardStats` | `List<BeakStat>` | `const []` | `lib/panel.dart` |
-| `dashboardCharts` | `List<BeakChart>` | `const []` | `lib/panel.dart` |
-| `notifications` | `BeakNotificationSource?` | `null` (no bell) | `lib/panel.dart` |
-
-`buildRegistry()` walks `resources` and registers every model, so the data layer
-can resolve a table name back to its model. Registering the same table twice is
-a configuration error the registry surfaces.
-
-`BeakPanel` owns the root `OiApp`, including its locale and theme. Application
-translations can be supplied without an extra app widget or router:
-
-```dart
-config.copyWith(
-  locale: const Locale('de'),
-  supportedLocales: AppLocalizations.supportedLocales,
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
-)
-```
-
-The framework always appends `BeakLocalizations.delegate` after application
-delegates. This retains its built-in translations and lets an explicit
-`LocalizationsDelegate<BeakLocalizations>` override them for another language.
-Resource labels still come from the application. Supply supported locales that
-both the application and framework can render. Omitting `theme` and `darkTheme`
-uses Beak's standard light/dark appearance, independent of another app's theme.
-The delegate type accepts Flutter's generated localization list directly, without
-a cast or a manually reconstructed list of standard delegates.
-
-## `BeakResource`
-
-One entry in `resources`: a `BeakModel` plus its navigation presentation,
-actions, filters, view modes, and optional detail and form layouts. Generated
-too. To change one without ejecting the whole panel, add
-`lib/resources/<table>.dart` (`beak eject resource <table>`):
-
-```dart
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  viewModes: const [BeakTableView(), BeakKanbanView(/* ... */)],
-);
-```
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource.dart"
---8<-- "packages/beak_frontend/lib/src/panel/beak_resource.dart:BeakResource"
-```
-
-For direct resource definitions, these fields configure conventional screens:
-
-| Field | Default | Purpose |
-| --- | --- | --- |
-| `title` | model label | Page title |
-| `navigationTitle` | effective title | Sidebar title |
-| `navigationGroup` | existing `section` | Sidebar grouping |
-| `navigationRank` | `0` | Ascending position, stable for equal ranks |
-| `globalSearchSources` | model searchable columns | Typed root or related search fields |
-| `screens` | generated conventional screens | `BeakFormScreen`, `BeakWizardScreen`, `BeakTableScreen`, or `BeakCustomResourceScreen` |
-| `filePicker`, `uploader` | none / default source upload client | Platform file selection and optional upload override |
-
-See [Declarative resources and forms](../concepts/declarative-resources.md) for
-layout nodes, validators, dependencies, and relationship save behavior.
-
-Three fields fall back to something derived rather than to their literal
-default, so a resource that says nothing still gets a sensible page:
-
-| Getter | Falls back to |
-| --- | --- |
-| `effectiveLabel` | the title-cased table name |
-| `effectiveFilters` | one control per `@Column(filterable: true)`: select for an enum, switch for a bool, contains-search for text, range for a date |
-| `effectiveDetail` | a headline card of the first four fields, the rest beside it, and a tab per to-many relationship |
-
-The full surface, with worked examples: [Resources](../panel/resources.md).
+- `packages/beak_backend/lib/src/config/beak_backend_config.dart` and `env_loader.dart` hold `BeakBackendConfig` and `BeakEnv`.
+- `packages/beak_backend/lib/src/server/beak_storage_settings.dart`, `storage_wiring.dart`, `beak_serve_host.dart` and `beak_server.dart` hold the storage variables, the registry, the host and `BeakServer`.
+- `packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart` maps `DATABASE_URL` onto an adapter.
+- `packages/beak_core/lib/src/storage/drivers/` holds the storage configs.
+- `packages/beak_cli/lib/src/project/beak_discovery.dart` finds the override files.
+- `examples/clean_beak_config/lib/server.dart` is a real `beakServer`.
 
 ## Continue reading
 
-- [beak.yaml](beak-yaml.md) the project file in full, and what deliberately stays out of it.
-- [Running the server](../backend/running-the-server.md) how these values come together into a live server.
+- [beak.yaml](beak-yaml.md) the project file that sits beside these.
+- [Panel and resource options](panel-options.md) the panel side: `BeakPanel`, `BeakPanelConfig`, `BeakResource`.
 - [Environment and config](../shipping/environment-and-config.md) the deployment side of these variables.
-- [Going to production](../shipping/going-to-production.md) picking real values for a real deployment.
-- [REST API](rest-api.md) the endpoints the configured backend serves.
+- [Running the server](../backend/running-the-server.md) how the host, the middleware and the routes fit together.

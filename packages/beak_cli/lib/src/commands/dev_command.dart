@@ -88,6 +88,7 @@ final class DevCommand extends Command<int> {
 /// Each maps to the subcommand of worm's CLI that does it, because
 /// `bin/migrate.dart` is that CLI and knows nothing of these words.
 enum BeakMigrateVerb {
+  // --8<-- [start:BeakMigrateVerb]
   /// Apply the pending migrations.
   up('migrate'),
 

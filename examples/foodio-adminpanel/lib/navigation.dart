@@ -8,11 +8,13 @@ import 'theme/gabel_tokens.dart';
 
 /// Each workspace has a compact rail destination and contextual navigation.
 final foodioNavigation = BeakNavigation(
+  // --8<-- [start:foodioNavigationOptions]
   searchPlaceholder: 'Search orders, customers, invoices…',
   showThemeToggle: false,
   currentRecordBranch: true,
   searchShortcut: ['⌘', 'K'],
   userMenu: const Builder(builder: _accountMenu),
+  // --8<-- [end:foodioNavigationOptions]
   leading: const Padding(
     padding: EdgeInsets.only(top: 4, bottom: 8),
     child: SizedBox.square(
@@ -38,6 +40,7 @@ final foodioNavigation = BeakNavigation(
       ),
     ),
   ),
+  // --8<-- [start:foodioNavigationSections]
   sections: [
     BeakNavigationSection(
       key: 'home',
@@ -102,6 +105,7 @@ final foodioNavigation = BeakNavigation(
       ],
     ),
   ],
+  // --8<-- [end:foodioNavigationSections]
 );
 
 Widget _accountMenu(BuildContext context) => OiUserMenu(
