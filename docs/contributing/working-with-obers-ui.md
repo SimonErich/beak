@@ -1,84 +1,71 @@
 ---
 title: Working with obers_ui
-description: Pin obers_ui by git commit and develop against a local checkout when you need to.
+description: Pin obers_ui by git commit, bump the pin, and develop against a local checkout with melos run link-obers-ui.
 type: guide
 audience: [contributor]
-status: draft
+status: stable
 ---
 
 # Working with obers_ui
 
-Beak's panel is built on obers_ui, which is not published on pub.dev. Beak
-depends on it by **pinned git commit**, so cloning Beak on its own is enough:
-`melos bootstrap` fetches obers_ui into the pub cache and the workspace
-resolves. Nothing has to be checked out beside the repo.
+Beak's panel is built on obers_ui, and obers_ui is not on pub.dev: its own pubspec says `publish_to: 'none'`. Beak therefore depends on it by pinned git commit, so a plain clone of Beak resolves with nothing checked out beside it. This page covers the pin, how to bump it, and the one case where you want to override it: changing obers_ui and Beak together.
 
-This page explains the pin and the one case where you want to override it.
+## At a glance
 
-!!! note "This used to be a caveat"
-    Earlier versions of Beak declared obers_ui as a path dependency climbing
-    above the repo root (`../../../obers_ui`). That made a fresh clone fail to
-    resolve, forced CI to check out two repositories, and required a
-    build-time override file for container images. All of that is gone; if you
-    are following an older guide that mentions a sibling checkout or
-    a web-overrides file for the container images, it is out of date.
+| You want to | Do this |
+| --- | --- |
+| Build Beak | `melos bootstrap`. Pub fetches obers_ui at the pinned commit. |
+| Move to a newer obers_ui | Change the six `ref:` lines, then `melos bootstrap` and `dart test test/obers_ui_pin_test.dart`. |
+| Edit obers_ui and Beak together | Clone obers_ui next to Beak, then `melos run link-obers-ui`. |
+| Go back to the pin | `dart run tool/link_obers_ui.dart --unlink`, then `melos bootstrap` |
 
 ## The pin
 
-Two pubspecs declare the dependency: `packages/beak_frontend`, which builds the
-panel on it, and `packages/beak`, whose `ui.dart` and `charts.dart` re-export
-it. No example declares it. A project reaches `OiIcons` and the rest of the
-widget set through `package:beak/ui.dart`, so it never adds an obers_ui
-dependency of its own.
+Two pubspecs declare the dependency: `packages/beak_frontend`, which builds the panel on it, and `packages/beak`, whose `ui.dart` and `charts.dart` re-export it. No example declares it. A project reaches `OiIcons` and the rest of the widget set through `package:beak/ui.dart`, so it never adds an obers_ui dependency of its own.
+
+Each pubspec declares three packages from one repository. Only the `ref` lines are elided below:
 
 ```yaml title="packages/beak_frontend/pubspec.yaml"
-dependencies:
-  # ...
   obers_ui:
     git:
       url: https://github.com/SimonErich/obers_ui
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      # ...
   obers_ui_autoforms:
     git:
       url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_autoforms
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      # ...
   obers_ui_charts:
     git:
       url: https://github.com/SimonErich/obers_ui
       path: packages/obers_ui_charts
-      ref: c956d25634c93e23847ec5a4150c1d62fe3a7c90
+      # ...
 ```
 
-Three details worth knowing:
+Three details matter:
 
-- **`ref` is a full 40-character commit SHA, not a branch.** A branch name
-  would make every build a different build. `obers_ui_autoforms` and
-  `obers_ui_charts` live inside the same repository, addressed with `path:`.
-- **The three packages must agree.** They path-depend on each other inside the
-  checkout, so a mismatched ref would resolve two copies of `obers_ui`.
-  `test/obers_ui_pin_test.dart` fails the build if the SHAs ever diverge, or if
-  anyone reintroduces a path dependency that escapes the repo.
-- **This is a pre-1.0 arrangement.** Once obers_ui publishes to pub.dev these
-  become ordinary version constraints, and the pin disappears.
+- **`ref` is a full 40-character commit SHA, not a branch.** A branch name would make every build a different build. `obers_ui_autoforms` and `obers_ui_charts` live in the same repository and are addressed with `path:`.
+- **The three must agree, in both pubspecs.** They depend on each other inside the checkout, so a mismatch would resolve two copies of `obers_ui`. `test/obers_ui_pin_test.dart` fails if the SHAs diverge, if a ref is not a full SHA, or if anyone reintroduces a path dependency that leaves the repo.
+- **This is a pre-1.0 arrangement.** When obers_ui publishes, the pins become ordinary version constraints and this page shrinks to nothing.
 
-## Bumping obers_ui
+## Bump the pin
 
-Update the `ref` in both pubspecs, `packages/beak_frontend` and `packages/beak`.
-Each declares three obers_ui packages, so that is six lines. Then re-bootstrap:
+Update the `ref` in `packages/beak_frontend/pubspec.yaml` and in `packages/beak/pubspec.yaml`. Each declares three obers_ui packages, so that is six lines, all to the same SHA. Then resolve and run the pin test:
 
 ```bash
+grep -n 'ref:' packages/beak_frontend/pubspec.yaml packages/beak/pubspec.yaml
 melos bootstrap
+dart test test/obers_ui_pin_test.dart
 melos run analyze && melos run test
 ```
 
-The pin test will tell you immediately if you missed a copy.
+The `grep` should print six lines carrying one SHA. The commit has to exist on the obers_ui remote. One that lives only in your local checkout resolves for nobody else, and `melos bootstrap` is where you find out.
 
-## Developing against a local obers_ui checkout
+Bootstrapping rewrites the tracked lockfiles of the examples. Commit those changes with the bump.
 
-When you are changing obers_ui and Beak together, a pinned commit is exactly
-the wrong thing: you want your working copy, hot-reloadable. Clone obers_ui
-beside the Beak repo and link it:
+## Develop against a local checkout
+
+When you are changing obers_ui and Beak together, a pinned commit is the wrong thing: you want your working copy, hot-reloadable. Clone obers_ui next to the Beak repo and link it:
 
 ```bash
 cd ..                                                    # next to beak/
@@ -87,36 +74,99 @@ cd beak
 melos run link-obers-ui
 ```
 
-That writes path `dependency_overrides` into the `pubspec_overrides.yaml` of
-every Flutter package or example that depends on the Beak UI, including transitive consumers, and re-bootstraps. All three Obers packages are overridden together, so applications do not accidentally mix local widgets with cached charts or autoforms.
-Melos manages only the entries listed in each file's
-`# melos_managed_dependency_overrides:` header, so these survive later
-bootstraps. When you are done:
+`link-obers-ui` runs `tool/link_obers_ui.dart` and then `melos bootstrap`. The tool looks for `../obers_ui` and writes path overrides for all three packages into the `pubspec_overrides.yaml` of every package that needs them. That means anything that declares an obers_ui package and anything that depends on `beak`, `beak_frontend` or `beak_serverpod_flutter`, because pub does not inherit a dependency's overrides. The pure Dart packages are left alone. It prints one line per package it changed:
 
-```bash
-melos run link-obers-ui -- --unlink
+```text
+linked packages/beak_frontend (obers_ui, obers_ui_autoforms, obers_ui_charts)
+linked packages/beak (obers_ui, obers_ui_autoforms, obers_ui_charts)
+linked examples/quickstart (obers_ui, obers_ui_autoforms, obers_ui_charts)
+Linked 3 packages against ../obers_ui.
 ```
 
-The override files are git-ignored, so a link never leaks into a commit.
+That is the output from a trimmed copy of the repo. The full repo links every example, `packages/beak_serverpod_flutter`, and the Serverpod workspace root in `examples/serverpod`, whose members share the overrides of their root.
+
+The block the tool writes sits under a marker comment, below the entries melos owns:
+
+```yaml
+# beak: linked obers_ui checkout
+  obers_ui:
+    path: ../../../obers_ui
+  obers_ui_autoforms:
+    path: ../../../obers_ui/packages/obers_ui_autoforms
+  obers_ui_charts:
+    path: ../../../obers_ui/packages/obers_ui_charts
+```
+
+Melos manages only the entries listed in each file's `# melos_managed_dependency_overrides:` header, so the block survives later bootstraps. Without a checkout the tool stops and says what to do:
+
+```text
+No obers_ui checkout at ../obers_ui.
+Clone it next to this repo:
+  git clone https://github.com/SimonErich/obers_ui.git ../obers_ui
+```
+
+When you are done, restore the pins. Run the tool with its flag and bootstrap yourself:
+
+```bash
+dart run tool/link_obers_ui.dart --unlink
+melos bootstrap
+```
+
+Unlinking removes only the block the tool wrote and leaves melos's entries in place.
+
+!!! warning "`melos run link-obers-ui -- --unlink` does not unlink"
+    The script is `dart run tool/link_obers_ui.dart && melos bootstrap`, and melos appends extra arguments to the end of the whole string. `--unlink` therefore lands after `melos bootstrap`, the tool runs in link mode, and `melos bootstrap` receives a flag that was meant for the tool. `melos.yaml`, `CONTRIBUTING.md` and the tool's own header still describe the melos form. Use the two commands above until the script is split.
 
 !!! tip "Why not melos's dependencyOverridePaths"
-    Melos can do this itself, but it applies the overrides to *every* package
-    in the workspace, including the pure-Dart ones. That drags the Flutter SDK
-    into `beak_core`, `beak_cli`, `beak_image` and the storage drivers, and
-    makes `dart pub get` there require Flutter. `link-obers-ui` touches only
-    the packages that actually depend on obers_ui.
+    Melos can apply overrides itself, but it applies them to every package in the workspace, including the pure Dart ones. That drags the Flutter SDK into `beak_core`, `beak_cli`, `beak_image` and the storage drivers, and makes `dart pub get` there require Flutter. `link-obers-ui` touches only the packages that depend on obers_ui.
 
-## Application themes
+## When obers_ui is missing something
 
-`BeakPanel.theme` and `darkTheme` take Obers theme data. Prefer semantic colors, typography and component theme settings over application wrappers around each input or card. The Foodio example keeps its palette, typography and icon choices under `lib/theme/`; the resource definitions consume the same table, form, summary and command components as other Beak panels.
+If a Beak screen exposes a missing component behavior, fix it in obers_ui and add the regression test there. Beak binds domain state and permissions to the shared components, and an example configures those bindings. A wrapper in Beak or an example around every input or card is the fork this page exists to avoid. The `doc/` folder of the obers_ui checkout has its widget documentation.
 
-When a prototype exposes a missing component behavior, extend the shared Obers component and add its interaction or layout regression there. Beak should bind domain state and permissions; an example should configure those bindings.
+## Rules and limits
+
+- **The override files are git-ignored, the lockfiles are not.** `pubspec_overrides.yaml` never reaches a commit. The `pubspec.lock` of `examples/clean_beak_config` and `examples/foodio-adminpanel` is tracked, and `pub get` writes the linked state into it while you are linked, so `path: "../../../obers_ui"` can ride along in a commit. Run `git diff -- '*.lock'` before you commit, and unlink and bootstrap first if a lockfile shows a path.
+- **A link is per checkout.** Unlink before you tag a release, and before you compare behavior against CI, which always uses the pin.
+- **`link-obers-ui` needs the sibling folder to be named `obers_ui`.** The path is `../obers_ui`, relative to the Beak root, and there is no option to change it.
+- **The Serverpod workspace has its own resolution.** `examples/serverpod` is outside melos, so `melos bootstrap` does not resolve it. The link tool still writes its root overrides, and its README asks you to link once before running `dart pub get` there.
+- **Unlinking leaves the header.** In a package with no melos entries, `--unlink` can leave a `pubspec_overrides.yaml` holding only `dependency_overrides:`. It is git-ignored and harmless.
+
+## Verify it
+
+After a bump, all of these hold:
+
+```bash
+dart test test/obers_ui_pin_test.dart
+```
+
+```text
+00:00 +14: All tests passed!
+```
+
+While linked, the overrides are in place and point at the checkout:
+
+```bash
+grep -l 'linked obers_ui checkout' packages/*/pubspec_overrides.yaml examples/*/pubspec_overrides.yaml
+```
+
+After `--unlink`, the same command prints nothing.
+
+## Reference
+
+| Thing | Where |
+| --- | --- |
+| The pins | `packages/beak_frontend/pubspec.yaml`, `packages/beak/pubspec.yaml` |
+| The pin test | `test/obers_ui_pin_test.dart` |
+| The link tool | `tool/link_obers_ui.dart`, run by `melos run link-obers-ui` |
+| The sibling checkout | `../obers_ui`, relative to the Beak root |
+| The marker the tool writes | `# beak: linked obers_ui checkout` |
+| The obers_ui packages | `obers_ui`, `obers_ui_autoforms`, `obers_ui_charts` |
+| Why `dependencyOverridePaths` is not used | the comment under `command: bootstrap:` in `melos.yaml` |
 
 ## Continue reading
 
-- [Going to production](../shipping/going-to-production.md) the container images, which now
-  need no dependency overrides at all.
-- [Installation](../start-here/installation.md) getting a Beak workspace
-  resolved.
-- [Project structure](../start-here/project-structure.md) where `beak_frontend`
-  and the examples sit in the tree.
+- [Releasing](releasing.md) why the pin has to be linked out before a tag.
+- [Dev infrastructure](dev-infrastructure.md) the other thing you set up locally.
+- [Going to production](../shipping/going-to-production.md) the container images, which need no overrides.
+- [Project structure](../start-here/project-structure.md) where `beak_frontend` and the examples sit in the tree.
