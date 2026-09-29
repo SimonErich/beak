@@ -68,6 +68,10 @@ final class DocsCommand extends Command<int> {
       throw UsageException('beak docs takes no arguments.', invocation);
     }
     final Directory root = environment.rootDirectory;
+    if (BeakProjectKind.isModelsOnly(root)) {
+      environment.out.writeln(BeakProjectKind.modelsOnlyPackage);
+      return 0;
+    }
     final BeakProjectConfig config = BeakProjectConfig.load(
       root,
       packageName: BeakProjectConfig.packageNameOf(root),

@@ -277,7 +277,8 @@ final class BeakAgentReport {
 /// [projectRoot]: the managed block in `AGENTS.md`, the `CLAUDE.md` that
 /// pairs with it, the version-matched docs, and the workflow skills.
 ///
-/// Returns `null` when the project has no Beak dependency. With
+/// Returns `null` when the project has no Beak app: no Beak dependency, or a
+/// package of schema classes that depends on `beak_core` alone. With
 /// [BeakAgentOptions.remove] it undoes instead, and needs no dependency: the
 /// project may have dropped Beak already. Everything else is in the
 /// [BeakAgentReport]: what was done (or, when [BeakAgentOptions.isPlan]
@@ -287,6 +288,9 @@ BeakAgentReport? syncAgentFiles(
   Directory projectRoot, {
   BeakAgentOptions options = const BeakAgentOptions(),
 }) {
+  if (!options.remove && BeakProjectKind.isModelsOnly(projectRoot)) {
+    return null;
+  }
   final String packageName = BeakProjectConfig.packageNameOf(projectRoot);
   final BeakProjectConfig config = BeakProjectConfig.load(
     projectRoot,

@@ -52,12 +52,11 @@ abstract final class AuthorRelations {
 
 /// Typed configuration references for Author.
 final class AuthorFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const AuthorFields({
-    BeakModel model = const AuthorModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Author, rooted at its own model.
+  const AuthorFields() : _model = const AuthorModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const AuthorFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -114,8 +113,7 @@ final class AuthorToOneField extends BeakToOneField {
   }) : super(target: const AuthorModel());
 
   /// Every target field, including names reserved by the path API.
-  AuthorFields get fields =>
-      AuthorFields(model: model, path: [...path, relation]);
+  AuthorFields get fields => AuthorFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<int> get id => fields.id;

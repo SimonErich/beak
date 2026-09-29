@@ -4,9 +4,12 @@ import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test(
-    'resource-local generated helpers compile and read live typed drafts',
-    () async {
+  // The language version decides which lints the generated code is held to:
+  // `prefer_initializing_formals` began to fire on private named parameters
+  // at 3.12, and 3.11 must still compile what 3.12 accepts.
+  for (final languageVersion in const ['3.11', '3.12']) {
+    test('resource-local generated helpers compile and read live typed drafts '
+        'at Dart $languageVersion', () async {
       final repoRoot = Directory.current.parent.parent;
       final root = Directory.systemTemp.createTempSync('beak_fields_');
       addTearDown(() => root.deleteSync(recursive: true));
@@ -19,7 +22,7 @@ void main() {
       write('pubspec.yaml', '''
 name: generated_fields_probe
 environment:
-  sdk: ^3.11.0
+  sdk: ^$languageVersion.0
 dependencies:
   beak_core:
     path: ${repoRoot.path}/packages/beak_core
@@ -183,7 +186,6 @@ void main() {
         0,
         reason: '${executed.stdout}\n${executed.stderr}',
       );
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+    }, timeout: const Timeout(Duration(minutes: 2)));
+  }
 }

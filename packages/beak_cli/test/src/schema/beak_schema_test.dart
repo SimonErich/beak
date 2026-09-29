@@ -68,6 +68,35 @@ BeakSchemaIr schemaNamed(List<BeakSchemaIr> schemas, String name) =>
     schemas.firstWhere((schema) => schema.className == name);
 
 void main() {
+  test('the fields class initializes its private fields without a named '
+      'parameter that repeats their name', () {
+    // At Dart 3.12 `{BeakModel model}` feeding `_model` is a
+    // `prefer_initializing_formals` finding (a private named parameter could
+    // say it), while `this._model` as a named parameter does not exist before
+    // 3.12. A positional one is legal in both and no lint asks for more.
+    final (schemas, issues) = readSchemas({
+      'category.dart': categorySchema,
+      'product.dart': productSchema,
+    });
+    expect(issues, isEmpty);
+
+    final source = BeakSchemaEmitter.emit(
+      schemaNamed(schemas, 'Product'),
+      schemas,
+    );
+
+    expect(source, contains('const ProductFields()'));
+    expect(source, contains('_model = const ProductModel()'));
+    expect(source, contains('_path = const []'));
+    expect(
+      source,
+      contains('const ProductFields.via(this._model, this._path);'),
+    );
+    expect(source, isNot(contains('_model = model')));
+    expect(source, isNot(contains('_path = path')));
+    expect(source, contains('ProductFields.via(model, [...path, relation])'));
+  });
+
   test('typed enum labels and badge mappings survive schema generation', () {
     final (schemas, issues) = readSchemas({
       'ticket.dart': """

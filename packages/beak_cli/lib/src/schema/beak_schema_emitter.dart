@@ -390,10 +390,22 @@ abstract final class BeakSchemaEmitter {
       ..writeln('/// Typed configuration references for ${schema.className}.')
       ..writeln('final class ${schema.className}Fields {')
       ..writeln(
-        '  /// Creates fields rooted at [model], optionally through [path].',
+        '  /// Creates the fields of ${schema.className}, rooted at its own '
+        'model.',
+      )
+      // The second constructor takes its two values positionally on purpose:
+      // a named `model` feeding `_model` is what `prefer_initializing_formals`
+      // reports from Dart 3.12, yet `this._model` as a named parameter is a
+      // syntax error before it, and generated code has to be clean in both.
+      ..writeln(
+        '  const ${schema.className}Fields() : '
+        '_model = const ${schema.modelClass}(), _path = const [];',
       )
       ..writeln(
-        '  const ${schema.className}Fields({BeakModel model = const ${schema.modelClass}(), List<BeakRelationship> path = const []}) : _model = model, _path = path;',
+        '  /// Creates fields rooted at [model] and reached through [path].',
+      )
+      ..writeln(
+        '  const ${schema.className}Fields.via(this._model, this._path);',
       )
       ..writeln('  final BeakModel _model;')
       ..writeln('  final List<BeakRelationship> _path;');
@@ -429,7 +441,7 @@ abstract final class BeakSchemaEmitter {
         '  /// Every target field, including names reserved by the path API.',
       )
       ..writeln(
-        '  ${schema.className}Fields get fields => ${schema.className}Fields(model: model, path: [...path, relation]);',
+        '  ${schema.className}Fields get fields => ${schema.className}Fields.via(model, [...path, relation]);',
       );
     for (final column in schema.columns) {
       if (_relationReserved.contains(column.fieldName)) continue;

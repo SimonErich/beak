@@ -78,6 +78,18 @@ agents:
 `--remove` undoes it. `beak doctor` reports the state of all of it in its
 `agents` group.
 
+## Packages of schema classes only
+
+A pure-Dart package that holds only schema classes, shared by a server and an
+admin that live elsewhere, depends on `beak_core` and on none of `beak`,
+`beak_frontend` and `beak_backend`. There `beak prepare` writes the
+`*.beak.dart` parts and `lib/beak/registry.g.dart` (which imports
+`package:beak_core/beak_core.dart`) and nothing else: no app, panel or server
+wiring, no entrypoint, no migration, and no `beak.yaml` to read. `beak doctor`
+checks what applies there (the schema classes read cleanly, the generated files
+are current, no file imports the server, the panel, Flutter or `dart:io`), and
+`beak agents` and `beak docs` say there is no Beak app and exit 0.
+
 ## Generated or authored panel
 
 A project boots its panel one of two ways.

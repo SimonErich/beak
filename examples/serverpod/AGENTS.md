@@ -11,7 +11,7 @@ endpoint method. Read `README.md` first for what it does and does not cover.
 | `bookshop_server` | Serverpod server. `lib/src/catalog/*.spy.yaml` are the models; `lib/src/beak/` holds the endpoint, the engine, the policy and the scopes; `bin/beak_admin.dart` grants and revokes admin access. | yes |
 | `bookshop_client` | Generated client. | never |
 | `bookshop_flutter` | The template's app. | no |
-| `bookshop_beak` | Pure Dart Beak schema classes (`lib/models/*.dart`), generated parts (`*.beak.dart`, `lib/beak/registry.g.dart`) and the barrel `lib/bookshop_beak.dart`. | the schema classes and the barrel |
+| `bookshop_beak` | Pure Dart Beak schema classes (`lib/models/*.dart`), generated parts (`*.beak.dart`, `lib/beak/registry.g.dart`, written by `beak prepare`, which writes nothing else in a package that depends on `beak_core` alone) and the barrel `lib/bookshop_beak.dart`. | the schema classes and the barrel |
 | `bookshop_admin` | Flutter web panel: `lib/resources/*_resource.dart` and `lib/src/bookshop_admin.dart`. | yes |
 
 `lib/src/generated/` in the server, `bookshop_client`, and every `*.beak.dart`
@@ -26,7 +26,7 @@ cd bookshop_server
 ../../../tool/serverpod_cli_4/serverpod generate
 ../../../tool/serverpod_cli_4/serverpod create-migration --tag <what-changed>
 # mirror the change in bookshop_beak/lib/models/<name>.dart, then:
-cd ../bookshop_beak && ./tool/prepare
+cd ../bookshop_beak && dart run ../../../packages/beak_cli/bin/beak.dart prepare
 cd ../bookshop_server && dart test
 ```
 

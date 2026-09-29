@@ -131,8 +131,17 @@ final class AgentsCommand extends Command<int> {
       ),
     );
     if (report == null) {
-      environment.out.writeln(BeakProjectKind.notABeakProject);
-      return 1;
+      // A package of schema classes has no app to describe, which is not a
+      // failure; a directory without Beak is.
+      final bool isModelsOnly = BeakProjectKind.isModelsOnly(
+        environment.rootDirectory,
+      );
+      environment.out.writeln(
+        isModelsOnly
+            ? BeakProjectKind.modelsOnlyPackage
+            : BeakProjectKind.notABeakProject,
+      );
+      return isModelsOnly ? 0 : 1;
     }
     if (print && report.printedBlock != null) {
       environment.out.writeln(report.printedBlock);
@@ -184,13 +193,19 @@ final class AgentsCommand extends Command<int> {
 /// This is what `beak prepare`, `beak create` and `beak init` call. It never
 /// fails the command that called it: a problem becomes a printed line, so a
 /// missing `pub get` or a damaged marker cannot stop code generation. A
-/// project without a Beak dependency is left alone without a word. Skills
-/// are installed only when [installSkills] says so; `prepare` leaves them
-/// to `beak agents`.
+/// project without a Beak dependency is left alone without a word, and a
+/// package of schema classes with one line saying why. Skills are installed
+/// only when [installSkills] says so; `prepare` leaves them to `beak agents`.
 BeakAgentReport? refreshAgentFiles(
   BeakCliEnvironment environment, {
   bool installSkills = false,
 }) {
+  if (BeakProjectKind.isModelsOnly(environment.rootDirectory)) {
+    environment.out.writeln(
+      '  agents     skipped: ${BeakProjectKind.modelsOnlyPackage}',
+    );
+    return null;
+  }
   try {
     final BeakAgentReport? report = syncAgentFiles(
       environment.rootDirectory,

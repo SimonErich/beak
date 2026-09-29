@@ -298,12 +298,9 @@ final class BeakProjectScanner {
   /// an issue naming the file, rather than silently skipped.
   BeakDiscovery scan({Map<String, String> tablesByModelClass = const {}}) {
     final issues = <BeakDiscoveryIssue>[];
-    final models = _scanClasses(
-      '',
-      supertype: 'BeakModel',
-      issues: issues,
-      requireConstConstructor: true,
-      tables: tablesByModelClass,
+    final List<BeakDiscoveredSymbol> models = _scanModels(
+      issues,
+      tablesByModelClass,
     );
     final migrations = _scanClasses(
       migrationsDir,
@@ -321,7 +318,6 @@ final class BeakProjectScanner {
     final screens = _scanScreens(issues);
     final resources = _scanResources(issues);
 
-    _rejectDuplicateNames(models, 'model', issues);
     _rejectRemovedOverrides(issues);
 
     final (overrides, storageRegistry) = _scanOverrides();
@@ -339,6 +335,40 @@ final class BeakProjectScanner {
           if (model.table case final String table) model.name: table,
       }),
     );
+  }
+
+  /// Scans for the models alone, ignoring everything else a Beak app holds.
+  ///
+  /// What `beak prepare` reads in a package that only holds schema classes:
+  /// no resources, screens, migrations, seeders or override files, so none of
+  /// their issues either. The models and the issues about them are the same
+  /// as [scan] reports.
+  BeakDiscovery scanModels({
+    Map<String, String> tablesByModelClass = const {},
+  }) {
+    final issues = <BeakDiscoveryIssue>[];
+    final List<BeakDiscoveredSymbol> models = _scanModels(
+      issues,
+      tablesByModelClass,
+    );
+    return BeakDiscovery(models: models, issues: issues);
+  }
+
+  /// Every `BeakModel` under `lib/`, with duplicate names reported in
+  /// [issues].
+  List<BeakDiscoveredSymbol> _scanModels(
+    List<BeakDiscoveryIssue> issues,
+    Map<String, String> tables,
+  ) {
+    final List<BeakDiscoveredSymbol> models = _scanClasses(
+      '',
+      supertype: 'BeakModel',
+      issues: issues,
+      requireConstConstructor: true,
+      tables: tables,
+    );
+    _rejectDuplicateNames(models, 'model', issues);
+    return models;
   }
 
   /// Classes under `lib/<directory>` extending [supertype], in path order.

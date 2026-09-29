@@ -27,11 +27,27 @@ enum BeakProjectKind {
   static const String notABeakProject =
       'no Beak dependency here; run `beak init`';
 
-  /// The kind of the project at [root], or `null` without a Beak dependency.
+  /// The message of a command run in a package that only holds schema
+  /// classes, where there is no app to write agent files for.
+  static const String modelsOnlyPackage =
+      'models-only package (beak_core without an app): no Beak app here, '
+      'nothing to do';
+
+  /// The Beak packages that make a project more than its schema classes.
+  static const Set<String> _appPackages = {
+    'beak',
+    'beak_frontend',
+    'beak_backend',
+    'beak_serverpod_flutter',
+  };
+
+  /// The kind of the project at [root], or `null` without a Beak app.
   ///
   /// In this order: a dependency on `beak_serverpod_flutter` is a Serverpod
   /// admin; a `panel.entrypoint` in `beak.yaml` other than `lib/main.dart` is
-  /// an embedded panel; any other Beak dependency is a standalone app.
+  /// an embedded panel; any other Beak dependency is a standalone app. A
+  /// package that depends on `beak_core` alone has none of them: see
+  /// [isModelsOnly].
   static BeakProjectKind? detect(
     Directory root, {
     required BeakProjectConfig config,
@@ -40,7 +56,7 @@ enum BeakProjectKind {
     if (dependencies.contains('beak_serverpod_flutter')) {
       return serverpodAdmin;
     }
-    if (!dependencies.any(_isBeakPackage)) {
+    if (!dependencies.any(_isBeakPackage) || _isModelsOnly(dependencies)) {
       return null;
     }
     final String? entrypoint = config.panel.entrypoint;
@@ -49,6 +65,20 @@ enum BeakProjectKind {
         ? embedded
         : standalone;
   }
+
+  /// Whether the package at [root] only holds Beak schema classes.
+  ///
+  /// True when its pubspec depends on `beak_core` and on none of `beak`,
+  /// `beak_frontend`, `beak_backend` and `beak_serverpod_flutter`. Such a
+  /// package is pure Dart, shared by a server and an admin that live
+  /// elsewhere, so `beak prepare` writes its schema parts and registry and
+  /// nothing else, and `beak agents` has no app to describe.
+  static bool isModelsOnly(Directory root) =>
+      _isModelsOnly(dependenciesOf(root));
+
+  static bool _isModelsOnly(Set<String> dependencies) =>
+      dependencies.contains('beak_core') &&
+      dependencies.intersection(_appPackages).isEmpty;
 
   /// The names in the `dependencies` and `dev_dependencies` of the pubspec in
   /// [root]; empty when there is none, or it does not parse.

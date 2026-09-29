@@ -8,6 +8,7 @@ library;
 
 export 'package:beak_cli/beak_cli.dart';
 export 'package:beak_cli/src/agents/beak_agent_files.dart';
+export 'package:beak_cli/src/agents/beak_project_kind.dart';
 export 'package:beak_cli/src/agents/beak_skill_installer.dart';
 export 'package:beak_cli/src/cli_runner.dart';
 export 'package:beak_cli/src/commands/agents_command.dart';

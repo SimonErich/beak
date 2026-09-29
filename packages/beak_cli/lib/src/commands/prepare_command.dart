@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../agents/beak_project_kind.dart';
 import '../cli_runner.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_schema_emitter.dart';
+import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
 import 'agents_command.dart';
 
@@ -30,6 +32,12 @@ import 'agents_command.dart';
 /// to date (the docs of the resolved Beak version and the managed block in
 /// `AGENTS.md`), as `beak.yaml`'s `agents:` section allows, and says so in
 /// one line.
+///
+/// A package that depends on `beak_core` alone only holds schema classes, for
+/// a server and an admin that live elsewhere. There `prepare` writes the
+/// `*.beak.dart` parts and `lib/beak/registry.g.dart` and nothing else: no
+/// app, panel or server wiring, no entrypoint, no migration, and no
+/// `beak.yaml` to read.
 final class PrepareCommand extends Command<int> {
   /// Creates the command against [environment].
   PrepareCommand(this.environment);
@@ -109,10 +117,15 @@ List<BeakGeneratedFile> beakGeneratedFiles({
 /// Runs generation against [environment] and reports what happened.
 ///
 /// Exposed separately from [PrepareCommand] so other commands can prepare
-/// before doing their own work without going through the runner.
+/// before doing their own work without going through the runner. A package of
+/// schema classes only (see [BeakProjectKind.isModelsOnly]) gets the parts and
+/// the registry and nothing else.
 BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   final Directory root = environment.rootDirectory;
   final String packageName = BeakProjectConfig.packageNameOf(root);
+  if (BeakProjectKind.isModelsOnly(root)) {
+    return _prepareModelsOnly(environment, packageName);
+  }
   final BeakProjectConfig config = BeakProjectConfig.load(
     root,
     packageName: packageName,
@@ -120,25 +133,15 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   // Schema classes generate their own part files first, so the models they
   // declare exist before discovery goes looking for them.
   final (schemas, schemaIssues) = BeakSchemaReader(root).read();
-  final schemaFiles = <String>[];
-  if (schemaIssues.isEmpty) {
-    for (final schema in schemas) {
-      final String path = BeakSchemaEmitter.partPathOf(schema);
-      final String contents = BeakSchemaEmitter.emit(schema, schemas);
-      final file = File('${root.path}/$path');
-      if (!file.existsSync() || file.readAsStringSync() != contents) {
-        file.parent.createSync(recursive: true);
-        file.writeAsStringSync(contents);
-        schemaFiles.add(path);
-      }
-    }
-  }
+  final List<String> schemaFiles = _writeSchemaParts(
+    root,
+    schemas,
+    schemaIssues,
+  ).written;
 
-  final BeakDiscovery discovery = BeakProjectScanner(root).scan(
-    tablesByModelClass: <String, String>{
-      for (final schema in schemas) schema.modelClass: schema.table,
-    },
-  );
+  final BeakDiscovery discovery = BeakProjectScanner(
+    root,
+  ).scan(tablesByModelClass: _tablesByModelClass(schemas));
   final allIssues = <BeakDiscoveryIssue>[
     ...schemaIssues,
     ...discovery.issues,
@@ -146,16 +149,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   ];
 
   if (allIssues.isNotEmpty) {
-    environment.out.writeln('Cannot generate — fix these first:');
-    for (final issue in allIssues) {
-      environment.out.writeln('  ${issue.path}: ${issue.message}');
-    }
-    return BeakPrepareResult(
-      config: config,
-      discovery: BeakDiscovery(issues: allIssues),
-      written: const [],
-      unchanged: const [],
-    );
+    return _refused(environment, config, allIssues);
   }
 
   // Migrations before the wiring: a migration Beak writes must be visible to
@@ -179,11 +173,9 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   }
   final BeakDiscovery withMigrations = migrationFiles.isEmpty
       ? discovery
-      : BeakProjectScanner(root).scan(
-          tablesByModelClass: <String, String>{
-            for (final schema in schemas) schema.modelClass: schema.table,
-          },
-        );
+      : BeakProjectScanner(
+          root,
+        ).scan(tablesByModelClass: _tablesByModelClass(schemas));
 
   final written = <String>[...schemaFiles, ...migrationFiles];
   final unchanged = <String>[];
@@ -201,28 +193,143 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
       unchanged.add(generated.path);
       continue;
     }
-    final bool isCurrent =
-        file.existsSync() && file.readAsStringSync() == generated.contents;
-    if (isCurrent) {
+    if (_writeIfChanged(file, generated.contents)) {
+      written.add(generated.path);
+    } else {
       unchanged.add(generated.path);
-      continue;
     }
-    file.parent.createSync(recursive: true);
-    file.writeAsStringSync(generated.contents);
-    written.add(generated.path);
   }
 
   environment.out.writeln('  ${withMigrations.summary}');
-  environment.out.writeln(
-    written.isEmpty
-        ? '  generated  up to date (${unchanged.length} files)'
-        : '  generated  ${written.length} of '
-              '${written.length + unchanged.length} files',
-  );
+  _reportFiles(environment, written: written, unchanged: unchanged);
   return BeakPrepareResult(
     config: config,
     discovery: withMigrations,
     written: written,
     unchanged: unchanged,
+  );
+}
+
+/// The generation of a package that only holds schema classes.
+///
+/// Reads no `beak.yaml`: nothing in it applies where there is no panel, no
+/// server and no entrypoint to configure. Scans for the models alone, so a
+/// stray `lib/screens/` or `lib/migrations/` cannot block it either.
+BeakPrepareResult _prepareModelsOnly(
+  BeakCliEnvironment environment,
+  String packageName,
+) {
+  final Directory root = environment.rootDirectory;
+  final config = BeakProjectConfig.defaults(packageName: packageName);
+  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  final parts = _writeSchemaParts(root, schemas, schemaIssues);
+  final BeakDiscovery discovery = BeakProjectScanner(
+    root,
+  ).scanModels(tablesByModelClass: _tablesByModelClass(schemas));
+  final allIssues = <BeakDiscoveryIssue>[...schemaIssues, ...discovery.issues];
+  if (allIssues.isNotEmpty) {
+    return _refused(environment, config, allIssues);
+  }
+
+  final written = <String>[...parts.written];
+  final unchanged = <String>[...parts.unchanged];
+  for (final generated in BeakEmitters.modelsOnly(discovery)) {
+    if (_writeIfChanged(
+      File('${root.path}/${generated.path}'),
+      generated.contents,
+    )) {
+      written.add(generated.path);
+    } else {
+      unchanged.add(generated.path);
+    }
+  }
+
+  final int count = discovery.models.length;
+  environment.out.writeln(
+    '  $count ${count == 1 ? 'model' : 'models'} · models-only package',
+  );
+  _reportFiles(environment, written: written, unchanged: unchanged);
+  return BeakPrepareResult(
+    config: config,
+    discovery: discovery,
+    written: written,
+    unchanged: unchanged,
+  );
+}
+
+/// Writes the `.beak.dart` part of each schema class whose text changed.
+///
+/// Nothing is written while [schemaIssues] is non-empty: a schema that does
+/// not read has no part to generate. The two lists are project-relative
+/// paths.
+({List<String> written, List<String> unchanged}) _writeSchemaParts(
+  Directory root,
+  List<BeakSchemaIr> schemas,
+  List<BeakDiscoveryIssue> schemaIssues,
+) {
+  final written = <String>[];
+  final unchanged = <String>[];
+  if (schemaIssues.isNotEmpty) {
+    return (written: written, unchanged: unchanged);
+  }
+  for (final schema in schemas) {
+    final String path = BeakSchemaEmitter.partPathOf(schema);
+    final bool changed = _writeIfChanged(
+      File('${root.path}/$path'),
+      BeakSchemaEmitter.emit(schema, schemas),
+    );
+    (changed ? written : unchanged).add(path);
+  }
+  return (written: written, unchanged: unchanged);
+}
+
+/// The physical table of each schema class's model, by model class name.
+Map<String, String> _tablesByModelClass(List<BeakSchemaIr> schemas) => {
+  for (final schema in schemas) schema.modelClass: schema.table,
+};
+
+/// Writes [contents] to [file] unless it already holds exactly that, and says
+/// whether it wrote.
+///
+/// Not touching a current file is what keeps `beak dev` from thrashing
+/// Flutter's file watcher.
+bool _writeIfChanged(File file, String contents) {
+  if (file.existsSync() && file.readAsStringSync() == contents) {
+    return false;
+  }
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(contents);
+  return true;
+}
+
+/// Lists [issues] and returns the result of a run that generated nothing.
+BeakPrepareResult _refused(
+  BeakCliEnvironment environment,
+  BeakProjectConfig config,
+  List<BeakDiscoveryIssue> issues,
+) {
+  environment.out.writeln('Cannot generate — fix these first:');
+  for (final issue in issues) {
+    environment.out.writeln('  ${issue.path}: ${issue.message}');
+  }
+  return BeakPrepareResult(
+    config: config,
+    discovery: BeakDiscovery(issues: issues),
+    written: const [],
+    unchanged: const [],
+  );
+}
+
+/// The line that says how many files were written.
+void _reportFiles(
+  BeakCliEnvironment environment, {
+  required List<String> written,
+  required List<String> unchanged,
+}) {
+  environment.out.writeln(
+    written.isEmpty
+        ? '  generated  up to date (${unchanged.length} files)'
+        : '  generated  ${written.length} of '
+              '${written.length + unchanged.length} files',
   );
 }

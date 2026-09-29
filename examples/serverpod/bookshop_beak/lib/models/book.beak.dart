@@ -104,12 +104,11 @@ abstract final class BookRelations {
 
 /// Typed configuration references for Book.
 final class BookFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const BookFields({
-    BeakModel model = const BookModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Book, rooted at its own model.
+  const BookFields() : _model = const BookModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const BookFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -197,7 +196,7 @@ final class BookToOneField extends BeakToOneField {
   }) : super(target: const BookModel());
 
   /// Every target field, including names reserved by the path API.
-  BookFields get fields => BookFields(model: model, path: [...path, relation]);
+  BookFields get fields => BookFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<int> get id => fields.id;
