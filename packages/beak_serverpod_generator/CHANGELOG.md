@@ -7,9 +7,9 @@ them.
 
 ## 0.9.0 - Unreleased
 
-The Shelf server: generated CRUD, query, uploads, auth, export, health probes and policy.
+Generates typed Beak resources from an existing Serverpod client, for the client bridge.
 
-New in 0.9.0: the typed, deny-by-default policy DSL (`BeakPolicies`), `graphOnly: [XModel()]`, an outbox the host runs while it serves, `defaults.build` hooks for middleware and routes, `BeakBaselineMigration` for adopted databases, and a smaller public API (see Removed in the root changelog).
+Versioned with the others at 0.9.0.
 
 Beak is pre-1.0: the API is not frozen, the wire format is. See
 [Upgrading](https://simonerich.github.io/beak/start-here/upgrading/) for how to

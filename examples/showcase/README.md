@@ -12,7 +12,9 @@ for those).
 
 ## Run
 
-From this directory:
+From a clean clone, resolve the workspace at the repository root first
+(`melos bootstrap`, and `melos run link-obers-ui` until the obers_ui pin catches
+up; the root README explains both). Then, from this directory:
 
 ```sh
 flutter pub get
@@ -22,8 +24,9 @@ dart run bin/migrate.dart db:seed
 dart run bin/serve.dart
 ```
 
-The API listens on `http://localhost:8082` and keeps its data in a local SQLite
-file, `beak.db`. The seed is repeatable and leaves existing rows alone.
+The API listens on `http://localhost:8082` (`server.port` in `beak.yaml`) and
+keeps its data in a local SQLite file, `beak.db`. The seed is repeatable and
+leaves existing rows alone.
 
 In a second terminal:
 
