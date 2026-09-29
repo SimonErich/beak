@@ -1,6 +1,6 @@
 ---
 title: Serverpod admin
-description: "A card for the Serverpod example: a bookshop workspace with a Beak admin app behind one gated endpoint, where to look, what its tests prove and what it leaves out."
+description: "A card for the Serverpod example: a bookshop workspace whose Beak admin runs behind one gated endpoint, with its tests and its limits."
 type: example
 audience: [expert, agent]
 status: stable
