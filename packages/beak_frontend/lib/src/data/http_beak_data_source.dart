@@ -7,9 +7,9 @@ import 'package:beak_core/beak_core.dart';
 ///
 /// This is the production source [registerBeakDependencies] wires up over a
 /// [BeakClient] pointed at `apiBaseUrl`; tests inject a fake
-/// [BeakDataSource] instead. Because it is source-agnostic, a future
-/// transport (e.g. Serverpod) can replace it without touching the rest of
-/// the frontend.
+/// [BeakDataSource] instead. Because the frontend only depends on the
+/// [BeakDataSource] interface, any other implementation can take its place
+/// without touching the rest of the frontend.
 ///
 /// ```dart
 /// final source = HttpBeakDataSource(

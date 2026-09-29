@@ -1,5 +1,5 @@
 import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak_frontend/src/form/beak_form_controller_builder.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -144,32 +144,6 @@ void main() {
   });
 
   group('buildData', () {
-    test(
-      'typed choice overrides preserve selected IDs and nullable choice',
-      () {
-        final form =
-            BeakFormController(
-              model: const ArticleModel(),
-              fields: [
-                const BeakFormChoiceField(
-                  column: ArticleColumns.badge,
-                  multiple: true,
-                ),
-                const BeakFormChoiceField(column: ArticleColumns.status),
-              ],
-            )..prefill(
-              BeakRecord.fromRow({
-                'badge': ['role-1'],
-                'status': null,
-              }),
-            );
-        addTearDown(form.dispose);
-        expect(form.valueOf<List<String>>(ArticleColumns.badge), ['role-1']);
-        expect(form.buildData()['status'], const BeakNullValue());
-        form.setValue(ArticleColumns.badge, <String>[]);
-        expect(form.buildData()['badge'], const BeakListValue([]));
-      },
-    );
     test('complete command mode includes untouched nulls', () {
       final form = BeakFormController(
         model: const ArticleModel(),

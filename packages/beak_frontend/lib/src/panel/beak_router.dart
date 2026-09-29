@@ -16,8 +16,6 @@ import '../auth/beak_auth_gate.dart';
 import '../auth/beak_session_store.dart';
 import '../auth/beak_logout_button.dart';
 import '../localization/beak_localizations.dart';
-import '../dashboard/beak_dashboard.dart';
-import '../data/reference_cache.dart';
 import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
 import '../form/beak_configured_form.dart';
@@ -37,10 +35,12 @@ import 'beak_theme_controller.dart';
 import 'beak_back_button.dart';
 import 'beak_shell_page_scope.dart';
 
-/// Builds the panel's router from [config]: a shell route wrapping the
-/// dashboard at `/`, every resource's generated list/create/show/edit pages,
-/// and every custom [BeakPage]; plus auth, error, and maintenance routes
-/// mounted outside the shell.
+/// Builds the panel's router from [config]: a shell route wrapping every
+/// resource's generated list/create/show/edit pages and every custom
+/// [BeakScreen]; plus auth, error, and maintenance routes mounted outside the
+/// shell. `/` is the screen that claims it, and otherwise redirects to the
+/// panel's home destination ([BeakPanelConfig.home], then the first visible
+/// navigation destination).
 ///
 /// [BeakPanel] calls this after [registerBeakDependencies], so the pages
 /// resolve their [BeakDataSource] from [beakLocator] on their first frame.
@@ -91,26 +91,11 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
             );
     }),
     routes: [
-      // The built-in stats/charts dashboard is mounted only when no custom
-      // page claims `/`; a `BeakScreen(path: '/')` replaces it wholesale.
+      // `/` is claimed by a screen, or forwards to the panel's home; sign-in
+      // and the error pages' back actions rely on it landing somewhere real.
       if (!_hasHomePage(config))
-        GoRoute(
-          path: '/',
-          builder: (context, state) => _watchAuth(
-            context,
-            config,
-            (context) => OiResourcePage(
-              label: BeakLocalizations.of(context).dashboard,
-              title: BeakLocalizations.of(context).dashboard,
-              actions: const [],
-              child: BeakDashboard(
-                stats: config.dashboardStats,
-                charts: config.dashboardCharts,
-                dataSource: beakDependencies(context)<BeakDataSource>(),
-              ),
-            ),
-          ),
-        ),
+        if (_homeLocation(config) case final String home)
+          GoRoute(path: '/', redirect: (_, _) => home),
       // Flat routes on purpose: nested routes would keep the list page
       // alive under create/show/edit, so returning to it would show
       // stale data instead of re-querying.
@@ -147,11 +132,9 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
                   context,
                   null,
                 ) ??
-                resource.createBuilder?.call(context) ??
                 BeakResourceCreatePage(
                   resource: resource,
                   dataSource: beakDependencies(context)<BeakDataSource>(),
-                  referenceCache: beakDependencies(context)<ReferenceCache>(),
                 ),
           ),
         ),
@@ -168,14 +151,9 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
                   context,
                   state.pathParameters['id'],
                 ) ??
-                resource.editBuilder?.call(
-                  context,
-                  state.pathParameters['id'] ?? '',
-                ) ??
                 BeakResourceEditPage(
                   resource: resource,
                   dataSource: beakDependencies(context)<BeakDataSource>(),
-                  referenceCache: beakDependencies(context)<ReferenceCache>(),
                   recordId: state.pathParameters['id'] ?? '',
                 ),
           ),
@@ -244,10 +222,44 @@ Widget _watchAuth(
   });
 }
 
-/// Whether a custom page claims the home route `/`, in which case it
-/// replaces the built-in dashboard.
+/// Whether a custom page claims the home route `/`.
 bool _hasHomePage(BeakPanelConfig config) =>
     config.pages.any((screen) => screen.path == '/');
+
+/// Where `/` forwards when no page claims it: [BeakPanelConfig.home] while it
+/// is visible, and otherwise the first visible navigation destination in the
+/// order the shell lists them. `null` when the panel has nothing to show.
+String? _homeLocation(BeakPanelConfig config) {
+  final resources = {
+    for (final resource in config.resources) resource.model.table: resource,
+  };
+  bool visible(BeakNavigationItem item) =>
+      item.model == null || (resources[item.model!.table]?.isVisible ?? false);
+  final home = config.home;
+  if (home != null) {
+    final reachable = switch (home) {
+      final BeakResource resource => resource.isVisible,
+      _ => true,
+    };
+    if (reachable) return home.location;
+  }
+  final sections = config.navigation?.sections ?? const [];
+  for (final section in [
+    ...sections.where((section) => !section.bottom),
+    ...sections.where((section) => section.bottom),
+  ]) {
+    for (final item in section.items) {
+      if (visible(item)) return item.route;
+    }
+  }
+  for (final resource in config.navigationResources) {
+    if (resource.isVisible) return resource.route;
+  }
+  for (final screen in config.pages) {
+    if (screen.showInNav) return screen.path;
+  }
+  return null;
+}
 
 /// Authentication routes for standalone or host-router composition.
 ///
@@ -694,27 +706,21 @@ final class _BeakShell extends HookWidget {
                               navItem(item),
                           ]
                         : [
-                            if (!_hasHomePage(config))
-                              OiNavItem(
-                                label: BeakLocalizations.of(context).dashboard,
-                                icon: OiIcons.layoutDashboard,
-                                route: '/',
-                              ),
                             for (final resource in config.navigationResources)
                               if (resource.isVisible)
                                 OiNavItem(
                                   label: resource.effectiveNavigationTitle,
                                   icon: resource.icon.icon,
                                   route: resource.route,
-                                  section: resource.effectiveNavigationGroup,
+                                  section: resource.navigationGroup,
                                 ),
                             for (final screen in config.pages)
                               if (screen.showInNav)
                                 OiNavItem(
-                                  label: screen.effectiveLabel,
+                                  label: screen.effectiveNavigationTitle,
                                   icon: screen.icon.icon,
                                   route: screen.path,
-                                  section: screen.section,
+                                  section: screen.navigationGroup,
                                 ),
                           ],
                     child: BeakPendingActions(

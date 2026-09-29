@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_frontend/src/data/model_beak_data_source.dart';
@@ -29,59 +27,47 @@ void main() {
   });
   tearDown(() => source.dispose());
 
-  test(
-    'successful writes refresh mounted lists and cached related labels',
-    () async {
-      final table = TableViewModel(const NoteModel(), source);
-      final cache = ReferenceCache(source, registry);
-      addTearDown(cache.dispose);
-      await table.refresh();
-      await cache.resolve('labels', 'l1');
-      final queries = storage.queryCalls.length;
-      await source.update(
-        'labels',
-        'l1',
-        BeakRecord.fromRow({'name': 'Fresh label'}),
-      );
-      await pumpEventQueue();
-      expect(storage.queryCalls.length, queries + 1);
-      expect((await cache.resolve('labels', 'l1'))['name']?.raw, 'Fresh label');
-      expect(storage.batchGetCalls, hasLength(2));
-      await source.create(
-        'notes',
-        BeakRecord.fromRow({'id': 'n2', 'title': 'Created'}),
-      );
-      await pumpEventQueue();
-      expect(table.page.value?.total, 2);
-      await source.delete('notes', 'n1');
-      await pumpEventQueue();
-      expect(table.page.value?.items.single['title']?.raw, 'Created');
-      table.dispose();
-      final before = storage.queryCalls.length;
-      await source.update(
-        'notes',
-        'n2',
-        BeakRecord.fromRow({'title': 'After dispose'}),
-      );
-      await pumpEventQueue();
-      expect(storage.queryCalls, hasLength(before));
-    },
-  );
+  test('successful writes refresh mounted lists', () async {
+    final table = BeakTableViewModel(const NoteModel(), source);
+    await table.refresh();
+    final queries = storage.queryCalls.length;
+    await source.update(
+      'labels',
+      'l1',
+      BeakRecord.fromRow({'name': 'Fresh label'}),
+    );
+    await pumpEventQueue();
+    expect(storage.queryCalls.length, queries + 1);
+    await source.create(
+      'notes',
+      BeakRecord.fromRow({'id': 'n2', 'title': 'Created'}),
+    );
+    await pumpEventQueue();
+    expect(table.page.value?.total, 2);
+    await source.delete('notes', 'n1');
+    await pumpEventQueue();
+    expect(table.page.value?.items.single['title']?.raw, 'Created');
+    table.dispose();
+    final before = storage.queryCalls.length;
+    await source.update(
+      'notes',
+      'n2',
+      BeakRecord.fromRow({'title': 'After dispose'}),
+    );
+    await pumpEventQueue();
+    expect(storage.queryCalls, hasLength(before));
+  });
 
-  test('a failed mutation does not invalidate cached reads', () async {
-    final cache = ReferenceCache(source, registry);
-    addTearDown(cache.dispose);
+  test('a failed mutation announces no change', () async {
     final changes = <BeakDataChange>[];
     final subscription = source.changes.listen(changes.add);
     addTearDown(subscription.cancel);
-    await cache.resolve('notes', 'n1');
     await expectLater(
       source.update('notes', 'missing', BeakRecord.fromRow({'title': 'No'})),
       throwsA(isA<BeakNotFoundException>()),
     );
-    await cache.resolve('notes', 'n1');
+    await pumpEventQueue();
     expect(changes, isEmpty);
-    expect(storage.batchGetCalls, hasLength(1));
   });
 
   test(
@@ -149,36 +135,4 @@ void main() {
       expect(session.isDirty, true);
     },
   );
-
-  test(
-    'a cache fetch invalidated in flight cannot restore stale values',
-    () async {
-      final delayed = _DelayedReferences();
-      final cache = ReferenceCache(delayed, registry);
-      addTearDown(cache.dispose);
-      final pending = cache.resolve('labels', 'l1');
-      await pumpEventQueue();
-      cache.invalidateTable('labels');
-      delayed.responses[0].complete([
-        BeakRecord.fromRow({'id': 'l1', 'name': 'Stale'}),
-      ]);
-      await pumpEventQueue();
-      expect(delayed.responses, hasLength(2));
-      delayed.responses[1].complete([
-        BeakRecord.fromRow({'id': 'l1', 'name': 'Current'}),
-      ]);
-      expect((await pending)['name']?.raw, 'Current');
-      expect((await cache.resolve('labels', 'l1'))['name']?.raw, 'Current');
-    },
-  );
-}
-
-final class _DelayedReferences extends FakeDataSource {
-  final List<Completer<List<BeakRecord>>> responses = [];
-  @override
-  Future<List<BeakRecord>> batchGet(String table, List<Object> ids) {
-    final response = Completer<List<BeakRecord>>();
-    responses.add(response);
-    return response.future;
-  }
 }

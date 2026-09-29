@@ -42,32 +42,22 @@ void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
 }
 // --8<-- [end:openBeakCommandBar]
 
-/// Builds one navigation [OiCommand] per resource and in-nav page (plus the
-/// dashboard when no page claims `/`), grouped by their sidebar section.
+/// Builds one navigation [OiCommand] per resource and in-nav page, grouped by
+/// their sidebar section.
 // --8<-- [start:beakNavigationCommands]
 List<OiCommand> beakNavigationCommands(
   BeakPanelConfig config,
   void Function(String route) go, {
   BeakLocalizations localizations = BeakLocalizations.english,
 }) {
-  final bool hasHome = config.pages.any((page) => page.path == '/');
   return [
-    if (!hasHome)
-      OiCommand(
-        id: 'nav:/',
-        label: localizations.dashboard,
-        icon: OiIcons.layoutDashboard,
-        category: localizations.navigate,
-        onExecute: () => go('/'),
-      ),
     for (final resource in config.navigationResources)
       if (resource.isVisible)
         OiCommand(
           id: 'nav:${resource.route}',
           label: resource.effectiveNavigationTitle,
           icon: resource.icon.icon,
-          category:
-              resource.effectiveNavigationGroup ?? localizations.resources,
+          category: resource.navigationGroup ?? localizations.resources,
           keywords: const ['open', 'go to'],
           onExecute: () => go(resource.route),
         ),
@@ -75,9 +65,9 @@ List<OiCommand> beakNavigationCommands(
       if (page.showInNav)
         OiCommand(
           id: 'nav:${page.path}',
-          label: page.effectiveLabel,
+          label: page.effectiveNavigationTitle,
           icon: page.icon.icon,
-          category: page.section ?? localizations.pages,
+          category: page.navigationGroup ?? localizations.pages,
           keywords: const ['open', 'go to'],
           onExecute: () => go(page.path),
         ),

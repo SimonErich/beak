@@ -145,7 +145,10 @@ void main() {
   test(
     'explicit filters replace preset defaults without dropping permanent scope',
     () {
-      final control = BeakTextFilter(column: title, label: 'Title');
+      final control = BeakTextFilter(
+        field: BeakScalarField<Object>(model: model, column: title),
+        label: 'Title',
+      );
       final defaultFilter = BeakFieldFilter(
         column: title,
         operator: BeakOperator.contains,

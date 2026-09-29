@@ -2,12 +2,11 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
-import '../dashboard/beak_chart.dart';
 import '../data/beak_data_changes.dart';
-import '../dashboard/beak_stat.dart';
 import '../localization/beak_localizations.dart';
 import '../formatting/beak_formatting.dart';
 import 'beak_auth_config.dart';
+import 'beak_destination.dart';
 import 'beak_maintenance_config.dart';
 import 'beak_notifications.dart';
 import 'beak_navigation.dart';
@@ -22,8 +21,10 @@ export 'beak_resource.dart';
 ///
 /// This is the single declarative entry point of a Beak admin app — hand it
 /// to a [BeakPanel] and the whole UI (navigation, routing, generated CRUD
-/// pages, dashboard) is stood up from it. Compose it once, typically in a
-/// builder so tests can vary the API origin.
+/// pages) is stood up from it. Compose it once, typically in a builder so
+/// tests can vary the API origin. A [BeakScreen] mounted at `/` is the
+/// panel's landing page; without one, `/` forwards to [home] or the first
+/// navigation destination.
 ///
 /// ```dart
 /// BeakPanelConfig buildPanelConfig({
@@ -41,19 +42,22 @@ export 'beak_resource.dart';
 ///       icon: BeakIconToken(OiIcons.users),
 ///     ),
 ///   ],
-///   dashboardStats: const [
-///     BeakStat(
-///       label: 'Products',
-///       aggregate: BeakAggregateSpec.count(table: 'products'),
-///       icon: OiIcons.package,
-///     ),
-///   ],
-///   dashboardCharts: const [
-///     BeakChart(
-///       title: 'Stock per product',
-///       type: BeakChartType.bar,
-///       query: BeakQuerySpec(table: 'products'),
-///       map: stockPerProduct,
+///   pages: [
+///     BeakScreen(
+///       path: '/',
+///       title: 'Overview',
+///       icon: const BeakIconToken(OiIcons.layoutDashboard),
+///       body: BeakGridBlock(
+///         columns: 12,
+///         children: [
+///           BeakMetricBlock(
+///             label: 'Products',
+///             aggregate: BeakAggregateSpec.count(
+///               table: const ProductModel().table,
+///             ),
+///           ),
+///         ],
+///       ),
 ///     ),
 ///   ],
 /// );
@@ -77,8 +81,7 @@ final class BeakPanelConfig {
     this.localizationsDelegates = const [],
     this.sidebarCollapsible = true,
     this.sidebarDefaultCollapsed = false,
-    this.dashboardStats = const [],
-    this.dashboardCharts = const [],
+    this.home,
     this.notifications,
     this.navigation,
     this.refreshPolicy,
@@ -146,11 +149,11 @@ final class BeakPanelConfig {
   /// Whether the sidebar starts collapsed (an icon-only rail).
   final bool sidebarDefaultCollapsed;
 
-  /// The dashboard's metric cards, in order.
-  final List<BeakStat> dashboardStats;
-
-  /// The dashboard's charts, in order.
-  final List<BeakChart> dashboardCharts;
+  /// Where `/` sends the user when no [BeakScreen] claims it, for example a
+  /// resource's list page or an overview screen. Sign-in and the error pages'
+  /// back actions land here. `null` picks the first visible navigation
+  /// destination. Ignored while its resource is not visible.
+  final BeakDestination? home;
 
   /// Shared opt-in periodic and foreground refresh for remote changes.
   final BeakRefreshPolicy? refreshPolicy;
@@ -172,13 +175,13 @@ final class BeakPanelConfig {
 
   /// Returns a copy with the given parts replaced.
   ///
-  /// What `beak eject panel` tells you to reach for: keep the generated
-  /// config and change one thing about it, rather than owning the whole file.
+  /// Keeps a shared configuration and changes one thing about it, such as a
+  /// staging title or a maintenance window.
   ///
   /// ```dart
-  /// final config = buildBeakPanel().copyWith(
+  /// final staging = config.copyWith(
   ///   title: 'Acme — staging',
-  ///   maintenance: const BeakMaintenanceConfig(enabled: true),
+  ///   maintenance: const BeakMaintenanceConfig(),
   /// );
   /// ```
   BeakPanelConfig copyWith({
@@ -197,8 +200,7 @@ final class BeakPanelConfig {
     Iterable<LocalizationsDelegate<Object?>>? localizationsDelegates,
     bool? sidebarCollapsible,
     bool? sidebarDefaultCollapsed,
-    List<BeakStat>? dashboardStats,
-    List<BeakChart>? dashboardCharts,
+    BeakDestination? home,
     BeakNotificationSource? notifications,
     BeakNavigation? navigation,
     BeakRefreshPolicy? refreshPolicy,
@@ -223,14 +225,44 @@ final class BeakPanelConfig {
     sidebarCollapsible: sidebarCollapsible ?? this.sidebarCollapsible,
     sidebarDefaultCollapsed:
         sidebarDefaultCollapsed ?? this.sidebarDefaultCollapsed,
-    dashboardStats: dashboardStats ?? this.dashboardStats,
-    dashboardCharts: dashboardCharts ?? this.dashboardCharts,
+    home: home ?? this.home,
     notifications: notifications ?? this.notifications,
     navigation: navigation ?? this.navigation,
     refreshPolicy: refreshPolicy ?? this.refreshPolicy,
     shellActions: shellActions ?? this.shellActions,
     mapException: mapException ?? this.mapException,
   );
+
+  void _checkDestinations() {
+    if (resources.isEmpty && pages.isEmpty) {
+      throw const BeakConfigurationException(
+        'A panel needs at least one resource or page to show.',
+      );
+    }
+    final home = this.home;
+    if (home == null) return;
+    final declared = switch (home) {
+      final BeakResource resource => resources.any(
+        (candidate) => candidate.model.table == resource.model.table,
+      ),
+      final BeakScreen screen => pages.any(
+        (candidate) => candidate.path == screen.path,
+      ),
+      _ => false,
+    };
+    if (!declared) {
+      throw BeakConfigurationException(
+        'The home destination "${home.location}" must be one of the '
+        "panel's resources or pages.",
+      );
+    }
+    if (home.location != '/' && pages.any((page) => page.path == '/')) {
+      throw BeakConfigurationException(
+        'The home destination "${home.location}" is unreachable: a screen '
+        'already claims "/".',
+      );
+    }
+  }
 
   /// Builds a [BeakModelRegistry] over every resource model, in declaration
   /// order.
@@ -240,6 +272,7 @@ final class BeakPanelConfig {
   /// table twice is a configuration error surfaced by the registry.
   BeakModelRegistry buildRegistry() {
     final registry = BeakModelRegistry();
+    _checkDestinations();
     for (final resource in resources) {
       for (final role in BeakScreenRole.values) {
         resource.screenFor(role);

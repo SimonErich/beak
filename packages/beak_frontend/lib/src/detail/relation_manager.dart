@@ -3,9 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
-import '../form/relation_field.dart';
 import '../localization/beak_localizations.dart';
 
 /// The embedded manager of a to-many relationship on one parent record:
@@ -219,7 +219,7 @@ class BeakRelationManager extends HookWidget {
     return OiComboBox<BeakRecord>(
       label: strings.attachLabel(manyToMany.label),
       labelOf: manyToMany.displayLabelOf,
-      search: (query) => beakSearchRelated(
+      search: (query) => _searchRelated(
         repository,
         table: manyToMany.relatedTable,
         columnKeys: manyToMany.effectiveSearchColumnKeys,
@@ -267,7 +267,7 @@ class BeakRelationManager extends HookWidget {
       case final BeakBelongsToMany manyToMany:
         // A pivot load comes back whole with the parent, so what arrived is
         // all there is.
-        final attached = await beakLoadAttachedRecords(
+        final attached = await _loadAttachedRecords(
           repository,
           parentModel: parentModel,
           parentId: parentId,
@@ -285,4 +285,46 @@ class BeakRelationManager extends HookWidget {
       run(relatedId);
     }
   }
+}
+
+/// Searches [table] for records matching [term] across [columnKeys],
+/// returning an empty list on failure — the option source behind the attach
+/// picker.
+Future<List<BeakRecord>> _searchRelated(
+  BeakResourceRepository repository, {
+  required String table,
+  required List<String> columnKeys,
+  required String term,
+}) async {
+  final String trimmed = term.trim();
+  final spec = BeakQuerySpec(
+    table: table,
+    search: trimmed.isEmpty ? null : BeakSearch(trimmed, columnKeys),
+  );
+  final result = await repository.query(spec);
+  return switch (result) {
+    BeakOk(:final value) => value.items,
+    BeakErr() => const <BeakRecord>[],
+  };
+}
+
+/// Loads the records currently attached through [relation] on the
+/// [parentId] record of [parentModel] (one relation-loaded parent query);
+/// empty on failure or when the parent is missing.
+Future<List<BeakRecord>> _loadAttachedRecords(
+  BeakResourceRepository repository, {
+  required BeakModel parentModel,
+  required Object parentId,
+  required BeakBelongsToMany relation,
+}) async {
+  final result = await beakLoadRecordWithRelations(
+    repository,
+    model: parentModel,
+    id: parentId,
+    relations: [relation],
+  );
+  return switch (result) {
+    BeakOk(:final value) => value.relations[relation.key] ?? const [],
+    BeakErr() => const [],
+  };
 }

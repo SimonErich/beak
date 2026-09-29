@@ -9,7 +9,7 @@ import '../../support/panel_fixtures.dart';
 
 void main() {
   late FakeDataSource dataSource;
-  late TableViewModel viewModel;
+  late BeakTableViewModel viewModel;
 
   setUp(() {
     dataSource = FakeDataSource(
@@ -19,7 +19,7 @@ void main() {
         },
       },
     );
-    viewModel = TableViewModel(const NoteModel(), dataSource);
+    viewModel = BeakTableViewModel(const NoteModel(), dataSource);
   });
 
   tearDown(() => viewModel.dispose());
@@ -112,7 +112,7 @@ void main() {
       BeakOperator.eq,
       BeakStringValue('n1'),
     );
-    final scoped = TableViewModel(
+    final scoped = BeakTableViewModel(
       const NoteModel(),
       dataSource,
       baseFilter: base,
@@ -177,7 +177,7 @@ void main() {
           fallback: source,
         );
         addTearDown(mutations.dispose);
-        final scoped = TableViewModel(
+        final scoped = BeakTableViewModel(
           const NoteModel(),
           mutations,
           initial: const BeakQuerySpec(table: 'notes', filter: active),
@@ -229,7 +229,7 @@ void main() {
     'a superseded out-of-order response never overwrites the latest',
     () async {
       final ordered = _GatedSource();
-      final raced = TableViewModel(const NoteModel(), ordered);
+      final raced = BeakTableViewModel(const NoteModel(), ordered);
       addTearDown(raced.dispose);
 
       final first = raced.refresh();
@@ -263,7 +263,7 @@ void main() {
   });
 
   test('failures surface as typed error state', () async {
-    final failingViewModel = TableViewModel(
+    final failingViewModel = BeakTableViewModel(
       const NoteModel(),
       _FailingSource(),
     );
@@ -278,7 +278,7 @@ void main() {
 
   test('a query completing after disposal is ignored', () async {
     final source = _GatedSource();
-    final disposed = TableViewModel(const NoteModel(), source);
+    final disposed = BeakTableViewModel(const NoteModel(), source);
     final load = disposed.refresh();
     disposed.dispose();
     source.release(0, total: 3);

@@ -4,6 +4,7 @@ import 'package:beak_frontend/src/data/model_beak_data_source.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../../support/panel_fixtures.dart';
@@ -44,7 +45,106 @@ final class _EditSource extends FakeDataSource implements BeakEditDataSource {
   }
 }
 
+/// The command shape an edit form of [_ProjectedModel] submits.
+final class _ProfileEdit extends BeakModel {
+  const _ProfileEdit();
+
+  @override
+  String get table => 'notes';
+
+  @override
+  String get displayColumnKey => 'email';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'email', label: 'Email'),
+    BeakStringColumn(key: 'nickname', label: 'Nickname'),
+  ];
+}
+
+/// A model whose edit form is a separate command shape.
+final class _ProjectedModel extends BeakModel {
+  const _ProjectedModel();
+
+  @override
+  String get table => 'notes';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const NoteModel().columns;
+
+  @override
+  BeakModel? get editModel => const _ProfileEdit();
+}
+
+final class _ProjectionSource extends FakeDataSource
+    implements BeakEditDataSource {
+  _ProjectionSource()
+    : super(
+        records: {
+          'notes': {
+            '1': BeakRecord.fromRow({'id': '1', 'title': 'Stored'}),
+          },
+        },
+      );
+
+  @override
+  Future<BeakRecord> loadEditValues(String table, Object id) async =>
+      BeakRecord.fromRow({'email': 'edit@example.test'});
+}
+
 void main() {
+  testWidgets(
+    'the edit page fills the model edit projection and submits every field',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        BeakPanel(
+          resources: const [BeakResource(model: _ProjectedModel())],
+          dataSource: _ProjectionSource(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      GoRouter.of(tester.element(find.byType(OiAppShell))).go('/notes/1/edit');
+      await tester.pumpAndSettle();
+
+      final form = tester.widget<BeakConfiguredForm>(
+        find.byType(BeakConfiguredForm),
+      );
+      expect(form.model, isA<_ProfileEdit>());
+      expect(form.valueMode, BeakFormValueMode.complete);
+      expect(find.text('edit@example.test'), findsOneWidget);
+      expect(find.text('Nickname'), findsWidgets);
+    },
+  );
+
+  testWidgets('a plain model submits only what a form populates', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      BeakPanel(
+        resources: const [BeakResource(model: NoteModel())],
+        dataSource: FakeDataSource(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    GoRouter.of(tester.element(find.byType(OiAppShell))).go('/notes/create');
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<BeakConfiguredForm>(find.byType(BeakConfiguredForm))
+          .valueMode,
+      BeakFormValueMode.populated,
+    );
+  });
+
   test(
     'panel registers model transport without a separate source list',
     () async {
@@ -103,11 +203,39 @@ void main() {
     expect(resource.allowsCreate, isFalse);
     expect(resource.allowsEdit, isFalse);
     expect(resource.allowsDelete, isFalse);
-    final custom = resource.copyWith(createBuilder: (_) => const SizedBox());
+    final custom = resource.copyWith(
+      screens: [
+        BeakCustomResourceScreen(
+          roles: const {BeakScreenRole.create},
+          builder: (_, _) => const SizedBox(),
+        ),
+      ],
+    );
     expect(custom.allowsCreate, isTrue);
+    expect(custom.allowsEdit, isFalse);
     canRead = false;
     expect(resource.isVisible, isFalse);
     expect(custom.allowsCreate, isFalse);
+  });
+
+  test('a custom edit screen supplies an edit the transport lacks', () {
+    final resource = BeakResource(
+      model: const _BoundModel(),
+      icon: const BeakIconToken(OiIcons.notebook),
+      screens: [
+        BeakCustomResourceScreen(
+          roles: const {BeakScreenRole.edit},
+          builder: (_, id) => Text('edit $id'),
+        ),
+      ],
+    );
+    expect(resource.allowsEdit, isTrue);
+    expect(resource.allowsCreate, isFalse);
+    expect(
+      resource.copyWith(canEdit: false).allowsEdit,
+      isFalse,
+      reason: 'canEdit still switches a custom edit screen off',
+    );
   });
 
   test(

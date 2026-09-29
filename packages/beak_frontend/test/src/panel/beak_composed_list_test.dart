@@ -591,9 +591,12 @@ void main() {
               filters: [
                 for (var index = 0; index < 12; index++)
                   BeakTextFilter(
-                    column: BeakStringColumn(
-                      key: 'filter_$index',
-                      label: 'Filter $index',
+                    field: BeakScalarField<Object>(
+                      model: const NoteModel(),
+                      column: BeakStringColumn(
+                        key: 'filter_$index',
+                        label: 'Filter $index',
+                      ),
                     ),
                     label: 'Filter $index',
                   ),

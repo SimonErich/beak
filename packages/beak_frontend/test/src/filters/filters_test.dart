@@ -10,11 +10,17 @@ import '../../support/panel_fixtures.dart';
 void main() {
   late List<BeakFilter?> emitted;
 
-  const defs = [
-    BeakSelectFilter(column: ArticleColumns.status, label: 'Status'),
-    BeakBoolFilter(column: ArticleColumns.active, label: 'Active only'),
-    BeakTextFilter(column: ArticleColumns.title, label: 'Title'),
-    BeakDateRangeFilter(column: ArticleColumns.publishedAt, label: 'Published'),
+  final defs = [
+    BeakSelectFilter(field: _article(ArticleColumns.status), label: 'Status'),
+    BeakBoolFilter(
+      field: _article(ArticleColumns.active),
+      label: 'Active only',
+    ),
+    BeakTextFilter(field: _article(ArticleColumns.title), label: 'Title'),
+    BeakDateRangeFilter(
+      field: _article(ArticleColumns.publishedAt),
+      label: 'Published',
+    ),
   ];
 
   setUp(() => emitted = []);
@@ -63,9 +69,15 @@ void main() {
       OiApp(
         theme: OiThemeData.light(),
         home: BeakFilterBar(
-          filters: const [
-            BeakBoolFilter(column: ArticleColumns.active, label: 'Active'),
-            BeakTextFilter(column: ArticleColumns.title, label: 'Title'),
+          filters: [
+            BeakBoolFilter(
+              field: _article(ArticleColumns.active),
+              label: 'Active',
+            ),
+            BeakTextFilter(
+              field: _article(ArticleColumns.title),
+              label: 'Title',
+            ),
           ],
           initialValues: {'active': filter, 'title': titleFilter},
           onChanged: emitted.add,
@@ -270,7 +282,10 @@ void main() {
       ],
     );
     const amount = BeakIntColumn(key: 'amount', label: 'Amount');
-    const range = BeakNumberRangeFilter(column: amount, label: 'Amount');
+    final range = BeakNumberRangeFilter(
+      field: _article(amount),
+      label: 'Amount',
+    );
     const bounds = BeakAndFilter([
       BeakFieldFilter(
         column: amount,
@@ -412,9 +427,9 @@ void main() {
         theme: OiThemeData.light(),
         home: BeakFilterBar(
           stacked: true,
-          filters: const [
+          filters: [
             BeakTextFilter(
-              column: ArticleColumns.title,
+              field: _article(ArticleColumns.title),
               label: 'Title',
               advanced: true,
             ),
@@ -524,8 +539,11 @@ void main() {
       OiApp(
         theme: OiThemeData.light(),
         home: BeakFilterBar(
-          filters: const [
-            BeakSelectFilter(column: ArticleColumns.title, label: 'Broken'),
+          filters: [
+            BeakSelectFilter(
+              field: _article(ArticleColumns.title),
+              label: 'Broken',
+            ),
           ],
           onChanged: emitted.add,
           presentation: BeakFilterBarPresentation.controls,
@@ -710,6 +728,17 @@ void main() {
       ]);
     });
 
+    test('every derived control addresses a typed field of the model', () {
+      const model = _FilterableModel();
+      final filters = beakDefaultFiltersOf(model);
+
+      for (final filter in filters) {
+        expect(filter.field, isA<BeakScalarField<Object>>());
+        expect(filter.field.model, same(model));
+        expect(filter.key, filter.column.key);
+      }
+    });
+
     test('numeric columns automatically receive a range control', () {
       expect(
         beakDefaultFiltersOf(const _FilterableModel()).map((f) => f.column.key),
@@ -718,13 +747,13 @@ void main() {
     });
 
     test('declared filters win over the derived ones', () {
-      const declared = BeakTextFilter(
-        column: ArticleColumns.title,
+      final declared = BeakTextFilter(
+        field: _article(ArticleColumns.title),
         label: 'Headline',
       );
-      const resource = BeakResource(
-        model: _FilterableModel(),
-        icon: BeakIconToken(OiIcons.table),
+      final resource = BeakResource(
+        model: const _FilterableModel(),
+        icon: const BeakIconToken(OiIcons.table),
         filters: [declared],
       );
 
@@ -736,6 +765,10 @@ void main() {
     });
   });
 }
+
+/// The typed field of an [ArticleModel] column.
+BeakScalarField<Object> _article(BeakColumn column) =>
+    BeakScalarField<Object>(model: const ArticleModel(), column: column);
 
 /// A model marking each common scalar shape as filterable.
 final class _FilterableModel extends BeakModel {

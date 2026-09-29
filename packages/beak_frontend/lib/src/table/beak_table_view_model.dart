@@ -13,14 +13,14 @@ import '../data/beak_relation_loads.dart';
 /// pagination intent rewrites the [BeakQuerySpec] and refetches through the
 /// repository (the catch boundary) — the table widget just renders signals.
 /// Repeating an unchanged table intent does not refetch; [refresh] always does.
-final class TableViewModel extends BeakViewModel {
+final class BeakTableViewModel extends BeakViewModel {
   /// Creates the view model for [model] over [dataSource], starting from
   /// [initial] (default: an unfiltered first page).
   ///
   /// [baseFilter] is a persistent predicate outside the table's control
   /// (the filter bar's) that every in-table filter change AND-merges with
   /// instead of replacing.
-  TableViewModel(
+  BeakTableViewModel(
     this.model,
     BeakDataSource dataSource, {
     BeakQuerySpec? initial,

@@ -17,6 +17,10 @@ const _date = BeakStringColumn(
   label: 'Delivery',
   semantic: BeakSemantic.calendarDate(),
 );
+const _dateField = BeakScalarField<Object>(
+  model: _DeliveryModel(),
+  column: _date,
+);
 
 void main() {
   Future<void> show(WidgetTester tester, Widget child) async {
@@ -94,7 +98,7 @@ void main() {
           BeakSemanticRangeControl(
             definition: BeakSemanticRangeFilter(
               label: 'Delivery',
-              column: _date,
+              field: _dateField,
               inline: inline,
             ),
             initial: const BeakFieldFilter.forKey(
@@ -131,4 +135,18 @@ void main() {
       },
     );
   }
+}
+
+/// The model owning the [_date] column.
+final class _DeliveryModel extends BeakModel {
+  const _DeliveryModel();
+
+  @override
+  String get table => 'deliveries';
+
+  @override
+  String get displayColumnKey => 'delivery';
+
+  @override
+  List<BeakColumn> get columns => const [_date];
 }

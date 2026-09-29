@@ -17,16 +17,16 @@ void main() {
       BeakResource(
         model: LabelModel(),
         icon: BeakIconToken(OiIcons.tag),
-        label: 'Tags',
+        title: 'Tags',
       ),
     ],
   );
 
-  Future<void> pumpPanel(WidgetTester tester) async {
+  Future<void> pumpPanel(WidgetTester tester, {FakeDataSource? source}) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      BeakPanel(config: config, dataSource: FakeDataSource()),
+      BeakPanel(config: config, dataSource: source ?? FakeDataSource()),
     );
     await tester.pumpAndSettle();
   }
@@ -40,14 +40,14 @@ void main() {
   }
 
   group('shell', () {
-    testWidgets('renders one nav item per resource plus the dashboard', (
+    testWidgets('renders one nav item per resource and no dashboard item', (
       tester,
     ) async {
       await pumpPanel(tester);
 
       expect(find.byType(OiAppShell), findsOneWidget);
-      expect(find.text('Dashboard'), findsWidgets);
-      expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('Dashboard'), findsNothing);
+      expect(find.text('Notes'), findsWidgets);
       expect(find.text('Tags'), findsOneWidget);
     });
 
@@ -73,10 +73,14 @@ void main() {
     testWidgets('sidebar navigation drives the router', (tester) async {
       await pumpPanel(tester);
 
-      await tester.tap(find.text('Notes'));
+      await tester.tap(find.text('Tags'));
       await tester.pumpAndSettle();
 
       expect(find.byType(BeakResourceListPage), findsOneWidget);
+      expect(
+        routerOf(tester).routeInformationProvider.value.uri.path,
+        '/labels',
+      );
     });
   });
 
@@ -89,7 +93,9 @@ void main() {
           BeakPanel(
             config: config.copyWith(
               resources: [
-                config.resources.first.copyWith(canCreateWhen: () => canWrite),
+                config.resources.first.copyWith(
+                  model: _WriteGatedNoteModel(() => canWrite),
+                ),
               ],
             ),
             dataSource: FakeDataSource(),
@@ -112,8 +118,16 @@ void main() {
           config: config.copyWith(
             resources: [
               config.resources.first.copyWith(
-                createBuilder: (_) => const Text('Checkout workflow'),
-                editBuilder: (_, id) => Text('Edit items $id'),
+                screens: [
+                  BeakCustomResourceScreen(
+                    roles: const {BeakScreenRole.create},
+                    builder: (_, _) => const Text('Checkout workflow'),
+                  ),
+                  BeakCustomResourceScreen(
+                    roles: const {BeakScreenRole.edit},
+                    builder: (_, id) => Text('Edit items $id'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -196,7 +210,16 @@ void main() {
     testWidgets('every resource gets list/create/show/edit routes', (
       tester,
     ) async {
-      await pumpPanel(tester);
+      await pumpPanel(
+        tester,
+        source: FakeDataSource(
+          records: {
+            'notes': {
+              'n1': BeakRecord.fromRow(const {'id': 'n1', 'title': 'First'}),
+            },
+          },
+        ),
+      );
 
       await go(tester, '/notes');
       expect(find.byType(BeakResourceListPage), findsOneWidget);
@@ -264,8 +287,29 @@ void main() {
         tester.element(find.byType(OiAppShell)),
       );
       expect(dependencies<BeakClient>(), isNotNull);
-      expect(dependencies<ReferenceCache>(), isNotNull);
       expect(dependencies<BeakPanelConfig>().title, 'Beak Admin');
     });
+  });
+}
+
+/// The notes model whose write permissions follow a live check.
+final class _WriteGatedNoteModel extends BeakModel {
+  const _WriteGatedNoteModel(this.canWrite);
+
+  final bool Function() canWrite;
+
+  @override
+  String get table => 'notes';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const NoteModel().columns;
+
+  @override
+  BeakPermissions get permissions => BeakPermissions({
+    BeakOperation.read: () => true,
+    BeakOperation.create: canWrite,
   });
 }

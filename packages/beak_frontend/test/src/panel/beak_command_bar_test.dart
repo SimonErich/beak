@@ -48,7 +48,7 @@ void main() {
         path: '/reports',
         title: 'Reports',
         icon: BeakIconToken(OiIcons.barChart2),
-        section: 'Insights',
+        navigationGroup: 'Insights',
         body: BeakTextBlock('reports'),
       ),
     ],
@@ -254,10 +254,10 @@ void main() {
           },
         },
       );
-      final panel = BeakPanelConfig(
+      const panel = BeakPanelConfig(
         title: 'Demo',
         resources: [
-          const BeakResource(
+          BeakResource(
             model: ArticleModel(),
             globalSearchSources: [
               BeakScalarField<String>(
@@ -267,7 +267,7 @@ void main() {
               ),
             ],
           ),
-          BeakResource(model: const NoteModel(), visibleWhen: () => false),
+          BeakResource(model: _PrivateNoteModel()),
         ],
         apiBaseUrl: 'http://localhost',
       );
@@ -278,12 +278,13 @@ void main() {
     },
   );
 
-  test('navigation commands cover the dashboard, resources, and pages', () {
+  test('navigation commands cover the resources and pages', () {
     final routes = <String>[];
     final commands = beakNavigationCommands(config, routes.add);
 
     final labels = [for (final c in commands) c.label];
-    expect(labels, containsAll(<String>['Dashboard', 'Notes', 'Reports']));
+    expect(labels, containsAll(<String>['Notes', 'Reports']));
+    expect(labels, isNot(contains('Dashboard')));
 
     // Executing a command routes to its destination.
     final reports = commands.firstWhere((c) => c.label == 'Reports');
@@ -291,7 +292,7 @@ void main() {
     expect(routes, ['/reports']);
   });
 
-  test('the dashboard command is dropped when a page claims /', () {
+  test('a page claiming / is listed like any other page', () {
     const withHome = BeakPanelConfig(
       title: 'Demo',
       apiBaseUrl: 'http://localhost',
@@ -310,27 +311,39 @@ void main() {
     final labels = [
       for (final c in beakNavigationCommands(withHome, (_) {})) c.label,
     ];
-    expect(labels, isNot(contains('Dashboard')));
     expect(labels, contains('Home'));
   });
 
   test('hidden resources never expose navigation commands', () {
-    final hidden = BeakPanelConfig(
+    const hidden = BeakPanelConfig(
       title: 'Demo',
       apiBaseUrl: 'http://localhost',
       resources: [
         BeakResource(
-          model: const NoteModel(),
-          icon: const BeakIconToken(OiIcons.file),
-          visibleWhen: () => false,
+          model: _PrivateNoteModel(),
+          icon: BeakIconToken(OiIcons.file),
         ),
       ],
     );
-    expect(
-      beakNavigationCommands(hidden, (_) {}).map((command) => command.id),
-      isNot(contains('nav:/notes')),
-    );
+    expect(beakNavigationCommands(hidden, (_) {}), isEmpty);
   });
+}
+
+/// A model whose permissions deny reading, so its resource stays hidden.
+final class _PrivateNoteModel extends BeakModel {
+  const _PrivateNoteModel();
+  @override
+  String get table => 'private_notes';
+  @override
+  String get displayColumnKey => 'title';
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'title', label: 'Title', searchable: true),
+  ];
+  @override
+  BeakPermissions get permissions =>
+      BeakPermissions({BeakOperation.read: () => false});
 }
 
 final class _SearchModel extends BeakModel {

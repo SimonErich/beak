@@ -65,7 +65,10 @@ void main() {
           dataSource: source,
           config: BeakPanelConfig(
             title: 'Surfaces',
-            resources: const [BeakResource(model: NoteModel())],
+            resources: const [
+              BeakResource(model: NoteModel()),
+              BeakResource(model: LabelModel()),
+            ],
             pages: pages,
           ),
         ),

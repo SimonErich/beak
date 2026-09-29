@@ -128,7 +128,7 @@ void main() {
       path: '/pricing',
       title: 'Pricing',
       icon: BeakIconToken(OiIcons.tag),
-      section: 'Marketing',
+      navigationGroup: 'Marketing',
       body: BeakColumnBlock(children: [BeakTextBlock('Pick a plan')]),
     );
 
@@ -144,6 +144,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Pick a plan'), findsOneWidget);
+    });
+
+    test('the sidebar title defaults to the title', () {
+      expect(screen.effectiveNavigationTitle, 'Pricing');
+      expect(screen.location, '/pricing');
+      const renamed = BeakScreen(
+        path: '/pricing',
+        title: 'Pricing',
+        navigationTitle: 'Plans',
+        icon: BeakIconToken(OiIcons.tag),
+        body: BeakTextBlock('Pick a plan'),
+      );
+      expect(renamed.effectiveNavigationTitle, 'Plans');
+    });
+
+    testWidgets('a page is filed under its navigation group', (tester) async {
+      await pump(
+        tester,
+        config(
+          pages: const [
+            BeakScreen(
+              path: '/pricing',
+              title: 'Pricing',
+              navigationTitle: 'Plans',
+              navigationGroup: 'Marketing',
+              icon: BeakIconToken(OiIcons.tag),
+              body: BeakTextBlock('Pick a plan'),
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Plans'), findsOneWidget);
+      expect(find.text('Marketing'), findsWidgets);
     });
 
     testWidgets('a hidden page routes but has no nav entry', (tester) async {
@@ -218,11 +252,8 @@ void main() {
               auth: BeakAuthConfig(adapter: auth),
               resources: [
                 BeakResource(
-                  model: const NoteModel(),
+                  model: _WriteGatedNoteModel(canWrite),
                   icon: const BeakIconToken(OiIcons.file),
-                  canCreateWhen: canWrite,
-                  canEditWhen: canWrite,
-                  canDeleteWhen: canWrite,
                 ),
               ],
             ),
@@ -453,4 +484,31 @@ class _TestAuth extends FakeAuthAdapter {
     snapshot.value = const BeakAuthGuest();
     return const BeakOk(null);
   }
+}
+
+/// The notes model whose write permissions follow a live account check.
+final class _WriteGatedNoteModel extends BeakModel {
+  const _WriteGatedNoteModel(this.canWrite);
+
+  final bool Function() canWrite;
+
+  @override
+  String get table => 'notes';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'title', label: 'Title', searchable: true),
+  ];
+
+  @override
+  BeakPermissions get permissions => BeakPermissions({
+    BeakOperation.read: () => true,
+    BeakOperation.create: canWrite,
+    BeakOperation.update: canWrite,
+    BeakOperation.delete: canWrite,
+  });
 }

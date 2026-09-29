@@ -7,7 +7,6 @@ import '../auth/beak_session_store.dart';
 import '../actions/beak_model_action_runner.dart';
 import '../data/http_beak_data_source.dart';
 import '../data/model_beak_data_source.dart';
-import '../data/reference_cache.dart';
 import '../panel/beak_panel_config.dart';
 import '../panel/beak_theme_controller.dart';
 
@@ -43,8 +42,8 @@ class BeakDependencyScope extends InheritedWidget {
 }
 
 /// Registers Beak's infrastructure for [config] into [locator] (defaults to
-/// [beakLocator]): the [BeakModelRegistry], the [BeakClient], the
-/// [BeakDataSource], and the [ReferenceCache].
+/// [beakLocator]): the [BeakModelRegistry], the [BeakClient] and the
+/// [BeakDataSource].
 ///
 /// [dataSource] overrides the HTTP-backed source with a fake for tests;
 /// [httpClient] swaps only the transport under the real client;
@@ -123,18 +122,6 @@ void registerBeakDependencies({
     ..registerSingleton<BeakDataSource>(
       source,
       dispose: (_) => source.dispose(),
-    )
-    ..registerSingleton<ReferenceCache>(
-      ReferenceCache(
-        source,
-        registry,
-        auth:
-            config.auth?.adapter ??
-            (container.isRegistered<BeakSessionStore>()
-                ? container<BeakSessionStore>()
-                : null),
-      ),
-      dispose: (cache) => cache.dispose(),
     )
     ..registerSingleton<BeakThemeController>(
       BeakThemeController(config.initialThemeMode),

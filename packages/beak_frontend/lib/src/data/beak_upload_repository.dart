@@ -11,7 +11,11 @@ import 'package:beak_core/beak_core.dart';
 ///
 /// ```dart
 /// final repository = BeakUploadRepository(uploadClient);
-/// final result = await repository.upload('products', ProductColumns.image, file);
+/// final result = await repository.upload(
+///   'products',
+///   ProductModel.image.column,
+///   file,
+/// );
 /// switch (result) {
 ///   case BeakOk(:final value):
 ///     print('stored at ${value.url}');

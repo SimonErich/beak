@@ -9,7 +9,6 @@ import '../data/beak_relation_loads.dart';
 import '../data/beak_data_changes.dart';
 import '../data/beak_form_commit_repository.dart';
 import 'beak_form_controller_builder.dart';
-import 'beak_form_field.dart';
 import 'beak_form_layout.dart';
 import '../presentation/beak_record_template.dart';
 import 'upload_field.dart';
@@ -99,7 +98,6 @@ class BeakDraftRecord implements BeakDraftReader {
     controller = BeakFormController(
       model: model,
       sections: [BeakFormSection(title: '', columns: columns.values.toList())],
-      fields: parent == null ? session.fields : const [],
       valueMode: session.valueMode,
     );
     controller.addListener(_changed);
@@ -1577,7 +1575,6 @@ class BeakFormSession {
     this.initialValues,
     this.relatedLayouts = const {},
     BeakModelRegistry? registry,
-    this.fields = const [],
     this.valueMode = BeakFormValueMode.populated,
     this.editValues,
     BeakUploadClient? uploader,
@@ -1757,9 +1754,6 @@ class BeakFormSession {
 
   /// Optional typed defaults for a new graph, including duplicated owned rows.
   final BeakRecord? initialValues;
-
-  /// Optional lower-level field presentation overrides.
-  final List<BeakFormField> fields;
 
   /// Whether submitted scalar commands contain populated, changed or all fields.
   final BeakFormValueMode valueMode;

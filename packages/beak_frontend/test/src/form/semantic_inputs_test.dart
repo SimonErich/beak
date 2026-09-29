@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak_frontend/src/form/beak_form_controller_builder.dart';
 import 'package:beak_frontend/src/form/beak_object_view.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

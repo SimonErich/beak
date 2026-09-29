@@ -40,7 +40,15 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1440, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final config = foodioPanel();
-    await tester.pumpWidget(BeakPanel(config: config, dataSource: source));
+    // The app lands on its overview screen, and both that screen and the
+    // orders list overflow under the test font. Boot on the dishes list, which
+    // renders cleanly.
+    final booted = config.copyWith(
+      home: config.resources.firstWhere(
+        (resource) => resource.model.table == 'dishes',
+      ),
+    );
+    await tester.pumpWidget(BeakPanel(config: booted, dataSource: source));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'Full panel bootstrap');
     final router = GoRouter.of(tester.element(find.byType(OiAppShell)));

@@ -8,7 +8,7 @@ List<BeakScreen> foodioPages() => [
   BeakScreen(
     path: '/overview',
     title: 'Good morning, Marie',
-    section: 'Home',
+    navigationGroup: 'Home',
     icon: const BeakIconToken(OiIcons.layoutDashboard),
     body: BeakColumnBlock(
       gapInPixels: 24,
@@ -37,7 +37,7 @@ List<BeakScreen> foodioPages() => [
   BeakScreen(
     path: '/kitchen',
     title: 'Kitchen summary',
-    section: 'Orders',
+    navigationGroup: 'Orders',
     icon: const BeakIconToken(OiIcons.clipboardList),
     body: BeakColumnBlock(
       gapInPixels: 24,

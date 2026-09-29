@@ -3,8 +3,6 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 
 import 'beak_form_controller_builder.dart';
-import 'beak_form_field.dart';
-import 'beak_choice_field.dart';
 import 'upload_field.dart';
 import 'beak_value_input.dart';
 
@@ -26,25 +24,6 @@ Widget? beakFormFieldFor({
   bool? obscureText,
 }) {
   Enum slot() => controller.slotOf(column);
-  switch (controller.fieldFor(column)) {
-    case final BeakFormChoiceField field:
-      return BeakChoiceField(
-        field: field,
-        controller: controller,
-        label: label,
-        enabled: enabled,
-      );
-    case final BeakFormTextField field:
-      return OiAfTextInput<Enum>(
-        field: slot(),
-        label: label ?? column.label,
-        enabled: enabled,
-        obscureText: obscureText ?? field.obscureText,
-        hint: description,
-      );
-    case null:
-      break;
-  }
   if (column.semantic.kind != BeakSemanticKind.none ||
       column is BeakJsonColumn ||
       (column is BeakBoolColumn && column.tristate)) {

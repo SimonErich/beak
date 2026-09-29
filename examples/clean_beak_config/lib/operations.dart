@@ -11,7 +11,7 @@ import 'widgets/receivables_card.dart';
 BeakScreen shopOperations() => BeakScreen(
   path: '/operations',
   title: 'Operations',
-  section: 'Workspace',
+  navigationGroup: 'Workspace',
   icon: const BeakIconToken(OiIcons.listChecks),
   body: BeakColumnBlock(
     gapInPixels: 24,

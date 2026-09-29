@@ -2,6 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../../support/panel_fixtures.dart';
@@ -9,29 +10,21 @@ import '../../support/panel_fixtures.dart';
 void main() {
   late FakeDataSource dataSource;
 
-  const config = BeakPanelConfig(
+  final config = BeakPanelConfig(
     title: 'Beak Admin',
     apiBaseUrl: 'http://api.test',
     resources: [
       BeakResource(
-        model: NotePageModel(),
-        icon: BeakIconToken(OiIcons.notebook),
-        filters: [
-          BeakTextFilter(column: NotePageColumns.title, label: 'Title'),
-        ],
-      ),
-    ],
-    dashboardStats: [
-      BeakStat(
-        label: 'Notes',
-        aggregate: BeakAggregateSpec.count(table: 'notes'),
+        model: const NotePageModel(),
+        icon: const BeakIconToken(OiIcons.notebook),
+        filters: [NotePageModel.title.textFilter(label: 'Title')],
       ),
     ],
   );
 
   setUp(() {
     dataSource = FakeDataSource(
-      models: const [NotePageModel()],
+      models: const [NotePageModel(), NoteCommentModel()],
       records: {
         'notes': {
           'n1': BeakRecord(
@@ -47,7 +40,7 @@ void main() {
           ),
         },
       },
-    )..aggregateHandler = (spec) => 41;
+    );
   });
 
   Future<void> pumpPanel(WidgetTester tester) async {
@@ -62,12 +55,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the dashboard route renders the configured stats', (
+  testWidgets('the panel opens on its first navigation destination', (
     tester,
   ) async {
     await pumpPanel(tester);
 
-    expect(find.text('41'), findsOneWidget);
+    expect(find.byType(BeakResourceListPage), findsOneWidget);
   });
 
   testWidgets('a BeakResource yields a working list page', (tester) async {
@@ -127,6 +120,95 @@ void main() {
     expect(find.text('Comments'), findsWidgets);
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
+  });
+
+  testWidgets('the default show page is a read-mode form over the model', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+    await goToList(tester);
+    final OiTable<BeakRecord> table = tester.widget(
+      find.byType(OiTable<BeakRecord>),
+    );
+    table.onRowTap!(
+      BeakRecord.fromRow(const {'id': 'n1', 'title': 'First note'}),
+      0,
+    );
+    await tester.pumpAndSettle();
+
+    final form = tester.widget<BeakConfiguredForm>(
+      find.byType(BeakConfiguredForm),
+    );
+    expect(form.mode, BeakFormMode.read);
+    expect(form.recordId, 'n1');
+    // A to-many relationship keeps its own tab with the related rows.
+    expect(find.text('Comments'), findsWidgets);
+    expect(find.text('Nice one'), findsOneWidget);
+    expect(find.text('Save'), findsNothing);
+  });
+
+  testWidgets('read-role record actions appear on the default show page', (
+    tester,
+  ) async {
+    final executed = <String?>[];
+    final withAction = BeakPanelConfig(
+      title: 'Beak Admin',
+      resources: [
+        BeakResource(
+          model: const NotePageModel(),
+          recordActions: [
+            BeakRecordAction(
+              key: 'ping',
+              label: 'Ping',
+              roles: const {BeakScreenRole.read},
+              onExecute: (record, context) async =>
+                  executed.add(record['title']?.raw?.toString()),
+            ),
+            BeakRecordAction(
+              key: 'listOnly',
+              label: 'List only',
+              roles: const {BeakScreenRole.list},
+              onExecute: (record, context) async {},
+            ),
+          ],
+        ),
+      ],
+    );
+    await tester.binding.setSurfaceSize(const Size(1500, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      BeakPanel(config: withAction, dataSource: dataSource),
+    );
+    await tester.pumpAndSettle();
+    GoRouter.of(tester.element(find.byType(OiAppShell))).go('/notes/n1');
+    await tester.pumpAndSettle();
+
+    expect(find.text('List only'), findsNothing);
+    await tester.tap(find.text('Ping'));
+    await tester.pumpAndSettle();
+    expect(executed, ['First note']);
+  });
+
+  testWidgets('the default show page reloads when the record changes', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+    GoRouter.of(tester.element(find.byType(OiAppShell))).go('/notes/n1');
+    await tester.pumpAndSettle();
+    expect(find.text('First note'), findsWidgets);
+
+    final source = beakDependencies(
+      tester.element(find.byType(BeakResourceShowPage)),
+    )<BeakDataSource>();
+    await source.update(
+      'notes',
+      'n1',
+      BeakRecord.fromRow(const {'title': 'Renamed note'}),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Renamed note'), findsWidgets);
+    expect(find.text('First note'), findsNothing);
   });
 
   testWidgets('the show page costs one query, relations included', (
@@ -263,6 +345,34 @@ final class NotePageModel extends BeakModel {
   @override
   List<BeakRelationship> get relationships => const [
     NotePageRelations.comments,
+  ];
+
+  @override
+  List<BeakModel> get relatedModels => const [NoteCommentModel()];
+
+  /// The typed title field the resource filters and forms address.
+  static const title = BeakScalarField<String>(
+    model: NotePageModel(),
+    column: NotePageColumns.title,
+  );
+}
+
+/// The comments a [NotePageModel] note owns.
+final class NoteCommentModel extends BeakModel {
+  /// Creates the model.
+  const NoteCommentModel();
+
+  @override
+  String get table => 'comments';
+
+  @override
+  String get displayColumnKey => 'text';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'text', label: 'Text'),
+    BeakStringColumn(key: 'note_id', label: 'Note'),
   ];
 }
 

@@ -21,7 +21,6 @@ import '../panel/beak_panel_config.dart';
 import '../panel/beak_resource_screen.dart';
 import '../table/column_cell_renderer.dart';
 import 'beak_form_controller_builder.dart';
-import 'beak_form_field.dart';
 import 'beak_form_layout.dart';
 import 'beak_form_session.dart';
 import 'beak_form_drafts.dart';
@@ -52,7 +51,6 @@ class BeakConfiguredForm extends HookWidget {
     this.frameBuilder,
     this.recordHeader,
     this.editValues,
-    this.fields = const [],
     this.valueMode = BeakFormValueMode.populated,
     this.onSession,
     this.uploader,
@@ -194,9 +192,6 @@ class BeakConfiguredForm extends HookWidget {
   /// Optional source-specific edit command loader.
   final Future<BeakRecord> Function(Object id)? editValues;
 
-  /// Optional lower-level field presentation overrides.
-  final List<BeakFormField> fields;
-
   /// Whether submitted scalar commands contain populated, changed or all fields.
   final BeakFormValueMode valueMode;
 
@@ -237,7 +232,6 @@ class BeakConfiguredForm extends HookWidget {
         initialValues: initialValues,
         relatedLayouts: relatedLayouts,
         registry: registry,
-        fields: fields,
         valueMode: valueMode,
         editValues: editValues,
         uploader: uploader,
@@ -258,7 +252,6 @@ class BeakConfiguredForm extends HookWidget {
         initialValues,
         relatedLayouts,
         registry,
-        fields,
         valueMode,
         editValues,
         uploader,

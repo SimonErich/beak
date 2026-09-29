@@ -17,12 +17,13 @@ import 'beak_panel_config.dart';
 import 'beak_router.dart';
 import 'beak_theme_controller.dart';
 import 'beak_auth_config.dart';
+import 'beak_destination.dart';
 import 'beak_screen.dart';
 import 'beak_navigation.dart';
 
-/// The Beak admin panel: give it a [BeakPanelConfig] and it stands up the
-/// whole app — obers_ui theming, a go_router over every resource, the
-/// generated shell navigation, and the data layer in GetIt.
+/// The Beak admin panel: give it resources (or a full [BeakPanelConfig]) and
+/// it stands up the whole app — obers_ui theming, a go_router over every
+/// resource, the generated shell navigation, and the data layer in GetIt.
 ///
 /// This is the root widget of a Beak app; hand it to `runApp`. On first
 /// build it registers the panel's dependencies (see
@@ -31,6 +32,11 @@ import 'beak_navigation.dart';
 ///
 /// ```dart
 /// void main() => runApp(
+///   BeakPanel(title: 'Shop', resources: [ProductResource()]),
+/// );
+///
+/// // A complete, shared configuration goes through `config:`.
+/// void mainFromConfig() => runApp(
 ///   BeakPanel(config: buildPanelConfig()),
 /// );
 ///
@@ -40,10 +46,12 @@ import 'beak_navigation.dart';
 /// );
 /// ```
 class BeakPanel extends HookWidget {
-  /// Creates the panel for [config].
+  /// Creates the panel from either [config] or the individual arguments, never
+  /// both. `resources:` is the everyday form; `config:` takes a complete
+  /// [BeakPanelConfig] built by the host, including embedding options.
   ///
   /// [dataSource] and [httpClient] inject fakes in tests; production
-  /// panels leave both null and talk HTTP to `config.apiBaseUrl`.
+  /// panels leave both null and talk HTTP to `apiBaseUrl`.
   const BeakPanel({
     BeakPanelConfig? config,
     List<BeakResource>? resources,
@@ -60,25 +68,13 @@ class BeakPanel extends HookWidget {
     this.formatting,
     this.navigation,
     this.refreshPolicy,
+    this.home,
     this.dataSource,
     this.httpClient,
     super.key,
   }) : assert(config == null || resources == null),
        _config = config,
        resources = resources ?? const [];
-
-  /// Creates a panel from a complete configuration, including embedding options.
-  const BeakPanel.fromConfig({
-    required BeakPanelConfig config,
-    BeakDataSource? dataSource,
-    http.Client? httpClient,
-    Key? key,
-  }) : this(
-         config: config,
-         dataSource: dataSource,
-         httpClient: httpClient,
-         key: key,
-       );
 
   final BeakPanelConfig? _config;
 
@@ -115,6 +111,10 @@ class BeakPanel extends HookWidget {
   /// Optional primary rail and contextual navigation.
   final BeakNavigation? navigation;
 
+  /// Where `/` sends the user when no page claims it; see
+  /// [BeakPanelConfig.home].
+  final BeakDestination? home;
+
   /// The panel configuration.
   BeakPanelConfig get config =>
       _config ??
@@ -130,6 +130,7 @@ class BeakPanel extends HookWidget {
         formatting: formatting,
         navigation: navigation,
         refreshPolicy: refreshPolicy,
+        home: home,
       );
 
   /// Test seam: replaces the HTTP-backed data source entirely.
@@ -153,6 +154,7 @@ class BeakPanel extends HookWidget {
       formatting,
       navigation,
       refreshPolicy,
+      home,
     ]);
     final routing = useMemoized(() {
       final container = GetIt.asNewInstance();

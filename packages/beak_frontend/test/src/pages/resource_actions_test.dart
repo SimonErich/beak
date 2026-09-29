@@ -9,9 +9,11 @@ import 'package:obers_ui/obers_ui.dart';
 import '../../support/panel_fixtures.dart';
 
 final class _Model extends BeakModel {
-  const _Model({this.canDelete = true});
+  const _Model({this.canDelete = _allowed});
 
-  final bool canDelete;
+  final bool Function() canDelete;
+
+  static bool _allowed() => true;
 
   @override
   String get table => 'notes';
@@ -25,7 +27,7 @@ final class _Model extends BeakModel {
   @override
   BeakPermissions get permissions => BeakPermissions({
     BeakOperation.read: () => true,
-    BeakOperation.delete: () => canDelete,
+    BeakOperation.delete: canDelete,
   });
 }
 
@@ -67,8 +69,7 @@ void main() {
   Future<void> pumpList(
     WidgetTester tester,
     _Source source, {
-    bool canDelete = true,
-    bool Function()? canDeleteWhen,
+    bool Function() canDelete = _Model._allowed,
     void Function(BeakException)? onError,
     List<BeakRecordAction> recordActions = const [],
     BeakRecordAction deleteAction = const BeakArchiveAction(),
@@ -84,7 +85,6 @@ void main() {
               model: _Model(canDelete: canDelete),
               icon: const BeakIconToken(OiIcons.notebook),
               deleteAction: deleteAction,
-              canDeleteWhen: canDeleteWhen,
               onActionError: onError,
               recordActions: recordActions,
             ),
@@ -161,7 +161,7 @@ void main() {
     tester,
   ) async {
     final source = _Source();
-    await pumpList(tester, source, canDelete: false);
+    await pumpList(tester, source, canDelete: () => false);
     expect(find.text('One note'), findsOneWidget);
     expect(actionButton('Delete'), findsNothing);
     expect(actionButton('Archive'), findsNothing);
@@ -177,7 +177,7 @@ void main() {
     await pumpList(
       tester,
       source,
-      canDeleteWhen: () => allowed,
+      canDelete: () => allowed,
       onError: errors.add,
     );
     final OiButton archive = tester.widget(actionButton('Archive'));
@@ -196,7 +196,7 @@ void main() {
     await pumpList(
       tester,
       source,
-      canDeleteWhen: () => allowed,
+      canDelete: () => allowed,
       onError: errors.add,
     );
     final OiButton archive = tester.widget(actionButton('Archive'));

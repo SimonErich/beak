@@ -19,28 +19,30 @@ import '../data/beak_resource_repository.dart';
 /// fixes how each renders and which predicate it contributes, so the bar
 /// switches exhaustively and no `Map<String, dynamic>` ever appears.
 ///
-/// Each variant binds to a [BeakColumn] and produces a specific control and
-/// [BeakOperator]: [BeakSelectFilter] (enum equality), [BeakBoolFilter]
-/// (on/off), [BeakTextFilter] (contains), [BeakDateRangeFilter] (between).
-/// List them on a [BeakResource] to add the list page's filter bar:
+/// Each variant binds to a typed [BeakScalarField] of the model and produces a
+/// specific control and [BeakOperator]: [BeakSelectFilter] (enum equality),
+/// [BeakBoolFilter] (on/off), [BeakTextFilter] (contains),
+/// [BeakDateRangeFilter] (between). Build them from the model's field
+/// references and list them on a [BeakResource] to add the list page's filter
+/// bar:
 ///
 /// ```dart
 /// BeakResource(
 ///   model: const ProductModel(),
 ///   icon: const BeakIconToken(OiIcons.package),
-///   filters: const [
-///     BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
-///     BeakTextFilter(column: ProductColumns.name, label: 'Name'),
+///   filters: [
+///     ProductModel.status.selectFilter(label: 'Status'),
+///     ProductModel.name.textFilter(label: 'Name'),
 ///   ],
 /// );
 /// ```
 // --8<-- [start:BeakFilterDef]
 sealed class BeakFilterDef {
-  /// Creates a filter over [column] labelled [label].
+  /// Creates a filter over [field] labelled [label].
   const BeakFilterDef({
     required this.column,
     required this.label,
-    this.field,
+    required this.field,
     this.advanced = false,
   });
 
@@ -53,11 +55,11 @@ sealed class BeakFilterDef {
   /// Keeps a less frequent filter in the expandable section of a stacked editor.
   final bool advanced;
 
-  /// Typed path when this filter addresses a related field.
-  final BeakFieldRef<Object>? field;
+  /// The typed field the filter addresses, including related paths.
+  final BeakFieldRef<Object> field;
 
   /// Root-qualified identity used for predicates and independent filter state.
-  String get key => field?.qualifiedKey ?? column.key;
+  String get key => field.qualifiedKey;
 }
 // --8<-- [end:BeakFilterDef]
 
@@ -139,28 +141,26 @@ final class BeakChoiceFilter extends BeakFilterDef {
 
 /// An equality filter over a [BeakEnumColumn], rendered as an `OiSelect`.
 ///
-/// The [BeakFilterDef.column] must be a [BeakEnumColumn]; its options
-/// populate the dropdown. Selecting a value constrains the column to it
-/// (`eq`); clearing it removes the predicate.
+/// The filter's field must address a [BeakEnumColumn]; its options populate
+/// the dropdown. Selecting a value constrains the field to it (`eq`);
+/// clearing it removes the predicate.
 final class BeakSelectFilter extends BeakFilterDef {
   /// Creates the select filter.
-  const BeakSelectFilter({
-    required super.column,
+  BeakSelectFilter({
+    required BeakScalarField<Object> field,
     required super.label,
-    super.field,
     super.advanced,
-  });
+  }) : super(column: field.column, field: field);
 }
 
 /// A three-state boolean select: true, false, or every record when cleared.
 final class BeakBoolFilter extends BeakFilterDef {
   /// Creates the boolean filter.
-  const BeakBoolFilter({
-    required super.column,
+  BeakBoolFilter({
+    required BeakScalarField<Object> field,
     required super.label,
-    super.field,
     super.advanced,
-  });
+  }) : super(column: field.column, field: field);
 }
 
 /// A substring filter rendered as a text input.
@@ -169,12 +169,11 @@ final class BeakBoolFilter extends BeakFilterDef {
 /// empty value contributes no predicate.
 final class BeakTextFilter extends BeakFilterDef {
   /// Creates the text filter.
-  const BeakTextFilter({
-    required super.column,
+  BeakTextFilter({
+    required BeakScalarField<Object> field,
     required super.label,
-    super.field,
     super.advanced,
-  });
+  }) : super(column: field.column, field: field);
 }
 
 /// A `between` filter over a date column, rendered as an
@@ -184,12 +183,11 @@ final class BeakTextFilter extends BeakFilterDef {
 /// field removes the predicate.
 final class BeakDateRangeFilter extends BeakFilterDef {
   /// Creates the date-range filter.
-  const BeakDateRangeFilter({
-    required super.column,
+  BeakDateRangeFilter({
+    required BeakScalarField<Object> field,
     required super.label,
-    super.field,
     super.advanced,
-  });
+  }) : super(column: field.column, field: field);
 }
 
 /// Default arrangement for a filter bar.
@@ -792,18 +790,18 @@ String beakFilterSummary(
 
 /// An inclusive numeric range; either endpoint can be left open.
 final class BeakNumberRangeFilter extends BeakFilterDef {
-  /// Creates a numeric range over a model column or typed field path.
-  const BeakNumberRangeFilter({
-    required super.column,
+  /// Creates a numeric range over a typed field, including related paths.
+  BeakNumberRangeFilter({
+    required BeakScalarField<Object> field,
     required super.label,
-    super.field,
     super.advanced,
     this.showMinimum = true,
     this.showMaximum = true,
     this.minimumLabel,
     this.maximumLabel,
     this.placeholder,
-  }) : assert(showMinimum || showMaximum);
+  }) : assert(showMinimum || showMaximum),
+       super(column: field.column, field: field);
 
   /// Whether the lower bound is editable.
   final bool showMinimum;
@@ -847,7 +845,6 @@ extension BeakTextFieldFilters on BeakScalarField<String> {
   /// Matches a case-insensitive substring.
   BeakTextFilter textFilter({String? label, bool advanced = false}) =>
       BeakTextFilter(
-        column: column,
         field: this,
         label: label ?? this.label,
         advanced: advanced,
@@ -866,7 +863,6 @@ extension BeakNumberFieldFilters<T extends num> on BeakScalarField<T> {
     String? maximumLabel,
     String? placeholder,
   }) => BeakNumberRangeFilter(
-    column: column,
     field: this,
     label: label ?? this.label,
     advanced: advanced,
@@ -883,7 +879,6 @@ extension BeakBooleanFieldFilters on BeakScalarField<bool> {
   /// Offers yes, no, and clearing back to every record.
   BeakBoolFilter boolFilter({String? label, bool advanced = false}) =>
       BeakBoolFilter(
-        column: column,
         field: this,
         label: label ?? this.label,
         advanced: advanced,
@@ -895,7 +890,6 @@ extension BeakEnumFieldFilters<T extends Enum> on BeakScalarField<T> {
   /// Offers the model enum's labels and serialized values.
   BeakSelectFilter selectFilter({String? label, bool advanced = false}) =>
       BeakSelectFilter(
-        column: column,
         field: this,
         label: label ?? this.label,
         advanced: advanced,
@@ -907,7 +901,6 @@ extension BeakDateFieldFilters on BeakScalarField<DateTime> {
   /// Includes the whole selected final calendar day.
   BeakDateRangeFilter dateRangeFilter({String? label, bool advanced = false}) =>
       BeakDateRangeFilter(
-        column: column,
         field: this,
         label: label ?? this.label,
         advanced: advanced,
@@ -1192,14 +1185,13 @@ final class BeakRangePreset<T extends Object> {
 /// An inclusive range over exact money, calendar dates, time or durations.
 final class BeakSemanticRangeFilter extends BeakFilterDef {
   /// Creates a range whose endpoints use the model's semantic codec.
-  const BeakSemanticRangeFilter({
-    required super.column,
+  BeakSemanticRangeFilter({
+    required BeakScalarField<Object> field,
     required super.label,
-    super.field,
     super.advanced,
     this.inline = false,
     this.presets = const [],
-  });
+  }) : super(column: field.column, field: field);
 
   /// Places endpoints side by side when the available width permits.
   final bool inline;
@@ -1217,7 +1209,6 @@ extension BeakSemanticFieldFilters<T extends Object> on BeakScalarField<T> {
     bool inline = false,
     List<BeakRangePreset<T>> presets = const [],
   }) => BeakSemanticRangeFilter(
-    column: column,
     field: this,
     label: label ?? this.label,
     advanced: advanced,
@@ -1274,14 +1265,12 @@ class _ChoiceFilterControl extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final counts = useState<Map<String, num>>(const {});
-    final query = countQuery ?? def.field?.model.query();
-    final revision = useBeakDataRevision(source, table: query?.table);
+    final query = countQuery ?? def.field.model.query();
+    final revision = useBeakDataRevision(source, table: query.table);
     useEffect(
       () {
         counts.value = const {};
-        if (!def.showCounts ||
-            query == null ||
-            source is! BeakSummaryDataSource) {
+        if (!def.showCounts || source is! BeakSummaryDataSource) {
           return null;
         }
         var current = true;
@@ -1321,7 +1310,7 @@ class _ChoiceFilterControl extends HookWidget {
       },
       [
         source,
-        jsonEncode(query?.toJson()),
+        jsonEncode(query.toJson()),
         def.showCounts,
         revision,
         jsonEncode([

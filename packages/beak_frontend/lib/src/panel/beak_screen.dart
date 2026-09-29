@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../blocks/beak_block.dart';
+import 'beak_destination.dart';
 import 'beak_panel_config.dart';
 
 /// A custom, non-resource panel screen: a route, its navigation entry, and
@@ -17,20 +18,20 @@ import 'beak_panel_config.dart';
 ///   path: '/analytics',
 ///   title: 'Analytics',
 ///   icon: BeakIconToken(OiIcons.chartLine),
-///   section: 'Insights',
+///   navigationGroup: 'Insights',
 ///   body: BeakGridBlock(columns: 12, children: [...]),
 /// );
 /// ```
 @immutable
-class BeakScreen {
+class BeakScreen implements BeakDestination {
   /// Creates a custom screen routed at [path].
   const BeakScreen({
     required this.path,
     required this.title,
     required this.icon,
     required this.body,
-    this.label,
-    this.section,
+    this.navigationTitle,
+    this.navigationGroup,
     this.showInNav = true,
     this.framed = true,
   });
@@ -38,8 +39,8 @@ class BeakScreen {
   /// The route this screen is mounted at (e.g. `'/analytics'`).
   final String path;
 
-  /// The screen title, shown in the framed header and used as the nav label
-  /// fallback.
+  /// The screen title, shown in the framed header and used as the sidebar
+  /// title fallback.
   final String title;
 
   /// The sidebar icon.
@@ -48,11 +49,11 @@ class BeakScreen {
   /// The declarative screen content.
   final BeakBlock body;
 
-  /// Navigation label override; defaults to [title].
-  final String? label;
+  /// Sidebar title override; defaults to [title].
+  final String? navigationTitle;
 
   /// Optional sidebar group heading this screen is filed under.
-  final String? section;
+  final String? navigationGroup;
 
   /// Whether the screen appears in the sidebar. Set false for detail pages
   /// reached only by navigation (e.g. an invoice document).
@@ -65,6 +66,9 @@ class BeakScreen {
   /// Set false for full-bleed screens like a calendar or kanban board.
   final bool framed;
 
-  /// The label shown in navigation and the page header.
-  String get effectiveLabel => label ?? title;
+  /// The title shown in navigation.
+  String get effectiveNavigationTitle => navigationTitle ?? title;
+
+  @override
+  String get location => path;
 }

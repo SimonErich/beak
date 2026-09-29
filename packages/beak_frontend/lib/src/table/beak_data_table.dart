@@ -11,7 +11,7 @@ import '../data/optimistic.dart';
 import '../localization/beak_localizations.dart';
 import 'beak_table_action.dart';
 import 'column_cell_renderer.dart';
-import 'table_view_model.dart';
+import 'beak_table_view_model.dart';
 import '../query/beak_query_controller.dart';
 import '../presentation/beak_record_template.dart';
 import '../presentation/beak_action_presentation.dart';
@@ -43,7 +43,7 @@ final class BeakTableSelection {
 /// Every column's cell is drawn by [renderBeakCell] from its table-context
 /// render intent, so badges, dates, thumbnails, and custom cells match the
 /// detail view exactly. Sort, filter, and page changes rewrite the spec on
-/// the internal [TableViewModel] and refetch (latest-wins); a fetch failure
+/// the internal [BeakTableViewModel] and refetch (latest-wins); a fetch failure
 /// renders a retryable error state.
 ///
 /// ```dart
@@ -104,7 +104,7 @@ class BeakDataTable extends HookWidget {
 
   /// Observes each owned view model once, for advanced surface integrations.
   /// The table owns disposal; callers must not dispose the supplied instance.
-  final ValueChanged<TableViewModel>? onViewModel;
+  final ValueChanged<BeakTableViewModel>? onViewModel;
 
   /// Optional visual row height; null follows the surrounding table theme.
   final double? rowHeight;
@@ -185,7 +185,7 @@ class BeakDataTable extends HookWidget {
   Widget build(BuildContext context) {
     final strings = BeakLocalizations.of(context);
     final viewModel = useMemoized(
-      () => TableViewModel(
+      () => BeakTableViewModel(
         model,
         dataSource,
         // The table renders a column per to-one relationship, so the table is
@@ -457,7 +457,7 @@ class BeakDataTable extends HookWidget {
     );
   }
 
-  List<OiTableColumn<BeakRecord>> _columns(TableViewModel viewModel) {
+  List<OiTableColumn<BeakRecord>> _columns(BeakTableViewModel viewModel) {
     // A relationship is shown in place of the foreign key it owns: the key
     // renders as the uuid it stores, which tells the reader nothing, and
     // showing both would be the same fact twice.
@@ -644,7 +644,7 @@ class BeakDataTable extends HookWidget {
 
   Widget _rowActions(
     BuildContext context,
-    TableViewModel viewModel,
+    BeakTableViewModel viewModel,
     BeakRecord record,
   ) {
     final Object? id = model.primaryKeyOf(record);
@@ -693,7 +693,7 @@ class BeakDataTable extends HookWidget {
 
   void _deleteOptimistically(
     BuildContext context,
-    TableViewModel viewModel,
+    BeakTableViewModel viewModel,
     Object id,
   ) {
     ({BeakRecord record, int index})? removed;
@@ -712,7 +712,7 @@ class BeakDataTable extends HookWidget {
   }
 
   Future<void> _commitCellEdit(
-    TableViewModel viewModel,
+    BeakTableViewModel viewModel,
     BeakRecord record,
     String columnId,
     Object? editedValue,

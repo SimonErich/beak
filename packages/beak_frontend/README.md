@@ -1,7 +1,8 @@
 # beak_frontend
 
 The Flutter admin panel for Beak: `BeakPanel` (shell + router) and generated
-tables, forms, detail views, actions, filters, and dashboards on obers_ui.
+tables, forms, record views, actions, and filters on obers_ui, plus block-based
+screens for overviews and dashboards.
 
 Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
 configuration-driven admin-panel framework for Dart/Flutter. See the
@@ -28,8 +29,14 @@ void main() => runApp(BeakPanel(
 ));
 ```
 
-`BeakPanel.fromConfig(config: config)` also accepts a generated or host-built
-`BeakPanelConfig`. Tests may supply `dataSource: fakeSource` to either constructor.
+`BeakPanel(config: config)` accepts a complete, host-built `BeakPanelConfig`
+instead of the individual arguments. Tests may supply `dataSource: fakeSource`
+to either form.
+
+`/` opens the `BeakScreen` mounted at `/`, or else the panel's `home:` (a
+`BeakScreen` or a `BeakResource`), or else the first visible navigation
+destination.
+
 See the [canonical shop entrypoint](../../examples/clean_beak_config/lib/main.dart)
 and [declarative resources guide](../../docs/concepts/declarative-resources.md)
 for complete runnable definitions.
@@ -37,9 +44,9 @@ for complete runnable definitions.
 ## Key types
 
 - `BeakPanel` — root widget with a scoped theme, router and data services.
-- `BeakPanelConfig` — the declarative panel definition (resources, apiBaseUrl,
-  dashboards, theming).
-- `BeakResource` — one model surfaced as list/detail/form pages, with its
+- `BeakPanelConfig` — the declarative panel definition (resources, screens,
+  apiBaseUrl, home, theming).
+- `BeakResource` — one model surfaced as list/show/form pages, with its
   actions and filters.
 - `BeakFormScreen` / `BeakWizardScreen` — layouts for ordinary and stepped forms.
 - `BeakFormSections` — reusable sections projected into forms, tabs or steps.
@@ -48,8 +55,9 @@ for complete runnable definitions.
   hooks; model lifecycle actions are authoritative `BeakModelAction` declarations.
 - `BeakImportView` / `BeakBulkEditView` — typed preview, validation and commit outcomes.
 - `BeakSelectFilter` / `BeakTextFilter` / `BeakBoolFilter` — list-page filter
-  controls bound to typed columns.
-- `BeakStat` / `BeakChart` — dashboard aggregate tiles and charts.
+  controls bound to typed fields (`NoteModel.title.textFilter()`).
+- `BeakScreen` — a custom route composed of blocks such as `BeakMetricBlock`
+  and `BeakChartBlock`, for overviews and dashboards.
 - `BeakIconToken` — a typed `OiIcons` wrapper for navigation icons.
 
 ## Status

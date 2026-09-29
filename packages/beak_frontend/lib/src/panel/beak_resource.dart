@@ -3,16 +3,12 @@ import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../actions/beak_action.dart';
-import '../blocks/beak_block.dart';
-import '../detail/beak_default_detail_layout.dart';
 import '../filters/beak_default_filters.dart';
 import '../filters/beak_filter_widget.dart';
-import '../form/beak_form_controller_builder.dart';
-import '../form/beak_form_field.dart';
 import '../form/upload_field.dart';
-import 'beak_resource_view.dart';
-import 'beak_routes.dart';
+import 'beak_destination.dart';
 import 'beak_resource_screen.dart';
+import 'beak_routes.dart';
 
 /// A typed icon reference for panel navigation.
 ///
@@ -28,15 +24,17 @@ extension type const BeakIconToken(IconData icon) {}
 /// Declaring a resource is all it takes to get a full list/create/show/edit
 /// CRUD surface — no per-page code. The built-in view, edit, delete and
 /// create actions are always present; [recordActions], [bulkActions],
-/// [globalActions] and [filters] add to them.
+/// [globalActions] and [filters] add to them. What the current account may
+/// see or change follows [BeakModel.permissions], and [screens] replace any of
+/// the generated pages.
 ///
 /// ```dart
 /// BeakResource(
 ///   model: const ProductModel(),
 ///   icon: const BeakIconToken(OiIcons.package),
-///   filters: const [
-///     BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
-///     BeakTextFilter(column: ProductColumns.name, label: 'Name'),
+///   filters: [
+///     ProductModel.status.selectFilter(label: 'Status'),
+///     ProductModel.name.textFilter(label: 'Name'),
 ///   ],
 ///   recordActions: const [
 ///     BeakRecordAction(
@@ -48,8 +46,8 @@ extension type const BeakIconToken(IconData icon) {}
 ///   ],
 /// );
 /// ```
-class BeakResource {
-  /// Creates a panel resource for [model], shown with [icon] and [label]
+class BeakResource implements BeakDestination {
+  /// Creates a panel resource for [model], shown with [icon] and [title]
   /// (defaults to the title-cased table name).
   // --8<-- [start:BeakResource]
   const BeakResource({
@@ -61,35 +59,19 @@ class BeakResource {
     this.navigationRank = 0,
     this.screens = const [],
     this.globalSearchSources = const [],
-    this.label,
-    this.section,
     this.recordActions = const [],
     this.bulkActions = const [],
     this.globalActions = const [],
     this.filters = const [],
-    this.viewModes = const [BeakTableView()],
-    this.detail,
     this.canCreate = true,
     this.canEdit = true,
     this.canDelete = true,
-    this.canCreateWhen,
-    this.canEditWhen,
-    this.canDeleteWhen,
-    this.visibleWhen,
-    this.createModel,
-    this.editModel,
-    this.editValues,
-    this.createBuilder,
-    this.editBuilder,
-    BeakFormValueMode? formValueMode,
-    this.createFields = const [],
-    this.editFields = const [],
     this.deleteAction = const BeakDeleteAction(),
     this.onActionError,
     this.filePicker,
     this.uploader,
     this.duplication,
-  }) : _formValueMode = formValueMode;
+  });
   // --8<-- [end:BeakResource]
 
   /// Enables the standard Duplicate action with explicit owned-child copying.
@@ -131,7 +113,7 @@ class BeakResource {
   /// Sidebar title; defaults to [title] and then the inferred model name.
   final String? navigationTitle;
 
-  /// Sidebar group. Takes precedence over the legacy [section] setting.
+  /// Sidebar group heading this resource is filed under.
   final String? navigationGroup;
 
   /// Navigation order within the resource list. Ties retain declaration order.
@@ -140,17 +122,8 @@ class BeakResource {
   /// Label used in navigation independently of page titles.
   String get effectiveNavigationTitle => navigationTitle ?? effectiveLabel;
 
-  /// Group used in navigation.
-  String? get effectiveNavigationGroup => navigationGroup ?? section;
-
   /// The sidebar icon.
   final BeakIconToken icon;
-
-  /// The navigation label override.
-  final String? label;
-
-  /// Optional sidebar group heading this resource is filed under.
-  final String? section;
 
   /// Extra per-row actions on the list page (view/edit/delete are built
   /// in).
@@ -165,21 +138,9 @@ class BeakResource {
   /// The list page's filter controls.
   final List<BeakFilterDef> filters;
 
-  /// The list page's selectable presentations; defaults to a single table
-  /// view. Declaring more than one adds a view-mode switcher to the list
-  /// page.
-  final List<BeakResourceView> viewModes;
-
-  /// A custom show-page layout: a record-bound [BeakBlock] tree (cards,
-  /// sections, tabs, grids composed of `BeakFieldBlock`/`BeakFieldGroupBlock`/
-  /// `BeakRelationBlock`) rendered inside the loaded record's scope.
-  ///
-  /// When `null`, [effectiveDetail] derives one from the model: a headline
-  /// card, the remaining fields, and a tab per to-many relationship.
-  final BeakBlock? detail;
-
   /// Whether this resource exposes the corresponding write operation.
-  /// These presentation capabilities do not replace server authorization.
+  /// These presentation capabilities do not replace server authorization;
+  /// account-dependent checks belong on [BeakModel.permissions].
   final bool canCreate;
 
   /// Whether the edit action and route are available.
@@ -188,49 +149,48 @@ class BeakResource {
   /// Whether the delete action is available.
   final bool canDelete;
 
-  /// Live permission checks, reevaluated by actions and route guards.
-  final bool Function()? canCreateWhen;
-
-  /// Live permission check for edit.
-  final bool Function()? canEditWhen;
-
-  /// Live permission check for delete.
-  final bool Function()? canDeleteWhen;
-
-  /// Live read permission controlling navigation and all resource routes.
-  final bool Function()? visibleWhen;
+  /// Whether a [BeakCustomResourceScreen] serves [role], supplying a workflow
+  /// the model's transport does not expose as a standard operation.
+  bool _hasCustomScreen(BeakScreenRole role) => screens.any(
+    (screen) =>
+        screen is BeakCustomResourceScreen && screen.roles.contains(role),
+  );
 
   /// Whether read access is currently available in the panel.
+  ///
+  /// Reads [BeakModel.permissions], so a schema class declaring
+  /// `static BeakPermissions get permissions` controls navigation and every
+  /// resource route.
   bool get isVisible =>
       model.capabilities.contains(BeakOperation.read) &&
-      model.permissions.allows(BeakOperation.read) &&
-      (visibleWhen?.call() ?? true);
+      model.permissions.allows(BeakOperation.read);
 
-  /// Whether creation is currently available.
+  /// Whether creation is currently available: the model supports it or a
+  /// custom create screen supplies the workflow, [canCreate] is set and
+  /// [BeakModel.permissions] allow it.
   bool get allowsCreate =>
       isVisible &&
       canCreate &&
       (model.capabilities.contains(BeakOperation.create) ||
-          createBuilder != null) &&
-      model.permissions.allows(BeakOperation.create) &&
-      (canCreateWhen?.call() ?? true);
+          _hasCustomScreen(BeakScreenRole.create)) &&
+      model.permissions.allows(BeakOperation.create);
 
-  /// Whether editing is currently available.
+  /// Whether editing is currently available: the model supports it or a
+  /// custom edit screen supplies the workflow, [canEdit] is set and
+  /// [BeakModel.permissions] allow it.
   bool get allowsEdit =>
       isVisible &&
       canEdit &&
       (model.capabilities.contains(BeakOperation.update) ||
-          editBuilder != null) &&
-      model.permissions.allows(BeakOperation.update) &&
-      (canEditWhen?.call() ?? true);
+          _hasCustomScreen(BeakScreenRole.edit)) &&
+      model.permissions.allows(BeakOperation.update);
 
   /// Whether deletion is currently available.
   bool get allowsDelete =>
       isVisible &&
       canDelete &&
       model.capabilities.contains(BeakOperation.delete) &&
-      model.permissions.allows(BeakOperation.delete) &&
-      (canDeleteWhen?.call() ?? true);
+      model.permissions.allows(BeakOperation.delete);
 
   /// Live availability of a built-in or configured resource action.
   /// Custom actions require read access and retain their own domain checks.
@@ -244,36 +204,6 @@ class BeakResource {
     };
   }
 
-  /// Command metadata for creation; defaults to [model].
-  final BeakModel? createModel;
-
-  /// Command metadata for editing; defaults to [model].
-  final BeakModel? editModel;
-
-  /// Loads an edit command when its shape differs from the read record.
-  final Future<BeakRecord> Function(Object id)? editValues;
-
-  /// Replaces the create form for a domain workflow such as checkout.
-  final WidgetBuilder? createBuilder;
-
-  /// Replaces the edit form while retaining the resource URL and shell.
-  final Widget Function(BuildContext context, Object id)? editBuilder;
-
-  /// Submission semantics shared by the resource's generated forms.
-  BeakFormValueMode get formValueMode =>
-      _formValueMode ??
-      (model.createModel != null || model.editModel != null
-          ? BeakFormValueMode.complete
-          : BeakFormValueMode.populated);
-
-  final BeakFormValueMode? _formValueMode;
-
-  /// Create form presentation overrides over generated command fields.
-  final List<BeakFormField> createFields;
-
-  /// Edit form presentation overrides over generated command fields.
-  final List<BeakFormField> editFields;
-
   /// Domain-specific deletion semantics, such as confirmed archival.
   final BeakRecordAction deleteAction;
 
@@ -281,32 +211,21 @@ class BeakResource {
   final void Function(BeakException error)? onActionError;
 
   /// The label shown in navigation and page titles.
-  String get effectiveLabel => title ?? label ?? _titleCase(model.table);
-
-  /// The show-page layout: [detail] when declared, and otherwise the one
-  /// [model] implies — a headline card, the remaining fields, and a tab per
-  /// to-many relationship.
-  BeakBlock get effectiveDetail => detail ?? beakDefaultDetailLayout(model);
+  String get effectiveLabel => title ?? _titleCase(model.table);
 
   /// The filter bar the list page renders: [filters] when declared, and
   /// otherwise the controls [model]'s `filterable` columns imply.
-  ///
-  /// Deriving them here rather than in the generator keeps `panel.g.dart`
-  /// unchanged and gives hand-written panels the same defaults.
   List<BeakFilterDef> get effectiveFilters =>
       filters.isNotEmpty ? filters : beakDefaultFiltersOf(model);
 
   /// Returns a copy with the given parts replaced.
   ///
-  /// The way to adjust one generated resource without ejecting the panel:
-  /// a `lib/resources/<table>.dart` returning `generated.copyWith(...)` keeps
-  /// every other resource generated and up to date.
+  /// The way to adjust one resource without redeclaring it, for example the
+  /// `BeakResource` subclass `beak eject resource <table>` writes for a model:
   ///
   /// ```dart
-  /// BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  ///   filters: const [
-  ///     BeakSelectFilter(column: OrderColumns.status, label: 'Status'),
-  ///   ],
+  /// final staffOrders = orders.copyWith(
+  ///   filters: [OrderModel.status.selectFilter(label: 'Status')],
   /// );
   /// ```
   BeakResource copyWith({
@@ -321,29 +240,13 @@ class BeakResource {
     List<BeakResourceScreen>? screens,
     List<BeakFieldRef<Object>>? globalSearchSources,
     BeakIconToken? icon,
-    String? label,
-    String? section,
     List<BeakRecordAction>? recordActions,
     List<BeakBulkAction>? bulkActions,
     List<BeakGlobalAction>? globalActions,
     List<BeakFilterDef>? filters,
-    List<BeakResourceView>? viewModes,
-    BeakBlock? detail,
     bool? canCreate,
     bool? canEdit,
     bool? canDelete,
-    bool Function()? canCreateWhen,
-    bool Function()? canEditWhen,
-    bool Function()? canDeleteWhen,
-    bool Function()? visibleWhen,
-    BeakModel? createModel,
-    BeakModel? editModel,
-    Future<BeakRecord> Function(Object id)? editValues,
-    WidgetBuilder? createBuilder,
-    Widget Function(BuildContext context, Object id)? editBuilder,
-    BeakFormValueMode? formValueMode,
-    List<BeakFormField>? createFields,
-    List<BeakFormField>? editFields,
     BeakRecordAction? deleteAction,
     void Function(BeakException error)? onActionError,
   }) => BeakResource(
@@ -358,35 +261,22 @@ class BeakResource {
     screens: screens ?? this.screens,
     globalSearchSources: globalSearchSources ?? this.globalSearchSources,
     icon: icon ?? this.icon,
-    label: label ?? this.label,
-    section: section ?? this.section,
     recordActions: recordActions ?? this.recordActions,
     bulkActions: bulkActions ?? this.bulkActions,
     globalActions: globalActions ?? this.globalActions,
     filters: filters ?? this.filters,
-    viewModes: viewModes ?? this.viewModes,
-    detail: detail ?? this.detail,
     canCreate: canCreate ?? this.canCreate,
     canEdit: canEdit ?? this.canEdit,
     canDelete: canDelete ?? this.canDelete,
-    canCreateWhen: canCreateWhen ?? this.canCreateWhen,
-    canEditWhen: canEditWhen ?? this.canEditWhen,
-    canDeleteWhen: canDeleteWhen ?? this.canDeleteWhen,
-    visibleWhen: visibleWhen ?? this.visibleWhen,
-    createModel: createModel ?? this.createModel,
-    editModel: editModel ?? this.editModel,
-    editValues: editValues ?? this.editValues,
-    createBuilder: createBuilder ?? this.createBuilder,
-    editBuilder: editBuilder ?? this.editBuilder,
-    formValueMode: formValueMode ?? _formValueMode,
-    createFields: createFields ?? this.createFields,
-    editFields: editFields ?? this.editFields,
     deleteAction: deleteAction ?? this.deleteAction,
     onActionError: onActionError ?? this.onActionError,
   );
 
   /// The list route of this resource.
   String get route => BeakRoutes.list(model.table);
+
+  @override
+  String get location => route;
 
   static String _titleCase(String table) => table
       .split('_')

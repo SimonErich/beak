@@ -17,27 +17,23 @@ import 'package:signals/signals_flutter.dart';
 
 import '../actions/beak_action.dart';
 import '../localization/beak_localizations.dart';
-import '../detail/beak_default_detail_layout.dart';
 import '../actions/beak_action_button.dart';
 import '../blocks/beak_block_host.dart';
 import '../blocks/beak_block.dart';
-import '../data/beak_relation_loads.dart';
 import '../data/beak_data_changes.dart';
 import '../di/beak_locator.dart';
 import '../data/beak_resource_repository.dart';
-import '../data/reference_cache.dart';
-import '../detail/beak_record_scope.dart';
-import '../detail/relation_manager.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_configured_form.dart';
+import '../form/beak_form_controller_builder.dart' show BeakFormValueMode;
 import '../form/beak_form_layout.dart';
 import '../panel/beak_resource_screen.dart';
 import '../panel/beak_panel_config.dart';
-import '../panel/beak_resource_view.dart';
 import '../panel/beak_routes.dart';
 import '../table/beak_data_table.dart';
 import '../table/beak_table_action.dart';
-import '../table/table_view_model.dart';
+import '../table/beak_table_view_model.dart';
+import 'beak_default_show_layout.dart';
 import 'beak_page_scaffold.dart';
 import '../query/beak_query_controller.dart';
 import '../query/beak_query_scope.dart';
@@ -64,7 +60,7 @@ class BeakResourceListPage extends HookWidget {
   Widget build(BuildContext context) {
     final filter = useState<BeakFilter?>(null);
     final generation = useState(0);
-    final tableViewModel = useRef<TableViewModel?>(null);
+    final tableViewModel = useRef<BeakTableViewModel?>(null);
     final selection = useState<BeakTableSelection?>(null);
     final BeakModel model = resource.model;
     final tableScreen = switch (resource.screenFor(BeakScreenRole.list)) {
@@ -641,13 +637,7 @@ class BeakResourceListPage extends HookWidget {
                   Expanded(child: table),
                 ],
               )
-            : resource.viewModes.length <= 1
-            ? table
-            : _ViewModeSwitcher(
-                viewModes: resource.viewModes,
-                model: model,
-                table: table,
-              ),
+            : table,
       );
     }
 
@@ -661,59 +651,13 @@ class BeakResourceListPage extends HookWidget {
   }
 }
 
-/// The list page's view-mode switcher: an `OiSegmentedControl` over a
-/// resource's [viewModes], rendering the selected mode's block (or the
-/// full [table] for the table view) beneath it.
-class _ViewModeSwitcher extends HookWidget {
-  const _ViewModeSwitcher({
-    required this.viewModes,
-    required this.model,
-    required this.table,
-  });
-
-  final List<BeakResourceView> viewModes;
-  final BeakModel model;
-  final Widget table;
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = useState(0);
-    final int index = selected.value.clamp(0, viewModes.length - 1);
-    final BeakResourceView current = viewModes[index];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: OiSegmentedControl<int>(
-            segments: [
-              for (var i = 0; i < viewModes.length; i++)
-                OiSegment(
-                  value: i,
-                  label: viewModes[i].label,
-                  icon: viewModes[i].icon,
-                ),
-            ],
-            selected: index,
-            onChanged: (value) => selected.value = value,
-          ),
-        ),
-        Expanded(
-          child: switch (current) {
-            BeakTableView() => table,
-            _ => BeakBlockHost(block: current.build(model)),
-          },
-        ),
-      ],
-    );
-  }
-}
-
-/// The generated show page: the record rendered through the resource's
-/// [BeakResource.effectiveDetail] layout, with edit and delete actions.
+/// The generated show page: the record rendered read-only, with edit and
+/// delete actions.
 ///
-/// The record and the relations that layout renders arrive in one query, and
-/// each [BeakRelationManager] is handed the rows already loaded for it.
+/// A resource that configures a read screen gets that screen's layout;
+/// otherwise the page is a read-mode [BeakConfiguredForm] over the layout the
+/// model implies (see [beakDefaultShowLayout]), whose to-many relationships
+/// arrive in the same query as the record.
 class BeakResourceShowPage extends HookWidget {
   /// Creates the show page for [recordId] of [resource].
   const BeakResourceShowPage({
@@ -735,6 +679,19 @@ class BeakResourceShowPage extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final screen = resource.screenFor(BeakScreenRole.read);
+    final registry = beakDependencies(context).isRegistered<BeakModelRegistry>()
+        ? beakDependencies(context)<BeakModelRegistry>()
+        : null;
+    final layout = useMemoized(
+      () => screen is BeakFormScreen
+          ? null
+          : beakDefaultShowLayout(resource.model, registry: registry),
+      [screen, resource.model, registry],
+    );
+    final dataRevision = useBeakDataRevision(
+      dataSource,
+      table: resource.model.table,
+    );
     if (screen is BeakFormScreen) {
       return _formScaffold(
         form: screen,
@@ -754,9 +711,7 @@ class BeakResourceShowPage extends HookWidget {
           ),
           filePicker: resource.filePicker,
           uploader: resource.uploader,
-          registry: beakDependencies(context).isRegistered<BeakModelRegistry>()
-              ? beakDependencies(context)<BeakModelRegistry>()
-              : null,
+          registry: registry,
           model: resource.model,
           dataSource: dataSource,
           recordId: recordId,
@@ -788,64 +743,45 @@ class BeakResourceShowPage extends HookWidget {
         ),
       );
     }
-    final BeakModel model = resource.model;
-    final record = useState<BeakRecord?>(null);
-    final generation = useState(0);
-    final failure = useState<BeakException?>(null);
-    final dataRevision = useBeakDataRevision(dataSource, table: model.table);
-    useEffect(() {
-      record.value = null;
-      failure.value = null;
-      var cancelled = false;
-      Future<void> load() async {
-        // One query for the record *and* the relations this page renders.
-        // A custom detail layout renders whichever blocks it names, which
-        // the page cannot know statically — those blocks load their own.
-        final result = await beakLoadRecordWithRelations(
-          BeakResourceRepository(dataSource),
-          model: model,
-          id: recordId,
-          relations: resource.detail != null
-              ? const []
-              : [
-                  for (final relation in model.relationships)
-                    if (relation.cardinality == BeakRelationCardinality.many)
-                      relation,
-                ],
-        );
-        if (cancelled) {
-          return;
-        }
-        switch (result) {
-          case BeakOk(:final value):
-            record.value = value;
-          case BeakErr(:final error):
-            failure.value = error;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, recordId, generation.value, dataRevision]);
-
-    final actionContext = BeakActionContext(
-      buildContext: context,
-      model: model,
+    return BeakConfiguredForm(
+      // A change to the table remounts the form so the page reloads the record.
+      key: ValueKey((recordId, dataRevision)),
+      frameBuilder: _defaultShowFrame(resource, recordId),
+      filePicker: resource.filePicker,
+      uploader: resource.uploader,
+      registry: registry,
+      model: resource.model,
       dataSource: dataSource,
-      router: GoRouter.of(context),
-      refresh: () async => generation.value++,
-      onError: resource.onActionError,
-      canExecute: resource.allowsAction,
+      recordId: recordId,
+      mode: BeakFormMode.read,
+      canEdit: false,
+      layout: layout,
     );
+  }
+}
 
-    final BeakRecord? loaded = record.value;
-    return BeakPageScaffold(
-      resource: resource,
-      variant: OiResourcePageVariant.show,
-      surface: false,
-      title: '${resource.effectiveLabel} $recordId',
-      actions: [
-        if (loaded != null) ...[
+/// The show page chrome of a resource without a read screen: the resource's
+/// Edit and Delete actions and record actions above the read-only form.
+Widget Function(BuildContext, BeakFormSession, BeakFormMode, Widget, Widget)
+_defaultShowFrame(BeakResource resource, Object recordId) =>
+    (context, session, _, _, child) {
+      final BeakModel model = resource.model;
+      final BeakRecord loaded = session.root.snapshot;
+      final actionContext = BeakActionContext(
+        buildContext: context,
+        model: model,
+        dataSource: session.repository.dataSource,
+        router: GoRouter.of(context),
+        refresh: session.load,
+        onError: resource.onActionError,
+        canExecute: resource.allowsAction,
+      );
+      return BeakPageScaffold(
+        resource: resource,
+        variant: OiResourcePageVariant.show,
+        surface: false,
+        title: '${resource.effectiveLabel} $recordId',
+        actions: [
           if (resource.allowsEdit &&
               (model.behavior.editableWhen?.call(loaded) ?? true))
             BeakActionButton(
@@ -868,11 +804,11 @@ class BeakResourceShowPage extends HookWidget {
                   onRun: () => _executeModelAction(
                     context: context,
                     model: model,
-                    source: dataSource,
+                    source: session.repository.dataSource,
                     recordId: recordId,
                     action: action,
                     onError: actionContext.reportError,
-                    onComplete: () => generation.value++,
+                    onComplete: session.load,
                   ),
                 ),
           for (final action in resource.recordActions)
@@ -883,33 +819,9 @@ class BeakResourceShowPage extends HookWidget {
                 record: loaded,
               ),
         ],
-      ],
-      child: switch ((loaded, failure.value)) {
-        (null, null) => OiLabel.body(BeakLocalizations.of(context).loading),
-        (null, final BeakException error) => OiEmptyState.error(
-          description: error.message,
-        ),
-        // The layout the resource declared, or the one its model implies —
-        // rendered inside the loaded record's scope so its field blocks
-        // resolve.
-        (final BeakRecord value, _) => SingleChildScrollView(
-          child: BeakRecordScope(
-            model: model,
-            record: value,
-            child: BeakBlockHost(
-              block:
-                  resource.detail ??
-                  beakDefaultDetailLayout(
-                    model,
-                    localizations: BeakLocalizations.of(context),
-                  ),
-            ),
-          ),
-        ),
-      },
-    );
-  }
-}
+        child: child,
+      );
+    };
 
 /// The generated create page: a [BeakConfiguredForm] in create mode that
 /// navigates back to the list after saving.
@@ -918,7 +830,6 @@ class BeakResourceCreatePage extends HookWidget {
   const BeakResourceCreatePage({
     required this.resource,
     required this.dataSource,
-    this.referenceCache,
     super.key,
   });
 
@@ -927,10 +838,6 @@ class BeakResourceCreatePage extends HookWidget {
 
   /// The source the form submits through.
   final BeakDataSource dataSource;
-
-  /// Resolves the belongs-to pickers' prefilled keys through one batched
-  /// fetch; without it each picker resolves its own.
-  final ReferenceCache? referenceCache;
 
   @override
   Widget build(BuildContext context) {
@@ -955,10 +862,7 @@ class BeakResourceCreatePage extends HookWidget {
         registry: beakDependencies(context).isRegistered<BeakModelRegistry>()
             ? beakDependencies(context)<BeakModelRegistry>()
             : null,
-        model:
-            resource.createModel ??
-            resource.model.createModel ??
-            resource.model,
+        model: resource.model.createModel ?? resource.model,
         dataSource: dataSource,
         mode: BeakFormMode.create,
         initialValues: switch (GoRouterState.of(context).extra) {
@@ -988,8 +892,7 @@ class BeakResourceCreatePage extends HookWidget {
         drafts: form?.drafts,
         reviewBeforeSave: form?.reviewBeforeSave ?? false,
         showInspector: form?.showInspector ?? false,
-        fields: resource.createFields,
-        valueMode: resource.formValueMode,
+        valueMode: _valueModeOf(resource.model),
         onSaved: (_) => router.go(
           BeakBackButton.destination(
             GoRouterState.of(context).uri,
@@ -1009,7 +912,6 @@ class BeakResourceEditPage extends HookWidget {
     required this.resource,
     required this.dataSource,
     required this.recordId,
-    this.referenceCache,
     super.key,
   });
 
@@ -1018,10 +920,6 @@ class BeakResourceEditPage extends HookWidget {
 
   /// The source the form loads and submits through.
   final BeakDataSource dataSource;
-
-  /// Resolves the belongs-to pickers' prefilled keys through one batched
-  /// fetch; without it each picker resolves its own.
-  final ReferenceCache? referenceCache;
 
   /// Primary key of the record under edit.
   final Object recordId;
@@ -1034,13 +932,10 @@ class BeakResourceEditPage extends HookWidget {
       _ => null,
     };
     final editLoader = useMemoized(
-      () =>
-          resource.editValues ??
-          (resource.model.editModel != null && editSource != null
-              ? (Object id) =>
-                    editSource.loadEditValues(resource.model.table, id)
-              : null),
-      [resource.editValues, resource.model, editSource],
+      () => resource.model.editModel != null && editSource != null
+          ? (Object id) => editSource.loadEditValues(resource.model.table, id)
+          : null,
+      [resource.model, editSource],
     );
     final screen = resource.screenFor(BeakScreenRole.edit);
     final form = screen is BeakFormScreen ? screen : null;
@@ -1061,7 +956,7 @@ class BeakResourceEditPage extends HookWidget {
         registry: beakDependencies(context).isRegistered<BeakModelRegistry>()
             ? beakDependencies(context)<BeakModelRegistry>()
             : null,
-        model: resource.editModel ?? resource.model.editModel ?? resource.model,
+        model: resource.model.editModel ?? resource.model,
         dataSource: dataSource,
         recordId: recordId,
         mode: BeakFormMode.edit,
@@ -1088,8 +983,7 @@ class BeakResourceEditPage extends HookWidget {
         drafts: form?.drafts,
         reviewBeforeSave: form?.reviewBeforeSave ?? false,
         showInspector: form?.showInspector ?? false,
-        fields: resource.editFields,
-        valueMode: resource.formValueMode,
+        valueMode: _valueModeOf(resource.model),
         editValues: editLoader,
         onSaved: (_) =>
             router.go(BeakRoutes.show(resource.model.table, recordId)),
@@ -1097,6 +991,12 @@ class BeakResourceEditPage extends HookWidget {
     );
   }
 }
+
+/// Command models submit every field; a plain model submits what is populated.
+BeakFormValueMode _valueModeOf(BeakModel model) =>
+    model.createModel != null || model.editModel != null
+    ? BeakFormValueMode.complete
+    : BeakFormValueMode.populated;
 
 /// Reuses the form transaction for commands from any generated record surface.
 Future<void> _executeModelAction({

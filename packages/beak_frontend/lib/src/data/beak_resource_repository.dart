@@ -1,7 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 
 import 'beak_run.dart';
-import 'reference_cache.dart';
 
 /// The frontend's catch boundary: every data-source call is wrapped into a
 /// typed [BeakResult], so view models switch on outcomes and never
@@ -25,15 +24,12 @@ import 'reference_cache.dart';
 /// }
 /// ```
 final class BeakResourceRepository {
-  /// Creates a repository over [dataSource], optionally resolving references
-  /// through [referenceCache].
-  const BeakResourceRepository(this.dataSource, {this.referenceCache})
-    : _queries = null;
+  /// Creates a repository over [dataSource].
+  const BeakResourceRepository(this.dataSource) : _queries = null;
 
   /// Shares identical pending queries within one owner. Completed reads are
   /// never cached; call [invalidateQueries] when its data or actor changes.
-  BeakResourceRepository.coalescing(this.dataSource, {this.referenceCache})
-    : _queries = {};
+  BeakResourceRepository.coalescing(this.dataSource) : _queries = {};
 
   final Map<BeakQuerySpec, Future<BeakResult<BeakPage<BeakRecord>>>>? _queries;
 
@@ -43,10 +39,6 @@ final class BeakResourceRepository {
 
   /// The source calls run against.
   final BeakDataSource dataSource;
-
-  /// Coalesces and caches [resolveReference] lookups; when null each one is
-  /// its own `getOne`.
-  final ReferenceCache? referenceCache;
 
   /// Runs an injected typed operation through the same error boundary.
   Future<BeakResult<T>> run<T>(Future<T> Function() operation) =>
@@ -81,19 +73,6 @@ final class BeakResourceRepository {
         await dataSource.getOne(table, id) ??
         (throw BeakNotFoundException('No record of "$table" with id "$id".')),
   );
-
-  /// Fetches one record *by reference* — a foreign key being turned into
-  /// something a person can read.
-  ///
-  /// Unlike [getOne] this may be served from [referenceCache], so every
-  /// picker on a form resolving its prefilled key in the same frame costs one
-  /// `batchGet` between them. Use it where a stale label is harmless and a
-  /// round trip per widget is not; use [getOne] to load a record for editing.
-  Future<BeakResult<BeakRecord>> resolveReference(String table, Object id) =>
-      switch (referenceCache) {
-        null => getOne(table, id),
-        final ReferenceCache cache => beakRun(() => cache.resolve(table, id)),
-      };
 
   /// Fetches many records by id in one round trip, capturing failures as
   /// [BeakErr]. Missing ids are simply absent from the result.

@@ -1,6 +1,6 @@
 /// Beak admin-panel Flutter widgets built on obers_ui: the panel shell,
-/// resource tables, forms, detail views and actions, plus the composable
-/// blocks (metrics, charts, tables, modules) that screens are made of.
+/// resource tables, forms and actions, plus the composable blocks (metrics,
+/// charts, tables, modules) that screens are made of.
 library;
 
 export 'src/actions/beak_action.dart';
@@ -17,9 +17,6 @@ export 'src/blocks/beak_block_host.dart';
 export 'src/blocks/beak_chart_data.dart';
 export 'src/common/hex_color.dart';
 export 'src/localization/beak_localizations.dart';
-export 'src/dashboard/beak_chart.dart';
-export 'src/dashboard/beak_dashboard.dart';
-export 'src/dashboard/beak_stat.dart';
 export 'src/data/beak_relation_loads.dart';
 export 'src/data/beak_resource_repository.dart';
 export 'src/data/beak_record_batch.dart';
@@ -31,20 +28,13 @@ export 'src/form/beak_gallery.dart';
 export 'src/form/beak_stored_image.dart';
 export 'src/data/http_beak_data_source.dart';
 export 'src/data/optimistic.dart';
-export 'src/data/reference_cache.dart';
-export 'src/detail/beak_default_detail_layout.dart';
-export 'src/detail/beak_detail_view.dart';
 export 'src/detail/beak_record_scope.dart';
 export 'src/detail/relation_manager.dart';
 export 'src/di/beak_locator.dart';
 export 'src/overlays/beak_overlays.dart';
 export 'src/filters/beak_default_filters.dart';
 export 'src/filters/beak_filter_widget.dart';
-export 'src/form/beak_form_field.dart';
-export 'src/form/beak_choice_field.dart';
-export 'src/form/beak_form_controller_builder.dart';
-export 'src/form/field_widget_mapper.dart';
-export 'src/form/relation_field.dart';
+export 'src/form/beak_form_controller_builder.dart' show BeakFormValueMode;
 export 'src/form/upload_field.dart';
 export 'src/pages/beak_page_scaffold.dart';
 export 'src/pages/beak_resource_pages.dart';
@@ -55,8 +45,8 @@ export 'src/panel/beak_panel.dart';
 export 'src/panel/beak_command_bar.dart';
 export 'src/panel/beak_notifications.dart';
 export 'src/panel/beak_panel_config.dart';
+export 'src/panel/beak_destination.dart';
 export 'src/panel/beak_resource.dart';
-export 'src/panel/beak_resource_view.dart';
 export 'src/panel/beak_router.dart';
 export 'src/panel/beak_routes.dart';
 export 'src/panel/beak_screen.dart';
@@ -65,7 +55,7 @@ export 'src/state/beak_view_model.dart';
 export 'src/table/beak_data_table.dart';
 export 'src/table/beak_table_action.dart';
 export 'src/table/column_cell_renderer.dart';
-export 'src/table/table_view_model.dart';
+export 'src/table/beak_table_view_model.dart';
 export 'src/query/beak_query_controller.dart';
 export 'src/query/beak_query_scope.dart';
 export 'src/query/beak_list_definition.dart';

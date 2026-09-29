@@ -85,7 +85,6 @@ void main() {
       // Custom columns stay out of auto forms; many-relations wait for edit
       // mode.
       expect(find.text('Badge'), findsNothing);
-      expect(find.byType(BeakBelongsToManyField), findsNothing);
       expect(find.byType(BeakRelationManager), findsNothing);
     });
 
