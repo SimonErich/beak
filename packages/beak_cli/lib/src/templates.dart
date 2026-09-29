@@ -77,6 +77,7 @@ List<String> _columnOptionsOf(BeakFieldSpec field) => <String>[
     'searchable: true',
   if (field.kind == BeakFieldKind.integer ||
       field.kind == BeakFieldKind.decimal ||
+      field.kind == BeakFieldKind.floating ||
       field.kind == BeakFieldKind.dateTime)
     'sortable: true',
   if (field.kind == BeakFieldKind.boolean) 'filterable: true',
@@ -87,7 +88,8 @@ String _authoringTypeOf(BeakFieldKind kind) => switch (kind) {
   BeakFieldKind.string => 'String',
   BeakFieldKind.text => 'BeakText',
   BeakFieldKind.integer => 'int',
-  BeakFieldKind.decimal => 'double',
+  BeakFieldKind.decimal => 'BeakDecimal',
+  BeakFieldKind.floating => 'double',
   BeakFieldKind.boolean => 'bool',
   BeakFieldKind.dateTime => 'DateTime',
 };

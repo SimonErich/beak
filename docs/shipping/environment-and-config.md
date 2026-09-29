@@ -115,7 +115,7 @@ The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for pat
 
 ## `WORM_ENV`
 
-`WORM_ENV` is worm's variable, not Beak's, and it matters in production. It is read from the real process environment only, never from `.env`, and it defaults to `development` when unset.
+`WORM_ENV` is worm's variable, not Beak's, and it matters in production. It is read from the real process environment only, never from `.env`, and it defaults to `development` when unset. The one exception is the guard on `beak migrate fresh` and `refresh`: the CLI reads `WORM_ENV` from `.env` too, so a production marker in the file arms the `--force` requirement.
 
 - `migrate:fresh` and `migrate:refresh` refuse to run under `WORM_ENV=production` without `--force`. Under any other value, including unset, they run, and they roll every migration back first.
 - A seeder can declare the environment it belongs to, and `db:seed` skips seeders declared for another one. Seeders that declare nothing run everywhere, and `db:seed` runs every eligible seeder every time you call it, so write them to be repeatable.

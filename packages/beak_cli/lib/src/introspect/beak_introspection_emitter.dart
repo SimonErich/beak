@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as p;
 
 import '../field_spec.dart';
+import '../inflection.dart';
 import '../project/beak_emitters.dart';
 import 'beak_schema_introspection.dart';
 
@@ -388,6 +389,15 @@ abstract final class BeakIntrospectionEmitter {
 
     final foreignKeyColumns = {for (final fk in table.foreignKeys) fk.column};
     final String? displayColumn = _displayColumnOf(table, foreignKeyColumns);
+    // A serial key is declared as the integer it is. The server mints a string
+    // id only for a string key and leaves an integer one to the database, and
+    // every foreign key that points here takes the key's type.
+    if (_hasIntegerKey(table)) {
+      buffer
+        ..writeln('  /// The primary key.')
+        ..writeln('  late final int? id;')
+        ..writeln();
+    }
     for (final column in table.columns) {
       if (column.name == table.primaryKey ||
           foreignKeyColumns.contains(column.name) ||
@@ -419,6 +429,14 @@ abstract final class BeakIntrospectionEmitter {
           '${column.enumTypeName} enum, but '
           '${column.enumValues.where((v) => !_isDartIdentifier(v)).join(', ')} '
           'cannot be a Dart enum value; it was read as text',
+        );
+      }
+      if (_isNumeric(column)) {
+        notes.add(
+          '${table.name}.${column.name} is ${_numericTypeOf(column)}, read as '
+          'a double, which can round. An exact amount is a BeakDecimal, which '
+          'Beak stores as integer units, so switching means converting the '
+          'column in a migration',
         );
       }
       buffer.writeln('  /// ${_labelOf(column.name)}.');
@@ -700,6 +718,28 @@ abstract final class BeakIntrospectionEmitter {
     };
   }
 
+  /// Whether [table]'s primary key is a serial `id` column.
+  static bool _hasIntegerKey(IntrospectedTable table) {
+    final IntrospectedColumn? key = _columnNamed(table, table.primaryKey);
+    return key != null &&
+        key.name == 'id' &&
+        const {'integer', 'bigint', 'smallint'}.contains(key.dataType);
+  }
+
+  /// Whether [column] is a fixed-point `numeric` or `decimal`.
+  static bool _isNumeric(IntrospectedColumn column) =>
+      const {'numeric', 'decimal'}.contains(column.dataType);
+
+  /// `numeric(12,2)`, or `numeric` when the database declares no width.
+  static String _numericTypeOf(IntrospectedColumn column) {
+    final int? precision = column.numericPrecision;
+    final int? scale = column.numericScale;
+    if (precision == null) {
+      return column.dataType;
+    }
+    return '${column.dataType}($precision${scale == null ? '' : ',$scale'})';
+  }
+
   static IntrospectedColumn? _columnNamed(
     IntrospectedTable table,
     String name,
@@ -751,7 +791,7 @@ abstract final class BeakIntrospectionEmitter {
 }
 
 /// `order_items` -> `OrderItem`, the conventional schema class name.
-String classNameOf(String table) => pascalCaseOf(_singularOf(table));
+String classNameOf(String table) => pascalCaseOf(singularOf(table));
 
 /// `product_status` -> `ProductStatus`, without singularizing.
 ///
@@ -765,7 +805,7 @@ String pascalCaseOf(String snake) => snake
     .join();
 
 /// `order_items` -> `order_item`, the conventional file name.
-String fileNameOf(String table) => _singularOf(table);
+String fileNameOf(String table) => singularOf(table);
 
 /// `created_at` -> `createdAt`.
 String camelCaseOf(String snake) {
@@ -778,22 +818,4 @@ String camelCaseOf(String snake) {
           .skip(1)
           .map((part) => part[0].toUpperCase() + part.substring(1))
           .join();
-}
-
-String _singularOf(String table) {
-  if (table.endsWith('ies')) {
-    return '${table.substring(0, table.length - 3)}y';
-  }
-  if (table.endsWith('ses') ||
-      table.endsWith('xes') ||
-      table.endsWith('ches') ||
-      table.endsWith('shes')) {
-    return table.substring(0, table.length - 2);
-  }
-  // `status`, `address`, `class` and friends end in `s` but are already
-  // singular — stripping it produces `statu`, which no user would ever type.
-  if (table.endsWith('ss') || table.endsWith('us') || table.endsWith('is')) {
-    return table;
-  }
-  return table.endsWith('s') ? table.substring(0, table.length - 1) : table;
 }

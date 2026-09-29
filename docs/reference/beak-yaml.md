@@ -218,7 +218,7 @@ Every problem names the key. Real messages:
 | `resources: {notes: {colour: red}}` | `beak.yaml: unknown key "resources.notes.colour". Expected one of: hidden, icon, label, section.` |
 | `resources: {notes: {icon: file-text}}` | `beak.yaml: resources.notes.icon must be a lowerCamelCase OiIcons name (got "file-text").` |
 | `theme: {sidebar: {collapsible: maybe}}` | `beak.yaml: theme.sidebar.collapsible must be true or false (got maybe).` |
-| `resources: {notez: {icon: fileText}}` | `Cannot generate — fix these first:` then `beak.yaml: resources.notez names no discovered table — did you mean notes?.` |
+| `resources: {notez: {icon: fileText}}` | `Cannot generate: fix these first:` then `beak.yaml: resources.notez names no discovered table, did you mean notes?` |
 | invalid YAML | `beak.yaml: line 2, column 1: While parsing a flow sequence, expected ',' or ']'.` (1-based) |
 
 All exit `1`. `beak doctor` reports the same text as a `FAIL` line and stops there.

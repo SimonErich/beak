@@ -533,19 +533,24 @@ import 'beak/app.g.dart';
 void main() => runApp(const BeakApp());
 ''';
 
-  /// `bin/serve.dart` — serves until told to stop.
+  /// `bin/serve.dart`: serves until told to stop.
   ///
   /// SIGINT (Ctrl+C) and SIGTERM (what a deploy or a container sends) close
   /// the server the host returned, which also stops the outbox loop it runs
   /// while it serves, and then exit cleanly. Requests in flight finish first.
   /// SIGTERM cannot be watched on Windows, where only Ctrl+C reaches a
   /// process.
+  ///
+  /// A configuration the host refuses (a bad `PORT`, `DATABASE_URL` or storage
+  /// variable, or a port that is taken) ends with one line and exit 78, where
+  /// it used to end with "Unhandled exception" and a trace.
   static String serveEntrypoint(String packageName) =>
       '''
 $header
 import 'dart:async';
 import 'dart:io';
 
+import 'package:beak/server.dart' show BeakConfigurationException;
 import 'package:$packageName/beak/server.g.dart';
 
 /// Serves the API until SIGINT or SIGTERM, then shuts down and exits.
@@ -556,7 +561,13 @@ Future<void> main() async {
     ProcessSignal.sigint.watch().first,
     if (!Platform.isWindows) ProcessSignal.sigterm.watch().first,
   ]);
-  final HttpServer server = await beakHost().serve();
+  final HttpServer server;
+  try {
+    server = await beakHost().serve();
+  } on BeakConfigurationException catch (error) {
+    stderr.writeln('error: \${error.message}');
+    exit(78);
+  }
   stderr.writeln('listening on http://\${server.address.host}:\${server.port}');
   await stopped;
   stderr.writeln('shutting down');
@@ -580,17 +591,27 @@ Future<void> main() async {
     return '{$defaults, ...environment ?? BeakEnv.resolve()}';
   }
 
-  /// `bin/migrate.dart` — one statement.
+  /// `bin/migrate.dart`: runs the worm CLI over the host.
+  ///
+  /// A configuration the host refuses ends with one line and exit 78, where it
+  /// used to end with "Unhandled exception" and a trace.
   static String migrateEntrypoint(String packageName) =>
       '''
 $header
 import 'dart:io';
 
+import 'package:beak/server.dart' show BeakConfigurationException;
 import 'package:$packageName/beak/server.g.dart';
 
-/// Runs migrations and seeders (`migrate`, `db:seed`, `migrate:fresh`, …).
-Future<void> main(List<String> args) async =>
+/// Runs migrations and seeders (`migrate`, `db:seed`, `migrate:fresh`, ...).
+Future<void> main(List<String> args) async {
+  try {
     exit(await beakHost().runCli(args));
+  } on BeakConfigurationException catch (error) {
+    stderr.writeln('error: \${error.message}');
+    exit(78);
+  }
+}
 ''';
 
   /// The default `BeakResource` for [model], presented as `beak.yaml` says.

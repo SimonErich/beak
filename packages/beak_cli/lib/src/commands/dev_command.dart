@@ -1,6 +1,7 @@
 import 'package:args/command_runner.dart';
 
 import '../cli_runner.dart';
+import '../project/beak_dotenv.dart';
 import 'prepare_command.dart';
 
 /// Runs a Beak project's backend, after regenerating its wiring.
@@ -104,10 +105,28 @@ enum BeakMigrateVerb {
   /// Roll every migration back, then apply them again.
   refresh('migrate:refresh');
 
+  // --8<-- [end:BeakMigrateVerb]
+
   const BeakMigrateVerb(this.wormCommand);
 
   /// The worm subcommand this runs.
   final String wormCommand;
+
+  /// Whether this verb drops or rewrites tables, and so needs `--force` in
+  /// production.
+  bool get isDestructive => this == fresh || this == refresh;
+
+  /// The flags and options this verb takes, by name.
+  ///
+  /// Worm refuses a flag its subcommand does not know, with its own usage and
+  /// exit `2`, so Beak refuses it first, as the usage error it is.
+  Set<String> get flags => switch (this) {
+    up => const {'pretend', 'step'},
+    status => const {},
+    down => const {'steps'},
+    fresh => const {'seed', 'force'},
+    refresh => const {'force'},
+  };
 
   /// Every verb, spelled as typed and separated by [separator].
   static String spellings(String separator) =>
@@ -226,6 +245,30 @@ final class MigrateCommand extends _WormPassThroughCommand {
   @override
   List<String> get forwardedFlags => const ['pretend', 'seed', 'force'];
 
+  /// The verbs a flag or option belongs to, for the message that says so.
+  static String _homesOf(String name) => BeakMigrateVerb.values
+      .where((verb) => verb.flags.contains(name))
+      .map((verb) => '`beak migrate ${verb.name}`')
+      .join(' or ');
+
+  /// Throws when a flag was passed that [verb] does not take.
+  void _requireFlagsOf(BeakMigrateVerb verb) {
+    for (final name in ['pretend', 'step', 'steps', 'seed', 'force']) {
+      if (!(argResults?.wasParsed(name) ?? false) ||
+          verb.flags.contains(name)) {
+        continue;
+      }
+      final String takes = verb.flags.isEmpty
+          ? 'takes no flags'
+          : 'takes ${(verb.flags.toList()..sort()).map((flag) => '--$flag').join(', ')}';
+      throw UsageException(
+        '--$name applies to ${_homesOf(name)}, not `beak migrate '
+        '${verb.name}`, which $takes.',
+        usage,
+      );
+    }
+  }
+
   @override
   Future<int> run() {
     final List<String> spoken = words;
@@ -245,8 +288,28 @@ final class MigrateCommand extends _WormPassThroughCommand {
         usage,
       );
     }
+    _requireFlagsOf(verb);
+    if (verb.isDestructive && argResults?['force'] != true && _isProduction()) {
+      environment.out.writeln(
+        'error: refusing to run destructive command in production '
+        'without --force',
+      );
+      return Future.value(1);
+    }
     return runWorm(verb.wormCommand);
   }
+
+  /// Whether `WORM_ENV` names production, as the server would resolve it.
+  ///
+  /// Worm's own gate reads the process environment alone, so a `.env` that
+  /// says `WORM_ENV=production` armed nothing. The same message and exit code,
+  /// decided here from the environment the server resolves.
+  bool _isProduction() =>
+      BeakDotenv.resolve(
+        environment.rootDirectory,
+        processEnvironment: environment.processEnvironment,
+      )['WORM_ENV']?.trim().toLowerCase() ==
+      'production';
 }
 
 /// Runs the project's seeders, after regenerating the wiring.

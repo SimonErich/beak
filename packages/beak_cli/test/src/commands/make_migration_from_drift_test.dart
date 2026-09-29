@@ -51,12 +51,16 @@ void main() {
   ///
   /// [tables] is what the injected reader reports; leave it null for a case
   /// whose guard must fail before anything is read.
-  Future<int> run({List<IntrospectedTable>? tables}) async {
+  Future<int> run({
+    List<IntrospectedTable>? tables,
+    Map<String, String> processEnvironment = const {},
+  }) async {
     final environment = BeakCliEnvironment(
       out: out,
       rootDirectory: root,
       now: () => DateTime.utc(2026, 7, 28, 12),
       probe: (host, port) async => false,
+      processEnvironment: processEnvironment,
     );
     final runner = CommandRunner<int>('beak', 'test')
       ..addCommand(
@@ -107,6 +111,32 @@ void main() {
       expect(out.toString(), contains('in-memory'));
     });
 
+    test('a DATABASE_URL from the shell is the one it names', () async {
+      // Read from the .env alone, this compared against the default SQLite
+      // file whatever the shell said.
+      writeSchema(requiredStock: false);
+
+      expect(
+        await run(processEnvironment: {'DATABASE_URL': 'sqlite::memory:'}),
+        1,
+      );
+      expect(out.toString(), contains('in-memory'));
+    });
+
+    test('the shell beats the .env', () async {
+      writeSchema(requiredStock: false);
+      File(
+        '${root.path}/.env',
+      ).writeAsStringSync('DATABASE_URL=mysql://localhost/beak\n');
+
+      expect(
+        await run(processEnvironment: {'DATABASE_URL': 'sqlite::memory:'}),
+        1,
+      );
+      expect(out.toString(), contains('in-memory'));
+      expect(out.toString(), isNot(contains('mysql')));
+    });
+
     test('an unsupported scheme is named', () async {
       writeSchema(requiredStock: false);
       File(
@@ -146,6 +176,18 @@ void main() {
       expect(migration().existsSync(), isFalse);
       expect(out.toString(), contains('! products.stock'));
       expect(out.toString(), contains('needs a decision first'));
+    });
+
+    test('refuses to overwrite a migration of the same name', () async {
+      writeSchema(requiredStock: false);
+      migration()
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('// mine, and already edited\n');
+
+      expect(await run(tables: productsTable(['id', 'name'])), 1);
+
+      expect(migration().readAsStringSync(), '// mine, and already edited\n');
+      expect(out.toString(), contains('already exists'));
     });
 
     test('exits 0 and writes nothing when there is no drift', () async {

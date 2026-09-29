@@ -123,7 +123,7 @@ The last line lists the installed skills by name once `beak agents` has installe
 | --- | --- | --- |
 | Standalone | The project depends on `beak` and boots from `lib/main.dart` | Says whether `lib/main.dart` is generated (`beak eject main` hands it over) or registers each `BeakResource` |
 | Embedded | `panel.entrypoint` in `beak.yaml` names a file other than `lib/main.dart` | Scopes the rules to Beak files, names the entrypoint and the `flutter run -t` command, and leaves the app's own conventions alone |
-| Serverpod admin | The project depends on `beak_serverpod_flutter` | Names the server, client and schema packages, says Serverpod owns the database and its migrations, and tells the agent never to start the server |
+| Serverpod admin | The project depends on `beak_serverpod_flutter` and reaches the server through the tunnel: it uses `serverpodBeakDataSource`, or a package of its workspace depends on `beak_serverpod_server`. A client bridge app, which borrows the package for its sign-in screens alone, gets the standalone or embedded block instead | Names the server, client and schema packages, says Serverpod owns the database and its migrations, and tells the agent never to start the server |
 | Workspace root | The project is a member of a pub workspace | Points at the admin package's `AGENTS.md` |
 
 The templates ship in the docs bundle under `_agents/blocks/`, so a project gets the rules of the Beak version it resolved. The CLI carries the same four as a fallback for a project with no bundle yet. `beak agents --print` renders the block for the current project without writing.

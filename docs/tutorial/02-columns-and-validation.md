@@ -133,8 +133,8 @@ beak migrate
 
 ```console
 $ beak migrate
-  2 models · 2 resource classes · 0 screens · 0 overrides
-  generated  5 of 9 files
+  2 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  4 of 8 files
 migrated  20260929_174339_create_products_table
 ```
 
@@ -212,7 +212,7 @@ beak doctor
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 2 models · 2 resource classes · 0 screens · 0 overrides
+  OK   discovered 2 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
   OK   generated files up to date
   OK   every model has a migration

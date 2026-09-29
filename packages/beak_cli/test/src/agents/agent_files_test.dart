@@ -466,6 +466,10 @@ void main() {
               'acme_beak',
             ],
           )
+          ..write(
+            'app/lib/admin.dart',
+            'final source = serverpodBeakDataSource(dispatch);\n',
+          )
           ..writeBundle()
           ..resolve(['beak_core']);
 
@@ -483,6 +487,27 @@ void main() {
       },
     );
 
+    test('an app that only borrows the Serverpod sign-in gets no admin '
+        'rules', () {
+      fixture
+        ..writeProject(
+          name: 'acme_admin',
+          dependencies: const [
+            'beak',
+            'beak_serverpod',
+            'beak_serverpod_flutter',
+          ],
+        )
+        ..writeBundle()
+        ..resolve(['beak_core']);
+
+      sync();
+
+      final String agents = fixture.read('AGENTS.md');
+      expect(agents, isNot(contains('admin panel for the `acme_server`')));
+      expect(agents, contains('Beak 0.9.0 admin panel'));
+    });
+
     test(
       'a Serverpod admin without client and schema dependencies uses the naming convention',
       () {
@@ -490,6 +515,10 @@ void main() {
           ..writeProject(
             name: 'shop_admin',
             dependencies: const ['beak_serverpod_flutter'],
+          )
+          ..write(
+            'app/lib/admin.dart',
+            'final source = serverpodBeakDataSource(dispatch);\n',
           )
           ..writeBundle()
           ..resolve(['beak_core']);
@@ -552,6 +581,10 @@ void main() {
 
     test('a Serverpod admin adds the server to the root pointer', () {
       member(dependencies: const ['beak_serverpod_flutter', 'app_client']);
+      fixture.write(
+        'app/lib/admin.dart',
+        'final source = serverpodBeakDataSource(dispatch);\n',
+      );
 
       sync();
 

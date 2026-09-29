@@ -1,13 +1,16 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../agents/beak_project_kind.dart';
 import '../cli_runner.dart';
+import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
+import '../schema/beak_migration_order.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
@@ -23,7 +26,13 @@ import 'agents_command.dart';
 /// three entrypoints, so a project contains only the declarations that are
 /// actually its own. An entrypoint without the generated header belongs to
 /// the project and is left alone: that is how an authored `lib/main.dart`,
-/// the one `beak eject main` writes, stays authored.
+/// the one `beak eject main` writes, stays authored. The panel config and the
+/// app widget exist for a generated entrypoint, so with an authored one they
+/// are neither written nor compared, and a pair left behind is deleted (see
+/// [beakPanelWiringIsUsed]).
+///
+/// It refuses a directory that is not a Beak project, and says so when the
+/// project declares no model yet.
 ///
 /// Idempotent: a file whose contents are unchanged is not rewritten, which is
 /// what keeps `beak dev` from thrashing Flutter's file watcher.
@@ -73,6 +82,7 @@ final class BeakPrepareResult {
     required this.discovery,
     required this.written,
     required this.unchanged,
+    this.removed = const [],
   });
 
   /// The `beak.yaml` the run generated from.
@@ -87,6 +97,9 @@ final class BeakPrepareResult {
   /// Paths already up to date.
   final List<String> unchanged;
 
+  /// Generated files this run deleted because nothing uses them any more.
+  final List<String> removed;
+
   /// Whether generation succeeded.
   bool get isSuccess => discovery.issues.isEmpty;
 
@@ -94,25 +107,129 @@ final class BeakPrepareResult {
   int get exitCode => isSuccess ? 0 : 1;
 }
 
-/// The files `beak prepare` owns for a project configured as [config].
+/// The panel wiring `beak prepare` writes for a generated entrypoint: the
+/// panel config and the app widget that runs it.
+const List<String> beakPanelWiringPaths = [
+  'lib/beak/panel.g.dart',
+  'lib/beak/app.g.dart',
+];
+
+/// Whether the project at [root] builds its panel itself: an authored
+/// `lib/main.dart`, or the entrypoint `beak.yaml` names in an app that embeds
+/// the panel.
+bool beakPanelIsAuthored(Directory root, BeakProjectConfig config) =>
+    config.panel.entrypoint != null || BeakAuthoredMain.isAuthored(root);
+
+/// The one-line summary of what a scan found, for `beak prepare` and
+/// `beak doctor`.
+///
+/// An authored panel does not use the screens and override files the scan
+/// looks for, so it says so instead of counting them.
+String beakDiscoverySummary(
+  BeakDiscovery discovery,
+  Directory root,
+  BeakProjectConfig config,
+) => beakPanelIsAuthored(root, config)
+    ? discovery.summaryOfAuthored(config.panel.entrypointPath)
+    : discovery.summary;
+
+/// Whether the project at [root] uses the generated panel wiring.
+///
+/// True for a generated entrypoint, which imports the app widget. An authored
+/// `lib/main.dart`, or the entrypoint `beak.yaml` names in an app that embeds
+/// the panel, builds its own `BeakPanel`, so the wiring is only worth keeping
+/// when a file of the project imports it anyway, a widget test for one.
+bool beakPanelWiringIsUsed(Directory root, BeakProjectConfig config) =>
+    !beakPanelIsAuthored(root, config) || _importsPanelWiring(root);
+
+/// The directive that names the app widget or the panel config.
+///
+/// The word boundary keeps `myapp.g.dart` from counting.
+final RegExp _panelWiringDirective = RegExp(
+  r'''['"][^'"]*\b(?:app|panel)\.g\.dart['"]''',
+);
+
+/// Whether a Dart file of the project outside the wiring names it in a
+/// directive.
+bool _importsPanelWiring(Directory root) {
+  for (final directory in const ['lib', 'test', 'bin', 'integration_test']) {
+    final folder = Directory(p.join(root.path, directory));
+    if (!folder.existsSync()) {
+      continue;
+    }
+    for (final entity in folder.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) {
+        continue;
+      }
+      final String relative = p.posix.joinAll(
+        p.split(p.relative(entity.path, from: root.path)),
+      );
+      if (!beakPanelWiringPaths.contains(relative) &&
+          _panelWiringDirective.hasMatch(entity.readAsStringSync())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/// The panel wiring files Beak generated earlier that are still on disk.
+///
+/// A file without the generated header is the project's and is not listed.
+List<String> beakLeftoverPanelWiring(Directory root) => [
+  for (final path in beakPanelWiringPaths)
+    if (_isGenerated(File(p.join(root.path, path)))) path,
+];
+
+bool _isGenerated(File file) =>
+    file.existsSync() &&
+    file.readAsStringSync().startsWith(BeakAuthoredMain.generatedMarker);
+
+/// The files `beak prepare` owns for the project at [root], configured as
+/// [config].
 ///
 /// [BeakEmitters.all], minus `lib/main.dart` when `beak.yaml` names a
 /// `panel.entrypoint`: an app that embeds the panel keeps its own
-/// `lib/main.dart`, so Beak neither writes it nor compares it. `beak doctor`
+/// `lib/main.dart`, so Beak neither writes it nor compares it. Minus the panel
+/// wiring too, when [beakPanelWiringIsUsed] says nothing uses it. `beak doctor`
 /// asks the same question of the same list, so the two cannot disagree about
 /// which files should exist.
 List<BeakGeneratedFile> beakGeneratedFiles({
+  required Directory root,
   required String packageName,
   required BeakProjectConfig config,
   required BeakDiscovery discovery,
-}) => [
-  for (final file in BeakEmitters.all(
-    packageName: packageName,
-    config: config,
-    discovery: discovery,
-  ))
-    if (config.panel.entrypoint == null || file.path != 'lib/main.dart') file,
-];
+}) {
+  final bool wiring = beakPanelWiringIsUsed(root, config);
+  return [
+    for (final file in BeakEmitters.all(
+      packageName: packageName,
+      config: config,
+      discovery: discovery,
+    ))
+      if ((config.panel.entrypoint == null || file.path != 'lib/main.dart') &&
+          (wiring || !beakPanelWiringPaths.contains(file.path)))
+        file,
+  ];
+}
+
+/// Why the directory at [root] is not somewhere Beak can generate, or `null`
+/// when it is.
+///
+/// A Beak project depends on Beak, and a package of schema classes on
+/// `beak_core`. Anything else is a directory `prepare` would fill with `bin/`
+/// and `lib/` for no reason, and one that `dev`, `migrate`, `seed`,
+/// `make:resource` and `eject` would fail in halfway.
+String? beakNotAProject(Directory root, BeakProjectConfig config) {
+  if (BeakProjectKind.isModelsOnly(root) ||
+      BeakProjectKind.detect(root, config: config) != null) {
+    return null;
+  }
+  return File(p.join(root.path, 'pubspec.yaml')).existsSync()
+      ? BeakProjectKind.notABeakProject
+      : 'no pubspec.yaml here; run `beak create <name>` to start a project, '
+            'or `beak init` in the root of a Flutter app';
+}
 
 /// Runs generation against [environment] and reports what happened.
 ///
@@ -130,15 +247,16 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     root,
     packageName: packageName,
   );
+  if (beakNotAProject(root, config) case final String reason) {
+    return _refused(environment, config, [
+      BeakDiscoveryIssue(path: 'pubspec.yaml', message: reason),
+    ], partsWritten: const []);
+  }
   // --8<-- [start:preparePartsAndScan]
   // Schema classes generate their own part files first, so the models they
   // declare exist before discovery goes looking for them.
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
-  final List<String> schemaFiles = _writeSchemaParts(
-    root,
-    schemas,
-    schemaIssues,
-  ).written;
+  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
+  final parts = _writeSchemaParts(root, schemas, schemaIssues);
 
   final BeakDiscovery discovery = BeakProjectScanner(
     root,
@@ -150,7 +268,12 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   ];
 
   if (allIssues.isNotEmpty) {
-    return _refused(environment, config, allIssues);
+    return _refused(
+      environment,
+      config,
+      allIssues,
+      partsWritten: parts.written,
+    );
   }
   // --8<-- [end:preparePartsAndScan]
 
@@ -181,13 +304,21 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
           root,
         ).scan(tablesByModelClass: _tablesByModelClass(schemas));
 
+  // A table is created after the tables its foreign keys point at, whichever
+  // migration came first: the host registers them in that order.
+  final BeakDiscovery ordered = BeakMigrationOrder.orderedIn(
+    withMigrations,
+    tablesReferencedBy: BeakSchemaEmitter.foreignKeyTargets(schemas),
+  );
+
   // --8<-- [start:prepareWiring]
-  final written = <String>[...schemaFiles, ...migrationFiles];
-  final unchanged = <String>[];
+  final written = <String>[...parts.written, ...migrationFiles];
+  final unchanged = <String>[...parts.unchanged];
   for (final generated in beakGeneratedFiles(
+    root: root,
     packageName: packageName,
     config: config,
-    discovery: withMigrations,
+    discovery: ordered,
   )) {
     final file = File('${root.path}/${generated.path}');
     // Entrypoints are scaffold defaults. Once an application owns one, model
@@ -205,14 +336,29 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     }
   }
   // --8<-- [end:prepareWiring]
+  final removed = <String>[
+    if (!beakPanelWiringIsUsed(root, config)) ...beakLeftoverPanelWiring(root),
+  ];
+  for (final path in removed) {
+    File(p.join(root.path, path)).deleteSync();
+  }
 
-  environment.out.writeln('  ${withMigrations.summary}');
+  environment.out.writeln(
+    '  ${beakDiscoverySummary(withMigrations, root, config)}',
+  );
+  _noteMissingModels(environment, withMigrations);
   _reportFiles(environment, written: written, unchanged: unchanged);
+  if (removed.isNotEmpty) {
+    environment.out.writeln(
+      '  removed    ${removed.join(', ')}: nothing imports them',
+    );
+  }
   return BeakPrepareResult(
     config: config,
-    discovery: withMigrations,
+    discovery: ordered,
     written: written,
     unchanged: unchanged,
+    removed: removed,
   );
 }
 
@@ -227,14 +373,19 @@ BeakPrepareResult _prepareModelsOnly(
 ) {
   final Directory root = environment.rootDirectory;
   final config = BeakProjectConfig.defaults(packageName: packageName);
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
   final parts = _writeSchemaParts(root, schemas, schemaIssues);
   final BeakDiscovery discovery = BeakProjectScanner(
     root,
   ).scanModels(tablesByModelClass: _tablesByModelClass(schemas));
   final allIssues = <BeakDiscoveryIssue>[...schemaIssues, ...discovery.issues];
   if (allIssues.isNotEmpty) {
-    return _refused(environment, config, allIssues);
+    return _refused(
+      environment,
+      config,
+      allIssues,
+      partsWritten: parts.written,
+    );
   }
 
   final written = <String>[...parts.written];
@@ -254,6 +405,7 @@ BeakPrepareResult _prepareModelsOnly(
   environment.out.writeln(
     '  $count ${count == 1 ? 'model' : 'models'} · models-only package',
   );
+  _noteMissingModels(environment, discovery);
   _reportFiles(environment, written: written, unchanged: unchanged);
   return BeakPrepareResult(
     config: config,
@@ -311,21 +463,46 @@ bool _writeIfChanged(File file, String contents) {
 // --8<-- [end:prepareWriteIfChanged]
 
 /// Lists [issues] and returns the result of a run that generated nothing.
+///
+/// The schema parts are written before the scan, because the scan looks for
+/// the models they declare, so a run can be refused after [partsWritten] were
+/// refreshed. Those are named rather than left to the words "cannot generate".
 BeakPrepareResult _refused(
   BeakCliEnvironment environment,
   BeakProjectConfig config,
-  List<BeakDiscoveryIssue> issues,
-) {
-  environment.out.writeln('Cannot generate — fix these first:');
+  List<BeakDiscoveryIssue> issues, {
+  required List<String> partsWritten,
+}) {
+  environment.out.writeln('Cannot generate: fix these first:');
   for (final issue in issues) {
     environment.out.writeln('  ${issue.path}: ${issue.message}');
+  }
+  if (partsWritten.isNotEmpty) {
+    environment.out.writeln(
+      '  Schema parts written before these were found: '
+      '${partsWritten.join(', ')}. Nothing else was generated.',
+    );
   }
   return BeakPrepareResult(
     config: config,
     discovery: BeakDiscovery(issues: issues),
-    written: const [],
+    written: partsWritten,
     unchanged: const [],
   );
+}
+
+/// Says so when the project declares no model, which is a success that would
+/// otherwise look like nothing happened.
+void _noteMissingModels(
+  BeakCliEnvironment environment,
+  BeakDiscovery discovery,
+) {
+  if (discovery.models.isEmpty) {
+    environment.out.writeln(
+      '  no models yet: add a @Resource class under lib/, or run '
+      '`beak make:resource Product`, then `beak prepare` again',
+    );
+  }
 }
 
 /// The line that says how many files were written.

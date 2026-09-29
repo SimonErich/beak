@@ -76,7 +76,7 @@ const Resource({
 
 | Parameter | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `table` | `String?` | class name, snake-cased and pluralised | Physical table name. The pluraliser is naive, see the rules below. |
+| `table` | `String?` | class name, snake-cased and pluralised | Physical table name. The pluraliser is small, see the rules below. |
 | `softDeletes` | `bool` | `false` | Adds a `deletedAt` column (`deleted_at`). Deletes write it instead of removing the row, and the model reports `softDeletes => true`. |
 | `timestamps` | `bool` | `false` | Adds `createdAt` and `updatedAt` (`created_at`, `updated_at`), stamped by the API. |
 | `managesSchema` | `bool` | `true` | `false` when another system migrates the table (a Serverpod model, a database Beak was pointed at). `beak prepare` writes no migration for it. |
@@ -193,7 +193,7 @@ Marks the field that represents a record in pickers, links and titles.
 const Display();
 ```
 
-Without one, Beak uses the first single-line text field that is not a password, and the `id` when there is none. A password field cannot be `@Display`. Put it on one field per class: `beak prepare` does not count them, and the last one declared wins.
+Without one, Beak uses the first single-line text field that is not a password, and the `id` when there is none. A password field cannot be `@Display`. Put it on one field per class: `beak prepare` reports a class that marks two, naming both.
 
 ## Image and FileField
 
@@ -229,7 +229,7 @@ const FileField({
 | `thumbnail` | `BeakDimensions?` | `null` | `@Image` | Size of the thumbnail rendition shown in tables. |
 | `transforms` | `List<BeakImageTransform>` | `[]` | `@Image` | Transforms run on upload, in order: `BeakResizeTransform`, `BeakFormatTransform` (`.webp()`), `BeakThumbnailTransform`. |
 
-A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column, and its `storagePath` is the table name. The annotation constructors require `storagePath`, so `@Image()` with no arguments does not compile. Uploads are covered on [Files and storage columns](../models/files-and-storage-columns.md).
+A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column, and its `storagePath` is the table name. The annotation constructors require `storagePath`, so `beak prepare` reports an `@Image()` or `@FileField()` that does not pass one. Uploads are covered on [Files and storage columns](../models/files-and-storage-columns.md).
 
 ## Badges and EnumLabels
 
@@ -423,13 +423,17 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 | `points at Ghost, which is not a @Resource under lib/.` | The related class has no `@Resource`, or is outside `lib/` | Annotate it, or move it |
 | `currencyFrom #nope must name a String schema field on a BeakDecimal money column.` | `currencyFrom` on the wrong type, or naming a missing or non-`String` field | Point it at a `String` field |
 | `has a field with no declared type.` | `late final x;` | Declare the type |
+| `marks 2 fields @Display (name, sku). Exactly one field is the display column, so keep the annotation on one of them.` | `@Display` on more than one field of a class | Keep it on one |
+| `@Image needs a storagePath, the folder its uploads land in.` | `@Image()` or `@FileField()` without `storagePath` | Write `@Image(storagePath: 'covers')`, or drop the annotation to use the table name |
+| `cannot be generated: the typed record view wraps the underlying record as record` | A field named `record` | Rename the field; keep the column with `@Column(columnName: 'record')` |
+| `has no part directive. Add part 'x.beak.dart';` | The schema file lacks `part '<file>.beak.dart';` | Add it under the imports |
 | `declares no fields, so it has nothing to display.` | An empty schema class | Add a field |
 
 ## Rules and limits
 
 - `beak prepare` reads annotation arguments as source text and re-emits them. Anything valid in a `const` expression works, and the generated file is what the compiler checks.
 - A schema class has to be a `@Resource` under `lib/`. Files ending `.beak.dart`, `.g.dart` or `.freezed.dart`, and files whose name starts with `_`, are not scanned.
-- The pluraliser behind the default table name is naive: it appends `es` after `s`, `x` and `ch`, turns a final `y` into `ies`, and otherwise appends `s`. `Person` becomes `persons`, and `Day` and `Key` become `daies` and `keies`. Set `@Resource(table: 'people')` for an irregular name.
+- The pluraliser behind the default table name knows the regular rules and a short list of irregular words. It appends `es` after `s`, `x`, `z`, `ch` and `sh`, turns a consonant and `y` into `ies`, keeps the `y` after a vowel, and otherwise appends `s`. `Person` becomes `people`, `Day` and `Key` become `days` and `keys`, and `Staff` and `Media` stay as they are. Only the last word of a compound name changes, so `SalesPerson` becomes `sales_people`. Set `@Resource(table: 'analyses')` for a word it does not know, such as `Analysis`, which would otherwise become `analysises`.
 - Renaming a field renames its column key unless `columnName` pins it. Pin it when the table already exists.
 - Annotations declare structure. Presentation lives in the resource, [form screens](screens-and-layouts.md) and `beak.yaml`, and behaviour in the `behavior` getter.
 

@@ -101,8 +101,8 @@ beak prepare
 
 ```console
 $ beak prepare
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  7 of 11 files
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  6 of 9 files
   agents     up to date · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 ```
 
@@ -115,16 +115,16 @@ $ beak doctor
   OK   every model has a migration
   ...
   WARN CategoryAttribute declares table "category_attributes", which the database does not have
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak migrate
   WARN products.category_id is declared by Product.categoryId but missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddCategoryIdToProducts --from-drift, then beak migrate
   WARN products.category_id backs Product.category but is missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddCategoryIdToProducts --from-drift, then beak migrate
   ...
 All checks passed.
 ```
 
-Warnings, not failures, and they are two different problems. The first has a fix waiting: `beak prepare` wrote `create_category_attributes_table.dart` for the new model, exactly as it did for categories. The remedy line is slightly off there, since nothing needs writing. The other two are one problem seen twice. The `products` table exists, and a create-table migration never runs again, so a column you add later needs a migration of its own.
+Warnings, not failures, and they are two different problems, which the remedy lines tell apart. The first has a fix waiting: `beak prepare` wrote `create_category_attributes_table.dart` for the new model, exactly as it did for categories, so `beak migrate` is all it needs. The other two are one problem seen twice. The `products` table exists, and a create-table migration never runs again, so a column you add later needs a migration of its own.
 
 Apply the pending one first:
 
@@ -134,8 +134,8 @@ beak migrate
 
 ```console
 $ beak migrate
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (8 files)
 migrated  20260929_174548_create_category_attributes_table
 ```
 
@@ -185,8 +185,8 @@ beak migrate
 
 ```console
 $ beak migrate
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  1 of 7 files
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  1 of 8 files
 migrated  20260929_174611_add_category_to_products
 ```
 
@@ -344,7 +344,7 @@ beak doctor
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 3 models · 2 resource classes · 0 screens · 0 overrides
+  OK   discovered 3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
   OK   generated files up to date
   OK   every model has a migration

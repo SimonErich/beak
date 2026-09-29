@@ -114,7 +114,7 @@ final class CreateCommand extends Command<int> {
     final String name = rest.single;
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) {
       throw UsageException(
-        '"$name" is not a valid Dart package name — use lower_snake_case.',
+        '"$name" is not a valid Dart package name; use lower_snake_case.',
         invocation,
       );
     }
@@ -132,6 +132,15 @@ final class CreateCommand extends Command<int> {
       final String ref => ref,
       _ => beakReleaseRef,
     };
+    final String projectPath = '${environment.rootDirectory.path}/$name';
+    if (_isOccupied(projectPath)) {
+      environment.out.writeln(
+        '  $name already exists and is not empty. Beak writes a pubspec.yaml, '
+        'a beak.yaml, lib/main.dart, AGENTS.md and README.md, so pick another '
+        'name, or use `beak init` inside an existing Flutter app.',
+      );
+      return 1;
+    }
     final bool authored = argResults?['authored'] == true;
     final bool example = argResults?['example'] != false;
     final bool pub = argResults?['pub'] != false;
@@ -158,8 +167,6 @@ final class CreateCommand extends Command<int> {
       environment.writeFile(file.path, file.contents);
     }
 
-    final String projectPath = '${environment.rootDirectory.path}/$name';
-
     // `web/` is Flutter's to own — index.html, the manifest, and the icon set
     // change between releases, so scaffolding a copy here would rot. Failure
     // is not fatal: the project still builds for every other platform, and
@@ -179,7 +186,7 @@ final class CreateCommand extends Command<int> {
     ], workingDirectory: projectPath);
     if (webExit != 0) {
       environment.out.writeln(
-        '  skipped   web/ — `flutter create --platforms=web .` failed '
+        '  skipped   web/: `flutter create --platforms=web .` failed '
         '(exit $webExit). Run it in the project to build for the web.',
       );
     }
@@ -225,6 +232,7 @@ final class CreateCommand extends Command<int> {
       probe: environment.probe,
       runProcess: environment.runProcess,
       runInteractive: environment.runInteractive,
+      processEnvironment: environment.processEnvironment,
     );
     runPrepare(projectEnvironment);
     refreshAgentFiles(projectEnvironment, installSkills: true, skills: skills);
@@ -243,6 +251,16 @@ final class CreateCommand extends Command<int> {
       skillsOption: skillsOption,
     );
     return 0;
+  }
+
+  /// Whether [path] holds something already: a file, or a folder with
+  /// anything in it. An empty folder is free to use.
+  static bool _isOccupied(String path) {
+    return switch (FileSystemEntity.typeSync(path)) {
+      FileSystemEntityType.notFound => false,
+      FileSystemEntityType.directory => Directory(path).listSync().isNotEmpty,
+      _ => true,
+    };
   }
 
   /// Prints the commands that take the new project from here to running.

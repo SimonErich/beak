@@ -53,7 +53,7 @@ $ beak eject theme
   run `beak prepare` to wire it up
 $ beak prepare
   1 model · 0 resource classes · 0 screens · 1 override
-  generated  1 of 7 files
+  generated  1 of 8 files
 ```
 
 ```dart title="lib/theme.dart"

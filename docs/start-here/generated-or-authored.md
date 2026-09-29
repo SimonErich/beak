@@ -93,11 +93,11 @@ Two checks still run on an authored project: `beak.yaml` must parse, and every `
 | `lib/beak/server.g.dart`, `bin/serve.dart`, `bin/migrate.dart` | Written. | Written. |
 | Create-table migrations for tables without one | Written once. | Written once. |
 | `lib/main.dart` | Rewritten every run. | Never touched. |
-| `lib/beak/panel.g.dart`, `lib/beak/app.g.dart` | Written, and used. | Still written and checked, but nothing imports them. |
+| `lib/beak/panel.g.dart`, `lib/beak/app.g.dart` | Written, and used. | Not written or checked, and deleted if a generated entrypoint left them, unless a file of yours imports one. |
 | Resource classes | Found under `lib/`, used automatically. | Found, but you list them in `resources: [...]`. `beak doctor` warns for each one your `main.dart` leaves out. |
 | `beak make:resource` | Writes the files. | Also prints the line to add to `resources: [...]`. |
 
-If your app is a Flutter app that already has a `lib/main.dart`, `beak init` sets `panel.entrypoint` in `beak.yaml` instead. `beak prepare` then writes everything except `lib/main.dart`, `beak dev` prints `flutter run -d chrome -t lib/admin_main.dart`, and `doctor` walks the panel from that file. [An existing Flutter app](paths/existing-flutter-app.md) is the whole path.
+If your app is a Flutter app that already has a `lib/main.dart`, `beak init` sets `panel.entrypoint` in `beak.yaml` instead. `beak prepare` then writes everything except `lib/main.dart` (and the panel wiring your entrypoint does not import), `beak dev` prints `flutter run -d chrome -t lib/admin_main.dart`, and `doctor` walks the panel from that file. [An existing Flutter app](paths/existing-flutter-app.md) is the whole path.
 
 ## Why it is shaped this way
 

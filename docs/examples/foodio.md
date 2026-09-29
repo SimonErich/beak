@@ -44,8 +44,8 @@ beak dev
 
 ```console
 $ beak seed
-  26 models · 1 resource class · 0 screens · 1 override
-  generated  up to date (7 files)
+  26 models · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (31 files)
 seeded  FoodioSeeder
 ```
 

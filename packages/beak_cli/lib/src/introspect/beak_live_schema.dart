@@ -4,6 +4,7 @@ import 'package:worm/worm.dart';
 import 'package:worm_postgres/worm_postgres.dart';
 import 'package:worm_sqlite/worm_sqlite.dart';
 
+import '../project/beak_dotenv.dart';
 import 'beak_schema_introspection.dart';
 import 'postgres_introspector.dart';
 import 'sqlite_introspector.dart';
@@ -122,19 +123,20 @@ bool beakSqliteFileExists(Uri url, Directory root) {
 /// configured.
 const String defaultSqliteUrl = 'sqlite:beak.db';
 
-/// The `DATABASE_URL` from the project's `.env`, when it declares one.
-Uri? beakDatabaseUrlOf(Directory root) {
-  final env = File('${root.path}/.env');
-  if (!env.existsSync()) {
-    return null;
-  }
-  for (final line in env.readAsLinesSync()) {
-    final match = RegExp(r'^\s*DATABASE_URL\s*=\s*(\S+)\s*$').firstMatch(line);
-    if (match != null) {
-      return Uri.tryParse(match.group(1)!);
-    }
-  }
-  return null;
+/// The `DATABASE_URL` the project's server would use, when one is set.
+///
+/// From the process environment, or failing that the project's `.env`: the
+/// order the server reads them in. `null` means neither sets it, and the
+/// default SQLite file applies.
+Uri? beakDatabaseUrlOf(
+  Directory root, {
+  required Map<String, String> processEnvironment,
+}) {
+  final String? value = BeakDotenv.resolve(
+    root,
+    processEnvironment: processEnvironment,
+  )['DATABASE_URL'];
+  return value == null || value.isEmpty ? null : Uri.tryParse(value);
 }
 
 /// [url] with a relative SQLite path made absolute against [root].

@@ -494,6 +494,36 @@ BeakScreen buildStockScreen() => BeakScreen();
       );
     });
 
+    test(
+      'a variable without a type annotation is found by its initializer',
+      () {
+        // `final aScreen = BeakScreen(...)` used to be skipped without a word,
+        // and the page it declared was simply missing from the panel.
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/screens/reports.dart': '''
+import 'package:beak_frontend/beak_frontend.dart';
+
+final reportsScreen = BeakScreen();
+const auditScreen = BeakScreen();
+var stockScreen = BeakScreen();
+final title = 'Reports';
+final count = compute();
+''',
+          }),
+        ).scan();
+
+        expect(
+          {
+            for (final screen in discovery.screens)
+              screen.name: screen.isConstVariable,
+          },
+          {'auditScreen': true, 'reportsScreen': false, 'stockScreen': false},
+        );
+        expect(discovery.issues, isEmpty);
+      },
+    );
+
     test('a builder taking required arguments is reported', () {
       final discovery = BeakProjectScanner(
         projectWith({
@@ -702,6 +732,87 @@ final class AddStock extends Migration {
         discovery.migratedTables,
         containsAll(<String>['products', 'orders']),
       );
+    });
+
+    test('records which migration creates which table, and only creates', () {
+      // Migrations are registered in this order, and a foreign key needs its
+      // target created first, so the order has to know who creates what. An
+      // `alter` does not create a table.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_commerce_tables.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateCommerceTables extends Migration {
+  @override
+  String get name => '20260101_000000_create_commerce_tables';
+  @override
+  Future<void> upSchema(Schema schema) async {
+    await schema.create('orders', (t) => t.idUuid());
+    await schema.create('order_items', (t) => t.idUuid());
+  }
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+          'lib/migrations/add_stock.dart': '''
+import 'package:beak/migrations.dart';
+
+final class AddStock extends Migration {
+  @override
+  String get name => '20260101_000001_add_stock';
+  @override
+  Future<void> upSchema(Schema schema) =>
+      schema.alter('orders', (t) => t.integer('stock').makeNullable());
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+        }),
+      ).scan();
+
+      expect(discovery.tablesCreatedByMigration, {
+        'CreateCommerceTables': {'orders', 'order_items'},
+      });
+    });
+
+    test('records which migrations take their foreign keys from the model', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_orders_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateOrdersTable extends Migration {
+  @override
+  String get name => '20260101_000000_create_orders_table';
+  @override
+  Future<void> upSchema(Schema schema) => schema.create('orders', (t) {
+    BeakBlueprint.defineColumns(t, const OrderModel());
+    BeakBlueprint.defineForeignKeys(t, const OrderModel());
+  });
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+          'lib/migrations/create_products_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateProductsTable extends Migration {
+  @override
+  String get name => '20260101_000001_create_products_table';
+  @override
+  Future<void> upSchema(Schema schema) => schema.create('products', (t) {
+    t.idUuid();
+    BeakBlueprint.defineColumn(t, ProductColumns.name);
+  });
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+        }),
+      ).scan();
+
+      expect(discovery.migrationsDeclaringKeys, {'CreateOrdersTable'});
     });
 
     test('a pivot counts through the relation constant it names', () {

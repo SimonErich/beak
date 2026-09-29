@@ -20,6 +20,7 @@ import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
+import '../schema/beak_migration_order.dart';
 import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
@@ -153,7 +154,7 @@ Future<List<BeakCheck>> diagnose(
     return [
       const BeakCheck(
         status: BeakCheckStatus.fail,
-        label: 'no pubspec.yaml — this is not a Dart project',
+        label: 'no pubspec.yaml: this is not a Dart project',
         remedy: 'run `beak create <name>` to scaffold one',
       ),
     ];
@@ -223,7 +224,7 @@ Future<List<BeakCheck>> diagnose(
           : BeakCheckStatus.ok,
       label: discovery.models.isEmpty
           ? 'no models found under lib/'
-          : 'discovered ${discovery.summary}',
+          : 'discovered ${beakDiscoverySummary(discovery, root, config)}',
       remedy: discovery.models.isEmpty
           ? 'run `beak make:resource <Name>`, which writes a schema class '
                 'under lib/resources/<plural>/models/'
@@ -236,17 +237,37 @@ Future<List<BeakCheck>> diagnose(
   // Read once: the staleness check, the migration check and the drift check
   // all ask the same question of the same files, and parsing them three
   // times is parsing them three times.
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
+  // `prepare` refuses to generate on these, so a project that has one is not
+  // healthy, and a doctor that stayed quiet about it said "All checks passed"
+  // to a project that could not be generated.
+  final reported = {for (final check in checks) check.label};
+  for (final issue in schemaIssues) {
+    final String label = '${issue.path}: ${issue.message}';
+    if (reported.add(label)) {
+      checks.add(BeakCheck(status: BeakCheckStatus.fail, label: label));
+    }
+  }
+  checks.addAll(_migrationImportChecks(root, packageName));
 
   // Stale generated files are the one failure mode the hidden-entrypoint
   // design introduces, so name it explicitly rather than letting it surface
   // as a confusing compile error.
   final expected = <String, String>{};
   if (discovery.issues.isEmpty) {
+    // The host registers migrations in the order `prepare` gave them, which
+    // is not always the order of their names.
+    final BeakDiscovery ordered = schemaIssues.isEmpty
+        ? BeakMigrationOrder.orderedIn(
+            discovery,
+            tablesReferencedBy: BeakSchemaEmitter.foreignKeyTargets(schemas),
+          )
+        : discovery;
     for (final generated in beakGeneratedFiles(
+      root: root,
       packageName: packageName,
       config: config,
-      discovery: discovery,
+      discovery: ordered,
     )) {
       final file = File('${root.path}/${generated.path}');
       if (!generated.isCommitted &&
@@ -271,6 +292,7 @@ Future<List<BeakCheck>> diagnose(
     }
   }
   checks.add(_generatedFilesCheck(root, expected));
+  checks.addAll(_leftoverWiringChecks(root, config));
 
   checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));
   checks.add(_webScaffoldCheck(root));
@@ -282,7 +304,14 @@ Future<List<BeakCheck>> diagnose(
     ),
   );
   checks.addAll(
-    await _databaseChecks(environment, root, readSchema, schemas, schemaIssues),
+    await _databaseChecks(
+      environment,
+      root,
+      readSchema,
+      schemas,
+      schemaIssues,
+      createdTables: discovery.migratedTables,
+    ),
   );
   checks.addAll(agentChecks(root, config: config));
   return checks;
@@ -314,6 +343,34 @@ BeakCheck _generatedFilesCheck(Directory root, Map<String, String> expected) {
   );
 }
 
+/// A warning for panel wiring that an earlier generated entrypoint left behind.
+///
+/// Once the entrypoint is the project's own, `beak prepare` stops writing the
+/// panel config and the app widget, and would delete the ones on disk. Until
+/// it runs they are files nobody imports that still have to compile.
+List<BeakCheck> _leftoverWiringChecks(
+  Directory root,
+  BeakProjectConfig config,
+) {
+  if (beakPanelWiringIsUsed(root, config)) {
+    return const [];
+  }
+  final List<String> leftover = beakLeftoverPanelWiring(root);
+  if (leftover.isEmpty) {
+    return const [];
+  }
+  return [
+    BeakCheck(
+      status: BeakCheckStatus.warn,
+      label:
+          '${leftover.join(', ')} ${leftover.length == 1 ? 'is' : 'are'} '
+          'left over from a generated entrypoint, and nothing imports '
+          '${leftover.length == 1 ? 'it' : 'them'}',
+      remedy: 'beak prepare',
+    ),
+  ];
+}
+
 /// The diagnosis of a package that only holds schema classes.
 ///
 /// It asks what applies there and nothing else: the schema classes read
@@ -322,7 +379,7 @@ BeakCheck _generatedFilesCheck(Directory root, Map<String, String> expected) {
 /// server and an admin. There is no panel, entrypoint, `beak.yaml`, migration,
 /// database or agent file to be missing.
 List<BeakCheck> _diagnoseModelsOnly(Directory root) {
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
   final BeakDiscovery discovery = BeakProjectScanner(root).scanModels(
     tablesByModelClass: {
       for (final schema in schemas) schema.modelClass: schema.table,
@@ -375,7 +432,7 @@ List<BeakCheck> _diagnoseModelsOnly(Directory root) {
     checks.add(
       const BeakCheck(
         status: BeakCheckStatus.ok,
-        label: 'generated files not checked — fix the schema issues first',
+        label: 'generated files not checked: fix the schema issues first',
       ),
     );
   }
@@ -507,7 +564,7 @@ BeakCheck _migrationCoverageCheck(
     // A schema that does not parse is already a failure of its own.
     return const BeakCheck(
       status: BeakCheckStatus.ok,
-      label: 'migration coverage not checked — fix the schema issues first',
+      label: 'migration coverage not checked: fix the schema issues first',
     );
   }
   final missing = BeakMigrationEmitter.missing(
@@ -736,14 +793,19 @@ Future<List<BeakCheck>> _databaseChecks(
   Directory root,
   BeakLiveSchemaReader readSchema,
   List<BeakSchemaIr> schemas,
-  List<BeakDiscoveryIssue> schemaIssues,
-) async {
+  List<BeakDiscoveryIssue> schemaIssues, {
+  required Set<String> createdTables,
+}) async {
   // No DATABASE_URL is the supported zero-setup default rather than a
   // misconfiguration, so it resolves to the same file the server would use
   // and is checked like any other database. Telling someone their working
   // project is wrong trains them to ignore this output.
-  final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
-  final bool isDefault = beakDatabaseUrlOf(root) == null;
+  final Uri? configuredUrl = beakDatabaseUrlOf(
+    root,
+    processEnvironment: environment.processEnvironment,
+  );
+  final Uri url = configuredUrl ?? Uri.parse(defaultSqliteUrl);
+  final bool isDefault = configuredUrl == null;
   final bool canDrift = schemaIssues.isEmpty && schemas.isNotEmpty;
 
   if (beakIsSqliteUrl(url)) {
@@ -765,7 +827,7 @@ Future<List<BeakCheck>> _databaseChecks(
         BeakCheck(
           status: BeakCheckStatus.ok,
           label: isDefault
-              ? 'no DATABASE_URL — the default SQLite file is not created yet'
+              ? 'no DATABASE_URL: the default SQLite file is not created yet'
               : 'database is SQLite ($file), not created yet',
           remedy: 'beak migrate',
         ),
@@ -775,10 +837,11 @@ Future<List<BeakCheck>> _databaseChecks(
       BeakCheck(
         status: BeakCheckStatus.ok,
         label: isDefault
-            ? 'no DATABASE_URL — using the default SQLite file ($file)'
+            ? 'no DATABASE_URL: using the default SQLite file ($file)'
             : 'database is SQLite ($file)',
       ),
-      if (canDrift) ...await _driftChecks(url, readSchema, schemas, root),
+      if (canDrift)
+        ...await _driftChecks(url, readSchema, schemas, root, createdTables),
     ];
   }
 
@@ -801,7 +864,7 @@ Future<List<BeakCheck>> _databaseChecks(
       label: 'database reachable at ${url.host}:${url.port}',
     ),
     if (canDrift && beakCanReadSchema(url))
-      ...await _driftChecks(url, readSchema, schemas, root),
+      ...await _driftChecks(url, readSchema, schemas, root, createdTables),
   ];
 }
 
@@ -816,6 +879,7 @@ Future<List<BeakCheck>> _driftChecks(
   BeakLiveSchemaReader readSchema,
   List<BeakSchemaIr> schemas,
   Directory root,
+  Set<String> createdTables,
 ) async {
   final List<IntrospectedTable> tables;
   try {
@@ -849,9 +913,106 @@ Future<List<BeakCheck>> _driftChecks(
       BeakCheck(
         status: BeakCheckStatus.warn,
         label: problem.message,
-        remedy: 'write a migration with `beak make:migration`, then `migrate`',
+        remedy: _remedyFor(problem, createdTables),
       ),
   ];
+}
+
+/// What to do about [problem], which depends on why the database differs.
+///
+/// A table that is missing while a migration creates it is a migration that
+/// has not run yet, and `beak migrate` is the fix. A column missing from a
+/// table that exists is drift: the create migration already ran without it,
+/// and `--from-drift` writes the `alter`. Everything else is a decision no
+/// command can make.
+String _remedyFor(BeakDrift problem, Set<String> createdTables) =>
+    switch (problem) {
+      BeakMissingTable(:final table) =>
+        createdTables.contains(table)
+            ? 'beak migrate'
+            : 'beak prepare, which writes the migration, then beak migrate',
+      BeakMissingPivot(:final table, :final schema, :final relation) =>
+        createdTables.contains(table) ||
+                createdTables.contains(
+                  '${schema.relationsClass}.${relation.fieldName}',
+                )
+            ? 'beak migrate'
+            : 'beak prepare, which writes the migration, then beak migrate',
+      BeakMissingColumn(
+        cause: BeakMissingColumnCause.declared ||
+            BeakMissingColumnCause.foreignKey,
+        :final columnKey,
+        :final table,
+      ) =>
+        'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
+            '--from-drift, then beak migrate',
+      BeakMissingColumn() =>
+        'write a migration with `beak make:migration <Name>` (a flag that '
+            'changes more than a column is not something --from-drift adds), '
+            'then beak migrate',
+      BeakUndeclaredColumn(:final schema) =>
+        'declare the field on ${schema.className}, or drop the column in a '
+            'migration written with `beak make:migration <Name>`',
+    };
+
+/// `stock_level` -> `StockLevel`.
+String _pascalOf(String snake) => snake
+    .split('_')
+    .where((word) => word.isNotEmpty)
+    .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+    .join();
+
+/// A failure for each import of a migration that names a file which is gone.
+///
+/// A create-table migration imports the schema file its model lives in, by a
+/// relative path, so moving that file breaks the migration and with it the
+/// whole project. The analyzer says so too, but doctor is the command that
+/// answers "is this project all right", and a project that does not compile
+/// is not.
+List<BeakCheck> _migrationImportChecks(Directory root, String packageName) {
+  final directory = Directory(p.join(root.path, 'lib', 'migrations'));
+  if (!directory.existsSync()) {
+    return const [];
+  }
+  final broken = <BeakCheck>[];
+  final files =
+      directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  for (final file in files) {
+    final String from = p.posix.joinAll(
+      p.split(p.relative(file.path, from: root.path)),
+    );
+    for (final uri in _referencedUrisIn(file.readAsStringSync())) {
+      final String? target = _resolveWithinProject(
+        uri,
+        from: from,
+        packageName: packageName,
+      );
+      if (target != null && !File(p.join(root.path, target)).existsSync()) {
+        broken.add(
+          BeakCheck(
+            status: BeakCheckStatus.fail,
+            label: '$from imports $uri, which does not exist',
+            remedy:
+                'point the import at the file, which may have moved; the '
+                'migration does not compile until it does',
+          ),
+        );
+      }
+    }
+  }
+  return broken.isEmpty
+      ? const [
+          BeakCheck(
+            status: BeakCheckStatus.ok,
+            label: 'migrations import files that exist',
+          ),
+        ]
+      : broken;
 }
 
 /// What a coding agent needs in the project, one check each.
@@ -930,7 +1091,7 @@ List<BeakCheck> agentChecks(
         BeakClaudePairing.unread => check(
           BeakCheckStatus.warn,
           'AGENTS.md exists but no CLAUDE.md reads it, and Claude Code reads '
-          'AGENTS.md only when there is no CLAUDE.md',
+          'CLAUDE.md, not AGENTS.md',
           remedy: 'beak agents',
         ),
         BeakClaudePairing.brokenDotClaudeImport => check(

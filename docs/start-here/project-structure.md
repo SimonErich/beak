@@ -31,8 +31,8 @@ acme_admin/
 │   │   └── create_notes_table.dart  written once by prepare, then yours
 │   └── beak/                     generated wiring, committed, never edited
 │       ├── registry.g.dart       every model
-│       ├── panel.g.dart          the panel configuration
-│       ├── app.g.dart            the BeakApp widget
+│       ├── panel.g.dart          the panel configuration (generated bootstrap only)
+│       ├── app.g.dart            the BeakApp widget (generated bootstrap only)
 │       └── server.g.dart         beakHost(): database, migrations, storage
 ├── bin/
 │   ├── serve.dart                generated, git-ignored: serves the API
@@ -100,9 +100,9 @@ There is no file per field and no file per operation. A small resource is a sche
 - **Never edit generated files.** `*.beak.dart` and `lib/beak/*.g.dart` are rewritten by `beak prepare` and byte-compared by `beak doctor`. A change belongs in the schema class, the resource class or `beak.yaml`.
 - **Commit the generated wiring.** `lib/beak/*.g.dart` and the `*.beak.dart` parts are committed, so a fresh clone analyzes before any `beak` command runs. The three entrypoints (`lib/main.dart` when generated, `bin/serve.dart`, `bin/migrate.dart`) are git-ignored, because they change nothing worth reviewing.
 - **Migrations are yours once written.** `beak prepare` writes a `create_<table>_table.dart` for a table without one and never touches it again. Migrations run in the order of their declared `name` (a timestamp prefix), not their file name.
-- **Move a schema class before its migration exists, or fix the import.** Discovery ignores folders, but the create-table migration imports the schema by relative path. Move `note.dart` afterwards and `dart analyze` fails inside `lib/migrations/`, while `beak doctor` still says OK, because it does not compile.
+- **Move a schema class before its migration exists, or fix the import.** Discovery ignores folders, but the create-table migration imports the schema by relative path. Move `note.dart` afterwards and `dart analyze` fails inside `lib/migrations/`. `beak doctor` fails too, with `lib/migrations/create_notes_table.dart imports ../resources/notes/models/note.dart, which does not exist`.
 - **A resource class must be public, not abstract, and constructible with no arguments** (an unnamed constructor without required parameters). A class with only named constructors is skipped, and its model keeps the generated default.
-- **The folder name is the naive plural of the class.** `Category` becomes `categories`, `Person` becomes `persons`. It only names a folder and a table default; set `@Resource(table:)` to override the table.
+- **The folder name is the plural of the class.** `Category` becomes `categories`, `Person` becomes `people`. It only names a folder and a table default; set `@Resource(table:)` to override the table when the pluraliser does not know the word.
 - **`beak prepare` does not check where it runs.** In an empty directory it writes `bin/` and `lib/`. Run every `beak` command from the project root.
 - **A package of schema classes on its own** (it depends on `beak_core` and not on `beak`) gets the `*.beak.dart` parts and `lib/beak/registry.g.dart` and nothing else. That is the shape of the shared models package in a Serverpod workspace.
 
@@ -129,7 +129,8 @@ The `discovered` line is the fastest way to see what Beak found: models, resourc
 | `lib/resources/<plural>/models/<name>.beak.dart` | `beak prepare` | yes | when the schema changes |
 | `lib/resources/<plural>/<name>_resource.dart` | you (`make:resource`, `eject resource`) | yes | never |
 | `lib/migrations/create_<table>_table.dart` | `beak prepare`, once | yes | never |
-| `lib/beak/registry.g.dart`, `panel.g.dart`, `app.g.dart`, `server.g.dart` | `beak prepare` | yes | when their inputs change |
+| `lib/beak/registry.g.dart`, `server.g.dart` | `beak prepare` | yes | when their inputs change |
+| `lib/beak/panel.g.dart`, `app.g.dart` | `beak prepare`, with a generated `lib/main.dart` | yes | when their inputs change; deleted once the entrypoint is yours |
 | `lib/main.dart` | `beak prepare` (generated) or you (authored) | authored only | generated only |
 | `bin/serve.dart`, `bin/migrate.dart` | `beak prepare` | no | when their inputs change |
 | `lib/screens/*.dart` | you | yes | never |

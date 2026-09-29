@@ -136,10 +136,17 @@ const String serverpodMigrationsTable = 'serverpod_migrations';
 /// The prefix of every table a Serverpod server creates for itself.
 const String serverpodTablePrefix = 'serverpod_';
 
-/// Tables Beak never surfaces: migration bookkeeping written by frameworks.
+/// Tables Beak never surfaces: migration bookkeeping written by frameworks,
+/// Beak's own included.
+///
+/// `beak migrate` creates the receipts and the outbox in every database it
+/// touches, so introspecting one it has already migrated would otherwise
+/// write a resource for each.
 const Set<String> introspectionSkipTables = {
   'migrations',
   'worm_migrations',
+  '_beak_commit_receipts',
+  '_beak_outbox',
   'ar_internal_metadata',
   'knex_migrations_lock',
   serverpodMigrationsTable,

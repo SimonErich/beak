@@ -10,69 +10,75 @@ generated constants (`SupplierColumns.code.key`).
 Migrations run in `name` order, and the stamp in the name (`20260929_054551_...`)
 is what orders them. `beak make:migration` writes it.
 
-## Add columns (what `--from-drift` writes, made safe)
+## Add columns (what `--from-drift` writes)
 
 ```dart
 @override
 Future<void> upSchema(Schema schema) async {
   final live = await schema.adapter.introspectSchema();
-  final missing = [
-    for (final column in [SupplierColumns.code, SupplierColumns.rating])
-      if (!(live['suppliers']?.contains(column.key) ?? false)) column,
-  ];
-  if (missing.isEmpty) {
-    return;
+  if (!_has(live, 'suppliers', 'code')) {
+    await schema.alter('suppliers', (table) {
+      BeakBlueprint.defineColumn(table, SupplierColumns.code);
+    });
   }
-  await schema.alter('suppliers', (table) {
-    for (final column in missing) {
-      BeakBlueprint.defineColumn(table, column);
-    }
-  });
+  if (!_has(live, 'suppliers', 'rating')) {
+    await schema.alter('suppliers', (table) {
+      BeakBlueprint.defineColumn(table, SupplierColumns.rating);
+    });
+  }
 }
 
 @override
 Future<void> downSchema(Schema schema) async {
-  await schema.alter('suppliers', (table) {
-    table.dropColumn('code');
-    table.dropColumn('rating');
-  });
+  final live = await schema.adapter.introspectSchema();
+  if (_has(live, 'suppliers', 'code')) {
+    await schema.alter('suppliers', (table) {
+      table.dropColumn('code');
+    });
+  }
+  // ... and the same for rating.
 }
+
+/// Whether [column] is already in [table] of the live schema.
+static bool _has(Map<String, List<String>> live, String table, String column) =>
+    live[table]?.contains(column) ?? false;
 ```
 
-`BeakBlueprint.defineColumn` derives the type, length, scale and default from
-the field, so the alter and the create migration cannot become different
-columns.
+The guard is the point: a fresh database already has the column from the
+create migration, so an unguarded `alter` fails there with a duplicate-column
+error. `BeakBlueprint.defineColumn` derives the type, length, scale and default
+from the field, so the alter and the create migration cannot become different
+columns. Copy this shape into a migration you write by hand.
 
 ## Add a belongs-to relation
 
-`--from-drift` writes the foreign-key column as a plain column. Replace its
-body so the constraint matches what a fresh database gets:
+`--from-drift` writes the key column, its index and its constraint together,
+the way a create migration does, read from the relationship constant:
 
 ```dart
-final live = await schema.adapter.introspectSchema();
-if (live['suppliers']?.contains(SupplierColumns.backupCompanyId.key) ?? false) {
-  return;
-}
 await schema.alter('suppliers', (table) {
   BeakBlueprint.defineColumn(
     table,
     SupplierColumns.backupCompanyId,
     isForeignKey: true,
   );
-  table.index([SupplierColumns.backupCompanyId.key]);
+  final relation = SupplierRelations.backupCompany;
+  table.index([relation.foreignKey]);
   table.foreign(
-    column: SupplierColumns.backupCompanyId.key,
+    column: relation.foreignKey,
     references: 'id',
-    onTable: 'companies',
-    onDelete: OnDelete.setNull,
+    onTable: relation.relatedTable,
+    onDelete: wormOnDelete(relation.onDelete),
   );
 });
 ```
 
 Declared in the same `alter` as its column, the reference is additive on
-SQLite too. A many-to-many needs a pivot table: `BeakBlueprint.createPivot(
-schema, XRelations.tags, ownerTable: 'products')`, guarded by the same
-`introspectSchema()` check on the pivot name.
+SQLite too. Its `downSchema` drops the index first
+(`table.dropIndex('suppliers_backup_company_id_idx')`) and then the column,
+because SQLite refuses to drop an indexed column. A many-to-many needs a pivot
+table: `BeakBlueprint.createPivot(schema, XRelations.tags, ownerTable:
+'products')`, guarded by the same `introspectSchema()` check on the pivot name.
 
 ## Required column on a table with rows
 

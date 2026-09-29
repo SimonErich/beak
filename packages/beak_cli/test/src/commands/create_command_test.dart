@@ -82,6 +82,42 @@ void main() {
 
   bool exists(String path) => File('${root.path}/$path').existsSync();
 
+  group('a directory that is already there', () {
+    test('that is not empty is refused, and nothing in it is touched', () async {
+      // It used to overwrite pubspec.yaml, beak.yaml, lib/main.dart, AGENTS.md
+      // and README.md of whatever project lived there.
+      File('${root.path}/acme_admin/pubspec.yaml')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('name: precious\n');
+
+      final int code = await create(['acme_admin']);
+
+      expect(code, 1);
+      expect(read('acme_admin/pubspec.yaml'), 'name: precious\n');
+      expect(exists('acme_admin/beak.yaml'), isFalse);
+      expect(spawned, isEmpty);
+      expect(interactive, isEmpty);
+      expect(out.toString(), contains('acme_admin already exists'));
+      expect(out.toString(), contains('not empty'));
+    });
+
+    test('that is empty is used', () async {
+      Directory('${root.path}/acme_admin').createSync();
+
+      expect(await create(['acme_admin', '--no-pub']), 0);
+
+      expect(exists('acme_admin/beak.yaml'), isTrue);
+    });
+
+    test('that is a file is refused', () async {
+      File('${root.path}/acme_admin').writeAsStringSync('not a folder');
+
+      expect(await create(['acme_admin']), 1);
+
+      expect(out.toString(), contains('acme_admin already exists'));
+    });
+  });
+
   group('scaffold', () {
     test('writes only the files a user actually owns', () async {
       expect(await create(['acme_admin']), 0);
@@ -234,14 +270,14 @@ void main() {
       expect(resource, isNot(contains('stays as Beak generates it')));
     });
 
-    test('prepare leaves the entrypoint alone, and finds the class', () async {
+    test('prepare leaves the entrypoint alone, and writes no panel that '
+        'nothing imports', () async {
       await create(['acme_admin', '--authored']);
 
       expect(read('acme_admin/lib/main.dart'), isNot(contains('GENERATED')));
-      expect(
-        read('acme_admin/lib/beak/panel.g.dart'),
-        contains('NoteResource()'),
-      );
+      expect(read('acme_admin/lib/main.dart'), contains('NoteResource()'));
+      expect(exists('acme_admin/lib/beak/panel.g.dart'), isFalse);
+      expect(exists('acme_admin/lib/beak/app.g.dart'), isFalse);
     });
 
     test(

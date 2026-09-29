@@ -37,8 +37,8 @@ beak dev
 
 ```console
 $ beak migrate
-  14 models · 4 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  14 models · 4 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (19 files)
 migrated  20260926_000000_beak_commit_receipts
 migrated  20260927_000000_beak_outbox
 migrated  20260929_054949_create_assets_table
@@ -50,8 +50,8 @@ $ beak seed
 seeded  AviarySeeder
 
 $ beak dev
-  14 models · 4 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  14 models · 4 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (19 files)
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…

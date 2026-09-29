@@ -173,8 +173,8 @@ A schema class imports `beak.dart` and `schema.dart` and nothing else. `beak.dar
 
 - **No database step.** With no `DATABASE_URL`, the database is `beak.db` beside the project, and `beak doctor` counts that as a pass. Put `DATABASE_URL=postgres://...` in a `.env` when you want Postgres. [Databases](../backend/databases.md) covers it.
 - **Beak never changes a database on boot.** `beak migrate` applies migrations, and you run it on purpose, once per schema change.
-- **`beak create` into a directory that already has files overwrites `pubspec.yaml`, `beak.yaml`, `lib/main.dart`, `AGENTS.md` and `README.md`.** Create into a new directory. To add Beak to a Flutter app you already have, use [`beak init`](paths/existing-flutter-app.md) instead.
-- **`beak prepare`, `dev` and `migrate` do not check that they run inside a Beak project.** In an empty directory `beak prepare` writes `bin/` and `lib/` there. Run them from the project root.
+- **`beak create` refuses a directory that already has files.** It exits `1` and writes nothing; an empty directory is fine. To add Beak to a Flutter app you already have, use [`beak init`](paths/existing-flutter-app.md) instead.
+- **`beak prepare`, `dev` and `migrate` run from the project root.** Elsewhere they stop with `no Beak dependency here; run beak init` and write nothing.
 - **A `--beak-path` dependency is local.** The scaffold records the checkout's path, so it is a convenience for your machine and not something to commit for a team.
 - **The panel does not compile against the pinned obers_ui yet.** See [Link obers_ui](#link-obers_ui-until-the-pin-moves) above; the API and the migrations are unaffected.
 

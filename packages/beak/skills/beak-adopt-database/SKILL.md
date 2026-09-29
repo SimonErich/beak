@@ -51,17 +51,21 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md`,
    `external`). `--save-url` writes `DATABASE_URL=<url>` into `.env`, which must
    stay git-ignored because the URL can hold a password. A table with only a key
    pair becomes a many-to-many, not a resource.
-6. Review each generated schema class. Introspection marks `@Display()` only on
-   a `String` column named `name`, `title`, `label`, `email` or `subject`. Where
-   none is marked, pickers and titles show ids: add `@Display()` to the field
-   that names a record. SQLite `TEXT` comes out as `BeakText`; change short
-   names to `String` (with `@Column(rules: [BeakMaxLength(n)])`) first.
+6. Review each generated schema class. Introspection marks `@Display()` on the
+   best-named text column (`name`, then `title`, `label`, `email`, `code`,
+   `subject`), as a `String` or a `BeakText` (SQLite declares nearly every
+   string as `TEXT`, which comes out as `BeakText`). Where none is marked, pickers and
+   titles show ids: add `@Display()` to the field that names a record. Change
+   short names from `BeakText` to `String` (with
+   `@Column(rules: [BeakMaxLength(n)])`) where a single line is right.
 7. Run `beak prepare` and fix every issue it lists.
-8. Adopt only: `beak migrate` records the baseline and creates nothing that
-   exists. Confirm with `dart run bin/migrate.dart migrate:status` (the
-   baseline is `applied`). External: never run `beak migrate`, `migrate:fresh` or
-   `migrate:refresh` against that database. Never run them against production
-   in either mode.
+8. Adopt: `beak migrate` records the baseline and creates nothing that
+   exists. Confirm with `beak migrate status` (the baseline is `applied`).
+   External: run `beak migrate` once, for Beak's own tables only
+   (`_beak_commit_receipts`, `_beak_outbox`, `worm_migrations`); it touches none
+   of yours, and saves fail without the receipts table. Never run
+   `migrate:fresh` or `migrate:refresh` against either kind of database, and
+   never run `beak migrate` against production without a backup.
 9. Run `beak doctor` and read its drift lines. Expect one "in the database but
    ... does not declare it" WARN per omitted secret column; anything else is a
    real difference to fix in the schema class or, for adopt, with
@@ -80,7 +84,7 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md`,
 `beak doctor` reports no failure and no unexplained drift, `dart format .`,
 `flutter analyze` and `flutter test` are clean. For adopt, a fresh empty
 database migrates completely
-(`DATABASE_URL=sqlite:fresh.db dart run bin/migrate.dart migrate`).
+(`DATABASE_URL=sqlite:fresh.db beak migrate`).
 
 ## Example prompt
 

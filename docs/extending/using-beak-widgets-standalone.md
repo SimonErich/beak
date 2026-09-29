@@ -34,8 +34,8 @@ $ beak init --example
   created lib/resources/notes/models/note.dart
   created lib/resources/notes/note_resource.dart
   created .gitignore
-  1 model · 1 resource class · 0 screens · 0 overrides
-  generated  8 of 8 files
+  1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
+  generated  6 of 6 files
   agents     AGENTS.md created · CLAUDE.md created · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 
   next:
@@ -198,7 +198,7 @@ For the second-entrypoint route, `beak doctor` checks that the entrypoint lists 
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 1 model · 1 resource class · 0 screens · 0 overrides
+  OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
   OK   lib/admin_main.dart lists every resource class
   OK   generated files up to date
   ...

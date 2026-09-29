@@ -82,10 +82,10 @@ Do the server half before you share a link, not after.
 
 ## Rules and limits
 
-- **`beak create` into a directory that already has files overwrites** `pubspec.yaml`, `beak.yaml`, `lib/main.dart`, `AGENTS.md` and `README.md`. Give it a new directory.
+- **`beak create` refuses a directory that already has files.** It exits `1` and writes nothing, so give it a new name or an empty directory.
 - **A project name is `lower_snake_case`**, because it becomes the Dart package name. `beak create Acme` is a usage error.
 - **`beak create` runs `flutter pub get`**, so it needs the network unless you pass `--no-pub`. With `--no-pub` you run `flutter pub get`, `beak prepare` and `beak agents` yourself.
-- **`beak prepare` on a project with no models succeeds without a warning.** The output says `0 models`; that line is the only hint.
+- **`beak prepare` on a project with no models succeeds, and says so.** It ends the summary with `no models yet: add a @Resource class under lib/, or run beak make:resource Product`.
 - **The default `.gitignore` keeps `beak.db`, `.env` and `storage/` out of git.** A generated project also ignores `lib/main.dart`; an authored one commits it.
 - **Coding agents get a head start.** `beak create` writes `AGENTS.md` and `CLAUDE.md` and installs the workflow skills into `.claude/skills` and `.agents/skills`. `--skills none` skips them, and `beak agents` updates them later.
 
@@ -95,7 +95,7 @@ Do the server half before you share a link, not after.
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 1 model · 1 resource class · 0 screens · 0 overrides
+  OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
   OK   generated files up to date
   OK   every model has a migration

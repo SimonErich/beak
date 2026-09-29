@@ -78,8 +78,8 @@ $ beak create shop --authored --no-example
 Resolving dependencies...
 ...
 Changed 142 dependencies!
-  0 models · 0 resource classes · 0 screens · 0 overrides
-  generated  6 of 7 files
+  0 models · 0 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  4 of 5 files
   agents     AGENTS.md updated · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 
   next:
@@ -133,18 +133,20 @@ beak prepare
 
 ```console
 $ beak prepare
-  1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  5 of 9 files
+  1 model · 0 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  4 of 7 files
   agents     up to date · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 ```
 
-`beak prepare` reads every schema class, resource class and screen under `lib/` plus `beak.yaml`, and writes what is missing or stale. Five files changed here:
+`beak prepare` reads every schema class, resource class and screen under `lib/` plus `beak.yaml`, and writes what is missing or stale. Four files changed here:
 
 | File | What it is |
 | --- | --- |
 | `lib/resources/categories/models/category.beak.dart` | The typed columns, `CategoryModel`, the typed record view. Regenerated on every run. |
 | `lib/migrations/create_categories_table.dart` | The migration that creates the table. Written once, then yours. |
-| `lib/beak/registry.g.dart`, `panel.g.dart`, `server.g.dart` | The model registry, the panel configuration and the server host. |
+| `lib/beak/registry.g.dart`, `server.g.dart` | The model registry and the server host. |
+
+There is no `panel.g.dart` in this project. `lib/main.dart` is yours and builds its own `BeakPanel`, so `prepare` leaves the generated panel config out.
 
 Open the part file. This is the column your two fields turned into, with the rules you never typed:
 
@@ -248,8 +250,8 @@ beak migrate
 
 ```console
 $ beak migrate
-  1 model · 1 resource class · 0 screens · 0 overrides
-  generated  1 of 7 files
+  1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (6 files)
 migrated  20260926_000000_beak_commit_receipts
 migrated  20260927_000000_beak_outbox
 migrated  20260929_174129_create_categories_table
@@ -265,8 +267,8 @@ beak dev
 
 ```console
 $ beak dev
-  1 model · 1 resource class · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (6 files)
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
@@ -328,7 +330,7 @@ beak doctor
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 1 model · 1 resource class · 0 screens · 0 overrides
+  OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
   OK   generated files up to date
   OK   every model has a migration

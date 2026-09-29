@@ -45,6 +45,8 @@ final class Customer extends BeakSchema {
   late final String? table;
   late final String? fields;
   late final String? search;
+  late final String? summary;
+  late final String? sumDecimal;
 }
 ''');
       write('lib/resources/order/order.dart', '''
@@ -127,6 +129,8 @@ void main() {
   final BeakScalarField<String> reserved = CustomerModel.fields.table;
   final BeakScalarField<String> nestedReserved = OrderModel.customer.fields.fields;
   if (reserved.key != 'table' || nestedReserved.qualifiedKey != 'customer.fields') throw StateError('reserved fields unavailable');
+  final BeakScalarField<String> summary = CustomerModel.fields.summary;
+  if (summary.key != 'summary' || CustomerModel.fields.sumDecimal.key != 'sum_decimal') throw StateError('model member names unavailable');
   final BeakOptionQuery options = CustomerModel.search('ada', filter: CustomerModel.email.contains('@'));
   if (options.query.table != 'customers') throw StateError('wrong query owner');
   const validation = BeakValidation();

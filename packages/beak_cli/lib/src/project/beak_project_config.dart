@@ -586,13 +586,14 @@ List<BeakDiscoveryIssue> beakConfigIssues(
           path: 'beak.yaml',
           message:
               'resources.$key names no discovered table'
-              '${beakDidYouMean(key, tables)}.',
+              '${beakDidYouMean(key, tables)}',
         ),
   ];
 }
 
-/// A ` — did you mean orders?` hint naming the table in [tables] closest to
-/// [key], when one is close enough to be worth suggesting, and otherwise ''.
+/// The end of a sentence about the table [key], which no table is called:
+/// `, did you mean orders?` naming the table in [tables] closest to it, when
+/// one is close enough to be worth suggesting, and otherwise a full stop.
 String beakDidYouMean(String key, Set<String> tables) {
   var best = '';
   var bestDistance = 1 << 30;
@@ -604,7 +605,7 @@ String beakDidYouMean(String key, Set<String> tables) {
     }
   }
   // Beyond a third of the word the suggestion is noise, not help.
-  return bestDistance <= key.length ~/ 3 + 1 ? ' — did you mean $best?' : '';
+  return bestDistance <= key.length ~/ 3 + 1 ? ', did you mean $best?' : '.';
 }
 
 /// Levenshtein distance between [a] and [b].

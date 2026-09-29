@@ -67,7 +67,7 @@ The `part` line is the one thing to remember: the generated file is a part of yo
 | `timestamps` | `false` | Adds `created_at` and `updated_at` |
 | `managesSchema` | `true` | `false` when another system migrates the table |
 
-The default table name is deliberately naive: `Category` becomes `categories`, `Box` becomes `boxes`, `Person` becomes `persons`. Set `table:` for anything irregular. `managesSchema: false` is for a Serverpod model or a database Beak was pointed at: `beak prepare` writes no migration for it and everything else works the same.
+The default table name is the plural of the class name: `Category` becomes `categories`, `Box` becomes `boxes`, `Person` becomes `people`. The pluraliser knows the regular rules and a short list of irregular words, so set `table:` for anything else. `managesSchema: false` is for a Serverpod model or a database Beak was pointed at: `beak prepare` writes no migration for it and everything else works the same.
 
 ### Nullability means required
 
@@ -146,7 +146,7 @@ A brand new resource needs no step 3: `beak prepare` writes `lib/migrations/crea
 `beak prepare` reads all your schemas before it writes anything, and refuses the whole run if any of them cannot be mapped. It reports every problem at once, at the declaration that caused it. This is real output for a schema with four mistakes:
 
 ```text
-Cannot generate — fix these first:
+Cannot generate: fix these first:
   lib/models/product.dart: Product.link is a Uri, which Beak cannot map to a column. Use a supported type, annotate it with @BelongsTo / @HasMany for a relationship, or @Custom for an opaque value.
   lib/models/product.dart: Product.code: @Column(maxLength:) was removed. Declare the bound as a rule instead: rules: [BeakMaxLength(10)].
   lib/models/product.dart: Product.cost: currencyFrom #curency must name a String schema field on a BeakDecimal money column.
@@ -164,7 +164,7 @@ Symbols such as `#curency` and `#nme` are checked against the schema, so a typo 
 - **Renaming a field renames its column.** `--from-drift` adds the new column and leaves the old one alone, because it cannot know the data should move. Pin the old name with `@Column(columnName: 'old_name')` when the column must stay.
 - **Shared rules live on the class.** Static getters named `validationRules`, `behavior`, `permissions` and `capabilities` are forwarded to the generated model. See [Validation](validation.md) and [Model behavior](behavior.md).
 - **A package of schemas only.** A pure Dart package that depends on `beak_core` alone gets the `.beak.dart` parts and `lib/beak/registry.g.dart` from `beak prepare`, and no panel, server or entrypoint.
-- **Field names that collide.** A field named like a member of `BeakModel` gets no static shortcut, and `summary` and `record` are missing from that list, so those two produce a part that does not compile. See [Generated code](generated-code.md#rules-and-limits).
+- **Field names that collide.** A field named like a member of `BeakModel` gets no static shortcut, and a field named `record` is reported by `beak prepare` because the typed record view already owns that name. See [Generated code](generated-code.md#rules-and-limits).
 
 ## Verify it
 

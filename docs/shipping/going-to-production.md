@@ -123,7 +123,7 @@ $ ./build/serve/bundle/bin/serve
 listening on http://127.0.0.1:8080
 ```
 
-A setting the host refuses (a `PORT` that is not a number, an unsupported `DATABASE_URL`, a storage variable it cannot use) ends the process with one line on stderr and exit `78`. A port that is already taken ends it with one line naming `PORT` and exit `69`. Neither prints a stack trace.
+A setting the host refuses (a `PORT` that is not a number, an unsupported `DATABASE_URL`, a storage variable it cannot use, a port that is already taken) ends the process with one line on stderr and exit `78`. It prints no stack trace.
 
 Two probes sit outside `/api` and outside authentication, so a platform can ask them without a token. `/healthz` is 200 while the process serves and never touches the database, so a database outage cannot cause a restart loop. `/readyz` is 200 when the data source answers and 503 when it does not, with no cause in the body:
 

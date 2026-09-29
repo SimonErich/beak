@@ -5,6 +5,7 @@ import 'package:yaml/yaml.dart';
 
 import '../project/beak_project_config.dart';
 import 'beak_block_renderer.dart';
+import 'beak_workspace.dart';
 
 /// What sort of Beak project a directory holds, which decides the rules its
 /// `AGENTS.md` carries.
@@ -43,8 +44,10 @@ enum BeakProjectKind {
 
   /// The kind of the project at [root], or `null` without a Beak app.
   ///
-  /// In this order: a dependency on `beak_serverpod_flutter` is a Serverpod
-  /// admin; a `panel.entrypoint` in `beak.yaml` other than `lib/main.dart` is
+  /// In this order: a dependency on `beak_serverpod_flutter` together with the
+  /// tunnel to a Serverpod server is a Serverpod admin (a client bridge app
+  /// depends on the package for its sign-in screens alone, and is not one); a
+  /// `panel.entrypoint` in `beak.yaml` other than `lib/main.dart` is
   /// an embedded panel; any other Beak dependency is a standalone app. A
   /// package that depends on `beak_core` alone has none of them: see
   /// [isModelsOnly].
@@ -53,7 +56,8 @@ enum BeakProjectKind {
     required BeakProjectConfig config,
   }) {
     final Set<String> dependencies = dependenciesOf(root);
-    if (dependencies.contains('beak_serverpod_flutter')) {
+    if (dependencies.contains('beak_serverpod_flutter') &&
+        _opensServerpodTunnel(root)) {
       return serverpodAdmin;
     }
     if (!dependencies.any(_isBeakPackage) || _isModelsOnly(dependencies)) {
@@ -64,6 +68,40 @@ enum BeakProjectKind {
             entrypoint != BeakPanelSettings.defaultEntrypoint
         ? embedded
         : standalone;
+  }
+
+  /// The word that marks the admin app's data source, which reaches Beak's
+  /// API through the Serverpod endpoint.
+  static const String _tunnelSymbol = 'serverpodBeakDataSource';
+
+  /// The package that mounts Beak's API in a Serverpod server.
+  static const String _tunnelServerPackage = 'beak_serverpod_server';
+
+  /// Whether the app at [root] reaches a Serverpod server through the tunnel.
+  ///
+  /// True when a file under its `lib/` uses `serverpodBeakDataSource`, or a
+  /// sibling package of its pub workspace depends on `beak_serverpod_server`,
+  /// which is where the tunnel's other end lives.
+  static bool _opensServerpodTunnel(Directory root) =>
+      _usesTunnelDataSource(root) || _hasTunnelServerInWorkspace(root);
+
+  static bool _usesTunnelDataSource(Directory root) {
+    final lib = Directory(p.join(root.path, 'lib'));
+    if (!lib.existsSync()) {
+      return false;
+    }
+    return lib
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .any((file) => file.readAsStringSync().contains(_tunnelSymbol));
+  }
+
+  static bool _hasTunnelServerInWorkspace(Directory root) {
+    final workspace = BeakWorkspace.locate(root);
+    return workspace.memberDirectories
+        .where((member) => !p.equals(member.path, root.path))
+        .any((member) => dependenciesOf(member).contains(_tunnelServerPackage));
   }
 
   /// Whether the package at [root] only holds Beak schema classes.

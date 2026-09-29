@@ -41,8 +41,8 @@ beak dev
 
 ```console
 $ beak migrate
-  20 models · 11 resource classes · 0 screens · 1 override
-  generated  up to date (7 files)
+  20 models · 11 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (25 files)
 migrated  20260926_000000_beak_commit_receipts
 migrated  20260927_000000_beak_outbox
 migrated  20260926_201252_create_companies_table
@@ -54,8 +54,8 @@ migrated  20260927_012942_create_product_images_table
 migrated  20260927_230000_add_variant_combinations
 
 $ beak seed
-  20 models · 11 resource classes · 0 screens · 1 override
-  generated  up to date (7 files)
+  20 models · 11 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (25 files)
 seeded  ShopSeeder
 ```
 

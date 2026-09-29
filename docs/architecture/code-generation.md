@@ -98,7 +98,7 @@ The reader collects every problem instead of stopping at the first, and `prepare
 
 ```console
 $ beak prepare
-Cannot generate — fix these first:
+Cannot generate: fix these first:
   lib/resources/notes/models/note.dart: Note.link is a Uri, which Beak cannot map to a column. Use a supported type, annotate it with @BelongsTo / @HasMany for a relationship, or @Custom for an opaque value.
 ```
 
@@ -156,7 +156,7 @@ The parts exist now, so `BeakProjectScanner` can look at everything else. It is 
 | Models | anywhere under `lib/` | `extends BeakModel`, directly or through one base class in the project | needs a zero-argument `const` constructor, else it is an issue; duplicate class names are an issue |
 | Resource classes | anywhere under `lib/` (not `*.beak.dart`) | `extends BeakResource`, same one-base rule | public, not `abstract` or `sealed`, unnamed constructor without required arguments; others are skipped without a message |
 | Screens | `lib/screens/` | a top-level variable with the declared type `BeakScreen`, or a zero-argument function returning one | an untyped `final s = BeakScreen(...)` is skipped without a message; a function with required parameters is an issue |
-| Migrations | `lib/migrations/` | `extends Migration` or `BeakBaselineMigration`, `const` constructor | ordered by the declared `name`, not by file name |
+| Migrations | `lib/migrations/` | `extends Migration` or `BeakBaselineMigration`, `const` constructor | ordered by the declared `name`, not by file name, with a create-table migration moved behind the tables its foreign keys point at |
 | Seeders | `lib/seeders/` | `extends Seeder`, `const` constructor | |
 | Overrides | four files in `lib/` | a top-level function of the expected name | see below |
 
@@ -228,7 +228,7 @@ BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
 );
 ```
 
-The two framework migrations come first, then yours, ordered by their declared `name`. Sorting by file name would put `create_order_items_table.dart` before `create_orders_table.dart` and the foreign key would point at a table that does not exist yet. See [Graph commits](graph-commits.md) for what the receipts and outbox tables are for.
+The two framework migrations come first, then yours, ordered by their declared `name`. Sorting by file name would put `create_order_items_table.dart` before `create_orders_table.dart` and the foreign key would point at a table that does not exist yet. Name order alone is not enough either: a create migration reads the model as it is now, so a table made in week one can point at a table made in week three. `prepare` moves the migration that creates the target ahead of the first create migration whose keys point at it (`BeakMigrationOrder`), and `doctor` compares the host with the same order. See [Graph commits](graph-commits.md) for what the receipts and outbox tables are for.
 
 With a discovered resource class, the panel merges it into the defaults. This is generated output from a scratch copy of the quickstart after `beak eject resource notes`:
 
@@ -285,10 +285,10 @@ $ beak prepare
   generated  9 of 9 files
 $ beak prepare
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
 ```
 
-The first run wrote the part, the migration and the seven wiring files. The second one lists the seven wiring files as up to date and leaves the part out of its count. An unchanged file is not touched, which keeps Flutter's file watcher quiet.
+The first run wrote the part, the migration and the seven wiring files. The second one lists the part and the seven wiring files as up to date; the migration is written once and is not one of the files it compares. An unchanged file is not touched, which keeps Flutter's file watcher quiet.
 
 ### Who owns which file
 
@@ -364,7 +364,7 @@ A setting in `beak.yaml` could say which files are yours, and it would drift fro
 
 ### The pipeline is not transactional
 
-Parts are written before the scan can complain about anything else, so a run that ends in `Cannot generate` may still have refreshed a part file. That is harmless, since a part is a pure function of its schema class, but the message says nothing was generated and that is not quite true.
+Parts are written before the scan can complain about anything else, so a run that ends in `Cannot generate` may still have refreshed a part file. That is harmless, since a part is a pure function of its schema class, and the message says which parts it wrote (`Schema parts written before these were found: ...`) rather than claiming nothing was written. A part is never written for a schema that itself has issues.
 
 ## What it means for you
 
@@ -381,9 +381,13 @@ The generator cannot see some things, and most of them fail quietly. Read the su
 | a model whose base class lives in another package | it is not found |
 | a model with a constructor that is not a zero-argument `const` | an issue naming the file |
 | a resource class that is abstract, private, or needs constructor arguments | skipped; the generated panel keeps the default resource for its model |
-| `final aScreen = BeakScreen(...)` in `lib/screens/` | skipped; write `final BeakScreen aScreen = ...` |
+| `final aScreen = BeakScreen(...)` in `lib/screens/` | found: the initializer names the type. A variable initialised by anything else, `final aScreen = build()`, needs the annotation `final BeakScreen aScreen = ...` |
 | a field type that is a `typedef`, or an enum declared in another package | an issue: the type cannot be mapped |
 | a `var` or an untyped field on a `@Resource` class | an issue: every field needs a declared type |
+| a schema file without `part '<file>.beak.dart';` | an issue naming the file, and no part is written for it |
+| a field named `record` on a `@Resource` class | an issue: the typed record view already owns that name. Rename the field and keep the column with `@Column(columnName: 'record')` |
+| `@Image()` or `@FileField()` without a `storagePath` | an issue: the annotation requires one. Write `@Image(storagePath: 'covers')`, or drop the annotation for the table name |
+| two fields marked `@Display` on one class | an issue naming both |
 
 ## Continue reading
 

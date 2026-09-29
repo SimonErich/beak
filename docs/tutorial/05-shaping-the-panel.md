@@ -243,7 +243,7 @@ beak doctor
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 3 models · 2 resource classes · 0 screens · 0 overrides
+  OK   discovered 3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
   OK   generated files up to date
   OK   every model has a migration

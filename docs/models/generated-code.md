@@ -14,14 +14,14 @@ None of it is hidden. It is ordinary Dart, committed to your repository and form
 
 ## At a glance
 
-`beak prepare` writes one part file beside each schema and four wiring files under `lib/beak/`. It keeps three entrypoints current and writes a first migration for a new table.
+`beak prepare` writes one part file beside each schema and four wiring files under `lib/beak/` (two only while `lib/main.dart` is generated). It keeps three entrypoints current and writes a first migration for a new table.
 
 | File | Holds | Commit it | Edit it |
 | --- | --- | --- | --- |
 | `<schema>.beak.dart`, beside each schema | The columns, relations, fields, model, draft and record of that schema | Yes | Never |
 | `lib/beak/registry.g.dart` | `beakModels` and `buildBeakRegistry()` | Yes | Never |
-| `lib/beak/panel.g.dart` | `buildBeakPanel()`, the panel configuration | Yes | Never |
-| `lib/beak/app.g.dart` | `beakPanelConfig` and the `BeakApp` widget | Yes | Never |
+| `lib/beak/panel.g.dart` | `buildBeakPanel()`, the panel configuration; generated bootstrap only | Yes | Never |
+| `lib/beak/app.g.dart` | `beakPanelConfig` and the `BeakApp` widget; generated bootstrap only | Yes | Never |
 | `lib/beak/server.g.dart` | `beakHost()`, with the migration and seeder lists | Yes | Never |
 | `lib/main.dart`, `bin/serve.dart`, `bin/migrate.dart` | One-line entrypoints | No, git-ignored | Yes, once you own it |
 | `lib/migrations/create_<table>_table.dart` | A new table's migration | Yes | Yes, it is yours from the first write |
@@ -225,7 +225,7 @@ BeakModelRegistry buildBeakRegistry() {
 }
 ```
 
-`panel.g.dart` builds the `BeakPanelConfig` from `beak.yaml`, every model and every resource class it found. `app.g.dart` wraps it in `BeakApp`. `server.g.dart` builds the `BeakServeHost` with the registry, every migration ordered by its declared `name` and every seeder. You never register a migration or a model by hand. If you did, the next `prepare` would remove it.
+`panel.g.dart` builds the `BeakPanelConfig` from `beak.yaml`, every model and every resource class it found. `app.g.dart` wraps it in `BeakApp`. `server.g.dart` builds the `BeakServeHost` with the registry, every migration in the order of its declared `name`, a create-table migration moved behind the tables its foreign keys point at, and every seeder. You never register a migration or a model by hand. If you did, the next `prepare` would remove it.
 
 A package that only holds schema classes, and depends on `beak_core` alone, gets the parts and `registry.g.dart` and nothing else.
 
@@ -234,8 +234,8 @@ A package that only holds schema classes, and depends on `beak_core` alone, gets
 - **Never edit a generated file.** The header says so, `beak doctor` fails on drift, and the next `prepare` overwrites your change.
 - **Commit them.** A fresh clone compiles before any `beak` command runs, a schema change shows up in review as the diff it caused, and CI needs no Beak CLI to build the app. The three entrypoints are the exception, they are git-ignored on purpose.
 - **Reference fields through the model.** `ProductModel.price`, not `'price'`. Nothing in an application spells a column key.
-- **Some names have no shortcut.** A field named `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `primaryKeyOf`, `columnsFor`, `columnByKey` or `relationshipByKey` collides with a member of `BeakModel`, so `ProductModel.count` is not emitted. Use `ProductModel.fields.count`, which always exists.
-- **Two names break the part.** `summary` and `record` are members of `BeakModel` that the reserved list misses, so a field with either name generates a part that does not compile. Rename the field, and pin the existing column with `@Column(columnName: 'summary')` when the table already has it.
+- **Some names have no shortcut.** A field named `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `sumDecimal`, `avgDecimal`, `summary`, `record`, `primaryKeyOf`, `columnsFor`, `columnByKey` or `relationshipByKey` collides with a member of `BeakModel`, so `ProductModel.count` is not emitted. Use `ProductModel.fields.count`, which always exists. A test in `beak_cli` reads `BeakModel` and fails when it gains a member this list misses.
+- **One name is refused.** A field named `record` is a `beak prepare` issue: the typed record view wraps the underlying `BeakRecord` as `record`, so a getter of that name would redeclare it. Rename the field, and pin the existing column with `@Column(columnName: 'record')` when the table already has it.
 - **Draft getters are all nullable, record getters are not.** A record getter is non-null exactly when the schema field is non-nullable. Do not paper over the difference with `!`.
 - **An unloaded relation reads as empty.** It does not throw and it does not fetch. Load it explicitly.
 - **Identifiers follow the class.** `Product` yields `ProductColumns`, `ProductModel`, `ProductRecord`. A hand-written class with one of those names will clash.
@@ -254,7 +254,7 @@ beak doctor
 
 ```text
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
 ```
 
 `beak doctor` byte-compares every generated file with what `prepare` would write now, and lists missing and stale files separately:

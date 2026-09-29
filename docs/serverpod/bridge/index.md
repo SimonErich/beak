@@ -36,7 +36,7 @@ The third package is shared with the [admin app](../admin-app/index.md); the fir
 
 The bridge can only ask your endpoints, so it cannot build what needs a database. It supports an AND of equality filters, one sort and one search term. It refuses relation loads, has no summaries, no CSV export and no server-side field permissions, and its form saves are staged calls, not one transaction. [Bridge resources](resources.md) has the full table, and [Choosing an integration](../choosing-an-integration.md) compares it with the admin app.
 
-`beak init` refuses to run inside a Serverpod workspace, and its message only mentions the admin app. The bridge is therefore wired by hand: add the dependencies, build the resources and mount a `BeakPanel` (see [Bridge resources](resources.md)).
+`beak init` refuses to run inside a Serverpod workspace, and its message names both ways in: the admin app, and this bridge. The bridge is wired by hand: add the dependencies, build the resources and mount a `BeakPanel` (see [Bridge resources](resources.md)).
 
 ## Which page to read
 

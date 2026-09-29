@@ -166,6 +166,8 @@ final class BeakDiscovery {
     this.storageRegistry,
     this.issues = const [],
     this.migratedTables = const <String>{},
+    this.tablesCreatedByMigration = const <String, Set<String>>{},
+    this.migrationsDeclaringKeys = const <String>{},
   });
 
   /// Tables the discovered migrations create, read from the source.
@@ -175,6 +177,22 @@ final class BeakDiscovery {
   /// `CreateCommerceTables` builds six — and a name-based guess would decide
   /// five of them were missing and write duplicates.
   final Set<String> migratedTables;
+
+  /// The tables each migration creates with `schema.create`, by the migration's
+  /// class name.
+  ///
+  /// [migratedTables] also counts a table a migration only alters. This does
+  /// not, because it answers a different question: which migration has to run
+  /// before which, when one table has a foreign key to another.
+  final Map<String, Set<String>> tablesCreatedByMigration;
+
+  /// The migrations, by class name, whose tables get their foreign keys from
+  /// the model: those that call `BeakBlueprint.defineForeignKeys`.
+  ///
+  /// A create migration frozen to the columns a table had on day one names no
+  /// foreign key, so whatever the model points at today is not something that
+  /// migration needs to exist first.
+  final Set<String> migrationsDeclaringKeys;
 
   /// `BeakModel` subclasses anywhere under `lib/`, in path order, including
   /// the models `beak prepare` generates from schema classes.
@@ -209,6 +227,22 @@ final class BeakDiscovery {
   /// Problems that must be fixed before generation can succeed.
   final List<BeakDiscoveryIssue> issues;
 
+  /// This discovery with [migrations] registered in the given order instead.
+  BeakDiscovery withMigrations(List<BeakDiscoveredSymbol> migrations) =>
+      BeakDiscovery(
+        models: models,
+        screens: screens,
+        migrations: migrations,
+        seeders: seeders,
+        resources: resources,
+        overrides: overrides,
+        storageRegistry: storageRegistry,
+        issues: issues,
+        migratedTables: migratedTables,
+        tablesCreatedByMigration: tablesCreatedByMigration,
+        migrationsDeclaringKeys: migrationsDeclaringKeys,
+      );
+
   /// A one-line summary, so a discovery miss is visible rather than silent.
   ///
   /// Resource classes are counted on their own: to the person who wrote
@@ -219,6 +253,17 @@ final class BeakDiscovery {
       '${_count(resources.length, 'resource class', 'resource classes')} · '
       '${_count(screens.length, 'screen')} · '
       '${_count(overrides.length, 'override')}';
+
+  /// The summary of a project whose panel is built by the file at
+  /// [entrypoint], not by Beak.
+  ///
+  /// The generated panel finds `lib/screens/` and the override files itself.
+  /// An authored one lists its pages and takes its theme where it is written,
+  /// so counting them here describes nothing the panel uses.
+  String summaryOfAuthored(String entrypoint) =>
+      '${_count(models.length, 'model')} · '
+      '${_count(resources.length, 'resource class', 'resource classes')} · '
+      'screens and overrides not applicable ($entrypoint is authored)';
 
   static String _count(int count, String one, [String? many]) =>
       '$count ${count == 1 ? one : many ?? '${one}s'}';
@@ -255,10 +300,10 @@ enum BeakOverrideKind {
 /// Scans a Beak project for the declarations Beak wires up for you.
 ///
 /// Discovery is an *unresolved* parse: it reads names and supertypes, never
-/// types. That makes a scan of a large project take milliseconds, which is
-/// what lets `beak dev` regenerate on every keystroke — and it is why a model
-/// whose supertype is itself declared in another package cannot be found (see
-/// [BeakProjectScanner.scan]).
+/// types. That makes a scan of a large project take milliseconds, which keeps
+/// `beak prepare` cheap enough to run before every `beak dev`, and it is why a
+/// model whose supertype is itself declared in another package cannot be found
+/// (see [BeakProjectScanner.scan]).
 final class BeakProjectScanner {
   /// Creates a scanner over [projectRoot].
   const BeakProjectScanner(this.projectRoot);
@@ -266,20 +311,20 @@ final class BeakProjectScanner {
   /// The project directory holding `lib/` and `pubspec.yaml`.
   final Directory projectRoot;
 
-  /// Directories scanned for each kind of declaration, relative to `lib/`.
-  static const String modelsDir = 'models';
-
-  /// Directory holding custom screens.
+  /// Directory, relative to `lib/`, holding custom screens.
   static const String screensDir = 'screens';
 
-  /// Directory holding hand-written migrations.
+  /// Directory, relative to `lib/`, holding hand-written migrations.
   static const String migrationsDir = 'migrations';
 
-  /// Directory holding seeders.
+  /// Directory, relative to `lib/`, holding seeders.
   static const String seedersDir = 'seeders';
 
-  /// Directory holding one folder per feature: its schema classes under
-  /// `models/`, its screens, and its `BeakResource` class.
+  /// Directory, relative to `lib/`, holding one folder per feature: its schema
+  /// classes under `models/`, its screens, and its `BeakResource` class.
+  ///
+  /// Models and resource classes are found anywhere under `lib/`; this is the
+  /// folder `beak make:resource` writes them to.
   static const String resourcesDir = 'resources';
 
   /// The function `lib/server.dart` declares to register storage drivers.
@@ -323,6 +368,10 @@ final class BeakProjectScanner {
     _rejectRemovedOverrides(issues);
 
     final (overrides, storageRegistry) = _scanOverrides();
+    final tableOfModel = <String, String>{
+      for (final model in models)
+        if (model.table case final String table) model.name: table,
+    };
     return BeakDiscovery(
       models: models,
       resources: resources,
@@ -332,10 +381,9 @@ final class BeakProjectScanner {
       overrides: overrides,
       storageRegistry: storageRegistry,
       issues: issues,
-      migratedTables: _scanMigratedTables(<String, String>{
-        for (final model in models)
-          if (model.table case final String table) model.name: table,
-      }),
+      migratedTables: _scanMigratedTables(tableOfModel),
+      tablesCreatedByMigration: _scanTablesCreatedByMigration(tableOfModel),
+      migrationsDeclaringKeys: _scanMigrationsDeclaringKeys(),
     );
   }
 
@@ -461,6 +509,74 @@ final class BeakProjectScanner {
       _collectMigratedTables(_parse(file), tables, tableOfModel);
     }
     return tables;
+  }
+
+  /// The tables each migration class creates, by class name.
+  ///
+  /// `schema.create('x', …)` calls only, plus the models a
+  /// `BeakBaselineMigration` lists, which it creates through their table.
+  Map<String, Set<String>> _scanTablesCreatedByMigration(
+    Map<String, String> tableOfModel,
+  ) {
+    final created = <String, Set<String>>{};
+    for (final file in _dartFilesUnder(migrationsDir)) {
+      for (final declaration in _parse(file).declarations) {
+        if (declaration is! ClassDeclaration) {
+          continue;
+        }
+        final tables = <String>{};
+        if (declaration.extendsClause?.superclass.name.lexeme ==
+            baselineMigrationSupertype) {
+          _collectBaselineCoverage(declaration, tables, tableOfModel);
+          // A pivot is recorded as `Owner.field`, which is not a table name.
+          tables.removeWhere((table) => table.contains('.'));
+        }
+        _collectCreatedTables(declaration, tables);
+        if (tables.isNotEmpty) {
+          created[declaration.name.lexeme] = tables;
+        }
+      }
+    }
+    return created;
+  }
+
+  /// The migration classes that call `defineForeignKeys`.
+  Set<String> _scanMigrationsDeclaringKeys() {
+    final declaring = <String>{};
+    for (final file in _dartFilesUnder(migrationsDir)) {
+      for (final declaration in _parse(file).declarations) {
+        if (declaration is ClassDeclaration &&
+            _callsMethod(declaration, 'defineForeignKeys')) {
+          declaring.add(declaration.name.lexeme);
+        }
+      }
+    }
+    return declaring;
+  }
+
+  /// Whether [node] contains a call to a method named [name].
+  static bool _callsMethod(AstNode node, String name) {
+    if (node is MethodInvocation && node.methodName.name == name) {
+      return true;
+    }
+    return node.childEntities.any(
+      (child) => child is AstNode && _callsMethod(child, name),
+    );
+  }
+
+  /// Adds the table of every `create('x', …)` call below [node] to [into].
+  static void _collectCreatedTables(AstNode node, Set<String> into) {
+    if (node is MethodInvocation && node.methodName.name == 'create') {
+      if (node.argumentList.arguments.firstOrNull
+          case final SimpleStringLiteral table) {
+        into.add(table.value);
+      }
+    }
+    for (final child in node.childEntities) {
+      if (child is AstNode) {
+        _collectCreatedTables(child, into);
+      }
+    }
   }
 
   /// Walks [node] collecting the tables its schema calls name.
@@ -590,10 +706,21 @@ final class BeakProjectScanner {
       final unit = _parse(file);
       for (final declaration in unit.declarations) {
         if (declaration is TopLevelVariableDeclaration) {
-          if (_typeName(declaration.variables.type) != 'BeakScreen') {
-            continue;
-          }
+          // A variable without an annotation is a screen when its initializer
+          // builds one; the unresolved parse has no other way to tell.
+          final String? declared = _typeName(declaration.variables.type);
           for (final variable in declaration.variables.variables) {
+            final String? type =
+                declared ??
+                switch (variable.initializer) {
+                  final Expression initializer => _constructedClassOf(
+                    initializer,
+                  ),
+                  null => null,
+                };
+            if (type != 'BeakScreen') {
+              continue;
+            }
             found.add(
               BeakDiscoveredSymbol(
                 name: variable.name.lexeme,
@@ -616,7 +743,7 @@ final class BeakProjectScanner {
                 path: 'lib/$path',
                 message:
                     '${declaration.name.lexeme} returns a BeakScreen but takes '
-                    'required arguments. Beak calls it with none — give the '
+                    'required arguments. Beak calls it with none: give the '
                     'parameters defaults or build the screen in a variable.',
               ),
             );
@@ -749,7 +876,7 @@ final class BeakProjectScanner {
             message:
                 'A resource class named ${resource.className} is already '
                 'declared in lib/$first. The generated panel imports both, '
-                'so the names would collide — rename one.',
+                'so the names would collide; rename one.',
           ),
         );
         continue;
@@ -874,7 +1001,7 @@ final class BeakProjectScanner {
             path: 'lib/${symbol.importPath}',
             message:
                 'A $kind named ${symbol.name} is already declared in '
-                'lib/$first. Generated imports would collide — rename one.',
+                'lib/$first. Generated imports would collide; rename one.',
           ),
         );
         continue;

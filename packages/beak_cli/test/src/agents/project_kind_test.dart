@@ -14,8 +14,21 @@ void main() {
     addTearDown(() => root.deleteSync(recursive: true));
   });
 
-  BeakProjectKind? detect(String pubspec, {String? beakYaml}) {
+  /// Source that opens the tunnel to a Serverpod server, the mark of an admin
+  /// app rather than a bridge.
+  const tunnel = 'final source = serverpodBeakDataSource(client.beakAdmin);\n';
+
+  BeakProjectKind? detect(
+    String pubspec, {
+    String? beakYaml,
+    Map<String, String> files = const {},
+  }) {
     File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync(pubspec);
+    for (final MapEntry(key: path, value: source) in files.entries) {
+      File(p.join(root.path, path))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(source);
+    }
     return BeakProjectKind.detect(
       root,
       config: beakYaml == null
@@ -30,9 +43,13 @@ void main() {
   }) =>
       'name: app\n$section:\n${[for (final d in dependencies) '  $d: any\n'].join()}';
 
-  test('a Serverpod admin depends on beak_serverpod_flutter', () {
+  test('a Serverpod admin depends on beak_serverpod_flutter and opens the '
+      'tunnel', () {
     expect(
-      detect(pubspec(['beak', 'beak_serverpod_flutter'])),
+      detect(
+        pubspec(['beak', 'beak_serverpod_flutter']),
+        files: {'lib/src/admin.dart': tunnel},
+      ),
       BeakProjectKind.serverpodAdmin,
     );
   });
@@ -42,9 +59,100 @@ void main() {
       detect(
         pubspec(['beak_serverpod_flutter']),
         beakYaml: 'panel:\n  entrypoint: lib/admin_main.dart\n',
+        files: {'lib/admin_main.dart': tunnel},
       ),
       BeakProjectKind.serverpodAdmin,
     );
+  });
+
+  group(
+    'an app that depends on beak_serverpod_flutter for its sign-in only',
+    () {
+      // The client bridge reaches Serverpod through the endpoints it already
+      // has, so its app shares the auth screens and nothing else. Calling it an
+      // admin gave it rules about a Beak API that does not run in the server.
+      test('is a bridge app, not an admin, without the tunnel', () {
+        expect(
+          detect(
+            pubspec(['beak', 'beak_serverpod', 'beak_serverpod_flutter']),
+            files: {'lib/main.dart': 'void main() {}\n'},
+          ),
+          BeakProjectKind.standalone,
+        );
+      });
+
+      test('with an entrypoint of its own is embedded', () {
+        expect(
+          detect(
+            pubspec(['beak', 'beak_serverpod', 'beak_serverpod_flutter']),
+            beakYaml: 'panel:\n  entrypoint: lib/admin_main.dart\n',
+          ),
+          BeakProjectKind.embedded,
+        );
+      });
+
+      test('is a bridge app when beak_serverpod_flutter is the only Beak '
+          'package', () {
+        expect(
+          detect(pubspec(['beak_serverpod_flutter'])),
+          BeakProjectKind.standalone,
+        );
+      });
+    },
+  );
+
+  group('the tunnel in a workspace', () {
+    void member(String directory, List<String> dependencies) {
+      File(p.join(root.path, directory, 'pubspec.yaml'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(
+          'name: $directory\nresolution: workspace\n'
+          'dependencies:\n${[for (final d in dependencies) '  $d: any\n'].join()}',
+        );
+    }
+
+    BeakProjectKind? detectMember() => BeakProjectKind.detect(
+      Directory(p.join(root.path, 'app')),
+      config: BeakProjectConfig.defaults(packageName: 'app'),
+    );
+
+    test('is found in a sibling package that depends on '
+        'beak_serverpod_server', () {
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: root\nworkspace:\n  - app\n  - shop_server\n');
+      member('app', ['beak', 'beak_serverpod_flutter']);
+      member('shop_server', ['beak_serverpod_server', 'serverpod']);
+
+      expect(detectMember(), BeakProjectKind.serverpodAdmin);
+    });
+
+    test('is found through a glob in the workspace list', () {
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: root\nworkspace:\n  - packages/*\n');
+      member('packages/app', ['beak', 'beak_serverpod_flutter']);
+      member('packages/server', ['beak_serverpod_server']);
+      File(p.join(root.path, 'packages/app/beak.yaml')).createSync();
+
+      expect(
+        BeakProjectKind.detect(
+          Directory(p.join(root.path, 'packages/app')),
+          config: BeakProjectConfig.defaults(packageName: 'app'),
+        ),
+        BeakProjectKind.serverpodAdmin,
+      );
+    });
+
+    test('is absent when no sibling serves Beak', () {
+      File(
+        p.join(root.path, 'pubspec.yaml'),
+      ).writeAsStringSync('name: root\nworkspace:\n  - app\n  - shop_server\n');
+      member('app', ['beak', 'beak_serverpod_flutter']);
+      member('shop_server', ['serverpod']);
+
+      expect(detectMember(), BeakProjectKind.standalone);
+    });
   });
 
   test('an app with a panel entrypoint of its own is embedded', () {
@@ -120,7 +228,10 @@ void main() {
 
     test('a Serverpod admin with beak_core beside it stays an admin', () {
       expect(
-        detect(pubspec(['beak_core', 'beak_serverpod_flutter'])),
+        detect(
+          pubspec(['beak_core', 'beak_serverpod_flutter']),
+          files: {'lib/admin.dart': tunnel},
+        ),
         BeakProjectKind.serverpodAdmin,
       );
     });

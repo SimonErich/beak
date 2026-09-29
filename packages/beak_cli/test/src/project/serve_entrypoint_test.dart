@@ -37,13 +37,30 @@ void main() {
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.11"
+    },
+    {
+      "name": "beak",
+      "rootUri": "../fake_beak/",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
     }
   ]
+}
+''');
+    // The one thing the entrypoints take from `package:beak/server.dart`.
+    write('fake_beak/lib/server.dart', '''
+/// Stands in for the exception `package:beak/server.dart` exports.
+final class BeakConfigurationException implements Exception {
+  const BeakConfigurationException(this.message);
+
+  final String message;
 }
 ''');
     write('lib/beak/server.g.dart', '''
 import 'dart:async';
 import 'dart:io';
+
+import 'package:beak/server.dart';
 
 /// A real server that records having been closed, once the close finishes.
 final class RecordingServer extends Stream<HttpRequest>
@@ -83,18 +100,43 @@ final class RecordingServer extends Stream<HttpRequest>
 
 /// Stands in for the generated `BeakServeHost`.
 final class FakeHost {
-  Future<HttpServer> serve() async => RecordingServer(
-    await HttpServer.bind(
-      '127.0.0.1',
-      int.parse(Platform.environment['PORT']!),
-    ),
-  );
+  Future<HttpServer> serve() async {
+    if (Platform.environment['PROBE_CONFIG_ERROR'] case final String message) {
+      throw BeakConfigurationException(message);
+    }
+    return RecordingServer(
+      await HttpServer.bind(
+        '127.0.0.1',
+        int.parse(Platform.environment['PORT']!),
+      ),
+    );
+  }
+
+  Future<int> runCli(List<String> args) async {
+    if (Platform.environment['PROBE_CONFIG_ERROR'] case final String message) {
+      throw BeakConfigurationException(message);
+    }
+    return int.parse(Platform.environment['PROBE_EXIT'] ?? '0');
+  }
 }
 
 FakeHost beakHost() => FakeHost();
 ''');
     write('bin/serve.dart', BeakEmitters.serveEntrypoint('probe'));
+    write('bin/migrate.dart', BeakEmitters.migrateEntrypoint('probe'));
   });
+
+  /// Runs [entrypoint] to its end with [environment] added to the process's.
+  Future<ProcessResult> run(
+    String entrypoint,
+    Map<String, String> environment, [
+    List<String> arguments = const [],
+  ]) => Process.run(
+    Platform.resolvedExecutable,
+    [entrypoint, ...arguments],
+    workingDirectory: project.path,
+    environment: environment,
+  ).timeout(const Duration(seconds: 60));
 
   /// Starts the entrypoint and waits for it to say it is listening.
   Future<(Process, StringBuffer)> start() async {
@@ -141,12 +183,60 @@ FakeHost beakHost() => FakeHost();
     });
   }
 
-  test('is formatted, so a project sees no diff on its first format', () {
-    final String source = BeakEmitters.format(
-      BeakEmitters.serveEntrypoint('probe'),
+  group('a configuration the host refuses', () {
+    test(
+      'ends bin/serve.dart with one line and exit 78, not a trace',
+      () async {
+        // A bad PORT, DATABASE_URL or storage variable used to end as
+        // "Unhandled exception:" and a stack trace, exit 255.
+        final ProcessResult result = await run('bin/serve.dart', {
+          'PROBE_CONFIG_ERROR': 'PORT must be a number, got "abc"',
+        });
+
+        expect(result.exitCode, 78);
+        expect(
+          '${result.stderr}'.trim(),
+          'error: PORT must be a number, got "abc"',
+        );
+        expect(result.stdout, isEmpty);
+      },
     );
 
-    expect(BeakEmitters.format(source), source);
+    test('ends bin/migrate.dart the same way', () async {
+      final ProcessResult result = await run(
+        'bin/migrate.dart',
+        {'PROBE_CONFIG_ERROR': 'Unsupported DATABASE_URL scheme "ftp"'},
+        const ['migrate'],
+      );
+
+      expect(result.exitCode, 78);
+      expect(
+        '${result.stderr}'.trim(),
+        'error: Unsupported DATABASE_URL scheme "ftp"',
+      );
+    });
+
+    test('leaves the exit code of a migration alone', () async {
+      final ProcessResult result = await run(
+        'bin/migrate.dart',
+        {'PROBE_EXIT': '3'},
+        const ['migrate'],
+      );
+
+      expect(result.exitCode, 3);
+      expect(result.stderr, isEmpty);
+    });
+  });
+
+  test('is formatted, so a project sees no diff on its first format', () {
+    for (final source in [
+      BeakEmitters.serveEntrypoint('probe'),
+      BeakEmitters.migrateEntrypoint('probe'),
+    ]) {
+      final String formatted = BeakEmitters.format(source);
+
+      expect(BeakEmitters.format(formatted), formatted);
+    }
   });
 }
 

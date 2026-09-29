@@ -33,13 +33,14 @@ $ cd acme_admin
 $ beak migrate
 $ beak dev
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
 ```
 
-`beak create` writes the pubspec, `beak.yaml`, one example schema class, a
+`beak create` refuses a directory that already has files. It writes the
+pubspec, `beak.yaml`, one example schema class, a
 widget test, `AGENTS.md`, `CLAUDE.md`, a README and Flutter's `web/` scaffold,
 then runs `flutter pub get`, `beak prepare` and `beak agents`, so the project is
 runnable as created. `beak dev` serves the API on `:8080` (`PORT` or
@@ -102,7 +103,13 @@ of one command. Misuse prints the usage message and exits `64`.
 `*.beak.dart` part, then finds the models, `BeakResource` classes, screens,
 migrations and seeders, reads `beak.yaml`, and writes the registry, the panel
 config, the app widget, the server host and the three entrypoints. A file whose
-content is unchanged is not rewritten. A `beak.yaml` that is not valid YAML is
+content is unchanged is not rewritten. The panel config and the app widget belong
+to a generated `lib/main.dart`: with an authored one, or a `panel.entrypoint`,
+nothing imports them, so they are neither written nor compared, and a pair a
+generated entrypoint left behind is deleted. The `generated` line counts the
+schema parts among the files it considered, and a project with no model yet gets
+a `no models yet` note. `prepare`, `dev`, `migrate`, `seed`, `make:resource` and
+`eject main` refuse a directory that is not a Beak project. A `beak.yaml` that is not valid YAML is
 reported with file, line and column, and exits `1`.
 
 Every other command that needs the wiring runs `prepare` first. The generated
@@ -141,6 +148,10 @@ $ beak migrate status -- --other   # what follows -- goes to worm untouched
 | `--seed` | `fresh` | Run the seeders afterwards. |
 | `--force` | `fresh`, `refresh` | Allow it when `WORM_ENV=production`. |
 
+A flag the verb does not take is a usage error (`64`). `fresh` and `refresh` read
+`WORM_ENV` the way the server does, from the environment over `.env`, and refuse
+in production without `--force`.
+
 Beak does not apply migrations when the server boots. The one exception is
 `DATABASE_URL=sqlite::memory:`, a database that exists only inside the serving
 process. The database is a SQLite file (`beak.db`) until `DATABASE_URL` says
@@ -153,7 +164,7 @@ $ beak make:resource Product --fields name:string!,price:decimal!,active:bool
 ```
 
 `--fields` takes comma-separated `name:kind` pairs, with `kind` one of `string`,
-`text`, `int`, `decimal`, `bool` or `datetime`. A trailing `!` marks the field
+`text`, `int`, `decimal` (an exact `BeakDecimal`), `double`, `bool` or `datetime`. A trailing `!` marks the field
 required; without it the Dart type is nullable. The command writes the schema
 class `lib/resources/products/models/product.dart` and its resource class
 `lib/resources/products/product_resource.dart`, refuses to overwrite either, and
@@ -161,12 +172,16 @@ runs `prepare`. In a project whose `lib/main.dart` is authored it prints the
 import and the `ProductResource(),` line to add there.
 
 `beak make:migration <Name>` writes `lib/migrations/<snake_name>.dart` with a
-timestamped `name`, which is what worm orders migrations by. With `--from-drift`
+timestamped `name`, which is what worm orders migrations by, and refuses a file
+of that name that exists unless `--force`. The generated host lists a
+create-table migration behind the ones that create the tables its foreign keys
+point at, whatever the names say. With `--from-drift`
 it compares the schema classes with the live database and fills the migration in.
 Each column is added only when the live table lacks it (so a fresh database, which
 already got it from the create-table migration, is fine), and a belongs-to key
 gets its index and foreign key as on create. It reads Postgres and SQLite, and
 stops with a message when the database does not exist yet or is in-memory SQLite.
+`DATABASE_URL` is read from the environment over `.env`, as the server reads it.
 
 ### introspect and init
 
@@ -182,10 +197,14 @@ class of each table to `lib/resources/<table>/models/`.
 | `--only`, `--except` | Restrict the tables. |
 | `--schema <name>` | The Postgres schema to read. Defaults to `public`. |
 | `--out <dir>` | Write every schema file flat into this directory instead of one folder per table. With `adopt` it must be under `lib/`. |
+| `--force` | Replace schema files that exist and differ from what the database implies. Without it, running again refuses and writes nothing. |
 | `--dry-run` | Report what would be written. |
 
-A column that looks like a secret is left out and reported. A Serverpod database
-is refused: its admin belongs in the Serverpod workspace.
+A column that looks like a secret is left out and reported, and a `numeric`
+column is read as a `double` with a note that it can round. An integer `id` is
+declared as `int? id`. Beak's own `_beak_commit_receipts` and `_beak_outbox` are
+skipped. A Serverpod database is refused: its admin belongs in the Serverpod
+workspace.
 
 `beak init` adds Beak to an app that already exists. It adds the dependency,
 writes a `beak.yaml` that records `panel.entrypoint`, an authored entrypoint
@@ -213,11 +232,14 @@ you about instead of rewriting.
 The panel then starts with `flutter run -t lib/admin_main.dart`. Flags:
 `--entrypoint <path>` (directly under `lib/`), `--beak-ref`, `--beak-path`,
 `--example` (also write a `Note`), `--[no-]pub` and `--dry-run`. It refuses a
-project that is not Flutter, and a Serverpod workspace.
+project that is not Flutter, and a Serverpod workspace (the message names the
+admin app and the client bridge).
 
 ### eject
 
-`beak eject <target> [--force]` writes a default out as a file you own.
+`beak eject <target> [--force]` writes a default out as a file you own. `--force`
+replaces a file that exists, `eject main` on an authored `lib/main.dart`
+included.
 
 | Target | File |
 | --- | --- |
@@ -259,10 +281,12 @@ and `--root`. `create`, `prepare` and `init` refresh the same files.
 ### doctor
 
 `beak doctor [--json]` checks the project it runs in and exits `1` while a check
-fails: Beak dependency, `beak.yaml`, discovered models, generated files current,
-a migration per model, the `web/` scaffold, that no panel file imports the
-server, the database (default SQLite counts as passing), drift between the
-database and the schema classes, the agent files, and the CLI against the
+fails: Beak dependency, `beak.yaml`, discovered models, schema classes that
+`prepare` would refuse, generated files current, that every import of a
+migration resolves, a migration per model, the `web/` scaffold, that no panel
+file imports the server, the database (default SQLite counts as passing; the
+URL comes from the environment over `.env`), drift between the database and the
+schema classes, each with the command that fixes it, the agent files, and the CLI against the
 project's Beak version. In an authored project it warns about each
 `BeakResource` class that `lib/main.dart` does not list.
 
@@ -347,27 +371,13 @@ schema reader can change without a breaking release:
 | Name | What it is |
 | --- | --- |
 | `createBeakRunner` | Builds the `CommandRunner<int>` with every command registered. |
-| `BeakCliEnvironment` | The injectable seams: `out`, `rootDirectory`, `now`, `probe`, and two process runners, `runProcess` (captures a command's output) and `runInteractive` (hands it the terminal). `BeakCliEnvironment.production()` outside tests. |
+| `BeakCliEnvironment` | The injectable seams: `out`, `rootDirectory`, `now`, `probe`, `processEnvironment` (empty unless given, so a test never reads the machine's variables), and two process runners, `runProcess` (captures a command's output) and `runInteractive` (hands it the terminal). `BeakCliEnvironment.production()` outside tests. |
 | `BeakPortProbe`, `BeakProcessRunner` | The types of the probe and the process runners. |
 
 ## Limits
 
 - **Online by default.** `beak create` runs `flutter pub get`. Pass `--no-pub` on
   a machine without a network and run the printed steps later.
-- **`beak prepare` does not warn about an empty project.** It reports
-  `0 models` and succeeds.
-- **`beak create` does not check the directory.** Run it in a directory that
-  already has files and it overwrites the ones it writes (`pubspec.yaml`,
-  `beak.yaml`, `README.md`, `AGENTS.md` and the rest). Give it a new name.
-- **Most commands do not check they are in a Beak project.** `beak prepare` and
-  `beak migrate` in an empty directory write `bin/` and `lib/` files, and
-  `migrate` then fails to compile them. `doctor`, `docs` and `agents` say
-  `no Beak dependency here`.
-- **A busy port ends `beak dev` in a stack trace.** The message is Dart's
-  `SocketException` (`Address already in use`); set `PORT` or `server.port`.
-- **`beak introspect` also reads Beak's own tables.** Run against a database a
-  Beak project already migrated, it writes classes for `_beak_commit_receipts` and
-  `_beak_outbox` too. Delete them, or use `--except`.
 - **Docs need a resolved project.** `beak docs` and `beak agents` read the
   `beak_core` your `.dart_tool/package_config.json` points at, so run
   `flutter pub get` first.

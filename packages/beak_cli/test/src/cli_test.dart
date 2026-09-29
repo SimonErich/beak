@@ -13,6 +13,9 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('beak_cli_test');
     addTearDown(() => root.deleteSync(recursive: true));
+    File(
+      '${root.path}/pubspec.yaml',
+    ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
     out = StringBuffer();
     reachable = {};
     runner = createBeakRunner(
@@ -43,6 +46,29 @@ void main() {
         BeakFieldKind.dateTime,
       ]);
       expect(specs.last.camelName, 'releasedAt');
+    });
+
+    test('accepts double for the floating-point number and float as its '
+        'alias', () {
+      expect(BeakFieldKind.parse('double'), BeakFieldKind.floating);
+      expect(BeakFieldKind.parse('float'), BeakFieldKind.floating);
+      expect(BeakFieldKind.parse('decimal'), BeakFieldKind.decimal);
+    });
+
+    test('names every kind in the message for an unknown one', () {
+      expect(
+        () => BeakFieldSpec.parse('name:blob'),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('string, text, int, decimal, double, bool, datetime'),
+              isNot(contains('\u2014')),
+            ),
+          ),
+        ),
+      );
     });
 
     test('rejects malformed tokens with a pointed message', () {
@@ -85,8 +111,29 @@ void main() {
       expect(source, contains('final class Widget extends BeakSchema'));
       expect(source, contains("part 'widget.beak.dart';"));
       expect(source, contains('late final String name;'));
-      expect(source, contains('late final double price;'));
+      expect(source, contains('late final BeakDecimal price;'));
       expect(source, contains('late final bool? active;'));
+    });
+
+    test('decimal is exact, and double is the floating-point number', () async {
+      // `price:decimal` used to write a `double`, which cannot add up a
+      // ledger; the docs told everyone to change it afterwards.
+      await runner.run([
+        'make:resource',
+        'Gauge',
+        '--fields',
+        'name:string!,reading:double,cost:decimal!',
+      ]);
+
+      final String source = read('lib/resources/gauges/models/gauge.dart');
+      expect(source, contains('late final double? reading;'));
+      expect(source, contains('late final BeakDecimal cost;'));
+      final (schemas, issues) = BeakSchemaReader(root).read();
+      expect(issues, isEmpty);
+      final BeakColumnIr cost = schemas.single.columns.firstWhere(
+        (column) => column.fieldName == 'cost',
+      );
+      expect(cost.declaredValueType, 'BeakDecimal');
     });
 
     test('the scaffold is what the schema reader reads', () async {
@@ -217,6 +264,39 @@ void main() {
       expect(source, contains('Future<void> downSchema(Schema schema)'));
     });
 
+    test('refuses to overwrite a migration of the same name', () async {
+      // A migration is edited by hand as soon as it is written, so a second
+      // run of the same command used to throw that work away.
+      File('${root.path}/lib/migrations/add_status.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('// mine, and already edited\n');
+
+      expect(await runner.run(['make:migration', 'AddStatus']), 1);
+
+      expect(
+        read('lib/migrations/add_status.dart'),
+        '// mine, and already edited\n',
+      );
+      expect(
+        out.toString(),
+        contains('lib/migrations/add_status.dart already exists'),
+      );
+      expect(out.toString(), contains('--force'));
+    });
+
+    test('replaces it with --force', () async {
+      File('${root.path}/lib/migrations/add_status.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('// mine\n');
+
+      expect(await runner.run(['make:migration', 'AddStatus', '--force']), 0);
+
+      expect(
+        read('lib/migrations/add_status.dart'),
+        contains('class AddStatus extends Migration'),
+      );
+    });
+
     test('rejects a name that is not UpperCamelCase', () {
       expect(
         runner.run(['make:migration', 'add_status']),
@@ -327,6 +407,8 @@ void main() {
 
   group('doctor', () {
     test('a directory that is not a Dart project fails with the fix', () async {
+      File('${root.path}/pubspec.yaml').deleteSync();
+
       expect(await runner.run(['doctor']), 1);
       expect(out.toString(), contains('not a Dart project'));
       expect(out.toString(), contains('beak create'));

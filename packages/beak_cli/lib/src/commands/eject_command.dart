@@ -43,6 +43,8 @@ enum BeakEjectTarget {
   /// rules and the outbox schedule.
   server('server', 'lib/server.dart');
 
+  // --8<-- [end:BeakEjectTarget]
+
   const BeakEjectTarget(this.name, this.describes);
 
   /// The word typed after `beak eject`.
@@ -88,7 +90,9 @@ final class EjectCommand extends Command<int> {
   EjectCommand(this.environment) {
     argParser.addFlag(
       'force',
-      help: 'Overwrite the file if it already exists.',
+      help:
+          'Overwrite the file if it already exists, `lib/main.dart` of '
+          '`eject main` included.',
       negatable: false,
     );
   }
@@ -169,7 +173,7 @@ final class EjectCommand extends Command<int> {
     final file = File('${environment.rootDirectory.path}/$path');
     if (file.existsSync() && argResults?['force'] != true) {
       environment.out.writeln(
-        '  $path already exists — edit it, or pass --force to replace it',
+        '  $path already exists: edit it, or pass --force to replace it',
       );
       return true;
     }
@@ -202,7 +206,7 @@ final class EjectCommand extends Command<int> {
     if (model == null) {
       environment.out.writeln(
         '  No model declares the table "$table"'
-        '${beakDidYouMean(table, models.keys.toSet())}.',
+        '${beakDidYouMean(table, models.keys.toSet())}',
       );
       return 1;
     }
@@ -277,11 +281,14 @@ final class EjectCommand extends Command<int> {
   /// Regenerates first, so the entrypoint lists what discovery sees now,
   /// then writes the `BeakPanel` the generated panel amounts to (see
   /// [BeakEmitters.authoredMain]) and un-ignores the file. An entrypoint the
-  /// project already owns is never rewritten.
+  /// project already owns is only rewritten when `--force` says so.
   int _ejectMain() {
     final Directory root = environment.rootDirectory;
-    if (isAuthoredEntrypoint(root)) {
-      environment.out.writeln('  lib/main.dart is already yours');
+    if (isAuthoredEntrypoint(root) && argResults?['force'] != true) {
+      environment.out.writeln(
+        '  lib/main.dart is already yours; pass --force to write it again '
+        'from what the generated panel would show',
+      );
       _unignoreMain();
       return 0;
     }
@@ -291,15 +298,13 @@ final class EjectCommand extends Command<int> {
       return prepared.exitCode;
     }
     final BeakDiscovery discovery = prepared.discovery;
+    final BeakProjectConfig config = BeakProjectConfig.load(
+      root,
+      packageName: BeakProjectConfig.packageNameOf(root),
+    );
     environment.writeFile(
       'lib/main.dart',
-      BeakEmitters.authoredMain(
-        config: BeakProjectConfig.load(
-          root,
-          packageName: BeakProjectConfig.packageNameOf(root),
-        ),
-        discovery: discovery,
-      ),
+      BeakEmitters.authoredMain(config: config, discovery: discovery),
     );
     _unignoreMain();
     environment.out
@@ -308,6 +313,13 @@ final class EjectCommand extends Command<int> {
       ..writeln('  It lists every resource the generated panel showed, with')
       ..writeln('  the beak.yaml presentation written in. Add each resource')
       ..writeln('  class you write to its `resources: [...]`.');
+    if (beakLeftoverPanelWiring(root).isNotEmpty &&
+        !beakPanelWiringIsUsed(root, config)) {
+      environment.out.writeln(
+        '  The next `beak prepare` deletes lib/beak/panel.g.dart and '
+        'app.g.dart: nothing imports them now.',
+      );
+    }
     _warnUnmatched(discovery);
     return 0;
   }

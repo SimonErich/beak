@@ -636,9 +636,16 @@ final class BrokenModel extends BeakModel {
       expect(out.toString(), contains('Flutter projects only'));
     });
 
-    const serverpodHint =
-        'add the admin app to your Serverpod workspace instead '
-        '(see the Serverpod section of the docs)';
+    /// Both ways into a Serverpod project are named, so the bridge is not a
+    /// dead end the admin-app message leaves behind.
+    final serverpodHint = allOf(
+      contains(
+        'add the admin app to your Serverpod workspace '
+        '(see the Serverpod section of the docs)',
+      ),
+      contains('client bridge'),
+      contains('docs/serverpod/bridge/index.md'),
+    );
 
     test('a project depending on serverpod is refused', () async {
       write(
@@ -652,7 +659,7 @@ final class BrokenModel extends BeakModel {
 
       expect(await init([]), 1);
 
-      expect(out.toString(), contains(serverpodHint));
+      expect(out.toString(), serverpodHint);
       expect(snapshot(), before);
       expect(spawned, isEmpty);
     });
@@ -668,7 +675,7 @@ final class BrokenModel extends BeakModel {
 
       expect(await init([]), 1);
 
-      expect(out.toString(), contains(serverpodHint));
+      expect(out.toString(), serverpodHint);
       expect(snapshot(), before);
     });
 
@@ -715,7 +722,7 @@ final class BrokenModel extends BeakModel {
 
       expect(await runner.run(['init', '--no-pub']), 1);
 
-      expect(out.toString(), contains(serverpodHint));
+      expect(out.toString(), serverpodHint);
       expect(File('${app.path}/beak.yaml').existsSync(), isFalse);
     });
 

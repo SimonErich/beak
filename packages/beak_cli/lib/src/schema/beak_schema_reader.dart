@@ -6,6 +6,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 
 import '../field_spec.dart';
 import '../project/beak_discovery.dart';
+import 'beak_reserved_names.dart';
+import 'beak_schema_emitter.dart';
 import 'beak_schema_ir.dart';
 
 /// Reads `@Resource` schema classes into the generator's IR.
@@ -98,6 +100,56 @@ final class BeakSchemaReader {
     return (_resolveForeignKeyTypes(schemas), issues);
   }
 
+  /// [read] with the checks that need the source of a file again: everything
+  /// `beak prepare` and `beak doctor` refuse a project for.
+  ///
+  /// The commands that only need the schemas, such as `make:migration
+  /// --from-drift`, call [read].
+  (List<BeakSchemaIr>, List<BeakDiscoveryIssue>) readChecked() {
+    final (schemas, issues) = read();
+    return (schemas, [...issues, ...partDirectiveIssues(schemas)]);
+  }
+
+  /// The files among [schemas] that lack the `part '<name>.beak.dart';`
+  /// directive their generated code hangs from.
+  ///
+  /// Without it the part is a file that belongs to no library: generation
+  /// would say "up to date" and the analyzer would refuse the project. One
+  /// issue per file, however many schema classes it holds.
+  List<BeakDiscoveryIssue> partDirectiveIssues(List<BeakSchemaIr> schemas) {
+    final issues = <BeakDiscoveryIssue>[];
+    final checked = <String>{};
+    for (final schema in schemas) {
+      if (!checked.add(schema.libraryPath)) {
+        continue;
+      }
+      final String partName = BeakSchemaEmitter.partFileNameOf(
+        schema.libraryPath,
+      );
+      final unit = parseString(
+        content: File(
+          '${projectRoot.path}/lib/${schema.libraryPath}',
+        ).readAsStringSync(),
+        throwIfDiagnostics: false,
+      ).unit;
+      final bool declared = unit.directives.whereType<PartDirective>().any(
+        (directive) => directive.uri.stringValue == partName,
+      );
+      if (!declared) {
+        issues.add(
+          BeakDiscoveryIssue(
+            path: 'lib/${schema.libraryPath}',
+            message:
+                "${schema.className} has no part directive. Add "
+                "`part '$partName';` under the imports, so the code "
+                '`beak prepare` generates for it is part of this library.',
+          ),
+        );
+      }
+    }
+    return issues;
+  }
+
   /// Foreign keys use the target identity's declared storage type.
   List<BeakSchemaIr> _resolveForeignKeyTypes(List<BeakSchemaIr> schemas) {
     final byClass = {for (final schema in schemas) schema.className: schema};
@@ -165,8 +217,10 @@ final class BeakSchemaReader {
     final issues = <BeakDiscoveryIssue>[];
     final String className = declaration.name.lexeme;
     final Map<String, String> options = _namedArguments(resource);
+    final String table = _unquote(options['table']) ?? tableNameOf(className);
     final columns = <BeakColumnIr>[];
     final relations = <BeakRelationIr>[];
+    final displayFields = <String>[];
     String? displayColumnKey;
 
     for (final member in declaration.members) {
@@ -187,9 +241,24 @@ final class BeakSchemaReader {
       }
       for (final variable in member.fields.variables) {
         final String fieldName = variable.name.lexeme;
+        if (BeakReservedNames.recordView.contains(fieldName)) {
+          issues.add(
+            BeakDiscoveryIssue(
+              path: 'lib/$path',
+              message:
+                  '$className.$fieldName cannot be generated: the typed record '
+                  'view wraps the underlying record as `$fieldName`, so a '
+                  'getter of that name would redeclare it. Rename the field '
+                  "and keep the stored name with @Column(columnName: '$fieldName')"
+                  '.',
+            ),
+          );
+          continue;
+        }
         final result = _readField(
           className: className,
           path: path,
+          table: table,
           fieldName: fieldName,
           type: type,
           metadata: member.metadata,
@@ -202,6 +271,7 @@ final class BeakSchemaReader {
           case _FieldColumn(:final column, :final isDisplay):
             columns.add(column);
             if (isDisplay) {
+              displayFields.add(fieldName);
               displayColumnKey = column.columnKey;
             }
           case _FieldRelation(:final relation):
@@ -210,9 +280,20 @@ final class BeakSchemaReader {
       }
     }
 
+    if (displayFields.length > 1) {
+      issues.add(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className marks ${displayFields.length} fields @Display '
+              '(${displayFields.join(', ')}). Exactly one field is the '
+              'display column, so keep the annotation on one of them.',
+        ),
+      );
+    }
+
     final bool timestamps = options['timestamps'] == 'true';
     final bool softDeletes = options['softDeletes'] == 'true';
-    final String table = _unquote(options['table']) ?? tableNameOf(className);
 
     // The primary key and the stamps are implied, never declared: writing
     // them out per schema is the boilerplate this whole surface removes.
@@ -367,6 +448,7 @@ final class BeakSchemaReader {
   _FieldResult _readField({
     required String className,
     required String path,
+    required String table,
     required String fieldName,
     required NamedType type,
     required NodeList<Annotation> metadata,
@@ -447,6 +529,25 @@ final class BeakSchemaReader {
               '@HasMany for a relationship, or @Custom for an opaque value.',
         ),
       );
+    }
+
+    for (final (annotation, name) in [
+      (image, 'Image'),
+      (fileField, 'FileField'),
+    ]) {
+      if (annotation != null &&
+          !_namedArguments(annotation).containsKey('storagePath')) {
+        return _FieldIssue(
+          BeakDiscoveryIssue(
+            path: 'lib/$path',
+            message:
+                '$className.$fieldName: @$name needs a storagePath, the '
+                'folder its uploads land in. Write '
+                "@$name(storagePath: '$table'), or drop the annotation to "
+                'use the table name.',
+          ),
+        );
+      }
     }
 
     final semanticName = RegExp(

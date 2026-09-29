@@ -37,7 +37,9 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('beak_dev_');
     addTearDown(() => root.deleteSync(recursive: true));
-    File('${root.path}/pubspec.yaml').writeAsStringSync('name: acme_admin\n');
+    File(
+      '${root.path}/pubspec.yaml',
+    ).writeAsStringSync('name: acme_admin\ndependencies:\n  beak: any\n');
     File('${root.path}/lib/models/note.dart')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(noteModel);
@@ -45,19 +47,30 @@ void main() {
     spawned = [];
   });
 
-  BeakCliEnvironment environment({int exitCode = 0}) => BeakCliEnvironment(
+  BeakCliEnvironment environment({
+    int exitCode = 0,
+    Map<String, String> processEnvironment = const {},
+  }) => BeakCliEnvironment(
     out: out,
     rootDirectory: root,
     now: () => DateTime.utc(2026, 7, 26, 12),
     probe: (host, port) async => false,
+    processEnvironment: processEnvironment,
     runProcess: (executable, arguments, {workingDirectory}) async {
       spawned.add([executable, ...arguments]);
       return exitCode;
     },
   );
 
-  Future<int> run(List<String> args, {int exitCode = 0}) async =>
-      await createBeakRunner(environment(exitCode: exitCode)).run(args) ?? 0;
+  Future<int> run(
+    List<String> args, {
+    int exitCode = 0,
+    Map<String, String> processEnvironment = const {},
+  }) async =>
+      await createBeakRunner(
+        environment(exitCode: exitCode, processEnvironment: processEnvironment),
+      ).run(args) ??
+      0;
 
   group('dev', () {
     test('regenerates, then serves the API', () async {
@@ -125,6 +138,138 @@ void main() {
         'migrate:rollback --steps=2',
         'migrate:fresh --seed --force',
       ]);
+    });
+
+    const misplaced = <(List<String>, String, String)>[
+      (['migrate', 'up', '--steps', '2'], '--steps', 'down'),
+      (['migrate', '--steps', '2'], '--steps', 'down'),
+      (['migrate', 'down', '--pretend'], '--pretend', 'up'),
+      (['migrate', 'down', '--step', '1'], '--step', 'up'),
+      (['migrate', 'status', '--seed'], '--seed', 'fresh'),
+      (['migrate', 'refresh', '--seed'], '--seed', 'fresh'),
+      (['migrate', 'up', '--force'], '--force', 'fresh'),
+    ];
+    for (final (arguments, flag, home) in misplaced) {
+      test('refuses ${arguments.skip(1).join(' ')} as a usage error, before '
+          'worm can', () async {
+        // Forwarded, these reached worm, which refused with its own usage
+        // and exit 2 instead of Beak's 64.
+        await expectLater(
+          run(arguments),
+          throwsA(
+            isA<UsageException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains(flag), contains('beak migrate $home')),
+            ),
+          ),
+        );
+        expect(spawned, isEmpty);
+      });
+    }
+
+    test('names every flag a verb takes when it refuses one', () async {
+      await expectLater(
+        run(['migrate', 'status', '--pretend']),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            contains('`beak migrate status`, which takes no flags'),
+          ),
+        ),
+      );
+      await expectLater(
+        run(['migrate', 'up', '--seed']),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            contains('`beak migrate up`, which takes --pretend, --step'),
+          ),
+        ),
+      );
+    });
+
+    group('WORM_ENV=production', () {
+      // Worm reads WORM_ENV from the process alone, so a production marker
+      // that lives in .env, where the server reads it, armed nothing.
+      void inDotenv(String value) =>
+          File('${root.path}/.env').writeAsStringSync('WORM_ENV=$value\n');
+
+      for (final verb in ['fresh', 'refresh']) {
+        test('in .env refuses migrate $verb without --force', () async {
+          inDotenv('production');
+
+          expect(await run(['migrate', verb]), 1);
+
+          expect(spawned, isEmpty);
+          expect(
+            out.toString(),
+            contains(
+              'error: refusing to run destructive command in production '
+              'without --force',
+            ),
+          );
+        });
+
+        test('in .env lets migrate $verb through with --force', () async {
+          inDotenv('production');
+
+          expect(await run(['migrate', verb, '--force']), 0);
+
+          expect(spawned.single, [
+            'dart',
+            'run',
+            'bin/migrate.dart',
+            'migrate:$verb',
+            '--force',
+          ]);
+        });
+      }
+
+      test('is read whatever its case', () async {
+        inDotenv('Production');
+
+        expect(await run(['migrate', 'fresh']), 1);
+      });
+
+      test('from the shell is refused the same way', () async {
+        expect(
+          await run(
+            ['migrate', 'fresh'],
+            processEnvironment: {'WORM_ENV': 'production'},
+          ),
+          1,
+        );
+        expect(spawned, isEmpty);
+      });
+
+      test('a shell value beats the .env', () async {
+        inDotenv('production');
+
+        expect(
+          await run(
+            ['migrate', 'fresh'],
+            processEnvironment: {'WORM_ENV': 'development'},
+          ),
+          0,
+        );
+      });
+
+      test('leaves the verbs that destroy nothing alone', () async {
+        inDotenv('production');
+
+        for (final verb in ['up', 'status', 'down']) {
+          expect(await run(['migrate', verb]), 0, reason: verb);
+        }
+      });
+
+      test('is no reason to stop when it is not production', () async {
+        inDotenv('staging');
+
+        expect(await run(['migrate', 'fresh']), 0);
+      });
     });
 
     test('passes what follows -- to the worm subcommand untouched', () async {

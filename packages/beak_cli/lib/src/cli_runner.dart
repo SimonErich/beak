@@ -72,6 +72,7 @@ final class BeakCliEnvironment {
     required this.probe,
     BeakProcessRunner? runProcess,
     BeakProcessRunner? runInteractive,
+    this.processEnvironment = const {},
   }) : runProcess = runProcess ?? _neverRunsProcesses,
        runInteractive = runInteractive ?? runProcess ?? _neverRunsProcesses;
 
@@ -103,6 +104,14 @@ final class BeakCliEnvironment {
   /// that records one runner sees every command.
   final BeakProcessRunner runInteractive;
 
+  /// The variables the process was started with.
+  ///
+  /// Empty unless given, so a test never reads the machine's own environment;
+  /// [BeakCliEnvironment.production] passes the real one. Settings are read
+  /// through `BeakDotenv`, the way the server reads them: the project's `.env`
+  /// under these, which win.
+  final Map<String, String> processEnvironment;
+
   /// The default runner: reports the command it declined to run.
   static Future<int> _neverRunsProcesses(
     String executable,
@@ -122,6 +131,7 @@ final class BeakCliEnvironment {
     out: stdout,
     rootDirectory: Directory.current,
     now: DateTime.now,
+    processEnvironment: Platform.environment,
     runProcess: (executable, arguments, {workingDirectory}) async {
       final result = await Process.run(
         executable,
@@ -256,7 +266,7 @@ abstract base class _MakeCommand extends Command<int> {
       'fields',
       help:
           'Comma-separated name:kind pairs '
-          '(string|text|int|decimal|bool|datetime).',
+          '(string|text|int|decimal|double|bool|datetime).',
       defaultsTo: '',
     );
   }
@@ -327,10 +337,18 @@ final class MakeResourceCommand extends _MakeCommand {
     final String folder = 'lib/resources/$table';
     final String schemaPath = '$folder/models/$snake.dart';
     final String resourcePath = '$folder/${snake}_resource.dart';
-    final String entrypoint = BeakProjectConfig.load(
+    final BeakProjectConfig config = BeakProjectConfig.load(
       environment.rootDirectory,
       packageName: BeakProjectConfig.packageNameOf(environment.rootDirectory),
-    ).panel.entrypointPath;
+    );
+    // Before anything is written: a resource scaffolded into a directory that
+    // is not a Beak project has nothing to generate it and nowhere to run.
+    if (beakNotAProject(environment.rootDirectory, config)
+        case final String reason) {
+      environment.out.writeln('  $reason');
+      return 1;
+    }
+    final String entrypoint = config.panel.entrypointPath;
     final File entrypointFile = File(
       p.join(environment.rootDirectory.path, entrypoint),
     );
@@ -346,7 +364,7 @@ final class MakeResourceCommand extends _MakeCommand {
     for (final path in [schemaPath, resourcePath]) {
       if (File(p.join(environment.rootDirectory.path, path)).existsSync()) {
         environment.out.writeln(
-          '  $path already exists — pick another name, or edit it',
+          '  $path already exists: pick another name, or edit it',
         );
         return 1;
       }
@@ -408,13 +426,19 @@ final class MakeMigrationCommand extends Command<int> {
   /// their own so the command runs without a database.
   MakeMigrationCommand(this.environment, {BeakLiveSchemaReader? readSchema})
     : _readSchema = readSchema ?? beakReadLiveSchema {
-    argParser.addFlag(
-      'from-drift',
-      help:
-          'Fill the migration in from the difference between the schema '
-          'classes and the database.',
-      negatable: false,
-    );
+    argParser
+      ..addFlag(
+        'from-drift',
+        help:
+            'Fill the migration in from the difference between the schema '
+            'classes and the database.',
+        negatable: false,
+      )
+      ..addFlag(
+        'force',
+        help: 'Replace the file if a migration of this name already exists.',
+        negatable: false,
+      );
   }
 
   /// The seams this command runs against.
@@ -430,7 +454,8 @@ final class MakeMigrationCommand extends Command<int> {
   String get description => 'Scaffold an empty, correctly-named migration.';
 
   @override
-  String get invocation => 'beak make:migration <Name> [--from-drift]';
+  String get invocation =>
+      'beak make:migration <Name> [--from-drift] [--force]';
 
   @override
   Future<int> run() async {
@@ -445,6 +470,9 @@ final class MakeMigrationCommand extends Command<int> {
     final String className = rest.single;
     final String snake = snakeCaseOf(className);
     final String stamp = _timestampOf(environment.now());
+    if (_refusesToReplace('lib/migrations/$snake.dart')) {
+      return 1;
+    }
     if (argResults?['from-drift'] == true) {
       return _writeFromDrift(className: className, snake: snake, stamp: stamp);
     }
@@ -475,6 +503,23 @@ final class $className extends Migration {
     return 0;
   }
 
+  /// Whether [path] holds a migration already and `--force` did not say to
+  /// replace it, having said so.
+  ///
+  /// A migration is the project's the moment it is written, and often edited
+  /// before it has run; scaffolding over it once more would lose that work.
+  bool _refusesToReplace(String path) {
+    final file = File(p.join(environment.rootDirectory.path, path));
+    if (file.existsSync() && argResults?['force'] != true) {
+      environment.out.writeln(
+        '  $path already exists: pick another name, or pass --force to '
+        'replace it',
+      );
+      return true;
+    }
+    return false;
+  }
+
   /// Writes the migration the live database needs to match the models.
   ///
   /// The columns come from drift rather than from reading the migrations,
@@ -496,7 +541,12 @@ final class $className extends Migration {
       return 1;
     }
 
-    final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+    final Uri url =
+        beakDatabaseUrlOf(
+          root,
+          processEnvironment: environment.processEnvironment,
+        ) ??
+        Uri.parse(defaultSqliteUrl);
     if (!beakCanReadSchema(url)) {
       // Without this, `sqlite::memory:` fell through to the Postgres reader
       // and surfaced as a socket error on port 0.
@@ -551,9 +601,9 @@ final class $className extends Migration {
     if (contents == null) {
       environment.out.writeln(
         refusals.isEmpty
-            ? '  nothing to add — the database already has every column the '
+            ? '  nothing to add: the database already has every column the '
                   'schema classes declare'
-            : '  nothing written — every missing column needs a decision '
+            : '  nothing written: every missing column needs a decision '
                   'first',
       );
       return refusals.isEmpty ? 0 : 1;

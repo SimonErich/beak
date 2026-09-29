@@ -39,7 +39,7 @@ The panel builds its list of known models from the resources you give it, plus e
     ```console
     $ beak prepare
       3 models · 0 resource classes · 0 screens · 0 overrides
-      generated  1 of 7 files
+      generated  1 of 10 files
     $ grep -n "Model()" lib/beak/panel.g.dart
     24:        model: const NoteModel(),
     $ grep -n "TagModel" lib/beak/registry.g.dart

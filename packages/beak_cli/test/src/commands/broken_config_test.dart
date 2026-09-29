@@ -14,7 +14,9 @@ void main() {
     root = Directory.systemTemp.createTempSync('beak_broken_config_');
     addTearDown(() => root.deleteSync(recursive: true));
     out = StringBuffer();
-    File('${root.path}/pubspec.yaml').writeAsStringSync('name: shop\n');
+    File(
+      '${root.path}/pubspec.yaml',
+    ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
     File('${root.path}/beak.yaml').writeAsStringSync('name: Shop\nlist: [a\n');
   });
 

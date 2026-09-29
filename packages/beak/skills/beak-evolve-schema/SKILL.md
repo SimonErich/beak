@@ -26,7 +26,7 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md` and
 ## Steps
 
 1. Never edit a migration that has run anywhere, `create_<table>_table.dart`
-   included. `dart run bin/migrate.dart migrate:status` lists the applied ones.
+   included. `beak migrate status` lists the applied and the pending ones.
 2. Decide what the existing rows get. A new required column needs
    `@Column(defaultValue: ...)`, or make it nullable and backfill. A unique
    column cannot be added to an existing SQLite table in one step: add it
@@ -41,25 +41,26 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md` and
    "in the database but ... does not declare it").
 5. For added columns run `beak make:migration <Verb><Thing>To<Table> --from-drift`.
    It writes `lib/migrations/<snake>.dart` for every declared column the
-   database lacks. Read every `!` line it prints: those columns were refused,
-   not written. Fix the schema (default or nullable), delete the unapplied file
-   and run it once more. Everything else (renames, retypes, drops, backfills,
-   foreign-key constraints) is hand-written: `beak make:migration <Name>` gives
-   an empty, correctly named scaffold. Patterns: `references/migration-patterns.md`.
-6. Make the migration safe on a fresh database. The generated `alter` adds the
-   column unconditionally, and a fresh database already has it from the create
-   migration, so it fails with a "duplicate column" error. Wrap every add and
-   drop in a check against `schema.adapter.introspectSchema()`.
+   database lacks. A belongs-to key comes with its index and its foreign-key
+   constraint, in the same `alter`. Read every `!` line it prints: those columns
+   were refused, not written. Fix the schema (default or nullable), delete the
+   unapplied file and run it once more. Everything else (renames, retypes,
+   drops, backfills) is hand-written: `beak make:migration <Name>` gives an
+   empty, correctly named scaffold. Patterns: `references/migration-patterns.md`.
+6. Read the file it wrote before applying it. It is already safe on a fresh
+   database: that database has the column from the create migration, so every
+   add and drop first asks `schema.adapter.introspectSchema()` whether it is
+   needed. Give a hand-written `alter` the same guard.
 7. Write `downSchema`, or throw `IrreversibleMigrationException` when rolling
-   back would destroy data.
-8. Run `beak migrate` (back up a production database first). If it exits
-   non-zero without saying why, run `dart run bin/migrate.dart migrate` to read
-   the error.
+   back would destroy data. The generated one only removes what it added.
+8. Run `beak migrate` (back up a production database first). A failing
+   migration prints its error in your terminal and the command exits non-zero;
+   `beak migrate status` shows what is applied and what is pending.
 9. Prove both paths. Existing database: `beak doctor` reports "the database
    matches the schema classes". Fresh database: point `DATABASE_URL` at an empty
    one and migrate, for example
-   `rm -f fresh.db && DATABASE_URL=sqlite:fresh.db dart run bin/migrate.dart migrate`;
-   every migration must apply.
+   `rm -f fresh.db && DATABASE_URL=sqlite:fresh.db beak migrate`; every
+   migration must apply.
 10. Fix what the analyzer now flags. Typed references make a removed or
     retyped field a compile error in resources, filters, screens, seeders and
     tests: repair each one instead of restoring the old field.

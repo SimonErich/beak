@@ -124,7 +124,7 @@ A resource that nobody registers is a class in a folder. How it gets into the pa
 
     ```console
     $ beak doctor
-      OK   discovered 1 model · 1 resource class · 0 screens · 1 override
+      OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
       WARN NoteResource (lib/resources/notes/note_resource.dart) is not listed in lib/main.dart's resources: [...], so the panel never shows it
            → add NoteResource() to the resources list in lib/main.dart; `beak prepare` never rewrites an authored entrypoint
     ```
@@ -251,7 +251,7 @@ $ flutter test test/shop_resource_test.dart
 00:00 +2: All tests passed!
 ```
 
-For a generated project, `beak prepare` prints what it found (`1 model · 1 resource class · 0 screens · 1 override`) and `beak doctor` names any resource class the authored panel does not list, as shown above.
+For a generated project, `beak prepare` prints what it found (`1 model · 1 resource class · 0 screens · 1 override`; an authored one says `screens and overrides not applicable` instead) and `beak doctor` names any resource class the authored panel does not list, as shown above.
 
 ## Reference
 

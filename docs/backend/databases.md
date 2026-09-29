@@ -109,8 +109,7 @@ If your backend is a Serverpod server, none of this page applies: Serverpod owns
 | Only `sqlite:`, `file:` and `postgres(ql)://` are understood | Every other scheme is read as Postgres and refused |
 | Postgres connects on first use | The boot succeeds against a dead database. `/healthz` answers `200`, `/readyz` answers `503` and the connection error goes to stderr |
 | The pool has ten connections and SQLite has one | Neither is configurable through the environment |
-| `beak doctor` and `beak make:migration --from-drift` read `DATABASE_URL` from `.env` only | A variable set in the shell or in CI is ignored by both, and they inspect `sqlite:beak.db` instead. Put the URL in `.env`, unquoted |
-| `beak migrate` and the server use the resolved environment | The process environment wins over `.env`, as everywhere else |
+| `beak doctor`, `beak make:migration --from-drift`, `beak migrate` and the server all resolve `DATABASE_URL` the same way | The process environment wins over `.env`, as everywhere else. A URL set in the shell or in CI is the one doctor inspects |
 | Migrations are never applied on boot, except for `sqlite::memory:` | Run `beak migrate` before the server that needs the columns starts |
 
 ## Verify it

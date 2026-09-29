@@ -74,10 +74,10 @@ pages: [shopOverview(), shopOperations()],
 
 The generated panel finds screens for you. `beak prepare` scans `lib/screens/` (subfolders included, files starting with `_` and `*.g.dart` skipped) and writes what it finds into the `pages:` of `lib/beak/panel.g.dart`, in import-path order. A screen is either:
 
-- a top-level `BeakScreen` variable with an explicit `BeakScreen` type annotation, or
+- a top-level `BeakScreen` variable, typed `BeakScreen` or initialised with `BeakScreen(...)`, or
 - a function returning `BeakScreen` that takes no required arguments.
 
-A function with required arguments is reported as a problem and skipped. A variable declared as `final x = BeakScreen(...)` without the type is not seen at all, so annotate it. A screen is only as visible as its sidebar: with a `BeakNavigation` in play, a screen appears only in a section that lists it with `BeakNavigationItem.screen`, see [Navigation](navigation.md).
+A function with required arguments is reported as a problem and skipped. A variable whose initializer is a call to something other than the `BeakScreen` constructor, `final x = buildScreen()`, is not seen at all, so annotate it. A screen is only as visible as its sidebar: with a `BeakNavigation` in play, a screen appears only in a section that lists it with `BeakNavigationItem.screen`, see [Navigation](navigation.md).
 
 ## Replace one route of a resource
 

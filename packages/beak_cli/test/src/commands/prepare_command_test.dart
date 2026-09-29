@@ -7,7 +7,10 @@ import 'package:test/test.dart';
 Directory projectWith(Map<String, String> files, {String name = 'acme_admin'}) {
   final root = Directory.systemTemp.createTempSync('beak_prepare_');
   addTearDown(() => root.deleteSync(recursive: true));
-  final all = {'pubspec.yaml': 'name: $name\n', ...files};
+  final all = {
+    'pubspec.yaml': 'name: $name\ndependencies:\n  beak: any\n',
+    ...files,
+  };
   for (final MapEntry(key: path, value: contents) in all.entries) {
     final file = File('${root.path}/$path');
     file.parent.createSync(recursive: true);
@@ -279,7 +282,9 @@ final class Product extends BeakSchema {
 
     test('a many-to-many gets its pivot, once', () {
       final root = projectWith({
-        'lib/models/tag.dart': category.replaceAll('Category', 'Tag'),
+        'lib/models/tag.dart': category
+            .replaceAll('Category', 'Tag')
+            .replaceAll('category.beak', 'tag.beak'),
         'lib/models/product.dart': """
 import 'package:beak/beak.dart';
 import 'package:beak/schema.dart';
@@ -485,7 +490,13 @@ resources:
       expect(result.isSuccess, isFalse);
       expect(
         result.discovery.issues.single.message,
-        allOf(contains('resources.note'), contains('did you mean notes?')),
+        allOf(
+          contains(
+            'resources.note names no discovered table, did you mean notes?',
+          ),
+          isNot(contains('?.')),
+          isNot(contains('\u2014')),
+        ),
       );
     });
 
@@ -862,9 +873,12 @@ final class BrokenModel extends BeakModel {
     });
 
     test('are not written for a project without a Beak dependency', () async {
-      final root = projectWith({'lib/models/note.dart': noteModel});
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\n',
+        'lib/models/note.dart': noteModel,
+      });
 
-      expect(await prepare(root), 0);
+      expect(await prepare(root), 1);
 
       expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
       expect(out.toString(), isNot(contains('agents     ')));

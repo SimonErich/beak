@@ -54,16 +54,6 @@ Future<void> main() async {
   } on BeakConfigurationException catch (error) {
     stderr.writeln('error: ${error.message}');
     exit(78);
-  } on SocketException catch (error) {
-    // EADDRINUSE on Linux, macOS and Windows.
-    if (!const {98, 48, 10048}.contains(error.osError?.errorCode)) {
-      rethrow;
-    }
-    stderr.writeln(
-      'error: port ${error.port} is already in use. Stop the process that '
-      'has it, or set PORT (or server.port in beak.yaml) to another port.',
-    );
-    exit(69);
   }
   stderr.writeln('listening on http://${server.address.host}:${server.port}');
   await stopped;

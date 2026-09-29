@@ -87,6 +87,45 @@ final class BeakWorkspace {
     return p.posix.joinAll(p.split(relative));
   }
 
+  /// The package directories the workspace root's `workspace:` list names,
+  /// with each `*` expanded to the directories that exist.
+  ///
+  /// Empty when the root is not a workspace root. Includes [projectRoot], if it
+  /// is a member.
+  List<Directory> get memberDirectories {
+    final YamlMap? pubspec = _pubspecIn(workspaceRoot);
+    if (pubspec?['workspace'] case final YamlList entries) {
+      return [
+        for (final entry in entries)
+          if (entry is String) ..._expand(workspaceRoot, _segmentsOf(entry)),
+      ];
+    }
+    return const [];
+  }
+
+  /// The existing directories [segments] name below [base], `*` matching any
+  /// one directory name.
+  static List<Directory> _expand(Directory base, List<String> segments) {
+    if (segments.isEmpty) {
+      return [base];
+    }
+    final String segment = segments.first;
+    if (!segment.contains('*')) {
+      final child = Directory(p.join(base.path, segment));
+      return child.existsSync()
+          ? _expand(child, segments.skip(1).toList())
+          : [];
+    }
+    final RegExp pattern = RegExp(
+      '^${segment.split('*').map(RegExp.escape).join('[^/]*')}\$',
+    );
+    return [
+      for (final child in base.listSync().whereType<Directory>())
+        if (pattern.hasMatch(p.basename(child.path)))
+          ..._expand(child, segments.skip(1).toList()),
+    ];
+  }
+
   /// The pubspec in [directory] as a mapping, or `null` when there is none
   /// or it is not one.
   static YamlMap? _pubspecIn(Directory directory) {

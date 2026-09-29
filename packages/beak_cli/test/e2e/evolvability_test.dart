@@ -70,7 +70,7 @@ dependencies:
     );
     await _run(project, ['flutter', 'pub', 'get']);
     await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
-    await _insertProduct(project, name: 'Espresso Beans', price: 12.5);
+    await _insertProduct(project, name: 'Espresso Beans', priceInUnits: 1250);
 
     // Week two: the catalog needs a stock count.
     clock = clock.add(const Duration(days: 7));
@@ -124,7 +124,7 @@ dependencies:
     // tables, so the next step starts from one again.
     await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate:refresh']);
     expect(await _products(project), isEmpty);
-    await _insertProduct(project, name: 'Espresso Beans', price: 12.5);
+    await _insertProduct(project, name: 'Espresso Beans', priceInUnits: 1250);
 
     // Week three: products belong to a category, a table of its own and a
     // key on the one that has data.
@@ -184,7 +184,48 @@ dependencies:
       }
     }
     await _run(project, ['dart', 'run', 'bin/migrate.dart', 'migrate']);
-    await _insertProduct(project, name: 'Decaf', price: 9, stock: 4);
+
+    // The products migration is the older one and its model has pointed at
+    // categories ever since, so name order would create products first. SQLite
+    // lets a constraint name a table that is not there yet; Postgres does
+    // not. The order the host registers them in is the one that holds on
+    // both, and the status list shows the order they ran in.
+    final ProcessResult status = await Process.run('dart', const [
+      'run',
+      'bin/migrate.dart',
+      'migrate:status',
+    ], workingDirectory: project.path);
+    final String ran = '${status.stdout}';
+    expect(ran.indexOf('create_categories_table'), isNonNegative, reason: ran);
+    expect(
+      ran.indexOf('create_categories_table'),
+      lessThan(ran.indexOf('create_products_table')),
+      reason: 'a table was created before the table its key points at:\n$ran',
+    );
+
+    // A setting the host refuses ends a generated entrypoint with one line and
+    // a sysexits code, not "Unhandled exception" and a trace.
+    for (final (entrypoint, arguments, environment) in const [
+      ('bin/serve.dart', <String>[], {'PORT': 'abc'}),
+      ('bin/migrate.dart', <String>['migrate'], {'DATABASE_URL': 'ftp://nope'}),
+    ]) {
+      final ProcessResult refused = await Process.run(
+        'dart',
+        ['run', entrypoint, ...arguments],
+        workingDirectory: project.path,
+        environment: environment,
+      );
+      expect(refused.exitCode, 78, reason: '$entrypoint:\n${refused.stderr}');
+      // `dart run` may print its build-hook progress ahead of the child's own
+      // output, without a newline.
+      final List<String> lines = '${refused.stderr}'
+          .replaceAll('Running build hooks...', '')
+          .trim()
+          .split('\n');
+      expect(lines, hasLength(1), reason: '$entrypoint:\n${refused.stderr}');
+      expect(lines.single, contains(environment.keys.single));
+    }
+    await _insertProduct(project, name: 'Decaf', priceInUnits: 900, stock: 4);
     final List<Map<String, Object?>> rebuilt = await _products(project);
     expect(rebuilt.single['name'], 'Decaf');
     expect(rebuilt.single['stock'], 4);
@@ -210,13 +251,15 @@ Future<void> _run(Directory project, List<String> command) async {
 Future<void> _insertProduct(
   Directory project, {
   required String name,
-  required double price,
+  required int priceInUnits,
   int? stock,
 }) => _throughTheApi(
   project,
   (port) => postJson(port, '/api/products', {
     'name': name,
-    'price': price,
+    // A `decimal` field is a `BeakDecimal`, and the wire carries its stored
+    // form: integer units at the scale, so 12.50 is 1250.
+    'price': priceInUnits,
     'stock': ?stock,
   }),
 );

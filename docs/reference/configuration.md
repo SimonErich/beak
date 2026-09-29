@@ -65,7 +65,7 @@ The server reads its environment once, at startup, through `BeakEnv.resolve()`. 
 | `sqlite::memory:` | In-memory SQLite. Vanishes with the process. `serve()` applies the migrations and seeders itself, because `beak migrate` is another process |
 | `postgres://user:pass@host:5432/db`, `postgresql://...` | Postgres. The port defaults to 5432, `?sslmode=require` turns TLS on, credentials are URL-decoded, the pool holds up to 10 connections |
 
-Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm.
+Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm, though `beak migrate fresh` and `refresh` read it there for their `--force` guard.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
 --8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"

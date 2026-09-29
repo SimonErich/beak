@@ -31,14 +31,15 @@ Read first, by path: `.dart_tool/beak/docs/ai-index.md`,
    `beak_serverpod_flutter`, stop and use `beak-serverpod-setup`. If the table
    already exists in a database, use `beak-adopt-database`.
 2. Scaffold with `beak make:resource <Name> --fields name:string!,email:string,active:bool!`.
-   Kinds: `string`, `text`, `int`, `decimal`, `bool`, `datetime`. A trailing `!`
+   Kinds: `string`, `text`, `int`, `decimal` (an exact `BeakDecimal`), `double`,
+   `bool`, `datetime`. A trailing `!`
    means required; without it the field is nullable (`bool` becomes a tri-state
    `bool?`). It writes `lib/resources/<plural>/models/<snake>.dart` and
    `lib/resources/<plural>/<snake>_resource.dart`, then runs `beak prepare`. It
    refuses to overwrite either file.
 3. Finish the schema class by hand (relations and enums are not scaffolded):
    - Exactly one `@Display()` on the field that names a record in pickers,
-     links and titles.
+     links and titles (`beak prepare` rejects a second).
    - The Dart type picks the column, nullability picks required. Bounds are
      rules: `@Column(rules: [BeakMaxLength(120)])`. Search, sorting and
      filtering are switched on per column:
@@ -67,9 +68,9 @@ Read first, by path: `.dart_tool/beak/docs/ai-index.md`,
    `beak.yaml`). Otherwise it is authored: add `SupplierResource()` and its
    import to `BeakPanel(resources: [...])`; `make:resource` printed the lines.
 8. Apply it with `beak migrate`, which runs `beak prepare` and then the
-   generated `bin/migrate.dart`. If it exits non-zero without saying why, run
-   `dart run bin/migrate.dart migrate` yourself to read the error, and
-   `dart run bin/migrate.dart migrate:status` to see what is applied.
+   generated `bin/migrate.dart`. A failing migration prints its error in your
+   terminal and the command exits non-zero; `beak migrate status` shows what is
+   applied and what is pending.
 9. Test it (see below), then run the gate.
 
 ## Test

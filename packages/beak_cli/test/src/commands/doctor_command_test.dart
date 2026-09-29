@@ -90,11 +90,13 @@ BeakCliEnvironment environmentFor(
   Directory root, {
   bool databaseUp = false,
   StringSink? out,
+  Map<String, String> processEnvironment = const {},
 }) => BeakCliEnvironment(
   out: out ?? StringBuffer(),
   rootDirectory: root,
   now: () => DateTime.utc(2026, 7, 26, 12),
   probe: (host, port) async => databaseUp,
+  processEnvironment: processEnvironment,
 );
 
 /// Every check for a project seeded with [files].
@@ -509,6 +511,50 @@ int get monthlyTotal => 0;
         'database reachable',
       );
       expect(check.status, BeakCheckStatus.ok);
+    });
+  });
+
+  group('a DATABASE_URL from the shell', () {
+    test('is the one doctor checks, when there is no .env', () async {
+      // The server reads the shell and the .env, and the shell wins. Doctor
+      // looked at the .env alone, so a variable set in CI or a container was
+      // ignored and the default SQLite file was reported instead.
+      final root = preparedProject();
+      final checks = await diagnose(
+        environmentFor(
+          root,
+          processEnvironment: {
+            'DATABASE_URL': 'postgres://beak:beak@db.internal:5432/beak',
+          },
+        ),
+        readSchema: neverRead,
+      );
+
+      final check = checkMatching(checks, 'database unreachable');
+      expect(check.label, contains('db.internal:5432'));
+      expect(checks.where((c) => c.label.contains('no DATABASE_URL')), isEmpty);
+    });
+
+    test('beats the one in .env', () async {
+      final root = preparedProject();
+      File('${root.path}/.env').writeAsStringSync(
+        'DATABASE_URL=postgres://beak:beak@from-file:5432/beak\n',
+      );
+
+      final checks = await diagnose(
+        environmentFor(
+          root,
+          processEnvironment: {
+            'DATABASE_URL': 'postgres://beak:beak@from-shell:5432/beak',
+          },
+        ),
+        readSchema: neverRead,
+      );
+
+      expect(
+        checkMatching(checks, 'database unreachable').label,
+        contains('from-shell'),
+      );
     });
   });
 

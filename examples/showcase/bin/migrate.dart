@@ -3,8 +3,15 @@
 
 import 'dart:io';
 
+import 'package:beak/server.dart' show BeakConfigurationException;
 import 'package:showcase/beak/server.g.dart';
 
-/// Runs migrations and seeders (`migrate`, `db:seed`, `migrate:fresh`, …).
-Future<void> main(List<String> args) async =>
+/// Runs migrations and seeders (`migrate`, `db:seed`, `migrate:fresh`, ...).
+Future<void> main(List<String> args) async {
+  try {
     exit(await beakHost().runCli(args));
+  } on BeakConfigurationException catch (error) {
+    stderr.writeln('error: ${error.message}');
+    exit(78);
+  }
+}

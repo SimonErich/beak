@@ -42,7 +42,7 @@ beak dev
 ```console
 $ beak migrate
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
 migrated  20260926_000000_beak_commit_receipts
 migrated  20260927_000000_beak_outbox
 migrated  20260727_160744_create_notes_table
@@ -53,7 +53,7 @@ migrated  20260727_160744_create_notes_table
 ```console
 $ beak dev
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…

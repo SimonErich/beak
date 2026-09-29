@@ -154,6 +154,31 @@ void main() {
       expect(files.keys, isNot(contains('worm_migrations')));
     });
 
+    test('skips the tables Beak keeps for itself', () {
+      // A database Beak migrated once carries its own receipts and outbox.
+      // Introspecting it again generated classes for both.
+      final generated = BeakIntrospectionEmitter.emitAll([
+        for (final name in ['_beak_commit_receipts', '_beak_outbox', 'orders'])
+          IntrospectedTable(
+            name: name,
+            columns: [
+              const IntrospectedColumn(
+                name: 'id',
+                dataType: 'uuid',
+                isNullable: false,
+              ),
+              const IntrospectedColumn(
+                name: 'note',
+                dataType: 'text',
+                isNullable: true,
+              ),
+            ],
+          ),
+      ]);
+
+      expect(generated.map((file) => file.table), ['orders']);
+    });
+
     test('names the class by the singular table', () {
       expect(files['categories']!.className, 'Category');
     });
@@ -749,7 +774,9 @@ void main() {
 
     test('what it writes is what beak prepare reads', () async {
       await run(['postgres://u:p@localhost:5432/shop']);
-      File('${root.path}/pubspec.yaml').writeAsStringSync('name: shop\n');
+      File(
+        '${root.path}/pubspec.yaml',
+      ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
 
       final BeakPrepareResult prepared = runPrepare(
         BeakCliEnvironment(
@@ -987,7 +1014,9 @@ void main() {
 
       test('a table added later still gets its own migration', () async {
         await run(['postgres://u:p@localhost:5432/shop']);
-        File('${root.path}/pubspec.yaml').writeAsStringSync('name: shop\n');
+        File(
+          '${root.path}/pubspec.yaml',
+        ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
         File('${root.path}/lib/resources/notes/models/note.dart')
           ..parent.createSync(recursive: true)
           ..writeAsStringSync(generateSchemaClass('Note', const []));
@@ -1026,17 +1055,108 @@ void main() {
       });
 
       test(
-        'tells the user not to migrate a database Beak does not own',
+        'tells the user to migrate once, for Beak\'s own tables only',
         () async {
+          // Saves go through POST /api/commits, which needs the receipts table;
+          // `beak migrate` on such a database creates that, the outbox and
+          // worm's log, and touches none of the user's tables. The message said
+          // never to run it.
           await run([
             'postgres://u:p@localhost:5432/shop',
             '--ownership',
             'external',
           ]);
 
-          expect(out.toString(), contains('beak migrate'));
+          final String text = out.toString();
+          expect(text, contains('Run `beak migrate` once'));
+          expect(text, contains('_beak_commit_receipts'));
+          expect(text, contains('_beak_outbox'));
+          expect(text, contains('worm_migrations'));
+          expect(text, isNot(contains('do not run')));
         },
       );
+    });
+
+    group('running it again', () {
+      const url = 'postgres://u:p@localhost:5432/shop';
+      const product = 'lib/resources/products/models/product.dart';
+
+      test(
+        'over files nobody touched writes the same files and succeeds',
+        () async {
+          await run([url]);
+          final String first = read(product);
+          out.clear();
+
+          expect(await run([url]), 0);
+
+          expect(read(product), first);
+          expect(out.toString(), isNot(contains('already exists')));
+        },
+      );
+
+      test('refuses to overwrite a schema file that was edited, and writes '
+          'nothing', () async {
+        // The classes are the project's the moment they are written, and
+        // this used to replace them, edits and all, without a word.
+        await run([url]);
+        File('${root.path}/$product').writeAsStringSync('// mine, edited\n');
+        File(
+          '${root.path}/lib/resources/categories/models/category.dart',
+        ).writeAsStringSync('// also mine\n');
+        out.clear();
+
+        expect(await run([url]), 1);
+
+        expect(read(product), '// mine, edited\n');
+        expect(
+          read('lib/resources/categories/models/category.dart'),
+          '// also mine\n',
+        );
+        expect(out.toString(), contains(product));
+        expect(
+          out.toString(),
+          contains('lib/resources/categories/models/category.dart'),
+        );
+        expect(out.toString(), contains('--force'));
+        expect(out.toString(), contains('already exists'));
+      });
+
+      test('--force replaces it', () async {
+        await run([url]);
+        File('${root.path}/$product').writeAsStringSync('// mine, edited\n');
+
+        expect(await run([url, '--force']), 0);
+
+        expect(
+          read(product),
+          contains('final class Product extends BeakSchema'),
+        );
+      });
+
+      test(
+        '--only leaves an edited file for a table it did not select',
+        () async {
+          await run([url]);
+          File('${root.path}/$product').writeAsStringSync('// mine, edited\n');
+
+          expect(await run([url, '--only', 'categories']), 0);
+
+          expect(read(product), '// mine, edited\n');
+        },
+      );
+
+      test('--dry-run says what would be refused and writes nothing', () async {
+        await run([url]);
+        File('${root.path}/$product').writeAsStringSync('// mine, edited\n');
+        out.clear();
+
+        expect(await run([url, '--dry-run']), 1);
+
+        expect(read(product), '// mine, edited\n');
+        expect(out.toString(), contains(product));
+        expect(out.toString(), contains('already exists'));
+      });
     });
 
     group('a database another tool migrates', () {
@@ -1184,7 +1304,10 @@ void main() {
       test('the backend reads back what was saved', () async {
         await run([url, '--save-url']);
 
-        expect(beakDatabaseUrlOf(root), Uri.parse(url));
+        expect(
+          beakDatabaseUrlOf(root, processEnvironment: const {}),
+          Uri.parse(url),
+        );
       });
 
       test('a second run changes nothing', () async {

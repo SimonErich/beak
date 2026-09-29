@@ -188,11 +188,19 @@ final class InitCommand extends Command<int> {
       return 1;
     }
     if (_belongsToServerpod(root, pubspec)) {
-      environment.out.writeln(
-        'This project belongs to a Serverpod workspace. Beak does not embed '
-        'itself in it; add the admin app to your Serverpod workspace instead '
-        '(see the Serverpod section of the docs).',
-      );
+      environment.out
+        ..writeln(
+          'This project belongs to a Serverpod workspace. `beak init` does '
+          'not embed Beak in it. Two other ways in:',
+        )
+        ..writeln(
+          '  the admin app: add the admin app to your Serverpod workspace '
+          '(see the Serverpod section of the docs)',
+        )
+        ..writeln(
+          '  the client bridge: a panel over the endpoints you already have, '
+          'wired by hand; see docs/serverpod/bridge/index.md',
+        );
       return 1;
     }
 

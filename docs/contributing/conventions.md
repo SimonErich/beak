@@ -114,7 +114,7 @@ Generated files (`*.g.dart`, `*.beak.dart`) are excluded from analysis and cover
 `prepare` is quiet when there is nothing to do:
 
 ```text
-  generated  up to date (7 files)
+  generated  up to date (8 files)
 ```
 
 ## Breaking changes before 1.0

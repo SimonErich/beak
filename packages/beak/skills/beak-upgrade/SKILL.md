@@ -53,7 +53,7 @@ release.
    installed skills (`beak agents --check` exits 1 while anything is stale, for
    CI). Skills you edited locally are kept; `--force` replaces them.
 9. See whether the release added migrations of Beak's own tables (receipts,
-   outbox): `dart run bin/migrate.dart migrate:status`. Back up the database,
+   outbox): `beak migrate status`. Back up the database,
    then `beak migrate`. Do not touch your own applied migrations.
 10. Run `beak doctor` and `flutter test`. Doctor's "CLI matches project Beak"
     line must pass.

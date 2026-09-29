@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:beak/server.dart' show BeakConfigurationException;
 import 'package:showcase/beak/server.g.dart';
 
 /// Serves the API until SIGINT or SIGTERM, then shuts down and exits.
@@ -14,7 +15,13 @@ Future<void> main() async {
     ProcessSignal.sigint.watch().first,
     if (!Platform.isWindows) ProcessSignal.sigterm.watch().first,
   ]);
-  final HttpServer server = await beakHost().serve();
+  final HttpServer server;
+  try {
+    server = await beakHost().serve();
+  } on BeakConfigurationException catch (error) {
+    stderr.writeln('error: ${error.message}');
+    exit(78);
+  }
   stderr.writeln('listening on http://${server.address.host}:${server.port}');
   await stopped;
   stderr.writeln('shutting down');

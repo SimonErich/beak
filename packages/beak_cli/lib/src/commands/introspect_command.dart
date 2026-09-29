@@ -7,6 +7,7 @@ import '../cli_runner.dart';
 import '../introspect/beak_introspection_emitter.dart';
 import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
+import '../project/beak_emitters.dart';
 
 /// Writes Beak schema classes for the tables an existing database already has.
 ///
@@ -78,6 +79,13 @@ final class IntrospectCommand extends Command<int> {
       ..addFlag(
         'save-url',
         help: 'Write DATABASE_URL=<url> into .env, where the server reads it.',
+        negatable: false,
+      )
+      ..addFlag(
+        'force',
+        help:
+            'Replace schema files that already exist and differ from what '
+            'the database implies.',
         negatable: false,
       )
       ..addFlag(
@@ -189,13 +197,37 @@ final class IntrospectCommand extends Command<int> {
     );
     if (files.isEmpty) {
       environment.out.writeln(
-        '  nothing to write — every table was filtered out or is a pivot',
+        '  nothing to write: every table was filtered out or is a pivot',
       );
       return 0;
     }
 
     final bool dryRun = argResults?['dry-run'] == true;
+    final edited = <String>[
+      if (argResults?['force'] != true)
+        for (final file in files)
+          if (_differsOnDisk('$out/${file.path}', file.contents))
+            '$out/${file.path}',
+    ];
+    if (edited.isNotEmpty) {
+      // The classes are the project's from the moment they are written, so
+      // running this again must not take the edits back.
+      for (final path in edited) {
+        environment.out.writeln(
+          '  $path already exists and differs from what the database implies',
+        );
+      }
+      environment.out.writeln(
+        '  nothing was written. Pass --force to replace ${edited.length == 1 ? 'it' : 'them'}, '
+        'or leave the table out with --except.',
+      );
+      return 1;
+    }
     for (final file in files) {
+      if (_isOnDisk('$out/${file.path}', file.contents)) {
+        environment.out.writeln('  unchanged $out/${file.path}');
+        continue;
+      }
       if (dryRun) {
         environment.out.writeln(
           '  would create $out/${file.path}  '
@@ -365,6 +397,22 @@ final class IntrospectCommand extends Command<int> {
     );
   }
 
+  /// Whether the file at [path], relative to the project, exists with text
+  /// other than [contents].
+  bool _differsOnDisk(String path, String contents) {
+    final file = File(p.join(environment.rootDirectory.path, path));
+    return file.existsSync() &&
+        file.readAsStringSync() != BeakEmitters.format(contents);
+  }
+
+  /// Whether the file at [path], relative to the project, already holds
+  /// exactly [contents].
+  bool _isOnDisk(String path, String contents) {
+    final file = File(p.join(environment.rootDirectory.path, path));
+    return file.existsSync() &&
+        file.readAsStringSync() == BeakEmitters.format(contents);
+  }
+
   /// Says what the chosen [ownership] means for `beak migrate`.
   void _describeOwnership(BeakIntrospectionOwnership ownership) {
     environment.out.writeln(switch (ownership) {
@@ -373,8 +421,11 @@ final class IntrospectCommand extends Command<int> {
             'database it changes nothing;\n'
             '             on an empty one it creates them.',
       BeakIntrospectionOwnership.external =>
-        '  external   Beak does not migrate this database: do not run '
-            '`beak migrate` against it.',
+        '  external   Beak does not migrate your tables. Run `beak migrate` '
+            'once for its own\n'
+            '             (`_beak_commit_receipts`, `_beak_outbox`, '
+            '`worm_migrations`): saves fail without\n'
+            '             them, and it touches none of yours.',
     });
   }
 

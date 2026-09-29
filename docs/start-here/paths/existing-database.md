@@ -54,8 +54,11 @@ $ beak introspect postgres://legacy:legacy@localhost:5432/legacy_shop --dry-run
   would create lib/resources/customers/models/customer.dart  (Customer over customers)
   would create lib/resources/orders/models/order.dart  (Order over orders)
   would create lib/resources/products/models/product.dart  (Product over products)
+  ! products.price is numeric(10,2), read as a double, which can round. An exact amount is a BeakDecimal, which Beak stores as integer units, so switching means converting the column in a migration
   skipped django_migrations (migration bookkeeping)
-  external   Beak does not migrate this database: do not run `beak migrate` against it.
+  external   Beak does not migrate your tables. Run `beak migrate` once for its own
+             (`_beak_commit_receipts`, `_beak_outbox`, `worm_migrations`): saves fail without
+             them, and it touches none of yours.
 ```
 
 `--dry-run` writes nothing, so run it first. A Serverpod database is refused (exit `1`, "This database belongs to a Serverpod server"); [An existing Serverpod project](existing-serverpod-project.md) has the path for that.
@@ -96,8 +99,8 @@ final class Order extends BeakSchema {
 
 The foreign key `customer_id` became a `@BelongsTo()` relationship, `created_at` and `updated_at` became `timestamps: true`, and the text `note` became a `BeakText`. What to review, in this order:
 
-1. **The display column.** Each class gets one `@Display()` field, preferring a column named `name`, `title`, `label`, `email`, then `code`. It is what a picker shows for a record. A table with none has no `@Display()`; add one.
-2. **Types.** Read every `late final` line. A `numeric(10,2)` price arrives as a `double`, so money loses exactness; change it to a `BeakDecimal` with `BeakSemantic.money` ([A money field](../../recipes/a-money-field.md)) before the panel edits a price.
+1. **The display column.** Each class gets one `@Display()` field, preferring a column named `name`, then `title`, `label`, `email`, `code` and `subject`. It is what a picker shows for a record. A table with none has no `@Display()`; add one.
+2. **Types.** Read every `late final` line. A `numeric(10,2)` price arrives as a `double`, so money can round, and the command notes each such column. An exact `BeakDecimal` with `BeakSemantic.money` ([A money field](../../recipes/a-money-field.md)) is stored as integer units, so an existing `numeric` column has to be converted by a migration of your own before the class can change type.
 3. **Nullability.** `?` follows the database's nullability, and a column with a database default is optional too (`status` above is `NOT NULL DEFAULT 'open'`), because the database fills it in. A mismatch between a class and the database fails on save, not at compile time.
 4. **Rules.** Column lengths arrive as `BeakMaxLength` rules and an email-shaped column as `BeakEmail()`. Add the rules your business needs; the form and the API both apply them.
 5. **What was left out.** A column named like a secret (`password`, `password_hash`, `token`, `api_key` and a few more) is omitted with a warning, and a pure join table becomes a relationship and no class of its own.
@@ -121,19 +124,18 @@ migrated  20260927_000000_beak_outbox
 migrated  20260929_164522_adopt_existing_schema
 ```
 
-**External.** `beak introspect` prints "do not run `beak migrate`", and no migration of yours exists to run. One thing still needs to happen: every panel save is a graph commit that writes a receipt, and without `_beak_commit_receipts` it answers `500`. On an external database `beak migrate` applies only Beak's two framework migrations, `_beak_commit_receipts` and `_beak_outbox`, plus the `worm_migrations` bookkeeping table. It touches none of your tables. Run it once, and read `beak migrate up --pretend` first if you want to see the SQL.
+**External.** No migration of yours exists to run. One thing still needs to happen: every panel save is a graph commit that writes a receipt, and without `_beak_commit_receipts` it answers `500`. On an external database `beak migrate` applies only Beak's two framework migrations, `_beak_commit_receipts` and `_beak_outbox`, plus the `worm_migrations` bookkeeping table. It touches none of your tables. Run it once, and read `beak migrate up --pretend` first if you want to see the SQL.
 
 `beak dev` then serves the API on `:8080`, and the panel is `flutter run -d chrome`, exactly as in the [Quickstart](../quickstart.md). Put `DATABASE_URL` in `.env` (`--save-url` does that for you) or the server opens an empty `beak.db` instead of your database.
 
 ## Rules and limits
 
-- **Introspect before you migrate.** After `beak migrate` has run against a database, its `_beak_commit_receipts` and `_beak_outbox` tables come back as resources the next time you introspect. Delete those two classes, or read the database before Beak touches it.
-- **Integer keys are read-only today.** Beak generates text identifiers (UUIDs) for new rows and validates ids as strings. A table with a serial integer key lists and shows fine. Creating a row in it fails with a `500` (`invalid input syntax for type integer`), and editing one fails validation (`id: Must be a string`). Tables with a `uuid` or text key work in full. Leave an integer-keyed table read-only in the panel until this changes.
-- **Native Postgres enums do not read yet.** The class is written correctly (`OrderStatus` above), but querying a table with a native enum column answers `500` with `BeakValue does not support UndecodedBytes`. Either change the column to a text type in the database (`ALTER COLUMN status TYPE varchar(20) USING status::text` reads and writes correctly afterwards), or leave that table out with `--except orders`.
+- **Integer keys work.** A table whose key is a serial integer is written with `late final int? id;`. The server mints a string id only for a string key, leaves an integer one to the database and returns what it assigned, and takes numeric ids on get, update and delete. This is tested on SQLite; a Postgres serial column relies on `RETURNING`.
+- **Native Postgres enums read as text.** A query returns the enum label as a string. Writing a label into an enum column is untested against a real Postgres, so try a write before you ship the form.
 - **Names are mapped, not translated.** A `total_cents` column becomes `totalCents` in Dart and stays `total_cents` in SQL and in the API. The panel label comes from the field name; set `@Column(label:)` where it reads badly.
 - **Schema drift is your call.** `beak doctor` compares the classes to the live database and reports each difference. In adopt mode you close a gap with `beak make:migration Name --from-drift`; in external mode you fix the class or the other tool's migration.
 - **`--only` and `--except` take comma-separated table names** (`--only customers,products`), and `--schema` picks a Postgres schema other than `public`. Without them every table is read.
-- **Running introspect again overwrites the classes it reads.** A second run rewrites the file of every table it reads, edits included (a baseline migration that already exists is left alone). Commit first, and pass `--only` to re-read just the tables that changed.
+- **Running introspect again never takes your edits back.** A schema file that already holds exactly what would be written is reported as `unchanged`. One you edited stops the run, which names the file and writes nothing; `--force` replaces it, and `--only` or `--except` leaves the table out. A baseline migration that already exists is left alone.
 
 ## Verify it
 

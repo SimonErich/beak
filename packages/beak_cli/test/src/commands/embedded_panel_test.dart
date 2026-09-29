@@ -100,7 +100,7 @@ void main() {
       expect(File('${root.path}/lib/main.dart').readAsStringSync(), _appMain);
     });
 
-    test('still writes the wiring and the two bin entrypoints', () {
+    test('still writes the host wiring and the two bin entrypoints', () {
       final root = _project({});
 
       final result = runPrepare(_environmentFor(root));
@@ -109,13 +109,32 @@ void main() {
         result.written,
         containsAll([
           'lib/beak/registry.g.dart',
-          'lib/beak/panel.g.dart',
-          'lib/beak/app.g.dart',
           'lib/beak/server.g.dart',
           'bin/serve.dart',
           'bin/migrate.dart',
         ]),
       );
+    });
+
+    test('writes no panel wiring that the entrypoint does not import', () {
+      final root = _project({'lib/admin_main.dart': _authoredEntrypoint('')});
+
+      final result = runPrepare(_environmentFor(root));
+
+      expect(result.written, isNot(contains('lib/beak/panel.g.dart')));
+      expect(result.written, isNot(contains('lib/beak/app.g.dart')));
+    });
+
+    test('writes the panel wiring an entrypoint does import', () {
+      final root = _project({
+        'lib/admin_main.dart':
+            "import 'beak/app.g.dart';\n${_authoredEntrypoint('')}",
+      });
+
+      final result = runPrepare(_environmentFor(root));
+
+      expect(result.written, contains('lib/beak/panel.g.dart'));
+      expect(result.written, contains('lib/beak/app.g.dart'));
     });
 
     test('does not create lib/main.dart when there is none', () {
@@ -269,9 +288,10 @@ ${_authoredEntrypoint('')}''',
       expect(check.label, contains('package:beak/server.dart'));
     });
 
-    test('still walks lib/beak/app.g.dart from the generated wiring', () async {
+    test('walks lib/beak/app.g.dart when the entrypoint imports it', () async {
       final root = _project({
-        'lib/admin_main.dart': _authoredEntrypoint(''),
+        'lib/admin_main.dart':
+            "import 'beak/app.g.dart';\n${_authoredEntrypoint('')}",
         'lib/screens/reports.dart': '''
 import 'package:beak/panel.dart';
 import 'package:beak/server.dart';
@@ -289,15 +309,16 @@ BeakScreen buildReportsScreen() => BeakScreen();
       expect(check.status, BeakCheckStatus.fail);
     });
 
-    test('a project whose entrypoint is not written yet reports the '
-        'generated app only', () async {
+    test('a project whose entrypoint is not written yet has no panel graph '
+        'to check', () async {
       final root = _project({});
       runPrepare(_environmentFor(root));
 
       final checks = await diagnoseIn(root);
 
+      expect(checks.where((check) => check.label.contains('imports')), isEmpty);
       expect(
-        checkMatching(checks, 'no panel file imports the server').status,
+        checkMatching(checks, 'generated files up to date').status,
         BeakCheckStatus.ok,
       );
     });

@@ -35,7 +35,7 @@ final class Product extends BeakSchema {
 
   /// Price.
   @Column(sortable: true)
-  late final double price;
+  late final BeakDecimal price;
 
   /// Active.
   @Column(filterable: true)
@@ -128,13 +128,13 @@ listening on http://0.0.0.0:8080
 | You want | Do this |
 | --- | --- |
 | Start from an empty project | `beak create shop --no-example`, then `make:resource`. The default `beak create` writes a `Note` first. |
-| A money field or a relation | Edit the schema class after scaffolding. `--fields` has no relation or exact-decimal kind: see [A money field](a-money-field.md) and [A belongs-to picker](a-belongs-to-picker.md). |
+| A money field or a relation | `price:decimal` is an exact `BeakDecimal` at scale 2, but knows no currency, and `--fields` has no relation kind. Edit the schema class after scaffolding: see [A money field](a-money-field.md) and [A belongs-to picker](a-belongs-to-picker.md). |
 | Hide the section but keep the model | [Hide a resource](hide-a-resource.md) |
 | Custom table columns, filters, form layout | `BeakTableScreen` and `BeakFormScreen` in the resource's `screens:`, see [Resources](../panel/resources.md) |
 
-`--fields price:decimal` gives a Dart `double`, which is a floating-point column. Fine for a weight, wrong for an invoice. Change the type to `BeakDecimal` before the first migration runs, because after that it is a migration.
+`--fields price:decimal` gives a `BeakDecimal`, an exact number stored as integer units, so a total adds up. For a measurement that may round, write `weight:double` and get a Dart `double`.
 
-The table name is the plural of the class name and the pluraliser is naive: `Category` becomes `categories`, but a class like `Person` becomes `persons`. Read the name in the printed file list before you migrate.
+The table name is the plural of the class name: `Category` becomes `categories` and `Person` becomes `people`. The pluraliser only knows the regular rules and a short list of irregular words, so read the name in the printed file list before you migrate.
 
 ## Verify
 
@@ -154,7 +154,7 @@ testWidgets('the products section lists a seeded product', (tester) async {
       const ProductModel().record([
         ProductModel.id.to('p1'),
         ProductModel.name.to('Espresso Beans'),
-        ProductModel.price.to(12.5),
+        ProductModel.price.to(BeakDecimal.parse('12.50')),
       ]),
     ]);
   await tester.pumpWidget(buildPanel(dataSource: source));
@@ -173,5 +173,5 @@ $ flutter test
 ## Continue reading
 
 - [An enum badge column](an-enum-badge-column.md) gives the new resource a status column that reads at a glance.
-- [A money field](a-money-field.md) replaces the scaffolded `double` price with exact money.
+- [A money field](a-money-field.md) gives the scaffolded exact price a currency and a locale.
 - [Defining models](../models/defining-models.md) covers every annotation the schema class takes.

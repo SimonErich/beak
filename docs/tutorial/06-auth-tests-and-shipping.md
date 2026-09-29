@@ -112,8 +112,8 @@ beak dev
 
 ```console
 $ beak dev
-  3 models · 2 resource classes · 0 screens · 1 override
-  generated  1 of 7 files
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  1 of 8 files
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
@@ -195,7 +195,7 @@ BeakPanel buildPanel({BeakDataSource? dataSource, BeakAuthConfig? auth}) =>
     );
 ```
 
-Restart the panel with `flutter run -d chrome`. A visitor who is not signed in lands on a Sign in card, whatever address they opened, and the card asks for an Email address and a password. The label is not decoration: the panel's sign-in form only accepts email-shaped names, which is why the accounts above are `sam@example.com` and not `sam`. Sign in as Sam and the panel opens on the Shop overview, with a Sign out button in the top bar.
+Restart the panel with `flutter run -d chrome`. A visitor who is not signed in lands on a Sign in card, whatever address they opened, and the card asks for a Username or email and a password. The field takes any account name, so `sam` would sign in as well as `sam@example.com`; the tutorial simply gave its two accounts email addresses. Sign in as Sam and the panel opens on the Shop overview, with a Sign out button in the top bar.
 
 The panel does not know Sam cannot delete, and it draws the trash icon anyway. Press it: a toast says the record is deleted and offers Undo, and the row leaves the table. When the Undo window closes the panel sends the delete, the server answers with an `unapplied` outcome, and the row is back. The panel hid nothing and the server refused. If a role never deletes, `BeakResource` also takes `canDelete: false`, which keeps the icon away from everyone. What each role sees is presentation. The rule is on the server.
 
@@ -478,7 +478,7 @@ beak doctor
 $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
-  OK   discovered 3 models · 2 resource classes · 0 screens · 1 override
+  OK   discovered 3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
   OK   generated files up to date
   OK   every model has a migration

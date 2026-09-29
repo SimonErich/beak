@@ -29,7 +29,7 @@ You have a project written against the tree before the 0.9 cleanup, and you want
 
    ```console
    $ beak prepare
-   Cannot generate — fix these first:
+   Cannot generate: fix these first:
      lib/resources/notes/models/note.dart: Note.title: @Column(maxLength:) was removed. Declare the bound as a rule instead: rules: [BeakMaxLength(255)].
      lib/resources/notes/models/note.dart: Note.priority: @Column(min:) was removed. Declare the bound as a rule instead: rules: [BeakMin(1)].
      lib/resources/comments/models/comment.dart: Comment.note: searchOn takes the related schema's fields as symbols, not column keys as strings. Write searchOn: [#title].
@@ -215,7 +215,7 @@ These compile and behave differently. Check them by hand.
 ```console
 $ beak prepare
   2 models · 1 resource class · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (9 files)
 $ beak doctor
   ...
 All checks passed.

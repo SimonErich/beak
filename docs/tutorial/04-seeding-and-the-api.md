@@ -75,8 +75,8 @@ beak migrate fresh --seed
 
 ```console
 $ beak migrate fresh --seed
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  1 of 7 files
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  1 of 8 files
 migrate:fresh complete (6 migration(s) applied).
 seeded  ShopSeeder
 ```
@@ -89,8 +89,8 @@ beak seed
 
 ```console
 $ beak seed
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (8 files)
 seeded  ShopSeeder
 ```
 
@@ -226,8 +226,8 @@ curl -s -X POST localhost:8080/api/products/query \
 ```
 
 ```console
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (8 files)
 seeded  ShopSeeder
 ```
 
@@ -256,8 +256,8 @@ beak migrate status
 
 ```console
 $ beak migrate status
-  3 models · 2 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (8 files)
 Migration                                        | Batch | Status
 -----------------------------------------------------------------
 [x] 20260926_000000_beak_commit_receipts             | 1     | applied

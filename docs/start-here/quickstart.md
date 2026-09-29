@@ -68,7 +68,7 @@ Changed 142 dependencies!
     beak dev
 ```
 
-The `generated` line counts the files `beak prepare` wrote on that run. It skips files that did not change, so the numbers move between runs (`8 of 9` here, `up to date (7 files)` later). Read it as "done", not as an inventory.
+The `generated` line is the files `beak prepare` wrote out of the files it considered, the schema part and the wiring. It skips a file that would not change, so the first number moves between runs (`8 of 9` here, `up to date (8 files)` later). Read it as "done", not as an inventory.
 
 The one model in the project is the `Note` schema class. It is the file you will edit most:
 
@@ -85,7 +85,7 @@ beak migrate
 ```console
 $ beak migrate
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
 migrated  20260926_000000_beak_commit_receipts
 migrated  20260927_000000_beak_outbox
 migrated  20260929_161500_create_notes_table
@@ -102,7 +102,7 @@ beak dev
 ```console
 $ beak dev
   1 model · 0 resource classes · 0 screens · 0 overrides
-  generated  up to date (7 files)
+  generated  up to date (8 files)
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
@@ -154,7 +154,7 @@ Add `priority` to `Note`, right under `pinned`:
 ```console
 $ beak prepare
   2 models · 1 resource class · 0 screens · 0 overrides
-  generated  1 of 8 files
+  generated  1 of 9 files
 $ beak doctor
   ...
   WARN notes.priority is declared by Note.priority but missing from the database
@@ -185,7 +185,7 @@ $ beak migrate
 migrated  20260929_163353_create_products_table
 ```
 
-`make:resource` writes the schema class and a `ProductResource`, runs `beak prepare` and creates the migration. Restart `beak dev` and hot restart the panel, and `Products` joins the sidebar. The `ProductResource` class replaces the default resource of its model, so every option you set on it (icon, navigation group, screens) shows up in the sidebar and pages. `price:decimal!` produces a `double` field today. When money must be exact, declare a `BeakDecimal` with `BeakSemantic.money` yourself; [A money field](../recipes/a-money-field.md) shows how.
+`make:resource` writes the schema class and a `ProductResource`, runs `beak prepare` and creates the migration. Restart `beak dev` and hot restart the panel, and `Products` joins the sidebar. The `ProductResource` class replaces the default resource of its model, so every option you set on it (icon, navigation group, screens) shows up in the sidebar and pages. `price:decimal!` produces an exact `BeakDecimal` field (`double` is a separate kind for a measurement). To give it a currency, add `BeakSemantic.money`; [A money field](../recipes/a-money-field.md) shows how.
 
 ## Checkpoint
 

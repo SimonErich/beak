@@ -7,9 +7,9 @@ import 'beak_managed_block.dart';
 /// Whether [claudeMd] imports the `AGENTS.md` beside it: a line that is
 /// only `@AGENTS.md` (or `@./AGENTS.md`).
 ///
-/// Claude Code reads `AGENTS.md` only when there is no `CLAUDE.md`, and a
-/// `CLAUDE.md` pulls another file in with an `@` import on a line of its
-/// own.
+/// Claude Code reads `CLAUDE.md`, not `AGENTS.md`, and a `CLAUDE.md` pulls
+/// another file in with an `@` import on a line of its own. The import is how
+/// the instructions in `AGENTS.md` reach it.
 bool claudeMdImportsAgents(String claudeMd) =>
     RegExp(r'^@\.?/?AGENTS\.md\s*$', multiLine: true).hasMatch(claudeMd);
 

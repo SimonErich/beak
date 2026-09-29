@@ -52,7 +52,9 @@ void main() {
 
   /// Seeds [files] into the project, plus a pubspec naming it.
   void seed(Map<String, String> files) {
-    file('pubspec.yaml').writeAsStringSync('name: shop\n');
+    file(
+      'pubspec.yaml',
+    ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
     for (final MapEntry(key: path, value: contents) in files.entries) {
       file(path)
         ..createSync(recursive: true)
@@ -327,8 +329,11 @@ final class AuditModel extends BeakModel {
 
       expect(await eject(['resource', 'note']), 1);
 
-      expect(out.toString(), contains('No model declares the table "note"'));
-      expect(out.toString(), contains('notes'));
+      expect(
+        out.toString(),
+        contains('No model declares the table "note", did you mean notes?'),
+      );
+      expect(out.toString(), isNot(contains('?.')));
       expect(
         file('lib/resources/note/note_resource.dart').existsSync(),
         isFalse,
@@ -640,6 +645,24 @@ final class NoteResource extends BeakResource {
       expect(file('lib/main.dart').readAsStringSync(), ejected);
     });
 
+    test(
+      'says the panel wiring it leaves behind goes with the next prepare',
+      () async {
+        seed({'lib/resources/notes/models/note.dart': noteSchema});
+
+        expect(await eject(['main']), 0);
+
+        expect(file('lib/beak/panel.g.dart').existsSync(), isTrue);
+        expect(
+          out.toString(),
+          contains(
+            'The next `beak prepare` deletes lib/beak/panel.g.dart and '
+            'app.g.dart',
+          ),
+        );
+      },
+    );
+
     test('an entrypoint the project already owns is left alone', () async {
       seed({
         'lib/resources/notes/models/note.dart': noteSchema,
@@ -650,6 +673,32 @@ final class NoteResource extends BeakResource {
 
       expect(file('lib/main.dart').readAsStringSync(), '// mine\n');
       expect(out.toString(), contains('already yours'));
+    });
+
+    test('--force writes the entrypoint over one the project already owns, '
+        'and says so', () async {
+      seed({
+        'lib/resources/notes/models/note.dart': noteSchema,
+        'lib/main.dart': '// mine\n',
+      });
+
+      expect(await eject(['main', '--force']), 0);
+
+      final String replaced = file('lib/main.dart').readAsStringSync();
+      expect(replaced, isNot('// mine\n'));
+      expect(replaced, contains('BeakPanel('));
+      expect(replaced, isNot(contains('GENERATED')));
+      expect(out.toString(), isNot(contains('already yours')));
+      expect(out.toString(), contains('lib/main.dart is yours now'));
+    });
+
+    test('--force does not touch an entrypoint that is not there yet '
+        'differently', () async {
+      seed({'lib/resources/notes/models/note.dart': noteSchema});
+
+      expect(await eject(['main', '--force']), 0);
+
+      expect(file('lib/main.dart').readAsStringSync(), contains('BeakPanel('));
     });
 
     test('a project that cannot be scanned is not switched', () async {
