@@ -1,59 +1,40 @@
 # Testing and shipping
 
-> Test a Beak project, then ship it: configuration, production images, security and performance.
+> Test a Beak project at the right level, know what it costs and exposes, configure it, and put the server and panel on a host.
 
-This section covers how you run Beak past `beak dev`: what a Beak project needs to boot (less than you expect), and the two Docker images that put a Beak backend and panel on a real host. The local stack for the parts that need real services is a contributor topic, and lives under Contributing.
+This section covers the stretch between "it runs on my machine" and "it runs for other people": testing at the level that answers your question, reading what a screen costs and what an endpoint exposes, configuring the backend, and putting the server and the panel on a host.
 
-## The default is no infrastructure
+A fresh Beak project needs no infrastructure. It has no `docker-compose.yml`, no `.env` and no credentials, `DATABASE_URL` defaults to a SQLite file, uploads go to a directory beside the project, and the whole loop is `beak migrate` then `beak dev`. Everything in this section is what you add after that, and each piece is opt-in.
 
-A fresh Beak project has no `docker-compose.yml`, no `.env`, and no credentials. `DATABASE_URL` is optional and defaults to `sqlite:beak.db`, a file created beside the process on first run. Uploads land on local disk under `storage/uploads`, served by the Beak server itself, until `BEAK_STORAGE_DRIVER` points somewhere else. So the whole loop is:
+## Two programs, two kinds of check
 
-```bash
-beak migrate
-beak dev
-```
+A project is one package that compiles to two programs. The server is pure Dart: the generated API, your policy, your migrations. The panel is Flutter: tables, forms and blocks that render whatever the server returns. They fail differently, so they are tested differently and deployed differently.
 
-That is deliberate. Requiring a database before a reader sees anything at all loses more first-time users than any other step. Everything below is what you reach for **after** that, and each piece is opt-in.
-
-- **Dev infrastructure** is the local stack *this repository* uses for the parts SQLite cannot cover: Postgres, MinIO, and a database console in one `docker-compose.yml`. It is something you start to work on Beak, not something you deploy, so its page is filed under Contributing: [Dev infrastructure](../contributing/dev-infrastructure.md). You need it for the `e2e`-tagged suites and for S3 uploads, not to run an app.
-- **Going to production** is the `deploy/` folder: two images and a compose file that build the backend and panel from scratch and wire them to their own Postgres and MinIO. See [Going to production](going-to-production.md).
-
-## Two images, because Beak is two programs
-
-A Beak project is one package, but it compiles to two artifacts, and the deployment follows that line.
-
-| Image | What it is | Depends on | Base |
+| Half | Compiles to | Needs at build time | Checked by |
 | --- | --- | --- | --- |
-| `beak-server` | `bin/serve.dart` as one AOT-compiled native executable, plus `bin/migrate.dart` as the `beak-migrate` CLI for schema and seed. | `beak_backend`, `beak_core`, `worm`. No Flutter, no obers_ui. | `debian:bookworm-slim` |
-| `beak-web` | `lib/main.dart` built for web: static files served by nginx with a SPA fallback. | Flutter, obers_ui. | `nginx:alpine` |
+| Server | One executable bundle, plus a migrate bundle | Dart, and a Flutter SDK to resolve the project | API tests on in-memory SQLite, policy tests, `beak doctor` |
+| Panel | Static web files | Flutter, obers_ui | Widget tests over an in-memory data source, a real web build |
 
-The backend half is pure Dart. It never imports Flutter or obers_ui, so it compiles to a single binary and boots on a slim Debian base with nothing but glibc and CA roots. Only the panel needs obers_ui, and only the panel needs a Flutter toolchain to build.
+`beak doctor` enforces the split: it fails when a panel file imports server code. The check exists because `dart:io` compiles for the web and only breaks when it runs.
 
-That the split holds is not a hope. `melos run guard-web` walks the import graph from every panel-side entrypoint and fails the build if server code appears on it, and CI builds a panel for web on every run as the empirical half of the same check. [Working with obers_ui](../contributing/working-with-obers-ui.md) explains how the panel resolves obers_ui without any build-time override.
+## Read this before you deploy
 
-## A starting point, not a platform
+`deploy/` in the repository is a reference for the shop, not a platform. As checked for 0.9.0, its server image, its panel image and its default storage setting each have a known failure, and each has a workaround. They are listed at the top of [Going to production](going-to-production.md), with the commands that do work.
 
-The deployment files live in the repo under [`deploy/`](https://github.com/SimonErich/beak/tree/v0.9.0/deploy), with a [README](https://github.com/SimonErich/beak/blob/v0.9.0/deploy/README.md) that mirrors the commands you will find here. They build, and they were exercised end to end: the migrations ran, the server booted, and the API answered with the correct Beak error envelope.
-
-They are a reference you copy and adapt, not a managed platform. Beak does not run your servers, terminate your TLS, or rotate your secrets. What it hands you is a correct, minimal shape to start from: the multi-stage builds, the migrate-on-deploy step, the storage wiring, and the two health probes a container platform will ask for. The [production checklist](going-to-production.md) is honest about the parts that stay yours.
-
-> **Note: What lives where**
->
-> The dev `docker-compose.yml` and root `.env.example` sit at the repo root and serve this repository's own examples and test suites. The production `Dockerfile.server`, `Dockerfile.web`, `docker-compose.prod.yml`, and `.env.prod.example` all live under `deploy/`. They do not share a compose file, and they use different ports and credentials on purpose.
+The dev stack in the repository's `docker-compose.yml` (Postgres, MinIO, a console) is for working on Beak and for the service-backed test suites, not for deploying. It lives under Contributing: [Dev infrastructure](../contributing/dev-infrastructure.md).
 
 ## Which page to read
 
-| You want to… | Read | For |
+| You want to... | Read | For that |
 | --- | --- | --- |
-| Test declarative configuration, custom widgets and authoritative workflows at their actual boundaries | [Testing](testing.md) | Guide for beginners and experts |
-| See how Beak keeps query counts low and where to look when a page is slow | [Performance](performance.md) | Guide for experts |
-| Close the security seams of a Beak backend: guards, policies, row scopes, uploads and CORS | [Security](security.md) | Guide for experts |
-| Set the environment variables a Beak backend reads and see how the environment wins over the .env file | [Environment and config](environment-and-config.md) | Guide for experts |
-| Build the API and panel, run migrations, and configure production state explicitly | [Going to production](going-to-production.md) | Guide for experts |
+| Test a panel, a form, a save, a policy or a migration at the cheapest level that proves it | [Testing](testing.md) | The in-memory data source, form sessions with no screen, the real API on in-memory SQLite, schema parity |
+| Count the requests and statements a screen costs, and find what a slow one is waiting on | [Performance](performance.md) | Measured costs per operation, paging, indexes, dashboards, the single isolate and the pool |
+| Close the seams before the API faces the internet | [Security](security.md) | Sessions, deny-by-default policies, row scopes, uploads, CORS, and the gaps that remain |
+| Set the variables the backend reads and see which value wins | [Environment and config](environment-and-config.md) | Every variable, the `.env` rules, `WORM_ENV`, and the compiled-in panel origin |
+| Build, migrate and run the server and panel on a host | [Going to production](going-to-production.md) | The `deploy/` files, the commands that work, and what stays yours |
 
 ## Continue reading
 
-- [Environment and config](environment-and-config.md) every variable a Beak backend reads, and how it resolves at boot.
-- [Going to production](going-to-production.md) the real `deploy/` setup, walked through file by file.
-- [Dev infrastructure](../contributing/dev-infrastructure.md) the optional local Postgres and MinIO stack, under Contributing.
-- [Working with obers_ui](../contributing/working-with-obers-ui.md) how obers_ui is pinned by commit, and how to develop against a local checkout.
+- [Testing](testing.md) the first stop, and the cheapest.
+- [Going to production](going-to-production.md) the deployment files and their known problems.
+- [Working with obers_ui](../contributing/working-with-obers-ui.md) how the panel's UI library is pinned by commit.

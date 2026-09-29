@@ -1,41 +1,88 @@
 # Security
 
-> Close the security seams of a Beak backend: guards, policies, row scopes, uploads and CORS.
+> Close the seams of a Beak backend before it faces the internet: sessions, deny-by-default policies, row scopes, uploads, CORS and the limits that remain.
 
-After this page you can lock down a Beak backend: authenticate requests, gate
-every generated endpoint by role, narrow which rows a principal sees, keep the
-password secret out of source, and trust that uploads and storage keys cannot be
-used to write where they should not.
-
-Beak generates the whole CRUD surface for you, which means it also generates the
-whole attack surface for you. The defaults are deliberately open (a fresh panel
-works with no auth at all) so you configure security on purpose, not by
-accident. This page walks the seams in the order you should close them.
-
-## Where security is configured
-
-One file: `lib/server.dart`. It declares a `beakServer` function that receives
-everything Beak resolved and returns the server to run. `beak eject server`
-writes the starter, which returns the default unchanged.
-
-Configure an authentication guard and a policy for the deployment. Token-session
-login and its guard must share the same session store. Read secrets from the
-resolved environment; do not copy demonstration credentials into production.
-The canonical shop runs without login and therefore is not a production security
-configuration. See [auth and policies](../backend/auth-and-policies.md).
+A Beak backend generates its whole API from your models, which means it generates the whole attack surface too. The defaults are open on purpose, so that a fresh project works before you have written a line of auth. This page walks the seams in the order to close them, and says plainly which parts Beak does not cover. After it you can put a Beak server on the internet knowing which guarantees are the framework's and which are yours.
 
 > **Warning: The panel is not the boundary**
 >
-> Hiding a resource in `beak.yaml`, or a button behind a role check in the UI,
-> is presentation. The API is still there, and a client that skips the panel
-> skips every UI-level check with it. Everything on this page runs in the
-> backend, which is the only place a rule holds.
+> Hiding a resource in `beak.yaml` or a button behind a role check in the panel is presentation. The API stays where it is, and a client that skips the panel skips every UI check with it. Everything on this page runs in the backend, which is the only place a rule holds.
+
+## At a glance
+
+Security for a generated backend lives in one file, `lib/server.dart`. `beak eject server` writes the starter, which returns the defaults unchanged. After editing it, run `beak prepare`; until you do, the generated host does not call your function.
+
+| Seam | Default | What production wants |
+| --- | --- | --- |
+| Who is calling | No guard: every request is anonymous | `authSessions` for development, your own `BeakAuthGuard` for real accounts |
+| Sessions | In process memory, 12 hours, lost on restart | A `TokenSessionStore` over shared storage |
+| What they may do | `BeakAllowAllPolicy`: everything | `BeakPolicies`: only what a rule lists |
+| Which rows | Every row | `rowScope` wherever "only their own" applies |
+| Which fields | Every field | `hiddenFields` to hide one, `readOnlyFields` for server-owned values |
+| Uploads | Validated against the column, unbounded if the column sets no limit | `maxSizeInBytes` and `allowedTypes` on every upload column |
+| CORS | `*` | `corsOrigin:` with the panel's origin, or one shared origin |
+| TLS | None, plain HTTP | Terminate at a proxy; keep the Beak port private |
+| Rate limits | None | A proxy rule or a Shelf middleware |
+
+The smallest closed server names a policy, and, while you develop, a session store with one account. The two pieces below come from Beak's test suite; the wiring between them is illustrative and uses only real parameters of `defaults.build`.
+
+```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
+/// Notes are readable by anyone signed in, writable by editors and deletable
+/// by managers, and each principal sees only the notes of their own author.
+BeakPolicies _policies({
+  BeakModel notes = const NoteModel(),
+  Set<BeakFieldRef<Object>> readOnly = const {},
+  Map<BeakFieldRef<Object>, BeakAccess> hidden = const {},
+  Map<BeakModelAction, BeakAccess> actions = const {},
+}) => BeakPolicies(
+  rules: [
+    BeakModelRules(
+      notes,
+      read: BeakAccess.authenticated,
+      write: _editor,
+      delete: _manager,
+      rowScope: (principal) => NoteModel.authorId.eq(principal.id),
+      readOnlyFields: readOnly,
+      hiddenFields: hidden,
+      actions: actions,
+    ),
+    BeakModelRules(const AuthorModel(), read: BeakAccess.authenticated),
+    BeakModelRules(
+      const LabelModel(),
+      read: BeakAccess.authenticated,
+      write: _editor,
+    ),
+  ],
+);
+```
+
+```dart title="packages/beak_backend/test/src/server/beak_server_api_test.dart"
+BeakAuthSessions sessions() => BeakAuthSessions(
+  store: InMemoryTokenSessionStore(),
+  secret: secret,
+  users: [
+    BeakUserAccount(
+      username: 'admin',
+      passwordHash: hashBeakPassword('cat-tax', secret: secret),
+      principal: const BeakPrincipal(id: 'admin', roles: {'admin'}),
+    ),
+  ],
+);
+```
+
+```dart
+// Illustrative: lib/server.dart. `notesPolicy` stands for the BeakPolicies
+// built by the first block and `sessions` for the function in the second.
+BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+  policy: notesPolicy,
+  authSessions: sessions(),
+  corsOrigin: 'https://admin.example.com',
+);
+```
 
 ## Authentication: who is this request
 
-Authentication in Beak is one interface, `BeakAuthGuard`. It resolves the
-identity behind a request, and it is the pluggable seam the auth middleware
-calls on every request.
+Authentication is one interface, `BeakAuthGuard`. The auth middleware calls it on every request.
 
 ```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
 abstract interface class BeakAuthGuard {
@@ -45,263 +92,291 @@ abstract interface class BeakAuthGuard {
 }
 ```
 
-The contract has a sharp edge worth internalizing: `null` means anonymous (no
-credentials at all), but credentials that are present and wrong must throw, not
-return `null`.
+The contract has one sharp edge. `null` means anonymous, meaning no credentials at all. Credentials that are present and wrong must throw a `BeakAuthenticationException`, never return `null`, so a forged token is a 401 and does not quietly become an anonymous request.
 
-```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
-/// Implementations return `null` for anonymous requests (no credentials at
-/// all) and throw a [BeakAuthenticationException] for credentials that are
-/// present but invalid, so forged tokens never demote silently to
-/// anonymous. Implement this to plug in an alternative scheme (JWT, an API
-/// gateway header, …); [TokenSessionAuthGuard] is the built-in Bearer-token
-/// implementation. Install it via [beakAuthMiddleware] or [BeakServer]'s
-/// `authGuard` parameter:
-/// ...
+`authSessions:` mounts `POST /api/auth/login`, `POST /api/auth/logout` and `GET /api/auth/me`, and installs a `TokenSessionAuthGuard` over the same store, which reads opaque `Bearer` tokens. Pass `authGuard:` to identify callers another way (a JWT, a gateway header); an explicit guard takes over from the sessions'.
+
+### The built-in login is for development
+
+`BeakAuthSessions` is enough to sign in to a panel while you build it. It is not an account system, for these reasons:
+
+| Property | What it is | Why it matters |
+| --- | --- | --- |
+| Accounts | A `List<BeakUserAccount>` built at boot | No user table, no password change, no disabling an account without a deploy |
+| Password hash | HMAC-SHA256 under one shared secret | A fast hash with no per-user salt and no work factor; not a password KDF |
+| Comparison | A plain string comparison of hashes | Not constant-time |
+| Login attempts | Not counted, throttled or locked out | Every attempt is a 401 line in the request log and nothing more |
+| Sessions | `InMemoryTokenSessionStore`, per process | A restart signs everyone out, and a second process does not know the first one's tokens |
+
+```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
+String hashBeakPassword(String password, {required String secret}) =>
+    Hmac(sha256, utf8.encode(secret)).convert(utf8.encode(password)).toString();
 ```
 
-The built-in guard, `TokenSessionAuthGuard`, reads opaque `Bearer` tokens and
-looks them up in a server-side session store. A missing header is anonymous; a
-malformed or unknown token throws. Implement the interface yourself to plug in
-another scheme (a JWT, an API-gateway header) and pass it as `authGuard`.
+Tokens themselves are sound: 256 bits from `Random.secure()`, hex-encoded, 12 hours by default (`sessionTtl`). The weak parts are the accounts and the store around them.
 
-The store mints and revokes those tokens. The default keeps sessions in process
-memory with a time-to-live; a deployment behind more than one instance wants a
-shared, persistent `TokenSessionStore` (a table, Redis) so a login on one node
-is recognised on the next.
+For production, put the identity somewhere that already does this well and let Beak consume it. Implement `BeakAuthGuard` over your identity provider or gateway, and implement `TokenSessionStore` over shared storage if you keep Beak's own sessions:
 
-> **Warning: In-memory sessions vanish on restart**
->
-> `InMemoryTokenSessionStore` is right for local development and tests. In
-> production it means every deploy logs everyone out, and it does not work at
-> all across multiple instances. Implement `TokenSessionStore` over shared
-> storage before you scale past one process.
+```dart title="packages/beak_backend/lib/src/auth/token_session_store.dart"
+abstract interface class TokenSessionStore {
+  /// Mints a new opaque token for [principal] and stores the session.
+  Future<String> createSession(BeakPrincipal principal);
 
-## Authorization: what may this request do
+  /// The principal behind [token], or `null` when the token is unknown or
+  /// the session expired.
+  Future<BeakPrincipal?> sessionFor(String token);
 
-Authentication answers "who"; a `BeakPolicy` answers "may they". Every generated
-handler consults the policy before it acts, passing the resolved principal and
-the target table (plus the record id or upload storage key for mutations).
-
-```dart
-abstract interface class BeakPolicy {
-  /// Whether [principal] may read records of [table].
-  bool canView(BeakPrincipal? principal, String table);
-
-  /// Whether [principal] may create records of [table].
-  bool canCreate(BeakPrincipal? principal, String table);
-
-  /// Whether [principal] may update the record of [table] with [id].
-  bool canUpdate(BeakPrincipal? principal, String table, Object id);
-
-  /// Whether [principal] may delete the record of [table] with [id].
-  bool canDelete(BeakPrincipal? principal, String table, Object id);
-```
-
-The default policy is `BeakAllowAllPolicy`: it permits everything. That is what
-lets a brand-new panel work before you have written a line of auth, and it is
-also why shipping without a real policy ships an open door. It is declared
-`base` rather than `final` so a real policy can extend it and override only what
-it restricts, which is usually two or three methods.
-
-```dart
-/// The default policy: everything is allowed — panels stay open until an
-/// app configures a real policy.
-///
-/// Declared `base` rather than `final` so a real policy can extend it and
-/// override only what it restricts. "Allow everything except deletes" is the
-/// common shape, and spelling out five permissive methods to express it is
-/// exactly the boilerplate that makes people skip writing a policy at all.
-base class BeakAllowAllPolicy implements BeakPolicy {
-```
-
-A denial is translated to the right status by `enforcePolicyDecision`: an
-anonymous request that is denied gets a 401 (sign in), an authenticated one gets
-a 403 (not allowed). You never map those statuses yourself.
-
-```dart
-  if (principal == null) {
-    throw BeakAuthenticationException('Sign in to $action "$table".');
-  }
-  throw BeakAuthorizationException(
-    'Principal "${principal.id}" is not allowed to $action "$table".',
-  );
-```
-
-Deleting an uploaded file has its own hook, `canDeleteUpload`, because a file is
-identified by its storage key, not by a record id. Keep that logic separate from
-`canDelete` so an upload-removal request can never smuggle a record id through
-the record-delete gate.
-
-## Row scopes: which rows may they touch
-
-`canView` answers "may this principal read orders at all", which is not the same
-question as "may this principal read *these* orders". Without a row scope, a
-policy that intends "a customer sees only their own orders" is bypassed by
-`POST /api/orders/query` with any filter the caller likes, because the filter
-comes from the client.
-
-Implement `BeakRowPolicy` instead of `BeakPolicy` and every read and write of the
-table is intersected with `scopeFor`:
-
-```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-abstract interface class BeakRowPolicy implements BeakPolicy {
-  /// The filter every read and write of [model] is additionally constrained
-  /// by, or `null` when [principal] may touch every row.
-  ///
-  /// Returning a filter that matches nothing is how a policy says "no rows":
-  /// the request still succeeds, with an empty page, which is what a row
-  /// scope means — as opposed to `canView` returning false, which is a 403.
-  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model);
+  /// Invalidates [token]; unknown tokens are a no-op.
+  Future<void> revoke(String token);
 }
 ```
 
-Query, aggregate, get-one, update, delete, export and global search all apply it,
-including related reads. Apply the policy at the server boundary:
+Two things you do not have to do: write a password reset flow (the built-in surface has none, and an identity provider brings its own), and touch the panel. The panel's sign-in screen talks to whatever the backend's `/api/auth` answers, and its token lives in memory only, so a browser reload signs out. A Serverpod backend takes its authentication from Serverpod; see [Authentication](../serverpod/authentication.md).
 
-Use the framework's row-policy tests as executable tenant-isolation examples.
-The shop's transactional calculations are a separate concern from authorization.
+Put the secret you hash with in the resolved environment and read it through `defaults.environment`, so a test that injects an environment injects it here too. Beak has no environment variable of its own for it. The name is yours; `deploy/.env.prod.example` lists a `BEAK_AUTH_SECRET`, and nothing in Beak reads that.
 
-> **Note: Refusing and narrowing are different answers**
->
-> `canView` returning `false` is a refusal: 403 for a signed-in caller, 401
-> for an anonymous one, and no data at all. A scope is not a refusal: the
-> request succeeds, and the rows that are not theirs are not in the answer.
-> Pick the refusal when the table is none of their business, and the scope
-> when some of it is.
+## Authorization: what may this request do
 
-Note the column constants in the scope. A row policy is written against
-`OrderColumns.customerId`, not the string `'customer_id'`, so renaming the field
-in the schema class is a compile error here rather than a policy that silently
-matches nothing.
+Authentication answers "who". A policy answers "may they". Every generated handler asks the policy before it acts, and a denial becomes the right status by itself: 401 for an anonymous caller, 403 for a signed-in one.
 
-## The password secret
+The default is `BeakAllowAllPolicy`, which permits everything. It exists so a new panel works before any auth does, and it is also why a server that ships without a policy ships an open door. `BeakServeHost` binds `0.0.0.0` by default, so that is the shipped combination until you change it. A server that listens beyond loopback with it prints one line at boot, `warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, ...`, and serves anyway. Treat the line as a failed check, not a notice.
 
-Accounts never store plaintext. `hashBeakPassword` derives an HMAC-SHA256 hash
-under a secret, and login recomputes the hash to compare.
+`BeakPolicies` is the production shape. It denies whatever it does not list. Each `BeakModelRules` states who may read, write and delete a model, which rows a principal sees, which fields the server owns and who may run each named action. A part left out is denied:
 
-```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
-/// Hashes [password] with HMAC-SHA256 under [secret] — what
-/// [BeakUserAccount]s store instead of plaintext.
+```dart title="packages/beak_backend/lib/src/auth/beak_policies.dart"
+  BeakModelRules(
+    this.model, {
+    this.read,
+    this.write,
+    this.delete,
+    this.rowScope,
+    Set<BeakFieldRef<Object>> readOnlyFields = const {},
+    Map<BeakFieldRef<Object>, BeakAccess> hiddenFields = const {},
+    Map<BeakModelAction, BeakAccess> actions = const {},
+    // ...
 ```
 
-The same secret that hashed an account's password must be handed to
-`BeakAuthSessions`, so login can recompute and compare. That secret is the one
-value here you must keep out of source. Read it from `defaults.environment`,
-which is the resolved environment (the real process environment, plus an
-optional git-ignored `.env`), so a test that injects an environment injects it
-into your auth configuration too.
+Who qualifies is a `BeakAccess`: `BeakAccess.role('staff')`, `BeakAccess.authenticated`, `BeakAccess.anyone`, and `any`, `all` and `not` to combine them. An empty `any` or `all` grants nothing, so a list that lost its entries never opens a resource.
 
-```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
-  /// ```dart
-  /// final secret = defaults.environment['AUTH_SECRET'] ?? 'dev-secret';
-  /// ```
+A model with no rule is invisible: its endpoints answer 401 to an anonymous request and 403 to anyone else, and no other model's relationship exposes it. A model you add next month is closed until someone opens it. The test that pins this is worth reading, because it walks six routes:
+
+```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
+for (final (name, method, path, body) in unlisted) {
+  test(
+    '$name answers 401 anonymously and 403 to a signed-in caller',
+    () async {
+      expect((await call(method, path, body: body)).statusCode, 401);
+      final denied = await call(
+        method,
+        path,
+        body: body,
+        token: managerToken,
+      );
+      expect(denied.statusCode, 403);
+      expect(await denialCode(denied), 'authorization');
+    },
+  );
+}
 ```
 
-> **Danger: The secret lives in the environment, never in a commit**
->
-> A literal fallback like the store's `'store-dev-secret'` is for local
-> development only. Set the real value in the deployment's environment.
-> Rotating the secret invalidates every stored hash, so treat it as long-lived
-> and back it up.
+### Row scopes narrow, they do not refuse
 
-## Upload validation
+`read: authenticated` answers "may this caller read orders at all". It does not answer "may this caller read these orders". Without a row scope, a policy meant as "customers see only their own orders" is bypassed by a query with any filter the caller writes, because the filter comes from the client. A `rowScope` is intersected with every read and write of the model: query, aggregate, get-one, update, delete, graph commits and export. Relation loads and filters that reach a related model apply that model's scope as well.
 
-Every upload runs through `BeakUploadValidator` before a byte is stored. It
-enforces the file rules from the field's `@Image` or `@FileField` annotation
-(size, allowed MIME types and extensions, maximum dimensions, aspect ratio) and
-returns a typed result you cannot ignore.
+The scope is a typed filter built from the model's fields (`NoteModel.authorId.eq(principal.id)`), so renaming the field is a compile error here and not a policy that silently matches nothing. An anonymous request has no principal to build a scope for and sees no rows.
 
-```dart title="packages/beak_core/lib/src/storage/beak_upload_validator.dart"
-  BeakResult<BeakUpload> validate(
-    BeakUpload upload, {
-    int? maxSizeInBytes,
-    List<BeakFileType> allowedTypes = const [],
-    BeakDimensions? maxDimensions,
-    double? aspectRatio,
-    BeakDimensions? actualDimensions,
-  }) {
+Refusing and narrowing are different answers. `canView` false is a refusal: 403, no data. A scope is not a refusal. The request succeeds and the rows that are not the caller's are not in the answer. Use the refusal when the table is none of their business and the scope when some of it is.
+
+### Fields and actions
+
+Read access to a field also gates searching, sorting, filtering and aggregating by it, so a hidden column cannot be inferred from the order of the rows. `hiddenFields` hides a field from the principals its access value names. `readOnlyFields` names values the server owns (a calculated total, a number minted at creation): a request that supplies one is rejected with a 422 field error, and forms are told not to offer it. Values the server derives itself are unaffected. A request that names a field the model does not have is a 422 too, so there is no mass-assignment path to an unmodelled column.
+
+Graph commits authorize every operation: field write access for what the client sent, the table policy for create, update and delete, and the owner's update right for children. Operations a `preparePlan` hook adds skip the field check, because a derived column is often one the client may not write, and every other check still applies to them.
+
+For a rule `BeakPolicies` cannot express, implement `BeakPolicy`, `BeakRowPolicy`, `BeakFieldPolicy` or `BeakActionPolicy` yourself. Extend `BeakAllowAllPolicy` if you only want to restrict a few operations.
+
+## Uploads
+
+An upload runs through the column's rules on the server before a byte is stored. Size, type and image dimensions are declared once on the column and enforced twice, in the browser and in the API:
+
+```dart title="examples/clean_beak_config/lib/resources/products/models/product_image.dart"
+/// The uploaded original and automatic thumbnail.
+@Image(
+  storagePath: 'product-images',
+  maxSizeInBytes: 10485760,
+  allowedTypes: [BeakFileType.png, BeakFileType.jpeg, BeakFileType.webp],
+  transforms: [
+    BeakThumbnailTransform(
+      size: BeakDimensions.square(480),
+      name: 'thumbnail',
+    ),
+  ],
+)
+late final BeakImageRef image;
 ```
 
-Those rules are declared once, on the field, and enforced twice: in the browser
-before the upload starts, and again in the API. A client that skips the panel
-does not skip the check. Type checks look at both the MIME type and the file
-extension, so a `.php` renamed to `.png` fails on one axis or the other. Failures
-aggregate into a `BeakValidationException` keyed by `size`, `type`, `dimensions`,
-and `aspectRatio`, which the handler maps to a 422 with per-aspect messages.
+What this does and does not check, verified against the running shop:
 
-### Never trust the client's filename
+- Size is checked while the part streams in, so an oversized file never buffers fully. That only happens when the column sets `maxSizeInBytes`. A column that sets none accepts any size.
+- Type is the MIME type the client declared plus the file extension. A GIF declared as `image/gif` on this column is a 422 (`The MIME type "image/gif" is not allowed`). An empty `allowedTypes` means unrestricted.
+- Content is checked only for image columns. They decode the bytes, so a text file named `x.png` is a 422 (`The uploaded file is not a supported raster image`). A file column does not look inside the file.
+- The key is minted on the server from a fresh uuid. The client's filename never reaches the key, so `../../other/logo.png` cannot choose where bytes land. The extension comes from the validated MIME type when Beak knows the type, and from the client's filename when it does not.
 
-The name the browser sends is display text, not a path. Beak mints the storage
-key server-side from a fresh uuid plus the extension derived from the validated
-MIME type; the client filename is never used to build a key.
+That last point has a consequence. A file column with no `allowedTypes` accepts a file named `evil.html` declared as `text/html`, and stores it as `<uuid>.html`. The local driver serves stored files with a content type taken from the extension, so that file is an HTML page on your API's origin. Always list `allowedTypes`. Do not allow `BeakFileType.svg` (it can carry script) unless you serve uploads from a separate origin, and prefer to serve uploads from a separate origin regardless.
 
-```dart title="packages/beak_backend/lib/src/uploads/upload_service.dart"
-  /// [generateKeyId] injects the storage-key mint for tests (defaults to
-  /// uuid v4) — client filenames are never trusted for keys.
-```
-
-That single rule closes a whole class of attacks: a filename of
-`../../etc/passwd` or `../../other-tenant/logo.png` cannot influence where the
-bytes land, because the filename never reaches the key.
-
-## Storage keys reject traversal
-
-Even a key built internally is validated before it reaches a driver. Every
-`BeakStorageDriver` shares one key builder, and its `validate` rejects anything
-that could escape the storage root.
+Every driver shares one key validator, which rejects anything that could leave the storage root:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_key.dart"
-  /// Validates [key]: non-empty, relative, `/`-separated, without empty,
-  /// `.` or `..` segments and without backslashes.
-  ///
-  /// Throws a [BeakStorageException] describing the first violation.
-  static void validate(String key) {
+static void validate(String key) {
+  if (key.isEmpty) {
+    throw const BeakStorageException('Storage keys must not be empty.');
+  }
+  if (key.contains(r'\')) {
+    throw BeakStorageException(
+      'Storage key "$key" must use "/" separators, not backslashes.',
+    );
+  }
+  if (key.startsWith('/')) {
+    throw BeakStorageException(
+      'Storage key "$key" must be relative, not absolute.',
+    );
+  }
+  for (final String segment in key.split('/')) {
+    if (segment.isEmpty || segment == '.' || segment == '..') {
+      throw BeakStorageException(
+        'Storage key "$key" contains the invalid segment "$segment".',
+      );
+    }
+  }
+}
 ```
 
-Absolute keys, backslashes, and `.` or `..` segments all throw. A path-traversal
-attempt is a `BeakStorageException`, not a write outside the bucket.
+Stored files are public by design. The local driver serves `/uploads/...` with no authentication, and the URL is the only secret. The read route, `GET /api/<table>/<column>/upload?key=`, does check the read policy and the row scope, but it hands back a URL that then works for anyone who holds it. A private S3 bucket does not fix that today, because the server asks the driver for the plain URL and does not sign it. Files that must stay private need a driver, or a proxy in front of one, that authorizes the read. The upload and delete routes follow the write and delete rules of `BeakPolicies`.
 
-## CORS
+## CORS, TLS and headers
 
-The backend attaches CORS headers on every response and answers `OPTIONS`
-preflight with `204`. The middleware defaults to a permissive `*` origin:
+Browsers enforce CORS. `curl` ignores it, and so does anything else that is not a browser, so it narrows which web pages can read your API and authenticates nobody. The middleware answers `OPTIONS` preflights with 204 and puts these headers on every response:
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/cors_middleware.dart"
 Middleware beakCorsMiddleware({String allowedOrigin = '*'}) {
+  final headers = <String, String>{
+    'access-control-allow-origin': allowedOrigin,
+    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'access-control-allow-headers':
+        'authorization, content-type, if-unmodified-since, x-request-id',
+  };
+  return (Handler inner) => (Request request) async {
+    if (request.method == 'OPTIONS') {
+      return Response(204, headers: headers);
+    }
+    final Response response = await inner(request);
+    return response.change(headers: headers);
+  };
+}
+
 ```
 
-`*` is convenient in development, where the panel and the API run on different
-ports. Two ways out in production:
+The default origin is `*`. Name the panel's origin with `defaults.build(corsOrigin: 'https://admin.example.com')`. It takes one origin, not a list. If the panel and the API answer from one origin (the reverse proxy sends `/api` to Beak), the panel makes no cross-origin call at all; see [Going to production](going-to-production.md). Tokens travel in the `Authorization` header and Beak sets no cookies, so a page in another tab has no ambient credential to abuse.
 
-- **Serve both from one origin.** Set `api.baseUrl: auto` in `beak.yaml` and the
-  panel calls the origin it was served from, so no cross-origin request is made
-  at all.
-- **Name the origin.** Mount `BeakServer.handler` inside a pipeline of your own,
-  with `beakCorsMiddleware(allowedOrigin: 'https://admin.example.com')` around
-  it. The headers you set on the way out replace Beak's. See
-  [Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)
-  for what mounting the handler looks like.
+Because tokens are bearer tokens, the connection must be HTTPS. Beak listens on plain HTTP. Terminate TLS at the proxy and keep the Beak port off the public interface, with `HOST=127.0.0.1` when the proxy is on the same host or a private container network otherwise.
 
-## The checklist
+Response headers come from three places. `dart:io` adds `x-content-type-options: nosniff`, `x-frame-options: SAMEORIGIN` and `x-xss-protection`. Beak adds `x-request-id`. Nothing adds `Strict-Transport-Security` or a `Content-Security-Policy`, and the repository's `deploy/nginx.conf` does not either. Add them at the proxy.
 
-Close these in order before a Beak backend faces the internet.
+## Errors, logs and what a response reveals
 
-| Seam | Default | What production wants |
+The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). Two typed exceptions are 500s that carry their message as written: `BeakConfigurationException` and `BeakInternalException`. A `BeakStorageException` does not: a storage driver's message can include an endpoint or a bucket name, so the caller gets `File storage failed.` and the full message goes to `onUnexpectedError`.
+
+The request log records the method, the path (without the query string), the status, the duration and the request id. It never records bodies or tokens. The probes `GET /healthz` and `GET /readyz` sit outside `/api` and outside authentication, on purpose, and a failing `/readyz` names no cause.
+
+## Known gaps
+
+These are limits of the current implementation. Each is worth a decision before launch.
+
+| Gap | What happens | What to do |
 | --- | --- | --- |
-| Authentication | Anonymous allowed | A `BeakAuthGuard` (the token guard, or your own) |
-| Sessions | In-memory, per-process | A shared, persistent `TokenSessionStore` |
-| Authorization | `BeakAllowAllPolicy` (open) | A `BeakPolicy` that gates by role |
-| Row visibility | Every row | A `BeakRowPolicy` wherever "only their own" applies |
-| Password secret | none | An env var read through `defaults.environment` |
-| Uploads | Validated against the field's rules | Rules on every `@Image` and `@FileField` |
-| Storage keys | Server-minted, traversal-rejecting | Left as-is (do not build keys from user input) |
-| CORS | `*` | One origin, or `api.baseUrl: auto` |
+| The `perPage` ceiling is 200 unless you set `maxPerPage` | A request for 100,000 rows gets 200 and an envelope that says so | Nothing, unless 200 is too generous; `defaults.build(maxPerPage: 50)` lowers it for every model |
+| No request-size limit for JSON | Bodies are read whole | `client_max_body_size` at the proxy |
+| No rate limiting, on login or anywhere | Unlimited attempts | A proxy rule, or a Shelf middleware in `middleware:` |
+| Unrestricted file columns keep the client's extension | See Uploads | Always set `allowedTypes` |
+| Image decoding happens on the request isolate | The header is checked first and `ImageTransformRunner` refuses more than 50 million pixels, but a large legal image still stalls the process for a moment | Set `maxSizeInBytes` and `maxDimensions`; see [Performance](performance.md) |
+| Draft persistence is plain JSON in browser storage | Anyone with the browser profile can read it | Use `BeakFormDrafts` only where that is acceptable; scope its `context` to the user and tenant, never to a token |
+
+## Rules and limits
+
+- A policy is evaluated on the server for every route, including uploads, export and graph commits. The panel's `canX` flags only hide controls.
+- One `BeakPolicies` per server, one `BeakModelRules` per model. A second rule for the same model is a boot error, and so is a `readOnlyFields` or `hiddenFields` entry or action the model does not declare.
+- A row scope must not reach a model that scopes back to the first one. That is reported as a configuration error at request time.
+- `authSessions` alone installs a `TokenSessionAuthGuard` over its own store, so the tokens it mints are checked. Pass `authGuard` only to identify callers some other way.
+- Secrets belong in the environment, not in `beak.yaml` and not in a committed `.env`. `.env` is git-ignored in Beak's own repository; yours needs the same entry.
+
+## Verify it
+
+Check the policy with real requests. The shop ships without one, so an anonymous query is answered in full:
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8080/api/products/query \
+    -H 'content-type: application/json' -d '{"table":"products"}'
+200
+```
+
+With a `BeakPolicies` that does not list the model, or does not let anonymous callers read it, the same request must print 401. Test each role with a token from `/api/auth/login`, and assert the row-scoped answers:
+
+```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
+test('query: 401 anonymous, then a page scoped to the caller', () async {
+  expect(
+    (await call('POST', '/api/notes/query', body: querySpec)).statusCode,
+    401,
+  );
+  final mine = await call(
+    'POST',
+    '/api/notes/query',
+    body: querySpec,
+    token: editorToken,
+  );
+  expect(mine.statusCode, 200);
+  final items = await itemsOf(mine);
+  expect(items, hasLength(1));
+  expect(jsonEncode(items), contains('Mine'));
+  expect(jsonEncode(items), isNot(contains('Theirs')));
+});
+
+test(
+  'query: a signed-in caller with no rows gets an empty page, not a 403',
+  () async {
+    final response = await call(
+      'POST',
+      '/api/notes/query',
+      body: querySpec,
+      token: readerToken,
+    );
+    expect(response.statusCode, 200);
+    final page = await objectOf(response);
+    expect(page['items'], isEmpty);
+    expect(page['total'], 0);
+  },
+);
+```
+
+Look at what a browser sees. A preflight from any origin is answered with `*` by default:
+
+```console
+$ curl -s -i -X OPTIONS http://localhost:8080/api/products/query -H 'Origin: https://evil.example' | grep -i access-control-allow-origin
+access-control-allow-origin: *
+```
+
+With `corsOrigin` set, that line carries your origin instead.
+
+`beak doctor` does not audit policies. The tests above are the audit.
+
+## Reference
+
+- `packages/beak_backend/lib/src/auth/` holds the guard, the sessions, the policies and the query authorizer.
+- `packages/beak_backend/lib/src/server/middleware/` holds the CORS, error-mapping, request-log and auth middleware.
+- [Auth and policies](../backend/auth-and-policies.md) is the backend guide to the same hooks.
+- [REST API](../reference/rest-api.md) lists the auth routes and the error envelope.
 
 ## Continue reading
 
-- [Auth and policies](../backend/auth-and-policies.md) the full auth surface and policy hooks.
-- [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) how the upload service resolves and drives a storage driver.
-- [Files and storage columns](../models/files-and-storage-columns.md) the `@Image` and `@FileField` rules the validator enforces.
-- [Environment and config](environment-and-config.md) where secrets come from and how they are resolved.
-- [Middleware](../backend/middleware.md) where CORS, auth, and error mapping sit in the request pipeline.
+- [Testing](testing.md) how to run the policy checks above against a real server.
+- [Environment and config](environment-and-config.md) where secrets come from and how they resolve.
+- [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) the drivers behind the upload rules.

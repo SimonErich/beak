@@ -1,256 +1,679 @@
 # Composed lists and query state
 
-> Share one typed query across list presets, filters, summaries, saved views and exports.
+> Share one typed query across preset tabs, staged filters, columns, an overview, saved views and CSV export with a BeakListDefinition.
 
-Attach a `BeakListDefinition` to a `BeakTableScreen` when a resource needs more than the generated table. It defines preset tabs, typed columns, a summary header, filters, action placement and export. Ordinary `BeakTableScreen.fields` remains the shorter configuration for a simple list. Neither approach requires application fetching or table state.
+A plain table is enough for a lookup list. An order desk needs more: tabs like Today and Needs attention with live counts, filters people stage before they apply them, saved combinations, an overview above the rows and a CSV of exactly what is on screen. `BeakTableScreen(definition: BeakListDefinition(...))` gives one list all of that on one shared query, and you write no fetching code and no table state.
 
-The [Foodio order list](https://github.com/SimonErich/beak/blob/v0.9.0/examples/foodio-adminpanel/lib/resources/orders/order_list.dart) is the complete example. Its table, charts, capacity summary, filter preview and CSV export consume the same query.
+## At a glance
 
-On compact surfaces, overview cards and filters scroll above a bounded table
-viewport. Wrapping controls cannot squeeze the rows or pagination out of view.
-Preset tabs retain their full width with the chart toggle on a separate line;
-pagination stacks its page-size selector and total on narrow screens. This
-responsive behavior needs no application layout or state code.
+| | |
+| --- | --- |
+| Declared on | `BeakTableScreen.definition`, a `BeakListDefinition` |
+| One query | A `BeakQueryController` per list holds a serializable `BeakQueryState`. Table, tabs, drawer, overview, export and saved views all read it |
+| Permanent scope | `BeakTableScreen.query`. Never serialized, never editable by the user |
+| Views | `BeakQueryPreset` objects, each with an authoritative count |
+| State in the address | `?list=`, base64url JSON, `version: 1` |
+| Stored views | `BeakSavedViewStore.model`, backed by a model of your own |
+| Export | `BeakListExport`, a server-side CSV of the whole query |
+| Complete example | The Foodio order list in `examples/foodio-adminpanel/lib/resources/orders/list/` |
 
-## Permanent scopes, presets and filters
+## Attach a definition
 
-`BeakQueryController` owns the active search, sorts, page length, page, filters, selected columns and header visibility. `BeakQueryScope` makes that controller available to descendant blocks. A list's base query is a permanent application constraint; server authorization adds the authoritative account and field constraints.
+The screen keeps `query` as the permanent scope and adds the definition. This is the shape of Foodio's order list, in two pieces:
 
-`BeakQueryPreset.filter` adds a mandatory constraint while that preset is selected. `defaults` instead associates suggested predicates with typed filter definitions. An explicit value for the same filter replaces its default, so a Today preset can suggest a delivery date without silently discarding a later date range chosen by the user. Clearing an editable filter also clears its suggested default, and that choice survives bookmarks. Mandatory preset and permanent scopes remain enforced. Changing presets retains explicit user filters and resets pagination and the preset's column projection.
-
-Preset badges count the permanent scope and that preset's constraints and defaults. They do not change with the current page or the interactive filters applied to another preset. Summaries use the active filter and search, independent of table pagination. `subtitleBuilder` formats the same framework-owned preset-count map used by tab badges and refreshes after mutations or remote invalidation. Missing entries mean loading or unavailable counts. A failed summary or count stays a visible error or unavailable count; the UI does not substitute page-local totals.
-
-Counts appear as separate tab metadata. A preset can set `countColor` to a semantic
-tone, such as `BeakColor.error` for an attention queue, and `rowHeight` when its
-columns need extra space. Ordinary rows keep the table theme's height.
-
-`BeakChoiceFilter` accepts named `BeakFilterChoice` predicates. Selected options are OR-ed together; different controls are AND-ed. This supports a status choice that combines an enum value with an attention flag without application state callbacks. Numeric, calendar-date and timestamp ranges retain their typed values.
-
-Choice presentation is independent of the predicate. Use `columns: 2` for a
-responsive checkbox grid, `presentation: BeakChoiceFilterPresentation.chips` for
-short toggle choices, `combobox` for searchable multi-selection, or `radio` for
-one choice with an explicit All option. `select` renders the same single-choice
-contract as a compact dropdown; `allLabel` names its unconstrained option.
-Single-choice selection replaces the previous choice, and clearing All removes
-that control's predicate. Set `showLabel: false` for a self-labelled single checkbox.
-
-Calendar and semantic range helpers accept `inline: true` and typed
-`BeakRangePreset` endpoints. Presets update both controls through the model codec;
-Custom keeps the current endpoints editable. Date-only bounds stay date-only,
-and exact money bounds keep their storage scale. For example:
-
-```dart
-OrderModel.deliveryDate.dateRangeFilter(
-  inline: true,
-  presets: [
-    BeakRangePreset(label: 'Today', lower: today, upper: today),
-  ],
-)
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+query: const OrderModel()
+    .query()
+    .orderBy(OrderModel.number, descending: true)
+    .paginate(perPage: 15),
 ```
 
-Set `advanced: true` on infrequent filter definitions or generated helpers to
-place them under More filters. Collapsing the section retains values and parse
-errors. `filterSheetWidth` and `filterDescription` configure the staged editor;
-the Obers sheet theme controls its inset and corners. Its footer remains visible,
-and both applying and saving are disabled while input is invalid.
-
-`showCounts: true` on a choice filter requests authoritative counts through the
-source's summary capability, in batches of at most eight measures. In the staged
-drawer, each count uses the candidate query with that facet's own editable
-predicate excluded; permanent and mandatory preset scopes remain in force.
-Loading or unavailable counts display a dash, never an invented zero. An ordinary
-filter does not request counts. `addItemLabel: 'Add organization'` gives a
-combobox removable selected tags and a labelled row for adding more choices.
-
-`advancedFilterDescription` explains the collapsed group and
-`advancedFilterColumns: 2` places advanced fields in a responsive grid.
-`recordNoun: 'orders'` supplies the drawer's result action and selection count.
-A preset can override `quickFilters` to prioritize the filters appropriate to its
-workflow while reusing the same editor definitions.
-
-Integer currency ranges retain their original storage units:
-
-```dart
-OrderModel.grossCents.currency(minorUnits: true).numberRangeFilter(
-  advanced: true,
-  showMaximum: false,
-  minimumLabel: 'Order value from (optional)',
-  placeholder: 'e.g. 40.00',
-)
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+initialPreset: presets.today,
+filterSheetWidthInPixels: 480,
+recordNoun: 'orders',
+advancedFilterColumns: 2,
+advancedFilterDescription:
+    'Voucher used, order value, allergy notes, created by',
+fitTableToRows: true,
+scrollMode: BeakListScrollMode.page,
+floatingBulkActions: true,
+filterDescription:
+    'Combine filters, then save them as a view for your team.',
+title: 'Orders',
+searchPlaceholder: 'Search by order, customer, company or phone',
+subtitleBuilder: (counts) =>
+    '${counts[presets.today] ?? '—'} orders for today · ${counts[presets.attention] ?? '—'} need attention · updated 09:42',
+createLabel: 'New order',
 ```
 
-This edits major units and emits integer cents. `showMinimum` and `showMaximum`
-configure one-sided bounds; omitted endpoints remain unconstrained. The currency
-symbol follows the global formatting policy, and plain amounts omit steppers.
+Every key is in the [Reference](#reference). Two things about the start values. The list opens on `initialPreset`, sorted and paged like `query` says. When `query` is given, its page size wins over `definition.pageSize` (15), and `BeakPagination` defaults to 25, so a `query` without `.paginate(perPage: ...)` lists 25 rows.
 
-## Review before applying
+## The shared query
 
-`header` provides the full overview. With `showHeaderToggle` enabled,
-`collapsedHeader` can provide a compact alternative when charts are hidden.
-Both render in the same query scope; summaries retain their declared `active`,
-`base` or `standalone` population. The visibility choice is part of URL and saved
-view state. `BeakSummaryPresentation.strip` displays joined inline metrics and
-wraps into rows on narrow screens without another application state controller.
+`BeakQueryState` is everything a person can change on the list. It is what goes into the address bar and into a saved view.
 
-The list presents search and column controls above quick filters. All filters and each quick filter open a staged editor. Editing updates a server count preview without replacing the active table. The action footer stays visible while long filter groups scroll. Apply commits the staged predicates together; closing the sheet leaves the query unchanged. Invalid typed input or a failed preview prevents applying the candidate. Column selection also has Apply and Cancel and requires at least one column.
+| Field | Type | Default | Holds |
+| --- | --- | --- | --- |
+| `preset` | `String?` | `null` | The `key` of the selected preset. `null` is the unfiltered base view |
+| `filters` | `Map<String, BeakFilter>` | `{}` | One predicate per filter, keyed by `BeakFilterDef.key` |
+| `search` | `String` | `''` | The search term |
+| `sorts` | `List<BeakSort>` | `[]` | Current ordering. A header click replaces it with one sort |
+| `page` | `int` | `1` | One-based page |
+| `perPage` | `int` | `15` | Page length, 1 to 200 (`BeakPagination.maxPerPage`), the most rows the server serves in a page |
+| `visibleColumns` | `List<String>?` | `null` | Chosen column keys in order. `null` means the preset's or the list's columns |
+| `showHeader` | `bool?` | `null` | Whether the overview is shown. `null` follows `headerInitiallyVisible` |
 
-Quick filters use `OiFilterChip`: inactive controls have an add affordance, while
-active controls show their formatted value and a separate accessible clear action.
-Choice labels and named ranges come from the same declarations as the drawer.
-Use `quickFilterLabels: {slotFilter: 'Slot'}` for a shorter toolbar label while
-keeping the full field label in the editor.
-`BeakTableColumn.textAlign` aligns both its heading and cells; use `TextAlign.end`
-for quantities and monetary values.
-`cellPadding` optionally overrides the table theme's insets for both the heading
-and cells of one column. Use it for compact numeric or action columns, leaving
-room for the heading and its active sort indicator within an explicit `width`.
-For sorting, `sortBy` must name a root model column declared `sortable: true`;
-the presentation respects the model's sorting capability. Its sort indicator
-also reflects initial and restored URL/saved-view sorting before any header tap.
-Curating `rowActions` changes the row menu without disabling commands referenced
-by action columns. Omitted commands remain column-only, with their original
-availability checks. Compact action-column labels retain the full action name as
-an accessible label and tooltip.
-Small date-preset sets use a segmented control; inline calendar endpoints retain
-individual accessible names without repeating visible labels. Advanced callers
-can use `previewFilters` to build an unapplied controller state or `removeFilter`
-to clear one configured key. Neither operation removes a permanent scope.
+The controller derives one `BeakQuerySpec` from it: the permanent `query.filter`, the selected preset's `filter` and every effective user filter, all ANDed, then the search over the search fields, then the state's sorts and pagination. The construction is spelled out in [Queries](../reference/queries.md#how-a-list-builds-its-spec). The search fields are `BeakResource.globalSearchSources`, or the model's `searchable` columns when that list is empty.
 
-The shared `OiPaginationThemeData` controls wide-layout distribution, first/last
-shortcuts, neighboring page buttons, typography, active colors and dimensions.
-Set `distributed: true` for range-left, pages-center and size-right pagination.
-Narrow viewports wrap the same controls; page buttons support keyboard activation.
+A change of search, filter, sort, page or preset rewrites the state, the controller derives a new spec and the table fetches. Custom widgets get the controller with `BeakQueryScope.of(context)`, which throws `This surface requires a BeakQueryScope.` outside a composed list.
 
-`fitTableToRows: true` lets short result pages finish at their last row and
-pagination controls. Taller pages keep bounded scrolling. This uses
-`OiTable.shrinkWrap`, which measures the visible page; leave it disabled for large
-virtualized viewports. `floatingBulkActions: true` places the existing commands
-in a compact inverse `OiBulkBar` at the bottom of the page without moving rows.
-Selection remains page-local, clearing it uses the table controller, and commands
-retain the same permission, confirmation and per-record receipt behavior.
+## Presets
 
-Set `searchPlaceholder` to explain the configured search scope, such as order,
-customer, company or phone. Row selection uses the shared accessible checkbox,
-including checked and mixed header states, keyboard focus, Space and Enter.
+A preset is a named view over the same resource. Foodio's list opens on Today and has a Needs attention tab:
 
-With `persistQueryInUrl` enabled, the versioned `list` query parameter restores the same choices on a direct link or browser history navigation. It contains user choices, not permanent scopes or permissions. Invalid state is reported with a reset action. Resource links retain a local `returnTo` URI, so Back returns to the original list context. External return destinations are rejected.
-
-## Saved views
-
-`BeakSavedViewStore.model` maps generated name, resource and serialized-state fields of an ordinary resource. The filter drawer exposes Save as view; the toolbar also lists available saved views. A saved view includes filters, preset, search, sorts, page length, selected column keys and chart visibility. Saving staged filter choices does not first apply them to the table.
-
-Saving uses the normal configured graph form; listing uses the normal query source. Define owner/team sharing and access through that resource's backend policy. A shared flag or owner label alone does not authorize sharing. The provider adds the resource namespace, and restored choices remain constrained by the receiving list's permanent scope and the current server policy. Incompatible or malformed saved state produces a configuration error.
-
-## Scroll ownership
-
-`BeakListDefinition.scrollMode` defaults to `BeakListScrollMode.table`: the rows
-own a bounded viewport and pagination remains below it. Existing
-`fitTableToRows` still fits short results within that viewport.
-
-Choose `BeakListScrollMode.page` for a content-height list. Beak uses the shared
-table's `shrinkWrap` and the page layout's body scroll; all loaded rows occupy
-their natural height and pagination follows them, potentially below the initial
-viewport. Desktop keeps the page heading outside the body scroll. On compact screens,
-page mode scrolls the heading together with intrinsic content so tall headings
-cannot consume the entire row viewport. Pagination, query
-bookmarks and row selection keep the same behavior in both modes.
-
-```dart
-BeakListDefinition(
-  scrollMode: BeakListScrollMode.page,
-  pageSize: 15,
-)
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_presets.dart"
+final today = BeakQueryPreset(
+  key: 'today',
+  label: 'Today',
+  defaults: {
+    date: BeakAndFilter([
+      OrderModel.deliveryDate.gte(foodioToday),
+      OrderModel.deliveryDate.lte(foodioToday),
+    ]),
+  },
+);
 ```
 
-## Columns, records and actions
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_presets.dart"
+key: 'attention',
+label: 'Needs attention',
+rowHeightInPixels: 64,
+countColor: BeakColor.error,
+filter: OrderModel.needsAttention.eq(true),
+quickFilters: [status, date, organization, slot, payment],
+defaults: {
+  status: OrderModel.needsAttention.eq(true),
+  date: BeakAndFilter([
+    OrderModel.deliveryDate.gte(foodioToday),
+    OrderModel.deliveryDate.lte(const BeakDate(2026, 9, 29)),
+  ]),
+},
+```
 
-`BeakTableColumn.field` keeps model formatting and sorting. `BeakTableColumn` with a `BeakRecordTemplate` composes titles, secondary text, avatars and badges. Bindings declare their field dependencies; Beak adds relationship loads instead of querying separately for each cell. A custom computed binding must declare all dependencies. Bindings can opt into `monospace`, `strong`, semantic `color`, or `badge: true` with a live `tone` callback. `avatarPalette` supplies coordinated foreground/background pairs; a stable identity hash chooses a color. Composite columns sort only when an explicit scalar `sortBy` is supplied.
+Needs attention adds a mandatory `filter`, its own quick filters, defaults, taller rows, a red count and, further down the file, its own columns.
 
-Inferred columns keep a 160-pixel minimum width and use synchronized horizontal scrolling on narrow screens. Composite columns can set `minWidth` or an explicit `width` for their content. Header and body share the same widths; actions do not squeeze identity fields into a few characters.
+| Field | Meaning |
+| --- | --- |
+| `key` | Address of the preset in URLs and saved views. Non-empty and unique within the list |
+| `label` | Tab label |
+| `filter` | Mandatory constraint while the preset is selected. Users cannot clear it |
+| `defaults` | Suggested predicates per filter definition. A value the user sets for that filter replaces the default |
+| `columns` | Alternative columns while the preset is active |
+| `quickFilters` | Quick-filter chips for this preset, replacing the list's |
+| `rowHeightInPixels` | Row height for this preset. `null` follows the table theme |
+| `countColor` | Tone of the count label, `BeakColor.muted` by default |
 
-`BeakTableColumn.action` selects an existing action from a typed value binding and a map of `BeakActionPresentation` choices. This supports a Next step column with a different command per record. Unknown values can use a configured fallback; unavailable actions are omitted. Buttons share the ordinary pending state and authoritative command runner. They do not execute application callbacks or bypass policy checks.
+Presets are objects, not strings. `initialPreset`, `BeakNavigationItem.resource(model, preset: ...)` and `BeakPresetCounts[preset]` all take the `BeakQueryPreset` itself, so a key is written once and nobody misspells it later. An `initialPreset` that is not in `presets` throws `Unknown list preset "today".` when the list is built.
 
-`BeakActionPresentation` configures existing actions as icons, primary actions or overflow items. `BeakActionPresentation.model` refers to a named server model command. Presentation never grants permission or replaces a transition guard. `bulkModelActions` offers configured commands for a selection, collects shared arguments once and retains a separate receipt for each record; this is not an all-or-nothing transaction across the selection.
+`defaults` and `filter` differ on purpose. Today suggests a delivery date, and if someone picks another range, the range wins and the tab stays Today. Clearing a filter that came from `defaults` is remembered: the state stores an empty `BeakAndFilter` under that key, which survives a reload and is left out of the visible controls and of the server predicate. A `filter`, like the permanent `query`, cannot be cleared.
 
-For curated selection commands, use `bulkActions` instead of duplicating a list
-of model names. Model presentations automatically register the corresponding
-bulk command; the `export` key reuses the list's authorized CSV definition and
-adds the selected primary keys to its frozen active query.
+Selecting another preset keeps the user's explicit filters, goes back to page 1 and resets the column choice. Clear all removes filters, defaults and search, and keeps the permanent scope and the preset's `filter`.
 
-```dart
+### Counts
+
+Each tab carries a count. A preset's count query is the permanent scope plus the preset's `filter` plus its `defaults`. It ignores the filters a person applied, the page and the search, so a tab's number is a property of the view and does not move as someone narrows the table.
+
+`showPresetCounts` (default `true`) shows the badges. `subtitleBuilder` receives the same `BeakPresetCounts`, and `counts[preset]` answers an `int?`: `null` while a count loads and after a failed one. Show a dash for `null` and the reader never mistakes "not yet" for "zero", which is what the Foodio subtitle does with a `??` fallback. Counts load whenever `showPresetCounts` is on or a `subtitleBuilder` exists, and reload after every confirmed write to the table.
+
+That is one count query (`perPage: 1`) per preset per refresh. Six presets, six small requests. A response that a newer refresh overtook is discarded.
+
+## Address and bookmarks
+
+With `persistQueryInUrl` (default `true`) the list writes its state into the address as `?list=`, using `router.replace`, so it adds no history entries and leaves other parameters such as `returnTo` alone. Opening that address restores the view, so copying the address bar shares it.
+
+```dart title="packages/beak_frontend/lib/src/query/beak_query_controller.dart"
+Map<String, Object?> toJson() => {
+  'version': 1,
+  'preset': preset,
+  'filters': {
+    for (final entry in filters.entries) entry.key: entry.value.toJson(),
+  },
+  'search': search,
+  'sorts': [for (final sort in sorts) sort.toJson()],
+  'page': page,
+  'perPage': perPage,
+  if (visibleColumns != null) 'columns': visibleColumns,
+  if (showHeader != null) 'showHeader': showHeader,
+};
+```
+
+The value is that map as JSON, base64url encoded. The permanent `query` is not in it, so a bookmark cannot widen a list beyond its permanent scope.
+
+Malformed state is rejected as a whole:
+
+| Input | Result |
+| --- | --- |
+| More than 16384 characters | `Saved list state is too large.` |
+| Not base64url JSON | `Invalid saved list state.` |
+| `version` other than `1`, or no `filters` map | `Unsupported saved list state.` |
+| Page or page size below 1 | `BeakPagination requires page >= 1 and perPage >= 1, got page 0, perPage 15.` |
+| Page size above 200 | `Invalid list pagination.` |
+| A column key the current preset does not offer | `The saved columns are no longer available.` |
+| A preset key that does not exist | `Unknown list preset "x".` |
+
+The page then shows the error with a Reset view button that removes `list` from the address. A bookmark saved before you renamed a column or removed a preset lands there once, and a reset fixes it.
+
+## Columns
+
+Without `columns` the list shows `BeakTableScreen.fields`, and without those the model's table columns. A `BeakTableColumn` is a composite cell: a record template with typed values, sortable by a field of the model.
+
+```dart title="packages/beak_frontend/lib/src/presentation/beak_record_template.dart"
+const BeakTableColumn({
+  required this.key,
+  required this.label,
+  required BeakRecordTemplate this.template,
+  this.sortBy,
+  this.widthInPixels,
+  this.minWidthInPixels = 160,
+  this.textAlign = TextAlign.start,
+  this.cellPadding,
+}) : actionSelector = null,
+     actionChoices = const {},
+     fallbackAction = null;
+
+/// Selects an existing action from typed record data without owning execution.
+/// Unavailable actions remain absent; presentation never grants permission.
+const BeakTableColumn.action({
+  required this.key,
+  required this.label,
+  required BeakValueBinding<String> selector,
+  required Map<String, BeakActionPresentation> choices,
+  BeakActionPresentation? fallback,
+  this.widthInPixels,
+  this.minWidthInPixels = 160,
+  this.textAlign = TextAlign.start,
+  this.cellPadding,
+}) : actionSelector = selector,
+     actionChoices = choices,
+     fallbackAction = fallback,
+     template = null,
+     sortBy = null;
+```
+
+`BeakTableColumn.field(field, {widthInPixels, minWidthInPixels, textAlign, cellPadding})` is the shorthand for one scalar field, and it is what `fields` turns into. Foodio's first column shows a reference with a placement line under it. Its Total column right-aligns money that is stored in cents:
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_table_columns.dart"
+BeakTableColumn(
+  key: 'order',
+  label: 'Order',
+  sortBy: OrderModel.number,
+  widthInPixels: 120,
+  template: BeakRecordTemplate(
+    textGapInPixels: 0,
+    title: BeakValueBinding.field(
+      OrderModel.reference,
+      monospace: true,
+      color: BeakColor.primary,
+    ),
+    subtitle: [orderPlacementSummary()],
+  ),
+),
+```
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_table_columns.dart"
+BeakTableColumn(
+  key: 'total',
+  label: 'Total',
+  textAlign: TextAlign.end,
+  sortBy: OrderModel.grossCents,
+  widthInPixels: 82,
+  template: BeakRecordTemplate(
+    title: BeakValueBinding.field(
+      OrderModel.grossCents.currency(minorUnits: true),
+    ),
+  ),
+),
+```
+
+`key` is the identity of the column, not a database name. It is what `visibleColumns` stores. `sortBy` must be a field of the listed model whose column says `@Column(sortable: true)`. A column without it, or with a related field, has an inert header. `BeakRecordTemplate` and `BeakValueBinding` (a field, or a pure computation over fields) carry the values, and every field a template reads is loaded with the page in the same query, so a cell never triggers a second request.
+
+When the current preset or the list has columns, a Columns button opens a sheet where people tick the ones they want. The choice lands in `visibleColumns`, so it travels in the address and in saved views.
+
+### Action columns
+
+`BeakTableColumn.action` shows one existing action per row, chosen by a value of the record. Unavailable actions disappear from the row, and the column never grants permission by itself.
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_presets.dart"
+BeakTableColumn.action(
+  key: 'next_step',
+  label: 'Next step',
+  widthInPixels: 188,
+  selector: BeakValueBinding.field(OrderModel.nextAction),
+  choices: {
+    OrderActions.sendPaymentLink.name: BeakActionPresentation.model(
+      OrderActions.sendPaymentLink,
+    ),
+    OrderActions.retryPayment.name: BeakActionPresentation.model(
+      OrderActions.retryPayment,
+    ),
+    OrderActions.requestApproval.name: BeakActionPresentation.model(
+      OrderActions.requestApproval,
+      label: 'Ask for approval',
+    ),
+    OrderActions.acknowledgeAllergy.name: BeakActionPresentation.model(
+      OrderActions.acknowledgeAllergy,
+      label: 'Confirm with kitchen',
+    ),
+    OrderActions.reschedule.name: BeakActionPresentation.model(
+      OrderActions.reschedule,
+      label: 'Schedule redelivery',
+    ),
+    'reviewChange': BeakActionPresentation.model(
+      OrderActions.resolveChange,
+      label: 'Review change',
+    ),
+    'editAddress': const BeakActionPresentation(
+      key: 'edit',
+      label: 'Edit address',
+    ),
+  },
+  fallback: const BeakActionPresentation(
+    key: 'view',
+    label: 'Review order',
+  ),
+),
+```
+
+`OrderModel.nextAction` is a text column that Foodio's server-side order preparer fills with the name of the action that suits the order. The `choices` map turns each name into an existing action or model command, `fallback` covers the rest, and the button renders as the row's primary action.
+
+## Filters and the staged drawer
+
+`definition.filters` are the controls in the All filters drawer. Leave it empty and the list inherits `BeakResource.effectiveFilters`. Filters are staged: nothing applies until Apply, and the Apply button shows the size of the result it would produce (`Show 42 orders`, from `recordNoun`), counted by the server against the candidate state. Cancelling leaves the list untouched.
+
+`advanced: true` on a filter moves it under More filters, laid out in `advancedFilterColumns` columns, with `advancedFilterDescription` as the hint. Quick filters are the ones people use daily, shown as chips beside the search field:
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+quickFilters: [date, status, organization, slot, payment],
+quickFilterLabels: {slot: 'Slot', payment: 'Payment'},
+```
+
+A chip shows its filter's value and a remove button while it is active. `quickFilterLabels` shortens the chip label and leaves the label in the drawer alone. A preset's `quickFilters` replace the list's. The search field searches the search fields listed above and can be hidden with `showSearch: false`. Every filter definition, choice presentation and range preset is in [Filter builders](../reference/filter-builders.md).
+
+## Actions on rows and selections
+
+`rowActions` and `bulkActions` are lists of `BeakActionPresentation`. They do not define actions. They pick existing ones (built-in, from the resource, or model commands with `BeakActionPresentation.model(...)`) and say where and how they appear.
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+rowActions: [
+  const BeakActionPresentation(
+    key: 'view',
+    label: 'View order',
+    icon: OiIcons.eye,
+    group: 'record',
+  ),
+  const BeakActionPresentation(
+    key: 'edit',
+    label: 'Edit delivery address',
+    icon: OiIcons.mapPin,
+    group: 'record',
+  ),
+  BeakActionPresentation(
+    key: 'call-customer',
+    icon: OiIcons.phone,
+    group: 'record',
+    labelValue: BeakValueBinding<String>.computed(
+      dependencies: [OrderModel.customerName],
+      compute: (row) =>
+          'Call ${row.read(OrderModel.customerName) ?? 'customer'}',
+    ),
+  ),
+  BeakActionPresentation.model(
+    OrderActions.addNote,
+    label: 'Add internal note',
+    icon: OiIcons.messageSquare,
+    group: 'record',
+  ),
+  BeakActionPresentation.model(
+    OrderActions.cancel,
+    label: 'Cancel order',
+    icon: OiIcons.circleX,
+    destructive: true,
+    group: 'destructive',
+  ),
+],
 bulkActions: [
-  const BeakActionPresentation.model(
-    'sendPaymentLink', label: 'Send payment links', icon: OiIcons.send,
+  BeakActionPresentation.model(
+    OrderActions.sendPaymentLink,
+    label: 'Send payment links',
+    icon: OiIcons.send,
   ),
   const BeakActionPresentation(key: 'export', icon: OiIcons.download),
   BeakActionPresentation.model(
-    'cancel', destructive: true, icon: OiIcons.circleX,
+    OrderActions.cancel,
+    icon: OiIcons.circleX,
+    destructive: true,
     selectionLabel: (count) => 'Cancel $count orders',
   ),
 ],
 ```
 
-A row presentation can supply `labelValue: BeakValueBinding<String>.computed(...)`
-for contextual labels such as Call Paul Gruber. Its dependencies load with the
-page, rather than triggering row-by-row requests. `icon` and `destructive`
-override visual emphasis, and adjacent differing `group` values add a menu
-separator. These overrides leave execution, eligibility and authorization intact.
+An action that `rowActions` does not mention is not lost: it becomes a `column` action, available to action columns and absent from the row menu. Adjacent menu entries with different `group` values get a separator. `labelValue` computes a label from the row, and the loaded fields it depends on ride along in the page query. `selectionLabel` puts the selected count into a bulk button, `Cancel 3 orders`.
 
-Bindings can choose a marker through `badgeDotFor` or `iconFor`; icons stay inside
-labelled badges. `tone` applies to ordinary text as well as badges and may return
-null to inherit the default foreground. Declare every field used by these
-callbacks in `dependencies`.
+A model command in `bulkActions` (or in `bulkModelActions`) asks once, then runs record by record, each record saved on its own receipt. Failures are collected and shown together. With `export` configured, the selection bar also offers an `export` action that exports only the selected rows, and listing it in `bulkActions` places it. `floatingBulkActions: true` moves the selection bar to the bottom of the page so the rows stay where they are.
 
-The panel command runner coalesces concurrent invocations and retains uncertain outcomes when navigating between mounted pages. Its pending-action banner recovers the same save identity before another dispatch. A definite rejection can be corrected and retried. Pending commands are isolated by principal. This runner is a mounted-panel queue, not durable storage across browser reloads; configured form draft persistence has its separate [durable recovery contract](../forms/drafts-and-review.md).
+Actions themselves, and what they check, are on the [Actions](actions.md) page.
 
-With configured navigation, a record’s breadcrumb lives in the shell top bar; the body suppresses its duplicate trail. The current record nests under its resource, and selected ancestors expand automatically.
-`BeakNavigation(currentRecordBranch: true)` presents that context as a branch
-without repeating the resource icon; its default is false. Resource destinations
-can declare `BeakNavigationItem.resource(model, recordLabelMonospace: true)` for
-code identifiers in both that child and the current breadcrumb. Names keep the
-ordinary text role by default. These presentation options retain the existing
-route, permission filtering, selection and keyboard navigation.
+## Overview blocks
 
-At the UI kit level, `OiNavItem` and `OiSidebarItem` expose `contextChild` and
-`monospace`, both false by default. Ordinary nested groups keep their icons and
-indentation. All-contextual child groups remain visible without an accordion;
-mixed groups keep expansion behavior. `OiSidebarThemeData.contextBranchColor`
-styles the decorative connector, falling back to the subtle border role.
-`OiBreadcrumbs.linkStyle` can override the semantic text link role;
-the shell forwards `OiAppShellThemeData.breadcrumbLinkStyle`.
-`separatorIcon` and `separatorSpacing` override the ordinary slash and 6px gap;
-the shell exposes `breadcrumbSeparatorIcon` and `breadcrumbSpacing`. A 16px icon
-with 8px each side occupies 32px between labels. Themes can remove
-permanent underlines and keep hover typography stable without changing links.
+`header` and `collapsedHeader` are blocks placed between the tabs and the table. `showHeaderToggle` adds a Show charts switch to the row of tabs, so it needs at least one preset, and `headerInitiallyVisible` sets the start value. The switch changes `showHeader` in the state, so it is part of the address, and it does not touch the query.
 
-Configured nonwizard record pages use the loaded display field in the heading and place their existing Edit, Save, Cancel and remaining model commands in the shared page header. Their layouts own card surfaces; the page adds no extra enclosing card. Cancel uses the normal unsaved-change guard and reloads persisted values.
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+header: orderOverview(),
+collapsedHeader: orderCompactOverview(),
+showHeaderToggle: true,
+```
 
-Set `BeakFormScreen.recordHeader` to a `BeakRecordTemplate` when the heading needs status badges or identity metadata. It renders the title, inline badges and secondary values from the existing live draft, with the same formatting and inferred relationship loads as the body. Changing the record or refreshing a read view updates the header without another request or application controller.
+A `BeakSummaryBlock` inside them reads the list's controller. Its `scope` decides how much of it:
 
-Read and wizard screens can use `BeakFormTemplate`, `BeakFormTimeline` and `BeakFormActions` over the same draft and loaded relationships. The timeline formats timestamps through the panel policy. Explicit action placement suppresses the matching automatic commands; other available commands remain accessible.
+| `BeakSummaryScope` | Population |
+| --- | --- |
+| `active` (default) | Permanent scope, selected preset, user filters and search. Never the table page |
+| `base` | The permanent scope only. Foodio's compact strip counts today's orders whatever tab is open |
+| `standalone` | The summary's own query |
 
-## Authorized CSV export
+Only the summary block reads the scope. A metric, chart or table block in a header does not follow the list's filters. A widget you write can, with `BeakQueryScope.of(context)`. A failed summary shows an error with a Retry button. See [Summaries](../blocks/summaries.md).
 
-`BeakListExport` takes an explicit ordered list of direct generated scalar fields. The button freezes the active query and panel `BeakFormatting` at click time and delegates to `BeakExportDataSource`. HTTP and model-routed sources support this capability. A custom transport can implement it; an unsupported source reports a configuration error.
+## Saved views
 
-The server exports every matching row, independent of the currently displayed page, and applies query, row and field authorization. The optional `columns` request projection controls field order; unreadable fields are omitted. Unknown, empty or duplicate projections are rejected. Composite cell templates, computed presentation values and related-path flattening are not CSV fields. Use `raw: true` for physical machine values; formatted exports use the explicit locale, currency and time policy. Typed field overrides such as `.currency(minorUnits: true)` travel as validated `BeakExportFormat` metadata, preserving stored cents without rendering them as major units. Password values remain redacted. Download cancellation does not mutate records.
+A saved view is a name plus a `BeakQueryState`, stored as a row of a model you own. The store maps three string columns of that model.
 
-## Remote refresh
+```dart title="examples/foodio-adminpanel/lib/models/saved_view.dart"
+/// SavedView configuration shared by the panel and authoritative API.
+@Resource(timestamps: true)
+final class SavedView extends BeakSchema {
+  /// Name.
+  @Display()
+  @Column(searchable: true, sortable: true)
+  late final String name;
 
-`BeakRefreshPolicy` on the panel enables a shared optional refresh interval and refresh on foreground resume. One timer emits invalidation events while the source has listeners and the panel is in the foreground. Local successful mutations still invalidate immediately. Active list, summary and reference consumers refresh through their existing repositories. Clean forms reload; dirty forms retain their draft and optimistic revision checks. Polling does not merge remote changes into unsaved fields.
+  /// Resource.
+  @Column(defaultValue: 'orders')
+  late final String resource;
+
+  /// Complete versioned query, sort, pagination and column preferences.
+  @Column(defaultValue: '{}')
+  late final String state;
+
+  /// Owner.
+  @Column(defaultValue: 'Marie Novak')
+  late final String owner;
+
+  /// Shared.
+  @Column(defaultValue: true)
+  late final bool shared;
+}
+```
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+savedViews: BeakSavedViewStore.model(
+  model: const SavedViewModel(),
+  name: SavedViewModel.name,
+  resource: SavedViewModel.resource,
+  state: SavedViewModel.state,
+),
+```
+
+`resource` holds the table of the list, so one model serves every list, and `state` holds the versioned JSON. The panel registers the store's model itself, so it does not have to be a `BeakResource`; make it one only if people should get pages for it. Its policies decide who can read and write views, and `BeakSavedViewStore.model(filter: ...)` narrows which rows a list offers on top of that. Foodio's schema has `owner` and `shared` columns, and the store does not use them, so every view there is visible to everyone who can read the model. Narrow the list with the store's `filter`, or scope the model itself with a row rule.
+
+Saving works from the drawer. Next to Apply sits Save as view, which stores the staged state even if it was not applied. It opens a dialog with one field, the name, and saves through the normal form path, so it is a graph commit with a receipt like any other save. Decoding a stored state rejects any version other than `1`. The store reads at most 200 views per list.
+
+Loading works from the same footer. A `Saved views` select sits beside Save as view once the list has stored views. Choosing one restores its search, filters, sort, columns and page size, and closes the drawer. To offer the picker somewhere else too, mount the exported `BeakSavedViews` widget, for example in the overview. It takes the store, the list's controller and the panel's data source; see [A saved list view](../recipes/a-saved-list-view.md).
+
+## Export
+
+`BeakListExport` puts an Export button in the page header. The click freezes the current query and asks the server for a CSV.
+
+```dart title="examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart"
+export: BeakListExport(
+  fileName: 'orders.csv',
+  fields: [
+    OrderModel.reference,
+    OrderModel.customerName,
+    OrderModel.organizationName,
+    OrderModel.deliveryDate,
+    OrderModel.itemCount,
+    OrderModel.grossCents.currency(minorUnits: true),
+    OrderModel.paymentStatus,
+    OrderModel.status,
+  ],
+),
+```
+
+The file has one column per field in `fields`, in that order. The server ignores the page the list is on and streams every row that matches filters, search and sorts. It authorizes the export as a query, so row scopes and field policies apply, fields the account may not read are dropped, and password values are masked. Headings are the model's column labels, not the list's headings.
+
+`.currency(minorUnits: true)` on `grossCents` is how Foodio exports cents as money. A formatted field sends its format with the request, and the panel's `BeakFormatting` (locale, currency, date patterns) goes along, so the file reads like the screen. `raw: true` skips both and exports stored values. The route itself is in [REST API](../reference/rest-api.md#export).
+
+Everything can fail at the click, and the reason shows under the button. A source that does not implement `BeakExportDataSource` answers `This data source does not support CSV exports.` An export field that is empty, duplicated, reached through a relationship or missing from the model throws when the button is pressed, not when the panel starts. Delivery goes through a save dialog, or a browser download on the web.
+
+## Refresh
+
+A confirmed write to a table reloads every mounted list, count and summary that depends on it, including tables that reach it through a relationship. Changes by other people arrive only when the panel has a `BeakRefreshPolicy`:
+
+```dart title="packages/beak_frontend/lib/src/data/beak_data_changes.dart"
+final class BeakRefreshPolicy {
+  /// Invalidates loaded data periodically and/or after returning to foreground.
+  const BeakRefreshPolicy({this.interval, this.onResume = true});
+```
+
+`interval` polls while the panel is in the foreground and something is listening. `onResume` (default `true`) refreshes when the app returns from the background. Without a policy nothing refreshes on resume. A tick invalidates every registered table, so each open list refetches its page and its preset counts, and each summary block refetches. Foodio polls every 30 seconds and on resume. A zero or negative interval throws `A refresh interval must be positive.` when the panel starts. Set the policy on `BeakPanel(refreshPolicy: ...)` or `BeakPanelConfig`.
+
+## Scrolling and density
+
+`scrollMode` says who scrolls. `BeakListScrollMode.table` (default) gives the rows a bounded viewport with pagination below. `page` lets rows take their natural height and the page scroll through rows and pagination, which Foodio uses together with `fitTableToRows`. Below 700 logical pixels the list becomes one scrolling column and the table keeps a viewport between 360 and 560 pixels, unless `scrollMode` is `page`. `pageSizeOptions` are the page lengths offered, and the current length is always among them. `showTableStatusBar` adds a row count above the pagination.
+
+## Rules and limits
+
+| Rule | What happens |
+| --- | --- |
+| Preset keys are non-empty and unique | `Invalid list definition.` when the list is built |
+| `initialPreset` and any navigation preset come from `presets` | Otherwise `Unknown list preset "x".` |
+| `query` targets the resource's own table | `Table screen query must target "orders".` at startup |
+| `definition.filters` empty means the resource's filters | Declared filters replace those completely |
+| Counts cost one request per preset | After every write and every refresh tick |
+| Only `BeakSummaryBlock` follows the list's query | Other blocks in a header do not |
+| Export fields are direct scalar fields of the list model | Checked at the click |
+| The saved-view model needs no resource of its own | The panel registers the store's model. Its policies decide who reads and writes views |
+| Two filters may not share a field | The panel throws at startup: they would share one state. Use one choice filter with several options |
+| A restored choice is matched by the JSON of its predicate | Changing a choice's predicate makes bookmarks and saved views stop selecting it |
+| The state in the address is capped at 16384 characters | Larger values fail to restore |
+| `sortBy` is a `sortable` field of the listed model | Related sorting is not inferred |
+| Panel permissions hide UI | The server authorizes every query, count, export and saved view |
+
+## Verify it
+
+The composed list, its query controller, saved views and export have tests that run against a fake source. From `packages/beak_frontend`:
+
+```console
+$ flutter test test/src/panel/beak_composed_list_test.dart test/src/table/beak_query_controller_test.dart test/src/table/beak_saved_views_test.dart test/src/table/beak_list_export_test.dart --reporter expanded
+00:00 +2: test/src/table/beak_query_controller_test.dart: preset counts are read by the preset object, never by its key
+00:05 +19: test/src/panel/beak_composed_list_test.dart: counted presets share query, columns, URL and summary population
+00:07 +22: test/src/panel/beak_composed_list_test.dart: filter sheet previews without changing active rows until Apply
+00:09 +25: All tests passed!
+```
+
+## Reference
+
+The list definition, verbatim:
+
+```dart title="packages/beak_frontend/lib/src/query/beak_list_definition.dart"
+const BeakListDefinition({
+  this.presets = const [],
+  this.columns = const [],
+  this.filters = const [],
+  this.quickFilters = const [],
+  this.quickFilterLabels = const {},
+  this.filterSheetWidthInPixels = 440,
+  this.filterDescription,
+  this.advancedFilterDescription,
+  this.advancedFilterColumns = 1,
+  this.recordNoun = 'records',
+  this.header,
+  this.collapsedHeader,
+  this.initialPreset,
+  this.persistQueryInUrl = true,
+  this.showPresetCounts = true,
+  this.showSearch = true,
+  this.searchPlaceholder,
+  this.title,
+  this.subtitle,
+  this.subtitleBuilder,
+  this.pageSize = 15,
+  this.showHeaderToggle = false,
+  this.headerInitiallyVisible = true,
+  this.savedViews,
+  this.rowActions,
+  this.bulkModelActions = const [],
+  this.bulkActions,
+  this.createLabel,
+  this.export,
+  this.showTableStatusBar = false,
+  this.fitTableToRows = false,
+  this.scrollMode = BeakListScrollMode.table,
+  this.floatingBulkActions = false,
+  this.pageSizeOptions = const [15, 25, 50, 100],
+});
+```
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `presets` | `List<BeakQueryPreset>` | Named, counted views. Tab order |
+| `columns` | `List<BeakTableColumn>` | Composite columns. Empty falls back to `fields`, then to the model |
+| `filters` | `List<BeakFilterDef>` | Controls in the drawer. Empty inherits the resource's |
+| `quickFilters` | `List<BeakFilterDef>` | Chips beside the search field |
+| `quickFilterLabels` | `Map<BeakFilterDef, String>` | Shorter chip labels |
+| `filterSheetWidthInPixels` | `double` | Drawer width, clamped to the viewport. Default `440` |
+| `filterDescription` | `String?` | Hint below the drawer title |
+| `advancedFilterDescription` | `String?` | Hint beside More filters |
+| `advancedFilterColumns` | `int` | Columns of the advanced group. Default `1` |
+| `recordNoun` | `String` | Plural noun for result counts. Default `records` |
+| `header`, `collapsedHeader` | `BeakBlock?` | Overview blocks, full and compact |
+| `initialPreset` | `BeakQueryPreset?` | Selected before a bookmark or saved view applies |
+| `persistQueryInUrl` | `bool` | Write state to `?list=`. Default `true` |
+| `showPresetCounts` | `bool` | Show count badges. Default `true` |
+| `showSearch` | `bool` | Show the search field. Default `true` |
+| `searchPlaceholder` | `String?` | Text naming the searched fields |
+| `title`, `subtitle` | `String?` | Page title override and text below it |
+| `subtitleBuilder` | `String Function(BeakPresetCounts)?` | Subtitle from the preset counts. Wins over `subtitle` |
+| `pageSize` | `int` | Initial page length when `query` sets none. Default `15` |
+| `showHeaderToggle` | `bool` | Show charts switch. Default `false` |
+| `headerInitiallyVisible` | `bool` | Overview shown at first. Default `true` |
+| `savedViews` | `BeakSavedViewStore?` | Model-backed shared views |
+| `rowActions` | `List<BeakActionPresentation>?` | Row action placement. `null` keeps every action in the overflow menu |
+| `bulkActions` | `List<BeakActionPresentation>?` | Selection actions, in order. Model commands named here are included automatically |
+| `bulkModelActions` | `List<BeakModelAction>` | Model commands offered for a selection without presentation |
+| `createLabel` | `String?` | Label of the create button |
+| `export` | `BeakListExport?` | CSV export |
+| `showTableStatusBar` | `bool` | Row count above the pagination. Default `false` |
+| `fitTableToRows` | `bool` | Shrink short pages to their rows. Default `false` |
+| `scrollMode` | `BeakListScrollMode` | `table` (default) or `page` |
+| `floatingBulkActions` | `bool` | Selection bar at the page bottom. Default `false` |
+| `pageSizeOptions` | `List<int>` | Page lengths offered. Default `[15, 25, 50, 100]` |
+
+```dart title="packages/beak_frontend/lib/src/query/beak_query_controller.dart"
+const BeakQueryPreset({
+  required this.key,
+  required this.label,
+  this.filter,
+  this.columns,
+  this.quickFilters,
+  this.defaults = const {},
+  this.rowHeightInPixels,
+  this.countColor = BeakColor.muted,
+});
+```
+
+```dart title="packages/beak_frontend/lib/src/presentation/beak_record_template.dart"
+factory BeakTableColumn.field(
+  BeakScalarField<Object> field, {
+  double? widthInPixels,
+  double minWidthInPixels = 160,
+  TextAlign textAlign = TextAlign.start,
+  EdgeInsetsGeometry? cellPadding,
+}) => BeakTableColumn(
+  key: field.qualifiedKey,
+  label: field.label,
+  template: BeakRecordTemplate.fields(title: field),
+  sortBy: field,
+  widthInPixels: widthInPixels,
+  minWidthInPixels: minWidthInPixels,
+  textAlign: textAlign,
+  cellPadding: cellPadding,
+);
+```
+
+| `BeakTableColumn` parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `key` | `String` | required | Column identity in state and addresses |
+| `label` | `String` | required | Heading |
+| `template` | `BeakRecordTemplate` | required (`.action` has none) | The cell |
+| `sortBy` | `BeakScalarField<Object>?` | `null` | Field of the listed model that the header sorts by |
+| `widthInPixels` | `double?` | `null` | Initial width |
+| `minWidthInPixels` | `double` | `160` | Width below which a narrow viewport scrolls |
+| `textAlign` | `TextAlign` | `start` | Heading and cell alignment |
+| `cellPadding` | `EdgeInsetsGeometry?` | `null` | Insets. `null` follows the table theme |
+| `selector`, `choices`, `fallback` | `.action` only | | Value binding, value-to-action map, default action |
+
+```dart title="packages/beak_frontend/lib/src/query/beak_list_export.dart"
+const BeakListExport({
+  required this.fields,
+  this.label = 'Export',
+  this.fileName,
+  this.raw = false,
+});
+```
+
+| `BeakListExport` parameter | Meaning |
+| --- | --- |
+| `fields` | Direct scalar fields of the list model, non-empty and unique, in file order |
+| `label` | Button label. Default `Export` |
+| `fileName` | Saved name. Default `<table>.csv` |
+| `raw` | Stored values instead of the display policy. Default `false` |
+
+```dart title="packages/beak_frontend/lib/src/query/beak_saved_views.dart"
+const BeakSavedViewStore.model({
+  required this.model,
+  required this.name,
+  required this.resource,
+  required this.state,
+  this.filter,
+});
+```
+
+| `BeakSavedViewStore.model` parameter | Meaning |
+| --- | --- |
+| `model` | The model that stores views |
+| `name`, `resource`, `state` | `BeakScalarField<String>` columns for the name, the list's table and the JSON state |
+| `filter` | Optional scope of the rows offered, in addition to server policies |
+
+`BeakQueryController` (`package:beak/panel.dart`) is the object behind `BeakQueryScope.of(context)`.
+
+| Member | Meaning |
+| --- | --- |
+| `state`, `presets`, `presetCounts` | Signals and lists a widget can watch |
+| `query`, `queryFor(state, {excludingFilter})` | The spec for the state, or for a candidate state |
+| `effectiveFilters(state)` | Preset defaults plus explicit filters, without cleared ones |
+| `countQuery(preset)` | The query behind a tab count |
+| `selectPreset`, `setSearch`, `sortBy`, `goToPage`, `setPageSize` | Change one thing. Each goes back to page 1 except `goToPage` |
+| `applyFilters`, `previewFilters`, `removeFilter`, `clearFilters` | Filter changes. `previewFilters` builds a candidate without applying |
+| `availableColumns`, `currentColumns`, `chooseColumns` | Column choice |
+| `setHeaderVisible` | Overview visibility |
+| `restore(state)` | Replace all choices at once, for history and saved views |
+| `writeUri(uri)`, `BeakQueryController.readUri(uri)` | Address round trip. Parameter name `list` |
 
 ## Continue reading
 
-- [Tables and filters](tables-and-filters.md)
-- [The navigation shell](navigation.md)
-- [Actions](actions.md)
-- [Search and export](../backend/search-and-export.md)
-
-Rich choice cards can reuse that identity with `details` and an optional
-`footnote`. Each entry is a `BeakValueBinding`, so related metadata and visibility
-conditions declare their own eager-load dependencies. Set `icon` for a themed
-leading icon, `maxLines: null` for wrapping instructions, `textOverflow` for
-deliberate natural overflow of short values, and `visibleIf` to omit
-optional metadata without empty placeholders. These bindings work identically in
-search results, profile cards, tables, and the current form draft; they do not
-introduce another fetcher or state store.
+- [Actions](actions.md): the row, bulk and page actions that `rowActions` and `bulkActions` place.
+- [Filter builders](../reference/filter-builders.md): the controls that go into `filters` and `quickFilters`.
+- [Summaries](../blocks/summaries.md): the blocks that follow a list's query from its overview.
+- [Navigation](navigation.md): bookmark a preset with `BeakNavigationItem.resource(model, preset: ...)` and show its count.

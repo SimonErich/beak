@@ -1,87 +1,66 @@
 # Reference
 
-> Look up any annotation, field type, rule, block, option, REST route, CLI command or exception.
+> Look up any annotation, column type, rule, builder, block, option, REST route, CLI command, environment variable or exception of Beak.
 
-This is the section you scan, not the one you read. Every page here is a
-complete lookup table for one surface of Beak: the annotations a schema class
-carries, the keys of `beak.yaml`, the libraries you import, the column types,
-the validation rules, the blocks, the config fields, the generated REST routes,
-the CLI, the exception family, and the package map. When you know the name and
-want the signature, start here.
+This section is for lookup, not for reading top to bottom. Every page is a complete table for one surface of Beak, with signatures quoted from the source, defaults read from the source, and the file that defines each thing. If you know the name and want the signature, or you know the job and want the name, start here.
 
-If you want it all on one screen, the [Cheatsheet](cheatsheet.md) condenses the
-whole toolbox into a single dense page, worth pinning or handing to an AI agent.
-
-## The pages
-
-| Page | What it lists |
-| --- | --- |
-| [Cheatsheet](cheatsheet.md) | The whole toolbox on one page: one resource end to end, every type, and every command. |
-| [Annotations](annotations.md) | Every annotation a schema class can carry, and the Dart type each applies to. |
-| [beak.yaml](beak-yaml.md) | Every key of the project file, and what happens when you leave it out. |
-| [Libraries](libraries.md) | The eight libraries of `package:beak` and which one a file should import. |
-| [Column types reference](field-types.md) | All thirteen built-in column types, the authoring type each is declared as, and their options. |
-| [Validation rules reference](validation-rules.md) | The eleven `BeakRule` types, what they apply to, and when they fail. |
-| [Blocks index](blocks.md) | Every block in the block system, grouped by layout, display, data, record, and module. |
-| [CLI commands](cli-commands.md) | `create`, `prepare`, `dev`, `introspect`, `eject`, `migrate`, `seed`, `make:resource`, `make:migration`, `doctor`. |
-| [REST API](rest-api.md) | The routes a registered model generates, plus the search, export, upload, auth, and health surfaces. |
-| [Configuration options](configuration.md) | `beak.yaml`, the environment variables, `BeakBackendConfig`, the storage configs, and `BeakPanelConfig`. |
-| [Exceptions](exceptions.md) | The sealed `BeakException` family and the HTTP status and JSON `code` each maps to. |
-| [Glossary](glossary.md) | The Beak vocabulary: schema class, column, resource, block, scope, driver, spec, and the rest. |
-| [Packages](packages.md) | What each package contains, how they depend on one another, and the examples that exercise them. |
-
-## Where each decision lives
-
-Most "which page do I want" questions are really "where does this decision
-live". There are five answers.
-
-| Decision | Where |
-| --- | --- |
-| Columns, relationships, table name, soft deletes, timestamps | the `@Resource` class in `lib/models/<name>.dart` ([Annotations](annotations.md)) |
-| Panel title, API origin, server port | `beak.yaml` ([beak.yaml](beak-yaml.md)) |
-| A resource's icon, label, section, or hiding it | `beak.yaml`, under `resources.<table>` |
-| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart` ([Configuration options](configuration.md)) |
-| Theme, auth, the `/` screen, the server | `lib/theme.dart`, `lib/auth.dart`, `lib/dashboard.dart`, `lib/server.dart` |
-
-Everything else is generated into `lib/beak/*.g.dart` and
-`lib/models/*.beak.dart`, committed, and never edited.
-
-## How the reference relates to the rest of the docs
-
-The [Core concepts](../concepts/index.md), [Schema](../models/index.md), and
-[The panel](../panel/index.md) sections teach these APIs in prose, with the
-reasoning and the worked examples. The reference pages here restate the same
-surface as flat tables so you can find a parameter without rereading the
-explanation. Every signature is quoted from the source, so what you see is what
-compiles.
+Each page in [Guides](../guides/index.md) teaches the same APIs with reasons and worked examples. These pages state them flat, so a parameter is findable without rereading an explanation.
 
 ## Which page to read
 
-| You want to… | Read | For |
+| You want to... | Read | For that |
 | --- | --- | --- |
-| Find the configuration entrypoint for each common task | [Cheatsheet](cheatsheet.md) | Reference for experts and agents |
-| Look up every annotation a schema class can carry, what it changes and where it applies | [Annotations](annotations.md) | Reference for experts and agents |
-| Look up every column type, the Dart type it is declared as, its options and its defaults | [Field types](field-types.md) | Reference for experts and agents |
-| Look up every validation rule, its arguments, what it checks and the message it emits | [Validation rules](validation-rules.md) | Reference for experts and agents |
-| Look up the model behavior and action types with their fields and defaults | [Behavior and actions](behavior-and-actions.md) | Reference for experts and agents |
-| Look up the files beak prepare writes and the symbols generated for each schema | [Generated files and symbols](generated-files.md) | Reference for experts and agents |
-| Look up the input builders you can call on a typed field in a form | [Input builders](input-builders.md) | Reference for experts and agents |
-| Look up the filter builders you can call on a typed field in a list | [Filter builders](filter-builders.md) | Reference for experts and agents |
-| Look up the resource screens and the form layout nodes with their options | [Screens and form layouts](screens-and-layouts.md) | Reference for experts and agents |
-| Look up every block type and its typed options | [Blocks](blocks.md) | Reference for experts and agents |
-| Look up the query specification, filters, operators and typed values | [Queries](queries.md) | Reference for experts and agents |
-| Look up every option of the panel, of a resource, of authentication, maintenance mode and formatting | [Panel and resource options](panel-options.md) | Reference for experts and agents |
-| Look up every key of the project file and what happens when you leave it out | [beak.yaml](beak-yaml.md) | Reference for experts and agents |
-| Look up every environment variable and every backend and storage configuration field, with defaults | [Configuration and environment](configuration.md) | Reference for experts and agents |
-| Look up every beak command, its flags, the files it writes and its exit codes | [CLI commands](cli-commands.md) | Reference for experts and agents |
-| Look up every endpoint the backend generates, with request bodies, responses and the error envelope | [REST API](rest-api.md) | Reference for experts and agents |
-| Look up the exception family, each stable code, its HTTP status and when Beak throws it | [Exceptions](exceptions.md) | Reference for experts and agents |
-| Look up the libraries of package:beak, what each is for and what it may import | [Libraries](libraries.md) | Reference for experts and agents |
-| Look up the packages behind Beak, what each owns and which ones an app installs | [Packages](packages.md) | Reference for experts and agents |
-| Look up one-line definitions of Beak vocabulary, cross-linked to the page that explains each | [Glossary](glossary.md) | Reference for beginners, experts and agents |
+| Find the declaration for a common task without knowing its name | [Cheatsheet](cheatsheet.md) | one resource end to end, then task to API tables |
+| See every annotation a schema class carries | [Annotations](annotations.md) | `@Resource`, `@Column`, `@Display`, relationships, and the `beak prepare` errors |
+| Know which column a Dart type becomes | [Field types](field-types.md) | every column type, semantic kinds, options and defaults |
+| Bound or check a value | [Validation rules](validation-rules.md) | column, record and async rules, and the message each emits |
+| Guard a state change or calculate a value | [Behavior and actions](behavior-and-actions.md) | `BeakModelBehavior`, value lifecycles, model commands, panel actions |
+| Read the code `beak prepare` writes | [Generated files and symbols](generated-files.md) | each generated file and the symbols per schema class |
+| Put an editor in a form | [Input builders](input-builders.md) | every `inputX` builder on a typed field |
+| Put a control in a list | [Filter builders](filter-builders.md) | every `xFilter` builder and its predicate |
+| Arrange screens and forms | [Screens and form layouts](screens-and-layouts.md) | screens, roles, layout containers and presentation nodes |
+| Compose a page from blocks | [Blocks](blocks.md) | all 47 block classes with constructors and data loading |
+| Build or read a query | [Queries](queries.md) | `BeakQuerySpec`, filters, operators, values, pagination, summaries |
+| Configure the panel and its resources | [Panel and resource options](panel-options.md) | `BeakPanel`, `BeakPanelConfig`, `BeakResource`, auth, navigation, formatting |
+| Configure the project file | [beak.yaml](beak-yaml.md) | every key, its default, and what each way of booting reads |
+| Configure the server and storage | [Configuration and environment](configuration.md) | environment variables, override files, `BeakBackendConfig`, storage configs |
+| Run the tool | [CLI commands](cli-commands.md) | every command, flag, written file, transcript and exit code |
+| Call the API | [REST API](rest-api.md) | every route, body, status code and the error envelope |
+| Handle a failure | [Exceptions](exceptions.md) | the `BeakException` family, codes and HTTP statuses |
+| Choose an import | [Libraries](libraries.md) | the eight libraries of `package:beak` and what each may reach |
+| Know what a package owns | [Packages](packages.md) | every package, its dependencies, the examples and the version pins |
+| Decode a term | [Glossary](glossary.md) | one line per term, linked to the page that explains it |
+
+## Find a page by a name you have seen
+
+| The name looks like | Page |
+| --- | --- |
+| `@Resource`, `@Column`, `@BelongsTo`, `@Display` | [Annotations](annotations.md) |
+| `BeakStringColumn`, `BeakText`, `BeakDecimal`, `BeakSemantic` | [Field types](field-types.md) |
+| `BeakMin`, `BeakMaxLength`, `BeakCount`, `BeakUnique`, `BeakExists` | [Validation rules](validation-rules.md) |
+| `BeakModelBehavior`, `BeakModelAction`, `BeakRecordAction` | [Behavior and actions](behavior-and-actions.md) |
+| `ProductModel.name.inputText()`, `.tableForm()` | [Input builders](input-builders.md) |
+| `ProductModel.name.textFilter()`, `BeakChoiceFilter` | [Filter builders](filter-builders.md) |
+| `BeakFormScreen`, `BeakTableScreen`, `BeakCard`, `BeakWizardStep` | [Screens and form layouts](screens-and-layouts.md) |
+| `BeakMetricBlock`, `BeakChartBlock`, anything `Beak...Block` | [Blocks](blocks.md) |
+| `BeakQuerySpec`, `BeakFilter`, `BeakSort`, `BeakPage` | [Queries](queries.md) |
+| `BeakPanel`, `BeakPanelConfig`, `BeakResource`, `BeakAuthConfig` | [Panel and resource options](panel-options.md) |
+| `BeakBackendConfig`, `BeakServeHost`, `DATABASE_URL`, `BEAK_STORAGE_DRIVER` | [Configuration and environment](configuration.md) |
+| `BeakException`, `BeakConfigurationException`, `BeakResult` | [Exceptions](exceptions.md) |
+| `/api/commits`, `/api/{table}/query`, `/healthz` | [REST API](rest-api.md) |
+| `*.beak.dart`, `*.g.dart`, `XModel`, `XColumns`, `XRecord` | [Generated files and symbols](generated-files.md) |
+| `package:beak/panel.dart`, `package:beak/server.dart` | [Libraries](libraries.md) |
+| `beak_core`, `beak_serverpod`, `worm` | [Packages](packages.md) |
+
+## Rules for this section
+
+- Signatures are quoted from the source with the file named beside them, so what you read is what compiles.
+- Defaults come from the source. A page that shows a default was checked against it.
+- A limit or a rough edge is stated under `Rules and limits`, with its reason.
+- Text an AI agent needs verbatim (names, paths, commands, flags) is in tables and code, not in prose.
 
 ## Continue reading
 
-- [Cheatsheet](cheatsheet.md) the single densest page in the site.
-- [Annotations](annotations.md) the most-visited lookup table.
-- [Quickstart](../start-here/quickstart.md) if you would rather run something first.
+- [Cheatsheet](cheatsheet.md) the shortest path from a task to its declaration.
+- [Guides](../guides/index.md) the same APIs with reasons and worked examples.
+- [Quickstart](../start-here/quickstart.md) for running something first.

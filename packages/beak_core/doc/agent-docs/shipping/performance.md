@@ -1,141 +1,103 @@
 # Performance
 
-> See how Beak keeps query counts low and where to look when a page is slow.
+> Count what a Beak surface costs in requests and statements, learn the levers that change it, and see the limits the framework leaves to your server.
 
-After this page you can reason about how many round-trips a Beak surface costs,
-and reach for the levers that keep that number small: relations loaded with the
-page, always-on pagination, aggregate pushdown, and paged relation managers.
+Beak's performance questions are mostly questions about counts: how many requests a screen makes, how many statements each request runs, and how much of a table a statement has to read. After this page you can say what a surface costs, which setting changes that, and which limits Beak leaves for your server and proxy to enforce.
 
-Beak's performance story is mostly a story about query counts. A dashboard that
-fires one query per row is slow no matter how fast the database is. Beak is
-built so the obvious thing is also the cheap thing: a list page costs one query,
-a show page costs one query, and a stat tile costs one query that returns a
-single number.
+Nothing in Beak lazy-loads. A relation nobody asked for is not loaded, and nothing fetches it behind your back, so the classic N+1 query cannot creep in through a getter. The bird makes one trip to the ground, with a shopping list. The price is that the cost of a screen is written down in its query spec, where you can read it.
 
-## Beak never lazy-loads
+## At a glance
 
-There is no lazy loading anywhere in Beak. Reading a relation that was not
-eager-loaded gives you nothing, rather than quietly firing a query behind your
-back. That sounds strict, and it is: it is the rule that makes the N+1 query
-problem impossible instead of merely discouraged.
+These counts were taken with worm's `LoggingAdapter` around the endpoint tests' notes fixture (30 rows, page size 25). They are statements on the database, not HTTP requests.
 
-You declare what a surface needs up front, and the backend loads it in bulk.
+| Operation | HTTP requests | Statements |
+| --- | --- | --- |
+| List page, no relations | 1 | 2 (a `COUNT`, then the page `SELECT`) |
+| Each to-one relation loaded with the page | 0 | +1 (`WHERE id IN (...)` for the page's keys) |
+| Each has-many relation loaded with the page | 0 | +1 (`WHERE fk IN (...)`) |
+| Each many-to-many relation loaded with the page | 0 | +1 for the pivot rows, +1 for the related rows when the pivot has any |
+| `getOne`, or a batch of ids | 1 | 1 |
+| Stat tile (`aggregate`) | 1 | 1 |
+| Summary with 3 measures | 1 | 3 (one grouped aggregate per measure) |
+| CSV export of 5,000 rows | 1 | 20 (ten pages of 500, each with its own `COUNT` and `SELECT`) |
 
-```dart title="packages/beak_core/lib/src/query/beak_relation_load.dart"
-/// An eager-load directive: which relation to load with the main query,
-/// optionally constrained and with nested loads of its own.
-///
-/// Beak never lazy-loads; every relation a surface needs is declared up
-/// front through directives like this one (reference-dedup happens in the
-/// backend). User code obtains loads through the spec's typed `withRelation`
-/// builder, which reads the key from a relationship constant.
+The panel adds what a screen composes. A generated table asks for its rows and for every to-one relation of its model in the same spec, so a foreign key renders as a name and not as a uuid. That page costs 2 statements plus one per to-one relation, in one request.
+
+## Read the cost off the spec
+
+A relation load is a directive in the query spec, so the number of statements a page costs is visible before it runs. The backend resolves each load for the whole page in one batched pass. A hundred products with a category are the count, the page and one `IN` lookup, never a hundred more. Beak's own suite pins this with a count of statements:
+
+```dart title="packages/beak_backend/test/src/endpoints/crud_handlers_test.dart"
+test(
+  'a paged list with a pivot relation load stays at four queries',
+  () async {
+    await call('POST', '/api/notes', body: {'id': 'n1', 'title': 'One'});
+    await call('POST', '/api/labels', body: {'id': 'l1', 'name': 'hot'});
+    await call(
+      'POST',
+      '/api/notes/n1/relations/labels/attach',
+      body: {
+        'ids': ['l1'],
+      },
+    );
+    logger.clear();
+
+    const spec = BeakQuerySpec(
+      table: 'notes',
+      relationLoads: [BeakRelationLoad('labels')],
+    );
+    await call('POST', '/api/notes/query', body: spec.toJson());
+
+    // count + parent select + pivot select + related select.
+    expect(logger.entries, hasLength(4));
+  },
+);
 ```
 
-You rarely build these directives by hand. You chain the spec's typed
-`withRelation` builder off a relationship constant, and it records the key for
-you:
+The data source that produces those statements does the count first and the page second:
 
-```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
-  /// Returns a copy additionally eager-loading [relation], optionally
-  /// constrained by [constraint].
-  BeakQuerySpec withRelation(
-    BeakRelationship relation, {
-    BeakFilter? constraint,
-  }) => _copy(
-    relationLoads: [
-      ...relationLoads,
-      BeakRelationLoad(relation.key, filter: constraint),
+```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
+Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+  final BeakModel beakModel = registry.byTableOrThrow(spec.table);
+  final builder = _translator.builderFor(spec, _adapter);
+  final int total = await builder.count();
+  final rows = await builder.get();
+  return BeakPage(
+    items: [
+      for (final row in rows)
+        row.toBeakRecord(
+          loads: spec.relationLoads,
+          model: beakModel,
+          registry: registry,
+        ),
     ],
+    total: total,
+    page: spec.pagination.page,
+    perPage: spec.pagination.perPage,
   );
+}
 ```
 
-A `BeakRelationLoad` also carries an optional `filter` to constrain which
-related rows load, and `nested` directives to eager-load the related model's own
-relations in the same pass:
-
-```dart title="packages/beak_core/lib/src/query/beak_relation_load.dart"
-/// // Load an order's line items that are still pending, and each item's
-/// // product in turn.
-/// const load = BeakRelationLoad(
-///   'items',
-///   filter: BeakFieldFilter.forKey(
-///     'status',
-///     BeakOperator.eq,
-///     BeakStringValue('pending'),
-///   ),
-///   nested: [BeakRelationLoad('product')],
-/// );
-```
-
-## A list page is one query
-
-A generated table asks for its rows and every to-one relationship of its model
-in the same spec. Nothing on the page has to look a foreign key up afterwards,
-because the related record arrived with the row.
+The panel adds the to-one loads for you. This is the function that does it, and it leaves any load you supplied alone, because yours may carry a constraint it cannot know about:
 
 ```dart title="packages/beak_frontend/lib/src/data/beak_relation_loads.dart"
-/// Returns [spec] eager-loading every to-one relationship of [model] it does
-/// not already load.
-///
-/// Without them a foreign key renders as the uuid it stores — the panel showed
-/// `a3f9c1e2-…` where the reader expected `Beverages`. Loading them with the
-/// page costs one query rather than one per row, which is the whole reason
-/// this is a list rather than a lookup.
+BeakQuerySpec beakWithToOneLoads(BeakQuerySpec spec, BeakModel model) {
+  final loaded = <String>{
+    for (final load in spec.relationLoads) load.relationKey,
+  };
+  var result = spec;
+  for (final relation in beakToOneRelationsOf(model)) {
+    if (loaded.add(relation.key)) {
+      result = result.withRelation(relation);
+    }
+  }
+  return result;
+}
 ```
 
-The table then renders a column per to-one relationship, showing the related
-record's display value, and hides the raw foreign-key column that would show the
-same fact twice, once unreadably. You get "Beverages" instead of
-`a3f9c1e2-…`, at no extra cost.
+A show page loads the record and the relations its layout renders with one filtered query. A resource with a custom `detail:` layout renders whichever blocks it names, which the page cannot know in advance, so those blocks load their own data. If a bespoke show page is chattier than the default one, that is why.
 
-> **Note: What just happened**
->
-> - The table asked for the relations, so every caller gets names instead of
->   uuids without knowing to request them.
-> - One page, one request. Behind it, the backend resolves each eager-load in
->   one batched pass for the whole page: a hundred products with a category
->   is the page query plus one `WHERE id IN (...)`, never a hundred and one.
-> - A relation nobody asked for is never loaded, so an accidental N+1 cannot
->   hide: there is no code path that would issue it.
-
-## A show page is one query too
-
-The generated show page loads the record and the relations its layout renders in
-one request. With no additional relation requests it uses `getOne`; requested
-eager relations use a single filtered query because `getOne` cannot carry them.
-
-```dart title="packages/beak_frontend/lib/src/data/beak_relation_loads.dart"
-/// Loads the [id] record of [model] with [relations] eager-loaded, in one
-/// request.
-///
-/// Without additional relation requests, use [BeakDataSource.getOne]: a
-/// transport can support record lookup without allowing primary-key filters
-/// on its list queries. Any relations already included in that record survive.
-/// When relations are requested, load them with the record in a single query;
-/// the caller reads each relation off [BeakRecord.relations].
-```
-
-The relation managers on that page are then seeded with what already arrived, so
-the tabs paint without going back to the server:
-
-```dart title="packages/beak_frontend/lib/src/detail/relation_manager.dart"
-  /// The related records the parent already loaded, if any.
-  ///
-  /// A detail page eager-loads every relation with the record it shows, so
-  /// passing them here means N managers cost zero extra queries on first
-  /// paint. Any mutation still refetches.
-  final List<BeakRecord>? initialRecords;
-```
-
-One exception, and it is deliberate: a resource with a custom `detail:` layout
-renders whichever blocks it names, which the page cannot know statically, so
-those blocks load their own data. If a bespoke show page feels chattier than the
-default one, that is why.
-
-## Relation managers page their rows
-
-A to-many can be unbounded. The manager reads a page of it and offers the next
-one, instead of pretending the first page is everything:
+Relation tabs on the show page are seeded from what the parent already loaded, and a to-many is paged rather than read whole:
 
 ```dart title="packages/beak_frontend/lib/src/detail/relation_manager.dart"
   /// How many related rows to read at a time.
@@ -145,151 +107,158 @@ one, instead of pretending the first page is everything:
   final int pageSize;
 ```
 
-The count beside it is the real total, not the page size, so a parent with 400
-children says 400 and offers to load the rest. An order with two line items and
-an order with two thousand cost the same first paint.
+The default is 25. The count beside the tab is the real total, so a parent with 400 children says 400 and offers the rest. An order with two lines and one with two thousand cost the same on first paint.
 
-That paging is what a has-many needs, because it is a query of its own. A
-many-to-many is different: its pivot comes back whole with the parent, so the
-manager already holds everything and shows it without paging.
+## Paging, and what it does not do
 
-## Pagination is on by default
-
-Every list query carries a paging window, and it is populated whether or not
-you set one. The default is a 1-based page of twenty-five rows:
+Every list query carries a paging window, whether you set one or not. The default is page 1 of 25 rows:
 
 ```dart title="packages/beak_core/lib/src/query/beak_pagination.dart"
-  /// Creates a paging window on 1-based [page] with [perPage] records.
   const BeakPagination({this.page = 1, this.perPage = 25})
     : assert(page >= 1, 'page is 1-based and must be >= 1'),
       assert(perPage >= 1, 'perPage must be >= 1');
 ```
 
-Because the window always exists, the translator always applies a `LIMIT` and,
-past page one, an `OFFSET`. There is no code path that selects a whole table by
-accident:
+Three properties follow from the design, and each has a consequence:
 
-```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
-    builder = builder.limit(spec.pagination.perPage);
-    final int offsetRows = (spec.pagination.page - 1) * spec.pagination.perPage;
-    if (offsetRows > 0) {
-      builder = builder.offset(offsetRows);
+- The server serves at most 200 rows a page (`BeakPagination.maxPerPage`). A request for 100,000 rows gets `LIMIT 200` and an envelope whose `perPage` says 200, while `total` still counts the whole filtered set. The panel's query controller still accepts up to 1,000, so a list that asks for more than 200 receives 200. Ask a summary or an aggregate for totals instead of fetching rows to add up. [Security](security.md) lists it with the other limits.
+- Paging is offset paging. Page 400 at 25 rows asks the database to skip 9,975 rows first. Deep pages get slower with depth, and Beak has no keyset (cursor) option. For an export or a scan, use the export route, which pages internally, and not a loop over deep pages.
+- Every page runs a `COUNT` over the whole filtered set. The `total` beside the pager is exact, and an exact count on a large table is work the database repeats for each page turn and each keystroke in a search box. Keep filters selective and indexed. There is no switch to turn the count off.
+
+## Indexes, sorting and search
+
+A foreign key is indexed without being asked, because the panel reads through them on every list page:
+
+```dart title="packages/beak_backend/lib/src/data/worm/beak_blueprint.dart"
+    for (final key in foreignKeys) {
+      table.index(<String>[key]);
     }
 ```
 
-Change the window with the spec's `paginate` builder. Tables in the panel do
-this for you as the user moves between pages; you reach for it directly when a
-chart or a batched job wants a larger or smaller page.
+Nothing else is indexed for you. A column the table sorts or filters by, on a table that will grow, is worth declaring:
 
-```dart
-final spec = const BeakQuerySpec(table: 'products').paginate(perPage: 100);
+```dart title="packages/beak_core/lib/src/schema/beak_schema_annotations.dart"
+    this.indexed = false,
+    this.unique = false,
 ```
 
-> **Tip: Pick perPage deliberately**
->
-> A large `perPage` trades round-trips for payload size and render cost. For a
-> dense table twenty-five is a sensible default; for a chart that plots a
-> whole series, set it high enough to fetch the series in one page rather than
-> looping over pages.
+`indexed: true` puts a plain index in the generated create-table migration, and `unique: true` makes it a unique one that also enforces the constraint. Adding either to a table that already exists is a migration of its own (`beak make:migration <Name> --from-drift` writes it).
 
-## Aggregates run in the database
-
-Counting a table by loading every row and calling `.length` is the classic way
-to melt a dashboard. Beak's stat tiles and KPI blocks never do that. They carry
-a `BeakAggregateSpec`, which the backend pushes down into a `COUNT`, `SUM`, or
-`AVG` over a filtered query. No rows cross the wire.
-
-The shop's `overview.dart` uses typed count aggregates for open orders and
-low-stock variants. Its `ShopReceivablesCard` sums invoice amounts on the source
-and formats the resulting minor units without fetching all invoices.
-
-The translator builds the same scoped, filtered query it would for a list, then
-hands it to the aggregate terminal instead of a row fetch:
+Substring search is the one place an index cannot help. `contains` and every `searchable: true` column compile to a case-insensitive match with a leading wildcard:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
-  /// Builds the scoped, filtered worm query behind [spec]; the data source
-  /// picks the aggregate terminal (count/sum/avg).
-  QueryBuilder<WormRecordModel> aggregateBuilderFor(
-    BeakAggregateSpec spec,
-    DatabaseAdapter adapter,
-  ) {
+BeakOperator.contains => pattern(
+  Operator.ilike,
+  '%${beakEscapeLike(_stringOperand(filter))}%',
+),
 ```
 
-A dashboard with a dozen stat tiles is a dozen cheap aggregate queries, each one
-a single number, not a dozen full-table scans. Filters on the spec become the
-aggregate's `WHERE`, so "orders placed this week" costs exactly one query.
+A leading `%` cannot use a b-tree index, so a search reads the table. That is fine at thousands of rows and a decision at millions. Keep `searchable` to the columns people actually search, and put a selective filter (a status, a date range) beside the search term when a table gets large.
 
-## Batched reference resolution
+## Dashboards: one cheap statement per tile
 
-Some places still turn an id into a label one widget at a time: a belongs-to
-picker on a form, prefilled with the record it points at. `ReferenceCache`
-collapses those into one round-trip.
+A stat tile carries a `BeakAggregateSpec`, and the backend runs it as a `COUNT`, `SUM` or `AVG` over a filtered query. No rows cross the wire. The shop's overview has four:
 
-```dart
-/// Coalesces reference lookups into batched fetches and caches the results
-/// — many cells resolving the same or sibling references within a frame
-/// cost one `batchGet` per table, never N `getOne`s.
+```dart title="examples/clean_beak_config/lib/overview.dart"
+BeakGridBlock(
+  minColumnWidthInPixels: 220,
+  children: [
+    BeakMetricBlock(
+      label: 'Products',
+      icon: OiIcons.package,
+      aggregate: const ProductModel().count(),
+    ),
+    BeakMetricBlock(
+      label: 'Orders to fulfill',
+      icon: OiIcons.shoppingCart,
+      aggregate: const OrderModel().count(
+        filter: fulfillmentQueueFilter(),
+      ),
+    ),
+    BeakMetricBlock(
+      label: 'Awaiting payment',
+      icon: OiIcons.receiptText,
+      aggregate: const InvoiceModel().count(
+        filter: InvoiceModel.status.eq(InvoiceStatus.issued),
+      ),
+    ),
+    BeakMetricBlock(
+      label: 'Low-stock variants',
+      icon: OiIcons.layers,
+      aggregate: const ProductVariantModel().count(
+        filter: ProductVariantModel.stock.lte(5),
+      ),
+    ),
+  ],
+),
 ```
 
-Calls that land in the same microtask window are coalesced into a single
-`batchGet` per table, and results are cached until you invalidate them. The
-cache is registered as a singleton by `registerBeakDependencies`, so every
-picker on a form shares one instance and one batch.
+Four tiles are four requests and four statements, each returning a number. A tile that shows a comparison against a `prior` period runs two. A population summary (`model.summary(groupBy: ..., measures: [...])`) runs one grouped aggregate per measure, so eight measures is the ceiling and also eight statements. It returns at most `limit` groups (default 100, at most 500) and reports overflow, but the limit trims the response and not the work: the database still groups the whole matching population.
 
-```dart
-/// final category = await referenceCache.resolve('categories', categoryId);
-/// // ...after editing that category:
-/// referenceCache.invalidate('categories', categoryId);
+The panel does not cache completed reads. It refetches a table, a tile or a summary after a write to the same table, and a form session coalesces identical requests that are in flight at the same moment, which keeps a form full of pickers from asking for the same catalog twice. `BeakPanel(refreshPolicy: BeakRefreshPolicy(interval: ...))` adds polling, and each tick runs every mounted surface's queries again. A page that is slow to compute is slow each time it opens.
+
+## The server process
+
+Three properties of the running process matter once the data is large enough that the queries are fine.
+
+### One isolate handles all requests
+
+`shelf_io.serve` runs on the isolate that called it, so CPU work in a handler stops every other request in that process until it finishes. The place this shows is image uploads. An image column decodes the file once, to run its transforms, in pure Dart on that isolate (the dimensions come from the header first, so a file that declares more than the column allows never gets that far). Decoding a 12-megapixel, 18 MiB JPEG stalled a test isolate for 1 - 3 seconds on the machine that wrote this page (noise compresses badly, so this is a worst case; a typical photo is faster). During that time the server answered nothing else. Set `maxSizeInBytes` on every image column, and run two or more server processes behind the proxy if uploads are common (the built-in login keeps its sessions per process, so read the note on that in [Security](security.md) first).
+
+### Graph commits run one at a time per process
+
+Every form save goes through `POST /api/commits`, and commits on one adapter are serialized in-process so snapshot-based transactions cannot interleave. A slow `preparePlan` hook therefore delays every other save on that process, not only its own. Keep hooks to reads the plan needs, and do slow work (email, webhooks) as a durable effect through the outbox, which runs after the transaction. Across several processes the receipt's primary key keeps a save from applying twice.
+
+### Postgres gets a pool of ten connections
+
+`adapterFromUrl` defaults `poolSize` to 10, and `beak_backend` does not expose it through an environment variable. SQLite runs on one connection.
+
+```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
+DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
+  if (isSqliteUrl(databaseUrl)) {
+    final String? path = sqliteFilePathOf(databaseUrl);
+    return path == null ? SqliteAdapter.memory() : SqliteAdapter.open(path);
+  }
+  return _postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
+}
 ```
 
-## Hide a resource without removing it
+The server compressed neither the JSON page nor the streamed CSV export that were checked for this page. Ask the proxy to (`gzip on;` in nginx), for the API's JSON and for the panel's static files alike. The repository's `deploy/nginx.conf` does not enable it yet, and the stock `nginx:alpine` configuration has it commented out, so the panel's JavaScript bundle is served as is.
 
-A panel with forty resources in the sidebar is slow for the person using it. Any
-resource can be kept out of the navigation from `beak.yaml` without losing
-anything else:
+## Rules and limits
 
-The canonical shop registers `OrderResource` in the panel and reaches owned order
-items through `OrderModel.items.tableForm(...)`; it does not need a separate line
-item navigation entry. Schema registration still provides the relationship
-metadata and API contracts.
-
-The model stays registered, the REST endpoints stay generated, and the resource
-stays reachable as the far side of a relationship. All it loses is the sidebar
-entry. Line items, pivots and lookup tables usually should not have one anyway.
-
-## Query-count discipline
-
-The levers add up to a simple habit: for any surface, know its query count and
-keep it flat as the data grows. This table is the whole discipline.
-
-| Surface | Cheap shape | The trap it avoids |
+| Limit | Where it is enforced | What to do |
 | --- | --- | --- |
-| A list page | One query: the page plus every to-one relation | One lookup per cell to turn a foreign key into a name |
-| A show page | One query: the record plus the relations the layout renders | One round trip per relation panel |
-| A relation tab | Seeded from the parent's load, then paged | Reading an unbounded to-many whole |
-| A stat tile or KPI | One `BeakAggregateSpec` (count/sum/avg) | Loading rows just to count or total them |
-| A form's picker | `ReferenceCache`, batched per frame | One `getOne` per picker |
-| A chart over a series | One page sized to hold the series | Looping page by page in the client |
+| `perPage` is capped at 200 | `BeakQueryAuthorizer`, on `POST /query` | Nothing; for a lower ceiling pass `maxPerPage` to `defaults.build` |
+| Request body size is unbounded for JSON | Nowhere in Beak | Set `client_max_body_size` (nginx) or the equivalent at the proxy |
+| Upload size is bounded only when the column sets `maxSizeInBytes` | The upload handler, before it buffers the part | Set it on every `@Image` and `@FileField` |
+| Relation filters nest at most 16 levels, summaries carry 1 - 8 measures | The translator and `BeakSummarySpec` | Nothing to do, these are guards |
+| Exact `total` on every list page | `WormDataSource.query` | Selective, indexed filters; keep tables you page deeply narrow |
+| Search is `ILIKE '%term%'` | The query translator | Limit `searchable` columns; filter first |
+| One isolate per process, ten Postgres connections | `shelf_io`, `adapterFromUrl` | Run more processes; see [Going to production](going-to-production.md) |
 
-You do not have to take any of this on trust. `BeakRecordingDataSource`, from
-`package:beak/testing.dart`, wraps a working source and records every call, so a
-widget test can assert that a screen costs one `query` and that the spec carried
-the relation loads you expected. [Testing](testing.md) covers it.
+## Verify it
 
-> **Warning: Growth is a query-count question, not a row-count question**
->
-> A page that costs a fixed number of queries stays fast as rows multiply. A
-> page whose query count scales with rows will not, however fast each query
-> is. When a surface feels slow, count its queries before you tune indexes.
+Count statements before you tune anything. A widget test can assert how many `query` calls a screen makes, with `BeakRecordingDataSource`, and an API test can assert how many statements a request runs, by wrapping the adapter in worm's `LoggingAdapter`, as the test quoted above does. [Testing](testing.md) shows both.
 
-Then tune indexes. `@Column(indexed: true)` puts an index in the generated
-migration, `@Column(unique: true)` makes it a unique one, and every belongs-to
-foreign key is indexed without being asked.
+On a live Postgres database, log the slow statements and read their plans (as a superuser, or through your provider's setting for the same option):
+
+```console
+$ psql "$DATABASE_URL" -c "ALTER SYSTEM SET log_min_duration_statement = '200ms'"
+$ psql "$DATABASE_URL" -c "SELECT pg_reload_conf()"
+```
+
+Then run `EXPLAIN ANALYZE` on the statement the log shows. When a surface feels slow, count its statements first and read plans second. A page whose statement count grows with its rows will not stay fast, however good each statement is.
+
+## Reference
+
+- `packages/beak_backend/lib/src/data/worm/worm_data_source.dart` and `query_translator.dart` produce every statement above.
+- `packages/beak_frontend/lib/src/data/beak_relation_loads.dart` decides which relations a generated page loads.
+- [The query contract](../architecture/query-contract.md) describes the spec that carries filters, sorts, loads and the paging window.
+- [Graph commits](../architecture/graph-commits.md) covers the transaction and the outbox.
 
 ## Continue reading
 
-- [Relationships](../models/relationships.md) declare the relations that then load with the page.
-- [How data flows](../concepts/how-data-flows.md) the query spec that carries filters, loads, and the paging window across the wire.
-- [Testing](testing.md) the recording data source that counts a screen's round-trips.
-- [Dashboards](../panel/dashboards.md) where aggregate specs become stat tiles and KPI blocks.
-- [The data source seam](../architecture/data-source-seam.md) how the translator turns a spec into worm queries.
+- [Security](security.md) the limits that are about abuse, not speed.
+- [Going to production](going-to-production.md) how many processes, which pool, which proxy.
+- [Dashboards](../panel/dashboards.md) where aggregate specs become tiles.

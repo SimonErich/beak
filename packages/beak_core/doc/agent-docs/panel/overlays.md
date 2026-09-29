@@ -1,54 +1,100 @@
 # Overlays
 
-> Open confirmations, modals, dialogs, side sheets and toasts from an action context.
+> Raise a confirmation, modal, dialog, side sheet or toast from an action or any widget with a build context, and know how each one closes.
 
-After this page you can raise a confirmation, a content modal, a dialog that returns a value, a side sheet, or a toast from anywhere you hold a build context, and you can render a block tree as the body of one.
+An action often has to ask, show or report something before it finishes: confirm a delete, show a preview, say that it worked. `BeakOverlays` is the small handle for that. It turns a build context into seven calls, and the panel mounts the result above the shell, so you never touch a `Navigator`.
 
-`BeakOverlays` is a small handle bound to a `BuildContext`. Every method mounts through the panel's overlay stack (so overlays layer correctly over the shell) and renders with obers_ui. You reach it most often from an action, where the context exposes it as a getter, but you can wrap one around any build context yourself.
+## At a glance
 
-## Reaching the handle
+| Method | Returns | Renders with | Closes when |
+| --- | --- | --- | --- |
+| `confirm(...)` | `Future<bool>` | `showOiDialog` and `OiDialog.confirm` | `true` on the confirm button, `false` on anything else |
+| `ask(...)` | `Future<BeakConfirmResult>` | the same dialog | `confirmed`, `cancelled` on the Cancel button, `dismissed` on anything else |
+| `modal(...)` | `Future<void>` | `showOiDialog` and `OiDialog.standard`, body is a `BeakBlock` | The single dismiss button, or a tap outside |
+| `dialog<T>(...)` | `Future<T?>` | `showOiDialog` and `OiDialog.standard`, body is a `Widget` | Your content calls `close([result])`, or a tap outside resolves `null` |
+| `sheet(...)` | `Future<void>` | `OiSheet.showAsync`, body is a `BeakBlock` | A tap outside the sheet, or Escape |
+| `sheetWithResult<T>(...)` | `Future<T?>` | `OiSheet.showAsync`, body is a `Widget` | Your content calls `close([result])`, or a tap outside resolves `null` |
+| `toast(...)` | `void` | `OiToast.show` | It times out (four seconds unless you say). Nothing to await |
 
-Inside an action, `context.overlays` gives you the handle bound to that action's build context:
+Inside an action, the handle is `context.overlays`. Anywhere else it is one constructor call:
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
 BeakOverlays get overlays => BeakOverlays(buildContext);
 ```
 
-Elsewhere, construct one directly. The constructor takes the context and nothing else:
+Beak uses it too: `executeBeakAction` asks with `confirm`, `BeakActionContext.reportError` shows an error `toast`, the command bar (Ctrl-K) and `BeakBulkAction.edit` open a `dialog`, and the sign-out button reports a failed logout with a `toast`.
+
+## confirm
 
 ```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
-const BeakOverlays(this.context);
-```
-
-## The five methods
-
-| Method | Returns | Use it for |
-| --- | --- | --- |
-| `confirm(...)` | `Future<bool>` | a yes/no gate before a mutation |
-| `modal(...)` | `Future<void>` | showing a block body with a single dismiss button |
-| `dialog<T>(...)` | `Future<T?>` | a dialog that resolves with a value (a saved record) |
-| `sheet<T>(...)` | `Future<T?>` | an offcanvas panel sliding in from an edge |
-| `toast(...)` | `void` | a transient status message |
-
-### confirm
-
-`confirm` asks the user and returns `true` only when they accept. The confirm button renders destructively when `destructive` is set (and `destructive` defaults to `true`, since most confirmations gate something irreversible).
-
-```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
+/// Asks the user to confirm, returning `true` only when they accept.
+///
+/// Cancelling and leaving the dialog both answer `false`; [ask] tells them
+/// apart. The confirm button renders destructively when [destructive] is set.
 Future<bool> confirm({
   required String title,
   String? message,
   String? confirmLabel,
   String? cancelLabel,
   bool destructive = true,
+}) async =>
+    await ask(
+      title: title,
+      message: message,
+      confirmLabel: confirmLabel,
+      cancelLabel: cancelLabel,
+      destructive: destructive,
+    ) ==
+    BeakConfirmResult.confirmed;
+
+/// Asks the user to confirm and says how the question ended: [confirmed],
+/// [cancelled] with the Cancel button, or [dismissed] by leaving the dialog.
+Future<BeakConfirmResult> ask({
+  required String title,
+  String? message,
+  String? confirmLabel,
+  String? cancelLabel,
+  bool destructive = true,
 }) async {
-  // ...shows an OiDialog.confirm and resolves true on accept
+  final strings = BeakLocalizations.of(context);
+  final bool? result = await showOiDialog<bool>(
+    context,
+    builder: (dialogContext, close) => OiDialog.confirm(
+      label: title,
+      title: title,
+      content: OiLabel.body(message ?? strings.confirmAction),
+      actions: [
+        OiButton.ghost(
+          label: cancelLabel ?? strings.cancel,
+          onTap: () => close(false),
+        ),
+        if (destructive)
+          OiButton.destructive(
+            label: confirmLabel ?? strings.confirm,
+            onTap: () => close(true),
+          )
+        else
+          OiButton.primary(
+            label: confirmLabel ?? strings.confirm,
+            onTap: () => close(true),
+          ),
+      ],
+      onClose: close,
+    ),
+  );
+  return switch (result) {
+    true => BeakConfirmResult.confirmed,
+    false => BeakConfirmResult.cancelled,
+    null => BeakConfirmResult.dismissed,
+  };
 }
 ```
 
-Omitted messages and button labels use the current `BeakLocalizations`.
+`confirm` returns `true` only when the user presses the confirm button. Cancel, a tap on the scrim and the dialog's own close all return `false`. When the difference matters, `ask` takes the same arguments and returns a `BeakConfirmResult`: `confirmed`, `cancelled` (the Cancel button, an explicit no) or `dismissed` (Escape or a tap outside, where nothing was decided and asking again is reasonable).
 
-An action can call it directly for a tailored prompt, rather than relying on the automatic dialog that `requiresConfirmation` raises. An archive action of your own might read:
+`destructive` defaults to `true`, which draws the confirm button in the destructive style. That default suits the usual reason to ask (something is about to go). For a question that is merely a question, pass `destructive: false` and you get the primary button. Omitted `message`, `confirmLabel` and `cancelLabel` fall back to the panel's localization ("Please confirm this action.", "Confirm", "Cancel", and the German equivalents).
+
+An action can skip `requiresConfirmation` and ask for itself when the wording matters. Illustrative, adapted from the class documentation (`id` and `archived` stand for the record's id and the update you build):
 
 ```dart
 BeakRecordAction(
@@ -65,11 +111,17 @@ BeakRecordAction(
 );
 ```
 
-### modal and dialog
+## modal and dialog
 
-`modal` shows a `BeakBlock` body in a dialog with one dismiss button. It returns `Future<void>`; use it to present information, not to collect a result.
+Both open a dialog on the root navigator. The difference is who fills it.
+
+`modal` takes a `BeakBlock` and gives you a dismiss button. Use it to show something, not to collect something.
 
 ```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
+/// Shows a content [body] in a modal dialog with a single dismiss button.
+///
+/// For a dialog that returns a value (a form's saved record), use
+/// [dialog].
 Future<void> modal({
   required String title,
   required BeakBlock body,
@@ -88,11 +140,17 @@ Future<void> modal({
     ],
   ),
 );
+
 ```
 
-When you need a value back (the record a form just saved, the option a user chose), use `dialog<T>`. Its `builder` receives a `close([result])` callback; call it with a value to resolve the returned future.
+`dialog<T>` takes a widget builder and gives you a `close([result])` callback and nothing else, no buttons. Whatever you put in it must bring its own way out, and calling `close(value)` resolves the future with `value`. A tap on the scrim resolves `null`.
 
 ```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
+/// Shows a value-returning modal dialog.
+///
+/// [builder] receives a `close([result])` callback; call it with a value
+/// to resolve the returned future (e.g. the record a form just saved).
+/// This is the compose-email / calendar-event dialog primitive.
 Future<T?> dialog<T>({
   required String title,
   required Widget Function(void Function([T? result]) close) builder,
@@ -101,57 +159,154 @@ Future<T?> dialog<T>({
   builder: (dialogContext, close) =>
       OiDialog.standard(label: title, title: title, content: builder(close)),
 );
+
 ```
 
-`modal` takes a `BeakBlock` (a declarative body rendered through `BeakBlockHost`); `dialog` takes a `Widget` builder because it usually hosts something interactive whose result you want. This is the compose-email and calendar-event dialog primitive.
+The bulk edit is a real user: it hands the dialog a review widget and waits.
 
-### sheet
+```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
+await context.overlays.dialog<void>(
+  title: label,
+  builder: (close) => SingleChildScrollView(
+    child: BeakBulkEditView(
+```
 
-`sheet<T>` slides a `BeakBlock` body in from an edge, the offcanvas or drawer pattern. It too returns a value, and defaults to the right edge.
+A `BeakBlock` body means a modal renders with the same blocks the panel uses everywhere else (see [The block system](../concepts/the-block-system.md) and [Blocks](../blocks/index.md)). A widget body is the escape hatch for anything interactive.
+
+## sheet
+
+`sheet` slides a `BeakBlock` in from an edge, right by default (obers_ui's own default is the bottom). `sheetWithResult<T>` does the same for a widget built by your function, which receives `close([result])`.
 
 ```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
-Future<T?> sheet<T>({
+/// Slides a [body] in from an edge — the offcanvas / drawer primitive.
+///
+/// The future completes when the sheet is dismissed. A block has no way to
+/// return a value; use [sheetWithResult] for a sheet that answers a question.
+Future<void> sheet({
   required String title,
   required BeakBlock body,
   OiPanelSide side = OiPanelSide.right,
-}) => OiSheet.showAsync<T>(
-  context,
-  label: title,
+}) => sheetWithResult<void>(
+  title: title,
   side: side,
   builder: (close) => BeakBlockHost(block: body),
 );
+
+/// Slides in a sheet built by [builder], which receives `close([result])`:
+/// call it to end the sheet and resolve the returned future with a value.
+/// Dismissing the sheet without it resolves with `null`.
+Future<T?> sheetWithResult<T>({
+  required String title,
+  required Widget Function(void Function([T? result]) close) builder,
+  OiPanelSide side = OiPanelSide.right,
+}) =>
+    OiSheet.showAsync<T>(context, label: title, side: side, builder: builder);
+
 ```
 
-Because both `modal` and `sheet` take a `BeakBlock`, you compose their bodies from the same blocks the rest of the panel uses. See [The block system](../concepts/the-block-system.md) and the [Blocks](../blocks/index.md) section.
+Two things to know before you plan around it. The title is the sheet's accessible label, not a visible heading, so put a heading in the body. And a block cannot end the sheet or return a value: the user dismisses a `sheet` by tapping outside it or pressing Escape. If the sheet has to answer a question or carry its own Close button, use `sheetWithResult<T>` and call `close` from your widget.
 
-### toast
-
-`toast` shows a transient message. It is fire-and-forget (it returns `void`) and lets you set a level and a screen position.
+## toast
 
 ```dart title="packages/beak_frontend/lib/src/overlays/beak_overlays.dart"
+/// Shows a transient toast message for [duration], with an optional action
+/// button labelled [actionLabel] that runs [onAction].
+///
+/// Give both or neither: an action needs a label to be drawn and a callback
+/// to do anything.
 void toast(
   String message, {
   OiToastLevel level = OiToastLevel.info,
   OiToastPosition position = OiToastPosition.bottomRight,
+  Duration duration = const Duration(seconds: 4),
+  String? actionLabel,
+  VoidCallback? onAction,
 }) {
-  OiToast.show(context, message: message, level: level, position: position);
+  if ((actionLabel == null) != (onAction == null)) {
+    throw const BeakConfigurationException(
+      'A toast action needs both an actionLabel and an onAction.',
+    );
+  }
+  OiToast.show(
+    context,
+    message: message,
+    level: level,
+    position: position,
+    duration: duration,
+    action: actionLabel == null
+        ? null
+        : OiButton.ghost(label: actionLabel, onTap: onAction),
+  );
 }
 ```
 
-> **Note: What just happened**
->
-> - You reached `context.overlays` inside an action, no widget plumbing.
-> - `confirm` gated the mutation, `toast` reported the result, `refresh` reloaded the surface.
-> - `modal` and `sheet` bodies are `BeakBlock` trees; `dialog` builds a widget so it can hand you a value back.
+A toast is fire and forget. The level is `info`, `success`, `warning` or `error`, the position one of six (`topLeft`, `topCenter`, `topRight`, `bottomLeft`, `bottomCenter`, `bottomRight`, which is the default). Toasts stack instead of covering each other, stay for `duration` (four seconds by default) and pause while the pointer is over them. `actionLabel` and `onAction` add a button to the toast; give both or neither, or the call throws a `BeakConfigurationException`.
 
-> **Question: What this skipped**
->
-> - The actions that raise overlays: [Actions](actions.md).
-> - The blocks that fill a modal or sheet body: [The block system](../concepts/the-block-system.md).
+## Undo instead of ask
+
+A confirmation is the right tool when the answer changes what happens. For a delete the user is likely to want back, an undo window costs less. `BeakOptimistic` wraps obers_ui's `OiOptimisticAction`: apply the change locally now, show an undo snackbar with the message, and call the backend only when the window passes.
+
+```dart title="packages/beak_frontend/lib/src/data/optimistic.dart"
+static Future<bool> mutate(
+  BuildContext context, {
+  required VoidCallback apply,
+  required VoidCallback rollback,
+  required Future<void> Function() commit,
+  required String message,
+  Duration undoDuration = const Duration(seconds: 5),
+}) => OiOptimisticAction.execute(
+```
+
+It resolves `true` when the commit succeeded, and `false` when the user undid it or the commit failed. On failure it calls `rollback` and shows an error toast. Starting a second optimistic action commits the pending one at once. The built-in `BeakDeleteAction` and the data table's own delete button use it; see [Actions](actions.md).
+
+## Rules and limits
+
+- `BeakOverlays` does not check `context.mounted`. Flutter refuses lookups on a deactivated element, so after any `await` in your own action, check `context.buildContext.mounted` before you open the next overlay. The framework does this in `reportError`, `checkPermission` and the delete actions, which is why a delete that finishes after you navigated away still ends quietly.
+- An overlay needs the panel's overlay host above its context. A context from inside `BeakPanel` has one. In a widget test, pump an `OiApp` around the widget, as the package tests do.
+- Dialogs open on the root navigator with the obers_ui defaults: dismissible by a tap outside, between 280 and 480 logical pixels wide. `BeakOverlays` exposes neither, so use `showOiDialog` directly for a non-dismissible or wider dialog. The save-view dialog does exactly that.
+- `confirm` treats every dismissal as `false`. Use `ask` to tell "cancelled" from "closed".
+- An overlay mounts on the root navigator, not under the page that opened it. Panel-wide scopes (dependencies, formatting, theme) reach it, page-level scopes such as `BeakRecordScope` or a list's query scope do not. A block that needs one must bring its own.
+- Overlays do not read the resource's permissions. They only present; the caller checks.
+
+## Verify it
+
+The package tests pump a real obers_ui host and drive every method:
+
+```console
+$ cd packages/beak_frontend
+$ flutter test test/src/overlays/beak_overlays_test.dart --reporter expanded
+00:00 +0: confirm resolves true when confirmed
+00:00 +1: confirm resolves false when cancelled
+00:00 +2: ask reports a confirmation
+00:00 +3: ask reports the Cancel button as a refusal
+00:00 +4: ask reports leaving the dialog as a dismissal
+00:00 +5: modal renders a block body and dismisses
+00:00 +6: dialog returns the value the content closes with
+00:00 +7: sheet slides a block body in from the edge
+00:00 +8: sheet a builder sheet returns the value its content closes with
+00:00 +9: toast shows a transient message
+00:00 +10: toast stays for the requested duration
+00:00 +11: toast offers an action that runs once
+00:00 +12: All tests passed!
+```
+
+## Reference
+
+| Member | Signature | Notes |
+| --- | --- | --- |
+| `BeakOverlays(context)` | `const BeakOverlays(BuildContext context)` | Cheap to construct; holds only the context |
+| `confirm` | `Future<bool> confirm({required String title, String? message, String? confirmLabel, String? cancelLabel, bool destructive = true})` | Localized defaults for the three strings |
+| `ask` | `Future<BeakConfirmResult> ask({required String title, String? message, String? confirmLabel, String? cancelLabel, bool destructive = true})` | Same dialog as `confirm`; the enum has `confirmed`, `cancelled`, `dismissed` |
+| `modal` | `Future<void> modal({required String title, required BeakBlock body, String? dismissLabel})` | `dismissLabel` defaults to the localized "Close" |
+| `dialog<T>` | `Future<T?> dialog<T>({required String title, required Widget Function(void Function([T? result]) close) builder})` | Title is shown; no buttons |
+| `sheet` | `Future<void> sheet({required String title, required BeakBlock body, OiPanelSide side = OiPanelSide.right})` | Title is the accessible label |
+| `sheetWithResult<T>` | `Future<T?> sheetWithResult<T>({required String title, required Widget Function(void Function([T? result]) close) builder, OiPanelSide side = OiPanelSide.right})` | `close([result])` ends the sheet |
+| `toast` | `void toast(String message, {OiToastLevel level = OiToastLevel.info, OiToastPosition position = OiToastPosition.bottomRight, Duration duration = const Duration(seconds: 4), String? actionLabel, VoidCallback? onAction})` | Stacked; action needs both label and callback |
+| `BeakOptimistic.mutate` | `Future<bool> mutate(BuildContext, {apply, rollback, commit, message, undoDuration})` | Undo window defaults to five seconds |
 
 ## Continue reading
 
-- [Actions](actions.md) the typed code that reaches overlays through `context.overlays`.
-- [The block system](../concepts/the-block-system.md) how a `BeakBlock` body renders in a modal or sheet.
-- [Blocks](../blocks/index.md) the block catalog you compose overlay bodies from.
-- [Resources](resources.md) where the actions that raise overlays are declared.
+- [Actions](actions.md) the callbacks and model commands that reach overlays through their context.
+- [Custom screens](custom-screens.md) pages and widgets to put in a modal body or a sheet.
+- [Blocks](../blocks/index.md) the block catalog a modal or sheet renders.
+- [Results and errors](../concepts/results-and-errors.md) how a failed action becomes a toast.

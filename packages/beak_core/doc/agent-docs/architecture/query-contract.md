@@ -1,52 +1,79 @@
 # The query contract
 
-> See how the query spec, filters and values serialize losslessly and become a worm query.
+> How a BeakQuerySpec is built from typed fields, travels as JSON, gets authorized and becomes a worm query.
 
-After this page you can read a `BeakQuerySpec` on the wire, explain why timestamps travel tagged while everything else travels raw, and follow one filter from a typed column constant all the way to a worm predicate tree.
+The panel and the server never share a process, so everything one asks the other about a list has to fit into one JSON object. That object is a `BeakQuerySpec`. After this page you can read one off the wire, say why a timestamp travels tagged while a string travels raw, and know which file to touch when a new operator or filter node is needed.
 
-Beak's two halves never share a process. The panel runs in Flutter, the server runs on Shelf, and the only thing that crosses between them is JSON. `BeakQuerySpec` is that JSON: a typed, fully serializable description of a query that the frontend builds from column constants and the backend rebuilds losslessly before handing it to the ORM. No string field references, no `Map<String, dynamic>`, no ORM types on the wire.
+## The idea in one picture
 
-The pieces all live in `packages/beak_core/lib/src/query/`; the translation to worm lives in `packages/beak_backend/lib/src/data/worm/query_translator.dart`.
-
-## What a spec carries
-
-A spec is an immutable value with seven fields.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `table` | `String` | Physical table/collection name of the queried model. |
-| `filter` | `BeakFilter?` | The predicate records must satisfy, if any. |
-| `sorts` | `List<BeakSort>` | Ordering directives, applied in order. |
-| `search` | `BeakSearch?` | The full-text search directive, if any. |
-| `relationLoads` | `List<BeakRelationLoad>` | Relations to eager-load with the results (Beak never lazy-loads). |
-| `pagination` | `BeakPagination` | The paging window (1-based `page`, `perPage`, defaults `1`/`25`). |
-| `withTrashed` | `bool` | Whether soft-deleted records are included. |
-
-The spec references column and relation *keys* only, which is what keeps it ORM-neutral. It knows a column is called `status`; it does not know or care whether `status` is a Postgres `text` column or a Serverpod field.
-
-## Building a spec
-
-You never set those fields by hand. The frontend composes a spec through immutable copy-builders (`withFilter`, `orderBy`, `withRelation`, `searching`, `paginate`) that read their keys from the typed column and relationship constants `beak prepare` generated. Each builder returns a new spec, so they chain and the original is never mutated.
-
-```dart
-final spec = const BeakQuerySpec(table: 'products')
-    .withRelation(ProductRelations.category)
-    .withFilter(
-      BeakFieldFilter(
-        column: ProductColumns.featured,
-        operator: BeakOperator.eq,
-        value: BeakValue.of(true),
-      ),
-    )
-    .orderBy(ProductColumns.createdAt, descending: true)
-    .paginate(page: 2, perPage: 50);
+```mermaid
+flowchart LR
+  F["typed field<br/>OrderModel.status.eq(...)"] --> S[BeakQuerySpec]
+  S -->|toJson| W["POST /api/{table}/query"]
+  W -->|fromJson| S2[BeakQuerySpec]
+  S2 --> A[BeakQueryAuthorizer]
+  A --> T[WormQueryTranslator]
+  T --> Q[worm QueryBuilder]
+  Q --> DB[(database)]
 ```
 
-Not one string in it. `ProductColumns.featured` carries its own key, so a renamed column is a compile error rather than a filter that silently matches nothing.
+The spec names tables and columns by key and nothing else, which is why it needs no ORM and no Flutter. It lives in `packages/beak_core/lib/src/query/`, so both halves decode it with the same code. The server-side steps are `packages/beak_backend/lib/src/auth/beak_query_authorizer.dart` and `packages/beak_backend/lib/src/data/worm/query_translator.dart`.
 
-One builder is worth calling out. `withFilter` does not nest: the first filter is taken as-is, and each later one joins an ever-growing conjunction instead of wrapping the previous tree one level deeper.
+## How it works
+
+### What a spec carries
+
+A spec is an immutable value with seven fields. Application code never fills them by hand.
+
+| Field | Type | Wire key | Meaning |
+| --- | --- | --- | --- |
+| `table` | `String` | `table` | Stored name of the queried model. The only key `fromJson` insists on. |
+| `filter` | `BeakFilter?` | `filter` | The predicate a record has to satisfy. |
+| `sorts` | `List<BeakSort>` | `sorts` | Ordering, applied in order. |
+| `search` | `BeakSearch?` | `search` | A term and the column keys to look for it in. |
+| `relationLoads` | `List<BeakRelationLoad>` | `relations` | Relations to load with the page. Beak never lazy-loads. |
+| `pagination` | `BeakPagination` | `pagination` | 1-based `page` and `perPage`, defaults `1` and `25`. |
+| `withTrashed` | `bool` | `withTrashed` | Whether soft-deleted rows are included. |
+
+### Building one
+
+A spec starts at its model (`const OrderModel().query(...)`) and grows through the copy-builders `withFilter`, `orderBy`, `withRelation`, `searching` and `paginate`. Each returns a new spec. The keys come from the generated field references, so a renamed column is a compile error and not a filter that quietly matches nothing.
+
+A field reference reached through a relationship carries the relationship in its key. The test below reads a customer's name off an eagerly loaded order record, then shows what the same field turns into as a filter: a dotted key, `customer.name`.
+
+```dart title="packages/beak_core/test/src/model/beak_field_ref_test.dart"
+test('typed nested references read eager data and preserve query paths', () {
+  const field = BeakScalarField<String>(
+    model: _Model('orders'),
+    column: _name,
+    path: [_customer],
+  );
+  final record = BeakRecord(
+    values: const {},
+    relations: {
+      'customer': [
+        BeakRecord.fromRow({'name': 'Ada'}),
+      ],
+    },
+  );
+  final String? name = field.readFrom(record);
+  expect(name, 'Ada');
+  expect(field.readFrom(BeakRecord.fromRow({})), isNull);
+  expect(field.eq('Ada').toJson(), {
+    'type': 'field',
+    'column': 'customer.name',
+    'operator': 'eq',
+    'value': const BeakStringValue('Ada').toJson(),
+  });
+});
+```
+
+`withFilter` does not nest. The first filter is taken as it is, and every later one joins one flat conjunction:
 
 ```dart title="packages/beak_core/lib/src/query/beak_query_spec.dart"
+/// Returns a copy with [filter] AND-merged into the existing predicate:
+/// the first filter is taken as-is, later ones join an ever-growing
+/// conjunction.
 BeakQuerySpec withFilter(BeakFilter filter) => _copy(
   filter: switch (this.filter) {
     null => filter,
@@ -59,11 +86,11 @@ BeakQuerySpec withFilter(BeakFilter filter) => _copy(
 );
 ```
 
-So a table with a status filter and a date filter and a search box produces one flat `BeakAndFilter`, not a right-leaning stack of them.
+A status filter, a date filter and a search box therefore produce one `BeakAndFilter` with three children, not a right-leaning tower of them.
 
-## The round-trip
+### On the wire
 
-`toJson()` writes every key, always. `fromJson` requires only `table`, defaults every other key to what the constructor declares, and throws `BeakConfigurationException` on anything malformed. The asymmetry is deliberate on both sides: `{"table": "products"}` is a valid request body for a human poking at the API with curl, while the encoded form stays complete, so a spec that made the round trip is byte-for-byte the spec you sent. Here is the spec Beak's own golden test builds:
+`toJson` writes every key, always. `fromJson` requires `table` and falls back to the constructor defaults for the rest, in the nested objects too (a sort without `descending` sorts ascending, a relation load without `nested` loads the bare relation, empty pagination is page 1 of 25), so `{"table": "products"}` is a valid request body for someone poking at the API with curl, while a spec that made the round trip is exactly the spec that left. The fixture below is the one Beak's golden test pins byte for byte:
 
 ```dart title="packages/beak_core/test/src/query/beak_query_spec_test.dart"
 BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
@@ -82,12 +109,12 @@ BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
         value: BeakValue.of(cutoff),
       ),
     )
-    .orderBy(createdAt, descending: true)
-    .searching('ada', const [name, email])
+    .orderBy(createdAtField, descending: true)
+    .searching('ada', const [nameField, emailField])
     .paginate(page: 2, perPage: 50);
 ```
 
-That spec serializes byte-for-byte to the pinned golden file. This is the actual wire body of a `POST /api/posts/query`:
+It serializes to the body of a `POST /api/posts/query`:
 
 ```json title="packages/beak_core/test/golden/rich_query_spec.json"
 {
@@ -140,13 +167,11 @@ That spec serializes byte-for-byte to the pinned golden file. This is the actual
 }
 ```
 
-> **Note: Reading the round-trip**
->
-> The two `withFilter` calls collapsed into a single `type: "and"` node with two children. The string operand serialized as a bare JSON string, but the `DateTime` operand serialized as a tagged object. That tag is the whole trick of the value layer, and it is next.
+The two `withFilter` calls became one `type: "and"` node. The string operand went out as a bare JSON string, the `DateTime` as a tagged object. That tag is the whole trick of the value layer.
 
-## The value layer: `BeakValue`
+### The value layer
 
-Filter operands are the one place a query could smuggle in `dynamic`. Beak closes that door with `BeakValue`, a sealed wrapper so every operand has a known type on both sides. `BeakValue.of` wraps plain Dart into the matching variant; anything it does not understand throws rather than serializing as an untyped blob.
+An operand is a `BeakValue`, a sealed family, so both sides know its type without a `dynamic` anywhere. `BeakValue.of` wraps plain Dart into the matching variant and throws on anything else instead of serializing an untyped blob.
 
 ```dart title="packages/beak_core/lib/src/query/beak_value.dart"
 static BeakValue of(Object? raw) => switch (raw) {
@@ -166,34 +191,42 @@ static BeakValue of(Object? raw) => switch (raw) {
 };
 ```
 
-The wire encoding is what makes the round-trip lossless. Primitives serialize as raw JSON, so they read naturally; a `DateTime` serializes as a tagged object so decoding never has to guess whether a string is text or a timestamp.
-
-| Variant | `raw` Dart type | Wire JSON |
+| Variant | Dart `raw` | Wire JSON |
 | --- | --- | --- |
 | `BeakStringValue` | `String` | the string |
 | `BeakIntValue` | `int` | the number |
 | `BeakDoubleValue` | `double` | the number |
 | `BeakBoolValue` | `bool` | the boolean |
-| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "<ISO-8601>"}` |
+| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "<ISO-8601, UTC>"}` |
 | `BeakNullValue` | `null` | `null` |
-| `BeakListValue` | `List` | a JSON array (recursive) |
+| `BeakListValue` | `List` | an array, elements encoded recursively |
 
-`fromJson` reads that table backwards: a bare string decodes to `BeakStringValue`, a map shaped `{"type": "dateTime", ...}` decodes to `BeakDateTimeValue`, and a list decodes element by element. The `dateTime` tag is the only map-shaped value, which keeps the tag namespace open for future typed operands without ambiguity.
+Decoding reads the table backwards:
 
-Note the difference between `raw` and `toJson`: `raw` unwraps a `BeakDateTimeValue` back to a real `DateTime`, while `toJson` produces the tagged object. The translator reads `raw` (it wants the value); the wire uses `toJson` (it wants the tag).
+```dart title="packages/beak_core/lib/src/query/beak_value.dart"
+static BeakValue fromJson(Object? json) => switch (json) {
+  null => const BeakNullValue(),
+  final bool value => BeakBoolValue(value),
+  final int value => BeakIntValue(value),
+  final double value => BeakDoubleValue(value),
+  final String value => BeakStringValue(value),
+  final List<Object?> values => BeakListValue([
+    for (final value in values) BeakValue.fromJson(value),
+  ]),
+  {'type': 'dateTime', 'value': final String iso} => BeakDateTimeValue(
+    _parseInstant(iso),
+  ),
+  _ => throw BeakConfigurationException('Malformed BeakValue JSON: $json.'),
+};
+```
 
-## The filter tree: `BeakFilter`
+The `dateTime` tag is the only map-shaped value, so a string is never guessed to be a timestamp. `raw` unwraps a `BeakDateTimeValue` to a real `DateTime`, `toJson` produces the tagged object, and the translator reads `raw` while the wire carries `toJson`. The wire always carries the UTC instant, so a local `DateTime` gets its `Z` and names the same moment on the server, and two values are equal when they name the same instant.
 
-Predicates form a sealed tree with scalar comparisons, boolean combinators, and relationship scopes.
+Money, calendar dates and durations have no variant of their own. A field with a semantic codec encodes them into these same primitives before they reach a filter (exact decimals become integer units), so the contract does not grow when a column kind is added.
 
-| Node | What it holds | What it means |
-| --- | --- | --- |
-| `BeakFieldFilter` | a column, a `BeakOperator`, a `BeakValue` | Compares one column against one operand. |
-| `BeakAndFilter` | `List<BeakFilter> filters` | Matches records satisfying every child. |
-| `BeakOrFilter` | `List<BeakFilter> filters` | Matches records satisfying at least one child. |
-| `BeakRelationFilter` | relationship key and a child filter | Matches when one related record satisfies the entire child filter. |
+### The filter tree
 
-The base class is `sealed`, so the set is closed and a `switch` over it has to be exhaustive. Each node tags itself with a `type` discriminator (`field`, `and`, `or`, `relation`) on the wire, and `fromJson` switches on it:
+Predicates form a sealed tree. Each node tags itself with a `type` on the wire and `fromJson` switches on it:
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
 static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
@@ -208,7 +241,16 @@ static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
 };
 ```
 
-`BeakFieldFilter` has two constructors, and the split matters. The default constructor takes a `BeakColumn` and reads `columnKey` off it, so user code never types a key string. The `.forKey` constructor takes a raw string and exists for the deserialization path: `fromJson`, rebuilding a filter it decoded off the wire.
+| Node | `type` | Holds | Matches |
+| --- | --- | --- | --- |
+| `BeakFieldFilter` | `field` | a column key, a `BeakOperator`, a `BeakValue` | one column compared with one operand |
+| `BeakAndFilter` | `and` | `filters` | every child |
+| `BeakOrFilter` | `or` | `filters` | at least one child |
+| `BeakRelationFilter` | `relation` | a relationship key and a child filter | one related record that satisfies the whole child |
+
+`BeakRelationFilter` exists for a reason that is easy to miss. "An order with an item that is expensive and an item that is red" and "an order with one item that is expensive and red" are different questions. Grouping the child conditions makes the second one expressible, and the typed `matches` and `any` on relationship fields build it for you.
+
+`BeakFieldFilter` has two constructors. The default one takes a `BeakColumn` and reads its key, so code never types a string. `.forKey` takes the raw key and exists for decoding and for the typed field references. Both are `const`, because a screen's base filter, a dashboard metric and a resource scope are all constant expressions.
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
 const BeakFieldFilter({
@@ -218,6 +260,9 @@ const BeakFieldFilter({
 }) : _column = column,
      _columnKey = null;
 
+/// Creates a predicate on a raw [columnKey] — the deserialization path
+/// used by [BeakFilter.fromJson]; prefer the default constructor in user
+/// code.
 const BeakFieldFilter.forKey(
   String columnKey,
   this.operator, [
@@ -226,40 +271,41 @@ const BeakFieldFilter.forKey(
      _column = null;
 ```
 
-Both are `const`, and the reason is worth a sentence. The filter holds the whole column rather than reducing it to its key, because a screen's base filter, a dashboard metric and a resource's default scope are all `const` expressions. A `BeakFieldFilter` that could not be `const` would have forced every one of them open. `columnKey` is then a getter over whichever of the two the constructor set.
+### Operators
 
-Because the tree is sealed, a translator that walks it must handle every node or the build breaks. That is the property the backend leans on next.
+`BeakOperator` is Beak's own vocabulary and travels by `name`. Most operators map to the worm operator of the same name. The three substring operators have no worm counterpart and become `ilike` with a pattern built from the operand:
 
-## The operator set: `BeakOperator`
+```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
+BeakOperator.contains => pattern(
+  Operator.ilike,
+  '%${beakEscapeLike(_stringOperand(filter))}%',
+),
+```
 
-Operators are Beak's own ORM-neutral vocabulary, serialized by `name`. Most map one-to-one onto worm, and the three substring operators, which worm has no direct counterpart for, translate to `ilike` with a wildcard pattern built from the operand.
+| Operator | Operand | Becomes |
+| --- | --- | --- |
+| `eq`, `neq`, `gt`, `gte`, `lt`, `lte` | any scalar | the comparison of the same name |
+| `like`, `ilike` | string | the raw pattern, with a backslash as its escape character |
+| `contains`, `startsWith`, `endsWith` | string | `ilike` with `%v%`, `v%`, `%v`, where `v` is escaped |
+| `isNull`, `isNotNull` | none | `IS NULL`, `IS NOT NULL` |
+| `inList`, `notInList` | `BeakListValue` | list membership |
+| `between`, `notBetween` | `BeakListValue` of exactly two | an inclusive range |
 
-| `BeakOperator` | worm translation |
-| --- | --- |
-| `eq`, `neq`, `gt`, `gte`, `lt`, `lte` | the same comparison operator |
-| `like`, `ilike` | `Operator.like` / `Operator.ilike` (raw pattern) |
-| `contains` | `Operator.ilike` with pattern `%value%` |
-| `startsWith` | `Operator.ilike` with pattern `value%` |
-| `endsWith` | `Operator.ilike` with pattern `%value` |
-| `isNull`, `isNotNull` | `Operator.isNull` / `Operator.isNotNull` (operand-less) |
-| `inList`, `notInList` | list membership |
-| `between`, `notBetween` | inclusive range (exactly two bounds) |
+`v` is the operand run through `beakEscapeLike`, so `%`, `_` and a backslash in it match themselves, and every pattern names its escape character in the SQL (`ESCAPE '\'`): SQLite has no default one and the other databases do not agree on theirs. An operand of the wrong shape is a `BeakValidationException` from the translator, a 422 on the wire. The translator's `switch` over `BeakOperator` is exhaustive, so an operator without a translation does not compile.
 
-A test pins this table exhaustively, so adding an operator without teaching the translator about it fails the build.
+### On the server
 
-## From spec to SQL: `WormQueryTranslator`
+Two steps sit between the decoded spec and the database.
 
-On the server, `WormQueryTranslator` turns a decoded spec into a worm `QueryBuilder`. It is the engine behind `WormDataSource`, and it is fully generic: it works off `BeakModel` metadata and the registry alone, so one code path serves every registered model. No per-model translation code exists anywhere.
+The authorizer rewrites the spec before anything runs. It checks that the principal may view the table, that every sort, filter and search path names a real, readable field, and that every relationship it traverses is readable. It ANDs in the row scope of the model and of each related model, and it folds a search into the filter, so the spec the translator sees has no `search` left. A dotted key such as `customer.name` becomes a nested `BeakRelationFilter` with the related model's row scope inside it. An unknown table, field or relationship is a `BeakValidationException`, which is a 422, and so is a sort, aggregate or summary column reached through a relationship. The authorizer is also where the server's limits apply: a page size above 200 (`BeakPagination.maxPerPage`) is served as 200, and the envelope reports the size used.
 
-```dart
+```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
 QueryBuilder<WormRecordModel> builderFor(
   BeakQuerySpec spec,
   DatabaseAdapter adapter,
 ) {
   final model = registry.byTableOrThrow(spec.table);
-  var builder = QueryBuilder<WormRecordModel>.from(
-    contextFor(model, adapter),
-  );
+  var builder = projectedBuilder(model, adapter);
   if (spec.withTrashed) {
     builder = builder.withTrashed();
   }
@@ -287,73 +333,87 @@ QueryBuilder<WormRecordModel> builderFor(
 }
 ```
 
-Filters translate through an exhaustive switch over the sealed tree. An unknown column key, or an operand an operator cannot use, throws `BeakConfigurationException` (which the error middleware maps to `422`, not `500`).
+`WormQueryTranslator.builderFor` is generic. It works from `BeakModel` metadata and the registry, so one code path serves every model and nothing per model exists. It starts from a projected select of the declared columns and foreign keys, never `SELECT *`, and applies the soft-delete scope unless `withTrashed` lifts it. Filters translate through an exhaustive switch over the sealed tree:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
 PredicateTree? predicateFor(
-    BeakFilter? filter,
-    BeakModel model, {
-    String? qualifier,
-    int depth = 0,
-  }) => switch (filter) {
-    null => null,
-    final BeakFieldFilter field => _leafFor(field, model, qualifier, depth),
-    final BeakAndFilter and => _composite(
-      and.filters,
-      model,
-      isAnd: true,
-      qualifier: qualifier,
-      depth: depth,
-    ),
-    final BeakOrFilter or => _composite(
-      or.filters,
-      model,
-      isAnd: false,
-      qualifier: qualifier,
-      depth: depth,
-    ),
-    BeakRelationFilter(:final relationKey, :final filter) => _relationPredicate(
-      model,
-      relationKey,
-      filter,
-      qualifier,
-      depth,
-    ),
-  };
+  BeakFilter? filter,
+  BeakModel model, {
+  String? qualifier,
+  int depth = 0,
+}) => switch (filter) {
+  null => null,
+  final BeakFieldFilter field => _leafFor(field, model, qualifier, depth),
+  final BeakAndFilter and => _composite(
+    and.filters,
+    model,
+    isAnd: true,
+    qualifier: qualifier,
+    depth: depth,
+  ),
+  final BeakOrFilter or => _composite(
+    or.filters,
+    model,
+    isAnd: false,
+    qualifier: qualifier,
+    depth: depth,
+  ),
+  BeakRelationFilter(:final relationKey, :final filter) => _relationPredicate(
+    model,
+    relationKey,
+    filter,
+    qualifier,
+    depth,
+  ),
+};
 ```
 
-The leaf translation is where the operator table becomes code. Note the substring operators building their `ilike` patterns from the operand:
+Predicates on related records become correlated `EXISTS` subqueries, not joins. That is why an order with three matching items counts once, and why the total and the page agree. Relation loads become batched eager loads. `WormDataSource.query` then runs `count()` for the total and `get()` for the page.
 
-```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
-BeakOperator.contains => predicate(
-  Operator.ilike,
-  '%${_stringOperand(filter)}%',
-),
-BeakOperator.startsWith => predicate(
-  Operator.ilike,
-  '${_stringOperand(filter)}%',
-),
-BeakOperator.endsWith => predicate(
-  Operator.ilike,
-  '%${_stringOperand(filter)}',
-),
+```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
+Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+  final BeakModel beakModel = registry.byTableOrThrow(spec.table);
+  final builder = _translator.builderFor(spec, _adapter);
+  final int total = await builder.count();
+  final rows = await builder.get();
+  return BeakPage(
+    items: [
+      for (final row in rows)
+        row.toBeakRecord(
+          loads: spec.relationLoads,
+          model: beakModel,
+          registry: registry,
+        ),
+    ],
+    total: total,
+    page: spec.pagination.page,
+    perPage: spec.pagination.perPage,
+  );
+}
 ```
 
-Related scalar predicates become correlated `EXISTS` expressions, avoiding duplicate parent rows and inflated pagination counts. A `BeakRelationFilter` groups conditions on the same child. The backend applies related-model policies inside that same scope, including search and export.
+Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. Numbers, booleans and timestamps match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
 
-Relation loads become batched eager-load paths, a search becomes a grouped OR of case-insensitive text matches and typed equality for numeric, boolean, and timestamp columns, and a soft-deleting model is scoped with worm's `SoftDeleteScope` unless `withTrashed` lifts it. The result is a builder the data source runs with `count()` for the total and `get()` for the page.
+## Why it is shaped this way
 
-## Why the contract looks like this
+- Lossless. Every `toJson` writes every key, `fromJson` restores what the constructor would have defaulted, and the `dateTime` tag removes the one real ambiguity. A golden test pins the bytes.
+- No `dynamic`. `BeakValue` is the place an untyped operand would have sneaked in. Operands are typed on both ends, so a filter cannot carry one past the type system.
+- ORM-neutral. The spec speaks keys. `WormQueryTranslator` is the only code that knows worm, so a data source over something else consumes the same spec without touching it. See [The data source seam](data-source-seam.md).
+- Authorization lives in one rewrite. Because the authorizer returns a spec, the translator and the data source stay ignorant of who is asking. A row policy cannot be forgotten by a new endpoint that already goes through `authorizeQuery`.
 
-Three properties fall out of the design, and each one is an invariant the rest of Beak depends on.
+## What it means for you
 
-- **Lossless.** Every `toJson` writes all keys, `fromJson` restores the same defaults the constructor declares, and the `dateTime` tag removes the one genuine ambiguity. A spec that survives the wire is the spec you sent, which a golden test pins byte-for-byte.
-- **No `dynamic`, ever.** `BeakValue` is the escape hatch that is not one: operands are typed on both sides, so a filter cannot smuggle an untyped value past the type system.
-- **ORM-neutral.** The spec speaks column keys, not database columns. `WormQueryTranslator` is the only code that knows about worm, so `ServerpodDataSource` uses its own typed query adapter without changing this contract.
+- Build specs from the model and its generated fields. `BeakFieldFilter.forKey` is for decoders and adapters.
+- Load what you render. A relation you did not put in `relationLoads` is not on the record, and reading it gives `null`.
+- Sort on the model's own columns. `orderBy` throws for a field reached through a relationship, and a hand-written spec that sorts on a dotted key is refused by the authorizer with a 422.
+- Timestamps are safe to build in local time. `BeakDateTimeValue.toJson` writes the UTC instant, so the server never reads an offset-less value in its own zone.
+- Ask for at most 200 rows a page. The server serves 200 for a bigger request and says so in the envelope's `perPage`; page through the rest, or ask a summary for the totals.
+- A user who searches for `50%` finds the text `50%`. In a `like` or `ilike` operand, which is a pattern, `%` and `_` are still wildcards and a backslash escapes the next character.
+- Relationship filters stop at 16 levels in the translator and at 64 in the authorizer. Nothing in a real screen comes close.
 
 ## Continue reading
 
-- [How data flows](../concepts/how-data-flows.md) the same contract, told from the panel's point of view.
-- [The data source seam](data-source-seam.md) the interface that consumes a spec on either side.
-- [The generated API](../reference/rest-api.md) the routes a spec is posted to.
-- [Performance](../shipping/performance.md) eager loading, pagination, and query counts in practice.
+- [The data source seam](data-source-seam.md) the interface that takes a spec on either side of the wire.
+- [Backend flow](backend-flow.md) where the authorizer sits in a request and what the handler does before it.
+- [How data flows](../concepts/how-data-flows.md) the same contract from the panel's point of view.
+- [Queries](../reference/queries.md) the spec, filters and operators as a lookup table.

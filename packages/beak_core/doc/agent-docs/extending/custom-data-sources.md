@@ -1,24 +1,24 @@
 # Custom data sources
 
-> Implement the ten methods of BeakDataSource to back Beak with any store, prove it with the shipped contract suite, and keep the Serverpod seam open.
+> Implement the ten methods of BeakDataSource to back a panel or a server with any store, and prove it with the shipped contract suite.
 
-After this page you can implement `BeakDataSource` yourself, back Beak with a
-store it has never heard of (a different ORM, a REST gateway, a mock for tests),
-prove your implementation with the contract suite Beak ships, and wire it into
-the panel or the server. You write ten methods. Everything above them keeps
-working.
+After this page you can implement `BeakDataSource` for a store Beak has never heard of (another ORM, a REST gateway, a fake for tests), plug it into a panel or a server, and prove it behaves with the contract suite Beak ships.
 
-Beak's promise is that your schema classes, columns, and queries describe *what*
-you want, never *which* database answers. The seam that makes that true is a
-single interface. This page is the how-to side of it; for the why, read
-[The data source seam](../architecture/data-source-seam.md).
+Your schema classes, columns and queries describe what you want, never which database answers. One interface keeps that true, and it has ten methods. [The data source seam](../architecture/data-source-seam.md) covers why the interface is shaped this way. This page covers how to write one.
+
+## At a glance
+
+| Where a source plugs in | How | What it replaces |
+| --- | --- | --- |
+| One model | `BeakModel.dataSource` returns it | That model's transport only. See [Model-owned transports](model-transports.md). |
+| The whole panel | `BeakPanel(dataSource: source)` | Every transport, bound models included. A test passes a fake here, and a host with its own transport passes it in production (the Serverpod admin does). |
+| The server | `BeakServer(dataSource: source)` | The worm source behind the generated REST API, with the limits in [Rules and limits](#rules-and-limits). |
+
+You implement the interface, and the layers above cannot tell your source from `WormDataSource` (backend), `HttpBeakDataSource` (panel), `ServerpodDataSource` or `InMemoryBeakDataSource` (in `package:beak/testing.dart`).
 
 ## The interface
 
-`BeakDataSource` comes from `package:beak/beak.dart`, the library with no
-Flutter and no ORM in it. It speaks a source-agnostic vocabulary of typed
-records (`BeakRecord`), query specs (`BeakQuerySpec`), and pages (`BeakPage`).
-Here it is, whole:
+`BeakDataSource` comes from `package:beak/beak.dart`, the library with no Flutter and no ORM in it. It speaks typed records (`BeakRecord`), query specs (`BeakQuerySpec`) and pages (`BeakPage`). Here it is, whole:
 
 ```dart title="packages/beak_core/lib/src/data/beak_data_source.dart"
 abstract interface class BeakDataSource {
@@ -93,54 +93,63 @@ abstract interface class BeakDataSource {
 
 ```
 
-Built-in implementations cover several transports. `WormDataSource` (backend)
-runs the methods against the worm ORM over SQLite or Postgres.
-`HttpBeakDataSource` (panel) runs them against the generated REST API over the
-typed `BeakClient`. `ServerpodDataSource` binds typed generated Serverpod client
-operations, explicitly rejecting unsupported capabilities.
-`InMemoryBeakDataSource` (in `package:beak/testing.dart`) runs them against maps
-and honours the whole spec. A custom source uses the same interface.
+Every method names a table by its stored name. Callers take that name from the generated model (`const ProductModel().table`), so your source receives strings and never has to guess how they were made.
 
-### What each method owes you
+### What each method owes the caller
 
-| Method | Reads or writes | The contract |
+The contract suite checks most of this, and the column says which part it checks.
+
+| Method | Returns | The contract | In the suite |
+| --- | --- | --- | --- |
+| `query` | A `BeakPage` | Applies `spec.filter`, `sorts`, `search` and `pagination`. Reports the true `total`. A page past the end is empty, not an error. Hides soft-deleted rows unless `withTrashed`. Resolves every `relationLoads` entry. | Yes, relation loads included (plain, filtered and nested) when you pass `relationModels`. |
+| `getOne` | A record or `null` | Returns `null`, never throws, when the row is absent or soft-deleted. | Yes |
+| `create` | The stored record | Echoes database-assigned values (id, timestamps) and keeps an id it was given. | Yes |
+| `update` | The stored record | A partial patch leaves other fields alone. Throws `BeakNotFoundException` when the id is gone. | Yes |
+| `delete` | Nothing | Throws `BeakNotFoundException` for a missing id. Soft-deletes when the model does, unless `force` is set. | Yes |
+| `restore` | The restored record | Clears the soft-delete marker. Throws `BeakNotFoundException` for a live or unknown id, and `BeakValidationException` when the model does not soft-delete. | Yes |
+| `batchGet` | A list of records | One query, not one per id. Skips unknown ids. An empty list returns nothing. | Results, not the query count |
+| `attach`, `detach` | Nothing | Link or unlink to-many rows: pivot rows for belongs-to-many, foreign keys for has-many. Attaching an existing link is skipped. Detaching a link that is not there, or a has-many row another parent owns, changes nothing. | Yes, when you pass `relationModels` |
+| `aggregate` | A `num` | Count, sum or average of the matching rows. Returns `0` over an empty set, never `null`. | Yes |
+
+## Three rules
+
+Break one and the layers above start leaking assumptions about your store.
+
+1. **Throw typed exceptions, never your store's.** Map a missing record to `BeakNotFoundException`, an unknown table or relation to `BeakConfigurationException`, a duplicate to `BeakConflictException`. The backend's error-mapping middleware and the panel's repository catch the sealed `BeakException` family and nothing else, so a raw driver error becomes a 500. See [Results and errors](../concepts/results-and-errors.md).
+2. **Never leak store types.** No worm rows, no S3 responses, no ORM entities cross the boundary. In, out and thrown: only Beak types.
+3. **Eager-load, never lazy-load.** `query` resolves every relation named in `spec.relationLoads` before it returns. Reading an unloaded relation is a design error in Beak, so nothing exists to lazy-load against.
+
+The wrapper worth copying for rule 1 is the one `ServerpodDataSource` puts around every call. It lets Beak's own exceptions through and hands everything else to an optional `mapException` callback. When the callback returns null, the original exception propagates, so a programming error stays visible:
+
+```dart title="packages/beak_serverpod/lib/src/data_source.dart"
+Future<T> _guard<T>(Future<T> Function() operation) async {
+  try {
+    return await operation();
+  } on BeakException {
+    rethrow;
+  } on Exception catch (error, stack) {
+    final mapped = mapException?.call(error, stack);
+    if (mapped != null) Error.throwWithStackTrace(mapped, stack);
+    rethrow;
+  }
+}
+```
+
+## Optional capabilities
+
+The ten methods are the floor. Panel features that need more ask the source for an extra interface, and degrade in the way the last column says when it is missing.
+
+| Interface | Adds | Without it |
 | --- | --- | --- |
-| `query` | A page of records | Apply `spec.filter`, `sorts`, `search`, `pagination`; eager-load every entry of `relationLoads`. |
-| `getOne` | One record or `null` | Return `null` (not throw) when the row is absent or soft-deleted. |
-| `create` | The stored record | Echo back database-assigned values (id, timestamps). |
-| `update` | The stored record | Throw `BeakNotFoundException` when the id is gone. |
-| `delete` | Nothing | Soft-delete when the model opts in, unless `force` is set. |
-| `restore` | The restored record | Clear the soft-delete marker; throw `BeakValidationException` when the model does not soft-delete. |
-| `batchGet` | Records for many ids | One query, not N. This backs reference deduplication. |
-| `attach` / `detach` | Nothing | Manage the to-many link (pivot rows or foreign keys). |
-| `aggregate` | A `num` | Return `0` when nothing matches, never `null`. |
+| `BeakCommitDataSource` | `commit(plan)`, `recover(saveId)`, `commitCapabilities` | Form saves run as a staged commit over plain CRUD: writes in dependency order, stopping at the first failed or uncertain write, with no rollback. |
+| `BeakEditDataSource` | `loadEditValues(table, id)` | The edit form prefills from `getOne`. |
+| `BeakCapabilityDataSource` | `capabilities(table, {id})` | Every field is readable and writable, every action executable. |
+| `BeakValidationDataSource` | `validateRecord(request)` | The panel validates asynchronous rules itself, with `query`. |
+| `BeakSummaryDataSource` | `summary(spec)` | Summary blocks throw `This data source does not support summaries.` |
+| `BeakExportDataSource` | `export(spec, ...)` | CSV export throws `This data source does not support CSV exports.` |
+| `BeakUploadClient`, `BeakManagedUploadClient`, `BeakUploadUrlClient` | `upload`, `discardUpload`, `uploadUrl` | Upload columns throw `The data source for "<table>" does not support uploads.` |
 
-## The rules an implementation follows
-
-Three invariants keep the seam honest. Break one and the layers above start
-leaking assumptions about your store.
-
-1. **Throw typed exceptions, never your store's.** Map a missing record to
-   `BeakNotFoundException`, an unknown table or relation to
-   `BeakConfigurationException`, a duplicate to `BeakConflictException`. The
-   backend's error-mapping middleware and the panel's repository both catch
-   the sealed `BeakException` family and nothing else. See
-   [Results and errors](../concepts/results-and-errors.md).
-2. **Never leak store types.** No worm rows, no `minio` responses, no ORM entity
-   crosses the boundary. In, out, and thrown: only Beak types. This is the rule
-   that lets the panel and the server share one interface.
-3. **Eager-load, never lazy-load.** `query` resolves every relation named in
-   `spec.relationLoads` up front. Reading an unloaded relation is a design
-   error in Beak, so there is nothing to lazy-load against. A list page and a
-   show page each ask for their relations in the spec and expect them back with
-   the page.
-
-## A reference implementation
-
-The cleanest one to copy is `HttpBeakDataSource`: every method delegates to one
-transport, so the shape of the interface is visible with no store logic in the
-way. It also implements `BeakUploadClient` (the `upload` method) so a panel can
-push files through the same object.
+`HttpBeakDataSource` implements all of them by delegating to the typed REST client, which makes it the readable example. Its declaration lists the interfaces, and each method forwards to `client`:
 
 ```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
 final class HttpBeakDataSource
@@ -153,126 +162,176 @@ final class HttpBeakDataSource
         BeakManagedUploadClient,
         BeakUploadUrlClient,
         BeakCommitDataSource {
-  /// Creates a data source over [client].
-  const HttpBeakDataSource(this.client);
-
-  /// The transport the source delegates to.
-  final BeakClient client;
-
-  // ... validation and remaining CRUD forwarding ...
-
-  @override
-  BeakCommitCapabilities get commitCapabilities =>
-      const BeakCommitCapabilities(durableReceipts: true);
-
-  @override
-  Future<BeakSaveResult> commit(BeakSavePlan plan) => client.commit(plan);
-
-  @override
-  Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
-
-  // ...
-}
 ```
 
-Your implementation swaps `client` for whatever answers your data: a SQL
-connection, a GraphQL client, an in-memory map for a test. The signatures do not
-move.
+Your source swaps `client` for whatever answers your data: a SQL connection, a GraphQL client, a map. The signatures do not move.
 
-> **Note: What just happened**
->
-> `HttpBeakDataSource` holds no query logic of its own. It translates the
-> source-agnostic call into a REST call and hands back the typed result. A
-> custom source does the same translation to its own protocol. The layer above
-> (a `ViewModel`, a `BeakResourceService`) cannot tell the difference.
+A source used as a decorator is the smallest implementation of all. `BeakRecordingDataSource` (in `package:beak/testing.dart`) records each of the ten calls and forwards it to an inner source. Because it is a `base class`, a test overrides the single operation it wants to break, as the shop's `_FailingAggregate` does.
 
 ## Prove it with the contract suite
 
-"Implement ten methods" is not a specification. The interface has edges that
-only bite in production: `getOne` returning null rather than throwing, `update`
-throwing when the row is gone, `aggregate` returning 0 rather than null over an
-empty set, soft deletes hiding from `query` but not from `withTrashed`.
-`package:beak/testing.dart` ships the executable version of all of it, and every
-built-in source runs it.
+"Implement ten methods" is not a specification. The interface has edges that only bite in production: `getOne` returning null instead of throwing, `update` throwing when the row is gone, `aggregate` returning 0 over nothing, soft deletes hiding from `query` but not from `withTrashed`. `runBeakDataSourceContract` is the executable version, and every source Beak ships runs it. This is `WormDataSource`:
 
-```dart
-import 'package:beak/testing.dart';
-
-void main() {
-  runBeakDataSourceContract(
-    'MyDataSource',
-    registry: buildBeakRegistry(),
-    model: const ProductModel(),
-    create: () async => MyDataSource(),
-    seed: (source, model, records) async => mySeed(source, model, records),
-  );
-}
-```
-
-Point `create` at your source and `seed` at whatever populates it (a contract
-cannot assume how: the in-memory one has `seed`, a SQL one needs SQL, a
-Serverpod one needs a session). A green run is your source saying it belongs.
-
-## Wiring your source in
-
-A `BeakDataSource` plugs into whichever side needs it.
-
-**The panel**
-
-`BeakPanel` takes a `dataSource`, and so does `registerBeakDependencies`
-under it. The generated `BeakApp` forwards the parameter, so a widget test
-injects a fake without any wiring of its own.
-
-The canonical shop's `test/custom_shop_test.dart` passes an injected source
-directly to `BeakPanel`; no generated root wrapper is required.
-
-
-Pass yours and the panel resolves it everywhere through
-`beakDependencies(context)<BeakDataSource>()` instead of building an
-`HttpBeakDataSource`.
-
-**The server**
-
-`BeakServer` requires a `dataSource`, and the generated host builds a
-`WormDataSource` for it. To serve something else, eject `lib/server.dart`
-and construct the server yourself from the resolved defaults.
-
-```dart
-BeakServer beakServer(BeakServerDefaults defaults) => BeakServer(
-  config: defaults.config,
-  registry: defaults.registry,
-  dataSource: MyDataSource(),
-  storage: defaults.storage,
+```dart title="packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart"
+runBeakDataSourceContract(
+  'WormDataSource',
+  registry: _contractRegistry(),
+  model: const NoteModel(),
+  create: () async {
+    adapter = await createApiTestDatabase();
+    return WormDataSource(_contractRegistry(), adapter: adapter);
+  },
+  seed: (source, model, records) async {
+    for (final record in records) {
+      await adapter.insert(
+        InsertDescriptor(table: model.table, values: record.toRow()),
+      );
+    }
+  },
+  sortableTextColumn: NoteColumns.title,
+  numericColumn: NoteColumns.rating,
+  relationModels: const [NoteModel(), _AuthorWithNotesModel()],
+  seedLinks: (source, relation, ownerId, relatedIds) async {
+    for (final relatedId in relatedIds) {
+      await adapter.insert(
+        InsertDescriptor(
+          table: relation.pivotTable,
+          values: {
+            relation.foreignPivotKey: ownerId,
+            relation.relatedPivotKey: relatedId,
+          },
+        ),
+      );
+    }
+  },
 );
 ```
 
-Every generated route then runs against your source, unchanged.
+`_AuthorWithNotesModel` is the fixture's authors table with a has-many back to its notes, which lets the run load a relation inside a relation.
+
+| Argument | Meaning |
+| --- | --- |
+| `registry`, `model` | The registry and the model whose table the suite seeds and queries. |
+| `create` | Builds a fresh source for each test. |
+| `seed` | Puts records into your store. The suite cannot know how: the in-memory source has `seed`, a SQL one needs SQL, a Serverpod one needs a session. |
+| `sortableTextColumn`, `numericColumn` | Optional. Defaults to the first string column and the first int or decimal column. Without a numeric column the sum and average tests are skipped. |
+| `relationModels` | Optional. The models whose relationships the relation groups exercise: eager loads (plain, filtered, nested), `attach` and `detach`. Their related tables must be in `registry` and seedable through `seed`, which also carries the foreign keys. Left empty, the suite runs one skipped test in place of the relation groups, so the gap shows in the output. |
+| `seedLinks` | Optional. Writes many-to-many links the way your store holds them (pivot rows). Without it the suite links through your own `attach`, so a broken `attach` fails the load tests too. |
+
+```console
+$ cd packages/beak_backend
+$ dart test test/src/data/worm/worm_data_source_contract_test.dart
+00:00 +75: WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
+00:00 +76: All tests passed!
+```
+
+A green run is your source saying it belongs. It does not say everything, because of the limits listed next.
+
+## Wire it in
+
+**The panel**
+
+`BeakPanel` takes a `dataSource`, and `registerBeakDependencies` under it takes the same. When the parameter is set it replaces every transport, including the ones models bind for themselves:
+
+```dart title="packages/beak_frontend/lib/src/di/beak_locator.dart"
+final source = ModelBeakDataSource(
+  registry: registry,
+  fallback: fallback,
+  overrideBindings: dataSource != null,
+  mapException: config.mapException,
+  onUnauthorized: authority == null ? null : _endSessionOf(authority),
+  refreshPolicy: config.refreshPolicy,
+);
+container
+  ..registerSingleton<BeakModelActionRunner>(
+    BeakModelActionRunner(),
+    dispose: (runner) => runner.dispose(),
+  )
+  ..registerSingleton<BeakPanelConfig>(config)
+  ..registerSingleton<BeakModelRegistry>(registry)
+  ..registerSingleton<BeakDataSource>(
+    source,
+    dispose: (_) => source.dispose(),
+  )
+  ..registerSingleton<BeakThemeController>(
+    BeakThemeController(config.initialThemeMode),
+  );
+```
+
+`overrideBindings: dataSource != null` is that switch. The panel wraps your source in a `ModelBeakDataSource`, which adds the error mapping and the change stream, so your source does not implement `BeakMutationSource` itself. To give one model its own source and leave the rest on HTTP, bind it on the model instead. That is the subject of [Model-owned transports](model-transports.md).
+
+**The server**
+
+`BeakServer` takes any `BeakDataSource`. The generated host builds a `WormDataSource` and hands it to `BeakServerDefaults`, and `build()` accepts a `dataSource:` (and a `storage:`) to replace what the host resolved, so `lib/server.dart` keeps the rest of the wiring:
+
+```dart title="lib/server.dart"
+import 'package:beak/server.dart';
+
+BeakServer beakServer(BeakServerDefaults defaults) =>
+    defaults.build(dataSource: MyDataSource());
+```
+
+`MyDataSource` is yours. The block is illustrative (it is not a repository file) and compiles against a fresh `beak create` project. Every generated CRUD route then runs against your source, with the limits below. `defaults.dataSource` is still the worm source, and the host still connects the database first.
+
+## Rules and limits
+
+| Rule | Enforced where | What it means |
+| --- | --- | --- |
+| Atomic graph commits need a `WormDataSource` | Server: `POST /api/commits` is mounted for every source, and atomic only for it | Over your source the route saves `staged`: every operation is authorized first, then written through your `create`, `update`, `delete`, `attach` and `detach` in dependency order, stopping at the first failure, with no rollback. Receipts are kept in memory (the newest 1024), so a restart forgets them. The default panel's saves and deletes work. |
+| Behavior and shared relation rules need one too | Server: the router refuses to start | A model with `behavior`, an `editableWhen`, or a record rule that loads relations makes `BeakServer` throw `Shared relationship validation requires an atomic graph data source.` |
+| `preparePlan` and `finalizePlan` need one | Server: the same guard | `Graph preparation requires a Worm data source.` A plain `graphOnly` list works over any source. |
+| The host still connects its database | Server: `BeakServeHost.serve` | It initialises the `DATABASE_URL` database before it calls your `beakServer`, even if your source never uses it. |
+| The relation groups are opt-in | Test | `attach`, `detach` and `relationLoads` are tested for the models you name in `relationModels`. The suite seeds related rows with generated values in the foreign key columns it does not wire, so a store that enforces foreign keys on those tables fails at seed time. A relationship from a table to itself is skipped. |
+| The suite checks soft deletes only if the model has them | Test | Pass a model with `softDeletes` to run the soft-delete group, and a model without to run the rejection test. |
+
+```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
+registerBeakCommitRoutes(
+  router,
+  BeakGraphCommitService(
+    registry: registry,
+    source: dataSource,
+    policy: policy,
+    preparePlan: preparePlan,
+    finalizePlan: finalizePlan,
+    receipts: commitReceipts,
+    maxStagedReceipts:
+        maxStagedReceipts ?? BeakGraphCommitService.defaultMaxStagedReceipts,
+    now: now,
+    generateId: generateId,
+  ),
+);
+```
 
 ## The Serverpod seam
 
-`BeakModel` is ORM-neutral metadata. It describes columns, relationships, the
-display key, and the primary key, and it names none of them to worm. That is the
-second half of what keeps the seam open: the interface is store-agnostic, and so
-is the model that describes each table.
+`BeakModel` is metadata: columns, relationships, the display key and the primary key, none of it named to worm. That keeps the seam open from both sides. `beak_serverpod` supplies `ServerpodDataSource` over typed, generated client operations, and its `ServerpodResource` is a `BeakModel` that binds the source itself, so declaring a resource registers its transport. The Serverpod section covers both paths:
 
-`beak_serverpod` supplies a `ServerpodDataSource` over typed generated client
-operations and codecs. Its models can bind the source directly, so declaring a
-resource also registers its transport. Generated field metadata and command
-codecs avoid maintaining a second handwritten schema. Serverpod endpoints keep
-ownership of authorization, validation and domain transactions.
+- [Bridge resources](../serverpod/bridge/resources.md) shows the frontend-only bridge.
+- [Choosing an integration](../serverpod/choosing-an-integration.md) compares the bridge with the admin app inside a Serverpod workspace.
 
-[Model-owned transports](model-transports.md) explains that shared panel
-contract: source registration, live permissions, separate command models,
-explicitly supported operations and confirmed archive actions.
+## Verify it
 
-The same door is open for any store you like. Implement the interface, keep the
-three rules, run the contract suite, and Beak treats your source exactly like
-the ones it ships with.
+Run the suite against your source with `dart test`, then pump your panel's widgets against it by passing it as `dataSource:`. While the store is not ready, `InMemoryBeakDataSource` is the reference behaviour. It runs the same suite (`packages/beak_test/test/src/in_memory_beak_data_source_test.dart`) and honours the whole spec, so a green widget test means the widget is right, and not that a fake ignored the filter.
+
+The suite's missing-row probes use the text id `no-such-id`, which a store with serial integer ids cannot take. The Serverpod example runs the suite on a throwaway table with a text id for that reason, in `examples/serverpod/bookshop_server/test/integration/beak/support/contract_note.dart`.
+
+## Reference
+
+| Symbol | Library | Role |
+| --- | --- | --- |
+| `BeakDataSource` | `package:beak/beak.dart` | The ten-method interface. |
+| `BeakCommitDataSource`, `BeakEditDataSource`, `BeakCapabilityDataSource`, `BeakValidationDataSource`, `BeakSummaryDataSource`, `BeakExportDataSource` | `package:beak/beak.dart` | Optional capabilities. |
+| `BeakException` family | `package:beak/beak.dart` | `BeakValidationException`, `BeakNotFoundException`, `BeakAuthenticationException`, `BeakAuthorizationException`, `BeakConfigurationException`, `BeakStorageException`, `BeakConflictException`. |
+| `runBeakDataSourceContract`, `InMemoryBeakDataSource`, `BeakRecordingDataSource` | `package:beak/testing.dart` | The suite and the two reference sources. |
+| `BeakServer(dataSource: ...)`, `BeakServerDefaults` | `package:beak/server.dart` | Serving a source. |
+| `BeakPanel(dataSource: ...)` | `package:beak/panel.dart` | The panel-wide override. |
+
+Sources: `packages/beak_core/lib/src/data/`, `packages/beak_test/lib/src/data_source_contract.dart`, `packages/beak_backend/lib/src/endpoints/beak_resource_router.dart`.
 
 ## Continue reading
 
-- [The data source seam](../architecture/data-source-seam.md) the concept behind the interface, and how `WormDataSource` translates a spec to SQL.
-- [How data flows](../concepts/how-data-flows.md) the serializable `BeakQuerySpec` your `query` method receives.
-- [Testing](../shipping/testing.md) the in-memory source, the recording decorator, and the contract suite in context.
-- [Results and errors](../concepts/results-and-errors.md) the sealed `BeakException` family your source throws.
-- [Custom storage drivers](custom-storage-drivers.md) the same pluggable pattern, one layer down, for files.
+- [Model-owned transports](model-transports.md) bind a source to one model instead of the whole panel.
+- [The data source seam](../architecture/data-source-seam.md) how `WormDataSource` turns a spec into SQL.
+- [The query contract](../architecture/query-contract.md) the serializable `BeakQuerySpec` your `query` receives.
+- [Testing](../shipping/testing.md) the in-memory source, the recording decorator and the suite in context.
+- [Custom storage drivers](custom-storage-drivers.md) the same pluggable pattern for files.

@@ -1,27 +1,27 @@
 # Guides
 
-> Find the guide for your task, from models and forms to the backend, testing and recipes.
+> Find the guide for your task, from models and forms to the backend, testing and shipping, and recipes for common admin jobs.
 
-Task-shaped pages for building a Beak panel and its backend. Each area below has a page to start with. If you want the reasons before the recipes, read the [Learn](../learn/index.md) tab first.
+The guides are organised by the part of a Beak project you are working on. Pick the row that matches your task, open the section, and start with the page named in the last column. The reasons behind the design live in [Learn](../learn/index.md), which you can read first or never.
 
-The canonical application is [`examples/clean_beak_config`](https://github.com/SimonErich/beak/tree/v0.9.0/examples/clean_beak_config). Framework-level guides also cite focused package implementations and tests.
+Most examples cite `examples/clean_beak_config`, the maintained shop. Where a guide describes framework behavior the shop does not exercise, it quotes a package test or the implementation instead and says so.
 
 ## Which page to read
 
-| You want to… | Read | For |
+| You want to... | Read | For that |
 | --- | --- | --- |
-| Define shared data, constraints and behavior once | [Models](../models/index.md) | Section, 10 pages |
-| Compose resource screens, workflows and custom pages | [The panel](../panel/index.md) | Section, 12 pages |
-| Route between form screens, inputs, related records, wizards, detail views, drafts and uploads | [Forms and records](../forms/index.md) | Section, 11 pages |
-| Compose custom page content from typed descriptions | [Blocks and charts](../blocks/index.md) | Section, 9 pages |
-| Style the panel: themes, colors, type, icons, and how values are formatted | [Theming and formatting](../theming/index.md) | Section, 5 pages |
-| See what the generated server gives you: routes, layers and the pages that configure each part | [The backend](../backend/index.md) | Section, 11 pages |
-| Drop to Flutter through a typed escape hatch when configuration runs out, without forking Beak | [Extending Beak](../extending/index.md) | Section, 7 pages |
-| Test a Beak project, then ship it: configuration, production images, security and performance | [Testing and shipping](../shipping/index.md) | Section, 6 pages |
-| Find a maintained configuration for a common admin task | [Recipes](../recipes/index.md) | Section, 15 pages |
+| Define data, constraints and behavior once | [Models](../models/index.md) | Start with [Defining models](../models/defining-models.md) |
+| Decide what the panel shows and how people move through it | [The panel](../panel/index.md) | Start with [Resources](../panel/resources.md) |
+| Build create, edit and detail screens, wizards, drafts and uploads | [Forms and records](../forms/index.md) | Start with [Form screens](../forms/form-screens.md) |
+| Compose custom page content from typed descriptions | [Blocks and charts](../blocks/index.md) | Start with [Layout blocks](../blocks/layout-blocks.md) |
+| Style the panel and control how values are formatted | [Theming and formatting](../theming/index.md) | Start with [Theming basics](../theming/theming-basics.md) |
+| Configure the generated server: routes, auth, migrations, middleware | [The backend](../backend/index.md) | Start with [Running the server](../backend/running-the-server.md) |
+| Go past configuration with a custom cell, widget, data source or storage driver | [Extending Beak](../extending/index.md) | Start with the [section index](../extending/index.md), which maps each need to a page |
+| Test a project, then put it on a host | [Testing and shipping](../shipping/index.md) | Start with [Testing](../shipping/testing.md) |
+| Copy a maintained configuration for a common admin task | [Recipes](../recipes/index.md) | Start with [Add a resource](../recipes/add-a-resource.md) |
 
 ## Continue reading
 
-- [Models](../models/index.md): Define shared data, constraints and behavior once.
-- [The panel](../panel/index.md): Compose resource screens, workflows and custom pages.
-- [Forms and records](../forms/index.md): Route between form screens, inputs, related records, wizards, detail views, drafts and uploads.
+- [Models](../models/index.md) where every screen, form and endpoint gets its shape.
+- [Testing and shipping](../shipping/index.md) what to run before a Beak project faces real users.
+- [Recipes](../recipes/index.md) short, maintained answers to common admin tasks.

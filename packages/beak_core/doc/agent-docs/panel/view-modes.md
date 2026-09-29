@@ -1,89 +1,281 @@
 # View modes
 
-> Keep shared model behavior while choosing a task-specific presentation.
+> Look at one model as a table, a kanban board, a calendar or a timeline, with the resource list plus data blocks on a BeakScreen.
 
-Standard resources use tables and configured read/edit forms. A resource can select different screens for list, create, read and edit roles without copying model rules or persistence code.
+A model is a set of records, and a view mode is one way to look at them. The table is the resource's list. The board, the calendar and the timeline are data blocks that you put on a `BeakScreen`. There is no switcher on the list page. If you want one, a tab block over the blocks does it, and the showcase planner below is exactly that.
 
-For a task-specific list, compose a `BeakScreen` from table, calendar, kanban or custom widget blocks. Each module declares its field mapping and interaction callbacks. Business transitions should call shared model actions or the same graph boundary as forms. Presenting a kanban board does not by itself authorize a status change.
+## At a glance
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
-part of 'beak_block.dart';
+| Mode | Built with |
+| --- | --- |
+| Table | `BeakTableScreen` on the resource, plain or [composed](composed-lists.md) |
+| Table on a page | `BeakTableBlock` on a `BeakScreen` |
+| Board | `BeakKanbanBlock`, one column per value of an enum field |
+| Calendar | `BeakCalendarBlock`, events placed by a start and an end column |
+| Timeline | `BeakTimelineBlock`, fed by its own `BeakQuerySpec` |
+| A switch between them | `BeakTabsBlock`, on a `BeakScreen` with `framed: false` |
 
-/// A data-bound Kanban board: one column per value of an enum field, each
-/// holding the records whose [groupField] matches, rendered on `OiKanban`.
-///
-/// The board's columns come straight from [groupField]'s declared enum
-/// values — using each value's label and badge color — so there are no
-/// stringly-typed swimlanes. [titleField] and [subtitleField] draw each
-/// card. Dragging a card to another column persists the new group through
-/// `dataSource.update` (writing [groupField]) and then notifies [onCardMove].
-///
-/// ```dart
-/// BeakKanbanBlock(
-///   model: const TaskModel(),
-///   groupField: TaskModel.status,
-///   titleField: TaskModel.title.column,
-///   subtitleField: TaskModel.assignee.column,
-///   onCardMove: (record) => lastMoved.value = TaskModel.id.readFrom(record),
-/// );
-/// ```
-final class BeakKanbanBlock extends BeakBlock {
-  /// Creates a Kanban block over [model], grouped by [groupField].
-  const BeakKanbanBlock({
-    required this.model,
-    required this.groupField,
-    required this.titleField,
-    this.subtitleField,
-    this.sortField,
-    this.sortDescending = false,
-    this.label = 'Board',
-    this.onCardMove,
-    super.span,
-  });
+The board and the calendar write back: a dropped card and a dragged event save the record through the panel's data source, the way a form saves, see [Writing from a view](#writing-from-a-view).
 
-  /// The model whose records become cards.
-  final BeakModel model;
+## One model, three looks
 
-  /// The enum field whose values define the board's columns.
-  final BeakScalarField<Enum> groupField;
+The showcase's `Task` is a chore on the aviary's board. Its resource is an ordinary table:
 
-  /// The enum column behind [groupField].
-  ///
-  /// Throws a [BeakConfigurationException] when [groupField] is not an enum
-  /// column of [model] itself.
-  BeakEnumColumn<Enum> get groupColumn => switch (groupField.column) {
-    final BeakEnumColumn<Enum> column
-        when groupField.path.isEmpty && groupField.model.table == model.table =>
-      column,
-    _ => throw BeakConfigurationException(
-      'Kanban group field "${groupField.qualifiedKey}" must be an enum field '
-      'of ${model.table}.',
-    ),
-  };
+```dart title="examples/showcase/lib/resources/tasks/task_resource.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
-  /// Column supplying each card's title.
-  final BeakColumn titleField;
+import 'models/task.dart';
 
-  /// Column supplying each card's subtitle, when bound.
-  final BeakColumn? subtitleField;
-
-  /// Column ordering the cards within each column, when bound — without it
-  /// the card order is whatever the data source returns.
-  final BeakColumn? sortField;
-
-  /// Whether [sortField] orders descending.
-  final bool sortDescending;
-
-  /// Accessibility label for the board.
-  final String label;
-
-  /// Invoked with a card's record after it is dropped in a new column; the
-  /// block first persists the new group through the data source.
-  final void Function(BeakRecord record)? onCardMove;
+/// The chores, also shown as a board and a calendar on the data page.
+final class TaskResource extends BeakResource {
+  /// Creates the tasks section.
+  TaskResource()
+    : super(
+        model: const TaskModel(),
+        title: 'Tasks',
+        icon: const BeakIconToken(OiIcons.listChecks),
+        navigationGroup: 'Team',
+        navigationRank: 4,
+        globalSearchSources: [TaskModel.title],
+        filters: [
+          TaskModel.status.selectFilter(),
+          TaskModel.category.selectFilter(),
+        ],
+        screens: [
+          BeakTableScreen(
+            fields: [
+              TaskModel.title,
+              TaskModel.status,
+              TaskModel.category,
+              TaskModel.startsAt,
+              TaskModel.assignee.name.formatted(
+                BeakValueFormat.text,
+                label: 'Assignee',
+              ),
+            ],
+          ),
+        ],
+      );
 }
 ```
 
+The board takes its columns from the status enum, so each value already has a label and a badge color:
+
+```dart title="examples/showcase/lib/resources/tasks/models/task.dart"
+@Column(defaultValue: TaskStatus.todo, filterable: true)
+@Badges<TaskStatus>({
+  TaskStatus.todo: BeakColor.muted,
+  TaskStatus.doing: BeakColor.info,
+  TaskStatus.done: BeakColor.success,
+})
+late final TaskStatus status;
+```
+
+The planner page puts the same model on a board and a calendar behind two tabs:
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+BeakScreen plannerPage() => BeakScreen(
+  path: '/planner',
+  title: 'Planner',
+  icon: const BeakIconToken(OiIcons.kanban),
+  navigationGroup: 'Blocks',
+  framed: false,
+  body: BeakTabsBlock(
+    tabs: [
+      BeakTabBlockItem(label: 'Board', content: _board()),
+      BeakTabBlockItem(label: 'Calendar', content: _calendar()),
+    ],
+  ),
+);
+```
+
+`framed: false` drops the page header, the gutters and the scrolling that a `BeakScreen` normally adds, which is what a board or a calendar wants. `BeakTabsBlock` builds only the selected tab's block, so switching a tab mounts the other block and loads its records. Register the screen in `pages:` and it gets a route and a sidebar entry, see [Custom screens](custom-screens.md).
+
+A `BeakTableBlock` puts the table itself on a screen, beside a board if you like. It takes `fields`, `initialSpec` and `baseFilter`, and [Dashboards](dashboards.md) shows it at work.
+
+## The board
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+BeakBlock _board() => BeakKanbanBlock(
+  model: const TaskModel(),
+  groupField: TaskModel.status,
+  titleField: TaskModel.title.column,
+  subtitleField: TaskModel.category.column,
+  sortField: TaskModel.position.column,
+  label: 'Chores',
+);
+```
+
+`groupField` must be an enum field of the block's own model. A relation path or a non-enum field throws `Kanban group field "x" must be an enum field of tasks.` when the board renders. The board has one column for every enum value, in declaration order, even an empty one. A record whose group value is empty or unknown appears in no column.
+
+Cards show `titleField` and, when set, `subtitleField`. Both are plain columns of the model (`TaskModel.title.column`) and their text is the stored value. An enum subtitle therefore reads `feeding`, not the label you gave it. `sortField` orders the cards inside a column, and without it the order is whatever the data source returns.
+
+Dropping a card writes the new enum name into `groupField`. It does not renumber `position`, so an order inside a column is not saved.
+
+## The calendar
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+BeakBlock _calendar() => BeakCalendarBlock(
+  model: const TaskModel(),
+  titleField: TaskModel.title.column,
+  startField: TaskModel.startsAt.column,
+  endField: TaskModel.endsAt.column,
+  allDayField: TaskModel.allDay.column,
+  categoryField: TaskModel.category.column,
+  label: 'Chore calendar',
+);
+```
+
+Every record becomes one event. `titleField` labels it, `startField` places it and `endField` closes it. Without an end the event ends where it starts, and a record with no start is left out, because it has no place on a calendar. `allDayField` is a boolean column, and a `categoryField` that is an enum column tints each event with the badge color of its value. `mode` (`OiCalendarMode.day`, `week` or `month`) is the view it opens in, `month` by default.
+
+Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`.
+
+## The timeline
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+BeakBlock _taskTimeline() => BeakCardBlock(
+  title: 'Recent tasks',
+  child: BeakTimelineBlock(
+    query: const TaskModel().query(
+      sorts: [TaskModel.startsAt.descending()],
+      pagination: const BeakPagination(perPage: 8),
+    ),
+    titleField: TaskModel.title.column,
+    timeField: TaskModel.startsAt.column,
+  ),
+);
+```
+
+The timeline takes a whole `BeakQuerySpec`, so it is the one block here where you choose the filter, the sort and the page size yourself. Events are sorted newest first by `timeField`, and a record with no time is left out. It is read-only.
+
+## Writing from a view
+
+A dropped card or a dragged event is saved as a single-operation graph commit on that record, through `POST /api/commits`. The server validates the changed value with the column's rules, applies the account's row and field policies, and runs the model's behavior and rules, so a `graphOnly` model or one with `behavior` accepts the move. When the save succeeds, the block mirrors it, so the card stays in its new column, and `onCardMove` or `onEventMove` runs. When it fails, the card snaps back, a toast gives the reason (the server's message for a validation or permission failure, a generic line for an infrastructure one), and the callback does not run. Treat the callbacks as "the write worked".
+
+A transition that needs input, or a guard that has a name, still belongs in a model action on a table. The action runs through the graph commit, gets its rules checked and leaves a receipt, see [Actions](actions.md). A drop can only write the value the column takes.
+
+> **Note: Coming from viewModes**
+>
+> Earlier drafts declared table, calendar and kanban views on the resource (`viewModes`) with a switcher on the list page. That API is gone, and so are its view classes. A resource has its `screens`, and a board or a calendar is a block on a `BeakScreen`. The mapping is in [Upgrading](../start-here/upgrading.md).
+
+## Rules and limits
+
+| Rule | What happens |
+| --- | --- |
+| A board or a calendar loads up to 200 records of its model | Pass `filter:` to narrow them. When more match, a line beneath the block says how many are shown. Row policies on the server narrow what arrives too |
+| Blocks load again after a write to their table | A board or a calendar queries again when a form, an action or another block writes its table. Only a colleague's write in another browser needs a `refreshPolicy` |
+| The group field belongs to the block's model | Related fields throw when the board renders |
+| Card and event text is the stored value | Enum columns show the enum name |
+| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback |
+| The timeline is read-only | Change the records in the table or the form |
+
+## Verify it
+
+The block tests build each block against a fake source, drop a card and drag an event. From `packages/beak_frontend`:
+
+```console
+$ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|BeakCalendarBlock|kanban' --reporter expanded
+00:00 +0: BeakCalendarBlock maps records onto OiCalendar events
+00:00 +1: BeakCalendarBlock a row without a start is left out, not given today
+00:00 +2: BeakCalendarBlock a tap resolves back to the record; a drag persists
+00:00 +3: BeakKanbanBlock one column per enum value, records grouped
+00:00 +4: BeakKanbanBlock the group field must be an enum field of the block model
+00:00 +5: BeakKanbanBlock dropping a card persists its new group
+00:00 +6: module hardening (audit regressions) kanban fetches one full sorted page
+00:00 +7: module hardening (audit regressions) a dropped kanban card stays in its new column
+00:00 +8: module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+00:00 +9: All tests passed!
+```
+
+And the planner page renders in the showcase panel, from `examples/showcase`:
+
+```console
+$ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
+00:00 +0: Planner renders
+00:01 +1: All tests passed!
+```
+
+## Reference
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
+const BeakKanbanBlock({
+  required this.model,
+  required this.groupField,
+  required this.titleField,
+  this.subtitleField,
+  this.sortField,
+  this.sortDescending = false,
+  this.label = 'Board',
+  this.onCardMove,
+  this.filter,
+  super.span,
+});
+```
+
+| Parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `model` | `BeakModel` | required | The model whose records become cards |
+| `groupField` | `BeakScalarField<Enum>` | required | Enum field of `model` that defines the columns |
+| `titleField` | `BeakColumn` | required | Card title |
+| `subtitleField` | `BeakColumn?` | `null` | Card subtitle |
+| `sortField` | `BeakColumn?` | `null` | Orders cards inside a column |
+| `sortDescending` | `bool` | `false` | Direction of `sortField` |
+| `label` | `String` | `Board` | Accessibility label |
+| `onCardMove` | `void Function(BeakRecord)?` | `null` | Called after a drop the server accepted; a refused drop does not call it |
+| `filter` | `BeakFilter?` | `null` | Narrows the records the board lists. It reads at most 200, and a note says when more match |
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart"
+const BeakCalendarBlock({
+  required this.model,
+  required this.titleField,
+  required this.startField,
+  this.endField,
+  this.allDayField,
+  this.categoryField,
+  this.mode = OiCalendarMode.month,
+  this.label = 'Calendar',
+  this.onEventTap,
+  this.onEventMove,
+  this.filter,
+  super.span,
+});
+```
+
+| Parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `model` | `BeakModel` | required | The model whose records become events |
+| `titleField` | `BeakColumn` | required | Event title |
+| `startField` | `BeakColumn` | required | Event start |
+| `endField` | `BeakColumn?` | `null` | Event end. Falls back to the start |
+| `allDayField` | `BeakColumn?` | `null` | Boolean column marking all-day events |
+| `categoryField` | `BeakColumn?` | `null` | An enum column tints events with its badge colors |
+| `mode` | `OiCalendarMode` | `month` | Opening view: `day`, `week` or `month` |
+| `label` | `String` | `Calendar` | Accessibility label |
+| `onEventTap` | `void Function(BeakRecord)?` | `null` | Called with the tapped event's record |
+| `onEventMove` | `void Function(BeakRecord, DateTime, DateTime)?` | `null` | Called after a drag the server accepted; a refused drag does not call it |
+| `filter` | `BeakFilter?` | `null` | Narrows the records the calendar lists. It reads at most 200, and a note says when more match |
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_timeline_block.dart"
+const BeakTimelineBlock({
+  required this.query,
+  required this.titleField,
+  required this.timeField,
+  super.span,
+});
+```
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `query` | `BeakQuerySpec` | Produces one row per event |
+| `titleField` | `BeakColumn` | Event title |
+| `timeField` | `BeakColumn` | Event time. A record without one is left out |
+
+Every block also takes `span`, its width in a grid. The remaining blocks are on [Data blocks](../blocks/data-blocks.md).
+
 ## Continue reading
 
-- [Custom screens](custom-screens.md)
-- [Actions](actions.md)
+- [Data blocks](../blocks/data-blocks.md): every block that reads a model, with the parameters of each.
+- [A kanban view](../recipes/a-kanban-view.md): the board as a step-by-step recipe.
+- [Custom screens](custom-screens.md): register a `BeakScreen` and get a route and a sidebar entry.
+- [Actions](actions.md): model transitions with rules and receipts, for models a board cannot write to.

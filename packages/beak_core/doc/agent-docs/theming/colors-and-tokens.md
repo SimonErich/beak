@@ -1,100 +1,264 @@
 # Colors and tokens
 
-> Apply semantic colors consistently across built-in and custom content.
+> How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how to build a full palette from a design system.
 
-Beak UI uses the Obers UI theme for surfaces, borders, text and state colors. Column badges can map enum values to Beak colors while custom widgets resolve tokens from context.
+Beak has two color vocabularies. Your schema and your blocks speak in seven semantic names, `BeakColor`. The theme speaks in tokens: swatches, surfaces, text and border colors. This page shows how a name becomes a token on each surface, so a badge does not come out the wrong color in a theme you built by hand, and how Foodio builds a complete palette from a design system's tokens.
 
-Keep status meaning consistent between tables and forms. Use text or icons as well as color for important distinctions. Semantic formatting remains independent of theme colors. The order schema demonstrates state labels and shared metadata.
+## At a glance
 
-```dart title="examples/clean_beak_config/lib/resources/orders/models/order.dart"
-import 'package:beak/beak.dart';
-import 'package:beak/schema.dart';
+```dart title="packages/beak_core/lib/src/common/beak_color.dart"
+enum BeakColor {
+  /// The theme's primary accent color.
+  primary,
 
-import '../../users/models/user.dart';
-import '../../users/models/user_profile_connection.dart';
-import 'order_item.dart';
-import 'order_discount.dart';
+  /// The theme's secondary accent color.
+  secondary,
 
-part 'order.beak.dart';
+  /// Positive/confirming states (published, paid, active).
+  success,
 
-/// Fulfilment states of a shop order.
-enum OrderStatus {
-  /// Order still being prepared.
-  draft,
+  /// Cautionary states (pending, low stock).
+  warning,
 
-  /// Order accepted for fulfilment.
-  confirmed,
+  /// Destructive or failing states (rejected, out of stock).
+  error,
 
-  /// Items being packed.
-  packing,
+  /// Neutral informational states.
+  info,
 
-  /// Dispatched to the customer.
-  shipped,
-
-  /// Delivered to the customer.
-  delivered,
-
-  /// Cancelled order retained for reference.
-  cancelled,
+  /// De-emphasized/disabled states.
+  muted,
 }
 
-/// Order schema; all metadata and typed helpers are generated.
-@Resource()
-final class Order extends BeakSchema {
-  /// Shared delivery eligibility and complete-order validation.
-  static List<BeakRecordRule> get validationRules => [
-    BeakCount(OrderModel.items, min: 1),
-    BeakExists(
-      OrderModel.profileId,
-      UserProfileConnectionModel.id,
-      matching: [
-        BeakFieldMatch(
-          target: UserProfileConnectionModel.userId,
-          source: OrderModel.customerId,
-        ),
-      ],
-    ),
-  ];
+```
 
-  /// Human-readable order reference.
-  @Display()
-  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(80)])
-  late final String reference;
+`beak_core` never imports `dart:ui`, so a column or an action names a role and never a color value. `beak_frontend` resolves the role against the active theme, in three places that agree on the mapping:
 
-  /// Current fulfilment state.
-  @Column(defaultValue: OrderStatus.draft, filterable: true)
-  late final OrderStatus status;
+| `BeakColor` | Badge (`OiBadgeColor`) | Direct color (`context.colors`) | Action button |
+| --- | --- | --- | --- |
+| `primary` | `primary` | `primary.base` | primary button |
+| `secondary` | `accent` | `accent.base` | secondary button |
+| `success` | `success` | `success.base` | secondary button |
+| `warning` | `warning` | `warning.base` | secondary button |
+| `error` | `error` | `error.base` | destructive button |
+| `info` | `info` | `info.base` | secondary button |
+| `muted` | `neutral` | `textMuted` | secondary button |
 
-  /// Internal fulfilment notes.
-  late final String? notes;
+`secondary` is the one name that differs: it means the theme's `accent` swatch. The badge column is this function, and the direct column is the function under it:
 
-  /// The customer placing the order.
-  @BelongsTo(
-    searchOn: [#email, #firstName, #lastName],
-    inverse: false,
-    onDelete: BeakOnDelete.restrict,
-  )
-  late final User customer;
+```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
+OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
+  BeakColor.primary => OiBadgeColor.primary,
+  BeakColor.secondary => OiBadgeColor.accent,
+  BeakColor.success => OiBadgeColor.success,
+  BeakColor.warning => OiBadgeColor.warning,
+  BeakColor.error => OiBadgeColor.error,
+  BeakColor.info => OiBadgeColor.info,
+  BeakColor.muted => OiBadgeColor.neutral,
+};
+```
 
-  /// One of the selected customer's profile associations.
-  @BelongsTo(inverse: false, onDelete: BeakOnDelete.restrict)
-  late final UserProfileConnection profile;
-
-  /// Requested delivery instant; historical orders remain editable.
-  @Column(sortable: true)
-  late final DateTime deliveryDate;
-
-  /// Owned line items, committed with the order.
-  @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
-  late final List<OrderItem> items;
-
-  /// Owned discount adjustments, committed with the order.
-  @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
-  late final List<OrderDiscount> discounts;
+```dart title="packages/beak_frontend/lib/src/blocks/views/beak_record_readers.dart"
+Color? _resolveBeakColor(BuildContext context, BeakColor? color) {
+  final colors = context.colors;
+  return switch (color) {
+    null => null,
+    BeakColor.primary => colors.primary.base,
+    BeakColor.secondary => colors.accent.base,
+    BeakColor.success => colors.success.base,
+    BeakColor.warning => colors.warning.base,
+    BeakColor.error => colors.error.base,
+    BeakColor.info => colors.info.base,
+    BeakColor.muted => colors.textMuted,
+  };
 }
 ```
 
+Action buttons only distinguish `primary` and `error`. An action declared with `BeakColor.success` renders as a secondary button, not a green one.
+
+## Where a color name comes from
+
+An enum field gets its badge colors from the schema, once, and every surface that shows the field agrees: the table cell, the detail value, a kanban column, a calendar event:
+
+```dart title="examples/showcase/lib/resources/tasks/models/task.dart"
+@Column(defaultValue: TaskStatus.todo, filterable: true)
+@Badges<TaskStatus>({
+  TaskStatus.todo: BeakColor.muted,
+  TaskStatus.doing: BeakColor.info,
+  TaskStatus.done: BeakColor.success,
+})
+late final TaskStatus status;
+```
+
+A value with no entry gets `neutral`. The board and the calendar reuse the same mapping for column and event colors, which is why the Aviary's Planner needs no color argument at all. Blocks take a `BeakColor` where they need one directly: `BeakBadgeBlock(color:)`, `BeakSummaryValue(iconColor:)`, and the `color` of an action. The Aviary's content page renders every value in a loop, which is the quickest look at what your theme does to all seven:
+
+```dart title="examples/showcase/lib/pages/content_blocks.dart"
+BeakBlock _badges() => BeakCardBlock(
+  title: 'Badges',
+  child: BeakRowBlock(
+    gapInPixels: 8,
+    children: [
+      for (final color in BeakColor.values)
+        BeakBadgeBlock(color.name, color: color),
+    ],
+  ),
+);
+```
+
+## What a swatch holds
+
+`OiColorScheme` has six swatches (`primary`, `accent`, `success`, `warning`, `error`, `info`), and each is an `OiColorSwatch` with five slots: `base`, `light`, `dark`, `muted` and `foreground`. Around them sit the surfaces (`background`, `surface`, `surfaceSubtle`, `surfaceHover`, `surfaceActive`, `overlay`), the text colors (`text`, `textSubtle`, `textMuted`, `textInverse`, `textOnPrimary`), the borders (`border`, `borderSubtle`, `borderFocus`, `borderError`) and `chart`, a list of series colors.
+
+Which slot a widget reads matters when you build a swatch by hand. The soft badge, the one Beak uses for every enum value, has two recipes:
+
+| `OiBadgeThemeData.useSwatchColors` | Background | Text |
+| --- | --- | --- |
+| `false` (default) | `base` at 20% opacity | `dark` |
+| `true` | `muted` (neutral: `surfaceSubtle`) | `dark` (neutral: `textMuted`) |
+
+So a status badge is drawn in `dark` on either a tinted `base` or `muted`. A swatch whose `dark` is too light to read on its `muted` produces an unreadable badge, and `OiColorSwatch.from(base)` derives `dark` by lowering the lightness of `base` by 20 points. A hand-built swatch has to keep that contrast itself, because Beak does not check it.
+
+## A full palette from a design system
+
+Foodio's theme comes from a design file whose tokens have names like `canvas`, `sheet`, `ink` and `primary-soft`. The tokens live in two classes of named constants, one for light and one for dark:
+
+```dart title="examples/foodio-adminpanel/lib/theme/gabel_tokens.dart"
+/// Exact light semantic colors from the supplied prototype.
+abstract final class GabelLight {
+  /// Prototype `canvas` token.
+  static const canvas = Color(0xFFF3F3F7);
+
+  /// Prototype `sheet` token.
+  static const sheet = Color(0xFFFEFEFF);
+  // ...
+}
+```
+
+`gabelTheme({bool dark})` picks one class by brightness and maps its tokens onto the obers_ui slots. First a helper that turns a design's three colors into a swatch, with `dark` deliberately set to the ink color so soft badges read well:
+
+```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
+OiColorSwatch swatch(Color value, Color soft, Color foreground) =>
+    OiColorSwatch(
+      base: value,
+      light: soft,
+      dark: value,
+      muted: soft,
+      foreground: foreground,
+    );
+```
+
+Then the whole `OiColorScheme`, copied from the stock theme and overridden slot by slot:
+
+```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
+final colors = base.colors.copyWith(
+  background: canvas,
+  surface: sheet,
+  surfaceSubtle: color(GabelLight.well, GabelDark.well),
+  surfaceHover: color(GabelLight.fillHover, GabelDark.fillHover),
+  surfaceActive: color(GabelLight.fillPress, GabelDark.fillPress),
+  overlay: color(GabelLight.scrim, GabelDark.scrim),
+  text: ink,
+  textSubtle: subtle,
+  textMuted: muted,
+  textInverse: color(GabelLight.onInverse, GabelDark.onInverse),
+  textOnPrimary: onPrimary,
+  border: border,
+  borderSubtle: line,
+  borderFocus: primaryInk,
+  borderError: color(GabelLight.dangerInk, GabelDark.dangerInk),
+  primary: swatch(primary, primarySoft, onPrimary).copyWith(dark: primaryInk),
+  accent: swatch(
+    color(GabelLight.secondary, GabelDark.secondary),
+    color(GabelLight.secondarySoft, GabelDark.secondarySoft),
+    color(GabelLight.onSecondary, GabelDark.onSecondary),
+  ),
+  success: swatch(
+    color(GabelLight.successInk, GabelDark.successInk),
+    color(GabelLight.successSoft, GabelDark.successSoft),
+    color(GabelLight.onSuccess, GabelDark.onSuccess),
+  ),
+  warning: swatch(
+    color(GabelLight.warningInk, GabelDark.warningInk),
+    color(GabelLight.warningSoft, GabelDark.warningSoft),
+    color(GabelLight.onWarning, GabelDark.onWarning),
+  ),
+  error: swatch(
+    color(GabelLight.dangerInk, GabelDark.dangerInk),
+    color(GabelLight.dangerSoft, GabelDark.dangerSoft),
+    color(GabelLight.onDanger, GabelDark.onDanger),
+  ),
+  info: swatch(
+    color(GabelLight.secondaryInk, GabelDark.secondaryInk),
+    color(GabelLight.secondarySoft, GabelDark.secondarySoft),
+    color(GabelLight.onSecondary, GabelDark.onSecondary),
+  ),
+  chart: dark
+      ? const [
+          GabelDark.chart1,
+          GabelDark.chart2,
+          GabelDark.chart3,
+          GabelDark.chart4,
+          GabelDark.chart5,
+          GabelDark.chart6,
+        ]
+      : const [
+          GabelLight.chart1,
+          GabelLight.chart2,
+          GabelLight.chart3,
+          GabelLight.chart4,
+          GabelLight.chart5,
+          GabelLight.chart6,
+        ],
+);
+```
+
+Read the mapping as a table of your own: the design's `canvas` is `background`, `sheet` is `surface`, `well` is `surfaceSubtle`, `fill-hover` and `fill-press` are `surfaceHover` and `surfaceActive`, `scrim` is `overlay`, `ink` is `text`, `line` is `borderSubtle`, and each status swatch takes the color's `-ink` token as `base` and `dark`, and its `-soft` token as `light` and `muted`. The six `chart` colors are a list in series order. Everything the design does not name (`glassBackground`, `glassBorder`) keeps the stock value, because the code starts from `base.colors.copyWith(...)`.
+
+The panel receives the result as `theme: gabelTheme()` and `darkTheme: gabelTheme(dark: true)`:
+
+```dart title="examples/foodio-adminpanel/lib/main.dart"
+theme: gabelTheme(),
+darkTheme: gabelTheme(dark: true),
+```
+
+## Rules and limits
+
+- **Names are fixed.** `BeakColor` has seven values and you cannot add one. A hue the theme lacks, such as purple, is a theme decision: pick the closest role and put the hue in that swatch.
+- **Only `BeakColor` follows the mode.** `BeakSummaryValue.color` and `BeakSummaryGroupStyle.color` take a plain `Color`, so they keep their value in dark mode. Foodio passes its `GabelLight` chart tokens there and accepts that.
+- **Charts have their own palette.** `BeakChartBlock` series come from the theme's `chart` list. Summary bars and donuts cycle `primary`, `warning`, `info`, `success` and `error` unless you give a color ([Charts](../blocks/charts.md), [Population summaries](../blocks/summaries.md)).
+- **Status is not only color.** Give every state a label, as badges do, and use the non-color cues Beak already has: a metric's change carries a sign and an arrow, and summary bars and legends take `hatched` for forecast values.
+- **Contrast is yours.** Beak resolves names to tokens and never measures contrast. Check swatches in both modes.
+- **Formatting is separate.** A number, date or currency looks the same in every theme. That is set by [BeakFormatting](formatting-and-localization.md).
+
+## Verify it
+
+Open the Aviary's Content blocks page, look at the Badges card, and press the theme toggle. All seven badges should change with the mode. The mapping itself has a unit test:
+
+```console
+$ cd packages/beak_frontend
+$ flutter test --no-pub test/src/table/column_cell_renderer_test.dart --plain-name "BeakColor"
+00:00 +0: enum badges use the configured BeakColor and label
+00:00 +1: every BeakColor maps onto an obers badge color
+00:00 +2: All tests passed!
+```
+
+Nothing tests Foodio's dark palette. Run Foodio, switch to dark, and look at a status badge and a chart.
+
+## Reference
+
+| Symbol | Notes |
+| --- | --- |
+| `BeakColor` | `primary`, `secondary`, `success`, `warning`, `error`, `info`, `muted`. |
+| `Badges<T>` | Schema annotation: `Map<T, BeakColor>` for an enum field. |
+| `oiBadgeColorFor(BeakColor)` | The badge mapping, exported by `beak_frontend`. |
+| `OiColorSwatch` | `base`, `light`, `dark`, `muted`, `foreground`; `OiColorSwatch.from(base)` derives the rest. |
+| `OiColorScheme.copyWith` | Every slot listed above, plus `chart`. |
+| `OiBadgeThemeData(useSwatchColors:)` | Chooses the soft-badge recipe. |
+| `OiChartThemeData` | `components.chart`: palette, axis, grid, legend, density. |
+
 ## Continue reading
 
-- [Theming basics](theming-basics.md)
-- [Semantic fields](../models/semantic-fields.md)
+- [Typography and icons](typography-and-icons.md) the type ramp and the icon set, themed the same way.
+- [Theming basics](theming-basics.md) where the theme goes and how the toggle works.
+- [Charts](../blocks/charts.md) the chart palette in use.
+- [Semantic fields](../models/semantic-fields.md) money, percentages and units, which format independently of color.

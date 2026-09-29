@@ -1,79 +1,43 @@
 # Uploads and storage wiring
 
-> Turn a file column into an upload endpoint and choose a storage driver with one environment variable.
+> Turn a file column into an upload endpoint, choose where the bytes land with one environment variable, and know what each driver needs to boot.
 
-By the end of this page you can turn on file uploads for a model's image or file
-columns, understand the validate-transform-store pipeline each upload runs, and
-point storage at memory, local disk, S3, or FTP by setting one environment
-variable. No upload endpoint is hand-written: declare a file column, configure a
-driver, and the route appears.
+A file or image column becomes an upload endpoint without any code on the server. After this page you can turn uploads on, off or over to S3, name what each storage driver needs to boot, and predict what a rejected upload answers.
 
-Uploads build on the [file and storage columns](../models/files-and-storage-columns.md)
-you already defined. The reference store's product declares one `@Image` field,
-and that is what wires into an endpoint here.
+The column side (rules, dimensions, transforms) is [Files and storage columns](../models/files-and-storage-columns.md). How the service and drivers are built is [Storage internals](../architecture/storage-internals.md). This page is the wiring between them: the routes, the variables, and the failures you meet on the way to production.
 
-The canonical shop declares its upload in `resources/products/models/product_image.dart`
-and places the owned collection with `ProductModel.images.galleryForm(...)`.
-See [uploads and galleries](../forms/uploads-and-galleries.md) for the complete example.
+## At a glance
 
-`beak prepare` turns that into a `BeakImageColumn` on the generated model, which
-is what the upload service reads its rules from.
+| You want | Do |
+| --- | --- |
+| Uploads on a fresh project | Nothing. A file column stores under `storage/uploads` and the server serves it at `/uploads` |
+| No upload endpoints | `BEAK_STORAGE_DRIVER=none` |
+| Files on a chosen disk and URL | `BEAK_STORAGE_DRIVER=local` with `BEAK_LOCAL_ROOT_DIR` and `BEAK_LOCAL_PUBLIC_BASE_URL` |
+| Files in S3 or MinIO | Add `beak_storage_s3`, register it in `lib/server.dart`, set `BEAK_STORAGE_DRIVER=s3` and the `BEAK_S3_*` variables |
+| Files over FTP | The same with `beak_storage_ftp` and the `BEAK_FTP_*` variables |
+| No files at all in a test | `BEAK_STORAGE_DRIVER=memory` |
 
-## The pipeline: validate, transform, store
+## Declare a column, get three routes
 
-`UploadService` is the logic layer behind the upload routes. It resolves the
-target column, enforces that column's file rules, runs the image transform
-pipeline, and stores every result through the configured driver. Handlers stay
-thin; the service throws only typed exceptions.
+The shop declares one image column. The rules sit on the column, and the server enforces them:
 
-```mermaid
-flowchart LR
-  U[Multipart upload] --> C{File or image column}
-  C -->|file| V1[Validate size and type]
-  C -->|image| D[Decode and read dimensions]
-  D --> V2[Validate size, type, dimensions, aspect]
-  V2 --> T[Run transforms]
-  V1 --> S[Driver.put]
-  T --> S
-  S --> R[BeakStoredFile with variants]
+```dart title="examples/clean_beak_config/lib/resources/products/models/product_image.dart"
+/// The uploaded original and automatic thumbnail.
+@Image(
+  storagePath: 'product-images',
+  maxSizeInBytes: 10485760,
+  allowedTypes: [BeakFileType.png, BeakFileType.jpeg, BeakFileType.webp],
+  transforms: [
+    BeakThumbnailTransform(
+      size: BeakDimensions.square(480),
+      name: 'thumbnail',
+    ),
+  ],
+)
+late final BeakImageRef image;
 ```
 
-The entry point is `handle`, which pattern-matches on the resolved column. A file
-column takes the plain path; an image column takes the transform path; anything
-else is a validation error, because you cannot upload to a string column.
-
-```dart title="packages/beak_backend/lib/src/uploads/upload_service.dart"
-Future<BeakStoredFile> handle({
-  required String table,
-  required String columnKey,
-  required BeakUpload upload,
-}) async {
-  switch (_columnOf(table, columnKey)) {
-    case final BeakFileColumn fileColumn:
-      return _storeFile(fileColumn, upload);
-    case final BeakImageColumn imageColumn:
-      return _storeImage(imageColumn, upload);
-    case final BeakColumn other:
-      throw BeakValidationException(
-        'Column "$columnKey" of "$table" is a ${other.runtimeType}; '
-        'uploads need a file or image column.',
-      );
-  }
-}
-```
-
-For an image, the service first decodes the bytes (an empty transform pipeline is
-a decode pass-through that also yields the real dimensions), validates size, type,
-dimensions, and aspect ratio against the column, then runs the column's
-transforms. The reference product's transforms produce a WebP main file plus a
-160x160 thumbnail, and both come back as a `BeakStoredFile` with its `variants`
-map populated. Client filenames are never trusted for storage keys; the service
-mints its own.
-
-## The upload routes
-
-Registering a model adds two routes under its mount point, so the full paths are
-`POST` and `DELETE /api/{table}/{columnKey}/upload`.
+`beak prepare` turns that into a `BeakImageColumn` on the generated model, and when the host has a storage driver, `beakApiRouter` mounts three routes on every model:
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_router.dart"
 void registerUploadRoutes(
@@ -97,187 +61,46 @@ void registerUploadRoutes(
 
 ```
 
-The upload handler checks `canCreate` (uploading a file is creating one), then
-reads the multipart body into a typed `BeakUpload` and delegates to the service.
-
-Upload creation checks the table policy and upload field capability before
-accepting multipart content. The upload service validates the file and cleans up
-partially stored variants when a transform or storage operation fails. URL reads
-also verify visible row ownership, and key-aware policy can further restrict them.
-
-The size limit is enforced *while reading*, not after. `_readBounded` fails the
-moment the buffered part grows past the column's `maxSizeInBytes`, so an oversize
-upload never buffers fully into memory.
-
-```dart title="packages/beak_backend/lib/src/uploads/upload_handler.dart"
-Future<Uint8List> _readBounded(
-  Stream<List<int>> source,
-  int? maxSizeInBytes,
-) async {
-  final builder = BytesBuilder(copy: false);
-  await for (final chunk in source) {
-    builder.add(chunk);
-    if (maxSizeInBytes != null && builder.length > maxSizeInBytes) {
-      throw BeakValidationException(
-        'Upload rejected.',
-        fieldErrors: {
-          'size': ['The file exceeds the limit of $maxSizeInBytes bytes.'],
-        },
-      );
-    }
-  }
-  return builder.takeBytes();
-}
-```
-
-Deletion is gated by the dedicated `canDeleteUpload` hook, because a stored file
-is named by its storage key, not by a record id. The service also guards that the
-key belongs to the column's storage path before it touches the driver, so a
-request cannot delete an arbitrary object by guessing keys.
-
-```dart title="packages/beak_backend/lib/src/uploads/upload_service.dart"
-    if (!key.startsWith('$storagePath/') ||
-        key.split('/').any((segment) => segment == '..' || segment == '.') ||
-        key.contains('\\')) {
-      throw BeakValidationException(
-        'Key "$key" does not belong to column "$columnKey" '
-        '(expected the "$storagePath/" prefix).',
-      );
-    }
-```
-
-Uploading a product image against the reference store on port 8080:
-
-```bash
-curl -sX POST http://localhost:8080/api/products/image/upload \
-  -F 'file=@house-roast.png;type=image/png'
-# 201 {"key":"products/...webp","url":"...","variants":{"thumbnail":{...}}}
-```
-
-| Method and path | Body | Success | Gated by |
+| Route | Body | Success | Gate |
 | --- | --- | --- | --- |
-| `POST /api/{table}/{columnKey}/upload` | multipart, field `file` | `201` `BeakStoredFile` | `canCreate` |
-| `DELETE /api/{table}/{columnKey}/upload` | `{"key": ...}` | `204` | `canDeleteUpload` |
+| `POST /api/{table}/{columnKey}/upload` | `multipart/form-data`, part named `file` | `201` with the stored file | Write access to the column, `canCreate` |
+| `GET /api/{table}/{columnKey}/upload?key=...` | none | `200` `{"url": ...}` | `canView`, read access to the column, `BeakUploadReadPolicy` if the policy has one, and a visible record that references the key when the model has a row scope |
+| `DELETE /api/{table}/{columnKey}/upload` | `{"key": "..."}` | `204` | Write access to the column, `canDeleteUpload` |
 
-See [Auth and policies](auth-and-policies.md) for the two gates, and
-[Files and storage columns](../models/files-and-storage-columns.md) for the file
-rules the service enforces.
+The routes exist on every model, whether or not it has an upload column. `{columnKey}` must name a file or image column: an unknown key is a `404`, another kind of column a `422`.
 
-## Choosing a driver
+Upload a picture to a `photos` resource whose `image` column allows PNG and JPEG up to 200,000 bytes and makes a 32 pixel thumbnail:
 
-A `BeakStorageDriver` is where bytes actually land. Beak keeps drivers behind a
-`BeakStorageRegistry`. `createDefaultStorageRegistry` builds one with the two
-drivers Beak ships in-box: `memory` (registered by the registry itself) and
-`local`, added here because it needs `dart:io`.
-
-```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-BeakStorageRegistry createDefaultStorageRegistry() {
-  final registry = BeakStorageRegistry();
-  registry.register('local', BeakLocalDiskStorageDriver.fromConfig);
-  return registry;
-}
+```console
+$ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/photos/image/upload -F "file=@pic.png;type=image/png"
+{"key":"photos/a8d6a7ae-7baa-4808-aaea-24bd9c636621.png","url":"http://127.0.0.1:8392/uploads/photos/a8d6a7ae-7baa-4808-aaea-24bd9c636621.png","sizeInBytes":156,"mimeType":"image/png","widthInPixels":64,"heightInPixels":64,"variants":{"thumbnail":{"key":"photos/a8d6a7ae-7baa-4808-aaea-24bd9c636621_thumbnail.png","url":"http://127.0.0.1:8392/uploads/photos/a8d6a7ae-7baa-4808-aaea-24bd9c636621_thumbnail.png","widthInPixels":32,"heightInPixels":32}}} [201]
 ```
 
-Driver packages are deliberately left out. Depending on `beak_storage_s3` here
-would put `minio` in the dependency graph of every Beak backend, whether or not
-it uploads anything. A project declares the drivers it wants in a
-`beakStorageRegistry` function in `lib/server.dart`, which `beak prepare` hands
-to the generated host:
+The client stores the `key` (and the variant keys) in the record's column. The server mints the key, and the client's filename never reaches it. The upload only stores bytes: nothing is attached to a record until a save writes the key into one.
 
-Register optional driver packages in a `beakStorageRegistry()` function in
-`lib/server.dart`. See [custom storage drivers](../extending/custom-storage-drivers.md)
-for the explicit registration contract.
+### How a request fails
 
-`resolveStorage` takes a `BeakStorageConfig` and returns the driver it selects.
-The server resolves once at startup and injects the driver into the upload
-service.
+Every rule fails as a `422` that names the rule, and the rest as the usual envelope:
 
-```dart title="packages/beak_backend/lib/src/server/storage_wiring.dart"
-BeakStorageDriver resolveStorage(
-  BeakStorageConfig config, {
-  BeakStorageRegistry? registry,
-}) => (registry ?? createDefaultStorageRegistry()).resolve(config);
-
-```
-
-To add a driver of your own, register it on the registry before you resolve, and
-pass that registry to `resolveStorage`. See
-[Custom storage drivers](../extending/custom-storage-drivers.md) for the driver
-interface.
-
-### One environment variable picks the driver
-
-You do not write that parsing. `BeakStorageSettings.fromEnv` reads
-`BEAK_STORAGE_DRIVER` and turns it into a `BeakStorageConfig?`: `s3` builds a
-`BeakS3Config` from the `BEAK_S3_*` variables, `ftp` and `local` do the same for
-their own sets, `memory` selects the in-memory driver (tests), and `none` says
-this deployment wants no upload surface at all.
-
-```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
-static BeakStorageConfig? fromEnv(Map<String, String> environment) {
-  String require(String key) {
-    final String? value = environment[key];
-    if (value == null || value.isEmpty) {
-      throw BeakConfigurationException(
-        '$key is required when $driverKey=${environment[driverKey]}.',
-      );
-    }
-    return value;
-  }
-
-  switch (environment[driverKey]) {
-    case 's3':
-      return BeakS3Config(
-        endpoint: Uri.parse(require('BEAK_S3_ENDPOINT')),
-        bucket: require('BEAK_S3_BUCKET'),
-        accessKey: require('BEAK_S3_ACCESS_KEY'),
-        secretKey: require('BEAK_S3_SECRET_KEY'),
-        region: require('BEAK_S3_REGION'),
-        usePathStyle: environment['BEAK_S3_USE_PATH_STYLE'] == 'true',
-      );
-    // ...the ftp, local and memory cases...
-    case 'none' || null || '':
-      return null;
-    case final String other:
-      throw BeakConfigurationException(
-        'Unsupported $driverKey "$other" — use one of '
-        '${supportedDrivers.join(', ')}.',
-      );
-  }
-}
-```
-
-The `require` closure is why an incomplete config fails loudly at startup instead
-of surfacing as a mysterious 500 on the first upload. Selecting `s3` with a
-missing `BEAK_S3_BUCKET` throws a `BeakConfigurationException` before the server
-binds, and a typo in the driver name fails the same way, with the supported names
-in the message.
-
-| Variable | Meaning |
+| Request | Answer |
 | --- | --- |
-| `BEAK_STORAGE_DRIVER` | `s3`, `ftp`, `local`, `memory`, `none`, or unset (local disk) |
-| `BEAK_S3_ENDPOINT` | the object-store endpoint URL |
-| `BEAK_S3_BUCKET` | the bucket uploads land in |
-| `BEAK_S3_ACCESS_KEY` / `BEAK_S3_SECRET_KEY` | credentials |
-| `BEAK_S3_REGION` | the region string |
-| `BEAK_S3_USE_PATH_STYLE` | `true` for MinIO and path-style hosts |
-| `BEAK_LOCAL_ROOT_DIR` / `BEAK_LOCAL_PUBLIC_BASE_URL` | where local-disk files live and how they are served |
-| `BEAK_FTP_HOST` / `BEAK_FTP_USER` / `BEAK_FTP_PASSWORD` | FTP credentials |
-| `BEAK_FTP_BASE_DIR` / `BEAK_FTP_PUBLIC_BASE_URL` / `BEAK_FTP_PORT` | FTP path, public URL, and port (default `21`) |
+| Bigger than the column's `maxSizeInBytes` | `422` `Upload rejected.` with `fieldErrors.size`. The read stops as soon as the limit is passed, so the file is never buffered whole |
+| A MIME type the column does not allow | `422` `The upload "pic.png" failed validation.` with `fieldErrors.type`: `The MIME type "image/gif" is not allowed.` |
+| An image column and bytes that are not a raster image | `422` `The uploaded file is not a supported raster image (PNG, JPEG, WebP or GIF).` |
+| Dimensions or aspect ratio outside the column's limits | `422` with `fieldErrors.dimensions` or `aspectRatio` |
+| Not `multipart/form-data`, or no `file` part | `422` `Upload requests must be multipart/form-data with a "file" field.` |
+| A column that stores no file | `422` `Column "caption" of "photos" is a BeakStringColumn; uploads need a file or image column.` |
+| A key outside the column's `storagePath`, or with `..` in it | `422` `Key "other/x.png" does not belong to column "image" (expected the "photos/" prefix).` |
+| A key with no stored file | `404` `No stored file "..."` |
+| The driver fails | `500` `storage` `File storage failed.` The driver's message goes to `onUnexpectedError`, not to the caller |
 
-The repo's docker-compose stack ships a MinIO container, and the committed
-`.env.example` points at it with path-style on, so `melos run up` plus the sample
-values gives you a working S3-compatible target locally. See
-[Environment and config](../shipping/environment-and-config.md) for the full
-variable list.
+An image column reads the dimensions from the file header first (nothing is decoded yet), validates size, type, dimensions and aspect ratio against them, and only then decodes the image once to run the transforms and store the original with its variants. The runner also refuses any image that declares more than 50 million pixels, whatever the column says. If a variant cannot be written, the files already stored for that upload are deleted before the error goes out. A plain file column checks the size and the declared type and looks inside nothing.
 
-## Turning uploads on
+`DELETE` removes exactly the key it is given. An image and its thumbnail are separate keys, so removing an upload takes one call per rendition, which is what `BeakClient.discardUpload` does. Deleting a record does not delete its files, on purpose: a soft-deleted record can be restored with its file, and another record may point at the same key. Nothing collects the orphans of an upload that was never saved either. Clean the storage on your own schedule.
 
-There is nothing to turn on. The generated host resolves the driver for you in
-`resolveStorageDriver`. With nothing configured it falls back to local disk under
-`storage/uploads`, served by the same server at `/uploads`, so a file column works
-on a fresh project with no setup. `BEAK_STORAGE_DRIVER=none` is how you switch the
-upload endpoints off outright.
+## Turn uploads on, off or elsewhere
+
+There is nothing to turn on. The host resolves a driver at boot, and with nothing configured that driver is local disk:
 
 ```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
 BeakStorageDriver? resolveStorageDriver() {
@@ -301,36 +124,134 @@ BeakStorageDriver? resolveStorageDriver() {
 }
 ```
 
-The driver goes into `BeakServer`, which builds the `UploadService` and registers
-the upload routes for every model with a file column. A `null` driver means no
-upload endpoints at all.
+`BEAK_STORAGE_DRIVER` picks another one, and an incomplete or unknown value stops the boot with a message that names the fix:
+
+```console
+$ BEAK_STORAGE_DRIVER=s3 dart run bin/serve.dart
+BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
+$ BEAK_STORAGE_DRIVER=s4 dart run bin/serve.dart
+BeakConfigurationException(configuration): Unsupported BEAK_STORAGE_DRIVER "s4" — use one of s3, ftp, memory, local, none.
+```
+
+The variables each driver reads:
+
+| Driver | Variables | Needs a package |
+| --- | --- | --- |
+| `local` | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL`, both required | No, it is in the box |
+| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION` required; `BEAK_S3_USE_PATH_STYLE=true` for MinIO and path-style hosts; `BEAK_S3_PUBLIC_BASE_URL` for a CDN in front of the bucket | `beak_storage_s3` |
+| `ftp` | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL` required; `BEAK_FTP_PORT`, default `21` | `beak_storage_ftp` |
+| `memory` | none | No. Files vanish with the process, and the URL is `memory:///photos/...` |
+| `none` | none | No. No upload routes are mounted |
+
+[Environment and config](../shipping/environment-and-config.md) explains how `.env` and the process environment combine.
+
+### Local disk
+
+Unset or `local`, the server serves the files itself. With nothing set, the root is `storage/uploads` and the route is `/uploads`. With `local`, the route is the path of `BEAK_LOCAL_PUBLIC_BASE_URL`, and the default route disappears:
+
+```console
+$ BEAK_STORAGE_DRIVER=local BEAK_LOCAL_ROOT_DIR=/data/uploads \
+    BEAK_LOCAL_PUBLIC_BASE_URL=http://localhost:8392/files dart run bin/serve.dart
+$ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8392/files/photos/08280364-2bcd-4c9a-8eca-2c9b1dad3dc9.png
+200
+$ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8392/uploads/photos/x.png
+404
+```
+
+Point `BEAK_LOCAL_PUBLIC_BASE_URL` at a CDN or the web server and the server's own route is unused. The route is public and read-only. The unset default builds URLs from the bind address, where `0.0.0.0` becomes `localhost`, so choose the driver explicitly on a real host, see [Environment and config](../shipping/environment-and-config.md#the-default-url-points-at-localhost).
+
+### S3 and MinIO
+
+`beak_backend` depends on no driver package, so a server that never uploads to S3 does not carry the S3 driver. A project that wants S3 adds the package, registers it, and sets the variables. Three steps:
+
+```yaml
+# Illustrative: pubspec.yaml additions for the S3 driver.
+dependencies:
+  beak_storage_s3:
+    git:
+      url: https://github.com/SimonErich/beak.git
+      ref: v0.9.0
+      path: packages/beak_storage_s3
+```
 
 ```dart
-Future<HttpServer> serve() async {
-  await initializeWormPostgres(config);
-  final server = buildServer(
-    adapter: Worm.adapter(),
-    storage: resolveStorageDriver(),
-  );
-  return server.start();
+// Illustrative: lib/server.dart. The file needs no beakServer function for this.
+import 'package:beak/server.dart';
+import 'package:beak_storage_s3/beak_storage_s3.dart';
+
+BeakStorageRegistry beakStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
+  registerS3Storage(registry);
+  return registry;
 }
 ```
 
-That is the whole loop: an environment variable becomes a config, the config
-resolves to a driver, the driver goes into the server, and every image column in
-the registry gains a validated, transforming upload endpoint. A driver from a
-plug-in package joins the loop through the `beakStorageRegistry` function above,
-which the host reads as `storageRegistry`.
+Run `beak prepare` so the generated host passes the function on, then set the variables. Against a local MinIO:
+
+```console
+$ BEAK_STORAGE_DRIVER=s3 BEAK_S3_ENDPOINT=http://localhost:28590 BEAK_S3_BUCKET=beak-uploads \
+    BEAK_S3_ACCESS_KEY=beak BEAK_S3_SECRET_KEY=beaksecret BEAK_S3_REGION=us-east-1 \
+    BEAK_S3_USE_PATH_STYLE=true dart run bin/serve.dart
+$ curl -s -X POST localhost:8392/api/photos/image/upload -F "file=@pic.png;type=image/png"
+{"key":"photos/7ed20c4d-e64b-4234-b555-fc01e455b0b9.png","url":"http://localhost:28590/beak-uploads/photos/7ed20c4d-e64b-4234-b555-fc01e455b0b9.png", ... }
+```
+
+Without the registration, the boot fails by name:
+
+```console
+BeakConfigurationException(configuration): No storage driver is registered for "s3". Registered drivers: memory, local.
+```
+
+The bucket must exist, and its policy decides whether the URL in the upload response opens. The upload returns the plain object URL. The reference stack creates its bucket with anonymous download, so those URLs open. A private bucket answers that URL with `403`. The resolve route (`GET .../upload?key=`) asks the driver for a link that expires after `signedUrlLifetime` and answers with a presigned one, so use it for a private bucket. With `BEAK_S3_PUBLIC_BASE_URL` set, for a CDN or proxy that authorizes reads, both routes answer with that public address instead.
+
+### FTP
+
+The same shape with `beak_storage_ftp` and `registerFtpStorage(registry)`, and the variables from the table. FTP has no expiring links, so the URL is the `BEAK_FTP_PUBLIC_BASE_URL` plus the key. This page did not run an FTP server, and the package's own tests use a small in-process one.
+
+### A driver of your own, or a data source of your own
+
+`defaults.build(storage: MyStorageDriver())` in `lib/server.dart` serves uploads through your own `BeakStorageDriver`, and `defaults.build(dataSource: MyDataSource())` serves the API from a source that is not worm. The driver interface is in [Custom storage drivers](../extending/custom-storage-drivers.md), the data source one in [Custom data sources](../extending/custom-data-sources.md).
+
+## Rules and limits
+
+| Rule | Consequence |
+| --- | --- |
+| The default driver is local disk with URLs built from the bind address | Fine on your machine, wrong behind a proxy. Choose the driver and its public URL explicitly |
+| Uploads are validated, not authorized by content | The MIME type and extension are what the client declared. A file column with no `allowedTypes` stores `evil.html` as `<uuid>.html`, and the local route serves it as HTML from your origin. List `allowedTypes`, and serve uploads from another origin |
+| `maxSizeInBytes` is optional | A column that sets none accepts any size. Set it on every upload column |
+| Images are decoded once, after the header checks | A small file can declare a very large bitmap, so `maxDimensions` is checked from the header, and `ImageTransformRunner` refuses anything above `maxPixelCount` (50 million pixels by default) before it allocates. The size limit counts compressed bytes |
+| The resolve route signs for one hour | On a driver that signs (S3), `GET .../upload?key=` answers with a presigned link that expires after `signedUrlLifetime` (default one hour, set with `defaults.build(signedUrlLifetime: ...)`). With `BEAK_S3_PUBLIC_BASE_URL` set, the public address is answered instead. Resolve a key again instead of storing the link. Drivers with public links (local, memory, FTP) answer with the same address every time |
+| A storage failure is a `500` with a generic message | The caller sees `File storage failed.` and the driver's own message (which can include an endpoint or a bucket name) goes to `onUnexpectedError`. Watch that log |
+| Files outlive records | Deleting a record does not delete its files, and an abandoned upload stays. Clean up out of band |
+| An unregistered driver fails at boot | `s3` and `ftp` need a package and a `beakStorageRegistry()` before the variable can select them |
+| One driver per server | Every upload column stores through it. A column cannot choose its own |
+
+## Verify it
+
+Four requests prove the wiring: an accepted upload, the file at its URL, a rejected one, and a removal.
+
+```console
+$ curl -s -X POST localhost:8392/api/photos/image/upload -F "file=@pic.png;type=image/png"   # 201 and a key
+$ curl -s -o /dev/null -w '%{http_code}\n' "$URL"                                             # 200, the file
+$ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/photos/image/upload -F "file=@fake.png;type=image/png"
+{"code":"validation","message":"The uploaded file is not a supported raster image (PNG, JPEG, WebP or GIF).","requestId":"eaf6258e8653127c"} [422]
+$ curl -s -w '[%{http_code}]\n' -X DELETE localhost:8392/api/photos/image/upload -H 'content-type: application/json' -d "{\"key\":\"$KEY\"}"
+[204]
+```
+
+If the second call does not answer `200` on a deployed host, the URL in the response is the problem, not the upload: check `BEAK_LOCAL_PUBLIC_BASE_URL` or the bucket policy. Then repeat the upload as a role without write access and expect a `401` or `403`, see [Auth and policies](auth-and-policies.md).
+
+## Reference
+
+- `packages/beak_backend/lib/src/uploads/upload_router.dart`, `upload_handler.dart`, `upload_service.dart`: the routes, the policy gates and the pipeline.
+- `packages/beak_backend/lib/src/server/beak_storage_settings.dart`: `BeakStorageSettings.fromEnv`, the variables.
+- `packages/beak_backend/lib/src/server/storage_wiring.dart`: `createDefaultStorageRegistry`, `resolveStorage`.
+- `packages/beak_backend/lib/src/endpoints/local_uploads_router.dart`: the route that serves local files.
+- [Configuration and environment](../reference/configuration.md#storage) lists the storage configs member by member.
 
 ## Continue reading
 
-- [Files and storage columns](../models/files-and-storage-columns.md) the column
-  side: file rules, dimensions, and transforms.
-- [Running the server](running-the-server.md) the `BeakServer` constructor that
-  ties the driver in.
-- [Custom storage drivers](../extending/custom-storage-drivers.md) writing a
-  driver for a backend Beak does not ship.
-- [Environment and config](../shipping/environment-and-config.md) every
-  `BEAK_*` variable, including the storage set.
-- [Auth and policies](auth-and-policies.md) the `canCreate` and
-  `canDeleteUpload` gates on the upload routes.
+- [Files and storage columns](../models/files-and-storage-columns.md) the column side: rules, dimensions and transforms.
+- [Custom storage drivers](../extending/custom-storage-drivers.md) registering a package, or writing a driver.
+- [Storage internals](../architecture/storage-internals.md) how the service, the registry and the drivers fit together.
+- [Security](../shipping/security.md) the upload risks to close before launch.
