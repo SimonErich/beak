@@ -421,13 +421,12 @@ final class ModelBeakDataSource
 
   @override
   Future<BeakSummaryResult> summary(BeakSummarySpec spec) => _run(() {
-    final source = _source(spec.table);
-    if (source is! BeakSummaryDataSource) {
-      throw const BeakConfigurationException(
+    return switch (_source(spec.table)) {
+      final BeakSummaryDataSource source => source.summary(spec),
+      _ => throw const BeakConfigurationException(
         'This data source does not support summaries.',
-      );
-    }
-    return (source as BeakSummaryDataSource).summary(spec);
+      ),
+    };
   });
 
   @override

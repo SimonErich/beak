@@ -26,7 +26,7 @@ const _settingsScreen = BeakScreen(
   icon: BeakIconToken(OiIcons.settings),
   body: BeakTextBlock('Settings content'),
 );
-const all = BeakQueryPreset(key: 'all', label: 'All', rowHeight: 56);
+const all = BeakQueryPreset(key: 'all', label: 'All', rowHeightInPixels: 56);
 const everything = BeakQueryPreset(key: 'all', label: 'All notes');
 
 void main() {

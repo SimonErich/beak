@@ -512,16 +512,18 @@ class BeakFilterBar extends HookWidget {
                 f.operator == BeakOperator.lte || f.operator == BeakOperator.lt,
           )
           .firstOrNull;
-      if (def is BeakDateRangeFilter &&
-          lower?.value.raw is DateTime &&
-          upper?.value.raw is DateTime) {
-        final end = upper!.value.raw! as DateTime;
-        return (
-          lower!.value.raw as DateTime,
-          upper.operator == BeakOperator.lt
-              ? end.subtract(const Duration(days: 1))
-              : end,
-        );
+      if (def is BeakDateRangeFilter) {
+        if ((lower?.value.raw, upper?.value.raw) case (
+          final DateTime start,
+          final DateTime end,
+        )) {
+          return (
+            start,
+            upper?.operator == BeakOperator.lt
+                ? end.subtract(const Duration(days: 1))
+                : end,
+          );
+        }
       }
       return (lower?.value, upper?.value);
     }
@@ -774,12 +776,11 @@ String beakFilterSummary(
         )
         .firstOrNull;
     final upperValue = upper?.value;
-    final inclusiveUpper =
-        upperValue?.raw is DateTime && upper?.operator == BeakOperator.lt
-        ? BeakDateTimeValue(
-            (upperValue!.raw! as DateTime).subtract(const Duration(days: 1)),
-          )
-        : upperValue;
+    final inclusiveUpper = switch (upperValue?.raw) {
+      final DateTime end when upper?.operator == BeakOperator.lt =>
+        BeakDateTimeValue(end.subtract(const Duration(days: 1))),
+      _ => upperValue,
+    };
     if (lower == null) return 'Through ${display(inclusiveUpper)}';
     if (inclusiveUpper == null) return 'From ${display(lower.value)}';
     return '${display(lower.value)} – ${display(inclusiveUpper)}';
@@ -938,6 +939,11 @@ extension BeakRelationFieldFilters on BeakToOneField {
   );
 }
 
+double? _doubleOf(Object? raw) => switch (raw) {
+  final num number => number.toDouble(),
+  _ => null,
+};
+
 class _NumberRangeControl extends HookWidget {
   const _NumberRangeControl({
     required this.def,
@@ -950,15 +956,16 @@ class _NumberRangeControl extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final bounds = beakFilterRange(initial);
-    final formatted = def.field is BeakFormattedField<num>
-        ? def.field as BeakFormattedField<num>
-        : null;
+    final formatted = switch (def.field) {
+      final BeakFormattedField<num> field => field,
+      _ => null,
+    };
     final currency = formatted?.format == BeakValueFormat.currency;
     final scale = formatted?.minorUnits == true
         ? math.pow(10, formatted!.scale).toDouble()
         : 1.0;
-    final minimum = useState<double?>((bounds.$1?.raw as num?)?.toDouble());
-    final maximum = useState<double?>((bounds.$2?.raw as num?)?.toDouble());
+    final minimum = useState<double?>(_doubleOf(bounds.$1?.raw));
+    final maximum = useState<double?>(_doubleOf(bounds.$2?.raw));
     final digits = currency
         ? formatted?.scale ?? 2
         : def.column is BeakIntColumn
@@ -1270,7 +1277,12 @@ class _ChoiceFilterControl extends HookWidget {
     useEffect(
       () {
         counts.value = const {};
-        if (!def.showCounts || source is! BeakSummaryDataSource) {
+        final data = source;
+        final summaries = switch (data) {
+          final BeakSummaryDataSource summaries => summaries,
+          _ => null,
+        };
+        if (!def.showCounts || data == null || summaries == null) {
           return null;
         }
         var current = true;
@@ -1285,8 +1297,8 @@ class _ChoiceFilterControl extends HookWidget {
                   filter: choices[i].filter,
                 ),
             ];
-            final result = await BeakResourceRepository(source!).run(
-              () => (source! as BeakSummaryDataSource).summary(
+            final result = await BeakResourceRepository(data).run(
+              () => summaries.summary(
                 def.field.model.summary(measures: measures).withQuery(query),
               ),
             );

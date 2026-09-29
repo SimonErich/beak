@@ -16,7 +16,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
       '${foodioCompanyPaymentModes.contains(state.asOrder.profile?.paymentMode) ? 'Company invoice' : 'The payment method'} is preselected from the ${state.asOrder.profile?.name.split(' ').first ?? 'selected'} profile. Change it only if ${customerFirstName(state)} pays personally.',
   dependencies: [OrderModel.profile.name, OrderModel.customer.name],
   continueLabel: 'Continue to review',
-  spacing: 24,
+  spacingInPixels: 24,
   description: 'Payment, cost centre, voucher',
   completedDescription: (state, _) => [
     foodioPaymentLabels[state.asOrder.paymentMode],
@@ -25,7 +25,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
   footerHint: 'Next: check everything, then place the order.',
   children: [
     BeakFormLayout(
-      spacing: 16,
+      spacingInPixels: 16,
       children: [
         OrderModel.paymentMode.inputRadio(
           label: 'Payment method',
@@ -107,8 +107,8 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
     ),
     BeakSection(
       title: 'Voucher',
-      gap: 12,
-      dividerAfterSpacing: 12,
+      gapInPixels: 12,
+      dividerAfterSpacingInPixels: 12,
       trailing: BeakValueBinding<String>.computed(
         dependencies: const [],
         compute: (_) => 'One voucher per order',
@@ -150,14 +150,14 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
       ],
     ),
     BeakFormLayout(
-      spacing: 4,
+      spacingInPixels: 4,
       children: [
         BeakFormLayout(
-          spacing: 24,
+          spacingInPixels: 24,
           children: [
             const BeakFormDivider(),
             BeakFormLayout(
-              spacing: 12,
+              spacingInPixels: 12,
               children: [
                 OrderModel.sendConfirmation.inputCheckbox(
                   label: 'Send order confirmation to the customer',
@@ -184,7 +184,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
           ],
         ),
         BeakFormLayout(
-          spacing: 20,
+          spacingInPixels: 20,
           children: [
             const BeakFormDivider(),
             BeakCard(

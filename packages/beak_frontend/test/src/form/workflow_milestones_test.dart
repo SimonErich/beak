@@ -69,7 +69,7 @@ void main() {
             layout: BeakFormLayout(
               children: [
                 BeakFormMetrics(
-                  minColumnWidth: 120,
+                  minColumnWidthInPixels: 120,
                   metrics: [
                     for (var i = 0; i < 5; i++)
                       BeakFormMetric(
@@ -210,7 +210,7 @@ void main() {
       final progress = BeakFormProgress(
         field: status,
         timeline: true,
-        contextSpacing: 8,
+        contextSpacingInPixels: 8,
         steps: [
           const BeakProgressStep<ArticleStatus>(label: 'Created'),
           const BeakProgressStep(state: ArticleStatus.draft, label: 'Draft'),

@@ -36,7 +36,7 @@ final class OrderListPresets {
     final attention = BeakQueryPreset(
       key: 'attention',
       label: 'Needs attention',
-      rowHeight: 64,
+      rowHeightInPixels: 64,
       countColor: BeakColor.error,
       filter: OrderModel.needsAttention.eq(true),
       quickFilters: [status, date, organization, slot, payment],
@@ -56,7 +56,7 @@ final class OrderListPresets {
             label: column.label,
             template: column.key == 'customer'
                 ? BeakRecordTemplate(
-                    textGap: 0,
+                    textGapInPixels: 0,
                     title: BeakValueBinding.field(
                       OrderModel.customerName,
                       textStyle: const TextStyle(fontWeight: FontWeight.w500),
@@ -65,13 +65,13 @@ final class OrderListPresets {
                   )
                 : column.key == 'delivery'
                 ? BeakRecordTemplate(
-                    textGap: 0,
+                    textGapInPixels: 0,
                     title: orderDeliveryTitle(),
                     subtitle: [orderDeliverySummary(attention: true)],
                   )
                 : column.template!,
             sortBy: column.sortBy,
-            width: switch (column.key) {
+            widthInPixels: switch (column.key) {
               'order' => 112,
               'customer' => 168,
               _ => 132,
@@ -80,7 +80,7 @@ final class OrderListPresets {
         BeakTableColumn(
           key: 'issue',
           label: 'Problem',
-          width: 188,
+          widthInPixels: 188,
           template: BeakRecordTemplate(
             title: BeakValueBinding.field(
               OrderModel.attentionReason,
@@ -91,7 +91,7 @@ final class OrderListPresets {
         BeakTableColumn.action(
           key: 'next_step',
           label: 'Next step',
-          width: 188,
+          widthInPixels: 188,
           selector: BeakValueBinding.field(OrderModel.nextAction),
           choices: {
             OrderActions.sendPaymentLink.name: BeakActionPresentation.model(
@@ -129,7 +129,7 @@ final class OrderListPresets {
         BeakTableColumn(
           key: 'status',
           label: 'Status',
-          width: 164,
+          widthInPixels: 164,
           template: BeakRecordTemplate(title: orderStatus()),
         ),
       ],

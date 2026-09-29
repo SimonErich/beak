@@ -81,14 +81,14 @@ class BeakFormLayout extends BeakFormNode {
   /// Creates a reusable, declarative layout.
   const BeakFormLayout({
     required this.children,
-    this.spacing = 16,
+    this.spacingInPixels = 16,
     this.showChangeIndicators = false,
     super.visibleIf,
     super.enabledIf,
   });
 
   /// Vertical spacing for plain layouts and tab contents.
-  final double spacing;
+  final double spacingInPixels;
 
   /// Marks modified field headings and added owned rows while editing a
   /// persisted record. Markers use the existing draft baseline, not extra state.
@@ -149,7 +149,7 @@ class BeakReviewSection extends BeakFormLayout {
     required super.children,
     this.stepIndex,
     this.divider = true,
-    this.dividerSpacing = 20,
+    this.dividerSpacingInPixels = 20,
     this.padding = EdgeInsets.zero,
     this.contentPadding = EdgeInsets.zero,
     this.titleStyle,
@@ -167,7 +167,7 @@ class BeakReviewSection extends BeakFormLayout {
   final bool divider;
 
   /// Space between this row and its optional separator.
-  final double dividerSpacing;
+  final double dividerSpacingInPixels;
 
   /// Insets around the review content, before its separator.
   final EdgeInsetsGeometry padding;
@@ -196,7 +196,7 @@ class BeakCard extends BeakFormLayout {
     required super.children,
     this.description,
     this.padding,
-    this.headerGap = 16,
+    this.headerGapInPixels = 16,
     this.headerSubtitle,
     this.headerTrailing,
     this.collapseLeading = false,
@@ -204,7 +204,7 @@ class BeakCard extends BeakFormLayout {
     this.collapsible = false,
     this.initiallyExpanded = true,
     this.presentation = BeakCardPresentation.surface,
-    super.spacing,
+    super.spacingInPixels,
     super.visibleIf,
     super.enabledIf,
   });
@@ -220,7 +220,7 @@ class BeakCard extends BeakFormLayout {
   final EdgeInsetsGeometry? padding;
 
   /// Space after a surface card header; ignored when no header is declared.
-  final double headerGap;
+  final double headerGapInPixels;
 
   /// Typed supporting metadata retained below the heading when collapsed.
   final BeakValueBinding<Object>? headerSubtitle;
@@ -283,23 +283,23 @@ class BeakColumns extends BeakFormLayout {
   const BeakColumns({
     required super.children,
     this.columns = 2,
-    this.minColumnWidth = 280,
-    this.gap = 16,
+    this.minColumnWidthInPixels = 280,
+    this.gapInPixels = 16,
     this.columnWidths = const [],
     this.padding = EdgeInsets.zero,
     super.visibleIf,
     super.enabledIf,
   }) : assert(columns > 0),
-       assert(minColumnWidth > 0);
+       assert(minColumnWidthInPixels > 0);
 
   /// Number of columns at the active responsive breakpoint.
   final int columns;
 
   /// Minimum comfortable column width before the layout stacks vertically.
-  final double minColumnWidth;
+  final double minColumnWidthInPixels;
 
   /// Gap between columns and stacked children.
-  final double gap;
+  final double gapInPixels;
 
   /// Optional fixed widths; null cells share the remaining available width.
   final List<double?> columnWidths;
@@ -319,14 +319,14 @@ class BeakSection extends BeakFormLayout {
     this.titleStyle,
     this.titleColor,
     this.trailing,
-    this.headingGap = 4,
-    this.gap = 16,
+    this.headingGapInPixels = 4,
+    this.gapInPixels = 16,
     this.divider = false,
-    this.dividerAfterSpacing = 0,
+    this.dividerAfterSpacingInPixels = 0,
     super.visibleIf,
     super.enabledIf,
-  }) : assert(headingGap >= 0),
-       assert(gap >= 0);
+  }) : assert(headingGapInPixels >= 0),
+       assert(gapInPixels >= 0);
 
   /// Section heading.
   final String title;
@@ -347,13 +347,13 @@ class BeakSection extends BeakFormLayout {
   final BeakValueBinding<Object>? trailing;
 
   /// Spacing between the heading and its supporting description.
-  final double headingGap;
+  final double headingGapInPixels;
 
   /// Spacing between the heading group and each content node.
-  final double gap;
+  final double gapInPixels;
 
   /// Additional spacing after a section separator, independent of content gaps.
-  final double dividerAfterSpacing;
+  final double dividerAfterSpacingInPixels;
 
   /// Separates this section from a preceding section with the themed divider.
   final bool divider;
@@ -365,7 +365,7 @@ class BeakTab extends BeakFormLayout {
   const BeakTab({
     required this.title,
     required super.children,
-    super.spacing,
+    super.spacingInPixels,
     this.icon,
     this.badge,
     this.showValidationBadge = true,
@@ -424,7 +424,7 @@ class BeakWizardStep extends BeakFormLayout {
     this.footerHint,
     this.footerHintBuilder,
     this.dependencies = const [],
-    super.spacing,
+    super.spacingInPixels,
     super.visibleIf,
     super.enabledIf,
   });
@@ -494,8 +494,8 @@ final class BeakFormSections {
               titleStyle: section.titleStyle,
               titleColor: section.titleColor,
               descriptionStyle: section.descriptionStyle,
-              headingGap: section.headingGap,
-              gap: section.gap,
+              headingGapInPixels: section.headingGapInPixels,
+              gapInPixels: section.gapInPixels,
               divider: section.divider,
               children: section.children,
             ),
@@ -538,16 +538,16 @@ class BeakInput<T extends Object> extends BeakFormNode {
     this.currencyScale = 2,
     this.presentation = BeakInputPresentation.automatic,
     this.choices,
-    this.choiceMinWidth,
+    this.choiceMinWidthInPixels,
     this.choiceCardPadding,
     this.groupLabelAsField = false,
     this.allowCustom = false,
     this.maxLines,
     this.placeholder,
     this.showCounter,
-    this.controlHeight,
+    this.controlHeightInPixels,
     this.multilineContentPadding,
-    this.controlWidth,
+    this.controlWidthInPixels,
     this.dateShortcuts,
     this.attributeType,
     this.attributeDefinition,
@@ -602,7 +602,7 @@ class BeakInput<T extends Object> extends BeakFormNode {
   final BeakInputChoices? choices;
 
   /// Optional minimum radio card width; cards wrap into equal-width columns.
-  final double? choiceMinWidth;
+  final double? choiceMinWidthInPixels;
 
   /// Optional padding for description-bearing choice cards.
   final EdgeInsetsGeometry? choiceCardPadding;
@@ -624,13 +624,13 @@ class BeakInput<T extends Object> extends BeakFormNode {
 
   /// Minimum editor height, excluding its label and supporting text.
   /// The editor grows naturally for larger text or multiline content.
-  final double? controlHeight;
+  final double? controlHeightInPixels;
 
   /// Optional multiline editor padding scoped to this placement.
   final EdgeInsetsGeometry? multilineContentPadding;
 
   /// Optional width for a bounded quantity control.
-  final double? controlWidth;
+  final double? controlWidthInPixels;
 
   /// Suggested calendar dates; arbitrary calendar dates remain selectable.
   final List<BeakInputOption<BeakDate>> Function(BeakFormReader)? dateShortcuts;
@@ -724,7 +724,7 @@ class BeakRelationInput extends BeakFormNode {
     this.createDescription,
     this.createIcon,
     this.disabledReason,
-    this.minCardWidth = 260,
+    this.minCardWidthInPixels = 260,
     this.defaultOption,
     this.defaultOptionMatch,
     this.selectDefaultOption = false,
@@ -735,7 +735,7 @@ class BeakRelationInput extends BeakFormNode {
     this.normalizeCode,
     this.placeholder,
     super.visibleIf,
-  }) : assert(minCardWidth > 0);
+  }) : assert(minCardWidthInPixels > 0);
 
   /// Generated typed field bound automatically to this placement.
   final BeakToOneField field;
@@ -811,7 +811,7 @@ class BeakRelationInput extends BeakFormNode {
   final BeakCalculated? selectionSummary;
 
   /// Minimum width before relation cards wrap into another row.
-  final double minCardWidth;
+  final double minCardWidthInPixels;
 
   /// Uses compact padding and a trailing selection check for cards.
   final bool compact;
@@ -861,12 +861,12 @@ class BeakRelationTable extends BeakFormNode {
     this.showAddAction = true,
     this.showColumnHeadings,
     this.rowPadding = const EdgeInsets.symmetric(vertical: 12),
-    this.rowMinHeight = 0,
-    this.rowGap = 16,
+    this.rowMinHeightInPixels = 0,
+    this.rowGapInPixels = 16,
     this.reserveActions = false,
-    this.minRowWidth = 560,
-    this.identityControlHeight,
-    this.identityControlWidth = 140,
+    this.minRowWidthInPixels = 560,
+    this.identityControlHeightInPixels,
+    this.identityControlWidthInPixels = 140,
     this.showRowDividers = true,
     this.identityFlex = 2,
     this.identityChildren = const [],
@@ -892,9 +892,12 @@ class BeakRelationTable extends BeakFormNode {
     super.visibleIf,
   }) : assert(minRows >= 0),
        assert(identityFlex > 0),
-       assert(rowMinHeight >= 0),
-       assert(minRowWidth > 0),
-       assert(identityControlHeight == null || identityControlHeight > 0);
+       assert(rowMinHeightInPixels >= 0),
+       assert(minRowWidthInPixels > 0),
+       assert(
+         identityControlHeightInPixels == null ||
+             identityControlHeightInPixels > 0,
+       );
 
   /// Generated typed field bound automatically to this placement.
   final BeakToManyField field;
@@ -922,24 +925,24 @@ class BeakRelationTable extends BeakFormNode {
   final EdgeInsetsGeometry rowPadding;
 
   /// Minimum total compact-row height; wrapped content can grow naturally.
-  final double rowMinHeight;
+  final double rowMinHeightInPixels;
 
   /// Horizontal space between identity, data columns and row actions.
-  final double rowGap;
+  final double rowGapInPixels;
 
   /// Retains the action column in read mode to align read and edit values.
   final bool reserveActions;
 
   /// Width below which compact row cells stack with their labels.
   /// Fixed cell widths may require stacking sooner to avoid clipping.
-  final double minRowWidth;
+  final double minRowWidthInPixels;
 
   /// Optional input height for controls beside compact identity metadata.
   /// Other inputs retain the surrounding theme's control size.
-  final double? identityControlHeight;
+  final double? identityControlHeightInPixels;
 
   /// Width of an inline identity control, independent of the whole row.
-  final double identityControlWidth;
+  final double identityControlWidthInPixels;
 
   /// Whether compact rows display a subtle separator above each row.
   final bool showRowDividers;
@@ -1084,7 +1087,7 @@ final class BeakRelationCatalog {
     this.footer,
     this.dependencies = const [],
     this.groupOrder,
-    this.controlHeight,
+    this.controlHeightInPixels,
     this.advancedLabel,
   }) : assert(maxOptions == null || maxOptions > 0),
        assert(
@@ -1128,7 +1131,7 @@ final class BeakRelationCatalog {
   final List<Object> Function(BeakFormReader state)? groupOrder;
 
   /// Optional compact input height; touch targets still follow the UI kit.
-  final double? controlHeight;
+  final double? controlHeightInPixels;
 
   /// Optional metadata link for selected options, including a visibility rule.
   /// Its typed dependencies belong to the catalog model and load automatically.
@@ -1210,7 +1213,7 @@ final class BeakFormPlaceholder extends BeakFormNode {
   /// Uses the UI kit's hatch surface without introducing loading state.
   const BeakFormPlaceholder({
     required this.label,
-    this.height = 96,
+    this.heightInPixels = 96,
     this.template,
     super.visibleIf,
   });
@@ -1219,7 +1222,7 @@ final class BeakFormPlaceholder extends BeakFormNode {
   final String label;
 
   /// Minimum presentation height.
-  final double height;
+  final double heightInPixels;
 
   /// Optional live preview of the record that will populate this region.
   final BeakRecordTemplate? template;
@@ -1275,14 +1278,14 @@ final class BeakSummaryLine {
     this.subtitle,
     this.visibleIf,
     this.dividerBefore = false,
-    this.dividerSpacing = 0,
+    this.dividerSpacingInPixels = 0,
     this.valueStyle,
     this.labelStyle,
     this.valueCaption,
     this.valueLabel,
     this.subtitleStyle,
-    this.subtitleGap = 2,
-    this.afterSpacing = 0,
+    this.subtitleGapInPixels = 2,
+    this.afterSpacingInPixels = 0,
     this.valueAlignment = CrossAxisAlignment.start,
   });
 
@@ -1317,7 +1320,7 @@ final class BeakSummaryLine {
 
   /// Extra vertical space on each side of [dividerBefore], in addition to the
   /// enclosing summary's regular line gap.
-  final double dividerSpacing;
+  final double dividerSpacingInPixels;
 
   /// Typography merged with the value's normal or emphasized theme variant.
   final TextStyle? valueStyle;
@@ -1333,10 +1336,10 @@ final class BeakSummaryLine {
   final TextStyle? subtitleStyle;
 
   /// Gap between the label and its secondary explanation.
-  final double subtitleGap;
+  final double subtitleGapInPixels;
 
   /// Additional space below this line, before the summary line gap.
-  final double afterSpacing;
+  final double afterSpacingInPixels;
 
   /// Alignment of a horizontal value beside its label and subtitle.
   final CrossAxisAlignment valueAlignment;
@@ -1373,18 +1376,18 @@ final class BeakFormMetrics extends BeakFormNode {
   /// Creates responsive metric cells without additional requests or state.
   const BeakFormMetrics({
     required this.metrics,
-    this.minColumnWidth = 200,
+    this.minColumnWidthInPixels = 200,
     this.padding = const EdgeInsets.all(20),
-    this.gap = 6,
+    this.gapInPixels = 6,
     this.inset = false,
     super.visibleIf,
-  }) : assert(minColumnWidth > 0);
+  }) : assert(minColumnWidthInPixels > 0);
 
   /// Interior spacing shared by all metric cells.
   final EdgeInsetsGeometry padding;
 
   /// Spacing between label, value, and description.
-  final double gap;
+  final double gapInPixels;
 
   /// Ordered metric cells.
   final List<BeakFormMetric> metrics;
@@ -1393,7 +1396,7 @@ final class BeakFormMetrics extends BeakFormNode {
   final bool inset;
 
   /// Minimum cell width before metrics wrap into another row.
-  final double minColumnWidth;
+  final double minColumnWidthInPixels;
 
   /// Dependencies loaded and capability-checked automatically.
   List<BeakFieldRef<Object>> get dependencies => [
@@ -1408,12 +1411,12 @@ final class BeakFormSummary extends BeakFormNode {
     required this.lines,
     this.title,
     this.titleStyle,
-    this.maxWidth,
+    this.maxWidthInPixels,
     this.titleColor,
     this.labelColor,
     this.alignment = AlignmentDirectional.centerStart,
-    this.gap = 12,
-    this.headingGap,
+    this.gapInPixels = 12,
+    this.headingGapInPixels,
     this.source,
     super.visibleIf,
   });
@@ -1434,16 +1437,16 @@ final class BeakFormSummary extends BeakFormNode {
   final BeakColor? labelColor;
 
   /// Optional width cap, useful for invoice totals inside a wide section.
-  final double? maxWidth;
+  final double? maxWidthInPixels;
 
   /// Placement of the capped summary within the available width.
   final AlignmentGeometry alignment;
 
   /// Vertical spacing between individual summary lines.
-  final double gap;
+  final double gapInPixels;
 
-  /// Spacing after the heading; defaults to [gap].
-  final double? headingGap;
+  /// Spacing after the heading; defaults to [gapInPixels].
+  final double? headingGapInPixels;
 
   /// Repeats [lines] for each live child draft, including staged changes.
   /// Line dependencies are relative to the child model and load automatically.
@@ -1515,8 +1518,8 @@ final class BeakFormCapacity extends BeakFormNode {
     this.showLabel = true,
     this.caption,
     this.valueLabel,
-    this.height = 4,
-    this.gap,
+    this.heightInPixels = 4,
+    this.gapInPixels,
     this.labelStyle,
     this.valueStyle,
     super.visibleIf,
@@ -1529,10 +1532,10 @@ final class BeakFormCapacity extends BeakFormNode {
   final String? subtitle;
 
   /// Track height, independent of text and available width.
-  final double height;
+  final double heightInPixels;
 
   /// Optional spacing around the track.
-  final double? gap;
+  final double? gapInPixels;
 
   /// Optional label typography for dense summaries.
   final TextStyle? labelStyle;
@@ -1619,7 +1622,7 @@ final class BeakFormProgress<T extends Enum> extends BeakFormNode {
     this.planned = false,
     this.labelStyle,
     this.timeline = false,
-    this.contextSpacing = 6,
+    this.contextSpacingInPixels = 6,
     super.visibleIf,
   }) : assert(states == null || steps == null);
 
@@ -1641,7 +1644,7 @@ final class BeakFormProgress<T extends Enum> extends BeakFormNode {
   final bool timeline;
 
   /// Spacing between milestone details and its contextual record; defaults 6.
-  final double contextSpacing;
+  final double contextSpacingInPixels;
 
   /// Optional normal workflow sequence, excluding alternate terminal states.
   final List<T>? states;
@@ -1781,11 +1784,11 @@ final class BeakFormLinks extends BeakFormNode {
 
 /// Positions authoritative model commands within a form's layout or regions.
 final class BeakFormActions extends BeakFormNode {
-  /// Null [names] displays all currently available model commands.
-  const BeakFormActions({this.names, super.visibleIf, super.enabledIf});
+  /// Null [actions] displays all currently available model commands.
+  const BeakFormActions({this.actions, super.visibleIf, super.enabledIf});
 
-  /// Explicit action names, in display order.
-  final List<String>? names;
+  /// Explicit commands, in display order.
+  final List<BeakModelAction>? actions;
 }
 
 /// Places a model command's typed argument form inline in the current screen.
@@ -1794,26 +1797,26 @@ final class BeakFormActions extends BeakFormNode {
 final class BeakFormActionInput extends BeakFormNode {
   /// [submitWithForm] reuses these arguments for the primary edit command.
   const BeakFormActionInput({
-    required this.name,
+    required this.action,
     this.layout,
     this.submitWithForm,
     this.optionalWithForm = false,
     this.description,
     this.editDescription,
     this.inlineFooter = false,
-    this.footerMinHeight = 0,
+    this.footerMinHeightInPixels = 0,
     super.visibleIf,
     super.enabledIf,
   });
 
   /// Authoritative command used by the inline button in read mode.
-  final String name;
+  final BeakModelAction action;
 
   /// Argument placements; omitted uses the command's input model conventions.
   final BeakFormLayout? layout;
 
   /// Primary edit command that accepts the same argument fields.
-  final String? submitWithForm;
+  final BeakModelAction? submitWithForm;
 
   /// Allows an entirely empty argument form when submitting with the record.
   /// The primary command's input model must also permit empty arguments.
@@ -1829,7 +1832,7 @@ final class BeakFormActionInput extends BeakFormNode {
   final bool inlineFooter;
 
   /// Optional minimum footer height across read and staged edit modes.
-  final double footerMinHeight;
+  final double footerMinHeightInPixels;
 }
 
 /// Read-only presentation for a calculated value.
@@ -1977,7 +1980,7 @@ extension BeakTextInputs on BeakScalarField<String> {
     int? maxLines,
     String? placeholder,
     bool? showCounter,
-    double? controlHeight,
+    double? controlHeightInPixels,
     EdgeInsetsGeometry? multilineContentPadding,
     List<BeakRule> validate = const [],
     List<BeakFieldValidator<String>> validators = const [],
@@ -1994,7 +1997,7 @@ extension BeakTextInputs on BeakScalarField<String> {
     maxLines: maxLines,
     placeholder: placeholder,
     showCounter: showCounter,
-    controlHeight: controlHeight,
+    controlHeightInPixels: controlHeightInPixels,
     multilineContentPadding: multilineContentPadding,
     validate: validate,
     validators: validators,
@@ -2190,7 +2193,7 @@ extension BeakToOneInputs on BeakToOneField {
   /// Presents automatically filtered options as rich radio cards.
   BeakRelationInput inputCards({
     BeakRecordTemplate? template,
-    double minCardWidth = 260,
+    double minCardWidthInPixels = 260,
     BeakToOneField? defaultOption,
     bool Function(BeakRecord option, BeakFormReader state)? defaultOptionMatch,
     bool selectDefaultOption = false,
@@ -2216,7 +2219,7 @@ extension BeakToOneInputs on BeakToOneField {
   }) => BeakRelationInput(
     field: this,
     template: template,
-    minCardWidth: minCardWidth,
+    minCardWidthInPixels: minCardWidthInPixels,
     defaultOption: defaultOption,
     defaultOptionMatch: defaultOptionMatch,
     selectDefaultOption: selectDefaultOption,
@@ -2292,12 +2295,12 @@ extension BeakToManyInputs on BeakToManyField {
     bool showAddAction = true,
     bool? showColumnHeadings,
     EdgeInsetsGeometry rowPadding = const EdgeInsets.symmetric(vertical: 12),
-    double rowMinHeight = 0,
-    double rowGap = 16,
+    double rowMinHeightInPixels = 0,
+    double rowGapInPixels = 16,
     bool reserveActions = false,
-    double minRowWidth = 560,
-    double? identityControlHeight,
-    double identityControlWidth = 140,
+    double minRowWidthInPixels = 560,
+    double? identityControlHeightInPixels,
+    double identityControlWidthInPixels = 140,
     bool showRowDividers = true,
     int identityFlex = 2,
     List<BeakFormNode> identityChildren = const [],
@@ -2331,12 +2334,12 @@ extension BeakToManyInputs on BeakToManyField {
     showAddAction: showAddAction,
     showColumnHeadings: showColumnHeadings,
     rowPadding: rowPadding,
-    rowMinHeight: rowMinHeight,
-    rowGap: rowGap,
+    rowMinHeightInPixels: rowMinHeightInPixels,
+    rowGapInPixels: rowGapInPixels,
     reserveActions: reserveActions,
-    minRowWidth: minRowWidth,
-    identityControlHeight: identityControlHeight,
-    identityControlWidth: identityControlWidth,
+    minRowWidthInPixels: minRowWidthInPixels,
+    identityControlHeightInPixels: identityControlHeightInPixels,
+    identityControlWidthInPixels: identityControlWidthInPixels,
     showRowDividers: showRowDividers,
     identityFlex: identityFlex,
     identityChildren: identityChildren,

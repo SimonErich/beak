@@ -85,8 +85,8 @@ BeakRecordTemplate customerIdentity() => BeakRecordTemplate(
     dependencies: const [],
     compute: (_) => identityPalette[1],
   ),
-  identityGap: 12,
-  textGap: 0,
+  identityGapInPixels: 12,
+  textGapInPixels: 0,
 );
 
 /// A profile exposes its organization, address and billing defaults.
@@ -104,11 +104,11 @@ BeakRecordTemplate profileIdentity() => BeakRecordTemplate(
         ? identityPalette[1]
         : identityPalette[2],
   ),
-  iconSize: 32,
-  identityGap: 12,
-  textGap: 2,
-  identityMinHeight: 48,
-  footnoteSpacing: 14,
+  iconSizeInPixels: 32,
+  identityGapInPixels: 12,
+  textGapInPixels: 2,
+  identityMinHeightInPixels: 48,
+  footnoteSpacingInPixels: 14,
   inlineSubtitle: true,
   icon: BeakValueBinding<IconData>.computed(
     dependencies: [DeliveryProfileModel.kind],
@@ -254,9 +254,9 @@ BeakRecordTemplate profileIdentity() => BeakRecordTemplate(
 
 /// Catalog options combine a dish identity with its priced variant.
 BeakRecordTemplate variantIdentity() => BeakRecordTemplate(
-  identityGap: 12,
-  identityMinHeight: 48,
-  textGap: 4,
+  identityGapInPixels: 12,
+  identityMinHeightInPixels: 48,
+  textGapInPixels: 4,
   title: BeakValueBinding.field(
     DishVariantModel.dish.name,
     textStyle: const TextStyle(fontWeight: FontWeight.w500),

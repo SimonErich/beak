@@ -201,7 +201,7 @@ void main() {
             asideFooter: screen.asideFooter,
             footer: screen.footer,
             navigation: screen.navigation,
-            submitAction: screen.submitAction?.name,
+            submitAction: screen.submitAction,
             submitLabel: screen.submitLabel,
             onSession: (value) => session = value,
             onSaved: (record) => saved = record,

@@ -12,7 +12,7 @@ BeakWizardStep dishesStep() => BeakWizardStep(
   introductionBuilder: (state, format) =>
       'From the menu plan ${state.asOrder.profile?.menuPlan?.name ?? 'for this profile'} for ${format.date((state.asOrder.deliveryDate ?? const FoodioClock().today).toDateTime(), pattern: 'EEE d MMM')}.',
   dependencies: [OrderModel.profile.menuPlan.name, OrderModel.deliveryDate],
-  spacing: 24,
+  spacingInPixels: 24,
   continueLabel: 'Continue to payment',
   description: 'From the menu plan',
   completedDescription: (state, format) {

@@ -88,7 +88,7 @@ final class BeakSummaryCapacity {
     this.warningThreshold = .95,
     this.warning,
     this.warningColor,
-    this.trackHeight = 6,
+    this.trackHeightInPixels = 6,
   });
 
   /// Booked/consumed measure.
@@ -104,7 +104,7 @@ final class BeakSummaryCapacity {
   final Color? warningColor;
 
   /// Height of the shared capacity track in logical pixels.
-  final double trackHeight;
+  final double trackHeightInPixels;
 
   /// Optional explanation evaluated against the authoritative grouped row.
   final String? Function(BeakSummaryRow row)? warning;
@@ -156,7 +156,6 @@ final class BeakSummaryBlock extends BeakBlock {
     required this.title,
     required this.query,
     required this.values,
-    this.groupField,
     this.presentation = BeakSummaryPresentation.metrics,
     this.scope = BeakSummaryScope.active,
     this.heightInPixels = 240,
@@ -181,13 +180,13 @@ final class BeakSummaryBlock extends BeakBlock {
   final String title;
 
   /// Whole-population query, independent of the visible table page.
+  ///
+  /// Its `groupBy` field is also what formats each group's label (enum
+  /// labels, dates), so the grouping is declared once.
   final BeakSummarySpec query;
 
   /// Ordered measures and their formats.
   final List<BeakSummaryValue> values;
-
-  /// Optional typed group metadata for enum/date formatting.
-  final BeakScalarField<Object>? groupField;
 
   /// Chart or summary presentation.
   final BeakSummaryPresentation presentation;

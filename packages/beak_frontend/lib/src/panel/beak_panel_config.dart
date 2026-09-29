@@ -52,9 +52,7 @@ export 'beak_resource.dart';
 ///         children: [
 ///           BeakMetricBlock(
 ///             label: 'Products',
-///             aggregate: BeakAggregateSpec.count(
-///               table: const ProductModel().table,
-///             ),
+///             aggregate: const ProductModel().count(),
 ///           ),
 ///         ],
 ///       ),

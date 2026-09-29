@@ -42,7 +42,7 @@ void main() {
     final hiddenNote = session.root.rows(_notes).single;
     hiddenNote.set(_body, 'Unsubmitted edit');
 
-    expect((await session.executeAction('addNote'))?.complete, isTrue);
+    expect((await session.executeAction(_Order.addNote))?.complete, isTrue);
 
     expect(session.root.rows(_notes).single, same(hiddenNote));
     expect(hiddenNote.read(_body), 'Unsubmitted edit');
@@ -59,7 +59,7 @@ void main() {
       await session.load();
       expect(session.root.snapshot.relations['notes']!.length, 1);
 
-      final receipt = await session.executeAction('addNote');
+      final receipt = await session.executeAction(_Order.addNote);
 
       expect(receipt?.complete, isTrue);
       expect(session.root.snapshot.relations['notes']!.map(_body.readFrom), [
@@ -79,7 +79,7 @@ void main() {
       final session = _session(source);
       addTearDown(session.dispose);
       await session.load();
-      expect((await session.executeAction('addNote'))?.hasUnknown, isTrue);
+      expect((await session.executeAction(_Order.addNote))?.hasUnknown, isTrue);
       expect(session.root.snapshot.relations['notes']!.length, 1);
 
       await session.recover();
@@ -101,7 +101,7 @@ void main() {
       addTearDown(session.dispose);
       await session.load();
 
-      final receipt = await session.executeAction('addNote');
+      final receipt = await session.executeAction(_Order.addNote);
 
       expect(receipt?.complete, isTrue);
       expect(session.saveResult.value?.complete, isTrue);
@@ -116,6 +116,7 @@ void main() {
 
 final class _Order extends BeakModel {
   const _Order();
+  static const addNote = BeakModelAction(name: 'addNote', label: 'Add note');
   static const notes = BeakHasMany(
     key: 'notes',
     label: 'Notes',
@@ -136,9 +137,7 @@ final class _Order extends BeakModel {
   @override
   List<BeakModel> get relatedModels => const [_Note()];
   @override
-  BeakModelBehavior get behavior => const BeakModelBehavior(
-    actions: [BeakModelAction(name: 'addNote', label: 'Add note')],
-  );
+  BeakModelBehavior get behavior => const BeakModelBehavior(actions: [addNote]);
 }
 
 final class _Note extends BeakModel {

@@ -9,7 +9,7 @@ final class BeakCardBlock extends BeakBlock {
     required this.child,
     this.title,
     this.subtitle,
-    this.headerGap = 16,
+    this.headerGapInPixels = 16,
     this.footer,
     super.span,
   });
@@ -24,7 +24,7 @@ final class BeakCardBlock extends BeakBlock {
   final String? subtitle;
 
   /// Space after the header; ignored when no header is declared.
-  final double headerGap;
+  final double headerGapInPixels;
 
   /// Footer content, separated from the body.
   final BeakBlock? footer;

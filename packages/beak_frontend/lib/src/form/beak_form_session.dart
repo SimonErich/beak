@@ -1175,7 +1175,7 @@ class BeakDraftRecord implements BeakDraftReader {
           if (desiredId != null &&
               _hydrationAttempts[input.field.key] != (desiredId, spec)) {
             _hydrationAttempts[input.field.key] = (desiredId, spec);
-            final request = _hydrateBinding(input, spec, desiredId);
+            final request = _hydrateBinding(input, relation, spec, desiredId);
             _selectionHydrations[input.field.key] = request;
             unawaited(request);
           }
@@ -1194,11 +1194,11 @@ class BeakDraftRecord implements BeakDraftReader {
 
   Future<void> _hydrateBinding(
     BeakRelationInput input,
+    BeakBelongsTo relation,
     BeakQuerySpec spec,
     Object id,
   ) async {
     final key = input.field.key;
-    final relation = input.field.relation as BeakBelongsTo;
     final version = (_selectionVersions[key] ?? 0) + 1;
     _selectionVersions[key] = version;
     final result = await session.repository.query(
@@ -1629,27 +1629,25 @@ class BeakFormSession {
     for (final placement in root._placements) {
       final node = placement.node;
       if (node is! BeakFormActionInput) continue;
-      if (_actionInputs.containsKey(node.name)) {
-        throw BeakConfigurationException(
-          'Duplicate inline action: ${node.name}.',
-        );
+      final name = node.action.name;
+      if (_actionInputs.containsKey(name)) {
+        throw BeakConfigurationException('Duplicate inline action: $name.');
       }
-      final action = model.behavior.action(node.name);
-      final inputModel = action.inputModel;
+      final inputModel = model.behavior.action(name).inputModel;
       if (inputModel == null) {
         throw BeakConfigurationException(
-          'Inline action ${node.name} needs an input model.',
+          'Inline action $name needs an input model.',
         );
       }
-      if (node.submitWithForm case final String name) {
-        final primary = model.behavior.action(name).inputModel;
+      if (node.submitWithForm case final BeakModelAction submitWithForm) {
+        final primary = model.behavior.action(submitWithForm.name).inputModel;
         if (primary == null || primary.table != inputModel.table) {
           throw const BeakConfigurationException(
             'Inline and primary actions must share an argument model.',
           );
         }
       }
-      _actionInputs[node.name] =
+      _actionInputs[name] =
           BeakFormSession(
               model: inputModel,
               dataSource: dataSource,
@@ -1658,7 +1656,7 @@ class BeakFormSession {
             )
             .._indicatorOwner = this
             .._onInputChanged = _changed;
-      _actionInputNodes[node.name] = node;
+      _actionInputNodes[name] = node;
     }
     _ready = true;
     _changed();
@@ -1842,29 +1840,38 @@ class BeakFormSession {
   void Function()? _onInputChanged;
 
   /// Session-owned argument draft for a declared inline command.
-  BeakFormSession actionInput(String name) =>
-      _actionInputs[name] ??
-      (throw BeakConfigurationException('No inline argument form for $name.'));
+  BeakFormSession actionInput(BeakModelAction action) =>
+      _actionInputs[action.name] ??
+      (throw BeakConfigurationException(
+        'No inline argument form for ${action.name}.',
+      ));
 
   /// Whether the command arguments already have an inline placement.
-  bool hasActionInput(String name) => _actionInputNodes.values.any(
-    (node) => node.name == name || node.submitWithForm == name,
-  );
+  bool hasActionInput(BeakModelAction action) =>
+      _actionInputNodes.values.any((node) => _feeds(node, action.name));
+
+  /// Whether an inline placement supplies the arguments of the command [name].
+  bool _feeds(BeakFormActionInput node, String name) =>
+      node.action.name == name || node.submitWithForm?.name == name;
 
   /// Validates inline arguments without opening another dialog or sending a write.
-  Future<BeakRecord?> actionArguments(String name) async {
+  Future<BeakRecord?> actionArguments(BeakModelAction action) async {
     final node = _actionInputNodes.values.firstWhere(
-      (node) => node.name == name || node.submitWithForm == name,
+      (node) => _feeds(node, action.name),
     );
     if (!root.visible(node) || !root.enabled(node)) return null;
-    final input = actionInput(node.name);
+    final input = actionInput(node.action);
     final arguments = input.root.buildRecord();
     final empty = arguments.values.values.every(
-      (value) =>
-          value.raw == null ||
-          value.raw is String && (value.raw! as String).trim().isEmpty,
+      (value) => switch (value.raw) {
+        null => true,
+        final String text => text.trim().isEmpty,
+        _ => false,
+      },
     );
-    if (node.submitWithForm == name && node.optionalWithForm && empty) {
+    if (node.submitWithForm?.name == action.name &&
+        node.optionalWithForm &&
+        empty) {
       input.root.errors.clear();
       return const BeakRecord(values: {});
     }
@@ -1875,8 +1882,8 @@ class BeakFormSession {
     final name = _pending?.action;
     if (name == null) return;
     for (final node in _actionInputNodes.values) {
-      if (node.name != name && node.submitWithForm != name) continue;
-      final input = actionInput(node.name);
+      if (!_feeds(node, name)) continue;
+      final input = actionInput(node.action);
       final unchanged = input.root.buildRecord().values.entries.every((entry) {
         final submitted = _pending?.arguments[entry.key]?.raw;
         final current = entry.value.raw;
@@ -2440,7 +2447,7 @@ class BeakFormSession {
       : BeakRecordRef.existing(draft.model.table, draft.id!);
 
   BeakSavePlan _plan({
-    String? action,
+    BeakModelAction? action,
     BeakRecord arguments = const BeakRecord(values: {}),
   }) {
     final operations = <BeakSaveOperation>[];
@@ -2560,20 +2567,21 @@ class BeakFormSession {
       saveId: '$_sessionId-${++_saveSequence}',
       root: _ref(root),
       operations: operations,
-      action: action,
+      action: action?.name,
       arguments: arguments,
     );
   }
 
   /// Validates all steps and persists a staged graph, retaining unapplied edits.
   Future<BeakSaveResult?> save({
-    String? action,
+    BeakModelAction? action,
     BeakRecord arguments = const BeakRecord(values: {}),
   }) {
     if (_loading.value || !initialized || hasStoredDraft) {
       return Future.value(null);
     }
-    if (action != null && !canExecuteAction(model.behavior.action(action))) {
+    if (action != null &&
+        !canExecuteAction(model.behavior.action(action.name))) {
       _error.value = const BeakAuthorizationException(
         'This action is not permitted.',
       );
@@ -2598,21 +2606,20 @@ class BeakFormSession {
 
   /// Executes a declared model action through the same validated graph commit.
   Future<BeakSaveResult?> executeAction(
-    String name, {
+    BeakModelAction action, {
     BeakRecord arguments = const BeakRecord(values: {}),
   }) {
-    final action = model.behavior.action(name);
-    if (!canExecuteAction(action)) {
+    if (!canExecuteAction(model.behavior.action(action.name))) {
       _error.value = const BeakValidationException(
         'This action is unavailable in the current state.',
       );
       return Future.value(null);
     }
-    return save(action: name, arguments: arguments);
+    return save(action: action, arguments: arguments);
   }
 
   Future<BeakSaveResult?> _performSave({
-    String? action,
+    BeakModelAction? action,
     required BeakRecord arguments,
   }) async {
     _submitting.value = true;

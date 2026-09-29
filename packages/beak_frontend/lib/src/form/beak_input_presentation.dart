@@ -73,7 +73,7 @@ extension BeakQuantityInputs on BeakScalarField<int> {
   /// Uses the model's minimum/maximum and the normal form validation pipeline.
   BeakInput<int> inputQuantity({
     String? label,
-    double? controlWidth,
+    double? controlWidthInPixels,
     String? description,
     List<BeakRule> validate = const [],
     List<BeakFieldValidator<int>> validators = const [],
@@ -83,7 +83,7 @@ extension BeakQuantityInputs on BeakScalarField<int> {
   }) => BeakInput(
     field: this,
     label: label,
-    controlWidth: controlWidth,
+    controlWidthInPixels: controlWidthInPixels,
     description: description,
     validate: validate,
     validators: validators,
@@ -119,7 +119,7 @@ extension BeakChoiceInputs<T extends Object> on BeakScalarField<T> {
     String? label,
     String? description,
     bool cards = false,
-    double? minCardWidth,
+    double? minCardWidthInPixels,
     EdgeInsetsGeometry? cardPadding,
     bool groupLabelAsField = false,
     BeakVisibility? visibleIf,
@@ -129,7 +129,7 @@ extension BeakChoiceInputs<T extends Object> on BeakScalarField<T> {
     label: label,
     description: description,
     choices: options,
-    choiceMinWidth: minCardWidth,
+    choiceMinWidthInPixels: minCardWidthInPixels,
     choiceCardPadding: cardPadding,
     groupLabelAsField: groupLabelAsField,
     presentation: cards

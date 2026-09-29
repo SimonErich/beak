@@ -12,6 +12,15 @@ const _title = BeakScalarField<String>(
   column: BeakStringColumn(key: 'title', label: 'Title'),
 );
 
+const _tier = BeakScalarField<_Tier>(
+  model: _PlanModel(),
+  column: _PlanModel.tier,
+);
+const _planName = BeakScalarField<String>(
+  model: _PlanModel(),
+  column: _PlanModel.name,
+);
+
 const ready = BeakSummaryMeasure.count('ready');
 const waiting = BeakSummaryMeasure.count('waiting');
 
@@ -88,6 +97,51 @@ void main() {
     },
   );
 
+  testWidgets('group labels come from the summarised field, declared once', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1300, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final source = _SummarySource(
+      groups: const [BeakStringValue('paid'), BeakStringValue('free')],
+    );
+    await tester.pumpWidget(
+      BeakPanel(
+        dataSource: source,
+        resources: [
+          BeakResource(
+            model: const _PlanModel(),
+            screens: [
+              BeakTableScreen(
+                definition: BeakListDefinition(
+                  header: BeakSummaryBlock(
+                    title: 'By tier',
+                    presentation: BeakSummaryPresentation.donut,
+                    scope: BeakSummaryScope.standalone,
+                    query: const _PlanModel().summary(
+                      groupBy: _tier,
+                      measures: [ready],
+                    ),
+                    values: const [
+                      BeakSummaryValue(measure: ready, label: 'Articles'),
+                    ],
+                  ),
+                  columns: [BeakTableColumn.field(_planName)],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    GoRouter.of(tester.element(find.byType(OiAppShell))).go('/plans');
+    await tester.pumpAndSettle();
+    final chart = tester.widget<OiDonutChart>(find.byType(OiDonutChart));
+    expect(chart.segments.map((s) => s.label), ['Paid plan', 'Free plan']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('capacity compares the used and total measures by object', (
     tester,
   ) async {
@@ -144,21 +198,50 @@ const _capacity = BeakSummaryMeasure.count('capacity');
 
 final class _SummarySource extends FakeDataSource
     implements BeakSummaryDataSource {
-  _SummarySource({this.values = const {'ready': 4, 'waiting': 2}})
-    : super(
-        records: {
-          'notes': {
-            'a': BeakRecord.fromRow({'id': 'a', 'title': 'One page'}),
-          },
-        },
-      );
+  _SummarySource({
+    this.values = const {'ready': 4, 'waiting': 2},
+    this.groups = const [BeakStringValue('a')],
+  }) : super(
+         records: {
+           'notes': {
+             'a': BeakRecord.fromRow({'id': 'a', 'title': 'One page'}),
+           },
+         },
+       );
   final Map<String, num> values;
+  final List<BeakValue> groups;
   int calls = 0;
   @override
   Future<BeakSummaryResult> summary(BeakSummarySpec spec) async {
     calls++;
     return BeakSummaryResult(
-      rows: [BeakSummaryRow(group: const BeakStringValue('a'), values: values)],
+      rows: [
+        for (final group in groups)
+          BeakSummaryRow(group: group, values: values),
+      ],
     );
   }
+}
+
+enum _Tier { free, paid }
+
+final class _PlanModel extends BeakModel {
+  const _PlanModel();
+  static const name = BeakStringColumn(key: 'name', label: 'Name');
+  static const tier = BeakEnumColumn<_Tier>(
+    key: 'tier',
+    label: 'Tier',
+    values: _Tier.values,
+    labels: {_Tier.free: 'Free plan', _Tier.paid: 'Paid plan'},
+  );
+  @override
+  String get table => 'plans';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    name,
+    tier,
+  ];
 }

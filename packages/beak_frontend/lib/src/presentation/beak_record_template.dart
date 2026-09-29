@@ -187,15 +187,15 @@ final class BeakRecordTemplate {
     this.inlineIdentity = false,
     this.inlineBadges = false,
     this.progress,
-    this.progressHeight = 4,
+    this.progressHeightInPixels = 4,
     this.progressStriped = false,
-    this.iconSize = 40,
-    this.identityGap = 8,
-    this.textGap = 4,
-    this.detailsGap = 8,
-    this.detailsSpacing = 16,
-    this.identityMinHeight = 0,
-    this.footnoteSpacing = 12,
+    this.iconSizeInPixels = 40,
+    this.identityGapInPixels = 8,
+    this.textGapInPixels = 4,
+    this.detailsGapInPixels = 8,
+    this.detailsSpacingInPixels = 16,
+    this.identityMinHeightInPixels = 0,
+    this.footnoteSpacingInPixels = 12,
     this.copyableTitle = false,
   });
 
@@ -217,25 +217,25 @@ final class BeakRecordTemplate {
   );
 
   /// Icon surface size; the glyph uses half of this value.
-  final double iconSize;
+  final double iconSizeInPixels;
 
   /// Gap between the identity surface and its text.
-  final double identityGap;
+  final double identityGapInPixels;
 
   /// Vertical spacing between the title, subtitle and badge lines.
-  final double textGap;
+  final double textGapInPixels;
 
   /// Vertical spacing between metadata rows below the identity.
-  final double detailsGap;
+  final double detailsGapInPixels;
 
   /// Space between the identity and its metadata section.
-  final double detailsSpacing;
+  final double detailsSpacingInPixels;
 
   /// Minimum identity height when a group of cards aligns its metadata rows.
-  final double identityMinHeight;
+  final double identityMinHeightInPixels;
 
   /// Space above and below the separator preceding the footnote.
-  final double footnoteSpacing;
+  final double footnoteSpacingInPixels;
 
   /// Adds an accessible clipboard action beside the primary title.
   final bool copyableTitle;
@@ -295,7 +295,7 @@ final class BeakRecordTemplate {
   final BeakValueBinding<num>? progress;
 
   /// Capacity-track geometry, independent of record data.
-  final double progressHeight;
+  final double progressHeightInPixels;
 
   /// Hatches remaining capacity while keeping the same accessible value.
   final bool progressStriped;
@@ -338,8 +338,8 @@ final class BeakTableColumn {
     required this.label,
     required BeakRecordTemplate this.template,
     this.sortBy,
-    this.width,
-    this.minWidth = 160,
+    this.widthInPixels,
+    this.minWidthInPixels = 160,
     this.textAlign = TextAlign.start,
     this.cellPadding,
   }) : actionSelector = null,
@@ -354,8 +354,8 @@ final class BeakTableColumn {
     required BeakValueBinding<String> selector,
     required Map<String, BeakActionPresentation> choices,
     BeakActionPresentation? fallback,
-    this.width,
-    this.minWidth = 160,
+    this.widthInPixels,
+    this.minWidthInPixels = 160,
     this.textAlign = TextAlign.start,
     this.cellPadding,
   }) : actionSelector = selector,
@@ -382,8 +382,8 @@ final class BeakTableColumn {
   /// Ordinary scalar shorthand with model label and formatting.
   factory BeakTableColumn.field(
     BeakScalarField<Object> field, {
-    double? width,
-    double minWidth = 160,
+    double? widthInPixels,
+    double minWidthInPixels = 160,
     TextAlign textAlign = TextAlign.start,
     EdgeInsetsGeometry? cellPadding,
   }) => BeakTableColumn(
@@ -391,8 +391,8 @@ final class BeakTableColumn {
     label: field.label,
     template: BeakRecordTemplate.fields(title: field),
     sortBy: field,
-    width: width,
-    minWidth: minWidth,
+    widthInPixels: widthInPixels,
+    minWidthInPixels: minWidthInPixels,
     textAlign: textAlign,
     cellPadding: cellPadding,
   );
@@ -410,11 +410,11 @@ final class BeakTableColumn {
   final BeakScalarField<Object>? sortBy;
 
   /// Initial width in logical pixels.
-  final double? width;
+  final double? widthInPixels;
 
   /// Readable width before a flexible column scrolls on a narrow viewport.
-  /// Explicit [width] remains authoritative.
-  final double minWidth;
+  /// Explicit [widthInPixels] remains authoritative.
+  final double minWidthInPixels;
 
   /// Alignment shared by the heading and rendered cells, for example numeric ends.
   final TextAlign textAlign;
@@ -693,7 +693,7 @@ class BeakRecordTemplateView extends StatelessWidget {
         breakpoint: context.breakpoint,
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        gap: OiResponsive<double>(template.textGap),
+        gap: OiResponsive<double>(template.textGapInPixels),
         children: [
           if (template.inlineIdentity)
             Wrap(
@@ -773,12 +773,12 @@ class BeakRecordTemplateView extends StatelessWidget {
       final leadingIdentity = template.avatar || identityIcon != null
           ? OiRow(
               breakpoint: context.breakpoint,
-              gap: OiResponsive<double>(template.identityGap),
+              gap: OiResponsive<double>(template.identityGapInPixels),
               children: [
                 if (identityIcon != null)
                   Container(
-                    width: template.iconSize,
-                    height: template.iconSize,
+                    width: template.iconSizeInPixels,
+                    height: template.iconSizeInPixels,
                     decoration: BoxDecoration(
                       color: tone?.background ?? context.colors.surfaceSubtle,
                       borderRadius: template.avatarRadius ?? context.radius.md,
@@ -786,7 +786,7 @@ class BeakRecordTemplateView extends StatelessWidget {
                     child: Center(
                       child: OiIcon.decorative(
                         icon: identityIcon,
-                        size: template.iconSize / 2,
+                        size: template.iconSizeInPixels / 2,
                         color: tone?.foreground ?? context.colors.textMuted,
                       ),
                     ),
@@ -825,11 +825,11 @@ class BeakRecordTemplateView extends StatelessWidget {
                 ],
               ],
             );
-      final identity = template.identityMinHeight == 0
+      final identity = template.identityMinHeightInPixels == 0
           ? naturalIdentity
           : ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: template.identityMinHeight,
+                minHeight: template.identityMinHeightInPixels,
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -858,7 +858,7 @@ class BeakRecordTemplateView extends StatelessWidget {
           if (part != BeakRecordTemplatePart.details) ...[
             identity,
             if (details.isNotEmpty && progress == null)
-              SizedBox(height: template.detailsSpacing),
+              SizedBox(height: template.detailsSpacingInPixels),
           ],
           if (progress != null)
             Padding(
@@ -870,7 +870,7 @@ class BeakRecordTemplateView extends StatelessWidget {
                   label: '$label progress',
                   value: progress.toDouble().clamp(0, 1),
                   max: 1,
-                  height: template.progressHeight,
+                  height: template.progressHeightInPixels,
                   stripedRemainder: template.progressStriped,
                   showLabel: false,
                   showValue: false,
@@ -879,7 +879,7 @@ class BeakRecordTemplateView extends StatelessWidget {
               ),
             ),
           for (var i = 0; i < details.length; i++) ...[
-            if (i > 0) SizedBox(height: template.detailsGap),
+            if (i > 0) SizedBox(height: template.detailsGapInPixels),
             if (i == 0 && detailsLeading != null)
               Row(
                 children: [
@@ -893,7 +893,9 @@ class BeakRecordTemplateView extends StatelessWidget {
           ],
           if (note != null && visible(note)) ...[
             Padding(
-              padding: EdgeInsets.symmetric(vertical: template.footnoteSpacing),
+              padding: EdgeInsets.symmetric(
+                vertical: template.footnoteSpacingInPixels,
+              ),
               child: SizedBox(
                 height: 1,
                 width: double.infinity,

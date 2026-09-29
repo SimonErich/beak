@@ -426,7 +426,7 @@ void main() {
           BeakTableColumn.action(
             key: 'next',
             label: 'Next step',
-            width: 180,
+            widthInPixels: 180,
             selector: BeakValueBinding.field(title),
             choices: const {
               'Note 1': BeakActionPresentation(

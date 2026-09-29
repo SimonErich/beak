@@ -203,12 +203,30 @@ void main() {
     addTearDown(session.dispose);
     await session.load();
     await session.executeAction(
-      'issue',
+      _Sale.issue,
       arguments: BeakRecord.fromRow({'reference': 'INV-2'}),
     );
     expect(source.plan?.action, 'issue');
     expect(source.plan?.arguments['reference']?.raw, 'INV-2');
     expect(source.plan?.operations.single.target.id, 's1');
+  });
+  test('commands the model does not declare are rejected', () async {
+    final session = BeakFormSession(
+      model: const _Sale(),
+      dataSource: _CommandSource(),
+      recordId: 's1',
+    );
+    addTearDown(session.dispose);
+    await session.load();
+    const foreign = BeakModelAction(name: 'refund', label: 'Refund');
+    expect(
+      () => session.executeAction(foreign),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+    expect(
+      () => session.save(action: foreign),
+      throwsA(isA<BeakConfigurationException>()),
+    );
   });
   testWidgets('action capabilities hide commands and block direct execution', (
     tester,
@@ -229,8 +247,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Issue'), findsNothing);
-    expect(await session.executeAction('issue'), isNull);
-    expect(await session.save(action: 'issue'), isNull);
+    expect(await session.executeAction(_Sale.issue), isNull);
+    expect(await session.save(action: _Sale.issue), isNull);
     expect(source.plan, isNull);
     expect(session.error.value, isA<BeakAuthorizationException>());
     expect(tester.takeException(), isNull);
@@ -458,6 +476,7 @@ const _total = BeakScalarField<int>(
 
 final class _Sale extends BeakModel {
   const _Sale();
+  static const issue = BeakModelAction(name: 'issue', label: 'Issue');
   @override
   String get table => 'sales';
   @override
@@ -483,7 +502,7 @@ final class _Sale extends BeakModel {
         resolve: (c) => (c.read(_quantity) ?? 0) * (c.read(_price) ?? 0),
       ),
     ],
-    actions: const [BeakModelAction(name: 'issue', label: 'Issue')],
+    actions: const [issue],
   );
 }
 

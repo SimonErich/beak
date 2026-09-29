@@ -133,10 +133,7 @@ final class BeakModelActionRunner {
         if (arguments == null || _disposed) {
           return const BeakModelActionOutcome(cancelled: true);
         }
-        receipt = await session.executeAction(
-          action.name,
-          arguments: arguments,
-        );
+        receipt = await session.executeAction(action, arguments: arguments);
       }
       if (receipt?.complete == true) {
         return BeakModelActionOutcome(receipt: receipt);

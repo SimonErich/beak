@@ -232,7 +232,7 @@ class BeakBlockHost extends StatelessWidget {
   }
 
   Widget _card(BeakCardBlock block) => OiCard(
-    headerGap: block.headerGap,
+    headerGap: block.headerGapInPixels,
     title: switch (block.title) {
       final String title => OiLabel.h4(title),
       null => null,

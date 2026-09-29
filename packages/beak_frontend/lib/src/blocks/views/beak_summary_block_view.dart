@@ -30,7 +30,15 @@ class _SummaryQueryView extends HookWidget {
   final BeakSummarySpec query;
   @override
   Widget build(BuildContext context) {
-    final source = beakDependencies(context)<BeakDataSource>();
+    final dependencies = beakDependencies(context);
+    final source = dependencies<BeakDataSource>();
+    final groupColumn = switch (query.groupByKey) {
+      final String key when dependencies.isRegistered<BeakModelRegistry>() =>
+        dependencies<BeakModelRegistry>()
+            .byTable(query.table)
+            ?.columnByKey(key),
+      _ => null,
+    };
     final revision = useBeakDataRevision(source, table: query.table);
     final attempt = useState(0);
     final table = useState(false);
@@ -99,11 +107,11 @@ class _SummaryQueryView extends HookWidget {
     final formatting = BeakFormatting.of(context);
     String label(BeakSummaryRow row) =>
         block.groupStyle?.call(row).label ??
-        (block.groupField == null
+        (groupColumn == null
             ? row.group.raw?.toString() ?? formatting.emptyValue
             : formatting.formatCell(
-                block.groupField!.column,
-                BeakRecord(values: {block.groupField!.column.key: row.group}),
+                groupColumn,
+                BeakRecord(values: {groupColumn.key: row.group}),
               ));
     String display(BeakSummaryRow row, BeakSummaryValue value) {
       final number = row.valueOf(value.measure);
@@ -377,7 +385,7 @@ class _SummaryQueryView extends HookWidget {
                   subtitle: block.groupStyle?.call(row).section,
                   horizontal: true,
                   trackWidth: 110,
-                  height: block.capacity!.trackHeight,
+                  height: block.capacity!.trackHeightInPixels,
                   value: row.valueOf(block.capacity!.used) ?? 0,
                   max: row.valueOf(block.capacity!.total) ?? 0,
                   color: block.groupStyle?.call(row).color,

@@ -95,7 +95,7 @@ class BeakDataTable extends HookWidget {
     this.presentations,
     this.showStatusBar = true,
     this.shrinkWrap = false,
-    this.rowHeight,
+    this.rowHeightInPixels,
     this.showBulkActionBar = true,
     this.onSelectionChanged,
     this.pageSizeOptions = const [10, 25, 50, 100],
@@ -107,7 +107,7 @@ class BeakDataTable extends HookWidget {
   final ValueChanged<BeakTableViewModel>? onViewModel;
 
   /// Optional visual row height; null follows the surrounding table theme.
-  final double? rowHeight;
+  final double? rowHeightInPixels;
 
   /// The model this table lists.
   final BeakModel model;
@@ -379,7 +379,7 @@ class BeakDataTable extends HookWidget {
               fit: shrinkWrap ? FlexFit.loose : FlexFit.tight,
               child: OiTable<BeakRecord>(
                 shrinkWrap: shrinkWrap,
-                rowHeight: rowHeight,
+                rowHeight: rowHeightInPixels,
                 label: strings.records,
                 labels: OiTableLabels(
                   rows: strings.tableRows,
@@ -474,8 +474,8 @@ class BeakDataTable extends HookWidget {
           OiTableColumn<BeakRecord>(
             id: column.key,
             header: column.label,
-            width: column.width,
-            minWidth: column.minWidth,
+            width: column.widthInPixels,
+            minWidth: column.minWidthInPixels,
             textAlign: column.textAlign,
             cellPadding: column.cellPadding,
             sortable:

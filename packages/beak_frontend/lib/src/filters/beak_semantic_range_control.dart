@@ -72,7 +72,10 @@ class BeakSemanticRangeControl extends HookWidget {
             leadingIcon: true,
             dateFormat: BeakFormatting.of(context).dateInputPattern,
             locale: BeakFormatting.of(context).locale,
-            value: (entry.$2.value as BeakDate?)?.toDateTime(),
+            value: switch (entry.$2.value) {
+              final BeakDate date => date.toDateTime(),
+              _ => null,
+            },
             onChanged: (date) {
               custom.value = false;
               entry.$2.value = date == null

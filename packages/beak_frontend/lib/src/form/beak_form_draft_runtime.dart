@@ -190,9 +190,8 @@ extension BeakFormDraftRuntime on BeakFormSession {
         submitting.value) {
       return Future.value(false);
     }
-    final snapshot = _draftDocument();
-    final document = jsonEncode(snapshot);
-    final savedAt = DateTime.parse(snapshot['savedAt']! as String);
+    final savedAt = DateTime.now().toUtc();
+    final document = jsonEncode(_draftDocument(savedAt));
     final shouldWrite = isDirty;
     var persisted = false;
     _draftWrite = _draftWrite.then((_) async {
@@ -256,10 +255,10 @@ extension BeakFormDraftRuntime on BeakFormSession {
     _notify();
   }
 
-  Map<String, Object?> _draftDocument() => {
+  Map<String, Object?> _draftDocument(DateTime savedAt) => {
     'version': drafts!.schemaVersion,
     'context': drafts!.context,
-    'savedAt': DateTime.now().toUtc().toIso8601String(),
+    'savedAt': savedAt.toIso8601String(),
     'root': _captureDraft(root),
     'actionInputs': {
       for (final entry in _actionInputs.entries)
@@ -292,7 +291,7 @@ extension BeakFormDraftRuntime on BeakFormSession {
       await config.store.write(
         config.storageKey(model.table, recordId),
         jsonEncode({
-          ..._draftDocument(),
+          ..._draftDocument(DateTime.now().toUtc()),
           'pending': safePlan,
           'operationDrafts': {
             for (final entry in _operations.entries)
@@ -366,9 +365,7 @@ extension BeakFormDraftRuntime on BeakFormSession {
     }
     draft._manualOverrides
       ..clear()
-      ..addAll(
-        (stored['overrides'] as List<Object?>? ?? []).whereType<String>(),
-      );
+      ..addAll(_draftList(stored['overrides']).whereType<String>());
     draft.removed = stored['removed'] == true;
     draft.deleteRemote = stored['deleteRemote'] == true;
     draft._needsAttach = stored['attach'] == true;
@@ -382,7 +379,7 @@ extension BeakFormDraftRuntime on BeakFormSession {
         case BeakRelationTable(:final field):
           if (!identical(draft._table(field), placement.node)) continue;
           draft._rows[field.key] = [
-            for (final row in rows[field.key] as List<Object?>? ?? [])
+            for (final row in _draftList(rows[field.key]))
               _frozenChild(
                 draft,
                 field.target,
@@ -612,7 +609,7 @@ extension BeakFormDraftRuntime on BeakFormSession {
     }
     final rows = _draftMap(stored['rows']);
     for (final entry in rows.entries) {
-      for (final row in entry.value as List<Object?>? ?? []) {
+      for (final row in _draftList(entry.value)) {
         final data = _draftMap(row);
         if (_restoredDraftIds[data['localId']]
             case final BeakDraftRecord child) {
@@ -812,6 +809,12 @@ BeakFieldRef<Object>? _placementField(BeakFormNode node) => switch (node) {
   BeakRelationInput(:final field) => field,
   BeakRelationTable(:final field) => field,
   _ => null,
+};
+
+List<Object?> _draftList(Object? value) => switch (value) {
+  null => const [],
+  final List<Object?> list => list,
+  _ => throw const FormatException('Invalid draft document'),
 };
 
 Map<String, Object?> _draftMap(Object? value) => switch (value) {

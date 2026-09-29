@@ -18,7 +18,7 @@ final class BeakQueryPreset {
     this.columns,
     this.quickFilters,
     this.defaults = const {},
-    this.rowHeight,
+    this.rowHeightInPixels,
     this.countColor = BeakColor.muted,
   });
 
@@ -45,7 +45,7 @@ final class BeakQueryPreset {
   final List<BeakFilterDef>? quickFilters;
 
   /// Optional visual row height for this preset; null inherits the table theme.
-  final double? rowHeight;
+  final double? rowHeightInPixels;
 
   /// Semantic tone of the record-count label, independent of active-tab styling.
   final BeakColor countColor;
@@ -301,8 +301,10 @@ final class BeakQueryController extends BeakViewModel {
     }.entries)
       // An empty conjunction explicitly clears a preset default. It survives
       // bookmarks, but is omitted from visible controls and server predicates.
-      if (entry.value is! BeakAndFilter ||
-          (entry.value as BeakAndFilter).filters.isNotEmpty)
+      if (switch (entry.value) {
+        BeakAndFilter(filters: []) => false,
+        _ => true,
+      })
         entry.key: entry.value,
   };
 

@@ -101,8 +101,8 @@ void main() {
             OiTableColumn(
               id: column.key,
               header: column.label,
-              width: column.width,
-              minWidth: column.minWidth,
+              width: column.widthInPixels,
+              minWidth: column.minWidthInPixels,
               textAlign: column.textAlign,
               cellPadding: column.cellPadding,
               valueGetter: (value) => '$value',

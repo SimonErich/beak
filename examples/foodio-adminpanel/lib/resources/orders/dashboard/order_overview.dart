@@ -139,7 +139,6 @@ BeakBlock orderOverview() {
             color: GabelLight.chart1,
           ),
         ],
-        groupField: OrderModel.deliveryDate,
         groupStyle: (row) {
           final date = row.group.raw.toString().substring(0, 10);
           return BeakSummaryGroupStyle(
@@ -225,7 +224,7 @@ BeakBlock orderOverview() {
           );
         },
         capacity: BeakSummaryCapacity(
-          trackHeight: 8,
+          trackHeightInPixels: 8,
           used: booked,
           total: capacity,
           warningColor: GabelLight.warning,

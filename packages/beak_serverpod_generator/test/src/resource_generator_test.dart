@@ -47,7 +47,7 @@ Future<void> main() async {
   if(form.columns.length!=40||form.formSlots?.length!=40||form.formSlots?.toSet().length!=40) throw StateError('wide command slots');
  }
  if(model.formSlots?.length!=1)throw StateError('read model slots');
- try { await model.dataSource.query(model.query().orderBy(model.primaryKey)); throw StateError('unsupported sort silently ignored'); } on BeakConfigurationException { }
+ try { await model.dataSource.query(model.query().orderBy(BeakScalarField<Object>(model: model, column: model.primaryKey))); throw StateError('unsupported sort silently ignored'); } on BeakConfigurationException { }
 
 }
 ''');

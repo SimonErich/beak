@@ -13,7 +13,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
   introductionBuilder: (state, _) =>
       "The location and delivery method come from ${customerFirstName(state)}'s profile. Pick the day and a slot with free capacity.",
   dependencies: [OrderModel.customer.name],
-  spacing: 24,
+  spacingInPixels: 24,
   continueLabel: 'Continue to dishes',
   description: 'Date, slot and location',
   completedDescription: (state, format) => [
@@ -32,7 +32,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
         height: 1.5,
         fontWeight: FontWeight.w600,
       ),
-      gap: 8,
+      gapInPixels: 8,
       trailing: BeakValueBinding<String>.computed(
         dependencies: const [],
         compute: (_) => 'Same-day orders close at 10:30.',
@@ -69,7 +69,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
       ],
     ),
     BeakFormLayout(
-      spacing: 8,
+      spacingInPixels: 8,
       children: [
         OrderModel.slot.inputCards(
           selectDefaultOption: true,
@@ -84,10 +84,10 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
                     end.hour * 60 + end.minute;
           },
           compact: true,
-          minCardWidth: 115,
+          minCardWidthInPixels: 115,
           template: BeakRecordTemplate(
             title: BeakValueBinding.field(DeliverySlotModel.name),
-            progressHeight: 8,
+            progressHeightInPixels: 8,
             progressStriped: true,
             details: [
               BeakValueBinding<String>.computed(
@@ -160,8 +160,8 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
     ),
     BeakSection(
       title: 'Location',
-      gap: 12,
-      dividerAfterSpacing: 14,
+      gapInPixels: 12,
+      dividerAfterSpacingInPixels: 14,
       trailing: BeakValueBinding<String>.computed(
         dependencies: [OrderModel.profile.organization.name],
         compute: (row) =>
@@ -181,7 +181,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
           defaultOption: OrderModel.profile.location,
           dependencies: [OrderModel.profile.location],
           template: BeakRecordTemplate(
-            textGap: 2,
+            textGapInPixels: 2,
             title: BeakValueBinding.field(
               DeliveryLocationModel.name,
               strong: true,
@@ -232,7 +232,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
           captionIcon: OiIcons.lock,
         ),
         BeakFormLayout(
-          spacing: 24,
+          spacingInPixels: 24,
           children: [
             BeakCard(
               presentation: BeakCardPresentation.plain,
@@ -284,13 +284,13 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
                 height: 1.5,
                 fontWeight: FontWeight.w600,
               ),
-              gap: 6,
+              gapInPixels: 6,
               children: [
                 OrderModel.deliveryNote.inputText(
                   label: '',
                   description: 'Printed on the delivery note for the driver.',
                   maxLines: 3,
-                  controlHeight: 88,
+                  controlHeightInPixels: 88,
                 ),
               ],
             ),

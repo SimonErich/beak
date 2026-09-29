@@ -31,15 +31,15 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
   showChangeBar: true,
   showBack: false,
   pagePadding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
-  pageGap: 24,
+  pageGapInPixels: 24,
   asideFraction: 1 / 3,
   recordHeader: BeakRecordTemplate(
     icon: const BeakValueBinding<IconData>.computed(
       dependencies: [],
       compute: orderIcon,
     ),
-    iconSize: 56,
-    identityGap: 16,
+    iconSizeInPixels: 56,
+    identityGapInPixels: 16,
     copyableTitle: true,
     title: BeakValueBinding.field(
       OrderModel.reference,
@@ -66,7 +66,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
     ],
   ),
   header: BeakFormLayout(
-    spacing: 24,
+    spacingInPixels: 24,
     children: [
       BeakModeLayout(
         read: BeakFormLayout(children: [orderChangeNotice(editing: false)]),
@@ -74,7 +74,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
       ),
       BeakFormMetrics(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        gap: 4,
+        gapInPixels: 4,
         metrics: [
           BeakFormMetric(
             valueStyle: gabelNumericMetricStyle,
@@ -164,7 +164,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
     ],
   ),
   aside: BeakFormLayout(
-    spacing: 24,
+    spacingInPixels: 24,
     children: [
       orderCustomerProfileCard(),
       BeakCard(
@@ -196,8 +196,8 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
               avatarSize: OiAvatarSize.xs,
               inlineIdentity: true,
               avatarPalette: identityPalette,
-              identityGap: 8,
-              textGap: 0,
+              identityGapInPixels: 8,
+              textGapInPixels: 0,
               inlineSubtitle: true,
               subtitle: [
                 BeakValueBinding.field(
@@ -215,13 +215,13 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
             ),
           ),
           BeakFormActionInput(
-            name: OrderActions.addNote.name,
-            submitWithForm: OrderActions.amend.name,
+            action: OrderActions.addNote,
+            submitWithForm: OrderActions.amend,
             optionalWithForm: true,
             description: 'Only staff can see internal notes.',
             editDescription: 'Saved with your other changes',
             inlineFooter: true,
-            footerMinHeight: 32,
+            footerMinHeightInPixels: 32,
             layout: BeakFormLayout(
               children: [
                 OrderNoteInputModel.body.inputText(
@@ -266,7 +266,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
           BeakTab(
             title: 'Overview',
             showValidationBadge: false,
-            spacing: 24,
+            spacingInPixels: 24,
             children: [
               BeakCard(
                 padding: const EdgeInsets.symmetric(
@@ -280,7 +280,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                       BeakProgressStep(
                         label: 'Placed',
                         details: BeakRecordTemplate(
-                          textGap: 0,
+                          textGapInPixels: 0,
                           title: BeakValueBinding.field(
                             OrderModel.placedAt.formatted(BeakValueFormat.time),
                           ),
@@ -300,7 +300,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                         state: OrderStatus.confirmed,
                         label: 'Confirmed',
                         details: BeakRecordTemplate(
-                          textGap: 0,
+                          textGapInPixels: 0,
                           title: BeakValueBinding<BeakRecord>.computed(
                             dependencies: [OrderModel.activities],
                             compute: (state) =>
@@ -332,7 +332,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                         state: OrderStatus.inKitchen,
                         label: 'In kitchen',
                         details: BeakRecordTemplate(
-                          textGap: 0,
+                          textGapInPixels: 0,
                           title: BeakValueBinding.field(
                             OrderModel.kitchenStartedAt.formatted(
                               BeakValueFormat.time,
@@ -360,7 +360,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                         state: OrderStatus.outForDelivery,
                         label: 'Out for delivery',
                         details: BeakRecordTemplate(
-                          textGap: 0,
+                          textGapInPixels: 0,
                           title: orderScheduledTime(
                             OrderModel.dispatchedAt,
                             -20,
@@ -374,7 +374,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                         state: OrderStatus.delivered,
                         label: 'Delivered',
                         details: BeakRecordTemplate(
-                          textGap: 0,
+                          textGapInPixels: 0,
                           title: orderScheduledTime(OrderModel.deliveredAt, 10),
                           subtitle: [
                             BeakValueBinding.field(OrderModel.handover),
@@ -410,7 +410,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                 children: [
                   orderItems(allowEditing: false, compact: true),
                   BeakColumns(
-                    minColumnWidth: 220,
+                    minColumnWidthInPixels: 220,
                     children: [
                       orderAllergyNotice(),
                       orderMoneySummary(title: null, compact: true),

@@ -65,7 +65,7 @@ class BeakListToolbar extends HookWidget {
       context,
       label: 'All filters',
       side: OiPanelSide.right,
-      size: definition.filterSheetWidth,
+      size: definition.filterSheetWidthInPixels,
       builder: (close) => BeakFilterEditor(
         controller: controller,
         filters: fields,

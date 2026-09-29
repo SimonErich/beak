@@ -25,7 +25,7 @@ BeakTableScreen orderList() {
         .paginate(perPage: 15),
     definition: BeakListDefinition(
       initialPreset: presets.today,
-      filterSheetWidth: 480,
+      filterSheetWidthInPixels: 480,
       recordNoun: 'orders',
       advancedFilterColumns: 2,
       advancedFilterDescription:

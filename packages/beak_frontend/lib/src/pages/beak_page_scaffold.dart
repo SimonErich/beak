@@ -23,7 +23,7 @@ final class BeakPageScaffold extends StatelessWidget {
     this.heading,
     this.showBack = true,
     this.padding,
-    this.gap,
+    this.gapInPixels,
     super.key,
   });
 
@@ -59,7 +59,7 @@ final class BeakPageScaffold extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   /// Space between page heading and body.
-  final double? gap;
+  final double? gapInPixels;
 
   @override
   Widget build(BuildContext context) {
@@ -102,9 +102,10 @@ final class BeakPageScaffold extends StatelessWidget {
           final contentWidth =
               constraints.maxWidth -
               pagePadding.resolve(Directionality.of(context)).horizontal;
-          final intrinsic = child is OiPageLayout
-              ? child as OiPageLayout
-              : null;
+          final intrinsic = switch (child) {
+            final OiPageLayout layout => layout,
+            _ => null,
+          };
           final scrollHeading =
               intrinsic != null &&
               intrinsic.scrollable &&
@@ -112,10 +113,13 @@ final class BeakPageScaffold extends StatelessWidget {
               contentWidth < intrinsic.collapseBreakpoint.minWidth;
           return OiPageLayout(
             padding: pagePadding,
-            gap: gap ?? 16,
+            gap: gapInPixels ?? 16,
             header: scrollHeading ? null : pageHeading,
             child: scrollHeading
-                ? intrinsic.prependHeader(pageHeading, headingGap: gap ?? 16)
+                ? intrinsic.prependHeader(
+                    pageHeading,
+                    headingGap: gapInPixels ?? 16,
+                  )
                 : child,
           );
         },

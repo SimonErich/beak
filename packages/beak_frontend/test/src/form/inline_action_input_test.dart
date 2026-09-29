@@ -15,8 +15,8 @@ final _layout = BeakFormLayout(
   children: [
     _title.inputText(),
     BeakFormActionInput(
-      name: 'note',
-      submitWithForm: 'amend',
+      action: _Model.note,
+      submitWithForm: _Model.amend,
       optionalWithForm: true,
       layout: BeakFormLayout(children: [_body.inputText(maxLines: 3)]),
     ),
@@ -84,7 +84,7 @@ void main() {
           composing: TextRange(start: 2, end: 7),
         ),
       );
-      session.actionInput('note').root.set(_body, 'New note');
+      session.actionInput(_Model.note).root.set(_body, 'New note');
       await tester.pumpAndSettle();
       expect(
         identical(tester.widget<EditableText>(editor).focusNode, focus),
@@ -159,7 +159,7 @@ void main() {
               children: [
                 const BeakFormPlaceholder(
                   label: 'Earlier content',
-                  height: 900,
+                  heightInPixels: 900,
                 ),
                 _title.inputText(
                   label: 'Delivery phone',
@@ -279,7 +279,7 @@ void main() {
               children: [
                 const BeakFormPlaceholder(
                   label: 'Earlier content',
-                  height: 900,
+                  heightInPixels: 900,
                 ),
                 _title.inputText(
                   label: 'Delivery phone',
@@ -522,7 +522,7 @@ void main() {
               children: [
                 const BeakFormPlaceholder(
                   label: 'Earlier content',
-                  height: 900,
+                  heightInPixels: 900,
                 ),
                 BeakInput(
                   field: _title,
@@ -566,11 +566,11 @@ void main() {
     await session.load();
     final original = session.root.read(_title);
     session.root.set(_title, 'Unsent title');
-    session.actionInput('note').root.set(_body, 'Unsent note');
+    session.actionInput(_Model.note).root.set(_body, 'Unsent note');
     expect(session.isDirty, isTrue);
     await session.discardChanges();
     expect(session.root.read(_title), original);
-    expect(session.actionInput('note').root.read(_body), isNull);
+    expect(session.actionInput(_Model.note).root.read(_body), isNull);
     expect(session.isDirty, isFalse);
     expect(session.canLeave, isTrue);
     expect(source.plans, isEmpty);
@@ -583,14 +583,17 @@ void main() {
       final session = _session(source);
       addTearDown(session.dispose);
       await session.load();
-      session.actionInput('note').root.set(_body, 'Recover this note');
+      session.actionInput(_Model.note).root.set(_body, 'Recover this note');
       await session.executeAction(
-        'amend',
-        arguments: (await session.actionArguments('amend'))!,
+        _Model.amend,
+        arguments: (await session.actionArguments(_Model.amend))!,
       );
       expect(session.hasUnknown, isTrue);
       await session.discardChanges();
-      expect(session.actionInput('note').root.read(_body), 'Recover this note');
+      expect(
+        session.actionInput(_Model.note).root.read(_body),
+        'Recover this note',
+      );
       expect(session.hasUnknown, isTrue);
     },
   );
@@ -658,23 +661,23 @@ void main() {
       addTearDown(session.dispose);
       await session.load();
       expect(session.isDirty, isFalse);
-      expect(await session.actionArguments('note'), isNull);
-      expect((await session.actionArguments('amend'))!.values, isEmpty);
-      final input = session.actionInput('note');
+      expect(await session.actionArguments(_Model.note), isNull);
+      expect((await session.actionArguments(_Model.amend))!.values, isEmpty);
+      final input = session.actionInput(_Model.note);
       input.root.set(_body, 'New note');
       expect(session.isDirty, isTrue);
       expect(session.canLeave, isFalse);
       source.fail = true;
       await session.executeAction(
-        'note',
-        arguments: (await session.actionArguments('note'))!,
+        _Model.note,
+        arguments: (await session.actionArguments(_Model.note))!,
       );
       expect(input.root.read(_body), 'New note');
       expect(session.canLeave, isFalse);
       source.fail = false;
       final result = await session.executeAction(
-        'note',
-        arguments: (await session.actionArguments('note'))!,
+        _Model.note,
+        arguments: (await session.actionArguments(_Model.note))!,
       );
       expect(result?.complete, isTrue);
       expect(input.root.read(_body), isNull);
@@ -690,9 +693,9 @@ void main() {
       final session = _session(source);
       addTearDown(session.dispose);
       await session.load();
-      session.actionInput('note').root.set(_body, 'Unsent note');
-      expect((await session.executeAction('other'))?.complete, isTrue);
-      expect(session.actionInput('note').root.read(_body), 'Unsent note');
+      session.actionInput(_Model.note).root.set(_body, 'Unsent note');
+      expect((await session.executeAction(_Model.other))?.complete, isTrue);
+      expect(session.actionInput(_Model.note).root.read(_body), 'Unsent note');
       expect(session.isDirty, isTrue);
       expect(session.canLeave, isFalse);
       expect(
@@ -714,7 +717,7 @@ void main() {
       );
       final original = _session(source, drafts: drafts);
       await original.load();
-      original.actionInput('note').root.set(_body, 'Remember');
+      original.actionInput(_Model.note).root.set(_body, 'Remember');
       expect(await original.persistDraft(), isTrue);
       original.dispose();
       final resumed = _session(source, drafts: drafts);
@@ -722,18 +725,18 @@ void main() {
       await resumed.load();
       expect(resumed.hasStoredDraft, isTrue);
       resumed.resumeDraft();
-      expect(resumed.actionInput('note').root.read(_body), 'Remember');
+      expect(resumed.actionInput(_Model.note).root.read(_body), 'Remember');
       expect(resumed.isDirty, isTrue);
       source.unknown = true;
       await resumed.executeAction(
-        'amend',
-        arguments: (await resumed.actionArguments('amend'))!,
+        _Model.amend,
+        arguments: (await resumed.actionArguments(_Model.amend))!,
       );
       expect(resumed.hasUnknown, isTrue);
-      expect(resumed.actionInput('note').root.read(_body), 'Remember');
+      expect(resumed.actionInput(_Model.note).root.read(_body), 'Remember');
       await resumed.recover();
       expect(source.plans, hasLength(1));
-      expect(resumed.actionInput('note').root.read(_body), isNull);
+      expect(resumed.actionInput(_Model.note).root.read(_body), isNull);
       expect(resumed.canLeave, isTrue);
     },
   );
@@ -753,7 +756,7 @@ void main() {
             recordId: 'one',
             layout: _layout,
             mode: BeakFormMode.read,
-            submitAction: 'amend',
+            submitAction: _Model.amend,
             onSession: (value) => session = value,
           ),
         ),
@@ -769,7 +772,7 @@ void main() {
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
       expect(find.text('Add note'), findsNothing);
-      session.actionInput('note').root.set(_body, 'With edit');
+      session.actionInput(_Model.note).root.set(_body, 'With edit');
       session.root.set(_title, 'Changed');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Amend'));
@@ -788,6 +791,17 @@ void main() {
 final class _Model extends BeakModel {
   const _Model();
   static const title = BeakStringColumn(key: 'title', label: 'Title');
+  static const note = BeakModelAction(
+    name: 'note',
+    label: 'Add note',
+    inputModel: _Arguments(),
+  );
+  static const other = BeakModelAction(name: 'other', label: 'Other action');
+  static const amend = BeakModelAction(
+    name: 'amend',
+    label: 'Amend',
+    inputModel: _Arguments(),
+  );
   @override
   String get table => 'inline_orders';
   @override
@@ -798,17 +812,8 @@ final class _Model extends BeakModel {
     title,
   ];
   @override
-  BeakModelBehavior get behavior => const BeakModelBehavior(
-    actions: [
-      BeakModelAction(
-        name: 'note',
-        label: 'Add note',
-        inputModel: _Arguments(),
-      ),
-      BeakModelAction(name: 'other', label: 'Other action'),
-      BeakModelAction(name: 'amend', label: 'Amend', inputModel: _Arguments()),
-    ],
-  );
+  BeakModelBehavior get behavior =>
+      const BeakModelBehavior(actions: [note, other, amend]);
 }
 
 final class _Arguments extends BeakModel {

@@ -634,7 +634,7 @@ void main() {
         children: [
           type.inputRadio(
             cards: true,
-            minCardWidth: 180,
+            minCardWidthInPixels: 180,
             options: (_) => const [
               BeakInputOption(
                 'number',

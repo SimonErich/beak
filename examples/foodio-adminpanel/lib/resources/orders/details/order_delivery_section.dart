@@ -131,7 +131,7 @@ BeakCard orderDeliveryCard() => BeakCard(
                 ),
               ),
               BeakFormLayout(
-                spacing: 6,
+                spacingInPixels: 6,
                 children: [
                   OrderModel.slot.inputCombobox(
                     label: 'Slot',
@@ -166,7 +166,7 @@ BeakCard orderDeliveryCard() => BeakCard(
             label: 'Delivery method',
             groupLabelAsField: true,
             cards: true,
-            minCardWidth: 180,
+            minCardWidthInPixels: 180,
             cardPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 11,

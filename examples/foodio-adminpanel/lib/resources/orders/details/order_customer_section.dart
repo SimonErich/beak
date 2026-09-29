@@ -16,9 +16,9 @@ BeakRecordTemplate _customerDetails() => BeakRecordTemplate(
   avatar: true,
   avatarSize: OiAvatarSize.md,
   avatarPalette: identityPalette,
-  identityGap: 12,
-  textGap: 0,
-  detailsGap: 4,
+  identityGapInPixels: 12,
+  textGapInPixels: 0,
+  detailsGapInPixels: 4,
   inlineSubtitle: true,
   subtitle: [
     BeakValueBinding<String>.computed(
@@ -54,8 +54,8 @@ BeakRecordTemplate _profileDetails() => BeakRecordTemplate(
         ? identityPalette[1]
         : identityPalette[2],
   ),
-  identityGap: 12,
-  textGap: 0,
+  identityGapInPixels: 12,
+  textGapInPixels: 0,
   subtitle: [
     BeakValueBinding<String>.computed(
       dependencies: [
@@ -83,7 +83,7 @@ BeakCard orderCustomerProfileCard() => BeakCard(
       read: BeakFormLayout(
         children: [
           BeakFormLayout(
-            spacing: 6,
+            spacingInPixels: 6,
             children: [
               BeakFormLinks(
                 links: [
@@ -182,7 +182,7 @@ BeakCard orderCustomerProfileCard() => BeakCard(
     ),
     BeakModeLayout(
       read: BeakFormLayout(
-        spacing: 2,
+        spacingInPixels: 2,
         children: [
           BeakCalculated(
             label: 'Payment method',
@@ -193,7 +193,7 @@ BeakCard orderCustomerProfileCard() => BeakCard(
           BeakFormTemplate(
             visibleIf: (state) => state.asOrder.invoiceId != null,
             template: BeakRecordTemplate(
-              textGap: 0,
+              textGapInPixels: 0,
               inlineBadges: true,
               title: BeakValueBinding.field(
                 OrderModel.invoice.reference,
@@ -247,13 +247,13 @@ BeakCard orderCustomerProfileCard() => BeakCard(
       ),
     ),
     BeakFormLayout(
-      spacing: 0,
+      spacingInPixels: 0,
       children: [
         BeakFormCapacity(
           label: 'Budget this month',
           valueStyle: const TextStyle(fontSize: 14, height: 10 / 7),
-          height: 8,
-          gap: 6,
+          heightInPixels: 8,
+          gapInPixels: 6,
           labelStyle: const TextStyle(
             fontSize: 12,
             height: 4 / 3,
@@ -313,7 +313,7 @@ BeakCalculated orderApprovalNotice({required bool editing}) => BeakCalculated(
 );
 
 BeakFormLayout _profileRead() => BeakFormLayout(
-  spacing: 6,
+  spacingInPixels: 6,
   children: [
     BeakFormTemplate(
       template: BeakRecordTemplate(
@@ -344,13 +344,13 @@ BeakRelationAdd _addDish({bool search = false}) => BeakRelationAdd(
 
 /// Add-item controls and a tax-aware order total under the items relation.
 BeakColumns orderDetailItemsFooter() => BeakColumns(
-  minColumnWidth: 220,
-  gap: 24,
+  minColumnWidthInPixels: 220,
+  gapInPixels: 24,
   columnWidths: const [null, 248],
   padding: const EdgeInsetsDirectional.only(end: 44),
   children: [
     BeakFormLayout(
-      spacing: 12,
+      spacingInPixels: 12,
       children: [
         BeakModeLayout(
           read: BeakFormLayout(children: [_addDish()]),
@@ -389,7 +389,7 @@ BeakColumns orderDetailItemsFooter() => BeakColumns(
       ],
     ),
     BeakFormSummary(
-      gap: 2,
+      gapInPixels: 2,
       lines: [
         BeakSummaryLine(
           label: 'Subtotal',
@@ -429,7 +429,7 @@ BeakColumns orderDetailItemsFooter() => BeakColumns(
           format: BeakValueFormat.currency,
           emphasized: true,
           dividerBefore: true,
-          dividerSpacing: 6,
+          dividerSpacingInPixels: 6,
           valueCaption: (state, format) {
             final before = OrderModel.grossCents.readFrom(
               state.draft.initialRecord,

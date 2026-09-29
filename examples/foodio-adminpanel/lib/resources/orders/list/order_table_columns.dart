@@ -15,9 +15,9 @@ List<BeakTableColumn> orderTableColumns() {
       key: 'order',
       label: 'Order',
       sortBy: OrderModel.number,
-      width: 120,
+      widthInPixels: 120,
       template: BeakRecordTemplate(
-        textGap: 0,
+        textGapInPixels: 0,
         title: BeakValueBinding.field(
           OrderModel.reference,
           monospace: true,
@@ -29,10 +29,10 @@ List<BeakTableColumn> orderTableColumns() {
     BeakTableColumn(
       key: 'customer',
       label: 'Customer',
-      width: 234,
+      widthInPixels: 234,
       template: BeakRecordTemplate(
-        textGap: 0,
-        identityGap: 12,
+        textGapInPixels: 0,
+        identityGapInPixels: 12,
         title: BeakValueBinding.field(
           OrderModel.customerName,
           textStyle: const TextStyle(fontWeight: FontWeight.w500),
@@ -56,9 +56,9 @@ List<BeakTableColumn> orderTableColumns() {
     BeakTableColumn(
       key: 'delivery',
       label: 'Delivery',
-      width: 156,
+      widthInPixels: 156,
       template: BeakRecordTemplate(
-        textGap: 0,
+        textGapInPixels: 0,
         title: orderDeliveryTitle(),
         subtitle: [orderDeliverySummary()],
       ),
@@ -67,7 +67,7 @@ List<BeakTableColumn> orderTableColumns() {
       key: 'items',
       label: 'Items',
       textAlign: TextAlign.end,
-      width: 57,
+      widthInPixels: 57,
       sortBy: OrderModel.itemCount,
       template: BeakRecordTemplate(
         title: BeakValueBinding.field(
@@ -81,7 +81,7 @@ List<BeakTableColumn> orderTableColumns() {
       label: 'Total',
       textAlign: TextAlign.end,
       sortBy: OrderModel.grossCents,
-      width: 82,
+      widthInPixels: 82,
       template: BeakRecordTemplate(
         title: BeakValueBinding.field(
           OrderModel.grossCents.currency(minorUnits: true),
@@ -91,9 +91,9 @@ List<BeakTableColumn> orderTableColumns() {
     BeakTableColumn(
       key: 'payment',
       label: 'Payment',
-      width: 140,
+      widthInPixels: 140,
       template: BeakRecordTemplate(
-        textGap: 0,
+        textGapInPixels: 0,
         title: BeakValueBinding<String>.computed(
           dependencies: [OrderModel.paymentMode],
           textOverflow: TextOverflow.visible,
@@ -105,7 +105,7 @@ List<BeakTableColumn> orderTableColumns() {
     BeakTableColumn(
       key: 'status',
       label: 'Status',
-      width: 164,
+      widthInPixels: 164,
       template: BeakRecordTemplate(title: orderStatus()),
     ),
   ];

@@ -26,7 +26,7 @@ final class BeakListDefinition {
     this.filters = const [],
     this.quickFilters = const [],
     this.quickFilterLabels = const {},
-    this.filterSheetWidth = 440,
+    this.filterSheetWidthInPixels = 440,
     this.filterDescription,
     this.advancedFilterDescription,
     this.advancedFilterColumns = 1,
@@ -102,7 +102,7 @@ final class BeakListDefinition {
   final List<BeakFilterDef> filters;
 
   /// Width of the staged filter sheet, clamped to the available viewport.
-  final double filterSheetWidth;
+  final double filterSheetWidthInPixels;
 
   /// Optional guidance below the filter sheet title.
   final String? filterDescription;

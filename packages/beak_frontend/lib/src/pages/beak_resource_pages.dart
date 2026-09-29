@@ -341,10 +341,10 @@ class BeakResourceListPage extends HookWidget {
               availableBulkActions,
             );
       final Widget table = BeakDataTable(
-        rowHeight: sharedQuery?.presets
+        rowHeightInPixels: sharedQuery?.presets
             .where((preset) => preset.key == sharedQuery.state.value.preset)
             .firstOrNull
-            ?.rowHeight,
+            ?.rowHeightInPixels,
         key: ValueKey((filter.value, generation.value)),
         model: model,
         dataSource: dataSource,
@@ -716,7 +716,7 @@ class BeakResourceShowPage extends HookWidget {
           recordId: recordId,
           mode: BeakFormMode.read,
           canEdit: resource.allowsEdit,
-          submitAction: screen.submitAction?.name,
+          submitAction: screen.submitAction,
           submitLabel: screen.submitLabel,
           submitIcon: screen.submitIcon,
           outlinedCancel: screen.outlinedCancel,
@@ -728,7 +728,7 @@ class BeakResourceShowPage extends HookWidget {
           header: screen.header,
           recordHeader: screen.recordHeader,
           aside: screen.aside,
-          asideWidth: screen.asideWidth,
+          asideWidthInPixels: screen.asideWidthInPixels,
           asideFraction: screen.asideFraction,
           asideFooter: screen.asideFooter,
           footer: screen.footer,
@@ -868,7 +868,7 @@ class BeakResourceCreatePage extends HookWidget {
           final BeakRecord record => record,
           _ => null,
         },
-        submitAction: form?.submitAction?.name,
+        submitAction: form?.submitAction,
         submitLabel: form?.submitLabel,
         submitIcon: form?.submitIcon,
         outlinedCancel: form?.outlinedCancel ?? false,
@@ -880,7 +880,7 @@ class BeakResourceCreatePage extends HookWidget {
         header: form?.header,
         recordHeader: form?.recordHeader,
         aside: form?.aside,
-        asideWidth: form?.asideWidth ?? 360,
+        asideWidthInPixels: form?.asideWidthInPixels ?? 360,
         asideFraction: form?.asideFraction,
         asideFooter: form?.asideFooter,
         footer: form?.footer,
@@ -959,7 +959,7 @@ class BeakResourceEditPage extends HookWidget {
         dataSource: dataSource,
         recordId: recordId,
         mode: BeakFormMode.edit,
-        submitAction: form?.submitAction?.name,
+        submitAction: form?.submitAction,
         submitLabel: form?.submitLabel,
         submitIcon: form?.submitIcon,
         outlinedCancel: form?.outlinedCancel ?? false,
@@ -971,7 +971,7 @@ class BeakResourceEditPage extends HookWidget {
         header: form?.header,
         recordHeader: form?.recordHeader,
         aside: form?.aside,
-        asideWidth: form?.asideWidth ?? 360,
+        asideWidthInPixels: form?.asideWidthInPixels ?? 360,
         asideFraction: form?.asideFraction,
         asideFooter: form?.asideFooter,
         footer: form?.footer,
@@ -1106,7 +1106,7 @@ _pageFrame(
     surface: false,
     showBack: form?.showBack ?? true,
     padding: form?.pagePadding,
-    gap: form?.pageGap,
+    gapInPixels: form?.pageGapInPixels,
     title: variant == OiResourcePageVariant.create
         ? BeakLocalizations.of(context).createTitle(resource.effectiveLabel)
         : session.root.snapshot[resource.model.displayColumnKey]?.raw

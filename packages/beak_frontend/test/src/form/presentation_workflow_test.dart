@@ -115,7 +115,7 @@ void main() {
             layout: BeakFormLayout(
               children: [
                 BeakFormSummary(
-                  gap: 8,
+                  gapInPixels: 8,
                   lines: [
                     BeakSummaryLine(
                       label: 'Grand total',
@@ -136,8 +136,8 @@ void main() {
                       valueAlignment: totalRole
                           ? CrossAxisAlignment.end
                           : CrossAxisAlignment.start,
-                      subtitleGap: totalRole ? 0 : 2,
-                      afterSpacing: totalRole ? 4 : 0,
+                      subtitleGapInPixels: totalRole ? 0 : 2,
+                      afterSpacingInPixels: totalRole ? 4 : 0,
                     ),
                     BeakSummaryLine(
                       label: 'Remaining budget',
@@ -294,7 +294,7 @@ void main() {
                 children: [
                   BeakFormPlaceholder(
                     label: 'Not saved yet',
-                    height: 90,
+                    heightInPixels: 90,
                     template: BeakRecordTemplate(
                       title: BeakValueBinding<String>.computed(
                         dependencies: [_title],
@@ -1033,14 +1033,14 @@ void main() {
     late BeakFormSession session;
     final input = _choice.inputCards(
       compact: true,
-      minCardWidth: 130,
+      minCardWidthInPixels: 130,
       template: BeakRecordTemplate(
         title: BeakValueBinding.field(_name),
         progress: BeakValueBinding<num>.computed(
           dependencies: [_name],
           compute: (row) => row.read(_name) == 'Coffee' ? .4 : 0,
         ),
-        progressHeight: 8,
+        progressHeightInPixels: 8,
         progressStriped: true,
       ),
       disabledReason: (row, _) => row['id']?.raw == 'sold' ? 'Full' : null,
@@ -1097,7 +1097,7 @@ void main() {
                   cardPadding: inset == null ? null : EdgeInsets.all(inset),
                   template: BeakRecordTemplate(
                     title: BeakValueBinding.field(_name),
-                    textGap: 2,
+                    textGapInPixels: 2,
                     subtitle: [
                       BeakValueBinding<String>.computed(
                         dependencies: const [],
@@ -1137,7 +1137,7 @@ void main() {
         layout: BeakFormLayout(
           children: [
             _choice.inputCards(
-              minCardWidth: 400,
+              minCardWidthInPixels: 400,
               template: BeakRecordTemplate(
                 title: BeakValueBinding.field(_name),
                 inlineSubtitle: true,
@@ -1508,7 +1508,7 @@ void main() {
             children: [
               BeakCard(
                 title: 'Card heading',
-                headerGap: gap,
+                headerGapInPixels: gap,
                 padding: const EdgeInsets.all(20),
                 children: [BeakCalculated(value: (_) => 'Card content')],
               ),
@@ -2121,7 +2121,7 @@ void main() {
           model: const _PlaceBasket(),
           dataSource: source,
           navigation: BeakWizardNavigation.rail,
-          submitAction: 'place',
+          submitAction: _PlaceBasket.place,
           submitLabel: 'Place order',
           steps: [
             BeakWizardStep(title: 'Basics', children: [_title.input()]),
@@ -2427,7 +2427,7 @@ void main() {
           layout: BeakFormLayout(
             children: [
               _title.input(),
-              const BeakFormActions(names: ['pin']),
+              const BeakFormActions(actions: [_ActionBasket.pin]),
             ],
           ),
           onSession: (value) => session = value,
@@ -2591,13 +2591,13 @@ void main() {
                 presentation: BeakRelationTablePresentation.rows,
                 showHeading: false,
                 showColumnHeadings: false,
-                rowMinHeight: 60,
-                minRowWidth: 360,
+                rowMinHeightInPixels: 60,
+                minRowWidthInPixels: 360,
                 rowPadding: const EdgeInsets.symmetric(vertical: 4),
-                identityControlHeight: 28,
+                identityControlHeightInPixels: 28,
                 columnWidths: const [80],
                 rowTemplate: BeakRecordTemplate(
-                  textGap: 0,
+                  textGapInPixels: 0,
                   title: BeakValueBinding<String>.computed(
                     dependencies: [_quantity],
                     compute: (row) => 'Line ${row.read(_quantity)}',
@@ -3035,7 +3035,7 @@ void main() {
                 children: [
                   BeakFormPlaceholder(
                     label: 'Select a customer',
-                    height: 100,
+                    heightInPixels: 100,
                     visibleIf: (state) =>
                         state.read(_title) == null ||
                         state.read(_title)!.isEmpty,
@@ -3211,12 +3211,13 @@ final class _Line extends BeakModel {
 
 final class _PlaceBasket extends _Basket {
   const _PlaceBasket();
-  @override
-  BeakModelBehavior get behavior => const BeakModelBehavior(
-    actions: [
-      BeakModelAction(name: 'place', label: 'Place', allowOnCreate: true),
-    ],
+  static const place = BeakModelAction(
+    name: 'place',
+    label: 'Place',
+    allowOnCreate: true,
   );
+  @override
+  BeakModelBehavior get behavior => const BeakModelBehavior(actions: [place]);
 }
 
 final class _CommandSource extends FakeDataSource
@@ -3299,13 +3300,11 @@ final class _DeferredSelectionSource extends FakeDataSource {
 
 final class _ActionBasket extends _Basket {
   const _ActionBasket();
+  static const pin = BeakModelAction(name: 'pin', label: 'Pin');
+  static const archive = BeakModelAction(name: 'archive', label: 'Archive');
   @override
-  BeakModelBehavior get behavior => const BeakModelBehavior(
-    actions: [
-      BeakModelAction(name: 'pin', label: 'Pin'),
-      BeakModelAction(name: 'archive', label: 'Archive'),
-    ],
-  );
+  BeakModelBehavior get behavior =>
+      const BeakModelBehavior(actions: [pin, archive]);
 }
 
 final class _FailingDraftStore implements BeakDraftStore {

@@ -18,12 +18,12 @@ BeakRelationTable orderItems({
   showAddAction: !compact,
   showColumnHeadings: !review && !compact,
   rowPadding: const EdgeInsets.symmetric(vertical: 4),
-  rowMinHeight: review ? 20 : 60,
-  rowGap: 12,
+  rowMinHeightInPixels: review ? 20 : 60,
+  rowGapInPixels: 12,
   reserveActions: compact && !review,
-  minRowWidth: review ? 360 : 560,
-  identityControlHeight: 28,
-  identityControlWidth: 144,
+  minRowWidthInPixels: review ? 360 : 560,
+  identityControlHeightInPixels: 28,
+  identityControlWidthInPixels: 144,
   identityFlex: 4,
   columnWidths: review ? const [72] : const [90, 72],
   columnAlignments: review
@@ -43,7 +43,7 @@ BeakRelationTable orderItems({
       ? BeakRelationCatalog(
           presentation: BeakCatalogPresentation.rows,
           compactToolbar: true,
-          controlHeight: 32,
+          controlHeightInPixels: 32,
           notice: orderAllergyNotice(plain: true),
           footer:
               'Not on the plan? Switch to All dishes to order anything from the full menu.',
@@ -144,8 +144,8 @@ BeakRelationTable orderItems({
         )
       : null,
   rowTemplate: BeakRecordTemplate(
-    textGap: review ? 0 : 2,
-    identityGap: 12,
+    textGapInPixels: review ? 0 : 2,
+    identityGapInPixels: 12,
     title: review
         ? BeakValueBinding<String>.computed(
             dependencies: [OrderItemModel.quantity, OrderItemModel.label],
@@ -252,7 +252,10 @@ BeakRelationTable orderItems({
   ],
   children: [
     if (!review)
-      OrderItemModel.quantity.inputQuantity(label: 'Qty', controlWidth: 90),
+      OrderItemModel.quantity.inputQuantity(
+        label: 'Qty',
+        controlWidthInPixels: 90,
+      ),
     BeakCalculated(
       valueStyle: gabelNumericMediumStyle,
       label: 'Total',
@@ -278,7 +281,7 @@ BeakRelationTable orderItems({
   advancedForm: review
       ? null
       : BeakFormLayout(
-          spacing: catalog ? 8 : 16,
+          spacingInPixels: catalog ? 8 : 16,
           children: [
             if (catalog)
               BeakCalculated(

@@ -62,7 +62,7 @@ class BeakConfiguredForm extends HookWidget {
     this.header,
     this.aside,
     this.asideFooter,
-    this.asideWidth = 360,
+    this.asideWidthInPixels = 360,
     this.asideFraction,
     this.footer,
     this.navigation = BeakWizardNavigation.inline,
@@ -96,7 +96,7 @@ class BeakConfiguredForm extends HookWidget {
   frameBuilder;
 
   /// Model command executed by the final primary action, or ordinary save.
-  final String? submitAction;
+  final BeakModelAction? submitAction;
 
   /// Optional primary button label.
   final String? submitLabel;
@@ -132,10 +132,10 @@ class BeakConfiguredForm extends HookWidget {
   final BeakFormNode? asideFooter;
 
   /// Width of the supporting column before it collapses into a sheet.
-  final double asideWidth;
+  final double asideWidthInPixels;
 
   /// Optional share of desktop content width after the gap; compact sheets use
-  /// [asideWidth]. For example, one third yields a two-to-one page layout.
+  /// [asideWidthInPixels]. For example, one third yields a two-to-one page layout.
   final double? asideFraction;
 
   /// Controlled step navigation presentation.
@@ -262,10 +262,10 @@ class BeakConfiguredForm extends HookWidget {
     final errorAnchors = useMemoized(_FormErrorRegistry.new, [session]);
     final router = GoRouter.maybeOf(context);
     final completedSteps = useState(<int>{});
-    final rootTabs =
-        layout?.children.length == 1 && layout!.children.single is BeakTabs
-        ? layout!.children.single as BeakTabs
-        : null;
+    final rootTabs = switch (layout?.children) {
+      [final BeakTabs tabs] => tabs,
+      _ => null,
+    };
     final sharedTabs = rootTabs?.acrossRegions == true ? rootTabs : null;
     final sharedTabIndex = useState(sharedTabs?.initialIndex ?? 0);
     final displayMode = useState(mode);
@@ -303,14 +303,10 @@ class BeakConfiguredForm extends HookWidget {
           );
         }
         final receipt = session.saveResult.value;
-        final primaryAction = submitAction == null
-            ? null
-            : model.behavior.actions.firstWhere(
-                (action) => action.name == submitAction,
-                orElse: () => throw BeakConfigurationException(
-                  'Unknown submit action: $submitAction.',
-                ),
-              );
+        final primaryAction = switch (submitAction) {
+          final BeakModelAction action => model.behavior.action(action.name),
+          null => null,
+        };
         Future<void> finish() async {
           if (reviewBeforeSave) {
             if (!await session.validate() || !context.mounted) return;
@@ -326,12 +322,12 @@ class BeakConfiguredForm extends HookWidget {
             if (!session.canExecuteAction(primaryAction)) return;
             final arguments = primaryAction.inputModel == null
                 ? const BeakRecord(values: {})
-                : session.hasActionInput(primaryAction.name)
-                ? await session.actionArguments(primaryAction.name)
+                : session.hasActionInput(primaryAction)
+                ? await session.actionArguments(primaryAction)
                 : await showBeakActionInput(context, session, primaryAction);
             if (arguments == null || !context.mounted) return;
             result = await session.executeAction(
-              primaryAction.name,
+              primaryAction,
               arguments: arguments,
             );
           }
@@ -520,26 +516,22 @@ class BeakConfiguredForm extends HookWidget {
           ],
         );
         final externalFrame = steps.isEmpty && frameBuilder != null;
-        final commandNames = [
+        final commandActions = [
           for (final action in model.behavior.actions)
-            if (action.name != submitAction &&
-                !_actionPlaced(
-                  session.root.layout,
-                  action.name,
-                  session.root,
-                ) &&
+            if (action.name != submitAction?.name &&
+                !_actionPlaced(session.root.layout, action, session.root) &&
                 session.canExecuteAction(action))
-              action.name,
+              action,
         ];
         final commands = _ModelActions(
           draft: session.root,
           compact: externalFrame || compactActions,
           iconOnly: compactActions,
-          names: commandNames,
+          actions: commandActions,
         );
         final actionWidgets = <Widget>[
           if (footer != null && !externalFrame) region(footer!),
-          if (commandNames.isNotEmpty &&
+          if (commandActions.isNotEmpty &&
               (readOnly ||
                   session.root.id == null ||
                   showActionsWhileEditing) &&
@@ -702,7 +694,7 @@ class BeakConfiguredForm extends HookWidget {
                   ),
               ],
             ),
-          if (commandNames.isNotEmpty &&
+          if (commandActions.isNotEmpty &&
               (readOnly ||
                   session.root.id == null ||
                   showActionsWhileEditing) &&
@@ -936,7 +928,7 @@ class BeakConfiguredForm extends HookWidget {
                           padding: EdgeInsets.zero,
                           gap: sharedTabs == null ? 16 : 24,
                           footerGap: changeBar == null ? null : 0,
-                          asideWidth: asideWidth,
+                          asideWidth: asideWidthInPixels,
                           asideFraction: asideFraction,
                           header: header == null ? null : region(header!),
                           navigation: sharedTabs == null
@@ -1146,7 +1138,7 @@ class _ReviewSectionView extends StatelessWidget {
     return OiColumn(
       breakpoint: context.breakpoint,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      gap: OiResponsive<double>(section.dividerSpacing),
+      gap: OiResponsive<double>(section.dividerSpacingInPixels),
       children: [
         Padding(
           padding: section.padding,
@@ -1224,17 +1216,19 @@ class _FormNodeView extends HookWidget {
       final BeakSection section => OiColumn(
         breakpoint: context.breakpoint,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        gap: OiResponsive<double>(section.gap),
+        gap: OiResponsive<double>(section.gapInPixels),
         children: [
           if (section.divider)
             Padding(
-              padding: EdgeInsets.only(bottom: section.dividerAfterSpacing),
+              padding: EdgeInsets.only(
+                bottom: section.dividerAfterSpacingInPixels,
+              ),
               child: OiDivider(color: context.colors.borderSubtle),
             ),
           OiColumn(
             breakpoint: context.breakpoint,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            gap: OiResponsive<double>(section.headingGap),
+            gap: OiResponsive<double>(section.headingGapInPixels),
             children: [
               LayoutBuilder(
                 builder: (context, sectionConstraints) => Row(
@@ -1304,8 +1298,9 @@ class _FormNodeView extends HookWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final count = constraints.maxWidth.isFinite
-                ? ((constraints.maxWidth + columns.gap) /
-                          (columns.minColumnWidth + columns.gap))
+                ? ((constraints.maxWidth + columns.gapInPixels) /
+                          (columns.minColumnWidthInPixels +
+                              columns.gapInPixels))
                       .floor()
                       .clamp(1, columns.columns)
                 : columns.columns;
@@ -1315,7 +1310,7 @@ class _FormNodeView extends HookWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (var index = 0; index < items.length; index++) ...[
-                    if (index > 0) SizedBox(width: columns.gap),
+                    if (index > 0) SizedBox(width: columns.gapInPixels),
                     if (index < columns.columnWidths.length &&
                         columns.columnWidths[index] != null)
                       SizedBox(
@@ -1331,7 +1326,7 @@ class _FormNodeView extends HookWidget {
             return OiGrid(
               breakpoint: context.breakpoint,
               columns: OiResponsive<int>(count),
-              gap: OiResponsive<double>(columns.gap),
+              gap: OiResponsive<double>(columns.gapInPixels),
               children: items,
             );
           },
@@ -1340,7 +1335,7 @@ class _FormNodeView extends HookWidget {
       final BeakFormLayout layout => OiColumn(
         breakpoint: context.breakpoint,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        gap: OiResponsive<double>(layout.spacing),
+        gap: OiResponsive<double>(layout.spacingInPixels),
         children: children(layout),
       ),
       final BeakFormHeader header => _FormHeaderView(
@@ -1358,7 +1353,7 @@ class _FormNodeView extends HookWidget {
       final BeakFormNotice notice => _formNotice(context, notice, reader),
       final BeakFormPlaceholder placeholder => OiHatchPlaceholder(
         label: placeholder.label,
-        height: placeholder.height,
+        height: placeholder.heightInPixels,
         child: placeholder.template == null
             ? null
             : Padding(
@@ -1374,8 +1369,8 @@ class _FormNodeView extends HookWidget {
         subtitle: capacity.subtitle,
         showValue: capacity.showValue,
         showLabel: capacity.showLabel,
-        height: capacity.height,
-        gap: capacity.gap,
+        height: capacity.heightInPixels,
+        gap: capacity.gapInPixels,
         labelStyle: capacity.labelStyle,
         valueStyle: capacity.valueStyle,
         caption: capacity.caption?.call(reader, BeakFormatting.of(context)),
@@ -1428,9 +1423,9 @@ class _FormNodeView extends HookWidget {
         draft: draft,
         readOnly: readOnly,
       ),
-      BeakFormActions(:final names) => _ModelActions(
+      BeakFormActions(:final actions) => _ModelActions(
         draft: draft,
-        names: names,
+        actions: actions,
         enabled: draft.enabled(node),
       ),
       BeakFormTemplate(:final template) => BeakRecordTemplateView(
@@ -1671,7 +1666,9 @@ class _FormSummaryView extends StatelessWidget {
       rows.add(
         Padding(
           padding: EdgeInsets.only(
-            bottom: (node.headingGap ?? node.gap) - node.gap,
+            bottom:
+                (node.headingGapInPixels ?? node.gapInPixels) -
+                node.gapInPixels,
           ),
           child: OiLabel.variant(
             node.title!,
@@ -1698,11 +1695,11 @@ class _FormSummaryView extends StatelessWidget {
             line.valueLabel?.call(source, formatting) ??
             formatting.format(line.value(source), line.format);
         if (line.dividerBefore) {
-          rows.add(OiDivider(spacing: line.dividerSpacing));
+          rows.add(OiDivider(spacing: line.dividerSpacingInPixels));
         }
         rows.add(
           Padding(
-            padding: EdgeInsets.only(bottom: line.afterSpacing),
+            padding: EdgeInsets.only(bottom: line.afterSpacingInPixels),
             child: OiKeyValue(
               label: label,
               value: value,
@@ -1714,7 +1711,7 @@ class _FormSummaryView extends StatelessWidget {
               labelWidget: OiColumn(
                 breakpoint: context.breakpoint,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                gap: OiResponsive<double>(line.subtitleGap),
+                gap: OiResponsive<double>(line.subtitleGapInPixels),
                 children: [
                   OiLabel.variant(
                     label,
@@ -1760,11 +1757,13 @@ class _FormSummaryView extends StatelessWidget {
     return Align(
       alignment: node.alignment,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: node.maxWidth ?? double.infinity),
+        constraints: BoxConstraints(
+          maxWidth: node.maxWidthInPixels ?? double.infinity,
+        ),
         child: OiColumn(
           breakpoint: context.breakpoint,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          gap: OiResponsive<double>(node.gap),
+          gap: OiResponsive<double>(node.gapInPixels),
           children: rows,
         ),
       ),
@@ -1788,7 +1787,7 @@ class _FormMetricsView extends StatelessWidget {
           0.0,
           constraints.maxWidth - 2 * (card?.borderWidth ?? 1),
         );
-        final columns = (available / node.minColumnWidth).floor().clamp(
+        final columns = (available / node.minColumnWidthInPixels).floor().clamp(
           1,
           node.metrics.length,
         );
@@ -1840,7 +1839,7 @@ class _FormMetricsView extends StatelessWidget {
                             child: OiColumn(
                               breakpoint: context.breakpoint,
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              gap: OiResponsive<double>(node.gap),
+                              gap: OiResponsive<double>(node.gapInPixels),
                               children: [
                                 OiLabel.caption(
                                   node.metrics[i].labelBuilder?.call(
@@ -2118,7 +2117,7 @@ class _ProgressView extends StatelessWidget {
                   OiColumn(
                     breakpoint: context.breakpoint,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    gap: OiResponsive<double>(node.contextSpacing),
+                    gap: OiResponsive<double>(node.contextSpacingInPixels),
                     children: [
                       if (step.details case final template?)
                         BeakRecordTemplateView(
@@ -2160,14 +2159,19 @@ class _ProgressView extends StatelessWidget {
   }
 }
 
-bool _actionPlaced(BeakFormNode node, String name, BeakDraftRecord draft) {
+bool _actionPlaced(
+  BeakFormNode node,
+  BeakModelAction action,
+  BeakDraftRecord draft,
+) {
   if (!draft.visible(node)) return false;
   return switch (node) {
-    BeakFormActions(:final names) => names == null || names.contains(name),
-    BeakFormActionInput(name: final actionName, :final submitWithForm) =>
-      actionName == name || submitWithForm == name,
+    BeakFormActions(:final actions) =>
+      actions == null || actions.any((placed) => placed.name == action.name),
+    BeakFormActionInput(action: final placed, :final submitWithForm) =>
+      placed.name == action.name || submitWithForm?.name == action.name,
     BeakFormLayout(:final children) => children.any(
-      (child) => _actionPlaced(child, name, draft),
+      (child) => _actionPlaced(child, action, draft),
     ),
     _ => false,
   };
@@ -2197,7 +2201,9 @@ class _FormErrorRegistry {
         if (focus == null) element.visitChildElements(visit);
       }
 
-      (anchor.context as Element).visitChildElements(visit);
+      if (anchor.context case final Element element) {
+        element.visitChildElements(visit);
+      }
       if (focus != null) {
         focus!.requestFocus();
         return;
@@ -2427,13 +2433,15 @@ class _InlineActionInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = draft.session;
-    final action = session.model.behavior.action(input.name);
+    final action = session.model.behavior.action(input.action.name);
     final primary = !readOnly && input.submitWithForm != null;
-    final effective = primary
-        ? session.model.behavior.action(input.submitWithForm!)
-        : action;
+    final effective = switch (input.submitWithForm) {
+      final BeakModelAction submitWithForm when primary =>
+        session.model.behavior.action(submitWithForm.name),
+      _ => action,
+    };
     if (!session.canExecuteAction(effective)) return const SizedBox.shrink();
-    final arguments = session.actionInput(input.name);
+    final arguments = session.actionInput(input.action);
     return Watch.builder(
       builder: (context) {
         arguments.revision.value;
@@ -2445,9 +2453,9 @@ class _InlineActionInput extends StatelessWidget {
             ? input.editDescription ?? input.description
             : input.description;
         Future<void> execute() async {
-          final values = await session.actionArguments(input.name);
+          final values = await session.actionArguments(input.action);
           if (values == null || !context.mounted) return;
-          await session.executeAction(input.name, arguments: values);
+          await session.executeAction(input.action, arguments: values);
         }
 
         final button = input.inlineFooter
@@ -2478,7 +2486,9 @@ class _InlineActionInput extends StatelessWidget {
             ),
             if (input.inlineFooter)
               ConstrainedBox(
-                constraints: BoxConstraints(minHeight: input.footerMinHeight),
+                constraints: BoxConstraints(
+                  minHeight: input.footerMinHeightInPixels,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -2508,14 +2518,14 @@ class _InlineActionInput extends StatelessWidget {
 class _ModelActions extends HookWidget {
   const _ModelActions({
     required this.draft,
-    this.names,
+    this.actions,
     this.enabled = true,
     this.compact = false,
     this.iconOnly = false,
   });
   final bool compact, iconOnly;
   final BeakDraftRecord draft;
-  final List<String>? names;
+  final List<BeakModelAction>? actions;
   final bool enabled;
 
   @override
@@ -2526,22 +2536,14 @@ class _ModelActions extends HookWidget {
         'Model commands belong to the root form.',
       );
     }
-    final definitions = session.model.behavior.actions;
-    final actions = names == null
-        ? definitions
-        : [
-            for (final name in names!)
-              definitions.firstWhere(
-                (action) => action.name == name,
-                orElse: () => throw BeakConfigurationException(
-                  'Unknown model command: $name.',
-                ),
-              ),
-          ];
+    final behavior = session.model.behavior;
+    final commands = actions == null
+        ? behavior.actions
+        : [for (final action in actions!) behavior.action(action.name)];
     final scope = context
         .dependOnInheritedWidgetOfExactType<_FormCommandScope>();
     final open = useState(false);
-    final available = actions.where(session.canExecuteAction).toList();
+    final available = commands.where(session.canExecuteAction).toList();
     if (available.isEmpty) return const SizedBox.shrink();
     Future<void> execute(BeakModelAction action) async {
       if (compact) {
@@ -2551,10 +2553,7 @@ class _ModelActions extends HookWidget {
       }
       final arguments = await showBeakActionInput(context, session, action);
       if (arguments == null || !context.mounted) return;
-      final result = await session.executeAction(
-        action.name,
-        arguments: arguments,
-      );
+      final result = await session.executeAction(action, arguments: arguments);
       if (result?.complete == true && !session.isDirty && context.mounted) {
         scope?.onSaved(result?.rootRecord ?? session.root.snapshot);
       }
@@ -2643,7 +2642,7 @@ class _FormCard extends HookWidget {
     final content = OiColumn(
       breakpoint: context.breakpoint,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      gap: OiResponsive<double>(card.spacing),
+      gap: OiResponsive<double>(card.spacingInPixels),
       children: [
         if (card.presentation != BeakCardPresentation.plain)
           if (card.description case final String description)
@@ -2704,7 +2703,7 @@ class _FormCard extends HookWidget {
       subtitle: metadata(card.headerSubtitle),
       trailing: metadata(card.headerTrailing),
       collapseLeading: card.collapseLeading,
-      headerGap: card.headerGap,
+      headerGap: card.headerGapInPixels,
       title: card.title == null
           ? null
           : OiLabel.variant(
@@ -2963,7 +2962,7 @@ class _ScalarInput extends HookWidget {
     if (input.presentation != BeakInputPresentation.automatic ||
         input.choices != null ||
         input.maxLines != null ||
-        input.controlHeight != null ||
+        input.controlHeightInPixels != null ||
         input.multilineContentPadding != null ||
         column.semantic.kind != BeakSemanticKind.none ||
         column is BeakJsonColumn ||
@@ -2981,8 +2980,8 @@ class _ScalarInput extends HookWidget {
         error: error,
         presentation: input.presentation,
         choices: input.choices?.call(BeakFormReader(draft)),
-        choiceMinWidth: input.choiceMinWidth,
-        controlWidth: input.controlWidth,
+        choiceMinWidthInPixels: input.choiceMinWidthInPixels,
+        controlWidthInPixels: input.controlWidthInPixels,
         choiceCardPadding: input.choiceCardPadding,
         groupLabelAsField: input.groupLabelAsField,
         allowCustom: input.allowCustom,
@@ -2992,7 +2991,7 @@ class _ScalarInput extends HookWidget {
         dateShortcuts:
             input.dateShortcuts?.call(BeakFormReader(draft)) ?? const [],
       );
-      if (input.controlHeight == null &&
+      if (input.controlHeightInPixels == null &&
           input.multilineContentPadding == null) {
         return editor;
       }
@@ -3003,7 +3002,7 @@ class _ScalarInput extends HookWidget {
             textInput:
                 (theme.components.textInput ?? const OiTextInputThemeData())
                     .copyWith(
-                      height: input.controlHeight,
+                      height: input.controlHeightInPixels,
                       multilineContentPadding: input.multilineContentPadding
                           ?.resolve(Directionality.of(context)),
                     ),
@@ -3338,7 +3337,7 @@ class _RelationChoices extends StatelessWidget {
       search: input.presentation == BeakRelationPresentation.search,
       compactResults: input.presentation == BeakRelationPresentation.search,
       grid: input.presentation == BeakRelationPresentation.cards,
-      minCardWidth: input.minCardWidth,
+      minCardWidth: input.minCardWidthInPixels,
       enabled: enabled,
       onCreate: input.exclusive
           ? null
@@ -3994,7 +3993,7 @@ class _CatalogGroup extends StatelessWidget {
               )
             : OiLabel.body(optionText(record), maxLines: 2),
       );
-      if (catalog.controlHeight != null) {
+      if (catalog.controlHeightInPixels != null) {
         final theme = OiTheme.of(context);
         variant = OiTheme(
           data: theme.copyWith(
@@ -4002,7 +4001,7 @@ class _CatalogGroup extends StatelessWidget {
               textInput:
                   (theme.components.textInput ?? const OiTextInputThemeData())
                       .copyWith(
-                        height: catalog.controlHeight,
+                        height: catalog.controlHeightInPixels,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
                         ),
@@ -4156,8 +4155,8 @@ class _CatalogGroup extends StatelessWidget {
                             start:
                                 constraints.maxWidth >= 600 &&
                                     catalog.template.icon != null
-                                ? catalog.template.iconSize +
-                                      catalog.template.identityGap
+                                ? catalog.template.iconSizeInPixels +
+                                      catalog.template.identityGapInPixels
                                 : 0,
                           ),
                           child: _InlineRelationAdvanced(
@@ -4525,9 +4524,10 @@ class _RecordOptions extends HookWidget {
           const OiProgress.linear(indeterminate: true, label: 'Loading options')
         else if (result.hasError) ...[
           OiBanner.error(
-            message: result.error is BeakException
-                ? (result.error! as BeakException).message
-                : 'Could not load options.',
+            message: switch (result.error) {
+              final BeakException error => error.message,
+              _ => 'Could not load options.',
+            },
             dismissible: false,
           ),
           OiButton.ghost(label: 'Retry options', onTap: () => retry.value++),
@@ -4718,9 +4718,9 @@ class _CompactRelationRows extends HookWidget {
             : 72.0;
         final fixedWidths = table.columnWidths.whereType<double>();
         final minWidth = fixedWidths.isEmpty
-            ? table.minRowWidth
+            ? table.minRowWidthInPixels
             : math.max(
-                table.minRowWidth,
+                table.minRowWidthInPixels,
                 fixedWidths.fold<double>(120, (sum, width) => sum + width) +
                     table.children.length * 16 +
                     controlWidth,
@@ -4813,13 +4813,13 @@ class _CompactRelationRows extends HookWidget {
                     for (final node in table.identityChildren)
                       if (row.visible(node))
                         SizedBox(
-                          width: table.identityControlWidth,
+                          width: table.identityControlWidthInPixels,
                           child: cell(node, row, identity: true),
                         ),
                   ],
                 )
               : null;
-          if (controls != null && table.identityControlHeight != null) {
+          if (controls != null && table.identityControlHeightInPixels != null) {
             final theme = OiTheme.of(context);
             controls = OiTheme(
               data: theme.copyWith(
@@ -4828,7 +4828,7 @@ class _CompactRelationRows extends HookWidget {
                       (theme.components.textInput ??
                               const OiTextInputThemeData())
                           .copyWith(
-                            height: table.identityControlHeight,
+                            height: table.identityControlHeightInPixels,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 8,
                             ),
@@ -4901,7 +4901,7 @@ class _CompactRelationRows extends HookWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: OiRow(
                   breakpoint: context.breakpoint,
-                  gap: OiResponsive<double>(table.rowGap),
+                  gap: OiResponsive<double>(table.rowGapInPixels),
                   children: [
                     Expanded(
                       flex: table.identityFlex,
@@ -4921,7 +4921,9 @@ class _CompactRelationRows extends HookWidget {
               Container(
                 key: ValueKey(row.localId),
                 padding: table.rowPadding,
-                constraints: BoxConstraints(minHeight: table.rowMinHeight),
+                constraints: BoxConstraints(
+                  minHeight: table.rowMinHeightInPixels,
+                ),
                 decoration: BoxDecoration(
                   border: table.showRowDividers
                       ? Border(
@@ -4957,7 +4959,7 @@ class _CompactRelationRows extends HookWidget {
                           )
                         : OiRow(
                             breakpoint: context.breakpoint,
-                            gap: OiResponsive<double>(table.rowGap),
+                            gap: OiResponsive<double>(table.rowGapInPixels),
                             children: [
                               Expanded(
                                 flex: table.identityFlex,

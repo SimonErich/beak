@@ -17,7 +17,7 @@ class BeakStoredImage extends HookWidget {
     required this.alt,
     this.table,
     this.client,
-    this.size = 160,
+    this.sizeInPixels = 160,
     super.key,
   });
 
@@ -37,7 +37,7 @@ class BeakStoredImage extends HookWidget {
   final BeakUploadUrlClient? client;
 
   /// Square image extent in logical pixels.
-  final double size;
+  final double sizeInPixels;
 
   @override
   Widget build(BuildContext context) {
@@ -75,14 +75,14 @@ class BeakStoredImage extends HookWidget {
     final result = useFuture(request);
     final url = direct ? uri : result.data;
     return SizedBox(
-      width: size,
-      height: size,
+      width: sizeInPixels,
+      height: sizeInPixels,
       child: url != null
           ? BeakResolvedImage(
               src: url.toString(),
               alt: alt,
-              width: size,
-              height: size,
+              width: sizeInPixels,
+              height: sizeInPixels,
               fit: BoxFit.cover,
               errorWidget: const OiIcon.decorative(icon: OiIcons.image),
             )

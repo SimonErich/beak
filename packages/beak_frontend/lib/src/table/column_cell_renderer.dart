@@ -213,7 +213,7 @@ Widget renderBeakField(
       table: field.path.isEmpty
           ? field.model.table
           : field.path.last.relatedTable,
-      size: renderContext == BeakContext.detail ? 160 : 40,
+      sizeInPixels: renderContext == BeakContext.detail ? 160 : 40,
     );
   }
   return renderBeakCell(
@@ -426,7 +426,7 @@ Widget _image(BeakColumn column, Object raw, {required int sizeInPixels}) =>
       column: column,
       storageKey: raw.toString(),
       alt: column.label,
-      size: sizeInPixels.toDouble(),
+      sizeInPixels: sizeInPixels.toDouble(),
     );
 
 Widget _relationBadges(Object raw) {

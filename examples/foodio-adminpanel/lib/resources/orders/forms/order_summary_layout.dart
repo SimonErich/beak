@@ -35,7 +35,7 @@ BeakFormLayout orderSummary() => BeakFormLayout(
           title: 'Customer and profile',
           titleStyle: _summaryLabel,
           titleColor: BeakColor.muted,
-          gap: 12,
+          gapInPixels: 12,
           children: [
             BeakFormTemplate(
               template: BeakRecordTemplate(
@@ -51,9 +51,9 @@ BeakFormLayout orderSummary() => BeakFormLayout(
                 avatar: true,
                 avatarSize: OiAvatarSize.md,
                 avatarPalette: identityPalette,
-                identityGap: 12,
-                textGap: 0,
-                detailsSpacing: 12,
+                identityGapInPixels: 12,
+                textGapInPixels: 0,
+                detailsSpacingInPixels: 12,
                 details: [
                   BeakValueBinding<String>.computed(
                     dependencies: [OrderModel.paymentMode],
@@ -85,13 +85,13 @@ BeakFormLayout orderSummary() => BeakFormLayout(
       title: 'Delivery',
       titleStyle: _summaryLabel,
       titleColor: BeakColor.muted,
-      gap: 12,
+      gapInPixels: 12,
       divider: true,
-      dividerAfterSpacing: 4,
+      dividerAfterSpacingInPixels: 4,
       children: [
         BeakFormPlaceholder(
           label: 'Delivery not set',
-          height: 76,
+          heightInPixels: 76,
           visibleIf: (state) => state.asOrder.slotId == null,
         ),
         BeakFormTemplate(
@@ -103,8 +103,8 @@ BeakFormLayout orderSummary() => BeakFormLayout(
               strong: true,
             ),
             inlineBadges: true,
-            textGap: 0,
-            detailsSpacing: 8,
+            textGapInPixels: 0,
+            detailsSpacingInPixels: 8,
             badges: [BeakValueBinding.field(OrderModel.slot.name)],
             details: [
               BeakValueBinding<String>.computed(
@@ -164,9 +164,9 @@ BeakFormLayout orderSummary() => BeakFormLayout(
       title: 'Dishes',
       titleStyle: _summaryLabel,
       titleColor: BeakColor.muted,
-      gap: 12,
+      gapInPixels: 12,
       divider: true,
-      dividerAfterSpacing: 4,
+      dividerAfterSpacingInPixels: 4,
       children: [
         BeakFormPlaceholder(
           label: 'No dishes yet',
@@ -174,7 +174,7 @@ BeakFormLayout orderSummary() => BeakFormLayout(
         ),
         BeakFormSummary(
           source: OrderModel.items,
-          gap: 8,
+          gapInPixels: 8,
           visibleIf: (state) => state.rows(OrderModel.items).isNotEmpty,
           lines: [
             BeakSummaryLine(
@@ -218,23 +218,26 @@ String _basketLabel(String? label) =>
 
 /// Totals stay visible while longer customer, delivery and dish summaries scroll.
 BeakFormLayout orderSummaryFooter() => BeakFormLayout(
-  spacing: 12,
+  spacingInPixels: 12,
   children: [
     BeakSection(
       title: 'Total and budget',
       titleStyle: _summaryLabel,
       titleColor: BeakColor.muted,
-      gap: 12,
+      gapInPixels: 12,
       visibleIf: (state) => state.rows(OrderModel.items).isEmpty,
       children: const [
-        BeakFormPlaceholder(label: 'Total not calculated yet', height: 56),
+        BeakFormPlaceholder(
+          label: 'Total not calculated yet',
+          heightInPixels: 56,
+        ),
       ],
     ),
     BeakFormTemplate(
       visibleIf: (state) =>
           state.rows(OrderModel.items).isEmpty && budgetFor(state) != null,
       template: BeakRecordTemplate(
-        detailsSpacing: 8,
+        detailsSpacingInPixels: 8,
         title: BeakValueBinding<String>.computed(
           dependencies: [OrderModel.profile.budgets],
           icon: OiIcons.wallet,
@@ -271,11 +274,11 @@ BeakFormLayout orderSummaryFooter() => BeakFormLayout(
     ),
     BeakFormSummary(
       title: 'Total and budget',
-      headingGap: 12,
+      headingGapInPixels: 12,
       titleStyle: _summaryLabel,
       titleColor: BeakColor.muted,
       labelColor: BeakColor.muted,
-      gap: 8,
+      gapInPixels: 8,
       visibleIf: (state) => state.rows(OrderModel.items).isNotEmpty,
       lines: [
         BeakSummaryLine(
@@ -319,10 +322,10 @@ BeakFormLayout orderSummaryFooter() => BeakFormLayout(
           format: BeakValueFormat.currency,
           emphasized: true,
           valueAlignment: CrossAxisAlignment.end,
-          subtitleGap: 0,
-          afterSpacing: 4,
+          subtitleGapInPixels: 0,
+          afterSpacingInPixels: 4,
           dividerBefore: true,
-          dividerSpacing: 4,
+          dividerSpacingInPixels: 4,
           subtitleStyle: gabelNumericCaptionStyle,
           valueStyle: gabelNumericTotalStyle,
           labelStyle: gabelNumericMediumStyle,
@@ -344,8 +347,8 @@ BeakFormLayout orderSummaryFooter() => BeakFormLayout(
           format: BeakValueFormat.currency,
           emphasized: true,
           valueAlignment: CrossAxisAlignment.end,
-          subtitleGap: 0,
-          afterSpacing: 4,
+          subtitleGapInPixels: 0,
+          afterSpacingInPixels: 4,
           subtitleStyle: gabelNumericCaptionStyle,
           valueStyle: gabelNumericTotalStyle,
           labelStyle: gabelNumericMediumStyle,
@@ -380,7 +383,7 @@ BeakFormLayout orderSummaryFooter() => BeakFormLayout(
       format: BeakValueFormat.currency,
       showLabel: false,
       showValue: false,
-      height: 8,
+      heightInPixels: 8,
       caption: (state, format) {
         final current = companyBudgetContribution(state);
         final available = availableBudgetForOrder(state);
@@ -413,11 +416,11 @@ BeakFormSummary orderMoneySummary({
 }) => BeakFormSummary(
   title: title,
   visibleIf: visibleIf,
-  maxWidth: compact ? 320 : null,
+  maxWidthInPixels: compact ? 320 : null,
   alignment: compact
       ? AlignmentDirectional.centerEnd
       : AlignmentDirectional.centerStart,
-  gap: compact ? 8 : 12,
+  gapInPixels: compact ? 8 : 12,
   lines: [
     if (breakdown) ...[
       BeakSummaryLine(

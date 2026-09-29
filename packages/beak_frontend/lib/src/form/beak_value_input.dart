@@ -23,10 +23,10 @@ class BeakBoundValueInput extends HookWidget {
     this.error,
     this.presentation = BeakInputPresentation.automatic,
     this.choices,
-    this.choiceMinWidth,
+    this.choiceMinWidthInPixels,
     this.choiceCardPadding,
     this.groupLabelAsField = false,
-    this.controlWidth,
+    this.controlWidthInPixels,
     this.allowCustom = false,
     this.maxLines,
     this.placeholder,
@@ -60,7 +60,7 @@ class BeakBoundValueInput extends HookWidget {
   final List<BeakInputOption<Object>>? choices;
 
   /// Minimum wrapping radio-card width; null keeps the vertical group.
-  final double? choiceMinWidth;
+  final double? choiceMinWidthInPixels;
 
   /// Optional padding for description-bearing choice cards.
   final EdgeInsetsGeometry? choiceCardPadding;
@@ -69,7 +69,7 @@ class BeakBoundValueInput extends HookWidget {
   final bool groupLabelAsField;
 
   /// Optional width of a quantity control.
-  final double? controlWidth;
+  final double? controlWidthInPixels;
 
   /// Visible text lines, or the model default.
   final int? maxLines;
@@ -99,10 +99,10 @@ class BeakBoundValueInput extends HookWidget {
       error: controller.inputErrors[column.key] ?? error,
       presentation: presentation,
       choices: choices,
-      choiceMinWidth: choiceMinWidth,
+      choiceMinWidthInPixels: choiceMinWidthInPixels,
       choiceCardPadding: choiceCardPadding,
       groupLabelAsField: groupLabelAsField,
-      controlWidth: controlWidth,
+      controlWidthInPixels: controlWidthInPixels,
       allowCustom: allowCustom,
       maxLines: maxLines,
       placeholder: placeholder,
@@ -129,10 +129,10 @@ class BeakValueInput extends HookWidget {
     this.error,
     this.presentation = BeakInputPresentation.automatic,
     this.choices,
-    this.choiceMinWidth,
+    this.choiceMinWidthInPixels,
     this.choiceCardPadding,
     this.groupLabelAsField = false,
-    this.controlWidth,
+    this.controlWidthInPixels,
     this.allowCustom = false,
     this.maxLines,
     this.placeholder,
@@ -175,7 +175,7 @@ class BeakValueInput extends HookWidget {
   final List<BeakInputOption<Object>>? choices;
 
   /// Minimum wrapping radio-card width; null keeps the vertical group.
-  final double? choiceMinWidth;
+  final double? choiceMinWidthInPixels;
 
   /// Optional padding for description-bearing choice cards.
   final EdgeInsetsGeometry? choiceCardPadding;
@@ -184,7 +184,7 @@ class BeakValueInput extends HookWidget {
   final bool groupLabelAsField;
 
   /// Optional width of a quantity control.
-  final double? controlWidth;
+  final double? controlWidthInPixels;
 
   /// Visible text lines, or the model default.
   final int? maxLines;
@@ -362,7 +362,7 @@ class BeakValueInput extends HookWidget {
           for (final option in options)
             OiRadioTile<Object>.card(
               title: option.label,
-              titleWidget: choiceMinWidth == null
+              titleWidget: choiceMinWidthInPixels == null
                   ? Wrap(
                       spacing: 12,
                       runSpacing: 4,
@@ -404,13 +404,14 @@ class BeakValueInput extends HookWidget {
             ),
         ];
         return group([
-          if (choiceMinWidth == null)
+          if (choiceMinWidthInPixels == null)
             ...cards
           else
             LayoutBuilder(
               builder: (context, constraints) {
                 final columns =
-                    ((constraints.maxWidth + 12) / (choiceMinWidth! + 12))
+                    ((constraints.maxWidth + 12) /
+                            (choiceMinWidthInPixels! + 12))
                         .floor()
                         .clamp(1, cards.length);
                 final width =
@@ -470,7 +471,10 @@ class BeakValueInput extends HookWidget {
             enabled: enabled,
             dateFormat: formatting.dateInputPattern,
             locale: formatting.locale,
-            value: value is BeakDate ? (value as BeakDate).toDateTime() : null,
+            value: switch (value) {
+              final BeakDate date => date.toDateTime(),
+              _ => null,
+            },
             presets: [
               for (final shortcut in dateShortcuts)
                 OiDatePreset(
@@ -518,7 +522,10 @@ class BeakValueInput extends HookWidget {
                       enabled: shortcut.enabled,
                     ),
                 ],
-                selected: value is BeakDate ? value as BeakDate : null,
+                selected: switch (value) {
+                  final BeakDate date => date,
+                  _ => null,
+                },
                 enabled: enabled,
                 onChanged: change,
               )
@@ -662,8 +669,11 @@ class BeakValueInput extends HookWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: OiQuantitySelector(
-              width: controlWidth,
-              value: value is int ? value as int : 0,
+              width: controlWidthInPixels,
+              value: switch (value) {
+                final int count => count,
+                _ => 0,
+              },
               label: title.isEmpty ? column.label : title,
               min: minimum,
               max: maximum,

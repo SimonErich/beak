@@ -12,7 +12,7 @@ BeakWizardStep customerAndProfileStep() => BeakWizardStep(
   heading: 'Who is this order for?',
   introduction:
       'Search a customer, then choose the profile to order with. The profile decides who pays and where the food goes.',
-  spacing: 24,
+  spacingInPixels: 24,
   continueLabel: 'Continue to delivery',
   description: 'Search, then choose a profile',
   completedDescription: (state, _) => [

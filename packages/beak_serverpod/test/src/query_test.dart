@@ -23,6 +23,8 @@ void main() {
     primaryKey: BeakStringColumn(key: 'entry.id', label: 'ID'),
     displayColumn: title,
   );
+  const titleField = BeakScalarField<Object>(model: model, column: title);
+  const statusField = BeakScalarField<Object>(model: model, column: status);
   const filter = BeakFieldFilter(
     column: status,
     operator: BeakOperator.eq,
@@ -61,13 +63,13 @@ void main() {
     final sorted = reader(
       const BeakQuerySpec(
         table: 'entries',
-      ).orderBy(status).searching('term', [title]),
+      ).orderBy(statusField).searching('term', [titleField]),
     );
     expect(sorted.sort(_Sort.values, _Sort.title), _Sort.status);
     expect(sorted.descending(true), isFalse);
     expect(sorted.search, 'term');
     final hidden = ServerpodQueryReader(
-      spec: const BeakQuerySpec(table: 'entries').orderBy(status),
+      spec: const BeakQuerySpec(table: 'entries').orderBy(statusField),
       model: model,
       fields: const {
         'title': ['one.title', 'two.title'],
@@ -105,8 +107,10 @@ void main() {
         table: 'entries',
         relationLoads: [BeakRelationLoad('items')],
       ),
-      const BeakQuerySpec(table: 'entries').orderBy(title).orderBy(status),
-      const BeakQuerySpec(table: 'entries').searching('term', [status]),
+      const BeakQuerySpec(
+        table: 'entries',
+      ).orderBy(titleField).orderBy(statusField),
+      const BeakQuerySpec(table: 'entries').searching('term', [statusField]),
     ]) {
       expect(() => reader(spec), throwsA(isA<BeakConfigurationException>()));
     }
@@ -122,7 +126,7 @@ void main() {
     );
     expect(
       () => reader(
-        const BeakQuerySpec(table: 'entries').orderBy(title),
+        const BeakQuerySpec(table: 'entries').orderBy(titleField),
       ).sort([_Sort.status], _Sort.status),
       throwsA(isA<BeakConfigurationException>()),
     );

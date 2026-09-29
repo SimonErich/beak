@@ -43,7 +43,7 @@ class BeakFormScreen extends BeakResourceScreen {
     this.recordHeader,
     this.aside,
     this.asideFooter,
-    this.asideWidth = 360,
+    this.asideWidthInPixels = 360,
     this.asideFraction,
     this.footer,
     this.fullScreen = false,
@@ -61,7 +61,7 @@ class BeakFormScreen extends BeakResourceScreen {
     this.showChangeBar = false,
     this.showBack = true,
     this.pagePadding,
-    this.pageGap,
+    this.pageGapInPixels,
     super.roles = const {BeakScreenRole.create, BeakScreenRole.edit},
   });
 
@@ -102,7 +102,7 @@ class BeakFormScreen extends BeakResourceScreen {
   final EdgeInsetsGeometry? pagePadding;
 
   /// Space between generated page heading and content.
-  final double? pageGap;
+  final double? pageGapInPixels;
 
   /// Declarative regions observing the same form draft.
   final BeakFormNode? header, aside, footer;
@@ -111,10 +111,10 @@ class BeakFormScreen extends BeakResourceScreen {
   final BeakFormNode? asideFooter;
 
   /// Width of the supporting column before it collapses into a sheet.
-  final double asideWidth;
+  final double asideWidthInPixels;
 
   /// Optional share of desktop content width after the gap; compact sheets use
-  /// [asideWidth]. For example, one third yields a two-to-one page layout.
+  /// [asideWidthInPixels]. For example, one third yields a two-to-one page layout.
   final double? asideFraction;
 
   /// Live record identity, metadata and badges in the standard page heading.
@@ -157,7 +157,7 @@ class BeakWizardScreen extends BeakFormScreen {
     super.recordHeader,
     super.aside,
     super.asideFooter,
-    super.asideWidth,
+    super.asideWidthInPixels,
     super.footer,
     super.fullScreen,
     super.navigation,
@@ -169,7 +169,7 @@ class BeakWizardScreen extends BeakFormScreen {
     super.compactActions,
     super.showBack,
     super.pagePadding,
-    super.pageGap,
+    super.pageGapInPixels,
     super.roles = const {BeakScreenRole.create, BeakScreenRole.edit},
   });
 }

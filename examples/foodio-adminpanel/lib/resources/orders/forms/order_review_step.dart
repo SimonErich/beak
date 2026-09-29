@@ -21,14 +21,14 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
   children: [
     approvalNotice(),
     BeakFormLayout(
-      spacing: 0,
+      spacingInPixels: 0,
       children: [
         BeakReviewSection(
           title: 'Customer & profile',
           stepIndex: 0,
           padding: const EdgeInsets.symmetric(vertical: 12),
           contentPadding: const EdgeInsets.only(top: 2),
-          dividerSpacing: 0,
+          dividerSpacingInPixels: 0,
           titleStyle: _reviewHeading,
           children: [
             BeakFormTemplate(
@@ -37,7 +37,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
                   OrderModel.customer.name,
                   strong: true,
                 ),
-                textGap: 0,
+                textGapInPixels: 0,
                 titleMetadata: [
                   BeakValueBinding.field(
                     OrderModel.customer.email,
@@ -64,7 +64,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
           stepIndex: 1,
           padding: const EdgeInsets.symmetric(vertical: 12),
           contentPadding: const EdgeInsets.only(top: 2),
-          dividerSpacing: 0,
+          dividerSpacingInPixels: 0,
           titleStyle: _reviewHeading,
           children: [
             BeakFormTemplate(
@@ -75,7 +75,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
                       '${const BeakFormatPolicy(locale: 'en_US', datePattern: 'EEE d MMM yyyy').format(state.read(OrderModel.deliveryDate), BeakValueFormat.date)} · ${state.read(OrderModel.slot.name) ?? '—'}',
                   strong: true,
                 ),
-                textGap: 0,
+                textGapInPixels: 0,
                 subtitle: [
                   BeakValueBinding<String>.computed(
                     dependencies: [
@@ -127,7 +127,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
           title: 'Dishes',
           stepIndex: 2,
           padding: const EdgeInsets.symmetric(vertical: 12),
-          dividerSpacing: 0,
+          dividerSpacingInPixels: 0,
           titleStyle: _reviewHeading,
           children: [
             orderItems(allowEditing: false, compact: true, review: true),
@@ -139,12 +139,12 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
           divider: false,
           padding: const EdgeInsets.symmetric(vertical: 12),
           contentPadding: const EdgeInsets.only(top: 2),
-          dividerSpacing: 0,
+          dividerSpacingInPixels: 0,
           titleStyle: _reviewHeading,
           children: [
             BeakFormTemplate(
               template: BeakRecordTemplate(
-                textGap: 0,
+                textGapInPixels: 0,
                 title: BeakValueBinding<String>.computed(
                   dependencies: [OrderModel.paymentMode, OrderModel.costCenter],
                   compute: (state) => [
@@ -181,9 +181,9 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
       ],
     ),
     BeakFormMetrics(
-      minColumnWidth: 120,
+      minColumnWidthInPixels: 120,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      gap: 2,
+      gapInPixels: 2,
       inset: true,
       metrics: [
         BeakFormMetric(
@@ -237,7 +237,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
     ),
     BeakFormPlaceholder(
       label: 'A new order will be created',
-      height: 90,
+      heightInPixels: 90,
       template: BeakRecordTemplate(
         title: BeakValueBinding<String>.computed(
           dependencies: const [],
@@ -276,9 +276,9 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
           dependencies: const [],
           compute: (_) => OiIcons.packageCheck,
         ),
-        iconSize: 32,
-        identityGap: 12,
-        textGap: 2,
+        iconSizeInPixels: 32,
+        identityGapInPixels: 12,
+        textGapInPixels: 2,
       ),
     ),
   ],
@@ -325,7 +325,7 @@ BeakFormLayout orderReviewAside() => BeakFormLayout(
           field: OrderModel.status,
           planned: true,
           timeline: true,
-          contextSpacing: 8,
+          contextSpacingInPixels: 8,
           labelStyle: const TextStyle(
             fontWeight: FontWeight.w500,
             height: 24 / 14,
@@ -386,8 +386,8 @@ BeakFormLayout orderReviewAside() => BeakFormLayout(
                   dependencies: const [],
                   compute: (_) => identityPalette[1],
                 ),
-                identityGap: 8,
-                textGap: 0,
+                identityGapInPixels: 8,
+                textGapInPixels: 0,
               ),
             ),
             BeakProgressStep(

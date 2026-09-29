@@ -47,7 +47,7 @@ Future<Response> _readiness(
     return _json(200, {'status': 'ok', 'detail': 'no models registered'});
   }
   try {
-    await dataSource.aggregate(BeakAggregateSpec.count(table: probe.table));
+    await dataSource.aggregate(probe.count());
     return _json(200, {'status': 'ok'});
   } on Object catch (error, stackTrace) {
     // Any failure at all means "do not send me traffic".
