@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/io.dart';
+import 'package:beak_test/beak_test.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -46,10 +47,48 @@ final class _RefusingRunner implements BeakTransformRunner {
   const _RefusingRunner();
 
   @override
+  Future<BeakDimensions> inspect(Uint8List source) async =>
+      const BeakDimensions.square(1);
+
+  @override
   Future<BeakTransformedImage> run(
     Uint8List source,
     List<BeakImageTransform> pipeline,
   ) async => throw const BeakValidationException('refused by the test runner');
+}
+
+/// A driver that signs links: the URL it hands out carries the lifetime it
+/// was asked for, the way a presigning S3 driver does.
+final class _SigningStorage implements BeakStorageDriver {
+  _SigningStorage() : _files = BeakMemoryStorageDriver();
+
+  final BeakMemoryStorageDriver _files;
+
+  @override
+  String get id => 'signing';
+
+  @override
+  Future<BeakStoredFile> put(BeakUpload upload, {required String path}) =>
+      _files.put(upload, path: path);
+
+  @override
+  Future<Uint8List> get(String key) => _files.get(key);
+
+  @override
+  Future<void> delete(String key) => _files.delete(key);
+
+  @override
+  Future<bool> exists(String key) => _files.exists(key);
+
+  @override
+  Future<Uri> url(String key, {Duration? expiresIn}) async {
+    final Uri base = await _files.url(key);
+    return expiresIn == null
+        ? base
+        : base.replace(
+            queryParameters: {'expiresInSeconds': '${expiresIn.inSeconds}'},
+          );
+  }
 }
 
 void main() {
@@ -340,6 +379,118 @@ void main() {
 
       expect(response.statusCode, 422);
       expect(await response.readAsString(), contains('refused by the test'));
+    });
+
+    test('serves a storage driver handed to build', () {
+      final custom = BeakMemoryStorageDriver();
+      final server = host(
+        configure: (defaults) => defaults.build(storage: custom),
+      ).buildServer(adapter: adapter, storage: BeakMemoryStorageDriver());
+
+      expect(server.storage, same(custom));
+    });
+
+    test('keeps the resolved storage driver when none is handed over', () {
+      final resolved = BeakMemoryStorageDriver();
+      final server = host(
+        configure: (defaults) => defaults.build(),
+      ).buildServer(adapter: adapter, storage: resolved);
+
+      expect(server.storage, same(resolved));
+    });
+
+    test('serves a data source handed to build', () async {
+      final registry = createApiRegistry();
+      final source = InMemoryBeakDataSource(registry: registry)
+        ..seed(const NoteModel(), [
+          BeakRecord.fromRow({'id': 'n1', 'title': 'From memory'}),
+        ]);
+      final server = host(
+        configure: (defaults) => defaults.build(dataSource: source),
+      ).buildServer(adapter: adapter);
+
+      final response = await send(
+        server,
+        'POST',
+        '/api/notes/query',
+        body: const BeakQuerySpec(table: 'notes').toJson(),
+      );
+
+      expect(server.dataSource, same(source));
+      expect(response.statusCode, 200);
+      expect(await response.readAsString(), contains('From memory'));
+    });
+
+    test('signs upload links for the configured lifetime', () async {
+      Future<Map<String, Object?>> signedLink(
+        BeakServerCustomizer configure,
+      ) async {
+        final server = host(
+          configure: configure,
+        ).buildServer(adapter: adapter, storage: _SigningStorage());
+        const boundary = 'beak-signed-boundary';
+        final uploaded = await server.handler(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/notes/attachment/upload'),
+            headers: {
+              'content-type': 'multipart/form-data; boundary=$boundary',
+            },
+            body: [
+              ...utf8.encode(
+                '--$boundary\r\n'
+                'content-disposition: form-data; name="file"; '
+                'filename="a.pdf"\r\n'
+                'content-type: application/pdf\r\n\r\n',
+              ),
+              ...utf8.encode('%PDF-1.4'),
+              ...utf8.encode('\r\n--$boundary--\r\n'),
+            ],
+          ),
+        );
+        final stored = await bodyOf(uploaded);
+        final Object? key = stored['key'];
+        return bodyOf(
+          await send(
+            server,
+            'GET',
+            '/api/notes/attachment/upload?key=${Uri.encodeQueryComponent('$key')}',
+          ),
+        );
+      }
+
+      final defaulted = await signedLink((defaults) => defaults.build());
+      final custom = await signedLink(
+        (defaults) =>
+            defaults.build(signedUrlLifetime: const Duration(minutes: 5)),
+      );
+
+      expect('${defaulted['url']}', contains('expiresInSeconds=3600'));
+      expect('${custom['url']}', contains('expiresInSeconds=300'));
+    });
+
+    test('serves pages no larger than maxPerPage', () async {
+      final server = host(
+        configure: (defaults) => defaults.build(maxPerPage: 2),
+      ).buildServer(adapter: adapter);
+      for (final title in ['a', 'b', 'c']) {
+        await send(server, 'POST', '/api/notes', body: {'title': title});
+      }
+
+      final response = await send(
+        server,
+        'POST',
+        '/api/notes/query',
+        body: const BeakQuerySpec(
+          table: 'notes',
+          pagination: BeakPagination(perPage: 100),
+        ).toJson(),
+      );
+      final body = await bodyOf(response);
+
+      expect(body['items'], hasLength(2));
+      expect(body['perPage'], 2);
+      expect(body['total'], 3);
     });
 
     test('carries the outbox schedule to the server', () {

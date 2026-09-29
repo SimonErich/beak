@@ -297,6 +297,33 @@ void main() {
           throwsA(isA<BeakStorageException>()),
         );
       });
+
+      test('a public base URL wins over an expiry, so a CDN URL is never '
+          'replaced by a presigned link to the internal endpoint', () async {
+        final cdn = S3StorageDriver(
+          BeakS3Config(
+            endpoint: endpoint,
+            bucket: 'beak-uploads',
+            accessKey: 'ak',
+            secretKey: 'sk',
+            region: 'us-east-1',
+            usePathStyle: true,
+            publicBaseUrl: Uri.parse('https://cdn.example.com/uploads'),
+          ),
+          client: client,
+        );
+
+        final url = await cdn.url(
+          'products/photo.png',
+          expiresIn: const Duration(hours: 1),
+        );
+
+        expect(
+          url,
+          Uri.parse('https://cdn.example.com/uploads/products/photo.png'),
+        );
+        expect(client.calls, isEmpty);
+      });
     });
 
     group('exists', () {

@@ -108,6 +108,31 @@ void main() {
       );
     });
 
+    test('rejects a hidden field of another model', () {
+      expect(
+        () => BeakModelRules(
+          const NoteModel(),
+          hiddenFields: {LabelModel.name: _staff},
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('rejects a hidden field reached through a relationship', () {
+      final viaAuthor = BeakScalarField<String>(
+        model: const NoteModel(),
+        column: NoteColumns.title,
+        path: [const NoteModel().relationships.first],
+      );
+      expect(
+        () => BeakModelRules(
+          const NoteModel(),
+          hiddenFields: {viaAuthor: _staff},
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
     test('rejects an action the model does not declare', () {
       expect(
         () =>
@@ -268,6 +293,68 @@ void main() {
       expect(policies.canReadField(_guest, note, NoteModel.title), isFalse);
       expect(policies.canWriteField(_staffer, note, NoteModel.title), isFalse);
       expect(policies.canWriteField(_boss, note, NoteModel.title), isTrue);
+    });
+
+    test('a hidden field is unreadable and unwritable for who it is hidden '
+        'from, and open to the rest', () {
+      final policies = BeakPolicies(
+        rules: [
+          BeakModelRules(
+            const NoteModel(),
+            read: BeakAccess.authenticated,
+            write: BeakAccess.authenticated,
+            hiddenFields: {NoteModel.rating: const BeakAccess.not(_manager)},
+          ),
+        ],
+      );
+      const note = NoteModel();
+
+      expect(policies.canReadField(_boss, note, NoteModel.rating), isTrue);
+      expect(policies.canWriteField(_boss, note, NoteModel.rating), isTrue);
+      expect(policies.canReadField(_staffer, note, NoteModel.rating), isFalse);
+      expect(policies.canWriteField(_staffer, note, NoteModel.rating), isFalse);
+      expect(policies.canReadField(_staffer, note, NoteModel.title), isTrue);
+      expect(policies.canWriteField(_staffer, note, NoteModel.title), isTrue);
+    });
+
+    test('hiding a field never opens what the model rules deny', () {
+      final policies = BeakPolicies(
+        rules: [
+          BeakModelRules(
+            const NoteModel(),
+            read: _manager,
+            hiddenFields: {NoteModel.rating: _staff},
+          ),
+        ],
+      );
+      const note = NoteModel();
+
+      const managerOnly = BeakPrincipal(id: 'm', roles: {'manager'});
+
+      expect(policies.canReadField(_staffer, note, NoteModel.title), isFalse);
+      expect(
+        policies.canReadField(managerOnly, note, NoteModel.rating),
+        isTrue,
+      );
+      expect(policies.canReadField(_boss, note, NoteModel.rating), isFalse);
+    });
+
+    test('a hidden field belongs to the model that declared it', () {
+      final policies = BeakPolicies(
+        rules: [
+          BeakModelRules(
+            const NoteModel(),
+            read: BeakAccess.authenticated,
+            hiddenFields: {NoteModel.rating: BeakAccess.authenticated},
+          ),
+          BeakModelRules(const LabelModel(), read: BeakAccess.authenticated),
+        ],
+      );
+
+      expect(
+        policies.canReadField(_staffer, const LabelModel(), LabelModel.name),
+        isTrue,
+      );
     });
 
     test('a read-only field is named by its typed reference', () {

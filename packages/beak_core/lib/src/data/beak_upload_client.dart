@@ -36,6 +36,12 @@ abstract interface class BeakManagedUploadClient implements BeakUploadClient {
 
 /// Optional resolution of persisted storage keys into current display URLs.
 abstract interface class BeakUploadUrlClient {
-  /// Resolves a key through the storage driver, including signed URL drivers.
+  /// Resolves a key through the storage driver.
+  ///
+  /// A driver that signs its links (S3) answers with one that is valid for
+  /// the server's signed-URL lifetime (default: one hour), so resolve a key
+  /// again when you need to display it instead of persisting the returned
+  /// address. Drivers with public links answer with the same address every
+  /// time.
   Future<Uri> uploadUrl(String table, String columnKey, String key);
 }

@@ -21,6 +21,7 @@ import 'beak_policy.dart';
 ///   write: manager,
 ///   rowScope: (principal) => OrderModel.status.notEq(OrderStatus.draft),
 ///   readOnlyFields: {OrderModel.totalInCents, OrderModel.number},
+///   hiddenFields: {OrderModel.marginInCents: staff},
 ///   actions: {OrderModel.ship: staff},
 /// )
 /// ```
@@ -28,10 +29,10 @@ import 'beak_policy.dart';
 final class BeakModelRules {
   /// Creates the rules of [model].
   ///
-  /// Throws a [BeakConfigurationException] when a [readOnlyFields] entry is
-  /// not a direct field of [model], or when [actions] names a command the
-  /// model does not declare: a rule that could never apply is a mistake worth
-  /// failing on at startup.
+  /// Throws a [BeakConfigurationException] when a [readOnlyFields] or
+  /// [hiddenFields] entry is not a direct field of [model], or when [actions]
+  /// names a command the model does not declare: a rule that could never
+  /// apply is a mistake worth failing on at startup.
   BeakModelRules(
     this.model, {
     this.read,
@@ -39,10 +40,13 @@ final class BeakModelRules {
     this.delete,
     this.rowScope,
     Set<BeakFieldRef<Object>> readOnlyFields = const {},
+    Map<BeakFieldRef<Object>, BeakAccess> hiddenFields = const {},
     Map<BeakModelAction, BeakAccess> actions = const {},
   }) : readOnlyFields = Set.unmodifiable(readOnlyFields),
+       hiddenFields = Map.unmodifiable(hiddenFields),
        actions = Map.unmodifiable(actions),
        _readOnlyKeys = _readOnlyKeysOf(model, readOnlyFields),
+       _hiddenAccessByKey = _hiddenAccessOf(model, hiddenFields),
        _actionAccessByName = _actionAccessOf(model, actions);
 
   /// The model these rules govern.
@@ -79,12 +83,27 @@ final class BeakModelRules {
   /// creation) are unaffected.
   final Set<BeakFieldRef<Object>> readOnlyFields;
 
+  /// Fields hidden from the principals each [BeakAccess] grants.
+  ///
+  /// A hidden field is neither readable nor writable for them: it is left out
+  /// of responses, refused in filters, sorts and searches, and refused when
+  /// they supply a value. Everyone else keeps whatever [read] and [write]
+  /// give. Hiding narrows access and never grants it, and the access value
+  /// names who is hidden *from*, so `BeakAccess.not(manager)` hides a field
+  /// from everyone but managers:
+  ///
+  /// ```dart
+  /// hiddenFields: {ProductModel.supplierCostInCents: BeakAccess.not(manager)}
+  /// ```
+  final Map<BeakFieldRef<Object>, BeakAccess> hiddenFields;
+
   /// Who may run each command of [model].
   ///
   /// A command left out cannot be run by anyone.
   final Map<BeakModelAction, BeakAccess> actions;
 
   final Set<String> _readOnlyKeys;
+  final Map<String, BeakAccess> _hiddenAccessByKey;
   final Map<String, BeakAccess> _actionAccessByName;
 
   static Set<String> _readOnlyKeysOf(
@@ -100,6 +119,23 @@ final class BeakModelRules {
       }
     }
     return {for (final field in fields) field.key};
+  }
+
+  static Map<String, BeakAccess> _hiddenAccessOf(
+    BeakModel model,
+    Map<BeakFieldRef<Object>, BeakAccess> fields,
+  ) {
+    for (final field in fields.keys) {
+      if (field.model.table != model.table || field.path.isNotEmpty) {
+        throw BeakConfigurationException(
+          'Hidden field "${field.qualifiedKey}" of "${field.model.table}" '
+          'is not a direct field of "${model.table}".',
+        );
+      }
+    }
+    return {
+      for (final MapEntry(:key, :value) in fields.entries) key.key: value,
+    };
   }
 
   static Map<String, BeakAccess> _actionAccessOf(
@@ -223,14 +259,14 @@ final class BeakPolicies
     BeakPrincipal? principal,
     BeakModel model,
     BeakFieldRef<Object> field,
-  ) => canView(principal, model);
+  ) => canView(principal, model) && !_isHidden(principal, model, field);
 
   @override
   bool canWriteField(
     BeakPrincipal? principal,
     BeakModel model,
     BeakFieldRef<Object> field,
-  ) => _canWrite(principal, model);
+  ) => _canWrite(principal, model) && !_isHidden(principal, model, field);
 
   @override
   bool isFieldReadOnly(
@@ -253,6 +289,16 @@ final class BeakPolicies
         principal,
       ) ??
       false;
+
+  bool _isHidden(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakFieldRef<Object> field,
+  ) =>
+      field.model.table == model.table &&
+      (_rulesByTable[model.table]?._hiddenAccessByKey[field.qualifiedKey]
+              ?.allows(principal) ??
+          false);
 
   bool _canWrite(BeakPrincipal? principal, BeakModel model) =>
       _rulesByTable[model.table]?.write?.allows(principal) ?? false;

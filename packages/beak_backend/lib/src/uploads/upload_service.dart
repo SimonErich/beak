@@ -34,12 +34,26 @@ final class UploadService {
   ///
   /// [generateKeyId] injects the storage-key mint for tests (defaults to
   /// uuid v4) — client filenames are never trusted for keys.
+  ///
+  /// [signedUrlLifetime] is how long the links [url] hands out stay valid on
+  /// drivers that sign them (S3 presigned GETs); drivers whose links do not
+  /// expire ignore it. It must be positive.
   UploadService({
     required this.registry,
     required this.storage,
     required this.transformRunner,
     String Function()? generateKeyId,
-  }) : _generateKeyId = generateKeyId ?? generateUuidV4;
+    this.signedUrlLifetime = defaultSignedUrlLifetime,
+  }) : _generateKeyId = generateKeyId ?? generateUuidV4 {
+    if (signedUrlLifetime <= Duration.zero) {
+      throw BeakConfigurationException(
+        'The signed URL lifetime must be positive, got $signedUrlLifetime.',
+      );
+    }
+  }
+
+  /// How long a signed link stays valid unless the host says otherwise.
+  static const Duration defaultSignedUrlLifetime = Duration(hours: 1);
 
   /// The models whose file columns may be uploaded to.
   final BeakModelRegistry registry;
@@ -49,6 +63,9 @@ final class UploadService {
 
   /// The pixel pipeline executing image transforms.
   final BeakTransformRunner transformRunner;
+
+  /// How long the links [url] returns stay valid on signing drivers.
+  final Duration signedUrlLifetime;
 
   final String Function() _generateKeyId;
 
@@ -82,9 +99,13 @@ final class UploadService {
   }
 
   /// Resolves only existing keys belonging to this column's storage path.
+  ///
+  /// The link is signed for [signedUrlLifetime] where the driver signs, so a
+  /// private bucket is readable through the upload endpoint; a driver with
+  /// public links returns them unchanged.
   Future<Uri> url(String table, String columnKey, String key) async {
     await _requireKey(table, columnKey, key);
-    return storage.url(key);
+    return storage.url(key, expiresIn: signedUrlLifetime);
   }
 
   Future<void> _requireKey(String table, String columnKey, String key) async {
@@ -144,11 +165,12 @@ final class UploadService {
     BeakImageColumn column,
     BeakUpload upload,
   ) async {
-    // An empty pipeline is a decoding pass-through: it yields the source
-    // bytes plus decoded dimensions (or a validation failure for bytes that
-    // are not a supported raster image).
+    // The header answers the dimension rules before a pixel is decoded, so a
+    // few bytes declaring a huge bitmap never reach the decoder, and the
+    // pipeline then decodes the file once (an empty one is a pass-through
+    // that still proves the bytes decode).
     // --8<-- [start:imagePipeline]
-    final decoded = await transformRunner.run(upload.bytes, const []);
+    final BeakDimensions declared = await transformRunner.inspect(upload.bytes);
     _validator
         .validate(
           upload,
@@ -156,12 +178,13 @@ final class UploadService {
           allowedTypes: column.allowedTypes,
           maxDimensions: column.maxDimensions,
           aspectRatio: column.aspectRatio,
-          actualDimensions: decoded.dimensions,
+          actualDimensions: declared,
         )
         .valueOrThrow;
-    final transformed = column.transforms.isEmpty
-        ? decoded
-        : await transformRunner.run(upload.bytes, column.transforms);
+    final transformed = await transformRunner.run(
+      upload.bytes,
+      column.transforms,
+    );
     // --8<-- [end:imagePipeline]
 
     final String keyId = _generateKeyId();

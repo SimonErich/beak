@@ -111,8 +111,11 @@ Pass what you want to change. Everything else keeps the value the host resolved.
 | `outbox` | none | [Durable effects](durable-effects.md) |
 | `generateId` | a v4 uuid | Replaces the id mint behind every write, handy in tests |
 | `transformRunner` | the `beak_image` runner | [Uploads and storage wiring](uploads-and-storage-wiring.md) |
+| `storage` | the driver the environment selects | [Uploads and storage wiring](uploads-and-storage-wiring.md) |
+| `dataSource` | the worm source over the database | [Custom data sources](../extending/custom-data-sources.md) |
+| `signedUrlLifetime` | one hour | [Uploads and storage wiring](uploads-and-storage-wiring.md) |
 
-`build` has no `storage:` and no `dataSource:` parameter. A custom upload driver goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER`. A custom data source needs a hand-built `BeakServer`, which is where [Custom data sources](../extending/custom-data-sources.md) picks up. Both are limits of `build`, not of the server.
+`build` also takes `storage:` and `dataSource:`, which replace what the host resolved: `defaults.build(storage: MyStorageDriver())` serves uploads through a driver you built, and `defaults.build(dataSource: MyDataSource())` serves the API from a source that is not worm, which is where [Custom data sources](../extending/custom-data-sources.md) picks up. A driver from a package goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER` instead. `signedUrlLifetime:` sets how long the links of a signing driver stay valid (default one hour).
 
 ## Health probes
 
@@ -171,11 +174,11 @@ Three seams do the work. `beakHost(environment: {...})` replaces the resolved en
 
 | Rule | Consequence |
 | --- | --- |
-| No `policy` means `BeakAllowAllPolicy` | A server built with `defaults.build()` answers anonymous requests in full. Nothing warns at boot |
+| No `policy` means `BeakAllowAllPolicy` | A server built with `defaults.build()` answers anonymous requests in full. Bound beyond loopback (the default `0.0.0.0` counts) it prints one `warning:` line at boot; `onWarning` redirects it |
 | The host binds `0.0.0.0` and answers CORS with `*` by default | Fine in a container or on your laptop, open to the network anywhere else. Set `HOST` and `corsOrigin`. See [Security](../shipping/security.md) |
 | `lib/server.dart` is wired by `beak prepare` | A new or renamed `beakServer` is ignored until you run it. `beak dev`, `beak migrate` and `beak seed` run it for you |
-| A bad `DATABASE_URL`, `PORT` or `HOST` fails the boot | The process prints `Unhandled exception:` with a stack trace and exits `255`. The first line names the variable |
-| A port that is already taken fails the same way | A raw `SocketException` with `Address already in use`, not a message that names `PORT` |
+| A bad `DATABASE_URL`, `PORT` or `HOST` fails the boot | `serve()` throws a `BeakConfigurationException` that names the variable. The generated `bin/serve.dart` prints it as one line (`error: PORT must be ...`) and exits `BeakServeHost.configurationExitCode` (`78`); an entry point that does not catch it ends in `Unhandled exception:` and exit `255` |
+| A port that is already taken is a configuration failure | `Port 8080 is already in use on 0.0.0.0. Stop the other process or choose another port with PORT (server.port in beak.yaml).` It is a `BeakConfigurationException` from `BeakServer.start()`, so it prints as one line like the others |
 | `serve()` initializes worm's default adapter | Calling it twice in one process, without `Worm.reset()` between, throws |
 | `defaults.build` sets no storage driver or data source | Use `beakStorageRegistry()` for a driver, a hand-built `BeakServer` for a data source |
 | One process holds the default sessions | The built-in session store is in memory, so a second instance does not know the first one's tokens. See [Auth and policies](auth-and-policies.md) |

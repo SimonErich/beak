@@ -355,20 +355,30 @@ void main() {
       expect(committed.status, 200);
     });
 
-    test(
-      'graphOnly without a preparer is refused when the engine is built',
-      () {
-        expect(
-          () => BeakServerpodEngine(
-            registry: createBookshopRegistry(),
-            policy: _policy(),
-            adapter: adapter,
-            graphOnly: const [BookModel()],
-          ),
-          throwsA(isA<BeakConfigurationException>()),
-        );
-      },
-    );
+    test('graphOnly needs no preparer to close the direct routes', () async {
+      final guarded = BeakServerpodEngine(
+        registry: createBookshopRegistry(),
+        policy: _policy(),
+        adapter: adapter,
+        graphOnly: const [BookModel()],
+      );
+
+      final direct = _decode(
+        await guarded.dispatch(
+          staff,
+          _request('POST', '/api/book', body: {'title': 'Direct'}),
+        ),
+      );
+      final committed = _decode(
+        await guarded.dispatch(
+          staff,
+          _request('POST', '/api/commits', body: _plan('save-3').toJson()),
+        ),
+      );
+
+      expect(direct.status, 422);
+      expect(committed.status, 200);
+    });
   });
 
   group('logging', () {
@@ -400,6 +410,10 @@ void main() {
   test('the receipts default to the Serverpod model', () {
     expect(engine.frameworkTables, same(beakServerpodFrameworkTables));
     expect(engine.frameworkTables.receipts.table, 'beak_commit_receipt');
+    expect(engine.frameworkTables.receipts.createdAtColumn, 'createdAt');
+    expect(engine.frameworkTables.outbox.table, 'beak_outbox');
+    expect(engine.frameworkTables.outbox.idColumn, 'effectKey');
+    expect(engine.frameworkTables.outbox.availableAtColumn, 'availableAt');
     expect(engine.registry.byTable('book'), isNotNull);
   });
 }

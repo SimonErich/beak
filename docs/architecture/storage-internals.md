@@ -51,7 +51,7 @@ The backend adds `local`, which needs `dart:io`, on top:
 --8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
 ```
 
-Driver packages are deliberately absent. If `beak_backend` depended on `beak_storage_s3`, `minio` would be in the dependency graph of every Beak server, uploads or not. Your app adds the driver it uses in `lib/server.dart` by returning a registry from `beakStorageRegistry()`, which the generated host passes on as `storageRegistry`:
+Driver packages are deliberately absent. If `beak_backend` depended on `beak_storage_s3`, the S3 driver and its HTTP and signing code would ship with every Beak server, uploads or not. Your app adds the driver it uses in `lib/server.dart` by returning a registry from `beakStorageRegistry()`, which the generated host passes on as `storageRegistry`:
 
 ```dart title="packages/beak_storage_s3/lib/src/s3_storage_driver.dart"
 void registerS3Storage(BeakStorageRegistry registry) {
@@ -139,15 +139,15 @@ An upload is a `POST` of `multipart/form-data` with one field named `file`. `Bea
 --8<-- "packages/beak_core/lib/src/storage/beak_upload_validator.dart:validateSignature"
 ```
 
-Violations aggregate into one `BeakValidationException` keyed by aspect (`size`, `type`, `dimensions`, `aspectRatio`), so a form shows each problem next to its cause. For a plain file column the MIME type and the extension are both what the client declared, and nothing inspects the bytes. An image column decodes them, which is a real check.
+Violations aggregate into one `BeakValidationException` keyed by aspect (`size`, `type`, `dimensions`, `aspectRatio`), so a form shows each problem next to its cause. For a plain file column the MIME type and the extension are both what the client declared, and nothing inspects the bytes. An image column reads the size from the header and then decodes the bytes, which is a real check.
 
-For an image column the service decodes first, to get true pixel dimensions, validates against them, runs the column's transforms if it has any, and stores the main image plus every thumbnail variant:
+For an image column the service asks the runner for the size the header declares (`BeakTransformRunner.inspect`, no pixel is decoded), validates against it, decodes once through the column's transforms, and stores the main image plus every thumbnail variant:
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_service.dart"
 --8<-- "packages/beak_backend/lib/src/uploads/upload_service.dart:imagePipeline"
 ```
 
-An empty pipeline is a decoding pass-through: it yields the source bytes and the decoded dimensions, or a validation error for bytes that are not a decodable raster image. If storing a rendition fails, the service deletes the main image and the renditions already written before it rethrows, so a failed upload does not leave orphans behind it.
+An empty pipeline is a decoding pass-through: it yields the source bytes, or a validation error for bytes that are not a decodable raster image. `ImageTransformRunner` also refuses a file whose header declares more than `maxPixelCount` pixels (50 million by default) before it decodes, so a few bytes cannot ask for gigabytes. If storing a rendition fails, the service deletes the main image and the renditions already written before it rethrows, so a failed upload does not leave orphans behind it.
 
 ### Transform spec and runner are split on purpose
 
@@ -179,8 +179,8 @@ The concrete runner is `ImageTransformRunner` in `beak_image`, built on `package
 
 - Declare rules on the column (`maxSizeInBytes`, `allowedTypes`, `maxDimensions`, `aspectRatio`, `transforms`). They run on the client for size and type and on the server for everything. [Files and storage columns](../models/files-and-storage-columns.md) has the column side.
 - Add `registerS3Storage` or `registerFtpStorage` to your `beakStorageRegistry()` before you set `BEAK_STORAGE_DRIVER=s3` or `ftp`.
-- Put a real limit on image columns. The size limit counts compressed bytes and the dimension limit is checked after the decode, so a small file that expands to a very large bitmap costs memory before it is rejected.
-- Signed URLs are not used on this path. `UploadService.url` calls the driver without an expiry, so `S3StorageDriver.url` returns the public URL. A private bucket needs a `publicBaseUrl` in front of it.
+- Put a real limit on image columns. The size limit counts compressed bytes, and the dimension limit is checked from the header, so a small file that declares a very large bitmap is refused before it is decoded. Without `maxDimensions` the runner's pixel ceiling is the only guard.
+- `UploadService.url` asks the driver for a link that expires after `signedUrlLifetime` (one hour by default), so `S3StorageDriver.url` returns a presigned URL and a private bucket is readable through `GET .../upload?key=`. Drivers with public links, and an S3 driver with a `publicBaseUrl`, ignore the expiry.
 - A test injects a fake `S3ObjectClient` or `FtpTransport`, or uses the `memory` driver, and needs no server.
 - A storage failure reaches the client as a `500` with the driver's message. Keep endpoints and credentials out of exceptions you raise from a custom driver.
 

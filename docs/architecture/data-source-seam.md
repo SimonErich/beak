@@ -187,7 +187,7 @@ A graph commit is one Serverpod transaction. The outermost `transaction` opens i
 
 Typed Serverpod ORM code can join that transaction through `BeakServerpod.sessionOf(tx)` and `BeakServerpod.transactionOf(tx)`. Without the `transaction:` argument such a call runs on another pooled connection and neither sees nor joins Beak's uncommitted writes.
 
-Serverpod owns the schema, so `executeSchema` and `introspectSchema` throw with a message that points at `serverpod create-migration`. The commit receipts live in a Serverpod-owned model instead of Beak's own migration. The engine passes the mapping to `beakApiRouter(commitReceipts: ...)`:
+Serverpod owns the schema, so `executeSchema` and `introspectSchema` throw with a message that points at `serverpod create-migration`. The commit receipts (and the effect outbox, when a project uses one) live in Serverpod-owned models instead of Beak's own migrations. The engine passes the receipts mapping to `beakApiRouter(commitReceipts: ...)`:
 
 ```dart title="packages/beak_serverpod_server/lib/src/beak_serverpod_framework_tables.dart"
 const BeakFrameworkTables beakServerpodFrameworkTables = BeakFrameworkTables(
@@ -197,6 +197,18 @@ const BeakFrameworkTables beakServerpodFrameworkTables = BeakFrameworkTables(
     requestHashColumn: 'requestHash',
     requestJsonColumn: 'requestJson',
     resultJsonColumn: 'resultJson',
+    createdAtColumn: 'createdAt',
+  ),
+  outbox: BeakOutboxTable(
+    table: 'beak_outbox',
+    idColumn: 'effectKey',
+    kindColumn: 'effectKind',
+    payloadColumn: 'payloadJson',
+    statusColumn: 'deliveryStatus',
+    attemptColumn: 'attemptCount',
+    availableAtColumn: 'availableAt',
+    leaseColumn: 'leaseToken',
+    lastErrorColumn: 'lastError',
   ),
 );
 ```

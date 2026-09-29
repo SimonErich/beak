@@ -29,16 +29,39 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   /// instance serves every registered model. [now] injects the clock stamped
   /// into soft-delete markers (defaults to [DateTime.now]) — override it for
   /// deterministic tests.
+  ///
+  /// [authorizeRead] is set on the transaction-bound source a graph commit
+  /// hands to `preparePlan` and `finalizePlan`; see [authorizeRead].
   WormDataSource(
     this.registry, {
     required DatabaseAdapter adapter,
     DateTime Function()? now,
+    this.authorizeRead,
   }) : _adapter = adapter,
        _now = now ?? DateTime.now,
        _translator = WormQueryTranslator(registry);
 
   /// The models this data source serves.
   final BeakModelRegistry registry;
+
+  /// Checks that the principal a graph commit runs for may read the record
+  /// [BeakRecordRef], or throws a `BeakException` if not.
+  ///
+  /// `null` on an ordinary source. On the transaction-bound source a graph
+  /// commit passes to `preparePlan` and `finalizePlan` it applies the policy's
+  /// `canView` and the principal's row scope. Reads on this source are not
+  /// scoped (a preparer may count rows the caller cannot see), so pass it to
+  /// the one place that loads records the *plan* names:
+  ///
+  /// ```dart
+  /// final graph = await BeakCandidateGraph.open(
+  ///   plan: plan,
+  ///   source: transaction,
+  ///   registry: registry,
+  ///   authorizeRead: transaction.authorizeRead,
+  /// );
+  /// ```
+  final Future<void> Function(BeakRecordRef ref)? authorizeRead;
 
   final DatabaseAdapter _adapter;
 
@@ -87,12 +110,20 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
 
   @override
   Future<BeakRecord> create(String table, BeakRecord data) async {
-    final keys = beakRecordKeys(registry.byTableOrThrow(table));
+    final model = registry.byTableOrThrow(table);
+    final keys = beakRecordKeys(model);
+    // A primary key the caller left empty is the database's to assign (a
+    // serial integer): sending `id = NULL` instead makes some drivers read
+    // the new row back by that NULL and answer without its generated key.
+    final values = data.toRow();
+    if (values[model.primaryKey.key] == null) {
+      values.remove(model.primaryKey.key);
+    }
     try {
       final row = await _adapter.insert(
         InsertDescriptor(
           table: table,
-          values: data.toRow(),
+          values: values,
           // Never `RETURNING *`: an undeclared column stays in the database.
           returning: keys.toList(growable: false),
         ),

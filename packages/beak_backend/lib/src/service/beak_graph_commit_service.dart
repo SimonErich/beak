@@ -46,9 +46,19 @@ typedef BeakSavePlanFinalizer =
 
 /// Authenticated graph persistence with transactional or explicit staged receipts.
 ///
-/// Apply [BeakCommitReceiptsMigration] before accepting commits (or map
-/// [receipts] onto a table another migration system owns). Receipts have no
-/// automatic expiry: an old idempotency key never becomes a new write.
+/// Over a [WormDataSource] on a transactional adapter a graph is one atomic
+/// transaction with a durable receipt. Apply [BeakCommitReceiptsMigration]
+/// before accepting commits (or map [receipts] onto a table another migration
+/// system owns). Receipts have no automatic expiry: an old idempotency key
+/// never becomes a new write.
+///
+/// Over any other [BeakDataSource] (a custom source, `InMemoryBeakDataSource`)
+/// the graph is staged: every operation is authorized up front, then written
+/// through the source's ordinary CRUD calls in dependency order, stopping at
+/// the first failed or uncertain write, with no rollback. Receipts live in
+/// this service's memory, capped at [maxStagedReceipts], so a restart forgets
+/// them and a replay after one is a new save. Behaviors, `preparePlan` and
+/// `finalizePlan` need the atomic path.
 final class BeakGraphCommitService {
   /// Binds persistence and authorization once per backend.
   ///
@@ -62,10 +72,20 @@ final class BeakGraphCommitService {
     this.preparePlan,
     this.finalizePlan,
     this.receipts = BeakCommitReceiptTable.beak,
+    this.maxStagedReceipts = defaultMaxStagedReceipts,
     DateTime Function()? now,
     String Function()? generateId,
   }) : _now = now ?? DateTime.now,
-       _generateId = generateId;
+       _generateId = generateId {
+    if (maxStagedReceipts < 1) {
+      throw BeakConfigurationException(
+        'maxStagedReceipts must be at least 1, got $maxStagedReceipts.',
+      );
+    }
+  }
+
+  /// How many staged receipts a non-worm source keeps unless told otherwise.
+  static const int defaultMaxStagedReceipts = 1024;
 
   final DateTime Function() _now;
   final String Function()? _generateId;
@@ -75,8 +95,9 @@ final class BeakGraphCommitService {
   /// Registered resource metadata.
   final BeakModelRegistry registry;
 
-  /// Worm source whose adapter owns writes and receipts.
-  final WormDataSource source;
+  /// The source the graph is written through: a [WormDataSource] whose
+  /// adapter owns writes and receipts, or any other [BeakDataSource].
+  final BeakDataSource source;
 
   /// Authoritative policy, checked for every graph node.
   final BeakPolicy policy;
@@ -88,35 +109,51 @@ final class BeakGraphCommitService {
   /// Transactional post-validation writes, with resulting record identities.
   final BeakSavePlanFinalizer? finalizePlan;
 
-  /// The durable receipt store.
+  /// The durable receipt store (worm sources only).
   final BeakCommitReceiptTable receipts;
 
-  // Serializes in-process use of adapters whose transactions are snapshot based.
-  // The receipt primary key independently protects concurrent server processes.
+  /// The most receipts kept in memory for a source that is not a
+  /// [WormDataSource]; the oldest are forgotten first.
+  final int maxStagedReceipts;
+
+  // Receipts of a source that has no table to keep them in, oldest first.
+  final Map<String, _StagedReceipt> _stagedReceipts = {};
+
+  // Serializes in-process use of adapters whose transactions are snapshot based
+  // and of sources without an adapter. The receipt primary key independently
+  // protects concurrent server processes.
   static final Expando<Future<void>> _tails = Expando<Future<void>>();
 
-  /// Guarantees of this adapter, without assuming every adapter can transact.
-  BeakCommitCapabilities get commitCapabilities => BeakCommitCapabilities(
-    atomicGraph: source.adapter.capabilities.supportsTransactions,
-    durableReceipts: true,
-    idempotentReplay: source.adapter.capabilities.supportsTransactions,
-    conditionalWrites: true,
-  );
+  /// Guarantees of this source, without assuming every adapter can transact.
+  ///
+  /// A source that is not a [WormDataSource] promises none of them.
+  BeakCommitCapabilities get commitCapabilities => switch (source) {
+    final WormDataSource worm => BeakCommitCapabilities(
+      atomicGraph: worm.adapter.capabilities.supportsTransactions,
+      durableReceipts: true,
+      idempotentReplay: worm.adapter.capabilities.supportsTransactions,
+      conditionalWrites: true,
+    ),
+    _ => const BeakCommitCapabilities(),
+  };
 
   /// Saves or resumes a graph under the requesting principal's receipt namespace.
   Future<BeakSaveResult> commit(
     BeakSavePlan plan, {
     BeakPrincipal? principal,
   }) async {
-    final adapter = source.adapter;
-    final preceding = _tails[adapter] ?? Future<void>.value();
+    _requireExecutablePlan(plan);
+    final BeakDataSource data = source;
+    final Object serialized = data is WormDataSource ? data.adapter : data;
+    final preceding = _tails[serialized] ?? Future<void>.value();
     final released = Completer<void>();
-    _tails[adapter] = released.future;
+    _tails[serialized] = released.future;
     await preceding;
     try {
-      final result = await _commit(plan, principal);
+      if (data is! WormDataSource) return await _commitStaged(plan, principal);
+      final result = await _commit(data, plan, principal);
       final receipt = await _receipt(
-        source.adapter,
+        data.adapter,
         _key(plan.saveId, principal),
       );
       final prepared = receipt == null
@@ -131,6 +168,7 @@ final class BeakGraphCommitService {
   }
 
   Future<BeakSaveResult> _commit(
+    WormDataSource worm,
     BeakSavePlan plan,
     BeakPrincipal? principal,
   ) async {
@@ -138,7 +176,7 @@ final class BeakGraphCommitService {
     final key = _key(plan.saveId, principal);
     final encoded = jsonEncode(_canonical(plan.toJson()));
     final hash = sha256.convert(utf8.encode(encoded)).toString();
-    final existing = await _receipt(source.adapter, key);
+    final existing = await _receipt(worm.adapter, key);
     if (existing != null && existing[receipts.requestHashColumn] != hash) {
       throw const BeakConflictException(
         'Save identity was reused with different content.',
@@ -161,29 +199,11 @@ final class BeakGraphCommitService {
       }
     }
     // --8<-- [end:commitReplay]
-    if (!source.adapter.capabilities.supportsTransactions) {
-      if (preparePlan != null ||
-          finalizePlan != null ||
-          plan.action != null ||
-          registry.all.any((model) => !model.behavior.isEmpty) ||
-          registry.all.any(
-            (model) => model.validationRules.any(
-              (rule) => rule.relationLoads.isNotEmpty,
-            ),
-          )) {
-        throw const BeakConfigurationException(
-          'Graph preparation requires a transactional data source.',
-        );
-      }
+    if (!worm.adapter.capabilities.supportsTransactions) {
+      _requireNoGraphPreparation(plan);
       final previous = existing == null ? null : _decodeReceipt(existing);
       if (existing == null) {
-        await _insertReceipt(
-          source.adapter,
-          key,
-          encoded,
-          hash,
-          _pending(plan),
-        );
+        await _insertReceipt(worm.adapter, key, encoded, hash, _pending(plan));
       }
       var expectedReceipt = existing == null
           ? jsonEncode(_pending(plan).toJson())
@@ -197,10 +217,10 @@ final class BeakGraphCommitService {
         plan: plan,
         registry: registry,
         previous: previous,
-        run: (op, ids) => _run(op, ids, source, principal, input: op),
+        run: (op, ids) => _run(op, ids, worm, principal, input: op),
         checkpoint: (result) async {
           await _writeReceipt(
-            source.adapter,
+            worm.adapter,
             key,
             result,
             expectedJson: expectedReceipt,
@@ -211,9 +231,16 @@ final class BeakGraphCommitService {
     }
     try {
       // --8<-- [start:commitTransaction]
-      return await source.adapter.transaction((adapter) async {
+      return await worm.adapter.transaction((adapter) async {
         await _insertReceipt(adapter, key, encoded, hash, _pending(plan));
-        final transactional = WormDataSource(registry, adapter: adapter);
+        late final WormDataSource transactional;
+        transactional = WormDataSource(
+          registry,
+          adapter: adapter,
+          authorizeRead: (ref) async {
+            await _read(ref, const {}, transactional, principal);
+          },
+        );
         final prepared = await _prepare(plan, transactional, principal);
         final previousParents = await _validationParents(
           prepared.operations
@@ -297,12 +324,12 @@ final class BeakGraphCommitService {
             ),
         ],
       );
-      await _insertReceipt(source.adapter, key, encoded, hash, rolledBack);
+      await _insertReceipt(worm.adapter, key, encoded, hash, rolledBack);
       return rolledBack;
       // --8<-- [end:commitRollback]
     } on UniqueConstraintException {
       // A competing process committed this save while our insert waited.
-      final winner = await _receipt(source.adapter, key);
+      final winner = await _receipt(worm.adapter, key);
       if (winner == null) rethrow;
       if (winner[receipts.requestHashColumn] != hash) {
         throw const BeakConflictException(
@@ -318,6 +345,108 @@ final class BeakGraphCommitService {
       return result;
     }
   }
+
+  // A plan that decodes but cannot be ordered (unknown field or table,
+  // duplicate id, cycle) is the caller's mistake, not a broken setup.
+  void _requireExecutablePlan(BeakSavePlan plan) {
+    try {
+      plan.orderedOperations(registry);
+    } on BeakConfigurationException catch (error) {
+      throw BeakValidationException('Invalid save plan: ${error.message}');
+    }
+  }
+
+  void _requireNoGraphPreparation(BeakSavePlan plan) {
+    if (preparePlan != null ||
+        finalizePlan != null ||
+        plan.action != null ||
+        registry.all.any((model) => !model.behavior.isEmpty) ||
+        registry.all.any(
+          (model) => model.validationRules.any(
+            (rule) => rule.relationLoads.isNotEmpty,
+          ),
+        )) {
+      throw const BeakConfigurationException(
+        'Graph preparation requires a transactional data source.',
+      );
+    }
+  }
+
+  /// Saves [plan] through a source that is not a [WormDataSource]: every
+  /// operation is authorized before the first write, then the writes run in
+  /// dependency order and stop at the first one that does not apply.
+  Future<BeakSaveResult> _commitStaged(
+    BeakSavePlan plan,
+    BeakPrincipal? principal,
+  ) async {
+    final String key = _key(plan.saveId, principal);
+    final String encoded = jsonEncode(_canonical(plan.toJson()));
+    final String hash = sha256.convert(utf8.encode(encoded)).toString();
+    final _StagedReceipt? existing = _stagedReceipts[key];
+    if (existing != null && existing.hash != hash) {
+      throw const BeakConflictException(
+        'Save identity was reused with different content.',
+      );
+    }
+    plan.orderedOperations(registry);
+    if (existing != null &&
+        (existing.result.complete || existing.result.hasUnknown)) {
+      await _authorizeReceipt(existing.plan, principal, existing.result);
+      return _redact(existing.result, existing.plan, principal);
+    }
+    _requireNoGraphPreparation(plan);
+    void keep(BeakSaveResult result) =>
+        _keepStaged(key, (hash: hash, plan: plan, result: result));
+    try {
+      for (final operation in plan.operations) {
+        _authorizeInput(operation, principal);
+        _authorizeTable(operation, principal);
+      }
+    } on BeakException catch (error) {
+      final BeakSaveResult refused = _refused(plan, error, BeakSaveMode.staged);
+      keep(refused);
+      return _redact(refused, plan, principal);
+    }
+    final BeakSaveResult result = await executeBeakSavePlan(
+      plan: plan,
+      registry: registry,
+      previous: existing?.result,
+      run: (op, ids) => _run(op, ids, source, principal, input: op),
+      checkpoint: (result) async => keep(result),
+    );
+    return _redact(result, plan, principal);
+  }
+
+  void _keepStaged(String key, _StagedReceipt receipt) {
+    _stagedReceipts
+      ..remove(key)
+      ..[key] = receipt;
+    while (_stagedReceipts.length > maxStagedReceipts) {
+      _stagedReceipts.remove(_stagedReceipts.keys.first);
+    }
+  }
+
+  /// The receipt of a graph refused as a whole: nothing was written, and the
+  /// first operation carries the reason.
+  BeakSaveResult _refused(
+    BeakSavePlan plan,
+    BeakException error,
+    BeakSaveMode mode,
+  ) => BeakSaveResult(
+    saveId: plan.saveId,
+    mode: mode,
+    outcomes: [
+      for (final operation in plan.orderedOperations(registry))
+        BeakOperationResult(
+          id: operation.id,
+          status: BeakWriteOutcome.unapplied,
+          reason: 'rejected',
+          error: operation.id == plan.operations.first.id
+              ? BeakSaveError.fromException(error)
+              : null,
+        ),
+    ],
+  );
 
   void _authorizeInput(BeakSaveOperation op, BeakPrincipal? principal) {
     final access = BeakFieldAccess(
@@ -419,9 +548,7 @@ final class BeakGraphCommitService {
       plan: plan,
       source: transactional,
       registry: registry,
-      authorizeRead: (ref) async {
-        await _read(ref, const {}, transactional, principal);
-      },
+      authorizeRead: transactional.authorizeRead,
     );
     for (final operation in plan.operations.where(
       (op) =>
@@ -923,21 +1050,91 @@ final class BeakGraphCommitService {
     prepared.orderedOperations(registry);
   }
 
+  /// Deletes receipts saved at least [olderThan] ago, and returns how many
+  /// went. Nothing calls this for you.
+  ///
+  /// A receipt is what makes a repeated `saveId` a replay instead of a second
+  /// write, so pruning ends that protection for the rows it removes. Choose
+  /// [olderThan] longer than any client keeps retrying a save (days, not
+  /// minutes), and run it from a job of your own.
+  ///
+  /// Age comes from the table's [BeakCommitReceiptTable.createdAtColumn].
+  /// Beak's own `_beak_commit_receipts` keeps no timestamp, so this throws a
+  /// [BeakConfigurationException] for it; a host-owned table that fills a
+  /// creation timestamp names the column to make it prunable. [now] is the
+  /// clock (default: the service's).
+  ///
+  /// Only a [WormDataSource] keeps durable receipts. Over any other source the
+  /// receipts live in memory, capped at [maxStagedReceipts], and there is
+  /// nothing to prune.
+  Future<int> pruneReceipts({
+    required Duration olderThan,
+    DateTime Function()? now,
+  }) async {
+    final BeakDataSource data = source;
+    final String? createdAt = receipts.createdAtColumn;
+    if (data is! WormDataSource) {
+      throw const BeakConfigurationException(
+        'Only a worm data source keeps durable receipts to prune.',
+      );
+    }
+    if (createdAt == null) {
+      throw BeakConfigurationException(
+        'The receipt table "${receipts.table}" keeps no creation timestamp, so '
+        'receipts cannot be pruned by age. Name the column in '
+        'BeakCommitReceiptTable.createdAtColumn.',
+      );
+    }
+    if (olderThan < Duration.zero) {
+      throw const BeakConfigurationException(
+        'The age to prune receipts at must not be negative.',
+      );
+    }
+    final DateTime cutoff = (now ?? _now)().subtract(olderThan);
+    return data.adapter.delete(
+      DeleteDescriptor(
+        table: receipts.table,
+        where: ComparableField<DateTime>(createdAt).lt(cutoff),
+      ),
+    );
+  }
+
   /// Returns durable outcomes without executing business mutations.
   Future<BeakSaveResult> recover(
     String saveId, {
     BeakPrincipal? principal,
   }) async {
-    final receipt = await _receipt(source.adapter, _key(saveId, principal));
+    final String key = _key(saveId, principal);
+    final BeakDataSource data = source;
+    final (BeakSavePlan plan, BeakSaveResult result) = switch (data) {
+      final WormDataSource worm => await _durableReceiptOf(worm, key, saveId),
+      _ => _stagedReceiptOf(key, saveId),
+    };
+    await _authorizeReceipt(plan, principal, result);
+    return _redact(result, plan, principal);
+  }
+
+  Future<(BeakSavePlan, BeakSaveResult)> _durableReceiptOf(
+    WormDataSource worm,
+    String key,
+    String saveId,
+  ) async {
+    final receipt = await _receipt(worm.adapter, key);
     if (receipt == null) {
       throw BeakNotFoundException('No receipt for save "$saveId".');
     }
-    final plan = BeakSavePlan.fromJson(
-      _decodeMap(receipt[receipts.requestJsonColumn]),
+    return (
+      BeakSavePlan.fromJson(_decodeMap(receipt[receipts.requestJsonColumn])),
+      _decodeReceipt(receipt),
     );
-    final result = _decodeReceipt(receipt);
-    await _authorizeReceipt(plan, principal, result);
-    return _redact(result, plan, principal);
+  }
+
+  (BeakSavePlan, BeakSaveResult) _stagedReceiptOf(String key, String saveId) {
+    final _StagedReceipt? receipt = _stagedReceipts[key];
+    if (receipt == null) {
+      throw BeakNotFoundException('No receipt for save "$saveId".');
+    }
+    return (receipt.plan, receipt.result);
   }
 
   Future<void> _authorizeReceipt(
@@ -971,7 +1168,7 @@ final class BeakGraphCommitService {
     }
   }
 
-  BeakResourceService _service(String table, WormDataSource data) =>
+  BeakResourceService _service(String table, BeakDataSource data) =>
       BeakResourceService(
         registry.byTableOrThrow(table),
         data,
@@ -991,7 +1188,7 @@ final class BeakGraphCommitService {
   Future<BeakRecord> _read(
     BeakRecordRef ref,
     Map<String, Object> identities,
-    WormDataSource data,
+    BeakDataSource data,
     BeakPrincipal? principal,
   ) async {
     _require(
@@ -1007,7 +1204,7 @@ final class BeakGraphCommitService {
   Future<BeakOperationResult> _run(
     BeakSaveOperation op,
     Map<String, Object> identities,
-    WormDataSource data,
+    BeakDataSource data,
     BeakPrincipal? principal, {
     BeakSaveOperation? input,
   }) async {
@@ -1167,7 +1364,7 @@ final class BeakGraphCommitService {
               id!,
               values,
               expected,
-              data,
+              _requireConditionalWrites(data),
             );
           } else if (values.values.entries.every(
             (entry) => entry.value == existing?[entry.key],
@@ -1184,7 +1381,12 @@ final class BeakGraphCommitService {
           }
         case BeakSaveOperationKind.delete:
           if (op.expectedUpdatedAt case final DateTime expected) {
-            await _conditionalDelete(model, id!, expected, data);
+            await _conditionalDelete(
+              model,
+              id!,
+              expected,
+              _requireConditionalWrites(data),
+            );
           } else {
             await service.delete(id!, scope: _scope(model.table, principal));
           }
@@ -1225,6 +1427,18 @@ final class BeakGraphCommitService {
       );
     }
   }
+
+  // A version precondition is one SQL statement, so only a worm source can
+  // keep it; anything else refuses the write before it is dispatched.
+  WormDataSource _requireConditionalWrites(BeakDataSource data) =>
+      switch (data) {
+        final WormDataSource worm => worm,
+        _ => throw const _UnappliedWrite(
+          BeakConfigurationException(
+            'This provider does not support conditional graph writes.',
+          ),
+        ),
+      };
 
   Future<DateTime> _requireRevision(
     BeakModel model,
@@ -1346,7 +1560,7 @@ final class BeakGraphCommitService {
     BeakRecordRef child,
     String relationKey,
     Map<String, Object> identities,
-    WormDataSource data,
+    BeakDataSource data,
     BeakPrincipal? principal,
   ) async {
     final model = registry.byTableOrThrow(parent.table);
@@ -1503,6 +1717,13 @@ final class BeakGraphCommitService {
     throw const BeakConfigurationException('Malformed durable save receipt.');
   }
 }
+
+/// A save kept in memory for a source that has no receipt table.
+typedef _StagedReceipt = ({
+  String hash,
+  BeakSavePlan plan,
+  BeakSaveResult result,
+});
 
 final class _Rollback implements Exception {
   const _Rollback(this.result);

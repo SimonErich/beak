@@ -243,7 +243,7 @@ The closed routes are create, update, delete, restore, attach and detach. Reads,
 
 ## Capabilities and validation
 
-`GET /api/{table}/capabilities` answers which fields the caller may read and write, and which named model actions it may run. The panel uses it to hide inputs. It is presentation metadata: the server authorizes every request again.
+`GET /api/{table}/capabilities` answers which fields the caller may read and write, which named model actions it may run, and whether it may create and delete records. The panel uses it to hide inputs and buttons. It is presentation metadata: the server authorizes every request again.
 
 ```bash
 curl -s "localhost:8080/api/notes/capabilities?id=f7fd8ba6-6d50-4609-8903-5b2929c88736"
@@ -253,11 +253,13 @@ curl -s "localhost:8080/api/notes/capabilities?id=f7fd8ba6-6d50-4609-8903-5b2929
 {
   "readableFields": ["id", "title", "body", "pinned", "created_at", "updated_at"],
   "writableFields": ["id", "title", "body", "pinned", "created_at", "updated_at"],
-  "executableActions": []
+  "executableActions": [],
+  "canCreate": true,
+  "canDelete": false
 }
 ```
 
-A `null` list means "all". An empty list means "none". The optional `id` selects an existing record and must be inside the caller's row scope, otherwise `404`.
+A `null` list means "all". An empty list means "none". `canCreate` and `canDelete` are booleans from the same policy that gates `POST` and `DELETE`; a server that predates them sends neither, which a client reads as allowed. The optional `id` selects an existing record and must be inside the caller's row scope, otherwise `404`. Without an `id`, `canDelete` is the policy's answer for a record that has no id yet: exact for role rules such as `BeakPolicies`, and a lower bound for a policy that decides per record, so ask with the `id` for those.
 
 `POST /api/{table}/validate` runs the asynchronous rules (uniqueness, relationship eligibility) on a candidate without writing. The body is a `BeakValidationRequest`:
 
@@ -509,7 +511,6 @@ Every failure is one JSON object. `beakErrorMappingMiddleware` maps the sealed `
 - `%`, `_` and `\` in `contains`, `startsWith`, `endsWith` and search terms match themselves. In a `like` or `ilike` operand, which is a pattern, `%` and `_` are wildcards and a backslash escapes the next character: `50\%` matches the text `50%`.
 - Timestamps in a spec travel as UTC instants, `2026-06-01T12:30:45.123Z`, whatever zone the client built them in.
 - A dotted sort key such as `category.name`, and an aggregate or summary column reached through a relationship, is a `422`. Sort by a column of the queried table.
-- `PUT` is listed in `access-control-allow-methods`, but no route uses it.
 - `If-Unmodified-Since` guards `PATCH` only. Graph commits carry their own `expectedUpdatedAt`.
 - Behind the Serverpod admin app the `/api` routes run through a tunnel with the same paths and bodies. `/api/auth/**`, the probes and the file route are not forwarded, see [Serverpod](../serverpod/index.md).
 

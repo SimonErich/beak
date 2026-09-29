@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:beak_core/beak_core.dart';
 import 'package:image/image.dart' as img;
 
+import 'image_header.dart';
+
 /// The raster formats the runner can decode *and* re-encode — exactly the
 /// image types Beak's file rules admit into image columns
 /// ([BeakFileType.images]).
@@ -71,6 +73,12 @@ enum _RunnerFormat {
 /// `package:image`'s lossless encoder, so a format step's quality applies to
 /// JPEG only.
 ///
+/// A file can be a few dozen bytes and still declare a bitmap of gigabytes,
+/// and a decoder allocates the declared bitmap first. So [inspect] reads the
+/// size from the header alone (the upload endpoint checks the column's
+/// dimension rules against it), and [run] refuses anything above
+/// [maxPixelCount] before it decodes.
+///
 /// It is stateless and `const`-constructible; register one instance with the
 /// backend and reuse it for every upload:
 ///
@@ -88,11 +96,34 @@ enum _RunnerFormat {
 /// print(result.dimensions); // 800x800
 /// ```
 final class ImageTransformRunner implements BeakTransformRunner {
-  /// Creates a transform runner.
-  const ImageTransformRunner();
+  /// Creates a transform runner that decodes images of up to [maxPixelCount]
+  /// pixels.
+  const ImageTransformRunner({this.maxPixelCount = defaultMaxPixelCount})
+    : assert(maxPixelCount > 0, 'maxPixelCount must be positive');
 
   /// JPEG quality (0–100) applied when the pipeline includes no format step.
   static const int defaultQualityPercent = 80;
+
+  /// The default [maxPixelCount]: 50 megapixels, above any phone or DSLR
+  /// photo and about 200 MB decoded.
+  static const int defaultMaxPixelCount = 50 * 1000 * 1000;
+
+  /// The most pixels (width times height) [run] decodes; a larger declared
+  /// bitmap is refused with a [BeakValidationException] before any pixel is
+  /// allocated.
+  final int maxPixelCount;
+
+  /// Reads the size [source] declares from its header, decoding nothing.
+  ///
+  /// Throws a [BeakValidationException] when [source] is not a readable
+  /// PNG, JPEG, WebP or GIF.
+  @override
+  Future<BeakDimensions> inspect(Uint8List source) async =>
+      readImageHeaderDimensions(source) ??
+      (throw const BeakValidationException(
+        'The uploaded file is not a supported raster image '
+        '(PNG, JPEG, WebP or GIF).',
+      ));
 
   /// Runs [pipeline] over the encoded [source] image in declaration order.
   ///
@@ -119,6 +150,8 @@ final class ImageTransformRunner implements BeakTransformRunner {
     Uint8List source,
     List<BeakImageTransform> pipeline,
   ) async {
+    final BeakDimensions declared = await inspect(source);
+    _requireWithinCeiling(declared);
     final _RunnerFormat? sourceFormat = _RunnerFormat.forSource(source);
     if (sourceFormat == null) {
       throw const BeakValidationException(
@@ -176,6 +209,20 @@ final class ImageTransformRunner implements BeakTransformRunner {
       dimensions: _dimensionsOf(image),
       variants: variants,
     );
+  }
+
+  void _requireWithinCeiling(BeakDimensions declared) {
+    final int width = declared.widthInPixels;
+    final int height = declared.heightInPixels;
+    // Each side is checked first so the product cannot overflow.
+    if (width > maxPixelCount ||
+        height > maxPixelCount ||
+        width * height > maxPixelCount) {
+      throw BeakValidationException(
+        'The image is $width x $height pixels; at most $maxPixelCount '
+        'pixels are accepted.',
+      );
+    }
   }
 
   static BeakDimensions _dimensionsOf(img.Image image) =>

@@ -1,14 +1,11 @@
 import 'dart:typed_data';
 
-import 'package:beak_core/beak_core.dart';
-import 'package:minio/minio.dart';
-
 /// The thin seam between [S3StorageDriver] logic and the S3 wire client, so
 /// driver behavior is unit-testable against a fake.
 ///
 /// Implementations expose raw S3 object operations and surface their own
 /// transport errors; the driver maps them to [BeakStorageException]. The
-/// production implementation is [MinioS3ObjectClient]; a test supplies its own
+/// production implementation is [HttpS3ObjectClient]; a test supplies its own
 /// in-memory implementation via the `S3StorageDriver` `client` parameter.
 ///
 /// ```dart
@@ -49,127 +46,3 @@ abstract interface class S3ObjectClient {
   });
 }
 // --8<-- [end:S3ObjectClient]
-
-/// The production [S3ObjectClient], speaking the S3 API (AWS, MinIO, ...)
-/// via `package:minio`.
-///
-/// [S3StorageDriver] constructs one of these from its [BeakS3Config] when no
-/// test client is injected, so application code rarely instantiates it
-/// directly.
-///
-/// ```dart
-/// final client = MinioS3ObjectClient(BeakS3Config(
-///   endpoint: Uri.parse('http://localhost:29000'),
-///   bucket: 'uploads',
-///   accessKey: 'minioadmin',
-///   secretKey: 'minioadmin',
-///   region: 'us-east-1',
-///   usePathStyle: true,
-/// ));
-/// ```
-final class MinioS3ObjectClient implements S3ObjectClient {
-  /// Creates a client for the endpoint and credentials in [config];
-  /// [minio] overrides the wire client for tests (default: one built from
-  /// [config]).
-  ///
-  /// The endpoint's scheme selects TLS (`https` → SSL), its host and optional
-  /// port address the server, and [BeakS3Config.usePathStyle] chooses
-  /// path-style vs. virtual-host bucket addressing (MinIO needs path-style).
-  MinioS3ObjectClient(BeakS3Config config, {Minio? minio})
-    : _minio =
-          minio ??
-          Minio(
-            endPoint: config.endpoint.host,
-            port: config.endpoint.hasPort ? config.endpoint.port : null,
-            useSSL: config.endpoint.scheme == 'https',
-            accessKey: config.accessKey,
-            secretKey: config.secretKey,
-            region: config.region,
-            pathStyle: config.usePathStyle,
-          );
-
-  final Minio _minio;
-
-  @override
-  Future<void> putObject({
-    required String bucket,
-    required String key,
-    required Uint8List bytes,
-    required String contentType,
-  }) async {
-    await _minio.putObject(
-      bucket,
-      key,
-      Stream.value(bytes),
-      size: bytes.length,
-      metadata: {'content-type': contentType},
-    );
-  }
-
-  @override
-  Future<Uint8List?> getObject({
-    required String bucket,
-    required String key,
-  }) async {
-    final Stream<List<int>> stream;
-    try {
-      stream = await _minio.getObject(bucket, key);
-    } on MinioS3Error catch (error) {
-      if (isMissingObject(error)) {
-        return null;
-      }
-      rethrow;
-    }
-    final BytesBuilder builder = BytesBuilder(copy: false);
-    await stream.forEach(builder.add);
-    return builder.takeBytes();
-  }
-
-  @override
-  Future<void> removeObject({required String bucket, required String key}) =>
-      _minio.removeObject(bucket, key);
-
-  @override
-  Future<bool> objectExists({
-    required String bucket,
-    required String key,
-  }) async {
-    try {
-      await _minio.statObject(bucket, key);
-      return true;
-    } on MinioS3Error catch (error) {
-      if (isMissingObject(error)) {
-        return false;
-      }
-      rethrow;
-    }
-  }
-
-  @override
-  Future<Uri> presignedGetUrl({
-    required String bucket,
-    required String key,
-    required Duration expiresIn,
-  }) async {
-    final String url = await _minio.presignedGetObject(
-      bucket,
-      key,
-      expires: expiresIn.inSeconds,
-    );
-    return Uri.parse(url);
-  }
-
-  /// Whether [error] means the object is not there, rather than that the
-  /// request failed.
-  ///
-  /// Reads the S3 error code as well as the HTTP status. `package:minio`
-  /// puts the human sentence in [MinioS3Error.message] and the code S3
-  /// documents on `error.error.code`, so the code is the field to match; the
-  /// status alone misses a failure raised without a response attached.
-  static bool isMissingObject(MinioS3Error error) =>
-      error.response?.statusCode == 404 ||
-      _missingObjectCodes.contains(error.error?.code);
-
-  /// The S3 error codes that mean "no such object".
-  static const Set<String> _missingObjectCodes = {'NoSuchKey', 'NotFound'};
-}

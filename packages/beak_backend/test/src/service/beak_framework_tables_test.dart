@@ -15,6 +15,7 @@ const BeakFrameworkTables _hostTables = BeakFrameworkTables(
     requestHashColumn: 'requestHash',
     requestJsonColumn: 'requestJson',
     resultJsonColumn: 'resultJson',
+    createdAtColumn: 'createdAt',
   ),
 );
 
@@ -57,6 +58,7 @@ void main() {
           SchemaColumn(name: 'requestHash', type: ColumnType.text),
           SchemaColumn(name: 'requestJson', type: ColumnType.text),
           SchemaColumn(name: 'resultJson', type: ColumnType.text),
+          SchemaColumn(name: 'createdAt', type: ColumnType.dateTime),
         ],
       ),
     );
@@ -81,6 +83,8 @@ void main() {
       'requestJson',
       'resultJson',
     });
+    expect(_hostTables.receipts.createdAtColumn, 'createdAt');
+    expect(BeakFrameworkTables.beak.receipts.createdAtColumn, isNull);
   });
 
   test('a commit stores its receipt in the host table', () async {
@@ -124,5 +128,87 @@ void main() {
       service().commit(_plan('save-1', title: 'Another')),
       throwsA(isA<BeakConflictException>()),
     );
+  });
+
+  group('pruneReceipts', () {
+    Future<void> ageReceipt(String saveId, DateTime createdAt) async {
+      final rows = await adapter.select(
+        const QueryDescriptor(table: 'beak_commit_receipt'),
+      );
+      final row = rows.firstWhere(
+        (row) => '${row['requestJson']}'.contains('"saveId":"$saveId"'),
+      );
+      await adapter.update(
+        UpdateDescriptor(
+          table: 'beak_commit_receipt',
+          where: const StringField('receiptKey').eq('${row['receiptKey']}'),
+          values: {'createdAt': createdAt},
+        ),
+      );
+    }
+
+    test('removes receipts older than the age and keeps the rest', () async {
+      final now = DateTime.utc(2026, 9, 28);
+      await service().commit(_plan('old'));
+      await service().commit(_plan('recent'));
+      await ageReceipt('old', now.subtract(const Duration(days: 90)));
+      await ageReceipt('recent', now.subtract(const Duration(days: 1)));
+
+      final removed = await service().pruneReceipts(
+        olderThan: const Duration(days: 30),
+        now: () => now,
+      );
+
+      expect(removed, 1);
+      await expectLater(
+        service().recover('old'),
+        throwsA(isA<BeakNotFoundException>()),
+      );
+      expect((await service().recover('recent')).complete, isTrue);
+    });
+
+    test('a pruned save id is a new save', () async {
+      final now = DateTime.utc(2026, 9, 28);
+      await service().commit(_plan('again'));
+      await ageReceipt('again', now.subtract(const Duration(days: 90)));
+      await service().pruneReceipts(
+        olderThan: const Duration(days: 30),
+        now: () => now,
+      );
+
+      await service().commit(_plan('again'));
+
+      expect(
+        await adapter.select(const QueryDescriptor(table: 'notes')),
+        hasLength(2),
+        reason: 'the receipt that made the second commit a replay is gone',
+      );
+    });
+
+    test('Beak\'s own receipt table keeps no timestamp to prune by', () async {
+      await const BeakCommitReceiptsMigration().up(adapter);
+      final ownService = BeakGraphCommitService(
+        registry: createApiRegistry(),
+        source: source,
+      );
+
+      await expectLater(
+        ownService.pruneReceipts(olderThan: const Duration(days: 30)),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('createdAtColumn'),
+          ),
+        ),
+      );
+    });
+
+    test('a negative age is rejected', () {
+      expect(
+        () => service().pruneReceipts(olderThan: const Duration(days: -1)),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
   });
 }

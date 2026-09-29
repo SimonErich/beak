@@ -80,17 +80,72 @@ void main() {
     },
   );
 
-  test('graph-only tables cannot silently run without their preparer', () {
-    expect(
-      () => beakApiRouter(
-        registry: createApiRegistry(),
-        dataSource: WormDataSource(
-          createApiRegistry(),
-          adapter: Worm.adapter(),
+  group('without a preparer', () {
+    late Handler bare;
+    late DatabaseAdapter adapter;
+
+    setUp(() {
+      final registry = createApiRegistry();
+      adapter = Worm.adapter();
+      bare = const Pipeline()
+          .addMiddleware(beakErrorMappingMiddleware())
+          .addHandler(
+            beakApiRouter(
+              registry: registry,
+              dataSource: WormDataSource(registry, adapter: adapter),
+              graphOnly: const [NoteModel()],
+            ),
+          );
+    });
+
+    test('graphOnly closes the direct routes of a table by itself', () async {
+      final response = await bare(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/notes/'),
+          body: jsonEncode({'title': 'Direct'}),
         ),
-        graphOnly: const [NoteModel()],
-      ),
-      throwsA(isA<BeakConfigurationException>()),
-    );
+      );
+
+      expect(response.statusCode, 422);
+      expect(await response.readAsString(), contains('graph commit'));
+    });
+
+    test('the commit route still saves the table', () async {
+      final commit = await bare(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/commits'),
+          body: jsonEncode(
+            BeakSavePlan(
+              saveId: 'plain',
+              root: const BeakRecordRef.draft('notes', 'note'),
+              operations: [
+                BeakSaveOperation(
+                  id: 'note',
+                  kind: BeakSaveOperationKind.create,
+                  target: const BeakRecordRef.draft('notes', 'note'),
+                  values: BeakRecord.fromRow({'title': 'Via graph'}),
+                ),
+              ],
+            ).toJson(),
+          ),
+        ),
+      );
+
+      expect(commit.statusCode, 200);
+      expect(await commit.readAsString(), contains('Via graph'));
+    });
+
+    test('a table that is not registered is still refused', () {
+      expect(
+        () => beakApiRouter(
+          registry: BeakModelRegistry(),
+          dataSource: WormDataSource(BeakModelRegistry(), adapter: adapter),
+          graphOnly: const [NoteModel()],
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
   });
 }

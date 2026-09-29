@@ -48,7 +48,23 @@ Future<void> main() async {
     ProcessSignal.sigint.watch().first,
     if (!Platform.isWindows) ProcessSignal.sigterm.watch().first,
   ]);
-  final HttpServer server = await beakHost().serve();
+  final HttpServer server;
+  try {
+    server = await beakHost().serve();
+  } on BeakConfigurationException catch (error) {
+    stderr.writeln('error: ${error.message}');
+    exit(78);
+  } on SocketException catch (error) {
+    // EADDRINUSE on Linux, macOS and Windows.
+    if (!const {98, 48, 10048}.contains(error.osError?.errorCode)) {
+      rethrow;
+    }
+    stderr.writeln(
+      'error: port ${error.port} is already in use. Stop the process that '
+      'has it, or set PORT (or server.port in beak.yaml) to another port.',
+    );
+    exit(69);
+  }
   stderr.writeln('listening on http://${server.address.host}:${server.port}');
   await stopped;
   stderr.writeln('shutting down');
@@ -56,6 +72,8 @@ Future<void> main() async {
   exit(0);
 }
 ```
+
+A bad setting (`PORT`, `DATABASE_URL`, a storage variable) or a port that is already taken ends the process with one `error:` line and exit code `78`, and a server that listens beyond loopback with the default allow-all policy prints one `warning:` line first.
 
 `beakHost()` lives in `lib/beak/server.g.dart`. `beak prepare` fills it with what it found on disk: the registry, the migrations under `lib/migrations/`, the seeders under `lib/seeders/`, and `lib/server.dart` as `configure` when the project has one.
 
@@ -74,7 +92,7 @@ BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
 
 `BeakServeHost` owns the lifecycle. It resolves the environment (`.env` overlaid by the process environment) into a `BeakBackendConfig`, opens the adapter the `DATABASE_URL` scheme names, resolves the upload driver, builds the server and binds the port. With nothing configured that is a SQLite file `beak.db` beside the project, port `8080`, host `0.0.0.0` and local-disk uploads, so a first run needs no Docker and no `.env`.
 
-`BeakCommitReceiptsMigration` and `BeakOutboxMigration` at the top of the list are Beak's own framework tables. Yours follow, ordered by their declared `name`.
+`BeakCommitReceiptsMigration` and `BeakOutboxMigration` at the top of the list are Beak's own framework tables. Yours follow, ordered by their declared `name` with a create-table migration moved behind the tables its foreign keys point at.
 
 `serve()` and `runCli()` are the two ways in, and both use the same registry and migration list, so the schema and the API cannot come from different sources. `bin/migrate.dart` is one line: `exit(await beakHost().runCli(args))`.
 
@@ -128,7 +146,7 @@ The body is `{code, message, fieldErrors?, requestId?}`. Validation failures car
 | `BeakStorageException` | 500 | a storage driver failed, with its message |
 | anything else | 500 | opaque, sent to `onUnexpectedError` |
 
-Only untyped failures are opaque. The message of a typed `500` goes to the client as written, which is convenient for a `BeakConfigurationException` and something to keep in mind for a storage driver, whose message quotes the underlying error. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
+Untyped failures are opaque, and so is a `BeakStorageException`, whose message quotes the system behind the driver: the caller gets `File storage failed.` and `onUnexpectedError` gets the original. The message of the other typed `500`s goes to the client as written, which is convenient for a `BeakConfigurationException`. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
 
 ### The Handler: authorize, parse, delegate
 
@@ -187,7 +205,7 @@ Two routes sit outside `/api`:
 --8<-- "packages/beak_backend/lib/src/endpoints/health_router.dart:beakHealthRouter"
 ```
 
-`/healthz` returns `200` while the process serves and never touches the database, so a database outage cannot start a restart loop. `/readyz` counts rows of the first registered model and answers `200`, or `503` with `{"status": "unavailable", "detail": "the data source did not answer"}`. The real error goes to `onUnexpectedError`, since the probe is unauthenticated. Neither route consults a policy. The auth middleware still runs ahead of them, so a probe carrying an invalid Bearer token gets a `401`.
+`/healthz` returns `200` while the process serves and never touches the database, so a database outage cannot start a restart loop. `/readyz` counts rows of the first registered model and answers `200`, or `503` with `{"status": "unavailable", "detail": "the data source did not answer"}`. The real error goes to `onUnexpectedError`, since the probe is unauthenticated. Neither route consults a policy, and the auth middleware skips both paths (`beakProbePaths`), so a probe carrying an invalid Bearer token still gets its `200` or `503`.
 
 ## Why it is shaped this way
 

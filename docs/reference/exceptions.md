@@ -274,7 +274,9 @@ A graph commit answers `200` even when the save failed. The failure travels insi
 | `notStarted` | server, staged runner | `unapplied` | Placeholder before dispatch |
 | `inFlight` | staged runner | `unknown` | Checkpoint written before the operation ran |
 | `unsupportedBehavior` | staged runner | `unapplied` | The plan needs model behavior and the data source cannot commit atomically |
-| `responseUnavailable` | `BeakFormCommitRepository` | `unknown` | The commit call threw, so nothing is known |
+| `rejected` | `BeakFormCommitRepository` | `unapplied` | The commit call threw a typed refusal (422, 413, 401, 403, 404, 409), so the server ran no write. The error is in `error` |
+| `responseUnavailable` | `BeakFormCommitRepository` | `unknown` | The commit call threw something that cannot prove nothing was written (a dropped connection, a timeout, a 5xx), so nothing is known |
+| `notReceived` | `BeakFormCommitRepository` | `unapplied` | The receipt lookup answered 404, so the server never received the plan |
 | `restoredPendingSave` | draft runtime | `unknown` | A reload found a stored snapshot of a save in flight |
 
 A `saveId` with an `unknown` outcome is never replayed. `GET /api/commits/{saveId}` resolves it. When a receipt has to become an exception again (a single-record delete through `ModelBeakDataSource`), the first outcome error is mapped back by `code`: `validation`, `authorization`, `authentication`, `not_found`, `configuration` and `storage` keep their type, and everything else becomes `BeakConflictException`.

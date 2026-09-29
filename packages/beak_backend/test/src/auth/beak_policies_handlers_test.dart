@@ -55,6 +55,7 @@ final class _ArchivableNote extends BeakModel {
 BeakPolicies _policies({
   BeakModel notes = const NoteModel(),
   Set<BeakFieldRef<Object>> readOnly = const {},
+  Map<BeakFieldRef<Object>, BeakAccess> hidden = const {},
   Map<BeakModelAction, BeakAccess> actions = const {},
 }) => BeakPolicies(
   rules: [
@@ -65,6 +66,7 @@ BeakPolicies _policies({
       delete: _manager,
       rowScope: (principal) => NoteModel.authorId.eq(principal.id),
       readOnlyFields: readOnly,
+      hiddenFields: hidden,
       actions: actions,
     ),
     BeakModelRules(const AuthorModel(), read: BeakAccess.authenticated),
@@ -211,6 +213,78 @@ void main() {
       '${(await objectOf(response))['code']}';
 
   final querySpec = const BeakQuerySpec(table: 'notes').toJson();
+
+  group('a hidden field', () {
+    // Editors are hidden from the rating; managers (who are editors too, but
+    // are not hidden) still see and set it.
+    late Handler hiding;
+
+    setUp(() {
+      hiding = serve(
+        _policies(
+          hidden: {
+            NoteModel.rating: const BeakAccess.all([
+              _editor,
+              BeakAccess.not(_manager),
+            ]),
+          },
+        ),
+      );
+    });
+
+    Future<BeakRecord> note(String token, {Handler? on}) async =>
+        BeakRecord.fromJson(
+          await objectOf(
+            await call('GET', '/api/notes/n1', token: token, on: on),
+          ),
+        );
+
+    test('is left out of what it is hidden from', () async {
+      await source.update('notes', 'n1', BeakRecord.fromRow({'rating': 4}));
+
+      expect((await note(editorToken, on: hiding))['rating'], isNull);
+      expect((await note(managerToken, on: hiding))['rating']?.raw, 4);
+    });
+
+    test('is refused in a sort or filter for who it is hidden from', () async {
+      final response = await call(
+        'POST',
+        '/api/notes/query',
+        body: const BeakQuerySpec(
+          table: 'notes',
+          sorts: [BeakSort('rating')],
+        ).toJson(),
+        token: editorToken,
+        on: hiding,
+      );
+
+      expect(response.statusCode, 403);
+    });
+
+    test('is refused on write for who it is hidden from', () async {
+      final response = await call(
+        'PATCH',
+        '/api/notes/n1',
+        body: {'rating': 5},
+        token: editorToken,
+        on: hiding,
+      );
+
+      expect(response.statusCode, 403);
+    });
+
+    test('can still be written by who it is not hidden from', () async {
+      final response = await call(
+        'PATCH',
+        '/api/notes/n1',
+        body: {'rating': 5},
+        token: managerToken,
+        on: hiding,
+      );
+
+      expect(response.statusCode, 200);
+    });
+  });
 
   group('a model with no rule is invisible', () {
     final unlisted = <(String, String, String, Object?)>[
@@ -643,6 +717,69 @@ void main() {
         expect(editor.canRead('rating'), isTrue);
       },
     );
+  });
+
+  group('capabilities: create and delete', () {
+    Future<BeakAccessCapabilities> capabilitiesOf(
+      String token, {
+      String query = '',
+    }) async {
+      final response = await call(
+        'GET',
+        '/api/notes/capabilities$query',
+        token: token,
+      );
+      expect(response.statusCode, 200);
+      return BeakAccessCapabilities.fromJson(await objectOf(response));
+    }
+
+    // The rules: read for anyone signed in, write for editors, delete for
+    // managers (a manager here is also an editor).
+    test('follow the policy of each role', () async {
+      final reader = await capabilitiesOf(readerToken);
+      final editor = await capabilitiesOf(editorToken);
+      final manager = await capabilitiesOf(managerToken);
+
+      expect((reader.canCreate, reader.canDelete), (false, false));
+      expect((editor.canCreate, editor.canDelete), (true, false));
+      expect((manager.canCreate, manager.canDelete), (true, true));
+    });
+
+    test('are asked about the record when one is named', () async {
+      final editor = await capabilitiesOf(editorToken, query: '?id=n1');
+      final manager = await capabilitiesOf(managerToken, query: '?id=n1');
+
+      expect(editor.canDelete, isFalse);
+      expect(manager.canDelete, isTrue);
+    });
+
+    test('agree with what the routes then do', () async {
+      final editor = await capabilitiesOf(editorToken);
+      final denied = await call('DELETE', '/api/notes/n1', token: editorToken);
+      final created = await call(
+        'POST',
+        '/api/notes',
+        body: {'title': 'New', 'author_id': 'a1'},
+        token: editorToken,
+      );
+
+      expect(editor.canDelete, isFalse);
+      expect(denied.statusCode, 403);
+      expect(editor.canCreate, isTrue);
+      expect(created.statusCode, 201);
+    });
+
+    test('an allow-all policy offers both', () async {
+      final open = serve(const BeakAllowAllPolicy());
+
+      final response = await call('GET', '/api/notes/capabilities', on: open);
+      final capabilities = BeakAccessCapabilities.fromJson(
+        await objectOf(response),
+      );
+
+      expect(capabilities.canCreate, isTrue);
+      expect(capabilities.canDelete, isTrue);
+    });
   });
 
   group('read-only fields', () {

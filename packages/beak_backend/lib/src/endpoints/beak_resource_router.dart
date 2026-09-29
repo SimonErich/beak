@@ -25,6 +25,7 @@ import 'local_uploads_router.dart';
 ///
 /// Wires the [BeakCrudHandlers] for [service] onto the query, aggregate,
 /// batch, CRUD, and relation attach/detach routes, each gated by [policy].
+/// A query asking for more than [maxPerPage] rows is served [maxPerPage].
 /// Internal to `beak_backend`: [beakApiRouter] mounts one of these per
 /// registered model.
 // --8<-- [start:beakResourceRouter]
@@ -33,11 +34,13 @@ Router beakResourceRouter(
   BeakPolicy policy = const BeakAllowAllPolicy(),
   BeakModelRegistry? registry,
   bool graphOnly = false,
+  int maxPerPage = BeakPagination.maxPerPage,
 }) {
   final handlers = BeakCrudHandlers(
     service,
     policy: policy,
     registry: registry,
+    maxPerPage: maxPerPage,
   );
   Response requireGraph(Request request) => throw const BeakValidationException(
     'This resource must be saved through a graph commit.',
@@ -80,17 +83,28 @@ Router beakResourceRouter(
 /// [now] and [generateId] are the clock and the id mint behind every write:
 /// the per-record CRUD routes, the graph commits, and the upload storage keys
 /// all use them, so a frozen-clock test sees one instant on every path.
+/// [maxPerPage] is the largest page a query is served; a larger request is
+/// answered at this size (default: `BeakPagination.maxPerPage`, 200).
+///
 /// [transformRunner] overrides the image pipeline behind the uploads (default:
-/// the real `beak_image` runner).
+/// the real `beak_image` runner), and [signedUrlLifetime] is how long the
+/// links `GET /api/{table}/{column}/upload?key=` returns stay valid on
+/// drivers that sign them (default: one hour).
 ///
 /// [preparePlan] normalizes and validates complete graphs within a
-/// transaction. [graphOnly] restricts those models to that write path,
+/// transaction. [graphOnly] restricts models to the commit write path,
 /// rejecting direct CRUD and relationship mutations while retaining all read
-/// operations; every model it names must be registered.
+/// operations; every model it names must be registered, and it needs no
+/// [preparePlan] when the direct routes are all you want closed.
 ///
 /// [commitReceipts] maps the graph-commit receipts onto a table (default:
 /// Beak's own `_beak_commit_receipts`), for a host whose migrations Beak does
 /// not own.
+///
+/// The commit routes exist for every data source. A [WormDataSource] on a
+/// transactional adapter saves a graph atomically with a durable receipt;
+/// any other source is written through its ordinary CRUD calls, staged, with
+/// its receipts kept in memory ([maxStagedReceipts] of them, default 1024).
 ///
 /// [onUnexpectedError] receives the failures the readiness probe swallows, so
 /// `/readyz` can answer with a generic detail instead of the raw error.
@@ -121,23 +135,21 @@ Handler beakApiRouter({
   BeakAuthSessions? auth,
   BeakStorageDriver? storage,
   BeakTransformRunner? transformRunner,
+  Duration? signedUrlLifetime,
   DateTime Function()? now,
   String Function()? generateId,
   BeakSavePlanPreparer? preparePlan,
   BeakSavePlanFinalizer? finalizePlan,
   List<BeakModel> graphOnly = const [],
   BeakCommitReceiptTable commitReceipts = BeakCommitReceiptTable.beak,
+  int? maxStagedReceipts,
+  int maxPerPage = BeakPagination.maxPerPage,
   BeakUnexpectedErrorListener? onUnexpectedError,
 }) {
   // --8<-- [start:graphOnlyGuards]
   final graphOnlyTables = {
     for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
   };
-  if (graphOnlyTables.isNotEmpty && preparePlan == null) {
-    throw const BeakConfigurationException(
-      'Graph-only resources require an authoritative graph preparer.',
-    );
-  }
   if ((preparePlan != null || finalizePlan != null) &&
       dataSource is! WormDataSource) {
     throw const BeakConfigurationException(
@@ -193,8 +205,9 @@ Handler beakApiRouter({
       'No handler for ${request.method} /${request.url.path}.',
     ),
   );
-  // Outside `/api`, and mounted first: a platform's probes must not be
-  // subject to the auth middleware that guards the API.
+  // Outside `/api`, and mounted first. The auth middleware skips the same
+  // paths (`beakProbePaths`), so a platform's probes never meet the guard
+  // that protects the API.
   router.mount(
     '/',
     beakHealthRouter(
@@ -213,21 +226,21 @@ Handler beakApiRouter({
   }
   final exportService = CsvExportService(registry, dataSource);
   // --8<-- [start:commitRoutes]
-  if (dataSource is WormDataSource) {
-    registerBeakCommitRoutes(
-      router,
-      BeakGraphCommitService(
-        registry: registry,
-        source: dataSource,
-        policy: policy,
-        preparePlan: preparePlan,
-        finalizePlan: finalizePlan,
-        receipts: commitReceipts,
-        now: now,
-        generateId: generateId,
-      ),
-    );
-  }
+  registerBeakCommitRoutes(
+    router,
+    BeakGraphCommitService(
+      registry: registry,
+      source: dataSource,
+      policy: policy,
+      preparePlan: preparePlan,
+      finalizePlan: finalizePlan,
+      receipts: commitReceipts,
+      maxStagedReceipts:
+          maxStagedReceipts ?? BeakGraphCommitService.defaultMaxStagedReceipts,
+      now: now,
+      generateId: generateId,
+    ),
+  );
   // --8<-- [end:commitRoutes]
   final uploads = storage == null
       ? null
@@ -236,6 +249,8 @@ Handler beakApiRouter({
           storage: storage,
           transformRunner: transformRunner ?? const ImageTransformRunner(),
           generateKeyId: generateId,
+          signedUrlLifetime:
+              signedUrlLifetime ?? UploadService.defaultSignedUrlLifetime,
         );
   for (final model in registry.all) {
     final service = BeakResourceService(
@@ -250,6 +265,7 @@ Handler beakApiRouter({
       policy: policy,
       registry: registry,
       graphOnly: constrainedTables.contains(model.table),
+      maxPerPage: maxPerPage,
     );
     registerExportRoutes(
       resourceRouter,

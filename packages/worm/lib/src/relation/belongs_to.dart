@@ -5,6 +5,7 @@ import '../adapter/database_adapter.dart';
 import '../model/model.dart';
 import '../query/field.dart';
 import '../query/field_operators.dart';
+import '../query/predicate_tree.dart';
 import '../query/query_descriptor.dart';
 import 'relation_base.dart';
 
@@ -41,7 +42,17 @@ final class BelongsToRelation<Child extends Model, Parent extends Model>
   Future<RelationLoadResult<Child>> load(
     DatabaseAdapter adapter,
     List<Child> children,
-  ) async {
+  ) => loadWithFilter(adapter, children);
+
+  /// Loads the parents with [extraFilter] AND-merged into the parent
+  /// SELECT: a child whose parent the filter rejects gets `null`, exactly as
+  /// if it had no parent.
+  @override
+  Future<RelationLoadResult<Child>> loadWithFilter(
+    DatabaseAdapter adapter,
+    List<Child> children, {
+    PredicateTree? extraFilter,
+  }) async {
     final foreignIds = <Object?>{
       for (final c in children)
         if (c.toRow()[foreignKey] != null) c.toRow()[foreignKey],
@@ -52,9 +63,10 @@ final class BelongsToRelation<Child extends Model, Parent extends Model>
         stats: const LoadStats(queriesExecuted: 0),
       );
     }
-    final field = Field<Object?>(ownerKey);
+    final inClause = Field<Object?>(ownerKey).inList(foreignIds);
+    final where = extraFilter == null ? inClause : inClause.and(extraFilter);
     final rows = await adapter.select(
-      QueryDescriptor(table: parentTable, where: field.inList(foreignIds)),
+      QueryDescriptor(table: parentTable, where: where),
     );
     final byOwner = <Object?, Parent>{
       for (final row in rows) row[ownerKey]: hydrateParent(row),

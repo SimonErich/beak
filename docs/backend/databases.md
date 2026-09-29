@@ -104,7 +104,7 @@ If your backend is a Serverpod server, none of this page applies: Serverpod owns
 
 | Rule | Consequence |
 | --- | --- |
-| A bad `DATABASE_URL` fails the boot | `BeakConfigurationException` with the variable named, printed as `Unhandled exception:` with a stack trace, exit code `255` |
+| A bad `DATABASE_URL` fails the boot | `BeakConfigurationException` with the variable named. `beak migrate` and the generated `bin/serve.dart` print it as one line (`error: DATABASE_URL must ...`) and exit `78`, where a hand-written entry point that calls `BeakServeHost.serve()` and does not catch it ends in `Unhandled exception:` and exit `255` |
 | `beak.db` without a scheme is not a URL | `DATABASE_URL must be an absolute URL, got "beak.db"`. Write `sqlite:beak.db` |
 | Only `sqlite:`, `file:` and `postgres(ql)://` are understood | Every other scheme is read as Postgres and refused |
 | Postgres connects on first use | The boot succeeds against a dead database. `/healthz` answers `200`, `/readyz` answers `503` and the connection error goes to stderr |
@@ -137,8 +137,7 @@ A wrong password is not a `readyz` question, it is a first-query question. The f
 
 ```console
 $ DATABASE_URL=postgres://beak:wrong@localhost:5432/beak beak migrate
-Unhandled exception:
-QueryException: password authentication failed for user "beak" (query: CREATE TABLE IF NOT EXISTS "worm_migrations" ...
+error: password authentication failed for user "beak"
 ```
 
 ## Reference

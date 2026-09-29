@@ -168,7 +168,7 @@ $ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/products -H 'content
 
 The router also closes a table without being asked when its model declares `behavior`, when it is an owned child of a model with `editableWhen`, or when another model's shared rules load it. List every table your preparer reasons about, owned children included: the shop lists items, vouchers and attribute rows next to their parents, since a direct write to a child would bypass a rule on its parent.
 
-Two checks protect the wiring. Naming a table in `graphOnly` without a `preparePlan` throws `Graph-only resources require an authoritative graph preparer.` when the router is built. `preparePlan`, `finalizePlan` and closed tables also need a `WormDataSource`, which the router checks at build time, and a transactional adapter, which a commit checks when it runs.
+`graphOnly` needs no `preparePlan`: list a table to close its direct routes and every save of it goes through `POST /api/commits`, where the usual authorization and validation still run. Two checks protect the rest of the wiring. `preparePlan`, `finalizePlan` and tables closed by behavior or shared rules need a `WormDataSource`, which the router checks at build time, and a transactional adapter, which a commit checks when it runs.
 
 ## Revision guards and replay
 
@@ -200,13 +200,12 @@ Assert three things per rule: the accepted graph gets the derived values, the re
 
 | Rule | Consequence |
 | --- | --- |
-| Preparers, finalizers and closed tables need a `WormDataSource` on a transactional adapter | A data source that is not worm makes the router refuse to build. An adapter without transactions makes every commit refuse with `Graph preparation requires a transactional data source.` |
+| Preparers, finalizers and tables closed by behavior or shared rules need a `WormDataSource` on a transactional adapter | A data source that is not worm makes the router refuse to build. An adapter without transactions makes every commit refuse with `Graph preparation requires a transactional data source.` A plain `graphOnly` list has no such need |
 | A preparer must keep the save identity, the root and each original operation | Otherwise `500` `configuration`. It may add operations freely |
-| A preparer's reads apply no row scope | The transaction-bound source is unscoped. Pass `authorizeRead` to `BeakCandidateGraph.open` when a rule reads records the caller may not see |
+| A preparer's reads apply no row scope | The transaction-bound source is unscoped, so a rule can count rows the caller cannot see. Pass `authorizeRead: transaction.authorizeRead` to `BeakCandidateGraph.open` and the records the plan names are checked against the caller's `canView` and row scope |
 | Field-write checks cover client-sent operations only | Operations a preparer adds skip that check, and keep every other one |
 | An untyped exception is a `500` and stores no receipt | Throw `BeakValidationException` for user errors. Retries run the preparer again |
-| `graphOnly` needs a `preparePlan` | To close the direct routes without a rule, pass a preparer that returns the plan unchanged |
-| A plan that decodes but is invalid (unknown field, cycle, duplicate id) is a `500` `configuration` | A hand-written client should send valid plans. The panel always does |
+| A plan that decodes but is invalid (unknown field, cycle, duplicate id) is a `422` | `Invalid save plan: ...` names the problem, before any hook runs. The panel always sends valid plans |
 | Plan size is bounded | `saveId` up to 200 characters, 1000 operations, 10,000 graph nodes |
 | A graph commit needs `BeakCommitReceiptsMigration` applied | Every generated host lists it. Run `beak migrate` before the first save |
 | Nothing prunes receipts | Old idempotency keys never become new writes, and the table grows |

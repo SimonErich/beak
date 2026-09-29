@@ -78,11 +78,13 @@ so no request can skip them. `beak eject server` writes a starter
 | `policy` | Who may do what. The default allows everything (see Limits). |
 | `authSessions`, `authGuard` | Token sessions and the code that turns a request into a principal. |
 | `preparePlan`, `finalizePlan` | Transactional rules before and after a graph commit. |
-| `graphOnly` | Models that can only be written through graph commits. Needs `preparePlan`. |
+| `graphOnly` | Models that can only be written through graph commits. Needs no `preparePlan`. |
 | `outbox` | A `BeakOutboxSchedule`: effects the finalizer enqueued, delivered while the host serves. |
 | `middleware`, `routes` | Middleware after auth, and endpoints tried before the generated API. |
-| `corsOrigin`, `onRequest`, `onUnexpectedError` | The allowed origin, the request log, and where unexpected failures go. |
+| `corsOrigin`, `onRequest`, `onUnexpectedError`, `onWarning` | The allowed origin, the request log, where unexpected failures go, and where the boot warning goes. |
 | `generateId`, `transformRunner` | The id mint and the image pipeline. |
+| `storage`, `dataSource` | Replace the upload driver or the worm data source the host resolved. |
+| `signedUrlLifetime`, `maxPerPage` | How long signed upload links live (one hour) and the largest page served (200). |
 
 The outbox, extra routes and middleware together (`sendReceipt`, `stats` and
 `rateLimit` are yours):
@@ -190,20 +192,20 @@ still run through `BeakServeHost.runCli`, which the generated
 ## Limits
 
 - **Open by default.** `BeakServer` and `defaults.build` use
-  `BeakAllowAllPolicy`, answer CORS with `*` and bind `0.0.0.0`, and nothing
-  warns at boot when that combination is exposed. Set a policy and
-  `corsOrigin`, and `HOST=127.0.0.1` for local work, before a server is
-  reachable from anywhere you do not control.
-- **Graph commits need worm.** `POST /api/commits` is mounted only when the
-  data source is a `WormDataSource`, and `preparePlan`, `finalizePlan` and
-  `graphOnly` throw at startup with any other. A panel that saves through a
-  different source has no commit route to call.
-- **The page-size ceiling is 200, and fixed for the generated server.**
-  `BeakQueryAuthorizer` and `BeakCrudHandlers` take a `maxPerPage`, but
-  `BeakServer` does not pass one through yet. A request for more rows is served
-  at the ceiling and the page envelope says so.
-- **Upload URLs are not signed.** `GET .../upload` asks the driver for a plain
-  URL, so a private S3 bucket does not serve through it.
+  `BeakAllowAllPolicy`, answer CORS with `*` and bind `0.0.0.0`. Bound beyond
+  loopback, the server prints one `warning:` line at boot and serves anyway. Set
+  a policy and `corsOrigin`, and `HOST=127.0.0.1` for local work, before a
+  server is reachable from anywhere you do not control.
+- **Atomic graph commits need worm.** `POST /api/commits` is mounted for every
+  data source, but only a `WormDataSource` on a transactional adapter saves
+  atomically with durable receipts. Any other source is written one operation at
+  a time with no rollback and receipts in memory, and `preparePlan`,
+  `finalizePlan` and model behavior throw at startup with it.
+- **The page-size ceiling is 200 unless you set `maxPerPage`.** A request for
+  more rows is served at the ceiling and the page envelope says so.
+- **Upload links are signed for an hour.** `GET .../upload` asks the driver for
+  a link that expires after `signedUrlLifetime`, so a private S3 bucket serves
+  through it. Drivers with public links ignore the expiry.
 - **Unexpected failures are opaque.** Anything that is not a `BeakException`
   becomes a 500 with code `internal` and a fixed message. The raw error goes to
   `onUnexpectedError`, not to the client, and `BeakClient` reads that code as a

@@ -61,4 +61,48 @@ void main() {
       );
     },
   );
+  test(
+    'creating and deleting are allowed unless the server says otherwise',
+    () {
+      const unrestricted = BeakAccessCapabilities();
+      expect(unrestricted.canCreate, isTrue);
+      expect(unrestricted.canDelete, isTrue);
+      expect(unrestricted.toJson()['canCreate'], isTrue);
+      expect(unrestricted.toJson()['canDelete'], isTrue);
+    },
+  );
+
+  test('create and delete permissions survive the JSON round trip', () {
+    for (final (create, delete) in [
+      (true, true),
+      (true, false),
+      (false, true),
+      (false, false),
+    ]) {
+      final decoded = BeakAccessCapabilities.fromJson(
+        BeakAccessCapabilities(canCreate: create, canDelete: delete).toJson(),
+      );
+      expect(decoded.canCreate, create);
+      expect(decoded.canDelete, delete);
+    }
+  });
+
+  test('a server that reports neither leaves both allowed', () {
+    final decoded = BeakAccessCapabilities.fromJson({
+      'readableFields': ['name'],
+    });
+
+    expect(decoded.canCreate, isTrue);
+    expect(decoded.canDelete, isTrue);
+  });
+
+  test('a create or delete permission that is not a boolean is refused', () {
+    for (final key in ['canCreate', 'canDelete']) {
+      expect(
+        () => BeakAccessCapabilities.fromJson({key: 'no'}),
+        throwsFormatException,
+        reason: key,
+      );
+    }
+  });
 }

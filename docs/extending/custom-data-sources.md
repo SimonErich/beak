@@ -38,14 +38,14 @@ The contract suite checks most of this, and the column says which part it checks
 
 | Method | Returns | The contract | In the suite |
 | --- | --- | --- | --- |
-| `query` | A `BeakPage` | Applies `spec.filter`, `sorts`, `search` and `pagination`. Reports the true `total`. A page past the end is empty, not an error. Hides soft-deleted rows unless `withTrashed`. Resolves every `relationLoads` entry. | Everything except relation loads. |
+| `query` | A `BeakPage` | Applies `spec.filter`, `sorts`, `search` and `pagination`. Reports the true `total`. A page past the end is empty, not an error. Hides soft-deleted rows unless `withTrashed`. Resolves every `relationLoads` entry. | Yes, relation loads included (plain, filtered and nested) when you pass `relationModels`. |
 | `getOne` | A record or `null` | Returns `null`, never throws, when the row is absent or soft-deleted. | Yes |
 | `create` | The stored record | Echoes database-assigned values (id, timestamps) and keeps an id it was given. | Yes |
 | `update` | The stored record | A partial patch leaves other fields alone. Throws `BeakNotFoundException` when the id is gone. | Yes |
 | `delete` | Nothing | Throws `BeakNotFoundException` for a missing id. Soft-deletes when the model does, unless `force` is set. | Yes |
 | `restore` | The restored record | Clears the soft-delete marker. Throws `BeakNotFoundException` for a live or unknown id, and `BeakValidationException` when the model does not soft-delete. | Yes |
 | `batchGet` | A list of records | One query, not one per id. Skips unknown ids. An empty list returns nothing. | Results, not the query count |
-| `attach`, `detach` | Nothing | Link or unlink to-many rows: pivot rows for belongs-to-many, foreign keys for has-many. Attaching an existing link is skipped. | No |
+| `attach`, `detach` | Nothing | Link or unlink to-many rows: pivot rows for belongs-to-many, foreign keys for has-many. Attaching an existing link is skipped. Detaching a link that is not there, or a has-many row another parent owns, changes nothing. | Yes, when you pass `relationModels` |
 | `aggregate` | A `num` | Count, sum or average of the matching rows. Returns `0` over an empty set, never `null`. | Yes |
 
 ## Three rules
@@ -94,18 +94,22 @@ A source used as a decorator is the smallest implementation of all. `BeakRecordi
 --8<-- "packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart:contract"
 ```
 
+`_AuthorWithNotesModel` is the fixture's authors table with a has-many back to its notes, which lets the run load a relation inside a relation.
+
 | Argument | Meaning |
 | --- | --- |
 | `registry`, `model` | The registry and the model whose table the suite seeds and queries. |
 | `create` | Builds a fresh source for each test. |
 | `seed` | Puts records into your store. The suite cannot know how: the in-memory source has `seed`, a SQL one needs SQL, a Serverpod one needs a session. |
 | `sortableTextColumn`, `numericColumn` | Optional. Defaults to the first string column and the first int or decimal column. Without a numeric column the sum and average tests are skipped. |
+| `relationModels` | Optional. The models whose relationships the relation groups exercise: eager loads (plain, filtered, nested), `attach` and `detach`. Their related tables must be in `registry` and seedable through `seed`, which also carries the foreign keys. Left empty, the suite runs one skipped test in place of the relation groups, so the gap shows in the output. |
+| `seedLinks` | Optional. Writes many-to-many links the way your store holds them (pivot rows). Without it the suite links through your own `attach`, so a broken `attach` fails the load tests too. |
 
 ```console
 $ cd packages/beak_backend
 $ dart test test/src/data/worm/worm_data_source_contract_test.dart
-00:00 +29: WormDataSource satisfies the BeakDataSource contract exceptions are typed an unregistered table raises a configuration error
-00:00 +30: All tests passed!
+00:00 +75: WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
+00:00 +76: All tests passed!
 ```
 
 A green run is your source saying it belongs. It does not say everything, because of the limits listed next.
@@ -124,31 +128,26 @@ A green run is your source saying it belongs. It does not say everything, becaus
 
 === "The server"
 
-    `BeakServer` takes any `BeakDataSource`. The generated host builds a `WormDataSource` and hands it to `BeakServerDefaults`, whose `build()` always uses it, so serving something else means constructing the server in `lib/server.dart` (write it with `beak eject server`) from the resolved defaults:
+    `BeakServer` takes any `BeakDataSource`. The generated host builds a `WormDataSource` and hands it to `BeakServerDefaults`, and `build()` accepts a `dataSource:` (and a `storage:`) to replace what the host resolved, so `lib/server.dart` keeps the rest of the wiring:
 
     ```dart title="lib/server.dart"
     import 'package:beak/server.dart';
 
-    BeakServer beakServer(BeakServerDefaults defaults) => BeakServer(
-      config: defaults.config,
-      registry: defaults.registry,
-      dataSource: MyDataSource(),
-      storage: defaults.storage,
-      now: defaults.now,
-    );
+    BeakServer beakServer(BeakServerDefaults defaults) =>
+        defaults.build(dataSource: MyDataSource());
     ```
 
-    `MyDataSource` is yours. The block is illustrative (it is not a repository file) and compiles against a fresh `beak create` project. Every generated CRUD route then runs against your source, with the limits below.
+    `MyDataSource` is yours. The block is illustrative (it is not a repository file) and compiles against a fresh `beak create` project. Every generated CRUD route then runs against your source, with the limits below. `defaults.dataSource` is still the worm source, and the host still connects the database first.
 
 ## Rules and limits
 
 | Rule | Enforced where | What it means |
 | --- | --- | --- |
-| Graph commits need a `WormDataSource` | Server: the router mounts `POST /api/commits` only for it | A server built over another source has CRUD routes and no commit route. The default panel's `HttpBeakDataSource` saves forms and deletes through that route, so against such a server the panel reads but its writes fail. |
+| Atomic graph commits need a `WormDataSource` | Server: `POST /api/commits` is mounted for every source, and atomic only for it | Over your source the route saves `staged`: every operation is authorized first, then written through your `create`, `update`, `delete`, `attach` and `detach` in dependency order, stopping at the first failure, with no rollback. Receipts are kept in memory (the newest 1024), so a restart forgets them. The default panel's saves and deletes work. |
 | Behavior and shared relation rules need one too | Server: the router refuses to start | A model with `behavior`, an `editableWhen`, or a record rule that loads relations makes `BeakServer` throw `Shared relationship validation requires an atomic graph data source.` |
-| `preparePlan`, `finalizePlan` and `graphOnly` need one | Server: the same guard | `Graph preparation requires a Worm data source.` |
+| `preparePlan` and `finalizePlan` need one | Server: the same guard | `Graph preparation requires a Worm data source.` A plain `graphOnly` list works over any source. |
 | The host still connects its database | Server: `BeakServeHost.serve` | It initialises the `DATABASE_URL` database before it calls your `beakServer`, even if your source never uses it. |
-| The suite has no relation or link tests | Test | `attach`, `detach` and `relationLoads` are yours to test. |
+| The relation groups are opt-in | Test | `attach`, `detach` and `relationLoads` are tested for the models you name in `relationModels`. The suite seeds related rows with generated values in the foreign key columns it does not wire, so a store that enforces foreign keys on those tables fails at seed time. A relationship from a table to itself is skipped. |
 | The suite checks soft deletes only if the model has them | Test | Pass a model with `softDeletes` to run the soft-delete group, and a model without to run the rejection test. |
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"

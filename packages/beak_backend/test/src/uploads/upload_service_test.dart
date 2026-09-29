@@ -163,6 +163,133 @@ void main() {
     },
   );
 
+  group('decompression bombs', () {
+    late _CountingRunner runner;
+    late UploadService service;
+
+    setUp(() {
+      runner = _CountingRunner();
+      service = UploadService(
+        registry: BeakModelRegistry()..register(const _MediaModel()),
+        storage: storage,
+        transformRunner: runner,
+        generateKeyId: () => 'minted',
+      );
+    });
+
+    BeakUpload bomb({required int side, String? filename}) => BeakUpload(
+      filename: filename ?? 'bomb.png',
+      mimeType: 'image/png',
+      bytes: pngClaiming(width: side, height: side),
+    );
+
+    test('a bitmap over maxDimensions is refused from its header', () async {
+      final errors = await fieldErrorsOf(
+        () => service.handle(
+          table: 'media',
+          columnKey: 'avatar',
+          upload: bomb(side: 60000),
+        ),
+      );
+
+      expect(errors['dimensions'], isNotEmpty);
+      expect(runner.inspections, 1);
+      expect(runner.decodes, 0, reason: 'no pixel may be decoded');
+      expect(await storage.exists('avatars/minted.png'), isFalse);
+    });
+
+    test('a bitmap the runner will not hold is refused too', () async {
+      // The banner column declares no maxDimensions, so only the runner's
+      // own ceiling stands between the header and the allocation.
+      await expectLater(
+        service.handle(
+          table: 'media',
+          columnKey: 'banner',
+          upload: bomb(side: 60000),
+        ),
+        throwsA(isA<BeakValidationException>()),
+      );
+      expect(runner.decodes, 1, reason: 'the runner itself refused it');
+    });
+
+    test('a valid image is decoded exactly once', () async {
+      await service.handle(
+        table: 'media',
+        columnKey: 'avatar',
+        upload: pngUpload(),
+      );
+
+      expect(runner.inspections, 1);
+      expect(runner.decodes, 1);
+    });
+
+    test('a valid image without transforms is decoded exactly once', () async {
+      await service.handle(
+        table: 'media',
+        columnKey: 'banner',
+        upload: pngUpload(),
+      );
+
+      expect(runner.inspections, 1);
+      expect(runner.decodes, 1);
+    });
+  });
+
+  group('signed URLs', () {
+    test(
+      'url asks the driver for a signed link with the default lifetime',
+      () async {
+        final signing = _SigningDriver(storage);
+        final service = UploadService(
+          registry: BeakModelRegistry()..register(const _MediaModel()),
+          storage: signing,
+          transformRunner: const ImageTransformRunner(),
+        );
+        final saved = await service.handle(
+          table: 'media',
+          columnKey: 'attachment',
+          upload: pdfUpload(),
+        );
+
+        final url = await service.url('media', 'attachment', saved.key);
+
+        expect(signing.requestedLifetimes, [const Duration(hours: 1)]);
+        expect(url.queryParameters['expires'], '3600');
+      },
+    );
+
+    test('url uses the configured lifetime', () async {
+      final signing = _SigningDriver(storage);
+      final service = UploadService(
+        registry: BeakModelRegistry()..register(const _MediaModel()),
+        storage: signing,
+        transformRunner: const ImageTransformRunner(),
+        signedUrlLifetime: const Duration(minutes: 5),
+      );
+      final saved = await service.handle(
+        table: 'media',
+        columnKey: 'attachment',
+        upload: pdfUpload(),
+      );
+
+      await service.url('media', 'attachment', saved.key);
+
+      expect(signing.requestedLifetimes, [const Duration(minutes: 5)]);
+    });
+
+    test('a lifetime that is not positive is rejected at construction', () {
+      expect(
+        () => UploadService(
+          registry: BeakModelRegistry()..register(const _MediaModel()),
+          storage: storage,
+          transformRunner: const ImageTransformRunner(),
+          signedUrlLifetime: Duration.zero,
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+  });
+
   group('file columns', () {
     test('stores a valid file under a minted key', () async {
       final stored = await service.handle(
@@ -378,4 +505,55 @@ final class _FailSecondWrite implements BeakStorageDriver {
   @override
   Future<Uri> url(String key, {Duration? expiresIn}) =>
       delegate.url(key, expiresIn: expiresIn);
+}
+
+/// A driver that signs: it records the lifetime it was asked for and puts it
+/// in the URL, like a presigning S3 driver does.
+final class _SigningDriver implements BeakStorageDriver {
+  _SigningDriver(this.delegate);
+  final BeakStorageDriver delegate;
+  final requestedLifetimes = <Duration>[];
+  @override
+  String get id => delegate.id;
+  @override
+  Future<BeakStoredFile> put(BeakUpload upload, {required String path}) =>
+      delegate.put(upload, path: path);
+  @override
+  Future<void> delete(String key) => delegate.delete(key);
+  @override
+  Future<bool> exists(String key) => delegate.exists(key);
+  @override
+  Future<Uint8List> get(String key) => delegate.get(key);
+  @override
+  Future<Uri> url(String key, {Duration? expiresIn}) async {
+    final Uri base = await delegate.url(key);
+    if (expiresIn == null) return base;
+    requestedLifetimes.add(expiresIn);
+    return base.replace(
+      queryParameters: {'expires': expiresIn.inSeconds.toString()},
+    );
+  }
+}
+
+/// Wraps the real runner and counts how often the header is read and the
+/// pixels are decoded.
+final class _CountingRunner implements BeakTransformRunner {
+  final BeakTransformRunner _inner = const ImageTransformRunner();
+  int inspections = 0;
+  int decodes = 0;
+
+  @override
+  Future<BeakDimensions> inspect(Uint8List source) {
+    inspections += 1;
+    return _inner.inspect(source);
+  }
+
+  @override
+  Future<BeakTransformedImage> run(
+    Uint8List source,
+    List<BeakImageTransform> pipeline,
+  ) {
+    decodes += 1;
+    return _inner.run(source, pipeline);
+  }
 }

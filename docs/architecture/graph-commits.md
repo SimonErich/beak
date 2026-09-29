@@ -53,7 +53,7 @@ A plan lists operations, not rows. Each operation is a create, update, delete, a
 --8<-- "packages/beak_core/lib/src/data/beak_commit.dart:BeakSaveOperationFields"
 ```
 
-`plan.orderedOperations(registry)` is the first gate. It rejects an empty or duplicate operation id, a `saveId` over 200 characters, more than 1000 operations, a field the model does not have, a draft without a create, a relationship write against the wrong table and a dependency cycle. What is left comes back in a stable topological order, driven by draft references and `dependsOn`.
+`plan.orderedOperations(registry)` is the first gate. It rejects an empty or duplicate operation id, a `saveId` over 200 characters, more than 1000 operations, a field the model does not have, a draft without a create, a relationship write against the wrong table and a dependency cycle. What is left comes back in a stable topological order, driven by draft references and `dependsOn`. The service runs the gate before it does anything else and reports a refusal as a `422` (`Invalid save plan: ...`), because a plan that cannot be ordered is the caller's mistake.
 
 Who writes the plan:
 
@@ -154,7 +154,7 @@ A table is closed when any of these holds:
 - It is an owned child, at any depth, of a model with `editableWhen`.
 - Its model has validation rules or behavior that load relations, or one of those loads reaches it.
 
-Naming a table in `graphOnly` requires a `preparePlan`, even an identity one, or the router throws a `BeakConfigurationException` at build time. Preparation and closed tables both need a `WormDataSource`.
+`graphOnly` needs no `preparePlan`: a list on its own closes the direct routes and leaves the commit route as the only writer. Preparation, behavior and shared rules that load relations need a `WormDataSource`.
 
 ### Conditional writes
 
@@ -236,9 +236,9 @@ A rejected atomic save is final for its `saveId`: replaying it returns the same 
 --8<-- "packages/beak_backend/lib/src/endpoints/commit_router.dart"
 ```
 
-On the panel, a thrown transport error becomes a receipt with every operation `unknown` and reason `responseUnavailable`. `BeakFormSession.save` then returns that receipt instead of submitting again, until `recover()` has resolved the save. When drafts are configured, the session also stores a recovery snapshot of the pending plan, so a reload knows a save was in flight. The snapshot is metadata (arguments are left out, values are reduced to a safe draft record), not a request the session can replay.
+On the panel, a thrown transport error that cannot prove the server wrote nothing (a dropped connection, a timeout, a 5xx) becomes a receipt with every operation `unknown` and reason `responseUnavailable`, while a typed refusal (422, 413, 401, 403, 404, 409) becomes `unapplied` with the reason `rejected`, and a receipt lookup that answers 404 resolves an unknown save to `unapplied` with the reason `notReceived`. `BeakFormSession.save` then returns that receipt instead of submitting again, until `recover()` has resolved the save. When drafts are configured, the session also stores a recovery snapshot of the pending plan, so a reload knows a save was in flight. The snapshot is metadata (arguments are left out, values are reduced to a safe draft record), not a request the session can replay.
 
-Receipts and outbox rows are never deleted. `BeakGraphCommitService` says so in its own documentation: an old idempotency key never becomes a new write.
+Nothing deletes receipts or outbox rows on its own. `BeakGraphCommitService` says so in its own documentation: an old idempotency key never becomes a new write. `BeakOutbox.prune` and `BeakGraphCommitService.pruneReceipts` are the two calls that delete them, and both are yours to schedule.
 
 A host that owns its schema can map the receipts onto its own table. `beakApiRouter(commitReceipts:)` takes a `BeakCommitReceiptTable`, and `BeakFrameworkTables` groups the mapping. The Serverpod engine passes `beakServerpodFrameworkTables`, which points at the `beak_commit_receipt` model that `serverpod create-migration` owns. See [The data source seam](data-source-seam.md) for that path.
 
@@ -333,9 +333,17 @@ A read-then-write version check has a gap you can drive a request through. Putti
 
 A preparer can read and write anything the transaction can see, which is what business rules need. Nothing in there should call a provider, because a network call cannot be rolled back. The outbox is the bridge, and at-least-once is its price.
 
-### Commit routes only exist for WormDataSource
+### Commit routes exist for every data source, atomic only over worm
 
-The service needs a `DatabaseAdapter` to run transactions, so `beakApiRouter` mounts `/api/commits` only over a worm-backed source. A non-worm backend has two ways in. It can supply a `DatabaseAdapter` (the Serverpod session adapter does, and gets the real service with real transactions), or it stays a plain `BeakDataSource` and the panel falls back to staged saves.
+`beakApiRouter` mounts `/api/commits` over any source, because the panel's HTTP source saves through it. What the route promises depends on the source:
+
+| Source | Mode | Receipts | Preparers and behavior |
+| --- | --- | --- | --- |
+| `WormDataSource` on a transactional adapter | `atomic`: one transaction, rolled back as a whole | Durable, in `_beak_commit_receipts` | Yes |
+| `WormDataSource` on an adapter without transactions | `staged` | Durable | Refused per commit |
+| Any other `BeakDataSource` | `staged` | In the service's memory, the newest 1024 | Refused when the router is built |
+
+A staged save authorizes every operation before the first write, so a refusal in operation four writes nothing. It then performs the writes through the source's ordinary CRUD calls in dependency order and stops at the first one that does not apply. There is no rollback, which is why the result says `staged`, and a rule failure in the second operation leaves the first one written. The in-memory receipts serve replay and `GET /api/commits/{saveId}` until the process restarts; after a restart the same `saveId` is a new save. A non-worm backend that wants the atomic path supplies a `DatabaseAdapter` instead (the Serverpod session adapter does, and gets the real service with real transactions).
 
 ## What it means for you
 
@@ -358,9 +366,9 @@ The service needs a `DatabaseAdapter` to run transactions, so `beakApiRouter` mo
 - Preparation needs a transaction. Behavior, actions, `preparePlan` and `finalizePlan` are refused on a non-transactional adapter, and `preparePlan`, `finalizePlan` and closed tables need a `WormDataSource`.
 - Field policy and derived operations. Field write access is checked for client-sent operations only.
 - Version conflicts are receipts. They arrive as a `200` with `error.code == 'conflict'`. `409` means the `saveId` was reused with other content, or a staged save is being resumed elsewhere.
-- Malformed plans. A plan the JSON decoder rejects is a `422`. A plan that decodes but fails `orderedOperations` currently surfaces as a `500` with code `configuration`, which is a known wart.
-- Retention. Nothing prunes receipts or delivered outbox rows.
-- Serverpod. Receipts map onto a host table. The outbox does not: `BeakOutbox` writes `_beak_outbox` by name, and `BeakFrameworkTables` maps only receipts.
+- Malformed plans. A plan the JSON decoder rejects is a `422`, and so is one that decodes but fails `orderedOperations` (unknown field or table, duplicate id, cycle).
+- Retention. Nothing schedules a prune. `BeakOutbox.prune(adapter, olderThan:)` deletes delivered outbox rows (and failed ones with `includeFailed`). `pruneReceipts(olderThan:)` deletes receipts, but only from a table that names a `createdAtColumn`: Beak's own `_beak_commit_receipts` keeps no timestamp, so it throws for it. A pruned key is a new save or a new effect.
+- Serverpod. Both tables map onto host models through `BeakFrameworkTables` (`receipts` and `outbox`). `beakServerpodFrameworkTables` does it for `beak_commit_receipt` and `beak_outbox`.
 
 ### Where the code is
 

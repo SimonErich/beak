@@ -83,7 +83,7 @@ $ ./build/migrate/bundle/bin/migrate migrate
 Nothing to migrate.
 ```
 
-Migration order follows each migration's declared name. Run this as a deploy step, before the new server version takes traffic, and again after every schema change. The server never migrates a file or Postgres database for you; only `sqlite::memory:` is migrated on boot, because no other process could do it.
+Migration order follows each migration's declared name, except that a table is created after the tables its foreign keys point at. Run this as a deploy step, before the new server version takes traffic, and again after every schema change. The server never migrates a file or Postgres database for you; only `sqlite::memory:` is migrated on boot, because no other process could do it.
 
 Seeding is a separate decision. `db:seed` runs every eligible seeder every time you call it, so a seeder has to be safe to repeat, and demonstration data does not belong in production unless you meant it:
 
@@ -111,7 +111,6 @@ BEAK_LOCAL_PUBLIC_BASE_URL=https://api.example.com/uploads
 Start the bundle. It handles `SIGINT` and `SIGTERM` itself, so `docker stop` and a systemd stop close the listener and exit cleanly:
 
 ```dart title="examples/clean_beak_config/bin/serve.dart"
-  final HttpServer server = await beakHost().serve();
   stderr.writeln('listening on http://${server.address.host}:${server.port}');
   await stopped;
   stderr.writeln('shutting down');
@@ -123,6 +122,8 @@ Start the bundle. It handles `SIGINT` and `SIGTERM` itself, so `docker stop` and
 $ ./build/serve/bundle/bin/serve
 listening on http://127.0.0.1:8080
 ```
+
+A setting the host refuses (a `PORT` that is not a number, an unsupported `DATABASE_URL`, a storage variable it cannot use) ends the process with one line on stderr and exit `78`. A port that is already taken ends it with one line naming `PORT` and exit `69`. Neither prints a stack trace.
 
 Two probes sit outside `/api` and outside authentication, so a platform can ask them without a token. `/healthz` is 200 while the process serves and never touches the database, so a database outage cannot cause a restart loop. `/readyz` is 200 when the data source answers and 503 when it does not, with no cause in the body:
 
@@ -228,7 +229,7 @@ Read the file before you rely on it:
 
 - The credentials live in two places. The compose file sets `POSTGRES_PASSWORD: beak` and `MINIO_ROOT_PASSWORD: beaksecret`, and your `.env.prod` repeats them inside `DATABASE_URL` and `BEAK_S3_*`. Change both, or the server cannot log in. The `createbuckets` step hardcodes the MinIO login as well.
 - The bucket is public. `createbuckets` runs `mc anonymous set download`, so anyone with an object URL can read it. That matches how Beak treats uploads (see [Security](security.md)), and it is a choice you now know you made.
-- Storage is `s3` in `.env.prod.example`. Given the driver problem above, switch to `local` with a volume for `BEAK_LOCAL_ROOT_DIR`, or register the S3 driver in your project first. S3 file URLs are also built from `BEAK_S3_ENDPOINT`, which is `http://minio:9000` here and unreachable from a browser.
+- Storage is `s3` in `.env.prod.example`. Given the driver problem above, switch to `local` with a volume for `BEAK_LOCAL_ROOT_DIR`, or register the S3 driver in your project first. S3 file URLs are also built from `BEAK_S3_ENDPOINT`, which is `http://minio:9000` here and unreachable from a browser, so set `BEAK_S3_PUBLIC_BASE_URL` to an address it can reach.
 - `BEAK_AUTH_SECRET` does nothing. No Beak code reads it.
 - The server has no auth or policy. The shop is a demonstration with no login. See the next section.
 

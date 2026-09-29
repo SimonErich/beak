@@ -279,6 +279,34 @@ void main() {
       expect(response.statusCode, 401);
     });
 
+    test('never guard the health probes, whatever the header says', () async {
+      final configured = server(authSessions: sessions());
+
+      for (final probe in ['/healthz', '/readyz']) {
+        final response = await send(
+          configured,
+          'GET',
+          probe,
+          headers: const {'authorization': 'Bearer forged'},
+        );
+        expect(response.statusCode, 200, reason: probe);
+      }
+    });
+
+    test('guard everything else, including a lookalike of a probe', () async {
+      final configured = server(authSessions: sessions());
+
+      for (final path in ['/api/healthz', '/api/notes/capabilities']) {
+        final response = await send(
+          configured,
+          'GET',
+          path,
+          headers: const {'authorization': 'Bearer forged'},
+        );
+        expect(response.statusCode, 401, reason: path);
+      }
+    });
+
     test('leave an explicit guard in charge', () async {
       final configured = server(
         authSessions: sessions(),

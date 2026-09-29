@@ -5,14 +5,16 @@ import 'package:shelf/shelf.dart';
 ///
 /// [allowedOrigin] is the one origin a browser may call from; the default
 /// `*` admits any, which suits a panel served from another port in
-/// development. The allowed headers are the ones the Beak client sends:
+/// development. The allowed methods are the ones the generated routes use
+/// (`GET`, `POST`, `PATCH`, `DELETE`); nothing in Beak answers `PUT`. The
+/// allowed headers are the ones the Beak client sends:
 /// `authorization`, `content-type`, `x-request-id`, and the
 /// `if-unmodified-since` an edit carries for its optimistic lock.
 // --8<-- [start:beakCorsMiddleware]
 Middleware beakCorsMiddleware({String allowedOrigin = '*'}) {
   final headers = <String, String>{
     'access-control-allow-origin': allowedOrigin,
-    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'access-control-allow-headers':
         'authorization, content-type, if-unmodified-since, x-request-id',
   };

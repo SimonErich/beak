@@ -10,7 +10,7 @@ status: stable
 
 Hiding a button in the panel protects nothing. Every rule on this page runs in the backend, on every route, for every client. After it you can close a Beak server: name who is calling, list what each role may do to each model, narrow which rows and fields they see, and prove that a request the panel would never send is refused.
 
-The default is open. A `BeakServer` built without a `policy` allows everything to everyone, anonymous callers included, and nothing warns at boot. That is right for the first hour and wrong for the second, so the first thing to do with `lib/server.dart` is give it a `BeakPolicies`.
+The default is open. A `BeakServer` built without a `policy` allows everything to everyone, anonymous callers included. Bound beyond loopback it prints one `warning:` line at boot, and that is all it does. That is right for the first hour and wrong for the second, so the first thing to do with `lib/server.dart` is give it a `BeakPolicies`.
 
 ## At a glance
 
@@ -20,7 +20,7 @@ A request is judged in this order. The first check that fails ends it.
 | --- | --- | --- | --- |
 | 1. Guard | Who is this? | `BeakAuthGuard`, fed by `authSessions` or your own | `401` when credentials are present and wrong |
 | 2. Policy | May this principal do this to this model? | `BeakPolicy`, usually `BeakPolicies` | `401` anonymous, `403` signed in |
-| 3. Fields | May they read or supply each field the request names? | `BeakFieldPolicy`, `readOnlyFields` | `401` or `403`, or `422` for a read-only field |
+| 3. Fields | May they read or supply each field the request names? | `BeakFieldPolicy`, `hiddenFields`, `readOnlyFields` | `401` or `403`, or `422` for a read-only field |
 | 4. Rows | Which rows may they touch? | `rowScope` of a `BeakModelRules` | The row is absent: `404` for one row, a smaller page for a query |
 | 5. Action | May they run this named command? | `BeakModelRules.actions`, `BeakActionPolicy` | A rejected receipt |
 
@@ -116,6 +116,7 @@ For production, put identity somewhere that does this well. Implement `BeakAuthG
 | `delete` | Delete, and removing an uploaded file |
 | `rowScope` | Which rows all of the above may touch, see below |
 | `readOnlyFields` | Fields the server owns, see below |
+| `hiddenFields` | Fields hidden from the principals an access value names, see below |
 | `actions` | Who may run each named command of the model |
 
 A part is a `BeakAccess`: `BeakAccess.role('staff')`, `BeakAccess.authenticated`, `BeakAccess.anyone`, and `any`, `all` and `not` to combine them. An empty `any` or `all` grants nothing, so a list that lost its entries never opens a resource.
@@ -126,7 +127,7 @@ A model with no rule is invisible. Its routes answer `401` to an anonymous reque
 --8<-- "packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart:unlistedModelTests"
 ```
 
-`BeakModelRules` throws a `BeakConfigurationException` at startup for a `readOnlyFields` entry that is not a field of the model, an `actions` key the model does not declare, and a second rule for the same model. A rule that could never apply is a mistake worth failing on.
+`BeakModelRules` throws a `BeakConfigurationException` at startup for a `readOnlyFields` or `hiddenFields` entry that is not a field of the model, an `actions` key the model does not declare, and a second rule for the same model. A rule that could never apply is a mistake worth failing on.
 
 ### What a refusal looks like
 
@@ -175,19 +176,30 @@ Scopes may depend on fields the caller cannot read, because they are trusted ser
 
 ## Which fields
 
-With `BeakPolicies`, field access follows the model: a caller who may read the model may read every field of it, and a caller who may write it may supply every field. `readOnlyFields` is the one field-level tool. It names values the server owns, such as a calculated total or a number minted at creation, and a request that supplies one is rejected before anything else happens:
+With `BeakPolicies`, field access follows the model: a caller who may read the model may read every field of it, and a caller who may write it may supply every field. `hiddenFields` and `readOnlyFields` are the field-level tools. It names values the server owns, such as a calculated total or a number minted at creation, and a request that supplies one is rejected before anything else happens:
 
 ```console
 $ curl -s -w ' [%{http_code}]\n' -X PATCH localhost:8392/api/products/$ID \
     -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"price":9}'
 {"code":"validation","message":"Read-only fields cannot be written.","fieldErrors":{"price":["This field is read-only."]},"requestId":"442aa717300a9e46"} [422]
 $ curl -s "localhost:8392/api/products/capabilities?id=$ID" -H "authorization: Bearer $TOKEN"
-{"readableFields":["id","name","price","active","created_at","updated_at"],"writableFields":["id","name","active","created_at","updated_at"],"executableActions":[]}
+{"readableFields":["id","name","price","active","created_at","updated_at"],"writableFields":["id","name","active","created_at","updated_at"],"executableActions":[],"canCreate":true,"canDelete":false}
 ```
 
-Values the server derives itself are unaffected, and the capabilities response leaves a read-only field out of `writableFields`, so a configured form never offers it. A name that is not a field of the model is a `422` too, so there is no mass-assignment path to a column the model does not declare.
+Values the server derives itself are unaffected, and the capabilities response leaves a read-only field out of `writableFields`, so a configured form never offers it. The same response carries `canCreate` and `canDelete`, taken from the policy, so a table can leave out the delete action for a role that would be refused. A name that is not a field of the model is a `422` too, so there is no mass-assignment path to a column the model does not declare.
 
-To hide one field from some callers, implement `BeakFieldPolicy` next to the resource policy. `canReadField` and `canWriteField` receive the principal, the model and the typed field, and `isSameFieldAs` compares fields (a generated reference is a new object on every access, so `==` does not work):
+To hide one field from some callers, name it in `hiddenFields` with the access value it is hidden from. `BeakAccess.not(manager)` hides it from everyone but managers, and `staff` hides it from staff:
+
+```dart
+BeakModelRules(
+  const ProductModel(),
+  read: staff,
+  write: staff,
+  hiddenFields: {ProductModel.supplierCostInCents: BeakAccess.not(manager)},
+)
+```
+
+A hidden field is neither readable nor writable for those callers, and it only narrows: it never grants what `read` and `write` withhold. For anything the map cannot say, implement `BeakFieldPolicy` next to the resource policy. `canReadField` and `canWriteField` receive the principal, the model and the typed field, and `isSameFieldAs` compares fields (a generated reference is a new object on every access, so `==` does not work):
 
 ```dart title="packages/beak_backend/test/src/auth/field_authorization_test.dart"
 --8<-- "packages/beak_backend/test/src/auth/field_authorization_test.dart:fieldPolicyFixture"
@@ -202,7 +214,7 @@ What a `false` from `canReadField` does, everywhere:
 
 What `canWriteField` does: the fields the client supplied are checked before behavior or graph preparation runs. That lets a trusted calculation fill a column the caller may not write.
 
-`BeakPolicies` is a `final` class, so it cannot be extended, and a hand-written policy replaces it. Extend `BeakAllowAllPolicy` (declared `base` for this) and restrict what you need, or delegate to a `BeakPolicies` from your own class. Either way, deny-by-default is now your code's job.
+`BeakPolicies` is a `final` class, so it cannot be extended, and a hand-written policy replaces it. Prefer `hiddenFields` and `readOnlyFields` while they say what you mean. Extend `BeakAllowAllPolicy` (declared `base` for this) and restrict what you need, or delegate to a `BeakPolicies` from your own class. Either way, deny-by-default is now your code's job.
 
 ## Which commands
 
@@ -224,22 +236,21 @@ A URL, once handed out, is only as private as the storage behind it. The local d
 
 `POST /api/commits` applies the same rules per operation. The table-level decision (`canCreate`, `canUpdate`, `canDelete`, plus `canUpdate` on an owner for its children) is taken before any behavior or `preparePlan` hook runs, so application code never executes for a write the principal may not make. Field write access is checked for the operations the client sent. Operations a `preparePlan` adds skip only that check, because a derived column is often one the client may not write, and every other check still applies to them. Receipts are redacted again under the current policy when they are read back.
 
-One gap deserves care. A `preparePlan` you write reads through the transaction-bound data source, which applies no row scopes. `BeakCandidateGraph.open` accepts an `authorizeRead` callback for that, and the built-in behavior pass passes one, but nothing hands one to your preparer. If a preparer reads records the caller must not see, filter them yourself. [Transactional business rules](graph-business-rules.md) shows the preparer.
+One gap deserves care. A `preparePlan` you write reads through the transaction-bound data source, which applies no row scopes on purpose: a capacity rule has to count rows the caller cannot see. `BeakCandidateGraph.open` accepts an `authorizeRead` callback for the records the plan names, the built-in behavior pass passes one, and the transaction source hands the same callback to your preparer as `transaction.authorizeRead`. Pass it when the preparer loads a graph; filter any other read yourself. [Transactional business rules](graph-business-rules.md) shows the preparer.
 
 ## Rules and limits
 
 | Rule | Consequence |
 | --- | --- |
-| No `policy` means `BeakAllowAllPolicy` | Every route answers every caller, and the server binds `0.0.0.0` by default. Nothing warns at boot |
+| No `policy` means `BeakAllowAllPolicy` | Every route answers every caller, and the server binds `0.0.0.0` by default. A server bound beyond loopback prints one `warning:` line at boot (through `onWarning`); nothing else stops it |
 | Only `BeakPolicies` denies by default | A hand-written `BeakPolicy` is exactly as open as its methods |
-| `BeakPolicies` field access is per model | Hiding a single field from some roles needs a hand-written `BeakFieldPolicy`, which replaces `BeakPolicies` |
+| `BeakPolicies` field access is per model, plus `hiddenFields` | A field is hidden from the principals its access value names, and from nobody else. A rule that depends on the value of the field, or on the record, needs a hand-written `BeakFieldPolicy`, which replaces `BeakPolicies` |
 | Roles are strings on the principal | There is no hierarchy. `manager` does not imply `staff`; give the principal both, or list both in `BeakAccess.any` |
 | An excluded row is a `404` | The response never confirms that a row you may not see exists |
 | Denials on `/api/commits` are receipts | `200` with `unapplied` outcomes and generic messages. The same `saveId` replays the stored rejection |
-| A preparer's reads are not scoped | Pass `authorizeRead` to `BeakCandidateGraph.open` if the preparer reads rows beyond the caller's scope |
+| A preparer's reads are not scoped | Pass `authorizeRead: transaction.authorizeRead` to `BeakCandidateGraph.open` so the records the plan names stay within the caller's scope |
 | Sessions are per process and last 12 hours from login | A restart or a second instance signs users out. Implement `TokenSessionStore` over shared storage |
-| The probes skip policies, not the guard | `/healthz` and `/readyz` need no rule, but a malformed `Authorization` header is still a `401` on them |
-| `PUT` is allowed by CORS and used by no route | Nothing to configure, and nothing to rely on |
+| The probes skip the guard and the policy | `/healthz` and `/readyz` need no rule, and the guard never looks at them, so an `Authorization` header a load balancer adds cannot fail a probe |
 
 ## Verify it
 
@@ -252,6 +263,8 @@ $ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8392/api/products/q
 $ curl -s -w ' [%{http_code}]\n' -X DELETE localhost:8392/api/products/$ID -H "authorization: Bearer $TOKEN"
 {"code":"authorization","message":"Principal \"sam\" is not allowed to delete \"products\".","requestId":"012398d50a21f700"} [403]
 $ curl -s -w ' [%{http_code}]\n' localhost:8392/healthz -H 'authorization: Bearer nope'
+{"status":"ok"} [200]
+$ curl -s -w ' [%{http_code}]\n' localhost:8392/api/products/capabilities -H 'authorization: Bearer nope'
 {"code":"authentication","message":"The session token is invalid or expired.","requestId":"c72e4b0f5f0981e1"} [401]
 ```
 

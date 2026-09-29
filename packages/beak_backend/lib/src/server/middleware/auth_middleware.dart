@@ -12,16 +12,25 @@ BeakPrincipal? beakPrincipal(Request request) =>
       _ => null,
     };
 
+/// The paths of the health probes, relative to the root the API is mounted at.
+///
+/// A platform's probe carries whatever credentials it carries (none, or a
+/// header meant for another service), so [beakAuthMiddleware] never asks the
+/// guard about these paths.
+const Set<String> beakProbePaths = {'healthz', 'readyz'};
+
 /// Resolves the request's identity through [guard] and stores it in the
 /// request context for handlers and policies; without a guard every
 /// request stays anonymous.
 ///
 /// Invalid credentials throw inside the guard and are mapped to 401 by the
-/// error-mapping middleware.
+/// error-mapping middleware. The [beakProbePaths] are the exception: they
+/// stay anonymous, so an `Authorization` header a load balancer adds cannot
+/// take a healthy server out of rotation.
 // --8<-- [start:beakAuthMiddleware]
 Middleware beakAuthMiddleware({BeakAuthGuard? guard}) =>
     (Handler inner) => (Request request) async {
-      if (guard == null) {
+      if (guard == null || beakProbePaths.contains(request.url.path)) {
         return inner(request);
       }
       final principal = await guard.authenticate(request);

@@ -65,6 +65,10 @@ abstract final class BeakStorageSettings {
           secretKey: require('BEAK_S3_SECRET_KEY'),
           region: require('BEAK_S3_REGION'),
           usePathStyle: environment['BEAK_S3_USE_PATH_STYLE'] == 'true',
+          publicBaseUrl: switch (environment['BEAK_S3_PUBLIC_BASE_URL']) {
+            null || '' => null,
+            final String url => Uri.parse(url),
+          },
         );
       case 'ftp':
         return BeakFtpConfig(

@@ -567,13 +567,9 @@ final class InMemoryBeakDataSource implements BeakDataSource {
 
   bool _like(Object? value, Object? pattern, {required bool caseSensitive}) {
     if (value == null || pattern == null) return false;
-    final expression = RegExp.escape(
+    return beakLikeRegExp(
       _text(pattern),
-    ).replaceAll('%', '.*').replaceAll('_', '.');
-    return RegExp(
-      '^$expression\$',
       caseSensitive: caseSensitive,
-      dotAll: true,
     ).hasMatch(_text(value));
   }
 

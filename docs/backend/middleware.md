@@ -80,7 +80,7 @@ The path is logged without its query string, and bodies and tokens are never log
 --8<-- "packages/beak_backend/lib/src/server/middleware/cors_middleware.dart:beakCorsMiddleware"
 ```
 
-The default origin is `*`. `corsOrigin: 'https://admin.example.com'` pins it, and it takes one origin, not a list. The headers land on every response, including errors and the `503` of a maintenance switch, because the middleware is outermost but for the log. That matters: a browser hides a response from a page when its CORS headers are missing, so an error without them shows up as "network error". `PUT` is listed in the allowed methods and no route uses it. If the panel and the API share an origin behind your proxy, no cross-origin call happens at all, see [Going to production](../shipping/going-to-production.md).
+The default origin is `*`. `corsOrigin: 'https://admin.example.com'` pins it, and it takes one origin, not a list. The headers land on every response, including errors and the `503` of a maintenance switch, because the middleware is outermost but for the log. That matters: a browser hides a response from a page when its CORS headers are missing, so an error without them shows up as "network error". The allowed methods are `GET`, `POST`, `PATCH`, `DELETE` and `OPTIONS`, the ones the generated routes use. If the panel and the API share an origin behind your proxy, no cross-origin call happens at all, see [Going to production](../shipping/going-to-production.md).
 
 ### JSON defaulting
 
@@ -110,7 +110,7 @@ Because the boundary exists, handlers and services do not `try/catch` for their 
 
 Every body carries `code`, `message`, `requestId` and, for validation, `fieldErrors`. The table of what raises each one is in [Exceptions](../reference/exceptions.md), and how the client rebuilds them is [Results and errors](../concepts/results-and-errors.md).
 
-Only untyped failures are opaque. The message of a typed `500` (`BeakConfigurationException`, `BeakStorageException`) goes out as written, which is convenient for a misconfiguration and worth remembering for a storage driver whose message quotes the underlying error.
+Untyped failures are opaque, and so is one typed failure: a `BeakStorageException`. A driver's message quotes the system behind it (an endpoint, a bucket, a host), so the caller gets `File storage failed.` and `onUnexpectedError` gets the exception with its full message. The other typed `500`, `BeakConfigurationException`, goes out as written, which is convenient for a misconfiguration.
 
 `onUnexpectedError` receives the error and its stack trace and defaults to printing both to stderr. It also receives the failure a `503` from `/readyz` hides. Point it at your error tracker:
 
@@ -236,10 +236,10 @@ The response still passes through your middleware, error mapping and CORS. `Rout
 | Project middleware runs after auth and inside error mapping | It cannot see a request the guard rejected, and it cannot wrap the CORS or logging layers |
 | No exception maps to `429` or `503` | Return a `Response` yourself |
 | A response of yours with no content type is labelled JSON | Set `content-type` yourself when the body is plain text or a file |
-| Your middleware also sees `/healthz` and `/readyz` | A guard or a switch of yours can take the probes down. Let them through |
+| Your middleware also sees `/healthz` and `/readyz` | Beak's own guard skips them, but a guard or a switch of yours can still take the probes down. Let them through |
 | `corsOrigin` is one origin | Several front ends need a proxy or a middleware that reflects an allowed origin |
 | A client-supplied `x-request-id` is reused | Fine for correlation, useless for trust |
-| Typed `500`s send their message | `BeakConfigurationException` and `BeakStorageException` bodies are visible to the caller |
+| A `BeakConfigurationException` sends its message | The body is visible to the caller. A `BeakStorageException` does not: the caller gets `File storage failed.` |
 | The pipeline is built once, on first use | You cannot reorder the built-in layers, only add to them |
 | Unexpected errors go to stderr by default | Set `onUnexpectedError` in production, or an incident leaves a stack trace nowhere you look |
 

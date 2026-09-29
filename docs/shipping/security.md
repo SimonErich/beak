@@ -23,7 +23,7 @@ Security for a generated backend lives in one file, `lib/server.dart`. `beak eje
 | Sessions | In process memory, 12 hours, lost on restart | A `TokenSessionStore` over shared storage |
 | What they may do | `BeakAllowAllPolicy`: everything | `BeakPolicies`: only what a rule lists |
 | Which rows | Every row | `rowScope` wherever "only their own" applies |
-| Which fields | Every field | `readOnlyFields` for server-owned values |
+| Which fields | Every field | `hiddenFields` to hide one, `readOnlyFields` for server-owned values |
 | Uploads | Validated against the column, unbounded if the column sets no limit | `maxSizeInBytes` and `allowedTypes` on every upload column |
 | CORS | `*` | `corsOrigin:` with the panel's origin, or one shared origin |
 | TLS | None, plain HTTP | Terminate at a proxy; keep the Beak port private |
@@ -105,6 +105,7 @@ The default is `BeakAllowAllPolicy`, which permits everything. It exists so a ne
     this.delete,
     this.rowScope,
     Set<BeakFieldRef<Object>> readOnlyFields = const {},
+    Map<BeakFieldRef<Object>, BeakAccess> hiddenFields = const {},
     Map<BeakModelAction, BeakAccess> actions = const {},
     // ...
 ```
@@ -127,7 +128,7 @@ Refusing and narrowing are different answers. `canView` false is a refusal: 403,
 
 ### Fields and actions
 
-Read access to a field also gates searching, sorting, filtering and aggregating by it, so a hidden column cannot be inferred from the order of the rows. `readOnlyFields` names values the server owns (a calculated total, a number minted at creation): a request that supplies one is rejected with a 422 field error, and forms are told not to offer it. Values the server derives itself are unaffected. A request that names a field the model does not have is a 422 too, so there is no mass-assignment path to an unmodelled column.
+Read access to a field also gates searching, sorting, filtering and aggregating by it, so a hidden column cannot be inferred from the order of the rows. `hiddenFields` hides a field from the principals its access value names. `readOnlyFields` names values the server owns (a calculated total, a number minted at creation): a request that supplies one is rejected with a 422 field error, and forms are told not to offer it. Values the server derives itself are unaffected. A request that names a field the model does not have is a 422 too, so there is no mass-assignment path to an unmodelled column.
 
 Graph commits authorize every operation: field write access for what the client sent, the table policy for create, update and delete, and the owner's update right for children. Operations a `preparePlan` hook adds skip the field check, because a derived column is often one the client may not write, and every other check still applies to them.
 
@@ -174,7 +175,7 @@ Response headers come from three places. `dart:io` adds `x-content-type-options:
 
 ## Errors, logs and what a response reveals
 
-The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). Three typed exceptions are 500s that carry their message as written: `BeakConfigurationException`, `BeakStorageException` and `BeakInternalException`. A storage driver's message can include an endpoint or a bucket name, so treat the body of a 500 from an upload route as visible to the caller.
+The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). Two typed exceptions are 500s that carry their message as written: `BeakConfigurationException` and `BeakInternalException`. A `BeakStorageException` does not: a storage driver's message can include an endpoint or a bucket name, so the caller gets `File storage failed.` and the full message goes to `onUnexpectedError`.
 
 The request log records the method, the path (without the query string), the status, the duration and the request id. It never records bodies or tokens. The probes `GET /healthz` and `GET /readyz` sit outside `/api` and outside authentication, on purpose, and a failing `/readyz` names no cause.
 
@@ -184,18 +185,17 @@ These are limits of the current implementation. Each is worth a decision before 
 
 | Gap | What happens | What to do |
 | --- | --- | --- |
-| The `perPage` ceiling is 200 and is not configurable through `BeakServer` yet | A request for 100,000 rows gets 200 and an envelope that says so | Nothing, unless 200 is too generous; a lower ceiling needs a hand-built `BeakCrudHandlers(maxPerPage: ...)` |
+| The `perPage` ceiling is 200 unless you set `maxPerPage` | A request for 100,000 rows gets 200 and an envelope that says so | Nothing, unless 200 is too generous; `defaults.build(maxPerPage: 50)` lowers it for every model |
 | No request-size limit for JSON | Bodies are read whole | `client_max_body_size` at the proxy |
 | No rate limiting, on login or anywhere | Unlimited attempts | A proxy rule, or a Shelf middleware in `middleware:` |
-| CSV export writes cell text as it is | A cell that begins with `=`, `+`, `-` or `@` runs as a formula when opened in a spreadsheet | Restrict who can write those fields, or post-process exports |
 | Unrestricted file columns keep the client's extension | See Uploads | Always set `allowedTypes` |
-| Image decoding happens on the request isolate before the dimension check | A very large image stalls the process for seconds | Set `maxSizeInBytes`; see [Performance](performance.md) |
+| Image decoding happens on the request isolate | The header is checked first and `ImageTransformRunner` refuses more than 50 million pixels, but a large legal image still stalls the process for a moment | Set `maxSizeInBytes` and `maxDimensions`; see [Performance](performance.md) |
 | Draft persistence is plain JSON in browser storage | Anyone with the browser profile can read it | Use `BeakFormDrafts` only where that is acceptable; scope its `context` to the user and tenant, never to a token |
 
 ## Rules and limits
 
 - A policy is evaluated on the server for every route, including uploads, export and graph commits. The panel's `canX` flags only hide controls.
-- One `BeakPolicies` per server, one `BeakModelRules` per model. A second rule for the same model is a boot error, and so is a `readOnlyFields` entry or action the model does not declare.
+- One `BeakPolicies` per server, one `BeakModelRules` per model. A second rule for the same model is a boot error, and so is a `readOnlyFields` or `hiddenFields` entry or action the model does not declare.
 - A row scope must not reach a model that scopes back to the first one. That is reported as a configuration error at request time.
 - `authSessions` alone installs a `TokenSessionAuthGuard` over its own store, so the tokens it mints are checked. Pass `authGuard` only to identify callers some other way.
 - Secrets belong in the environment, not in `beak.yaml` and not in a committed `.env`. `.env` is git-ignored in Beak's own repository; yours needs the same entry.

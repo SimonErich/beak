@@ -70,10 +70,11 @@ This is the shop's gallery row:
 
 The full list is on [Annotations](../reference/annotations.md). `BeakFileType` covers `jpeg`, `png`, `webp`, `gif`, `svg`, `pdf`, `csv`, `json`, `zip`, `mp4` and `mp3`. SVG is not in the image default because it can carry scripts, and an image column could not transform it anyway.
 
-A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column. Its `storagePath` is the table name and an image column still gets the image default for `allowedTypes`. What does not work is an annotation with no arguments: `storagePath` is required, so `beak prepare` accepts a bare `@Image()` and the analyzer then rejects it.
+A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column. Its `storagePath` is the table name and an image column still gets the image default for `allowedTypes`. What does not work is an annotation with no `storagePath`: the constructor requires one, so `beak prepare` reports a bare `@Image()` or `@FileField(maxSizeInBytes: 1024)` and generates nothing until you fix it.
 
 ```text
-error - models/document.dart:34:4 - The named parameter 'storagePath' is required, but there's no corresponding argument. Try adding the required argument. - missing_required_argument
+Cannot generate the Beak code, fix these first:
+  lib/models/document.dart: Document.cover: @Image needs a storagePath, the folder its uploads land in. Write @Image(storagePath: 'documents'), or drop the annotation to use the table name.
 ```
 
 Write `@Image(storagePath: 'covers')`, or drop the annotation and take the table name.
@@ -83,14 +84,14 @@ Write `@Image(storagePath: 'covers')`, or drop the annotation and take the table
 
 ## What the rules do, and where
 
-A rule on the column runs in two places, and the second one is the one that counts. The panel checks size and type before it accepts a file, so an oversize PDF fails on the spot. Dimensions and aspect ratio need a decoded image, so only the server runs them.
+A rule on the column runs in two places, and the second one is the one that counts. The panel checks size and type before it accepts a file, so an oversize PDF fails on the spot. Dimensions and aspect ratio need the image header, so only the server runs them.
 
 | Rule | Panel, when the file is picked | Server, at upload | Error key |
 | --- | --- | --- | --- |
 | `maxSizeInBytes` | Yes | Yes, while the body streams in, so an oversize file is never buffered whole | `size` |
 | `allowedTypes` | Yes | Yes. The declared MIME type and the file extension must each be on the list | `type` |
-| `maxDimensions` | No | Yes, after decoding | `dimensions` |
-| `aspectRatio` | No | Yes, after decoding | `aspectRatio` |
+| `maxDimensions` | No | Yes, from the image header, before any decode | `dimensions` |
+| `aspectRatio` | No | Yes, from the image header, before any decode | `aspectRatio` |
 
 Violations come back together, one message list per key, as a `422`:
 
@@ -100,7 +101,7 @@ Violations come back together, one message list per key, as a `422`:
 
 Two behaviours are worth knowing before you rely on a rule:
 
-- An image column decodes first. The server reads the bytes as PNG, JPEG, WebP or GIF before it looks at the type list. A text file sent to an image column is refused with `The uploaded file is not a supported raster image`, not with a `type` error. A real GIF into a PNG and JPEG column does get the `type` error.
+- An image column reads the bytes first. The server reads the header as PNG, JPEG, WebP or GIF before it looks at the type list. A text file sent to an image column is refused with `The uploaded file is not a supported raster image`, not with a `type` error. A real GIF into a PNG and JPEG column does get the `type` error.
 - A file column trusts the label. `BeakFileColumn` checks the size and the declared MIME type and extension, and nothing else. It does not read the bytes. PNG bytes uploaded as `x.pdf` with `Content-Type: application/pdf` are stored as a PDF. If people you do not trust upload files, put a scanner behind the bucket.
 
 ## Transforms
@@ -160,7 +161,7 @@ To pick from a camera or an asset library, or to send uploads through another tr
 --8<-- "packages/beak_frontend/lib/src/form/upload_field.dart:BeakFilePicker"
 ```
 
-Storage and the database are two systems, and Beak does not pretend otherwise. A crash between the upload and the commit leaves a file no row points at. Deleting a row, or replacing its key, does not delete the file either, because another record may still use that key. Expire old unreferenced files with a job that checks references first.
+Storage and the database are two systems, and Beak does not pretend otherwise. A crash between the upload and the commit leaves a file no row points at. Deleting a row, or replacing its key, does not delete the file either, because another record may still use that key, and a soft-deleted row can be restored with its file. Expire old unreferenced files with a job that checks references first.
 
 ## Galleries
 
@@ -201,7 +202,7 @@ A stored key becomes a URL through `GET /api/{table}/{columnKey}/upload?key=`. T
 
 - Images render in tables and detail pages through that route.
 - Files have no built-in cell. A table, a detail page and a read-only form show `Unavailable` for a `BeakFileColumn`, whatever it holds. The form does have the picker. To show a download link today, draw it in a custom block or screen and resolve the key yourself.
-- URLs are not signed. The server asks the driver for a URL without an expiry, so an S3 driver returns its public URL, and a local-disk URL is served by a route with no policy. A private bucket needs a public base URL in front of it. Authorizing the lookup does not make an already public URL private.
+- URLs are signed where the driver can sign. The server asks the driver for a link that expires after `signedUrlLifetime` (one hour by default, `defaults.build(signedUrlLifetime: ...)`), so an S3 driver answers with a presigned URL and a private bucket works (a configured public base URL is answered instead). The `url` a fresh upload returns is the plain public URL, and the panel resolves a key again when it draws it. A local-disk URL never expires and is served by a route with no policy, so authorizing the lookup does not make it private.
 
 ## Rules and limits
 

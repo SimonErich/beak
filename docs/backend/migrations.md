@@ -43,7 +43,11 @@ Migration                             | Batch | Status
 [ ] 20260929_162002_create_products_table | -     | pending
 ```
 
-`_beak_commit_receipts` holds the receipts of graph saves and `_beak_outbox` the durable effects. Both are private tables, never exposed as resources, and never pruned. Worm keeps its own log in `worm_migrations`. If a migration must run after another one that sorts later, worm honours `dependsOn` (a list of migration names) and orders them with a stable topological sort.
+`_beak_commit_receipts` holds the receipts of graph saves and `_beak_outbox` the durable effects. Both are private tables, never exposed as resources, and never pruned unless you call `BeakOutbox.prune` (see [Durable effects](durable-effects.md#operate-it)). The receipts table keeps no timestamp, so Beak cannot age its rows out. Worm keeps its own log in `worm_migrations`. If a migration must run after another one that sorts later, worm honours `dependsOn` (a list of migration names) and orders them with a stable topological sort.
+
+### Order
+
+Migrations run in the order the generated host lists them, which is the order of their names with one correction. A create-table migration reads the model as it is now, so a table created in week one can have a foreign key to a table created in week three. A fresh database replays week one first, and Postgres rejects a `CREATE TABLE` that names a table that is not there yet. SQLite lets it pass, which is how it goes unnoticed. So `beak prepare` moves the migration that creates a table ahead of the first create-table migration whose foreign keys point at it, and leaves everything else where it was. A migration frozen to a table's first columns names no foreign key, so it stays where its name puts it, and a hand-written migration that adds a key to a later table declares `dependsOn`. `beak doctor` compares the host with the same order, so it is never called stale for it.
 
 ## The migration Beak writes
 
@@ -96,7 +100,7 @@ The create migration will not run again, so the database and the class now disag
 $ beak doctor
   ...
   WARN products.stock is declared by Product.stock but missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddStockToProducts --from-drift, then beak migrate
 ```
 
 Beak can write that migration for you, from the difference between the classes and the live database:
@@ -142,14 +146,14 @@ Some columns cannot be added without a decision, and the command writes nothing 
 $ beak make:migration AddWeight --from-drift
   ! products.weight: a required column needs a value for the rows already there; give it `@Column(defaultValue: ...)`, or make it nullable and backfill
   ! products.barcode: SQLite cannot add a unique column to an existing table; declare it without `unique: true` for now, backfill, then add the unique index in a migration of its own
-  nothing written — every missing column needs a decision first
+  nothing written: every missing column needs a decision first
 ```
 
 The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand.
 
 What `--from-drift` does not do, on purpose: it adds columns only. A missing table, a missing `deleted_at` and a database column that no class declares are yours to handle, and `beak doctor` reports each. It also refuses an in-memory SQLite URL (nothing on disk to compare), a URL scheme other than SQLite or Postgres, and a SQLite file that does not exist yet.
 
-Two habits keep it safe. Run it after you have edited the class and before you apply, and treat the file it writes as yours from then on. Do not run it a second time for the same name after editing the file, because both `make:migration` forms overwrite a file of the same name, edits included.
+Two habits keep it safe. Run it after you have edited the class and before you apply, and treat the file it writes as yours from then on. Run it a second time for the same name and it refuses, because a migration is yours as soon as it is written; `--force` replaces the file, edits included.
 
 ## The migrations only you can write
 
@@ -200,11 +204,10 @@ The rows survive, and the two `_beak_` tables appear beside them. The baseline c
 
 ```console
 $ beak migrate down
-Unhandled exception:
-MigrationException: down() failed: BeakIrreversibleMigrationException: migration 20260929_164131_adopt_existing_schema cannot be rolled back. It adopted tables Beak did not create, and dropping them would destroy data Beak has no business removing.
+error: down() failed: BeakIrreversibleMigrationException: migration 20260929_164131_adopt_existing_schema cannot be rolled back. It adopted tables Beak did not create, and dropping them would destroy data Beak has no business removing.
 ```
 
-If another tool keeps owning the schema, `beak introspect --ownership external` marks the classes `managesSchema: false` and writes no migration at all. Do not run `beak migrate` against that database. [An existing database](../start-here/paths/existing-database.md) is the walkthrough.
+If another tool keeps owning the schema, `beak introspect --ownership external` marks the classes `managesSchema: false` and writes no migration at all. Run `beak migrate` once against that database for Beak's own tables, `_beak_commit_receipts`, `_beak_outbox` and `worm_migrations`: saves fail without the receipts table, and none of your tables is touched. [An existing database](../start-here/paths/existing-database.md) is the walkthrough.
 
 ## Test the upgrade, not only the fresh install
 
@@ -247,14 +250,13 @@ Repeat the check on Postgres before a release if that is your production databas
 | Beak never rewrites a migration it has written | A change to a shipped table is a new migration. Editing an applied one changes nothing on databases that ran it |
 | Migrations are never applied on boot | Run `beak migrate` as a release step, before traffic moves to code that needs the new columns. Only `sqlite::memory:` migrates itself |
 | `--from-drift` adds columns only | Tables, `deleted_at` and extra database columns are yours. It refuses in-memory SQLite and any scheme but SQLite and Postgres |
-| Both `make:migration` forms overwrite a same-named file | Running one again after you edited its output loses the edits |
-| `--from-drift` and `beak doctor` read `DATABASE_URL` from `.env` only | A variable set in the shell is ignored, and they inspect `sqlite:beak.db`. See [Databases](databases.md) |
-| `beak migrate fresh` and `refresh` run every `downSchema` | An irreversible migration stops them. Both refuse `WORM_ENV=production` without `--force`, and worm reads `WORM_ENV` from the process environment only, never from `.env` |
+| Both `make:migration` forms refuse a same-named file | A migration is edited by hand as soon as it is written. `--force` replaces it, edits included |
+| `--from-drift` and `beak doctor` read `DATABASE_URL` from the shell first and `.env` second | The order the server uses. See [Databases](databases.md) |
+| `beak migrate fresh` and `refresh` run every `downSchema` | An irreversible migration stops them. Both refuse `WORM_ENV=production` without `--force`. `beak migrate` reads `WORM_ENV` from the shell and `.env`, the way the server does; worm's own gate, reached through `dart run bin/migrate.dart`, reads the shell only |
 | `down` undoes a batch, not one migration | One `beak migrate` run is one batch. `--steps N` counts batches |
 | SQLite: `refresh` cannot roll back a belongs-to column made by a create-table migration | The foreign key is a table-level constraint there. Postgres rolls it back |
-| A create migration reads the model as it is now | On a fresh Postgres it can declare a foreign key to a table that a later migration creates, and Postgres rejects that. Order such migrations with `dependsOn`. SQLite tolerates it |
-| Introspecting a database Beak built writes classes for `_beak_commit_receipts` and `_beak_outbox` | Delete those two classes |
-| Boot and CLI errors print `Unhandled exception:` and exit `255` | The first line is the message. A failing migration leaves earlier ones applied |
+| A create migration reads the model as it is now | On a fresh Postgres it could declare a foreign key to a table that a later migration creates, and Postgres rejects that. The generated host orders the migrations to avoid it, see [Order](#order). A hand-written migration that does the same needs `dependsOn` |
+| CLI errors print one line `error: <message>` | A bad `DATABASE_URL` or storage variable exits `78`, a failed or irreversible migration exits `1`. A failing migration leaves earlier ones applied |
 
 ## Verify it
 

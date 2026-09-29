@@ -21,7 +21,8 @@ typedef BeakStorageDriverFactory =
 ///
 /// ```dart
 /// final registry = BeakStorageRegistry()
-///   ..register('s3', BeakS3StorageDriver.fromConfig); // from beak_storage_s3
+///   ..register('s3', S3StorageDriver.fromConfig); // from beak_storage_s3
+/// // or, the same in one call: registerS3Storage(registry)
 ///
 /// // Later, build the driver the config selects:
 /// final BeakStorageDriver driver = registry.resolve(

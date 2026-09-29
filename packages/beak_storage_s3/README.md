@@ -13,8 +13,8 @@ Three steps: depend on the package, register the driver, pick it with
 environment variables.
 
 **1. Depend on it.** `beak_backend` depends on no driver package on purpose, so
-the `minio` client is not in the dependency graph of every Beak server. Add this
-one next to `beak`:
+a server that never uploads to S3 does not carry this one. Add it next to
+`beak`:
 
 ```yaml
 dependencies:
@@ -23,13 +23,9 @@ dependencies:
       url: https://github.com/SimonErich/beak.git
       ref: v0.9.0
       path: packages/beak_storage_s3
-
-dependency_overrides:
-  xml: ^7.0.1
 ```
 
-The override is needed today, see [Limits](#limits). Until the `v0.9.0` tag
-exists, use `path:` to a checkout or another `ref:`.
+Until the `v0.9.0` tag exists, use `path:` to a checkout or another `ref:`.
 
 **2. Register the driver** in `lib/server.dart`. `beak prepare` finds
 `beakStorageRegistry()` and hands it to the generated server host; the file
@@ -59,7 +55,8 @@ void registerS3Storage(BeakStorageRegistry registry) {
 **3. Select it** in `.env` or the process environment. `BEAK_STORAGE_DRIVER=s3`
 requires the endpoint, bucket, access key, secret key and region, and a missing
 one fails at boot with its name. `BEAK_S3_USE_PATH_STYLE` is optional and
-defaults to virtual-host addressing:
+defaults to virtual-host addressing, and `BEAK_S3_PUBLIC_BASE_URL` (also
+optional) names the address browsers read files from when a CDN sits in front:
 
 ```bash
 BEAK_STORAGE_DRIVER=s3
@@ -116,7 +113,7 @@ final signed = await driver.url(stored.key, expiresIn: const Duration(hours: 1))
 | `get(key)` | Returns the bytes. A missing object is a `BeakStorageException`. |
 | `delete(key)` | Checks the object exists, then removes it. Deleting an absent file is an error, unlike S3's own idempotent delete. |
 | `url(key)` | The public URL: `BeakS3Config.publicBaseUrl` when set (a CDN, say), else `endpoint/bucket/key` with `usePathStyle`, else `bucket.host/key`. |
-| `url(key, expiresIn:)` | A presigned GET URL that expires. |
+| `url(key, expiresIn:)` | A presigned GET URL that expires, unless `publicBaseUrl` is set: that address wins, because a presigned link would name the bucket endpoint. |
 | `exists(key)` | Whether an object is stored under the key. |
 
 Every key is validated, and every client or transport failure is wrapped in a
@@ -127,7 +124,8 @@ error crosses the driver.
 
 `S3ObjectClient` is the wire seam: five methods (`putObject`, `getObject`,
 `removeObject`, `objectExists`, `presignedGetUrl`). Production uses
-`MinioS3ObjectClient`, tests substitute their own:
+`HttpS3ObjectClient` (S3's REST API over `package:http`, signed with AWS
+Signature Version 4), tests substitute their own:
 
 ```dart
 final driver = S3StorageDriver(config, client: FakeS3ObjectClient());
@@ -138,22 +136,22 @@ The suite in this package does that, and adds a live MinIO suite tagged `e2e`
 
 ## Limits
 
-- **`xml` version clash.** `minio 3.5.8` requires `xml ^6.4.2`, and `beak`
-  reaches `image 4.9.1` (through `beak_image`), which requires `xml ^7.0.1`. A
-  project that depends on both fails to resolve without the
-  `dependency_overrides: xml: ^7.0.1` above. `beak_backend` carries the same
-  override for its own MinIO suite, which runs the driver against xml 7 and
-  passes.
-- **Uploads never get a signed URL.** Beak's upload routes call `url(key)`
-  without `expiresIn`, so a private bucket is not readable through them. Make
-  the bucket readable, or set `BeakS3Config.publicBaseUrl` to something that
-  serves it.
-- **`publicBaseUrl` has no environment variable.** `BEAK_STORAGE_DRIVER=s3` reads
-  the variables above and nothing else. A CDN in front of the bucket means
-  building the `BeakS3Config` yourself.
-- **Storage failures show the client's error.** A `BeakStorageException` answers
-  `500` with its message as written, and this driver's message ends with the
-  client's own error text, which can name the endpoint or the bucket.
+- **One request per object.** `put` sends the file in a single `PUT`, which S3
+  accepts up to 5 GiB. An upload is held in memory whole either way, so
+  `maxSizeInBytes` on the column is the limit that matters.
+- **`HEAD` cannot tell a missing bucket from a missing key.** S3 answers both
+  with a bodyless `404`, so `exists` returns `false` for either. `get` and
+  `put` see the error document and report `NoSuchBucket` by name.
+- **Upload links are signed for an hour.** Beak's upload route asks for a link
+  that expires after `signedUrlLifetime` (default one hour), so a private bucket
+  is readable through it. With `publicBaseUrl` set, that address is returned
+  instead.
+- **`BEAK_S3_PUBLIC_BASE_URL` sets `publicBaseUrl`.** A CDN in front of the
+  bucket needs no code.
+- **Storage failures stay on the server.** This driver's message ends with the
+  client's own error text, which can name the endpoint or the bucket. Over HTTP
+  the caller only sees `File storage failed.`, and the full message goes to
+  `onUnexpectedError`.
 
 ## Continue reading
 

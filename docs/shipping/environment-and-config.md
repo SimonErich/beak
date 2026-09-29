@@ -22,6 +22,7 @@ None of the variables is required. A project that sets nothing runs on a SQLite 
 | `BEAK_STORAGE_DRIVER` | `BeakStorageSettings.fromEnv` | unset: local disk under `storage/uploads` | `s3`, `ftp`, `local`, `memory` or `none` |
 | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `s3` |
 | `BEAK_S3_USE_PATH_STYLE` | `BeakStorageSettings.fromEnv` | `false` | `true` for path-style addressing, which MinIO needs |
+| `BEAK_S3_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Where browsers fetch files from, for a CDN or proxy in front of the bucket |
 | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `local` |
 | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `ftp` |
 | `BEAK_FTP_PORT` | `BeakStorageSettings.fromEnv` | `21` | FTP port |
@@ -110,7 +111,7 @@ The server mounts a read-only route at the path of the public URL (`/uploads`), 
 
 `beak_backend` depends on no driver package, so `s3` and `ftp` fail with `No storage driver is registered for "s3". Registered drivers: memory, local.` until the project adds the driver package and declares a `beakStorageRegistry()` in `lib/server.dart`. `beak prepare` then hands it to the generated host. The shop's `lib/server.dart` does not, so pointing the shop at `s3` fails at boot; [Custom storage drivers](../extending/custom-storage-drivers.md) shows the registration.
 
-The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for path-style) unless its config carries a public base URL, and no environment variable sets that. An endpoint that is only reachable inside your network therefore hands the browser URLs it cannot open. Use `local`, or build the `BeakS3Config` in code.
+The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for path-style) unless `BEAK_S3_PUBLIC_BASE_URL` is set. An endpoint that is only reachable inside your network therefore hands the browser URLs it cannot open until you set that variable to the address the browser can reach. Or use `local`.
 
 ## `WORM_ENV`
 
@@ -130,7 +131,7 @@ error: refusing to run destructive command in production without --force
 
 The panel is a Flutter web app, so it has no environment when it runs. The origin it calls is compiled in, from `api.baseUrl` in `beak.yaml`, and the generated panel reads it as a compile-time default:
 
-```dart title="examples/clean_beak_config/lib/beak/panel.g.dart"
+```dart title="examples/quickstart/lib/beak/panel.g.dart"
     apiBaseUrl: const String.fromEnvironment(
       'BEAK_API_BASE_URL',
       defaultValue: 'http://localhost:8080',

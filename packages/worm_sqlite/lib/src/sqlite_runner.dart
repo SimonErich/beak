@@ -104,7 +104,28 @@ final class SqliteRunner {
   Future<Map<String, Object?>> insert(InsertDescriptor d) =>
       SqliteErrorMapper.wrap(() async {
         _cachedWrite(compiler.compileInsert(d));
-        return _project(d.values, d.returning);
+        final projected = _project(d.values, d.returning);
+        final returning = d.returning;
+        if (returning == null) return projected;
+        // A returned column the statement did not supply (a serial key, a
+        // column default) is the database's to answer, and SQLite has no
+        // RETURNING in every build: read the new row back by its rowid. No
+        // await separates the write from the read, so nothing can insert in
+        // between on this connection.
+        final generated = <String>[
+          for (final column in returning)
+            if (!d.values.containsKey(column)) column,
+        ];
+        if (generated.isEmpty) return projected;
+        final rows = _rows(
+          _db.select(
+            'SELECT ${generated.map(_quote).join(', ')} '
+            'FROM ${_quote(d.table)} WHERE rowid = last_insert_rowid()',
+          ),
+        );
+        return rows.isEmpty
+            ? projected
+            : <String, Object?>{...projected, ...rows.first};
       }, table: d.table);
 
   Future<List<Map<String, Object?>>> insertMany(InsertManyDescriptor d) =>

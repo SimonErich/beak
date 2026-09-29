@@ -135,7 +135,7 @@ Three properties of the running process matter once the data is large enough tha
 
 ### One isolate handles all requests
 
-`shelf_io.serve` runs on the isolate that called it, so CPU work in a handler stops every other request in that process until it finishes. The place this shows is image uploads. An image column decodes the file to check it, and again to run its transforms, in pure Dart on that isolate. Decoding a 12-megapixel, 18 MiB JPEG stalled a test isolate for 1 - 3 seconds on the machine that wrote this page (noise compresses badly, so this is a worst case; a typical photo is faster). During that time the server answered nothing else. Set `maxSizeInBytes` on every image column, and run two or more server processes behind the proxy if uploads are common (the built-in login keeps its sessions per process, so read the note on that in [Security](security.md) first).
+`shelf_io.serve` runs on the isolate that called it, so CPU work in a handler stops every other request in that process until it finishes. The place this shows is image uploads. An image column decodes the file once, to run its transforms, in pure Dart on that isolate (the dimensions come from the header first, so a file that declares more than the column allows never gets that far). Decoding a 12-megapixel, 18 MiB JPEG stalled a test isolate for 1 - 3 seconds on the machine that wrote this page (noise compresses badly, so this is a worst case; a typical photo is faster). During that time the server answered nothing else. Set `maxSizeInBytes` on every image column, and run two or more server processes behind the proxy if uploads are common (the built-in login keeps its sessions per process, so read the note on that in [Security](security.md) first).
 
 ### Graph commits run one at a time per process
 
@@ -155,7 +155,7 @@ The server compressed neither the JSON page nor the streamed CSV export that wer
 
 | Limit | Where it is enforced | What to do |
 | --- | --- | --- |
-| `perPage` is capped at 200 | `BeakQueryAuthorizer`, on `POST /query` | Nothing; for a lower ceiling build `BeakCrudHandlers` with `maxPerPage` |
+| `perPage` is capped at 200 | `BeakQueryAuthorizer`, on `POST /query` | Nothing; for a lower ceiling pass `maxPerPage` to `defaults.build` |
 | Request body size is unbounded for JSON | Nowhere in Beak | Set `client_max_body_size` (nginx) or the equivalent at the proxy |
 | Upload size is bounded only when the column sets `maxSizeInBytes` | The upload handler, before it buffers the part | Set it on every `@Image` and `@FileField` |
 | Relation filters nest at most 16 levels, summaries carry 1 - 8 measures | The translator and `BeakSummarySpec` | Nothing to do, these are guards |

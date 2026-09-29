@@ -107,7 +107,7 @@ When a handler updates a timestamped record itself, use `beakRevisionTimestamp(n
 
 ## Operate it
 
-Nothing requeues a `failed` row, prunes a `delivered` one, or orders effects. Look at the queue with SQL:
+Nothing requeues a `failed` row, schedules a prune, or orders effects. Look at the queue with SQL:
 
 ```sql
 select id, kind, status, attempt, last_error from _beak_outbox where status = 'failed';
@@ -119,6 +119,17 @@ To try a failed effect again after fixing the provider, put the row back into it
 update _beak_outbox set status = 'pending', attempt = 0, available_at = 0, lease = '', last_error = ''
 where id = 'fail1:created';
 ```
+
+Delivered rows pile up, so prune them from a job of your own. `BeakOutbox.prune` deletes the delivered rows that have been settled for at least the age you give it, and returns how many went:
+
+```dart
+final removed = await BeakOutbox.prune(
+  adapter,
+  olderThan: const Duration(days: 30),
+);
+```
+
+A delivered row is also what makes a repeated `enqueue` of its key a no-op, so pick an age longer than any window in which the same key could be queued again. `failed` rows stay, since each one is a decision for you, unless you pass `includeFailed: true`.
 
 A row that lacks a column the claim compares is corruption, because only `enqueue` writes the table. The drain marks it `failed` with `malformedRow`, delivers every other row, and then throws once, naming the rows it set aside.
 
@@ -140,10 +151,10 @@ A test does not wait for a timer. It drives the worker itself: commit through th
 | Effects have no order | Two effects of one save may run in either order, on different workers |
 | Only `BeakServeHost.serve()` runs the loop | `buildServer` alone, a test, or an embedded host starts none. Call `server.outbox?.start(adapter, onError: ...)` yourself |
 | The loop runs in the server's isolate | A handler that blocks the isolate slows the API. Drains never overlap on one worker |
-| Nothing prunes or requeues | `delivered` and `failed` rows stay. Reset failed rows by hand, and delete old ones on your own schedule |
+| Nothing prunes or requeues by itself | `delivered` and `failed` rows stay until you call `BeakOutbox.prune`. Reset failed rows by hand |
 | A handler without a registered kind is a failure | `No outbox handler registered for "kind".` counts as an attempt, so a typo burns all attempts |
 | Retry delay grows linearly | `retryDelay` times the attempt number: 10, 20, 30 seconds by default |
-| The outbox table is fixed | `BeakOutbox` writes `_beak_outbox` by name. Under Serverpod only the receipts table maps onto the host, so the outbox does not work there |
+| The table can be remapped | `BeakOutbox.enqueue`, `BeakOutboxSchedule` and `BeakOutbox.prune` take a `BeakOutboxTable`, which names the table and any column spelled differently. `BeakFrameworkTables.outbox` carries it, and `beakServerpodFrameworkTables.outbox` maps a Serverpod model |
 | The payload is stored as JSON text | Keys are sorted first, so equal content compares equal and a re-enqueue with the same content is a no-op |
 | `finalizePlan` needs a transactional `WormDataSource` | The same requirement as `preparePlan`, see [Transactional business rules](graph-business-rules.md) |
 

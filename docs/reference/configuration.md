@@ -88,6 +88,7 @@ Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the pro
 | `BEAK_S3_SECRET_KEY` | `s3` | yes | none | Secret access key. A secret |
 | `BEAK_S3_REGION` | `s3` | yes | none | The bucket region, for example `eu-central-1` |
 | `BEAK_S3_USE_PATH_STYLE` | `s3` | no | `false` | Exactly `true` selects path-style addressing (`endpoint/bucket/key`), which MinIO needs. Any other value is `false` |
+| `BEAK_S3_PUBLIC_BASE_URL` | `s3` | no | none | The address files are served from, for a CDN or proxy in front of the bucket. Unset or empty, file URLs are built from `BEAK_S3_ENDPOINT` |
 | `BEAK_FTP_HOST` | `ftp` | yes | none | The FTP host |
 | `BEAK_FTP_USER` | `ftp` | yes | none | Login user |
 | `BEAK_FTP_PASSWORD` | `ftp` | yes | none | Login password. A secret |
@@ -97,7 +98,7 @@ Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the pro
 | `BEAK_LOCAL_ROOT_DIR` | `local` | yes | none | The directory files are written under |
 | `BEAK_LOCAL_PUBLIC_BASE_URL` | `local` | yes | none | The URL prefix files are served from. Beak mounts a read-only route at its path, see [REST API](rest-api.md#local-files) |
 
-A missing required variable throws `<KEY> is required when BEAK_STORAGE_DRIVER=<driver>.` at boot. A driver that is selected but not registered fails at boot, naming the drivers that are: `beak_backend` depends on no driver package, so `s3` needs `beak_storage_s3` and a `beakStorageRegistry()` function in `lib/server.dart`, see [Storage registry](#storage-registry). The `memory` and `local` drivers are in the box. There is no variable for `BeakS3Config.publicBaseUrl` (a CDN in front of the bucket); build the config in code for that.
+A missing required variable throws `<KEY> is required when BEAK_STORAGE_DRIVER=<driver>.` at boot. A driver that is selected but not registered fails at boot, naming the drivers that are: `beak_backend` depends on no driver package, so `s3` needs `beak_storage_s3` and a `beakStorageRegistry()` function in `lib/server.dart`, see [Storage registry](#storage-registry). The `memory` and `local` drivers are in the box.
 
 ### How `.env` resolves
 
@@ -189,7 +190,7 @@ The argument of `beakServer`: everything `BeakServeHost` resolved.
 | `generateId` | `String Function()?` | UUID v4 | The id mint behind every write |
 | `transformRunner` | `BeakTransformRunner?` | the `beak_image` runner | The image pipeline behind image uploads |
 
-`build` has no `storage:` or `dataSource:` parameter. A custom driver goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER`; a custom data source needs a hand-built `BeakServer`.
+`build` takes `storage:` and `dataSource:` too, which replace what the host resolved. A driver from a package goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER`; a driver you built yourself or a custom data source goes straight into `build`.
 
 The default policy allows everything and the default CORS origin is `*`. Set a policy before exposing the server.
 

@@ -68,11 +68,11 @@ Every rule fails as a `422` that names the rule, and the rest as the usual envel
 | A column that stores no file | `422` `Column "caption" of "photos" is a BeakStringColumn; uploads need a file or image column.` |
 | A key outside the column's `storagePath`, or with `..` in it | `422` `Key "other/x.png" does not belong to column "image" (expected the "photos/" prefix).` |
 | A key with no stored file | `404` `No stored file "..."` |
-| The driver fails | `500` `storage`, with the driver's message |
+| The driver fails | `500` `storage` `File storage failed.` The driver's message goes to `onUnexpectedError`, not to the caller |
 
-An image column decodes the bytes first to read the real dimensions, validates size, type, dimensions and aspect ratio against them, and only then runs the transforms and stores the original with its variants. If a variant cannot be written, the files already stored for that upload are deleted before the error goes out. A plain file column checks the size and the declared type and looks inside nothing.
+An image column reads the dimensions from the file header first (nothing is decoded yet), validates size, type, dimensions and aspect ratio against them, and only then decodes the image once to run the transforms and store the original with its variants. The runner also refuses any image that declares more than 50 million pixels, whatever the column says. If a variant cannot be written, the files already stored for that upload are deleted before the error goes out. A plain file column checks the size and the declared type and looks inside nothing.
 
-`DELETE` removes exactly the key it is given. An image and its thumbnail are separate keys, so removing an upload takes one call per rendition, which is what `BeakClient.discardUpload` does. Deleting a record does not delete its files, and nothing collects the orphans of an upload that was never saved. Clean the storage on your own schedule.
+`DELETE` removes exactly the key it is given. An image and its thumbnail are separate keys, so removing an upload takes one call per rendition, which is what `BeakClient.discardUpload` does. Deleting a record does not delete its files, on purpose: a soft-deleted record can be restored with its file, and another record may point at the same key. Nothing collects the orphans of an upload that was never saved either. Clean the storage on your own schedule.
 
 ## Turn uploads on, off or elsewhere
 
@@ -96,7 +96,7 @@ The variables each driver reads:
 | Driver | Variables | Needs a package |
 | --- | --- | --- |
 | `local` | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL`, both required | No, it is in the box |
-| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION` required; `BEAK_S3_USE_PATH_STYLE=true` for MinIO and path-style hosts | `beak_storage_s3` |
+| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION` required; `BEAK_S3_USE_PATH_STYLE=true` for MinIO and path-style hosts; `BEAK_S3_PUBLIC_BASE_URL` for a CDN in front of the bucket | `beak_storage_s3` |
 | `ftp` | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL` required; `BEAK_FTP_PORT`, default `21` | `beak_storage_ftp` |
 | `memory` | none | No. Files vanish with the process, and the URL is `memory:///photos/...` |
 | `none` | none | No. No upload routes are mounted |
@@ -120,7 +120,7 @@ Point `BEAK_LOCAL_PUBLIC_BASE_URL` at a CDN or the web server and the server's o
 
 ### S3 and MinIO
 
-`beak_backend` depends on no driver package, because `minio` would land in every backend's dependency graph. A project that wants S3 adds the package, registers it, and sets the variables. Three steps:
+`beak_backend` depends on no driver package, so a server that never uploads to S3 does not carry the S3 driver. A project that wants S3 adds the package, registers it, and sets the variables. Three steps:
 
 ```yaml
 # Illustrative: pubspec.yaml additions for the S3 driver.
@@ -130,9 +130,6 @@ dependencies:
       url: https://github.com/SimonErich/beak.git
       ref: v0.9.0
       path: packages/beak_storage_s3
-
-dependency_overrides:
-  xml: ^7.0.1
 ```
 
 ```dart
@@ -157,9 +154,6 @@ $ curl -s -X POST localhost:8392/api/photos/image/upload -F "file=@pic.png;type=
 {"key":"photos/7ed20c4d-e64b-4234-b555-fc01e455b0b9.png","url":"http://localhost:28590/beak-uploads/photos/7ed20c4d-e64b-4234-b555-fc01e455b0b9.png", ... }
 ```
 
-!!! warning "The xml override is required today"
-    `beak` reaches `image ^4.9`, which needs `xml ^7`, through `beak_backend` and `beak_image`. `beak_storage_s3` reaches `minio 3.5.8`, which asks for `xml ^6`. Without `dependency_overrides: xml: ^7.0.1`, `flutter pub get` stops with `beak from path is incompatible with beak_storage_s3 from path`. The override is safe here, since Beak's own MinIO integration suite runs with it. `beak_storage_ftp` has no such conflict.
-
 Without the registration, the boot fails by name:
 
 ```console
@@ -183,11 +177,10 @@ The same shape with `beak_storage_ftp` and `registerFtpStorage(registry)`, and t
 | The default driver is local disk with URLs built from the bind address | Fine on your machine, wrong behind a proxy. Choose the driver and its public URL explicitly |
 | Uploads are validated, not authorized by content | The MIME type and extension are what the client declared. A file column with no `allowedTypes` stores `evil.html` as `<uuid>.html`, and the local route serves it as HTML from your origin. List `allowedTypes`, and serve uploads from another origin |
 | `maxSizeInBytes` is optional | A column that sets none accepts any size. Set it on every upload column |
-| Images are fully decoded to read their dimensions | Before `maxDimensions` is checked, and again for the transforms. A small file can expand to a very large bitmap. The size limit counts compressed bytes |
-| The resolve route does not sign URLs | A private S3 bucket cannot be read through it. Use a public bucket, a `publicBaseUrl` in code, or a proxy |
-| A storage failure is a `500` with the driver's message | An S3 or FTP error can include an endpoint or a bucket name. Treat the body of a `500` from an upload route as visible to the caller |
+| Images are decoded once, after the header checks | A small file can declare a very large bitmap, so `maxDimensions` is checked from the header, and `ImageTransformRunner` refuses anything above `maxPixelCount` (50 million pixels by default) before it allocates. The size limit counts compressed bytes |
+| The resolve route signs for one hour | On a driver that signs (S3), `GET .../upload?key=` answers with a presigned link that expires after `signedUrlLifetime` (default one hour, set with `defaults.build(signedUrlLifetime: ...)`). With `BEAK_S3_PUBLIC_BASE_URL` set, the public address is answered instead. Resolve a key again instead of storing the link. Drivers with public links (local, memory, FTP) answer with the same address every time |
+| A storage failure is a `500` with a generic message | The caller sees `File storage failed.` and the driver's own message (which can include an endpoint or a bucket name) goes to `onUnexpectedError`. Watch that log |
 | Files outlive records | Deleting a record does not delete its files, and an abandoned upload stays. Clean up out of band |
-| `beak_storage_s3` needs `dependency_overrides: xml: ^7.0.1` | Without it the project does not resolve |
 | An unregistered driver fails at boot | `s3` and `ftp` need a package and a `beakStorageRegistry()` before the variable can select them |
 | One driver per server | Every upload column stores through it. A column cannot choose its own |
 

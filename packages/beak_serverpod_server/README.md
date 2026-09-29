@@ -114,7 +114,7 @@ The whole path, file by file, is
 | `BeakServerpodPrincipal`, `BeakServerpodPrincipalResolver` | Turn the signed-in user into the `BeakPrincipal` your policy decides on. Return `null` to refuse with 403. |
 | `ServerpodSessionAdapter` | A worm `DatabaseAdapter` over `session.db.unsafeQuery` and `unsafeExecute`. A nested transaction is a savepoint, never flattened. |
 | `BeakServerpod` | The zone that carries the `Session` into Beak (`runInSession`), plus `sessionOf` and `transactionOf` to hand typed Serverpod ORM writes the same session and transaction. |
-| `beakServerpodFrameworkTables` | Maps Beak's graph-commit receipts onto the Serverpod model `beak_commit_receipt`. |
+| `beakServerpodFrameworkTables` | Maps Beak's graph-commit receipts onto the Serverpod model `beak_commit_receipt` and its effect outbox onto `beak_outbox`. |
 | `beakTunnelUrl` | The path filter of step 2. |
 | `mapServerpodDatabaseException` | Turns Serverpod's database errors into the worm exceptions Beak's services catch: a unique violation reads as one whether it happens mid-transaction or at `COMMIT`. |
 

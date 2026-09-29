@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
 
+import 'http_s3_object_client.dart';
 import 's3_object_client.dart';
 
 /// Stores files in an S3-compatible bucket (AWS S3, MinIO, ...) configured
@@ -32,11 +33,11 @@ import 's3_object_client.dart';
 /// ```
 final class S3StorageDriver implements BeakStorageDriver {
   /// Creates a driver for [config]; [client] overrides the wire client for
-  /// tests (default: a [MinioS3ObjectClient] built from [config]).
+  /// tests (default: a [HttpS3ObjectClient] built from [config]).
   // --8<-- [start:constructors]
   S3StorageDriver(BeakS3Config config, {S3ObjectClient? client})
     : _config = config,
-      _client = client ?? MinioS3ObjectClient(config);
+      _client = client ?? HttpS3ObjectClient(config);
 
   /// Creates the driver from its [BeakS3Config].
   ///
@@ -118,10 +119,15 @@ final class S3StorageDriver implements BeakStorageDriver {
   }
 
   /// A presigned GET URL when [expiresIn] is given, else the public URL.
+  ///
+  /// A configured [BeakS3Config.publicBaseUrl] always wins: it names the
+  /// address browsers read from (a CDN or proxy), while a presigned link
+  /// would point at the bucket endpoint, which is often reachable from the
+  /// server only.
   @override
   Future<Uri> url(String key, {Duration? expiresIn}) async {
     BeakStorageKeys.validate(key);
-    if (expiresIn == null) {
+    if (expiresIn == null || _config.publicBaseUrl != null) {
       return _publicUrlFor(key);
     }
     return _guard('presign', key, () {

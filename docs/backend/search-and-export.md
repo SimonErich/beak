@@ -131,7 +131,7 @@ Padded beans,3.0,,2026-09-29T14:53:38.709Z
 
 Three details of the formatted form bite in practice:
 
-- A null cell becomes the policy's `emptyValue`, which defaults to an em dash. Send `"emptyValue": ""` when the sheet should have blank cells.
+- A null cell is an empty cell, whatever `emptyValue` says. The policy's placeholder (an em dash by default) is for the screen; a file gets nothing.
 - Times are UTC. The policy JSON never carries the browser's zone, so the server does not guess one. Send `"timeZoneOffsetMinutes": 120` for a fixed offset (`14:59` becomes `16:59`). There are no named zones and no daylight saving.
 - Malformed options are a `422` and never a silent fallback: an unknown locale is `Malformed export formatting: Unsupported formatting locale.`, and `raw` together with `formatting` or `formats` is `Raw exports cannot also request display formatting.`
 
@@ -154,7 +154,7 @@ From Dart, `BeakClient.export(table, spec, formatting:, columns:, formats:, raw:
 | A search over an unreadable column is refused | Do not put a field in `globalSearchSources` that some roles cannot read, or their search fails as a whole |
 | An export has no row limit | Every matching row is streamed. Filter it, and put a proxy timeout in front of a very large table |
 | A failure after the first page truncates the file | The response is already `200`. Compare the row count with `total` from a query if the file matters |
-| Cell text is written as it is | A value that begins with `=`, `+`, `-` or `@` runs as a formula when the file opens in a spreadsheet. `=1+1` is exported as `=1+1`. Restrict who can write such fields, or post-process the file |
+| A cell that would run as a formula gets a leading quote | A value that begins with `=`, `+`, `-` or `@` (or a tab or carriage return) is written with a `'` in front, so `=1+1` arrives as text: `'=1+1`. A cell that is only a number, such as `-5`, is left alone. The quote is part of the cell, so a job that reads the file back strips it |
 | No byte order mark | Excel may need the import dialog with UTF-8 selected to show `Ä` correctly |
 | Sort order comes from the database | Byte order on SQLite, the collation on Postgres. `Ä` sorts after `p` on SQLite |
 | Formatted times are UTC or a fixed offset | Send `timeZoneOffsetMinutes`. Device-local conversion is never applied on the server |
@@ -187,4 +187,4 @@ Three lines are the header and two rows. Then check the policy the same way you 
 - [Queries](../reference/queries.md) the spec both routes take, with filters, sorts and pagination.
 - [Export to CSV](../recipes/export-to-csv.md) the panel button and the client call in a recipe.
 - [Auth and policies](auth-and-policies.md) the read, field and row rules a search and an export obey.
-- [Security](../shipping/security.md) the known gap around spreadsheet formulas.
+- [Security](../shipping/security.md) the hardening list, spreadsheet formulas included.

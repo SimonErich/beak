@@ -9,8 +9,8 @@
 /// - [BeakServerpod]: the zone that carries the Session into Beak, plus the
 ///   `sessionOf`/`transactionOf` hand-off for typed ORM writes inside a Beak
 ///   transaction.
-/// - [beakServerpodFrameworkTables]: Beak's graph-commit receipts on the
-///   tool-owned Serverpod model.
+/// - [beakServerpodFrameworkTables]: Beak's graph-commit receipts and effect
+///   outbox on tool-owned Serverpod models.
 library;
 
 export 'src/beak_admin_gate.dart';

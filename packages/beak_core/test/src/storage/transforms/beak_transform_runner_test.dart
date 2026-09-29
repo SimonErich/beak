@@ -9,6 +9,10 @@ final class _EchoRunner implements BeakTransformRunner {
   const _EchoRunner();
 
   @override
+  Future<BeakDimensions> inspect(Uint8List source) async =>
+      const BeakDimensions(widthInPixels: 1600, heightInPixels: 900);
+
+  @override
   Future<BeakTransformedImage> run(
     Uint8List source,
     List<BeakImageTransform> pipeline,
@@ -62,6 +66,15 @@ void main() {
         const BeakDimensions.square(64),
       );
       expect(result.variants['thumbnail']?.variants, isEmpty);
+    });
+
+    test('an implementation reports the declared size before any decode', () {
+      expect(
+        const _EchoRunner().inspect(Uint8List(0)),
+        completion(
+          const BeakDimensions(widthInPixels: 1600, heightInPixels: 900),
+        ),
+      );
     });
   });
 }

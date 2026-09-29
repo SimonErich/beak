@@ -69,7 +69,7 @@ A driver that speaks a protocol should not open a socket inside its methods. `Ft
 --8<-- "packages/beak_storage_ftp/lib/src/ftp_transport.dart:FtpTransport"
 ```
 
-The production `SocketFtpTransport` speaks RFC 959 over `dart:io`. A test injects its own through the driver's `transport` parameter. `beak_storage_s3` does the same: `S3StorageDriver` over an `S3ObjectClient`, with `MinioS3ObjectClient` in production.
+The production `SocketFtpTransport` speaks RFC 959 over `dart:io`. A test injects its own through the driver's `transport` parameter. `beak_storage_s3` does the same: `S3StorageDriver` over an `S3ObjectClient`, with `HttpS3ObjectClient` in production (S3's REST API over `package:http`, signed with Signature Version 4 by a signer inside the package).
 
 ```dart title="packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart"
 --8<-- "packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart:ftpDriverPut"
@@ -87,25 +87,20 @@ The wire's semantics rarely match the interface's. S3 deletes are idempotent, so
 
 === "Your own driver, in your app"
 
-    `BeakServerDefaults.build()` has no `storage:` parameter, so a driver that is not in the registry is passed by constructing the server in `lib/server.dart` (`beak eject server` writes the starter):
+    A driver that is not in the registry is passed to `BeakServerDefaults.build()` in `lib/server.dart` (`beak eject server` writes the starter):
 
     ```dart title="lib/server.dart"
     import 'package:beak/server.dart';
 
-    BeakServer beakServer(BeakServerDefaults defaults) => BeakServer(
-      config: defaults.config,
-      registry: defaults.registry,
-      dataSource: defaults.dataSource,
-      storage: MyStorageDriver(),
-      now: defaults.now,
-    );
+    BeakServer beakServer(BeakServerDefaults defaults) =>
+        defaults.build(storage: MyStorageDriver());
     ```
 
-    `MyStorageDriver` is your class implementing `BeakStorageDriver`. The block is illustrative (it is not a repository file) and compiles against a fresh `beak create` project. Every upload column now stores through it, whatever `BEAK_STORAGE_DRIVER` says. Every argument `build()` takes (`policy`, `authSessions`, `middleware`, `routes`, `outbox` and the rest) is also a `BeakServer` argument, so pass the ones your project uses the same way.
+    `MyStorageDriver` is your class implementing `BeakStorageDriver`. The block is illustrative (it is not a repository file) and compiles against a fresh `beak create` project. Every upload column now stores through it, whatever `BEAK_STORAGE_DRIVER` says. Every other argument `build()` takes (`policy`, `authSessions`, `middleware`, `routes`, `outbox` and the rest) goes in the same call.
 
 === "A shipped driver package"
 
-    `beak_backend` depends on no driver package, on purpose: pulling `beak_storage_s3` in would put `minio` in the dependency graph of every backend, uploading or not. So a project declares the packages it uses, in one function. Add the dependency to `pubspec.yaml`, then declare `beakStorageRegistry` in `lib/server.dart`. The file does not need a `beakServer` function for this:
+    `beak_backend` depends on no driver package, on purpose: pulling `beak_storage_s3` in would ship the S3 driver with every backend, whether it uploads or not. So a project declares the packages it uses, in one function. Add the dependency to `pubspec.yaml`, then declare `beakStorageRegistry` in `lib/server.dart`. The file does not need a `beakServer` function for this:
 
     ```dart title="lib/server.dart"
     import 'package:beak/server.dart';
@@ -196,7 +191,7 @@ Then document the variables in [Configuration and environment](../reference/conf
 | A selected driver must be registered | Server boot | A missing `registerS3Storage` fails at boot by name, listing the registered ids. |
 | Unset means local disk | Server boot | Uploads work on a fresh project. `none` turns the endpoints off. |
 | Driver ids are unique | Registry | `register` throws `A storage driver factory for "<id>" is already registered.` |
-| Only Beak types cross the boundary | You | Throw `BeakStorageException`, never a socket, `minio` or FTP error. The generated API turns the sealed `BeakException` family into HTTP responses and nothing else. |
+| Only Beak types cross the boundary | You | Throw `BeakStorageException`, never a socket, HTTP or FTP error. The generated API turns the sealed `BeakException` family into HTTP responses and nothing else. |
 | The server never calls `get` | Server | Implement it anyway. Your own code and tests will. |
 | Requests overlap | You | Shelf serves requests concurrently, so keep no per-request state on the driver. `SocketFtpTransport` opens one connection per operation and pools nothing. |
 

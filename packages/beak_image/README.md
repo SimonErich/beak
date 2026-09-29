@@ -76,6 +76,14 @@ chosen at that point, so put the format step before it.
 
 - **Sources.** PNG, JPEG, WebP and GIF. Anything else, or bytes that do not
   decode, throws a `BeakValidationException`.
+- **Header first.** `inspect` reads the declared width and height from the
+  header without decoding a pixel, which is how the upload endpoint checks
+  `maxDimensions` and `aspectRatio` before any memory is spent. `run` decodes
+  the image once.
+- **A pixel ceiling.** `run` refuses an image whose header declares more than
+  `maxPixelCount` pixels (`ImageTransformRunner.defaultMaxPixelCount`, 50
+  million, about 200 MB decoded) with a `BeakValidationException`, so a file of
+  a few dozen bytes cannot ask for gigabytes.
 - **Resize.** With one dimension the image scales and keeps its aspect ratio.
   With both, `BeakImageFit` decides: `contain` (the default) fits inside,
   `cover` fills and crops from the centre, `fill` stretches.
@@ -92,7 +100,7 @@ chosen at that point, so put the format step before it.
 
 | Type | What it is |
 | --- | --- |
-| `ImageTransformRunner` | The `const` runner, and the only type this package exports. It is stateless, so one instance serves every upload. |
+| `ImageTransformRunner` | The `const` runner, and the only type this package exports. It is stateless, so one instance serves every upload. `maxPixelCount` sets its ceiling. |
 | `beakImageVersion` | The package version string. |
 
 The collaborators come from `beak_core`: `BeakTransformRunner` (the interface the
@@ -106,9 +114,10 @@ runner implements), `BeakImageTransform` (`resize`, `format`, `webp` and
   encoder, so `quality` on a WebP step changes nothing (a pipeline with
   `webp(quality: 10)` and one with `webp(quality: 90)` produce the same bytes).
   Choose `jpg` when you want to trade fidelity for size.
-- **The whole image is decoded.** The runner has no pixel-count ceiling of its
-  own, so memory grows with the decoded size, not the file size. Bound uploads
-  with `maxSizeInBytes` on the column.
+- **The whole image is decoded.** Memory grows with the decoded size, not the
+  file size, up to `maxPixelCount`. Bound uploads with `maxSizeInBytes` and
+  `maxDimensions` on the column. The ceiling counts the pixels of one frame, so
+  an animated GIF with many frames costs more than it says.
 
 ## Continue reading
 

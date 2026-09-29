@@ -1,6 +1,8 @@
 /// Full `DatabaseAdapter` implementation backed by PostgreSQL.
 library;
 
+import 'dart:convert';
+
 import 'package:postgres/postgres.dart';
 import 'package:worm/worm.dart';
 
@@ -424,9 +426,25 @@ Map<String, Object?> rowToMap(ResultRow row) {
   for (final (i, column) in row.schema.columns.indexed) {
     final name = column.columnName;
     if (name == null) continue;
-    out[name] = row[i];
+    out[name] = decodeColumnValue(row[i]);
   }
   return out;
+}
+
+/// Turns the value the driver could not type into something a row can hold.
+///
+/// The postgres driver hands back an [UndecodedBytes] for a column whose type
+/// it does not know: a native `enum`, a `citext`, a domain over either. Those
+/// are all text on the wire, so a payload that is valid UTF-8 becomes a
+/// `String` (the label of an enum). Any other value passes through, and so
+/// does a payload that is not text, left as its raw bytes.
+Object? decodeColumnValue(Object? value) {
+  if (value is! UndecodedBytes) return value;
+  try {
+    return utf8.decode(value.bytes);
+  } on FormatException {
+    return value.bytes;
+  }
 }
 
 /// Groups an `information_schema.columns` result into a

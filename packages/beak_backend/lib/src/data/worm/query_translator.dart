@@ -437,11 +437,29 @@ final class WormQueryTranslator {
   EagerLoad _eagerLoad(BeakModel owner, BeakRelationLoad load) {
     final relation = _relationOrReject(owner, load.relationKey);
     final related = registry.byTableOrThrow(relation.relatedTable);
+    final PredicateTree? requested = predicateFor(load.filter, related);
+    // A soft-deleted row is gone to a reader, related or not: the load
+    // constrains the related table the way a query on it would be.
+    final PredicateTree? constrain = related.softDeletes
+        ? _withLive(requested)
+        : requested;
     return EagerLoad(
       relation.key,
-      constrain: predicateFor(load.filter, related),
+      constrain: constrain,
       nested: [for (final child in load.nested) _eagerLoad(related, child)],
     );
+  }
+
+  /// [condition] narrowed to rows whose `deleted_at` is unset.
+  PredicateTree _withLive(PredicateTree? condition) {
+    const live = LeafNode(
+      Predicate(
+        fieldName: 'deleted_at',
+        operator: Operator.isNull,
+        value: null,
+      ),
+    );
+    return condition == null ? live : condition.and(live).group();
   }
 
   /// The relationship a spec names by [relationKey] on [model].

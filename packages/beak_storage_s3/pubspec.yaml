@@ -13,7 +13,8 @@ environment:
 dependencies:
   beak_core:
     path: ../beak_core
-  minio: 3.5.8
+  crypto: ^3.0.7
+  http: ^1.6.0
 
 dev_dependencies:
   lints: ^6.0.0

@@ -59,7 +59,8 @@ final class BeakRequestLogEntry {
 /// [BeakRequestLogEntry.toJson] exists:
 ///
 /// ```dart
-/// BeakServeHost(registry: registry, onRequest: beakJsonRequestLogger());
+/// BeakServer beakServer(BeakServerDefaults defaults) =>
+///     defaults.build(onRequest: beakJsonRequestLogger());
 /// ```
 BeakRequestLogger beakJsonRequestLogger({StringSink? sink}) {
   final StringSink target = sink ?? stdout;

@@ -181,6 +181,13 @@ final class BeakFieldAccess {
         model: model,
       );
 
+  /// The id handed to [BeakPolicy.canDelete] when a capability is asked for a
+  /// model and not for a record: the key no stored record has (zero, or the
+  /// empty string), so a policy that decides per record says no, and a role
+  /// rule, which ignores the id, answers for the model.
+  Object _absentRecordId(BeakModel model) =>
+      model.primaryKey is BeakIntColumn ? 0 : '';
+
   /// Resolves the field allowlists for forms under resource-level permissions.
   BeakAccessCapabilities capabilities(BeakModel model, {Object? id}) {
     final readable = policy.canView(principal, model);
@@ -191,6 +198,12 @@ final class BeakFieldAccess {
         _inputPasses(model, key, _canWrite) &&
         _inputPasses(model, key, _isWritable);
     return BeakAccessCapabilities(
+      canCreate: policy.canCreate(principal, model),
+      canDelete: policy.canDelete(
+        principal,
+        model,
+        id ?? _absentRecordId(model),
+      ),
       executableActions: {
         for (final action in model.behavior.actions)
           if (writable &&

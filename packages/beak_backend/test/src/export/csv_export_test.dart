@@ -264,6 +264,111 @@ void main() {
     expect(rows[1][dateIndex], '01.07.2026 10:30');
   });
 
+  Future<List<List<String>>> exportAfterAdding(
+    List<Map<String, Object?>> notes, {
+    List<String> columns = const ['title'],
+    Map<String, Object?> options = const {},
+  }) async {
+    for (final (index, note) in notes.indexed) {
+      await dataSource.create(
+        'notes',
+        BeakRecord.fromRow({'id': 'added$index', ...note}),
+      );
+    }
+    final response = await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/api/notes/export'),
+        body: jsonEncode({
+          ...const BeakQuerySpec(table: 'notes').toJson(),
+          'columns': columns,
+          ...options,
+        }),
+      ),
+    );
+    // The header and the three notes every test starts with come first.
+    return parseCsv(await response.readAsString()).skip(4).toList();
+  }
+
+  group('cells a spreadsheet would run', () {
+    test('a formula is exported as text, with a leading quote', () async {
+      final rows = await exportAfterAdding([
+        {'title': '=1+1'},
+        {'title': '+SUM(A1:A9)'},
+        {'title': '@HYPERLINK("http://x")'},
+        {'title': '-2+3'},
+        {'title': '\t=cmd'},
+      ]);
+
+      expect(rows.map((row) => row.single), [
+        "'=1+1",
+        "'+SUM(A1:A9)",
+        "'@HYPERLINK(\"http://x\")",
+        "'-2+3",
+        "'\t=cmd",
+      ]);
+    });
+
+    test('plain text and numbers are left alone', () async {
+      final rows = await exportAfterAdding([
+        {'title': '-5'},
+        {'title': '+7'},
+        {'title': '3.5'},
+        {'title': 'Sum = 1'},
+        {'title': 'a-b'},
+      ]);
+
+      expect(rows.map((row) => row.single), [
+        '-5',
+        '+7',
+        '3.5',
+        'Sum = 1',
+        'a-b',
+      ]);
+    });
+
+    test('the same guard applies to a formatted export', () async {
+      final rows = await exportAfterAdding(
+        [
+          {'title': '=1+1'},
+        ],
+        options: {'formatting': const BeakFormatPolicy().toJson()},
+      );
+
+      expect(rows.single.single, "'=1+1");
+    });
+  });
+
+  test('an empty value exports as an empty cell, formatted or not', () async {
+    final plain = await exportAfterAdding(
+      [
+        {'title': 'No rating'},
+      ],
+      columns: ['title', 'rating'],
+    );
+    expect(plain.single, ['No rating', '']);
+
+    final formatted = await exportAfterAdding(
+      [
+        {'title': 'Also none'},
+      ],
+      columns: ['title', 'rating'],
+      options: {'formatting': const BeakFormatPolicy().toJson()},
+    );
+    expect(formatted.last, ['Also none', ''], reason: 'no em dash in a file');
+
+    final custom = await exportAfterAdding(
+      [
+        {'title': 'Third'},
+      ],
+      columns: ['title', 'rating'],
+      options: {
+        'formatting': const BeakFormatPolicy(emptyValue: 'n/a').toJson(),
+      },
+    );
+    expect(custom.last, ['Third', '']);
+  });
+
   test('malformed export display options return a validation error', () async {
     for (final options in <Map<String, Object?>>[
       {'formatting': 4},

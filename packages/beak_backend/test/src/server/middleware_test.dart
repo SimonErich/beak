@@ -170,6 +170,26 @@ void main() {
       );
     });
 
+    test(
+      'a preflight lists the methods the routes use, and no others',
+      () async {
+        final handler = const Pipeline()
+            .addMiddleware(beakCorsMiddleware())
+            .addHandler((request) => Response.ok('ok'));
+
+        final response = await handler(
+          Request('OPTIONS', Uri.parse('http://localhost/api/notes/n1')),
+        );
+
+        final allowed = {
+          for (final method
+              in response.headers['access-control-allow-methods']!.split(','))
+            method.trim(),
+        };
+        expect(allowed, {'GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'});
+      },
+    );
+
     test('honors a configured origin', () async {
       final handler = const Pipeline()
           .addMiddleware(

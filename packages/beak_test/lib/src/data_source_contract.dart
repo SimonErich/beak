@@ -2,30 +2,17 @@ import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 
 import 'beak_record_factory.dart';
-
-/// Builds the source under test, freshly, for each contract test.
-typedef BeakDataSourceBuilder = Future<BeakDataSource> Function();
-
-/// Seeds [records] into [model]'s table on the source under test.
-///
-/// A contract cannot assume how a source is populated — the in-memory one has
-/// `seed`, a worm-backed one needs SQL, a Serverpod one needs a session — so
-/// the caller supplies it.
-typedef BeakDataSourceSeeder =
-    Future<void> Function(
-      BeakDataSource source,
-      BeakModel model,
-      List<BeakRecord> records,
-    );
+import 'data_source_contract_types.dart';
+import 'data_source_relation_contract.dart';
 
 /// Runs the shared [BeakDataSource] contract against [create].
 ///
-/// "Implement nine methods" is not a specification. The interface has sharp
-/// edges that only bite in production — `getOne` returning null rather than
+/// "Implement ten methods" is not a specification. The interface has sharp
+/// edges that only bite in production: `getOne` returning null rather than
 /// throwing, `update` throwing when the row is gone, `aggregate` returning 0
 /// rather than null over an empty set, soft deletes hiding from `query` but
-/// not from `withTrashed` — and until now nothing checked any of them. Every
-/// source runs this suite, so a third-party adapter can prove it belongs.
+/// not from `withTrashed`. Until this suite existed nothing checked any of
+/// them. Every source runs it, so a third-party adapter can prove it belongs.
 ///
 /// ```dart
 /// void main() {
@@ -39,6 +26,39 @@ typedef BeakDataSourceSeeder =
 ///   );
 /// }
 /// ```
+///
+/// That run covers `query`, `getOne`, `create`, `update`, `delete`, `restore`,
+/// `batchGet` and `aggregate` on [model]. Eager loading (`relationLoads`,
+/// nested and filtered) and `attach` and `detach` need related rows, so they
+/// are opt-in: name the models whose relationships to exercise in
+/// [relationModels]. Their related tables must be in [registry] and seedable
+/// through [seed]. For each relationship, foreign keys travel inside the
+/// seeded records. A many-to-many relationship also needs links: [seedLinks]
+/// writes them the way the store holds them, and without it the suite links
+/// through the source's own `attach`, so a broken `attach` then fails the load
+/// tests too. A caller that names no [relationModels] gets one skipped test in
+/// place of the relation groups, so the gap shows in the run instead of
+/// passing silently.
+///
+/// The relation groups assume the store does not enforce foreign keys on the
+/// rows the suite seeds (the seeded rows of a model carry generated values in
+/// foreign key columns the fixture does not wire), and skip a relationship
+/// from a table to itself.
+///
+/// ```dart
+/// runBeakDataSourceContract(
+///   'InMemoryBeakDataSource',
+///   registry: buildRegistry(),
+///   model: const ProductModel(),
+///   relationModels: const [ProductModel(), CategoryModel()],
+///   create: () async => InMemoryBeakDataSource(registry: buildRegistry()),
+///   seed: (source, model, records) async =>
+///       (source as InMemoryBeakDataSource).seed(model, records),
+///   seedLinks: (source, relation, ownerId, relatedIds) async =>
+///       (source as InMemoryBeakDataSource)
+///           .seedPivot(relation, ownerId, relatedIds),
+/// );
+/// ```
 void runBeakDataSourceContract(
   String description, {
   required BeakModelRegistry registry,
@@ -47,6 +67,8 @@ void runBeakDataSourceContract(
   required BeakDataSourceSeeder seed,
   BeakColumn? sortableTextColumn,
   BeakColumn? numericColumn,
+  List<BeakModel> relationModels = const [],
+  BeakDataSourceLinkSeeder? seedLinks,
 }) {
   final BeakColumn textColumn =
       sortableTextColumn ??
@@ -445,4 +467,25 @@ void runBeakDataSourceContract(
       });
     });
   });
+
+  if (relationModels.isEmpty) {
+    group('$description satisfies the BeakDataSource relation contract', () {
+      test(
+        'relation loads, attach and detach',
+        () {},
+        skip:
+            'Pass relationModels to run the relation contract: eager '
+            'loads, nested and filtered loads, attach and detach.',
+      );
+    });
+    return;
+  }
+  defineBeakRelationContract(
+    description,
+    registry: registry,
+    owners: relationModels,
+    create: create,
+    seed: seed,
+    seedLinks: seedLinks,
+  );
 }

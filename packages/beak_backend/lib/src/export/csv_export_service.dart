@@ -154,7 +154,11 @@ final class CsvExportService {
 
   /// Renders one cell per the column's display semantics: timestamps as
   /// ISO-8601, decimals at their configured precision, everything else via
-  /// its raw value ('' for null).
+  /// its raw value.
+  ///
+  /// A missing value is always the empty string, even under a [formatting]
+  /// whose `emptyValue` is a placeholder such as the panel's em dash: a file
+  /// has no use for "nothing shown here".
   static String renderCell(
     BeakColumn column,
     BeakValue? value, {
@@ -171,18 +175,21 @@ final class CsvExportService {
       final decoded = column.semantic.hasCodec
           ? column.semantic.tryDecode(value)
           : value?.raw;
-      return (formatting ?? const BeakFormatPolicy()).format(
+      final policy = formatting ?? const BeakFormatPolicy();
+      final text = policy.format(
         override.minorUnits && decoded is int
             ? BeakDecimal(decoded, scale: override.scale)
             : decoded,
         override.format,
       );
+      return _blankIfEmpty(text, value, policy);
     }
     if (formatting != null) {
-      return formatting.formatCell(
+      final text = formatting.formatCell(
         column,
         record ?? BeakRecord(values: {column.key: ?value}),
       );
+      return _blankIfEmpty(text, value, formatting);
     }
     if (!raw && column.semantic.hasCodec) {
       final decoded = column.semantic.tryDecode(value);
@@ -197,6 +204,14 @@ final class CsvExportService {
     }
     return _physicalCell(column, value, raw: raw);
   }
+
+  /// [text] unless it is the policy's placeholder for a value that is not
+  /// there.
+  static String _blankIfEmpty(
+    String text,
+    BeakValue? value,
+    BeakFormatPolicy policy,
+  ) => value?.raw == null && text == policy.emptyValue ? '' : text;
 
   static String _physicalCell(
     BeakColumn column,
@@ -231,7 +246,23 @@ final class CsvExportService {
   String _csvRow(List<String> cells) =>
       '${cells.map(_escapeCell).join(',')}\r\n';
 
-  String _escapeCell(String cell) => cell.contains(RegExp(r'[",\r\n]'))
-      ? '"${cell.replaceAll('"', '""')}"'
-      : cell;
+  /// Quotes [cell] for CSV, after making sure a spreadsheet will not run it.
+  ///
+  /// Excel, Numbers and Sheets evaluate a cell that starts with `=`, `+`, `-`
+  /// or `@` (or a tab or carriage return that hides one) as a formula, so
+  /// user-entered text such as `=HYPERLINK(...)` in an exported name would
+  /// execute on the machine of whoever opens the file. A leading `'` makes it
+  /// text. A cell that is only a number (`-5`) is left alone so amounts stay
+  /// amounts.
+  String _escapeCell(String cell) {
+    final safe = _startsLikeFormula(cell) ? "'$cell" : cell;
+    return safe.contains(RegExp(r'[",\r\n]'))
+        ? '"${safe.replaceAll('"', '""')}"'
+        : safe;
+  }
+
+  static bool _startsLikeFormula(String cell) =>
+      cell.isNotEmpty &&
+      '=+-@\t\r'.contains(cell[0]) &&
+      num.tryParse(cell) == null;
 }

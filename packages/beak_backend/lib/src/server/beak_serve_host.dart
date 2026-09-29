@@ -85,8 +85,21 @@ final class BeakServerDefaults {
   /// bypass them, [outbox] schedules effect delivery while the host serves,
   /// and [generateId] and [transformRunner] replace the id mint and the image
   /// pipeline.
+  ///
+  /// [storage] serves uploads from a driver you built instead of the one the
+  /// environment selected, and [dataSource] serves the API from a source
+  /// other than the worm-backed default (graph commits over it are staged,
+  /// see `BeakServer`). Left out, both keep what the host resolved.
+  /// [signedUrlLifetime] is how long the links the upload endpoint resolves
+  /// stay valid on drivers that sign them (default: one hour), and
+  /// [maxPerPage] the largest page a query is served (default 200; a larger
+  /// request is answered at that size).
   // --8<-- [start:BeakServerDefaultsBuild]
   BeakServer build({
+    BeakStorageDriver? storage,
+    BeakDataSource? dataSource,
+    Duration? signedUrlLifetime,
+    int maxPerPage = BeakPagination.maxPerPage,
     BeakPolicy policy = const BeakAllowAllPolicy(),
     BeakAuthSessions? authSessions,
     BeakAuthGuard? authGuard,
@@ -95,6 +108,7 @@ final class BeakServerDefaults {
     String corsOrigin = '*',
     BeakRequestLogger? onRequest,
     BeakUnexpectedErrorListener? onUnexpectedError,
+    BeakBootWarningListener? onWarning,
     BeakSavePlanPreparer? preparePlan,
     BeakSavePlanFinalizer? finalizePlan,
     List<BeakModel> graphOnly = const [],
@@ -104,8 +118,10 @@ final class BeakServerDefaults {
   }) => BeakServer(
     config: config,
     registry: registry,
-    dataSource: dataSource,
-    storage: storage,
+    dataSource: dataSource ?? this.dataSource,
+    storage: storage ?? this.storage,
+    signedUrlLifetime: signedUrlLifetime,
+    maxPerPage: maxPerPage,
     policy: policy,
     authSessions: authSessions,
     authGuard: authGuard,
@@ -114,6 +130,7 @@ final class BeakServerDefaults {
     corsOrigin: corsOrigin,
     onRequest: onRequest,
     onUnexpectedError: onUnexpectedError,
+    onWarning: onWarning,
     preparePlan: preparePlan,
     finalizePlan: finalizePlan,
     graphOnly: graphOnly,
@@ -320,8 +337,18 @@ final class BeakServeHost {
   }
   // --8<-- [end:BeakServeHostServe]
 
+  /// The exit code a process ends with when it could not start because of a
+  /// setting the operator can fix (`EX_CONFIG` in `sysexits.h`); the
+  /// generated `bin/serve.dart` exits with the same one.
+  static const int configurationExitCode = 78;
+
   /// Runs the worm CLI (`migrate`, `db:seed`, `migrate:fresh`, …) against this
   /// host's [migrations] and [seeders], returning the process exit code.
+  ///
+  /// A configuration failure (a bad `DATABASE_URL`, say) prints one line to
+  /// [err] and returns [configurationExitCode]. A failure inside worm (a
+  /// migration that fails or cannot be rolled back, a database that is not
+  /// there) prints one line and returns `1`.
   ///
   /// The generated `bin/migrate.dart` is a one-line call to this.
   Future<int> runCli(
@@ -329,9 +356,26 @@ final class BeakServeHost {
     StringSink? out,
     StringSink? err,
   }) async {
+    final StringSink errors = err ?? stderr;
+    try {
+      return await _runCli(args, out: out ?? stdout, err: errors);
+    } on BeakConfigurationException catch (error) {
+      errors.writeln('error: ${error.message}');
+      return configurationExitCode;
+    } on WormException catch (error) {
+      errors.writeln('error: ${error.message}');
+      return 1;
+    }
+  }
+
+  Future<int> _runCli(
+    List<String> args, {
+    required StringSink out,
+    required StringSink err,
+  }) async {
     final context = CliContext(
-      out: out ?? stdout,
-      err: err ?? stderr,
+      out: out,
+      err: err,
       projectRoot: Directory.current,
       environment: Worm.environment,
       now: _now,

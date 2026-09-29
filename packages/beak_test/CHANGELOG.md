@@ -11,6 +11,8 @@ A complete in-memory data source, the executable `BeakDataSource` contract, reco
 
 New in 0.9.0: a README, and `InMemoryBeakDataSource` follows the backend more closely: dotted relation paths and relation filters, has-many attach and detach, `like` patterns, and search through the same filter builder the server uses.
 
+The contract also covers eager loads (plain, filtered, nested), `attach` and `detach` for the models you pass as `relationModels`, with an optional `seedLinks` for many-to-many pivot rows.
+
 Beak is pre-1.0: the API is not frozen, the wire format is. See
 [Upgrading](https://simonerich.github.io/beak/start-here/upgrading/) for how to
 move between versions.

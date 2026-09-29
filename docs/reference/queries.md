@@ -382,7 +382,7 @@ const BeakPagination({this.page = 1, this.perPage = 25})
 
 `BeakPagination.fromJson` takes both keys as optional (`page` 1, `perPage` 25) and throws a `BeakConfigurationException` for a value below 1. The server turns the window into `limit(perPage)` and `offset((page - 1) * perPage)`.
 
-`BeakPagination.maxPerPage` (200) is the largest page a server serves. A query that asks for more is answered with 200 rows and an envelope whose `perPage` says 200, so a client that needs the rest pages through it, and one that needs a total asks a summary or an aggregate. `BeakQueryAuthorizer` and `BeakCrudHandlers` take a `maxPerPage` to change the ceiling for one handler; the generated server does not expose it yet. A page whose offset would pass 2^53 - 1 rows is a `422`.
+`BeakPagination.maxPerPage` (200) is the largest page a server serves. A query that asks for more is answered with 200 rows and an envelope whose `perPage` says 200, so a client that needs the rest pages through it, and one that needs a total asks a summary or an aggregate. `defaults.build(maxPerPage: ...)` (and `BeakServer`, `beakApiRouter`) changes the ceiling for the whole server. A page whose offset would pass 2^53 - 1 rows is a `422`.
 
 The response is a `BeakPage<T>`.
 
