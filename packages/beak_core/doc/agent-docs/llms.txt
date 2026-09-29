@@ -1,0 +1,210 @@
+# Beak
+
+> Beak is a configuration-driven admin framework for Dart and Flutter. Annotated schema classes generate typed field references such as ProductModel.name, a Shelf REST API with graph commits, migrations and a Flutter panel built from BeakResource screens. Users never write string field references or touch dynamic.
+
+## Start
+
+- [Beak](index.md): Beak builds an admin panel, a REST API and migrations for Dart and Flutter from annotated schema classes and declarative resources.
+- [What is Beak?](start-here/what-is-beak.md): Build Dart and Flutter admin interfaces from shared model and screen configuration.
+- [Why Beak?](start-here/why-beak.md): Understand where declarative configuration reduces repeated admin work.
+- [Installation](start-here/installation.md): Install the Beak CLI and scaffold your first admin panel. No Docker, no database to set up.
+- [Quickstart](start-here/quickstart.md): Generate and run the minimal maintained Beak application.
+- [Project structure](start-here/project-structure.md): Separate model behavior, resource navigation and screen layout in one application.
+- [Two ways to boot a panel](start-here/generated-or-authored.md): Choose between the generated BeakApp and an authored BeakPanel, and switch with beak eject main.
+- [Choose your path](start-here/paths/index.md): Pick the starting situation that matches your project and follow its first pages.
+- [A new project](start-here/paths/new-project.md): Make the first decisions of a greenfield project: database, entrypoint and authentication.
+- [An existing database](start-here/paths/existing-database.md): Point Beak at a database you already have and review the schemas it introspects.
+- [An existing Flutter app](start-here/paths/existing-flutter-app.md): Mount a Beak panel inside a Flutter app you already have and share its session.
+- [An existing Serverpod project](start-here/paths/existing-serverpod-project.md): Route an existing Serverpod project to the admin app or to the client bridge.
+- [An existing backend](start-here/paths/existing-backend.md): Keep your REST or RPC backend and let the Beak panel talk to it.
+- [Contributing to Beak](start-here/paths/contributing.md): Clone the repository, get the gate green and pick work to do.
+- [Upgrading](start-here/upgrading.md): Map the old generated-panel APIs to the current declarative ones, in migration order.
+
+## Learn
+
+- [Learn](learn/index.md): Choose between the tutorial, the example tours and the concept pages, and the order to read them in.
+- [Tutorial](tutorial/index.md): Learn the declarative resource model through the maintained shop example.
+- [Your first resource](tutorial/01-your-first-resource.md): Define a shared schema and register its presentation in a panel.
+- [Columns and validation](tutorial/02-columns-and-validation.md): Use typed fields, semantic metadata and shared model constraints.
+- [Related records](tutorial/03-relationships.md): Configure related editors while Beak manages their draft graph.
+- [Seeding and the API](tutorial/04-seeding-and-the-api.md): Run the maintained shop against its generated server and SQLite database.
+- [Shaping the panel](tutorial/05-shaping-the-panel.md): Arrange resources, forms and custom content without rebuilding data plumbing.
+- [Auth, tests, and shipping](tutorial/06-auth-tests-and-shipping.md): Verify the declarative contracts and configure authority before deployment.
+- [Examples](examples/index.md): Compare the example applications by domain, models, port, authentication and run command.
+- [Quickstart scaffold](examples/quickstart.md): Tour the project that beak create emits and see what is generated and what you author.
+- [Clean shop](examples/clean-shop.md): Tour the clean shop: resources, the invoice workflow, drafts, operations pages, tests and limits.
+- [Foodio admin](examples/foodio.md): Tour the Foodio food-ordering admin: composed lists, a wizard, templates, effects and a theme.
+- [Showcase](examples/showcase.md): Tour the showcase example that exercises every block type, column kind and semantic field.
+- [Serverpod admin](examples/serverpod-admin.md): Tour the Serverpod 4 workspace that carries a Beak admin app.
+- [Feature map](examples/feature-map.md): Look up which example, file and docs page demonstrates each Beak feature.
+- [Concepts](concepts/index.md): Learn the responsibilities behind Beak configuration.
+- [Declarative resources](concepts/declarative-resources.md): Separate model behavior, resource navigation and presentation while Beak owns the runtime.
+- [The one-definition promise](concepts/the-one-definition-promise.md): Reuse schema metadata without confusing presentation with authority.
+- [The type-safety promise](concepts/the-type-safety-promise.md): Use generated fields and typed values across queries and drafts.
+- [Where authority lives](concepts/where-authority-lives.md): Understand which checks the client previews and which the server decides.
+- [The four layers](concepts/the-four-layers.md): Understand shared metadata, persistence, presentation and generation.
+- [How data flows](concepts/how-data-flows.md): Follow a query from a table to the database and a save from a form to a receipt.
+- [The block system](concepts/the-block-system.md): Separate custom page composition from draft-based forms.
+- [Results and errors](concepts/results-and-errors.md): Keep typed failures, field feedback and uncertain writes distinct.
+
+## Guides
+
+- [Guides](guides/index.md): Find the guide for your task, from models and forms to the backend, testing and recipes.
+- [Models](models/index.md): Define shared data, constraints and behavior once.
+- [Defining models](models/defining-models.md): Describe data once and generate typed model, field and record APIs.
+- [Generated code](models/generated-code.md): Understand generated fields, record readers and preserved authored files.
+- [Fields](models/fields.md): Choose storage kinds and semantic values for generated controls.
+- [Semantic fields](models/semantic-fields.md): Define a field's meaning once for typed generation, inputs, validation, storage, filtering and display.
+- [Validation](models/validation.md): Share scalar, record and relationship constraints between client and server.
+- [Relationships](models/relationships.md): Declare typed connections and ownership for pickers and nested editing.
+- [Model behavior](models/behavior.md): Declare value lifecycles, shared guards and named business actions on the schema.
+- [Files and storage columns](models/files-and-storage-columns.md): Declare managed upload fields and ordered media collections.
+- [Dynamic attributes and variants](models/dynamic-attributes-and-variants.md): Share attribute metadata between editors and validation, then preview and stage variant combinations.
+- [The panel](panel/index.md): Compose resource screens, workflows and custom pages.
+- [Resources](panel/resources.md): Configure navigation, search and conventional screens around a shared model.
+- [Navigation](panel/navigation.md): Build navigation from resources and custom pages.
+- [Tables and filters](panel/tables-and-filters.md): Configure typed list projections, permanent scopes and interactive filters.
+- [Composed lists and query state](panel/composed-lists.md): Share one typed query across list presets, filters, summaries, saved views and exports.
+- [View modes](panel/view-modes.md): Keep shared model behavior while choosing a task-specific presentation.
+- [Actions](panel/actions.md): Expose model transitions and typed bulk edits with automatic validation and persistence.
+- [Overlays](panel/overlays.md): Open confirmations, modals, dialogs, side sheets and toasts from an action context.
+- [Custom screens](panel/custom-screens.md): Compose dashboards and complete custom application screens from Beak blocks and widgets.
+- [Dashboards](panel/dashboards.md): Combine live queries, aggregates and custom widgets on a page.
+- [Auth and idle-lock](panel/auth-and-idle-lock.md): Configure Beak-owned login, registration and password recovery over one backend session authority.
+- [Maintenance and coming soon](panel/maintenance-and-coming-soon.md): Use dedicated presentation states while controlling service access separately.
+- [Forms and records](forms/index.md): Route between form screens, inputs, related records, wizards, detail views, drafts and uploads.
+- [Form screens](forms/form-screens.md): Use one declarative form runtime for values, rules, related drafts and saves.
+- [Inputs](forms/inputs.md): Choose an input for each field type: text, numbers, currency, dates, choices, tags and ranges.
+- [Related records in forms](forms/related-records.md): Edit related records in a form with comboboxes, search, cards, table editors and staged changes.
+- [Multi-step forms](forms/multi-step-forms.md): Present one managed draft in validated steps.
+- [Workflow presentations](forms/workflow-presentations.md): Compose wizard regions, rich choices, catalog editors and read presentations over one managed draft.
+- [Detail views](forms/detail-views.md): Reuse a structured layout to read, edit and create records, with record blocks and relation managers.
+- [Drafts, review and conflicts](forms/drafts-and-review.md): Resume local work, inspect pending changes and resolve concurrent edits.
+- [Uploads and galleries](forms/uploads-and-galleries.md): Stage uploads and ordered image collections in ordinary declarative form drafts.
+- [Imports and bulk edits](forms/imports-and-bulk-edits.md): Preview typed CSV input and mass changes through the graph save protocol.
+- [Printable record documents](forms/record-documents.md): Configure an authorized persisted record document with typed values and related-row tables.
+- [Blocks and charts](blocks/index.md): Compose custom page content from typed descriptions.
+- [Layout blocks](blocks/layout-blocks.md): Arrange custom pages with columns, grids, cards and tabs.
+- [Content blocks](blocks/content-blocks.md): Render text, markdown, media, alerts, badges, progress and ratings without data plumbing.
+- [Data blocks](blocks/data-blocks.md): Load aggregates and scoped tables on custom pages.
+- [Population summaries](blocks/summaries.md): Declare authorized aggregates that stay independent of the current table page.
+- [Record blocks](blocks/record-blocks.md): Read formatted fields and relationships from a record context.
+- [Module blocks](blocks/module-blocks.md): Configure specialized calendar, kanban, inbox and file views.
+- [Charts](blocks/charts.md): Supply typed chart data and presentation for the chart families, including heatmap, bubble and candlestick.
+- [Maps](blocks/maps.md): Configure data maps and tile maps inside custom screens.
+- [Theming and formatting](theming/index.md): Style the panel: themes, colors, type, icons, and how values are formatted.
+- [Theming basics](theming/theming-basics.md): Set light and dark themes once at the panel boundary.
+- [Colors and tokens](theming/colors-and-tokens.md): Apply semantic colors consistently across built-in and custom content.
+- [Typography and icons](theming/typography-and-icons.md): Use the theme type scale and typed navigation icons.
+- [Formatting and localization](theming/formatting-and-localization.md): Set the locale, currency and date patterns a panel formats with.
+- [The backend](backend/index.md): See what the generated server gives you: routes, layers and the pages that configure each part.
+- [Running the server](backend/running-the-server.md): Run the generated Shelf host, configure it, and test the same API in isolation.
+- [Databases](backend/databases.md): Run on SQLite by default, or point DATABASE_URL at Postgres.
+- [Migrations](backend/migrations.md): Create schemas from model metadata and evolve existing data with explicit migrations.
+- [Seeding](backend/seeding.md): Populate repeatable development fixtures while preserving existing records.
+- [Auth and policies](backend/auth-and-policies.md): Enforce account, row, action and field access on the server.
+- [Transactional business rules](backend/graph-business-rules.md): Prepare a typed candidate graph while preserving validation, authorization and idempotency.
+- [Durable effects](backend/durable-effects.md): Commit application effects with a graph save and deliver them through a retryable outbox.
+- [Search and export](backend/search-and-export.md): Use typed search sources and export authorized records with a shared display policy.
+- [Uploads and storage wiring](backend/uploads-and-storage-wiring.md): Turn a file column into an upload endpoint and choose a storage driver with one environment variable.
+- [Middleware](backend/middleware.md): Read the Shelf pipeline around the generated router: logging, CORS, JSON defaults, error mapping and auth.
+- [Extending Beak](extending/index.md): Drop to Flutter through a typed escape hatch when configuration runs out, without forking Beak.
+- [Custom columns](extending/custom-columns.md): Render a table or detail cell with any obers_ui widget by pairing a @Custom field with a registered renderer.
+- [Custom blocks and widgets](extending/custom-blocks-and-widgets.md): Embed custom widgets while sharing Beak's data, formatting, refresh and draft infrastructure.
+- [Custom data sources](extending/custom-data-sources.md): Implement the ten methods of BeakDataSource to back Beak with any store, prove it with the shipped contract suite, and keep the Serverpod seam open.
+- [Model-owned transports](extending/model-transports.md): Bind an existing backend to Beak models, share live permissions, and configure commands and archive actions without duplicating panel wiring.
+- [Custom storage drivers](extending/custom-storage-drivers.md): Implement BeakStorageDriver's six members, hide the wire behind a thin transport seam, and register the driver so an environment variable selects it.
+- [Using Beak widgets standalone](extending/using-beak-widgets-standalone.md): Embed Beak's forms, tables and data blocks in an existing Flutter application.
+- [Testing and shipping](shipping/index.md): Test a Beak project, then ship it: configuration, production images, security and performance.
+- [Testing](shipping/testing.md): Test declarative configuration, custom widgets and authoritative workflows at their actual boundaries.
+- [Performance](shipping/performance.md): See how Beak keeps query counts low and where to look when a page is slow.
+- [Security](shipping/security.md): Close the security seams of a Beak backend: guards, policies, row scopes, uploads and CORS.
+- [Environment and config](shipping/environment-and-config.md): Set the environment variables a Beak backend reads and see how the environment wins over the .env file.
+- [Going to production](shipping/going-to-production.md): Build the API and panel, run migrations, and configure production state explicitly.
+- [Recipes](recipes/index.md): Find a maintained configuration for a common admin task.
+- [Add a resource](recipes/add-a-resource.md): Declare a schema and register its screen configuration.
+- [An enum badge column](recipes/an-enum-badge-column.md): Render a typed state with labels and colors.
+- [A money field](recipes/a-money-field.md): Add an exact money field with a currency input.
+- [A belongs-to picker](recipes/a-belongs-to-picker.md): Use shared eligibility rules for a dependent selection.
+- [A nested table editor](recipes/a-nested-table-editor.md): Edit a has-many relation as a table inside its parent form.
+- [A row action](recipes/a-row-action.md): Declare a server-owned transition once for forms and tables.
+- [A bulk edit](recipes/a-bulk-edit.md): Add a bulk edit action to a table.
+- [A multi-step form](recipes/a-multi-step-form.md): Project reusable sections into a validated wizard.
+- [A kanban view](recipes/a-kanban-view.md): Map model fields to a specialized workflow board.
+- [A dashboard KPI](recipes/a-dashboard-kpi.md): Load counts and monetary metrics on a custom page.
+- [A saved list view](recipes/a-saved-list-view.md): Let people save a filtered list as a named view.
+- [A CSV import](recipes/a-csv-import.md): Add a CSV import with a preview to a resource.
+- [Export to CSV](recipes/export-to-csv.md): Export the records a list is showing to CSV, honoring the same filters.
+- [Hide a resource](recipes/hide-a-resource.md): Keep related models registered without adding navigation.
+
+## Serverpod
+
+- [Serverpod](serverpod/index.md): Choose how Beak works with Serverpod: an admin app in your workspace or a client bridge.
+- [Choosing an integration](serverpod/choosing-an-integration.md): Compare the admin app, the client bridge and a Beak server beside Serverpod.
+- [Admin app in your workspace](serverpod/admin-app/index.md): Add a Beak admin app to a Serverpod 4 workspace and know what it does and does not do.
+- [How the admin app works](serverpod/admin-app/how-it-works.md): Understand how the admin app runs its Beak API inside your Serverpod server.
+- [Setting up the admin app](serverpod/admin-app/setup.md): Add a Beak admin app to a Serverpod 4 workspace and open its first resource.
+- [Limits and next steps](serverpod/admin-app/limits-and-next-steps.md): Know what the admin app proof does not cover yet and where to go next.
+- [Client bridge](serverpod/bridge/index.md): Use Beak on the client of an existing Serverpod project over your own DTO endpoints.
+- [Bridge resources](serverpod/bridge/resources.md): Declare a ServerpodResource over your endpoints and know its limits.
+- [Generating bridge resources](serverpod/bridge/generator.md): Generate bridge resources from a Serverpod client with beak_serverpod_generator.
+- [Endpoint conventions](serverpod/bridge/endpoint-conventions.md): Look up the endpoint signatures and the query DTO vocabulary the bridge expects.
+- [Authentication and scopes](serverpod/authentication.md): Wire Serverpod authentication into the Beak panel with scopes and the auth adapter.
+- [Version compatibility](serverpod/versions.md): Look up which Beak versions match which Serverpod versions, and the exact pins.
+- [Troubleshooting](serverpod/troubleshooting.md): Find the cause and the fix for common Serverpod integration errors.
+
+## Reference
+
+- [Reference](reference/index.md): Look up any annotation, field type, rule, block, option, REST route, CLI command or exception.
+- [Cheatsheet](reference/cheatsheet.md): Find the configuration entrypoint for each common task.
+- [Annotations](reference/annotations.md): Look up every annotation a schema class can carry, what it changes and where it applies.
+- [Field types](reference/field-types.md): Look up every column type, the Dart type it is declared as, its options and its defaults.
+- [Validation rules](reference/validation-rules.md): Look up every validation rule, its arguments, what it checks and the message it emits.
+- [Behavior and actions](reference/behavior-and-actions.md): Look up the model behavior and action types with their fields and defaults.
+- [Generated files and symbols](reference/generated-files.md): Look up the files beak prepare writes and the symbols generated for each schema.
+- [Input builders](reference/input-builders.md): Look up the input builders you can call on a typed field in a form.
+- [Filter builders](reference/filter-builders.md): Look up the filter builders you can call on a typed field in a list.
+- [Screens and form layouts](reference/screens-and-layouts.md): Look up the resource screens and the form layout nodes with their options.
+- [Blocks](reference/blocks.md): Look up every block type and its typed options.
+- [Queries](reference/queries.md): Look up the query specification, filters, operators and typed values.
+- [Panel and resource options](reference/panel-options.md): Look up every option of the panel, of a resource, of authentication, maintenance mode and formatting.
+- [beak.yaml](reference/beak-yaml.md): Look up every key of the project file and what happens when you leave it out.
+- [Configuration and environment](reference/configuration.md): Look up every environment variable and every backend and storage configuration field, with defaults.
+- [CLI commands](reference/cli-commands.md): Look up every beak command, its flags, the files it writes and its exit codes.
+- [REST API](reference/rest-api.md): Look up every endpoint the backend generates, with request bodies, responses and the error envelope.
+- [Exceptions](reference/exceptions.md): Look up the exception family, each stable code, its HTTP status and when Beak throws it.
+- [Libraries](reference/libraries.md): Look up the libraries of package:beak, what each is for and what it may import.
+- [Packages](reference/packages.md): Look up the packages behind Beak, what each owns and which ones an app installs.
+- [Glossary](reference/glossary.md): Look up one-line definitions of Beak vocabulary, cross-linked to the page that explains each.
+
+## AI directory
+
+- [AI directory](ai/index.md): Find the rules, task map and machine-readable docs that coding agents need for Beak.
+- [Set up your agent](ai/setup.md): Give a coding agent the AGENTS.md, skills and docs bundle it needs in a Beak project.
+- [Rules for agents](ai/rules.md): Read the MUST and NEVER rules an agent follows when it changes a Beak project.
+- [Task map](ai/task-map.md): Find, for each common task, the page to read, the file to open and the command that verifies it.
+- [Source map](ai/source-map.md): Find, for a symbol or area, the library to import, the source file and its test.
+- [Prompt recipes](ai/prompts.md): Copy prompt templates for common Beak tasks, each with an evidence checklist.
+- [Machine-readable docs](ai/machine-readable-docs.md): Find the llms.txt files, Markdown twins and version-matched bundle, and what they promise.
+
+## Optional
+
+- [Contributing](contributing/index.md): Get from a fresh clone to a green gate and learn the commands every change must pass.
+- [Code guardrails](contributing/code-guardrails.md): Read the hard rules a change must satisfy: no Material, no type escape hatches and the layering.
+- [Conventions](contributing/conventions.md): Follow the softer rules a reviewer looks for: commits, reuse, const and final, typed exceptions and tests.
+- [Writing tests](contributing/writing-tests.md): Find where tests live per package, the harness each one uses and the coverage floor.
+- [Writing docs](contributing/writing-docs.md): Write and check docs pages: the style guide, page templates, snippets and the docs gate.
+- [Releasing](contributing/releasing.md): Cut a release: versions, the changelog, the obers_ui pin and the docs bundle.
+- [Dev infrastructure](contributing/dev-infrastructure.md): Run the optional local Postgres and MinIO stack and know which suites need it.
+- [Working with obers_ui](contributing/working-with-obers-ui.md): Pin obers_ui by git commit and develop against a local checkout when you need to.
+- [Architecture](architecture/index.md): See how Beak is built inside: the principles, the package graph, the two flows and the seams.
+- [Principles](architecture/principles.md): Read the invariants every part of Beak obeys, from define-once to no lazy loading, and why.
+- [Package graph](architecture/package-graph.md): See which package depends on which and where worm and obers_ui may appear.
+- [Backend flow](architecture/backend-flow.md): Follow a request through Handler, Service and DataSource and the single error catch boundary.
+- [Frontend flow](architecture/frontend-flow.md): Follow the Widget, ViewModel, Repository and DataSource path, Signals state and the result boundary.
+- [The query contract](architecture/query-contract.md): See how the query spec, filters and values serialize losslessly and become a worm query.
+- [Graph commits](architecture/graph-commits.md): See how a graph save is planned, validated, committed transactionally and receipted.
+- [The data source seam](architecture/data-source-seam.md): See how BeakDataSource lets the panel and the server run the same operations over worm, HTTP and Serverpod.
+- [Code generation](architecture/code-generation.md): See how beak prepare discovers schemas, reads them and emits code and migrations.
+- [Block system internals](architecture/block-system-internals.md): See how one sealed block union and a single host render pages, view modes, detail views and forms.
+- [Storage internals](architecture/storage-internals.md): See how a storage config resolves to a driver and how the validator and transform pipeline run.

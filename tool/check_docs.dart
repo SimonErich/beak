@@ -26,6 +26,12 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import 'src/docs_markdown.dart';
+import 'src/docs_snippets.dart';
+
+export 'src/docs_markdown.dart' show fencedLineIndices;
+export 'src/docs_snippets.dart' show sectionOf, snippetInclude, snippetMarker;
+
 /// Fence languages whose body is a transcript rather than a quotation.
 ///
 /// A `console` block titled with a file name is showing what running it
@@ -40,21 +46,6 @@ const Set<String> transcriptLanguages = {
   'output',
   'diff',
 };
-
-/// A `--8<-- "path"` line: mkdocs reads that file in at build time.
-///
-/// The quoted form is the only one the docs use, so the pattern insists on
-/// it rather than also matching the multi-line block form.
-final RegExp snippetInclude = RegExp(r'^\s*--8<--\s+"([^"]+)"\s*$');
-
-/// A `--8<-- [start:name]` or `[end:name]` marker in a quoted source file.
-///
-/// mkdocs strips these when it reads a section in, so they are build
-/// metadata rather than code, and neither the reader nor a quotation of the
-/// surrounding lines ever sees them.
-final RegExp snippetMarker = RegExp(
-  r'--8<--\s*\[\s*(start|end)\s*:\s*([\w-]+)\s*\]',
-);
 
 /// A line that says "and some more of the file here".
 ///
@@ -222,7 +213,10 @@ final List<BannedPhrase> enforcedBans = [
 ];
 
 /// Directories under `docs/` that are not published and are not checked.
-const Set<String> unpublishedDirs = {'_internal', 'assets'};
+///
+/// `_agents` holds templates that ship with the agent docs bundle rather than
+/// on the site, and mkdocs excludes it too.
+const Set<String> unpublishedDirs = {'_internal', '_agents', 'assets'};
 
 /// One problem found in one file.
 final class DocProblem {
@@ -457,22 +451,6 @@ List<DocProblem> checkInclude(
   return const [];
 }
 
-/// The section [reference] names, or `null` when it reads a whole file.
-///
-/// pymdownx also accepts a line range (`file.dart:12:20`), which has no
-/// marker to look for, so a tail that is not a section name is not one.
-String? sectionOf(String reference) {
-  final int separator = reference.indexOf(':');
-  if (separator == -1) {
-    return null;
-  }
-  final String tail = reference.substring(separator + 1);
-  // A leading underscore is allowed: mkdocs does not care, and misreading
-  // `file.dart:_helper` as a whole-file include would skip the marker check
-  // on exactly the sections nothing else is watching.
-  return RegExp(r'^[A-Za-z_][\w-]*$').hasMatch(tail) ? tail : null;
-}
-
 /// Root-level files this repository owns and pages quote verbatim.
 ///
 /// Listed rather than inferred from what happens to exist, for two reasons.
@@ -522,37 +500,6 @@ List<DocProblem> checkBannedPhrases(
     }
   }
   return problems;
-}
-
-/// The 0-based indices of [lines] that sit inside a fenced code block.
-///
-/// The fence markers themselves are left out: an opener carries the
-/// `title="..."` other checks read. A closing fence has to be at least as long
-/// as the one it closes and carry no language, which is what keeps a
-/// ````` ```` ````` block quoting a fenced example from ending early.
-Set<int> fencedLineIndices(List<String> lines) {
-  final fenced = <int>{};
-  final marker = RegExp(r'^\s*(`{3,})(.*)$');
-  String? open;
-  for (var index = 0; index < lines.length; index += 1) {
-    final RegExpMatch? match = marker.firstMatch(lines[index]);
-    if (open == null) {
-      if (match != null) {
-        open = match.group(1);
-      }
-      continue;
-    }
-    final bool closes =
-        match != null &&
-        match.group(1)!.length >= open.length &&
-        match.group(2)!.trim().isEmpty;
-    if (closes) {
-      open = null;
-      continue;
-    }
-    fenced.add(index);
-  }
-  return fenced;
 }
 
 /// [line] reduced to the prose the writer chose.

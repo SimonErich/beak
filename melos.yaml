@@ -73,6 +73,25 @@ scripts:
     description: >-
       FAIL when a docs page claims a file that does not exist, has no front
       matter, or uses a phrase the style guide bans.
+  check-docs-release:
+    # The completeness ratchet: an ordinary `check-docs` lets a page stay
+    # `status: draft`, this fails while any is. The release workflow runs it.
+    run: dart run tool/check_docs.dart --release
+    description: >-
+      FAIL while any docs page is still a draft (the release gate).
+  agent-docs:
+    # Rebuilds packages/beak_core/doc/agent-docs, the version-matched copy of
+    # the docs that coding agents read from a project's .dart_tool. Run it
+    # after any change to docs/, mkdocs.yml, CHANGELOG.md or the beak version.
+    run: dart run tool/build_agent_docs.dart
+    description: >-
+      Regenerate the agent docs bundle in packages/beak_core/doc/agent-docs.
+  check-agent-docs:
+    run: dart run tool/build_agent_docs.dart --check
+    description: >-
+      FAIL when the committed agent docs bundle differs from what docs/ would
+      build, or when the AI index's corrections table names a symbol that does
+      not exist (or still names a removed one). Fix with `melos run agent-docs`.
   guard-material:
     run: dart run tool/check_no_material.dart
     description: >-
