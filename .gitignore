@@ -40,3 +40,7 @@ deploy/.env.prod
 
 # MkDocs build output.
 /site/
+
+# A generated app commits its pubspec.lock. This copy of the scaffold resolves
+# Beak by path, so its lockfile would record this checkout's absolute paths.
+examples/quickstart/pubspec.lock

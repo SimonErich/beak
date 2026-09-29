@@ -20,6 +20,22 @@ void main() {
       }
     });
 
+    test('commits no lockfile, since its path overrides are local', () {
+      // A generated app commits its pubspec.lock (the scaffold's .gitignore
+      // no longer ignores it), but this copy resolves Beak by path and would
+      // record this checkout's absolute paths in it.
+      final Iterable<String> ignored = File(
+        '../../.gitignore',
+      ).readAsLinesSync().map((line) => line.trim());
+
+      expect(ignored, contains('examples/quickstart/pubspec.lock'));
+      expect(
+        File('${example.path}/.gitignore').readAsStringSync(),
+        isNot(contains('pubspec.lock')),
+        reason: 'the scaffold commits the lockfile; only the repo ignores it',
+      );
+    });
+
     for (final file in [
       ...CreateCommand.scaffoldFiles('quickstart'),
       ...CreateCommand.postScaffoldFiles('quickstart'),

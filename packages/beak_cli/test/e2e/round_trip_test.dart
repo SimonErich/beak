@@ -90,19 +90,20 @@ dependencies:
       environment,
     ).run(['introspect', databaseFor('origin').toString()]);
     expect(introspected, 0);
-    expect(
-      Directory(
-        '${project.path}/lib/models',
-      ).listSync().map((entity) => entity.uri.pathSegments.last),
-      containsAll(<String>['category.dart', 'product.dart']),
-    );
+    // The feature-folder layout `beak make:resource` writes.
+    for (final path in const [
+      'lib/resources/categories/models/category.dart',
+      'lib/resources/products/models/product.dart',
+    ]) {
+      expect(File('${project.path}/$path').existsSync(), isTrue, reason: path);
+    }
 
     // 2. Adopt the tables. Introspection says another system owns their
     // schema, which is true of the database they were read from; the
     // rebuild is Beak's to create, so the classes take ownership first.
     for (final file in Directory(
-      '${project.path}/lib/models',
-    ).listSync().whereType<File>()) {
+      '${project.path}/lib/resources',
+    ).listSync(recursive: true).whereType<File>()) {
       // However the formatter laid the annotation out.
       file.writeAsStringSync(
         file.readAsStringSync().replaceAll(

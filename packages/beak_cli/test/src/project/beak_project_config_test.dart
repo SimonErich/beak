@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
@@ -151,6 +153,59 @@ resources:
       expect(
         const BeakProjectConfigException('unknown key "x".').toString(),
         'beak.yaml: unknown key "x".',
+      );
+    });
+  });
+
+  group('a YAML syntax error', () {
+    // The scanner's own exception used to escape `parse` untouched, so
+    // `prepare`, `eject` and `doctor` crashed with a stack trace that never
+    // said which file was wrong.
+    test('is a config exception naming the file, line and column', () {
+      expect(
+        () => parse('name: Shop\nresources: [unclosed\n'),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (error) => error.toString(),
+            'toString',
+            allOf(
+              startsWith('beak.yaml: '),
+              contains('line 3'),
+              contains('column 1'),
+              contains("expected ',' or ']'"),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('counts lines and columns from one, as an editor does', () {
+      expect(
+        () => parse('name: a: b\n'),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('line 1'), contains('column 8')),
+          ),
+        ),
+      );
+    });
+
+    test('is reported by load too, from the file on disk', () {
+      final Directory root = Directory.systemTemp.createTempSync('beak_yaml_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/beak.yaml').writeAsStringSync('a:\n\t- b\n');
+
+      expect(
+        () => BeakProjectConfig.load(root, packageName: 'acme_admin'),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('line 2'), contains('Tab characters')),
+          ),
+        ),
       );
     });
   });

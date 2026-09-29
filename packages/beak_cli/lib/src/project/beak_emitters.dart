@@ -502,18 +502,35 @@ import 'beak/app.g.dart';
 void main() => runApp(const BeakApp());
 ''';
 
-  /// `bin/serve.dart` — one statement.
+  /// `bin/serve.dart` — serves until told to stop.
+  ///
+  /// SIGINT (Ctrl+C) and SIGTERM (what a deploy or a container sends) close
+  /// the server the host returned, which also stops the outbox loop it runs
+  /// while it serves, and then exit cleanly. Requests in flight finish first.
+  /// SIGTERM cannot be watched on Windows, where only Ctrl+C reaches a
+  /// process.
   static String serveEntrypoint(String packageName) =>
       '''
 $header
+import 'dart:async';
 import 'dart:io';
 
 import 'package:$packageName/beak/server.g.dart';
 
-/// Serves the API.
+/// Serves the API until SIGINT or SIGTERM, then shuts down and exits.
 Future<void> main() async {
+  // Watching first: a signal that arrives while the server boots, or right
+  // after it says it is listening, must stop it cleanly rather than kill it.
+  final Future<ProcessSignal> stopped = Future.any([
+    ProcessSignal.sigint.watch().first,
+    if (!Platform.isWindows) ProcessSignal.sigterm.watch().first,
+  ]);
   final HttpServer server = await beakHost().serve();
   stderr.writeln('listening on http://\${server.address.host}:\${server.port}');
+  await stopped;
+  stderr.writeln('shutting down');
+  await server.close();
+  exit(0);
 }
 ''';
 

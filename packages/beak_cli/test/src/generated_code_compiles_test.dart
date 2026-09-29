@@ -145,6 +145,28 @@ dev_dependencies:
         reason: '${themedAnalyze.stdout}\n${themedAnalyze.stderr}',
       );
 
+      // The ejected server is the file a project edits to add a policy,
+      // middleware or an outbox, so it has to compile against the host that
+      // `beak prepare` then wires it into.
+      expect(await createBeakRunner(environment).run(['eject', 'server']), 0);
+      expect(await createBeakRunner(environment).run(['prepare']), 0);
+      expect(
+        File('${temp.path}/lib/beak/server.g.dart').readAsStringSync(),
+        contains('configure: server.beakServer'),
+      );
+      final ProcessResult serverAnalyze = await run([
+        'dart',
+        'analyze',
+        '--fatal-infos',
+        '--fatal-warnings',
+        '.',
+      ]);
+      expect(
+        serverAnalyze.exitCode,
+        0,
+        reason: '${serverAnalyze.stdout}\n${serverAnalyze.stderr}',
+      );
+
       // The generated migration, on the default SQLite file. No DATABASE_URL,
       // no services, nothing to install.
       final ProcessResult migrate = await run([
@@ -161,14 +183,16 @@ dev_dependencies:
       expect(migrate.stdout, contains('create_widgets_table'));
 
       final int port = await _freePort();
+      // The SDK's own binary, not the `dart` on PATH: the Flutter wrapper
+      // script is a parent process that would take the SIGTERM below.
       final Process server = await Process.start(
-        'dart',
+        Platform.resolvedExecutable,
         ['run', 'bin/serve.dart'],
         workingDirectory: temp.path,
         environment: {'PORT': '$port', 'HOST': '127.0.0.1'},
       );
       addTearDown(() => server.kill(ProcessSignal.sigkill));
-      await _listening(server);
+      final StringBuffer serverOutput = await _listening(server);
 
       final client = HttpClient();
       addTearDown(client.close);
@@ -186,6 +210,16 @@ dev_dependencies:
         containsPair('total', 0),
         reason: 'the table exists and is empty, which is the whole claim',
       );
+
+      // A deploy stops a server with SIGTERM; the generated entrypoint closes
+      // the host's server, which stops the outbox loop, and exits cleanly.
+      server.kill(ProcessSignal.sigterm);
+      expect(
+        await server.exitCode.timeout(const Duration(seconds: 30)),
+        0,
+        reason: '$serverOutput',
+      );
+      expect(serverOutput.toString(), contains('shutting down'));
     },
     timeout: const Timeout(Duration(minutes: 5)),
   );
@@ -274,7 +308,10 @@ Future<int> _freePort() async {
 }
 
 /// Waits for [server] to say it is listening, or to die trying.
-Future<void> _listening(Process server) async {
+///
+/// Returns everything the server writes from then on as well, for a test that
+/// asserts on how it stops.
+Future<StringBuffer> _listening(Process server) async {
   final ready = Completer<void>();
   final output = StringBuffer();
   void watch(Stream<List<int>> stream) {
@@ -299,4 +336,5 @@ Future<void> _listening(Process server) async {
     const Duration(seconds: 90),
     onTimeout: () => throw StateError('the server never listened:\n$output'),
   );
+  return output;
 }

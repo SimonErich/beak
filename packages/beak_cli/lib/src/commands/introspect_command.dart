@@ -12,12 +12,15 @@ import '../introspect/beak_schema_introspection.dart';
 /// nullability, defaults, foreign keys, enum labels — and writes the same
 /// annotated schema classes you would have written yourself, so the result is
 /// an ordinary Beak project you can edit, not a generated artefact you cannot.
+/// Each table gets a feature folder, `lib/resources/<table>/models/`, the
+/// layout `beak make:resource` writes; `--out <dir>` writes every file flat
+/// into one directory instead.
 ///
 /// ```console
 /// $ beak introspect postgres://user:pass@localhost:5432/app
 ///   read 12 tables, 68 columns, 9 foreign keys
-///   created lib/models/customer.dart
-///   created lib/models/order.dart
+///   created lib/resources/customers/models/customer.dart
+///   created lib/resources/orders/models/order.dart
 ///   ! orders.card_token looks like a secret and was omitted
 /// ```
 final class IntrospectCommand extends Command<int> {
@@ -28,8 +31,10 @@ final class IntrospectCommand extends Command<int> {
     argParser
       ..addOption(
         'out',
-        help: 'Directory the schema files are written to.',
-        defaultsTo: 'lib/models',
+        help:
+            'Write every schema file flat into this directory, instead of '
+            'into lib/resources/<table>/models/ for each table.',
+        valueHelp: 'dir',
       )
       ..addOption(
         'schema',
@@ -49,6 +54,9 @@ final class IntrospectCommand extends Command<int> {
   final BeakCliEnvironment environment;
 
   final BeakLiveSchemaReader _readSchema;
+
+  /// The directory each table's feature folder goes under.
+  static const String featureFoldersRoot = 'lib/resources';
 
   @override
   String get name => 'introspect';
@@ -97,7 +105,17 @@ final class IntrospectCommand extends Command<int> {
       'foreign keys',
     );
 
-    final files = BeakIntrospectionEmitter.emitAll(selected);
+    final String? flatDirectory = switch (argResults?['out']) {
+      final String value => value,
+      _ => null,
+    };
+    final String out = flatDirectory ?? featureFoldersRoot;
+    final files = BeakIntrospectionEmitter.emitAll(
+      selected,
+      layout: flatDirectory == null
+          ? BeakIntrospectionLayout.featureFolders
+          : BeakIntrospectionLayout.flat,
+    );
     if (files.isEmpty) {
       environment.out.writeln(
         '  nothing to write — every table was filtered out or is a pivot',
@@ -105,10 +123,6 @@ final class IntrospectCommand extends Command<int> {
       return 0;
     }
 
-    final String out = switch (argResults?['out']) {
-      final String value => value,
-      _ => 'lib/models',
-    };
     final bool dryRun = argResults?['dry-run'] == true;
     for (final file in files) {
       if (dryRun) {

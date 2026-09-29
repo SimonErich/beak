@@ -1,6 +1,23 @@
+import 'package:path/path.dart' as p;
+
 import '../field_spec.dart';
 import '../project/beak_emitters.dart';
 import 'beak_schema_introspection.dart';
+
+/// Where introspected schema files are laid out.
+///
+/// Both are relative to whichever directory the command writes into.
+enum BeakIntrospectionLayout {
+  /// One folder per table, the layout `beak make:resource` writes:
+  /// `<table>/models/<name>.dart`, relative to `lib/resources`.
+  ///
+  /// A database enum sits in the folder of the first table (by name) that
+  /// uses it, and the other tables import it from there.
+  featureFolders,
+
+  /// Every file side by side in one directory: `<name>.dart`.
+  flat,
+}
 
 /// One generated model file, and anything worth telling the user about it.
 final class IntrospectedSchemaFile {
@@ -13,7 +30,8 @@ final class IntrospectedSchemaFile {
     this.notes = const [],
   });
 
-  /// Path relative to the output directory.
+  /// Path relative to the output directory, in the chosen
+  /// [BeakIntrospectionLayout].
   final String path;
 
   /// The Dart source.
@@ -41,7 +59,14 @@ abstract final class BeakIntrospectionEmitter {
   /// Pivot tables are folded into the relationships they represent rather
   /// than becoming resources of their own, and each database enum becomes one
   /// Dart enum file the resources that use it import.
-  static List<IntrospectedSchemaFile> emitAll(List<IntrospectedTable> tables) {
+  ///
+  /// [layout] decides where each file goes, and so how the files import one
+  /// another. The default is the feature-folder layout every scaffolded
+  /// project uses.
+  static List<IntrospectedSchemaFile> emitAll(
+    List<IntrospectedTable> tables, {
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+  }) {
     final resources = [
       for (final table in tables)
         if (!table.isPivot && !introspectionSkipTables.contains(table.name))
@@ -54,9 +79,9 @@ abstract final class BeakIntrospectionEmitter {
     final byTable = {for (final table in resources) table.name: table};
 
     return [
-      ...emitEnums(resources),
+      ...emitEnums(resources, layout: layout),
       for (final table in resources)
-        emit(table, byTable: byTable, pivots: pivots),
+        emit(table, byTable: byTable, pivots: pivots, layout: layout),
     ];
   }
 
@@ -66,8 +91,9 @@ abstract final class BeakIntrospectionEmitter {
   /// generated project has a single source of truth for the labels — the same
   /// thing a human would have written.
   static List<IntrospectedSchemaFile> emitEnums(
-    List<IntrospectedTable> resources,
-  ) {
+    List<IntrospectedTable> resources, {
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+  }) {
     final byType = <String, List<String>>{};
     for (final table in resources) {
       for (final column in table.columns) {
@@ -77,14 +103,60 @@ abstract final class BeakIntrospectionEmitter {
         }
       }
     }
+    final owners = _enumOwners(resources);
     return [
       for (final entry
           in byType.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-        _emitEnum(entry.key, entry.value),
+        _emitEnum(
+          entry.key,
+          entry.value,
+          path: _enumPath(entry.key, owners[entry.key], layout),
+        ),
     ];
   }
 
-  static IntrospectedSchemaFile _emitEnum(String type, List<String> values) {
+  /// The first table, by name, that uses each enum type.
+  ///
+  /// Two tables sharing `order_status` share the one declaration, and it has
+  /// to live in one feature folder. Choosing by name keeps the choice the
+  /// same however the database happens to order its tables.
+  static Map<String, String> _enumOwners(Iterable<IntrospectedTable> tables) {
+    final owners = <String, String>{};
+    for (final table in [...tables]..sort((a, b) => a.name.compareTo(b.name))) {
+      for (final column in table.columns) {
+        if (column.enumTypeName case final String type
+            when column.enumValues.isNotEmpty && _isRepresentable(column)) {
+          owners.putIfAbsent(type, () => table.name);
+        }
+      }
+    }
+    return owners;
+  }
+
+  /// Where the schema class of the table [table] is written.
+  static String _tablePath(String table, BeakIntrospectionLayout layout) =>
+      switch (layout) {
+        BeakIntrospectionLayout.featureFolders =>
+          '$table/models/${fileNameOf(table)}.dart',
+        BeakIntrospectionLayout.flat => '${fileNameOf(table)}.dart',
+      };
+
+  /// Where the enum [type], first used by [owner], is written.
+  static String _enumPath(
+    String type,
+    String? owner,
+    BeakIntrospectionLayout layout,
+  ) => switch (layout) {
+    BeakIntrospectionLayout.featureFolders when owner != null =>
+      '$owner/models/${_snake(type)}.dart',
+    _ => '${_snake(type)}.dart',
+  };
+
+  static IntrospectedSchemaFile _emitEnum(
+    String type,
+    List<String> values, {
+    required String path,
+  }) {
     final String className = pascalCaseOf(type);
     final buffer = StringBuffer()
       ..writeln('/// The values the `$type` database enum defines.')
@@ -100,21 +172,28 @@ abstract final class BeakIntrospectionEmitter {
     }
     buffer.writeln('}');
     return IntrospectedSchemaFile(
-      path: '${_snake(type)}.dart',
+      path: path,
       contents: BeakEmitters.format(buffer.toString()),
       className: className,
       table: type,
     );
   }
 
-  /// The schema file for one [table].
+  /// The schema file for one [table], laid out and importing its neighbours
+  /// as [layout] says.
   static IntrospectedSchemaFile emit(
     IntrospectedTable table, {
     required Map<String, IntrospectedTable> byTable,
     required List<IntrospectedTable> pivots,
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
   }) {
     final notes = <String>[];
     final String className = classNameOf(table.name);
+    final String ownPath = _tablePath(table.name, layout);
+    final owners = _enumOwners(byTable.values);
+    // What this file imports, as a path relative to the file itself.
+    String importOf(String path) =>
+        p.posix.relative(path, from: p.posix.dirname(ownPath));
     final buffer = StringBuffer()
       ..writeln("import 'package:beak/beak.dart';")
       ..writeln("import 'package:beak/schema.dart';");
@@ -122,15 +201,15 @@ abstract final class BeakIntrospectionEmitter {
     final relatedImports = <String>{
       for (final fk in table.foreignKeys)
         if (byTable.containsKey(fk.referencedTable))
-          '${fileNameOf(fk.referencedTable)}.dart',
+          _tablePath(fk.referencedTable, layout),
       for (final pivot in _pivotsFor(table, pivots))
         if (_otherSideOf(pivot, table) case final String other)
-          if (byTable.containsKey(other)) '${fileNameOf(other)}.dart',
+          if (byTable.containsKey(other)) _tablePath(other, layout),
       for (final column in table.columns)
         if (column.enumTypeName case final String type
             when _isRepresentable(column))
-          '${_snake(type)}.dart',
-    }..remove('${fileNameOf(table.name)}.dart');
+          _enumPath(type, owners[type], layout),
+    }.map(importOf).toSet()..remove(importOf(ownPath));
     if (relatedImports.isNotEmpty) {
       buffer.writeln();
       for (final import in relatedImports.toList()..sort()) {
@@ -258,7 +337,7 @@ abstract final class BeakIntrospectionEmitter {
     buffer.writeln('}');
 
     return IntrospectedSchemaFile(
-      path: '${fileNameOf(table.name)}.dart',
+      path: ownPath,
       contents: BeakEmitters.format(buffer.toString()),
       className: className,
       table: table.name,

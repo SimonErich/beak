@@ -20,6 +20,7 @@ export 'package:beak_cli/src/introspect/beak_live_schema.dart';
 export 'package:beak_cli/src/introspect/beak_schema_introspection.dart';
 export 'package:beak_cli/src/introspect/postgres_introspector.dart';
 export 'package:beak_cli/src/introspect/sqlite_introspector.dart';
+export 'package:beak_cli/src/project/beak_authored_main.dart';
 export 'package:beak_cli/src/project/beak_discovery.dart';
 export 'package:beak_cli/src/project/beak_emitters.dart';
 export 'package:beak_cli/src/project/beak_project_config.dart';

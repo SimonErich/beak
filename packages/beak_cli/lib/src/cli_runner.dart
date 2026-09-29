@@ -13,7 +13,9 @@ import 'commands/prepare_command.dart';
 import 'field_spec.dart';
 import 'introspect/beak_live_schema.dart';
 import 'introspect/beak_schema_introspection.dart';
+import 'project/beak_authored_main.dart';
 import 'project/beak_emitters.dart';
+import 'project/beak_project_config.dart';
 import 'schema/beak_drift_migration_emitter.dart';
 import 'schema/beak_schema_drift.dart';
 import 'schema/beak_schema_reader.dart';
@@ -202,7 +204,14 @@ final class _BeakCommandRunner extends CommandRunner<int> {
       environment.out.writeln('beak $beakCliVersion');
       return 0;
     }
-    return super.runCommand(topLevelResults);
+    try {
+      return await super.runCommand(topLevelResults);
+    } on BeakProjectConfigException catch (exception) {
+      // A `beak.yaml` the commands cannot read is the project's mistake, not
+      // the tool's: say which key or line, rather than a stack trace.
+      environment.out.writeln(exception);
+      return 1;
+    }
   }
 }
 
@@ -310,12 +319,21 @@ final class MakeResourceCommand extends _MakeCommand {
     final int exitCode = runPrepare(environment).exitCode;
     if (authored) {
       // `prepare` never touches an authored entrypoint, so the class is not
-      // in the panel until someone adds it.
+      // in the panel until someone adds it. Inside a `const` list a second
+      // `const` is a lint, so the line matches where it will be pasted.
+      final bool isConstantList =
+          BeakAuthoredMain.read(
+            environment.rootDirectory,
+          )?.resourcesAreConstant ??
+          false;
       environment.out
         ..writeln()
         ..writeln('  lib/main.dart is yours; register the resource there:')
         ..writeln("    import 'resources/$table/${snake}_resource.dart';")
-        ..writeln('    const ${resource}Resource(),  // in resources: [...]');
+        ..writeln(
+          '    ${isConstantList ? '' : 'const '}${resource}Resource(),'
+          '  // in resources: [...]',
+        );
     }
     return exitCode;
   }

@@ -128,12 +128,13 @@ final class BeakProjectConfig {
   /// Parses [yamlSource].
   ///
   /// Throws a [BeakProjectConfigException] naming the offending key on
-  /// anything it does not recognise.
+  /// anything it does not recognise, and the line and column of anything that
+  /// is not YAML at all.
   factory BeakProjectConfig.parse(
     String yamlSource, {
     required String packageName,
   }) {
-    final Object? document = loadYaml(yamlSource);
+    final Object? document = _loadDocument(yamlSource);
     if (document == null) {
       return BeakProjectConfig.defaults(packageName: packageName);
     }
@@ -254,6 +255,24 @@ final class BeakProjectConfig {
 
   /// Whether the sidebar starts collapsed.
   final bool sidebarStartCollapsed;
+
+  /// [yamlSource] as a YAML document.
+  ///
+  /// The scanner's exception carries a position but no idea which file it was
+  /// reading, and `beak prepare`, `eject` and `doctor` all end up here, so it
+  /// is translated once: 1-based, as an editor counts.
+  static Object? _loadDocument(String yamlSource) {
+    try {
+      return loadYaml(yamlSource);
+    } on YamlException catch (error) {
+      throw BeakProjectConfigException(switch (error.span) {
+        null => error.message,
+        final span =>
+          'line ${span.start.line + 1}, column ${span.start.column + 1}: '
+              '${error.message}',
+      });
+    }
+  }
 
   static YamlMap _requireMap(Object? value, String context) {
     if (value is YamlMap) {

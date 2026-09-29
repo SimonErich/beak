@@ -6,6 +6,7 @@ import 'package:args/command_runner.dart';
 import '../cli_runner.dart';
 import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
+import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
@@ -205,6 +206,8 @@ Future<List<BeakCheck>> diagnose(
     ),
   );
 
+  checks.addAll(_authoredResourceChecks(root, discovery));
+
   // Read once: the staleness check, the migration check and the drift check
   // all ask the same question of the same files, and parsing them three
   // times is parsing them three times.
@@ -278,6 +281,50 @@ Future<List<BeakCheck>> diagnose(
     await _databaseChecks(environment, root, readSchema, schemas, schemaIssues),
   );
   return checks;
+}
+
+/// A warning for each resource class an authored `lib/main.dart` does not
+/// list.
+///
+/// `beak prepare` never rewrites an entrypoint the project owns, so a new
+/// `BeakResource` subclass reaches the panel only once someone adds it to
+/// the `resources: [...]` list there, and forgetting is silent: the class
+/// compiles, the resource simply never appears. A generated entrypoint is
+/// wired by `beak prepare`, and one whose list cannot be read statically (a
+/// variable, a spread of one) is not second-guessed.
+List<BeakCheck> _authoredResourceChecks(
+  Directory root,
+  BeakDiscovery discovery,
+) {
+  final Set<String>? listed = BeakAuthoredMain.read(root)?.listedResources;
+  if (listed == null || discovery.resources.isEmpty) {
+    return const [];
+  }
+  final unlisted = [
+    for (final resource in discovery.resources)
+      if (!listed.contains(resource.className)) resource,
+  ];
+  if (unlisted.isEmpty) {
+    return const [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label: 'lib/main.dart lists every resource class',
+      ),
+    ];
+  }
+  return [
+    for (final resource in unlisted)
+      BeakCheck(
+        status: BeakCheckStatus.warn,
+        label:
+            '${resource.className} (lib/${resource.importPath}) is not listed '
+            "in lib/main.dart's resources: [...], so the panel never shows it",
+        remedy:
+            'add ${resource.className}() to the resources list in '
+            'lib/main.dart; `beak prepare` never rewrites an authored '
+            'entrypoint',
+      ),
+  ];
 }
 
 /// Whether every model Beak owns has a migration that creates its table.

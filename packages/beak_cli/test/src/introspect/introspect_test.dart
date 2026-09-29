@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
@@ -110,7 +111,6 @@ void main() {
 
     test('declares the database enum so the emitted type resolves', () {
       final status = files['product_status']!;
-      expect(status.path, 'product_status.dart');
       expect(status.className, 'ProductStatus');
       expect(status.contents, contains('enum ProductStatus {'));
       expect(status.contents, contains('  draft,'));
@@ -148,9 +148,34 @@ void main() {
       expect(files.keys, isNot(contains('worm_migrations')));
     });
 
-    test('names the class and file by the singular table', () {
+    test('names the class by the singular table', () {
       expect(files['categories']!.className, 'Category');
-      expect(files['categories']!.path, 'category.dart');
+    });
+
+    test('puts each table in the feature folder make:resource would', () {
+      // The same place `beak make:resource Category` writes, so an
+      // introspected project and a scaffolded one have one layout.
+      expect(files['categories']!.path, 'categories/models/category.dart');
+      expect(files['products']!.path, 'products/models/product.dart');
+      expect(files['users']!.path, 'users/models/user.dart');
+    });
+
+    test('an enum sits beside the only table that uses it', () {
+      expect(
+        files['product_status']!.path,
+        'products/models/product_status.dart',
+      );
+    });
+
+    test('a relationship imports its far side across feature folders', () {
+      final String source = files['products']!.contents;
+
+      expect(
+        source,
+        contains("import '../../categories/models/category.dart';"),
+      );
+      expect(source, contains("import '../../tags/models/tag.dart';"));
+      expect(source, isNot(contains("import 'product.dart';")));
     });
 
     test('emits the annotated authoring surface, not a parallel dialect', () {
@@ -293,6 +318,121 @@ void main() {
     });
   });
 
+  group('every import an emitted file makes', () {
+    for (final layout in BeakIntrospectionLayout.values) {
+      test('resolves to a file emitted beside it, laid out $layout', () async {
+        final emitted = BeakIntrospectionEmitter.emitAll(
+          await readShop(),
+          layout: layout,
+        );
+        final paths = {for (final file in emitted) file.path};
+
+        for (final file in emitted) {
+          for (final match in RegExp(
+            "^import '(?!package:)([^']+)';",
+            multiLine: true,
+          ).allMatches(file.contents)) {
+            final String target = p.posix.normalize(
+              p.posix.join(p.posix.dirname(file.path), match.group(1)),
+            );
+            expect(
+              paths,
+              contains(target),
+              reason: '${file.path} imports ${match.group(1)}',
+            );
+          }
+        }
+      });
+    }
+  });
+
+  group('the flat layout', () {
+    late Map<String, IntrospectedSchemaFile> files;
+
+    setUp(() async {
+      final emitted = BeakIntrospectionEmitter.emitAll(
+        await readShop(),
+        layout: BeakIntrospectionLayout.flat,
+      );
+      files = {for (final file in emitted) file.table: file};
+    });
+
+    test('names each file by the singular table, in one directory', () {
+      expect(files['categories']!.path, 'category.dart');
+      expect(files['products']!.path, 'product.dart');
+      expect(files['product_status']!.path, 'product_status.dart');
+    });
+
+    test('imports its neighbours by file name', () {
+      final String source = files['products']!.contents;
+
+      expect(source, contains("import 'category.dart';"));
+      expect(source, contains("import 'product_status.dart';"));
+      expect(source, contains("import 'tag.dart';"));
+    });
+  });
+
+  group('an enum shared by two tables', () {
+    late Map<String, IntrospectedSchemaFile> files;
+
+    setUp(() async {
+      final database = FakeDatabase(
+        columns: [
+          column('invoices', 'id', 'uuid', nullable: false),
+          column(
+            'invoices',
+            'state',
+            'USER-DEFINED',
+            nullable: false,
+            udt: 'payment_state',
+          ),
+          column('orders', 'id', 'uuid', nullable: false),
+          column(
+            'orders',
+            'state',
+            'USER-DEFINED',
+            nullable: false,
+            udt: 'payment_state',
+          ),
+        ],
+        primaryKeys: [
+          for (final table in ['invoices', 'orders'])
+            {'table_name': table, 'column_name': 'id'},
+        ],
+        enums: [
+          {'enum_name': 'payment_state', 'enum_value': 'open'},
+          {'enum_name': 'payment_state', 'enum_value': 'paid'},
+        ],
+      );
+      final emitted = BeakIntrospectionEmitter.emitAll(
+        await PostgresIntrospector(database.query).read(),
+      );
+      files = {for (final file in emitted) file.table: file};
+    });
+
+    test('is declared once, beside the first table that uses it', () {
+      expect(
+        files.values.where((file) => file.className == 'PaymentState'),
+        hasLength(1),
+      );
+      expect(
+        files['payment_state']!.path,
+        'invoices/models/payment_state.dart',
+      );
+    });
+
+    test('is imported across feature folders by the others', () {
+      expect(
+        files['invoices']!.contents,
+        contains("import 'payment_state.dart';"),
+      );
+      expect(
+        files['orders']!.contents,
+        contains("import '../../invoices/models/payment_state.dart';"),
+      );
+    });
+  });
+
   group('the introspect command', () {
     late Directory root;
     late StringBuffer out;
@@ -325,12 +465,41 @@ void main() {
 
     bool exists(String path) => File('${root.path}/$path').existsSync();
 
-    test('writes a model per resource table', () async {
+    test('writes a model per resource table, in its feature folder', () async {
       expect(await run(['postgres://u:p@localhost:5432/shop']), 0);
-      expect(exists('lib/models/product.dart'), isTrue);
-      expect(exists('lib/models/category.dart'), isTrue);
-      expect(exists('lib/models/product_tag.dart'), isFalse);
+      expect(exists('lib/resources/products/models/product.dart'), isTrue);
+      expect(exists('lib/resources/categories/models/category.dart'), isTrue);
+      expect(exists('lib/resources/product_tag'), isFalse);
+      expect(exists('lib/models'), isFalse);
+      expect(
+        exists('lib/resources/products/models/product_status.dart'),
+        isTrue,
+      );
       expect(out.toString(), contains('run `beak prepare`'));
+    });
+
+    test('what it writes is what beak prepare reads', () async {
+      await run(['postgres://u:p@localhost:5432/shop']);
+      File('${root.path}/pubspec.yaml').writeAsStringSync('name: shop\n');
+
+      final BeakPrepareResult prepared = runPrepare(
+        BeakCliEnvironment(
+          out: StringBuffer(),
+          rootDirectory: root,
+          now: () => DateTime.utc(2026),
+          probe: (host, port) async => false,
+        ),
+      );
+
+      expect(
+        prepared.isSuccess,
+        isTrue,
+        reason: '${prepared.discovery.issues}',
+      );
+      expect(
+        prepared.discovery.models.map((model) => model.table),
+        containsAll(['products', 'categories', 'tags', 'users']),
+      );
     });
 
     test('reports what it read and what it skipped', () async {
@@ -341,25 +510,34 @@ void main() {
 
     test('--dry-run writes nothing', () async {
       expect(await run(['postgres://u:p@localhost:5432/shop', '--dry-run']), 0);
-      expect(exists('lib/models/product.dart'), isFalse);
-      expect(out.toString(), contains('would create'));
+      expect(exists('lib/resources'), isFalse);
+      expect(
+        out.toString(),
+        contains('would create lib/resources/products/models/product.dart'),
+      );
     });
 
     test('--only narrows the selection', () async {
       await run(['postgres://u:p@localhost:5432/shop', '--only', 'products']);
-      expect(exists('lib/models/product.dart'), isTrue);
-      expect(exists('lib/models/category.dart'), isFalse);
+      expect(exists('lib/resources/products/models/product.dart'), isTrue);
+      expect(exists('lib/resources/categories'), isFalse);
     });
 
     test('--except removes a table', () async {
       await run(['postgres://u:p@localhost:5432/shop', '--except', 'users']);
-      expect(exists('lib/models/user.dart'), isFalse);
-      expect(exists('lib/models/product.dart'), isTrue);
+      expect(exists('lib/resources/users'), isFalse);
+      expect(exists('lib/resources/products/models/product.dart'), isTrue);
     });
 
-    test('--out redirects the output directory', () async {
+    test('--out writes every file flat into that directory', () async {
       await run(['postgres://u:p@localhost:5432/shop', '--out', 'lib/schema']);
       expect(exists('lib/schema/product.dart'), isTrue);
+      expect(exists('lib/schema/product_status.dart'), isTrue);
+      expect(exists('lib/resources'), isFalse);
+      expect(
+        File('${root.path}/lib/schema/product.dart').readAsStringSync(),
+        contains("import 'category.dart';"),
+      );
     });
 
     test('rejects a scheme Beak cannot read, with a clear message', () async {
@@ -372,7 +550,7 @@ void main() {
       // The introspector for it exists, so refusing the scheme would be the
       // command declining a thing the library does.
       expect(await run(['sqlite:legacy.db']), 0);
-      expect(exists('lib/models/product.dart'), isTrue);
+      expect(exists('lib/resources/products/models/product.dart'), isTrue);
     });
 
     test('rejects a missing or malformed url', () {

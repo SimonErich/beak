@@ -1,8 +1,31 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:args/command_runner.dart';
 import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
+
+/// The named parameters `BeakServerDefaults.build` declares today, read from
+/// the backend's source so the ejected template cannot describe an API that
+/// has moved on.
+Set<String> buildParametersInBackend() {
+  final unit = parseString(
+    content: File(
+      '../beak_backend/lib/src/server/beak_serve_host.dart',
+    ).readAsStringSync(),
+  ).unit;
+  final defaults = unit.declarations.whereType<ClassDeclaration>().firstWhere(
+    (declaration) => declaration.name.lexeme == 'BeakServerDefaults',
+  );
+  final build = defaults.members.whereType<MethodDeclaration>().firstWhere(
+    (method) => method.name.lexeme == 'build',
+  );
+  return {
+    for (final parameter in build.parameters!.parameters)
+      if (parameter.isNamed) parameter.name!.lexeme,
+  };
+}
 
 void main() {
   late Directory root;
@@ -106,6 +129,68 @@ final class Note extends BeakSchema {
         file('lib/theme.dart').readAsStringSync(),
         contains('OiThemeData'),
       );
+    });
+  });
+
+  group('eject server', () {
+    late String source;
+
+    setUp(() async {
+      expect(await eject(['server']), 0);
+      source = file('lib/server.dart').readAsStringSync();
+    });
+
+    /// The arguments the template's example passes to `defaults.build`, one
+    /// per line at the example's own indentation.
+    Set<String> documentedArguments() => {
+      for (final match in RegExp(
+        r'^/// {3}(\w+):',
+        multiLine: true,
+      ).allMatches(source))
+        match.group(1)!,
+    };
+
+    test('still returns the standard server, changing nothing', () {
+      expect(
+        source,
+        contains('BeakServer beakServer(BeakServerDefaults defaults) =>'),
+      );
+      expect(source, contains('defaults.build();'));
+    });
+
+    test('shows every hook the server host is configured through', () {
+      expect(
+        documentedArguments(),
+        containsAll(<String>[
+          'policy',
+          'authSessions',
+          'middleware',
+          'routes',
+          'corsOrigin',
+          'preparePlan',
+          'finalizePlan',
+          'graphOnly',
+          'outbox',
+        ]),
+      );
+      expect(source, contains('BeakOutboxSchedule('));
+      expect(source, contains('graphOnly: const [OrderModel()'));
+    });
+
+    test('names only parameters defaults.build declares', () {
+      final Set<String> declared = buildParametersInBackend();
+
+      expect(declared, isNotEmpty);
+      expect(
+        documentedArguments().difference(declared),
+        isEmpty,
+        reason: 'the ejected template names a parameter build() no longer has',
+      );
+    });
+
+    test('says the auth guard follows the sessions', () {
+      expect(source, contains('authGuard'));
+      expect(source, contains('sessions'));
     });
   });
 
