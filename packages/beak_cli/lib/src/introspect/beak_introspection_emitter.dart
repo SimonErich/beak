@@ -19,6 +19,21 @@ enum BeakIntrospectionLayout {
   flat,
 }
 
+/// Who owns the schema of the database `beak introspect` reads.
+///
+/// The answer decides whether `beak prepare` and `beak migrate` may ever touch
+/// it, so it is a choice the user makes rather than something guessed.
+enum BeakIntrospectionOwnership {
+  /// Beak takes the schema over. The classes own their tables, and a
+  /// baseline migration records that they already exist: on this database it
+  /// changes nothing, and on an empty one it builds them.
+  adopt,
+
+  /// Another system keeps the schema. The classes are marked
+  /// `managesSchema: false`, and Beak writes no migration for them.
+  external,
+}
+
 /// One generated model file, and anything worth telling the user about it.
 final class IntrospectedSchemaFile {
   /// Creates a generated file description.
@@ -66,23 +81,152 @@ abstract final class BeakIntrospectionEmitter {
   static List<IntrospectedSchemaFile> emitAll(
     List<IntrospectedTable> tables, {
     BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+    BeakIntrospectionOwnership ownership = BeakIntrospectionOwnership.adopt,
   }) {
-    final resources = [
-      for (final table in tables)
-        if (!table.isPivot && !introspectionSkipTables.contains(table.name))
-          table,
-    ];
-    final pivots = [
-      for (final table in tables)
-        if (table.isPivot) table,
-    ];
+    final resources = _resourcesOf(tables);
+    final pivots = _pivotsIn(tables);
     final byTable = {for (final table in resources) table.name: table};
 
     return [
       ...emitEnums(resources, layout: layout),
       for (final table in resources)
-        emit(table, byTable: byTable, pivots: pivots, layout: layout),
+        emit(
+          table,
+          byTable: byTable,
+          pivots: pivots,
+          layout: layout,
+          ownership: ownership,
+        ),
     ];
+  }
+
+  /// The tables of [tables] that become resources: not a join table, and not
+  /// migration bookkeeping.
+  static List<IntrospectedTable> _resourcesOf(List<IntrospectedTable> tables) =>
+      [
+        for (final table in tables)
+          if (!table.isPivot && !introspectionSkipTables.contains(table.name))
+            table,
+      ];
+
+  /// The join tables of [tables], which become relationships.
+  static List<IntrospectedTable> _pivotsIn(List<IntrospectedTable> tables) => [
+    for (final table in tables)
+      if (table.isPivot) table,
+  ];
+
+  /// The source of the migration that adopts the database [tables] describe.
+  ///
+  /// A `BeakBaselineMigration` listing every resource model in foreign-key
+  /// order and every many-to-many pivot, so that on the database the classes
+  /// were read from it changes nothing and is recorded as applied, and on an
+  /// empty database it builds all of it.
+  ///
+  /// [migrationName] is the migration's `name`, and [schemaRoot] the
+  /// directory the schema files were written to, relative to
+  /// `lib/migrations/`, which is where the migration itself is written.
+  static String emitBaseline(
+    List<IntrospectedTable> tables, {
+    required String migrationName,
+    required String schemaRoot,
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+  }) {
+    final resources = _inForeignKeyOrder(_resourcesOf(tables));
+    final pivots = _pivotsIn(tables);
+    final byTable = {for (final table in resources) table.name: table};
+
+    final declaredPivots = <String>[];
+    final seenPivotTables = <String>{};
+    for (final table in resources) {
+      for (final pivot in _pivotsFor(table, pivots)) {
+        final String? other = _otherSideOf(pivot, table);
+        if (other == null ||
+            !byTable.containsKey(other) ||
+            !seenPivotTables.add(pivot.name)) {
+          continue;
+        }
+        declaredPivots.add(
+          '${classNameOf(table.name)}Relations.${camelCaseOf(other)}',
+        );
+      }
+    }
+
+    final imports = [
+      for (final table in resources)
+        "import '$schemaRoot/${_tablePath(table.name, layout)}';",
+    ]..sort();
+    final buffer = StringBuffer()
+      ..writeln("import 'package:beak/migrations.dart';")
+      ..writeln();
+    imports.forEach(buffer.writeln);
+    buffer
+      ..writeln()
+      ..writeln('/// Brings the tables `beak introspect` read under Beak.')
+      ..writeln('///')
+      ..writeln(
+        '/// Where the tables already exist this changes nothing and is',
+      )
+      ..writeln('/// recorded as applied; on an empty database it creates them')
+      ..writeln('/// from the models. It never alters a table that is there.')
+      ..writeln(
+        'final class AdoptExistingSchema extends BeakBaselineMigration {',
+      )
+      ..writeln('  /// Creates the migration.')
+      ..writeln('  const AdoptExistingSchema();')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln("  String get name => '$migrationName';")
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  List<BeakModel> get models => const [');
+    for (final table in resources) {
+      buffer.writeln('    ${classNameOf(table.name)}Model(),');
+    }
+    buffer.writeln('  ];');
+    if (declaredPivots.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('  @override')
+        ..writeln(
+          '  List<BeakBelongsToMany> get pivots => const '
+          '[${declaredPivots.join(', ')}];',
+        );
+    }
+    buffer.writeln('}');
+    return BeakEmitters.format(buffer.toString());
+  }
+
+  /// [resources] ordered so a table follows every table it references.
+  ///
+  /// A stable walk. Tables that reference each other cannot both follow the
+  /// other, so the walk lists the one it reaches second first, and the
+  /// migration leaves out the foreign key that would point forward.
+  static List<IntrospectedTable> _inForeignKeyOrder(
+    List<IntrospectedTable> resources,
+  ) {
+    final byName = {for (final table in resources) table.name: table};
+    final ordered = <IntrospectedTable>[];
+    final placed = <String>{};
+
+    void visit(IntrospectedTable table, Set<String> visiting) {
+      if (placed.contains(table.name) || !visiting.add(table.name)) {
+        return;
+      }
+      for (final fk in table.foreignKeys) {
+        if (byName[fk.referencedTable] case final IntrospectedTable target) {
+          visit(target, visiting);
+        }
+      }
+      visiting.remove(table.name);
+      if (placed.add(table.name)) {
+        ordered.add(table);
+      }
+    }
+
+    for (final table in resources) {
+      visit(table, <String>{});
+    }
+    return ordered;
   }
 
   /// One Dart enum file per database enum the [resources] actually use.
@@ -186,6 +330,7 @@ abstract final class BeakIntrospectionEmitter {
     required Map<String, IntrospectedTable> byTable,
     required List<IntrospectedTable> pivots,
     BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+    BeakIntrospectionOwnership ownership = BeakIntrospectionOwnership.adopt,
   }) {
     final notes = <String>[];
     final String className = classNameOf(table.name);
@@ -223,9 +368,11 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln()
       ..writeln('/// The ${table.name} resource, read from the database.')
       ..writeln('@Resource(');
-    // The table exists already, and something else created it. Owning its
-    // schema would have `beak prepare` write a create migration for it.
-    buffer.writeln('  managesSchema: false,');
+    // Something else created the table and keeps it. Owning its schema would
+    // have `beak prepare` write a create migration for a table that exists.
+    if (ownership == BeakIntrospectionOwnership.external) {
+      buffer.writeln('  managesSchema: false,');
+    }
     if (table.name != tableNameOf(className)) {
       buffer.writeln("  table: '${table.name}',");
     }

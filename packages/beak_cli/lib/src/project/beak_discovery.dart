@@ -283,6 +283,12 @@ final class BeakProjectScanner {
   /// The function `lib/server.dart` declares to register storage drivers.
   static const String storageRegistrySymbol = 'beakStorageRegistry';
 
+  /// The class `beak introspect` extends to adopt an existing schema.
+  ///
+  /// A migration by another name: it is discovered under `lib/migrations/`
+  /// like any other, and additionally vouches for the tables it lists.
+  static const String baselineMigrationSupertype = 'BeakBaselineMigration';
+
   /// Scans the project and returns what it found.
   ///
   /// A class counts as a model when it extends `BeakModel` — directly, or via
@@ -302,6 +308,7 @@ final class BeakProjectScanner {
     final migrations = _scanClasses(
       migrationsDir,
       supertype: 'Migration',
+      alsoExtending: const {baselineMigrationSupertype},
       issues: issues,
       requireConstConstructor: true,
     );
@@ -327,7 +334,10 @@ final class BeakProjectScanner {
       overrides: overrides,
       storageRegistry: storageRegistry,
       issues: issues,
-      migratedTables: _scanMigratedTables(),
+      migratedTables: _scanMigratedTables(<String, String>{
+        for (final model in models)
+          if (model.table case final String table) model.name: table,
+      }),
     );
   }
 
@@ -335,6 +345,7 @@ final class BeakProjectScanner {
   List<BeakDiscoveredSymbol> _scanClasses(
     String directory, {
     required String supertype,
+    Set<String> alsoExtending = const {},
     required List<BeakDiscoveryIssue> issues,
     required bool requireConstConstructor,
     Map<String, String> tables = const {},
@@ -345,7 +356,7 @@ final class BeakProjectScanner {
     // shared-local-base pattern). `visited` is keyed by declaration site, not
     // by name, so the second pass neither re-reports an issue the first
     // already raised nor hides two classes that genuinely share a name.
-    final directBases = <String>{supertype};
+    final directBases = <String>{supertype, ...alsoExtending};
     final visited = <String>{};
     final units = <(String, CompilationUnit)>[
       for (final file in _dartFilesUnder(directory))
@@ -377,7 +388,7 @@ final class BeakProjectScanner {
               BeakDiscoveryIssue(
                 path: 'lib/$path',
                 message:
-                    '$name extends $supertype but has no zero-argument const '
+                    '$name extends $extended but has no zero-argument const '
                     'constructor. Add `const $name();` so Beak can '
                     'instantiate it.',
               ),
@@ -408,18 +419,29 @@ final class BeakProjectScanner {
   ///
   /// Collects the string argument of every `schema.create('x', …)` and
   /// `schema.alter('x', …)`, plus the relation constant every
-  /// `BeakBlueprint.createPivot` names its pivot through. Unresolved AST, so
-  /// it costs a parse and nothing else.
-  Set<String> _scanMigratedTables() {
+  /// `BeakBlueprint.createPivot` names its pivot through. A
+  /// `BeakBaselineMigration` covers what it lists: the table of each model in
+  /// its `models`, found through [tableOfModel], and each relation constant in
+  /// its `pivots`. Unresolved AST, so it costs a parse and nothing else.
+  Set<String> _scanMigratedTables(Map<String, String> tableOfModel) {
     final tables = <String>{};
     for (final file in _dartFilesUnder(migrationsDir)) {
-      _collectMigratedTables(_parse(file), tables);
+      _collectMigratedTables(_parse(file), tables, tableOfModel);
     }
     return tables;
   }
 
   /// Walks [node] collecting the tables its schema calls name.
-  static void _collectMigratedTables(AstNode node, Set<String> into) {
+  static void _collectMigratedTables(
+    AstNode node,
+    Set<String> into,
+    Map<String, String> tableOfModel,
+  ) {
+    if (node is ClassDeclaration &&
+        node.extendsClause?.superclass.name.lexeme ==
+            baselineMigrationSupertype) {
+      _collectBaselineCoverage(node, into, tableOfModel);
+    }
     if (node is MethodInvocation) {
       const schemaCalls = <String>{'create', 'alter'};
       final String method = node.methodName.name;
@@ -450,7 +472,50 @@ final class BeakProjectScanner {
     }
     for (final child in node.childEntities) {
       if (child is AstNode) {
-        _collectMigratedTables(child, into);
+        _collectMigratedTables(child, into, tableOfModel);
+      }
+    }
+  }
+
+  /// What the `models` and `pivots` getters of the baseline [declaration]
+  /// list, added to [into].
+  ///
+  /// A model is written `const ProductModel()` and stands for its table; a
+  /// pivot is written `ProductRelations.tags` and is recorded the way a
+  /// `createPivot` call records it, so `beak prepare` recognises it as
+  /// already created.
+  static void _collectBaselineCoverage(
+    ClassDeclaration declaration,
+    Set<String> into,
+    Map<String, String> tableOfModel,
+  ) {
+    for (final member in declaration.members) {
+      if (member is! MethodDeclaration || !member.isGetter) {
+        continue;
+      }
+      final Set<Expression> listed = switch (member.body) {
+        ExpressionFunctionBody(:final ListLiteral expression) => {
+          ...expression.elements.whereType<Expression>(),
+        },
+        _ => const {},
+      };
+      switch (member.name.lexeme) {
+        case 'models':
+          for (final element in listed) {
+            final String? model = _constructedClassOf(element);
+            if (tableOfModel[model] case final String table) {
+              into.add(table);
+            }
+          }
+        case 'pivots':
+          for (final element in listed) {
+            if (element case PrefixedIdentifier(
+              prefix: SimpleIdentifier(name: final String owner),
+              identifier: SimpleIdentifier(name: final String field),
+            ) when owner.endsWith('Relations')) {
+              into.add('$owner.$field');
+            }
+          }
       }
     }
   }

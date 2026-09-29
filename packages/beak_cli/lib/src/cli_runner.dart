@@ -8,6 +8,7 @@ import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
 import 'commands/doctor_command.dart';
 import 'commands/eject_command.dart';
+import 'commands/init_command.dart';
 import 'commands/introspect_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
@@ -155,7 +156,7 @@ final class BeakCliEnvironment {
 }
 
 /// Builds the `beak` [CommandRunner] with every command registered against
-/// [environment]: `create`, `prepare`, `dev`, `introspect`, `eject`,
+/// [environment]: `create`, `init`, `prepare`, `dev`, `introspect`, `eject`,
 /// `migrate`, `seed`, `make:resource`, `make:migration` and `doctor`.
 ///
 /// The returned runner's `run` completes with the process exit code (or
@@ -177,6 +178,7 @@ CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
       ..addCommand(PrepareCommand(environment))
       ..addCommand(DevCommand(environment))
       ..addCommand(IntrospectCommand(environment))
+      ..addCommand(InitCommand(environment))
       ..addCommand(EjectCommand(environment))
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))
@@ -293,9 +295,22 @@ final class MakeResourceCommand extends _MakeCommand {
     final String folder = 'lib/resources/$table';
     final String schemaPath = '$folder/models/$snake.dart';
     final String resourcePath = '$folder/${snake}_resource.dart';
-    final bool authored = EjectCommand.isAuthoredEntrypoint(
+    final String entrypoint = BeakProjectConfig.load(
       environment.rootDirectory,
+      packageName: BeakProjectConfig.packageNameOf(environment.rootDirectory),
+    ).panel.entrypointPath;
+    final File entrypointFile = File(
+      p.join(environment.rootDirectory.path, entrypoint),
     );
+    // The panel's entrypoint is `lib/main.dart`, or the file `beak.yaml` names
+    // in an app that embeds the panel; either is the project's own once Beak
+    // did not write it.
+    final String? entrypointSource = entrypointFile.existsSync()
+        ? entrypointFile.readAsStringSync()
+        : null;
+    final bool authored =
+        entrypointSource != null &&
+        !entrypointSource.startsWith(BeakAuthoredMain.generatedMarker);
     for (final path in [schemaPath, resourcePath]) {
       if (File(p.join(environment.rootDirectory.path, path)).existsSync()) {
         environment.out.writeln(
@@ -321,15 +336,17 @@ final class MakeResourceCommand extends _MakeCommand {
       // `prepare` never touches an authored entrypoint, so the class is not
       // in the panel until someone adds it. Inside a `const` list a second
       // `const` is a lint, so the line matches where it will be pasted.
-      final bool isConstantList =
-          BeakAuthoredMain.read(
-            environment.rootDirectory,
-          )?.resourcesAreConstant ??
-          false;
+      final bool isConstantList = BeakAuthoredMain.parse(
+        entrypointSource,
+      ).resourcesAreConstant;
+      final String importPath = p.posix.relative(
+        resourcePath,
+        from: p.posix.dirname(entrypoint),
+      );
       environment.out
         ..writeln()
-        ..writeln('  lib/main.dart is yours; register the resource there:')
-        ..writeln("    import 'resources/$table/${snake}_resource.dart';")
+        ..writeln('  $entrypoint is yours; register the resource there:')
+        ..writeln("    import '$importPath';")
         ..writeln(
           '    ${isConstantList ? '' : 'const '}${resource}Resource(),'
           '  // in resources: [...]',

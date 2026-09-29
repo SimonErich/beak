@@ -19,6 +19,7 @@ export 'src/auth/beak_query_authorizer.dart';
 export 'src/auth/token_session_store.dart';
 export 'src/config/beak_backend_config.dart';
 export 'src/config/env_loader.dart';
+export 'src/data/worm/beak_baseline_migration.dart';
 export 'src/data/worm/beak_blueprint.dart';
 export 'src/data/worm/worm_bootstrap.dart'
     show adapterFromUrl, initializeBeakDatabase;

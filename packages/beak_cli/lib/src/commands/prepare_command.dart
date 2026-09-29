@@ -47,10 +47,14 @@ final class PrepareCommand extends Command<int> {
 final class BeakPrepareResult {
   /// Creates a result.
   const BeakPrepareResult({
+    required this.config,
     required this.discovery,
     required this.written,
     required this.unchanged,
   });
+
+  /// The `beak.yaml` the run generated from.
+  final BeakProjectConfig config;
 
   /// What the scan found, including any issues.
   final BeakDiscovery discovery;
@@ -67,6 +71,26 @@ final class BeakPrepareResult {
   /// The process exit code: 0 when generation succeeded, 1 otherwise.
   int get exitCode => isSuccess ? 0 : 1;
 }
+
+/// The files `beak prepare` owns for a project configured as [config].
+///
+/// [BeakEmitters.all], minus `lib/main.dart` when `beak.yaml` names a
+/// `panel.entrypoint`: an app that embeds the panel keeps its own
+/// `lib/main.dart`, so Beak neither writes it nor compares it. `beak doctor`
+/// asks the same question of the same list, so the two cannot disagree about
+/// which files should exist.
+List<BeakGeneratedFile> beakGeneratedFiles({
+  required String packageName,
+  required BeakProjectConfig config,
+  required BeakDiscovery discovery,
+}) => [
+  for (final file in BeakEmitters.all(
+    packageName: packageName,
+    config: config,
+    discovery: discovery,
+  ))
+    if (config.panel.entrypoint == null || file.path != 'lib/main.dart') file,
+];
 
 /// Runs generation against [environment] and reports what happened.
 ///
@@ -113,6 +137,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
       environment.out.writeln('  ${issue.path}: ${issue.message}');
     }
     return BeakPrepareResult(
+      config: config,
       discovery: BeakDiscovery(issues: allIssues),
       written: const [],
       unchanged: const [],
@@ -148,7 +173,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
 
   final written = <String>[...schemaFiles, ...migrationFiles];
   final unchanged = <String>[];
-  for (final generated in BeakEmitters.all(
+  for (final generated in beakGeneratedFiles(
     packageName: packageName,
     config: config,
     discovery: withMigrations,
@@ -181,6 +206,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
               '${written.length + unchanged.length} files',
   );
   return BeakPrepareResult(
+    config: config,
     discovery: withMigrations,
     written: written,
     unchanged: unchanged,

@@ -12,9 +12,10 @@ import 'package:worm_postgres/worm_postgres.dart';
 /// The round trip: a database Beak did not create, read back out of it, and
 /// rebuilt somewhere else.
 ///
-/// `beak introspect` writes schema classes from a live schema, `beak prepare`
-/// derives migrations from those classes, and applying them to an empty
-/// database must produce the schema we started from. Every step in that chain
+/// `beak introspect` writes schema classes from a live schema and the baseline
+/// migration that adopts it, `beak prepare` derives the rest from those
+/// classes, and applying the baseline to an empty database must produce the
+/// schema we started from. Every step in that chain
 /// is lossy if any one of them drops something, and the loss is invisible
 /// until a query fails months later: a `VARCHAR(120)` that came back as
 /// `VARCHAR(255)`, an index that was never created, a foreign key that lost
@@ -98,26 +99,19 @@ dependencies:
       expect(File('${project.path}/$path').existsSync(), isTrue, reason: path);
     }
 
-    // 2. Adopt the tables. Introspection says another system owns their
-    // schema, which is true of the database they were read from; the
-    // rebuild is Beak's to create, so the classes take ownership first.
-    for (final file in Directory(
-      '${project.path}/lib/resources',
-    ).listSync(recursive: true).whereType<File>()) {
-      // However the formatter laid the annotation out.
-      file.writeAsStringSync(
-        file.readAsStringSync().replaceAll(
-          RegExp(r'managesSchema: false,?\s*'),
-          '',
-        ),
-      );
-    }
-
-    // 3. Derive everything else from what was written, migrations included.
+    // 2. Derive everything else from what was written. Introspection adopts
+    // the schema by default, so the tables are covered by the baseline it
+    // wrote and there is no create migration for prepare to add.
     final BeakPrepareResult prepared = runPrepare(environment);
     expect(prepared.isSuccess, isTrue, reason: '${prepared.discovery.issues}');
+    expect(
+      Directory(
+        '${project.path}/lib/migrations',
+      ).listSync().map((entity) => entity.uri.pathSegments.last).toList(),
+      ['20260728_120000_adopt_existing_schema.dart'],
+    );
 
-    // 4. Apply them to a database that has nothing.
+    // 3. Apply the baseline to a database that has nothing.
     final ProcessResult pubGet = await Process.run('flutter', [
       'pub',
       'get',
@@ -125,7 +119,7 @@ dependencies:
     expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}\n${pubGet.stderr}');
     await _runMigrations(project, databaseFor('rebuilt'));
 
-    // 5. The two schemas must agree, in the detail that a query depends on.
+    // 4. The two schemas must agree, in the detail that a query depends on.
     final Map<String, List<_Column>> before = await _columns(origin);
     final Map<String, List<_Column>> after = await _columns(rebuilt);
 

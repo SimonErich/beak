@@ -762,6 +762,168 @@ final class CreateProductTagTable extends Migration {
     });
   });
 
+  group('a baseline migration', () {
+    String baseline({
+      String models = 'const [CategoryModel(), ProductModel()]',
+      String pivots = 'const [ProductRelations.tags]',
+      String superclass = 'BeakBaselineMigration',
+      String name = '20260928_101500_adopt_existing_schema',
+    }) =>
+        '''
+import 'package:beak/migrations.dart';
+
+final class AdoptExistingSchema extends $superclass {
+  const AdoptExistingSchema();
+  @override
+  String get name => '$name';
+  @override
+  List<BeakModel> get models => $models;
+  @override
+  List<BeakBelongsToMany> get pivots => $pivots;
+}
+''';
+
+    BeakDiscovery scan(Map<String, String> files) => BeakProjectScanner(
+      projectWith({
+        'lib/models/category.dart': model('CategoryModel', 'categories'),
+        'lib/models/product.dart': model('ProductModel', 'products'),
+        ...files,
+      }),
+    ).scan();
+
+    test('is discovered as a migration, like any other', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(),
+      });
+
+      expect(discovery.issues, isEmpty);
+      expect(discovery.migrations.map((m) => m.name), ['AdoptExistingSchema']);
+    });
+
+    test('covers the tables of the models it lists', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(),
+      });
+
+      expect(
+        discovery.migratedTables,
+        containsAll(<String>['categories', 'products']),
+      );
+    });
+
+    test('covers a pivot through the relation constant it lists', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(),
+      });
+
+      expect(discovery.migratedTables, contains('ProductRelations.tags'));
+    });
+
+    test('covers only the models it lists', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          models: 'const [CategoryModel()]',
+          pivots: 'const []',
+        ),
+      });
+
+      expect(discovery.migratedTables, contains('categories'));
+      expect(discovery.migratedTables, isNot(contains('products')));
+      expect(
+        discovery.migratedTables,
+        isNot(contains('ProductRelations.tags')),
+      );
+    });
+
+    test('reads a model listed without const, as a list literal allows', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          models: '[CategoryModel(), ProductModel()]',
+        ),
+      });
+
+      expect(
+        discovery.migratedTables,
+        containsAll(<String>['categories', 'products']),
+      );
+    });
+
+    test('resolves a model to the table its schema class declares', () {
+      // The prepare run knows tables by schema class, and the baseline names
+      // the generated model class; the two meet in the table map.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+            models: 'const [PersonModel()]',
+            pivots: 'const []',
+          ),
+          'lib/models/person.dart': model('PersonModel', 'ignored'),
+        }),
+      ).scan(tablesByModelClass: const {'PersonModel': 'people'});
+
+      expect(discovery.migratedTables, contains('people'));
+    });
+
+    test('a model it names that nobody declares covers nothing', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          models: 'const [GhostModel()]',
+          pivots: 'const []',
+        ),
+      });
+
+      expect(discovery.migratedTables, isEmpty);
+    });
+
+    test('is ordered among the migrations by its declared name', () {
+      final discovery = scan({
+        'lib/migrations/create_widgets_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateWidgetsTable extends Migration {
+  const CreateWidgetsTable();
+  @override
+  String get name => '20260929_000000_create_widgets_table';
+  @override
+  Future<void> upSchema(Schema schema) =>
+      schema.create('widgets', (t) => t.idUuid());
+  @override
+  Future<void> downSchema(Schema schema) => schema.drop('widgets');
+}
+''',
+        'lib/migrations/a_adopt.dart': baseline(),
+      });
+
+      expect(discovery.migrations.map((m) => m.name), [
+        'AdoptExistingSchema',
+        'CreateWidgetsTable',
+      ]);
+    });
+
+    test('an ordinary migration listing models covers nothing extra', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          superclass: 'Migration',
+        ),
+      });
+
+      expect(discovery.migratedTables, isEmpty);
+    });
+
+    test('without the const constructor is reported like any migration', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline()
+            .replaceFirst('const AdoptExistingSchema();', ''),
+      });
+
+      expect(discovery.issues.single.message, contains('AdoptExistingSchema'));
+      expect(
+        discovery.issues.single.message,
+        contains('BeakBaselineMigration'),
+      );
+    });
+  });
+
   group('summary', () {
     test('reports what was found, so a miss is visible', () {
       final discovery = BeakProjectScanner(

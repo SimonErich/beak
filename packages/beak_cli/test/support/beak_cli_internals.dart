@@ -12,6 +12,7 @@ export 'package:beak_cli/src/commands/create_command.dart';
 export 'package:beak_cli/src/commands/dev_command.dart';
 export 'package:beak_cli/src/commands/doctor_command.dart';
 export 'package:beak_cli/src/commands/eject_command.dart';
+export 'package:beak_cli/src/commands/init_command.dart';
 export 'package:beak_cli/src/commands/introspect_command.dart';
 export 'package:beak_cli/src/commands/prepare_command.dart';
 export 'package:beak_cli/src/field_spec.dart';

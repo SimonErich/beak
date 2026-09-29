@@ -7,6 +7,12 @@ import 'package:test/test.dart';
 
 import '../../support/fake_database.dart';
 
+/// A reader that fails if anything reaches for it.
+Future<List<IntrospectedTable>> neverRead(
+  Uri url, {
+  String schema = 'public',
+}) async => throw StateError('a test read the live schema of $url');
+
 void main() {
   group('PostgresIntrospector', () {
     late List<IntrospectedTable> tables;
@@ -186,16 +192,13 @@ void main() {
       expect(source, contains("part 'product.beak.dart';"));
     });
 
-    test('leaves the schema to the database it was read from', () {
-      // Without it, `beak prepare` wrote a create migration for every table
-      // the database already had, and `beak migrate` then failed on the
-      // first of them.
+    test('takes ownership of the schema by default', () {
+      // The baseline migration covers the tables that already exist, so the
+      // classes can own them: `beak doctor` then reports drift, and
+      // `make:migration --from-drift` can write the changes.
       for (final file in files.values) {
-        if (file.contents.contains('extends BeakSchema')) {
-          expect(file.contents, contains('managesSchema: false'));
-        }
+        expect(file.contents, isNot(contains('managesSchema')));
       }
-      expect(files['products']!.contents, contains('managesSchema: false'));
     });
 
     test('a length becomes a rule, and the rule sizes the column', () {
@@ -314,6 +317,252 @@ void main() {
     test('output is formatted', () {
       for (final file in files.values) {
         expect(BeakEmitters.format(file.contents), file.contents);
+      }
+    });
+  });
+
+  group('emitting for a schema someone else owns', () {
+    late Map<String, IntrospectedSchemaFile> files;
+
+    setUp(() async {
+      final emitted = BeakIntrospectionEmitter.emitAll(
+        await readShop(),
+        ownership: BeakIntrospectionOwnership.external,
+      );
+      files = {for (final file in emitted) file.table: file};
+    });
+
+    test('marks every resource as not migrated by Beak', () {
+      for (final file in files.values) {
+        if (file.contents.contains('extends BeakSchema')) {
+          expect(file.contents, contains('managesSchema: false'));
+        }
+      }
+      expect(files['products']!.contents, contains('managesSchema: false'));
+    });
+
+    test('changes nothing else about the classes', () async {
+      final adopted = {
+        for (final file in BeakIntrospectionEmitter.emitAll(await readShop()))
+          file.table: file,
+      };
+
+      for (final table in files.keys) {
+        expect(
+          BeakEmitters.format(
+            files[table]!.contents.replaceFirst(
+              RegExp(r'managesSchema: false,?\s*'),
+              '',
+            ),
+          ),
+          adopted[table]!.contents,
+          reason: table,
+        );
+      }
+    });
+  });
+
+  group('the baseline migration', () {
+    late String source;
+
+    setUp(() async {
+      source = BeakIntrospectionEmitter.emitBaseline(
+        await readShop(),
+        migrationName: '20260928_101500_adopt_existing_schema',
+        schemaRoot: '../resources',
+      );
+    });
+
+    test('is a BeakBaselineMigration named for the moment it was written', () {
+      expect(
+        source,
+        contains(
+          'final class AdoptExistingSchema extends BeakBaselineMigration',
+        ),
+      );
+      expect(
+        source,
+        contains("String get name => '20260928_101500_adopt_existing_schema'"),
+      );
+      expect(source, contains('const AdoptExistingSchema();'));
+      expect(source, contains("import 'package:beak/migrations.dart';"));
+    });
+
+    test('lists every resource model, each after the tables it references', () {
+      expect(
+        source,
+        contains(
+          'List<BeakModel> get models => const [\n'
+          '    CategoryModel(),\n'
+          '    ProductModel(),\n'
+          '    TagModel(),\n'
+          '    UserModel(),\n'
+          '  ];',
+        ),
+      );
+    });
+
+    test('lists a pivot once, through the side that declares it', () {
+      expect(
+        source,
+        contains(
+          'List<BeakBelongsToMany> get pivots => const [ProductRelations.tags];',
+        ),
+      );
+    });
+
+    test('imports the schema files, and only those', () {
+      expect(
+        source,
+        contains("import '../resources/categories/models/category.dart';"),
+      );
+      expect(
+        source,
+        contains("import '../resources/products/models/product.dart';"),
+      );
+      expect(source, contains("import '../resources/tags/models/tag.dart';"));
+      expect(source, contains("import '../resources/users/models/user.dart';"));
+      expect(source, isNot(contains('product_status')));
+      expect(source, isNot(contains('product_tag')));
+    });
+
+    test('leaves out migration bookkeeping', () {
+      expect(source, isNot(contains('worm_migrations')));
+      expect(source, isNot(contains('WormMigration')));
+    });
+
+    test('is formatted', () {
+      expect(BeakEmitters.format(source), source);
+    });
+
+    test('does not declare pivots when the database has none', () async {
+      final only = BeakIntrospectionEmitter.emitBaseline(
+        [tableNamed(await readShop(), 'categories')],
+        migrationName: '20260928_101500_adopt_existing_schema',
+        schemaRoot: '../resources',
+      );
+
+      expect(only, contains('CategoryModel()'));
+      expect(only, isNot(contains('pivots')));
+    });
+
+    test('orders a table after the one it references, not by name', () {
+      // `a_items` sorts first but references `z_owners`.
+      final tables = [
+        const IntrospectedTable(
+          name: 'a_items',
+          columns: [
+            IntrospectedColumn(name: 'id', dataType: 'uuid', isNullable: false),
+            IntrospectedColumn(
+              name: 'owner_id',
+              dataType: 'uuid',
+              isNullable: true,
+            ),
+          ],
+          foreignKeys: [
+            IntrospectedForeignKey(
+              column: 'owner_id',
+              referencedTable: 'z_owners',
+            ),
+          ],
+        ),
+        const IntrospectedTable(
+          name: 'z_owners',
+          columns: [
+            IntrospectedColumn(name: 'id', dataType: 'uuid', isNullable: false),
+          ],
+        ),
+      ];
+
+      final baseline = BeakIntrospectionEmitter.emitBaseline(
+        tables,
+        migrationName: '20260928_101500_adopt_existing_schema',
+        schemaRoot: '../resources',
+      );
+
+      expect(
+        baseline.indexOf('ZOwnerModel()'),
+        lessThan(baseline.indexOf('AItemModel()')),
+      );
+    });
+
+    test('lists each of two tables that reference each other once', () {
+      const tables = [
+        IntrospectedTable(
+          name: 'chickens',
+          columns: [
+            IntrospectedColumn(name: 'id', dataType: 'uuid', isNullable: false),
+            IntrospectedColumn(
+              name: 'egg_id',
+              dataType: 'uuid',
+              isNullable: true,
+            ),
+          ],
+          foreignKeys: [
+            IntrospectedForeignKey(column: 'egg_id', referencedTable: 'eggs'),
+          ],
+        ),
+        IntrospectedTable(
+          name: 'eggs',
+          columns: [
+            IntrospectedColumn(name: 'id', dataType: 'uuid', isNullable: false),
+            IntrospectedColumn(
+              name: 'chicken_id',
+              dataType: 'uuid',
+              isNullable: true,
+            ),
+          ],
+          foreignKeys: [
+            IntrospectedForeignKey(
+              column: 'chicken_id',
+              referencedTable: 'chickens',
+            ),
+          ],
+        ),
+      ];
+
+      final baseline = BeakIntrospectionEmitter.emitBaseline(
+        tables,
+        migrationName: '20260928_101500_adopt_existing_schema',
+        schemaRoot: '../resources',
+      );
+
+      // The walk reaches `eggs` while placing `chickens`, so `eggs` goes
+      // first and its foreign key to `chickens` is the one left out.
+      expect(
+        baseline.indexOf('EggModel()'),
+        lessThan(baseline.indexOf('ChickenModel()')),
+      );
+      expect('ChickenModel()'.allMatches(baseline), hasLength(1));
+      expect('EggModel()'.allMatches(baseline), hasLength(1));
+    });
+
+    test('follows the flat layout', () async {
+      final flat = BeakIntrospectionEmitter.emitBaseline(
+        await readShop(),
+        migrationName: '20260928_101500_adopt_existing_schema',
+        schemaRoot: '../schema',
+        layout: BeakIntrospectionLayout.flat,
+      );
+
+      expect(flat, contains("import '../schema/product.dart';"));
+      expect(flat, contains("import '../schema/category.dart';"));
+    });
+
+    test('every import resolves to a file emitted for it', () async {
+      final tables = await readShop();
+      final emitted = {
+        for (final file in BeakIntrospectionEmitter.emitAll(tables))
+          'lib/resources/${file.path}',
+      };
+      for (final match in RegExp(
+        "^import '(?!package:)([^']+)';",
+        multiLine: true,
+      ).allMatches(source)) {
+        final String target = p.posix.normalize(
+          p.posix.join('lib/migrations', match.group(1)),
+        );
+        expect(emitted, contains(target), reason: match.group(1));
       }
     });
   });
@@ -443,7 +692,7 @@ void main() {
       out = StringBuffer();
     });
 
-    Future<int> run(List<String> args) async {
+    Future<int> run(List<String> args, {FakeDatabase? database}) async {
       final environment = BeakCliEnvironment(
         out: out,
         rootDirectory: root,
@@ -457,11 +706,31 @@ void main() {
           IntrospectCommand(
             environment,
             readSchema: (url, {String schema = 'public'}) =>
-                PostgresIntrospector(shopDatabase().query).read(),
+                PostgresIntrospector((database ?? shopDatabase()).query).read(),
           ),
         );
       return await runner.run(['introspect', ...args]) ?? 0;
     }
+
+    String read(String path) => File('${root.path}/$path').readAsStringSync();
+
+    /// The shop, plus a table that only another migration tool writes.
+    FakeDatabase shopWith(String bookkeepingTable) {
+      final shop = shopDatabase();
+      return FakeDatabase(
+        columns: [
+          ...shop.columns,
+          column(bookkeepingTable, 'id', 'integer', nullable: false),
+        ],
+        foreignKeys: shop.foreignKeys,
+        primaryKeys: shop.primaryKeys,
+        enums: shop.enums,
+        indexes: shop.indexes,
+      );
+    }
+
+    const baselinePath =
+        'lib/migrations/20260101_000000_adopt_existing_schema.dart';
 
     bool exists(String path) => File('${root.path}/$path').existsSync();
 
@@ -556,6 +825,423 @@ void main() {
     test('rejects a missing or malformed url', () {
       expect(run([]), throwsA(isA<Object>()));
       expect(run(['not a url', 'extra']), throwsA(isA<Object>()));
+    });
+
+    test('rejects an ownership that is neither adopt nor external', () {
+      expect(
+        run(['postgres://u:p@localhost:5432/shop', '--ownership', 'borrow']),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
+    group('adopting, the default', () {
+      test('writes the baseline migration beside the schema classes', () async {
+        expect(await run(['postgres://u:p@localhost:5432/shop']), 0);
+
+        expect(exists(baselinePath), isTrue);
+        final String baseline = read(baselinePath);
+        expect(baseline, contains('extends BeakBaselineMigration'));
+        expect(baseline, contains('CategoryModel(),'));
+        expect(baseline, contains('ProductRelations.tags'));
+        expect(baseline, contains("'20260101_000000_adopt_existing_schema'"));
+        expect(out.toString(), contains('created $baselinePath'));
+      });
+
+      test('leaves the classes to Beak, with no managesSchema', () async {
+        await run(['postgres://u:p@localhost:5432/shop']);
+
+        expect(
+          read('lib/resources/products/models/product.dart'),
+          isNot(contains('managesSchema')),
+        );
+      });
+
+      test('says what the migration does with the database it read', () async {
+        await run(['postgres://u:p@localhost:5432/shop']);
+
+        expect(out.toString(), contains('adopting'));
+        expect(out.toString(), contains('beak prepare'));
+      });
+
+      test('--dry-run reports the migration and writes none', () async {
+        await run(['postgres://u:p@localhost:5432/shop', '--dry-run']);
+
+        expect(exists('lib/migrations'), isFalse);
+        expect(out.toString(), contains('would create $baselinePath'));
+      });
+
+      test('--out puts the classes elsewhere and imports them from there', () {
+        return run([
+          'postgres://u:p@localhost:5432/shop',
+          '--out',
+          'lib/schema',
+        ]).then((code) {
+          expect(code, 0);
+          expect(
+            read(baselinePath),
+            contains("import '../schema/product.dart';"),
+          );
+        });
+      });
+
+      test('--out outside lib/ cannot be imported by a migration', () async {
+        expect(
+          run(['postgres://u:p@localhost:5432/shop', '--out', 'tool/schema']),
+          throwsA(
+            isA<UsageException>().having(
+              (e) => e.message,
+              'message',
+              contains('under lib/'),
+            ),
+          ),
+        );
+        expect(exists('lib/migrations'), isFalse);
+        expect(exists('tool'), isFalse);
+      });
+
+      test('--out outside lib/ is fine when Beak adopts nothing', () async {
+        expect(
+          await run([
+            'postgres://u:p@localhost:5432/shop',
+            '--out',
+            'tool/schema',
+            '--ownership',
+            'external',
+          ]),
+          0,
+        );
+        expect(exists('tool/schema/product.dart'), isTrue);
+      });
+
+      test('a second run keeps the migration it already wrote', () async {
+        await run(['postgres://u:p@localhost:5432/shop']);
+        final String first = read(baselinePath);
+        out.clear();
+
+        expect(await run(['postgres://u:p@localhost:5432/shop']), 0);
+
+        expect(
+          Directory('${root.path}/lib/migrations').listSync(),
+          hasLength(1),
+        );
+        expect(read(baselinePath), first);
+        expect(out.toString(), contains('already adopts'));
+      });
+
+      test('a migration named for an earlier moment counts too', () async {
+        File(
+            '${root.path}/lib/migrations/20250101_000000_adopt_existing_schema.dart',
+          )
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('// earlier\n');
+
+        await run(['postgres://u:p@localhost:5432/shop']);
+
+        expect(exists(baselinePath), isFalse);
+        expect(out.toString(), contains('already adopts'));
+      });
+
+      test('what it writes is what prepare reads, with no create_ '
+          'migration for an adopted table', () async {
+        await run(['postgres://u:p@localhost:5432/shop']);
+        File(
+          '${root.path}/pubspec.yaml',
+        ).writeAsStringSync('name: shop\ndependencies:\n  beak: ^0.9.0\n');
+        final environment = BeakCliEnvironment(
+          out: StringBuffer(),
+          rootDirectory: root,
+          now: () => DateTime.utc(2026, 2),
+          probe: (host, port) async => false,
+        );
+
+        final BeakPrepareResult prepared = runPrepare(environment);
+
+        expect(
+          prepared.isSuccess,
+          isTrue,
+          reason: '${prepared.discovery.issues}',
+        );
+        expect(
+          prepared.written.where(
+            (path) => path.startsWith('lib/migrations/create_'),
+          ),
+          isEmpty,
+        );
+        expect(prepared.discovery.migrations.map((m) => m.name), [
+          'AdoptExistingSchema',
+        ]);
+        expect(
+          read('lib/beak/server.g.dart'),
+          contains('AdoptExistingSchema()'),
+        );
+        final checks = await diagnose(environment, readSchema: neverRead);
+        expect(
+          checks
+              .firstWhere(
+                (check) => check.label.contains('every model has a migration'),
+              )
+              .status,
+          BeakCheckStatus.ok,
+        );
+      });
+
+      test('a table added later still gets its own migration', () async {
+        await run(['postgres://u:p@localhost:5432/shop']);
+        File('${root.path}/pubspec.yaml').writeAsStringSync('name: shop\n');
+        File('${root.path}/lib/resources/notes/models/note.dart')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(generateSchemaClass('Note', const []));
+        final environment = BeakCliEnvironment(
+          out: StringBuffer(),
+          rootDirectory: root,
+          now: () => DateTime.utc(2026, 2),
+          probe: (host, port) async => false,
+        );
+
+        final BeakPrepareResult prepared = runPrepare(environment);
+
+        expect(prepared.written.where((path) => path.contains('create_')), [
+          'lib/migrations/create_notes_table.dart',
+        ]);
+      });
+    });
+
+    group('--ownership external', () {
+      test('marks the classes and writes no migration', () async {
+        expect(
+          await run([
+            'postgres://u:p@localhost:5432/shop',
+            '--ownership',
+            'external',
+          ]),
+          0,
+        );
+
+        expect(exists('lib/migrations'), isFalse);
+        expect(
+          read('lib/resources/products/models/product.dart'),
+          contains('managesSchema: false'),
+        );
+        expect(out.toString(), isNot(contains('adopt')));
+      });
+
+      test(
+        'tells the user not to migrate a database Beak does not own',
+        () async {
+          await run([
+            'postgres://u:p@localhost:5432/shop',
+            '--ownership',
+            'external',
+          ]);
+
+          expect(out.toString(), contains('beak migrate'));
+        },
+      );
+    });
+
+    group('a database another tool migrates', () {
+      for (final table in foreignMigrationTables) {
+        test('$table switches the default to external, with a note', () async {
+          expect(
+            await run([
+              'postgres://u:p@localhost:5432/shop',
+            ], database: shopWith(table)),
+            0,
+          );
+
+          expect(exists('lib/migrations'), isFalse);
+          expect(
+            read('lib/resources/products/models/product.dart'),
+            contains('managesSchema: false'),
+          );
+          expect(out.toString(), contains(table));
+          expect(out.toString(), contains('--ownership adopt'));
+        });
+      }
+
+      test('asking to adopt is honoured, and not second-guessed', () async {
+        await run([
+          'postgres://u:p@localhost:5432/shop',
+          '--ownership',
+          'adopt',
+        ], database: shopWith('flyway_schema_history'));
+
+        expect(exists(baselinePath), isTrue);
+        expect(out.toString(), isNot(contains('--ownership adopt')));
+      });
+
+      test('asking for external needs no note', () async {
+        await run([
+          'postgres://u:p@localhost:5432/shop',
+          '--ownership',
+          'external',
+        ], database: shopWith('flyway_schema_history'));
+
+        expect(exists('lib/migrations'), isFalse);
+        expect(out.toString(), isNot(contains('--ownership adopt')));
+      });
+
+      test('its bookkeeping table is never written as a resource', () async {
+        await run([
+          'postgres://u:p@localhost:5432/shop',
+        ], database: shopWith('alembic_version'));
+
+        expect(exists('lib/resources/alembic_version'), isFalse);
+        expect(out.toString(), contains('skipped'));
+        expect(out.toString(), contains('alembic_version'));
+      });
+
+      test('worm\'s own bookkeeping does not switch the default', () async {
+        await run(['postgres://u:p@localhost:5432/shop']);
+
+        expect(exists(baselinePath), isTrue);
+      });
+    });
+
+    group('a Serverpod database', () {
+      const refusal =
+          'This database belongs to a Serverpod server. Beak does not '
+          'connect to it; add the admin app to your Serverpod workspace '
+          'instead (see the Serverpod section of the docs).';
+
+      for (final table in const [
+        'serverpod_session_log',
+        'serverpod_migrations',
+        'serverpod_auth_idp_user',
+      ]) {
+        test('is refused when it has $table', () async {
+          expect(
+            await run([
+              'postgres://u:p@localhost:5432/shop',
+            ], database: shopWith(table)),
+            1,
+          );
+
+          expect(out.toString(), contains(refusal));
+          expect(exists('lib'), isFalse);
+          expect(exists('.env'), isFalse);
+        });
+      }
+
+      test('is refused whatever the ownership asked for', () async {
+        expect(
+          await run([
+            'postgres://u:p@localhost:5432/shop',
+            '--ownership',
+            'external',
+            '--dry-run',
+          ], database: shopWith('serverpod_migrations')),
+          1,
+        );
+        expect(out.toString(), contains(refusal));
+      });
+
+      test('is not confused with a table that merely starts alike', () async {
+        expect(
+          await run([
+            'postgres://u:p@localhost:5432/shop',
+          ], database: shopWith('serverpods')),
+          0,
+        );
+        expect(out.toString(), isNot(contains('Serverpod')));
+      });
+    });
+
+    group('--save-url', () {
+      const url = 'postgres://u:p@localhost:5432/shop';
+
+      test('writes DATABASE_URL to a .env that did not exist', () async {
+        await run([url, '--save-url']);
+
+        expect(read('.env'), 'DATABASE_URL=$url\n');
+        expect(out.toString(), contains('created .env'));
+      });
+
+      test(
+        'replaces an existing DATABASE_URL and keeps every other line',
+        () async {
+          File('${root.path}/.env').writeAsStringSync(
+            '# secrets\nPORT=9000\nDATABASE_URL=sqlite:old.db\nHOST=0.0.0.0\n',
+          );
+
+          await run([url, '--save-url']);
+
+          expect(
+            read('.env'),
+            '# secrets\nPORT=9000\nDATABASE_URL=$url\nHOST=0.0.0.0\n',
+          );
+        },
+      );
+
+      test('appends to a .env that has none, whatever its last line', () async {
+        File('${root.path}/.env').writeAsStringSync('PORT=9000');
+
+        await run([url, '--save-url']);
+
+        expect(read('.env'), 'PORT=9000\nDATABASE_URL=$url\n');
+      });
+
+      test('the backend reads back what was saved', () async {
+        await run([url, '--save-url']);
+
+        expect(beakDatabaseUrlOf(root), Uri.parse(url));
+      });
+
+      test('a second run changes nothing', () async {
+        await run([url, '--save-url']);
+        final String first = read('.env');
+
+        await run([url, '--save-url']);
+
+        expect(read('.env'), first);
+      });
+
+      test('a SQLite url is saved as it was given', () async {
+        await run(['sqlite:legacy.db', '--save-url']);
+
+        expect(read('.env'), 'DATABASE_URL=sqlite:legacy.db\n');
+      });
+
+      test('--dry-run writes nothing', () async {
+        await run([url, '--save-url', '--dry-run']);
+
+        expect(exists('.env'), isFalse);
+        expect(out.toString(), contains('would save DATABASE_URL'));
+      });
+
+      test(
+        'warns when .env is not git-ignored, the url may hold a password',
+        () async {
+          File('${root.path}/.gitignore').writeAsStringSync('build/\n');
+
+          await run([url, '--save-url']);
+
+          expect(out.toString(), contains('.env is not in .gitignore'));
+        },
+      );
+
+      test('says nothing about git when .env is ignored', () async {
+        File('${root.path}/.gitignore').writeAsStringSync('build/\n.env\n');
+
+        await run([url, '--save-url']);
+
+        expect(out.toString(), isNot(contains('.gitignore')));
+      });
+
+      test(
+        'says nothing about git when there is no repository to speak of',
+        () async {
+          await run([url, '--save-url']);
+
+          expect(out.toString(), isNot(contains('.gitignore')));
+        },
+      );
+
+      test('is not done without the flag', () async {
+        await run([url]);
+
+        expect(exists('.env'), isFalse);
+      });
     });
   });
 }

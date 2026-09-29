@@ -8,13 +8,13 @@ import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
 import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
-import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import 'prepare_command.dart';
 
 /// How a single check came out.
 enum BeakCheckStatus {
@@ -206,7 +206,7 @@ Future<List<BeakCheck>> diagnose(
     ),
   );
 
-  checks.addAll(_authoredResourceChecks(root, discovery));
+  checks.addAll(_authoredResourceChecks(root, discovery, config));
 
   // Read once: the staleness check, the migration check and the drift check
   // all ask the same question of the same files, and parsing them three
@@ -228,7 +228,7 @@ Future<List<BeakCheck>> diagnose(
   }
 
   if (discovery.issues.isEmpty) {
-    for (final generated in BeakEmitters.all(
+    for (final generated in beakGeneratedFiles(
       packageName: packageName,
       config: config,
       discovery: discovery,
@@ -276,27 +276,40 @@ Future<List<BeakCheck>> diagnose(
 
   checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));
   checks.add(_webScaffoldCheck(root));
-  checks.addAll(serverImportChecks(root, packageName: packageName));
+  checks.addAll(
+    serverImportChecks(
+      root,
+      packageName: packageName,
+      entrypoint: config.panel.entrypoint,
+    ),
+  );
   checks.addAll(
     await _databaseChecks(environment, root, readSchema, schemas, schemaIssues),
   );
   return checks;
 }
 
-/// A warning for each resource class an authored `lib/main.dart` does not
-/// list.
+/// A warning for each resource class the authored entrypoint does not list.
 ///
-/// `beak prepare` never rewrites an entrypoint the project owns, so a new
-/// `BeakResource` subclass reaches the panel only once someone adds it to
-/// the `resources: [...]` list there, and forgetting is silent: the class
-/// compiles, the resource simply never appears. A generated entrypoint is
-/// wired by `beak prepare`, and one whose list cannot be read statically (a
-/// variable, a spread of one) is not second-guessed.
+/// The entrypoint is `lib/main.dart`, or the file `panel.entrypoint` names in
+/// an app that embeds the panel. `beak prepare` never rewrites an entrypoint
+/// the project owns, so a new `BeakResource` subclass reaches the panel only
+/// once someone adds it to the `resources: [...]` list there, and forgetting
+/// is silent: the class compiles, the resource simply never appears. A
+/// generated entrypoint is wired by `beak prepare`, and one whose list cannot
+/// be read statically (a variable, a spread of one) is not second-guessed.
 List<BeakCheck> _authoredResourceChecks(
   Directory root,
   BeakDiscovery discovery,
+  BeakProjectConfig config,
 ) {
-  final Set<String>? listed = BeakAuthoredMain.read(root)?.listedResources;
+  final String entrypoint = config.panel.entrypointPath;
+  final file = File('${root.path}/$entrypoint');
+  final String? source = file.existsSync() ? file.readAsStringSync() : null;
+  final Set<String>? listed =
+      source == null || source.startsWith(BeakAuthoredMain.generatedMarker)
+      ? null
+      : BeakAuthoredMain.parse(source).listedResources;
   if (listed == null || discovery.resources.isEmpty) {
     return const [];
   }
@@ -305,10 +318,10 @@ List<BeakCheck> _authoredResourceChecks(
       if (!listed.contains(resource.className)) resource,
   ];
   if (unlisted.isEmpty) {
-    return const [
+    return [
       BeakCheck(
         status: BeakCheckStatus.ok,
-        label: 'lib/main.dart lists every resource class',
+        label: '$entrypoint lists every resource class',
       ),
     ];
   }
@@ -318,10 +331,10 @@ List<BeakCheck> _authoredResourceChecks(
         status: BeakCheckStatus.warn,
         label:
             '${resource.className} (lib/${resource.importPath}) is not listed '
-            "in lib/main.dart's resources: [...], so the panel never shows it",
+            "in $entrypoint's resources: [...], so the panel never shows it",
         remedy:
             'add ${resource.className}() to the resources list in '
-            'lib/main.dart; `beak prepare` never rewrites an authored '
+            '$entrypoint; `beak prepare` never rewrites an authored '
             'entrypoint',
       ),
   ];
@@ -404,8 +417,9 @@ const Set<String> _serverLibraries = {
 List<BeakCheck> serverImportChecks(
   Directory root, {
   required String packageName,
+  String? entrypoint,
 }) {
-  final Set<String>? reachable = _panelGraphOf(root, packageName);
+  final Set<String>? reachable = _panelGraphOf(root, packageName, entrypoint);
   if (reachable == null) {
     // No panel entrypoint to protect. `beak prepare` writes one; until then
     // there is nothing to say.
@@ -454,10 +468,21 @@ List<BeakCheck> serverImportChecks(
 /// `null` when the project has no panel entrypoint at all. Walks this
 /// package's own sources only: what `package:beak` does internally is the
 /// framework's problem, and `melos run guard-web` covers it there.
-Set<String>? _panelGraphOf(Directory root, String packageName) {
+///
+/// The roots are the [entrypoint] `beak.yaml` names, or `lib/main.dart`, and
+/// the generated app widget. In an app that embeds the panel `lib/main.dart`
+/// is the app's own and is not part of the panel, so it is not a root.
+Set<String>? _panelGraphOf(
+  Directory root,
+  String packageName,
+  String? entrypoint,
+) {
   // `lib/main.dart` is generated and often git-ignored, so fall back to the
   // root widget it is one line of.
-  const roots = ['lib/main.dart', 'lib/beak/app.g.dart'];
+  final roots = [
+    entrypoint ?? BeakPanelSettings.defaultEntrypoint,
+    'lib/beak/app.g.dart',
+  ];
   final queue = <String>[
     for (final path in roots)
       if (File('${root.path}/$path').existsSync()) path,

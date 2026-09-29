@@ -72,6 +72,28 @@ final class BeakServerSettings {
   };
 }
 
+/// Where the panel's entrypoint lives, when the app is not Beak's alone.
+///
+/// A Beak project owns `lib/main.dart`, so `beak prepare` writes it. An
+/// existing Flutter app cannot give that file up: `beak init` embeds the
+/// panel next to the app, boots it from a file of its own, and records the
+/// path here so `beak prepare` leaves `lib/main.dart` alone and `beak dev` and
+/// `beak doctor` know which file starts the panel.
+final class BeakPanelSettings {
+  /// Creates panel settings.
+  const BeakPanelSettings({this.entrypoint});
+
+  /// The Dart file, relative to the project root, that boots the panel, or
+  /// null for a project whose `lib/main.dart` is Beak's.
+  final String? entrypoint;
+
+  /// The file that boots the panel: [entrypoint], else `lib/main.dart`.
+  String get entrypointPath => entrypoint ?? defaultEntrypoint;
+
+  /// The entrypoint of a project that sets none.
+  static const String defaultEntrypoint = 'lib/main.dart';
+}
+
 /// Per-resource presentation the panel reads before falling back to defaults.
 final class BeakResourceOverride {
   /// Creates an override for one table.
@@ -113,6 +135,7 @@ final class BeakProjectConfig {
     required this.name,
     this.api = const BeakApiSettings(),
     this.server = const BeakServerSettings(),
+    this.panel = const BeakPanelSettings(),
     this.resources = const {},
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
@@ -143,6 +166,7 @@ final class BeakProjectConfig {
       'name',
       'api',
       'server',
+      'panel',
       'theme',
       'resources',
     }, '');
@@ -154,6 +178,10 @@ final class BeakProjectConfig {
     final YamlMap? server = _optionalMap(root['server'], 'server');
     if (server != null) {
       _rejectUnknownKeys(server, const {'port', 'host'}, 'server.');
+    }
+    final YamlMap? panel = _optionalMap(root['panel'], 'panel');
+    if (panel != null) {
+      _rejectUnknownKeys(panel, const {'entrypoint'}, 'panel.');
     }
     final YamlMap? theme = _optionalMap(root['theme'], 'theme');
     if (theme != null) {
@@ -210,6 +238,12 @@ final class BeakProjectConfig {
         port: _optionalPort(server?['port'], 'server.port'),
         host: _optionalString(server?['host'], 'server.host'),
       ),
+      panel: BeakPanelSettings(
+        entrypoint: _optionalEntrypoint(
+          panel?['entrypoint'],
+          'panel.entrypoint',
+        ),
+      ),
       resources: resources,
       sidebarCollapsible:
           _optionalBool(sidebar?['collapsible'], 'theme.sidebar.collapsible') ??
@@ -246,6 +280,9 @@ final class BeakProjectConfig {
 
   /// Where the server binds, when the project asks for something specific.
   final BeakServerSettings server;
+
+  /// Where the panel is booted from.
+  final BeakPanelSettings panel;
 
   /// Per-table presentation overrides, keyed by table name.
   final Map<String, BeakResourceOverride> resources;
@@ -310,6 +347,30 @@ final class BeakProjectConfig {
       return raw;
     }
     throw BeakProjectConfigException('$key must be a string (got $raw).');
+  }
+
+  /// A Dart file path relative to the project root.
+  ///
+  /// Checked here because the path is used in three places that would each
+  /// fail differently on a bad one: `flutter run -t`, the doctor's import
+  /// walk, and the entrypoint `beak init` writes.
+  static String? _optionalEntrypoint(Object? value, String key) {
+    final String? path = _optionalString(value, key);
+    if (path == null) {
+      return null;
+    }
+    final bool isSafe =
+        path.endsWith('.dart') &&
+        !path.startsWith('/') &&
+        !path.contains(r'\') &&
+        !path.split('/').contains('..');
+    if (!isSafe) {
+      throw BeakProjectConfigException(
+        '$key must be a Dart file path relative to the project, such as '
+        '"lib/admin_main.dart" (got "$path").',
+      );
+    }
+    return path;
   }
 
   /// An `OiIcons` identifier, checked as far as this package can check it.

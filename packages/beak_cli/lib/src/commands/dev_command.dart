@@ -12,6 +12,9 @@ import 'prepare_command.dart';
 /// serves the API, and prints the exact `flutter run` line to paste in a second
 /// terminal, which is the part that actually needs automating.
 ///
+/// In an app that embeds the panel, `beak.yaml`'s `panel.entrypoint` names
+/// the file that boots it, and the printed line targets that file with `-t`.
+///
 /// ```console
 /// $ beak dev
 ///   1 model · 0 resource classes · 0 screens · 0 overrides
@@ -58,9 +61,15 @@ final class DevCommand extends Command<int> {
       final String value => value,
       _ => 'chrome',
     };
+    // An app that embeds the panel boots it from a file of its own, and
+    // `flutter run` starts `lib/main.dart` unless told otherwise.
+    final String? entrypoint = prepared.config.panel.entrypoint;
     environment.out
       ..writeln('  panel      run this in another terminal:')
-      ..writeln('               flutter run -d $device');
+      ..writeln(
+        '               flutter run -d $device'
+        '${entrypoint == null ? '' : ' -t $entrypoint'}',
+      );
 
     if (argResults?['serve'] == false) {
       return 0;

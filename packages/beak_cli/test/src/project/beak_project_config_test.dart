@@ -60,6 +60,87 @@ resources:
     });
   });
 
+  group('panel', () {
+    test('has no entrypoint of its own by default', () {
+      expect(parse('').panel.entrypoint, isNull);
+      expect(parse('name: Acme\n').panel.entrypoint, isNull);
+      expect(parse('panel: {}\n').panel.entrypoint, isNull);
+      expect(
+        BeakProjectConfig.defaults(packageName: 'acme_admin').panel.entrypoint,
+        isNull,
+      );
+    });
+
+    test('reads the entrypoint of an app that embeds the panel', () {
+      final config = parse('panel:\n  entrypoint: lib/admin_main.dart\n');
+
+      expect(config.panel.entrypoint, 'lib/admin_main.dart');
+      expect(config.panel.entrypointPath, 'lib/admin_main.dart');
+    });
+
+    test('boots from lib/main.dart when it names none', () {
+      expect(parse('').panel.entrypointPath, 'lib/main.dart');
+    });
+
+    test('an unknown panel key is an error naming it', () {
+      expect(
+        () => parse('panel:\n  title: Admin\n'),
+        throwsA(
+          isA<BeakProjectConfigException>()
+              .having((e) => e.message, 'message', contains('panel.title'))
+              .having((e) => e.message, 'message', contains('entrypoint')),
+        ),
+      );
+    });
+
+    test('the entrypoint must be a string', () {
+      expect(
+        () => parse('panel:\n  entrypoint: 3\n'),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('panel.entrypoint must be a string'),
+          ),
+        ),
+      );
+    });
+
+    for (final bad in const [
+      '/home/me/lib/main.dart',
+      'lib/main',
+      '../other/lib/main.dart',
+      r'lib\\main.dart',
+      "''",
+    ]) {
+      test('rejects the entrypoint $bad', () {
+        expect(
+          () => parse('panel:\n  entrypoint: $bad\n'),
+          throwsA(
+            isA<BeakProjectConfigException>().having(
+              (e) => e.message,
+              'message',
+              contains('panel.entrypoint'),
+            ),
+          ),
+        );
+      });
+    }
+
+    test('a panel that is not a mapping is an error', () {
+      expect(
+        () => parse('panel: lib/main.dart\n'),
+        throwsA(
+          isA<BeakProjectConfigException>().having(
+            (e) => e.message,
+            'message',
+            contains('panel must be a mapping'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('api base url', () {
     test('compiles a fixed origin in, overridable at build time', () {
       expect(

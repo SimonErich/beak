@@ -116,15 +116,34 @@ final class IntrospectedTable {
   }
 }
 
+/// The bookkeeping tables of other migration tools.
+///
+/// Finding one means another tool owns this database's schema, and `beak
+/// introspect` defaults to leaving it that way rather than adopting it.
+const Set<String> foreignMigrationTables = {
+  'schema_migrations',
+  '_prisma_migrations',
+  'django_migrations',
+  'flyway_schema_history',
+  'alembic_version',
+  '__EFMigrationsHistory',
+  'knex_migrations',
+};
+
+/// The table Serverpod keeps its migration history in.
+const String serverpodMigrationsTable = 'serverpod_migrations';
+
+/// The prefix of every table a Serverpod server creates for itself.
+const String serverpodTablePrefix = 'serverpod_';
+
 /// Tables Beak never surfaces: migration bookkeeping written by frameworks.
 const Set<String> introspectionSkipTables = {
   'migrations',
   'worm_migrations',
-  'schema_migrations',
   'ar_internal_metadata',
-  'django_migrations',
-  'flyway_schema_history',
-  '_prisma_migrations',
+  'knex_migrations_lock',
+  serverpodMigrationsTable,
+  ...foreignMigrationTables,
 };
 
 /// Column names that almost always hold a secret.
