@@ -85,6 +85,7 @@ final class BeakServerDefaults {
   /// bypass them, [outbox] schedules effect delivery while the host serves,
   /// and [generateId] and [transformRunner] replace the id mint and the image
   /// pipeline.
+  // --8<-- [start:BeakServerDefaultsBuild]
   BeakServer build({
     BeakPolicy policy = const BeakAllowAllPolicy(),
     BeakAuthSessions? authSessions,
@@ -121,6 +122,7 @@ final class BeakServerDefaults {
     generateId: generateId,
     transformRunner: transformRunner,
   );
+  // --8<-- [end:BeakServerDefaultsBuild]
 }
 
 /// Owns a Beak backend's whole lifecycle: environment to typed config to
@@ -289,6 +291,7 @@ final class BeakServeHost {
   ///
   /// Returns the bound [HttpServer] so a caller can log its address or close
   /// it; the process keeps serving until it does.
+  // --8<-- [start:BeakServeHostServe]
   Future<HttpServer> serve() async {
     await initializeBeakDatabase(config);
     final DatabaseAdapter adapter = Worm.adapter();
@@ -315,6 +318,7 @@ final class BeakServeHost {
       outbox.start(adapter, onError: server.onUnexpectedError, now: _now),
     );
   }
+  // --8<-- [end:BeakServeHostServe]
 
   /// Runs the worm CLI (`migrate`, `db:seed`, `migrate:fresh`, …) against this
   /// host's [migrations] and [seeders], returning the process exit code.

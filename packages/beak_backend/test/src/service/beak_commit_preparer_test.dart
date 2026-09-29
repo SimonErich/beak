@@ -101,6 +101,7 @@ void main() {
     );
   });
 
+  // --8<-- [start:preparerRollbackTest]
   test('a rejected preparation rolls back its writes as well', () async {
     final service = BeakGraphCommitService(
       registry: createApiRegistry(),
@@ -120,6 +121,7 @@ void main() {
     expect((await service.recover('prepared-note')).toJson(), result.toJson());
     expect((await source.query(const BeakQuerySpec(table: 'notes'))).total, 0);
   });
+  // --8<-- [end:preparerRollbackTest]
 
   test('preparers must retain the request identity', () async {
     final service = BeakGraphCommitService(

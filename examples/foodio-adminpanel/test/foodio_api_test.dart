@@ -327,6 +327,7 @@ void main() {
         (await stored('budget_accounts', FoodioIds.budget))['reserved_cents'],
         7271,
       );
+      // --8<-- [start:foodioDrainOnce]
       final worker = FoodioEffects(buildBeakRegistry()).worker(adapter);
       expect(await worker.drain(), 2);
       expect(await worker.drain(), 0);
@@ -337,6 +338,7 @@ void main() {
         )).total,
         2,
       );
+      // --8<-- [end:foodioDrainOnce]
       // Cancellation releases budget and unconsumed capacity.
       final cancelled = await client.commit(
         actionPlan('cancel-wizard', record['id']!.raw!, OrderActions.cancel),

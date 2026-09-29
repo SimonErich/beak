@@ -4,6 +4,7 @@ import 'domain/foodio_effects.dart';
 import 'domain/foodio_order_preparer.dart';
 import 'models/models.dart';
 
+// --8<-- [start:foodioServer]
 /// Generated registration plus the example's transaction and provider rules.
 ///
 /// The host drains the persistent demo providers while it serves, so the
@@ -29,3 +30,4 @@ BeakServer beakServer(BeakServerDefaults defaults) {
     ],
   );
 }
+// --8<-- [end:foodioServer]

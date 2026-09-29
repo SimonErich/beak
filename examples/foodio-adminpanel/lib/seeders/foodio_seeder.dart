@@ -65,6 +65,7 @@ abstract final class FoodioIds {
   static String variant(String dish, String name) => '$dish-$name';
 }
 
+// --8<-- [start:FoodioSeeder]
 /// Reproducible, real records. Re-running never overwrites a user's demo changes.
 final class FoodioSeeder extends Seeder {
   /// Seeds once without overwriting later operator changes.
@@ -97,6 +98,7 @@ final class FoodioSeeder extends Seeder {
     });
   }
 }
+// --8<-- [end:FoodioSeeder]
 
 final class _FoodioSeed {
   _FoodioSeed(this.adapter);

@@ -79,9 +79,11 @@ final class Order extends BeakSchema {
   @Column(sortable: true)
   late final DateTime deliveryDate;
 
+  // --8<-- [start:orderItemsRelation]
   /// Owned line items, committed with the order.
   @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
   late final List<OrderItem> items;
+  // --8<-- [end:orderItemsRelation]
 
   /// Owned discount adjustments, committed with the order.
   @HasMany(owned: true, onDelete: BeakOnDelete.cascade)

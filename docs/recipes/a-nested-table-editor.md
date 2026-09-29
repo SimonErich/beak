@@ -1,17 +1,87 @@
 ---
 title: A nested table editor
-description: Edit a has-many relation as a table inside its parent form.
+description: Edit the rows a record owns, such as order lines, as a table inside the parent form. Rows are staged and saved with the parent in one graph commit.
 type: recipe
 audience: [beginner, expert, agent]
-status: draft
+status: stable
 ---
 
 # A nested table editor
 
-This page is a draft. It will cover editing an owned has-many relation as a table inside its parent form, with staged changes that save together.
+You want the lines of an order editable inside the order form: add a row, change a quantity, remove a row, see a total, and nothing reaches the server until Save.
+
+## Recipe
+
+Start on the schema. The parent declares the collection as owned, the child declares the way back:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/models/order.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/models/order.dart:orderItemsRelation"
+```
+
+```dart title="examples/clean_beak_config/lib/resources/orders/models/order_item.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/models/order_item.dart:orderItemOwner"
+```
+
+`owned: true` says the order is the only reason these rows exist. That is what lets a form delete a row instead of only unlinking it. Run `beak prepare` and the generated `OrderModel.items` is a typed to-many field with a `tableForm` builder.
+
+Place it in the form. Each entry of `children` becomes a column of the row:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart:orderItemsTableForm"
+```
+
+The table shows a product picker, a variant picker, a quantity and a calculated line total in the row. The tax rate, the description and the two price overrides sit in `advancedForm`, which opens in a dialog from each row. The line total is an ordinary function of the row:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart:orderLineTotal"
+```
+
+## How it works
+
+- Nothing is written while the form is open. Adding a row creates an unsaved draft, editing changes the draft, and removing a row that was never saved drops it. Cancel forgets all of it.
+- Save turns the draft into one plan for `POST /api/commits`. Every new row becomes a `create` operation that depends on the parent's `create` and carries the parent's id in its foreign key (`order_id`), so the order and its lines are written in one transaction or not at all. Changed rows become `update`, removed saved rows become `delete`.
+- `removeBehavior: BeakRemoveBehavior.deleteOwned` makes removing a saved row a `delete`. The default, `detach`, clears the child's foreign key instead, and that is refused when the column is required. `deleteOwned` on a relation that is not `@HasMany(owned: true)` throws a `BeakConfigurationException` at removal time, not at boot.
+- `minRows: 1` blocks Save with `Add at least 1 row.` This is client-side. The server half is the record rule `BeakCount(OrderModel.items, min: 1)` in the order's `validationRules`, which is why a hand-built request cannot skip the lines either.
+- Each row is validated with the child's own rules (`BeakMin(1)` on the quantity, the `BeakExists` that ties a variant to its product) before the form saves. A row that fails keeps the whole form from saving.
+- `summary` receives the current rows (removed ones excluded) as `BeakFormReader`s. `.asOrderItem` gives the typed view of a row, so the fold over `lineTotal` is checked by the compiler.
+- A collection field has one editable table per form. To show the same lines twice, for example on a review step, repeat them as a second `tableForm(readOnly: true)`.
+
+## Variations
+
+| You want | Do this |
+| --- | --- |
+| Rows fixed in number | `allowAdding: false` and `allowRemove: false`. `allowEdit: false` locks the inputs of existing rows. |
+| Read-only lines on a review step | `tableForm(readOnly: true, children: [...])` |
+| Compact separated rows instead of cards | `presentation: BeakRelationTablePresentation.rows`, with `identityChildren` for the shared first cell. |
+| The extra inputs inside the row | `advancedPresentation: BeakAdvancedPresentation.inline` instead of the dialog. |
+| Rows picked from a big list | `catalog: BeakRelationCatalog(...)`, see [Related records in forms](../forms/related-records.md#a-catalog-for-big-option-lists). |
+| The add button somewhere else | `showAddAction: false` on the table and a `BeakRelationAdd` where you want it. |
+| A many-to-many | The same `tableForm`, and the row becomes an `attach` operation. `detach` removes the pivot row only. |
+
+## Verify
+
+The shop's test drives the real wizard against an in-process API: it adds a line, prices it, saves, and reads the order and its one item back.
+
+```dart title="examples/clean_beak_config/test/order_form_test.dart"
+--8<-- "examples/clean_beak_config/test/order_form_test.dart:formSaveThroughApiTest"
+```
+
+```console
+$ cd examples/clean_beak_config
+$ flutter test test/order_form_test.dart --plain-name 'the actual configured wizard'
+00:00 +1: All tests passed!
+```
+
+The `minRows` gate has a package test of its own, in a form with no shop around it:
+
+```console
+$ cd packages/beak_frontend
+$ flutter test test/src/form/beak_form_session_test.dart --plain-name 'minimum collection rows'
+00:00 +1: All tests passed!
+```
 
 ## Continue reading
 
-- [Recipes](index.md): Find a maintained configuration for a common admin task.
-- [A row action](a-row-action.md): Declare a server-owned transition once for forms and tables.
-- [A belongs-to picker](a-belongs-to-picker.md): Use shared eligibility rules for a dependent selection.
+- [A multi-step form](a-multi-step-form.md) splits the same order form into steps and gates each one.
+- [Related records in forms](../forms/related-records.md) covers pickers, inline create and the row catalog.
+- [Graph commits](../architecture/graph-commits.md) explains the transaction the rows are saved in.

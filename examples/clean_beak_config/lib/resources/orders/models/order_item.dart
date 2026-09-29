@@ -78,9 +78,11 @@ final class OrderItem extends BeakSchema {
   @Column(label: 'Quantity', rules: [BeakMin(1)])
   late final int quantity;
 
+  // --8<-- [start:orderItemOwner]
   /// Owning order; wired automatically when the graph is saved.
   @BelongsTo(onDelete: BeakOnDelete.cascade)
   late final Order order;
+  // --8<-- [end:orderItemOwner]
 
   /// Catalog product for this row.
   @BelongsTo(inverse: false, onDelete: BeakOnDelete.restrict)

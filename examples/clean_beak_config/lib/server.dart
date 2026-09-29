@@ -14,6 +14,7 @@ import 'resources/products/models/variant_attribute.dart';
 import 'resources/taxes/models/tax_rate.dart';
 import 'resources/vouchers/models/voucher.dart';
 
+// --8<-- [start:shopServer]
 /// Adds the example's transactional shop invariants to the generated host.
 BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
   preparePlan: ShopGraphPreparer(defaults.registry).prepare,
@@ -32,3 +33,4 @@ BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
     TaxRateModel(),
   ],
 );
+// --8<-- [end:shopServer]

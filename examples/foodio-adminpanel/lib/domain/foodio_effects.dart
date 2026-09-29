@@ -54,6 +54,7 @@ final class FoodioEffects {
     if (record == null) return;
     final status = OrderModel.status.readFrom(record);
     if (status == OrderStatus.draft) return;
+    // --8<-- [start:foodioQueueEffect]
     Future<void> queue(FoodioEffectKind kind, {String? recipient}) =>
         BeakOutbox.enqueue(
           transaction.adapter,
@@ -78,6 +79,8 @@ final class FoodioEffects {
             ),
           ]),
         );
+    // --8<-- [end:foodioQueueEffect]
+    // --8<-- [start:foodioQueueOnPlace]
     if (plan.runs(OrderActions.place)) {
       if (OrderModel.sendConfirmation.readFrom(record) == true) {
         await queue(FoodioEffectKind.confirmation);
@@ -90,6 +93,7 @@ final class FoodioEffects {
         }
       }
     }
+    // --8<-- [end:foodioQueueOnPlace]
     // A changed payment mode also creates a durable request. The prepared
     // patch contains pending only when the authoritative workflow permits it.
     final paymentChanged =
@@ -141,6 +145,7 @@ final class FoodioEffects {
     }
   }
 
+  // --8<-- [start:foodioSchedule]
   /// The demo providers, drained every second while the host serves.
   ///
   /// Each provider persists its receipt through [adapter] by effect key
@@ -160,6 +165,7 @@ final class FoodioEffects {
           _payment(adapter, effect, FoodioEffectKind.refund),
     },
   );
+  // --8<-- [end:foodioSchedule]
 
   /// One worker over the [schedule]'s providers on the demo clock, for a
   /// caller that drains on its own terms, like a test.
@@ -172,6 +178,7 @@ final class FoodioEffects {
     FoodioEffectKind kind,
   ) => adapter.transaction((tx) async {
     final data = WormDataSource(registry, adapter: tx);
+    // --8<-- [start:foodioDeliverOnce]
     if (await data.findWhere(
           const MessageDeliveryModel(),
           MessageDeliveryModel.effectKey.eq(effect.key),
@@ -179,6 +186,7 @@ final class FoodioEffects {
         null) {
       return;
     }
+    // --8<-- [end:foodioDeliverOnce]
     final orderId = FoodioEffectPayloadModel.orderId.require(effect.payload);
     final order = await data.find(_orders, orderId);
     if (order == null) {

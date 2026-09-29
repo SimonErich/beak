@@ -7,6 +7,7 @@ import 'package:worm/worm.dart';
 
 import '../../support/test_models.dart';
 
+// --8<-- [start:fieldPolicyFixture]
 final class _Policy extends BeakAllowAllPolicy
     implements BeakFieldPolicy, BeakRowPolicy {
   const _Policy();
@@ -28,6 +29,7 @@ final class _Policy extends BeakAllowAllPolicy
   BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
       model is ProductModel ? ProductModel.price.gt(0) : null;
 }
+// --8<-- [end:fieldPolicyFixture]
 
 void main() {
   late WormDataSource source;

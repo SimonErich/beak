@@ -26,6 +26,7 @@ enum InvoiceStatus {
 /// The invoice's business commands, each declared once and referenced by
 /// object wherever a screen, list or server rule mentions it.
 abstract final class InvoiceActions {
+  // --8<-- [start:invoiceIssueAction]
   /// Issues a draft invoice and locks its contents.
   static final issue = BeakModelAction(
     name: 'issue',
@@ -42,6 +43,7 @@ abstract final class InvoiceActions {
       ),
     ],
   );
+  // --8<-- [end:invoiceIssueAction]
 
   /// Records that an issued invoice has been paid.
   static final markPaid = BeakModelAction(

@@ -1067,6 +1067,7 @@ final class FoodioOrderPreparer {
     );
   }
 
+  // --8<-- [start:foodioGuardedCounter]
   /// Moves a guarded [counter] of the [ref] account by [delta] when it stays
   /// within [limit] (less [used] already committed elsewhere).
   Future<void> _counter(
@@ -1105,6 +1106,7 @@ final class FoodioOrderPreparer {
       );
     }
   }
+  // --8<-- [end:foodioGuardedCounter]
 
   void _attention(
     BeakCandidateGraph graph,
