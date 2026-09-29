@@ -52,6 +52,7 @@ abstract class BeakFieldRef<T extends Object> {
   /// Reads an already-loaded record without network or state side effects.
   T? readFrom(BeakRecord record);
 
+  // --8<-- [start:invalid]
   /// A validation failure attached to this field.
   ///
   /// A server-side rule throws it so the form highlights the field, without
@@ -66,6 +67,7 @@ abstract class BeakFieldRef<T extends Object> {
       key: [message],
     },
   );
+  // --8<-- [end:invalid]
 
   /// Resolves the owner record along an eagerly loaded to-one path.
   BeakRecord? ownerRecord(BeakRecord record) {
