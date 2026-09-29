@@ -44,8 +44,8 @@ Two orderings give the pipeline its shape. The parts are written before the scan
 | --- | --- | --- | --- |
 | `lib/**/<schema>.beak.dart` | one `@Resource` class, plus the inverse side of every relationship that points at it | yes | when its text changes |
 | `lib/beak/registry.g.dart` | every `BeakModel` found under `lib/` | yes | when its text changes |
-| `lib/beak/panel.g.dart` | `beak.yaml`, the models, resource classes, screens and override files | yes | when its text changes |
-| `lib/beak/app.g.dart` | the panel title in `beak.yaml` | yes | when its text changes |
+| `lib/beak/panel.g.dart` | `beak.yaml`, the models, resource classes, screens and override files | yes | when its text changes; only with a generated entrypoint |
+| `lib/beak/app.g.dart` | the panel title in `beak.yaml` | yes | when its text changes; only with a generated entrypoint |
 | `lib/beak/server.g.dart` | models, migrations, seeders, `lib/server.dart`, the `server:` block of `beak.yaml` | yes | when its text changes |
 | `lib/main.dart`, `bin/serve.dart`, `bin/migrate.dart` | fixed templates | no, the scaffold's `.gitignore` lists them | only while the file still starts with the generated header |
 | `lib/migrations/create_<table>_table.dart` | a model whose table no migration creates | yes, and yours | never, it is written once |
@@ -310,7 +310,7 @@ The committed files (`lib/beak/*.g.dart`, the parts) are always Beak's: a hand e
 Four more rules follow from the same idea:
 
 - `panel.entrypoint` in `beak.yaml` names a different file that boots the panel, as `beak init` sets up for an app that embeds Beak. Then `prepare` neither writes nor compares `lib/main.dart`, and `beak dev` adds `-t <that file>` to the `flutter run` line it prints.
-- After `eject main`, or with `panel.entrypoint` set, `panel.g.dart` and `app.g.dart` are still written and still checked, although your entrypoint does not import them. Deleting them is pointless: the next `prepare` writes them back.
+- After `eject main`, or with `panel.entrypoint` set, your entrypoint builds its own `BeakPanel`, so `prepare` neither writes nor compares `panel.g.dart` and `app.g.dart`, and deletes a pair the generated entrypoint left behind. A file of yours that imports either one, a widget test for `BeakApp` for instance, keeps both.
 - Migrations are yours from the moment they exist. An edited one is never touched. A deleted one is written again, with a new timestamp, because its table is uncovered.
 - The schema can be somebody else's. `@Resource(managesSchema: false)` writes no migration and switches off the doctor's undeclared-column and pivot checks for that table. `beak introspect <database-url> --ownership external` writes the classes that way and no migration; `--ownership adopt` writes a baseline migration that changes nothing on this database and builds the tables on an empty one.
 

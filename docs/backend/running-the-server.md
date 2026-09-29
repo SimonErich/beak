@@ -180,7 +180,7 @@ Three seams do the work. `beakHost(environment: {...})` replaces the resolved en
 | A bad `DATABASE_URL`, `PORT` or `HOST` fails the boot | `serve()` throws a `BeakConfigurationException` that names the variable. The generated `bin/serve.dart` prints it as one line (`error: PORT must be ...`) and exits `BeakServeHost.configurationExitCode` (`78`); an entry point that does not catch it ends in `Unhandled exception:` and exit `255` |
 | A port that is already taken is a configuration failure | `Port 8080 is already in use on 0.0.0.0. Stop the other process or choose another port with PORT (server.port in beak.yaml).` It is a `BeakConfigurationException` from `BeakServer.start()`, so it prints as one line like the others |
 | `serve()` initializes worm's default adapter | Calling it twice in one process, without `Worm.reset()` between, throws |
-| `defaults.build` sets no storage driver or data source | Use `beakStorageRegistry()` for a driver, a hand-built `BeakServer` for a data source |
+| `storage:` and `dataSource:` replace what the host resolved | A driver from a package goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER`. A data source that is not worm saves graph commits staged, not atomic, see [Custom data sources](../extending/custom-data-sources.md) |
 | One process holds the default sessions | The built-in session store is in memory, so a second instance does not know the first one's tokens. See [Auth and policies](auth-and-policies.md) |
 
 ## Verify it

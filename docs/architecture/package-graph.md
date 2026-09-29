@@ -55,7 +55,7 @@ Two packages float free of the Beak edges. `beak_cli` and `beak_serverpod_genera
 | `beak_frontend` | Flutter | `beak_core` | `obers_ui`, `obers_ui_autoforms`, `obers_ui_charts`, `signals`, `get_it`, `go_router`, `flutter_hooks` |
 | `beak_test` | pure Dart | `beak_core` | `test` |
 | `beak_image` | pure Dart | `beak_core` | `image` |
-| `beak_storage_s3` | pure Dart | `beak_core` | `minio` |
+| `beak_storage_s3` | pure Dart | `beak_core` | `http`, `crypto` |
 | `beak_storage_ftp` | pure Dart | `beak_core` | none, plain sockets |
 | `beak_cli` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `yaml`, `yaml_edit`, `worm`, `worm_postgres`, `worm_sqlite` |
 | `beak_serverpod` | pure Dart | `beak_core` | `http`, `uuid` |
@@ -112,7 +112,7 @@ It never touches `dart:io` or Shelf. `beak` depends on the three obers_ui packag
 
 #### Storage drivers are plug-ins
 
-`beak_backend` depends on no driver. `beak_core` defines `BeakStorageConfig` and `BeakStorageDriver`, and a driver package implements one and registers itself. A project that never names the S3 driver never resolves `minio`. [Storage internals](storage-internals.md) has the registry.
+`beak_backend` depends on no driver. `beak_core` defines `BeakStorageConfig` and `BeakStorageDriver`, and a driver package implements one and registers itself. The S3 driver signs its own requests (AWS Signature Version 4, over `http` and `crypto`), so a project that never adds `beak_storage_s3` never resolves it, and one that does resolves it next to `beak` with no override. [Storage internals](storage-internals.md) has the registry.
 
 #### The umbrella lists `beak_backend` as a dependency on purpose
 
@@ -120,16 +120,18 @@ A pubspec dependency costs nothing on its own, since only imports reach the comp
 
 ### The wall is checked, not trusted
 
-Two guards run inside `melos run analyze`.
+Three guards run inside `melos run analyze`.
 
 ```console
 $ dart run tool/check_no_material.dart
-Material-import guard passed (1150 Dart files scanned).
+Material-import guard passed (1186 Dart files scanned).
+$ dart run tool/check_hook_widgets.dart
+Hook-widget guard passed (no StatefulWidget or State).
 $ dart run tool/check_web_safe.dart
 Web-safety guard passed (12 panel entrypoints walked).
 ```
 
-`check_no_material.dart` fails on any `package:flutter/material.dart` or `cupertino.dart` import in Beak code. `check_web_safe.dart` walks the import graph from every panel-side entrypoint and fails on a web-unsafe URI:
+`check_no_material.dart` fails on any `package:flutter/material.dart` or `cupertino.dart` import in Beak code. `check_hook_widgets.dart` fails on a class in any package's `lib/` that extends `StatefulWidget`, `State`, `StatefulHookWidget` or `HookState`. `check_web_safe.dart` walks the import graph from every panel-side entrypoint and fails on a web-unsafe URI:
 
 ```dart title="tool/check_web_safe.dart"
 const List<String> webUnsafePackagePrefixes = [
@@ -143,7 +145,7 @@ const List<String> webUnsafePackagePrefixes = [
 ];
 ```
 
-It also rejects `dart:io`, `dart:ffi` and `dart:mirrors`. The second guard earns its keep because `dart:io` is not a compile error on the web. dart2js ships a patched `dart:io` whose members throw when called, so a stray server import gives a green build and an exception in the browser. CI also builds the quickstart and the shop panel for web on every run, as the empirical half of the same check. For a project's own files the same rule is `beak doctor`'s "no panel file imports the server" check.
+It also rejects `dart:io`, `dart:ffi` and `dart:mirrors`. The web guard earns its keep because `dart:io` is not a compile error on the web. dart2js ships a patched `dart:io` whose members throw when called, so a stray server import gives a green build and an exception in the browser. CI also builds the quickstart and the shop panel for web on every run, as the empirical half of the same check. For a project's own files the same rule is `beak doctor`'s "no panel file imports the server" check.
 
 ## Why it is shaped this way
 

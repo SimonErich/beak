@@ -160,7 +160,7 @@ Without the registration, the boot fails by name:
 BeakConfigurationException(configuration): No storage driver is registered for "s3". Registered drivers: memory, local.
 ```
 
-The bucket must exist, and its policy decides whether the URL in the response opens. The driver returns the plain object URL. The reference stack creates its bucket with anonymous download, so those URLs open. A private bucket answers the same URL with `403`, and the resolve route does not sign it (it asks the driver without an expiry). Put a CDN or proxy that authorizes reads in front of a private bucket. There is no environment variable for a public base URL (`BeakS3Config.publicBaseUrl`); build the config in code for that.
+The bucket must exist, and its policy decides whether the URL in the upload response opens. The upload returns the plain object URL. The reference stack creates its bucket with anonymous download, so those URLs open. A private bucket answers that URL with `403`. The resolve route (`GET .../upload?key=`) asks the driver for a link that expires after `signedUrlLifetime` and answers with a presigned one, so use it for a private bucket. With `BEAK_S3_PUBLIC_BASE_URL` set, for a CDN or proxy that authorizes reads, both routes answer with that public address instead.
 
 ### FTP
 
@@ -168,7 +168,7 @@ The same shape with `beak_storage_ftp` and `registerFtpStorage(registry)`, and t
 
 ### A driver of your own, or a data source of your own
 
-`lib/server.dart` can also return a hand-built `BeakServer` with `storage:` set to your own `BeakStorageDriver`. `defaults.build` has no such parameter. That route and the driver interface are in [Custom storage drivers](../extending/custom-storage-drivers.md).
+`defaults.build(storage: MyStorageDriver())` in `lib/server.dart` serves uploads through your own `BeakStorageDriver`, and `defaults.build(dataSource: MyDataSource())` serves the API from a source that is not worm. The driver interface is in [Custom storage drivers](../extending/custom-storage-drivers.md), the data source one in [Custom data sources](../extending/custom-data-sources.md).
 
 ## Rules and limits
 

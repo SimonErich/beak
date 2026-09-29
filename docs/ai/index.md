@@ -24,7 +24,7 @@ Read files by path (`.dart_tool/beak/docs/panel/resources.md`) and search with `
 
 ## What your training data gets wrong
 
-Rows marked `(removed)` name symbols that no longer exist in `packages/*/lib`. The other rows name the 0.9 form that replaces a habit. `dart run tool/build_agent_docs.dart --check` fails when a symbol in the `Beak 0.9 does` column does not exist, or when a removed symbol still does. A contributor who removes an API adds a row here.
+Rows marked `(removed)` name symbols that no Beak package declares any more. The other rows name the 0.9 form that replaces a habit. `dart run tool/build_agent_docs.dart --check` fails when a symbol in the `Beak 0.9 does` column does not exist, or when a removed symbol is still declared by a Beak package (the vendored worm packages are not searched). A contributor who removes an API adds a row here.
 
 | You may remember | Beak 0.9 does | Read |
 | --- | --- | --- |
@@ -41,8 +41,9 @@ Rows marked `(removed)` name symbols that no longer exist in `packages/*/lib`. T
 | `@Column(maxLength: 80)`, `@Column(min: 1)`, `@Column(max: 9)` (removed) | `rules: [BeakMaxLength(80)]`, `[BeakMin(1)]`, `[BeakMax(9)]`. A rule also sets the stored column length or bound | [Validation](../models/validation.md) |
 | `lib/resources/<table>.dart`, `lib/dashboard.dart`, `beak eject dashboard` (removed) | A `BeakResource` subclass under `lib/resources/<plural>/` (`beak eject resource <table>` writes one). A `BeakScreen` with `path: '/'` under `lib/screens/`, or `home:` | [Panel and resource options](../reference/panel-options.md) |
 | `BeakNavigationItem.page('/kitchen', label: 'Kitchen')` (removed) | `BeakNavigationItem.screen(kitchenScreen)`. `label:` and `icon:` stay as overrides | [Navigation](../panel/navigation.md) |
-| `graphOnlyTables: {'orders'}` (removed) | `graphOnly: const [OrderModel()]` on `BeakServer` and `defaults.build`. Every model must be registered, and the server needs a `preparePlan` | [Transactional business rules](../backend/graph-business-rules.md) |
+| `graphOnlyTables: {'orders'}` (removed) | `graphOnly: const [OrderModel()]` on `BeakServer` and `defaults.build`. Every model must be registered. It closes the per-record write routes and needs no `preparePlan` | [Transactional business rules](../backend/graph-business-rules.md) |
 | `initializeWormPostgres`, `postgresAdapterFromUrl` (removed) | `initializeBeakDatabase`, `adapterFromUrl` | [Databases](../backend/databases.md) |
+| `MinioS3ObjectClient` (removed), `dependency_overrides: xml` | `HttpS3ObjectClient(httpClient: ...)`. The S3 driver signs its own requests, so `beak` and `beak_storage_s3` resolve together with no override | [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md) |
 | `BeakSort(OrderModel.deliveryDate.key)`, `spec.orderBy(x.column)`, `sum(ProductModel.weight.column)` | `OrderModel.deliveryDate.ascending()` or `.descending()`, `spec.orderBy(OrderModel.deliveryDate)`, `spec.searching(term, [ProductModel.name])`, `sum(ProductModel.weight)` | [Queries](../reference/queries.md) |
 | `submitAction: 'place'` and other actions by name | A `BeakModelAction` object: `submitAction: OrderActions.place`, `BeakFormActions(actions: [...])`, `bulkModelActions`. A preparer asks `plan.runs(OrderActions.place)` | [Actions](../panel/actions.md) |
 | `BeakSummarySpec(table: ..., groupBy: X.label.column)` | `const XModel().summary(groupBy: XModel.label, measures: [measure])`, read with `row.valueOf(measure)`. A `BeakDecimal` money field sums with `BeakSummaryMeasure.sumDecimal`, read with `row.decimalOf(measure)` | [Population summaries](../blocks/summaries.md) |

@@ -24,7 +24,8 @@ Three things to know before you read on:
   `OiFieldLabel`, `OiIcon.raw` and more), so the pin resolves and the panel then
   fails to compile. The obers_ui state that has them is not published. Until the
   pin moves to it, work against a local checkout with
-  `melos run link-obers-ui`.
+  `melos run link-obers-ui`, and go back to the pin with
+  `melos run unlink-obers-ui`.
 - **Nothing is tagged yet.** A scaffold written by `beak create` pins
   `ref: v0.9.0`, so until that tag exists use
   `beak create --beak-path <repo root of a checkout>` (absolute; `packages/<name>`
@@ -129,6 +130,22 @@ migration table at the end collects the common ones.
   `static Set<BeakOperation> get capabilities`; the generated model forwards
   both. `beakStorageRegistry()` in `lib/server.dart` is wired into the generated
   host even when the file declares no `beakServer` override.
+- `beak make:migration --force` and `beak introspect --force` replace a file that
+  exists; without them both stop and name it. `--fields` takes the kind `double`.
+  The generated host orders create-table migrations behind the tables their
+  foreign keys point at, and a generated entrypoint that meets a refused setting
+  (`PORT`, `DATABASE_URL`, a storage variable) prints one line and exits `78`
+  (`BeakServeHost.configurationExitCode`).
+- `beak prepare` says when a project has no models yet, refuses a directory that
+  is not a Beak project, checks that a schema class declares its `part`
+  directive, and reports with the file and the fix a bare `@Image()` or
+  `@FileField()` (both need a `storagePath`), more than one `@Display`, and a
+  field named like a member the typed record view owns (`record`, `summary`).
+- `beak doctor` fails on a schema issue and on a migration that imports a file
+  that no longer exists, warns about panel wiring that an earlier generated
+  entrypoint left behind, and names the remedy for each kind of drift.
+  `BeakCliEnvironment.processEnvironment` is the shell's environment, so a
+  `DATABASE_URL` in the shell wins over `.env`.
 
 #### Coding agents
 
@@ -173,6 +190,15 @@ migration table at the end collects the common ones.
   pages under `docs/architecture/`.
 - `public_member_api_docs` lint enabled workspace-wide; every public API carries
   dartdoc, with usage examples on the primary user-facing types.
+- `melos run unlink-obers-ui` goes back to the pinned obers_ui, which
+  `link-obers-ui -- --unlink` could not. `melos run guard-hooks`
+  (`tool/check_hook_widgets.dart`) fails a `StatefulWidget` or `State` in any
+  package's `lib/`, and `check-agent-docs` runs inside `melos run analyze`. The
+  docs workflow builds the agent bundle and, for a `v*` tag, checks it with
+  `--release`. `tool/check_docs.dart` also checks snippet marker lines,
+  line-range includes and routing scope, and the web guard walks both
+  `schema.dart` libraries and the Serverpod libraries. CI gains the jobs
+  `install-smoke`, `showcase-web`, `foodio-web` and `serverpod-example`.
 
 #### Examples
 
@@ -237,6 +263,17 @@ migration table at the end collects the common ones.
 - Per-export typed columns and formats, including date patterns, currency minor
   units and enum labels. Schema `@EnumLabels` preserves readable labels across
   generated views without changing stored enum identifiers.
+- `BeakInternalException` (`internal`), `BeakPayloadTooLargeException`
+  (`payload_too_large`) and `BeakTransportException` (`transport`) join the
+  sealed `BeakException`. `BeakPagination.maxPerPage` (200) is the largest page a
+  server serves.
+- `beakLikeEscape`, `beakEscapeLike` and `beakLikeRegExp` build and evaluate
+  `LIKE` patterns with one escape character on every database, and worm's
+  `Predicate.escape` states it in the SQL.
+- Exact money sums: `BeakModel.sumDecimal` and `avgDecimal`,
+  `BeakSummaryMeasure.sumDecimal`, `BeakSummaryRow.decimalOf`,
+  `BeakScalarField<BeakDecimal>.avg`, `.scale` and `.exactColumn`,
+  `BeakDecimal.tryFromUnits` and `fromRoundedUnits`, and `BeakRounding`.
 
 #### beak_backend
 
@@ -277,14 +314,39 @@ migration table at the end collects the common ones.
 - worm_sqlite refuses adding a referencing column that has a non-NULL default
   (`alter.addColumn.foreignKey`), since SQLite would make every existing row point
   at the default.
+- `BeakServerDefaults.build(storage:, dataSource:, signedUrlLifetime:,
+  maxPerPage:)` takes a storage driver, a data source other than the worm
+  default, the lifetime of signed upload links (one hour) and the largest page
+  served (200). `BeakServer` also takes `onWarning`, which receives the one line
+  it prints at boot when it listens beyond loopback with the allow-all policy.
+- `POST /api/commits` is mounted over every data source. Over a source that is
+  not a `WormDataSource` on a transactional adapter a save is staged: every
+  operation is authorized first, then written through the source's own
+  `create`, `update`, `delete`, `attach` and `detach` in dependency order,
+  stopping at the first that fails. There is no rollback, and the receipts live in
+  memory (`maxStagedReceipts`, 1024 by default).
+- `GET /api/{table}/capabilities` reports `canCreate` and `canDelete` next to the
+  field lists. `BeakModelRules(hiddenFields:)` hides a field from the principals a
+  `BeakAccess` names. `WormDataSource.authorizeRead` is the read check that a
+  graph preparer hands to `BeakCandidateGraph.open`, so it loads only what the
+  caller may read.
+- `BeakOutboxTable`, `BeakFrameworkTables.outbox`, `BeakOutbox.prune`,
+  `BeakGraphCommitService.pruneReceipts` and `BeakCommitReceiptTable.createdAtColumn`
+  let a project map the outbox onto its own table and prune old rows and receipts.
+- `BeakTransformRunner.inspect` reads an image's size from its header, and
+  `ImageTransformRunner(maxPixelCount:)` (50 megapixels by default) refuses a
+  larger bitmap before it is decoded. `BEAK_S3_PUBLIC_BASE_URL` names the
+  address S3 file URLs are built from. worm_postgres exports `decodeColumnValue`.
 
 #### beak_test
 
 - `InMemoryBeakDataSource` follows the backend more closely: dotted relation
   paths and relation filters, has-many attach and detach, `like` patterns with
-  `%` and `_`, and search through the same filter builder the server uses
-  (`beakSearchFilter`). A widget test that filters or searches now sees what the
-  server would return.
+  `%` and `_` (with `\` as the escape character, through `beakLikeRegExp`), and
+  search through the same filter builder the server uses (`beakSearchFilter`). A
+  widget test that filters or searches now sees what the server would return.
+- `runBeakDataSourceContract` has groups for relation loads and for `attach` and
+  `detach`, so a custom data source is held to them too.
 
 #### beak_frontend: lists, filters and navigation
 
@@ -521,6 +583,56 @@ migration table at the end collects the common ones.
 - `tool/link_obers_ui.dart` links by declared dependencies only. A pubspec's
   `executables:` entry named `beak` used to be read as a dependency on the panel,
   which gave the pure Dart CLI an obers_ui override.
+- **Breaking, `beak_core`: three more `BeakException` variants.** An exhaustive
+  `switch` over the sealed `BeakException` needs arms for
+  `BeakInternalException`, `BeakPayloadTooLargeException` and
+  `BeakTransportException`. `BeakClient` maps the codes `internal`,
+  `payload_too_large` and `transport` to them, and a response without a Beak
+  code by its status (`401`, `403`, `404`, `409`, `413` and `422` to their own
+  variants, any `5xx` to `BeakInternalException`, anything else to
+  `BeakTransportException`). It used to report every unknown code as a
+  `BeakConfigurationException`.
+- **Breaking, the wire format and `like`.** A backslash in the operand of `like`
+  and `ilike` is the escape character on every database (`50\%` matches the text
+  `50%`), and `contains`, `startsWith`, `endsWith` and searches escape `%`, `_`
+  and `\` in the term, so a term matches the text it was given.
+  `BeakDateTimeValue` serializes UTC and compares by instant.
+- **Breaking, `beak_backend`: the query contract.** The server serves at most 200
+  rows a page; a larger `perPage` is served as 200 and the envelope's `perPage`
+  says so (`maxPerPage` on `defaults.build` lowers it). A mistake in a spec is a
+  `422`, not a `500`: an unknown table, field or relation, an operand of the
+  wrong type, a filter nested too deep, a dotted sort, aggregate or summary
+  column, a non-numeric aggregate column, bad search columns.
+  `BeakPagination`, `BeakSort` and `BeakRelationLoad` decode absent optional keys
+  with their defaults.
+- **Breaking, `beak_backend` and `beak_storage_s3`: the server host.**
+  `BeakTransformRunner` has a new abstract `inspect`. `MinioS3ObjectClient` is
+  renamed `HttpS3ObjectClient` and takes `httpClient:` and `clock:` instead of
+  `minio:`; a failing S3 response throws `S3ResponseException`. Storage errors
+  reach an HTTP caller as a generic message, and the driver's own text goes to the
+  log. Upload responses carry signed links (`signedUrlLifetime`, one hour), so a
+  private bucket is readable through them. A CSV cell that would run as a formula
+  starts with `'`, and a null cell is empty. `PUT` is no longer a CORS method.
+  `graphOnly` no longer needs a `preparePlan`.
+- **Breaking, `beak_cli`: safer commands.** `beak create` refuses a directory
+  that is not empty, `beak make:migration` refuses to overwrite a file, and
+  `beak introspect` stops at a schema file you edited (`--force` overrides the
+  last two). `beak migrate` checks its flags per verb (`--steps` belongs to `down`,
+  `--seed` to `fresh`, `--force` to `fresh` and `refresh`) and exits `64` on one
+  that does not fit; `migrate fresh` and `refresh` read `WORM_ENV` from `.env`.
+  `--fields decimal`
+  writes a `BeakDecimal` (it wrote a `double`, which is now `--fields double`).
+  With an authored `lib/main.dart` or a `panel.entrypoint`, `beak prepare` neither
+  writes nor compares `lib/beak/panel.g.dart` and `app.g.dart` and removes a pair
+  a generated entrypoint left behind, unless a file of yours imports one. A
+  refusal reads `Cannot generate: fix these first:` and lists every issue. The
+  table-name pluraliser knows irregulars (`Person` is `people`, `Day` is
+  `days`). A project counts as a Serverpod admin app only when it reaches its
+  server through the tunnel.
+- **Breaking (development only).** The ports of the compose stack bind to
+  `127.0.0.1`. The corrections table of the agent docs takes its heading from
+  the version, a missing table fails `check-agent-docs`, and a removed symbol is
+  proven gone against public declarations, the vendored worm packages excluded.
 
 ### Removed
 
@@ -560,6 +672,9 @@ migration table at the end collects the common ones.
   `openPostgresConnection` are private to the live-schema reader.
 - The tracked `.flutter-plugins-dependencies` under `packages/beak_frontend`, and
   the obsolete `/SUPERDASHBOARD_STATE.md` ignore entry.
+- `package:minio` and, with it, the `dependency_overrides: xml: ^7.0.1` that a
+  project depending on both `beak` and `beak_storage_s3` needed. The internal
+  `requireJsonMapOrNull` in `beak_core`.
 
 ### Fixed
 
@@ -668,7 +783,30 @@ migration table at the end collects the common ones.
   allergen snapshots, queues skip obsolete charges and notifications, and paid
   financial terms cannot change without cancellation or refund.
 - Tooling: `tool/check_coverage.dart` no longer describes the removed store
-  example, and `test/check_examples_test.dart` expects `foodio-adminpanel`.
+  example, and `test/check_examples_test.dart` expects `foodio-adminpanel`. Unlink
+  no longer leaves a bare `dependency_overrides:` header behind.
+- Queries: `%`, `_` and `\` in `contains`, `startsWith`, `endsWith` and search
+  terms were wildcards. A `sum` or `avg` over a money column no longer goes
+  through floating point: it keeps its integer units and reads back as a
+  `BeakDecimal`.
+- Server host: an invalid graph commit plan answered `500` at commit time and now
+  answers `422`; health probes (`/healthz`, `/readyz`) failed on a bad
+  `Authorization` header; a serial integer primary key could not be created or
+  edited (SQLite; see Known issues for Postgres); a native Postgres enum column
+  came back as raw bytes; a belongs-to eager load ignored its filter and a
+  has-many load included a soft-deleted related row; an image that declared a
+  huge bitmap was decoded before its size was checked; a port already in use
+  ended in a stack trace and now in one line that names `PORT`.
+- `beak_cli`: a field named like a member the generated model or its typed record
+  view owns (`summary`, `record`), a non-unique `@Display`, a bare `@Image()` or
+  `@FileField()` and an untyped `BeakScreen` produced generated code that did not
+  compile or went unseen, and are now reported or found. `beak prepare` and `beak migrate`
+  in a directory that is not a Beak project wrote files instead of refusing,
+  `beak create` into a directory with files overwrote them, and `beak prepare`
+  gave no note for an empty project. `beak introspect` wrote schema classes for
+  `_beak_commit_receipts` and `_beak_outbox`, and warns once for each `numeric`
+  column it reads as a `double`. `DATABASE_URL` from the shell now wins over
+  `.env`, and `beak doctor` gives the right advice for a pending migration.
 
 ### Known issues
 
@@ -676,37 +814,32 @@ These are open at 0.9.0. None is listed as fixed above.
 
 - A default `beak create` scaffold pins `ref: v0.9.0`, which does not exist until
   the release is tagged (use `--beak-path` or `--beak-ref` until then).
-- `melos run link-obers-ui -- --unlink` does not unlink: melos 6.3.3 appends the
-  argument to the end of the whole script. Use
-  `dart run tool/link_obers_ui.dart --unlink && melos bootstrap`. The tracked
-  lockfiles of `clean_beak_config`, `foodio-adminpanel` and `showcase` record a
-  linked obers_ui (`path: "../../../obers_ui"`) until they are re-resolved against
-  the pin.
+  `beak create --beak-path` and `beak init --beak-path` write the path into the
+  pubspec as given, so a relative path resolves from the new project.
+- The tracked lockfiles of `clean_beak_config`, `foodio-adminpanel` and
+  `showcase` record a linked obers_ui (`path: "../../../obers_ui"`) until they are
+  re-resolved against the pin. Run `melos run unlink-obers-ui` before you tag.
 - `BeakWizardScreen` silently ignores several `BeakFormScreen` parameters.
-- A `POST /api/commits` route is mounted only for `WormDataSource`, so a panel over
-  another server-side source can read but not save.
-- `BeakServer` defaults to `BeakAllowAllPolicy`, CORS `*` and host `0.0.0.0`
-  without a boot warning; set a policy before exposing a server.
-- SQLite: `migrate:refresh` cannot roll back a belongs-to column made by a
-  create-table migration (a table-level foreign key). Postgres can. A create-table
-  migration reads the model as it is now, so a fresh Postgres may create a table
-  with a foreign key to a table a later migration creates.
-- `beak prepare` on an empty project succeeds without a "no models yet" warning.
-  `prepare` and `migrate` in a directory that is not a Beak project write
-  `bin/` and `lib/` files instead of refusing, and `beak create` into a
-  directory that already has files overwrites the ones it writes. `beak dev` on
-  a busy port ends in a `SocketException` stack trace. `beak create --beak-path`
-  and `beak init --beak-path` write the path into the pubspec as given, so a
-  relative path resolves from the new project.
-- `beak introspect` on a database that Beak's own migrations already ran writes
-  schema classes for `_beak_commit_receipts` and `_beak_outbox`; delete them or
-  pass `--except`.
-- `beak_storage_s3` does not resolve next to `beak` without
-  `dependency_overrides: xml: ^7.0.1`: `minio 3.5.8` requires `xml ^6` and
-  `image 4.9.1` (through `beak_image`) requires `xml ^7`. Upload routes never
-  ask the driver for a signed URL, so a private bucket is not readable through
-  them.
 - A composed list saves a view but shows no picker to load one.
+- SQLite: `migrate:refresh` cannot roll back a belongs-to column made by a
+  create-table migration (a table-level foreign key). Postgres can. The order of
+  create-table migrations was proven on SQLite only.
+- Not tested against a real Postgres: creating a row on a serial integer key,
+  which relies on `RETURNING`, and writing a label into a native enum column.
+  Reads of both work.
+- `BeakDecimal` cannot read an existing `NUMERIC` column, because it reads and
+  writes integer units. `beak introspect` keeps `double` for such a column and
+  warns; converting it takes a migration of your own. A bare `@Image()` or
+  `@FileField()` is reported by `beak prepare`, because `storagePath` is required.
+- A graph commit over a data source that is not a `WormDataSource` on a
+  transactional adapter is staged: no rollback, receipts in memory (a restart
+  forgets them), and an operation with a version precondition
+  (`expectedUpdatedAt`) is refused. `canDelete` in
+  `GET /api/{table}/capabilities` is approximate for a per-record policy when the
+  request has no `?id=`. The image pixel ceiling counts one frame of an animated
+  GIF.
+- worm's production gate reads `WORM_ENV` from the shell, so a value in `.env`
+  applies through `beak migrate` but not when `bin/migrate.dart` runs directly.
 - The Serverpod admin app path is a proof, not a product: it has no uploads, no
   drift check between `.spy.yaml` files and the Beak schema classes, and no tested
   deployment. `BeakPanel(...)` has no `mapException`; the bridge's exception
@@ -732,6 +865,9 @@ From the pre-0.9 line, the renames people meet first:
 | `lib/resources/<table>.dart` `beakResource()` override | A `BeakResource` subclass (`beak eject resource <table>`) |
 | `GET /api/search`, `BeakClient.search` | `globalSearchSources` on the resource |
 | `headerGap`, `minColumnWidth`, `dividerSpacing` and the other size and gap parameters | `headerGapInPixels`, `minColumnWidthInPixels`, `dividerSpacingInPixels` |
+| `MinioS3ObjectClient(minio: ...)`, `dependency_overrides: xml` | `HttpS3ObjectClient(httpClient: ...)`, no override |
+| A `switch` over `BeakException` | Add arms for `BeakInternalException`, `BeakPayloadTooLargeException` and `BeakTransportException` |
+| `beak make:resource --fields price:decimal` (a `double`) | `price:double` for a `double`; `price:decimal` is a `BeakDecimal` now |
 
 #### Migrating from beak_serverpod 0.0.x
 

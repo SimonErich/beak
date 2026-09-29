@@ -34,8 +34,9 @@ reading.
 
 ## Rules that fail review
 
-- UI is obers_ui. Never import material.dart or cupertino.dart. Widgets are HookWidget,
-  state is Signals, DI is GetIt, routing is go_router.
+- UI is obers_ui. Never import material.dart or cupertino.dart (`guard-material`). Widgets
+  are HookWidget, never StatefulWidget or State (`guard-hooks`); state is Signals, DI is
+  GetIt, routing is go_router.
 - No `dynamic` (except `// interop:`), no `as` casts, no `Map<String, dynamic>` in a domain
   or public API. Beak users never write a string field reference and never touch
   `dynamic`; an API that forces either gets redesigned.

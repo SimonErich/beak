@@ -57,7 +57,7 @@ Each consumer reads a different property of the same `BeakColumn`.
 | --- | --- | --- |
 | Table cell | `visibleOn` contains `table`, the render intent, `sortable` | `renderBeakCell` in `packages/beak_frontend/lib/src/table/column_cell_renderer.dart` |
 | Form input | `visibleOn` contains `form`, the kind, the `rules` | `BeakFormLayout.fromModel` in `packages/beak_frontend/lib/src/form/beak_form_layout.dart` |
-| Read view | the form's fields, drawn read-only with the detail intent | `beakDefaultShowLayout` in `packages/beak_frontend/lib/src/pages/beak_default_show_layout.dart` |
+| Read view | `visibleOn` contains `detail`, drawn read-only with the detail intent | `beakDefaultShowLayout` in `packages/beak_frontend/lib/src/pages/beak_default_show_layout.dart` |
 | Filter | `filterable`; the kind picks the control | `beakDefaultFiltersOf` in `packages/beak_frontend/lib/src/filters/beak_default_filters.dart` |
 | API validation | `rules` and nullability | `ValidationService` in `packages/beak_backend/lib/src/service/validation_service.dart` |
 | CSV column | `visibleOn` contains `table`, the `label` | `CsvExportService` in `packages/beak_backend/lib/src/export/csv_export_service.dart` |
@@ -157,7 +157,7 @@ $ curl -s -XPOST localhost:8080/api/notes/query -H 'content-type: application/js
 
 What a caller may see is a policy question, not a `visibleOn` one.
 
-Two contexts do less than their names suggest. The generated read view is the form's fields drawn read-only, so a column marked `detail` but not `form` (`created_at` in the scaffold) is not on the default show page. `BeakContext.detail` picks the columns of the related-record tabs there, five at most, and `BeakFieldBlock` draws with the detail intent. `BeakContext.filter` is a render context and nothing reads `visibleOn` for it: filters come from `filterable`. If the default read view needs a field, put it in the form or give the resource a read screen.
+One context does less than its name suggests. `BeakContext.filter` is a render context, the intent a column draws with inside a filter, and nothing reads `visibleOn` for it: the filter bar comes from `filterable`. The generated read view lists the columns marked `detail`, so a column that is only `detail` (`created_at` in the scaffold) is on the default show page and a form-only column such as a password is not. The same context picks the columns of the related-record tabs there, five at most, and `BeakFieldBlock` draws with the detail intent. A resource with its own `BeakFormScreen` for the read role shares one layout between reading and editing, so the form columns decide what that page shows.
 
 The definition covers one model at a time. A rule that spans records (a unique pair, a total over child rows, a state machine) has a home on the model too, in `validationRules` and `behavior`, but it is still yours to write. Beak generates the plumbing, not the business rule.
 

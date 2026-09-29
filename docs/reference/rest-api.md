@@ -435,7 +435,7 @@ The answer is `201`. Store the `key` (and the variant keys) in the record's colu
 
 `GET /api/{table}/{columnKey}/upload?key={key}` answers `{ "url": "..." }` for an existing key that starts with the column's `storagePath`. A key outside that path is a `422`, a key with no stored file a `404`, and a missing `key` a `422`. When the table has a row scope, the key must be referenced by a record the caller can see in that column; unreferenced and hidden keys both answer `404`.
 
-The URL comes from `storage.url(key)` without an expiry. A local-disk or public-bucket URL stays public after the lookup, and a private S3 bucket does not get a signed URL from this route.
+The URL comes from `storage.url(key, expiresIn: signedUrlLifetime)`. A driver that signs (S3) answers with a presigned link that expires after `signedUrlLifetime` (one hour unless `defaults.build(signedUrlLifetime:)` says otherwise), unless `BEAK_S3_PUBLIC_BASE_URL` is set, in which case the public address is answered. A local-disk, memory or FTP URL is the same public address every time.
 
 ### Remove
 

@@ -179,7 +179,10 @@ BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
 | `GET /api/search`, `GlobalSearchService`, `BeakSearchHandlers`, `BeakClient.search`, `BeakSearchHit` | `globalSearchSources` on the resource | The panel's command bar sends one `POST /api/{table}/query` per resource |
 | `BeakResourceService.query`, `aggregate(scope:)`, `scopedQuery`, `intersect` | Removed | Internal |
 | Foodio's own `Timer.periodic` worker in `bin/serve.dart` | `outbox: BeakOutboxSchedule(...)` on `defaults.build`; the host starts and stops the loop | |
-| `BeakServerDefaults.dataSource` typed `BeakDataSource` | Typed `WormDataSource`, so a customizer can reach `defaults.dataSource.adapter` | |
+| `BeakServerDefaults.dataSource` typed `BeakDataSource` | Typed `WormDataSource`, so a customizer can reach `defaults.dataSource.adapter` | A different source goes in `defaults.build(dataSource:)` |
+| `MinioS3ObjectClient(minio: ...)` and `dependency_overrides: xml: ^7.0.1` | `HttpS3ObjectClient(httpClient: ..., clock: ...)`, and no override | A failing S3 response throws `S3ResponseException` |
+| An exhaustive `switch` over `BeakException` | Add arms for `BeakInternalException`, `BeakPayloadTooLargeException` and `BeakTransportException` | `BeakClient` reports a 5xx as `BeakInternalException` and a 413 as `BeakPayloadTooLargeException` |
+| A `BeakTransformRunner` of your own | Implement `inspect`, which reads an image's size from its header | `ImageTransformRunner` has it |
 
 `package:beak_backend` no longer exports these internals: `WormQueryTranslator`, `WormRecordModel`, the column type mapper, `BeakCrudHandlers`, `BeakExportHandlers`, `registerExportRoutes`, `BeakUploadHandlers`, `registerUploadRoutes`, `registerBeakCommitRoutes`, `beakResourceRouter`, `beakLocalUploadsRouter`, `beakHealthRouter`, `generateUuidV4`, `CsvExportService`, `UploadService`, `BeakResourceService`, `ValidationService` and `beakRowScope`. Code that reached for one builds a server through `BeakServerDefaults.build` instead.
 
@@ -200,7 +203,13 @@ These compile and behave differently. Check them by hand.
 - **`rules: [BeakMaxLength(n)]` now sets the column length.** A Postgres database created with the old default may show length drift in `beak doctor`. `beak make:migration --from-drift` adds columns only, so an altered length is a migration you write.
 - **`authSessions` without an `authGuard` now installs `TokenSessionAuthGuard`**, so issued tokens are validated and `/api/auth/me` works.
 - **The host clock reaches every write**, including per-record CRUD, graph commits and upload storage keys.
-- **CORS allows the `if-unmodified-since` header**, and `/readyz` answers `503` with a generic detail instead of the driver's text.
+- **CORS allows the `if-unmodified-since` header**, and `/readyz` answers `503` with a generic detail instead of the driver's text. `PUT` is no longer a CORS method.
+- **A backslash in `like` and `ilike` is the escape character.** `contains`, `startsWith`, `endsWith` and searches escape `%`, `_` and `\` in the term. A hand-written pattern that meant a literal backslash needs two.
+- **A page is at most 200 rows.** A request for more gets 200, and the envelope's `perPage` says so. Page through the rest, or take totals from a summary.
+- **A wrong spec is a `422`, not a `500`.** That covers an unknown table, field or relation, a dotted sort key and a non-numeric aggregate column.
+- **Dates travel as UTC**, and `BeakDateTimeValue` compares by instant.
+- **A CSV cell that would run as a formula starts with `'`.** A null cell is empty.
+- **`beak make:resource --fields price:decimal` writes a `BeakDecimal`.** It wrote a `double` before; the kind for that is now `double`.
 
 ## Rules and limits
 

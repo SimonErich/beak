@@ -23,7 +23,7 @@ You need chapter 5 finished. Stop `beak dev`; you restart it in a moment. The sh
 
 ## Close the server
 
-A `BeakServer` built without a policy allows everything to everyone, anonymous callers included, and nothing warns at boot. That suits the first hour. The panel's own permissions do not change it: hiding a button protects nothing, because a client that skips the panel skips the check. Authorization is the server's job.
+A `BeakServer` built without a policy allows everything to everyone, anonymous callers included. Bound beyond loopback it prints one `warning:` line at boot and serves anyway. That suits the first hour. The panel's own permissions do not change it: hiding a button protects nothing, because a client that skips the panel skips the check. Authorization is the server's job.
 
 The server needs a secret to hash passwords with. Put it in `.env`, which `beak create` already git-ignores, and keep a `.env.example` without the value for your teammates:
 
@@ -195,7 +195,7 @@ BeakPanel buildPanel({BeakDataSource? dataSource, BeakAuthConfig? auth}) =>
     );
 ```
 
-Restart the panel with `flutter run -d chrome`. A visitor who is not signed in lands on a Sign in card, whatever address they opened, and the card asks for a Username or email and a password. The field takes any account name, so `sam` would sign in as well as `sam@example.com`; the tutorial simply gave its two accounts email addresses. Sign in as Sam and the panel opens on the Shop overview, with a Sign out button in the top bar.
+Restart the panel with `flutter run -d chrome`. A visitor who is not signed in lands on a Sign in card, whatever address they opened, and the card asks for a Username or email and a password. The field takes any account name, so `sam` would sign in as well as `sam@example.com`; the tutorial gave its two accounts email addresses. Sign in as Sam and the panel opens on the Shop overview, with a Sign out button in the top bar.
 
 The panel does not know Sam cannot delete, and it draws the trash icon anyway. Press it: a toast says the record is deleted and offers Undo, and the row leaves the table. When the Undo window closes the panel sends the delete, the server answers with an `unapplied` outcome, and the row is back. The panel hid nothing and the server refused. If a role never deletes, `BeakResource` also takes `canDelete: false`, which keeps the icon away from everyone. What each role sees is presentation. The rule is on the server.
 

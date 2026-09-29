@@ -73,7 +73,7 @@ The full list is on [Annotations](../reference/annotations.md). `BeakFileType` c
 A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column. Its `storagePath` is the table name and an image column still gets the image default for `allowedTypes`. What does not work is an annotation with no `storagePath`: the constructor requires one, so `beak prepare` reports a bare `@Image()` or `@FileField(maxSizeInBytes: 1024)` and generates nothing until you fix it.
 
 ```text
-Cannot generate the Beak code, fix these first:
+Cannot generate: fix these first:
   lib/models/document.dart: Document.cover: @Image needs a storagePath, the folder its uploads land in. Write @Image(storagePath: 'documents'), or drop the annotation to use the table name.
 ```
 

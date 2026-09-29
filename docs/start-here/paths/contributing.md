@@ -42,7 +42,7 @@ melos run test
 melos run coverage
 ```
 
-`analyze` is a chain: `dart analyze` and `flutter analyze` at `--fatal-infos --fatal-warnings`, the tooling in `tool/`, then four guards (no Material imports, a web-safe panel import graph, the docs check and the examples check). `coverage` does not run tests; it reads the reports the tests wrote. After a code change, delete the old ones first:
+`analyze` is a chain: `dart analyze` and `flutter analyze` at `--fatal-infos --fatal-warnings`, the tooling in `tool/`, then the guards (no Material imports, no `StatefulWidget`, a web-safe panel import graph), the docs check, the agent docs bundle check and the examples check. `coverage` does not run tests; it reads the reports the tests wrote. After a code change, delete the old ones first:
 
 ```bash
 rm -rf packages/*/coverage examples/*/coverage
@@ -60,13 +60,13 @@ The panel builds on obers_ui, which the pubspecs pin by git commit. `melos boots
 melos run link-obers-ui
 ```
 
-`melos run link-obers-ui -- --unlink` does not unlink, because Melos 6.3.3 appends the flag to the end of the whole script. Use this instead:
+To go back to the pinned commits, run the script made for it (`melos run link-obers-ui -- --unlink` does not work, because Melos 6.3.3 appends the flag to the end of the whole script):
 
 ```bash
-dart run tool/link_obers_ui.dart --unlink && melos bootstrap
+melos run unlink-obers-ui
 ```
 
-Unlink before you tag a release: the tracked lockfiles of a few examples record the linked state while you are linked. [Working with obers_ui](../../contributing/working-with-obers-ui.md) has the rest.
+Unlink before you commit or tag a release: the tracked lockfiles of a few examples record the linked state while you are linked. [Working with obers_ui](../../contributing/working-with-obers-ui.md) has the rest.
 
 ## Where to pick up work
 
@@ -99,13 +99,13 @@ All four exit `0`. If `analyze` stops in `check-docs` or `check-examples`, the m
 | Command | What it does |
 | --- | --- |
 | `melos bootstrap` | Resolve every package |
-| `melos run analyze` | Analyzers, tooling, guards, docs and examples checks |
+| `melos run analyze` | Analyzers, tooling, guards, docs, agent docs and examples checks |
 | `melos run format-check` | `dart format --set-exit-if-changed` |
 | `melos run test` | `dart test` and `flutter test` per package, without the `e2e` tag |
 | `melos run coverage` | Per-package line-coverage floors |
 | `melos run up` / `down` | Start and stop the Postgres and MinIO stack |
 | `melos run test-e2e`, `test-worm` | The service-backed suites |
-| `melos run link-obers-ui` | Work against a local obers_ui |
+| `melos run link-obers-ui`, `unlink-obers-ui` | Work against a local obers_ui, and go back to the pinned commits |
 | `melos run agent-docs` | Rebuild the docs bundle coding agents read |
 
 ## Continue reading

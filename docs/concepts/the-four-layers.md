@@ -121,7 +121,7 @@ The DataSource in the panel is a `ModelBeakDataSource`. It routes each model to 
 | `BeakClient` (core) | HTTP error bodies | decodes `code` back into the matching `BeakException` |
 | `ModelBeakDataSource` (panel) | host exceptions | maps them with `mapException` into a `BeakException` and rethrows; it doesn't return results |
 | `beakRun` in `BeakResourceRepository` (panel) | `BeakException` | returns `BeakErr`; other exceptions go to `mapException` or are rethrown |
-| `BeakFormCommitRepository` (panel) | any `Exception` from a commit | returns an `unknown` receipt, because a thrown failure can't prove the server wrote nothing |
+| `BeakFormCommitRepository` (panel) | any `Exception` from a commit | returns an `unapplied` receipt for a typed refusal (422, 413, 401, 403, 404, 409) and an `unknown` one for anything that can't prove the server wrote nothing |
 
 Actions go through the same repository: `executeBeakAction` wraps a row, bulk or global action in `BeakResourceRepository.run` and reports a `BeakErr` to the host. [Results and errors](results-and-errors.md) follows a failure across all of these.
 
@@ -133,7 +133,7 @@ Every seam is an interface, so you replace one layer and leave the rest alone.
 | --- | --- | --- |
 | Panel to server | the `http.Client` under `BeakClient`, via `BeakPanel(httpClient:)` | a Serverpod tunnel (`ServerpodBeakHttpClient`) or a test client |
 | Panel data source | `BeakDataSource`, via `BeakPanel(dataSource:)` or `BeakModel.dataSource` per model | a fake in a widget test, or typed RPC (`ServerpodDataSource`) |
-| Server data source | `BeakDataSource`, `WormDataSource` by default | your own; graph commits are mounted only over `WormDataSource` |
+| Server data source | `BeakDataSource`, `WormDataSource` by default | your own, via `defaults.build(dataSource:)`; graph commits are atomic only over a `WormDataSource` on a transactional adapter, and staged over anything else |
 | Server database | worm's `DatabaseAdapter` | `ServerpodSessionAdapter`, so Beak runs on Serverpod's database |
 | Server pipeline | `BeakServer(middleware:, routes:, router:)` | extra endpoints and middleware in front of the generated API |
 

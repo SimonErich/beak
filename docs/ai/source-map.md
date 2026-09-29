@@ -182,6 +182,7 @@ The CLI is an executable, so there is no import. Run it as `beak <command>`.
 | The docs bundle and the corrections table check | none | `tool/build_agent_docs.dart` | `test/build_agent_docs_test.dart` |
 | The skill validator | none | `tool/published_skills.dart` | `test/published_skills_test.dart` |
 | The Material guard, `melos run guard-material` | none | `tool/check_no_material.dart` | `test/check_no_material_test.dart` |
+| The hook-widget guard, `melos run guard-hooks` | none | `tool/check_hook_widgets.dart` | `test/check_hook_widgets_test.dart` |
 | The web-safety guard, `melos run guard-web` | none | `tool/check_web_safe.dart` | `test/check_web_safe_test.dart` |
 
 ## Machine-readable twin

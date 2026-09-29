@@ -231,7 +231,7 @@ These are the imports that do not go through `package:beak`. An app rarely needs
 | `package:beak_backend/beak_backend.dart` | `beak_backend` | Dart VM | The server half without the umbrella. |
 | `package:beak_frontend/beak_frontend.dart` | `beak_frontend` | Flutter | The panel half without the umbrella. |
 | `package:beak_test/beak_test.dart` | `beak_test` | the `test` package | The contents of `testing.dart`. |
-| `package:beak_storage_s3/beak_storage_s3.dart` | `beak_storage_s3` | `minio` | `S3StorageDriver`, `S3ObjectClient`, `MinioS3ObjectClient`, `registerS3Storage`, `beakStorageS3Version` |
+| `package:beak_storage_s3/beak_storage_s3.dart` | `beak_storage_s3` | `http`, `crypto` | `S3StorageDriver`, `S3ObjectClient`, `HttpS3ObjectClient`, `S3ResponseException`, `registerS3Storage`, `beakStorageS3Version` |
 | `package:beak_storage_ftp/beak_storage_ftp.dart` | `beak_storage_ftp` | plain sockets | `FtpStorageDriver`, `FtpTransport`, `SocketFtpTransport`, `FtpProtocolException`, `registerFtpStorage`, `beakStorageFtpVersion` |
 | `package:beak_image/beak_image.dart` | `beak_image` | `package:image` | `ImageTransformRunner`, `beakImageVersion` |
 | `package:beak_serverpod/beak_serverpod.dart` | `beak_serverpod` | pure Dart | `ServerpodResource`, `ServerpodModel`, `ServerpodField`, `ServerpodDataSource`, the codecs and exception mapper |
@@ -254,7 +254,6 @@ These are the imports that do not go through `package:beak`. An app rarely needs
   | `package:beak_backend`, `package:beak_image`, `package:beak_storage_*` | Server-side Beak packages |
   | `package:minio`, `package:postgres`, `package:shelf`, `package:worm` (and `worm_*`) | Server-side third-party packages |
 
-- **Some libraries are not walked.** The guard's entrypoint list omits `packages/beak/lib/schema.dart`, `packages/beak_core/lib/schema.dart` and the Serverpod libraries `beak_serverpod/lib/wire.dart` and `beak_serverpod_flutter/lib/tunnel.dart`. None of them imports `dart:io` today (checked by search), and the guard would not notice if one started to. The Serverpod barrel `beak_serverpod_flutter.dart` is not walked either.
 - **`beak doctor` runs the same rule on your project.** It follows the imports from the panel entrypoint (`lib/main.dart`, or `panel.entrypoint` in `beak.yaml`) and from `lib/beak/app.g.dart`, and fails on any file it reaches that imports `package:beak/server.dart` or `package:beak/migrations.dart`:
 
   ```console

@@ -88,7 +88,7 @@ A pubspec dependency costs nothing on its own, since only imports reach the comp
 | --- | --- | --- | --- |
 | `beak_cli` | The `beak` executable: scaffolding, `prepare`, `dev`, `migrate`, `seed`, `introspect`, `eject`, `docs`, `agents`, `doctor`. Generates source as text and reads yours with the analyzer, so it imports no Beak package. See [CLI commands](cli-commands.md). | none | `analyzer`, `args`, `dart_style`, `yaml`, `yaml_edit`, `pub_semver`, `crypto`, `worm`, `worm_postgres`, `worm_sqlite` (to read a live schema) |
 | `beak_image` | `ImageTransformRunner`: executes the resize, re-encode and thumbnail steps of an image column. `beak_core` defines the steps and ships no codec. | `beak_core` | `image` |
-| `beak_storage_s3` | `S3StorageDriver` for AWS S3 and MinIO, `registerS3Storage` | `beak_core` | `minio` |
+| `beak_storage_s3` | `S3StorageDriver` for AWS S3 and MinIO, `registerS3Storage`. It signs its own requests (SigV4) over `http` and `crypto`, so it drags in no S3 SDK | `beak_core` | `http`, `crypto` |
 | `beak_storage_ftp` | `FtpStorageDriver` over plain sockets, `registerFtpStorage`. FTP has no expiring links, so files are served from a configured public base URL. | `beak_core` | none |
 
 The `memory` and `local` storage drivers are in `beak_core`, so uploads work with no extra dependency. `beak_backend` depends on no driver package; an S3 or FTP project adds the package and registers it, see [Configuration and environment](configuration.md).
@@ -245,6 +245,7 @@ The workspace root is `beak_workspace` (`pubspec.yaml`), which holds no product 
 | `melos run coverage` | `tool/check_coverage.dart` | a package is under its line-coverage threshold (85 percent by default) |
 | `melos run format-check` | `dart format --output=none --set-exit-if-changed .` | a file needs formatting |
 | `melos run guard-material` | `tool/check_no_material.dart` | a Material or Cupertino import |
+| `melos run guard-hooks` | `tool/check_hook_widgets.dart` | a `StatefulWidget` or `State` in a package's `lib/` |
 | `melos run guard-web` | `tool/check_web_safe.dart` | a server import in the panel graph |
 | `melos run check-examples` | `tool/check_examples.dart`, which runs `beak doctor --json` in each example | stale generated code, a model without a migration, a panel file reaching the server |
 | `melos run check-docs` | `tool/check_docs.dart` | a docs page breaks the style or structure rules |
@@ -260,7 +261,7 @@ Contributor detail is in [Dev infrastructure](../contributing/dev-infrastructure
 - A pure-Dart package that only declares models depends on `beak_core` and runs `beak prepare`; it gets the `*.beak.dart` parts and the registry and nothing else. See [Generated files and symbols](generated-files.md).
 - Only `beak_backend` imports worm on the data path. `beak_cli` and `beak_serverpod_server` name worm for their own reasons, and `beak` re-exports it in `migrations.dart`.
 - `beak_frontend` is the only package that imports obers_ui for widgets. `beak` depends on the three obers_ui packages only to re-export them.
-- Storage drivers are plug-ins. A project that never names S3 never resolves `minio`.
+- Storage drivers are plug-ins. A project that never adds `beak_storage_s3` never resolves it, and adding it next to `beak` needs no `dependency_overrides`.
 - Dart ^3.11.0 everywhere, Flutter `>=3.41.0` for the Flutter packages, Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.3 requires it.
 
 ## Source

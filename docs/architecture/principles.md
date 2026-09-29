@@ -82,16 +82,18 @@ Beak's UI is `obers_ui`, `obers_ui_autoforms` and `obers_ui_charts`, and nothing
 - Widgets are `HookWidget`. `StatefulWidget` is forbidden.
 - State is Signals, dependency injection is GetIt, routing is go_router.
 
-App authors rarely touch any of this. They write a schema class and a `beak.yaml`, and Beak wires the widgets. Two guards make the rule more than a request, and both run inside `melos run analyze`:
+App authors rarely touch any of this. They write a schema class and a `beak.yaml`, and Beak wires the widgets. Three guards make the rules more than a request, and all run inside `melos run analyze`:
 
 ```console
 $ dart run tool/check_no_material.dart
-Material-import guard passed (1150 Dart files scanned).
+Material-import guard passed (1186 Dart files scanned).
+$ dart run tool/check_hook_widgets.dart
+Hook-widget guard passed (no StatefulWidget or State).
 $ dart run tool/check_web_safe.dart
 Web-safety guard passed (12 panel entrypoints walked).
 ```
 
-The second guard exists because `dart:io` compiles on the web and throws at runtime, so nothing else would catch a server import in the panel. See [Package graph](package-graph.md).
+The first bans Material and Cupertino imports and the second bans `StatefulWidget`. The web guard exists because `dart:io` compiles on the web and throws at runtime, so nothing else would catch a server import in the panel. See [Package graph](package-graph.md).
 
 ### 5. Four layers, no fifth
 

@@ -302,15 +302,17 @@ repository (`../obers_ui`), run:
 $ melos run link-obers-ui
 ```
 
-`melos run link-obers-ui -- --unlink` does not unlink, because melos 6.3.3 appends
-the flag to the end of the whole script. Use this instead:
+To go back to the pinned commits, run `melos run unlink-obers-ui`. (Passing
+`-- --unlink` to `link-obers-ui` does not work, because melos 6.3.3 appends the
+flag to the end of the whole script.)
 
 ```console
-$ dart run tool/link_obers_ui.dart --unlink && melos bootstrap
+$ melos run unlink-obers-ui
 ```
 
-Unlink before you tag a release; the lockfiles of `clean_beak_config` and
-`foodio-adminpanel` are tracked and record a linked state while you are linked.
+Unlink before you commit or tag a release; the lockfiles of `clean_beak_config`,
+`foodio-adminpanel` and `showcase` are tracked and record a linked state while
+you are linked.
 [Working with obers_ui](https://simonerich.github.io/beak/contributing/working-with-obers-ui/)
 has the rest.
 

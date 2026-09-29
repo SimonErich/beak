@@ -53,7 +53,7 @@ flowchart LR
 
 The catch boundary is a middleware, not a handler. Everything below it throws, and one layer maps the sealed `BeakException` family to a status and a JSON body, so every endpoint answers errors the same way. [Middleware](middleware.md) has the pipeline and [Backend flow](../architecture/backend-flow.md) follows one request through it.
 
-The data source is an interface, `BeakDataSource`, defined in `beak_core`. `WormDataSource` implements it over the worm ORM, and worm types never leak past `beak_backend`. That is [the data source seam](../architecture/data-source-seam.md). A different store implements the interface, with one limit: graph saves, preparers and the outbox need a `WormDataSource`, see [Transactional business rules](graph-business-rules.md).
+The data source is an interface, `BeakDataSource`, defined in `beak_core`. `WormDataSource` implements it over the worm ORM, and worm types never leak past `beak_backend`. That is [the data source seam](../architecture/data-source-seam.md). A different store implements the interface, with one limit: graph saves over it are staged, not atomic, and preparers, behavior and the outbox need a `WormDataSource`, see [Transactional business rules](graph-business-rules.md).
 
 ## The defaults are open on purpose
 
