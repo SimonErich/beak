@@ -53,7 +53,7 @@ void main() {
 
       expect(
         build(spec).toSql(),
-        'SELECT * FROM products WHERE (price >= 10.0 AND active = TRUE) '
+        'SELECT id, name, price, active, created_at, category_id FROM products WHERE (price >= 10.0 AND active = TRUE) '
         "AND (name ILIKE '%laser%') AND deleted_at IS NULL "
         'ORDER BY price DESC LIMIT 5 OFFSET 5',
       );
@@ -235,7 +235,7 @@ void main() {
       );
       expect(
         _withoutPaging(build(spec).toSql()),
-        "SELECT * FROM products WHERE (name = 'Laser' OR "
+        "SELECT id, name, price, active, created_at, category_id FROM products WHERE (name = 'Laser' OR "
         '(active = TRUE AND price < 100.0))',
       );
     });
@@ -246,7 +246,10 @@ void main() {
         withTrashed: true,
         filter: BeakAndFilter([]),
       );
-      expect(_withoutPaging(build(spec).toSql()), 'SELECT * FROM products');
+      expect(
+        _withoutPaging(build(spec).toSql()),
+        'SELECT id, name, price, active, created_at, category_id FROM products',
+      );
     });
 
     test('rejects a filter referencing an unknown column', () {
@@ -331,7 +334,10 @@ void main() {
         table: 'products',
         withTrashed: true,
       ).searching('   ', [ProductColumns.name]);
-      expect(_withoutPaging(build(spec).toSql()), 'SELECT * FROM products');
+      expect(
+        _withoutPaging(build(spec).toSql()),
+        'SELECT id, name, price, active, created_at, category_id FROM products',
+      );
     });
   });
 

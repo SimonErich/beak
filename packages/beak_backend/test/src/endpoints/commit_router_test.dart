@@ -72,4 +72,61 @@ void main() {
     );
     expect(response.statusCode, 422);
   });
+
+  test('commitReceipts maps the receipts onto the host table', () async {
+    final adapter = source.adapter;
+    await adapter.executeSchema(
+      const SchemaDescriptor.createTable(
+        table: 'host_receipts',
+        columns: [
+          SchemaColumn(name: 'k', type: ColumnType.text, isPrimaryKey: true),
+          SchemaColumn(name: 'h', type: ColumnType.text),
+          SchemaColumn(name: 'req', type: ColumnType.text),
+          SchemaColumn(name: 'res', type: ColumnType.text),
+        ],
+      ),
+    );
+    final registry = createApiRegistry();
+    final mapped = const Pipeline()
+        .addMiddleware(beakErrorMappingMiddleware())
+        .addHandler(
+          beakApiRouter(
+            registry: registry,
+            dataSource: WormDataSource(registry, adapter: adapter),
+            commitReceipts: const BeakCommitReceiptTable(
+              table: 'host_receipts',
+              keyColumn: 'k',
+              requestHashColumn: 'h',
+              requestJsonColumn: 'req',
+              resultJsonColumn: 'res',
+            ),
+          ),
+        );
+    final plan = BeakSavePlan(
+      saveId: 'mapped',
+      root: const BeakRecordRef.draft('notes', 'draft'),
+      operations: [
+        BeakSaveOperation(
+          id: 'create',
+          kind: BeakSaveOperationKind.create,
+          target: const BeakRecordRef.draft('notes', 'draft'),
+          values: BeakRecord.fromRow({'title': 'Saved'}),
+        ),
+      ],
+    );
+
+    final response = await mapped(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/api/commits'),
+        body: jsonEncode(plan.toJson()),
+      ),
+    );
+
+    expect(response.statusCode, 200);
+    expect(
+      await adapter.select(const QueryDescriptor(table: 'host_receipts')),
+      hasLength(1),
+    );
+  });
 }

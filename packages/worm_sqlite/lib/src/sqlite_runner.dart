@@ -365,7 +365,7 @@ final class SqliteRunner {
   /// Dispose the cached statements and the underlying connection.
   void dispose() {
     _cache.clear();
-    _db.dispose();
+    _db.close();
   }
 
   Future<Map<String, Object?>> _aggregateRow(AggregateDescriptor d) async {

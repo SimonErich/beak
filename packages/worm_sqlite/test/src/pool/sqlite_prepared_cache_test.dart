@@ -14,7 +14,7 @@ void main() {
       db = sqlite3.openInMemory()..execute('CREATE TABLE t (id INTEGER)');
     });
 
-    tearDown(() => db.dispose());
+    tearDown(() => db.close());
 
     test('caches by SQL: a repeat lookup returns the same statement', () {
       final cache = SqlitePreparedCache(db);

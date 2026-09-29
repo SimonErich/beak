@@ -1,6 +1,8 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
+import 'beak_record_keys.dart';
+
 /// The generic worm model every Beak-managed table hydrates into.
 ///
 /// Beak models are metadata-only, so one runtime-configured worm model
@@ -44,6 +46,10 @@ final class WormRecordModel extends Model {
   /// the schema declares a flag and a string where it declares an instant,
   /// because the driver decides. [registry] does the same for the related
   /// records, which belong to other models.
+  ///
+  /// With a [model], only its [beakRecordKeys] are emitted, whatever the row
+  /// held: the allowlist that keeps an undeclared column out of every
+  /// response and receipt even if a statement read it.
   BeakRecord toBeakRecord({
     List<BeakRelationLoad> loads = const [],
     BeakModel? model,
@@ -51,7 +57,11 @@ final class WormRecordModel extends Model {
   }) => BeakRecord(
     values: {
       for (final name in _columnNames)
-        name: beakValueForColumn(model?.columnByKey(name), getAttribute(name)),
+        if (model == null || beakRecordKeys(model).contains(name))
+          name: beakValueForColumn(
+            model?.columnByKey(name),
+            getAttribute(name),
+          ),
     },
     relations: {
       for (final load in loads)

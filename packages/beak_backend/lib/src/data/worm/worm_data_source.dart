@@ -1,6 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
+import 'beak_record_keys.dart';
 import 'column_type_mapper.dart';
 import 'query_translator.dart';
 import 'worm_record_model.dart';
@@ -73,6 +74,9 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   @override
   Future<BeakRecord?> getOne(String table, Object id) async {
     final model = registry.byTableOrThrow(table);
+    if (_keyValue(model, id) == null) {
+      return null;
+    }
     final found = await _scopedBuilder(
       model,
     ).where(_primaryKeyPredicate(model, id)).first();
@@ -81,12 +85,20 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
 
   @override
   Future<BeakRecord> create(String table, BeakRecord data) async {
-    registry.byTableOrThrow(table);
+    final keys = beakRecordKeys(registry.byTableOrThrow(table));
     try {
       final row = await _adapter.insert(
-        InsertDescriptor(table: table, values: data.toRow()),
+        InsertDescriptor(
+          table: table,
+          values: data.toRow(),
+          // Never `RETURNING *`: an undeclared column stays in the database.
+          returning: keys.toList(growable: false),
+        ),
       );
-      return BeakRecord.fromRow(row);
+      return BeakRecord.fromRow({
+        for (final MapEntry(:key, :value) in row.entries)
+          if (keys.contains(key)) key: value,
+      });
     } on UniqueConstraintException {
       throw const BeakConflictException(
         'A value that must be unique is already in use.',
@@ -276,6 +288,7 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
     final existingRows = await _adapter.select(
       QueryDescriptor(
         table: relation.pivotTable,
+        columns: [relation.relatedPivotKey],
         where: _pivotPredicate(relation, id, relatedIds),
       ),
     );
@@ -427,15 +440,26 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   }
 
   QueryBuilder<WormRecordModel> _scopedBuilder(BeakModel model) =>
-      QueryBuilder<WormRecordModel>.from(
-        _translator.contextFor(model, _adapter),
-      );
+      _translator.projectedBuilder(model, _adapter);
+
+  /// [id] in the primary key's own type, or `null` when no record can have
+  /// it. A route delivers ids as text, so an integer key parses here rather
+  /// than reaching the adapter as a string it would compare, or cast,
+  /// differently.
+  Object? _keyValue(BeakModel model, Object id) => switch (id) {
+    final String text when model.primaryKey is BeakIntColumn => int.tryParse(
+      text,
+    ),
+    _ => id,
+  };
 
   PredicateTree _primaryKeyPredicate(BeakModel model, Object id) => LeafNode(
     Predicate(
       fieldName: model.primaryKey.key,
       operator: Operator.eq,
-      value: id,
+      value:
+          _keyValue(model, id) ??
+          (throw BeakNotFoundException(_missingRecord(model, id))),
     ),
   );
 

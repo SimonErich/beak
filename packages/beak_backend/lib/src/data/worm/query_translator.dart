@@ -1,6 +1,7 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:worm/worm.dart';
 
+import 'beak_record_keys.dart';
 import 'column_type_mapper.dart';
 import 'worm_record_model.dart';
 
@@ -48,9 +49,7 @@ final class WormQueryTranslator {
     DatabaseAdapter adapter,
   ) {
     final model = registry.byTableOrThrow(spec.table);
-    var builder = QueryBuilder<WormRecordModel>.from(
-      contextFor(model, adapter),
-    );
+    var builder = projectedBuilder(model, adapter);
     if (spec.withTrashed) {
       builder = builder.withTrashed();
     }
@@ -76,6 +75,15 @@ final class WormQueryTranslator {
     }
     return builder;
   }
+
+  /// A scoped query over [model] that reads only [beakRecordKeys]: the
+  /// declared columns and belongs-to foreign keys, never `SELECT *`.
+  QueryBuilder<WormRecordModel> projectedBuilder(
+    BeakModel model,
+    DatabaseAdapter adapter,
+  ) => QueryBuilder<WormRecordModel>.from(
+    contextFor(model, adapter),
+  ).select([for (final key in beakRecordKeys(model)) Field<Object?>(key)]);
 
   /// Builds the scoped, filtered worm query behind [spec]; the data source
   /// picks the aggregate terminal (count/sum/avg).

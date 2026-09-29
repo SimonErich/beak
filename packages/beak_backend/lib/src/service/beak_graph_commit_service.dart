@@ -12,6 +12,7 @@ import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';
 import '../data/worm/worm_data_source.dart';
 import 'beak_commit_receipts_migration.dart';
+import 'beak_framework_tables.dart';
 import 'beak_resource_service.dart';
 import 'beak_revision_timestamp.dart';
 import 'validation_service.dart';
@@ -43,7 +44,8 @@ typedef BeakSavePlanFinalizer =
 
 /// Authenticated graph persistence with transactional or explicit staged receipts.
 ///
-/// Apply [BeakCommitReceiptsMigration] before accepting commits. Receipts have no
+/// Apply [BeakCommitReceiptsMigration] before accepting commits (or map
+/// [receipts] onto a table another migration system owns). Receipts have no
 /// automatic expiry: an old idempotency key never becomes a new write.
 final class BeakGraphCommitService {
   /// Binds persistence and authorization once per backend.
@@ -57,6 +59,7 @@ final class BeakGraphCommitService {
     this.policy = const BeakAllowAllPolicy(),
     this.preparePlan,
     this.finalizePlan,
+    this.receipts = BeakCommitReceiptTable.beak,
     DateTime Function()? now,
     String Function()? generateId,
   }) : _now = now ?? DateTime.now,
@@ -82,6 +85,9 @@ final class BeakGraphCommitService {
 
   /// Transactional post-validation writes, with resulting record identities.
   final BeakSavePlanFinalizer? finalizePlan;
+
+  /// The durable receipt store.
+  final BeakCommitReceiptTable receipts;
 
   // Serializes in-process use of adapters whose transactions are snapshot based.
   // The receipt primary key independently protects concurrent server processes.
@@ -113,7 +119,9 @@ final class BeakGraphCommitService {
       );
       final prepared = receipt == null
           ? plan
-          : BeakSavePlan.fromJson(_decodeMap(receipt['request_json']));
+          : BeakSavePlan.fromJson(
+              _decodeMap(receipt[receipts.requestJsonColumn]),
+            );
       return _redact(result, prepared, principal);
     } finally {
       released.complete();
@@ -128,7 +136,7 @@ final class BeakGraphCommitService {
     final encoded = jsonEncode(_canonical(plan.toJson()));
     final hash = sha256.convert(utf8.encode(encoded)).toString();
     final existing = await _receipt(source.adapter, key);
-    if (existing != null && existing['request_hash'] != hash) {
+    if (existing != null && existing[receipts.requestHashColumn] != hash) {
       throw const BeakConflictException(
         'Save identity was reused with different content.',
       );
@@ -140,7 +148,9 @@ final class BeakGraphCommitService {
           prior.hasUnknown ||
           prior.mode == BeakSaveMode.atomic) {
         await _authorizeReceipt(
-          BeakSavePlan.fromJson(_decodeMap(existing['request_json'])),
+          BeakSavePlan.fromJson(
+            _decodeMap(existing[receipts.requestJsonColumn]),
+          ),
           principal,
           prior,
         );
@@ -173,7 +183,7 @@ final class BeakGraphCommitService {
       }
       var expectedReceipt = existing == null
           ? jsonEncode(_pending(plan).toJson())
-          : switch (existing['result_json']) {
+          : switch (existing[receipts.resultJsonColumn]) {
               final String value => value,
               _ => throw const BeakConfigurationException(
                 'Malformed durable save receipt.',
@@ -212,9 +222,11 @@ final class BeakGraphCommitService {
             registry.all.any((model) => !model.behavior.isEmpty)) {
           await adapter.update(
             UpdateDescriptor(
-              table: BeakCommitReceiptsMigration.table,
-              values: {'request_json': jsonEncode(prepared.toJson())},
-              where: const StringField('id').eq(key),
+              table: receipts.table,
+              values: {
+                receipts.requestJsonColumn: jsonEncode(prepared.toJson()),
+              },
+              where: StringField(receipts.keyColumn).eq(key),
             ),
           );
         }
@@ -284,14 +296,14 @@ final class BeakGraphCommitService {
       // A competing process committed this save while our insert waited.
       final winner = await _receipt(source.adapter, key);
       if (winner == null) rethrow;
-      if (winner['request_hash'] != hash) {
+      if (winner[receipts.requestHashColumn] != hash) {
         throw const BeakConflictException(
           'Save identity was reused with different content.',
         );
       }
       final result = _decodeReceipt(winner);
       await _authorizeReceipt(
-        BeakSavePlan.fromJson(_decodeMap(winner['request_json'])),
+        BeakSavePlan.fromJson(_decodeMap(winner[receipts.requestJsonColumn])),
         principal,
         result,
       );
@@ -320,6 +332,27 @@ final class BeakGraphCommitService {
     }
   }
 
+  /// The table-level decision for [op], taken before any behavior or
+  /// `preparePlan` hook runs: app code must never execute (and reach
+  /// non-transactional side effects) for a write the principal may not
+  /// make. Each operation's dispatch repeats it with resolved identities.
+  void _authorizeTable(BeakSaveOperation op, BeakPrincipal? principal) {
+    final model = registry.byTableOrThrow(op.target.table);
+    final Object? id = op.target.id;
+    _require(switch (op.kind) {
+      BeakSaveOperationKind.create => policy.canCreate(principal, model),
+      BeakSaveOperationKind.delete =>
+        id == null || policy.canDelete(principal, model, id),
+      _ => id == null || policy.canUpdate(principal, model, id),
+    }, principal);
+    if (op.owner case BeakRecordRef(:final table, :final Object id)) {
+      _require(
+        policy.canUpdate(principal, registry.byTableOrThrow(table), id),
+        principal,
+      );
+    }
+  }
+
   Future<BeakSavePlan> _prepare(
     BeakSavePlan plan,
     WormDataSource transactional,
@@ -328,6 +361,7 @@ final class BeakGraphCommitService {
     try {
       for (final operation in plan.operations) {
         _authorizeInput(operation, principal);
+        _authorizeTable(operation, principal);
       }
       final prepared = await _prepareBehavior(plan, transactional, principal);
       return await preparePlan?.call(prepared, transactional, principal) ??
@@ -886,7 +920,9 @@ final class BeakGraphCommitService {
     if (receipt == null) {
       throw BeakNotFoundException('No receipt for save "$saveId".');
     }
-    final plan = BeakSavePlan.fromJson(_decodeMap(receipt['request_json']));
+    final plan = BeakSavePlan.fromJson(
+      _decodeMap(receipt[receipts.requestJsonColumn]),
+    );
     final result = _decodeReceipt(receipt);
     await _authorizeReceipt(plan, principal, result);
     return _redact(result, plan, principal);
@@ -1386,8 +1422,8 @@ final class BeakGraphCommitService {
   Future<Map<String, Object?>?> _receipt(DatabaseAdapter adapter, String key) =>
       adapter.selectOne(
         QueryDescriptor(
-          table: BeakCommitReceiptsMigration.table,
-          where: const StringField('id').eq(key),
+          table: receipts.table,
+          where: StringField(receipts.keyColumn).eq(key),
           limit: 1,
         ),
       );
@@ -1401,12 +1437,12 @@ final class BeakGraphCommitService {
   ) async {
     await adapter.insert(
       InsertDescriptor(
-        table: BeakCommitReceiptsMigration.table,
+        table: receipts.table,
         values: {
-          'id': key,
-          'request_hash': hash,
-          'request_json': request,
-          'result_json': jsonEncode(result.toJson()),
+          receipts.keyColumn: key,
+          receipts.requestHashColumn: hash,
+          receipts.requestJsonColumn: request,
+          receipts.resultJsonColumn: jsonEncode(result.toJson()),
         },
       ),
     );
@@ -1418,16 +1454,16 @@ final class BeakGraphCommitService {
     BeakSaveResult result, {
     String? expectedJson,
   }) async {
-    var predicate = const StringField('id').eq(key);
+    var predicate = StringField(receipts.keyColumn).eq(key);
     if (expectedJson != null) {
       predicate = predicate.and(
-        const StringField('result_json').eq(expectedJson),
+        StringField(receipts.resultJsonColumn).eq(expectedJson),
       );
     }
     final affected = await adapter.update(
       UpdateDescriptor(
-        table: BeakCommitReceiptsMigration.table,
-        values: {'result_json': jsonEncode(result.toJson())},
+        table: receipts.table,
+        values: {receipts.resultJsonColumn: jsonEncode(result.toJson())},
         where: predicate,
       ),
     );
@@ -1439,7 +1475,7 @@ final class BeakGraphCommitService {
   }
 
   BeakSaveResult _decodeReceipt(Map<String, Object?> receipt) =>
-      BeakSaveResult.fromJson(_decodeMap(receipt['result_json']));
+      BeakSaveResult.fromJson(_decodeMap(receipt[receipts.resultJsonColumn]));
 
   Map<String, Object?> _decodeMap(Object? value) {
     if (value is String) {

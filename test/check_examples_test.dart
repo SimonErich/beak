@@ -44,6 +44,17 @@ void main() {
       ]);
     });
 
+    test('skips a pub workspace root, which has its own CI job', () {
+      final root = _treeWith({'store': true, 'serverpod': true});
+      File(
+        '${root.path}/$examplesDir/serverpod/pubspec.yaml',
+      ).writeAsStringSync('name: _\nworkspace:\n  - shop_server\n');
+
+      expect(examplesIn(root).map((d) => d.path.split('/').last), <String>[
+        'store',
+      ]);
+    });
+
     test('returns nothing when there is no examples directory', () {
       final root = Directory.systemTemp.createTempSync('beak_no_examples_');
       addTearDown(() => root.deleteSync(recursive: true));

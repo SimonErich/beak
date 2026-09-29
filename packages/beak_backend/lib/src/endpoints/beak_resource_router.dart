@@ -10,6 +10,7 @@ import '../data/worm/worm_data_source.dart';
 import '../export/csv_export_service.dart';
 import '../export/export_router.dart';
 import '../server/middleware/error_mapping_middleware.dart';
+import '../service/beak_framework_tables.dart';
 import '../service/beak_resource_service.dart';
 import '../service/beak_graph_commit_service.dart';
 import '../uploads/upload_router.dart';
@@ -87,6 +88,10 @@ Router beakResourceRouter(
 /// rejecting direct CRUD and relationship mutations while retaining all read
 /// operations; every model it names must be registered.
 ///
+/// [commitReceipts] maps the graph-commit receipts onto a table (default:
+/// Beak's own `_beak_commit_receipts`), for a host whose migrations Beak does
+/// not own.
+///
 /// [onUnexpectedError] receives the failures the readiness probe swallows, so
 /// `/readyz` can answer with a generic detail instead of the raw error.
 ///
@@ -121,6 +126,7 @@ Handler beakApiRouter({
   BeakSavePlanPreparer? preparePlan,
   BeakSavePlanFinalizer? finalizePlan,
   List<BeakModel> graphOnly = const [],
+  BeakCommitReceiptTable commitReceipts = BeakCommitReceiptTable.beak,
   BeakUnexpectedErrorListener? onUnexpectedError,
 }) {
   final graphOnlyTables = {
@@ -213,6 +219,7 @@ Handler beakApiRouter({
         policy: policy,
         preparePlan: preparePlan,
         finalizePlan: finalizePlan,
+        receipts: commitReceipts,
         now: now,
         generateId: generateId,
       ),

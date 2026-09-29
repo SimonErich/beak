@@ -12,14 +12,18 @@ dependencies:
     path: ../beak_core
   beak_frontend:
     path: ../beak_frontend
+  beak_serverpod:
+    path: ../beak_serverpod
   flutter:
     sdk: flutter
-  serverpod_auth_core_flutter: 4.0.0-beta.0
-  serverpod_auth_idp_client: 4.0.0-beta.0
+  serverpod_auth_core_flutter: '>=4.0.3 <5.0.0'
+  serverpod_auth_idp_client: '>=4.0.3 <5.0.0'
+  serverpod_client: '>=4.0.3 <5.0.0'
   signals: ^6.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  http: ^1.6.0
   lints: ^6.0.0
   mocktail: ^1.0.4

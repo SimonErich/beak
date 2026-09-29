@@ -35,6 +35,7 @@ export 'src/server/middleware/json_middleware.dart';
 export 'src/server/middleware/request_log_middleware.dart';
 export 'src/service/beak_graph_commit_service.dart';
 export 'src/service/beak_commit_receipts_migration.dart';
+export 'src/service/beak_framework_tables.dart';
 export 'src/service/beak_outbox.dart';
 export 'src/service/beak_revision_timestamp.dart' show beakRevisionTimestamp;
 

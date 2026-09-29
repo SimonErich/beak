@@ -228,7 +228,13 @@ void runBeakDataSourceContract(
 
     group('create', () {
       test('persists and echoes the stored record', () async {
-        final BeakRecord draft = BeakRecordFactory(seed: 99).build(model);
+        // A fresh id: a second factory restarts its sequence, so its first
+        // generated key is the first seeded row's. Only a store that
+        // enforces primary keys (any real database) notices.
+        final BeakRecord draft = BeakRecordFactory(seed: 99).build(
+          model,
+          overrides: {model.primaryKey.key: const BeakStringValue('fresh-id')},
+        );
         final BeakRecord created = await source.create(model.table, draft);
 
         expect(model.primaryKeyOf(created), isNotNull);

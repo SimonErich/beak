@@ -74,9 +74,37 @@ Iterable<File> _gatedDartFiles() sync* {
       if (name.startsWith('worm')) {
         continue;
       }
-      if (!File('${entity.path}/pubspec.yaml').existsSync()) {
+      final pubspec = File('${entity.path}/pubspec.yaml');
+      if (!pubspec.existsSync()) {
         continue;
       }
+      if (isWorkspaceRoot(pubspec.readAsStringSync())) {
+        yield* _beakMemberDartFiles(entity);
+        continue;
+      }
+      yield* _dartFilesUnder(entity);
+    }
+  }
+}
+
+/// Whether [pubspecSource] is a pub workspace root (a `workspace:` list).
+///
+/// `examples/serverpod` is one. Its Serverpod template members (the
+/// storefront app) are not Beak code, so only its Beak members are gated.
+bool isWorkspaceRoot(String pubspecSource) =>
+    RegExp(r'^workspace:', multiLine: true).hasMatch(pubspecSource);
+
+/// Whether [pubspecSource] depends on a Beak package.
+bool dependsOnBeak(String pubspecSource) =>
+    RegExp(r'^  beak[a-z_]*:', multiLine: true).hasMatch(pubspecSource);
+
+Iterable<File> _beakMemberDartFiles(Directory workspace) sync* {
+  for (final entity in workspace.listSync(followLinks: false)) {
+    if (entity is! Directory) {
+      continue;
+    }
+    final pubspec = File('${entity.path}/pubspec.yaml');
+    if (pubspec.existsSync() && dependsOnBeak(pubspec.readAsStringSync())) {
       yield* _dartFilesUnder(entity);
     }
   }

@@ -42,11 +42,11 @@ class ServerpodAuthErrors {
     EmailAccountPasswordResetException() => const BeakValidationException(
       'The verification request or password was rejected.',
     ),
-    ServerpodClientException(statusCode: 401) =>
+    ServerpodClientHttpException(statusCode: 401) =>
       const BeakAuthenticationException(
         'The device session is no longer valid.',
       ),
-    ServerpodClientException(statusCode: 403) =>
+    ServerpodClientHttpException(statusCode: 403) =>
       const BeakAuthorizationException('Access denied.'),
     _ =>
       mapper?.call(error, stackTrace) ??

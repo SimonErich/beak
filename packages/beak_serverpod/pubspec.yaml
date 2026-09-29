@@ -9,6 +9,7 @@ environment:
 dependencies:
   beak_core:
     path: ../beak_core
+  http: ^1.6.0
   uuid: ^4.5.3
 
 dev_dependencies:

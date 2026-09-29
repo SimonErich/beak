@@ -62,7 +62,7 @@ final class SqlitePreparedCache {
     _missCount++;
     if (_cache.length >= maxSize) {
       final evicted = _cache.remove(_cache.keys.first);
-      evicted?.dispose();
+      evicted?.close();
     }
     final statement = _database.prepare(sql);
     _cache[sql] = statement;
@@ -75,7 +75,7 @@ final class SqlitePreparedCache {
   /// tables) and when the connection closes.
   void clear() {
     for (final statement in _cache.values) {
-      statement.dispose();
+      statement.close();
     }
     _cache.clear();
     _hitCount = 0;

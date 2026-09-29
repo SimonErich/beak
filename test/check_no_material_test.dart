@@ -35,4 +35,17 @@ const String rule = 'no material';
 ''';
     expect(forbiddenImportsIn(source), isEmpty);
   });
+
+  test('recognises a pub workspace root and its Beak members', () {
+    expect(isWorkspaceRoot('name: _\nworkspace:\n  - shop_server\n'), isTrue);
+    expect(isWorkspaceRoot('name: shop\nresolution: workspace\n'), isFalse);
+    expect(
+      dependsOnBeak('dependencies:\n  beak_core:\n    path: ../beak_core\n'),
+      isTrue,
+    );
+    expect(
+      dependsOnBeak('dependencies:\n  serverpod_flutter: 4.0.3\n'),
+      isFalse,
+    );
+  });
 }

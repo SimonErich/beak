@@ -38,6 +38,6 @@ dependencies:
 dev_dependencies:
   # The doctor suite builds a real SQLite file to prove drift detection works
   # on the zero-setup default, not only against a server.
-  sqlite3: ^2.4.6
+  sqlite3: ^3.3.1
   lints: ^6.0.0
   test: ^1.25.6

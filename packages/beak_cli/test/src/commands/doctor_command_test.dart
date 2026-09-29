@@ -675,7 +675,7 @@ int get monthlyTotal => 0;
           'id TEXT PRIMARY KEY, name TEXT, price NUMERIC(12, 4), '
           'created_at TEXT, updated_at TEXT, deleted_at TEXT)',
         );
-        database.dispose();
+        database.close();
 
         final checks = await diagnose(environmentFor(root));
         expect(

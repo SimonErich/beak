@@ -176,7 +176,7 @@ void main() {
       final auth = adapter(
         resolve: (signedIn) async {
           if (signedIn) {
-            throw const ServerpodClientException('unauthorized', 401);
+            throw ServerpodClientUnauthorized();
           }
           return null;
         },

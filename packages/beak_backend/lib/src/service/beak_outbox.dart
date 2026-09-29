@@ -185,9 +185,12 @@ final class BeakOutboxWorker {
       final candidates = await adapter.select(
         QueryDescriptor(
           table: BeakOutboxMigration.table,
+          // Grouped: SQL binds AND tighter than OR, so an ungrouped `OR`
+          // would make every pending entry due on every scan.
           where: const StringField('status')
               .eq('pending')
               .or(const StringField('status').eq('running'))
+              .group()
               .and(const ComparableField<int>('available_at').lte(now)),
           limit: limit,
         ),

@@ -26,7 +26,7 @@ void main() {
     database = sqlite3.openInMemory();
   });
 
-  tearDown(() => database.dispose());
+  tearDown(() => database.close());
 
   group('tables', () {
     test('are read, and SQLite\'s own bookkeeping is not', () {

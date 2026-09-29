@@ -189,7 +189,7 @@ class ServerpodAuthAdapter extends BeakAuthAdapter {
     } catch (error, stackTrace) {
       if (_disposed || resolution != _resolution) return _cancelled;
       if (id != null &&
-          (error is ServerpodClientException && error.statusCode == 401 ||
+          (error is ServerpodClientHttpException && error.statusCode == 401 ||
               isUnauthenticated?.call(error) == true)) {
         // Await the listener's newer guest resolution, never commit this stale
         // signed-in request over it after clearing the rejected token.
