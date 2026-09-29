@@ -146,21 +146,33 @@ final class Invoice extends BeakSchema {
   /// Optional billing address saved with the document.
   late final String? customerAddress;
 
-  /// Net line subtotal after line discounts, before vouchers, in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? subtotalCents;
+  /// Net line subtotal after line discounts, before vouchers.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? subtotal;
 
-  /// Total voucher discount in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? discountCents;
+  /// Total voucher discount.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? discount;
 
-  /// Rounded exclusive tax in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? taxCents;
+  /// Rounded exclusive tax.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? tax;
 
-  /// Payable total in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? totalCents;
+  /// Payable total.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? total;
 
   /// Owned product, variant and custom service lines.
   @HasMany(owned: true, onDelete: BeakOnDelete.cascade)

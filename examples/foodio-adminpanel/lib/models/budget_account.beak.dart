@@ -116,12 +116,13 @@ abstract final class BudgetAccountRelations {
 
 /// Typed configuration references for BudgetAccount.
 final class BudgetAccountFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const BudgetAccountFields({
-    BeakModel model = const BudgetAccountModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of BudgetAccount, rooted at its own model.
+  const BudgetAccountFields()
+    : _model = const BudgetAccountModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const BudgetAccountFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -218,7 +219,7 @@ final class BudgetAccountToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   BudgetAccountFields get fields =>
-      BudgetAccountFields(model: model, path: [...path, relation]);
+      BudgetAccountFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

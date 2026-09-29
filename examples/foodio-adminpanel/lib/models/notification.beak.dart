@@ -107,12 +107,13 @@ abstract final class NotificationRelations {
 
 /// Typed configuration references for Notification.
 final class NotificationFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const NotificationFields({
-    BeakModel model = const NotificationModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Notification, rooted at its own model.
+  const NotificationFields()
+    : _model = const NotificationModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const NotificationFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -209,7 +210,7 @@ final class NotificationToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   NotificationFields get fields =>
-      NotificationFields(model: model, path: [...path, relation]);
+      NotificationFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

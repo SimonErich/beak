@@ -153,12 +153,13 @@ abstract final class OrganizationRelations {
 
 /// Typed configuration references for Organization.
 final class OrganizationFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const OrganizationFields({
-    BeakModel model = const OrganizationModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Organization, rooted at its own model.
+  const OrganizationFields()
+    : _model = const OrganizationModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const OrganizationFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -296,7 +297,7 @@ final class OrganizationToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   OrganizationFields get fields =>
-      OrganizationFields(model: model, path: [...path, relation]);
+      OrganizationFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

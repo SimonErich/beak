@@ -11,10 +11,10 @@ abstract final class FoodioInvoiceRules {
   ) async {
     final invoiceRefs = <BeakRecordRef>{};
     for (final node in graph.nodes) {
-      if (node.ref.table == 'invoices' && node.changed) {
+      if (node.isOf(const InvoiceModel()) && node.changed) {
         invoiceRefs.add(node.ref);
       }
-      if (node.ref.table == 'orders' && node.changed) {
+      if (node.isOf(const OrderModel()) && node.changed) {
         final current = node.reference(OrderModel.invoice);
         final previous = node.originalReference(OrderModel.invoice);
         if (current != null) invoiceRefs.add(current);
@@ -40,7 +40,10 @@ abstract final class FoodioInvoiceRules {
           );
           for (final record in result.items) {
             final node = await graph.load(
-              BeakRecordRef.existing('orders', record['id']!.raw!),
+              BeakRecordRef.of(
+                const OrderModel(),
+                OrderModel.id.require(record),
+              ),
             );
             records[node.ref] = node;
           }
@@ -49,7 +52,7 @@ abstract final class FoodioInvoiceRules {
         }
       }
       for (final node in graph.nodes) {
-        if (node.ref.table == 'orders' &&
+        if (node.isOf(const OrderModel()) &&
             node.reference(OrderModel.invoice) == ref) {
           records[node.ref] = node;
         }

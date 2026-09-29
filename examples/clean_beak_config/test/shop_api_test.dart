@@ -6,11 +6,21 @@ import 'dart:io';
 import 'package:beak/migrations.dart';
 import 'package:clean_beak_config/beak/server.g.dart';
 import 'package:clean_beak_config/resources/invoices/models/invoice.dart';
+import 'package:clean_beak_config/resources/invoices/models/invoice_item.dart';
+import 'package:clean_beak_config/resources/invoices/models/invoice_voucher.dart';
 import 'package:clean_beak_config/resources/orders/models/order.dart';
+import 'package:clean_beak_config/resources/orders/models/order_item.dart';
 import 'package:clean_beak_config/resources/fulfillment/models/fulfillment_policy.dart';
+import 'package:clean_beak_config/resources/products/models/product.dart';
+import 'package:clean_beak_config/resources/products/models/product_variant.dart';
+import 'package:clean_beak_config/resources/taxes/models/tax_rate.dart';
+import 'package:clean_beak_config/resources/users/models/user.dart';
 import 'package:clean_beak_config/resources/users/models/user_profile_connection.dart';
+import 'package:clean_beak_config/resources/vouchers/models/voucher.dart';
 import 'package:clean_beak_config/seeders/shop_seeder.dart';
 import 'package:test/test.dart';
+
+import 'support/money.dart';
 
 void main() {
   late DatabaseAdapter adapter;
@@ -58,10 +68,10 @@ void main() {
             id: 'create-product',
             kind: BeakSaveOperationKind.create,
             target: root,
-            values: BeakRecord.fromRow({
-              'name': 'Simple product',
-              'price': 4.9,
-            }),
+            values: const ProductModel().record([
+              ProductModel.name.to('Simple product'),
+              ProductModel.price.to(eur('4.90')),
+            ]),
           ),
         ],
       ),
@@ -112,20 +122,12 @@ void main() {
       final updated = await client.update(
         'fulfillment_policies',
         id,
-        BeakRecord(
-          values: {
-            FulfillmentPolicyModel.deliveryFee.key: FulfillmentPolicyModel
-                .deliveryFee
-                .column
-                .semantic
-                .encode(const BeakDecimal(12345, scale: 2)),
-            FulfillmentPolicyModel.regions.key: FulfillmentPolicyModel
-                .regions
-                .column
-                .semantic
-                .encode(['AT', 'IT']),
-          },
-        ),
+        const FulfillmentPolicyModel().record([
+          FulfillmentPolicyModel.deliveryFee.to(
+            const BeakDecimal(12345, scale: 2),
+          ),
+          FulfillmentPolicyModel.regions.to(['AT', 'IT']),
+        ]),
       );
       expect(
         FulfillmentPolicyModel.deliveryFee.readFrom(updated)?.toString(),
@@ -249,18 +251,19 @@ void main() {
       final plan = _invoicePlan('invoice-calculation');
       final saved = await client.commit(plan);
       expect(saved.complete, isTrue, reason: '${saved.toJson()}');
-      expect(saved.rootRecord?['subtotal_cents']?.raw, 12300);
-      expect(saved.rootRecord?['discount_cents']?.raw, 1730);
-      expect(saved.rootRecord?['tax_cents']?.raw, 1899);
-      expect(saved.rootRecord?['total_cents']?.raw, 12469);
+      final invoice = saved.rootRecord!;
+      expect(InvoiceModel.subtotal.readFrom(invoice), eur('123.00'));
+      expect(InvoiceModel.discount.readFrom(invoice), eur('17.30'));
+      expect(InvoiceModel.tax.readFrom(invoice), eur('18.99'));
+      expect(InvoiceModel.total.readFrom(invoice), eur('124.69'));
       expect(saved.rootRecord?['customer_name']?.raw, 'Ada Lovelace');
       final item = await client.getOne(
         'invoice_items',
         saved.identities['catalog-line']!,
       );
-      expect(item?['unit_price']?.raw, 49.0);
-      expect(item?['tax_percent']?.raw, 20.0);
-      expect(item?['label']?.raw, contains('1 kg'));
+      expect(InvoiceItemModel.unitPrice.readFrom(item!), eur('49.00'));
+      expect(InvoiceItemModel.taxPercent.readFrom(item), eur('20.00'));
+      expect(InvoiceItemModel.label.readFrom(item), contains('1 kg'));
       const catalogRef = BeakRecordRef.existing(
         'product_variants',
         ShopSeedIds.filterCoffeeLarge,
@@ -274,18 +277,22 @@ void main() {
               id: 'catalog-price',
               kind: BeakSaveOperationKind.update,
               target: catalogRef,
-              values: BeakRecord.fromRow({'price': 99.0}),
+              values: const ProductVariantModel().record([
+                ProductVariantModel.price.to(eur('99.00')),
+              ]),
             ),
           ],
         ),
       );
       expect(catalogSave.complete, isTrue);
       expect(
-        (await client.getOne(
-          'invoice_items',
-          saved.identities['catalog-line']!,
-        ))?['unit_price']?.raw,
-        49.0,
+        InvoiceItemModel.unitPrice.readFrom(
+          (await client.getOne(
+            'invoice_items',
+            saved.identities['catalog-line']!,
+          ))!,
+        ),
+        eur('49.00'),
       );
       expect(
         (await client.commit(plan)).toJson(),
@@ -344,7 +351,7 @@ void main() {
       );
       expect(paid.complete, isTrue, reason: '${paid.toJson()}');
       expect(paid.rootRecord?['status']?.raw, 'paid');
-      expect(paid.rootRecord?['total_cents']?.raw, 12469);
+      expect(InvoiceModel.total.readFrom(paid.rootRecord!), eur('124.69'));
       final edited = await client.commit(
         BeakSavePlan(
           saveId: 'edit-issued',
@@ -434,24 +441,12 @@ void main() {
       }
       final filtered = await client.query(
         'invoices',
-        const BeakQuerySpec(
-          table: 'invoices',
+        const InvoiceModel().query(
           filter: BeakAndFilter([
-            BeakFieldFilter.forKey(
-              'status',
-              BeakOperator.eq,
-              BeakStringValue('issued'),
-            ),
-            BeakFieldFilter.forKey(
-              'total_cents',
-              BeakOperator.between,
-              BeakListValue([BeakIntValue(12000), BeakIntValue(13000)]),
-            ),
-            BeakFieldFilter.forKey(
-              'issued_at',
-              BeakOperator.gte,
-              BeakStringValue('2026-09-01T00:00:00.000Z'),
-            ),
+            InvoiceModel.status.eq(InvoiceStatus.issued),
+            InvoiceModel.total.gte(eur('120.00')),
+            InvoiceModel.total.lte(eur('130.00')),
+            InvoiceModel.issuedAt.gte(DateTime.utc(2026, 9)),
           ]),
         ),
       );
@@ -479,7 +474,10 @@ void main() {
         id: 'product',
         kind: BeakSaveOperationKind.create,
         target: product,
-        values: BeakRecord.fromRow({'name': 'Test coffee', 'price': 8.5}),
+        values: const ProductModel().record([
+          ProductModel.name.to('Test coffee'),
+          ProductModel.price.to(eur('8.50')),
+        ]),
         references: const {
           'category_id': BeakRecordRef.existing(
             'categories',
@@ -667,7 +665,7 @@ void main() {
     'draft tax references reprice deliberately while catalog edits preserve snapshots',
     () async {
       final saved = await client.commit(
-        _invoicePlan('draft-tax-change', status: 'draft'),
+        _invoicePlan('draft-tax-change', status: InvoiceStatus.draft),
       );
       expect(saved.complete, isTrue, reason: '${saved.toJson()}');
       final invoice = BeakRecordRef.existing(
@@ -688,7 +686,9 @@ void main() {
               id: 'tax',
               kind: BeakSaveOperationKind.update,
               target: tax,
-              values: BeakRecord.fromRow({'rate_percent': 15.0}),
+              values: const TaxRateModel().record([
+                TaxRateModel.ratePercent.to(eur('15')),
+              ]),
             ),
           ],
         ),
@@ -712,8 +712,10 @@ void main() {
       );
       expect(resaved.complete, isTrue, reason: '${resaved.toJson()}');
       expect(
-        (await client.getOne(item.table, item.id!))?['tax_percent']?.raw,
-        10.0,
+        InvoiceItemModel.taxPercent.readFrom(
+          (await client.getOne(item.table, item.id!))!,
+        ),
+        eur('10.00'),
       );
       final changed = await client.commit(
         BeakSavePlan(
@@ -738,10 +740,12 @@ void main() {
       );
       expect(changed.complete, isTrue, reason: '${changed.toJson()}');
       expect(
-        (await client.getOne(item.table, item.id!))?['tax_percent']?.raw,
-        20.0,
+        InvoiceItemModel.taxPercent.readFrom(
+          (await client.getOne(item.table, item.id!))!,
+        ),
+        eur('20.00'),
       );
-      expect(changed.rootRecord?['tax_cents']?.raw, 2114);
+      expect(InvoiceModel.tax.readFrom(changed.rootRecord!), eur('21.14'));
       final moved = await client.commit(
         BeakSavePlan(
           saveId: 'move-invoice-row',
@@ -844,7 +848,7 @@ void main() {
     'invoice named actions enforce terminal states and idempotent receipts',
     () async {
       final draft = await client.commit(
-        _invoicePlan('workflow', status: 'draft'),
+        _invoicePlan('workflow', status: InvoiceStatus.draft),
       );
       expect(draft.complete, isTrue, reason: '${draft.toJson()}');
       final root = BeakRecordRef.existing(
@@ -925,13 +929,13 @@ void main() {
               target: variant,
               owner: product,
               relationKey: 'variants',
-              values: BeakRecord.fromRow({
-                'name': 'Duplicate',
-                'sku': 'UNIQUE-SKU',
-                'price': 12.0,
-                'stock': 0,
-                'active': true,
-              }),
+              values: const ProductVariantModel().record([
+                ProductVariantModel.name.to('Duplicate'),
+                ProductVariantModel.sku.to('UNIQUE-SKU'),
+                ProductVariantModel.price.to(eur('12.00')),
+                ProductVariantModel.stock.to(0),
+                ProductVariantModel.active.to(true),
+              ]),
             ),
             for (var index = 0; index < attributes.length; index++)
               BeakSaveOperation(
@@ -969,119 +973,132 @@ BeakSavePlan _invoicePlan(
   bool duplicateVoucher = false,
   bool duplicatePosition = false,
   String customLabel = 'Barista setup consultation',
-  String status = 'issued',
+  InvoiceStatus status = InvoiceStatus.issued,
 }) {
-  const invoice = BeakRecordRef.draft('invoices', 'invoice');
+  final invoice = BeakRecordRef.draftOf(const InvoiceModel(), 'invoice');
   return BeakSavePlan(
     saveId: saveId,
-    action: status == 'issued' ? InvoiceActions.issue.name : null,
+    action: status == InvoiceStatus.issued ? InvoiceActions.issue.name : null,
     root: invoice,
     operations: [
-      BeakSaveOperation(
+      BeakSaveOperation.create(
         id: 'invoice',
-        kind: BeakSaveOperationKind.create,
-        target: invoice,
-        values: BeakRecord.fromRow({
-          'number': saveId,
-          'status': 'draft',
-          'issued_at': DateTime.utc(2026, 9, 20),
-          'due_at': DateTime.utc(2026, 10, 4),
-        }),
-        references: const {
-          'customer_id': BeakRecordRef.existing('users', ShopSeedIds.ada),
-        },
+        model: const InvoiceModel(),
+        draftId: 'invoice',
+        values: [
+          InvoiceModel.number.to(saveId),
+          InvoiceModel.status.to(InvoiceStatus.draft),
+          InvoiceModel.issuedAt.to(DateTime.utc(2026, 9, 20)),
+          InvoiceModel.dueAt.to(DateTime.utc(2026, 10, 4)),
+        ],
+        links: [
+          InvoiceModel.customer.linkTo(
+            BeakRecordRef.of(const UserModel(), ShopSeedIds.ada),
+          ),
+        ],
       ),
-      BeakSaveOperation(
+      BeakSaveOperation.create(
         id: 'catalog-line',
-        kind: BeakSaveOperationKind.create,
-        target: const BeakRecordRef.draft('invoice_items', 'catalog-line'),
+        model: const InvoiceItemModel(),
+        draftId: 'catalog-line',
         owner: invoice,
-        relationKey: 'items',
-        values: BeakRecord.fromRow({'quantity': 2}),
-        references: {
-          'product_id': BeakRecordRef.existing(
-            'products',
-            wrongProduct ? ShopSeedIds.beans : ShopSeedIds.filterCoffee,
+        through: InvoiceModel.items,
+        values: [InvoiceItemModel.quantity.to(2)],
+        links: [
+          InvoiceItemModel.product.linkTo(
+            BeakRecordRef.of(
+              const ProductModel(),
+              wrongProduct ? ShopSeedIds.beans : ShopSeedIds.filterCoffee,
+            ),
           ),
-          'variant_id': const BeakRecordRef.existing(
-            'product_variants',
-            ShopSeedIds.filterCoffeeLarge,
+          InvoiceItemModel.variant.linkTo(
+            BeakRecordRef.of(
+              const ProductVariantModel(),
+              ShopSeedIds.filterCoffeeLarge,
+            ),
           ),
-        },
+        ],
       ),
-      BeakSaveOperation(
+      BeakSaveOperation.create(
         id: 'custom-line',
-        kind: BeakSaveOperationKind.create,
-        target: const BeakRecordRef.draft('invoice_items', 'custom-line'),
+        model: const InvoiceItemModel(),
+        draftId: 'custom-line',
         owner: invoice,
-        relationKey: 'items',
-        values: BeakRecord.fromRow({
-          'label': customLabel,
-          'quantity': 1,
-          'unit_price': 25.0,
-        }),
-        references: const {
-          'tax_rate_id': BeakRecordRef.existing(
-            'tax_rates',
-            ShopSeedIds.reducedTax,
+        through: InvoiceModel.items,
+        values: [
+          InvoiceItemModel.label.to(customLabel),
+          InvoiceItemModel.quantity.to(1),
+          InvoiceItemModel.unitPrice.to(eur('25.00')),
+        ],
+        links: [
+          InvoiceItemModel.taxRate.linkTo(
+            BeakRecordRef.of(const TaxRateModel(), ShopSeedIds.reducedTax),
           ),
-        },
+        ],
       ),
       for (var index = 0; index < 2; index++)
-        BeakSaveOperation(
+        BeakSaveOperation.create(
           id: 'voucher-$index',
-          kind: BeakSaveOperationKind.create,
-          target: BeakRecordRef.draft('invoice_vouchers', 'voucher-$index'),
+          model: const InvoiceVoucherModel(),
+          draftId: 'voucher-$index',
           owner: invoice,
-          relationKey: 'vouchers',
-          values: BeakRecord.fromRow({
-            'position': duplicatePosition ? 0 : index,
-          }),
-          references: {
-            'voucher_id': BeakRecordRef.existing(
-              'vouchers',
-              index == 0 || duplicateVoucher
-                  ? ShopSeedIds.welcomeVoucher
-                  : ShopSeedIds.loyaltyVoucher,
+          through: InvoiceModel.vouchers,
+          values: [
+            InvoiceVoucherModel.position.to(duplicatePosition ? 0 : index),
+          ],
+          links: [
+            InvoiceVoucherModel.voucher.linkTo(
+              BeakRecordRef.of(
+                const VoucherModel(),
+                index == 0 || duplicateVoucher
+                    ? ShopSeedIds.welcomeVoucher
+                    : ShopSeedIds.loyaltyVoucher,
+              ),
             ),
-          },
+          ],
         ),
     ],
   );
 }
 
 BeakSavePlan _orderPlan(String saveId, {required int quantity}) {
-  const order = BeakRecordRef.draft('orders', 'order');
+  final order = BeakRecordRef.draftOf(const OrderModel(), 'order');
   return BeakSavePlan(
     saveId: saveId,
     root: order,
     operations: [
-      BeakSaveOperation(
+      BeakSaveOperation.create(
         id: 'order',
-        kind: BeakSaveOperationKind.create,
-        target: order,
-        values: BeakRecord.fromRow({
-          'reference': 'SHOP-001',
-          'delivery_date': DateTime.utc(2200),
-        }),
-        references: const {
-          'customer_id': BeakRecordRef.existing('users', ShopSeedIds.ada),
-          'profile_id': BeakRecordRef.existing(
-            'user_profile_connections',
-            ShopSeedIds.adaProfile,
+        model: const OrderModel(),
+        draftId: 'order',
+        values: [
+          OrderModel.reference.to('SHOP-001'),
+          OrderModel.deliveryDate.to(DateTime.utc(2200)),
+        ],
+        links: [
+          OrderModel.customer.linkTo(
+            BeakRecordRef.of(const UserModel(), ShopSeedIds.ada),
           ),
-        },
+          OrderModel.profile.linkTo(
+            BeakRecordRef.of(
+              const UserProfileConnectionModel(),
+              ShopSeedIds.adaProfile,
+            ),
+          ),
+        ],
       ),
-      BeakSaveOperation(
+      BeakSaveOperation.create(
         id: 'line',
-        kind: BeakSaveOperationKind.create,
-        target: const BeakRecordRef.draft('order_items', 'line'),
+        model: const OrderItemModel(),
+        draftId: 'line',
         owner: order,
-        relationKey: 'items',
-        values: BeakRecord.fromRow({'quantity': quantity}),
-        references: const {
-          'product_id': BeakRecordRef.existing('products', ShopSeedIds.beans),
-        },
+        through: OrderModel.items,
+        values: [OrderItemModel.quantity.to(quantity)],
+        links: [
+          OrderItemModel.product.linkTo(
+            BeakRecordRef.of(const ProductModel(), ShopSeedIds.beans),
+          ),
+        ],
       ),
     ],
   );

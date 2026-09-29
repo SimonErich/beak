@@ -1,6 +1,14 @@
 import 'package:beak/migrations.dart';
 
 import '../domain/shop_totals.dart';
+import '../resources/invoices/models/invoice.dart';
+import '../resources/invoices/models/invoice_item.dart';
+import '../resources/invoices/models/invoice_voucher.dart';
+import '../resources/orders/models/order_item.dart';
+import '../resources/products/models/product.dart';
+import '../resources/products/models/product_variant.dart';
+import '../resources/taxes/models/tax_rate.dart';
+import '../resources/vouchers/models/voucher.dart';
 
 /// Stable identities shared by the demo and its integration tests.
 abstract final class ShopSeedIds {
@@ -73,6 +81,13 @@ abstract final class ShopSeedIds {
   /// Confirmed example order awaiting fulfilment.
   static const order = '00000000-0000-4000-8000-000000000050';
 }
+
+/// The stored value of the exact [amount] for [field], such as `'12.50'`.
+///
+/// Amounts are written the way the API writes them, so a seeded row is
+/// indistinguishable from one saved through the panel.
+Object? _stored(BeakScalarField<BeakDecimal> field, String amount) =>
+    field.encode(BeakDecimal.parse(amount)).raw;
 
 /// Idempotent demonstration data. Existing rows and user edits are preserved.
 final class ShopSeeder extends Seeder {
@@ -169,12 +184,12 @@ final class ShopSeeder extends Seeder {
     await insert('products', {
       'id': ShopSeedIds.beans,
       'name': 'Espresso Beans',
-      'price': 12.5,
+      'price': _stored(ProductModel.price, '12.50'),
     });
     await insert('products', {
       'id': ShopSeedIds.grinder,
       'name': 'Hand Grinder',
-      'price': 48.0,
+      'price': _stored(ProductModel.price, '48.00'),
     });
 
     await insert('categories', {
@@ -188,14 +203,14 @@ final class ShopSeeder extends Seeder {
       'description': 'Tools for better coffee at home.',
     });
     for (final (id, name, rate) in [
-      (ShopSeedIds.standardTax, 'Standard — 20%', 20.0),
-      (ShopSeedIds.reducedTax, 'Reduced — 10%', 10.0),
-      (ShopSeedIds.zeroTax, 'Zero rate', 0.0),
+      (ShopSeedIds.standardTax, 'Standard — 20%', '20.00'),
+      (ShopSeedIds.reducedTax, 'Reduced — 10%', '10.00'),
+      (ShopSeedIds.zeroTax, 'Zero rate', '0.00'),
     ]) {
       await insert('tax_rates', {
         'id': id,
         'name': name,
-        'rate_percent': rate,
+        'rate_percent': _stored(TaxRateModel.ratePercent, rate),
         'active': true,
       });
     }
@@ -220,7 +235,7 @@ final class ShopSeeder extends Seeder {
       'sku': 'COF-ETH',
       'description':
           'Floral washed coffee with citrus notes. Prices are net of exclusive tax.',
-      'price': 14.5,
+      'price': _stored(ProductModel.price, '14.50'),
       'active': true,
       'category_id': ShopSeedIds.coffeeCategory,
       'tax_rate_id': ShopSeedIds.standardTax,
@@ -243,7 +258,7 @@ final class ShopSeeder extends Seeder {
       'id': ShopSeedIds.filterCoffeeSmall,
       'name': '250 g · Whole bean',
       'sku': 'COF-ETH-250',
-      'price': 14.5,
+      'price': _stored(ProductVariantModel.price, '14.50'),
       'stock': 48,
       'active': true,
       'product_id': ShopSeedIds.filterCoffee,
@@ -252,7 +267,7 @@ final class ShopSeeder extends Seeder {
       'id': ShopSeedIds.filterCoffeeLarge,
       'name': '1 kg · Whole bean',
       'sku': 'COF-ETH-1000',
-      'price': 49.0,
+      'price': _stored(ProductVariantModel.price, '49.00'),
       'stock': 12,
       'active': true,
       'product_id': ShopSeedIds.filterCoffee,
@@ -280,17 +295,17 @@ final class ShopSeeder extends Seeder {
       'code': 'WELCOME10',
       'name': 'Welcome discount',
       'kind': 'percentage',
-      'value': 10.0,
+      'value': _stored(VoucherModel.value, '10.00'),
       'active': true,
-      'minimum_subtotal': 10.0,
-      'maximum_discount': 25.0,
+      'minimum_subtotal': _stored(VoucherModel.minimumSubtotal, '10.00'),
+      'maximum_discount': _stored(VoucherModel.maximumDiscount, '25.00'),
     });
     await insert('vouchers', {
       'id': ShopSeedIds.loyaltyVoucher,
       'code': 'LOYAL5',
       'name': 'Loyalty credit',
       'kind': 'fixed',
-      'value': 5.0,
+      'value': _stored(VoucherModel.value, '5.00'),
       'active': true,
     });
     // Preserve an administrator's status, delivery date and line edits on rerun.
@@ -320,7 +335,7 @@ final class ShopSeeder extends Seeder {
         'tax_rate_id': ShopSeedIds.standardTax,
         'label': 'Ethiopia Yirgacheffe — 250 g · Whole bean',
         'quantity': 2,
-        'discount': 0.0,
+        'discount': _stored(OrderItemModel.discount, '0.00'),
       });
       await insert('order_items', {
         'id': '00000000-0000-4000-8000-000000000052',
@@ -328,8 +343,8 @@ final class ShopSeeder extends Seeder {
         'tax_rate_id': ShopSeedIds.standardTax,
         'label': 'Local delivery',
         'quantity': 1,
-        'overwrite_price': 4.5,
-        'discount': 0.0,
+        'overwrite_price': _stored(OrderItemModel.overwritePrice, '4.50'),
+        'discount': _stored(OrderItemModel.discount, '0.00'),
       });
     }
     // Do not reconstruct an invoice graph that an administrator already edited.
@@ -344,32 +359,32 @@ final class ShopSeeder extends Seeder {
       return;
     }
     final totals = ShopTotals.calculate(
-      lines: const [
+      lines: [
         ShopLineInput(
           id: 'coffee',
           label: 'Ethiopia — 1 kg · Whole bean',
           quantity: 2,
-          unitPriceCents: 4900,
-          taxBasisPoints: 2000,
+          unitPrice: BeakDecimal.parse('49.00'),
+          taxRate: BeakDecimal.parse('20'),
         ),
         ShopLineInput(
           id: 'service',
           label: 'Barista setup consultation',
           quantity: 1,
-          unitPriceCents: 2500,
-          taxBasisPoints: 1000,
+          unitPrice: BeakDecimal.parse('25.00'),
+          taxRate: BeakDecimal.parse('10'),
         ),
       ],
-      vouchers: const [
+      vouchers: [
         ShopVoucherInput.percentage(
           id: ShopSeedIds.welcomeVoucher,
           code: 'WELCOME10',
-          basisPoints: 1000,
+          percent: BeakDecimal.parse('10'),
         ),
         ShopVoucherInput.fixed(
           id: ShopSeedIds.loyaltyVoucher,
           code: 'LOYAL5',
-          amountCents: 500,
+          amount: BeakDecimal.parse('5.00'),
         ),
       ],
     );
@@ -383,10 +398,10 @@ final class ShopSeeder extends Seeder {
       'customer_name': 'Ada Lovelace',
       'customer_email': 'ada@example.com',
       'customer_address': '1 Market Street, Vienna',
-      'subtotal_cents': totals.subtotalCents,
-      'discount_cents': totals.discountCents,
-      'tax_cents': totals.taxCents,
-      'total_cents': totals.totalCents,
+      'subtotal': InvoiceModel.subtotal.encode(totals.subtotal).raw,
+      'discount': InvoiceModel.discount.encode(totals.discount).raw,
+      'tax': InvoiceModel.tax.encode(totals.tax).raw,
+      'total': InvoiceModel.total.encode(totals.total).raw,
     });
     for (var index = 0; index < totals.lines.length; index++) {
       final line = totals.lines[index];
@@ -395,15 +410,19 @@ final class ShopSeeder extends Seeder {
         'invoice_id': ShopSeedIds.invoice,
         'label': line.input.label,
         'quantity': line.input.quantity,
-        'unit_price': line.input.unitPriceCents / 100,
-        'discount': 0.0,
+        'unit_price': InvoiceItemModel.unitPrice
+            .encode(line.input.unitPrice)
+            .raw,
+        'discount': _stored(InvoiceItemModel.discount, '0.00'),
         'tax_rate_id': index == 0
             ? ShopSeedIds.standardTax
             : ShopSeedIds.reducedTax,
-        'tax_percent': line.input.taxBasisPoints / 100,
-        'net_cents': line.netCents,
-        'tax_cents': line.taxCents,
-        'total_cents': line.totalCents,
+        'tax_percent': InvoiceItemModel.taxPercent
+            .encode(line.input.taxRate)
+            .raw,
+        'net': InvoiceItemModel.net.encode(line.net).raw,
+        'tax': InvoiceItemModel.tax.encode(line.tax).raw,
+        'total': InvoiceItemModel.total.encode(line.total).raw,
         if (index == 0) 'product_id': ShopSeedIds.filterCoffee,
         if (index == 0) 'variant_id': ShopSeedIds.filterCoffeeLarge,
       });
@@ -416,7 +435,7 @@ final class ShopSeeder extends Seeder {
         'voucher_id': voucher.input.id,
         'position': index,
         'code_snapshot': voucher.input.code,
-        'discount_cents': voucher.discountCents,
+        'discount': InvoiceVoucherModel.discount.encode(voucher.discount).raw,
       });
     }
   }

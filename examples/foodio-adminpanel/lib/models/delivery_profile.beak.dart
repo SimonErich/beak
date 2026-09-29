@@ -248,12 +248,13 @@ abstract final class DeliveryProfileRelations {
 
 /// Typed configuration references for DeliveryProfile.
 final class DeliveryProfileFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const DeliveryProfileFields({
-    BeakModel model = const DeliveryProfileModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of DeliveryProfile, rooted at its own model.
+  const DeliveryProfileFields()
+    : _model = const DeliveryProfileModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const DeliveryProfileFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -473,7 +474,7 @@ final class DeliveryProfileToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   DeliveryProfileFields get fields =>
-      DeliveryProfileFields(model: model, path: [...path, relation]);
+      DeliveryProfileFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

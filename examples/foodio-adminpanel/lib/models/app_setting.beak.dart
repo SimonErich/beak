@@ -65,12 +65,11 @@ abstract final class AppSettingColumns {
 
 /// Typed configuration references for AppSetting.
 final class AppSettingFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const AppSettingFields({
-    BeakModel model = const AppSettingModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of AppSetting, rooted at its own model.
+  const AppSettingFields() : _model = const AppSettingModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const AppSettingFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -135,7 +134,7 @@ final class AppSettingToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   AppSettingFields get fields =>
-      AppSettingFields(model: model, path: [...path, relation]);
+      AppSettingFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

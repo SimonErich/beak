@@ -12,10 +12,10 @@ final class TaxRateResource extends BeakResource {
         icon: const BeakIconToken(OiIcons.percent),
         navigationGroup: 'Settings',
         navigationRank: 10,
-        globalSearchSources: [TaxRateModel.name, TaxRateModel.ratePercent],
+        globalSearchSources: [TaxRateModel.name],
         filters: [
           TaxRateModel.active.boolFilter(label: 'Available'),
-          TaxRateModel.ratePercent.numberRangeFilter(label: 'Rate (%)'),
+          TaxRateModel.ratePercent.rangeFilter(label: 'Rate (%)'),
         ],
         screens: [
           BeakFormScreen(
@@ -32,7 +32,7 @@ final class TaxRateResource extends BeakResource {
                       'Tax is added to discounted net amounts. Saved invoices retain their original rates.',
                   children: [
                     TaxRateModel.name.inputText(),
-                    TaxRateModel.ratePercent.inputNumber(label: 'Rate (%)'),
+                    TaxRateModel.ratePercent.input(label: 'Rate (%)'),
                     TaxRateModel.active.inputToggle(
                       label: 'Available for new sales',
                     ),

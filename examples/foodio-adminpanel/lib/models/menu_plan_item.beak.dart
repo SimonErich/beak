@@ -113,12 +113,13 @@ abstract final class MenuPlanItemRelations {
 
 /// Typed configuration references for MenuPlanItem.
 final class MenuPlanItemFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const MenuPlanItemFields({
-    BeakModel model = const MenuPlanItemModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of MenuPlanItem, rooted at its own model.
+  const MenuPlanItemFields()
+    : _model = const MenuPlanItemModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const MenuPlanItemFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -215,7 +216,7 @@ final class MenuPlanItemToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   MenuPlanItemFields get fields =>
-      MenuPlanItemFields(model: model, path: [...path, relation]);
+      MenuPlanItemFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

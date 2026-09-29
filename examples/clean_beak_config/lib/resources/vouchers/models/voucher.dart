@@ -34,8 +34,8 @@ final class Voucher extends BeakSchema {
   late final VoucherKind kind;
 
   /// Euro amount for fixed vouchers, percentage for percentage vouchers.
-  @Column(rules: [BeakMin(0)])
-  late final double value;
+  @Column(semantic: BeakSemantic.exactDecimal(scale: 2), rules: [BeakMin(0)])
+  late final BeakDecimal value;
 
   /// Whether new invoices may use this voucher.
   late final bool active;
@@ -46,11 +46,17 @@ final class Voucher extends BeakSchema {
   /// Optional last eligible instant, exclusive.
   late final DateTime? endsAt;
 
-  /// Minimum net subtotal before vouchers, in euros.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double? minimumSubtotal;
+  /// Minimum net subtotal before vouchers, exact and in euros.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal? minimumSubtotal;
 
-  /// Optional cap on this voucher's discount, in euros.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double? maximumDiscount;
+  /// Optional cap on this voucher's discount, exact and in euros.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal? maximumDiscount;
 }

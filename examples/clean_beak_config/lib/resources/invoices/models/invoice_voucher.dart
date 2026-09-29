@@ -21,9 +21,12 @@ final class InvoiceVoucher extends BeakSchema {
   @Column(visibleOn: {BeakContext.detail})
   late final String? codeSnapshot;
 
-  /// Reduction actually applied, in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? discountCents;
+  /// Reduction actually applied.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? discount;
 
   /// Owning invoice.
   @BelongsTo(onDelete: BeakOnDelete.cascade)

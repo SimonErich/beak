@@ -112,12 +112,13 @@ abstract final class MessageDeliveryRelations {
 
 /// Typed configuration references for MessageDelivery.
 final class MessageDeliveryFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const MessageDeliveryFields({
-    BeakModel model = const MessageDeliveryModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of MessageDelivery, rooted at its own model.
+  const MessageDeliveryFields()
+    : _model = const MessageDeliveryModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const MessageDeliveryFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -222,7 +223,7 @@ final class MessageDeliveryToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   MessageDeliveryFields get fields =>
-      MessageDeliveryFields(model: model, path: [...path, relation]);
+      MessageDeliveryFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

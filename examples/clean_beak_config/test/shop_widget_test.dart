@@ -14,6 +14,8 @@ import 'package:clean_beak_config/resources/products/screens/product_form.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/money.dart';
+
 void main() {
   testWidgets('shop overview loads its operational metrics and tables', (
     tester,
@@ -38,6 +40,38 @@ void main() {
     expect(find.text('Awaiting payment'), findsOneWidget);
     expect(find.text('Upcoming deliveries'), findsOneWidget);
     expect(find.text('Invoices awaiting payment'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the product list shows exact euro prices', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 1080));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const formatting = BeakFormatting(locale: 'de_AT', currency: 'EUR');
+    final registry = buildBeakRegistry();
+    final source = InMemoryBeakDataSource(registry: registry)
+      ..seed(const ProductModel(), [
+        const ProductModel().record([
+          ProductModel.id.to('beans'),
+          ProductModel.name.to('Espresso Beans'),
+          ProductModel.price.to(eur('12.50')),
+        ]),
+        const ProductModel().record([
+          ProductModel.id.to('grinder'),
+          ProductModel.name.to('Hand Grinder'),
+          ProductModel.price.to(eur('1234.05')),
+        ]),
+      ]);
+    await tester.pumpWidget(
+      BeakPanel(
+        formatting: formatting,
+        resources: [ProductResource()],
+        dataSource: source,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Espresso Beans'), findsOneWidget);
+    expect(find.text(formatting.exactCurrency(eur('12.50'))), findsOneWidget);
+    expect(find.text(formatting.exactCurrency(eur('1234.05'))), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

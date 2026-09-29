@@ -34,12 +34,11 @@ abstract final class ProfileColumns {
 
 /// Typed configuration references for Profile.
 final class ProfileFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const ProfileFields({
-    BeakModel model = const ProfileModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Profile, rooted at its own model.
+  const ProfileFields() : _model = const ProfileModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const ProfileFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -79,8 +78,7 @@ final class ProfileToOneField extends BeakToOneField {
   }) : super(target: const ProfileModel());
 
   /// Every target field, including names reserved by the path API.
-  ProfileFields get fields =>
-      ProfileFields(model: model, path: [...path, relation]);
+  ProfileFields get fields => ProfileFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

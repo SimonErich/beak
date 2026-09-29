@@ -40,10 +40,11 @@ abstract final class VoucherColumns {
   );
 
   /// Euro amount for fixed vouchers, percentage for percentage vouchers.
-  static const BeakDecimalColumn value = BeakDecimalColumn(
+  static const BeakIntColumn value = BeakIntColumn(
     key: 'value',
     label: 'Value',
     rules: [BeakRequired(), BeakMin(0)],
+    semantic: BeakSemantic.exactDecimal(scale: 2),
   );
 
   /// Whether new invoices may use this voucher.
@@ -65,20 +66,20 @@ abstract final class VoucherColumns {
     label: 'Ends At',
   );
 
-  /// Minimum net subtotal before vouchers, in euros.
-  static const BeakDecimalColumn minimumSubtotal = BeakDecimalColumn(
+  /// Minimum net subtotal before vouchers, exact and in euros.
+  static const BeakIntColumn minimumSubtotal = BeakIntColumn(
     key: 'minimum_subtotal',
     label: 'Minimum Subtotal',
     rules: [BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
-  /// Optional cap on this voucher's discount, in euros.
-  static const BeakDecimalColumn maximumDiscount = BeakDecimalColumn(
+  /// Optional cap on this voucher's discount, exact and in euros.
+  static const BeakIntColumn maximumDiscount = BeakIntColumn(
     key: 'maximum_discount',
     label: 'Maximum Discount',
     rules: [BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
   /// Every column, in declaration order.
@@ -98,12 +99,11 @@ abstract final class VoucherColumns {
 
 /// Typed configuration references for Voucher.
 final class VoucherFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const VoucherFields({
-    BeakModel model = const VoucherModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Voucher, rooted at its own model.
+  const VoucherFields() : _model = const VoucherModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const VoucherFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -140,7 +140,7 @@ final class VoucherFields {
   );
 
   /// Value.
-  BeakScalarField<double> get value => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get value => BeakScalarField<BeakDecimal>(
     model: _model,
     column: VoucherColumns.value,
     path: _path,
@@ -172,20 +172,22 @@ final class VoucherFields {
   );
 
   /// Minimum Subtotal.
-  BeakScalarField<double> get minimumSubtotal => BeakScalarField<double>(
-    model: _model,
-    column: VoucherColumns.minimumSubtotal,
-    path: _path,
-    isRequired: false,
-  );
+  BeakScalarField<BeakDecimal> get minimumSubtotal =>
+      BeakScalarField<BeakDecimal>(
+        model: _model,
+        column: VoucherColumns.minimumSubtotal,
+        path: _path,
+        isRequired: false,
+      );
 
   /// Maximum Discount.
-  BeakScalarField<double> get maximumDiscount => BeakScalarField<double>(
-    model: _model,
-    column: VoucherColumns.maximumDiscount,
-    path: _path,
-    isRequired: false,
-  );
+  BeakScalarField<BeakDecimal> get maximumDiscount =>
+      BeakScalarField<BeakDecimal>(
+        model: _model,
+        column: VoucherColumns.maximumDiscount,
+        path: _path,
+        isRequired: false,
+      );
 }
 
 /// A to-one path to Voucher, retaining its root owner.
@@ -199,8 +201,7 @@ final class VoucherToOneField extends BeakToOneField {
   }) : super(target: const VoucherModel());
 
   /// Every target field, including names reserved by the path API.
-  VoucherFields get fields =>
-      VoucherFields(model: model, path: [...path, relation]);
+  VoucherFields get fields => VoucherFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -215,7 +216,7 @@ final class VoucherToOneField extends BeakToOneField {
   BeakScalarField<VoucherKind> get kind => fields.kind;
 
   /// Value.
-  BeakScalarField<double> get value => fields.value;
+  BeakScalarField<BeakDecimal> get value => fields.value;
 
   /// Active.
   BeakScalarField<bool> get active => fields.active;
@@ -227,10 +228,10 @@ final class VoucherToOneField extends BeakToOneField {
   BeakScalarField<DateTime> get endsAt => fields.endsAt;
 
   /// Minimum Subtotal.
-  BeakScalarField<double> get minimumSubtotal => fields.minimumSubtotal;
+  BeakScalarField<BeakDecimal> get minimumSubtotal => fields.minimumSubtotal;
 
   /// Maximum Discount.
-  BeakScalarField<double> get maximumDiscount => fields.maximumDiscount;
+  BeakScalarField<BeakDecimal> get maximumDiscount => fields.maximumDiscount;
 }
 
 /// A reusable discount definition; applied invoices retain their own snapshot.
@@ -340,7 +341,7 @@ final class VoucherDraft {
   VoucherKind? get kind => _reader.read(VoucherModel.fields.kind);
 
   /// Value, or null while incomplete.
-  double? get value => _reader.read(VoucherModel.fields.value);
+  BeakDecimal? get value => _reader.read(VoucherModel.fields.value);
 
   /// Active, or null while incomplete.
   bool? get active => _reader.read(VoucherModel.fields.active);
@@ -352,11 +353,11 @@ final class VoucherDraft {
   DateTime? get endsAt => _reader.read(VoucherModel.fields.endsAt);
 
   /// Minimum Subtotal, or null while incomplete.
-  double? get minimumSubtotal =>
+  BeakDecimal? get minimumSubtotal =>
       _reader.read(VoucherModel.fields.minimumSubtotal);
 
   /// Maximum Discount, or null while incomplete.
-  double? get maximumDiscount =>
+  BeakDecimal? get maximumDiscount =>
       _reader.read(VoucherModel.fields.maximumDiscount);
 }
 
@@ -388,7 +389,7 @@ extension type const VoucherRecord._(BeakRecord record) {
   VoucherKind get kind => VoucherColumns.kind.require(record);
 
   /// Euro amount for fixed vouchers, percentage for percentage vouchers.
-  double get value => VoucherColumns.value.require(record);
+  BeakDecimal get value => VoucherModel.fields.value.require(record);
 
   /// Whether new invoices may use this voucher.
   bool get active => VoucherColumns.active.require(record);
@@ -399,13 +400,13 @@ extension type const VoucherRecord._(BeakRecord record) {
   /// Optional last eligible instant, exclusive.
   DateTime? get endsAt => VoucherColumns.endsAt.readFrom(record);
 
-  /// Minimum net subtotal before vouchers, in euros.
-  double? get minimumSubtotal =>
-      VoucherColumns.minimumSubtotal.readFrom(record);
+  /// Minimum net subtotal before vouchers, exact and in euros.
+  BeakDecimal? get minimumSubtotal =>
+      VoucherModel.fields.minimumSubtotal.readFrom(record);
 
-  /// Optional cap on this voucher's discount, in euros.
-  double? get maximumDiscount =>
-      VoucherColumns.maximumDiscount.readFrom(record);
+  /// Optional cap on this voucher's discount, exact and in euros.
+  BeakDecimal? get maximumDiscount =>
+      VoucherModel.fields.maximumDiscount.readFrom(record);
 }
 
 /// Views any record as a vouchers row.

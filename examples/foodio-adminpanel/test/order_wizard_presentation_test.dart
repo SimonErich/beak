@@ -15,12 +15,15 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shelf/shelf.dart' as shelf;
 
+import 'support/gabel_fonts.dart';
+
 void main() {
   late DatabaseAdapter adapter;
   late BeakClient client;
   late HttpBeakDataSource source;
   var commits = 0;
   setUpAll(() async {
+    await loadGabelFonts();
     final host = beakHost(
       environment: {
         'DATABASE_URL': 'sqlite::memory:',
@@ -132,15 +135,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1440, 1700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final config = foodioPanel();
-    // The app lands on its overview screen, and both that screen and the
-    // orders list overflow under the test font. Boot on the dishes list, which
-    // renders cleanly.
-    final booted = config.copyWith(
-      home: config.resources.firstWhere(
-        (resource) => resource.model.table == 'dishes',
-      ),
-    );
-    await tester.pumpWidget(BeakPanel(config: booted, dataSource: source));
+    await tester.pumpWidget(BeakPanel(config: config, dataSource: source));
     await tester.pumpAndSettle();
     final router = GoRouter.of(tester.element(find.byType(OiAppShell)));
     router.go('/dishes/${FoodioIds.risotto}/edit');

@@ -123,7 +123,7 @@ int projectedBudgetUsed(BeakFormReader state) =>
     companyBudgetContribution(state);
 
 int _budgetUsedWithoutCurrentReservation(BeakFormReader state) {
-  if (state.draft.initialRecord[OrderModel.id.key]?.raw == null) {
+  if (OrderModel.id.readFrom(state.draft.initialRecord) == null) {
     return budgetUsed(state);
   }
   final current = state.asOrder;

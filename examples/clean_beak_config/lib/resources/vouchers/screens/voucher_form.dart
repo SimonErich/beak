@@ -1,6 +1,8 @@
 import 'package:beak/panel.dart';
 import '../models/voucher.dart';
 
+const _hundredPercent = BeakDecimal(10000);
+
 /// Voucher value, scheduling and eligibility without custom form state.
 BeakFormLayout voucherForm() => BeakFormLayout(
   children: [
@@ -12,14 +14,14 @@ BeakFormLayout voucherForm() => BeakFormLayout(
             VoucherModel.code.inputText(label: 'Voucher code'),
             VoucherModel.name.inputText(label: 'Description'),
             VoucherModel.kind.input(label: 'Discount type'),
-            VoucherModel.value.inputNumber(
+            VoucherModel.value.input(
               label: 'Amount / percentage',
               description:
                   'Fixed vouchers use euros. Percentage vouchers use 0–100.',
               validators: [
                 (value, state) =>
                     state.asVoucher.kind == VoucherKind.percentage &&
-                        (value ?? 0) > 100
+                        (value?.compareTo(_hundredPercent) ?? 0) > 0
                     ? 'Enter a percentage between 0 and 100.'
                     : null,
               ],

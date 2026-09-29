@@ -107,12 +107,11 @@ abstract final class OrderNoteRelations {
 
 /// Typed configuration references for OrderNote.
 final class OrderNoteFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const OrderNoteFields({
-    BeakModel model = const OrderNoteModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of OrderNote, rooted at its own model.
+  const OrderNoteFields() : _model = const OrderNoteModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const OrderNoteFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -208,8 +207,7 @@ final class OrderNoteToOneField extends BeakToOneField {
   }) : super(target: const OrderNoteModel());
 
   /// Every target field, including names reserved by the path API.
-  OrderNoteFields get fields =>
-      OrderNoteFields(model: model, path: [...path, relation]);
+  OrderNoteFields get fields => OrderNoteFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

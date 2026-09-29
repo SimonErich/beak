@@ -73,12 +73,13 @@ abstract final class UserProfileConnectionRelations {
 
 /// Typed configuration references for UserProfileConnection.
 final class UserProfileConnectionFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const UserProfileConnectionFields({
-    BeakModel model = const UserProfileConnectionModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of UserProfileConnection, rooted at its own model.
+  const UserProfileConnectionFields()
+    : _model = const UserProfileConnectionModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const UserProfileConnectionFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -151,7 +152,7 @@ final class UserProfileConnectionToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   UserProfileConnectionFields get fields =>
-      UserProfileConnectionFields(model: model, path: [...path, relation]);
+      UserProfileConnectionFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

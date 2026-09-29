@@ -90,11 +90,17 @@ final class OrderItem extends BeakSchema {
   @BelongsTo(inverse: false, onDelete: BeakOnDelete.restrict)
   late final TaxRate? taxRate;
 
-  /// Optional negotiated unit price in euros.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double? overwritePrice;
+  /// Optional negotiated unit price, exact and in euros.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal? overwritePrice;
 
-  /// Optional discount on the complete line in euros.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double? discount;
+  /// Optional discount on the complete line, exact and in euros.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal? discount;
 }

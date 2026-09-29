@@ -152,12 +152,11 @@ abstract final class CustomerRelations {
 
 /// Typed configuration references for Customer.
 final class CustomerFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const CustomerFields({
-    BeakModel model = const CustomerModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Customer, rooted at its own model.
+  const CustomerFields() : _model = const CustomerModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const CustomerFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -296,8 +295,7 @@ final class CustomerToOneField extends BeakToOneField {
   }) : super(target: const CustomerModel());
 
   /// Every target field, including names reserved by the path API.
-  CustomerFields get fields =>
-      CustomerFields(model: model, path: [...path, relation]);
+  CustomerFields get fields => CustomerFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

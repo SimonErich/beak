@@ -37,12 +37,12 @@ abstract final class ProductVariantColumns {
     unique: true,
   );
 
-  /// Net unit price in euros.
-  static const BeakDecimalColumn price = BeakDecimalColumn(
+  /// Net unit price, exact and in euros.
+  static const BeakIntColumn price = BeakIntColumn(
     key: 'price',
     label: 'Net price',
     rules: [BeakRequired(), BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     sortable: true,
   );
 
@@ -111,12 +111,13 @@ abstract final class ProductVariantRelations {
 
 /// Typed configuration references for ProductVariant.
 final class ProductVariantFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const ProductVariantFields({
-    BeakModel model = const ProductVariantModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of ProductVariant, rooted at its own model.
+  const ProductVariantFields()
+    : _model = const ProductVariantModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const ProductVariantFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -153,7 +154,7 @@ final class ProductVariantFields {
   );
 
   /// Net price.
-  BeakScalarField<double> get price => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get price => BeakScalarField<BeakDecimal>(
     model: _model,
     column: ProductVariantColumns.price,
     path: _path,
@@ -214,7 +215,7 @@ final class ProductVariantToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   ProductVariantFields get fields =>
-      ProductVariantFields(model: model, path: [...path, relation]);
+      ProductVariantFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -229,7 +230,7 @@ final class ProductVariantToOneField extends BeakToOneField {
   BeakScalarField<String> get sku => fields.sku;
 
   /// Net price.
-  BeakScalarField<double> get price => fields.price;
+  BeakScalarField<BeakDecimal> get price => fields.price;
 
   /// Stock.
   BeakScalarField<int> get stock => fields.stock;
@@ -366,7 +367,7 @@ final class ProductVariantDraft {
   String? get sku => _reader.read(ProductVariantModel.fields.sku);
 
   /// Net price, or null while incomplete.
-  double? get price => _reader.read(ProductVariantModel.fields.price);
+  BeakDecimal? get price => _reader.read(ProductVariantModel.fields.price);
 
   /// Stock, or null while incomplete.
   int? get stock => _reader.read(ProductVariantModel.fields.stock);
@@ -421,8 +422,8 @@ extension type const ProductVariantRecord._(BeakRecord record) {
   /// Unique stock-keeping identifier.
   String get sku => ProductVariantColumns.sku.require(record);
 
-  /// Net unit price in euros.
-  double get price => ProductVariantColumns.price.require(record);
+  /// Net unit price, exact and in euros.
+  BeakDecimal get price => ProductVariantModel.fields.price.require(record);
 
   /// Available units in this demonstration inventory.
   int get stock => ProductVariantColumns.stock.require(record);

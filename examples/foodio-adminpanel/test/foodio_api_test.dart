@@ -327,7 +327,7 @@ void main() {
         (await stored('budget_accounts', FoodioIds.budget))['reserved_cents'],
         7271,
       );
-      final worker = const FoodioEffects().worker(adapter);
+      final worker = FoodioEffects(buildBeakRegistry()).worker(adapter);
       expect(await worker.drain(), 2);
       expect(await worker.drain(), 0);
       expect(
@@ -615,7 +615,7 @@ void main() {
       );
       expect(result.complete, isTrue, reason: '${result.toJson()}');
       final id = result.rootRecord!['id']!.raw! as String;
-      final worker = const FoodioEffects().worker(adapter);
+      final worker = FoodioEffects(buildBeakRegistry()).worker(adapter);
       await worker.drain();
       expect((await stored('orders', id))['payment_status'], 'failed');
       expect(
@@ -2018,7 +2018,7 @@ void main() {
   test(
     'payment link effects advance revisions under the frozen clock',
     () async {
-      final worker = const FoodioEffects().worker(adapter);
+      final worker = FoodioEffects(buildBeakRegistry()).worker(adapter);
       await worker.drain();
       final placed = await client.commit(
         inlineProfilePlan('revision-link', company: false),
@@ -2045,7 +2045,7 @@ void main() {
   test(
     'queued effects skip obsolete payment and notification requests',
     () async {
-      final worker = const FoodioEffects().worker(adapter);
+      final worker = FoodioEffects(buildBeakRegistry()).worker(adapter);
       await worker.drain();
       // Earlier scenarios intentionally exhaust Lena's normal monthly budget.
       await adapter.update(
@@ -2114,6 +2114,63 @@ void main() {
       }
       expect((await stored('orders', linkId))['payment_link'], isEmpty);
       expect(await worker.drain(), 0);
+    },
+  );
+
+  test(
+    'switching a failed payment to a payment link queues its own request',
+    () async {
+      Future<void> outcome(String value) => adapter.update(
+        UpdateDescriptor(
+          table: 'payment_methods',
+          values: {'demo_outcome': value},
+          where: const Field<String>('id').eq('payment-lena'),
+        ),
+      );
+      await outcome('declined');
+      final placed = await client.commit(
+        placePlan(
+          'failed-then-link',
+          extra: {'payment_mode': 'card', 'cost_center': ''},
+          references: {
+            'profile_id': const BeakRecordRef.existing(
+              'delivery_profiles',
+              FoodioIds.lenaPrivate,
+            ),
+            'location_id': const BeakRecordRef.existing(
+              'delivery_locations',
+              'location-home',
+            ),
+            'payment_method_id': const BeakRecordRef.existing(
+              'payment_methods',
+              'payment-lena',
+            ),
+          },
+        ),
+      );
+      expect(placed.complete, isTrue, reason: '${placed.toJson()}');
+      final id = OrderModel.id.readFrom(placed.rootRecord!)!;
+      final worker = FoodioEffects(buildBeakRegistry()).worker(adapter);
+      await worker.drain();
+      expect((await stored('orders', id))['payment_status'], 'failed');
+      await outcome('succeeded');
+      final switched = await client.commit(
+        actionPlan(
+          'failed-to-link',
+          id,
+          null,
+          values: {'payment_mode': 'paymentLink'},
+        ),
+      );
+      expect(switched.complete, isTrue, reason: '${switched.toJson()}');
+      expect(
+        (await stored(
+          BeakOutboxMigration.table,
+          'failed-to-link:${FoodioEffectKind.paymentLink.name}',
+        ))['kind'],
+        FoodioEffectKind.paymentLink.name,
+      );
+      expect((await stored('orders', id))['payment_status'], 'pending');
     },
   );
 }

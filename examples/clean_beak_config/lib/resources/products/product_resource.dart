@@ -45,7 +45,7 @@ final class ProductResource extends BeakResource {
         filters: [
           ProductModel.category.relationFilter(),
           ProductModel.active.boolFilter(label: 'Available'),
-          ProductModel.price.numberRangeFilter(label: 'Net price'),
+          ProductModel.price.rangeFilter(label: 'Net price'),
         ],
         screens: [
           BeakTableScreen(

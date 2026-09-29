@@ -30,9 +30,14 @@ final class ProductVariant extends BeakSchema {
   @Column(searchable: true, unique: true)
   late final String sku;
 
-  /// Net unit price in euros.
-  @Column(label: 'Net price', prefix: '€', sortable: true, rules: [BeakMin(0)])
-  late final double price;
+  /// Net unit price, exact and in euros.
+  @Column(
+    label: 'Net price',
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    sortable: true,
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal price;
 
   /// Available units in this demonstration inventory.
   @Column(sortable: true, rules: [BeakMin(0)])

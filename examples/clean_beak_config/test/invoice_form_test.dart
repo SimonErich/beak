@@ -12,6 +12,16 @@ import 'package:clean_beak_config/resources/users/models/user.dart';
 import 'package:clean_beak_config/resources/vouchers/models/voucher.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/money.dart';
+
+BeakRecord _taxRate(String id, String name, String percent) =>
+    const TaxRateModel().record([
+      TaxRateModel.id.to(id),
+      TaxRateModel.name.to(name),
+      TaxRateModel.ratePercent.to(eur(percent)),
+      TaxRateModel.active.to(true),
+    ]);
+
 void main() {
   test(
     'invoice wizard previews mixed lines, tax and ordered vouchers without saving',
@@ -24,45 +34,35 @@ void main() {
         'last_name': 'Lovelace',
         'email': 'ada@example.com',
       });
-      final standardTax = BeakRecord.fromRow({
-        'id': 'standard',
-        'name': 'Standard',
-        'rate_percent': 20.0,
-        'active': true,
-      });
-      final reducedTax = BeakRecord.fromRow({
-        'id': 'reduced',
-        'name': 'Reduced',
-        'rate_percent': 10.0,
-        'active': true,
-      });
+      final standardTax = _taxRate('standard', 'Standard', '20');
+      final reducedTax = _taxRate('reduced', 'Reduced', '10');
       final product = BeakRecord(
-        values: BeakRecord.fromRow({
-          'id': 'beans',
-          'name': 'Beans',
-          'price': 12.5,
-          'tax_rate_id': 'standard',
-        }).values,
+        values: const ProductModel().record([
+          ProductModel.id.to('beans'),
+          ProductModel.name.to('Beans'),
+          ProductModel.price.to(eur('12.50')),
+          ProductModel.taxRateId.to('standard'),
+        ]).values,
         relations: {
-          'taxRate': [standardTax],
+          ProductModel.taxRate.key: [standardTax],
         },
       );
-      final fixed = BeakRecord.fromRow({
-        'id': 'five',
-        'code': 'FIVE',
-        'name': 'Five euros',
-        'kind': 'fixed',
-        'value': 5.0,
-        'active': true,
-      });
-      final percentage = BeakRecord.fromRow({
-        'id': 'ten',
-        'code': 'TEN',
-        'name': 'Ten percent',
-        'kind': 'percentage',
-        'value': 10.0,
-        'active': true,
-      });
+      final fixed = const VoucherModel().record([
+        VoucherModel.id.to('five'),
+        VoucherModel.code.to('FIVE'),
+        VoucherModel.name.to('Five euros'),
+        VoucherModel.kind.to(VoucherKind.fixed),
+        VoucherModel.value.to(eur('5')),
+        VoucherModel.active.to(true),
+      ]);
+      final percentage = const VoucherModel().record([
+        VoucherModel.id.to('ten'),
+        VoucherModel.code.to('TEN'),
+        VoucherModel.name.to('Ten percent'),
+        VoucherModel.kind.to(VoucherKind.percentage),
+        VoucherModel.value.to(eur('10')),
+        VoucherModel.active.to(true),
+      ]);
       source.seed(const UserModel(), [customer]);
       source.seed(const ProductModel(), [product]);
       source.seed(const TaxRateModel(), [standardTax, reducedTax]);
@@ -89,7 +89,7 @@ void main() {
       final shipping = session.root.addRow(InvoiceModel.items);
       shipping.set(InvoiceItemModel.quantity, 1);
       shipping.set(InvoiceItemModel.label, 'Delivery');
-      shipping.set(InvoiceItemModel.unitPrice, 5);
+      shipping.set(InvoiceItemModel.unitPrice, eur('5'));
       shipping.select(InvoiceItemModel.taxRate, reducedTax);
       final first = session.root.addRow(InvoiceModel.vouchers);
       first.set(InvoiceVoucherModel.position, 0);
@@ -99,10 +99,10 @@ void main() {
       second.select(InvoiceVoucherModel.voucher, percentage);
       final preview = invoicePreview(BeakFormReader(session.root));
       expect(preview.problem, isNull);
-      expect(preview.totals?.subtotalCents, 3000);
-      expect(preview.totals?.discountCents, 750);
-      expect(preview.totals?.taxCents, 413);
-      expect(preview.totals?.totalCents, 2663);
+      expect(preview.totals?.subtotal, eur('30.00'));
+      expect(preview.totals?.discount, eur('7.50'));
+      expect(preview.totals?.tax, eur('4.13'));
+      expect(preview.totals?.total, eur('26.63'));
       expect(await session.validate(), isTrue);
       expect((await source.query(const InvoiceModel().query())).total, 0);
       second.set(InvoiceVoucherModel.position, 0);
@@ -137,18 +137,8 @@ void main() {
         'last_name': 'Hopper',
         'email': 'grace@example.com',
       });
-      final originalTax = BeakRecord.fromRow({
-        'id': 'tax',
-        'name': 'Changed catalog rate',
-        'rate_percent': 15.0,
-        'active': true,
-      });
-      final differentTax = BeakRecord.fromRow({
-        'id': 'other-tax',
-        'name': 'Other rate',
-        'rate_percent': 20.0,
-        'active': true,
-      });
+      final originalTax = _taxRate('tax', 'Changed catalog rate', '15');
+      final differentTax = _taxRate('other-tax', 'Other rate', '20');
       source.seed(const UserModel(), [customer, other]);
       source.seed(const TaxRateModel(), [originalTax, differentTax]);
       source.seed(const InvoiceModel(), [
@@ -172,15 +162,15 @@ void main() {
         }),
       ]);
       source.seed(const InvoiceItemModel(), [
-        BeakRecord.fromRow({
-          'id': 'line',
-          'invoice_id': 'invoice',
-          'label': 'Service',
-          'quantity': 1,
-          'unit_price': 10.0,
-          'tax_rate_id': 'tax',
-          'tax_percent': 10.0,
-        }),
+        const InvoiceItemModel().record([
+          InvoiceItemModel.id.to('line'),
+          InvoiceItemModel.invoiceId.to('invoice'),
+          InvoiceItemModel.label.to('Service'),
+          InvoiceItemModel.quantity.to(1),
+          InvoiceItemModel.unitPrice.to(eur('10')),
+          InvoiceItemModel.taxRateId.to('tax'),
+          InvoiceItemModel.taxPercent.to(eur('10')),
+        ]),
       ]);
       final session = BeakFormSession(
         model: const InvoiceModel(),
@@ -195,19 +185,19 @@ void main() {
       final reader = BeakFormReader(row);
       expect(
         invoiceTaxPercent(reader),
-        10.0,
+        eur('10'),
         reason: 'Catalog edits do not change saved rates.',
       );
       row.select(InvoiceItemModel.taxRate, differentTax);
-      expect(invoiceTaxPercent(reader), 20.0);
+      expect(invoiceTaxPercent(reader), eur('20'));
       expect(
-        invoicePreview(BeakFormReader(session.root)).totals?.totalCents,
-        1200,
+        invoicePreview(BeakFormReader(session.root)).totals?.total,
+        eur('12.00'),
       );
       row.select(InvoiceItemModel.taxRate, originalTax);
       expect(
         invoiceTaxPercent(reader),
-        10.0,
+        eur('10'),
         reason: 'Restoring the original selection restores its snapshot.',
       );
       final root = BeakFormReader(session.root);
@@ -251,8 +241,8 @@ void main() {
     final row = session.root.addRow(InvoiceModel.items);
     row.set(InvoiceItemModel.quantity, 1);
     row.set(InvoiceItemModel.label, 'Consulting');
-    row.set(InvoiceItemModel.unitPrice, 10);
-    row.set(InvoiceItemModel.discount, 20);
+    row.set(InvoiceItemModel.unitPrice, eur('10'));
+    row.set(InvoiceItemModel.discount, eur('20'));
     expect(
       invoicePreview(BeakFormReader(session.root)).problem,
       'A line discount cannot exceed its subtotal.',

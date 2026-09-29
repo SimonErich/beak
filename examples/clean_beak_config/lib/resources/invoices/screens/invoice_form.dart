@@ -119,8 +119,12 @@ BeakFormSections invoiceSections() => BeakFormSections(
                           ),
                           BeakCalculated(
                             label: 'Effective tax rate',
-                            value: (state) => invoiceTaxPercent(state) / 100,
-                            format: BeakValueFormat.percent,
+                            value: invoiceTaxPercent,
+                            display: (value, formatting) => switch (value) {
+                              final BeakDecimal rate =>
+                                '${formatting.exactDecimal(rate)} %',
+                              _ => formatting.emptyValue,
+                            },
                           ),
                         ],
                       ),
@@ -151,9 +155,7 @@ BeakFormSections invoiceSections() => BeakFormSections(
                 InvoiceVoucherModel.voucher.inputCombobox(),
                 BeakCalculated(
                   label: 'Saved discount',
-                  value: (state) => state.asInvoiceVoucher.discountCents == null
-                      ? null
-                      : state.asInvoiceVoucher.discountCents! / 100,
+                  value: (state) => state.asInvoiceVoucher.discount,
                   format: BeakValueFormat.currency,
                 ),
               ],
@@ -184,8 +186,8 @@ List<BeakFormNode> invoiceReview() => [
             format: BeakValueFormat.currency,
             value: (state) => _amount(
               state,
-              (preview) => preview.subtotalCents,
-              (record) => record.subtotalCents,
+              (preview) => preview.subtotal,
+              (record) => record.subtotal,
             ),
           ),
           BeakCalculated(
@@ -193,8 +195,8 @@ List<BeakFormNode> invoiceReview() => [
             format: BeakValueFormat.currency,
             value: (state) => _amount(
               state,
-              (preview) => preview.discountCents,
-              (record) => record.discountCents,
+              (preview) => preview.discount,
+              (record) => record.discount,
             ),
           ),
           BeakCalculated(
@@ -202,8 +204,8 @@ List<BeakFormNode> invoiceReview() => [
             format: BeakValueFormat.currency,
             value: (state) => _amount(
               state,
-              (preview) => preview.taxCents,
-              (record) => record.taxCents,
+              (preview) => preview.tax,
+              (record) => record.tax,
             ),
           ),
           BeakCalculated(
@@ -211,8 +213,8 @@ List<BeakFormNode> invoiceReview() => [
             format: BeakValueFormat.currency,
             value: (state) => _amount(
               state,
-              (preview) => preview.totalCents,
-              (record) => record.totalCents,
+              (preview) => preview.total,
+              (record) => record.total,
             ),
           ),
         ],
@@ -227,16 +229,15 @@ List<BeakFormNode> invoiceReview() => [
   ),
 ];
 
-double? _amount(
+BeakDecimal? _amount(
   BeakFormReader state,
-  int Function(ShopTotals) previewValue,
-  int? Function(InvoiceDraft) savedValue,
+  BeakDecimal Function(ShopTotals) previewValue,
+  BeakDecimal? Function(InvoiceDraft) savedValue,
 ) {
   if ((state.draft.id != null && !state.draft.session.isDirty) ||
       invoiceLocked(state)) {
-    final saved = savedValue(state.asInvoice);
-    return saved == null ? null : saved / 100;
+    return savedValue(state.asInvoice);
   }
   final preview = invoicePreview(state).totals;
-  return preview == null ? null : previewValue(preview) / 100;
+  return preview == null ? null : previewValue(preview);
 }

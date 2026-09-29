@@ -27,46 +27,51 @@ abstract final class InvoiceItemColumns {
   );
 
   /// Net unit price; blank derives a catalog price before saving.
-  static const BeakDecimalColumn unitPrice = BeakDecimalColumn(
+  static const BeakIntColumn unitPrice = BeakIntColumn(
     key: 'unit_price',
     label: 'Unit Price',
     rules: [BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
   /// Net reduction on the whole line, before vouchers.
-  static const BeakDecimalColumn discount = BeakDecimalColumn(
+  static const BeakIntColumn discount = BeakIntColumn(
     key: 'discount',
     label: 'Discount',
     rules: [BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
   /// Saved percentage independent of subsequent tax-rate changes.
-  static const BeakDecimalColumn taxPercent = BeakDecimalColumn(
+  static const BeakIntColumn taxPercent = BeakIntColumn(
     key: 'tax_percent',
     label: 'Tax Percent',
+    semantic: BeakSemantic.exactDecimal(scale: 2),
+    suffix: '%',
     visibleOn: {BeakContext.detail},
   );
 
-  /// Saved net line amount after vouchers, in cents.
-  static const BeakIntColumn netCents = BeakIntColumn(
-    key: 'net_cents',
-    label: 'Net Cents',
+  /// Saved net line amount after vouchers.
+  static const BeakIntColumn net = BeakIntColumn(
+    key: 'net',
+    label: 'Net',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
-  /// Saved rounded tax amount, in cents.
-  static const BeakIntColumn taxCents = BeakIntColumn(
-    key: 'tax_cents',
-    label: 'Tax Cents',
+  /// Saved rounded tax amount.
+  static const BeakIntColumn tax = BeakIntColumn(
+    key: 'tax',
+    label: 'Tax',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
-  /// Saved line payable amount, in cents.
-  static const BeakIntColumn totalCents = BeakIntColumn(
-    key: 'total_cents',
-    label: 'Total Cents',
+  /// Saved line payable amount.
+  static const BeakIntColumn total = BeakIntColumn(
+    key: 'total',
+    label: 'Total',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
@@ -107,9 +112,9 @@ abstract final class InvoiceItemColumns {
     unitPrice,
     discount,
     taxPercent,
-    netCents,
-    taxCents,
-    totalCents,
+    net,
+    tax,
+    total,
     productId,
     variantId,
     taxRateId,
@@ -166,12 +171,13 @@ abstract final class InvoiceItemRelations {
 
 /// Typed configuration references for InvoiceItem.
 final class InvoiceItemFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const InvoiceItemFields({
-    BeakModel model = const InvoiceItemModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of InvoiceItem, rooted at its own model.
+  const InvoiceItemFields()
+    : _model = const InvoiceItemModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const InvoiceItemFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -200,7 +206,7 @@ final class InvoiceItemFields {
   );
 
   /// Unit Price.
-  BeakScalarField<double> get unitPrice => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get unitPrice => BeakScalarField<BeakDecimal>(
     model: _model,
     column: InvoiceItemColumns.unitPrice,
     path: _path,
@@ -208,7 +214,7 @@ final class InvoiceItemFields {
   );
 
   /// Discount.
-  BeakScalarField<double> get discount => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get discount => BeakScalarField<BeakDecimal>(
     model: _model,
     column: InvoiceItemColumns.discount,
     path: _path,
@@ -216,33 +222,33 @@ final class InvoiceItemFields {
   );
 
   /// Tax Percent.
-  BeakScalarField<double> get taxPercent => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get taxPercent => BeakScalarField<BeakDecimal>(
     model: _model,
     column: InvoiceItemColumns.taxPercent,
     path: _path,
     isRequired: false,
   );
 
-  /// Net Cents.
-  BeakScalarField<int> get netCents => BeakScalarField<int>(
+  /// Net.
+  BeakScalarField<BeakDecimal> get net => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceItemColumns.netCents,
+    column: InvoiceItemColumns.net,
     path: _path,
     isRequired: false,
   );
 
-  /// Tax Cents.
-  BeakScalarField<int> get taxCents => BeakScalarField<int>(
+  /// Tax.
+  BeakScalarField<BeakDecimal> get tax => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceItemColumns.taxCents,
+    column: InvoiceItemColumns.tax,
     path: _path,
     isRequired: false,
   );
 
-  /// Total Cents.
-  BeakScalarField<int> get totalCents => BeakScalarField<int>(
+  /// Total.
+  BeakScalarField<BeakDecimal> get total => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceItemColumns.totalCents,
+    column: InvoiceItemColumns.total,
     path: _path,
     isRequired: false,
   );
@@ -324,7 +330,7 @@ final class InvoiceItemToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   InvoiceItemFields get fields =>
-      InvoiceItemFields(model: model, path: [...path, relation]);
+      InvoiceItemFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -333,22 +339,22 @@ final class InvoiceItemToOneField extends BeakToOneField {
   BeakScalarField<int> get quantity => fields.quantity;
 
   /// Unit Price.
-  BeakScalarField<double> get unitPrice => fields.unitPrice;
+  BeakScalarField<BeakDecimal> get unitPrice => fields.unitPrice;
 
   /// Discount.
-  BeakScalarField<double> get discount => fields.discount;
+  BeakScalarField<BeakDecimal> get discount => fields.discount;
 
   /// Tax Percent.
-  BeakScalarField<double> get taxPercent => fields.taxPercent;
+  BeakScalarField<BeakDecimal> get taxPercent => fields.taxPercent;
 
-  /// Net Cents.
-  BeakScalarField<int> get netCents => fields.netCents;
+  /// Net.
+  BeakScalarField<BeakDecimal> get net => fields.net;
 
-  /// Tax Cents.
-  BeakScalarField<int> get taxCents => fields.taxCents;
+  /// Tax.
+  BeakScalarField<BeakDecimal> get tax => fields.tax;
 
-  /// Total Cents.
-  BeakScalarField<int> get totalCents => fields.totalCents;
+  /// Total.
+  BeakScalarField<BeakDecimal> get total => fields.total;
 
   /// Product.
   BeakScalarField<String> get productId => fields.productId;
@@ -401,14 +407,14 @@ final class InvoiceItemModel extends BeakModel {
   /// Typed reference to [taxPercent] in this model.
   static final taxPercent = fields.taxPercent;
 
-  /// Typed reference to [netCents] in this model.
-  static final netCents = fields.netCents;
+  /// Typed reference to [net] in this model.
+  static final net = fields.net;
 
-  /// Typed reference to [taxCents] in this model.
-  static final taxCents = fields.taxCents;
+  /// Typed reference to [tax] in this model.
+  static final tax = fields.tax;
 
-  /// Typed reference to [totalCents] in this model.
-  static final totalCents = fields.totalCents;
+  /// Typed reference to [total] in this model.
+  static final total = fields.total;
 
   /// Typed reference to [productId] in this model.
   static final productId = fields.productId;
@@ -522,22 +528,23 @@ final class InvoiceItemDraft {
   int? get quantity => _reader.read(InvoiceItemModel.fields.quantity);
 
   /// Unit Price, or null while incomplete.
-  double? get unitPrice => _reader.read(InvoiceItemModel.fields.unitPrice);
+  BeakDecimal? get unitPrice => _reader.read(InvoiceItemModel.fields.unitPrice);
 
   /// Discount, or null while incomplete.
-  double? get discount => _reader.read(InvoiceItemModel.fields.discount);
+  BeakDecimal? get discount => _reader.read(InvoiceItemModel.fields.discount);
 
   /// Tax Percent, or null while incomplete.
-  double? get taxPercent => _reader.read(InvoiceItemModel.fields.taxPercent);
+  BeakDecimal? get taxPercent =>
+      _reader.read(InvoiceItemModel.fields.taxPercent);
 
-  /// Net Cents, or null while incomplete.
-  int? get netCents => _reader.read(InvoiceItemModel.fields.netCents);
+  /// Net, or null while incomplete.
+  BeakDecimal? get net => _reader.read(InvoiceItemModel.fields.net);
 
-  /// Tax Cents, or null while incomplete.
-  int? get taxCents => _reader.read(InvoiceItemModel.fields.taxCents);
+  /// Tax, or null while incomplete.
+  BeakDecimal? get tax => _reader.read(InvoiceItemModel.fields.tax);
 
-  /// Total Cents, or null while incomplete.
-  int? get totalCents => _reader.read(InvoiceItemModel.fields.totalCents);
+  /// Total, or null while incomplete.
+  BeakDecimal? get total => _reader.read(InvoiceItemModel.fields.total);
 
   /// Product, or null while incomplete.
   String? get productId => _reader.read(InvoiceItemModel.fields.productId);
@@ -605,22 +612,25 @@ extension type const InvoiceItemRecord._(BeakRecord record) {
   int get quantity => InvoiceItemColumns.quantity.require(record);
 
   /// Net unit price; blank derives a catalog price before saving.
-  double? get unitPrice => InvoiceItemColumns.unitPrice.readFrom(record);
+  BeakDecimal? get unitPrice =>
+      InvoiceItemModel.fields.unitPrice.readFrom(record);
 
   /// Net reduction on the whole line, before vouchers.
-  double? get discount => InvoiceItemColumns.discount.readFrom(record);
+  BeakDecimal? get discount =>
+      InvoiceItemModel.fields.discount.readFrom(record);
 
   /// Saved percentage independent of subsequent tax-rate changes.
-  double? get taxPercent => InvoiceItemColumns.taxPercent.readFrom(record);
+  BeakDecimal? get taxPercent =>
+      InvoiceItemModel.fields.taxPercent.readFrom(record);
 
-  /// Saved net line amount after vouchers, in cents.
-  int? get netCents => InvoiceItemColumns.netCents.readFrom(record);
+  /// Saved net line amount after vouchers.
+  BeakDecimal? get net => InvoiceItemModel.fields.net.readFrom(record);
 
-  /// Saved rounded tax amount, in cents.
-  int? get taxCents => InvoiceItemColumns.taxCents.readFrom(record);
+  /// Saved rounded tax amount.
+  BeakDecimal? get tax => InvoiceItemModel.fields.tax.readFrom(record);
 
-  /// Saved line payable amount, in cents.
-  int? get totalCents => InvoiceItemColumns.totalCents.readFrom(record);
+  /// Saved line payable amount.
+  BeakDecimal? get total => InvoiceItemModel.fields.total.readFrom(record);
 
   /// Foreign key backing [product].
   String? get productId => InvoiceItemColumns.productId.readFrom(record);

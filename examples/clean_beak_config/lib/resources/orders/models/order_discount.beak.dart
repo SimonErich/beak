@@ -19,12 +19,12 @@ abstract final class OrderDiscountColumns {
     rules: [BeakRequired()],
   );
 
-  /// Reduction in euros.
-  static const BeakDecimalColumn amount = BeakDecimalColumn(
+  /// Reduction, exact and in euros.
+  static const BeakIntColumn amount = BeakIntColumn(
     key: 'amount',
     label: 'Amount',
     rules: [BeakRequired(), BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
   /// Foreign key backing [order].
@@ -55,12 +55,13 @@ abstract final class OrderDiscountRelations {
 
 /// Typed configuration references for OrderDiscount.
 final class OrderDiscountFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const OrderDiscountFields({
-    BeakModel model = const OrderDiscountModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of OrderDiscount, rooted at its own model.
+  const OrderDiscountFields()
+    : _model = const OrderDiscountModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const OrderDiscountFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -81,7 +82,7 @@ final class OrderDiscountFields {
   );
 
   /// Amount.
-  BeakScalarField<double> get amount => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get amount => BeakScalarField<BeakDecimal>(
     model: _model,
     column: OrderDiscountColumns.amount,
     path: _path,
@@ -117,7 +118,7 @@ final class OrderDiscountToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   OrderDiscountFields get fields =>
-      OrderDiscountFields(model: model, path: [...path, relation]);
+      OrderDiscountFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -126,7 +127,7 @@ final class OrderDiscountToOneField extends BeakToOneField {
   BeakScalarField<String> get reason => fields.reason;
 
   /// Amount.
-  BeakScalarField<double> get amount => fields.amount;
+  BeakScalarField<BeakDecimal> get amount => fields.amount;
 
   /// Order.
   BeakScalarField<String> get orderId => fields.orderId;
@@ -221,7 +222,7 @@ final class OrderDiscountDraft {
   String? get reason => _reader.read(OrderDiscountModel.fields.reason);
 
   /// Amount, or null while incomplete.
-  double? get amount => _reader.read(OrderDiscountModel.fields.amount);
+  BeakDecimal? get amount => _reader.read(OrderDiscountModel.fields.amount);
 
   /// Order, or null while incomplete.
   String? get orderId => _reader.read(OrderDiscountModel.fields.orderId);
@@ -255,8 +256,8 @@ extension type const OrderDiscountRecord._(BeakRecord record) {
   /// Explanation shown on the order.
   String get reason => OrderDiscountColumns.reason.require(record);
 
-  /// Reduction in euros.
-  double get amount => OrderDiscountColumns.amount.require(record);
+  /// Reduction, exact and in euros.
+  BeakDecimal get amount => OrderDiscountModel.fields.amount.require(record);
 
   /// Foreign key backing [order].
   String get orderId => OrderDiscountColumns.orderId.require(record);

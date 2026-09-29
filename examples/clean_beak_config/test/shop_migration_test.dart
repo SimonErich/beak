@@ -4,8 +4,14 @@ library;
 import 'package:beak/migrations.dart';
 import 'package:clean_beak_config/beak/server.g.dart';
 import 'package:clean_beak_config/beak/registry.g.dart';
+import 'package:clean_beak_config/resources/invoices/models/invoice.dart';
+import 'package:clean_beak_config/resources/orders/models/order_item.dart';
+import 'package:clean_beak_config/resources/products/models/product.dart';
+import 'package:clean_beak_config/resources/products/models/product_variant.dart';
 import 'package:clean_beak_config/seeders/shop_seeder.dart';
 import 'package:test/test.dart';
+
+import 'support/money.dart';
 
 /// The catalog references the additive migration declares, as
 /// `table.column -> parent (on delete)`.
@@ -74,12 +80,12 @@ void main() {
       expect(oldSchema['products'], isNot(contains('category_id')));
       expect(oldSchema['orders'], isNot(contains('status')));
       await adapter.insert(
-        const InsertDescriptor(
+        InsertDescriptor(
           table: 'products',
           values: {
             'id': ShopSeedIds.beans,
             'name': 'My existing beans',
-            'price': 17.25,
+            'price': ProductModel.price.encode(eur('17.25')).raw,
           },
         ),
       );
@@ -156,7 +162,7 @@ void main() {
         ),
       );
       expect(beans?['name'], 'My existing beans');
-      expect(beans?['price'], 17.25);
+      expect(beans?['price'], ProductModel.price.encode(eur('17.25')).raw);
       final sampleOrder = await adapter.selectOne(
         QueryDescriptor(
           table: 'orders',
@@ -182,7 +188,9 @@ void main() {
       expect(
         sampleLines.any(
           (line) =>
-              line['product_id'] == null && line['overwrite_price'] == 4.5,
+              line['product_id'] == null &&
+              line['overwrite_price'] ==
+                  OrderItemModel.overwritePrice.encode(eur('4.50')).raw,
         ),
         isTrue,
       );
@@ -203,7 +211,7 @@ void main() {
       await adapter.update(
         UpdateDescriptor(
           table: 'product_variants',
-          values: const {'price': 80.0},
+          values: {'price': ProductVariantModel.price.encode(eur('80.00')).raw},
           where: const Field<String>('id').eq(ShopSeedIds.filterCoffeeLarge),
         ),
       );
@@ -217,8 +225,8 @@ void main() {
       );
       expect(invoice?['status'], 'paid');
       expect(
-        invoice?['total_cents'],
-        12469,
+        invoice?['total'],
+        InvoiceModel.total.encode(eur('124.69')).raw,
         reason:
             'The original invoice snapshot survives changed catalog prices.',
       );
@@ -236,7 +244,10 @@ void main() {
           where: const Field<String>('id').eq(ShopSeedIds.filterCoffeeLarge),
         ),
       );
-      expect(variant?['price'], 80.0);
+      expect(
+        variant?['price'],
+        ProductVariantModel.price.encode(eur('80.00')).raw,
+      );
       final retainedOrder = await adapter.selectOne(
         QueryDescriptor(
           table: 'orders',

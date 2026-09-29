@@ -120,12 +120,13 @@ abstract final class PaymentAttemptRelations {
 
 /// Typed configuration references for PaymentAttempt.
 final class PaymentAttemptFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const PaymentAttemptFields({
-    BeakModel model = const PaymentAttemptModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of PaymentAttempt, rooted at its own model.
+  const PaymentAttemptFields()
+    : _model = const PaymentAttemptModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const PaymentAttemptFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -238,7 +239,7 @@ final class PaymentAttemptToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   PaymentAttemptFields get fields =>
-      PaymentAttemptFields(model: model, path: [...path, relation]);
+      PaymentAttemptFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

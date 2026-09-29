@@ -27,9 +27,9 @@ class ShopReceivablesCard extends HookWidget {
     );
     final attempt = useState(0);
     final request = useMemoized(
-      () => BeakResourceRepository(source).aggregate(
-        const InvoiceModel().sum(
-          InvoiceModel.totalCents,
+      () => BeakResourceRepository(source).run(
+        () => InvoiceModel.total.sum(
+          source,
           filter: InvoiceModel.status.eq(InvoiceStatus.issued),
         ),
       ),
@@ -53,15 +53,13 @@ class ShopReceivablesCard extends HookWidget {
           ),
           if (snapshot.connectionState != ConnectionState.done)
             OiProgress.linear(indeterminate: true, label: strings.loading)
-          else if (snapshot.data case BeakErr<num>(:final error)) ...[
+          else if (snapshot.data case BeakErr<BeakDecimal>(:final error)) ...[
             OiLabel.small(strings.errorMessage(error)),
             OiButton.ghost(label: strings.retry, onTap: () => attempt.value++),
-          ] else if (snapshot.data case BeakOk<num>(:final value)) ...[
-            OiLabel.h1(
-              format.exactCurrency(BeakDecimal(value.toInt(), scale: 2)),
-            ),
+          ] else if (snapshot.data case BeakOk<BeakDecimal>(:final value)) ...[
+            OiLabel.h1(format.exactCurrency(value)),
             OiLabel.small(
-              value == 0
+              value.units == 0
                   ? 'All clear. No issued invoices are awaiting payment.'
                   : 'Issued invoices awaiting payment. Drafts and cancelled documents are excluded.',
             ),

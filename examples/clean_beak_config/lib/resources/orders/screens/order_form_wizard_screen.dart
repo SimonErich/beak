@@ -1,4 +1,5 @@
 import 'package:beak/panel.dart';
+import '../../../domain/shop_totals.dart';
 import '../../../shop_drafts.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
@@ -118,8 +119,10 @@ BeakFormSections orderSections() => BeakFormSections(
               ),
             ],
           ),
-          summary: (rows) =>
-              rows.fold<double>(0, (total, row) => total + lineTotal(row)),
+          summary: (rows) => rows.fold<BeakDecimal>(
+            ShopMoney.zero,
+            (total, row) => total + lineTotal(row),
+          ),
           summaryFormat: BeakValueFormat.currency,
           summaryLabel: 'Net items total',
         ),
@@ -139,9 +142,10 @@ BeakFormSections orderSections() => BeakFormSections(
                 OrderDiscountModel.reason.inputText(),
                 OrderDiscountModel.amount.inputCurrency(),
               ],
-              summary: (rows) => rows.fold<double>(
-                0,
-                (sum, row) => sum + (row.asOrderDiscount.amount ?? 0),
+              summary: (rows) => rows.fold<BeakDecimal>(
+                ShopMoney.zero,
+                (sum, row) =>
+                    sum + (row.asOrderDiscount.amount ?? ShopMoney.zero),
               ),
               summaryFormat: BeakValueFormat.currency,
               summaryLabel: 'Total adjustments',
@@ -168,13 +172,17 @@ BeakFormSections orderSections() => BeakFormSections(
                   value: (state) =>
                       state
                           .rows(OrderModel.items)
-                          .fold<double>(0, (sum, row) => sum + lineTotal(row)) -
+                          .fold(
+                            ShopMoney.zero,
+                            (sum, row) => sum + lineTotal(row),
+                          ) -
                       state
                           .rows(OrderModel.discounts)
-                          .fold<double>(
-                            0,
+                          .fold(
+                            ShopMoney.zero,
                             (sum, row) =>
-                                sum + (row.asOrderDiscount.amount ?? 0),
+                                sum +
+                                (row.asOrderDiscount.amount ?? ShopMoney.zero),
                           ),
                 ),
               ],
@@ -187,15 +195,12 @@ BeakFormSections orderSections() => BeakFormSections(
 );
 
 /// Net line calculation; invoice tax is calculated separately when invoicing.
-double lineTotal(BeakFormReader state) {
+BeakDecimal lineTotal(BeakFormReader state) {
   final item = state.asOrderItem;
-  return ((item.quantity ?? 0) *
-                  (item.overwritePrice ??
-                      item.variant?.price ??
-                      item.product?.price ??
-                      0) *
-                  100 -
-              (item.discount ?? 0) * 100)
-          .round() /
-      100;
+  final unitPrice =
+      item.overwritePrice ??
+      item.variant?.price ??
+      item.product?.price ??
+      ShopMoney.zero;
+  return unitPrice * (item.quantity ?? 0) - (item.discount ?? ShopMoney.zero);
 }

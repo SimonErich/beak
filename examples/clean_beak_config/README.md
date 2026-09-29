@@ -77,7 +77,7 @@ lib/shop_drafts.dart                 resumable local demo drafts
 lib/resources/<name>/models/        schema, rules, relationships and generated helpers
 lib/resources/<name>/*_resource.dart navigation, search, filters and table fields
 lib/resources/<name>/screens/       shared forms, tabs, cards and wizard steps
-lib/domain/shop_totals.dart          pure integer-cent invoice arithmetic
+lib/domain/shop_totals.dart          pure exact-decimal invoice arithmetic
 lib/domain/shop_graph_preparer.dart  authoritative cross-record shop rules
 lib/server.dart                     one registration of that business policy
 lib/migrations/                     explicit schema changes, including upgrades
@@ -95,6 +95,24 @@ The frontend uses the same pure calculator for its preview. A single server-side
 `preparePlan` registration validates the complete graph and writes authoritative
 snapshots within its transaction. Protected tables reject direct CRUD writes that
 would bypass the policy. Beak's normal delete action uses a native graph commit.
+
+## Exact money
+
+Every amount is a `BeakDecimal` declared once on its schema class with
+`@Column(semantic: BeakSemantic.money(currency: 'EUR'))`: product and variant
+prices, order and invoice lines, discounts, voucher limits and every saved
+invoice total. Tax rates and voucher values that are not euro amounts use
+`BeakSemantic.exactDecimal(scale: 2)`. The database stores whole hundredths, the
+API transports the same integers, forms edit them with `inputCurrency()`, tables
+and reviews format them with the panel's `de_AT` currency policy, and no code in
+this example converts an amount to a `double`. `BeakScalarField.sum` totals a
+money column exactly on the server.
+
+The example is unreleased, so it ships no data migration from the earlier
+floating-point columns. Use a fresh database: delete `beak.db`, then run
+`dart run bin/migrate.dart migrate` and `dart run bin/migrate.dart db:seed`
+again. The migrations derive each column from its model, so a fresh database
+always matches the schema classes.
 
 ## Invoice arithmetic and history
 
@@ -116,7 +134,7 @@ The documented rounding policy follows the line-level option described in
 [Stripe's tax-rate documentation](https://docs.stripe.com/tax/tax-rates).
 
 Dates display as `dd.MM.yyyy` or `dd.MM.yyyy HH:mm`, in the device's local timezone.
-Money uses the `de_AT` locale; API values retain their numeric and timestamp types.
+Money uses the `de_AT` locale; API values retain their exact integer, decimal and timestamp types.
 Changing `BeakPanel.formatting` updates standard forms, table cells, detail values
 and calculated summaries together.
 

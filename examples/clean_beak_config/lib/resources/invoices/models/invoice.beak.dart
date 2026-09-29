@@ -69,31 +69,35 @@ abstract final class InvoiceColumns {
     label: 'Customer Address',
   );
 
-  /// Net line subtotal after line discounts, before vouchers, in cents.
-  static const BeakIntColumn subtotalCents = BeakIntColumn(
-    key: 'subtotal_cents',
-    label: 'Subtotal Cents',
+  /// Net line subtotal after line discounts, before vouchers.
+  static const BeakIntColumn subtotal = BeakIntColumn(
+    key: 'subtotal',
+    label: 'Subtotal',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
-  /// Total voucher discount in cents.
-  static const BeakIntColumn discountCents = BeakIntColumn(
-    key: 'discount_cents',
-    label: 'Discount Cents',
+  /// Total voucher discount.
+  static const BeakIntColumn discount = BeakIntColumn(
+    key: 'discount',
+    label: 'Discount',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
-  /// Rounded exclusive tax in cents.
-  static const BeakIntColumn taxCents = BeakIntColumn(
-    key: 'tax_cents',
-    label: 'Tax Cents',
+  /// Rounded exclusive tax.
+  static const BeakIntColumn tax = BeakIntColumn(
+    key: 'tax',
+    label: 'Tax',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
-  /// Payable total in cents.
-  static const BeakIntColumn totalCents = BeakIntColumn(
-    key: 'total_cents',
-    label: 'Total Cents',
+  /// Payable total.
+  static const BeakIntColumn total = BeakIntColumn(
+    key: 'total',
+    label: 'Total',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
@@ -139,10 +143,10 @@ abstract final class InvoiceColumns {
     customerName,
     customerEmail,
     customerAddress,
-    subtotalCents,
-    discountCents,
-    taxCents,
-    totalCents,
+    subtotal,
+    discount,
+    tax,
+    total,
     customerId,
     orderId,
     createdAt,
@@ -201,12 +205,11 @@ abstract final class InvoiceRelations {
 
 /// Typed configuration references for Invoice.
 final class InvoiceFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const InvoiceFields({
-    BeakModel model = const InvoiceModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Invoice, rooted at its own model.
+  const InvoiceFields() : _model = const InvoiceModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const InvoiceFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -274,34 +277,34 @@ final class InvoiceFields {
     isRequired: false,
   );
 
-  /// Subtotal Cents.
-  BeakScalarField<int> get subtotalCents => BeakScalarField<int>(
+  /// Subtotal.
+  BeakScalarField<BeakDecimal> get subtotal => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceColumns.subtotalCents,
+    column: InvoiceColumns.subtotal,
     path: _path,
     isRequired: false,
   );
 
-  /// Discount Cents.
-  BeakScalarField<int> get discountCents => BeakScalarField<int>(
+  /// Discount.
+  BeakScalarField<BeakDecimal> get discount => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceColumns.discountCents,
+    column: InvoiceColumns.discount,
     path: _path,
     isRequired: false,
   );
 
-  /// Tax Cents.
-  BeakScalarField<int> get taxCents => BeakScalarField<int>(
+  /// Tax.
+  BeakScalarField<BeakDecimal> get tax => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceColumns.taxCents,
+    column: InvoiceColumns.tax,
     path: _path,
     isRequired: false,
   );
 
-  /// Total Cents.
-  BeakScalarField<int> get totalCents => BeakScalarField<int>(
+  /// Total.
+  BeakScalarField<BeakDecimal> get total => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceColumns.totalCents,
+    column: InvoiceColumns.total,
     path: _path,
     isRequired: false,
   );
@@ -384,8 +387,7 @@ final class InvoiceToOneField extends BeakToOneField {
   }) : super(target: const InvoiceModel());
 
   /// Every target field, including names reserved by the path API.
-  InvoiceFields get fields =>
-      InvoiceFields(model: model, path: [...path, relation]);
+  InvoiceFields get fields => InvoiceFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -411,17 +413,17 @@ final class InvoiceToOneField extends BeakToOneField {
   /// Customer Address.
   BeakScalarField<String> get customerAddress => fields.customerAddress;
 
-  /// Subtotal Cents.
-  BeakScalarField<int> get subtotalCents => fields.subtotalCents;
+  /// Subtotal.
+  BeakScalarField<BeakDecimal> get subtotal => fields.subtotal;
 
-  /// Discount Cents.
-  BeakScalarField<int> get discountCents => fields.discountCents;
+  /// Discount.
+  BeakScalarField<BeakDecimal> get discount => fields.discount;
 
-  /// Tax Cents.
-  BeakScalarField<int> get taxCents => fields.taxCents;
+  /// Tax.
+  BeakScalarField<BeakDecimal> get tax => fields.tax;
 
-  /// Total Cents.
-  BeakScalarField<int> get totalCents => fields.totalCents;
+  /// Total.
+  BeakScalarField<BeakDecimal> get total => fields.total;
 
   /// Customer.
   BeakScalarField<String> get customerId => fields.customerId;
@@ -480,17 +482,17 @@ final class InvoiceModel extends BeakModel {
   /// Typed reference to [customerAddress] in this model.
   static final customerAddress = fields.customerAddress;
 
-  /// Typed reference to [subtotalCents] in this model.
-  static final subtotalCents = fields.subtotalCents;
+  /// Typed reference to [subtotal] in this model.
+  static final subtotal = fields.subtotal;
 
-  /// Typed reference to [discountCents] in this model.
-  static final discountCents = fields.discountCents;
+  /// Typed reference to [discount] in this model.
+  static final discount = fields.discount;
 
-  /// Typed reference to [taxCents] in this model.
-  static final taxCents = fields.taxCents;
+  /// Typed reference to [tax] in this model.
+  static final tax = fields.tax;
 
-  /// Typed reference to [totalCents] in this model.
-  static final totalCents = fields.totalCents;
+  /// Typed reference to [total] in this model.
+  static final total = fields.total;
 
   /// Typed reference to [customerId] in this model.
   static final customerId = fields.customerId;
@@ -624,17 +626,17 @@ final class InvoiceDraft {
   String? get customerAddress =>
       _reader.read(InvoiceModel.fields.customerAddress);
 
-  /// Subtotal Cents, or null while incomplete.
-  int? get subtotalCents => _reader.read(InvoiceModel.fields.subtotalCents);
+  /// Subtotal, or null while incomplete.
+  BeakDecimal? get subtotal => _reader.read(InvoiceModel.fields.subtotal);
 
-  /// Discount Cents, or null while incomplete.
-  int? get discountCents => _reader.read(InvoiceModel.fields.discountCents);
+  /// Discount, or null while incomplete.
+  BeakDecimal? get discount => _reader.read(InvoiceModel.fields.discount);
 
-  /// Tax Cents, or null while incomplete.
-  int? get taxCents => _reader.read(InvoiceModel.fields.taxCents);
+  /// Tax, or null while incomplete.
+  BeakDecimal? get tax => _reader.read(InvoiceModel.fields.tax);
 
-  /// Total Cents, or null while incomplete.
-  int? get totalCents => _reader.read(InvoiceModel.fields.totalCents);
+  /// Total, or null while incomplete.
+  BeakDecimal? get total => _reader.read(InvoiceModel.fields.total);
 
   /// Customer, or null while incomplete.
   String? get customerId => _reader.read(InvoiceModel.fields.customerId);
@@ -716,17 +718,17 @@ extension type const InvoiceRecord._(BeakRecord record) {
   String? get customerAddress =>
       InvoiceColumns.customerAddress.readFrom(record);
 
-  /// Net line subtotal after line discounts, before vouchers, in cents.
-  int? get subtotalCents => InvoiceColumns.subtotalCents.readFrom(record);
+  /// Net line subtotal after line discounts, before vouchers.
+  BeakDecimal? get subtotal => InvoiceModel.fields.subtotal.readFrom(record);
 
-  /// Total voucher discount in cents.
-  int? get discountCents => InvoiceColumns.discountCents.readFrom(record);
+  /// Total voucher discount.
+  BeakDecimal? get discount => InvoiceModel.fields.discount.readFrom(record);
 
-  /// Rounded exclusive tax in cents.
-  int? get taxCents => InvoiceColumns.taxCents.readFrom(record);
+  /// Rounded exclusive tax.
+  BeakDecimal? get tax => InvoiceModel.fields.tax.readFrom(record);
 
-  /// Payable total in cents.
-  int? get totalCents => InvoiceColumns.totalCents.readFrom(record);
+  /// Payable total.
+  BeakDecimal? get total => InvoiceModel.fields.total.readFrom(record);
 
   /// Foreign key backing [customer].
   String get customerId => InvoiceColumns.customerId.require(record);

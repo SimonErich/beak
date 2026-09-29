@@ -116,12 +116,13 @@ abstract final class OrderActivityRelations {
 
 /// Typed configuration references for OrderActivity.
 final class OrderActivityFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const OrderActivityFields({
-    BeakModel model = const OrderActivityModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of OrderActivity, rooted at its own model.
+  const OrderActivityFields()
+    : _model = const OrderActivityModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const OrderActivityFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -226,7 +227,7 @@ final class OrderActivityToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   OrderActivityFields get fields =>
-      OrderActivityFields(model: model, path: [...path, relation]);
+      OrderActivityFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

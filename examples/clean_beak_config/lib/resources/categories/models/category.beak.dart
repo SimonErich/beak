@@ -48,12 +48,11 @@ abstract final class CategoryRelations {
 
 /// Typed configuration references for Category.
 final class CategoryFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const CategoryFields({
-    BeakModel model = const CategoryModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Category, rooted at its own model.
+  const CategoryFields() : _model = const CategoryModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const CategoryFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -102,8 +101,7 @@ final class CategoryToOneField extends BeakToOneField {
   }) : super(target: const CategoryModel());
 
   /// Every target field, including names reserved by the path API.
-  CategoryFields get fields =>
-      CategoryFields(model: model, path: [...path, relation]);
+  CategoryFields get fields => CategoryFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

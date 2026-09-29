@@ -8,21 +8,24 @@ import 'models/models.dart';
 ///
 /// The host drains the persistent demo providers while it serves, so the
 /// generated `bin/serve.dart` needs nothing of its own.
-BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
-  preparePlan: FoodioOrderPreparer(defaults.registry).prepare,
-  finalizePlan: const FoodioEffects().finalize,
-  outbox: const FoodioEffects().schedule(defaults.dataSource.adapter),
-  graphOnly: const [
-    AppSettingModel(),
-    OrderModel(),
-    OrderItemModel(),
-    OrderItemOptionModel(),
-    OrderNoteModel(),
-    OrderActivityModel(),
-    BudgetAccountModel(),
-    DeliveryProfileModel(),
-    DeliverySlotModel(),
-    PaymentAttemptModel(),
-    MessageDeliveryModel(),
-  ],
-);
+BeakServer beakServer(BeakServerDefaults defaults) {
+  final effects = FoodioEffects(defaults.registry);
+  return defaults.build(
+    preparePlan: FoodioOrderPreparer(defaults.registry).prepare,
+    finalizePlan: effects.finalize,
+    outbox: effects.schedule(defaults.dataSource.adapter),
+    graphOnly: const [
+      AppSettingModel(),
+      OrderModel(),
+      OrderItemModel(),
+      OrderItemOptionModel(),
+      OrderNoteModel(),
+      OrderActivityModel(),
+      BudgetAccountModel(),
+      DeliveryProfileModel(),
+      DeliverySlotModel(),
+      PaymentAttemptModel(),
+      MessageDeliveryModel(),
+    ],
+  );
+}

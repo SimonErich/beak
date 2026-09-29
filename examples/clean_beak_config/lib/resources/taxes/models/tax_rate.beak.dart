@@ -20,11 +20,12 @@ abstract final class TaxRateColumns {
     searchable: true,
   );
 
-  /// Percentage with up to two decimal places.
-  static const BeakDecimalColumn ratePercent = BeakDecimalColumn(
+  /// Percentage with exactly two decimal places, so 20.00 means 20 percent.
+  static const BeakIntColumn ratePercent = BeakIntColumn(
     key: 'rate_percent',
     label: 'Rate Percent',
     rules: [BeakRequired(), BeakMin(0), BeakMax(100)],
+    semantic: BeakSemantic.exactDecimal(scale: 2),
     suffix: '%',
   );
 
@@ -41,12 +42,11 @@ abstract final class TaxRateColumns {
 
 /// Typed configuration references for TaxRate.
 final class TaxRateFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const TaxRateFields({
-    BeakModel model = const TaxRateModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of TaxRate, rooted at its own model.
+  const TaxRateFields() : _model = const TaxRateModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const TaxRateFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -67,7 +67,7 @@ final class TaxRateFields {
   );
 
   /// Rate Percent.
-  BeakScalarField<double> get ratePercent => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get ratePercent => BeakScalarField<BeakDecimal>(
     model: _model,
     column: TaxRateColumns.ratePercent,
     path: _path,
@@ -94,8 +94,7 @@ final class TaxRateToOneField extends BeakToOneField {
   }) : super(target: const TaxRateModel());
 
   /// Every target field, including names reserved by the path API.
-  TaxRateFields get fields =>
-      TaxRateFields(model: model, path: [...path, relation]);
+  TaxRateFields get fields => TaxRateFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -104,7 +103,7 @@ final class TaxRateToOneField extends BeakToOneField {
   BeakScalarField<String> get name => fields.name;
 
   /// Rate Percent.
-  BeakScalarField<double> get ratePercent => fields.ratePercent;
+  BeakScalarField<BeakDecimal> get ratePercent => fields.ratePercent;
 
   /// Active.
   BeakScalarField<bool> get active => fields.active;
@@ -185,7 +184,7 @@ final class TaxRateDraft {
   String? get name => _reader.read(TaxRateModel.fields.name);
 
   /// Rate Percent, or null while incomplete.
-  double? get ratePercent => _reader.read(TaxRateModel.fields.ratePercent);
+  BeakDecimal? get ratePercent => _reader.read(TaxRateModel.fields.ratePercent);
 
   /// Active, or null while incomplete.
   bool? get active => _reader.read(TaxRateModel.fields.active);
@@ -212,8 +211,9 @@ extension type const TaxRateRecord._(BeakRecord record) {
   /// Administrator-facing rate label.
   String get name => TaxRateColumns.name.require(record);
 
-  /// Percentage with up to two decimal places.
-  double get ratePercent => TaxRateColumns.ratePercent.require(record);
+  /// Percentage with exactly two decimal places, so 20.00 means 20 percent.
+  BeakDecimal get ratePercent =>
+      TaxRateModel.fields.ratePercent.require(record);
 
   /// Whether this rate is offered for new sales.
   bool get active => TaxRateColumns.active.require(record);

@@ -51,32 +51,51 @@ final class InvoiceItem extends BeakSchema {
   late final ProductVariant? variant;
 
   /// Net unit price; blank derives a catalog price before saving.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double? unitPrice;
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal? unitPrice;
 
   /// Net reduction on the whole line, before vouchers.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double? discount;
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal? discount;
 
   /// Optional selected rate; blank uses the product rate or zero.
   @BelongsTo(inverse: false, onDelete: BeakOnDelete.restrict)
   late final TaxRate? taxRate;
 
   /// Saved percentage independent of subsequent tax-rate changes.
-  @Column(visibleOn: {BeakContext.detail})
-  late final double? taxPercent;
+  @Column(
+    suffix: '%',
+    semantic: BeakSemantic.exactDecimal(scale: 2),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? taxPercent;
 
-  /// Saved net line amount after vouchers, in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? netCents;
+  /// Saved net line amount after vouchers.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? net;
 
-  /// Saved rounded tax amount, in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? taxCents;
+  /// Saved rounded tax amount.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? tax;
 
-  /// Saved line payable amount, in cents.
-  @Column(visibleOn: {BeakContext.detail})
-  late final int? totalCents;
+  /// Saved line payable amount.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    visibleOn: {BeakContext.detail},
+  )
+  late final BeakDecimal? total;
 
   /// Owning invoice.
   @BelongsTo(onDelete: BeakOnDelete.cascade)

@@ -39,89 +39,87 @@ final class FoodioOrderPreparer {
           const BeakValidation().applyDefaults(node.model, node.record),
         );
       }
-      if ({
-        'order_activities',
-        'payment_attempts',
-        'message_deliveries',
-      }.contains(operation.target.table)) {
-        _invalid('activities', 'Activity history is written by the server.');
+      if (_serverWritten.any(operation.target.isOf)) {
+        throw OrderModel.activities.invalid(
+          'Activity history is written by the server.',
+        );
       }
-      if (operation.target.table == 'budget_accounts' &&
-          ['reserved_cents', 'spent_cents'].any(
-            (key) =>
-                operation.values.values.containsKey(key) &&
-                operation.values[key]?.raw != (node.initial?[key]?.raw ?? 0),
+      if (node.isOf(const BudgetAccountModel()) &&
+          [BudgetAccountModel.reservedCents, BudgetAccountModel.spentCents].any(
+            (field) =>
+                operation.sets(field) &&
+                field.readFrom(operation.values) != (node.original(field) ?? 0),
           )) {
-        _invalid(
-          'reserved_cents',
+        throw BudgetAccountModel.reservedCents.invalid(
           'Budget reservations are managed by order actions.',
         );
       }
-      if (operation.target.table == 'delivery_slots' &&
-          operation.values.values.containsKey('reserved_orders') &&
-          operation.values['reserved_orders']?.raw !=
-              (node.initial?['reserved_orders']?.raw ?? 0)) {
-        _invalid(
-          'reserved_orders',
+      if (node.isOf(const DeliverySlotModel()) &&
+          operation.sets(DeliverySlotModel.reservedOrders) &&
+          DeliverySlotModel.reservedOrders.readFrom(operation.values) !=
+              (node.original(DeliverySlotModel.reservedOrders) ?? 0)) {
+        throw DeliverySlotModel.reservedOrders.invalid(
           'Slot reservations are managed by order actions.',
         );
       }
-      if (operation.target.table == 'app_settings' &&
+      if (node.isOf(const AppSettingModel()) &&
           [
             node.read(AppSettingModel.key),
             node.original(AppSettingModel.key),
-          ].any({'nextOrderNumber', 'foodioSeedVersion'}.contains)) {
-        _invalid(
-          'key',
+          ].any(_serverSettings.contains)) {
+        throw AppSettingModel.key.invalid(
           'Internal sequence and seed settings are managed by the server.',
         );
       }
-      switch (operation.target.table) {
-        case 'orders':
+      switch (node.model) {
+        case OrderModel():
           orders.add(node.ref);
-        case 'order_items':
+        case OrderItemModel():
           final owner = node.reference(OrderItemModel.order);
           if (owner != null) orders.add(owner);
           if (node.initial != null && node.hasChanged(OrderItemModel.orderId)) {
-            _invalid(
-              'order_id',
+            throw OrderItemModel.orderId.invalid(
               'An existing item cannot move between orders.',
             );
           }
-        case 'order_item_options':
+        case OrderItemOptionModel():
           final item = await graph.linked(node, OrderItemOptionModel.orderItem);
           final owner = item?.reference(OrderItemModel.order);
           if (owner != null) orders.add(owner);
-        case 'order_notes':
+        case OrderNoteModel():
           if (node.deleted ||
               node.initial != null && node.materiallyChanged()) {
-            _invalid('notes', 'Saved notes are part of the audit trail.');
+            throw OrderModel.notes.invalid(
+              'Saved notes are part of the audit trail.',
+            );
           }
           if (node.initial == null) {
             graph.write(node, OrderNoteModel.author, _actor(principal));
             graph.write(node, OrderNoteModel.occurredAt, clock.now);
           }
-        case 'delivery_slots':
+        case DeliverySlotModel():
           if ((node.read(DeliverySlotModel.capacity) ?? 0) <
               (node.read(DeliverySlotModel.reservedOrders) ?? 0)) {
-            _invalid(
-              'capacity',
+            throw DeliverySlotModel.capacity.invalid(
               'Capacity cannot be lower than booked orders.',
             );
           }
           if ((node.read(DeliverySlotModel.endMinute) ?? 0) <=
               (node.read(DeliverySlotModel.startMinute) ?? 0)) {
-            _invalid('end_minute', 'A slot must end after it starts.');
+            throw DeliverySlotModel.endMinute.invalid(
+              'A slot must end after it starts.',
+            );
           }
-        case 'budget_accounts':
+        case BudgetAccountModel():
           if ((node.read(BudgetAccountModel.allowanceCents) ?? 0) <
               (node.read(BudgetAccountModel.reservedCents) ?? 0) +
                   (node.read(BudgetAccountModel.spentCents) ?? 0)) {
-            _invalid(
-              'allowance_cents',
+            throw BudgetAccountModel.allowanceCents.invalid(
               'The allowance cannot be lower than committed spending.',
             );
           }
+        default:
+          break;
       }
     }
     graph = await _initializeProfileBudgets(graph, source, orders);
@@ -149,7 +147,9 @@ final class FoodioOrderPreparer {
           final candidate = await graph.load(operation.target);
           if (operation.kind != BeakSaveOperationKind.update ||
               candidate.materiallyChanged()) {
-            _invalid('notes', 'Save order changes before adding a note.');
+            throw OrderModel.notes.invalid(
+              'Save order changes before adding a note.',
+            );
           }
         }
       } else {
@@ -159,17 +159,17 @@ final class FoodioOrderPreparer {
       if (command == OrderActions.addNote ||
           command == OrderActions.amend && note.isNotEmpty) {
         activities.add(
-          BeakSaveOperation(
+          BeakSaveOperation.create(
             id: 'note',
-            kind: BeakSaveOperationKind.create,
-            target: BeakRecordRef.draft('order_notes', 'note:${plan.saveId}'),
-            references: {'order_id': ref},
-            values: BeakRecord.fromRow({
-              'body': note,
-              'author': _actor(principal),
-              'occurred_at': clock.now,
-              'visibility': 'internal',
-            }),
+            model: const OrderNoteModel(),
+            draftId: 'note:${plan.saveId}',
+            values: [
+              OrderNoteModel.body.to(note),
+              OrderNoteModel.author.to(_actor(principal)),
+              OrderNoteModel.occurredAt.to(clock.now),
+              OrderNoteModel.visibility.to('internal'),
+            ],
+            links: [OrderNoteModel.order.linkTo(ref)],
           ),
         );
       }
@@ -177,26 +177,29 @@ final class FoodioOrderPreparer {
           order.materiallyChanged() ||
           command != null) {
         activities.add(
-          BeakSaveOperation(
+          BeakSaveOperation.create(
             id: 'audit:${activities.length}',
-            kind: BeakSaveOperationKind.create,
-            target: BeakRecordRef.draft(
-              'order_activities',
-              'audit:${plan.saveId}:${activities.length}',
-            ),
-            references: {'order_id': order.ref},
-            values: BeakRecord.fromRow({
-              'title': command == null
-                  ? (order.initial == null ? 'Draft created' : 'Order updated')
-                  : _actionTitle(command),
-              'actor': _actor(principal),
-              'kind': command?.name ?? 'edited',
-              'description': command == null || command == OrderActions.amend
-                  ? _changeDescription(order)
-                  : '',
-              'save_key': plan.saveId,
-              'occurred_at': clock.now,
-            }),
+            model: const OrderActivityModel(),
+            draftId: 'audit:${plan.saveId}:${activities.length}',
+            values: [
+              OrderActivityModel.title.to(
+                command == null
+                    ? (order.initial == null
+                          ? 'Draft created'
+                          : 'Order updated')
+                    : _actionTitle(command),
+              ),
+              OrderActivityModel.actor.to(_actor(principal)),
+              OrderActivityModel.kind.to(command?.name ?? 'edited'),
+              OrderActivityModel.description.to(
+                command == null || command == OrderActions.amend
+                    ? _changeDescription(order)
+                    : '',
+              ),
+              OrderActivityModel.saveKey.to(plan.saveId),
+              OrderActivityModel.occurredAt.to(clock.now),
+            ],
+            links: [OrderActivityModel.order.linkTo(order.ref)],
           ),
         );
       }
@@ -221,7 +224,7 @@ final class FoodioOrderPreparer {
     final occupied = graph.plan.operations.map((op) => op.id).toSet();
     for (final profile in graph.nodes.where(
       (node) =>
-          node.model.table == 'delivery_profiles' &&
+          node.isOf(const DeliveryProfileModel()) &&
           node.initial == null &&
           !node.deleted &&
           node.read(DeliveryProfileModel.kind) == 'company' &&
@@ -254,20 +257,22 @@ final class FoodioOrderPreparer {
         final id = 'profile-budget:$suffix';
         occupied.add(id);
         additions.add(
-          BeakSaveOperation(
+          BeakSaveOperation.create(
             id: id,
-            kind: BeakSaveOperationKind.create,
-            target: BeakRecordRef.draft('budget_accounts', id),
-            references: {'profile_id': profile.ref},
-            values: BeakRecord.fromRow({
-              'name': '${profile.read(DeliveryProfileModel.name)} · $period',
-              'period': period,
-              'allowance_cents': profile.read(
-                DeliveryProfileModel.monthlyBudgetCents,
+            model: const BudgetAccountModel(),
+            draftId: id,
+            values: [
+              BudgetAccountModel.name.to(
+                '${profile.read(DeliveryProfileModel.name)} · $period',
               ),
-              'reserved_cents': 0,
-              'spent_cents': 0,
-            }),
+              BudgetAccountModel.period.to(period),
+              BudgetAccountModel.allowanceCents.to(
+                profile.read(DeliveryProfileModel.monthlyBudgetCents),
+              ),
+              BudgetAccountModel.reservedCents.to(0),
+              BudgetAccountModel.spentCents.to(0),
+            ],
+            links: [BudgetAccountModel.profile.linkTo(profile.ref)],
           ),
         );
       }
@@ -329,21 +334,22 @@ final class FoodioOrderPreparer {
         action != OrderActions.reschedule) {
       final date = order.original(OrderModel.deliveryDate);
       if (date != null && clock.changesClosed(date)) {
-        _invalid('delivery_date', 'The 10:30 change cutoff has passed.');
+        throw OrderModel.deliveryDate.invalid(
+          'The 10:30 change cutoff has passed.',
+        );
       }
       if ({
         OrderStatus.outForDelivery,
         OrderStatus.delivered,
         OrderStatus.cancelled,
       }.contains(previousStatus)) {
-        _invalid('status', 'This order has finished editing.');
+        throw OrderModel.status.invalid('This order has finished editing.');
       }
       if (previousStatus == OrderStatus.inKitchen &&
           (order.hasChanged(OrderModel.customerId) ||
               order.hasChanged(OrderModel.profileId) ||
               order.hasChanged(OrderModel.deliveryDate))) {
-        _invalid(
-          'delivery_date',
+        throw OrderModel.deliveryDate.invalid(
           'Customer, profile and delivery date are locked once preparation starts.',
         );
       }
@@ -358,24 +364,23 @@ final class FoodioOrderPreparer {
       graph.write(order, OrderModel.reference, 'Draft');
       graph.write(order, OrderModel.series, '2026');
     } else {
-      _retain(graph, order, [
-        'number',
-        'reference',
-        'series',
-        'placed_at',
-        'kitchen_started_at',
-        'dispatched_at',
-        'delivered_at',
-        'cancelled_at',
-        'payment_link',
+      graph.restore(order, [
+        OrderModel.number,
+        OrderModel.reference,
+        OrderModel.series,
+        OrderModel.placedAt,
+        OrderModel.kitchenStartedAt,
+        OrderModel.dispatchedAt,
+        OrderModel.deliveredAt,
+        OrderModel.cancelledAt,
+        OrderModel.paymentLink,
       ]);
     }
     final oldInvoice = order.originalReference(OrderModel.invoice);
     if (order.hasChanged(OrderModel.invoiceId) && oldInvoice != null) {
       final previousInvoice = await graph.load(oldInvoice);
       if (previousInvoice.read(InvoiceModel.status) != InvoiceStatus.draft) {
-        _invalid(
-          'invoice_id',
+        throw OrderModel.invoiceId.invalid(
           'An order cannot be removed from an issued invoice.',
         );
       }
@@ -385,8 +390,7 @@ final class FoodioOrderPreparer {
         invoice.read(InvoiceModel.status) != InvoiceStatus.draft &&
         (contentChanged ||
             {OrderActions.cancel, OrderActions.reject}.contains(action))) {
-      _invalid(
-        'invoice_id',
+      throw OrderModel.invoiceId.invalid(
         'Issued invoice amounts are locked. Resolve billing before changing this order.',
       );
     }
@@ -395,10 +399,12 @@ final class FoodioOrderPreparer {
     if (profile != null &&
         profile.reference(DeliveryProfileModel.customer) !=
             order.reference(OrderModel.customer)) {
-      _invalid('profile_id', 'Choose a profile belonging to this customer.');
+      throw OrderModel.profileId.invalid(
+        'Choose a profile belonging to this customer.',
+      );
     }
     if (profile != null && profile.read(DeliveryProfileModel.active) != true) {
-      _invalid('profile_id', 'This delivery profile is inactive.');
+      throw OrderModel.profileId.invalid('This delivery profile is inactive.');
     }
     final location = await graph.linked(order, OrderModel.location);
     final company = profile == null
@@ -406,20 +412,23 @@ final class FoodioOrderPreparer {
         : await graph.linked(profile, DeliveryProfileModel.organization);
     final paymentMode = order.read(OrderModel.paymentMode);
     if (!foodioPaymentLabels.containsKey(paymentMode)) {
-      _invalid('payment_mode', 'Choose a supported payment method.');
+      throw OrderModel.paymentMode.invalid(
+        'Choose a supported payment method.',
+      );
     }
     if (!draft &&
         (action == OrderActions.place || contentChanged) &&
         company == null &&
         foodioCompanyPaymentModes.contains(paymentMode)) {
-      _invalid('payment_mode', 'Company billing requires a company profile.');
+      throw OrderModel.paymentMode.invalid(
+        'Company billing requires a company profile.',
+      );
     }
     if (location != null &&
         location.reference(DeliveryLocationModel.organization) != null &&
         location.reference(DeliveryLocationModel.organization) !=
             profile?.reference(DeliveryProfileModel.organization)) {
-      _invalid(
-        'location_id',
+      throw OrderModel.locationId.invalid(
         'This location does not belong to the selected company.',
       );
     }
@@ -448,28 +457,32 @@ final class FoodioOrderPreparer {
       );
       graph.link(order, OrderModel.organization, company?.ref);
     } else {
-      _retain(graph, order, [
-        'customer_name',
-        'customer_email',
-        'profile_name',
-        'organization_name',
-        'organization_id',
+      graph.restore(order, [
+        OrderModel.customerName,
+        OrderModel.customerEmail,
+        OrderModel.profileName,
+        OrderModel.organizationName,
+        OrderModel.organizationId,
       ]);
     }
     if (location != null &&
         (order.initial == null || order.hasChanged(OrderModel.locationId)) &&
         location.read(DeliveryLocationModel.active) != true) {
-      _invalid('location_id', 'Choose an active delivery location.');
+      throw OrderModel.locationId.invalid(
+        'Choose an active delivery location.',
+      );
     }
     final overrideAddress = order.read(OrderModel.addressOverride) ?? false;
     if (overrideAddress && location == null) {
-      _invalid('location_id', 'Select a delivery location for this address.');
+      throw OrderModel.locationId.invalid(
+        'Select a delivery location for this address.',
+      );
     }
     if (overrideAddress && location != null) {
       // A shipment may use another entrance/address inside the location's
       // delivery area, but must not silently move onto an unsupported route.
       if ((order.read(OrderModel.street) ?? '').trim().isEmpty) {
-        _invalid('street', 'Enter the one-time delivery address.');
+        throw OrderModel.street.invalid('Enter the one-time delivery address.');
       }
       if ((order.read(OrderModel.postalCode) ?? '').trim() !=
               (location.read(DeliveryLocationModel.postalCode) ?? '').trim() ||
@@ -477,8 +490,7 @@ final class FoodioOrderPreparer {
               (location.read(DeliveryLocationModel.city) ?? '')
                   .trim()
                   .toLowerCase()) {
-        _invalid(
-          'postal_code',
+        throw OrderModel.postalCode.invalid(
           'One-time addresses must stay in the selected location’s city and postal area.',
         );
       }
@@ -542,8 +554,7 @@ final class FoodioOrderPreparer {
               ? null
               : await graph.linked(profile, DeliveryProfileModel.menuPlan);
           if (menu == null || menu.read(MenuPlanModel.active) != true) {
-            _invalid(
-              'profile_id',
+            throw OrderModel.profileId.invalid(
               'Choose a profile with an active menu plan before adding dishes.',
             );
           }
@@ -555,7 +566,9 @@ final class FoodioOrderPreparer {
       }
       await _line(graph, item);
       final quantity = item.read(OrderItemModel.quantity) ?? 0;
-      if (quantity < 1) _invalid('quantity', 'Choose at least one portion.');
+      if (quantity < 1) {
+        throw OrderItemModel.quantity.invalid('Choose at least one portion.');
+      }
       count += quantity;
       money.add(
         FoodioMoneyLine(
@@ -574,7 +587,7 @@ final class FoodioOrderPreparer {
     if (voucher != null &&
         (draft || contentChanged || action == OrderActions.place)) {
       if (voucher.read(VoucherModel.active) != true) {
-        _invalid('voucher_id', 'This voucher is inactive.');
+        throw OrderModel.voucherId.invalid('This voucher is inactive.');
       }
       final from = voucher.read(VoucherModel.validFrom);
       final until = voucher.read(VoucherModel.validUntil);
@@ -583,8 +596,7 @@ final class FoodioOrderPreparer {
                   deliveryDate.toString().compareTo(from.toString()) < 0 ||
               until != null &&
                   deliveryDate.toString().compareTo(until.toString()) > 0)) {
-        _invalid(
-          'voucher_id',
+        throw OrderModel.voucherId.invalid(
           'This voucher is not valid for the delivery date.',
         );
       }
@@ -614,11 +626,11 @@ final class FoodioOrderPreparer {
         voucher?.read(VoucherModel.code) ?? '',
       );
     } else {
-      _retain(graph, order, [
-        'voucher_rate_basis_points',
-        'voucher_maximum_discount_cents',
-        'voucher_food_only',
-        'voucher_code',
+      graph.restore(order, [
+        OrderModel.voucherRateBasisPoints,
+        OrderModel.voucherMaximumDiscountCents,
+        OrderModel.voucherFoodOnly,
+        OrderModel.voucherCode,
       ]);
     }
     final FoodioTotals totals;
@@ -631,14 +643,13 @@ final class FoodioOrderPreparer {
         manualDiscountCents: order.read(OrderModel.manualDiscountCents) ?? 0,
       );
     } on ArgumentError catch (error) {
-      _invalid('manual_discount_cents', '${error.message}');
+      throw OrderModel.manualDiscountCents.invalid('${error.message}');
     }
     if (order.original(OrderModel.paymentStatus) == PaymentStatus.paid &&
         (totals.grossCents != order.original(OrderModel.grossCents) ||
             order.hasChanged(OrderModel.paymentMode) ||
             order.hasChanged(OrderModel.paymentMethodId))) {
-      _invalid(
-        'payment_mode',
+      throw OrderModel.paymentMode.invalid(
         'Cancel and refund this paid order before changing its amount or payment method.',
       );
     }
@@ -665,43 +676,47 @@ final class FoodioOrderPreparer {
     graph.write(order, OrderModel.drinkTaxCents, totals.taxByRate[2000] ?? 0);
     if (!draft && status != OrderStatus.cancelled) {
       if (customer == null || profile == null) {
-        _invalid(
-          'customer_id',
+        throw OrderModel.customerId.invalid(
           'Select a customer and profile before placing the order.',
         );
       }
       if (deliveryDate == null) {
-        _invalid('delivery_date', 'Select a delivery date.');
+        throw OrderModel.deliveryDate.invalid('Select a delivery date.');
       }
       if (liveItems.isEmpty) {
-        _invalid('items', 'Add at least one dish or custom item.');
+        throw OrderModel.items.invalid('Add at least one dish or custom item.');
       }
       if ((order.read(OrderModel.deliveryNote) ?? '').length > 200) {
-        _invalid('delivery_note', 'Use at most 200 characters.');
+        throw OrderModel.deliveryNote.invalid('Use at most 200 characters.');
       }
       if (action == OrderActions.place || contentChanged) {
         if (deliveryDate.toString().compareTo(clock.today.toString()) < 0) {
-          _invalid('delivery_date', 'Delivery must not be in the past.');
+          throw OrderModel.deliveryDate.invalid(
+            'Delivery must not be in the past.',
+          );
         }
         if (clock.changesClosed(deliveryDate)) {
-          _invalid('delivery_date', 'The 10:30 ordering cutoff has passed.');
+          throw OrderModel.deliveryDate.invalid(
+            'The 10:30 ordering cutoff has passed.',
+          );
         }
         if (!RegExp(
           r'^\+?[0-9][0-9 ()-]{9,20}$',
         ).hasMatch(order.read(OrderModel.contactPhone) ?? '')) {
-          _invalid(
-            'contact_phone',
+          throw OrderModel.contactPhone.invalid(
             'Enter a complete phone number, including the country code for international numbers.',
           );
         }
         if ((order.read(OrderModel.street) ?? '').trim().isEmpty ||
             (order.read(OrderModel.postalCode) ?? '').trim().isEmpty) {
-          _invalid('street', 'Enter the complete delivery address.');
+          throw OrderModel.street.invalid(
+            'Enter the complete delivery address.',
+          );
         }
       }
       if (company != null &&
           (order.read(OrderModel.costCenter) ?? '').trim().isEmpty) {
-        _invalid('cost_center', 'Choose a company cost center.');
+        throw OrderModel.costCenter.invalid('Choose a company cost center.');
       }
       if (company != null && (action == OrderActions.place || contentChanged)) {
         final allowed = (company.read(OrganizationModel.costCenters) ?? '')
@@ -710,8 +725,7 @@ final class FoodioOrderPreparer {
         if (!allowed.contains(
           (order.read(OrderModel.costCenter) ?? '').trim(),
         )) {
-          _invalid(
-            'cost_center',
+          throw OrderModel.costCenter.invalid(
             'Choose an allowed cost center for this company.',
           );
         }
@@ -723,15 +737,13 @@ final class FoodioOrderPreparer {
           method.reference(PaymentMethodModel.customer) !=
               order.reference(OrderModel.customer) ||
           method.read(PaymentMethodModel.active) != true) {
-        _invalid(
-          'payment_method_id',
+        throw OrderModel.paymentMethodId.invalid(
           'Choose an active payment method belonging to this customer.',
         );
       }
       final requiredKind = paymentMode == 'paypal' ? 'paypal' : 'card';
       if (method.read(PaymentMethodModel.kind) != requiredKind) {
-        _invalid(
-          'payment_method_id',
+        throw OrderModel.paymentMethodId.invalid(
           'Choose a $requiredKind payment method for this payment mode.',
         );
       }
@@ -780,37 +792,31 @@ final class FoodioOrderPreparer {
     if (action == OrderActions.startKitchen &&
         order.read(OrderModel.strictAllergy) == true &&
         order.read(OrderModel.allergyAcknowledged) != true) {
-      _invalid(
-        'allergy_acknowledged',
+      throw OrderModel.allergyAcknowledged.invalid(
         'The kitchen must acknowledge this allergy note first.',
       );
     }
     if (action == OrderActions.place &&
         (order.read(OrderModel.number) ?? 0) == 0) {
-      final rows = await source.adapter.select(
-        QueryDescriptor(
-          table: 'app_settings',
-          where: const Field<String>('key').eq('nextOrderNumber'),
-          limit: 1,
-        ),
+      final sequence = await source.findWhere(
+        const AppSettingModel(),
+        AppSettingModel.key.eq(_orderSequenceSetting),
       );
-      if (rows.isEmpty) {
+      if (sequence == null) {
         throw const BeakConfigurationException(
           'Order sequence is not configured.',
         );
       }
-      final row = rows.first;
-      final number = int.parse('${row['value']}');
-      final changed = await source.adapter.update(
-        UpdateDescriptor(
-          table: 'app_settings',
-          values: {'value': '${number + 1}'},
-          where: const Field<Object>(
-            'id',
-          ).eq(row['id']!).and(const Field<Object>('value').eq(row['value']!)),
-        ),
+      final current = AppSettingModel.value.require(sequence);
+      final number = int.parse(current);
+      final changed = await _compareAndSet(
+        source,
+        AppSettingModel.id.require(sequence),
+        AppSettingModel.value,
+        expected: current,
+        next: '${number + 1}',
       );
-      if (changed != 1) {
+      if (!changed) {
         throw const BeakConflictException(
           'The order sequence changed. Retry with a fresh save.',
         );
@@ -833,10 +839,14 @@ final class FoodioOrderPreparer {
       if (dish.read(DishModel.active) != true ||
           variant == null ||
           variant.read(DishVariantModel.active) != true) {
-        _invalid('variant_id', 'Choose an active dish variant.');
+        throw OrderItemModel.variantId.invalid(
+          'Choose an active dish variant.',
+        );
       }
       if (variant.reference(DishVariantModel.dish) != dish.ref) {
-        _invalid('variant_id', 'The variant belongs to another dish.');
+        throw OrderItemModel.variantId.invalid(
+          'The variant belongs to another dish.',
+        );
       }
       graph.write(item, OrderItemModel.label, dish.read(DishModel.name));
       graph.write(
@@ -861,16 +871,16 @@ final class FoodioOrderPreparer {
       );
       graph.write(item, OrderItemModel.food, dish.read(DishModel.food));
     } else if (dish != null) {
-      _retain(graph, item, [
-        'label',
-        'unit_price_cents',
-        'variant_name',
-        'tax_basis_points',
-        'allergens',
-        'food',
+      graph.restore(item, [
+        OrderItemModel.label,
+        OrderItemModel.unitPriceCents,
+        OrderItemModel.variantName,
+        OrderItemModel.taxBasisPoints,
+        OrderItemModel.allergens,
+        OrderItemModel.food,
       ]);
     } else if ((item.read(OrderItemModel.label) ?? '').trim().isEmpty) {
-      _invalid('label', 'Describe the custom item.');
+      throw OrderItemModel.label.invalid('Describe the custom item.');
     }
     var optionPrice = 0;
     for (final row in await graph.children(
@@ -881,12 +891,16 @@ final class FoodioOrderPreparer {
       final option = await graph.linked(row, OrderItemOptionModel.option);
       if (option == null ||
           option.reference(DishOptionModel.dish) != dish?.ref) {
-        _invalid('option_id', 'Choose an option belonging to this dish.');
+        throw OrderItemOptionModel.optionId.invalid(
+          'Choose an option belonging to this dish.',
+        );
       }
       if (row.initial == null ||
           row.hasChanged(OrderItemOptionModel.optionId)) {
         if (option.read(DishOptionModel.active) != true) {
-          _invalid('option_id', 'This option is inactive.');
+          throw OrderItemOptionModel.optionId.invalid(
+            'This option is inactive.',
+          );
         }
         graph.write(
           row,
@@ -904,7 +918,11 @@ final class FoodioOrderPreparer {
           option.read(DishOptionModel.allergens),
         );
       } else {
-        _retain(graph, row, ['label', 'unit_price_cents', 'allergens']);
+        graph.restore(row, [
+          OrderItemOptionModel.label,
+          OrderItemOptionModel.unitPriceCents,
+          OrderItemOptionModel.allergens,
+        ]);
       }
       optionPrice += row.read(OrderItemOptionModel.unitPriceCents) ?? 0;
     }
@@ -927,7 +945,7 @@ final class FoodioOrderPreparer {
     final newSlot = order.reference(OrderModel.slot);
     final needsCapacity = active || consumed;
     if (active && newSlot == null) {
-      _invalid('slot_id', 'Select a delivery slot.');
+      throw OrderModel.slotId.invalid('Select a delivery slot.');
     }
     if (needsCapacity && newSlot != null) {
       final slot = await graph.load(newSlot);
@@ -935,8 +953,7 @@ final class FoodioOrderPreparer {
           (slot.read(DeliverySlotModel.active) != true ||
               slot.read(DeliverySlotModel.date) !=
                   order.read(OrderModel.deliveryDate))) {
-        _invalid(
-          'slot_id',
+        throw OrderModel.slotId.invalid(
           'Choose an available slot for the selected delivery date.',
         );
       }
@@ -944,10 +961,10 @@ final class FoodioOrderPreparer {
         await _counter(
           source,
           newSlot,
-          'reserved_orders',
+          DeliverySlotModel.reservedOrders,
           1,
-          'capacity',
-          'slot_id',
+          limit: DeliverySlotModel.capacity,
+          errorField: OrderModel.slotId,
         );
       }
     }
@@ -957,10 +974,10 @@ final class FoodioOrderPreparer {
       await _counter(
         source,
         oldSlot,
-        'reserved_orders',
+        DeliverySlotModel.reservedOrders,
         -1,
-        'capacity',
-        'slot_id',
+        limit: DeliverySlotModel.capacity,
+        errorField: OrderModel.slotId,
       );
     }
     graph.write(
@@ -984,8 +1001,7 @@ final class FoodioOrderPreparer {
         DeliveryProfileModel.budgets,
       )).where((row) => row.read(BudgetAccountModel.period) == period).toList();
       if (rows.isEmpty) {
-        _invalid(
-          'profile_id',
+        throw OrderModel.profileId.invalid(
           'This profile has no budget for the delivery month.',
         );
       }
@@ -995,22 +1011,22 @@ final class FoodioOrderPreparer {
       await _counter(
         source,
         oldBudget,
-        'reserved_cents',
+        BudgetAccountModel.reservedCents,
         -previousAmount,
-        'allowance_cents',
-        'profile_id',
-        spentKey: 'spent_cents',
+        limit: BudgetAccountModel.allowanceCents,
+        errorField: OrderModel.profileId,
+        used: BudgetAccountModel.spentCents,
       );
     }
     if (delivered && hadBudget && oldBudget != null) {
       await _counter(
         source,
         oldBudget,
-        'spent_cents',
+        BudgetAccountModel.spentCents,
         previousAmount,
-        'allowance_cents',
-        'profile_id',
-        spentKey: 'reserved_cents',
+        limit: BudgetAccountModel.allowanceCents,
+        errorField: OrderModel.profileId,
+        used: BudgetAccountModel.reservedCents,
       );
     }
     if (budget != null) {
@@ -1024,8 +1040,7 @@ final class FoodioOrderPreparer {
           if (reserved < 0 ||
               reserved + (ledger.read(BudgetAccountModel.spentCents) ?? 0) >
                   (ledger.read(BudgetAccountModel.allowanceCents) ?? 0)) {
-            _invalid(
-              'profile_id',
+            throw OrderModel.profileId.invalid(
               'Insufficient company budget. Choose an eligible private payment profile.',
             );
           }
@@ -1034,11 +1049,11 @@ final class FoodioOrderPreparer {
           await _counter(
             source,
             budget,
-            'reserved_cents',
+            BudgetAccountModel.reservedCents,
             delta,
-            'allowance_cents',
-            'profile_id',
-            spentKey: 'spent_cents',
+            limit: BudgetAccountModel.allowanceCents,
+            errorField: OrderModel.profileId,
+            used: BudgetAccountModel.spentCents,
           );
         }
       }
@@ -1052,45 +1067,39 @@ final class FoodioOrderPreparer {
     );
   }
 
+  /// Moves a guarded [counter] of the [ref] account by [delta] when it stays
+  /// within [limit] (less [used] already committed elsewhere).
   Future<void> _counter(
     WormDataSource source,
     BeakRecordRef ref,
-    String key,
-    int delta,
-    String limitKey,
-    String errorKey, {
-    String? spentKey,
+    BeakScalarField<int> counter,
+    int delta, {
+    required BeakScalarField<int> limit,
+    required BeakFieldRef<Object> errorField,
+    BeakScalarField<int>? used,
   }) async {
-    final row = await source.adapter.selectOne(
-      QueryDescriptor(
-        table: ref.table,
-        where: const Field<Object>('id').eq(ref.id!),
-      ),
-    );
+    final row = await source.find(counter.model, ref.id!);
     if (row == null) {
-      _invalid(errorKey, 'The reservation account no longer exists.');
+      throw errorField.invalid('The reservation account no longer exists.');
     }
-    final before = row[key] as int;
+    final before = counter.require(row);
     final after = before + delta;
-    final used = spentKey == null ? 0 : row[spentKey] as int;
-    if (after < 0 || after + used > (row[limitKey] as int)) {
-      _invalid(
-        errorKey,
-        key == 'reserved_orders'
+    final committed = used == null ? 0 : used.require(row);
+    if (after < 0 || after + committed > limit.require(row)) {
+      throw errorField.invalid(
+        counter == DeliverySlotModel.reservedOrders
             ? 'This delivery slot is full.'
             : 'Insufficient company budget. Choose an eligible private payment profile.',
       );
     }
-    final changed = await source.adapter.update(
-      UpdateDescriptor(
-        table: ref.table,
-        values: {key: after},
-        where: const Field<Object>(
-          'id',
-        ).eq(ref.id!).and(Field<int>(key).eq(before)),
-      ),
+    final changed = await _compareAndSet(
+      source,
+      ref.id!,
+      counter,
+      expected: before,
+      next: after,
     );
-    if (changed != 1) {
+    if (!changed) {
       throw const BeakConflictException(
         'The reservation changed. Reload before trying again.',
       );
@@ -1138,24 +1147,6 @@ final class FoodioOrderPreparer {
     graph.write(order, OrderModel.nextAction, next);
   }
 
-  static void _retain(
-    BeakCandidateGraph graph,
-    BeakCandidateNode node,
-    List<String> keys,
-  ) {
-    if (node.initial == null) return;
-    graph.patch(
-      node,
-      BeakRecord(
-        values: {
-          for (final key in keys)
-            if (node.initial!.values.containsKey(key))
-              key: node.initial!.values[key]!,
-        },
-      ),
-    );
-  }
-
   static String _key(BeakRecordRef ref) => '${ref.id ?? ref.draftId}';
   static String _actor(BeakPrincipal? principal) =>
       principal?.id == 'demo-worker' ? 'Automatic' : 'Marie Novak';
@@ -1177,16 +1168,13 @@ final class FoodioOrderPreparer {
         OrderModel.drinkTaxCents,
         OrderModel.itemCount,
       ])
-        field.key,
+        field,
     };
     final labels = {
       if (node.hasChanged(OrderModel.subtotalCents) ||
           node.hasChanged(OrderModel.itemCount))
-        OrderModel.items.relation.label,
-      for (final column in node.model.columns)
-        if (!derived.contains(column.key) &&
-            node.record[column.key] != node.initial![column.key])
-          column.label,
+        OrderModel.items.label,
+      for (final column in node.changedColumns(except: derived)) column.label,
     };
     return labels.join(', ');
   }
@@ -1214,11 +1202,44 @@ final class FoodioOrderPreparer {
         OrderActions.resolveChange: 'Requested changes accepted',
       }[action] ??
       action.label;
-  static Never _invalid(String field, String message) =>
-      throw BeakValidationException(
-        message,
-        fieldErrors: {
-          field: [message],
-        },
-      );
+}
+
+/// Models whose rows only the server writes.
+const List<BeakModel> _serverWritten = [
+  OrderActivityModel(),
+  PaymentAttemptModel(),
+  MessageDeliveryModel(),
+];
+
+/// The setting holding the next order number.
+const String _orderSequenceSetting = 'nextOrderNumber';
+
+/// Settings that no caller may create or edit.
+const Set<String> _serverSettings = {
+  _orderSequenceSetting,
+  'foodioSeedVersion',
+};
+
+/// Sets [field] of the [id] row to [next] only while it still holds [expected].
+///
+/// The one raw worm write here: Beak's data source has no conditional update,
+/// so an optimistic guard needs worm's predicate on the transaction's adapter.
+Future<bool> _compareAndSet<T extends Object>(
+  WormDataSource source,
+  Object id,
+  BeakScalarField<T> field, {
+  required T expected,
+  required T next,
+}) async {
+  final model = field.model;
+  final changed = await source.adapter.update(
+    UpdateDescriptor(
+      table: model.table,
+      values: {field.key: next},
+      where: Field<Object>(
+        model.primaryKey.key,
+      ).eq(id).and(Field<Object>(field.key).eq(expected)),
+    ),
+  );
+  return changed == 1;
 }

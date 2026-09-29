@@ -1,10 +1,38 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart' show OiIcons;
+import 'package:flutter/widgets.dart' show LayoutBuilder;
 import '../../../models/models.dart';
 import '../../../theme/gabel_tokens.dart';
 
 /// Stable operating date for reproducible demo workflows.
 const foodioToday = BeakDate(2026, 9, 28);
+
+/// Orders booked into each delivery slot.
+final _booked = BeakSummaryMeasure.sum(
+  'booked',
+  field: DeliverySlotModel.reservedOrders,
+);
+
+/// Orders the kitchen can take in each slot.
+final _capacity = BeakSummaryMeasure.sum(
+  'capacity',
+  field: DeliverySlotModel.capacity,
+);
+
+/// Height of the five single-line slot rows and their warning line.
+const _slotRowsHeightInPixels = 216.0;
+
+/// Height when every row wraps its time range, as on a phone.
+///
+/// Two-line rows of 56, 40, 58, 40 and 40 px, four 16 px gaps and the 8 px
+/// the capacity view keeps above its first row.
+const _compactSlotRowsHeightInPixels = 306.0;
+
+/// Card width below which a time range no longer fits beside the ratio.
+///
+/// A range such as 08:00–08:30 needs about 80 px next to the 110 px track and
+/// the 68 px ratio column, which takes a card of roughly 330 px.
+const _compactSlotCardWidthInPixels = 330.0;
 
 /// A compact live overview remains useful when operational charts are hidden.
 BeakBlock orderCompactOverview() {
@@ -99,14 +127,6 @@ BeakBlock orderOverview() {
     'cancelled',
     filter: OrderModel.status.eq(OrderStatus.cancelled),
   );
-  final booked = BeakSummaryMeasure.sum(
-    'booked',
-    field: DeliverySlotModel.reservedOrders,
-  );
-  final capacity = BeakSummaryMeasure.sum(
-    'capacity',
-    field: DeliverySlotModel.capacity,
-  );
   return BeakRowBlock(
     expand: true,
     gapInPixels: 24,
@@ -187,55 +207,76 @@ BeakBlock orderOverview() {
         scope: BeakSummaryScope.standalone,
         heightInPixels: 264,
       ),
-      BeakSummaryBlock(
-        title: 'Delivery slots today',
-        legend: const [
-          BeakSummaryLegend(label: 'Booked', color: GabelLight.chart1),
-          BeakSummaryLegend(
-            label: 'Free capacity',
-            color: GabelLight.lineStrong,
-            hatched: true,
+      BeakWidgetBlock(
+        (context) => LayoutBuilder(
+          builder: (context, constraints) => BeakBlockHost(
+            block: _deliverySlotCapacity(
+              compact: constraints.maxWidth < _compactSlotCardWidthInPixels,
+            ),
           ),
-          BeakSummaryLegend(label: 'Almost full', color: GabelLight.warning),
-        ],
-        subtitle: 'Booked against kitchen capacity',
-        showTableToggle: true,
+        ),
         span: const BeakSpan(columns: 4),
-        query: const DeliverySlotModel().summary(
-          groupBy: DeliverySlotModel.startMinute,
-          filter: BeakAndFilter([
-            DeliverySlotModel.date.eq(foodioToday),
-            DeliverySlotModel.method.eq('office'),
-          ]),
-          measures: [booked, capacity],
-        ),
-        values: [
-          BeakSummaryValue(measure: booked, label: 'Booked'),
-          BeakSummaryValue(measure: capacity, label: 'Capacity'),
-        ],
-        groupStyle: (row) {
-          final minute = (row.group.raw as num).toInt();
-          String clock(int value) =>
-              '${(value ~/ 60).toString().padLeft(2, '0')}:${(value % 60).toString().padLeft(2, '0')}';
-          return BeakSummaryGroupStyle(
-            label: '${clock(minute)}–${clock(minute + 30)}',
-            color: GabelLight.chart1,
-            section: minute == 480 ? 'Breakfast' : null,
-          );
-        },
-        capacity: BeakSummaryCapacity(
-          trackHeightInPixels: 8,
-          used: booked,
-          total: capacity,
-          warningColor: GabelLight.warning,
-          warning: (row) =>
-              '${(row.valueOf(capacity) ?? 0) - (row.valueOf(booked) ?? 0)} left · offer 12:00–12:30',
-        ),
-        footer: (_) => 'Same-day orders close 10:30 · 48 minutes left',
-        presentation: BeakSummaryPresentation.capacity,
-        scope: BeakSummaryScope.standalone,
-        heightInPixels: 216,
       ),
     ],
+  );
+}
+
+/// Booked delivery capacity, one row per half-hour office slot.
+///
+/// The capacity rows are a fixed-height stack, so [compact] gives them the
+/// extra height they need once each time range wraps onto two lines.
+BeakSummaryBlock _deliverySlotCapacity({required bool compact}) {
+  return BeakSummaryBlock(
+    title: 'Delivery slots today',
+    legend: const [
+      BeakSummaryLegend(label: 'Booked', color: GabelLight.chart1),
+      BeakSummaryLegend(
+        label: 'Free capacity',
+        color: GabelLight.lineStrong,
+        hatched: true,
+      ),
+      BeakSummaryLegend(label: 'Almost full', color: GabelLight.warning),
+    ],
+    subtitle: 'Booked against kitchen capacity',
+    showTableToggle: true,
+    query: const DeliverySlotModel().summary(
+      groupBy: DeliverySlotModel.startMinute,
+      filter: BeakAndFilter([
+        DeliverySlotModel.date.eq(foodioToday),
+        DeliverySlotModel.method.eq('office'),
+      ]),
+      measures: [_booked, _capacity],
+    ),
+    values: [
+      BeakSummaryValue(measure: _booked, label: 'Booked'),
+      BeakSummaryValue(measure: _capacity, label: 'Capacity'),
+    ],
+    groupStyle: (row) {
+      final minute = switch (row.group.raw) {
+        final num value => value.toInt(),
+        _ => 0,
+      };
+      String clock(int value) =>
+          '${(value ~/ 60).toString().padLeft(2, '0')}:${(value % 60).toString().padLeft(2, '0')}';
+      return BeakSummaryGroupStyle(
+        label: '${clock(minute)}–${clock(minute + 30)}',
+        color: GabelLight.chart1,
+        section: minute == 480 ? 'Breakfast' : null,
+      );
+    },
+    capacity: BeakSummaryCapacity(
+      trackHeightInPixels: 8,
+      used: _booked,
+      total: _capacity,
+      warningColor: GabelLight.warning,
+      warning: (row) =>
+          '${(row.valueOf(_capacity) ?? 0) - (row.valueOf(_booked) ?? 0)} left · offer 12:00–12:30',
+    ),
+    footer: (_) => 'Same-day orders close 10:30 · 48 minutes left',
+    presentation: BeakSummaryPresentation.capacity,
+    scope: BeakSummaryScope.standalone,
+    heightInPixels: compact
+        ? _compactSlotRowsHeightInPixels
+        : _slotRowsHeightInPixels,
   );
 }

@@ -30,9 +30,9 @@ InvoicePreview invoicePreview(BeakFormReader state) {
               row.asInvoiceItem.product?.name ??
               '',
           quantity: row.asInvoiceItem.quantity ?? 0,
-          unitPriceCents: ShopMoney.cents(invoiceUnitPrice(row)),
-          lineDiscountCents: ShopMoney.cents(row.asInvoiceItem.discount ?? 0),
-          taxBasisPoints: ShopMoney.basisPoints(invoiceTaxPercent(row)),
+          unitPrice: invoiceUnitPrice(row),
+          lineDiscount: row.asInvoiceItem.discount ?? ShopMoney.zero,
+          taxRate: invoiceTaxPercent(row),
         ),
     ];
     final voucherRows = [...state.rows(InvoiceModel.vouchers)]
@@ -52,26 +52,23 @@ InvoicePreview invoicePreview(BeakFormReader state) {
       }
       final voucher = row.asInvoiceVoucher.voucher;
       if (voucher == null) continue;
-      final cap = voucher.maximumDiscount;
+      final id = row.asInvoiceVoucher.voucherId ?? row.draft.localId;
+      final minimum = voucher.minimumSubtotal ?? ShopMoney.zero;
       vouchers.add(
         voucher.kind == VoucherKind.percentage
             ? ShopVoucherInput.percentage(
-                id: row.asInvoiceVoucher.voucherId ?? row.draft.localId,
+                id: id,
                 code: voucher.code,
-                basisPoints: ShopMoney.basisPoints(voucher.value),
-                minimumSubtotalCents: ShopMoney.cents(
-                  voucher.minimumSubtotal ?? 0,
-                ),
-                maximumDiscountCents: cap == null ? null : ShopMoney.cents(cap),
+                percent: voucher.value,
+                minimumSubtotal: minimum,
+                maximumDiscount: voucher.maximumDiscount,
               )
             : ShopVoucherInput.fixed(
-                id: row.asInvoiceVoucher.voucherId ?? row.draft.localId,
+                id: id,
                 code: voucher.code,
-                amountCents: ShopMoney.cents(voucher.value),
-                minimumSubtotalCents: ShopMoney.cents(
-                  voucher.minimumSubtotal ?? 0,
-                ),
-                maximumDiscountCents: cap == null ? null : ShopMoney.cents(cap),
+                amount: voucher.value,
+                minimumSubtotal: minimum,
+                maximumDiscount: voucher.maximumDiscount,
               ),
       );
     }
@@ -84,14 +81,14 @@ InvoicePreview invoicePreview(BeakFormReader state) {
 }
 
 /// Explicit entered prices take priority over variant and catalog defaults.
-double invoiceUnitPrice(BeakFormReader row) =>
+BeakDecimal invoiceUnitPrice(BeakFormReader row) =>
     row.asInvoiceItem.unitPrice ??
     row.asInvoiceItem.variant?.price ??
     row.asInvoiceItem.product?.price ??
-    0;
+    ShopMoney.zero;
 
 /// Preserves a saved rate until the product, variant or tax selection changes.
-double invoiceTaxPercent(BeakFormReader row) {
+BeakDecimal invoiceTaxPercent(BeakFormReader row) {
   final initial = row.draft.initialRecord;
   final selectionUnchanged = [
     InvoiceItemModel.productId,
@@ -104,7 +101,7 @@ double invoiceTaxPercent(BeakFormReader row) {
   }
   return row.asInvoiceItem.taxRate?.ratePercent ??
       row.asInvoiceItem.product?.taxRate?.ratePercent ??
-      0;
+      ShopMoney.zero;
 }
 
 /// Drafts preview the selected customer; issued invoices retain billed details.

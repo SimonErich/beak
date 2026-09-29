@@ -215,12 +215,13 @@ abstract final class FulfillmentPolicyColumns {
 
 /// Typed configuration references for FulfillmentPolicy.
 final class FulfillmentPolicyFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const FulfillmentPolicyFields({
-    BeakModel model = const FulfillmentPolicyModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of FulfillmentPolicy, rooted at its own model.
+  const FulfillmentPolicyFields()
+    : _model = const FulfillmentPolicyModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const FulfillmentPolicyFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -413,7 +414,7 @@ final class FulfillmentPolicyToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   FulfillmentPolicyFields get fields =>
-      FulfillmentPolicyFields(model: model, path: [...path, relation]);
+      FulfillmentPolicyFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

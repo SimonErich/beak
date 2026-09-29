@@ -27,12 +27,11 @@ abstract final class CompanyColumns {
 
 /// Typed configuration references for Company.
 final class CompanyFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const CompanyFields({
-    BeakModel model = const CompanyModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Company, rooted at its own model.
+  const CompanyFields() : _model = const CompanyModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const CompanyFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -64,8 +63,7 @@ final class CompanyToOneField extends BeakToOneField {
   }) : super(target: const CompanyModel());
 
   /// Every target field, including names reserved by the path API.
-  CompanyFields get fields =>
-      CompanyFields(model: model, path: [...path, relation]);
+  CompanyFields get fields => CompanyFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

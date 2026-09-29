@@ -38,8 +38,8 @@ final class InvoiceResource extends BeakResource {
               InvoiceModel.customerEmail,
               InvoiceModel.issuedAt,
               InvoiceModel.dueAt,
-              InvoiceModel.totalCents.currency(
-                minorUnits: true,
+              InvoiceModel.total.formatted(
+                BeakValueFormat.currency,
                 label: 'Amount due',
               ),
             ],

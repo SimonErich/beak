@@ -99,12 +99,11 @@ abstract final class DishOptionRelations {
 
 /// Typed configuration references for DishOption.
 final class DishOptionFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const DishOptionFields({
-    BeakModel model = const DishOptionModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of DishOption, rooted at its own model.
+  const DishOptionFields() : _model = const DishOptionModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const DishOptionFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -193,7 +192,7 @@ final class DishOptionToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   DishOptionFields get fields =>
-      DishOptionFields(model: model, path: [...path, relation]);
+      DishOptionFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

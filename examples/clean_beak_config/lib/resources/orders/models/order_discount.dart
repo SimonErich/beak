@@ -12,9 +12,12 @@ final class OrderDiscount extends BeakSchema {
   @Display()
   late final String reason;
 
-  /// Reduction in euros.
-  @Column(prefix: '€', rules: [BeakMin(0)])
-  late final double amount;
+  /// Reduction, exact and in euros.
+  @Column(
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal amount;
 
   /// Owning order; wired automatically on final save.
   @BelongsTo(onDelete: BeakOnDelete.cascade)

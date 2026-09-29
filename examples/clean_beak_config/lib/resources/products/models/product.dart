@@ -17,9 +17,14 @@ final class Product extends BeakSchema {
   @Column(searchable: true, sortable: true)
   late final String name;
 
-  /// Current catalog unit price in euros.
-  @Column(label: 'Net price', prefix: '€', sortable: true, rules: [BeakMin(0)])
-  late final double price;
+  /// Current catalog unit price, exact and in euros.
+  @Column(
+    label: 'Net price',
+    semantic: BeakSemantic.money(currency: 'EUR'),
+    sortable: true,
+    rules: [BeakMin(0)],
+  )
+  late final BeakDecimal price;
 
   /// Optional stock-keeping identifier for the base product.
   @Column(searchable: true)

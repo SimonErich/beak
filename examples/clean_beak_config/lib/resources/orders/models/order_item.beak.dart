@@ -26,20 +26,20 @@ abstract final class OrderItemColumns {
     min: 1,
   );
 
-  /// Optional negotiated unit price in euros.
-  static const BeakDecimalColumn overwritePrice = BeakDecimalColumn(
+  /// Optional negotiated unit price, exact and in euros.
+  static const BeakIntColumn overwritePrice = BeakIntColumn(
     key: 'overwrite_price',
     label: 'Overwrite Price',
     rules: [BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
-  /// Optional discount on the complete line in euros.
-  static const BeakDecimalColumn discount = BeakDecimalColumn(
+  /// Optional discount on the complete line, exact and in euros.
+  static const BeakIntColumn discount = BeakIntColumn(
     key: 'discount',
     label: 'Discount',
     rules: [BeakMin(0)],
-    prefix: '€',
+    semantic: BeakSemantic.money(currency: 'EUR'),
   );
 
   /// Foreign key backing [order].
@@ -134,12 +134,11 @@ abstract final class OrderItemRelations {
 
 /// Typed configuration references for OrderItem.
 final class OrderItemFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const OrderItemFields({
-    BeakModel model = const OrderItemModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of OrderItem, rooted at its own model.
+  const OrderItemFields() : _model = const OrderItemModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const OrderItemFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -168,15 +167,16 @@ final class OrderItemFields {
   );
 
   /// Overwrite Price.
-  BeakScalarField<double> get overwritePrice => BeakScalarField<double>(
-    model: _model,
-    column: OrderItemColumns.overwritePrice,
-    path: _path,
-    isRequired: false,
-  );
+  BeakScalarField<BeakDecimal> get overwritePrice =>
+      BeakScalarField<BeakDecimal>(
+        model: _model,
+        column: OrderItemColumns.overwritePrice,
+        path: _path,
+        isRequired: false,
+      );
 
   /// Discount.
-  BeakScalarField<double> get discount => BeakScalarField<double>(
+  BeakScalarField<BeakDecimal> get discount => BeakScalarField<BeakDecimal>(
     model: _model,
     column: OrderItemColumns.discount,
     path: _path,
@@ -259,8 +259,7 @@ final class OrderItemToOneField extends BeakToOneField {
   }) : super(target: const OrderItemModel());
 
   /// Every target field, including names reserved by the path API.
-  OrderItemFields get fields =>
-      OrderItemFields(model: model, path: [...path, relation]);
+  OrderItemFields get fields => OrderItemFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -269,10 +268,10 @@ final class OrderItemToOneField extends BeakToOneField {
   BeakScalarField<int> get quantity => fields.quantity;
 
   /// Overwrite Price.
-  BeakScalarField<double> get overwritePrice => fields.overwritePrice;
+  BeakScalarField<BeakDecimal> get overwritePrice => fields.overwritePrice;
 
   /// Discount.
-  BeakScalarField<double> get discount => fields.discount;
+  BeakScalarField<BeakDecimal> get discount => fields.discount;
 
   /// Order.
   BeakScalarField<String> get orderId => fields.orderId;
@@ -432,11 +431,11 @@ final class OrderItemDraft {
   int? get quantity => _reader.read(OrderItemModel.fields.quantity);
 
   /// Overwrite Price, or null while incomplete.
-  double? get overwritePrice =>
+  BeakDecimal? get overwritePrice =>
       _reader.read(OrderItemModel.fields.overwritePrice);
 
   /// Discount, or null while incomplete.
-  double? get discount => _reader.read(OrderItemModel.fields.discount);
+  BeakDecimal? get discount => _reader.read(OrderItemModel.fields.discount);
 
   /// Order, or null while incomplete.
   String? get orderId => _reader.read(OrderItemModel.fields.orderId);
@@ -502,12 +501,12 @@ extension type const OrderItemRecord._(BeakRecord record) {
   /// Positive quantity of the selected product.
   int get quantity => OrderItemColumns.quantity.require(record);
 
-  /// Optional negotiated unit price in euros.
-  double? get overwritePrice =>
-      OrderItemColumns.overwritePrice.readFrom(record);
+  /// Optional negotiated unit price, exact and in euros.
+  BeakDecimal? get overwritePrice =>
+      OrderItemModel.fields.overwritePrice.readFrom(record);
 
-  /// Optional discount on the complete line in euros.
-  double? get discount => OrderItemColumns.discount.readFrom(record);
+  /// Optional discount on the complete line, exact and in euros.
+  BeakDecimal? get discount => OrderItemModel.fields.discount.readFrom(record);
 
   /// Foreign key backing [order].
   String get orderId => OrderItemColumns.orderId.require(record);

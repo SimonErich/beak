@@ -80,12 +80,13 @@ abstract final class ProductImageRelations {
 
 /// Typed configuration references for ProductImage.
 final class ProductImageFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const ProductImageFields({
-    BeakModel model = const ProductImageModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of ProductImage, rooted at its own model.
+  const ProductImageFields()
+    : _model = const ProductImageModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const ProductImageFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -150,7 +151,7 @@ final class ProductImageToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   ProductImageFields get fields =>
-      ProductImageFields(model: model, path: [...path, relation]);
+      ProductImageFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

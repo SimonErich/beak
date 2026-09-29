@@ -198,12 +198,11 @@ abstract final class InvoiceRelations {
 
 /// Typed configuration references for Invoice.
 final class InvoiceFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const InvoiceFields({
-    BeakModel model = const InvoiceModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Invoice, rooted at its own model.
+  const InvoiceFields() : _model = const InvoiceModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const InvoiceFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -364,8 +363,7 @@ final class InvoiceToOneField extends BeakToOneField {
   }) : super(target: const InvoiceModel());
 
   /// Every target field, including names reserved by the path API.
-  InvoiceFields get fields =>
-      InvoiceFields(model: model, path: [...path, relation]);
+  InvoiceFields get fields => InvoiceFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

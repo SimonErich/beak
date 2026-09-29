@@ -27,10 +27,11 @@ abstract final class InvoiceVoucherColumns {
     visibleOn: {BeakContext.detail},
   );
 
-  /// Reduction actually applied, in cents.
-  static const BeakIntColumn discountCents = BeakIntColumn(
-    key: 'discount_cents',
-    label: 'Discount Cents',
+  /// Reduction actually applied.
+  static const BeakIntColumn discount = BeakIntColumn(
+    key: 'discount',
+    label: 'Discount',
+    semantic: BeakSemantic.money(currency: 'EUR'),
     visibleOn: {BeakContext.detail},
   );
 
@@ -55,7 +56,7 @@ abstract final class InvoiceVoucherColumns {
     id,
     position,
     codeSnapshot,
-    discountCents,
+    discount,
     voucherId,
     invoiceId,
   ];
@@ -88,12 +89,13 @@ abstract final class InvoiceVoucherRelations {
 
 /// Typed configuration references for InvoiceVoucher.
 final class InvoiceVoucherFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const InvoiceVoucherFields({
-    BeakModel model = const InvoiceVoucherModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of InvoiceVoucher, rooted at its own model.
+  const InvoiceVoucherFields()
+    : _model = const InvoiceVoucherModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const InvoiceVoucherFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -121,10 +123,10 @@ final class InvoiceVoucherFields {
     isRequired: false,
   );
 
-  /// Discount Cents.
-  BeakScalarField<int> get discountCents => BeakScalarField<int>(
+  /// Discount.
+  BeakScalarField<BeakDecimal> get discount => BeakScalarField<BeakDecimal>(
     model: _model,
-    column: InvoiceVoucherColumns.discountCents,
+    column: InvoiceVoucherColumns.discount,
     path: _path,
     isRequired: false,
   );
@@ -174,7 +176,7 @@ final class InvoiceVoucherToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   InvoiceVoucherFields get fields =>
-      InvoiceVoucherFields(model: model, path: [...path, relation]);
+      InvoiceVoucherFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
@@ -185,8 +187,8 @@ final class InvoiceVoucherToOneField extends BeakToOneField {
   /// Code Snapshot.
   BeakScalarField<String> get codeSnapshot => fields.codeSnapshot;
 
-  /// Discount Cents.
-  BeakScalarField<int> get discountCents => fields.discountCents;
+  /// Discount.
+  BeakScalarField<BeakDecimal> get discount => fields.discount;
 
   /// Voucher.
   BeakScalarField<String> get voucherId => fields.voucherId;
@@ -218,8 +220,8 @@ final class InvoiceVoucherModel extends BeakModel {
   /// Typed reference to [codeSnapshot] in this model.
   static final codeSnapshot = fields.codeSnapshot;
 
-  /// Typed reference to [discountCents] in this model.
-  static final discountCents = fields.discountCents;
+  /// Typed reference to [discount] in this model.
+  static final discount = fields.discount;
 
   /// Typed reference to [voucherId] in this model.
   static final voucherId = fields.voucherId;
@@ -303,9 +305,9 @@ final class InvoiceVoucherDraft {
   String? get codeSnapshot =>
       _reader.read(InvoiceVoucherModel.fields.codeSnapshot);
 
-  /// Discount Cents, or null while incomplete.
-  int? get discountCents =>
-      _reader.read(InvoiceVoucherModel.fields.discountCents);
+  /// Discount, or null while incomplete.
+  BeakDecimal? get discount =>
+      _reader.read(InvoiceVoucherModel.fields.discount);
 
   /// Voucher, or null while incomplete.
   String? get voucherId => _reader.read(InvoiceVoucherModel.fields.voucherId);
@@ -353,9 +355,9 @@ extension type const InvoiceVoucherRecord._(BeakRecord record) {
   String? get codeSnapshot =>
       InvoiceVoucherColumns.codeSnapshot.readFrom(record);
 
-  /// Reduction actually applied, in cents.
-  int? get discountCents =>
-      InvoiceVoucherColumns.discountCents.readFrom(record);
+  /// Reduction actually applied.
+  BeakDecimal? get discount =>
+      InvoiceVoucherModel.fields.discount.readFrom(record);
 
   /// Foreign key backing [voucher].
   String get voucherId => InvoiceVoucherColumns.voucherId.require(record);

@@ -8,21 +8,22 @@ import 'package:clean_beak_config/resources/products/models/variant_attribute.da
 import 'package:clean_beak_config/resources/products/product_resource.dart';
 import 'package:clean_beak_config/resources/users/user_resource.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'support/money.dart';
 
 void main() {
   test(
     'product duplication preserves catalog values and resets selling identities',
     () async {
       final registry = buildBeakRegistry();
-      final original = BeakRecord.fromRow({
-        'id': 'coffee',
-        'name': 'Coffee',
-        'sku': 'COFFEE',
-        'price': 12.5,
-        'active': true,
-        'category_id': 'beans',
-        'tax_rate_id': 'standard',
-      });
+      final original = const ProductModel().record([
+        ProductModel.id.to('coffee'),
+        ProductModel.name.to('Coffee'),
+        ProductModel.sku.to('COFFEE'),
+        ProductModel.price.to(eur('12.50')),
+        ProductModel.active.to(true),
+        ProductModel.categoryId.to('beans'),
+        ProductModel.taxRateId.to('standard'),
+      ]);
       final memory = InMemoryBeakDataSource(registry: registry)
         ..seed(const ProductModel(), [original])
         ..seed(const ProductAttributeModel(), [
@@ -35,15 +36,15 @@ void main() {
           }),
         ])
         ..seed(const ProductVariantModel(), [
-          BeakRecord.fromRow({
-            'id': 'large',
-            'product_id': 'coffee',
-            'name': '1 kg',
-            'sku': 'COFFEE-1KG',
-            'price': 35.0,
-            'stock': 27,
-            'active': true,
-          }),
+          const ProductVariantModel().record([
+            ProductVariantModel.id.to('large'),
+            ProductVariantModel.productId.to('coffee'),
+            ProductVariantModel.name.to('1 kg'),
+            ProductVariantModel.sku.to('COFFEE-1KG'),
+            ProductVariantModel.price.to(eur('35.00')),
+            ProductVariantModel.stock.to(27),
+            ProductVariantModel.active.to(true),
+          ]),
         ])
         ..seed(const VariantAttributeModel(), [
           BeakRecord.fromRow({
@@ -67,7 +68,7 @@ void main() {
           );
       expect(ProductModel.id.readFrom(copy.record), isNull);
       expect(ProductModel.sku.readFrom(copy.record), isNull);
-      expect(ProductModel.price.readFrom(copy.record), 12.5);
+      expect(ProductModel.price.readFrom(copy.record), eur('12.50'));
       expect(ProductModel.categoryId.readFrom(copy.record), 'beans');
       expect(ProductModel.taxRateId.readFrom(copy.record), 'standard');
       final attribute = copy.record.relations['attributes']!.single;
@@ -76,7 +77,7 @@ void main() {
       final variant = copy.record.relations['variants']!.single;
       expect(ProductVariantModel.sku.readFrom(variant), isNull);
       expect(ProductVariantModel.stock.readFrom(variant), isNull);
-      expect(ProductVariantModel.price.readFrom(variant), 35);
+      expect(ProductVariantModel.price.readFrom(variant), eur('35.00'));
       expect(
         VariantAttributeModel.value.readFrom(
           variant.relations['attributes']!.single,

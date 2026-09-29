@@ -106,12 +106,11 @@ abstract final class ComplaintRelations {
 
 /// Typed configuration references for Complaint.
 final class ComplaintFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const ComplaintFields({
-    BeakModel model = const ComplaintModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Complaint, rooted at its own model.
+  const ComplaintFields() : _model = const ComplaintModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const ComplaintFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -207,8 +206,7 @@ final class ComplaintToOneField extends BeakToOneField {
   }) : super(target: const ComplaintModel());
 
   /// Every target field, including names reserved by the path API.
-  ComplaintFields get fields =>
-      ComplaintFields(model: model, path: [...path, relation]);
+  ComplaintFields get fields => ComplaintFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

@@ -245,12 +245,11 @@ abstract final class OrderItemRelations {
 
 /// Typed configuration references for OrderItem.
 final class OrderItemFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const OrderItemFields({
-    BeakModel model = const OrderItemModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of OrderItem, rooted at its own model.
+  const OrderItemFields() : _model = const OrderItemModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const OrderItemFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -459,8 +458,7 @@ final class OrderItemToOneField extends BeakToOneField {
   }) : super(target: const OrderItemModel());
 
   /// Every target field, including names reserved by the path API.
-  OrderItemFields get fields =>
-      OrderItemFields(model: model, path: [...path, relation]);
+  OrderItemFields get fields => OrderItemFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

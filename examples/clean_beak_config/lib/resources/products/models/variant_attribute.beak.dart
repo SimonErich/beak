@@ -56,12 +56,13 @@ abstract final class VariantAttributeRelations {
 
 /// Typed configuration references for VariantAttribute.
 final class VariantAttributeFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const VariantAttributeFields({
-    BeakModel model = const VariantAttributeModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of VariantAttribute, rooted at its own model.
+  const VariantAttributeFields()
+    : _model = const VariantAttributeModel(),
+      _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const VariantAttributeFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -118,7 +119,7 @@ final class VariantAttributeToOneField extends BeakToOneField {
 
   /// Every target field, including names reserved by the path API.
   VariantAttributeFields get fields =>
-      VariantAttributeFields(model: model, path: [...path, relation]);
+      VariantAttributeFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

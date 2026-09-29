@@ -1,28 +1,51 @@
-/// Exact cent conversion and half-up rounding shared by server and previews.
-abstract final class ShopMoney {
-  /// Largest amount accepted by this demonstration, safely representable on web.
-  static const maxCents = 1000000000000;
+import 'package:beak/beak.dart';
 
-  /// Converts an entered euro amount without silently accepting extra precision.
-  static int cents(double euros) {
-    if (!euros.isFinite || euros < 0 || euros * 100 > maxCents) {
+/// Exact euro arithmetic shared by the server and the form previews.
+///
+/// Every amount is a [BeakDecimal] with two decimal places; nothing here
+/// converts to a binary floating-point number.
+abstract final class ShopMoney {
+  /// Decimal places of every amount and percentage.
+  static const int scale = 2;
+
+  /// The zero amount.
+  static const BeakDecimal zero = BeakDecimal(0);
+
+  /// Largest amount accepted by this demonstration, safely representable on web.
+  static const BeakDecimal maximum = BeakDecimal(1000000000000);
+
+  static const BeakDecimal _hundred = BeakDecimal(10000);
+
+  /// Validates a non-negative amount and returns it with two decimal places.
+  ///
+  /// Throws a [FormatException] for a negative or oversized amount, and for one
+  /// with more precision than cents.
+  static BeakDecimal amount(BeakDecimal value) {
+    final exact = _atScale(value);
+    if (exact.units < 0 || exact.compareTo(maximum) > 0) {
       throw const FormatException('Enter a non-negative monetary amount.');
     }
-    final scaled = euros * 100;
-    final rounded = scaled.round();
-    if ((scaled - rounded).abs() > 0.000001) {
-      throw const FormatException('Money supports at most two decimal places.');
-    }
-    return rounded;
+    return exact;
   }
 
-  /// Converts a 0–100 percentage with at most two decimal places to basis points.
-  static int basisPoints(double percent) {
-    if (!percent.isFinite || percent < 0 || percent > 100) {
+  /// Validates a percentage from 0 to 100 with at most two decimal places.
+  static BeakDecimal percentage(BeakDecimal value) {
+    final exact = _atScale(value);
+    if (exact.units < 0 || exact.compareTo(_hundred) > 0) {
       throw const FormatException('Enter a percentage between 0 and 100.');
     }
-    return cents(percent);
+    return exact;
   }
+
+  /// [percent] of [amount], rounded half-up to a whole cent.
+  static BeakDecimal percentOf(BeakDecimal amount, BeakDecimal percent) =>
+      BeakDecimal(
+        roundRatio(
+          _atScale(amount).units,
+          _atScale(percent).units,
+          _hundred.units,
+        ),
+      );
 
   /// Rounds a non-negative rational amount half-up, without floating-point math.
   static int roundRatio(int value, int multiplier, int divisor) =>
@@ -31,20 +54,25 @@ abstract final class ShopMoney {
               BigInt.from(divisor))
           .toInt();
 
-  /// Formats a saved amount for the demonstration's euro currency.
-  static String format(int cents) => '€${(cents / 100).toStringAsFixed(2)}';
+  static BeakDecimal _atScale(BeakDecimal value) {
+    try {
+      return value.rescale(scale);
+    } on FormatException {
+      throw const FormatException('Money supports at most two decimal places.');
+    }
+  }
 }
 
-/// A complete line price expressed in integer cents and tax basis points.
+/// A complete line price expressed in exact euros and a tax percentage.
 final class ShopLineInput {
   /// Creates one uniquely identified product, variant or custom line.
   const ShopLineInput({
     required this.id,
     required this.label,
     required this.quantity,
-    required this.unitPriceCents,
-    this.lineDiscountCents = 0,
-    this.taxBasisPoints = 0,
+    required this.unitPrice,
+    this.lineDiscount = ShopMoney.zero,
+    this.taxRate = ShopMoney.zero,
   });
 
   /// Stable row identity for matching previews and saved snapshots.
@@ -56,36 +84,36 @@ final class ShopLineInput {
   /// Number of whole units.
   final int quantity;
 
-  /// Net unit price in cents.
-  final int unitPriceCents;
+  /// Net unit price.
+  final BeakDecimal unitPrice;
 
   /// Net reduction on the whole line before invoice-level vouchers.
-  final int lineDiscountCents;
+  final BeakDecimal lineDiscount;
 
-  /// Exclusive tax rate, where 2000 means 20%.
-  final int taxBasisPoints;
+  /// Exclusive tax rate as a percentage, where 20 means 20 percent.
+  final BeakDecimal taxRate;
 }
 
 /// A voucher application in explicit application order.
 final class ShopVoucherInput {
-  /// A fixed reduction in cents, capped at the remaining net subtotal.
+  /// A fixed reduction, capped at the remaining net subtotal.
   const ShopVoucherInput.fixed({
     required this.id,
     required this.code,
-    required int amountCents,
-    this.minimumSubtotalCents = 0,
-    this.maximumDiscountCents,
-  }) : value = amountCents,
+    required BeakDecimal amount,
+    this.minimumSubtotal = ShopMoney.zero,
+    this.maximumDiscount,
+  }) : value = amount,
        percentage = false;
 
   /// A percentage reduction on the net subtotal remaining after prior vouchers.
   const ShopVoucherInput.percentage({
     required this.id,
     required this.code,
-    required int basisPoints,
-    this.minimumSubtotalCents = 0,
-    this.maximumDiscountCents,
-  }) : value = basisPoints,
+    required BeakDecimal percent,
+    this.minimumSubtotal = ShopMoney.zero,
+    this.maximumDiscount,
+  }) : value = percent,
        percentage = true;
 
   /// Voucher identity; duplicates within one invoice are rejected.
@@ -94,57 +122,57 @@ final class ShopVoucherInput {
   /// Snapshot of the redemption code.
   final String code;
 
-  /// Cents for fixed vouchers, basis points for percentage vouchers.
-  final int value;
+  /// A euro amount for fixed vouchers, a percentage for percentage vouchers.
+  final BeakDecimal value;
 
   /// Whether [value] is a percentage.
   final bool percentage;
 
   /// Eligibility threshold measured before all invoice-level vouchers.
-  final int minimumSubtotalCents;
+  final BeakDecimal minimumSubtotal;
 
   /// Optional maximum discount for this application.
-  final int? maximumDiscountCents;
+  final BeakDecimal? maximumDiscount;
 }
 
 /// The amount allocated to an individual line after all voucher applications.
 final class ShopLineTotal {
   const ShopLineTotal._(
     this.input,
-    this.subtotalCents,
-    this.voucherDiscountCents,
-    this.netCents,
-    this.taxCents,
+    this.subtotal,
+    this.voucherDiscount,
+    this.net,
+    this.tax,
   );
 
   /// Original price and tax snapshot.
   final ShopLineInput input;
 
   /// Line subtotal after the line-level discount and before vouchers.
-  final int subtotalCents;
+  final BeakDecimal subtotal;
 
   /// Proportional share of all invoice-level vouchers.
-  final int voucherDiscountCents;
+  final BeakDecimal voucherDiscount;
 
   /// Remaining taxable net amount.
-  final int netCents;
+  final BeakDecimal net;
 
   /// Tax rounded half-up on this line's remaining taxable amount.
-  final int taxCents;
+  final BeakDecimal tax;
 
   /// Amount payable for this line.
-  int get totalCents => netCents + taxCents;
+  BeakDecimal get total => net + tax;
 }
 
 /// A voucher definition paired with its actual capped reduction.
 final class ShopVoucherTotal {
-  const ShopVoucherTotal._(this.input, this.discountCents);
+  const ShopVoucherTotal._(this.input, this.discount);
 
   /// Applied voucher definition.
   final ShopVoucherInput input;
 
   /// Actual reduction after capping at the remaining subtotal.
-  final int discountCents;
+  final BeakDecimal discount;
 }
 
 /// Deterministic invoice arithmetic for the example's exclusive-tax policy.
@@ -163,22 +191,27 @@ final class ShopTotals {
   final List<ShopVoucherTotal> vouchers;
 
   /// Subtotal after line discounts, before vouchers.
-  int get subtotalCents => lines.fold(0, (sum, row) => sum + row.subtotalCents);
+  BeakDecimal get subtotal =>
+      lines.fold(ShopMoney.zero, (sum, row) => sum + row.subtotal);
 
   /// Total invoice-level voucher reductions.
-  int get discountCents =>
-      vouchers.fold(0, (sum, row) => sum + row.discountCents);
+  BeakDecimal get discount =>
+      vouchers.fold(ShopMoney.zero, (sum, row) => sum + row.discount);
 
   /// Final taxable net amount.
-  int get netCents => subtotalCents - discountCents;
+  BeakDecimal get net => subtotal - discount;
 
   /// Sum of rounded line taxes.
-  int get taxCents => lines.fold(0, (sum, row) => sum + row.taxCents);
+  BeakDecimal get tax =>
+      lines.fold(ShopMoney.zero, (sum, row) => sum + row.tax);
 
   /// Final payable amount.
-  int get totalCents => netCents + taxCents;
+  BeakDecimal get total => net + tax;
 
   /// Validates inputs and calculates immutable, internally consistent totals.
+  ///
+  /// Running balances are whole units of the two-decimal amount scale, so
+  /// every step is an exact integer operation.
   factory ShopTotals.calculate({
     required List<ShopLineInput> lines,
     List<ShopVoucherInput> vouchers = const [],
@@ -194,30 +227,27 @@ final class ShopTotals {
           'Each line needs a unique identity and description.',
         );
       }
-      if (line.quantity < 1 ||
-          line.unitPriceCents < 0 ||
-          line.lineDiscountCents < 0 ||
-          line.taxBasisPoints < 0 ||
-          line.taxBasisPoints > 10000) {
-        throw const FormatException(
-          'Line quantities, prices and tax rates are invalid.',
-        );
+      if (line.quantity < 1) {
+        throw const FormatException('Line quantities must be at least one.');
       }
       final grossNet =
-          BigInt.from(line.quantity) * BigInt.from(line.unitPriceCents);
-      if (grossNet > BigInt.from(ShopMoney.maxCents) ||
-          BigInt.from(line.lineDiscountCents) > grossNet) {
+          BigInt.from(line.quantity) *
+          BigInt.from(ShopMoney.amount(line.unitPrice).units);
+      final lineDiscount = ShopMoney.amount(line.lineDiscount).units;
+      ShopMoney.percentage(line.taxRate);
+      if (grossNet > BigInt.from(ShopMoney.maximum.units) ||
+          BigInt.from(lineDiscount) > grossNet) {
         throw const FormatException(
           'A line discount cannot exceed its subtotal.',
         );
       }
-      subtotals.add(grossNet.toInt() - line.lineDiscountCents);
+      subtotals.add(grossNet.toInt() - lineDiscount);
     }
     final originalSubtotal = subtotals.fold<int>(
       0,
       (sum, value) => sum + value,
     );
-    if (originalSubtotal > ShopMoney.maxCents) {
+    if (originalSubtotal > ShopMoney.maximum.units) {
       throw const FormatException('Invoice amount is too large.');
     }
     final balances = [...subtotals];
@@ -227,24 +257,24 @@ final class ShopTotals {
       if (!voucherIds.add(voucher.id)) {
         throw const FormatException('A voucher can only be applied once.');
       }
-      if (voucher.value < 0 ||
-          (voucher.percentage && voucher.value > 10000) ||
-          voucher.minimumSubtotalCents < 0 ||
-          (voucher.maximumDiscountCents ?? 0) < 0) {
-        throw const FormatException('Voucher values are invalid.');
-      }
-      if (originalSubtotal < voucher.minimumSubtotalCents) {
+      final value = voucher.percentage
+          ? ShopMoney.percentage(voucher.value)
+          : ShopMoney.amount(voucher.value);
+      final minimum = ShopMoney.amount(voucher.minimumSubtotal);
+      final cap = switch (voucher.maximumDiscount) {
+        final BeakDecimal amount => ShopMoney.amount(amount),
+        null => null,
+      };
+      if (originalSubtotal < minimum.units) {
         throw FormatException(
           'Voucher ${voucher.code} requires a higher subtotal.',
         );
       }
       final remaining = balances.fold<int>(0, (sum, value) => sum + value);
       var discount = voucher.percentage
-          ? ShopMoney.roundRatio(remaining, voucher.value, 10000)
-          : voucher.value;
-      if (voucher.maximumDiscountCents case final int cap when discount > cap) {
-        discount = cap;
-      }
+          ? ShopMoney.roundRatio(remaining, value.units, 10000)
+          : value.units;
+      if (cap != null && discount > cap.units) discount = cap.units;
       if (discount > remaining) discount = remaining;
       if (discount > 0) {
         final allocations = <int>[];
@@ -268,20 +298,19 @@ final class ShopTotals {
           balances[index] -= allocations[index];
         }
       }
-      applied.add(ShopVoucherTotal._(voucher, discount));
+      applied.add(ShopVoucherTotal._(voucher, BeakDecimal(discount)));
     }
     return ShopTotals._(
       List.unmodifiable([
         for (var index = 0; index < lines.length; index++)
           ShopLineTotal._(
             lines[index],
-            subtotals[index],
-            subtotals[index] - balances[index],
-            balances[index],
-            ShopMoney.roundRatio(
-              balances[index],
-              lines[index].taxBasisPoints,
-              10000,
+            BeakDecimal(subtotals[index]),
+            BeakDecimal(subtotals[index] - balances[index]),
+            BeakDecimal(balances[index]),
+            ShopMoney.percentOf(
+              BeakDecimal(balances[index]),
+              lines[index].taxRate,
             ),
           ),
       ]),

@@ -10,10 +10,13 @@ import 'package:foodio_adminpanel/main.dart';
 import 'package:foodio_adminpanel/models/models.dart';
 import 'package:foodio_adminpanel/seeders/foodio_seeder.dart';
 
+import 'support/gabel_fonts.dart';
+
 void main() {
   late DatabaseAdapter adapter;
   late WormDataSource source;
   setUpAll(() async {
+    await loadGabelFonts();
     final host = beakHost(
       environment: {
         'DATABASE_URL': 'sqlite::memory:',
@@ -40,15 +43,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1440, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final config = foodioPanel();
-    // The app lands on its overview screen, and both that screen and the
-    // orders list overflow under the test font. Boot on the dishes list, which
-    // renders cleanly.
-    final booted = config.copyWith(
-      home: config.resources.firstWhere(
-        (resource) => resource.model.table == 'dishes',
-      ),
-    );
-    await tester.pumpWidget(BeakPanel(config: booted, dataSource: source));
+    await tester.pumpWidget(BeakPanel(config: config, dataSource: source));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'Full panel bootstrap');
     final router = GoRouter.of(tester.element(find.byType(OiAppShell)));

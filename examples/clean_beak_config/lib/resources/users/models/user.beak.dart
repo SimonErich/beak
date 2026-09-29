@@ -90,12 +90,11 @@ abstract final class UserRelations {
 
 /// Typed configuration references for User.
 final class UserFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const UserFields({
-    BeakModel model = const UserModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of User, rooted at its own model.
+  const UserFields() : _model = const UserModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const UserFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -176,7 +175,7 @@ final class UserToOneField extends BeakToOneField {
   }) : super(target: const UserModel());
 
   /// Every target field, including names reserved by the path API.
-  UserFields get fields => UserFields(model: model, path: [...path, relation]);
+  UserFields get fields => UserFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;

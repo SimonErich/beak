@@ -10,6 +10,7 @@ import 'package:clean_beak_config/resources/users/models/user_profile_connection
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clean_beak_config/seeders/shop_seeder.dart';
 import 'support/shop_test_api.dart';
+import 'support/money.dart';
 
 void main() {
   test(
@@ -24,27 +25,27 @@ void main() {
         steps: orderSteps(),
       );
       addTearDown(session.dispose);
-      final first = BeakRecord.fromRow({
-        'id': 'a',
-        'name': 'First',
-        'price': 12.5,
-      });
-      final second = BeakRecord.fromRow({
-        'id': 'b',
-        'name': 'Second',
-        'price': 20.0,
-      });
+      final first = const ProductModel().record([
+        ProductModel.id.to('a'),
+        ProductModel.name.to('First'),
+        ProductModel.price.to(eur('12.50')),
+      ]);
+      final second = const ProductModel().record([
+        ProductModel.id.to('b'),
+        ProductModel.name.to('Second'),
+        ProductModel.price.to(eur('20.00')),
+      ]);
       source.seed(const ProductModel(), [first, second]);
       final row = session.root.addRow(OrderModel.items);
       row.select(OrderItemModel.product, first);
-      expect(row.read(OrderItemModel.overwritePrice), 12.5);
+      expect(row.read(OrderItemModel.overwritePrice), eur('12.50'));
       expect(row.read(OrderItemModel.label), 'First');
       row.select(OrderItemModel.product, second);
-      expect(row.read(OrderItemModel.overwritePrice), 20.0);
+      expect(row.read(OrderItemModel.overwritePrice), eur('20.00'));
       expect(row.read(OrderItemModel.label), 'Second');
-      row.set(OrderItemModel.overwritePrice, 7.0);
+      row.set(OrderItemModel.overwritePrice, eur('7.00'));
       row.select(OrderItemModel.product, first);
-      expect(row.read(OrderItemModel.overwritePrice), 7.0);
+      expect(row.read(OrderItemModel.overwritePrice), eur('7.00'));
       expect(row.read(OrderItemModel.label), 'First');
     },
   );
@@ -85,12 +86,12 @@ void main() {
       final row = session.root.addRow(OrderModel.items);
       row.set(OrderItemModel.quantity, 2);
       row.select(OrderItemModel.product, product);
-      expect(lineTotal(BeakFormReader(row)), 25);
+      expect(lineTotal(BeakFormReader(row)), eur('25.00'));
       final checkpoint = row.checkpoint();
-      row.set(OrderItemModel.discount, 5);
-      expect(lineTotal(BeakFormReader(row)), 20);
+      row.set(OrderItemModel.discount, eur('5'));
+      expect(lineTotal(BeakFormReader(row)), eur('20.00'));
       row.restore(checkpoint);
-      expect(lineTotal(BeakFormReader(row)), 25);
+      expect(lineTotal(BeakFormReader(row)), eur('25.00'));
       expect((await source.query(const OrderModel().query())).total, before);
       final result = await session.save();
       expect(

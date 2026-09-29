@@ -15,6 +15,7 @@ import 'package:clean_beak_config/resources/products/variant_resource.dart';
 import 'package:clean_beak_config/widgets/receivables_card.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'support/money.dart';
 
 void main() {
   test(
@@ -33,7 +34,7 @@ void main() {
       addTearDown(session.dispose);
       session.root.set(ProductModel.name, 'Coffee');
       session.root.set(ProductModel.sku, 'COFFEE');
-      session.root.set(ProductModel.price, 12.5);
+      session.root.set(ProductModel.price, eur('12.50'));
       final combinations = BeakVariantMatrix([
         BeakVariantAxis(key: 'Size', label: 'Size', values: ['250 g', '1 kg']),
         BeakVariantAxis(
@@ -49,7 +50,7 @@ void main() {
         'COFFEE-001',
         'COFFEE-002',
       ]);
-      expect(rows.first.read(ProductVariantModel.price), 12.5);
+      expect(rows.first.read(ProductVariantModel.price), eur('12.50'));
       expect(rows.first.read(ProductVariantModel.stock), 0);
       expect(
         rows.first
@@ -74,18 +75,18 @@ void main() {
         final registry = buildBeakRegistry();
         final memory = InMemoryBeakDataSource(registry: registry)
           ..seed(const InvoiceModel(), [
-            BeakRecord.fromRow({
-              'id': 'issued',
-              'number': 'I-1',
-              'status': 'issued',
-              'total_cents': 12345,
-            }),
-            BeakRecord.fromRow({
-              'id': 'draft',
-              'number': 'I-2',
-              'status': 'draft',
-              'total_cents': 99999,
-            }),
+            const InvoiceModel().record([
+              InvoiceModel.id.to('issued'),
+              InvoiceModel.number.to('I-1'),
+              InvoiceModel.status.to(InvoiceStatus.issued),
+              InvoiceModel.total.to(eur('123.45')),
+            ]),
+            const InvoiceModel().record([
+              InvoiceModel.id.to('draft'),
+              InvoiceModel.number.to('I-2'),
+              InvoiceModel.status.to(InvoiceStatus.draft),
+              InvoiceModel.total.to(eur('999.99')),
+            ]),
           ]);
         final screen = shopOperations();
         await tester.pumpWidget(
@@ -107,7 +108,7 @@ void main() {
         final amount = const BeakFormatting(
           locale: 'de_AT',
           currency: 'EUR',
-        ).exactCurrency(const BeakDecimal(12345, scale: 2));
+        ).exactCurrency(eur('123.45'));
         expect(find.text(amount), findsOneWidget);
         expect(find.text('Fulfillment queue'), findsOneWidget);
         expect(find.text('Replenishment queue'), findsOneWidget);

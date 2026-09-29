@@ -12,7 +12,10 @@ import '../resources/invoices/models/invoice_item.dart';
 import '../resources/invoices/models/invoice_voucher.dart';
 import '../resources/orders/models/order.dart';
 import '../resources/orders/models/order_item.dart';
+import '../resources/taxes/models/tax_rate.dart';
+import '../resources/users/models/user.dart';
 import '../resources/users/models/user_profile_connection.dart';
+import '../resources/vouchers/models/voucher.dart';
 import 'shop_attributes.dart';
 
 /// Authoritative shop rules and invoice snapshots at the transactional boundary.
@@ -41,8 +44,8 @@ final class ShopGraphPreparer {
       _validateOwnership(plan, graph);
       for (final node in graph.nodes.toList()) {
         if (node.deleted || !node.changed) continue;
-        switch (node.ref.table) {
-          case 'orders':
+        switch (node.model) {
+          case OrderModel():
             final profile = await graph.linked(node, OrderModel.profile);
             if (profile != null &&
                 !_sameRef(
@@ -50,35 +53,34 @@ final class ShopGraphPreparer {
                   node.reference(OrderModel.customer),
                 )) {
               _invalid(
-                'profile_id',
+                OrderModel.profile,
                 'Choose a delivery profile belonging to this customer.',
               );
             }
-          case 'order_items':
-            await _line(
-              graph,
-              node,
-              priceKey: 'overwrite_price',
-              freeze: false,
+          case OrderItemModel():
+            await _line(graph, node, _LineFields.order);
+          case ProductVariantModel():
+            ShopMoney.amount(
+              node.read(ProductVariantModel.price) ?? ShopMoney.zero,
             );
-          case 'product_variants':
-            ShopMoney.cents(_number(node, 'price'));
-          case 'products':
-            ShopMoney.cents(_number(node, 'price'));
-          case 'tax_rates':
-            ShopMoney.basisPoints(_number(node, 'rate_percent'));
-          case 'vouchers':
+          case ProductModel():
+            ShopMoney.amount(node.read(ProductModel.price) ?? ShopMoney.zero);
+          case TaxRateModel():
+            ShopMoney.percentage(
+              node.read(TaxRateModel.ratePercent) ?? ShopMoney.zero,
+            );
+          case VoucherModel():
             _voucher(node);
-          case 'product_attributes':
+          case ProductAttributeModel():
             await _attribute(graph, node);
-          case 'category_attributes':
-            if (_text(node, 'value_type') == 'choice' &&
-                _text(
-                  node,
-                  'choices',
-                ).split(',').every((choice) => choice.trim().isEmpty)) {
+          case CategoryAttributeModel():
+            if (node.read(CategoryAttributeModel.valueType) ==
+                    AttributeValueType.choice &&
+                shopAttributeChoices(
+                  node.read(CategoryAttributeModel.choices),
+                ).isEmpty) {
               _invalid(
-                'choices',
+                CategoryAttributeModel.choices,
                 'A choice attribute needs at least one option.',
               );
             }
@@ -86,49 +88,47 @@ final class ShopGraphPreparer {
             break;
         }
       }
-      final variantRefs = <String, BeakRecordRef>{};
-      final productRefs = <String, BeakRecordRef>{};
-      final invoiceRefs = <String, BeakRecordRef>{};
+      final variantRefs = <BeakRecordRef>{};
+      final productRefs = <BeakRecordRef>{};
+      final invoiceRefs = <BeakRecordRef>{};
       for (final node in graph.nodes.toList()) {
-        if (node.ref.table == const ProductVariantModel().table &&
-            node.changed) {
-          variantRefs[_key(node.ref)] = node.ref;
-        }
-        if (node.ref.table == const VariantAttributeModel().table &&
-            node.changed) {
-          final owner = node.reference(VariantAttributeModel.variant);
-          if (owner != null) variantRefs[_key(owner)] = owner;
-        }
-        if (node.ref.table == 'products' && node.changed) {
-          productRefs[_key(node.ref)] = node.ref;
-        }
-        if (node.ref.table == 'product_attributes' && node.changed) {
-          final product = node.reference(ProductAttributeModel.product);
-          if (product != null) productRefs[_key(product)] = product;
-          final previous = node.initial?['product_id']?.raw;
-          if (previous != null) {
-            final original = BeakRecordRef.existing('products', previous);
-            productRefs[_key(original)] = original;
-          }
-        }
-        if (node.ref.table == 'invoices' && node.changed) {
-          invoiceRefs[_key(node.ref)] = node.ref;
-        }
-        if ((node.ref.table == 'invoice_items' ||
-                node.ref.table == 'invoice_vouchers') &&
-            node.changed) {
-          final owner = node.reference(
-            node.ref.table == const InvoiceItemModel().table
-                ? InvoiceItemModel.invoice
-                : InvoiceVoucherModel.invoice,
-          );
-          if (owner == null) {
-            _invalid('invoice_id', 'An invoice row needs its owning invoice.');
-          }
-          invoiceRefs[_key(owner)] = owner;
+        if (!node.changed) continue;
+        switch (node.model) {
+          case ProductVariantModel():
+            variantRefs.add(node.ref);
+          case VariantAttributeModel():
+            final owner = node.reference(VariantAttributeModel.variant);
+            if (owner != null) variantRefs.add(owner);
+          case ProductModel():
+            productRefs.add(node.ref);
+          case ProductAttributeModel():
+            final product = node.reference(ProductAttributeModel.product);
+            if (product != null) productRefs.add(product);
+            final previous = node.originalReference(
+              ProductAttributeModel.product,
+            );
+            if (previous != null) productRefs.add(previous);
+          case InvoiceModel():
+            invoiceRefs.add(node.ref);
+          case InvoiceItemModel():
+            invoiceRefs.add(
+              _owningInvoice(
+                InvoiceItemModel.invoice,
+                node.reference(InvoiceItemModel.invoice),
+              ),
+            );
+          case InvoiceVoucherModel():
+            invoiceRefs.add(
+              _owningInvoice(
+                InvoiceVoucherModel.invoice,
+                node.reference(InvoiceVoucherModel.invoice),
+              ),
+            );
+          default:
+            break;
         }
       }
-      for (final ref in variantRefs.values) {
+      for (final ref in variantRefs) {
         final variant = await graph.load(ref);
         if (variant.deleted) continue;
         final key = await _combination(graph, variant);
@@ -145,7 +145,7 @@ final class ShopGraphPreparer {
               if (sibling.ref != variant.ref &&
                   await _combination(graph, sibling) == key) {
                 _invalid(
-                  ProductVariantModel.attributes.key,
+                  ProductVariantModel.attributes,
                   'This product already has a variant with these attributes.',
                 );
               }
@@ -154,10 +154,10 @@ final class ShopGraphPreparer {
         }
         graph.write(variant, ProductVariantModel.combinationKey, key);
       }
-      for (final ref in productRefs.values) {
+      for (final ref in productRefs) {
         await _product(graph, await graph.load(ref));
       }
-      for (final ref in invoiceRefs.values) {
+      for (final ref in invoiceRefs) {
         await _invoice(graph, await graph.load(ref));
       }
       return graph.build();
@@ -165,6 +165,10 @@ final class ShopGraphPreparer {
       throw BeakValidationException(error.message);
     }
   }
+
+  BeakRecordRef _owningInvoice(BeakToOneField field, BeakRecordRef? owner) =>
+      owner ??
+      (throw field.invalid('An invoice row needs its owning invoice.'));
 
   Future<String?> _combination(
     BeakCandidateGraph graph,
@@ -178,7 +182,7 @@ final class ShopGraphPreparer {
       final name = (attribute.read(VariantAttributeModel.name) ?? '').trim();
       if (values.containsKey(name)) {
         _invalid(
-          ProductVariantModel.attributes.key,
+          ProductVariantModel.attributes,
           'Each variant attribute must have a different name.',
         );
       }
@@ -197,17 +201,15 @@ final class ShopGraphPreparer {
       ProductModel.attributes,
       includeDeleted: true,
     );
-    final present = <String>{};
+    final present = <BeakRecordRef>{};
     for (final attribute in attributes.where((node) => !node.deleted)) {
       await _attribute(graph, attribute);
       final definition = attribute.reference(ProductAttributeModel.definition);
-      if (definition != null) {
-        if (!present.add(_key(definition))) {
-          _invalid(
-            'attributes',
-            'A category attribute can only be provided once.',
-          );
-        }
+      if (definition != null && !present.add(definition)) {
+        _invalid(
+          ProductModel.attributes,
+          'A category attribute can only be provided once.',
+        );
       }
     }
     final category = await graph.linked(product, ProductModel.category);
@@ -239,7 +241,7 @@ final class ShopGraphPreparer {
           : result.obsolete.isNotEmpty
           ? 'Review attributes that no longer belong to this category.'
           : result.errors.values.first.first;
-      _invalid(ProductModel.attributes.key, message);
+      _invalid(ProductModel.attributes, message);
     }
   }
 
@@ -252,21 +254,14 @@ final class ShopGraphPreparer {
       ProductAttributeModel.definition,
     );
     if (definition == null) return;
-    final product = await graph.linked(
-      node,
-      node.ref.table == const ProductAttributeModel().table
-          ? ProductAttributeModel.product
-          : node.ref.table == const OrderItemModel().table
-          ? OrderItemModel.product
-          : InvoiceItemModel.product,
-    );
+    final product = await graph.linked(node, ProductAttributeModel.product);
     if (product == null ||
         !_sameRef(
           product.reference(ProductModel.category),
           definition.reference(CategoryAttributeModel.category),
         )) {
       _invalid(
-        'definition_id',
+        ProductAttributeModel.definition,
         'Choose an attribute from this product category.',
       );
     }
@@ -274,61 +269,49 @@ final class ShopGraphPreparer {
       definition.record,
       identity: _key(definition.ref),
     ).validate(node.read(ProductAttributeModel.value));
-    if (error != null) _invalid(ProductAttributeModel.value.key, error);
+    if (error != null) _invalid(ProductAttributeModel.value, error);
   }
 
   ShopVoucherInput _voucher(BeakCandidateNode node) {
-    final value = _number(node, 'value');
-    final minimum = ShopMoney.cents(_number(node, 'minimum_subtotal'));
-    final maximum = node.values['maximum_discount']?.raw == null
-        ? null
-        : ShopMoney.cents(_number(node, 'maximum_discount'));
-    final start = _date(node, 'starts_at');
-    final end = _date(node, 'ends_at');
+    final value = node.read(VoucherModel.value) ?? ShopMoney.zero;
+    final minimum = ShopMoney.amount(
+      node.read(VoucherModel.minimumSubtotal) ?? ShopMoney.zero,
+    );
+    final maximum = switch (node.read(VoucherModel.maximumDiscount)) {
+      final BeakDecimal cap => ShopMoney.amount(cap),
+      null => null,
+    };
+    final start = node.read(VoucherModel.startsAt);
+    final end = node.read(VoucherModel.endsAt);
     if (start != null && end != null && !end.isAfter(start)) {
-      _invalid('ends_at', 'The end must be after the start.');
+      _invalid(VoucherModel.endsAt, 'The end must be after the start.');
     }
-    return switch (_text(node, 'kind')) {
-      'percentage' => ShopVoucherInput.percentage(
+    final code = node.read(VoucherModel.code) ?? '';
+    return switch (node.read(VoucherModel.kind)) {
+      VoucherKind.percentage => ShopVoucherInput.percentage(
         id: _key(node.ref),
-        code: _text(node, 'code'),
-        basisPoints: ShopMoney.basisPoints(value),
-        minimumSubtotalCents: minimum,
-        maximumDiscountCents: maximum,
+        code: code,
+        percent: ShopMoney.percentage(value),
+        minimumSubtotal: minimum,
+        maximumDiscount: maximum,
       ),
-      'fixed' || '' => ShopVoucherInput.fixed(
+      VoucherKind.fixed || null => ShopVoucherInput.fixed(
         id: _key(node.ref),
-        code: _text(node, 'code'),
-        amountCents: ShopMoney.cents(value),
-        minimumSubtotalCents: minimum,
-        maximumDiscountCents: maximum,
-      ),
-      _ => throw const BeakValidationException(
-        'Choose a supported voucher kind.',
+        code: code,
+        amount: ShopMoney.amount(value),
+        minimumSubtotal: minimum,
+        maximumDiscount: maximum,
       ),
     };
   }
 
   Future<ShopLineInput> _line(
     BeakCandidateGraph graph,
-    BeakCandidateNode node, {
-    required String priceKey,
-    required bool freeze,
-  }) async {
-    final product = await graph.linked(
-      node,
-      node.ref.table == const ProductAttributeModel().table
-          ? ProductAttributeModel.product
-          : node.ref.table == const OrderItemModel().table
-          ? OrderItemModel.product
-          : InvoiceItemModel.product,
-    );
-    final variant = await graph.linked(
-      node,
-      node.ref.table == const OrderItemModel().table
-          ? OrderItemModel.variant
-          : InvoiceItemModel.variant,
-    );
+    BeakCandidateNode node,
+    _LineFields fields,
+  ) async {
+    final product = await graph.linked(node, fields.product);
+    final variant = await graph.linked(node, fields.variant);
     if (variant != null &&
         (product == null ||
             !_sameRef(
@@ -336,81 +319,75 @@ final class ShopGraphPreparer {
               product.ref,
             ))) {
       _invalid(
-        'variant_id',
+        fields.variant,
         'The selected variant belongs to another product.',
       );
     }
     final newSelection =
         node.initial == null ||
-        node.hasChanged(
-          node.ref.table == const OrderItemModel().table
-              ? OrderItemModel.product
-              : InvoiceItemModel.product,
-        ) ||
-        node.hasChanged(
-          node.ref.table == const OrderItemModel().table
-              ? OrderItemModel.variant
-              : InvoiceItemModel.variant,
-        );
+        node.hasChanged(fields.product) ||
+        node.hasChanged(fields.variant);
     if (newSelection &&
-        (product?.values['active']?.raw == false ||
-            variant?.values['active']?.raw == false)) {
-      _invalid('product_id', 'Choose an active catalog item.');
+        (product?.read(ProductModel.active) == false ||
+            variant?.read(ProductVariantModel.active) == false)) {
+      _invalid(fields.product, 'Choose an active catalog item.');
     }
-    var label = _text(node, 'label').trim();
+    var label = (node.read(fields.label) ?? '').trim();
     if (label.isEmpty && product != null) {
-      label = _text(product, 'name');
-      if (variant != null) label = '$label — ${_text(variant, 'name')}';
+      label = product.read(ProductModel.name) ?? '';
+      if (variant != null) {
+        label = '$label — ${variant.read(ProductVariantModel.name) ?? ''}';
+      }
     }
-    if (label.isEmpty) _invalid('label', 'A custom line needs a description.');
-    final rawPrice = node.values[priceKey]?.raw;
-    final price = rawPrice == null ? (variant ?? product) : node;
-    if (price == null) _invalid(priceKey, 'A custom line needs a unit price.');
-    final cents = ShopMoney.cents(
-      _number(price, rawPrice == null ? 'price' : priceKey),
+    if (label.isEmpty) {
+      _invalid(fields.label, 'A custom line needs a description.');
+    }
+    final explicitPrice = node.read(fields.price);
+    if (explicitPrice == null && variant == null && product == null) {
+      _invalid(fields.price, 'A custom line needs a unit price.');
+    }
+    final unitPrice = ShopMoney.amount(
+      explicitPrice ??
+          (variant != null
+              ? variant.read(ProductVariantModel.price)
+              : product?.read(ProductModel.price)) ??
+          ShopMoney.zero,
     );
-    var tax = await graph.linked(
-      node,
-      node.ref.table == const OrderItemModel().table
-          ? OrderItemModel.taxRate
-          : InvoiceItemModel.taxRate,
-    );
+    var tax = await graph.linked(node, fields.taxRate);
     tax ??= product == null
         ? null
         : await graph.linked(product, ProductModel.taxRate);
+    final savedPercent = fields.savedTaxPercent;
     final retainTax =
-        freeze &&
-        node.initial?['tax_percent']?.raw != null &&
-        !node.hasChanged(InvoiceItemModel.taxRate) &&
+        savedPercent != null &&
+        node.original(savedPercent) != null &&
+        !node.hasChanged(fields.taxRate) &&
         !newSelection;
     final percent = retainTax
-        ? switch (node.initial?['tax_percent']?.raw) {
-            final num value => value.toDouble(),
-            _ => 0.0,
-          }
-        : tax == null
-        ? 0.0
-        : _number(tax, 'rate_percent');
-    if (!retainTax && tax?.values['active']?.raw == false) {
-      _invalid('tax_rate_id', 'Choose an active tax rate.');
+        ? node.original(savedPercent) ?? ShopMoney.zero
+        : tax?.read(TaxRateModel.ratePercent) ?? ShopMoney.zero;
+    if (!retainTax && tax?.read(TaxRateModel.active) == false) {
+      _invalid(fields.taxRate, 'Choose an active tax rate.');
     }
-    final basisPoints = ShopMoney.basisPoints(percent);
+    final taxRate = ShopMoney.percentage(percent);
     final input = ShopLineInput(
       id: _key(node.ref),
       label: label,
-      quantity: _integer(node, 'quantity'),
-      unitPriceCents: cents,
-      lineDiscountCents: ShopMoney.cents(_number(node, 'discount')),
-      taxBasisPoints: basisPoints,
+      quantity: node.read(fields.quantity) ?? 0,
+      unitPrice: unitPrice,
+      lineDiscount: ShopMoney.amount(
+        node.read(fields.discount) ?? ShopMoney.zero,
+      ),
+      taxRate: taxRate,
     );
     // The calculator also validates line discounts and whole-unit quantities.
     ShopTotals.calculate(lines: [input]);
-    if (freeze) {
-      _patch(graph, node, {
-        'label': label,
-        priceKey: cents / 100,
-        'tax_percent': basisPoints / 100,
-      });
+    if (savedPercent != null) {
+      graph.writeAll(node, [
+        fields.label.to(label),
+        fields.price.to(unitPrice),
+        savedPercent.to(taxRate),
+      ]);
     }
     return input;
   }
@@ -420,7 +397,10 @@ final class ShopGraphPreparer {
     BeakCandidateNode invoice,
   ) async {
     if (invoice.deleted) {
-      _invalid('status', 'Cancel an invoice instead of deleting it.');
+      _invalid(
+        InvoiceModel.status,
+        'Cancel an invoice instead of deleting it.',
+      );
     }
     final items = await graph.children(
       invoice,
@@ -432,103 +412,91 @@ final class ShopGraphPreparer {
       InvoiceModel.vouchers,
       includeDeleted: true,
     );
-    final previousStatus = invoice.initial?['status']?.raw;
-    if (previousStatus != null && previousStatus != 'draft') {
-      final mutable = {'status', 'updated_at'};
-      final derived = {
-        'subtotal_cents',
-        'discount_cents',
-        'tax_cents',
-        'total_cents',
-        'customer_name',
-        'customer_email',
-      };
-      const itemDerived = {
-        'tax_percent',
-        'net_cents',
-        'tax_cents',
-        'total_cents',
-      };
-      const voucherDerived = {'code_snapshot', 'discount_cents'};
-      if (items.any((node) => _materiallyChanged(node, itemDerived)) ||
+    final previousStatus = invoice.original(InvoiceModel.status);
+    if (previousStatus != null && previousStatus != InvoiceStatus.draft) {
+      if (items.any((node) => node.materiallyChanged(except: _itemDerived)) ||
           applications.any(
-            (node) => _materiallyChanged(node, voucherDerived),
+            (node) => node.materiallyChanged(except: _voucherDerived),
           ) ||
-          _materiallyChanged(invoice, {...mutable, ...derived})) {
+          invoice.materiallyChanged(
+            except: [..._invoiceMutable, ..._invoiceDerived],
+          )) {
         _invalid(
-          'status',
+          InvoiceModel.status,
           'Issued invoice content is locked. Create a new document for corrections.',
         );
       }
-      final status = _text(invoice, 'status');
-      if (status == 'draft' ||
-          (previousStatus == 'cancelled' && status != 'cancelled')) {
+      final status = invoice.read(InvoiceModel.status);
+      if (status == InvoiceStatus.draft ||
+          (previousStatus == InvoiceStatus.cancelled &&
+              status != InvoiceStatus.cancelled)) {
         _invalid(
-          'status',
+          InvoiceModel.status,
           'An issued or cancelled invoice cannot return to draft.',
         );
       }
-      _patch(graph, invoice, {
-        for (final key in derived) key: invoice.initial?[key]?.raw,
-      });
+      graph.restore(invoice, _invoiceDerived);
       for (final item in items.where((item) => item.changed)) {
-        _patch(graph, item, {
-          for (final key in itemDerived) key: item.initial?[key]?.raw,
-        });
+        graph.restore(item, _itemDerived);
       }
       for (final application in applications.where((row) => row.changed)) {
-        _patch(graph, application, {
-          for (final key in voucherDerived) key: application.initial?[key]?.raw,
-        });
+        graph.restore(application, _voucherDerived);
       }
       return;
     }
-    final issued = _date(invoice, 'issued_at');
-    final due = _date(invoice, 'due_at');
-    if (issued == null) _invalid('issued_at', 'Choose the invoice date.');
+    final issued = invoice.read(InvoiceModel.issuedAt);
+    final due = invoice.read(InvoiceModel.dueAt);
+    if (issued == null) {
+      _invalid(InvoiceModel.issuedAt, 'Choose the invoice date.');
+    }
     if (due != null && due.isBefore(issued)) {
-      _invalid('due_at', 'The due date cannot precede the invoice date.');
+      _invalid(
+        InvoiceModel.dueAt,
+        'The due date cannot precede the invoice date.',
+      );
     }
     final customer = await graph.linked(invoice, InvoiceModel.customer);
-    if (customer == null) _invalid('customer_id', 'Choose a customer.');
+    if (customer == null) {
+      _invalid(InvoiceModel.customer, 'Choose a customer.');
+    }
     final order = await graph.linked(invoice, InvoiceModel.order);
     if (order != null &&
         !_sameRef(order.reference(OrderModel.customer), customer.ref)) {
-      _invalid('order_id', 'The order belongs to another customer.');
+      _invalid(InvoiceModel.order, 'The order belongs to another customer.');
     }
     final lineInputs = <ShopLineInput>[];
     final retainedItems = items.where((node) => !node.deleted).toList();
     for (final item in retainedItems) {
-      lineInputs.add(
-        await _line(graph, item, priceKey: 'unit_price', freeze: true),
-      );
+      lineInputs.add(await _line(graph, item, _LineFields.invoice));
     }
     final retainedApplications =
         applications.where((node) => !node.deleted).toList()..sort((a, b) {
-          final order = _integer(
-            a,
-            'position',
-          ).compareTo(_integer(b, 'position'));
+          final order = _position(a).compareTo(_position(b));
           return order == 0 ? _key(a.ref).compareTo(_key(b.ref)) : order;
         });
     final vouchers = <ShopVoucherInput>[];
     final positions = <int>{};
     for (final application in retainedApplications) {
-      if (!positions.add(_integer(application, 'position'))) {
-        _invalid('position', 'Give each voucher a different position.');
+      if (!positions.add(_position(application))) {
+        _invalid(
+          InvoiceVoucherModel.position,
+          'Give each voucher a different position.',
+        );
       }
       final voucher = await graph.linked(
         application,
         InvoiceVoucherModel.voucher,
       );
-      if (voucher == null) _invalid('voucher_id', 'Choose a voucher.');
-      final start = _date(voucher, 'starts_at');
-      final end = _date(voucher, 'ends_at');
-      if (voucher.values['active']?.raw != true ||
+      if (voucher == null) {
+        _invalid(InvoiceVoucherModel.voucher, 'Choose a voucher.');
+      }
+      final start = voucher.read(VoucherModel.startsAt);
+      final end = voucher.read(VoucherModel.endsAt);
+      if (voucher.read(VoucherModel.active) != true ||
           (start != null && issued.isBefore(start)) ||
           (end != null && !issued.isBefore(end))) {
         _invalid(
-          'voucher_id',
+          InvoiceVoucherModel.voucher,
           'This voucher is not active on the invoice date.',
         );
       }
@@ -537,105 +505,152 @@ final class ShopGraphPreparer {
     final totals = ShopTotals.calculate(lines: lineInputs, vouchers: vouchers);
     for (var index = 0; index < retainedItems.length; index++) {
       final total = totals.lines[index];
-      _patch(graph, retainedItems[index], {
-        'net_cents': total.netCents,
-        'tax_cents': total.taxCents,
-        'total_cents': total.totalCents,
-      });
+      graph.writeAll(retainedItems[index], [
+        InvoiceItemModel.net.to(total.net),
+        InvoiceItemModel.tax.to(total.tax),
+        InvoiceItemModel.total.to(total.total),
+      ]);
     }
     for (var index = 0; index < retainedApplications.length; index++) {
       final total = totals.vouchers[index];
-      _patch(graph, retainedApplications[index], {
-        'code_snapshot': total.input.code,
-        'discount_cents': total.discountCents,
-      });
+      graph.writeAll(retainedApplications[index], [
+        InvoiceVoucherModel.codeSnapshot.to(total.input.code),
+        InvoiceVoucherModel.discount.to(total.discount),
+      ]);
     }
-    _patch(graph, invoice, {
-      'customer_name':
-          '${_text(customer, 'first_name')} ${_text(customer, 'last_name')}'
-              .trim(),
-      'customer_email': _text(customer, 'email'),
-      'subtotal_cents': totals.subtotalCents,
-      'discount_cents': totals.discountCents,
-      'tax_cents': totals.taxCents,
-      'total_cents': totals.totalCents,
-    });
+    graph.writeAll(invoice, [
+      InvoiceModel.customerName.to(
+        '${customer.read(UserModel.firstName) ?? ''} '
+                '${customer.read(UserModel.lastName) ?? ''}'
+            .trim(),
+      ),
+      InvoiceModel.customerEmail.to(customer.read(UserModel.email) ?? ''),
+      InvoiceModel.subtotal.to(totals.subtotal),
+      InvoiceModel.discount.to(totals.discount),
+      InvoiceModel.tax.to(totals.tax),
+      InvoiceModel.total.to(totals.total),
+    ]);
+  }
+
+  void _validateOwnership(BeakSavePlan plan, BeakCandidateGraph graph) {
+    for (final op in plan.operations) {
+      final movesRows =
+          op.kind == BeakSaveOperationKind.attach ||
+          op.kind == BeakSaveOperationKind.detach;
+      final ownedCollection =
+          op.target.isOf(const InvoiceModel()) ||
+          (op.target.isOf(const ProductModel()) &&
+              op.isVia(ProductModel.attributes));
+      if (movesRows && ownedCollection) {
+        const message =
+            'Owned rows must be created or deleted rather than moved.';
+        throw BeakValidationException(
+          message,
+          fieldErrors: {
+            ?op.relationKey: [message],
+          },
+        );
+      }
+    }
+    for (final node in graph.nodes) {
+      final relation = switch (node.model) {
+        InvoiceItemModel() => InvoiceItemModel.invoice,
+        InvoiceVoucherModel() => InvoiceVoucherModel.invoice,
+        _ => null,
+      };
+      if (relation != null &&
+          node.initial != null &&
+          node.hasChanged(relation)) {
+        _invalid(relation, 'An invoice row cannot move to another invoice.');
+      }
+    }
   }
 }
 
-Never _invalid(String field, String message) => throw BeakValidationException(
-  message,
-  fieldErrors: {
-    field: [message],
-  },
-);
+/// The fields a line item shares, whether it belongs to an order or an invoice.
+///
+/// Invoice lines also snapshot the tax percentage they were priced with, so
+/// [savedTaxPercent] is null for order lines and their values stay untouched.
+final class _LineFields {
+  const _LineFields._({
+    required this.label,
+    required this.quantity,
+    required this.price,
+    required this.discount,
+    required this.product,
+    required this.variant,
+    required this.taxRate,
+    this.savedTaxPercent,
+  });
+
+  static final order = _LineFields._(
+    label: OrderItemModel.label,
+    quantity: OrderItemModel.quantity,
+    price: OrderItemModel.overwritePrice,
+    discount: OrderItemModel.discount,
+    product: OrderItemModel.product,
+    variant: OrderItemModel.variant,
+    taxRate: OrderItemModel.taxRate,
+  );
+
+  static final invoice = _LineFields._(
+    label: InvoiceItemModel.label,
+    quantity: InvoiceItemModel.quantity,
+    price: InvoiceItemModel.unitPrice,
+    discount: InvoiceItemModel.discount,
+    product: InvoiceItemModel.product,
+    variant: InvoiceItemModel.variant,
+    taxRate: InvoiceItemModel.taxRate,
+    savedTaxPercent: InvoiceItemModel.taxPercent,
+  );
+
+  final BeakScalarField<String> label;
+  final BeakScalarField<int> quantity;
+  final BeakScalarField<BeakDecimal> price;
+  final BeakScalarField<BeakDecimal> discount;
+  final BeakToOneField product;
+  final BeakToOneField variant;
+  final BeakToOneField taxRate;
+  final BeakScalarField<BeakDecimal>? savedTaxPercent;
+}
+
+/// Invoice columns that only status transitions may change on an issued document.
+final List<BeakFieldRef<Object>> _invoiceMutable = [
+  InvoiceModel.status,
+  InvoiceModel.updatedAt,
+];
+
+/// Invoice columns the server derives; issued documents keep their saved values.
+final List<BeakScalarField<Object>> _invoiceDerived = [
+  InvoiceModel.subtotal,
+  InvoiceModel.discount,
+  InvoiceModel.tax,
+  InvoiceModel.total,
+  InvoiceModel.customerName,
+  InvoiceModel.customerEmail,
+];
+
+/// Line columns the server derives from the catalog at issue time.
+final List<BeakScalarField<Object>> _itemDerived = [
+  InvoiceItemModel.taxPercent,
+  InvoiceItemModel.net,
+  InvoiceItemModel.tax,
+  InvoiceItemModel.total,
+];
+
+/// Voucher application columns the server derives from the calculation.
+final List<BeakScalarField<Object>> _voucherDerived = [
+  InvoiceVoucherModel.codeSnapshot,
+  InvoiceVoucherModel.discount,
+];
+
+Never _invalid(BeakFieldRef<Object> field, String message) =>
+    throw field.invalid(message);
+
 String _key(BeakRecordRef ref) =>
     '${ref.table}:${ref.draftId == null ? 'saved:${ref.id}' : 'draft:${ref.draftId}'}';
-bool _sameRef(BeakRecordRef? a, BeakRecordRef? b) =>
-    a != null && b != null && _key(a) == _key(b);
-bool _materiallyChanged(BeakCandidateNode node, Set<String> ignored) =>
-    node.materiallyChanged(
-      except: [
-        for (final key in ignored)
-          if (node.model.columnByKey(key) case final column?)
-            BeakScalarField<Object>(model: node.model, column: column),
-      ],
-    );
-void _patch(
-  BeakCandidateGraph graph,
-  BeakCandidateNode node,
-  Map<String, Object?> values,
-) => graph.patch(node, BeakRecord.fromRow(values));
 
-void _validateOwnership(BeakSavePlan plan, BeakCandidateGraph graph) {
-  for (final op in plan.operations) {
-    if ((op.target.table == const InvoiceModel().table ||
-            (op.target.table == const ProductModel().table &&
-                op.relationKey == ProductModel.attributes.key)) &&
-        (op.kind == BeakSaveOperationKind.attach ||
-            op.kind == BeakSaveOperationKind.detach)) {
-      _invalid(
-        op.relationKey!,
-        'Owned rows must be created or deleted rather than moved.',
-      );
-    }
-  }
-  for (final node in graph.nodes) {
-    final relation = node.ref.table == const InvoiceItemModel().table
-        ? InvoiceItemModel.invoice
-        : node.ref.table == const InvoiceVoucherModel().table
-        ? InvoiceVoucherModel.invoice
-        : null;
-    if (relation != null && node.initial != null && node.hasChanged(relation)) {
-      _invalid(relation.key, 'An invoice row cannot move to another invoice.');
-    }
-  }
-}
+bool _sameRef(BeakRecordRef? a, BeakRecordRef? b) => a != null && a == b;
 
-String _text(BeakCandidateNode node, String key) =>
-    switch (node.values[key]?.raw) {
-      final String value => value,
-      _ => '',
-    };
-double _number(BeakCandidateNode node, String key) =>
-    switch (node.values[key]?.raw) {
-      final num value => value.toDouble(),
-      null => 0,
-      _ => throw BeakValidationException(
-        'Invalid numeric value.',
-        fieldErrors: {
-          key: ['Enter a number.'],
-        },
-      ),
-    };
-int _integer(BeakCandidateNode node, String key) =>
-    switch (node.values[key]?.raw) {
-      final int value => value,
-      _ => 0,
-    };
-DateTime? _date(BeakCandidateNode node, String key) =>
-    switch (node.values[key]?.raw) {
-      final DateTime value => value,
-      final String value => DateTime.tryParse(value),
-      _ => null,
-    };
+int _position(BeakCandidateNode application) =>
+    application.read(InvoiceVoucherModel.position) ?? 0;

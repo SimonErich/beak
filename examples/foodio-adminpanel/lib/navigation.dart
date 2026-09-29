@@ -118,12 +118,12 @@ Widget _accountMenu(BuildContext context) => OiUserMenu(
     OiMenuItem(
       label: 'Staff profiles',
       icon: OiIcons.users,
-      onTap: () => context.go(BeakRoutes.list('staff_members')),
+      onTap: () => context.go(BeakRoutes.list(const StaffMemberModel().table)),
     ),
     OiMenuItem(
       label: 'Settings',
       icon: OiIcons.settings,
-      onTap: () => context.go(BeakRoutes.list('app_settings')),
+      onTap: () => context.go(BeakRoutes.list(const AppSettingModel().table)),
     ),
   ],
 );

@@ -116,12 +116,11 @@ abstract final class VoucherColumns {
 
 /// Typed configuration references for Voucher.
 final class VoucherFields {
-  /// Creates fields rooted at [model], optionally through [path].
-  const VoucherFields({
-    BeakModel model = const VoucherModel(),
-    List<BeakRelationship> path = const [],
-  }) : _model = model,
-       _path = path;
+  /// Creates the fields of Voucher, rooted at its own model.
+  const VoucherFields() : _model = const VoucherModel(), _path = const [];
+
+  /// Creates fields rooted at [model] and reached through [path].
+  const VoucherFields.via(this._model, this._path);
   final BeakModel _model;
   final List<BeakRelationship> _path;
 
@@ -225,8 +224,7 @@ final class VoucherToOneField extends BeakToOneField {
   }) : super(target: const VoucherModel());
 
   /// Every target field, including names reserved by the path API.
-  VoucherFields get fields =>
-      VoucherFields(model: model, path: [...path, relation]);
+  VoucherFields get fields => VoucherFields.via(model, [...path, relation]);
 
   /// Id.
   BeakScalarField<String> get id => fields.id;
