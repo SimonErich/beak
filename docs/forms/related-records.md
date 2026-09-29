@@ -167,8 +167,8 @@ Only the relations a visible, editable placement owns are included. A table hidd
 | Row changes from code | `addRow` and `relationTable` need a `tableForm` for that relationship in the layout. Without one they fail with a bare `StateError` |
 | Catalog presentation | `checkboxes` needs a finite `maxOptions`, no `quantity` and no `groupBy`. `pageSize` needs `maxOptions`. These are asserts, so they fail in debug builds |
 | Catalog scope | `selection` must belong to the row model, and a `matches` facet needs `maxOptions` |
-| Unknown save | While a save result is unknown, editing rows throws. Resolve the save first, see [Drafts, review and conflicts](drafts-and-review.md) |
-| Not a live view | Staged rows are local. Another user's change to the same rows shows up as a conflict at save time, not as a live update |
+| Unknown save | While a save is running or its result is unknown, adding a row throws and other edits are ignored. Resolve the save first, see [Drafts, review and conflicts](drafts-and-review.md) |
+| Not a live view | Staged rows are local. A change the panel itself makes to a related table refreshes the pickers and rechecks selected records, and reloads a clean form. A form with staged edits is never overwritten, and other users' changes are not shown until it reloads |
 
 ## Verify it
 
@@ -182,6 +182,11 @@ flutter test test/src/form/shared_staged_reference_test.dart test/src/form/catal
 ```bash
 cd examples/clean_beak_config
 flutter test test/order_form_test.dart
+```
+
+```bash
+cd examples/foodio-adminpanel
+flutter test test/catalog_presentation_test.dart
 ```
 
 Each ends with `All tests passed!`. To see it, run the shop, open Orders, create one and pick a customer: the profile field stays empty and disabled until you do.

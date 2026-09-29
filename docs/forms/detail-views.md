@@ -107,7 +107,7 @@ Outside a scope, a record block renders nothing, and it does not throw. If a she
 | Read role on a form screen | Only when `BeakScreenRole.read` is in `roles`. The default roles are `create` and `edit` |
 | No draft on the generated page | Related rows there are read-only. Edit goes to the edit route |
 | Record blocks | Need a `BeakRecordScope` that your code mounts. They are for `BeakCustomResourceScreen`, not for a form screen's layout |
-| Relation block writes | Delete and Detach buttons write immediately, without a draft. Graph-only models close the per-record routes, so a delete there fails |
+| Relation block writes | Delete and Detach buttons write immediately, without a draft. A graph-only model closes the per-record routes, so the server refuses them there |
 | Opting out of read mode | `BeakFormWidget(showOnRead: false)` keeps a custom editor off the read page. Inputs always render as values |
 | Hidden by permission | A field the account cannot read is left out of the read page like it is left out of the form |
 | Wizard chrome | A screen with steps has no generated page frame. `recordHeader` and record actions do not appear there |

@@ -28,7 +28,7 @@ For several pictures in a fixed order, use an owned relationship and `galleryFor
 --8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:productGallery"
 ```
 
-The gallery shows each picture as a card with its preview, an editable description, any extra `metadata` inputs, move controls and Remove. The first card is the cover. Moving a card rewrites the `position` values in the draft, and the images and their positions save with the parent record in one graph commit.
+The gallery shows each picture as a card, titled "Cover image" for the first and "Image 2", "Image 3" and so on after it. A card holds the upload field, the description, any extra `metadata` inputs, and the buttons Move earlier, Move later and Remove image. Add image appends an empty slot. Moving a card rewrites the `position` values in the draft, and the images and their positions save with the parent record in one graph commit.
 
 ## The three parts of a gallery
 
@@ -41,6 +41,8 @@ The gallery shows each picture as a card with its preview, an editable descripti
 `galleryForm` takes exactly those three fields (`image`, `caption`, `position`) plus an optional label, a `minRows`, and extra `metadata` nodes. It requires an owned has-many, three fields that belong to the child model, and an image column. A shared, unowned relationship is refused when the form is built, because removing a picture deletes its row and that row would belong to someone else.
 
 ## When bytes leave the browser
+
+Choosing a file picks up a twig. The nest is built at Save.
 
 | Moment | What happens |
 | --- | --- |

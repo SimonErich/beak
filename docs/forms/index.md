@@ -33,7 +33,7 @@ Four words carry most of the design:
 | Save plan | Plain data listing every create, update, delete, attach and detach the save needs, with what depends on what | `BeakSavePlan` |
 | Receipt | The server's answer for each operation: applied, unapplied (a definite refusal) or unknown (the response was lost) | `BeakSaveResult` |
 
-Nothing reaches the server while a form is open. Choosing a customer, adding a row or picking a file changes the draft. Save builds the plan and sends it, the server applies it in one transaction on the default data sources, and the receipt says which operations applied. The client keeps the save id so a lost response can be looked up instead of sent again. [Graph commits](../architecture/graph-commits.md) covers the protocol, and [How data flows](../concepts/how-data-flows.md) places it among the four layers.
+Nothing reaches the server while a form is open. Choosing a customer, adding a row or picking a file changes the draft, which is a nest under construction: the twigs pile up locally and nothing is a home until Save. Save builds the plan and sends it, the server applies it in one transaction on the default data sources, and the receipt says which operations applied. The client keeps the save id so a lost response can be looked up instead of sent again. [Graph commits](../architecture/graph-commits.md) covers the protocol, and [How data flows](../concepts/how-data-flows.md) places it among the four layers.
 
 You rarely touch these classes. A `BeakFormScreen` in a resource's `screens:` list is the whole surface for most forms, and a resource without one gets a form generated from its model.
 

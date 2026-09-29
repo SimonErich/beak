@@ -121,7 +121,12 @@ cd examples/clean_beak_config
 flutter test test/order_form_test.dart
 ```
 
-Both end with `All tests passed!`. To try it, run the shop (API on port 8080), open Orders and press Create: the first Continue is blocked until a customer is chosen.
+```bash
+cd examples/foodio-adminpanel
+flutter test test/order_wizard_presentation_test.dart
+```
+
+Each ends with `All tests passed!`. To try it, run the shop (API on port 8080), open Orders and press Create: the first Continue is blocked until a customer is chosen.
 
 ## Reference
 

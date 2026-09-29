@@ -12,7 +12,7 @@ After this page you can build the chrome of a real workflow around a form: a sum
 
 Every one of them is a `BeakFormNode` that reads the same draft as the inputs. There is no second controller, no query owner of its own and no save handler. That is a hard constraint, and it is why a summary in the aside always agrees with the step you are typing in.
 
-Foodio's order screens are the reference for all of it. The order wizard and the order detail page are built from these nodes and nothing else.
+Foodio's order screens are the reference for all of it. The order wizard and the order detail page are built from these nodes.
 
 ## At a glance
 
@@ -71,7 +71,7 @@ The detail page heading is a template:
 --8<-- "examples/foodio-adminpanel/lib/resources/orders/details/order_detail_screen.dart:orderRecordHeader"
 ```
 
-`BeakFormTemplate(template: ...)` places a template anywhere in a layout, and `BeakFormPlaceholder(label: ..., template: ...)` reserves the spot until there is something to show. The wizard's summary uses both: a placeholder that reads "Delivery not set" while no slot is chosen, then the template. Templates in pickers are covered in [Related records in forms](related-records.md).
+`BeakFormTemplate(template: ...)` places a template anywhere in a layout. `BeakFormPlaceholder(label: ...)` is a neutral block for content that is not there yet, and with a `template` it previews the record that will fill the spot. The wizard's summary swaps a placeholder that reads "Delivery not set" for the delivery template as soon as a slot is chosen. Templates in pickers are covered in [Related records in forms](related-records.md).
 
 ## Totals: summaries, capacity and notices
 
@@ -105,13 +105,13 @@ Change a quantity and the Total metric adds the difference and the VAT to its su
 
 ## Progress and history
 
-`BeakFormProgress` walks an enum field through milestones. It reads the stored value, it never changes it, and it changes only when a command moves the record. A step without a `state` is a leading event (the order was placed) and counts as done as soon as the record is in any later state. Each step may carry a `details` template for the time and actor:
+`BeakFormProgress` walks an enum field through milestones. It reads the stored value and never writes it, so progress moves when a model command moves the record. A step without a `state` is a leading event (the order was placed) and counts as done as soon as the record is in any later state. Each step may carry a `details` template for the time and actor:
 
 ```dart title="examples/foodio-adminpanel/lib/resources/orders/details/order_detail_screen.dart"
 --8<-- "examples/foodio-adminpanel/lib/resources/orders/details/order_detail_screen.dart:orderProgressSteps"
 ```
 
-Those are the first two of Foodio's five steps. The field must be an enum column, or the node throws a `BeakConfigurationException`. When the stored value is not one of the steps (a cancelled order, say), the node shows the field's normal badge instead of inventing progress.
+Those are the first two of Foodio's five steps. The field must be an enum column, or the node throws a `BeakConfigurationException` when it builds. When the stored value is not one of the steps (a cancelled order, say), the node shows the field's normal badge instead of inventing progress.
 
 `BeakFormTimeline` shows a to-many history as entries, or as message bubbles with `messages: true`. It requests the relationship itself. Foodio's notes card pairs it with an inline command form:
 
@@ -131,7 +131,7 @@ BeakFormActions(actions: [OrderActions.startKitchen])
 
 A command that you place, with `BeakFormActions` or `BeakFormActionInput`, leaves the automatic toolbar. A bare `BeakFormActions()` places every available command. When a command completes on a record with no unsaved edits, the session reloads it, so a note or an activity row the server added shows up without a callback.
 
-`BeakFormLinks` turns typed values into contact actions. Only `http`, `https`, `mailto`, `tel` and `sms` open, a link whose value is empty is left out, and a failure uses the panel's normal error presentation:
+`BeakFormLinks` turns typed values into contact actions. Only `http`, `https`, `mailto`, `tel` and `sms` open, a link whose value is empty is left out, and a failure shows an error toast:
 
 ```dart title="examples/foodio-adminpanel/lib/resources/orders/details/order_customer_section.dart"
 --8<-- "examples/foodio-adminpanel/lib/resources/orders/details/order_customer_section.dart:customerLinks"
@@ -145,11 +145,13 @@ A command that you place, with `BeakFormActions` or `BeakFormActionInput`, leave
 
 ## Read and edit, side by side
 
-`BeakModeLayout(read: ..., edit: ...)` chooses a subtree by mode. Both branches live in the same graph, so the fields of both are loaded. Foodio uses it for a notice that changes wording while editing and for an add button that becomes a search:
+`BeakModeLayout(read: ..., edit: ...)` chooses a subtree by mode. Both branches live in the same graph, so the fields of both are loaded. Foodio uses it for a notice whose wording changes while editing:
 
-```dart title="examples/foodio-adminpanel/lib/resources/orders/details/order_customer_section.dart"
---8<-- "examples/foodio-adminpanel/lib/resources/orders/details/order_customer_section.dart:addDishAction"
+```dart title="examples/foodio-adminpanel/lib/resources/orders/details/order_detail_screen.dart"
+--8<-- "examples/foodio-adminpanel/lib/resources/orders/details/order_detail_screen.dart:orderModeNotice"
 ```
+
+The same page swaps the add-a-dish action for a search-shaped one while editing, see [Related records in forms](related-records.md#the-add-button-somewhere-else).
 
 The read and edit modes themselves belong to [Detail views](detail-views.md).
 
@@ -162,7 +164,7 @@ The read and edit modes themselves belong to [Detail views](detail-views.md).
 | Hidden by permission | A node is not shown when the account cannot read a field it declares, or a field its template reads |
 | Progress needs an enum | `BeakFormProgress.field` must be an enum column. `states` and `steps` are exclusive, which is an assert |
 | Inline commands | Each `BeakFormActionInput` needs a command with an input model, names must be unique in the form, and `submitWithForm` must share the argument model. A violation throws when the session is created |
-| Links | Only `http`, `https`, `mailto`, `tel` and `sms` open. Permissions are checked again when a link is activated |
+| Links | Only `http`, `https`, `mailto`, `tel` and `sms` open. Permissions are checked again when a link is activated, and a failure shows a toast |
 | Locks are UI | `BeakFormLock` disables a control. The server decides whether the action is allowed |
 | Root-only switch | `showChangeIndicators` is read from the root layout only |
 | Escape hatch | `BeakFormWidget` receives the draft and a `BeakDraftScope`. Whatever it changes must go through the draft, or it is not saved. See [Form screens](form-screens.md#a-widget-of-your-own) |
@@ -174,6 +176,11 @@ The presentation nodes are covered by package tests, and Foodio has tests for it
 ```bash
 cd packages/beak_frontend
 flutter test test/src/form/presentation_workflow_test.dart test/src/form/workflow_milestones_test.dart test/src/form/inline_action_input_test.dart
+```
+
+```bash
+cd examples/foodio-adminpanel
+flutter test test/order_presentation_test.dart
 ```
 
 Each ends with `All tests passed!`. To watch the nodes move, run Foodio (API on port 8081), open an order and change a quantity: the Total metric, the summary and the change bar all update before you press Save.
