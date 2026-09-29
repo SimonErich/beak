@@ -1,45 +1,108 @@
 # Beak docs style guide (writers read this first)
 
 This file is not published (it lives under `docs/_internal/`, excluded from the
-build). It is the contract every docs page follows so the whole site reads like
-one person wrote it: a very good developer explaining their own library to a
-friend. Friendly, professional, approachable, a little cheeky. Never sloppy.
+build). It is the contract every docs page follows, so the whole site reads like
+one person wrote it: a working engineer explaining their own library to a
+colleague. Direct, funny, precise, never salesy. Load the `simon-voice` skill
+before you write a page; this file translates it to documentation.
 
 ## Voice
 
-- **Second person.** "You define a model", not "one defines a model".
-- **Short, declarative sentences.** One idea per sentence. Cut every word that
-  does not earn its place.
-- **Concrete before abstract.** Show the thing, then explain it. Lead a concept
-  with the plain-English idea, then the code, then the edge cases.
-- **Two audiences, one page.** Beginners read top to bottom. Experts scan for the
-  table or the signature. Put the "just tell me the fields" material in tables and
-  in the Reference section so nobody has to read prose to find a parameter name.
-- **Cheeky, lightly.** A dry aside or a bird pun is welcome when it lands. It is
-  seasoning, not the meal. If a joke makes a sentence longer or less clear, cut it.
+The person on the page argues with evidence, not adjectives. They tell you the
+cheaper option exists, they tell you which part of Beak is rough and why, and
+they tell you what they do not know yet. Warmth is real but never performed.
+
+**The bar for every sentence: does the reader lose information if it goes?**
+If not, delete it. Nothing that performs understanding: no "As you can see", no
+"This makes X much cleaner", no closing sentence that praises or re-explains what
+the code above just did. Say what it does. Stop.
+
+**Non-negotiables**
+
+- No em-dashes (`—`). Comma, period, colon or parentheses.
+- No rhetorical questions to the reader, anywhere on the page (not only in
+  headings). A question is fine only when it is a real one the page then answers
+  with a decision table.
+- No adjective chains. One adjective, or a number, or a fact.
+- No "not only X, but also Y", no "it is not just X, it is Y".
+- No hype: revolutionary, innovative, cutting-edge, state-of-the-art, game-changer,
+  seamless, effortless, powerful, blazing, robust (as filler), supercharge,
+  delightful, magic, unlock, elevate, empower, leverage (as a verb), "just" before
+  a verb ("just call"), "simply". The gate greps for a subset of these.
+- No superlative self-praise. State the fact that happens to be impressive
+  ("one definition feeds six surfaces"), let it do the work.
+- No urgency theatre, no engagement bait, no exclamation-point storms.
+- No bold-carpeting. Bold is for a term being defined, a filename, or a label.
+  Two or three per page is plenty.
+
+**Structural moves (these matter more than word choice)**
+
+1. **Context before content.** Open with where the reader stands or what changes,
+   then the new thing. "You have a `Product` schema and no screen for it yet.
+   Here is the smallest resource that gives you one."
+2. **Pre-emptive honesty.** Name the flaw or limit early, with its reason and what
+   it buys: flaw, because, what you get. "Related rows on the default show page are
+   read-only. That keeps the page to one query; edit them in the form." Never flaw,
+   then apology.
+3. **Mechanism before recommendation.** Explain the cost dynamics, then the
+   recommendation falls out: short-term effect, mid-term effect, why, therefore.
+4. **Name the option you argue against, fairly.** Generated panel or authored
+   panel, Beak API in Serverpod or the frontend-only bridge: show what each buys
+   before you pick.
+5. **Ownership transfer.** Tell the reader what they do not have to do. "Beak
+   writes the migration. You never touch a column name."
+6. **Bullets only where the reader chooses, checks or acts.** Prose for reasoning,
+   bullets and tables for options, requirements, steps and homework.
+7. **Ranges, never fake precision** for anything estimated ("about 2 - 3 seconds
+   for 10,000 rows", "6 to 8 weeks"). One number only when it is a guarantee.
+8. **Caveats as confidence.** "This is checked at boot, not per request" reads as
+   strength.
+9. **Soft landing.** End on the door that opens next (`## Continue reading`), not
+   on a push or a summary of the page you just read.
+10. **Say it once.** Each angle earns one paragraph. When two paragraphs make the
+    same point, keep the one with the concrete detail.
+
+**Sentence mechanics.** Long-ish but flat: median about 18 words, comma chains
+instead of nested clauses, few semicolons. Short fragment openers are welcome
+("Done.", "That is all it takes.", "Same file, no regeneration."). Colon then
+payoff: "The rule is simple: a field's Dart type picks the column." Parenthetical
+asides carry the real detail, often the caveat. Paragraphs are 1 - 4 lines; a wall
+of text is out of character. Contractions are fine ("don't", "it's").
+
+**Funny, and cheeky.** The humour is dry, specific and about the situation, never
+about the reader: understatement, honest self-deprecation about the framework
+("this part is not pretty, and it is like this on purpose"), a parenthetical
+aside that lands, the occasional `;)` after a deliberate exaggeration. Budget:
+one or two jokes per page, at most one smiley per page, zero in reference pages,
+security and upgrade guides. If a joke makes a sentence longer or the fact harder
+to find, cut the joke. Acknowledgements stay flat and repeated ("True.", "Makes
+sense."); a different colourful reaction each time is the tell.
+
+**Register by page type.** Tutorials and concepts get the full voice. Guides and
+recipes get most of it. Reference pages are dry: tables, signatures, no jokes.
+`ai/` pages are plain, imperative and prescriptive for a machine reader: rules,
+task tables, commands. No humour there.
 
 ## The bird thing
 
 Flutter's mascot is a bird. Birds have beaks. Beak is the toolbox for the
 dashboard or admin panel that almost every app grows eventually. Its ORM sibling
-is `worm` ("the bird has to eat something"). You may lean on this once or twice
-per page for warmth or a metaphor, never as filler. Good metaphors earn their
-keep: "a `BeakColumn` is declared once and feeds six mouths — the table cell, the
-form field, the detail row, the filter, the API validator, and the CSV column."
+is `worm` ("the bird has to eat something"). Lean on it once or twice per page for
+warmth or a metaphor, never as filler. Good metaphors earn their keep: "a schema
+field is declared once and feeds six mouths: the table cell, the form input, the
+detail row, the filter, the API validator and the CSV column."
 
-## Banned (a reviewer greps for these)
+## Banned (the gate greps for these; the voice rules above go further)
 
-- **Em-dashes (`—`).** Use a period, a comma, a colon, or parentheses. Hyphens in
-  compound words are fine.
-- **Rhetorical questions as headings.** Write "What a column is", not "What is a
-  column?". (Exception: the deliberate page titles "What is Beak?" and "Why
-  Beak?" already exist in the nav. Do not invent new ones.)
-- **Marketing words:** seamless, effortless, powerful, blazing, robust, simply,
-  just (as in "just call"), unlock, supercharge, delightful, magic, revolutionary.
-- **Over-enthusiasm.** No exclamation-point storms, no "you're going to love
-  this". State what it does; the reader decides how they feel.
-- **The word "UseCase".** Beak's frontend has no UseCase layer (see Invariants).
-  If you are tempted to write it, you have the architecture wrong.
+- Em-dashes; question headings (except the titles "What is Beak?" and "Why
+  Beak?"); the words seamless, effortless, powerful, blazing, robust, simply,
+  supercharge, delightful, magic, revolutionary (and forms such as "magically");
+  "just" before a verb; two exclamation marks on one line; "unlock" plus power,
+  potential, value, magic, full, true, hidden or insights; the word "UseCase"
+  (Beak has no UseCase layer; only the pages that explain that may name it).
+- Nothing else is machine-checked, but reviewers hold the whole voice list to the
+  same standard. A page that passes the gate and reads like a brochure fails
+  review.
 
 ## Page structure (every page)
 
@@ -134,47 +197,91 @@ add a redirect for the old path; never delete a published path.
 
 ## Canonical example sources
 
-- `examples/clean_beak_config` is the complete shop and the primary teaching
-  source. It contains schemas, reusable form sections, named invoice actions,
-  dynamic attributes, variants, media, imports and custom screens/widgets.
-  Its API runs on port 8080. The local demonstration has no login.
-- `examples/quickstart` is the minimal generated project. Use it for the initial
-  scaffold and first resource; then use the canonical shop for richer examples.
-- Do not invent a feature in the shop when it only exists in the framework.
-  Use a focused package test or implementation excerpt and label its context.
-- Application schemas use generated `Model.field` helpers. Keep runtime/policy
-  code in the domain layer and screen files focused on presentation.
+Every snippet comes from a real file that compiles and is tested. Prefer
+`--8<-- "path:Symbol"` section includes (`// --8<-- [start:Symbol]` markers in the
+source) over pasted code: they cannot drift. Titled fences must quote their file
+verbatim (the gate checks them chunk by chunk).
+
+| Example | Use it for |
+| --- | --- |
+| `examples/quickstart` | The scaffold `beak create` writes; the first resource. Byte-identical to the generator output. |
+| `examples/clean_beak_config` | The complete shop and the primary teaching source: schemas with semantic fields and exact money, resources, form screens and sections, named invoice actions, dynamic attributes and variants, media, imports, graph preparer, custom screens and widgets. API on port 8080, no login. |
+| `examples/foodio-adminpanel` | High-fidelity app: composed lists with presets and saved views, a wizard with named steps, record templates and presentations, summaries, printable documents, durable effects, custom navigation and theme. API on port 8081. |
+| `examples/showcase` | Everything the others do not use: every block type, every column kind and relation kind, soft deletes. API on port 8082. |
+| `examples/serverpod` | A Beak admin inside a Serverpod 4 workspace (Author and Book). |
+
+Do not invent a feature in an example when it only exists in the framework. Use a
+focused package test or implementation excerpt and say where it comes from.
+Application schemas use generated `Model.field` helpers. Keep runtime and policy
+code in the domain layer and screen files focused on presentation.
+
+## Facts writers verify before writing them down
+
+A page is not done until every claim has been checked against the working tree:
+
+- Every class, parameter, annotation and enum value exists (`codegraph explore`
+  or `grep` the source). Quote signatures verbatim in reference pages.
+- Every CLI command and flag is run once (`dart run packages/beak_cli/bin/beak.dart
+  <command> --help`, plus the command itself in a scratch project when the page
+  shows its output). Paste real output, trimmed.
+- Every file path exists. Every default value is read from the source, not
+  remembered.
+- If code and an older page disagree, the code wins, and you fix the page.
+- Say what is not covered. A limitation you know about belongs on the page.
 
 ## Invariants writers must get right (these are Beak's laws)
 
 - **No Material.** Beak's UI is `obers_ui` only. Never show
   `package:flutter/material.dart` or `cupertino.dart`. Widgets are `HookWidget`
-  (never `StatefulWidget`). State is Signals, DI is GetIt (a package-scoped
-  `beakLocator`), routing is go_router. App authors rarely touch these directly;
-  Beak wires them from config.
+  (never `StatefulWidget`). State is Signals, DI is GetIt, routing is go_router.
+  Each `BeakPanel` builds its own GetIt scope and exposes it through
+  `beakDependencies(context)`. App authors rarely touch these; Beak wires them.
 - **The four layers, no UseCase.**
   - Backend: `Handler (Shelf) -> Service -> DataSource`. The error-mapping
     middleware is the single catch boundary; it maps the sealed `BeakException`
-    family to HTTP status + JSON.
+    family to HTTP status and JSON.
   - Frontend: `Widget -> ViewModel -> Repository -> DataSource`. ViewModels expose
     `ReadonlySignal`s and never `try/catch`; the Repository is the catch boundary
     and returns `BeakResult<T>`.
-- **The one-definition promise.** One typed `const BeakColumn` drives the table
-  cell, the form field (with client validation that mirrors the server), the
-  detail row, the filter, the REST validation, and the CSV export column. Users
-  never write a string field reference and never touch `dynamic`.
-- **Shared form layouts.** A `BeakFormScreen` serves read, create and edit
-  roles from the same typed field layout. `BeakFormSections` projects sections
-  into forms, tabs or wizard steps. Record blocks read `BeakRecordScope`;
-  custom form widgets edit the draft supplied by `BeakDraftScope`.
+- **The one-definition promise.** An annotated schema class (`@Resource`, `@Column`,
+  relationship annotations, optional `behavior` and `validationRules`) drives the
+  table cell, the form input with client validation that mirrors the server, the
+  detail row, the filter, the REST validation, the migration and the CSV column.
+  Users never write a string field reference and never touch `dynamic`: they use
+  generated `ProductModel.name` references.
+- **Two ways to boot a panel, both supported.** The generated `BeakApp` (from
+  `beak.yaml`, `lib/beak/app.g.dart`) and an authored `BeakPanel(resources: [...])`.
+  `beak eject main` is the switch. Teach the authored form in the tutorial and
+  the generated one in the quickstart, and always say which one a page assumes.
+- **Shared form layouts.** A `BeakFormScreen` serves read, create and edit roles
+  from the same typed field layout. `BeakFormSections` projects sections into
+  forms, tabs or wizard steps. Record blocks read `BeakRecordScope`; custom form
+  widgets edit the draft supplied by `BeakDraftScope`.
+- **Writes are graph commits.** Form saves go through `POST /api/commits` with a
+  receipt, so a save is atomic, idempotent and recoverable. Model behavior
+  (`BeakModelBehavior`) and record rules re-run on the server.
 - **Source-agnostic data.** `BeakDataSource` (in `beak_core`) is the interface.
   `WormDataSource` (backend, over the worm ORM) and `HttpBeakDataSource`
-  (frontend, over REST) both implement it. A future `beak_serverpod` can add a
-  `ServerpodDataSource` without touching `beak_core` or `beak_backend`. worm types
-  never leak past `beak_backend`.
+  (frontend, over REST) implement it. Serverpod has two supported paths: the
+  admin app inside a Serverpod workspace (Beak's API runs in the Serverpod server
+  behind one gated endpoint, over `ServerpodSessionAdapter`), and the frontend-only
+  bridge (`ServerpodResource`). worm types never leak past `beak_backend`.
 - **Storage is pluggable.** `BeakStorageConfig` (memory/local/s3/ftp) resolves to
   a `BeakStorageDriver` via a registry. File rules live on the column and run on
   both client and server.
+- **Authorization is server-side.** Panel permissions only hide UI. `BeakPolicies`
+  (deny by default) and the row, field and action policies enforce.
+
+## Definition of done for a page
+
+1. Front matter valid, `status: stable`, headings for its type present.
+2. Every snippet is a section include or a verbatim titled fence; every claim
+   verified (see above).
+3. `dart run tool/check_docs.dart` passes and `mkdocs build --strict` is clean.
+4. Voice pass: read it aloud once. Delete every clause the reader would not miss.
+   Zero em-dashes, zero rhetorical questions, no hype, no bold-carpeting.
+5. The `## Continue reading` links go forward and sideways, never in a circle
+   back to the page you came from.
 
 ## Cross-linking
 
