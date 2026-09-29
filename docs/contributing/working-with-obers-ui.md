@@ -17,7 +17,7 @@ Beak's panel is built on obers_ui, and obers_ui is not on pub.dev: its own pubsp
 | Build Beak | `melos bootstrap`. Pub fetches obers_ui at the pinned commit. |
 | Move to a newer obers_ui | Change the six `ref:` lines, then `melos bootstrap` and `dart test test/obers_ui_pin_test.dart`. |
 | Edit obers_ui and Beak together | Clone obers_ui next to Beak, then `melos run link-obers-ui`. |
-| Go back to the pin | `dart run tool/link_obers_ui.dart --unlink`, then `melos bootstrap` |
+| Go back to the pin | `melos run unlink-obers-ui` |
 
 ## The pin
 
@@ -105,17 +105,16 @@ Clone it next to this repo:
   git clone https://github.com/SimonErich/obers_ui.git ../obers_ui
 ```
 
-When you are done, restore the pins. Run the tool with its flag and bootstrap yourself:
+When you are done, restore the pins:
 
 ```bash
-dart run tool/link_obers_ui.dart --unlink
-melos bootstrap
+melos run unlink-obers-ui
 ```
 
-Unlinking removes only the block the tool wrote and leaves melos's entries in place.
+The script runs `dart run tool/link_obers_ui.dart --unlink` and then `melos bootstrap`, so run those two commands yourself if you do not have melos on the path. Unlinking removes only the block the tool wrote and leaves melos's entries in place. When that block was all a `pubspec_overrides.yaml` held, the file is deleted.
 
 !!! warning "`melos run link-obers-ui -- --unlink` does not unlink"
-    The script is `dart run tool/link_obers_ui.dart && melos bootstrap`, and melos appends extra arguments to the end of the whole string. `--unlink` therefore lands after `melos bootstrap`, the tool runs in link mode, and `melos bootstrap` receives a flag that was meant for the tool. `melos.yaml`, `CONTRIBUTING.md` and the tool's own header still describe the melos form. Use the two commands above until the script is split.
+    Melos 6.3.3 appends whatever follows `--` to the end of the whole script string. For `link-obers-ui` that is `dart run tool/link_obers_ui.dart && melos bootstrap --unlink`: the tool runs in link mode, and `melos bootstrap` receives a flag that was meant for the tool and stops with an error, after the packages are already linked. Unlinking is a script of its own, `unlink-obers-ui`, for that reason.
 
 !!! tip "Why not melos's dependencyOverridePaths"
     Melos can apply overrides itself, but it applies them to every package in the workspace, including the pure Dart ones. That drags the Flutter SDK into `beak_core`, `beak_cli`, `beak_image` and the storage drivers, and makes `dart pub get` there require Flutter. `link-obers-ui` touches only the packages that depend on obers_ui.
@@ -126,11 +125,10 @@ If a Beak screen exposes a missing component behavior, fix it in obers_ui and ad
 
 ## Rules and limits
 
-- **The override files are git-ignored, the lockfiles are not.** `pubspec_overrides.yaml` never reaches a commit. The `pubspec.lock` of `examples/clean_beak_config` and `examples/foodio-adminpanel` is tracked, and `pub get` writes the linked state into it while you are linked, so `path: "../../../obers_ui"` can ride along in a commit. Run `git diff -- '*.lock'` before you commit, and unlink and bootstrap first if a lockfile shows a path.
+- **The override files are git-ignored, the lockfiles are not.** `pubspec_overrides.yaml` never reaches a commit. The `pubspec.lock` of `examples/clean_beak_config`, `examples/foodio-adminpanel` and `examples/showcase` is tracked, and `pub get` writes the linked state into it while you are linked, so `path: "../../../obers_ui"` can ride along in a commit. Before you commit, run `melos run unlink-obers-ui` and then `git grep -ln 'path: "../../../obers_ui' -- '*pubspec.lock'`. It prints nothing when every tracked lockfile records the pin.
 - **A link is per checkout.** Unlink before you tag a release, and before you compare behavior against CI, which always uses the pin.
 - **`link-obers-ui` needs the sibling folder to be named `obers_ui`.** The path is `../obers_ui`, relative to the Beak root, and there is no option to change it.
 - **The Serverpod workspace has its own resolution.** `examples/serverpod` is outside melos, so `melos bootstrap` does not resolve it. The link tool still writes its root overrides, and its README asks you to link once before running `dart pub get` there.
-- **Unlinking leaves the header.** In a package with no melos entries, `--unlink` can leave a `pubspec_overrides.yaml` holding only `dependency_overrides:`. It is git-ignored and harmless.
 
 ## Verify it
 
@@ -150,7 +148,7 @@ While linked, the overrides are in place and point at the checkout:
 grep -l 'linked obers_ui checkout' packages/*/pubspec_overrides.yaml examples/*/pubspec_overrides.yaml
 ```
 
-After `--unlink`, the same command prints nothing.
+After `melos run unlink-obers-ui`, the same command prints nothing.
 
 ## Reference
 
@@ -158,7 +156,7 @@ After `--unlink`, the same command prints nothing.
 | --- | --- |
 | The pins | `packages/beak_frontend/pubspec.yaml`, `packages/beak/pubspec.yaml` |
 | The pin test | `test/obers_ui_pin_test.dart` |
-| The link tool | `tool/link_obers_ui.dart`, run by `melos run link-obers-ui` |
+| The link tool | `tool/link_obers_ui.dart`, run by `melos run link-obers-ui` and `melos run unlink-obers-ui` |
 | The sibling checkout | `../obers_ui`, relative to the Beak root |
 | The marker the tool writes | `# beak: linked obers_ui checkout` |
 | The obers_ui packages | `obers_ui`, `obers_ui_autoforms`, `obers_ui_charts` |

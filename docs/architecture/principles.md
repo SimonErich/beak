@@ -88,7 +88,7 @@ App authors rarely touch any of this. They write a schema class and a `beak.yaml
 $ dart run tool/check_no_material.dart
 Material-import guard passed (1150 Dart files scanned).
 $ dart run tool/check_web_safe.dart
-Web-safety guard passed (6 panel entrypoints walked).
+Web-safety guard passed (12 panel entrypoints walked).
 ```
 
 The second guard exists because `dart:io` compiles on the web and throws at runtime, so nothing else would catch a server import in the panel. See [Package graph](package-graph.md).

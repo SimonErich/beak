@@ -63,15 +63,7 @@ Never throw a bare `Exception`. Beak's failures are the sealed `BeakException` f
 The family is sealed so the backend can map it with a switch the compiler proves complete. Add a variant and every mapper stops compiling until it handles the new case.
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-  final int statusCode = switch (exception) {
-    BeakValidationException() => 422,
-    BeakNotFoundException() => 404,
-    BeakAuthenticationException() => 401,
-    BeakAuthorizationException() => 403,
-    BeakConflictException() => 409,
-    BeakConfigurationException() => 500,
-    BeakStorageException() => 500,
-  };
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:exceptionStatus"
 ```
 
 A layer translates the failures below it into the right typed exception at its boundary and lets nothing rawer through. The storage drivers show the pattern: a private guard rethrows Beak's own exceptions untouched and wraps everything else, so no socket error crosses the driver seam.
@@ -134,7 +126,7 @@ Beak is pre-1.0, so a superseded API is removed instead of deprecated. Delete it
 - **Nothing checks commit messages.** The convention holds because reviewers hold it.
 - **Nothing checks "reuse first".** A duplicate passes every tool. It fails on the first review that remembers the original.
 - **A default branch opts out of the sealed check.** Every `switch` over `BeakException` should list the variants and have no `default`, so a new variant breaks the build instead of falling through.
-- **Vendored worm code follows other rules.** `packages/worm*` are outside the melos gate, and `CONTRIBUTING.md` asks that changes to them go upstream.
+- **Vendored worm code follows other rules.** `packages/worm*` are outside the melos gate, so a change to them is checked by `melos run test-worm` instead. They are still edited here when Beak needs a change; the pull request says why.
 - **Local agent files stay local.** `CLAUDE.md`, `.claude/`, `PLAN/` and `PROMPT.md` at the repo root are git-ignored. `AGENTS.md` is the committed instruction file, and `*.db` files never get committed.
 
 ## Verify it

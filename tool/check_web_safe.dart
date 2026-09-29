@@ -54,8 +54,28 @@ const List<String> panelEntrypoints = [
   'packages/beak/lib/panel.dart',
   'packages/beak/lib/ui.dart',
   'packages/beak/lib/charts.dart',
+  'packages/beak/lib/schema.dart',
   'packages/beak_core/lib/beak_core.dart',
+  'packages/beak_core/lib/schema.dart',
   'packages/beak_frontend/lib/beak_frontend.dart',
+  'packages/beak_serverpod/lib/beak_serverpod.dart',
+  'packages/beak_serverpod/lib/wire.dart',
+  'packages/beak_serverpod_flutter/lib/beak_serverpod_flutter.dart',
+  'packages/beak_serverpod_flutter/lib/tunnel.dart',
+];
+
+/// The public libraries that reach the server on purpose, relative to the
+/// repo root.
+///
+/// They are not walked. Listing them is what keeps the classification
+/// complete: a library under `lib/` is either in [panelEntrypoints] and
+/// guarded, or here and deliberate, and `test/check_web_safe_test.dart` fails
+/// on one that is neither.
+const List<String> serverEntrypoints = [
+  'packages/beak/lib/migrations.dart',
+  'packages/beak/lib/server.dart',
+  'packages/beak/lib/testing.dart',
+  'packages/beak_core/lib/io.dart',
 ];
 
 /// Packages whose sources this tool walks into: the umbrella and everything

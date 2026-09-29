@@ -42,6 +42,7 @@ import 'package:crypto/crypto.dart';
 import 'package:yaml/yaml.dart';
 
 import 'check_docs.dart';
+import 'src/dart_declarations.dart';
 import 'src/docs_markdown.dart';
 import 'src/docs_snippets.dart';
 
@@ -100,8 +101,18 @@ const String blockEnd = '<!-- END:beak-agent-rules -->';
 /// The docs page the AI index is built from, relative to `docs/`.
 const String _indexSource = 'ai/index.md';
 
-/// The heading of the column the corrections table's symbols are read from.
-const String _correctionsColumn = 'Beak 0.9 does';
+/// A heading of the column the corrections table's symbols are read from,
+/// whatever version it names: `Beak 0.9 does`.
+final RegExp _correctionsColumn = RegExp(r'^Beak \S+ does$');
+
+/// The column heading for [version], or `null` when it has no major.minor.
+///
+/// Derived, not written down twice: `0.9.0` reads `Beak 0.9 does`, and so does
+/// `0.9.3-dev.1+4`. After a minor bump the check names the heading to write.
+String? correctionsHeading(String version) {
+  final RegExpMatch? match = RegExp(r'^(\d+)\.(\d+)').firstMatch(version);
+  return match == null ? null : 'Beak ${match[1]}.${match[2]} does';
+}
 
 /// What a build produced: the bundle's files, or why it cannot be built.
 final class AgentDocsBuild {
@@ -211,11 +222,14 @@ AgentDocsBuild buildAgentDocs(Directory root) {
         '';
 
   final String? indexSource = sources[_indexSource];
+  final names = _LibraryNames(root);
   if (indexSource != null) {
     problems.addAll(
       checkCorrectionsTable(
         indexSource,
-        libraryIdentifiers: () => _libraryIdentifiers(root),
+        version: version,
+        libraryIdentifiers: () => names.words,
+        declaredNames: () => names.declaredByBeak,
       ),
     );
   }
@@ -784,34 +798,51 @@ String _manifest(Map<String, String> files, String version, int pages) {
 
 /// The problems in the corrections table of the AI index page [content].
 ///
-/// The table is the one whose header row has a column headed
-/// "Beak 0.9 does". Every backticked identifier in that column (a name on its
-/// own, or a call such as `withRelations([...])`) must appear in the source
-/// of some `packages/*/lib`. A row whose left cell says `(removed)` names
-/// symbols that are gone, so those must not appear anywhere. Paths, commands
-/// and dotted chains such as `ProductModel.name` are not identifiers here:
-/// generated code and other projects' APIs are not in `packages/`.
+/// The table is the one whose header row has a column headed for the Beak
+/// version, "Beak 0.9 does" for [version] `0.9.x`. A page with no such table
+/// is a problem, not a pass: a check that finds nothing to check when the
+/// heading is renamed has stopped checking. A column headed for another
+/// version is a problem that names the heading to write.
 ///
-/// Returns nothing when the page has no such table yet, so the check can be
-/// wired in before the page is written. [libraryIdentifiers] is called at
-/// most once, and only when there is something to look up.
+/// Every backticked identifier in that column (a name on its own, or a call
+/// such as `withRelations([...])`) must appear in the source of some
+/// `packages/*/lib`. It may be a name Beak uses rather than declares, such as
+/// Flutter's `runApp` or an obers_ui widget.
+///
+/// A row whose left cell says `(removed)` names symbols that are gone, and
+/// those must be declared in none of the Beak packages ([publicNamesIn]). The
+/// stricter test is what makes a removal provable: a doc comment, a message
+/// string, a local variable or a private helper keeps the word in the source
+/// long after the API is gone, and a vendored `worm*` package declaring the
+/// same word says nothing about Beak's API. Paths, commands and dotted chains
+/// such as `ProductModel.name` are not identifiers here: generated code and
+/// other projects' APIs are not in `packages/`.
+///
+/// [libraryIdentifiers] is every word of the Beak sources, and
+/// [declaredNames] the public names the Beak packages declare (it defaults to
+/// [libraryIdentifiers]). Each is called at most once, and only when there is
+/// something to look up.
 List<String> checkCorrectionsTable(
   String content, {
+  required String version,
   required Set<String> Function() libraryIdentifiers,
+  Set<String> Function()? declaredNames,
 }) {
+  final String? heading = correctionsHeading(version);
   final List<String> lines = content.split('\n');
   final Set<int> fenced = fencedLineIndices(lines);
   final expected = <({String name, int line})>[];
   final removed = <({String name, int line})>[];
-  for (var header = 0; header < lines.length - 1; header += 1) {
+  var found = false;
+  for (var header = 0; header < lines.length - 1 && !found; header += 1) {
     final List<String>? cells = fenced.contains(header)
         ? null
         : _tableCells(lines[header]);
     final int column =
         cells?.indexWhere(
-          (cell) =>
-              cell.replaceAll(RegExp(r'[*`_]'), '').trim() ==
-              _correctionsColumn,
+          (cell) => _correctionsColumn.hasMatch(
+            cell.replaceAll(RegExp(r'[*`_]'), '').trim(),
+          ),
         ) ??
         -1;
     final List<String>? divider = _tableCells(lines[header + 1]);
@@ -820,19 +851,27 @@ List<String> checkCorrectionsTable(
         !divider.every((cell) => RegExp(r'^:?-{3,}:?$').hasMatch(cell))) {
       continue;
     }
+    found = true;
+    final String written = cells![column]
+        .replaceAll(RegExp(r'[*`_]'), '')
+        .trim();
+    if (heading != null && written != heading) {
+      return [
+        'docs/$_indexSource:${header + 1}: the corrections table column is '
+            'headed "$written", but this is Beak $version. Rename it '
+            '"$heading".',
+      ];
+    }
     for (var row = header + 2; row < lines.length; row += 1) {
       final List<String>? rowCells = _tableCells(lines[row]);
       if (rowCells == null) {
         break;
       }
-      final entries = <String>[
+      expected.addAll([
         for (final name in _identifiersIn(
           rowCells.length > column ? rowCells[column] : '',
         ))
-          name,
-      ];
-      expected.addAll([
-        for (final name in entries) (name: name, line: row + 1),
+          (name: name, line: row + 1),
       ]);
       if (rowCells.first.contains('(removed)')) {
         removed.addAll([
@@ -841,21 +880,30 @@ List<String> checkCorrectionsTable(
         ]);
       }
     }
-    break;
+  }
+  if (!found) {
+    return [
+      'docs/$_indexSource needs the corrections table: a Markdown table with a '
+          'column headed "${heading ?? 'Beak <version> does'}", one row per '
+          'habit an agent gets wrong, symbols in backticks',
+    ];
   }
   if (expected.isEmpty && removed.isEmpty) {
     return const [];
   }
   final Set<String> known = libraryIdentifiers();
+  final Set<String> declared = removed.isEmpty
+      ? const {}
+      : (declaredNames ?? libraryIdentifiers)();
   return [
     for (final symbol in expected)
       if (!known.contains(symbol.name))
         'docs/$_indexSource:${symbol.line}: the corrections table names '
             '`${symbol.name}`, which no packages/*/lib source contains',
     for (final symbol in removed)
-      if (known.contains(symbol.name))
+      if (declared.contains(symbol.name))
         'docs/$_indexSource:${symbol.line}: the corrections table marks '
-            '`${symbol.name}` as removed, but packages/*/lib still contains it',
+            '`${symbol.name}` as removed, but packages/*/lib still declares it',
   ];
 }
 
@@ -902,30 +950,56 @@ List<String> _identifiersIn(String cell) => [
     ?RegExp(r'^([A-Za-z_]\w*)(?:\(.*\))?$').firstMatch(span[1]!.trim())?[1],
 ];
 
-/// Every identifier that appears in the Dart source of `packages/*/lib`.
-Set<String> _libraryIdentifiers(Directory root) {
-  final identifiers = <String>{};
-  final packages = Directory('${root.path}/packages');
-  if (!packages.existsSync()) {
-    return identifiers;
-  }
-  final word = RegExp(r'[A-Za-z_$][\w$]*');
-  for (final package in packages.listSync(followLinks: false)) {
-    final lib = Directory('${package.path}/lib');
-    if (!lib.existsSync()) {
-      continue;
+/// What the Dart source of `packages/*/lib` says, read once on first use
+/// because most builds never look anything up.
+final class _LibraryNames {
+  _LibraryNames(this._root);
+
+  final Directory _root;
+
+  late final ({Set<String> words, Set<String> declared}) _sets = _read();
+
+  /// Every word of every package, so a name Beak uses but does not declare
+  /// (`runApp`, an obers_ui widget) still counts as present.
+  Set<String> get words => _sets.words;
+
+  /// The public names the Beak packages declare: everything but the vendored
+  /// `worm` packages, whose API is not Beak's.
+  Set<String> get declaredByBeak => _sets.declared;
+
+  ({Set<String> words, Set<String> declared}) _read() {
+    final words = <String>{};
+    final declared = <String>{};
+    final packages = Directory('${_root.path}/packages');
+    if (!packages.existsSync()) {
+      return (words: words, declared: declared);
     }
-    for (final file in lib.listSync(recursive: true, followLinks: false)) {
-      if (file is File && file.path.endsWith('.dart')) {
+    final word = RegExp(r'[A-Za-z_$][\w$]*');
+    for (final package in packages.listSync(followLinks: false)) {
+      final lib = Directory('${package.path}/lib');
+      if (!lib.existsSync()) {
+        continue;
+      }
+      final String name = package.uri.pathSegments.lastWhere(
+        (segment) => segment.isNotEmpty,
+      );
+      final bool vendored = name == 'worm' || name.startsWith('worm_');
+      for (final file in lib.listSync(recursive: true, followLinks: false)) {
+        if (file is! File || !file.path.endsWith('.dart')) {
+          continue;
+        }
         final String source = utf8.decode(
           file.readAsBytesSync(),
           allowMalformed: true,
         );
-        identifiers.addAll(word.allMatches(source).map((match) => match[0]!));
+        words.addAll(word.allMatches(source).map((match) => match[0]!));
+        if (!vendored) {
+          declared.addAll(publicNamesIn(source));
+        }
       }
     }
+    return (words: words, declared: declared);
   }
-  return identifiers;
 }
 
 /// The files of the bundle on disk, keyed by path relative to it.

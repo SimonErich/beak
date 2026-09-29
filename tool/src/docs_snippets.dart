@@ -21,6 +21,46 @@ final RegExp snippetMarker = RegExp(
   r'--8<--\s*\[\s*(start|end)\s*:\s*([\w-]+)\s*\]',
 );
 
+/// A section marker as pymdownx reads one on a line of a page.
+///
+/// Broader than [snippetMarker], which reads the source files a page quotes:
+/// pymdownx wants whitespace before the bracket, a name that starts with a
+/// letter, and takes any number of dashes, so a lookalike outside that grammar
+/// is left on the page. Case does not matter. Group 1 is what precedes the
+/// marker, group 2 the escaping semicolons directly before it.
+final RegExp pageSnippetMarker = RegExp(
+  r'^(.*?)(;*)(-+8<-+[ \t]+\[[ \t]*(?:start|end)[ \t]*:[ \t]*'
+  r'[a-z][-_0-9a-z]*[ \t]*\])',
+  caseSensitive: false,
+);
+
+/// [line] of a page as pymdownx leaves it, or `null` when it deletes the line.
+///
+/// A line holding a section marker is removed before Markdown sees the page,
+/// whether it sits in a fence, in inline code or in prose. One semicolon
+/// directly before the marker escapes it: the line stays and the semicolon
+/// goes, which is the only way to show a marker to a reader.
+String? renderedPageLine(String line) {
+  final RegExpMatch? marker = pageSnippetMarker.firstMatch(line);
+  if (marker == null) {
+    return line;
+  }
+  final String escape = marker.group(2)!;
+  if (escape.isEmpty) {
+    return null;
+  }
+  final String before = marker.group(1)!;
+  return '$before${escape.substring(1)}'
+      '${line.substring(before.length + escape.length)}';
+}
+
+/// Whether [reference] selects lines by number (`file.dart:12:20`).
+///
+/// pymdownx reads it, but there is no marker to watch, so a rename moves the
+/// quoted lines without a build noticing, and the agent docs bundle refuses it.
+bool isLineRange(String reference) =>
+    reference.contains(':') && sectionOf(reference) == null;
+
 /// The section [reference] names, or `null` when it reads a whole file.
 ///
 /// pymdownx also accepts a line range (`file.dart:12:20`), which has no
@@ -68,6 +108,8 @@ final class SnippetException implements Exception {
 /// - The include's own indentation is kept on every line it produces, so an
 ///   include inside an admonition or a tab stays inside it.
 /// - Includes inside included files expand too.
+/// - A line that holds a section marker is dropped, or loses the one escaping
+///   semicolon before the marker ([renderedPageLine]).
 ///
 /// Where mkdocs would publish an empty block, this throws a
 /// [SnippetException]: a missing file, a section with no start marker, one
@@ -83,7 +125,10 @@ List<String> expandSnippets(
     final String line = lines[index];
     final RegExpMatch? include = snippetInclude.firstMatch(line);
     if (include == null) {
-      expanded.add(line);
+      final String? rendered = renderedPageLine(line);
+      if (rendered != null) {
+        expanded.add(rendered);
+      }
       continue;
     }
     final String indent = RegExp(r'^\s*').firstMatch(line)!.group(0)!;
@@ -114,7 +159,7 @@ List<String> _included(
 }) {
   final String target = reference.split(':').first;
   final String? section = sectionOf(reference);
-  if (reference.contains(':') && section == null) {
+  if (isLineRange(reference)) {
     throw FormatException(
       'snippet "$reference" is a line range; only whole files and '
       '"file:section" includes are supported',

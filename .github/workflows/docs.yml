@@ -10,11 +10,17 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "CHANGELOG.md"
       - "examples/**"
       - "packages/**"
-      - "tool/check_docs.dart"
+      - "tool/**"
       - "test/check_docs_test.dart"
+      - "test/build_agent_docs_test.dart"
+      - "test/dart_declarations_test.dart"
       - ".github/workflows/docs.yml"
+    # A tag push has no paths filter and always runs, because a release is
+    # where the completeness ratchet below has to pass.
+    tags: ["v*"]
   # The build is the docs' structural gate: broken links, missing nav entries,
   # snippet targets that moved. Running it on the pull request means main does
   # not break first and someone finds out later. Pages quote example and
@@ -23,10 +29,13 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "CHANGELOG.md"
       - "examples/**"
       - "packages/**"
-      - "tool/check_docs.dart"
+      - "tool/**"
       - "test/check_docs_test.dart"
+      - "test/build_agent_docs_test.dart"
+      - "test/dart_declarations_test.dart"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -58,16 +67,32 @@ jobs:
       - name: Get the checker's dependencies
         run: dart pub get
 
-      - name: Test the docs checker
-        run: dart test test/check_docs_test.dart
+      - name: Test the docs checker and the agent docs builder
+        run: >-
+          dart test test/check_docs_test.dart test/build_agent_docs_test.dart
+          test/dart_declarations_test.dart
 
       - name: Check the docs
         run: dart run tool/check_docs.dart
+
+      # The committed agent docs bundle (packages/beak_core/doc/agent-docs) is
+      # built from docs/, mkdocs.yml, CHANGELOG.md and the version, so a change
+      # to any of them leaves it stale. This also checks the corrections table
+      # on docs/ai/index.md against packages/*/lib. Fix with
+      # `melos run agent-docs`.
+      - name: Check the agent docs bundle
+        run: dart run tool/build_agent_docs.dart --check
 
       # A release branch must ship finished docs: this fails while any page is
       # still `status: draft`.
       - name: Check the docs are complete
         if: startsWith(github.ref, 'refs/heads/release/')
+        run: dart run tool/check_docs.dart --release
+
+      # The same ratchet for the tag itself, which can be pushed without a
+      # release branch.
+      - name: Check the docs are complete (tag)
+        if: startsWith(github.ref, 'refs/tags/')
         run: dart run tool/check_docs.dart --release
 
       - uses: actions/setup-python@v7

@@ -32,7 +32,7 @@ The umbrella package `beak` depends on `beak_backend`, `beak_core`, `beak_fronte
 | Library | Holds | Reaches Flutter | Reaches `dart:io` or a database | Walked by `guard-web` |
 | --- | --- | --- | --- | --- |
 | `package:beak/beak.dart` | columns, models, relationships, query spec, storage abstraction | no | no | yes |
-| `package:beak/schema.dart` | the annotations a schema class is written with | no | no | no |
+| `package:beak/schema.dart` | the annotations a schema class is written with | no | no | yes |
 | `package:beak/panel.dart` | the panel, tables, forms, blocks; re-exports `beak.dart` | yes | no | yes |
 | `package:beak/ui.dart` | obers_ui and the autoforms | yes | no | yes |
 | `package:beak/charts.dart` | obers_ui_charts | yes | no | yes |
@@ -83,12 +83,22 @@ const List<String> panelEntrypoints = [
   'packages/beak/lib/panel.dart',
   'packages/beak/lib/ui.dart',
   'packages/beak/lib/charts.dart',
+  'packages/beak/lib/schema.dart',
   'packages/beak_core/lib/beak_core.dart',
+  'packages/beak_core/lib/schema.dart',
   'packages/beak_frontend/lib/beak_frontend.dart',
+  'packages/beak_serverpod/lib/beak_serverpod.dart',
+  'packages/beak_serverpod/lib/wire.dart',
+  'packages/beak_serverpod_flutter/lib/beak_serverpod_flutter.dart',
+  'packages/beak_serverpod_flutter/lib/tunnel.dart',
 ];
 ```
 
+The libraries that reach the server on purpose (`server.dart`, `migrations.dart`, `testing.dart` and `beak_core`'s `io.dart`) sit in `serverEntrypoints` and are not walked. A test fails on any public library under `lib/` that is in neither list, so a new library cannot go unguarded by omission.
+
 Packages named `beak` and `beak_*` are walked into. Everything else is a boundary node: its URI is checked, its sources are not. Server-side code that a panel graph would otherwise pull in goes behind its own library, as `package:beak_core/io.dart` does for the local-disk storage driver.
+
+The third guard keeps widget state out of `State` objects. `tool/check_hook_widgets.dart` reads the `lib/` of every gated package (the same set as the Material guard, tests excluded) and fails on a class that extends `StatefulWidget`, `State`, `StatefulHookWidget` or `HookState`, and prints the file and the class. It reads tokens, not lines, so a comment or a string that quotes the rule is not a violation and a declaration wrapped over two lines still is.
 
 ## Summary
 
@@ -96,7 +106,7 @@ Packages named `beak` and `beak_*` are walked into. Everything else is a boundar
 | --- | --- | --- |
 | No Material or Cupertino import | `guard-material`, part of `analyze` | `dart run tool/check_no_material.dart` |
 | The panel graph reaches no `dart:io`, `dart:ffi`, `dart:mirrors` or server package | `guard-web`, part of `analyze`; a real web build in CI | `dart run tool/check_web_safe.dart` |
-| Widgets are `HookWidget`, never `StatefulWidget` | review | `grep -rn "extends StatefulWidget" packages/*/lib` |
+| Widgets are `HookWidget`, never `StatefulWidget` or `State` | `guard-hooks`, part of `analyze` | `dart run tool/check_hook_widgets.dart` |
 | State is signals (`ReadonlySignal` out of view models), DI is GetIt, routing is go_router | review | none |
 | No `dynamic`; the exception is a line marked `// interop:` | review, `avoid_dynamic_calls`, strict inference | `dart analyze --fatal-infos --fatal-warnings` |
 | No `as` casts; narrow with pattern matching | review, `strict-casts` | `dart analyze --fatal-infos --fatal-warnings` |
@@ -115,13 +125,13 @@ Packages named `beak` and `beak_*` are walked into. Everything else is a boundar
 | Generated files (`*.g.dart`, `*.beak.dart`) are regenerated, never edited | excluded from analysis and coverage; `check-examples` fails a stale one | `dart run tool/check_examples.dart` |
 | Pre-1.0, a superseded API is removed rather than deprecated, and the break is recorded in `CHANGELOG.md` under `[Unreleased]` | review | [Releasing](releasing.md) |
 
-Rules marked review have no tool behind them. That includes the widget rule: `_FormErrorAnchor` in `packages/beak_frontend/lib/src/form/beak_configured_form.dart` is a private `StatefulWidget` that passed because nothing checks for the class. Treat it as a finding, not as precedent.
+Rules marked review have no tool behind them. A rule that only review holds is the one that slips: the widget rule did, until `guard-hooks` was added.
 
 ### Where the rules bend
 
 - **`// interop:`** marks the two places a `dynamic` value is accepted: the untyped cell value `OiTable` delivers in `packages/beak_frontend/lib/src/table/beak_data_table.dart`, and `ProcessResult.stderr` in `tool/check_coverage.dart`. A new one needs a reason on the same line.
 - **worm is public API in one library.** `package:beak/migrations.dart` re-exports `package:worm/worm.dart`, because a migration is written against worm's `Migration` and `Schema`. `beak_cli` imports worm's adapters to introspect a live database. Neither reaches the panel graph.
-- **The vendored worm packages** under `packages/worm*` sit outside the melos scope, so `analyze`, `test` and `coverage` skip them. `melos run test-worm` runs their suites, and `CONTRIBUTING.md` asks that changes to them go upstream.
+- **The vendored worm packages** under `packages/worm*` sit outside the melos scope, so `analyze`, `test` and `coverage` skip them. They are still edited in this repository when Beak needs a change, so `melos run test-worm` runs their suites and CI calls it. A pull request that touches them says why Beak needed the change.
 
 ## Source
 
@@ -129,6 +139,7 @@ Rules marked review have no tool behind them. That includes the widget rule: `_F
 | --- | --- |
 | Material and Cupertino guard | `tool/check_no_material.dart`, tested in `test/check_no_material_test.dart` |
 | Web-safety guard | `tool/check_web_safe.dart`, tested in `test/check_web_safe_test.dart` |
+| Hook-widget guard | `tool/check_hook_widgets.dart`, tested in `test/check_hook_widgets_test.dart` |
 | Generated-code and example health guard | `tool/check_examples.dart`, which runs `beak doctor --json` in every example |
 | Lints and strict analysis | `analysis_options.yaml` at the repo root; packages without their own file inherit it, and `packages/beak` and `packages/beak_frontend` add Flutter rules on top |
 | Guard wiring | the `analyze` script in `melos.yaml` |

@@ -15,8 +15,9 @@ ignore:
   - packages/worm_*
   - packages/worm_*/**
   # A real Serverpod 4 workspace (one pub resolution for all its members,
-  # Serverpod's exact pins, its own CI job). Melos must neither bootstrap nor
-  # gate its members.
+  # Serverpod's exact pins, its own CI job: `serverpod-example` in
+  # .github/workflows/ci.yaml). Melos must neither bootstrap nor gate its
+  # members.
   - examples/serverpod
   - examples/serverpod/**
 
@@ -28,7 +29,8 @@ command:
     # Flutter SDK into the pure-Dart ones (beak_core, beak_cli, beak_image,
     # beak_storage_*) and makes `dart pub get` there require Flutter.
     # Beak pins obers_ui by git commit instead; to work against a local
-    # checkout, run `melos run link-obers-ui`.
+    # checkout, run `melos run link-obers-ui`, and `melos run unlink-obers-ui`
+    # to go back to the pin.
 
 scripts:
   analyze:
@@ -37,10 +39,14 @@ scripts:
       melos run analyze-flutter &&
       melos run analyze-root &&
       melos run guard-material &&
+      melos run guard-hooks &&
       melos run guard-web &&
       melos run check-docs &&
+      melos run check-agent-docs &&
       melos run check-examples
-    description: Static analysis across all packages (0 issues required).
+    description: >-
+      Static analysis across all packages (0 issues required), the repo guards,
+      the docs checks and the agent docs bundle check.
   analyze-dart:
     run: melos exec -- "dart analyze --fatal-infos --fatal-warnings ."
     description: Static analysis for pure-Dart packages.
@@ -97,6 +103,11 @@ scripts:
     description: >-
       FAIL on any package:flutter/material.dart or package:flutter/cupertino.dart
       import in Beak code.
+  guard-hooks:
+    run: dart run tool/check_hook_widgets.dart
+    description: >-
+      FAIL on a class in any package's lib/ that extends StatefulWidget,
+      State, StatefulHookWidget or HookState. Beak widgets are HookWidgets.
   guard-web:
     run: dart run tool/check_web_safe.dart
     description: >-
@@ -104,11 +115,21 @@ scripts:
       dart:io or server-side packages. dart:io compiles on web and throws at
       runtime, so only this guard catches it.
   link-obers-ui:
+    # Melos 6.3.3 appends anything after `--` to the END of the whole `run`
+    # string, so `melos run link-obers-ui -- --unlink` runs
+    # `... && melos bootstrap --unlink` and fails after linking. Unlinking has
+    # its own script for that reason.
     run: dart run tool/link_obers_ui.dart && melos bootstrap
     description: >-
       Point the obers_ui git deps at a sibling ../obers_ui checkout, for
-      working on both repos at once. `melos run link-obers-ui -- --unlink`
-      restores the pinned commits.
+      working on both repos at once. `melos run unlink-obers-ui` restores the
+      pinned commits.
+  unlink-obers-ui:
+    run: dart run tool/link_obers_ui.dart --unlink && melos bootstrap
+    description: >-
+      Undo `melos run link-obers-ui`: drop the path overrides and resolve
+      against the pinned obers_ui commits again. Run it before committing, so
+      no tracked pubspec.lock records a path into a sibling checkout.
   format-check:
     run: dart format --output=none --set-exit-if-changed .
     description: Formatting must be clean.

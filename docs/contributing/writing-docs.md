@@ -63,7 +63,7 @@ The `title` equals the nav label and is unique on the site. The H1 repeats it. A
 5. Bold is for a term being defined, a file name or a label. Two or three per page.
 6. Delete every clause the reader would not miss, including a closing sentence that praises the code above it.
 
-The gate also greps prose for these words: `seamless`, `effortless`, `powerful`, `blazing`, `robust`, `simply`, `supercharge`, `delightful`, `magic`, `revolutionary` and their forms, `just` before a verb (`just call`), two exclamation marks on a line, "unlock" plus `power`, `potential`, `value`, `magic`, `full`, `true`, `hidden` or `insights`, and the word `UseCase`, which names a layer Beak does not have. Inline code and fenced code are skipped, so a symbol that contains one of them is safe.
+The gate also greps prose for these words: `seamless`, `effortless`, `powerful`, `blazing`, `robust`, `simply`, `supercharge`, `delightful`, `magic`, `revolutionary` and their forms, `just` before a verb (`just call`), two exclamation marks on a line, "unlock" plus `power`, `potential`, `value`, `magic`, `full`, `true`, `hidden` or `insights`, and the word `UseCase`, which names a layer Beak does not have. Inline code and fenced code are skipped, so a symbol that contains one of them is safe, and console output copied from a real error keeps its em-dash. Do not reword real output to satisfy the gate.
 
 Beak's mascot is a bird, and its ORM sibling is `worm`. Use the bird once or twice per page where it carries a metaphor, and not at all in reference pages.
 
@@ -83,8 +83,8 @@ Conventions:
 - A name uses letters, digits, `_` and `-`, and the end marker comes after the start marker.
 - Add markers with a targeted edit that only adds comment lines. Run `dart format --set-exit-if-changed` on the file afterwards, and re-read it first if someone else may be editing it.
 - Whole-file includes (`--8<-- "path"`) work but tend to quote more than the page needs.
-- Never use a line range such as `file.dart:12:20`. It passes `check_docs.dart`, and the agent bundle build rejects it.
-- Never write a marker inside a page. MkDocs deletes any line that contains one, in a fence or in inline code, and the rendered page loses the line without a warning. That is why this page describes the markers instead of showing them.
+- Never use a line range such as `file.dart:12:20`. MkDocs reads it, but a rename moves the quoted lines without any check noticing, and the agent bundle build rejects it. `check_docs.dart` fails it too. Put start and end markers around the lines in the source and include the named section.
+- Never write a marker inside a page. MkDocs deletes any line that contains one, in a fence or in inline code, and the rendered page loses the line without a warning. `check_docs.dart` fails such a line. A semicolon written directly before the marker escapes it: mkdocs keeps the line and removes the semicolon. The source of this page has one in front of the marker below, and the reader sees only the marker: `;--8<-- [start:Name]`. The semicolon has to touch the marker.
 
 **A verbatim titled fence.** A fence with `title="packages/..."`, `examples/...`, `tool/...` or `deploy/...` claims to quote that file, and the gate compares it chunk by chunk. Trim as hard as you like, but keep names and order. Mark what you dropped with a line that starts with `// ...`, `# ...` or `...`. Indentation and blank lines do not count, and source comment lines may be left out. A fence in `bash`, `console`, `text`, `sh`, `shell`, `output` or `diff` is a transcript and is not compared.
 
@@ -110,11 +110,12 @@ Docs check failed:
 | Front matter | no `title` or `description`, invalid YAML, a `type`, `audience` or `status` outside the allowed values, a description over 160 characters, an H1 that differs from the title |
 | Footer | no `## Continue reading` |
 | Fences | a titled fence whose file does not exist or does not contain the code |
-| Includes | a missing file, a missing start or end marker, an end above the start |
+| Includes | a missing file, a missing start or end marker, an end above the start, a line range (`file.dart:12:20`) |
+| Markers on a page | a line holding a section marker that mkdocs would delete (not escaped with a leading semicolon) |
 | Prose bans | the words and patterns listed above, checked outside code |
 | Stable pages | a heading missing from the table above |
 | Paths in prose | a backticked `packages/`, `examples/`, `tool/` or `deploy/` path that does not exist |
-| Nav | a label that differs from the title, a duplicate title, a page missing from the nav, a section that does not open on an `index.md` with `## Which page to read` linking every child |
+| Nav | a label that differs from the title, a duplicate title, a page missing from the nav, a section that does not open on an `index.md` whose `## Which page to read` section links every child |
 | URL manifest | a path in `docs/_internal/url-manifest.txt` that is neither a page nor a `redirect_maps` key, a redirect to a page that does not exist |
 | llms.txt | a page that no `llmstxt` glob matches, a glob that matches no page |
 
@@ -131,7 +132,7 @@ Docs check failed:
   docs/ai/index.md: status is draft. A release needs every page stable or preview
 ```
 
-The docs workflow runs it on every `release/**` branch. Day-to-day runs do not, which is why a half-written page can sit on `main`. [Releasing](releasing.md) covers when the ratchet bites.
+The docs workflow runs it on every `release/**` branch and every `v*` tag. Day-to-day runs do not, which is why a half-written page can sit on `main`. [Releasing](releasing.md) covers when the ratchet bites.
 
 ## Add, move or remove a page
 
@@ -165,7 +166,7 @@ dart run tool/check_docs.dart
 
 ## How the site ships
 
-`.github/workflows/docs.yml` runs on pushes to `main` and `release/**`, and on pull requests that touch `docs/`, `mkdocs.yml`, `examples/`, `packages/`, the checker or the workflow. It runs `dart test test/check_docs_test.dart`, `dart run tool/check_docs.dart`, and on `release/**` also the `--release` ratchet, then installs the pinned requirements and builds with `mkdocs build --strict`. Only a push to `main` publishes to GitHub Pages. A pull request builds and stops.
+`.github/workflows/docs.yml` runs on pushes to `main` and `release/**`, on `v*` tags, and on pull requests that touch `docs/`, `mkdocs.yml`, `CHANGELOG.md`, `examples/`, `packages/`, `tool/`, the docs tests or the workflow. It runs the tests of the checker and the bundle builder, `dart run tool/check_docs.dart` and `dart run tool/build_agent_docs.dart --check`, and on `release/**` and on tags also the `--release` ratchet, then installs the pinned requirements and builds with `mkdocs build --strict`. Only a push to `main` publishes to GitHub Pages. A pull request builds and stops.
 
 Pages quote package and example source, so a change to `packages/` or `examples/` can break a docs build without touching `docs/`. That is the point of the trigger.
 
@@ -177,12 +178,13 @@ Coding agents read a copy of these pages that matches the Beak version their pro
 melos run agent-docs
 ```
 
-`melos run check-agent-docs` builds in memory and fails on any difference, listing the stale files. It is not part of `melos run analyze`. [Machine-readable docs](../ai/machine-readable-docs.md) describes what agents get.
+`melos run check-agent-docs` builds in memory and fails on any difference, listing the stale files. It is part of `melos run analyze` and of the docs workflow, so a docs change is not finished until the bundle is regenerated and committed. [Machine-readable docs](../ai/machine-readable-docs.md) describes what agents get.
 
 ## Rules and limits
 
 - **Voice is mostly a review matter.** The gate knows the ban list and nothing else. A page that passes it and reads like a brochure fails review.
-- **The routing check is loose.** It accepts a link to each child anywhere on the index page, not only inside the table. Write the table anyway.
+- **The routing check reads one section.** A link to each child has to sit between `## Which page to read` and the next `#` or `##` heading. It does not check that the links are in a table.
+- **Mermaid is not checked.** The diagrams render in the browser, so a syntax error shows up as an error box on the published page and nowhere in the gate. `mkdocs serve` shows it. A real check needs a headless browser, which is why CI does not have one.
 - **Transcripts are not compared.** Output pasted into a `bash` or `text` fence can go stale without a failure.
 - **The style guide is not on the site.** Link it by its GitHub URL. A relative `.md` link into `docs/_internal` builds with a single INFO line, even under `--strict`, and leaves a dead link on the published page.
 - **Pages in `docs/_agents` are templates.** They ship in the bundle, not on the site, and are checked by `build_agent_docs.dart`.
@@ -223,6 +225,7 @@ Run `melos run agent-docs` and the same check passes.
 | --- | --- |
 | `tool/check_docs.dart` | the structural and style gate; `--release` adds the draft ratchet |
 | `test/check_docs_test.dart` | tests for the gate, run by CI before the gate itself |
+| `test/build_agent_docs_test.dart` | tests for the bundle builder and the corrections-table check |
 | `tool/src/docs_snippets.dart` | the `--8<--` include and marker syntax, shared by the gate and the bundle builder |
 | `tool/build_agent_docs.dart` | builds and checks the agent bundle |
 | `mkdocs.yml` | nav, plugins, redirects, `llmstxt` sections, snippet settings |

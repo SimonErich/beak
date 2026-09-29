@@ -60,7 +60,7 @@ CI brings the stack up inside its test job, right after the gate, then runs `tes
 
 ## Why the odd ports
 
-Every host port carries a leading `2`: `25432`, `29000`, `29001`, `28081`. A development machine usually runs Postgres on `5432` and other stacks on `9000`, `9001` or `8081`, so the defaults would collide. Only the host side shifts. The container ports stay standard.
+Every host port carries a leading `2`: `25432`, `29000`, `29001`, `28081`. A development machine usually runs Postgres on `5432` and other stacks on `9000`, `9001` or `8081`, so the defaults would collide. Only the host side shifts. The container ports stay standard. Each mapping also starts with `127.0.0.1:`, so the stack answers on this machine only.
 
 ```yaml title="docker-compose.yml"
   postgres:
@@ -69,7 +69,7 @@ Every host port carries a leading `2`: `25432`, `29000`, `29001`, `28081`. A dev
       POSTGRES_USER: beak
       POSTGRES_PASSWORD: beak
       POSTGRES_DB: beak
-    ports: ["${BEAK_PG_PORT:-25432}:5432"]
+    ports: ["127.0.0.1:${BEAK_PG_PORT:-25432}:5432"]
 ```
 
 If the shifted ports clash too, override them without touching the file. The four variables are `BEAK_PG_PORT`, `BEAK_S3_PORT`, `BEAK_S3_CONSOLE_PORT` and `BEAK_PGWEB_PORT`:
@@ -115,7 +115,7 @@ None of them migrate into the database `DATABASE_URL` names.
 
 ## Rules and limits
 
-- **Ports listen on every interface.** Compose publishes them on `0.0.0.0`, and the passwords are `beak` and `beaksecret`. On a shared network, prefix each mapping in `docker-compose.yml` with `127.0.0.1:` or keep the stack down.
+- **Ports listen on the loopback interface only.** Compose publishes each on `127.0.0.1`, because the passwords are `beak` and `beaksecret`. Nothing on your network can reach the stack, and neither can a container on another machine or a phone testing the panel over Wi-Fi. To reach it from elsewhere, drop the `127.0.0.1:` prefix from that mapping and change the passwords first.
 - **`up` alone leaves no bucket.** Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
 - **Three images are unpinned.** MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
 - **One suite fails instead of skipping.** The other service suites print a message and skip when nothing is listening. `round_trip_test.dart` throws, so `melos run test-e2e` without the stack fails in `beak_cli`.

@@ -126,7 +126,7 @@ Two guards run inside `melos run analyze`.
 $ dart run tool/check_no_material.dart
 Material-import guard passed (1150 Dart files scanned).
 $ dart run tool/check_web_safe.dart
-Web-safety guard passed (6 panel entrypoints walked).
+Web-safety guard passed (12 panel entrypoints walked).
 ```
 
 `check_no_material.dart` fails on any `package:flutter/material.dart` or `cupertino.dart` import in Beak code. `check_web_safe.dart` walks the import graph from every panel-side entrypoint and fails on a web-unsafe URI:

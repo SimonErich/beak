@@ -172,6 +172,70 @@ const String rule = 'package:shelf/shelf.dart';
       }
     });
 
+    test('include the annotation libraries a model file imports', () {
+      // `package:beak/schema.dart` and `package:beak_core/schema.dart` are
+      // imported by every model file, and the panel compiles those files, so
+      // a server import behind either one breaks the web build.
+      expect(
+        panelEntrypoints,
+        containsAll(<String>[
+          'packages/beak/lib/schema.dart',
+          'packages/beak_core/lib/schema.dart',
+        ]),
+      );
+    });
+
+    test('include the Serverpod libraries a panel imports', () {
+      expect(
+        panelEntrypoints,
+        containsAll(<String>[
+          'packages/beak_serverpod/lib/wire.dart',
+          'packages/beak_serverpod_flutter/lib/beak_serverpod_flutter.dart',
+          'packages/beak_serverpod_flutter/lib/tunnel.dart',
+        ]),
+      );
+    });
+
+    test('leave no public library unclassified', () {
+      // A library added under lib/ is either panel-side, and walked, or
+      // deliberately server-side, and listed. One that is neither is a
+      // library nothing guards, which is how schema.dart went unwatched.
+      const packages = [
+        'beak',
+        'beak_core',
+        'beak_frontend',
+        'beak_serverpod',
+        'beak_serverpod_flutter',
+      ];
+      final unclassified = <String>[];
+      for (final package in packages) {
+        for (final entity in Directory('packages/$package/lib').listSync()) {
+          if (entity is! File || !entity.path.endsWith('.dart')) {
+            continue;
+          }
+          final String path = entity.path;
+          if (!panelEntrypoints.contains(path) &&
+              !serverEntrypoints.contains(path)) {
+            unclassified.add(path);
+          }
+        }
+      }
+      expect(
+        unclassified,
+        isEmpty,
+        reason:
+            'add each to panelEntrypoints (web-safe) or serverEntrypoints '
+            '(server-side on purpose) in tool/check_web_safe.dart',
+      );
+    });
+
+    test('never list a library as both panel-side and server-side', () {
+      expect(
+        panelEntrypoints.toSet().intersection(serverEntrypoints.toSet()),
+        isEmpty,
+      );
+    });
+
     test('reach the panel stack, so the walk is not vacuously clean', () {
       final walked = <String>{};
       webSafetyViolations(

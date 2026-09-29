@@ -11,9 +11,20 @@
 /// leaves everything else alone, so these survive `melos bootstrap`.
 ///
 /// ```bash
-/// melos run link-obers-ui              # use ../obers_ui
-/// melos run link-obers-ui -- --unlink  # back to the pinned commits
+/// melos run link-obers-ui     # use ../obers_ui
+/// melos run unlink-obers-ui   # back to the pinned commits
 /// ```
+///
+/// Each script runs this tool and then `melos bootstrap`, so the new overrides
+/// take effect. Without melos, `dart run tool/link_obers_ui.dart --unlink &&
+/// melos bootstrap` does the same as `unlink-obers-ui`. The unlink is a script
+/// of its own because melos 6.3.3 appends anything written after `--` to the
+/// end of the whole script, so `melos run link-obers-ui -- --unlink` would run
+/// `melos bootstrap --unlink` and never reach this tool's flag.
+///
+/// Unlink before committing. `pub get` writes what it resolved into the
+/// tracked `pubspec.lock` of the examples, and a lockfile recorded while linked
+/// holds a path into a sibling checkout.
 library;
 
 import 'dart:io';
@@ -120,13 +131,21 @@ List<String> obersUiOverridesForWorkspace(
 
 /// Returns [overridesSource] with this tool's block removed.
 ///
-/// An absent block is not an error — unlinking twice is a no-op.
+/// An absent block is not an error — unlinking twice is a no-op. When the block
+/// was the only entry, the `dependency_overrides:` header it hung under goes
+/// too, so an emptied file can be deleted instead of left with a bare header.
 String withoutObersUiBlock(String overridesSource) {
   final int start = overridesSource.indexOf(blockMarker);
   if (start < 0) {
     return overridesSource;
   }
-  return '${overridesSource.substring(0, start).trimRight()}\n';
+  final String kept = overridesSource.substring(0, start).trimRight();
+  final List<String> lines = kept.split('\n');
+  if (lines.isNotEmpty && lines.last.trimRight() == 'dependency_overrides:') {
+    lines.removeLast();
+  }
+  final String rest = lines.join('\n').trimRight();
+  return rest.isEmpty ? '' : '$rest\n';
 }
 
 /// Returns [overridesSource] with path overrides for [packages] appended,

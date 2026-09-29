@@ -3,7 +3,9 @@
 /// MkDocs' `--strict` catches broken links and pages missing from the nav.
 /// It cannot catch the things this file checks: a code fence claiming to
 /// quote a file that no longer exists, a page with no front matter, a snippet
-/// include pointing at a moved file or a deleted section marker, or a banned
+/// include pointing at a moved file or a deleted section marker, an include by
+/// line range (which the agent docs bundle cannot expand), a section marker
+/// written on a page (mkdocs deletes the line without a word), or a banned
 /// phrase from the style guide.
 ///
 /// The style guide's "Banned" section is enforced from [enforcedBans]. A ban
@@ -12,9 +14,10 @@
 ///
 /// The information architecture is enforced too: every page declares a `type`,
 /// an `audience` and a `status`, a nav label equals its page title, every nav
-/// section opens on an index page that routes to all of its children, and
-/// every path the site has ever served is still a page or a redirect. A page
-/// marked `status: stable` must also carry the headings its `type` promises.
+/// section opens on an index page that links all of its children under
+/// "Which page to read", and every path the site has ever served is still a
+/// page or a redirect. A page marked `status: stable` must also carry the
+/// headings its `type` promises.
 ///
 /// `--release` adds the completeness ratchet: it fails while any page is still
 /// `status: draft`. The release workflow runs it; day-to-day runs do not.
@@ -30,7 +33,14 @@ import 'src/docs_markdown.dart';
 import 'src/docs_snippets.dart';
 
 export 'src/docs_markdown.dart' show fencedLineIndices;
-export 'src/docs_snippets.dart' show sectionOf, snippetInclude, snippetMarker;
+export 'src/docs_snippets.dart'
+    show
+        isLineRange,
+        pageSnippetMarker,
+        renderedPageLine,
+        sectionOf,
+        snippetInclude,
+        snippetMarker;
 
 /// Fence languages whose body is a transcript rather than a quotation.
 ///
@@ -374,10 +384,31 @@ List<DocProblem> checkPage(
     }
   }
 
-  problems.addAll(checkBannedPhrases(path, lines, bans: enforcedBans));
-  problems.addAll(checkQuotations(path, lines, readFile: readFile));
+  problems
+    ..addAll(checkPageMarkers(path, lines))
+    ..addAll(checkBannedPhrases(path, lines, bans: enforcedBans))
+    ..addAll(checkQuotations(path, lines, readFile: readFile));
   return problems;
 }
+
+/// The lines of [lines] on [path] that mkdocs would silently delete.
+///
+/// pymdownx removes every page line holding a `--8<-- [start:x]` or
+/// `[end:x]` section marker, in a fence or in inline code as much as in prose,
+/// and reports nothing. A page that teaches the markers therefore publishes
+/// with the line missing. Writing `;` directly before the marker escapes it.
+List<DocProblem> checkPageMarkers(String path, List<String> lines) => [
+  for (var index = 0; index < lines.length; index += 1)
+    if (renderedPageLine(lines[index]) == null)
+      DocProblem(
+        path,
+        'this line holds a snippet section marker, and mkdocs deletes any '
+        'page line that does. Put a semicolon right before the marker '
+        '(";--8<-- [start:x]", which renders without it), or describe the '
+        'marker in words.',
+        line: index + 1,
+      ),
+];
 
 /// The problems in the snippet include of [reference], on line [line] of
 /// [path].
@@ -405,6 +436,18 @@ List<DocProblem> checkInclude(
     ];
   }
   final String? section = sectionOf(reference);
+  if (isLineRange(reference)) {
+    return [
+      DocProblem(
+        path,
+        'snippet includes "$reference" by line range, which the agent docs '
+        'bundle cannot expand and a rename silently moves. Wrap the lines in '
+        '"--8<-- [start:name]" and "--8<-- [end:name]" markers in "$target" '
+        'and include the named section: "$target:name".',
+        line: line,
+      ),
+    ];
+  }
   if (section == null) {
     return const [];
   }
@@ -1157,16 +1200,31 @@ String _resolveLink(String fromDocPath, String target) {
   return segments.join('/');
 }
 
-/// The pages [page] links to in prose, as paths relative to `docs/`.
-Set<String> linkedPages(SitePage page) {
+/// The pages [page] links to under [routingHeading], as paths relative to
+/// `docs/`.
+///
+/// The routing section runs from its heading to the next heading of level one
+/// or two, so `###` groupings inside it count. A link in the intro, in
+/// "Continue reading" or in a fence is not routing: the reader who scans the
+/// table never meets it.
+Set<String> routedPages(SitePage page) {
   final List<String> lines = page.content.split('\n');
   final Set<int> fenced = fencedLineIndices(lines);
   final linked = <String>{};
+  var routing = false;
   for (var index = 0; index < lines.length; index += 1) {
     if (fenced.contains(index)) {
       continue;
     }
-    for (final match in RegExp(r'\]\(([^)\s]+)').allMatches(lines[index])) {
+    final String line = lines[index].trimRight();
+    if (RegExp(r'^#{1,2}\s').hasMatch(line)) {
+      routing = line == routingHeading;
+      continue;
+    }
+    if (!routing) {
+      continue;
+    }
+    for (final match in RegExp(r'\]\(([^)\s]+)').allMatches(line)) {
       final String written = match.group(1)!;
       final int hash = written.indexOf('#');
       final String target = hash == -1 ? written : written.substring(0, hash);
@@ -1299,8 +1357,10 @@ List<DocProblem> _checkSection(
         'the index of "$label" has no "$routingHeading" section',
       ),
     );
+    // Every child would be reported as unrouted too, which says nothing new.
+    return problems;
   }
-  final Set<String> linked = linkedPages(index);
+  final Set<String> linked = routedPages(index);
   for (final child in section.children.skip(1)) {
     final String? target = switch (child) {
       NavPage(:final path) => path,

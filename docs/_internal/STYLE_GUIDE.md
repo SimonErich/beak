@@ -100,6 +100,10 @@ detail row, the filter, the API validator and the CSV column."
   "just" before a verb; two exclamation marks on one line; "unlock" plus power,
   potential, value, magic, full, true, hidden or insights; the word "UseCase"
   (Beak has no UseCase layer; only the pages that explain that may name it).
+- The bans read prose only. Fenced blocks and inline code spans are the source
+  or the output being quoted, so they are exempt: console output copied from a
+  real error keeps its em-dash, and a symbol that contains a banned word is
+  fine. Never reword real output to satisfy the gate.
 - Nothing else is machine-checked, but reviewers hold the whole voice list to the
   same standard. A page that passes the gate and reads like a brochure fails
   review.
@@ -154,7 +158,8 @@ the completeness ratchet the release branch runs.
 
 Other rules the gate enforces: a nav label equals the page title (the home page
 is exempt), every nav section opens on an `index.md` that links all of its
-children, backticked `packages/`, `examples/`, `tool/` and `deploy/` paths in
+children under `## Which page to read` (a link in the intro or under Continue
+reading does not count), backticked `packages/`, `examples/`, `tool/` and `deploy/` paths in
 prose exist, and every path listed in `docs/_internal/url-manifest.txt` is still
 a page or a `redirect_maps` key in `mkdocs.yml`. Move a page with `git mv` and
 add a redirect for the old path; never delete a published path.
@@ -181,6 +186,20 @@ add a redirect for the old path; never delete a published path.
 - **Tabs** for "SQLite vs Postgres" style alternatives (`=== "Tab"`).
 - **Code fences** always carry a language (` ```dart `, ` ```bash `, ` ```yaml `).
   Add `title="path/to/file.dart"` when the snippet is lifted from a real file.
+
+## Snippet markers on a page
+
+- **A marker written on a page disappears when the page is rendered.** MkDocs
+  deletes every page line that holds a section marker (`--8<-- [start:x]` or
+  `[end:x]`), in a fence, in inline code or in prose, and reports nothing. The
+  gate fails such a line. To show a marker, write one semicolon directly before
+  it (`;--8<-- [start:Symbol]`): mkdocs drops the semicolon and keeps the line.
+  The semicolon has to touch the marker; `;// --8<-- [start:x]` still loses the
+  line. Describing the markers in words is usually the better page.
+- **Include a named section, never a line range.** `file.dart:12:20` works in
+  mkdocs, has no marker to break when the source moves, and is rejected by the
+  gate and by the agent docs bundle. Put `// --8<-- [start:Name]` and
+  `[end:Name]` markers around the lines in the source and include `file.dart:Name`.
 
 ## Code blocks (the accuracy rule)
 
@@ -265,7 +284,11 @@ A page is not done until every claim has been checked against the working tree:
   (frontend, over REST) implement it. Serverpod has two supported paths: the
   admin app inside a Serverpod workspace (Beak's API runs in the Serverpod server
   behind one gated endpoint, over `ServerpodSessionAdapter`), and the frontend-only
-  bridge (`ServerpodResource`). worm types never leak past `beak_backend`.
+  bridge (`ServerpodResource`). worm types stay in `beak_backend`, in `beak_cli`
+  (it imports worm's adapters to introspect a live database) and in
+  `package:beak/migrations.dart`, which re-exports `package:worm/worm.dart`
+  because a migration is written against worm's `Migration` and `Schema`. They
+  never reach the panel graph or a model file.
 - **Storage is pluggable.** `BeakStorageConfig` (memory/local/s3/ftp) resolves to
   a `BeakStorageDriver` via a registry. File rules live on the column and run on
   both client and server.

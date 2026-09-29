@@ -1,6 +1,10 @@
 # Host ports are prefixed with 2 (25432, 29000, …) because this dev host
 # already binds the default ports (system postgres on 5432, other stacks on
 # 9000/9001/8081). Override via BEAK_*_PORT env vars if these ever collide.
+#
+# Every port is published on 127.0.0.1 only. The credentials below (beak/beak,
+# beak/beaksecret) are development throwaways, and a bare "25432:5432" would
+# publish them on every network interface of the machine.
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,7 +12,7 @@ services:
       POSTGRES_USER: beak
       POSTGRES_PASSWORD: beak
       POSTGRES_DB: beak
-    ports: ["${BEAK_PG_PORT:-25432}:5432"]
+    ports: ["127.0.0.1:${BEAK_PG_PORT:-25432}:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U beak"]
       interval: 3s
@@ -21,7 +25,9 @@ services:
     environment:
       MINIO_ROOT_USER: beak
       MINIO_ROOT_PASSWORD: beaksecret
-    ports: ["${BEAK_S3_PORT:-29000}:9000", "${BEAK_S3_CONSOLE_PORT:-29001}:9001"]
+    ports:
+      - "127.0.0.1:${BEAK_S3_PORT:-29000}:9000"
+      - "127.0.0.1:${BEAK_S3_CONSOLE_PORT:-29001}:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 3s
@@ -45,5 +51,5 @@ services:
     depends_on: { postgres: { condition: service_healthy } }
     environment:
       PGWEB_DATABASE_URL: postgres://beak:beak@postgres:5432/beak?sslmode=disable
-    ports: ["${BEAK_PGWEB_PORT:-28081}:8081"]
+    ports: ["127.0.0.1:${BEAK_PGWEB_PORT:-28081}:8081"]
 volumes: { pgdata: {}, miniodata: {} }

@@ -28,15 +28,20 @@ Beak is a Melos monorepo:
 - `examples/*` — the demo projects (models, server, Flutter panel) and the E2E
   acceptance suites. `examples/clean_beak_config` is the worked example the tutorial builds.
 - `packages/worm*` — the **vendored** worm ORM and its drivers. These are
-  consumed as path dependencies but are *not* in the Melos scope and are not
-  gated here. **Do not send Beak PRs that change vendored worm code** — report
-  those upstream.
+  consumed as path dependencies and are *not* in the Melos scope, so
+  `melos run analyze` and `melos run test` skip them. They are still edited
+  here when Beak needs a change (the schema compilers, the adapter contract):
+  keep such a change small, say in the PR why Beak needed it, and run
+  `melos run test-worm`, which CI runs too.
 
 `beak_frontend` and `beak` reference **`obers_ui`** by pinned git commit, so
 `melos bootstrap` fetches it and a plain clone of this repo is all you need. If
 your change spans both repositories, clone obers_ui beside this one and run
-`melos run link-obers-ui` to swap the pin for your working copy (and
-`melos run link-obers-ui -- --unlink` to switch back).
+`melos run link-obers-ui` to swap the pin for your working copy, and
+`melos run unlink-obers-ui` to switch back. Unlink before you commit: linked
+example lockfiles record a path into your sibling checkout. (Melos 6.3.3 appends
+`-- --unlink` to the end of the whole script, so `link-obers-ui -- --unlink`
+cannot unlink.)
 
 ## Setup
 
@@ -52,7 +57,8 @@ cp .env.example .env
 ```
 
 Local dev ports are remapped so they don't collide with default installs
-(configurable via `BEAK_*_PORT` env vars, see `docker-compose.yml`):
+(configurable via `BEAK_*_PORT` env vars, see `docker-compose.yml`) and are
+published on `127.0.0.1` only, because the credentials are throwaways:
 
 | Service            | Host port | Notes                          |
 | ------------------ | --------- | ------------------------------ |
@@ -68,7 +74,7 @@ Local dev ports are remapped so they don't collide with default installs
 Every change must keep all four green, run from the repo root:
 
 ```bash
-melos run analyze        # 0 issues, plus the four guards
+melos run analyze        # 0 issues, plus the repo guards and docs checks
 melos run format-check   # dart format --set-exit-if-changed, clean
 melos run test           # all package tests, no skips
 melos run coverage       # per-package line-coverage thresholds
@@ -94,8 +100,9 @@ These are enforced by review (and partly by lints/`melos run analyze`):
 
 - **UI is `obers_ui` only.** No `package:flutter/material.dart` or
   `.../cupertino.dart` imports (the `guard-material` check fails the build).
-  Widgets are `HookWidget`; `StatefulWidget` is forbidden. State = Signals,
-  DI = GetIt, routing = go_router.
+  Widgets are `HookWidget`; `StatefulWidget` and `State` are forbidden (the
+  `guard-hooks` check fails the build). State = Signals, DI = GetIt,
+  routing = go_router.
 - **No type escape hatches.** No `dynamic` (except documented `// interop:`),
   no `as` casts (pattern-match instead), no `Map<String, dynamic>` as a domain
   or public API type. Prefer enums/sealed classes over stringly-typed values.
@@ -104,8 +111,10 @@ These are enforced by review (and partly by lints/`melos run analyze`):
   catch boundary that maps typed exceptions to HTTP). Frontend:
   `Widget → ViewModel → Repository → DataSource` (ViewModels expose
   `ReadonlySignal` and never `try/catch`; the Repository is the catch boundary).
-- **Source-agnostic data.** `BeakDataSource` is the seam; keep worm and obers
-  types from leaking across package boundaries.
+- **Source-agnostic data.** `BeakDataSource` is the seam. worm types stay in
+  `beak_backend`, `beak_cli` and `package:beak/migrations.dart` (a migration is
+  written against worm's `Migration` and `Schema`); obers_ui types stay in the
+  frontend and the umbrella UI libraries.
 - **Tests verify behavior**, prefer fakes over mocks, and every bug fix ships a
   regression test.
 

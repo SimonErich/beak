@@ -60,6 +60,15 @@ plugins:
           - ai/*.md
 ''';
 
+/// A corrections table headed for the fixture's version, 1.2.3.
+///
+/// [rows] are the table's body lines; the default row names no symbol, so it
+/// asks nothing of the fixture's packages.
+String correctionsTable([
+  String rows = '| A habit | Say the new thing |',
+  String heading = 'Beak 1.2 does',
+]) => '| You may remember | $heading |\n| --- | --- |\n$rows';
+
 /// The files every fixture repository starts from.
 Map<String, String> baseFiles() => {
   'mkdocs.yml': mkdocsYaml,
@@ -67,7 +76,7 @@ Map<String, String> baseFiles() => {
   'CHANGELOG.md': '# Changelog\n\n## 1.2.3\n\n- Something.\n',
   'docs/index.md': page('Home', 'Welcome.', description: 'The front door.'),
   'docs/guide/guide.md': page('Guide', 'Read this.'),
-  'docs/ai/index.md': page('AI directory', 'Draft.', status: 'draft'),
+  'docs/ai/index.md': page('AI directory', correctionsTable(), status: 'draft'),
   'docs/contributing/index.md': page('Contributing', 'Help out.'),
 };
 
@@ -251,6 +260,30 @@ void main() {
             contains('line range'),
           ),
         ),
+      );
+    });
+
+    test('a page line holding a section marker is dropped, as mkdocs does', () {
+      expect(
+        expand(
+          'before\n'
+          '```dart\n'
+          '// --8<-- [start:Thing]\n'
+          'class Thing {}\n'
+          '```\n'
+          'after `--8<-- [end:Thing]` gone',
+        ),
+        ['before', '```dart', 'class Thing {}', '```'],
+      );
+    });
+
+    test('a marker escaped with a semicolon stays, without the semicolon', () {
+      expect(
+        expand(
+          'Write `;--8<-- [start:Thing]` first.\n'
+          '// ;;--8<-- [end:Thing]',
+        ),
+        ['Write `--8<-- [start:Thing]` first.', '// ;--8<-- [end:Thing]'],
       );
     });
 
@@ -825,7 +858,8 @@ void main() {
           'docs/ai/rules.md': page('Rules', 'Follow them.'),
           'docs/ai/index.md': page(
             'AI directory',
-            'Read [the guide](../guide/guide.md) and [rules](rules.md).',
+            'Read [the guide](../guide/guide.md) and [rules](rules.md).\n\n'
+                '${correctionsTable()}',
             status: 'stable',
           ),
         });
@@ -835,7 +869,9 @@ void main() {
           '\n'
           '> About AI directory.\n'
           '\n'
-          'Read [the guide](guide/guide.md) and [rules](ai/rules.md).\n',
+          'Read [the guide](guide/guide.md) and [rules](ai/rules.md).\n'
+          '\n'
+          '${correctionsTable()}\n',
         );
         expect(
           files['ai/index.md'],
@@ -1013,8 +1049,17 @@ void main() {
         '\n'
         'After the table.\n';
 
-    List<String> check(String content, Set<String> known) =>
-        checkCorrectionsTable(content, libraryIdentifiers: () => known);
+    List<String> check(
+      String content,
+      Set<String> known, {
+      String version = '0.9.0',
+      Set<String>? declared,
+    }) => checkCorrectionsTable(
+      content,
+      version: version,
+      libraryIdentifiers: () => known,
+      declaredNames: declared == null ? null : () => declared,
+    );
 
     test(
       'passes when every symbol exists, ignoring paths, commands and chains',
@@ -1052,10 +1097,34 @@ void main() {
         }),
         [
           'docs/ai/index.md:5: the corrections table marks `FormViewModel` '
-              'as removed, but packages/*/lib still contains it',
+              'as removed, but packages/*/lib still declares it',
         ],
       );
     });
+
+    test(
+      'proves a removal against the Beak packages, not the vendored ones',
+      () {
+        // worm_postgres declares its own `fromConfig`; that says nothing about
+        // Beak's. The vendored packages count for "exists", not for "removed".
+        final Set<String> everything = {
+          'BeakFormScreen',
+          'BeakFormLayout',
+          'withRelations',
+          'BeakOverlays',
+          'FormViewModel',
+        };
+        expect(
+          check(
+            table,
+            everything,
+            declared: everything.difference({'FormViewModel'}),
+          ),
+          isEmpty,
+        );
+        expect(check(table, everything, declared: everything), hasLength(1));
+      },
+    );
 
     test('a bold column heading is still the corrections column', () {
       expect(
@@ -1070,26 +1139,93 @@ void main() {
       );
     });
 
-    test('a page without the table passes without reading the packages', () {
+    test('a page without the table fails, and says what to write', () {
       var read = false;
       final List<String> problems = checkCorrectionsTable(
         '# Index\n\n| A | B |\n| --- | --- |\n| `x` | `y` |\n',
+        version: '0.9.0',
         libraryIdentifiers: () {
           read = true;
           return {};
         },
       );
-      expect(problems, isEmpty);
+      expect(problems, [
+        'docs/ai/index.md needs the corrections table: a Markdown table with '
+            'a column headed "Beak 0.9 does", one row per habit an agent gets '
+            'wrong, symbols in backticks',
+      ]);
       expect(read, isFalse);
+    });
+
+    test('a heading inside a code fence is not the table', () {
+      expect(
+        check(
+          '```markdown\n| A | Beak 0.9 does |\n| --- | --- |\n| `x` | `y` |\n```\n',
+          {},
+        ),
+        hasLength(1),
+      );
+    });
+
+    test('the heading follows the version: a stale one is named', () {
+      expect(
+        check('| Old | Beak 0.9 does |\n| --- | --- |\n| `X` | `Known` |\n', {
+          'Known',
+        }, version: '0.10.0'),
+        [
+          'docs/ai/index.md:1: the corrections table column is headed '
+              '"Beak 0.9 does", but this is Beak 0.10.0. Rename it '
+              '"Beak 0.10 does".',
+        ],
+      );
+    });
+
+    test('a pre-release or build suffix does not change the heading', () {
+      const content =
+          '| Old | Beak 1.0 does |\n| --- | --- |\n| `X` | `Known` |\n';
+      expect(check(content, {'Known'}, version: '1.0.0-dev.3+4'), isEmpty);
+      expect(check(content, {'Known'}, version: '1.0'), isEmpty);
+    });
+
+    test('a version that is not major.minor accepts any Beak heading', () {
+      expect(
+        check('| Old | Beak next does |\n| --- | --- |\n| `X` | `Known` |\n', {
+          'Known',
+        }, version: 'unknown'),
+        isEmpty,
+      );
+    });
+
+    test('the build fails on an AI index with no table', () {
+      expect(
+        problemsOf({
+          'docs/ai/index.md': page('AI directory', 'Draft.', status: 'draft'),
+        }),
+        [contains('docs/ai/index.md needs the corrections table')],
+      );
+    });
+
+    test('the build fails on a heading that lags the beak_core version', () {
+      expect(
+        problemsOf({
+          'docs/ai/index.md': page(
+            'AI directory',
+            correctionsTable(
+              '| A habit | Say the new thing |',
+              'Beak 0.9 does',
+            ),
+            status: 'draft',
+          ),
+        }),
+        [contains('headed "Beak 0.9 does", but this is Beak 1.2.3')],
+      );
     });
 
     test('the build runs it against packages/*/lib', () {
       final Map<String, String?> overrides = {
         'docs/ai/index.md': page(
           'AI directory',
-          '| You may remember | Beak 0.9 does |\n'
-              '| --- | --- |\n'
-              '| `OldThing` (removed) | `NewThing` |',
+          correctionsTable('| `OldThing` (removed) | `NewThing` |'),
           status: 'stable',
         ),
         'packages/demo/lib/demo.dart': 'class NewThing {}\n',
@@ -1102,13 +1238,48 @@ void main() {
         }),
         [
           'docs/ai/index.md:11: the corrections table marks `OldThing` as '
-              'removed, but packages/*/lib still contains it',
+              'removed, but packages/*/lib still declares it',
         ],
       );
       expect(problemsOf({...overrides, 'packages/demo/lib/demo.dart': ''}), [
         'docs/ai/index.md:11: the corrections table names `NewThing`, '
             'which no packages/*/lib source contains',
       ]);
+    });
+
+    test('a removed name that only survives as text is proven removed', () {
+      // The four ways the word outlived the API in the real tree: a doc
+      // comment, a message string, a local variable and a private helper.
+      final Map<String, String?> overrides = {
+        'docs/ai/index.md': page(
+          'AI directory',
+          correctionsTable('| `OldThing` (removed) | `NewThing` |'),
+          status: 'stable',
+        ),
+        'packages/demo/lib/demo.dart':
+            '/// Replaces OldThing.\n'
+            'class NewThing {\n'
+            "  static const String hint = 'did you mean OldThing?';\n"
+            '  void build() {\n'
+            '    final OldThing = 1;\n'
+            '  }\n'
+            '  void _legacy(int OldThing) {}\n'
+            '}\n',
+      };
+      expect(problemsOf(overrides), isEmpty);
+    });
+
+    test('a vendored worm package cannot keep a removed Beak name alive', () {
+      final Map<String, String?> overrides = {
+        'docs/ai/index.md': page(
+          'AI directory',
+          correctionsTable('| `OldThing` (removed) | `NewThing` |'),
+          status: 'stable',
+        ),
+        'packages/demo/lib/demo.dart': 'class NewThing {}\n',
+        'packages/worm_demo/lib/worm_demo.dart': 'class OldThing {}\n',
+      };
+      expect(problemsOf(overrides), isEmpty);
     });
   });
 

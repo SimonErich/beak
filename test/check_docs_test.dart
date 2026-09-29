@@ -146,13 +146,29 @@ void main() {
       expect(problemsIn('--8<-- "$sourcePath:BeakColumn"'), isEmpty);
     });
 
-    test(
-      'accepts a whole-file include and a line range, which mark nothing',
-      () {
-        expect(problemsIn('--8<-- "$sourcePath"'), isEmpty);
-        expect(problemsIn('--8<-- "$sourcePath:3:8"'), isEmpty);
-      },
-    );
+    test('accepts a whole-file include, which marks nothing', () {
+      expect(problemsIn('--8<-- "$sourcePath"'), isEmpty);
+    });
+
+    test('rejects a line range, which the agent docs build cannot expand', () {
+      // mkdocs reads `file.dart:3:8`, and the bundle build refuses it because
+      // a range has no marker to watch. The site would stay green while the
+      // bundle went red, so the page check refuses it first.
+      for (final range in const ['3:8', '3', ':8', '3:', '3:8,12:14']) {
+        final problems = problemsIn('--8<-- "$sourcePath:$range"');
+        expect(problems, hasLength(1), reason: range);
+        expect(
+          problems.single.message,
+          allOf(
+            contains('line range'),
+            contains('named section'),
+            contains('[start:'),
+          ),
+          reason: range,
+        );
+        expect(problems.single.line, 8, reason: range);
+      }
+    });
 
     test('reports an include naming a section the file no longer marks', () {
       // How an include rots: the symbol is renamed or deleted and its markers
@@ -666,6 +682,67 @@ void main() {
     });
   });
 
+  group('a snippet marker written on a page', () {
+    // pymdownx deletes every page line holding `--8<-- [start:x]` or
+    // `[end:x]` before Markdown sees it, in a fence or in inline code alike,
+    // so the reader gets a page with a line missing and no build error.
+    test('is reported in a fence', () {
+      final problems = problemsIn(
+        '```dart\n'
+        '// --8<-- [start:Thing]\n'
+        'class Thing {}\n'
+        '// --8<-- [end:Thing]\n'
+        '```',
+      );
+      expect(problems, hasLength(2));
+      expect(problems.map((problem) => problem.line), [9, 11]);
+      expect(
+        problems.first.message,
+        allOf(contains('deletes'), contains('section marker'), contains(';')),
+      );
+    });
+
+    test('is reported in inline code and in plain prose', () {
+      expect(
+        problemsIn('Wrap it in `--8<-- [start:Thing]` markers.'),
+        hasLength(1),
+      );
+      expect(
+        problemsIn('The line --8<-- [end:Thing] closes it.'),
+        hasLength(1),
+      );
+    });
+
+    test('is reported however mkdocs spells it', () {
+      // pymdownx is case-insensitive, takes extra dashes, tabs and spaces
+      // inside the brackets.
+      for (final marker in const [
+        '--8<-- [START:Thing]',
+        '---8<--- [start : Thing]',
+        '-8<-\t[ end:Thing ]',
+        '<!-- --8<-- [start:a-b_c1] -->',
+      ]) {
+        expect(problemsIn(marker), hasLength(1), reason: marker);
+      }
+    });
+
+    test('is accepted with the escape semicolon mkdocs removes', () {
+      // `;--8<-- [start:x]` renders as `--8<-- [start:x]`: the way to show
+      // one to the reader.
+      expect(problemsIn('Write `;--8<-- [start:Thing]` above it.'), isEmpty);
+      expect(problemsIn('// ;--8<-- [end:Thing]'), isEmpty);
+    });
+
+    test('is not confused with an include directive or a marker lookalike', () {
+      expect(problemsIn('--8<-- "$sourcePath:BeakColumn"'), isEmpty);
+      // Not pymdownx's grammar: no whitespace before the bracket, a name that
+      // starts with a digit, an unknown kind.
+      expect(problemsIn('--8<--[start:Thing]'), isEmpty);
+      expect(problemsIn('--8<-- [start:1Thing]'), isEmpty);
+      expect(problemsIn('--8<-- [middle:Thing]'), isEmpty);
+    });
+  });
+
   group('which titles are checked as repo quotations', () {
     /// A fence titled [title], quoting a line no file contains.
     List<DocProblem> problemsForTitle(String title) => checkPage(
@@ -944,6 +1021,64 @@ void main() {
       );
       expect(messagesOf(problems), [
         contains('does not link "start-here/quickstart.md"'),
+      ]);
+    });
+
+    test('reports a child linked outside the routing section', () {
+      // A link in the intro or under "Continue reading" is not routing: the
+      // reader who scans "Which page to read" never sees it.
+      final page = guide(
+        title: 'Models',
+        type: 'index',
+        status: 'stable',
+        body:
+            'Start with [Fields](fields.md) if you are in a hurry.\n\n'
+            '## Which page to read\n\n'
+            'Nothing here yet.\n\n'
+            '## More\n\n'
+            '- [Fields](fields.md)',
+      );
+      final problems = siteProblems(
+        pages: {...sitePages(), 'docs/models/index.md': page},
+      );
+      expect(messagesOf(problems), [
+        'the index of "Models" does not link "models/fields.md" under '
+            '"## Which page to read"',
+      ]);
+    });
+
+    test('counts every link up to the next heading, subheadings included', () {
+      final page = guide(
+        title: 'Models',
+        type: 'index',
+        status: 'stable',
+        body:
+            '## Which page to read\n\n'
+            '### Basics\n\n'
+            '- [Fields](fields.md)\n\n'
+            '## Another section\n',
+      );
+      expect(
+        siteProblems(pages: {...sitePages(), 'docs/models/index.md': page}),
+        isEmpty,
+      );
+    });
+
+    test('ignores a routing heading that sits inside a fence', () {
+      final page = guide(
+        title: 'Models',
+        type: 'index',
+        status: 'stable',
+        body:
+            '```markdown\n## Which page to read\n\n- [Fields](fields.md)\n```',
+      );
+      final problems = siteProblems(
+        pages: {...sitePages(), 'docs/models/index.md': page},
+      );
+      // One report: with no routing section, listing every child as unrouted
+      // would say nothing new.
+      expect(messagesOf(problems), [
+        contains('has no "## Which page to read"'),
       ]);
     });
 

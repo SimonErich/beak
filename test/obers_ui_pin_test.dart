@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../tool/link_obers_ui.dart';
 
@@ -221,6 +222,66 @@ dependency_overrides:
       );
       expect(twice, once);
       expect(withoutObersUiBlock(twice), managed);
+    });
+  });
+
+  group('unlinking', () {
+    test('leaves no bare dependency_overrides header behind', () {
+      final linked = withObersUiBlock(
+        withDependencyOverridesHeader(''),
+        packages: const ['obers_ui'],
+        depthFromRoot: 2,
+      );
+      expect(linked, startsWith('dependency_overrides:\n'));
+      // Nothing else was in the file, so nothing is left: the caller deletes
+      // an empty file rather than keeping a header with no entries.
+      expect(withoutObersUiBlock(linked).trim(), isEmpty);
+    });
+
+    test('keeps the header when other overrides still need it', () {
+      const kept =
+          'dependency_overrides:\n'
+          '  beak_core:\n'
+          '    path: ../beak_core\n';
+      final linked = withObersUiBlock(
+        kept,
+        packages: const ['obers_ui'],
+        depthFromRoot: 2,
+      );
+      expect(withoutObersUiBlock(linked), kept);
+    });
+  });
+
+  group('the melos scripts', () {
+    final Object? melos = loadYaml(File('melos.yaml').readAsStringSync());
+
+    /// The `run:` string of the melos script [name].
+    String runOf(String name) {
+      if (melos is YamlMap) {
+        final Object? scripts = melos['scripts'];
+        final Object? script = scripts is YamlMap ? scripts[name] : null;
+        final Object? run = script is YamlMap ? script['run'] : null;
+        if (run is String) {
+          return run;
+        }
+      }
+      throw StateError('melos.yaml has no script "$name" with a run string');
+    }
+
+    test('link-obers-ui links and then bootstraps', () {
+      expect(runOf('link-obers-ui'), contains('tool/link_obers_ui.dart'));
+      expect(runOf('link-obers-ui'), isNot(contains('--unlink')));
+      expect(runOf('link-obers-ui'), endsWith('melos bootstrap'));
+    });
+
+    test('unlink-obers-ui unlinks and then bootstraps', () {
+      // Melos 6.3.3 appends `-- --unlink` to the end of the whole script, so
+      // `melos run link-obers-ui -- --unlink` reaches `melos bootstrap` and
+      // never the tool. Unlinking needs a script of its own.
+      expect(
+        runOf('unlink-obers-ui'),
+        'dart run tool/link_obers_ui.dart --unlink && melos bootstrap',
+      );
     });
   });
 

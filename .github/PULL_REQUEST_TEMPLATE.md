@@ -11,10 +11,10 @@
 
 ## Checklist
 
-- [ ] `melos run analyze` is clean (0 issues, incl. the no-Material guard)
+- [ ] `melos run analyze` is clean (0 issues, incl. the no-Material, hook-widget and web-safety guards)
 - [ ] `melos run format-check` is clean
 - [ ] `melos run test` passes (no skips)
 - [ ] `melos run coverage` passes (regenerated after code changes)
 - [ ] Public API changes carry dartdoc; complex additions include a usage example
 - [ ] Commits follow Conventional Commits
-- [ ] I did not modify vendored `packages/worm*` code
+- [ ] If I touched `packages/worm*`, `melos run test-worm` passes and the description says why Beak needed the change

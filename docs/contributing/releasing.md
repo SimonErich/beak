@@ -19,7 +19,7 @@ Nothing here is automated. No workflow bumps a version, creates a tag or publish
 | 1 | Branch the release | `git switch -c release/0.9` |
 | 2 | Bump the version in every place it lives | see [Versions move together](#versions-move-together) |
 | 3 | Rename `[Unreleased]` in `CHANGELOG.md` to the version and date, open a fresh one, and do the same in each package's `CHANGELOG.md` | edit |
-| 4 | Point obers_ui at its pinned commit, not a local checkout | `dart run tool/link_obers_ui.dart --unlink`, then `melos bootstrap` |
+| 4 | Point obers_ui at its pinned commit, not a local checkout | `melos run unlink-obers-ui` |
 | 5 | Make every docs page `stable` or `preview` | `dart run tool/check_docs.dart --release` |
 | 6 | List the newly published pages in the URL manifest | edit `docs/_internal/url-manifest.txt` |
 | 7 | Regenerate and check the agent docs bundle | `melos run agent-docs`, then `melos run check-agent-docs` |
@@ -98,7 +98,7 @@ Users get obers_ui from the commit the pubspecs pin, so the release must pin one
 
 - Check the three refs in `packages/beak_frontend/pubspec.yaml` and the three in `packages/beak/pubspec.yaml` name the same commit. `test/obers_ui_pin_test.dart` fails the tree if they diverge.
 - Check that commit is pushed to the obers_ui repository. A SHA that exists only in your local checkout resolves for nobody else.
-- Run `dart run tool/link_obers_ui.dart --unlink`, then `melos bootstrap`. The lockfiles of the examples are tracked, and `pub get` writes whatever it resolved into them. A lockfile that records a path into a sibling checkout does not belong in the release commit.
+- Run `melos run unlink-obers-ui`, which unlinks and then bootstraps. The lockfiles of the examples are tracked, and `pub get` writes whatever it resolved into them. A lockfile that records a path into a sibling checkout does not belong in the release commit, and `git grep -ln 'path: "../../../obers_ui' -- '*pubspec.lock'` prints nothing when none does.
 
 [Working with obers_ui](working-with-obers-ui.md) covers the pin and the link tool.
 
@@ -110,7 +110,7 @@ Day to day, a `draft` page is allowed on `main`. A release is where that stops:
 dart run tool/check_docs.dart --release
 ```
 
-It fails while any page is `draft`, and the docs workflow runs it on every `release/**` branch. Set finished pages to `stable`, and pages for something not shipped to `preview`.
+It fails while any page is `draft`, and the docs workflow runs it on every `release/**` branch and every `v*` tag. Set finished pages to `stable`, and pages for something not shipped to `preview`.
 
 `docs/_internal/url-manifest.txt` lists every path the site has ever served, so a moved page can never break a bookmark. Add a line for every page the release publishes for the first time, and never remove one. This lists the pages that are not in the manifest yet:
 
@@ -128,7 +128,7 @@ melos run agent-docs
 melos run check-agent-docs
 ```
 
-The check builds in memory and fails on any difference from disk. It also verifies the corrections table on the AI directory page: every backticked symbol in the column headed "Beak 0.9 does" must exist in some `packages/*/lib`, and every symbol in a row marked `(removed)` must be gone. That heading is a constant in `tool/build_agent_docs.dart`. A new minor version means renaming the constant and the heading together. If they disagree, the check finds no table and passes.
+The check builds in memory and fails on any difference from disk. It also verifies the corrections table on the AI directory page. The column heading comes from the `beak_core` version (`Beak 0.9 does` for any 0.9.x), and a page without that table fails, so a bump to 0.10 fails until the heading reads `Beak 0.10 does`; the message names the words to write. Every backticked symbol in the column must appear in some `packages/*/lib`. Every symbol in a row marked `(removed)` must be declared in no Beak package: a doc comment, a message string, a local variable, a private helper or a vendored `worm*` package that happens to use the word does not keep it alive.
 
 ## Skills
 
@@ -145,7 +145,7 @@ Published skills check passed.
 ## Rules and limits
 
 - **Nothing verifies lockstep.** A package left on the old version passes every check except your eyes. Run the `grep` above after the bump.
-- **`check-agent-docs` runs in no CI job.** `melos run analyze` does not include it either. A stale bundle reaches the tag unless you run it.
+- **A stale bundle fails `analyze`.** `check-agent-docs` is part of `melos run analyze` and of the docs workflow, so a bump, a `CHANGELOG.md` edit or a docs change turns both red until `melos run agent-docs` has regenerated the bundle and you have committed it.
 - **The pre-1.0 promise.** The package changelogs say the API is not frozen and the wire format is. Breaking an API is allowed, and it goes in `CHANGELOG.md` under the release. Changing the wire format is not.
 - **The root changelog header is out of date.** It still says all packages share a `0.0.x` line. Fix the sentence when you move `[Unreleased]`.
 - **Two packages have no changelog.** `beak_serverpod_generator` and `beak_serverpod_server` have none, while their eleven siblings do.

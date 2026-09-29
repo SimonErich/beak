@@ -1,5 +1,13 @@
 name: ci
 
+# Every job that resolves packages fetches obers_ui, obers_ui_autoforms and
+# obers_ui_charts from github.com/SimonErich/obers_ui at the commit pinned in
+# the pubspecs. That commit has to be pushed there, or `pub get` fails in every
+# job below. It also has to be new enough for beak_frontend to compile: the jobs
+# that build the panel (web, showcase-web, foodio-web) fail on an older one.
+# Nothing here reads a sibling checkout, so `melos run link-obers-ui` is a
+# local-only tool.
+
 on:
   push:
     branches: [main]
@@ -38,8 +46,11 @@ jobs:
       # resolves the root itself, so a fresh clone needs no extra step.
       # `analyze` also runs `beak doctor` over every example, which is what
       # catches an emitter change that left the checked-in generated code
-      # stale — nothing else in the gate reads it.
-      - name: Analyze (includes the material, web-safety and example guards)
+      # stale — nothing else in the gate reads it. It runs the agent docs
+      # bundle check too (`check-agent-docs`): a change to docs/, mkdocs.yml,
+      # CHANGELOG.md or the version fails here until `melos run agent-docs`
+      # has regenerated the committed bundle.
+      - name: Analyze (material, web-safety, hook-widget, docs, example and agent-docs guards)
         run: melos run analyze
       - name: Format check
         run: melos run format-check
@@ -127,3 +138,123 @@ jobs:
       - name: Tear down services
         if: always()
         run: docker compose down -v
+
+  # The path a newcomer takes, on a machine that has never bootstrapped this
+  # repository: install the CLI from source, create a project against this
+  # checkout, generate its wiring. It does not compile the panel, so it does not
+  # need an obers_ui commit newer than the pin.
+  install-smoke:
+    name: Install smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      - name: Install the CLI from source
+        run: dart pub global activate --source path packages/beak_cli
+      - name: Put pub's bin directory on the path
+        run: echo "$HOME/.pub-cache/bin" >> "$GITHUB_PATH"
+      - name: Print the version
+        run: beak --version
+      # `--beak-path` points the new project at this checkout: the default git
+      # dependency needs a v<version> tag that only exists after a release.
+      - name: Create a project
+        run: beak create smoke_app --beak-path "$GITHUB_WORKSPACE"
+        working-directory: ${{ runner.temp }}
+      - name: Prepare the project
+        run: beak prepare
+        working-directory: ${{ runner.temp }}/smoke_app
+
+  showcase-web:
+    name: Web build (showcase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      - name: Activate melos
+        run: dart pub global activate melos 6.3.3
+      - name: Bootstrap
+        run: melos bootstrap
+      - name: Build the showcase panel for web
+        run: flutter build web --release
+        working-directory: examples/showcase
+
+  foodio-web:
+    name: Web build (foodio)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      - name: Activate melos
+        run: dart pub global activate melos 6.3.3
+      - name: Bootstrap
+        run: melos bootstrap
+      - name: Build the foodio admin panel for web
+        run: flutter build web --release
+        working-directory: examples/foodio-adminpanel
+
+  # examples/serverpod is a pub workspace of its own with Serverpod 4's exact
+  # pins, so melos neither bootstraps nor gates it (see `ignore:` in
+  # melos.yaml) and this is the only job that touches it. It needs Dart 3.12.2
+  # or newer, which the stable channel has. Only the suites that need no
+  # running server are run: `--exclude-tags integration` leaves out
+  # test/integration, whose `withServerpod` groups need the test Postgres. To
+  # run those locally: `docker compose up -d --wait postgres_test` in
+  # examples/serverpod/bookshop_server, then `dart test --tags integration`.
+  # bookshop_admin's widget tests compile the panel, so they wait for an
+  # obers_ui pin that beak_frontend compiles against.
+  serverpod-example:
+    name: Serverpod example
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      - name: Resolve the workspace
+        run: flutter pub get
+        working-directory: examples/serverpod
+      - name: Unit tests (no server, no database)
+        run: dart test --exclude-tags integration
+        working-directory: examples/serverpod/bookshop_server

@@ -54,15 +54,19 @@ melos run coverage
       melos run analyze-flutter &&
       melos run analyze-root &&
       melos run guard-material &&
+      melos run guard-hooks &&
       melos run guard-web &&
       melos run check-docs &&
+      melos run check-agent-docs &&
       melos run check-examples
-    description: Static analysis across all packages (0 issues required).
+    description: >-
+      Static analysis across all packages (0 issues required), the repo guards,
+      the docs checks and the agent docs bundle check.
 ```
 
 | Command | What it runs | Fails on |
 | --- | --- | --- |
-| `melos run analyze` | `dart analyze` and `flutter analyze` with `--fatal-infos --fatal-warnings`, the tooling in `tool/` and `test/`, then the four guards | any info, a Material import, `dart:io` in the panel graph, a broken docs page, a stale example |
+| `melos run analyze` | `dart analyze` and `flutter analyze` with `--fatal-infos --fatal-warnings`, the tooling in `tool/` and `test/`, then the guards and checks | any info, a Material import, a `StatefulWidget`, `dart:io` in the panel graph, a broken docs page, a stale agent docs bundle, a stale example |
 | `melos run format-check` | `dart format --output=none --set-exit-if-changed .` | any file `dart format` would change |
 | `melos run test` | `dart test` and `flutter test` per package with `--exclude-tags e2e`, then `dart test` at the root | any failing test |
 | `melos run coverage` | `dart run tool/check_coverage.dart` | a package below its line-coverage floor |
@@ -95,6 +99,7 @@ While you iterate, run the check you are working against instead of the whole ch
 | Check | Command | Time |
 | --- | --- | --- |
 | No Material or Cupertino imports | `dart run tool/check_no_material.dart` | seconds |
+| No `StatefulWidget` or `State` | `dart run tool/check_hook_widgets.dart` | seconds |
 | Web-safe panel import graph | `dart run tool/check_web_safe.dart` | seconds |
 | Docs structure and style | `dart run tool/check_docs.dart` | seconds |
 | Examples still match their generator | `dart run tool/check_examples.dart` | about a minute |
@@ -103,7 +108,7 @@ While you iterate, run the check you are working against instead of the whole ch
 | Agent docs bundle is current | `dart run tool/build_agent_docs.dart --check` | seconds |
 | The tooling's own tests | `dart test` | seconds |
 
-The skills check also runs inside `melos run test`, through `test/published_skills_test.dart`. Nothing in `melos run analyze` or in CI runs the bundle check, so [Releasing](releasing.md) says when to run it by hand.
+The skills check also runs inside `melos run test`, through `test/published_skills_test.dart`. The bundle check runs inside `melos run analyze` and in the docs workflow, so a change to `docs/`, `mkdocs.yml`, `CHANGELOG.md` or the version fails until `melos run agent-docs` has regenerated the bundle. [Releasing](releasing.md) covers when to run it.
 
 ## What CI runs
 
@@ -111,8 +116,11 @@ The skills check also runs inside `melos run test`, through `test/published_skil
 | --- | --- | --- |
 | `ci.yaml` | Analyze and format | `melos run analyze`, `melos run format-check` |
 | `ci.yaml` | Web build | `flutter build web --release` for `examples/quickstart` and `examples/clean_beak_config` |
+| `ci.yaml` | Web build (showcase), Web build (foodio) | `flutter build web --release` for `examples/showcase` and `examples/foodio-adminpanel`, one job each |
+| `ci.yaml` | Install smoke | `dart pub global activate --source path packages/beak_cli`, `beak --version`, `beak create --beak-path` in a temporary directory, then `beak prepare` |
+| `ci.yaml` | Serverpod example | `flutter pub get` in `examples/serverpod`, then the bookshop server's tests without the `integration` tag |
 | `ci.yaml` | Test and coverage | `melos run test`, `melos run coverage`, then `melos run up`, `melos run test-e2e`, `melos run test-worm` |
-| `docs.yml` | Build documentation | the docs checker and its tests, `mkdocs build --strict`, and on `release/**` branches `check_docs.dart --release` |
+| `docs.yml` | Build documentation | the docs checker and its tests, the agent docs bundle check, `mkdocs build --strict`, and on `release/**` branches and `v*` tags `check_docs.dart --release` |
 | `docs.yml` | Deploy to Pages | publishes the built site, on `main` only |
 
 ## Which page to read
