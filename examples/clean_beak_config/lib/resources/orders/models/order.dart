@@ -32,6 +32,7 @@ enum OrderStatus {
 /// Order schema; all metadata and typed helpers are generated.
 @Resource()
 final class Order extends BeakSchema {
+  // --8<-- [start:OrderValidationRules]
   /// Shared delivery eligibility and complete-order validation.
   static List<BeakRecordRule> get validationRules => [
     BeakCount(OrderModel.items, min: 1),
@@ -46,6 +47,7 @@ final class Order extends BeakSchema {
       ],
     ),
   ];
+  // --8<-- [end:OrderValidationRules]
 
   /// Human-readable order reference.
   @Display()

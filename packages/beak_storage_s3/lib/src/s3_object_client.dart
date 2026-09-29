@@ -19,6 +19,7 @@ import 'package:minio/minio.dart';
 ///
 /// final driver = S3StorageDriver(config, client: FakeS3ObjectClient());
 /// ```
+// --8<-- [start:S3ObjectClient]
 abstract interface class S3ObjectClient {
   /// Uploads [bytes] to [bucket] under [key] with [contentType] set.
   Future<void> putObject({
@@ -47,6 +48,7 @@ abstract interface class S3ObjectClient {
     required Duration expiresIn,
   });
 }
+// --8<-- [end:S3ObjectClient]
 
 /// The production [S3ObjectClient], speaking the S3 API (AWS, MinIO, ...)
 /// via `package:minio`.

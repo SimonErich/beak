@@ -33,6 +33,7 @@ import 's3_object_client.dart';
 final class S3StorageDriver implements BeakStorageDriver {
   /// Creates a driver for [config]; [client] overrides the wire client for
   /// tests (default: a [MinioS3ObjectClient] built from [config]).
+  // --8<-- [start:constructors]
   S3StorageDriver(BeakS3Config config, {S3ObjectClient? client})
     : _config = config,
       _client = client ?? MinioS3ObjectClient(config);
@@ -50,6 +51,7 @@ final class S3StorageDriver implements BeakStorageDriver {
           'got ${config.runtimeType}.',
         ),
       };
+  // --8<-- [end:constructors]
 
   final BeakS3Config _config;
   final S3ObjectClient _client;
@@ -142,6 +144,7 @@ final class S3StorageDriver implements BeakStorageDriver {
   /// Runs [operation], rethrowing Beak's own exceptions untouched and
   /// wrapping every client/transport error in a [BeakStorageException] so no
   /// raw client exception crosses the driver boundary.
+  // --8<-- [start:guard]
   Future<T> _guard<T>(
     String operationName,
     String key,
@@ -155,6 +158,7 @@ final class S3StorageDriver implements BeakStorageDriver {
       throw BeakStorageException('S3 $operationName failed for "$key": $error');
     }
   }
+  // --8<-- [end:guard]
 
   Uri _publicUrlFor(String key) {
     final Uri? publicBaseUrl = _config.publicBaseUrl;

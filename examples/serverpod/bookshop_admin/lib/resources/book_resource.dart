@@ -1,6 +1,7 @@
 import 'package:beak/panel.dart';
 import 'package:bookshop_beak/bookshop_beak.dart';
 
+// --8<-- [start:BookResource]
 /// The Books section, in Beak's golden-path style.
 ///
 /// Every reference is a typed ref of the `Book` model in `bookshop_beak`: a
@@ -47,3 +48,4 @@ final class BookResource extends BeakResource {
         ],
       );
 }
+// --8<-- [end:BookResource]

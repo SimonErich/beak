@@ -380,6 +380,7 @@ final class BeakClient {
       key: value.toJson(),
   };
 
+  // --8<-- [start:ensureSuccess]
   void _ensureSuccess(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return;
@@ -402,6 +403,7 @@ final class BeakClient {
       _ => BeakConfigurationException(message),
     };
   }
+  // --8<-- [end:ensureSuccess]
 
   Map<String, Object?> _errorBody(http.Response response) {
     try {

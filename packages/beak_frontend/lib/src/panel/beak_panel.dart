@@ -156,6 +156,7 @@ class BeakPanel extends HookWidget {
       refreshPolicy,
       home,
     ]);
+    // --8<-- [start:panelRouting]
     final routing = useMemoized(() {
       final container = GetIt.asNewInstance();
       registerBeakDependencies(
@@ -178,6 +179,7 @@ class BeakPanel extends HookWidget {
       // keep the previous one registered, so a test could not change source
       // mid-flight and never learned it had not.
     }, [config, dataSource, httpClient]);
+    // --8<-- [end:panelRouting]
     final GoRouter router = routing.router;
     final source = routing.container<BeakDataSource>();
     final lifecycle = useAppLifecycleState();

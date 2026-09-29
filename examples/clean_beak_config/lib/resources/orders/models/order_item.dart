@@ -11,6 +11,7 @@ part 'order_item.beak.dart';
 /// OrderItem schema; all metadata and typed helpers are generated.
 @Resource()
 final class OrderItem extends BeakSchema {
+  // --8<-- [start:OrderItemBehavior]
   /// Catalog suggestions follow selection changes until explicitly overridden.
   static BeakModelBehavior get behavior => BeakModelBehavior(
     values: [
@@ -41,7 +42,9 @@ final class OrderItem extends BeakSchema {
       ),
     ],
   );
+  // --8<-- [end:OrderItemBehavior]
 
+  // --8<-- [start:OrderItemValidationRules]
   /// Custom lines require their own description and price; variants match products.
   static List<BeakRecordRule> get validationRules => [
     BeakRequiredIf(
@@ -65,6 +68,7 @@ final class OrderItem extends BeakSchema {
       ],
     ),
   ];
+  // --8<-- [end:OrderItemValidationRules]
 
   /// Optional label overriding the product name.
   @Display()

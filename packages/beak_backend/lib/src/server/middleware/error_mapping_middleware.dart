@@ -13,6 +13,7 @@ typedef BeakUnexpectedErrorListener =
 /// The catch boundary of the HTTP layer: maps every [BeakException] to its
 /// status code and JSON body, and everything else to an opaque 500 (reported
 /// to [onUnexpectedError]) so internals never leak to clients.
+// --8<-- [start:beakErrorMappingMiddleware]
 Middleware beakErrorMappingMiddleware({
   BeakUnexpectedErrorListener? onUnexpectedError,
 }) =>
@@ -30,8 +31,10 @@ Middleware beakErrorMappingMiddleware({
         });
       }
     };
+// --8<-- [end:beakErrorMappingMiddleware]
 
 Response _exceptionResponse(BeakException exception, Request request) {
+  // --8<-- [start:exceptionStatus]
   final int statusCode = switch (exception) {
     BeakValidationException() => 422,
     BeakNotFoundException() => 404,
@@ -41,6 +44,7 @@ Response _exceptionResponse(BeakException exception, Request request) {
     BeakConfigurationException() => 500,
     BeakStorageException() => 500,
   };
+  // --8<-- [end:exceptionStatus]
   final Map<String, List<String>> fieldErrors = switch (exception) {
     BeakValidationException(:final fieldErrors) => fieldErrors,
     _ => const {},

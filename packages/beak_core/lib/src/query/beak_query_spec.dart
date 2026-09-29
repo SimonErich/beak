@@ -39,6 +39,7 @@ import '../common/json_support.dart';
 /// path for decoders and data-source adapters.
 @immutable
 final class BeakQuerySpec {
+  // --8<-- [start:BeakQuerySpec]
   /// Creates a query over the table stored as [table].
   ///
   /// The wire-level constructor; application code calls `model.query()`,
@@ -52,6 +53,7 @@ final class BeakQuerySpec {
     this.pagination = const BeakPagination(),
     this.withTrashed = false,
   });
+  // --8<-- [end:BeakQuerySpec]
 
   /// Decodes [json] (produced by [toJson]).
   ///

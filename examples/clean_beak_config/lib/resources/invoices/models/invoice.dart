@@ -22,6 +22,7 @@ enum InvoiceStatus {
   cancelled,
 }
 
+// --8<-- [start:InvoiceActions]
 /// The invoice's business commands, each declared once and referenced by
 /// object wherever a screen, list or server rule mentions it.
 abstract final class InvoiceActions {
@@ -75,10 +76,12 @@ abstract final class InvoiceActions {
     ],
   );
 }
+// --8<-- [end:InvoiceActions]
 
 /// An invoice whose saved values snapshot the catalog at save time.
 @Resource(timestamps: true)
 final class Invoice extends BeakSchema {
+  // --8<-- [start:InvoiceValidationRules]
   /// Shared collection, date and customer constraints across every presentation.
   static List<BeakRecordRule> get validationRules => [
     BeakCount(InvoiceModel.items, min: 1),
@@ -96,7 +99,9 @@ final class Invoice extends BeakSchema {
       ],
     ),
   ];
+  // --8<-- [end:InvoiceValidationRules]
 
+  // --8<-- [start:InvoiceBehavior]
   /// Named business transitions run through the same atomic save protocol.
   static BeakModelBehavior get behavior => BeakModelBehavior(
     editableWhen: (record) =>
@@ -109,6 +114,7 @@ final class Invoice extends BeakSchema {
       InvoiceActions.cancel,
     ],
   );
+  // --8<-- [end:InvoiceBehavior]
 
   /// Unique document reference entered by the administrator.
   @Display()

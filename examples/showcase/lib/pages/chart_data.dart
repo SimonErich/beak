@@ -5,9 +5,11 @@ import '../resources/candles/models/price_candle.dart';
 import '../resources/sightings/models/sighting.dart';
 import '../resources/specimens/models/specimen.dart';
 
+// --8<-- [start:chartPage]
 /// A page large enough to hold every seeded row, so a chart never draws a
 /// silently truncated first page (a query returns 25 rows by default).
 const BeakPagination chartPage = BeakPagination(perPage: 500);
+// --8<-- [end:chartPage]
 
 /// The weekday names a heat map labels its rows with, Monday first.
 const List<String> weekdayLabels = [
@@ -26,6 +28,7 @@ BeakQuerySpec sightingsByDay() => const SightingModel().query(
   pagination: chartPage,
 );
 
+// --8<-- [start:habitatsByCapacity]
 /// The four largest habitats, largest first.
 ///
 /// Four, because a pie chart lays its legend out in the height it reserves
@@ -34,6 +37,7 @@ BeakQuerySpec habitatsByCapacity() => const HabitatModel().query(
   sorts: [HabitatModel.capacity.descending()],
   pagination: const BeakPagination(perPage: 4),
 );
+// --8<-- [end:habitatsByCapacity]
 
 /// Every specimen with a recorded wingspan.
 BeakQuerySpec specimensBySize() =>
@@ -49,6 +53,7 @@ String _dayLabel(DateTime day) =>
     '${day.month.toString().padLeft(2, '0')}-'
     '${day.day.toString().padLeft(2, '0')}';
 
+// --8<-- [start:sightingPoints]
 /// One line point per sighting day.
 List<BeakChartPoint> sightingPoints(List<BeakRecord> records) => [
   for (final record in records)
@@ -58,7 +63,9 @@ List<BeakChartPoint> sightingPoints(List<BeakRecord> records) => [
         value: (SightingModel.birdsSeen.readFrom(record) ?? 0).toDouble(),
       ),
 ];
+// --8<-- [end:sightingPoints]
 
+// --8<-- [start:habitatPoints]
 /// One category per habitat, sized by capacity.
 List<BeakChartPoint> habitatPoints(List<BeakRecord> records) => [
   for (final record in records)
@@ -67,7 +74,9 @@ List<BeakChartPoint> habitatPoints(List<BeakRecord> records) => [
       value: (HabitatModel.capacity.readFrom(record) ?? 0).toDouble(),
     ),
 ];
+// --8<-- [end:habitatPoints]
 
+// --8<-- [start:specimenBubbles]
 /// One bubble per specimen: wingspan by weight, sized by clutch.
 List<BeakBubblePoint> specimenBubbles(List<BeakRecord> records) => [
   for (final record in records)
@@ -78,7 +87,9 @@ List<BeakBubblePoint> specimenBubbles(List<BeakRecord> records) => [
       label: SpecimenModel.commonName.readFrom(record),
     ),
 ];
+// --8<-- [end:specimenBubbles]
 
+// --8<-- [start:priceCandles]
 /// One candle per trading day, numbered from the first.
 List<BeakCandle> priceCandles(List<BeakRecord> records) => [
   for (final (index, record) in records.indexed)
@@ -90,12 +101,14 @@ List<BeakCandle> priceCandles(List<BeakRecord> records) => [
       close: PriceCandleModel.close.readFrom(record) ?? 0,
     ),
 ];
+// --8<-- [end:priceCandles]
 
 /// The columns of the sightings heat map: one per week since the first count.
 List<String> weekLabels(int weekCount) => [
   for (var week = 1; week <= weekCount; week++) 'Week $week',
 ];
 
+// --8<-- [start:sightingCells]
 /// Heat-map cells: weekday against week, valued by birds seen.
 List<BeakMatrixCell> sightingCells(List<BeakRecord> records) {
   final days = [
@@ -116,3 +129,4 @@ List<BeakMatrixCell> sightingCells(List<BeakRecord> records) {
       ),
   ];
 }
+// --8<-- [end:sightingCells]

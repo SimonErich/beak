@@ -32,9 +32,11 @@ Uri? beakTunnelUrl(String path, String query) {
     }
     segments.add(segment);
   }
+  // --8<-- [start:apiOnly]
   if (segments.length < 2 || segments.first != 'api' || segments[1] == 'auth') {
     return null;
   }
+  // --8<-- [end:apiOnly]
   final Uri url;
   try {
     url = Uri(

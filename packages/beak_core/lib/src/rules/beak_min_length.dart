@@ -6,10 +6,12 @@ part of 'beak_rule.dart';
 /// [BeakRequired] when presence should be enforced too.
 final class BeakMinLength extends BeakRule {
   /// Creates a rule rejecting strings shorter than [minLength].
+  // --8<-- [start:BeakMinLength]
   const BeakMinLength(this.minLength);
 
   /// Lowest accepted number of characters.
   final int minLength;
+  // --8<-- [end:BeakMinLength]
 
   @override
   String get id => 'min_length';

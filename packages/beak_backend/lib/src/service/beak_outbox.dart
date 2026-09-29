@@ -204,6 +204,7 @@ final class BeakOutboxWorker {
           await _setAside(row);
           continue;
         }
+        // --8<-- [start:outboxClaim]
         final lease = generateUuidV4();
         final attempt = pending.attempt + 1;
         final claimed = await adapter.update(
@@ -227,6 +228,7 @@ final class BeakOutboxWorker {
           ),
         );
         if (claimed != 1) continue;
+        // --8<-- [end:outboxClaim]
         final owned = const StringField(
           'id',
         ).eq(pending.key).and(const StringField('lease').eq(lease));
@@ -252,6 +254,7 @@ final class BeakOutboxWorker {
             ),
           );
         } on Object catch (error) {
+          // --8<-- [start:outboxFailure]
           // Persist a safe category, never arbitrary provider messages/secrets.
           await adapter.update(
             UpdateDescriptor(
@@ -268,6 +271,7 @@ final class BeakOutboxWorker {
               },
             ),
           );
+          // --8<-- [end:outboxFailure]
         }
       }
       if (malformed.isNotEmpty) {

@@ -195,6 +195,7 @@ class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
       BeakFieldFilter.forKey(qualifiedKey, operator, encode(value));
 }
 
+// --8<-- [start:BeakNumericFieldPredicates]
 /// Ordered comparisons available for numeric field references.
 extension BeakNumericFieldPredicates<T extends num> on BeakScalarField<T> {
   /// Matches values greater than [value].
@@ -209,6 +210,7 @@ extension BeakNumericFieldPredicates<T extends num> on BeakScalarField<T> {
   /// Matches values less than or equal to [value].
   BeakFilter lte(T value) => _compare(BeakOperator.lte, value);
 }
+// --8<-- [end:BeakNumericFieldPredicates]
 
 /// Ordered comparisons for exact decimals, dates, times, and durations.
 extension BeakComparableFieldPredicates<T extends Comparable<T>>
@@ -261,11 +263,13 @@ extension BeakExactDecimalAggregates on BeakScalarField<BeakDecimal> {
   }
 }
 
+// --8<-- [start:BeakTextFieldPredicates]
 /// Text comparisons available only for string references.
 extension BeakTextFieldPredicates on BeakScalarField<String> {
   /// Case-insensitive substring match.
   BeakFilter contains(String value) => _compare(BeakOperator.contains, value);
 }
+// --8<-- [end:BeakTextFieldPredicates]
 
 /// A typed to-one relationship; generated subclasses add target field paths.
 class BeakToOneField extends BeakFieldRef<BeakRecord> {

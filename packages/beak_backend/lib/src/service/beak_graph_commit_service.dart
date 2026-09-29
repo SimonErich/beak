@@ -17,6 +17,7 @@ import 'beak_resource_service.dart';
 import 'beak_revision_timestamp.dart';
 import 'validation_service.dart';
 
+// --8<-- [start:BeakSavePlanHooks]
 /// Validates and enriches a graph within its database transaction.
 ///
 /// The callback may add derived writes, but must retain the request identity and
@@ -41,6 +42,7 @@ typedef BeakSavePlanFinalizer =
       WormDataSource transaction,
       BeakPrincipal? principal,
     );
+// --8<-- [end:BeakSavePlanHooks]
 
 /// Authenticated graph persistence with transactional or explicit staged receipts.
 ///
@@ -132,6 +134,7 @@ final class BeakGraphCommitService {
     BeakSavePlan plan,
     BeakPrincipal? principal,
   ) async {
+    // --8<-- [start:commitReplay]
     final key = _key(plan.saveId, principal);
     final encoded = jsonEncode(_canonical(plan.toJson()));
     final hash = sha256.convert(utf8.encode(encoded)).toString();
@@ -157,6 +160,7 @@ final class BeakGraphCommitService {
         return prior;
       }
     }
+    // --8<-- [end:commitReplay]
     if (!source.adapter.capabilities.supportsTransactions) {
       if (preparePlan != null ||
           finalizePlan != null ||
@@ -206,6 +210,7 @@ final class BeakGraphCommitService {
       );
     }
     try {
+      // --8<-- [start:commitTransaction]
       return await source.adapter.transaction((adapter) async {
         await _insertReceipt(adapter, key, encoded, hash, _pending(plan));
         final transactional = WormDataSource(registry, adapter: adapter);
@@ -275,7 +280,9 @@ final class BeakGraphCommitService {
         await _writeReceipt(adapter, key, result);
         return result;
       });
+      // --8<-- [end:commitTransaction]
     } on _Rollback catch (abort) {
+      // --8<-- [start:commitRollback]
       final rolledBack = BeakSaveResult(
         saveId: plan.saveId,
         mode: BeakSaveMode.atomic,
@@ -292,6 +299,7 @@ final class BeakGraphCommitService {
       );
       await _insertReceipt(source.adapter, key, encoded, hash, rolledBack);
       return rolledBack;
+      // --8<-- [end:commitRollback]
     } on UniqueConstraintException {
       // A competing process committed this save while our insert waited.
       final winner = await _receipt(source.adapter, key);
@@ -332,6 +340,7 @@ final class BeakGraphCommitService {
     }
   }
 
+  // --8<-- [start:authorizeTable]
   /// The table-level decision for [op], taken before any behavior or
   /// `preparePlan` hook runs: app code must never execute (and reach
   /// non-transactional side effects) for a write the principal may not
@@ -352,7 +361,9 @@ final class BeakGraphCommitService {
       );
     }
   }
+  // --8<-- [end:authorizeTable]
 
+  // --8<-- [start:prepareGraph]
   Future<BeakSavePlan> _prepare(
     BeakSavePlan plan,
     WormDataSource transactional,
@@ -388,6 +399,7 @@ final class BeakGraphCommitService {
       );
     }
   }
+  // --8<-- [end:prepareGraph]
 
   Future<BeakSavePlan> _prepareBehavior(
     BeakSavePlan plan,
@@ -1227,6 +1239,7 @@ final class BeakGraphCommitService {
         ),
       );
     }
+    // --8<-- [start:requireRevision]
     final current = await data.getOne(model.table, id);
     final stored = switch (current?['updated_at']) {
       BeakDateTimeValue(:final value) => value,
@@ -1238,6 +1251,7 @@ final class BeakGraphCommitService {
       );
     }
     return stored;
+    // --8<-- [end:requireRevision]
   }
 
   Future<void> _conditionalDelete(
@@ -1283,6 +1297,7 @@ final class BeakGraphCommitService {
     final values = unchanged
         ? <String, Object?>{}
         : ({...input.toRow()}..remove(model.primaryKey.key));
+    // --8<-- [start:conditionalUpdate]
     // A no-op still checks the exact revision in SQL, so a concurrent change
     // rejects the graph. Retaining the stamp avoids invalidating other editors.
     values['updated_at'] = unchanged
@@ -1297,6 +1312,7 @@ final class BeakGraphCommitService {
         ).eq(id).and(const Field<DateTime>('updated_at').eq(stored)),
       ),
     );
+    // --8<-- [end:conditionalUpdate]
     if (affected == 0) {
       if (unchanged && current != null) {
         // Changed-row engines can report zero for a matched no-op. Only an
@@ -1415,9 +1431,11 @@ final class BeakGraphCommitService {
     ],
   );
 
+  // --8<-- [start:receiptKey]
   String _key(String saveId, BeakPrincipal? principal) => sha256
       .convert(utf8.encode(jsonEncode([principal?.id, saveId])))
       .toString();
+  // --8<-- [end:receiptKey]
 
   Future<Map<String, Object?>?> _receipt(DatabaseAdapter adapter, String key) =>
       adapter.selectOne(

@@ -20,6 +20,7 @@ class ShopReceivablesCard extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --8<-- [start:receivablesData]
     final source = beakDependencies(context)<BeakDataSource>();
     final revision = useBeakDataRevision(
       source,
@@ -38,6 +39,7 @@ class ShopReceivablesCard extends HookWidget {
     final snapshot = useFuture(request, preserveState: false);
     final strings = BeakLocalizations.of(context);
     final format = BeakFormatting.of(context);
+    // --8<-- [end:receivablesData]
     return OiCard(
       child: OiColumn(
         breakpoint: context.breakpoint,
@@ -51,6 +53,7 @@ class ShopReceivablesCard extends HookWidget {
               const Expanded(child: OiLabel.h3('Outstanding receivables')),
             ],
           ),
+          // --8<-- [start:receivablesStates]
           if (snapshot.connectionState != ConnectionState.done)
             OiProgress.linear(indeterminate: true, label: strings.loading)
           else if (snapshot.data case BeakErr<BeakDecimal>(:final error)) ...[
@@ -64,6 +67,7 @@ class ShopReceivablesCard extends HookWidget {
                   : 'Issued invoices awaiting payment. Drafts and cancelled documents are excluded.',
             ),
           ],
+          // --8<-- [end:receivablesStates]
           // The card's own width decides, not the viewport's: beside a panel
           // sidebar a card can be narrower than it is on a phone.
           LayoutBuilder(

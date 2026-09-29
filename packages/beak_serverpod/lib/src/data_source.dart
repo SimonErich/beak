@@ -34,6 +34,7 @@ final class ServerpodDataSource implements BeakDataSource, BeakEditDataSource {
       _resources[resource] ??
       (throw BeakConfigurationException('Unknown resource "$resource".'));
 
+  // --8<-- [start:serverpodGuard]
   Future<T> _guard<T>(Future<T> Function() operation) async {
     try {
       return await operation();
@@ -45,6 +46,7 @@ final class ServerpodDataSource implements BeakDataSource, BeakEditDataSource {
       rethrow;
     }
   }
+  // --8<-- [end:serverpodGuard]
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>

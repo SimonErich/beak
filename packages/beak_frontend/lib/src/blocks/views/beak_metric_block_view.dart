@@ -13,6 +13,7 @@ class _BeakMetricBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --8<-- [start:metricState]
     final dataSource = beakDependencies(context)<BeakDataSource>();
     final loaded = useState<({num value, num? previous})?>(null);
     final loading = useState(true);
@@ -22,6 +23,7 @@ class _BeakMetricBlockView extends HookWidget {
       dataSource,
       table: block.aggregate.table,
     );
+    // --8<-- [end:metricState]
     final priorTable = block.previous?.table;
     final priorRevision = useBeakDataRevision(
       priorTable == null || priorTable == block.aggregate.table

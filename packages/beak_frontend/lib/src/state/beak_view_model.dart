@@ -26,6 +26,7 @@ import 'package:signals/signals.dart';
 ///   }
 /// }
 /// ```
+// --8<-- [start:BeakViewModel]
 abstract base class BeakViewModel {
   final List<void Function()> _cleanups = [];
   bool _isDisposed = false;
@@ -54,3 +55,4 @@ abstract base class BeakViewModel {
     _isDisposed = true;
   }
 }
+// --8<-- [end:BeakViewModel]

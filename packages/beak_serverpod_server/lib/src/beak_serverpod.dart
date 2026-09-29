@@ -39,8 +39,10 @@ abstract final class BeakServerpod {
   /// Every future, timer, microtask and stream callback created inside
   /// [body] inherits the zone, so an adapter call made anywhere below it
   /// resolves to [session].
+  // --8<-- [start:runInSession]
   static R runInSession<R>(Session session, R Function() body) =>
       runZoned(body, zoneValues: {_sessionKey: session});
+  // --8<-- [end:runInSession]
 
   /// The zone's session, or `null` outside [runInSession].
   static Session? get currentSessionOrNull =>
@@ -54,12 +56,14 @@ abstract final class BeakServerpod {
   /// Throws a [StateError] outside [runInSession]: silently falling back to
   /// some other session would run Beak's statements outside the request's
   /// transaction and authentication.
+  // --8<-- [start:currentSession]
   static Session get currentSession =>
       currentSessionOrNull ??
       (throw StateError(
         'No Serverpod Session in this zone. Beak database calls must run '
         'inside BeakServerpod.runInSession(session, ...).',
       ));
+  // --8<-- [end:currentSession]
 
   /// The session a Beak adapter runs on, for typed Serverpod ORM calls.
   ///

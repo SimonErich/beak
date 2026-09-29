@@ -224,6 +224,7 @@ final class BeakDiscovery {
       '$count ${count == 1 ? one : many ?? '${one}s'}';
 }
 
+// --8<-- [start:beakOverrideKind]
 /// The convention files a project may supply to override a Beak default.
 ///
 /// Each is optional: absent means Beak uses its own default, and nothing
@@ -242,6 +243,7 @@ enum BeakOverrideKind {
   server(path: 'server.dart', symbol: 'beakServer');
 
   const BeakOverrideKind({required this.path, required this.symbol});
+  // --8<-- [end:beakOverrideKind]
 
   /// Path relative to `lib/` this override lives at.
   final String path;

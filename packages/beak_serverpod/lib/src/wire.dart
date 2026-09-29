@@ -9,12 +9,14 @@ const int beakWireVersion = 1;
 /// credentials (`authorization`, `cookie`) and proxy claims
 /// (`x-forwarded-*`) can never reach Beak through the envelope: the server
 /// takes identity from the Serverpod session alone.
+// --8<-- [start:beakWireRequestHeaders]
 const Set<String> beakWireRequestHeaders = {
   'content-type',
   'accept',
   'if-unmodified-since',
   'x-beak-request-id',
 };
+// --8<-- [end:beakWireRequestHeaders]
 
 /// One Beak HTTP request, flattened into the string a single Serverpod
 /// endpoint method can carry (envelope v1).

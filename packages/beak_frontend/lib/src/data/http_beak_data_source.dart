@@ -17,6 +17,7 @@ import 'package:beak_core/beak_core.dart';
 /// );
 /// final page = await source.query(const BeakQuerySpec(table: 'products'));
 /// ```
+// --8<-- [start:HttpBeakDataSource]
 final class HttpBeakDataSource
     implements
         BeakDataSource,
@@ -27,6 +28,7 @@ final class HttpBeakDataSource
         BeakManagedUploadClient,
         BeakUploadUrlClient,
         BeakCommitDataSource {
+  // --8<-- [end:HttpBeakDataSource]
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
@@ -41,6 +43,7 @@ final class HttpBeakDataSource
   Future<BeakValidationReport> validateRecord(BeakValidationRequest request) =>
       client.validateRecord(request);
 
+  // --8<-- [start:httpCommit]
   @override
   BeakCommitCapabilities get commitCapabilities =>
       const BeakCommitCapabilities(durableReceipts: true);
@@ -50,6 +53,7 @@ final class HttpBeakDataSource
 
   @override
   Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
+  // --8<-- [end:httpCommit]
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>

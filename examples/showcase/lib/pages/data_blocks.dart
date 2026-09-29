@@ -213,6 +213,7 @@ BeakBlock _taskTimeline() => BeakCardBlock(
 // --8<-- [end:taskTimeline]
 
 /// The chores as a board and as a calendar.
+// --8<-- [start:plannerPage]
 BeakScreen plannerPage() => BeakScreen(
   path: '/planner',
   title: 'Planner',
@@ -226,6 +227,7 @@ BeakScreen plannerPage() => BeakScreen(
     ],
   ),
 );
+// --8<-- [end:plannerPage]
 
 /// One column per status.
 // --8<-- [start:board]

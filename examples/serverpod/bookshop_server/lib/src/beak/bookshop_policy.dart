@@ -3,6 +3,7 @@ import 'package:bookshop_beak/bookshop_beak.dart';
 
 import 'bookshop_scopes.dart';
 
+// --8<-- [start:bookshopPolicy]
 /// Who may do what in the bookshop admin.
 ///
 /// Deny by default: holding `beak.admin` opens the tunnel and grants nothing.
@@ -17,3 +18,4 @@ final BeakPolicies bookshopPolicy = BeakPolicies(
 );
 
 final BeakAccess _staff = BeakAccess.role(BookshopScopes.staff.name!);
+// --8<-- [end:bookshopPolicy]

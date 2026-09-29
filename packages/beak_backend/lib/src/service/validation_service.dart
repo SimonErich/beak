@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 
+// --8<-- [start:ValidationService]
 /// Applies the shared core validator at the backend write boundary.
 final class ValidationService {
   /// Creates the stateless validation boundary.
@@ -30,3 +31,4 @@ final class ValidationService {
     }
   }
 }
+// --8<-- [end:ValidationService]

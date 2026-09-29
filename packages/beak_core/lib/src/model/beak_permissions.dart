@@ -15,6 +15,7 @@ enum BeakOperation {
   delete,
 }
 
+// --8<-- [start:BeakPermissions]
 /// Live model-level presentation permissions.
 ///
 /// Callbacks read the host's current account each time an action or route is
@@ -35,3 +36,4 @@ final class BeakPermissions {
   bool allows(BeakOperation operation) =>
       _rules == null || (_rules[operation]?.call() ?? false);
 }
+// --8<-- [end:BeakPermissions]

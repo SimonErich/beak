@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 /// Blocks that arrange other blocks: grid, row, column, card, section, tabs,
 /// accordion, divider, spacer, masonry and the raw-widget escape hatch.
+// --8<-- [start:layoutBlocksPage]
 BeakScreen layoutBlocksPage() => BeakScreen(
   path: '/layout',
   title: 'Layout blocks',
@@ -21,6 +22,7 @@ BeakScreen layoutBlocksPage() => BeakScreen(
     ],
   ),
 );
+// --8<-- [end:layoutBlocksPage]
 
 /// Twelve tracks, with cards spanning some of them.
 // --8<-- [start:gridSection]

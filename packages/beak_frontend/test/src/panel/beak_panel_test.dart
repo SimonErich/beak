@@ -184,6 +184,7 @@ void main() {
     testWidgets('host router owns authentication and the app root', (
       tester,
     ) async {
+      // --8<-- [start:hostRouter]
       registerBeakDependencies(config: config, dataSource: FakeDataSource());
       final router = GoRouter(
         initialLocation: '/notes',
@@ -201,6 +202,7 @@ void main() {
       );
       addTearDown(router.dispose);
       await tester.pumpWidget(OiApp.router(routerConfig: router));
+      // --8<-- [end:hostRouter]
       await tester.pumpAndSettle();
       expect(find.text('Host login'), findsOneWidget);
       expect(find.byType(OiApp), findsOneWidget);
@@ -292,6 +294,7 @@ void main() {
   });
 }
 
+// --8<-- [start:WriteGatedNoteModel]
 /// The notes model whose write permissions follow a live check.
 final class _WriteGatedNoteModel extends BeakModel {
   const _WriteGatedNoteModel(this.canWrite);
@@ -313,3 +316,4 @@ final class _WriteGatedNoteModel extends BeakModel {
     BeakOperation.create: canWrite,
   });
 }
+// --8<-- [end:WriteGatedNoteModel]

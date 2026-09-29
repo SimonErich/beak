@@ -252,6 +252,7 @@ void main() {
     expect(find.text('#663399'), findsOneWidget);
   });
 
+  // --8<-- [start:customCellTests]
   testWidgets('custom cells delegate to the registered builder', (
     tester,
   ) async {
@@ -282,6 +283,7 @@ void main() {
     );
     expect(find.text('Unavailable'), findsOneWidget);
   });
+  // --8<-- [end:customCellTests]
 
   testWidgets(
     'custom cells can render eager relations without a scalar value',

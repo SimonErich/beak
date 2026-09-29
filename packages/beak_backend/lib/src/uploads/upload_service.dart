@@ -147,6 +147,7 @@ final class UploadService {
     // An empty pipeline is a decoding pass-through: it yields the source
     // bytes plus decoded dimensions (or a validation failure for bytes that
     // are not a supported raster image).
+    // --8<-- [start:imagePipeline]
     final decoded = await transformRunner.run(upload.bytes, const []);
     _validator
         .validate(
@@ -161,6 +162,7 @@ final class UploadService {
     final transformed = column.transforms.isEmpty
         ? decoded
         : await transformRunner.run(upload.bytes, column.transforms);
+    // --8<-- [end:imagePipeline]
 
     final String keyId = _generateKeyId();
     final mainStored = await storage.put(

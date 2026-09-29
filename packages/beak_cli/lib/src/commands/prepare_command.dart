@@ -130,6 +130,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     root,
     packageName: packageName,
   );
+  // --8<-- [start:preparePartsAndScan]
   // Schema classes generate their own part files first, so the models they
   // declare exist before discovery goes looking for them.
   final (schemas, schemaIssues) = BeakSchemaReader(root).read();
@@ -151,7 +152,9 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
   if (allIssues.isNotEmpty) {
     return _refused(environment, config, allIssues);
   }
+  // --8<-- [end:preparePartsAndScan]
 
+  // --8<-- [start:prepareMigrations]
   // Migrations before the wiring: a migration Beak writes must be visible to
   // the scan that lists them on the generated host. They are written once and
   // never rewritten, so they deliberately sit outside BeakEmitters.all, whose
@@ -171,12 +174,14 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
     file.writeAsStringSync(migration.contents);
     migrationFiles.add(migration.path);
   }
+  // --8<-- [end:prepareMigrations]
   final BeakDiscovery withMigrations = migrationFiles.isEmpty
       ? discovery
       : BeakProjectScanner(
           root,
         ).scan(tablesByModelClass: _tablesByModelClass(schemas));
 
+  // --8<-- [start:prepareWiring]
   final written = <String>[...schemaFiles, ...migrationFiles];
   final unchanged = <String>[];
   for (final generated in beakGeneratedFiles(
@@ -199,6 +204,7 @@ BeakPrepareResult runPrepare(BeakCliEnvironment environment) {
       unchanged.add(generated.path);
     }
   }
+  // --8<-- [end:prepareWiring]
 
   environment.out.writeln('  ${withMigrations.summary}');
   _reportFiles(environment, written: written, unchanged: unchanged);
@@ -288,6 +294,7 @@ Map<String, String> _tablesByModelClass(List<BeakSchemaIr> schemas) => {
   for (final schema in schemas) schema.modelClass: schema.table,
 };
 
+// --8<-- [start:prepareWriteIfChanged]
 /// Writes [contents] to [file] unless it already holds exactly that, and says
 /// whether it wrote.
 ///
@@ -301,6 +308,7 @@ bool _writeIfChanged(File file, String contents) {
   file.writeAsStringSync(contents);
   return true;
 }
+// --8<-- [end:prepareWriteIfChanged]
 
 /// Lists [issues] and returns the result of a run that generated nothing.
 BeakPrepareResult _refused(

@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 
+// --8<-- [start:BeakFormCommitRepository]
 /// Records a lost commit response as uncertain instead of permitting a replay.
 /// The same save identity remains available to the transport's recovery API.
 final class BeakFormCommitRepository {
@@ -32,3 +33,4 @@ final class BeakFormCommitRepository {
     }
   }
 }
+// --8<-- [end:BeakFormCommitRepository]

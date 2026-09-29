@@ -39,6 +39,7 @@ sealed class BeakException implements Exception {
 }
 // --8<-- [end:BeakException]
 
+// --8<-- [start:BeakValidationException]
 /// Raised when user-supplied data violates one or more column rules.
 ///
 /// [fieldErrors] maps a column key to its messages, so a form can highlight
@@ -67,6 +68,7 @@ final class BeakValidationException extends BeakException {
       ? super.toString()
       : '${super.toString()} $fieldErrors';
 }
+// --8<-- [end:BeakValidationException]
 
 /// Raised when a requested record or resource does not exist.
 final class BeakNotFoundException extends BeakException {

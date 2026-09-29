@@ -11,6 +11,7 @@ const String beakAdminScopeName = 'beak.admin';
 /// The admin's sections, in navigation order.
 List<BeakResource> bookshopResources() => [BookResource(), AuthorResource()];
 
+// --8<-- [start:bookshopAdminPanel]
 /// The Dog-Eared Books admin: Beak's panel over the Serverpod tunnel.
 ///
 /// [dispatch] is the generated `client.beakAdmin.dispatch` (a fake in the
@@ -27,7 +28,9 @@ BeakPanel bookshopAdminPanel({
   auth: BeakAuthConfig(adapter: auth, register: true, recover: true),
   dataSource: serverpodBeakDataSource(dispatch),
 );
+// --8<-- [end:bookshopAdminPanel]
 
+// --8<-- [start:bookshopAdminIdentity]
 /// Maps the signed-in Serverpod user to Beak's identity: only an account
 /// holding [beakAdminScopeName] may open the panel.
 ///
@@ -45,3 +48,4 @@ ServerpodIdentityResolver bookshopAdminIdentity(
     canAccessPanel: auth.scopeNames.contains(beakAdminScopeName),
   );
 };
+// --8<-- [end:bookshopAdminIdentity]

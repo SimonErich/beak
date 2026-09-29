@@ -8,6 +8,7 @@ part 'product_variant.beak.dart';
 /// A sellable product choice with its own price, SKU and inventory.
 @Resource()
 final class ProductVariant extends BeakSchema {
+  // --8<-- [start:ProductVariantValidationRules]
   /// A product can sell a particular attribute combination only once.
   static List<BeakRecordRule> get validationRules => [
     BeakUnique(
@@ -16,6 +17,7 @@ final class ProductVariant extends BeakSchema {
     ),
     BeakDistinct(ProductVariantModel.attributes, VariantAttributeModel.name),
   ];
+  // --8<-- [end:ProductVariantValidationRules]
 
   /// Canonical server-derived combination identity; null for unconfigured variants.
   @Column(visibleOn: {})

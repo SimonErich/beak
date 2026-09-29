@@ -234,11 +234,13 @@ class BeakDataTable extends HookWidget {
             .join(','),
       ],
     );
+    // --8<-- [start:viewModelLifecycle]
     useEffect(() {
       onViewModel?.call(viewModel);
       viewModel.refresh();
       return viewModel.dispose;
     }, [viewModel]);
+    // --8<-- [end:viewModelLifecycle]
 
     final tableController = useMemoized(
       () =>
@@ -301,11 +303,13 @@ class BeakDataTable extends HookWidget {
 
     Object? idOf(BeakRecord record) => model.primaryKeyOf(record);
 
+    // --8<-- [start:watchPage]
     return Watch.builder(
       builder: (context) {
         final page = viewModel.page.value;
         final rows = page?.items ?? const <BeakRecord>[];
         final int total = page?.total ?? 0;
+        // --8<-- [end:watchPage]
         final sort = viewModel.spec.value.sorts.firstOrNull;
         final sortColumn = sort == null
             ? null

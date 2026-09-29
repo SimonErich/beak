@@ -6,6 +6,7 @@ import 'package:serverpod_flutter/serverpod_flutter.dart';
 
 import 'src/bookshop_admin.dart';
 
+// --8<-- [start:main]
 /// The bookshop admin: Serverpod's email login through Beak's auth screens,
 /// and every panel request tunnelled through the generated
 /// `client.beakAdmin.dispatch`.
@@ -31,3 +32,4 @@ Future<void> main() async {
   await auth.initialize();
   runApp(bookshopAdminPanel(dispatch: client.beakAdmin.dispatch, auth: auth));
 }
+// --8<-- [end:main]

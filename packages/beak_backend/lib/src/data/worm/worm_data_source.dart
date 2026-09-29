@@ -51,6 +51,7 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
   static const String softDeleteColumnKey = 'deleted_at';
 
   @override
+  // --8<-- [start:query]
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     final BeakModel beakModel = registry.byTableOrThrow(spec.table);
     final builder = _translator.builderFor(spec, _adapter);
@@ -70,6 +71,7 @@ final class WormDataSource implements BeakDataSource, BeakSummaryDataSource {
       perPage: spec.pagination.perPage,
     );
   }
+  // --8<-- [end:query]
 
   @override
   Future<BeakRecord?> getOne(String table, Object id) async {

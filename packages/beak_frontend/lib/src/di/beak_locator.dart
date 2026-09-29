@@ -17,6 +17,7 @@ import '../panel/beak_theme_controller.dart';
 /// their dependencies from it, e.g. `beakLocator<BeakDataSource>()`.
 final GetIt beakLocator = GetIt.asNewInstance();
 
+// --8<-- [start:beakDependencies]
 /// The nearest panel's dependencies, falling back to the explicit host setup.
 GetIt beakDependencies(BuildContext context) =>
     context
@@ -40,6 +41,7 @@ class BeakDependencyScope extends InheritedWidget {
   bool updateShouldNotify(BeakDependencyScope oldWidget) =>
       container != oldWidget.container;
 }
+// --8<-- [end:beakDependencies]
 
 /// Registers Beak's infrastructure for [config] into [locator] (defaults to
 /// [beakLocator]): the [BeakModelRegistry], the [BeakClient] and the
@@ -93,6 +95,7 @@ void registerBeakDependencies({
       container.unregister<BeakSessionStore>();
     }
   } else {
+    // --8<-- [start:clientAndSessions]
     late final BeakSessionStore sessions;
     final client = BeakClient(
       baseUrl: config.apiBaseUrl,
@@ -104,7 +107,9 @@ void registerBeakDependencies({
     container
       ..registerSingleton<BeakClient>(client)
       ..registerSingleton<BeakSessionStore>(sessions);
+    // --8<-- [end:clientAndSessions]
   }
+  // --8<-- [start:registerDataLayer]
   final source = ModelBeakDataSource(
     registry: registry,
     fallback: fallback,
@@ -126,4 +131,5 @@ void registerBeakDependencies({
     ..registerSingleton<BeakThemeController>(
       BeakThemeController(config.initialThemeMode),
     );
+  // --8<-- [end:registerDataLayer]
 }

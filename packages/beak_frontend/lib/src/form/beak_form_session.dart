@@ -2346,6 +2346,7 @@ class BeakFormSession {
     final draftVersion = _changeVersion;
     _loading.value = true;
     _error.value = null;
+    // --8<-- [start:recordLoad]
     final result = editValues != null
         ? await repository.run(() => editValues!(recordId!))
         : await repository.run(() async {
@@ -2369,6 +2370,7 @@ class BeakFormSession {
             }
             return page.items.first;
           });
+    // --8<-- [end:recordLoad]
     if (_disposed || requestVersion != _loadVersion) return;
     if (_loaded && draftVersion != _changeVersion) {
       _loading.value = false;

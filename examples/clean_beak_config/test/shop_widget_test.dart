@@ -83,6 +83,7 @@ void main() {
         addTearDown(() => tester.binding.setSurfaceSize(null));
         final registry = buildBeakRegistry();
         BeakFormSession? session;
+        // --8<-- [start:standaloneForm]
         await tester.pumpWidget(
           BeakFormattingScope(
             formatting: const BeakFormatting(locale: 'de_AT', currency: 'EUR'),
@@ -99,6 +100,7 @@ void main() {
             ),
           ),
         );
+        // --8<-- [end:standaloneForm]
         await tester.pumpAndSettle();
         expect(find.text('Policy identity'), findsOneWidget);
         session!.root.set(FulfillmentPolicyModel.name, 'Standard Europe');

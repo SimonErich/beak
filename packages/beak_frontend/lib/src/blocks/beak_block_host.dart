@@ -128,12 +128,14 @@ class BeakBlockHost extends StatelessWidget {
     final BeakWidgetBlock widget => Builder(builder: widget.builder),
   };
 
+  // --8<-- [start:column]
   Widget _column(BuildContext context, BeakColumnBlock block) => OiColumn(
     breakpoint: context.breakpoint,
     gap: OiResponsive<double>(block.gapInPixels),
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [for (final child in block.children) BeakBlockHost(block: child)],
   );
+  // --8<-- [end:column]
 
   Widget _row(BuildContext context, BeakRowBlock block) {
     Widget row({bool expand = false}) => OiRow(
@@ -200,6 +202,7 @@ class BeakBlockHost extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
+        // --8<-- [start:gridStacking]
         final trackWidth =
             (constraints.maxWidth - block.gapInPixels * (columns - 1)) /
             columns;
@@ -211,10 +214,12 @@ class BeakBlockHost extends StatelessWidget {
               return width < block.minChildWidthInPixels;
             });
         return grid(stack ? 1 : columns);
+        // --8<-- [end:gridStacking]
       },
     );
   }
 
+  // --8<-- [start:spanned]
   /// Wraps a grid child in its [BeakBlock.span] placement, when declared.
   Widget _spanned(BeakBlock child) {
     final host = BeakBlockHost(block: child);
@@ -230,6 +235,7 @@ class BeakBlockHost extends StatelessWidget {
       child: host,
     );
   }
+  // --8<-- [end:spanned]
 
   Widget _card(BeakCardBlock block) => OiCard(
     headerGap: block.headerGapInPixels,
@@ -305,6 +311,7 @@ class BeakBlockHost extends StatelessWidget {
     rightColumnWidth: block.rightWidthInPixels,
   );
 
+  // --8<-- [start:field]
   /// Renders one read-only field from the surrounding record scope.
   Widget _field(BuildContext context, BeakFieldBlock block) {
     final scope = BeakRecordScope.of(context);
@@ -336,6 +343,7 @@ class BeakBlockHost extends StatelessWidget {
       ),
     };
   }
+  // --8<-- [end:field]
 
   Widget _fieldGroup(BuildContext context, BeakFieldGroupBlock block) => OiGrid(
     breakpoint: context.breakpoint,
@@ -443,6 +451,7 @@ class BeakBlockHost extends StatelessWidget {
   };
 }
 
+// --8<-- [start:tabsHost]
 /// Owns the selected-tab state of a [BeakTabsBlock].
 class _BeakTabsHost extends HookWidget {
   const _BeakTabsHost({required this.block});
@@ -464,3 +473,4 @@ class _BeakTabsHost extends HookWidget {
     );
   }
 }
+// --8<-- [end:tabsHost]

@@ -21,6 +21,7 @@ void main() {
   test(
     'variant preview stages only selected missing combinations with nested attributes',
     () async {
+      // --8<-- [start:draftWithoutUi]
       final registry = buildBeakRegistry();
       final source = BeakRecordingDataSource(
         InMemoryBeakDataSource(registry: registry),
@@ -35,6 +36,7 @@ void main() {
       session.root.set(ProductModel.name, 'Coffee');
       session.root.set(ProductModel.sku, 'COFFEE');
       session.root.set(ProductModel.price, eur('12.50'));
+      // --8<-- [end:draftWithoutUi]
       final combinations = BeakVariantMatrix([
         BeakVariantAxis(key: 'Size', label: 'Size', values: ['250 g', '1 kg']),
         BeakVariantAxis(
@@ -130,6 +132,7 @@ void main() {
     );
   }
 
+  // --8<-- [start:retryableBillingTest]
   testWidgets(
     'custom billing widget shows a retryable error without a false zero',
     (tester) async {
@@ -166,8 +169,10 @@ void main() {
       );
     },
   );
+  // --8<-- [end:retryableBillingTest]
 }
 
+// --8<-- [start:FailingAggregate]
 final class _FailingAggregate extends BeakRecordingDataSource {
   _FailingAggregate(super.inner);
   bool fail = true;
@@ -176,3 +181,4 @@ final class _FailingAggregate extends BeakRecordingDataSource {
       ? Future.error(const BeakStorageException('Unavailable'))
       : super.aggregate(spec);
 }
+// --8<-- [end:FailingAggregate]

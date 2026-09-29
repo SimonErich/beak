@@ -26,6 +26,7 @@ import 'beak_exception.dart';
 /// );
 /// ```
 @immutable
+// --8<-- [start:BeakResult]
 sealed class BeakResult<T> {
   const BeakResult();
 
@@ -44,6 +45,7 @@ sealed class BeakResult<T> {
   /// Transforms the success value with [transform], leaving errors untouched.
   BeakResult<R> map<R>(R Function(T value) transform);
 }
+// --8<-- [end:BeakResult]
 
 /// The successful [BeakResult], carrying the produced [value].
 final class BeakOk<T> extends BeakResult<T> {

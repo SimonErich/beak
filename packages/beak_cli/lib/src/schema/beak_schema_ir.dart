@@ -49,6 +49,7 @@ enum BeakColumnKind {
 
   /// The kind a field declared as [typeName] becomes, or `null` when the type
   /// names something else (a relationship, or an unsupported type).
+  // --8<-- [start:beakColumnKindOfType]
   static BeakColumnKind? ofType(String typeName) => switch (typeName) {
     'String' || 'BeakDate' || 'BeakTime' => string,
     'BeakText' => text,
@@ -63,6 +64,7 @@ enum BeakColumnKind {
     'BeakFileRef' => file,
     _ => null,
   };
+  // --8<-- [end:beakColumnKindOfType]
 }
 
 /// The relationship kinds a schema field can become.

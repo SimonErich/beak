@@ -129,6 +129,7 @@ Handler beakApiRouter({
   BeakCommitReceiptTable commitReceipts = BeakCommitReceiptTable.beak,
   BeakUnexpectedErrorListener? onUnexpectedError,
 }) {
+  // --8<-- [start:graphOnlyGuards]
   final graphOnlyTables = {
     for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
   };
@@ -148,6 +149,7 @@ Handler beakApiRouter({
     for (final model in registry.all)
       if (!model.behavior.isEmpty) model.table,
   };
+  // --8<-- [end:graphOnlyGuards]
   final protectedOwners = <String>{};
   void protectOwned(BeakModel model) {
     if (!protectedOwners.add(model.table)) return;
@@ -210,6 +212,7 @@ Handler beakApiRouter({
     router.mount('/api/auth', beakAuthRouter(auth).call);
   }
   final exportService = CsvExportService(registry, dataSource);
+  // --8<-- [start:commitRoutes]
   if (dataSource is WormDataSource) {
     registerBeakCommitRoutes(
       router,
@@ -225,6 +228,7 @@ Handler beakApiRouter({
       ),
     );
   }
+  // --8<-- [end:commitRoutes]
   final uploads = storage == null
       ? null
       : UploadService(

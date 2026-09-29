@@ -14,10 +14,12 @@ part of 'beak_rule.dart';
 /// ```
 final class BeakAllowedFileTypes extends BeakRule {
   /// Creates a rule accepting only uploads of [allowedTypes].
+  // --8<-- [start:BeakAllowedFileTypes]
   const BeakAllowedFileTypes(this.allowedTypes);
 
   /// The accepted file types; empty means unrestricted.
   final List<BeakFileType> allowedTypes;
+  // --8<-- [end:BeakAllowedFileTypes]
 
   @override
   String get id => 'allowed_file_types';

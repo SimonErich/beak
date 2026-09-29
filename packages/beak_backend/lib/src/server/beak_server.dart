@@ -155,6 +155,7 @@ final class BeakServer {
   /// middleware) wrapped around the router, outermost first. Mount this
   /// directly to compose Beak inside a larger Shelf app instead of calling
   /// [start].
+  // --8<-- [start:BeakServerHandler]
   late final Handler handler = _middleware
       .fold(
         const Pipeline()
@@ -168,6 +169,7 @@ final class BeakServer {
         (Pipeline pipeline, Middleware next) => pipeline.addMiddleware(next),
       )
       .addHandler(_router);
+  // --8<-- [end:BeakServerHandler]
 
   /// Binds [handler] on the configured host and port and starts serving.
   ///

@@ -231,6 +231,7 @@ final class BeakServeHost {
   ///
   /// Throws a [BeakConfigurationException] when a driver is selected but not
   /// registered — a missing `registerS3Storage` fails at boot, by name.
+  // --8<-- [start:resolveStorageDriver]
   BeakStorageDriver? resolveStorageDriver() {
     final BeakStorageConfig? storageConfig = BeakStorageSettings.fromEnv(
       _environment,
@@ -250,6 +251,7 @@ final class BeakServeHost {
       registry: storageRegistry?.call() ?? createDefaultStorageRegistry(),
     );
   }
+  // --8<-- [end:resolveStorageDriver]
 
   /// Builds the server over [adapter] without binding a port — the test seam.
   ///

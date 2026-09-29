@@ -17,6 +17,7 @@ void main() {
 
   tearDown(Worm.reset);
 
+  // --8<-- [start:contract]
   runBeakDataSourceContract(
     'WormDataSource',
     registry: createApiRegistry(),
@@ -35,4 +36,5 @@ void main() {
     sortableTextColumn: NoteColumns.title,
     numericColumn: NoteColumns.rating,
   );
+  // --8<-- [end:contract]
 }

@@ -24,6 +24,7 @@ import 'beak_panel_config.dart';
 /// ```
 @immutable
 class BeakScreen implements BeakDestination {
+  // --8<-- [start:BeakScreen]
   /// Creates a custom screen routed at [path].
   const BeakScreen({
     required this.path,
@@ -35,6 +36,7 @@ class BeakScreen implements BeakDestination {
     this.showInNav = true,
     this.framed = true,
   });
+  // --8<-- [end:BeakScreen]
 
   /// The route this screen is mounted at (e.g. `'/analytics'`).
   final String path;

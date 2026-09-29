@@ -1,3 +1,4 @@
+// --8<-- [start:BeakAccessCapabilities]
 /// Server-resolved field access for one resource and current identity.
 ///
 /// Null sets allow every field; empty sets allow none. These values guide
@@ -52,6 +53,7 @@ final class BeakAccessCapabilities {
     return Set.unmodifiable(value.whereType<String>());
   }
 }
+// --8<-- [end:BeakAccessCapabilities]
 
 /// Optional data-source capability for server-authoritative field permissions.
 abstract interface class BeakCapabilityDataSource {

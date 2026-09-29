@@ -146,11 +146,13 @@ final class BeakServerpodEngine {
 
   /// Runs one envelope-v1 request on [session] and returns the response
   /// envelope.
+  // --8<-- [start:dispatch]
   Future<String> dispatch(Session session, String request) =>
       BeakServerpod.runInSession(
         session,
         () async => (await _handle(session, request)).encode(),
       );
+  // --8<-- [end:dispatch]
 
   Future<BeakWireResponse> _handle(Session session, String envelope) async {
     final BeakWireRequest wire;
@@ -252,6 +254,7 @@ final class _TrustedPrincipal {
 
 /// Reads the principal [BeakServerpodEngine] resolved from the Serverpod
 /// session. Headers are never consulted.
+// --8<-- [start:TrustedGuard]
 final class _TrustedGuard implements BeakAuthGuard {
   const _TrustedGuard();
 
@@ -262,3 +265,4 @@ final class _TrustedGuard implements BeakAuthGuard {
         _ => null,
       };
 }
+// --8<-- [end:TrustedGuard]

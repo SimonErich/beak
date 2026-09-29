@@ -6,6 +6,7 @@ import 'book_format.dart';
 
 part 'book.beak.dart';
 
+// --8<-- [start:Book]
 /// A title the shop stocks.
 ///
 /// Describes the Serverpod table `book`. The server-only supplier cost column
@@ -60,3 +61,4 @@ final class Book extends BeakSchema {
   )
   late final Author author;
 }
+// --8<-- [end:Book]

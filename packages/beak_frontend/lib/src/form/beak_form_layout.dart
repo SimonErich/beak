@@ -64,6 +64,7 @@ typedef BeakVisibility = bool Function(BeakFormReader state);
 typedef BeakFieldValidator<T extends Object> =
     FutureOr<String?> Function(T? value, BeakFormReader state);
 
+// --8<-- [start:BeakFormNode]
 /// A pure node in a reusable form and detail layout.
 abstract class BeakFormNode {
   /// Creates a layout node with an optional visibility condition.
@@ -75,6 +76,7 @@ abstract class BeakFormNode {
   /// Whether this node and its descendants accept edits in the current draft.
   final BeakVisibility? enabledIf;
 }
+// --8<-- [end:BeakFormNode]
 
 /// A reusable tree of fields; the same tree supports read, create and edit.
 class BeakFormLayout extends BeakFormNode {
@@ -469,6 +471,7 @@ class BeakWizardStep extends BeakFormLayout {
 
 /// Reuses section content across a stacked form, tabbed detail, and wizard.
 /// Conditions stay attached to the section when the presentation changes.
+// --8<-- [start:BeakFormSections]
 final class BeakFormSections {
   /// Creates a reusable presentation from ordinary typed layout nodes.
   const BeakFormSections({required this.sections});
@@ -516,6 +519,7 @@ final class BeakFormSections {
       ),
   ];
 }
+// --8<-- [end:BeakFormSections]
 
 /// A typed input placement, including its local presentation and validation.
 class BeakInput<T extends Object> extends BeakFormNode {
@@ -1914,6 +1918,7 @@ class BeakCalculated extends BeakFormNode {
   final BeakValueFormat format;
 }
 
+// --8<-- [start:BeakFormWidget]
 /// A custom widget with access to the same tracked form state.
 class BeakFormWidget extends BeakFormNode {
   /// Inserts custom content into a configured form.
@@ -1930,6 +1935,7 @@ class BeakFormWidget extends BeakFormNode {
   /// Custom content builder with access to the same local draft.
   final Widget Function(BuildContext context, BeakDraftRecord draft) builder;
 }
+// --8<-- [end:BeakFormWidget]
 
 /// Default input shortcut for any generated scalar field.
 extension BeakScalarInputs<T extends Object> on BeakScalarField<T> {
@@ -2366,6 +2372,7 @@ extension BeakToManyInputs on BeakToManyField {
   );
 }
 
+// --8<-- [start:BeakDraftScope]
 /// Presentation and editability of custom widgets inside an automatic form.
 class BeakDraftScope extends InheritedWidget {
   /// Exposes the existing draft without introducing a second controller.
@@ -2401,3 +2408,4 @@ class BeakDraftScope extends InheritedWidget {
       readOnly != oldWidget.readOnly ||
       enabled != oldWidget.enabled;
 }
+// --8<-- [end:BeakDraftScope]

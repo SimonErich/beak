@@ -3,7 +3,9 @@ part of 'beak_rule.dart';
 /// Requires a string to be an absolute `http`/`https` URL with a host.
 final class BeakUrl extends BeakRule {
   /// Creates the URL-format rule.
+  // --8<-- [start:BeakUrl]
   const BeakUrl();
+  // --8<-- [end:BeakUrl]
 
   @override
   String get id => 'url';

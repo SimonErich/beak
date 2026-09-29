@@ -44,6 +44,7 @@ final class WormQueryTranslator {
   /// Builds the worm query for [spec] against [adapter], including filter,
   /// search, ordering, relation loads, soft-delete scoping, and the paging
   /// window.
+  // --8<-- [start:builderFor]
   QueryBuilder<WormRecordModel> builderFor(
     BeakQuerySpec spec,
     DatabaseAdapter adapter,
@@ -75,6 +76,7 @@ final class WormQueryTranslator {
     }
     return builder;
   }
+  // --8<-- [end:builderFor]
 
   /// A scoped query over [model] that reads only [beakRecordKeys]: the
   /// declared columns and belongs-to foreign keys, never `SELECT *`.
@@ -137,6 +139,7 @@ final class WormQueryTranslator {
   ///
   /// Throws a [BeakConfigurationException] when the filter references an
   /// unknown column or carries an operand its operator cannot use.
+  // --8<-- [start:predicateFor]
   PredicateTree? predicateFor(
     BeakFilter? filter,
     BeakModel model, {
@@ -167,6 +170,7 @@ final class WormQueryTranslator {
       depth,
     ),
   };
+  // --8<-- [end:predicateFor]
 
   /// The column of [model] under [columnKey].
   ///
@@ -240,10 +244,12 @@ final class WormQueryTranslator {
       BeakOperator.lte => predicate(Operator.lte, filter.value.raw),
       BeakOperator.like => predicate(Operator.like, _stringOperand(filter)),
       BeakOperator.ilike => predicate(Operator.ilike, _stringOperand(filter)),
+      // --8<-- [start:substringOperators]
       BeakOperator.contains => predicate(
         Operator.ilike,
         '%${_stringOperand(filter)}%',
       ),
+      // --8<-- [end:substringOperators]
       BeakOperator.startsWith => predicate(
         Operator.ilike,
         '${_stringOperand(filter)}%',

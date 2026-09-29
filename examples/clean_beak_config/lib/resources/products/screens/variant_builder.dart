@@ -26,8 +26,10 @@ class ShopVariantBuilder extends HookWidget {
     final preview = useState<List<BeakVariantCombination>>(const []);
     final selected = useState<Set<String>>({});
     final message = useState<String?>(null);
+    // --8<-- [start:variantBuilderEnabled]
     final enabled =
         BeakDraftScope.of(context).enabled && !draft.session.hasUnknown;
+    // --8<-- [end:variantBuilderEnabled]
     void invalidate(String _) {
       preview.value = const [];
       selected.value = {};
@@ -168,6 +170,7 @@ Iterable<BeakVariantCombination> shopVariantCombinations(
 ];
 
 /// Adds only missing combinations; all edits use Beak's existing draft graph.
+// --8<-- [start:stageShopVariants]
 int stageShopVariants(
   BeakDraftRecord product,
   Iterable<BeakVariantCombination> combinations,
@@ -204,3 +207,4 @@ int stageShopVariants(
   }
   return added;
 }
+// --8<-- [end:stageShopVariants]

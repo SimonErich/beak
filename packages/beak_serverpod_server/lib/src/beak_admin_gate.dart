@@ -1,11 +1,13 @@
 import 'package:serverpod/serverpod.dart';
 
 /// Serverpod scopes Beak defines.
+// --8<-- [start:BeakScopes]
 abstract final class BeakScopes {
   /// Opens the Beak admin tunnel. Deliberately not `Scope.admin`: an app's
   /// own admins do not get the panel by accident.
   static const Scope admin = Scope('beak.admin');
 }
+// --8<-- [end:BeakScopes]
 
 /// Gates an endpoint on a signed-in user holding [BeakScopes.admin].
 ///
@@ -19,6 +21,7 @@ abstract final class BeakScopes {
 ///       bookshopBeak.dispatch(session, request);
 /// }
 /// ```
+// --8<-- [start:BeakAdminGate]
 mixin BeakAdminGate on Endpoint {
   @override
   bool get requireLogin => true;
@@ -27,3 +30,4 @@ mixin BeakAdminGate on Endpoint {
   @override
   Set<Scope> get requiredScopes => {BeakScopes.admin};
 }
+// --8<-- [end:BeakAdminGate]

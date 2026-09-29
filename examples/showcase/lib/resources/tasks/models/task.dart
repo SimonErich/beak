@@ -43,6 +43,7 @@ final class Task extends BeakSchema {
   late final String title;
 
   /// Where the task stands (groups the kanban board).
+  // --8<-- [start:taskStatusBadges]
   @Column(defaultValue: TaskStatus.todo, filterable: true)
   @Badges<TaskStatus>({
     TaskStatus.todo: BeakColor.muted,
@@ -50,6 +51,7 @@ final class Task extends BeakSchema {
     TaskStatus.done: BeakColor.success,
   })
   late final TaskStatus status;
+  // --8<-- [end:taskStatusBadges]
 
   /// The kind of chore (colours the calendar).
   @Column(defaultValue: TaskCategory.feeding, filterable: true)

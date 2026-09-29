@@ -28,6 +28,7 @@ part of 'beak_block.dart';
 /// ```
 final class BeakTableBlock extends BeakBlock {
   /// Creates a table block over [model].
+// --8<-- [start:BeakTableBlock]
   const BeakTableBlock({
     required this.model,
     this.title,
@@ -41,6 +42,7 @@ final class BeakTableBlock extends BeakBlock {
     this.heightInPixels = 360,
     super.span,
   });
+// --8<-- [end:BeakTableBlock]
 
   /// Optional heading shown above the table.
   final String? title;

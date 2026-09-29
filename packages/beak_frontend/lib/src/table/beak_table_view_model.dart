@@ -253,6 +253,7 @@ final class BeakTableViewModel extends BeakViewModel {
   ///
   /// Concurrent calls resolve latest-wins: a response belonging to a
   /// superseded request never overwrites newer page/error/loading state.
+  // --8<-- [start:refresh]
   Future<void> refresh() async {
     if (isDisposed) return;
     final int requestId = ++_latestRequestId;
@@ -270,6 +271,7 @@ final class BeakTableViewModel extends BeakViewModel {
     }
     _loading.value = false;
   }
+  // --8<-- [end:refresh]
 
   void _mutateSpec(BeakQuerySpec Function(BeakQuerySpec spec) change) {
     final next = change(_spec.value);

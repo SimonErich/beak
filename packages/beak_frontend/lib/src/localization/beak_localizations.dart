@@ -277,11 +277,13 @@ class BeakLocalizations {
   String attachLabel(String label) =>
       _de ? '$label verknüpfen' : 'Attach ${label.toLowerCase()}';
 
+  // --8<-- [start:errorMessage]
   /// Displays already mapped domain failures while hiding infrastructure details.
   String errorMessage(BeakException error) => switch (error) {
     BeakConfigurationException() || BeakStorageException() => operationFailed,
     _ => error.message,
   };
+  // --8<-- [end:errorMessage]
 
   /// Retry action label.
   String get retry => _de ? 'Erneut versuchen' : 'Retry';

@@ -1,330 +1,365 @@
 ---
 title: Validation rules
-description: Look up every validation rule, its arguments, what it checks and the message it emits.
+description: Every column rule, record rule and async rule with its constructor, what it checks and the exact message it emits on client and server.
 type: reference
 audience: [expert, agent]
-status: draft
+status: stable
 search: {boost: 2}
 ---
 
 # Validation rules
 
-This page lists every validation rule Beak ships: its constructor, what it
-checks, which values pass untouched, and the exact message it returns on
-failure. Attach rules with `@Column(rules: [...])` on a schema field; the same
-list drives both the form field in the panel and the request validator in the
-API, so client and server never disagree.
+Beak validates in three layers, all declared on the schema: column rules on one value, record rules across fields and related rows, and async rules that ask the database. This page lists every rule with its constructor, what it checks and the message it produces.
 
-[See the maintained shop configuration](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config).
+## Import
 
-Presence is not on the list. A non-nullable field gets `BeakRequired()` from its
-type, and a nullable one does not: `late final double price` is required,
-`late final DateTime? publishedAt` is not. You will see `BeakRequired()` in the
-generated column constant, and you should not write it yourself.
+```dart
+import 'package:beak/beak.dart';
+```
 
-## How a rule works
+Rules live in `beak_core`, so the client and the server run the same code. `BeakValidation`, `BeakAsyncValidation` and `BeakValidationReport` come from the same import.
 
-`BeakRule` is `sealed`. Every rule exposes a stable `id` (for serialization
-across the wire) and a single `validate` method that returns `null` when the
-value is valid, or a human-readable message when it is not.
+## Summary
 
-```dart title="packages/beak_core/lib/src/rules/beak_rule.dart"
+| Layer | Declared with | Sees | Runs on the client | Runs on the server |
+| --- | --- | --- | --- | --- |
+| [Column rules](#column-rules) | `@Column(rules: [...])` | One value | Yes, as form validators with the rule's own message | Yes, on every write |
+| [Kind checks](#checks-a-column-kind-makes-itself) | The column type | One value | Yes | Yes |
+| [Record rules](#record-rules) | `static List<BeakRecordRule> get validationRules` | The whole candidate record and its staged rows | Yes, on the draft | Yes, on the final state of the write |
+| [Async rules](#async-rules) | `validationRules`, `unique: true`, belongs-to fields | The database | As a debounced preflight to `POST /api/{table}/validate` | Yes, authoritative |
+
+| Rule | Kind | One line |
+| --- | --- | --- |
+| `BeakRequired` | column | Present, and non-empty for text and collections |
+| `BeakMinLength`, `BeakMaxLength` | column | Text length bounds |
+| `BeakMin`, `BeakMax` | column | Numeric bounds, exact for `BeakDecimal` |
+| `BeakEmail`, `BeakUrl`, `BeakPattern` | column | Text format |
+| `BeakInList<T>` | column | One of a fixed set |
+| `BeakFutureDate` | column | After now |
+| `BeakMaxFileSize`, `BeakAllowedFileTypes` | column, uploads | Size and type of an upload |
+| `BeakRequiredIf` | record | Required when a condition holds |
+| `BeakSameAs` | record | Two fields agree |
+| `BeakBeforeField`, `BeakAfterField` | record | One ordered value precedes or follows another |
+| `BeakCount` | record | Size of a collection |
+| `BeakDistinct` | record | No repeated value among related rows |
+| `BeakSum` | record | Bounds on a total across related rows |
+| `BeakUnique` | async | Value unused, optionally within a scope |
+| `BeakExists` | async | Value names an eligible row elsewhere |
+
+## Column rules
+
+`BeakRule` is sealed, so client and server switch over the twelve rules exhaustively. A rule pattern-matches the runtime type of the value and reports valid when it does not apply, so rules compose freely and presence is `BeakRequired`'s job alone.
+
+```dart
 --8<-- "packages/beak_core/lib/src/rules/beak_rule.dart:BeakRule"
 ```
 
-### Non-applicable types pass
+| Member | Meaning |
+| --- | --- |
+| `id` | Stable machine-readable identity, `required`, `min_length` and so on |
+| `validate(Object? value)` | `null` when valid, else the message |
 
-Each rule pattern-matches the *runtime type* of the value it receives. A rule
-that does not apply to the value's type reports it as valid. This is what lets
-rules compose freely: presence stays `BeakRequired`'s job alone, and a length
-rule on a numeric field never bites.
-
-```dart
-const rule = BeakMaxLength(3);
-rule.validate('abcd'); // 'Must be at most 3 characters.'
-rule.validate(42);     // null (not a string)
-```
-
-Rules run in the order you list them, and the first non-null message wins:
+Constructors:
 
 ```dart
-@Column(searchable: true, rules: [BeakEmail(), BeakMaxLength(255)])
-late final String email;
+--8<-- "packages/beak_core/lib/src/rules/beak_required.dart:BeakRequired"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_min_length.dart:BeakMinLength"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_max_length.dart:BeakMaxLength"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_min.dart:BeakMin"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_max.dart:BeakMax"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_email.dart:BeakEmail"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_url.dart:BeakUrl"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_pattern.dart:BeakPattern"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_in_list.dart:BeakInList"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_future_date.dart:BeakFutureDate"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_max_file_size.dart:BeakMaxFileSize"
+
+--8<-- "packages/beak_core/lib/src/rules/beak_allowed_file_types.dart:BeakAllowedFileTypes"
 ```
 
-The generated column carries `[BeakRequired(), BeakEmail(), BeakMaxLength(255)]`:
-the presence rule the non-nullable `String` implies, then yours, in the order
-you wrote them.
+| Rule | `id` | Applies to | Fails when | Message |
+| --- | --- | --- | --- | --- |
+| `BeakRequired` | `required` | any | the value is `null`; for `String`, blank after trimming; for `Iterable`, `Map` and `BeakJsonObject`, empty. `allowEmpty: true` lets empty values through and still rejects `null`. `false` and `0` are present. | `This field is required.` |
+| `BeakMinLength` | `min_length` | `String` | `length < minLength`. The empty string fails too. | `Must be at least $minLength characters.` |
+| `BeakMaxLength` | `max_length` | `String` | `length > maxLength` | `Must be at most $maxLength characters.` |
+| `BeakMin` | `min` | `num`, `BeakDecimal` | the value is below `min`. A `BeakDecimal` is compared without rounding either side. | `Must be at least $min.` |
+| `BeakMax` | `max` | `num`, `BeakDecimal` | the value is above `max` | `Must be at most $max.` |
+| `BeakEmail` | `email` | `String` | no match for `^[^@\s]+@[^@\s]+\.[^@\s]+$` | `Must be a valid email address.` |
+| `BeakUrl` | `url` | `String` | not an absolute `http` or `https` URL with a host | `Must be a valid URL.` |
+| `BeakPattern` | `pattern` | `String` | the unanchored `regex` does not match. Add `^` and `$` to match the whole value. | `message`, else `Must match the expected format.` |
+| `BeakInList<T>` | `in_list` | any | a non-null value is not in `allowed`. `null` passes. | `Must be one of: a, b.` |
+| `BeakFutureDate` | `future_date` | `DateTime`, ISO string | the instant is not strictly after now | `message`, else `Must be in the future.` |
+| `BeakMaxFileSize` | `max_file_size` | `int` (size in bytes) | the size exceeds `maxSizeInBytes` | `File must be at most $maxSizeInBytes bytes.` |
+| `BeakAllowedFileTypes` | `allowed_file_types` | `BeakFileType`, file name, MIME type | the type is not in `allowedTypes`. An empty list allows everything. Names match by extension, case-insensitively. | `File type must be one of: jpg, png.` |
 
-## Overview
+Details that trip people up:
 
-| Rule | Constructor | `id` | Validates | Message on failure |
-|---|---|---|---|---|
-| [`BeakRequired`](#beakrequired) | `BeakRequired()` | `required` | Value is present (non-null; non-empty for strings and collections). | `This field is required.` |
-| [`BeakMin`](#beakmin) | `BeakMin(num min)` | `min` | Number is at least `min`. | `Must be at least $min.` |
-| [`BeakMax`](#beakmax) | `BeakMax(num max)` | `max` | Number is at most `max`. | `Must be at most $max.` |
-| [`BeakMinLength`](#beakminlength) | `BeakMinLength(int minLength)` | `min_length` | String has at least `minLength` characters. | `Must be at least $minLength characters.` |
-| [`BeakMaxLength`](#beakmaxlength) | `BeakMaxLength(int maxLength)` | `max_length` | String has at most `maxLength` characters. | `Must be at most $maxLength characters.` |
-| [`BeakPattern`](#beakpattern) | `BeakPattern(String regex, {String? message})` | `pattern` | String matches `regex`. | `message` or `Must match the expected format.` |
-| [`BeakEmail`](#beakemail) | `BeakEmail()` | `email` | String looks like an email address. | `Must be a valid email address.` |
-| [`BeakUrl`](#beakurl) | `BeakUrl()` | `url` | String is an absolute `http`/`https` URL with a host. | `Must be a valid URL.` |
-| [`BeakInList<T>`](#beakinlistt) | `BeakInList<T>(List<T> allowed)` | `in_list` | Value is one of `allowed` (`null` passes). | `Must be one of: ...` |
-| [`BeakAllowedFileTypes`](#beakallowedfiletypes) | `BeakAllowedFileTypes(List<BeakFileType> allowedTypes)` | `allowed_file_types` | Upload is one of `allowedTypes`. | `File type must be one of: ...` |
-| [`BeakMaxFileSize`](#beakmaxfilesize) | `BeakMaxFileSize(int maxSizeInBytes)` | `max_file_size` | Upload size (bytes) is at most `maxSizeInBytes`. | `File must be at most $maxSizeInBytes bytes.` |
+- `BeakMaxLength` on a `String` field also sets the column's stored `maxLength`, and `BeakMin` and `BeakMax` on an `int` field also set the form stepper's bounds. See [Annotations](annotations.md#bounds-are-rules).
+- `BeakMaxFileSize` and `BeakAllowedFileTypes` have no form validator. The upload field enforces them before the file leaves the client, and the server enforces them again.
+- The other ten rules run in the form through a validator that calls the rule's own `validate`, so the message is byte-identical on both sides.
+- `BeakMin(0)` on a `double` field and `BeakMin(0)` on a `BeakDecimal` field both work. The bound is a `num`.
 
-## Presence
+A rule is reachable from `BeakSemantic` too: `email` and `url` semantics apply `BeakEmail` and `BeakUrl` for you, and `itemRules` applies rules to each item of a primitive list, with the message prefixed `Item 2: `.
 
-### `BeakRequired`
+## Checks a column kind makes itself
 
-Requires a value to be present: non-null and, for strings and collections,
-non-empty. Whitespace-only strings count as empty. `false` and `0` are present
-values and pass.
+These need no rule. They run for every column of the kind, before its `rules`.
 
-```dart title="packages/beak_core/lib/src/rules/beak_required.dart"
-const BeakRequired({this.allowEmpty = false});
-```
+| Column | Check | Message |
+| --- | --- | --- |
+| any except enum and custom | The value has the column's wire type | `Must be an integer.`, `Must be a number.`, `Must be a boolean.`, `Must be a timestamp.`, `Must be a string.` |
+| `BeakEnumColumn` | The value is one of the declared names | `Must be one of: draft, published.` |
+| `BeakStringColumn` | `length <= maxLength` when the column has one | `Must be at most $maxLength characters.` |
+| `BeakIntColumn` | Within `min` and `max` when set | `Must be at least $min.`, `Must be at most $max.` |
+| `BeakDecimalColumn` | Finite, within `precision` fraction digits, within `totalDigits - precision` integer digits | `Must be a finite number.`, `Use at most $precision decimal places.`, `Must have at most $integerDigits integer digits.` |
+| `BeakJsonColumn` | The text parses as JSON | `Must be valid JSON.` |
+| `BeakColorColumn` | `#` plus 3, 4, 6 or 8 hexadecimal digits | `Use a hexadecimal color such as #663399.` |
+| semantic `phone` | `+` optional, 5 to 25 characters from digits, spaces, `(`, `)`, `-`, at least 5 digits | `Must be a valid phone number.` |
+| semantic `slug` | Lowercase letters and digits, single hyphens | `Use lowercase letters, numbers and single hyphens.` |
+| semantic `uuid` | Canonical hyphenated form | `Must be a UUID.` |
+| semantic `fileSize` | A non-negative integer | `Must be a nonnegative number of bytes.` |
+| semantic `calendarDate`, `time`, `duration`, `exactDecimal`, `money` | The value decodes | the decoder's `FormatException` message, for example `Expected a valid calendar date (YYYY-MM-DD).` |
+| semantic `primitiveList` | `minItems`, `maxItems`, `distinctItems`, `itemRules` | `Must contain at least $min items.`, `Must contain at most $max items.`, `Items must be distinct.` |
+| semantic `object` | Declared child columns validate, and no unknown property unless `allowUnknown` | `Unknown property "x".`, and child messages prefixed with the child's label |
 
-`id`: `required`. Message: `This field is required.`
+All failing checks and rules add their message: `BeakValidation.columnErrors` returns every message for the value, deduplicated. On a create, a column with `BeakRequired` is checked even when the payload omits it. On an update, only the submitted fields are checked.
 
-| Value | Result |
-|---|---|
-| `null` | fails |
-| `''`, `'   '` (whitespace only) | fails |
-| an empty `Iterable` | fails |
-| `false`, `0`, `'a'`, a non-empty list | passes |
+## Record rules
 
-!!! note "You do not write this one"
-    Beak adds a presence rule to every non-nullable field's column and to no
-    nullable one. Primitive lists and typed objects use `allowEmpty: true`;
-    use `minItems: 1` or an explicit `BeakRequired()` to require content. Declaring the field as `String name` rather than `String?
-    name` is how you require it, and that single decision covers the form
-    validator, the API's validation and the column's `NOT NULL`. The rule is
-    documented here because you will read it in generated code, and because a
-    hand-written `BeakModel` still needs it.
+A record rule sees the complete candidate record: submitted values merged over the stored record, with staged related rows. It reports errors keyed by field path, so the message lands on the right input. Declare them once on the schema as a `static` getter; every form and API write of the model applies them.
 
-## Numeric bounds
-
-### `BeakMin`
-
-Requires a number to be at least `min` (inclusive). Non-numeric values pass.
-
-```dart title="packages/beak_core/lib/src/rules/beak_min.dart"
-const BeakMin(this.min);
-```
-
-| Argument | Type | Meaning |
-|---|---|---|
-| `min` | `num` | Lowest accepted value (inclusive). |
-
-`id`: `min`. Message when a number is below the bound: `Must be at least $min.`
-Pair it with `@Column(min:)` on an `int` field so the form stepper and the
-submit-time check agree.
-
-```dart
-@Column(min: 0, sortable: true, rules: [BeakMin(0)])
-late final int stock;
-```
-
-### `BeakMax`
-
-Requires a number to be at most `max` (inclusive). Non-numeric values pass.
-
-```dart title="packages/beak_core/lib/src/rules/beak_max.dart"
-const BeakMax(this.max);
-```
-
-| Argument | Type | Meaning |
-|---|---|---|
-| `max` | `num` | Highest accepted value (inclusive). |
-
-`id`: `max`. Message when a number exceeds the bound: `Must be at most $max.`
-
-## String length
-
-### `BeakMinLength`
-
-Requires a string to be at least `minLength` characters long. The empty string
-fails like any other short string; add `BeakRequired` when presence should be
-enforced too. Non-string values pass.
-
-```dart title="packages/beak_core/lib/src/rules/beak_min_length.dart"
-const BeakMinLength(this.minLength);
-```
-
-| Argument | Type | Meaning |
-|---|---|---|
-| `minLength` | `int` | Lowest accepted number of characters. |
-
-`id`: `min_length`. Message: `Must be at least $minLength characters.`
-
-### `BeakMaxLength`
-
-Caps a string's length at `maxLength` characters. Non-string values pass.
-
-```dart title="packages/beak_core/lib/src/rules/beak_max_length.dart"
-const BeakMaxLength(this.maxLength);
-```
-
-| Argument | Type | Meaning |
-|---|---|---|
-| `maxLength` | `int` | Highest accepted number of characters. |
-
-`id`: `max_length`. Message: `Must be at most $maxLength characters.`
-
-## String format
-
-### `BeakPattern`
-
-Requires a string to match `regex`. The pattern is the source only and is
-unanchored: add `^`/`$` yourself to match the whole value. Supply `message` for a
-domain-specific error instead of the generic default. Non-string values pass.
-
-```dart title="packages/beak_core/lib/src/rules/beak_pattern.dart"
-const BeakPattern(this.regex, {this.message});
-```
-
-| Argument | Type | Default | Meaning |
-|---|---|---|---|
-| `regex` | `String` | required | Regular-expression source the value must match. |
-| `message` | `String?` | `null` | Custom error message, if any. |
-
-`id`: `pattern`. Message when the string does not match:
-`message` when set, otherwise `Must match the expected format.`
-
-```dart
-@Column(
-  rules: [
-    BeakPattern(
-      r'^[a-z0-9-]+$',
-      message: 'Use lowercase letters, digits and hyphens only.',
+```dart title="examples/clean_beak_config/lib/resources/orders/models/order.dart"
+  /// Shared delivery eligibility and complete-order validation.
+  static List<BeakRecordRule> get validationRules => [
+    BeakCount(OrderModel.items, min: 1),
+    BeakExists(
+      OrderModel.profileId,
+      UserProfileConnectionModel.id,
+      matching: [
+        BeakFieldMatch(
+          target: UserProfileConnectionModel.userId,
+          source: OrderModel.customerId,
+        ),
+      ],
     ),
-  ],
-)
-late final String slug;
+  ];
 ```
 
-### `BeakEmail`
+`BeakRecordRule` is an abstract class, not sealed, so an application can define its own.
 
-Requires a string to look like an email address (`local@domain.tld`, no
-whitespace). Non-string values pass.
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+abstract class BeakRecordRule {
+  /// Enables constant declarations where all references are constants.
+  const BeakRecordRule();
 
-```dart title="packages/beak_core/lib/src/rules/beak_email.dart"
-const BeakEmail();
+  /// Root-model fields read by this rule.
+  List<BeakFieldRef<Object>> get fields;
+
+  /// Errors indexed by typed field paths; an empty map means valid.
+  Map<String, List<String>> validate(BeakRecord record);
+
+  /// Relationships needed to evaluate this rule on authoritative state.
+  List<BeakRelationLoad> get relationLoads => [
+    // ...
+  ];
 ```
 
-`id`: `email`. Message: `Must be a valid email address.` The check is
-`^[^@\s]+@[^@\s]+\.[^@\s]+$`.
+| Member | Meaning |
+| --- | --- |
+| `fields` | The typed fields the rule reads |
+| `validate(BeakRecord record)` | Errors by field path, an empty map when valid |
+| `relationLoads` | Relations to load so the server evaluates the rule on authoritative state. Derived from `fields`. |
 
-### `BeakUrl`
+Fields are typed references (`OrderModel.items`, `InvoiceModel.dueAt`), never strings. Errors are keyed by the field's qualified key.
 
-Requires a string to be an absolute `http`/`https` URL with a host. Non-string
-values pass.
+### Conditions
 
-```dart title="packages/beak_core/lib/src/rules/beak_url.dart"
-const BeakUrl();
+`BeakWhen` is a typed condition that `BeakRequiredIf` evaluates on the complete candidate record.
+
+| Member | Meaning |
+| --- | --- |
+| `BeakWhen.equals<T>(BeakFieldRef<T> field, T? value)` | The field equals `value`, `null` included |
+| `BeakWhen.present(BeakFieldRef<Object> field)` | The field is present and non-empty, by `BeakRequired` semantics |
+| `BeakWhen.all(List<BeakWhen>)` | Every condition matches |
+| `BeakWhen.any(List<BeakWhen>)` | At least one matches |
+| `not` | The opposite condition |
+| `matches(BeakRecord record)` | Evaluates the condition |
+| `fields` | References the condition reads |
+
+### The record rules
+
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakRequiredIf(
+  this.field, {
+  required this.when,
+  this.message = 'This field is required.',
+});
 ```
 
-`id`: `url`. Message: `Must be a valid URL.` A value fails unless
-`Uri.tryParse` yields a URI whose scheme is `http` or `https` and whose host is
-non-empty.
-
-## Membership
-
-### `BeakInList<T>`
-
-Requires a value to be one of `allowed`. `null` passes (leave presence to
-`BeakRequired`); any non-null value outside `allowed` fails. The type parameter
-`T` keeps the accepted set type-safe.
-
-```dart title="packages/beak_core/lib/src/rules/beak_in_list.dart"
-const BeakInList(this.allowed);
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakSameAs(this.field, this.other, {this.message});
 ```
 
-| Argument | Type | Meaning |
-|---|---|---|
-| `allowed` | `List<T>` | The accepted values. |
-
-`id`: `in_list`. Message: `Must be one of: ` followed by the allowed values
-joined with `, ` and a trailing `.`.
-
-```dart
-@Column(rules: [BeakInList<String>(['S', 'M', 'L'])])
-late final String size;
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakBeforeField(
+  this.field,
+  this.other, {
+  this.inclusive = false,
+  this.message,
+});
 ```
 
-!!! tip "For enums, declare an enum"
-    A field declared as a Dart enum becomes a `BeakEnumColumn<T>`, which already
-    constrains it to that enum's values type-safely, badge colours and all. Use
-    `BeakInList` for a closed set of plain strings or numbers that is not
-    modelled as a Dart enum.
-
-## Upload rules
-
-These two rules validate uploads. They apply to the `BeakFileType`, filename, or
-byte-size a `BeakImageColumn`/`BeakFileColumn` produces.
-
-### `BeakAllowedFileTypes`
-
-Restricts an upload to `allowedTypes`. It validates `BeakFileType` values
-directly, and strings either as file names (matched by extension,
-case-insensitively) or as exact MIME types. An empty `allowedTypes` list allows
-everything.
-
-```dart title="packages/beak_core/lib/src/rules/beak_allowed_file_types.dart"
-const BeakAllowedFileTypes(this.allowedTypes);
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakAfterField(
+  this.field,
+  this.other, {
+  this.inclusive = false,
+  this.message,
+});
 ```
 
-| Argument | Type | Meaning |
-|---|---|---|
-| `allowedTypes` | `List<BeakFileType>` | The accepted file types; empty means unrestricted. |
-
-`id`: `allowed_file_types`. Message: `File type must be one of: ` followed by the
-first extension of each allowed type, joined with `, `.
-
-```dart
-const rule = BeakAllowedFileTypes([BeakFileType.jpeg, BeakFileType.png]);
-rule.validate('photo.PNG');       // null (extension matches)
-rule.validate('image/jpeg');      // null (MIME matches)
-rule.validate('notes.pdf');       // 'File type must be one of: jpg, png.'
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakCount(this.field, {this.min, this.max})
+  : assert(min == null || min >= 0),
+    assert(max == null || max >= 0),
+    assert(min == null || max == null || min <= max);
 ```
 
-### `BeakMaxFileSize`
-
-Caps an upload's size at `maxSizeInBytes`. It validates against the size in bytes
-as an `int`; other value types pass.
-
-```dart title="packages/beak_core/lib/src/rules/beak_max_file_size.dart"
-const BeakMaxFileSize(this.maxSizeInBytes);
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakDistinct(this.collection, this.by, {this.ignoreNull = true});
 ```
 
-| Argument | Type | Meaning |
-|---|---|---|
-| `maxSizeInBytes` | `int` | Highest accepted upload size in bytes. |
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakSum(this.collection, this.value, {this.min, this.max});
+```
 
-`id`: `max_file_size`. Message when an `int` byte count exceeds the cap:
-`File must be at most $maxSizeInBytes bytes.`
+| Rule | Parameters | Error key | Fails when | Message |
+| --- | --- | --- | --- | --- |
+| `BeakRequiredIf` | `field`, `when`, `message` | `field` | `when` matches and `field` is blank | `message`, default `This field is required.` |
+| `BeakSameAs<T>` | `field`, `other`, `message` | `field` | the two values are not equal. Absent optionals compare as equal `null`. | `message`, else `Must match ${other.label}.` |
+| `BeakBeforeField<T>` | `field`, `other`, `inclusive`, `message` | `field` | `field` is not before `other` (or equal, with `inclusive`). Either side `null` passes. | `message`, else `Must be before ${other.label}.` or `Must be on or before ${other.label}.` |
+| `BeakAfterField<T>` | `field`, `other`, `inclusive`, `message` | `field` | the mirror of the above | `message`, else `Must be after ${other.label}.` or `Must be on or after ${other.label}.` |
+| `BeakCount` | `field`, `min`, `max` | `field` | a collection field or to-many relation has too few or too many items. A missing collection counts as zero. | `Add at least $min items.`, `Use at most $max items.`, `Must be a collection.` |
+| `BeakDistinct<T>` | `collection`, `by`, `ignoreNull` | `collection` | two related rows share the `by` value. With `ignoreNull: true`, unset values may repeat. | `Each ${by.label} must be different.` |
+| `BeakSum<T>` | `collection`, `value`, `min`, `max` | `collection` | the total of `value` across the rows is out of bounds | `The total must be at least $min.`, `The total must be at most $max.`, `The total must be finite.` |
 
-!!! note "Upload bounds live on the annotation"
-    `@Image` and `@FileField` take `maxSizeInBytes` and `allowedTypes` directly,
-    and that is the usual way to bound an upload: it configures the column's own
-    upload validator, which the server enforces before a byte is stored. The two
-    rules above express the same limits inside a `rules` list when you want them
-    alongside your other validations. See [Files and storage
-    columns](../models/files-and-storage-columns.md).
+Ordered comparison (`BeakBeforeField`, `BeakAfterField`, and the `BeakSum` bounds) accepts `DateTime`, `BeakDate`, `BeakTime`, `Duration`, `BeakDecimal` and `num`, in matching pairs. Mixed types throw a `BeakConfigurationException`. `BeakSum` adds `BeakDecimal` values at the greatest scale with integer arithmetic, and reports `The aggregate amount is too large.` past `BeakDecimal.maxUnits`.
 
-    ```dart
-    @Image(
-      storagePath: 'products',
-      maxSizeInBytes: 5 * 1024 * 1024,
-      allowedTypes: [BeakFileType.jpeg, BeakFileType.png],
-    )
-    late final BeakImageRef? image;
-    ```
+```dart title="examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart"
+  /// Conditions shared by local validation and authoritative API writes.
+  static List<BeakRecordRule> get validationRules => [
+    BeakAfterField(
+      FulfillmentPolicyModel.promotionEndsAt,
+      FulfillmentPolicyModel.promotionStartsAt,
+      inclusive: true,
+    ),
+    BeakRequiredIf(
+      FulfillmentPolicyModel.promotionEndsAt,
+      when: BeakWhen.present(FulfillmentPolicyModel.promotionStartsAt),
+    ),
+  ];
+```
+
+## Async rules
+
+An async rule needs the database. Locally its `validate` returns an empty map. The server evaluates it through `BeakAsyncValidation` against a query that applies the same row policy as ordinary reads, and the form preflights it. `BeakAsyncRecordRule` is sealed.
+
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakUnique(this.field, {this.scope = const [], this.ignoreNull = true});
+```
+
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakFieldMatch({required this.target, required this.source});
+```
+
+```dart title="packages/beak_core/lib/src/validation/beak_record_rule.dart"
+const BeakExists(
+  this.field,
+  this.target, {
+  this.where,
+  this.matching = const [],
+});
+```
+
+| Rule | Parameters | Fails when | Message |
+| --- | --- | --- | --- |
+| `BeakUnique<T>` | `field` (a `BeakScalarField`), `scope`, `ignoreNull` | another row has the same `field` value and the same value for every `scope` field. The edited record's own id is excluded. With `ignoreNull: true`, `null` skips the check. | `This value is already in use.` |
+| `BeakExists<T>` | `field`, `target`, `where`, `matching` | no row of the target model has `target` equal to the candidate's `field`, matches the `where` filter and satisfies every `matching` pair. A `null` value skips the check. | `The selected value is not available.` |
+
+`BeakFieldMatch(target:, source:)` is one dependent equality: the `target` field of the selected row must equal the `source` field of the candidate. The order example above uses it to require that the chosen profile belongs to the chosen customer.
+
+```dart title="examples/clean_beak_config/lib/resources/products/models/product_variant.dart"
+  /// A product can sell a particular attribute combination only once.
+  static List<BeakRecordRule> get validationRules => [
+    BeakUnique(
+      ProductVariantModel.combinationKey,
+      scope: [ProductVariantModel.productId],
+    ),
+    BeakDistinct(ProductVariantModel.attributes, VariantAttributeModel.name),
+  ];
+```
+
+Two checks run without a declaration:
+
+| Source | Check | Message |
+| --- | --- | --- |
+| `@Column(unique: true)` (a column not already covered by an unscoped `BeakUnique`) | Uniqueness of the value | `This value is already in use.` |
+| A belongs-to foreign key with a value | The related row exists | `The selected value is not available.` |
+
+A preflight is advice. The generated migration also creates a unique index for `unique: true` and one over the field plus its scope for each `BeakUnique`, so the database has the final word and a concurrent insert cannot slip through. Fields of a `BeakUnique` must belong to the migrated model itself, not to a related one.
+
+## Entry points
+
+| Symbol | Use |
+| --- | --- |
+| `BeakValidation().validate(model, record, {isCreate, initial, includeRecordRules})` | Column, kind and record rules on a candidate. Returns `Map<String, List<String>>`. Applies defaults first on a create. |
+| `BeakValidation().columnErrors(column, value)` | Every message for one value of one column |
+| `BeakValidation().applyDefaults(model, record, {includeMissing})` | Fills omitted fields from `defaultValue`, keeping explicit `null` |
+| `BeakAsyncValidation().validate(model, record, {query, recordId, registry})` | Uniqueness and existence against a `BeakValidationQuery`. Returns a `BeakValidationReport`. |
+| `BeakValidationReport(fieldErrors:)` | `fieldErrors` by field path, `valid`, `toJson`, `fromJson` |
+| `BeakValidationRequest(table, record, recordId)` | The candidate sent to `POST /api/{table}/validate`. It carries values, never rules. |
+| `BeakValidationDataSource.validateRecord(request)` | The transport interface `HttpBeakDataSource` implements |
+
+A rejected write answers `422` with a `BeakValidationException`: `message` and `fieldErrors`, which maps a field path to its messages. Graph commits validate each node and evaluate record rules once the final state of the whole commit exists.
+
+Real output, `BeakValidation().validate` on the quickstart `NoteModel` with an over-long title, an unknown field and a missing `pinned`:
+
+```text
+{bogus: [Unknown field "bogus" on "notes".], title: [Must be at most 255 characters.], pinned: [This field is required.]}
+```
+
+## Rules and limits
+
+- Record rules and column rules share one error map. A field can carry messages from both.
+- Record rules read the complete candidate: stored values, submitted values and staged related rows. A rule reads the declaring model's fields and, through relationship paths such as `OrderModel.items`, the rows related to it.
+- `BeakEmail` accepts anything shaped `x@y.z`. It filters typos and does not check that the address can receive mail.
+- Messages are English strings in `beak_core`. `BeakPattern`, `BeakFutureDate`, `BeakRequiredIf`, `BeakSameAs`, `BeakBeforeField` and `BeakAfterField` take a `message:` to replace theirs.
+- Rules cannot read the request principal. Authorization is a policy on the server, see [Auth and policies](../backend/auth-and-policies.md).
+- The doc comment on `BeakRule` says the first non-null message wins. `BeakValidation.columnErrors` collects every failing message, so a field can show several.
+
+## Source
+
+- `packages/beak_core/lib/src/rules/beak_rule.dart` and the rule files beside it hold the twelve column rules.
+- `packages/beak_core/lib/src/validation/beak_record_rule.dart` holds `BeakWhen`, the record rules and the async rules.
+- `packages/beak_core/lib/src/validation/beak_validation.dart` holds `BeakValidation`.
+- `packages/beak_core/lib/src/validation/beak_async_validation.dart` holds `BeakAsyncValidation`.
+- `packages/beak_core/lib/src/validation/beak_validation_data_source.dart` holds the preflight transport types.
+- `packages/beak_frontend/lib/src/form/beak_form_controller_builder.dart` maps rules to form validators.
+- `packages/beak_backend/lib/src/service/validation_service.dart` applies the validator at the write boundary.
 
 ## Continue reading
 
-- [Column types reference](field-types.md) every column you attach these rules to.
-- [Annotations](annotations.md) `@Column(rules: [...])` and everything else a field can say.
-- [Validation rules](../models/validation.md) the guided tour, with worked form examples.
-- [The type-safety promise](../concepts/the-type-safety-promise.md) why one rule list drives both client and server.
-- [Security](../shipping/security.md) how server-side validation backs up the client.
+- [Validation](../models/validation.md) shows the rules in a worked model.
+- [Behavior and actions](behavior-and-actions.md) covers value lifecycles and guards that run beside the rules.
+- [Exceptions](exceptions.md) lists `BeakValidationException` and the other typed errors.
+- [REST API](rest-api.md) documents the preflight route and the error shape.

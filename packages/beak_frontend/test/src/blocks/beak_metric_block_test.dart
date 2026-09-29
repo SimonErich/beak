@@ -17,6 +17,7 @@ void main() {
         },
       },
     )..aggregateHandler = (_) => 200;
+    // --8<-- [start:standaloneBlock]
     registerBeakDependencies(
       config: const BeakPanelConfig(
         title: 'Demo',
@@ -31,17 +32,20 @@ void main() {
       ),
       dataSource: dataSource,
     );
+    // --8<-- [end:standaloneBlock]
   });
 
   Future<void> pump(WidgetTester tester, BeakBlock block) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    // --8<-- [start:standaloneBlockHost]
     await tester.pumpWidget(
       OiApp(
         theme: OiThemeData.light(),
         home: BeakBlockHost(block: block),
       ),
     );
+    // --8<-- [end:standaloneBlockHost]
     await tester.pumpAndSettle();
   }
 

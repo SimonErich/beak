@@ -115,10 +115,12 @@ BeakFormLayout productForm() => BeakFormLayout(
               description:
                   'Each variant has its own SKU, price and stock. Open additional details to configure its attributes.',
               children: [
+                // --8<-- [start:variantBuilderWidget]
                 BeakFormWidget(
                   showOnRead: false,
                   builder: (context, draft) => ShopVariantBuilder(draft: draft),
                 ),
+                // --8<-- [end:variantBuilderWidget]
                 ProductModel.variants.tableForm(
                   label: 'Variants',
                   removeBehavior: BeakRemoveBehavior.deleteOwned,

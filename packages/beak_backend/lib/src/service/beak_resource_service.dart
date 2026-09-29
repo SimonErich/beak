@@ -121,6 +121,7 @@ final class BeakResourceService {
     }
   }
 
+  // --8<-- [start:serviceQuery]
   /// Runs [spec] against the data source.
   ///
   /// The handler authorizes [spec] first — a row policy's scope is folded
@@ -131,6 +132,7 @@ final class BeakResourceService {
     _requireSpecTargets(spec.table, 'Query');
     return dataSource.query(spec);
   }
+  // --8<-- [end:serviceQuery]
 
   /// Computes [spec]'s aggregate against the data source, authorized like
   /// [query].
@@ -233,6 +235,7 @@ final class BeakResourceService {
   /// Validates and stores [input], minting a uuid primary key (for
   /// string-keyed models) and stamping `created_at`/`updated_at` when the
   /// model declares them and the caller did not.
+  // --8<-- [start:create]
   Future<BeakRecord> create(
     BeakRecord input, {
     BeakValidationQuery? validationQuery,
@@ -241,6 +244,7 @@ final class BeakResourceService {
     await validateCandidate(prepared, validationQuery: validationQuery);
     return dataSource.create(model.table, prepared);
   }
+  // --8<-- [end:create]
 
   /// Validates the provided fields of [input] (partial semantics), stamps
   /// `updated_at` when the model declares it, and applies the update.

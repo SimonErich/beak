@@ -3,6 +3,7 @@ import 'package:serverpod/serverpod.dart';
 
 import 'bookshop_beak_engine.dart';
 
+// --8<-- [start:BeakAdminEndpoint]
 /// The Beak admin tunnel: one method, gated by [BeakAdminGate] (a signed-in
 /// user holding the `beak.admin` scope) before any Beak code runs.
 class BeakAdminEndpoint extends Endpoint with BeakAdminGate {
@@ -10,3 +11,4 @@ class BeakAdminEndpoint extends Endpoint with BeakAdminGate {
   Future<String> dispatch(Session session, String request) =>
       bookshopBeak.dispatch(session, request);
 }
+// --8<-- [end:BeakAdminEndpoint]

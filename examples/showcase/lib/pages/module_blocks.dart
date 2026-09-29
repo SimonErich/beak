@@ -67,6 +67,7 @@ BeakScreen documentsPage() => BeakScreen(
 );
 
 /// A help center: it fills the height it is given, so the page is unframed.
+// --8<-- [start:faqPage]
 BeakScreen faqPage() => BeakScreen(
   path: '/faq',
   title: 'FAQ',
@@ -75,6 +76,7 @@ BeakScreen faqPage() => BeakScreen(
   framed: false,
   body: _faq(),
 );
+// --8<-- [end:faqPage]
 
 /// The chat block.
 // --8<-- [start:chat]

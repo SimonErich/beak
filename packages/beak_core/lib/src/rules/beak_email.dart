@@ -4,7 +4,9 @@ part of 'beak_rule.dart';
 /// (`local@domain.tld`, no whitespace).
 final class BeakEmail extends BeakRule {
   /// Creates the email-format rule.
+  // --8<-- [start:BeakEmail]
   const BeakEmail();
+  // --8<-- [end:BeakEmail]
 
   static final RegExp _pattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 

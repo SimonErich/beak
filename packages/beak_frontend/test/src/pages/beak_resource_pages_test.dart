@@ -211,6 +211,7 @@ void main() {
     expect(find.text('First note'), findsNothing);
   });
 
+  // --8<-- [start:showPageQueryTest]
   testWidgets('the show page costs one query, relations included', (
     tester,
   ) async {
@@ -237,6 +238,7 @@ void main() {
       'comments',
     );
   });
+  // --8<-- [end:showPageQueryTest]
 
   testWidgets('the edit page prefills and saves back to the show page', (
     tester,

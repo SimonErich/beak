@@ -6,10 +6,12 @@ part of 'beak_rule.dart';
 /// `false` and `0` are present values and pass.
 final class BeakRequired extends BeakRule {
   /// Creates the presence rule.
+  // --8<-- [start:BeakRequired]
   const BeakRequired({this.allowEmpty = false});
 
   /// Whether a present empty string or collection is valid. Null still fails.
   final bool allowEmpty;
+  // --8<-- [end:BeakRequired]
 
   static const String _message = 'This field is required.';
 

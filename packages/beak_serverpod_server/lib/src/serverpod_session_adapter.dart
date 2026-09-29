@@ -201,6 +201,7 @@ final class ServerpodSessionAdapter extends DatabaseAdapter
       _affected(statement, parameters);
 
   @override
+  // --8<-- [start:transaction]
   Future<T> transaction<T>(Future<T> Function(DatabaseAdapter tx) action) {
     final Session current = session;
     final Transaction? outer = serverpodTransaction;
@@ -214,6 +215,7 @@ final class ServerpodSessionAdapter extends DatabaseAdapter
       query: outer == null ? 'BEGIN … COMMIT' : 'SAVEPOINT … RELEASE',
     );
   }
+  // --8<-- [end:transaction]
 
   @override
   Future<void> executeSchema(SchemaDescriptor descriptor) =>

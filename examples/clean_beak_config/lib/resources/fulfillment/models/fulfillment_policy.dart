@@ -27,6 +27,7 @@ final class FulfillmentPolicy extends BeakSchema {
   @Column(semantic: BeakSemantic.url())
   late final String? trackingUrl;
 
+  // --8<-- [start:FulfillmentMoney]
   /// ISO currency used by this policy, independent of the panel locale.
   @Column(
     defaultValue: 'EUR',
@@ -43,7 +44,9 @@ final class FulfillmentPolicy extends BeakSchema {
     defaultValue: BeakDecimal(490, scale: 2),
   )
   late final BeakDecimal deliveryFee;
+  // --8<-- [end:FulfillmentMoney]
 
+  // --8<-- [start:FulfillmentNumbers]
   /// Fractional insurance markup; 0.025 means 2.5%.
   @Column(
     semantic: BeakSemantic.percentage(scale: 1),
@@ -67,7 +70,9 @@ final class FulfillmentPolicy extends BeakSchema {
     defaultValue: 10485760,
   )
   late final int attachmentLimit;
+  // --8<-- [end:FulfillmentNumbers]
 
+  // --8<-- [start:FulfillmentTimes]
   /// First business day to apply this policy; never shifts with timezone.
   late final BeakDate? effectiveDate;
 
@@ -83,7 +88,9 @@ final class FulfillmentPolicy extends BeakSchema {
 
   /// End of the optional promotional validity interval.
   late final DateTime? promotionEndsAt;
+  // --8<-- [end:FulfillmentTimes]
 
+  // --8<-- [start:FulfillmentStructures]
   /// Operational labels edited as a typed string list.
   @Column(defaultValue: <String>[])
   late final List<String> tags;
@@ -105,7 +112,9 @@ final class FulfillmentPolicy extends BeakSchema {
 
   /// Optional provider-specific structured JSON configuration.
   late final BeakJson? providerOptions;
+  // --8<-- [end:FulfillmentStructures]
 
+  // --8<-- [start:FulfillmentRules]
   /// Conditions shared by local validation and authoritative API writes.
   static List<BeakRecordRule> get validationRules => [
     BeakAfterField(
@@ -118,6 +127,7 @@ final class FulfillmentPolicy extends BeakSchema {
       when: BeakWhen.present(FulfillmentPolicyModel.promotionStartsAt),
     ),
   ];
+  // --8<-- [end:FulfillmentRules]
 }
 
 /// Fulfillment speeds used by radio and filter choices.
@@ -132,6 +142,7 @@ enum DeliverySpeed {
   pickup,
 }
 
+// --8<-- [start:DispatchAddress]
 /// A typed embedded object; no independent CRUD resource is needed.
 abstract final class DispatchAddress {
   /// Street and house number.
@@ -170,3 +181,4 @@ abstract final class DispatchAddress {
     columns: [street, postalCode, city, email],
   );
 }
+// --8<-- [end:DispatchAddress]

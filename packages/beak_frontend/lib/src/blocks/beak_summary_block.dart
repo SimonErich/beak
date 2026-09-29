@@ -1,5 +1,6 @@
 part of 'beak_block.dart';
 
+// --8<-- [start:BeakSummaryScope]
 /// Population inherited by a summary inside a composed resource list.
 enum BeakSummaryScope {
   /// Permanent, preset, user filters and search; never table pagination.
@@ -11,7 +12,9 @@ enum BeakSummaryScope {
   /// The summary's own explicit query, useful for a different model.
   standalone,
 }
+// --8<-- [end:BeakSummaryScope]
 
+// --8<-- [start:BeakSummaryPresentation]
 /// Rendering of authoritative summary rows.
 enum BeakSummaryPresentation {
   /// One formatted card value per measure.
@@ -32,6 +35,7 @@ enum BeakSummaryPresentation {
   /// Booked quantities against the configured capacity measure.
   capacity,
 }
+// --8<-- [end:BeakSummaryPresentation]
 
 /// Per-group presentation, independent of the authoritative measure values.
 final class BeakSummaryGroupStyle {
@@ -152,6 +156,7 @@ final class BeakSummaryValue {
 /// A bounded server summary, automatically bound to the current list scope.
 final class BeakSummaryBlock extends BeakBlock {
   /// No application fetching, error state or aggregate mapping is required.
+// --8<-- [start:BeakSummaryBlock]
   const BeakSummaryBlock({
     required this.title,
     required this.query,
@@ -172,6 +177,7 @@ final class BeakSummaryBlock extends BeakBlock {
     this.legend = const [],
     super.span,
   });
+// --8<-- [end:BeakSummaryBlock]
 
   /// Optional chart key displayed above the data.
   final List<BeakSummaryLegend> legend;

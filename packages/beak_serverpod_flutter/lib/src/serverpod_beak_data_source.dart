@@ -26,6 +26,7 @@ const String beakServerpodTunnelOrigin = 'http://beak.tunnel';
 /// it ignores `httpClient:` and requires a data source. The client sends no
 /// bearer token: the Serverpod client authenticates `dispatch` itself
 /// (JWT with refresh, server-side sessions or cookies).
+// --8<-- [start:serverpodBeakDataSource]
 HttpBeakDataSource serverpodBeakDataSource(BeakTunnelDispatch dispatch) =>
     HttpBeakDataSource(
       BeakClient(
@@ -33,3 +34,4 @@ HttpBeakDataSource serverpodBeakDataSource(BeakTunnelDispatch dispatch) =>
         httpClient: ServerpodBeakHttpClient(dispatch),
       ),
     );
+// --8<-- [end:serverpodBeakDataSource]

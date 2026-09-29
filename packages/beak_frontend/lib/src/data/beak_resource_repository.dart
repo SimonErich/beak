@@ -45,6 +45,7 @@ final class BeakResourceRepository {
       beakRun(operation);
 
   /// Runs a query, capturing failures as [BeakErr].
+  // --8<-- [start:query]
   Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) {
     final queries = _queries;
     if (queries == null) return beakRun(() => dataSource.query(spec));
@@ -62,17 +63,20 @@ final class BeakResourceRepository {
       return request;
     });
   }
+  // --8<-- [end:query]
 
   /// Computes an aggregate, capturing failures as [BeakErr].
   Future<BeakResult<num>> aggregate(BeakAggregateSpec spec) =>
       beakRun(() => dataSource.aggregate(spec));
 
+  // --8<-- [start:getOne]
   /// Fetches one record; a missing id is a [BeakErr] with a not-found.
   Future<BeakResult<BeakRecord>> getOne(String table, Object id) => beakRun(
     () async =>
         await dataSource.getOne(table, id) ??
         (throw BeakNotFoundException('No record of "$table" with id "$id".')),
   );
+  // --8<-- [end:getOne]
 
   /// Fetches many records by id in one round trip, capturing failures as
   /// [BeakErr]. Missing ids are simply absent from the result.

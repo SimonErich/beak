@@ -8,6 +8,7 @@ import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
 import '../service/beak_graph_commit_service.dart';
 
+// --8<-- [start:registerBeakCommitRoutes]
 /// Mounts graph writes and durable receipt lookup before per-resource routes.
 void registerBeakCommitRoutes(Router router, BeakGraphCommitService service) {
   router.post('/api/commits', (Request request) async {
@@ -29,3 +30,4 @@ void registerBeakCommitRoutes(Router router, BeakGraphCommitService service) {
     return Response.ok(jsonEncode(result.toJson()));
   });
 }
+// --8<-- [end:registerBeakCommitRoutes]

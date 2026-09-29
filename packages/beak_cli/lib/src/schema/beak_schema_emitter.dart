@@ -28,6 +28,7 @@ abstract final class BeakSchemaEmitter {
       ..writeln("part of '${_fileNameOf(schema.libraryPath)}';")
       ..writeln();
 
+    // --8<-- [start:emitSchemaPart]
     _writeColumns(buffer, schema);
     _writeRelations(buffer, schema, byClass, all);
     _writeFields(buffer, schema, byClass);
@@ -37,6 +38,7 @@ abstract final class BeakSchemaEmitter {
     // Formatted here rather than by the caller, so any consumer of the
     // emitter gets source that `dart format --set-exit-if-changed` accepts.
     return BeakEmitters.format(buffer.toString());
+    // --8<-- [end:emitSchemaPart]
   }
 
   /// The `part` file name for a schema declared in [libraryPath].

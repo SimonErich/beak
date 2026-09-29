@@ -120,6 +120,7 @@ final class ModelBeakDataSource
     return _changes.close();
   }
 
+  // --8<-- [start:changed]
   void _changed(Iterable<String> tables) {
     _pendingChanges.addAll(tables);
     if (_commitDepth > 0 || _changes.isClosed || _pendingChanges.isEmpty) {
@@ -141,7 +142,9 @@ final class ModelBeakDataSource
     }
     _changes.add(BeakDataChange(affected));
   }
+  // --8<-- [end:changed]
 
+  // --8<-- [start:committed]
   void _committed(BeakSavePlan? plan, BeakSaveResult result) {
     final applied = {
       for (final outcome in result.outcomes)
@@ -159,6 +162,7 @@ final class ModelBeakDataSource
         ],
     });
   }
+  // --8<-- [end:committed]
 
   Future<T> _mutate<T>(
     Iterable<String> tables,
@@ -179,6 +183,7 @@ final class ModelBeakDataSource
   }
 
   @override
+  // --8<-- [start:commit]
   Future<BeakSaveResult> commit(BeakSavePlan plan) => _run(() async {
     final encoded = jsonEncode(plan.toJson());
     if (_commitPlans[plan.saveId] case final String previous
@@ -214,6 +219,7 @@ final class ModelBeakDataSource
       _changed(const []);
     }
   });
+  // --8<-- [end:commit]
 
   @override
   Future<BeakSaveResult> recover(String saveId) => _run(() async {
@@ -239,6 +245,7 @@ final class ModelBeakDataSource
       _fallback ??
       (throw BeakConfigurationException('No data source for "$table".'));
 
+  // --8<-- [start:run]
   Future<T> _run<T>(Future<T> Function() operation) async {
     try {
       return await operation();
@@ -250,6 +257,7 @@ final class ModelBeakDataSource
       rethrow;
     }
   }
+  // --8<-- [end:run]
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>

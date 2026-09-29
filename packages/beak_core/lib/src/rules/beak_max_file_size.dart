@@ -4,10 +4,12 @@ part of 'beak_rule.dart';
 /// at [maxSizeInBytes].
 final class BeakMaxFileSize extends BeakRule {
   /// Creates a rule rejecting uploads larger than [maxSizeInBytes].
+  // --8<-- [start:BeakMaxFileSize]
   const BeakMaxFileSize(this.maxSizeInBytes);
 
   /// Highest accepted upload size in bytes.
   final int maxSizeInBytes;
+  // --8<-- [end:BeakMaxFileSize]
 
   @override
   String get id => 'max_file_size';

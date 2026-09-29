@@ -9,6 +9,7 @@ import 'package:obers_ui/obers_ui.dart';
 
 import '../../support/panel_fixtures.dart';
 
+// --8<-- [start:BoundModel]
 final class _BoundModel extends BeakModel {
   const _BoundModel({
     this.dataSource,
@@ -34,6 +35,7 @@ final class _BoundModel extends BeakModel {
   @override
   final Set<BeakOperation> capabilities;
 }
+// --8<-- [end:BoundModel]
 
 final class _EditSource extends FakeDataSource implements BeakEditDataSource {
   bool fail = false;
@@ -45,6 +47,7 @@ final class _EditSource extends FakeDataSource implements BeakEditDataSource {
   }
 }
 
+// --8<-- [start:ProjectedModel]
 /// The command shape an edit form of [_ProjectedModel] submits.
 final class _ProfileEdit extends BeakModel {
   const _ProfileEdit();
@@ -79,6 +82,7 @@ final class _ProjectedModel extends BeakModel {
   @override
   BeakModel? get editModel => const _ProfileEdit();
 }
+// --8<-- [end:ProjectedModel]
 
 final class _ProjectionSource extends FakeDataSource
     implements BeakEditDataSource {
@@ -145,6 +149,7 @@ void main() {
     );
   });
 
+  // --8<-- [start:bindingWithoutRegistrationTest]
   test(
     'panel registers model transport without a separate source list',
     () async {
@@ -187,7 +192,9 @@ void main() {
       );
     },
   );
+  // --8<-- [end:bindingWithoutRegistrationTest]
 
+  // --8<-- [start:permissionsGovernTest]
   test('model permissions and supported operations govern every resource', () {
     var canRead = true;
     final resource = BeakResource(
@@ -237,6 +244,7 @@ void main() {
       reason: 'canEdit still switches a custom edit screen off',
     );
   });
+  // --8<-- [end:permissionsGovernTest]
 
   test(
     'edit projection and failures use the shared transport boundary',

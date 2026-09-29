@@ -6,10 +6,12 @@ part of 'beak_rule.dart';
 /// Presence remains the responsibility of [BeakRequired].
 final class BeakFutureDate extends BeakRule {
   /// Creates a future-date rule with an optional translated message.
+  // --8<-- [start:BeakFutureDate]
   const BeakFutureDate({this.message = 'Must be in the future.'});
 
   /// Message returned for past or present values.
   final String message;
+  // --8<-- [end:BeakFutureDate]
 
   @override
   String get id => 'future_date';

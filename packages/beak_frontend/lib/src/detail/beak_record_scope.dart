@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 /// record-bound blocks read it with [BeakRecordScope.of]. Reading a field
 /// block outside a scope renders nothing rather than throwing, so the blocks
 /// degrade gracefully if composed in the wrong place.
+// --8<-- [start:BeakRecordScope]
 class BeakRecordScope extends InheritedWidget {
   /// Provides [record] (described by [model]) to [child]'s subtree.
   const BeakRecordScope({
@@ -33,3 +34,4 @@ class BeakRecordScope extends InheritedWidget {
   bool updateShouldNotify(BeakRecordScope oldWidget) =>
       oldWidget.record != record || oldWidget.model != model;
 }
+// --8<-- [end:BeakRecordScope]

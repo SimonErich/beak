@@ -29,6 +29,7 @@ final class BeakMemoryStorageDriver implements BeakStorageDriver {
 
   final Map<String, Uint8List> _contents = {};
 
+  // --8<-- [start:memoryDriverMembers]
   @override
   String get id => 'memory';
 
@@ -77,6 +78,7 @@ final class BeakMemoryStorageDriver implements BeakStorageDriver {
     BeakStorageKeys.validate(key);
     return _contents.containsKey(key);
   }
+  // --8<-- [end:memoryDriverMembers]
 
   Uri _urlFor(String key) => Uri(scheme: 'memory', host: '', path: '/$key');
 }

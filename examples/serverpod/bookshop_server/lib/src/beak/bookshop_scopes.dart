@@ -1,6 +1,7 @@
 import 'package:beak_serverpod_server/beak_serverpod_server.dart';
 import 'package:serverpod/serverpod.dart';
 
+// --8<-- [start:BookshopScopes]
 /// The scopes of the bookshop admin, kept in one place like Serverpod's
 /// `Scope.admin`.
 ///
@@ -13,3 +14,4 @@ abstract final class BookshopScopes {
   /// May read and write authors and books in the admin.
   static const Scope staff = Scope('bookshop.staff');
 }
+// --8<-- [end:BookshopScopes]

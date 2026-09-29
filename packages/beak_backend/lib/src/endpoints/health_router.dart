@@ -23,6 +23,7 @@ import '../server/middleware/error_mapping_middleware.dart';
 ///
 /// Mounted automatically by [beakApiRouter], outside `/api` so they are not
 /// subject to auth.
+// --8<-- [start:beakHealthRouter]
 Router beakHealthRouter({
   required BeakModelRegistry registry,
   required BeakDataSource dataSource,
@@ -33,6 +34,7 @@ Router beakHealthRouter({
     '/readyz',
     (Request request) => _readiness(registry, dataSource, onUnexpectedError),
   );
+// --8<-- [end:beakHealthRouter]
 
 /// Whether the data source answers, as a readiness response.
 Future<Response> _readiness(

@@ -9,6 +9,7 @@ import 'package:beak_core/beak_core.dart';
 /// mapping rethrows the original exception with its stack; [Error] values and
 /// failures thrown by the mapper propagate unchanged.
 /// No resource, repository or dummy data source is required.
+// --8<-- [start:beakRun]
 Future<BeakResult<T>> beakRun<T>(
   Future<T> Function() operation, {
   BeakException? Function(Exception exception, StackTrace stack)? mapException,
@@ -23,3 +24,4 @@ Future<BeakResult<T>> beakRun<T>(
     rethrow;
   }
 }
+// --8<-- [end:beakRun]
