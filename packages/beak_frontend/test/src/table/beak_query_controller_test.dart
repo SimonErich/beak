@@ -22,6 +22,24 @@ void main() {
     ),
   );
 
+  test('preset counts are read by the preset object, never by its key', () {
+    const other = BeakQueryPreset(key: 'other', label: 'Other');
+    final counts = BeakPresetCounts({preset: 4});
+    expect(counts[preset], 4);
+    expect(counts[other], isNull);
+    expect(const BeakPresetCounts.none()[preset], isNull);
+    expect(counts[BeakQueryPreset(key: preset.key, label: 'Alias')], 4);
+  });
+
+  test('selecting no preset returns to the base view', () {
+    final controller = BeakQueryController(model: model, presets: [preset]);
+    addTearDown(controller.dispose);
+    controller.selectPreset(preset);
+    expect(controller.state.value.preset, 'attention');
+    controller.selectPreset(null);
+    expect(controller.state.value.preset, isNull);
+  });
+
   test('facet exclusion keeps permanent and preset scopes', () {
     const field = BeakScalarField<String>(
       model: NoteModel(),
@@ -34,7 +52,7 @@ void main() {
       presets: [preset],
     );
     addTearDown(controller.dispose);
-    controller.selectPreset('attention');
+    controller.selectPreset(preset);
     controller.applyFilters({filter.key: field.eq('urgent selected')});
     final candidate = controller.queryFor(
       controller.state.value,
@@ -93,7 +111,7 @@ void main() {
       addTearDown(restored.dispose);
       expect(restored.currentColumns.single.key, 'detail');
       expect(restored.state.value.showHeader, false);
-      restored.selectPreset('compact');
+      restored.selectPreset(presets.single);
       expect(restored.currentColumns.single.key, 'title');
       expect(
         () => restored.chooseColumns([detailColumn]),
@@ -115,7 +133,7 @@ void main() {
         presets: [preset],
       );
       addTearDown(controller.dispose);
-      controller.selectPreset('attention');
+      controller.selectPreset(preset);
       controller.goToPage(3);
       final before = controller.query;
       final candidate = BeakQueryState(
@@ -210,7 +228,7 @@ void main() {
     () {
       final controller = BeakQueryController(model: model, presets: [preset]);
       addTearDown(controller.dispose);
-      controller.selectPreset('attention');
+      controller.selectPreset(preset);
       controller.setSearch('urgent');
       controller.sortBy(title, descending: true);
       controller.setPageSize(50);
@@ -227,7 +245,9 @@ void main() {
       expect(restored.query.search?.term, 'urgent');
       expect(BeakQueryController.readUri(Uri.parse('/notes')), isNull);
       expect(
-        () => controller.selectPreset('missing'),
+        () => controller.selectPreset(
+          const BeakQueryPreset(key: 'missing', label: 'Missing'),
+        ),
         throwsA(isA<BeakConfigurationException>()),
       );
       expect(

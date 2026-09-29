@@ -13,6 +13,14 @@ const _customer = BeakBelongsTo(
   foreignKey: 'customer_id',
 );
 
+const _group = BeakBelongsTo(
+  key: 'group',
+  label: 'Group',
+  relatedTable: 'groups',
+  displayColumnKey: 'name',
+  foreignKey: 'group_id',
+);
+
 final class _Model extends BeakModel {
   const _Model(this.table);
   @override
@@ -24,6 +32,44 @@ final class _Model extends BeakModel {
 }
 
 void main() {
+  test('a root scalar field yields the sort for its own storage key', () {
+    const field = BeakScalarField<String>(
+      model: _Model('orders'),
+      column: _name,
+    );
+    expect(field.ascending(), const BeakSort('name'));
+    expect(field.descending(), const BeakSort('name', descending: true));
+  });
+
+  test('a field reached through a relationship cannot be sorted', () {
+    const field = BeakScalarField<String>(
+      model: _Model('orders'),
+      column: _name,
+      path: [_customer],
+    );
+    expect(field.ascending, throwsA(isA<BeakConfigurationException>()));
+    expect(field.descending, throwsA(isA<BeakConfigurationException>()));
+  });
+
+  test('a to-one field loads its related record along its whole path', () {
+    const direct = BeakToOneField(
+      model: _Model('orders'),
+      relation: _customer,
+      target: _Model('customers'),
+    );
+    expect(direct.relationLoad, const BeakRelationLoad('customer'));
+    const nested = BeakToOneField(
+      model: _Model('orders'),
+      relation: _customer,
+      target: _Model('customers'),
+      path: [_group],
+    );
+    expect(
+      nested.relationLoad,
+      const BeakRelationLoad('group', nested: [BeakRelationLoad('customer')]),
+    );
+  });
+
   test('typed enum predicates use wire names for equality and inequality', () {
     const field = BeakScalarField<_Status>(
       model: _Model('orders'),

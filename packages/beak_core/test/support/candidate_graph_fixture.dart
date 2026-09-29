@@ -82,22 +82,11 @@ final class NoteModel extends FixtureModel {
       BeakValueBehavior<int>.derived(field: totalField, resolve: (_) => 5),
       BeakValueBehavior<String>.snapshot(
         field: snapshotField,
-        onAction: 'publish',
+        onAction: publishAction,
         resolve: (_) => 'frozen',
       ),
     ],
-    actions: [
-      BeakModelAction(
-        name: 'publish',
-        label: 'Publish',
-        values: [
-          BeakValueBehavior<String>.derived(
-            field: stateField,
-            resolve: (_) => 'published',
-          ),
-        ],
-      ),
-    ],
+    actions: [publishAction],
   );
 }
 
@@ -139,6 +128,20 @@ const totalField = BeakScalarField<int>(
   model: NoteModel(),
   column: BeakIntColumn(key: 'total', label: 'Total'),
 );
+
+/// The note model's publishing command, declared once and referenced by name
+/// nowhere else.
+final publishAction = BeakModelAction(
+  name: 'publish',
+  label: 'Publish',
+  values: [
+    BeakValueBehavior<String>.derived(
+      field: stateField,
+      resolve: (_) => 'published',
+    ),
+  ],
+);
+
 const snapshotField = BeakScalarField<String>(
   model: NoteModel(),
   column: BeakStringColumn(key: 'snapshot', label: 'Snapshot'),

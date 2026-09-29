@@ -27,28 +27,34 @@ void main() {
     await source.delete('products', 1);
   });
   tearDown(Worm.reset);
+  const products = ProductModel();
   BeakSummarySpec summary({
-    BeakColumn? group,
+    BeakScalarField<Object>? group,
+    String? groupKey,
     int limit = 100,
     bool withTrashed = false,
     BeakSearch? search,
-  }) => BeakSummarySpec(
-    table: 'products',
-    groupBy: group,
-    limit: limit,
-    withTrashed: withTrashed,
-    search: search,
-    measures: [
-      const BeakSummaryMeasure.count('count'),
-      BeakSummaryMeasure.sum('value', column: ProductColumns.price),
-    ],
-  );
+  }) => groupKey == null
+      ? products.summary(
+          groupBy: group,
+          limit: limit,
+          withTrashed: withTrashed,
+          search: search,
+          measures: [
+            const BeakSummaryMeasure.count('count'),
+            BeakSummaryMeasure.sum('value', field: ProductModel.price),
+          ],
+        )
+      : BeakSummarySpec.forKeys(
+          table: 'products',
+          groupByKey: groupKey,
+          limit: limit,
+          measures: const [BeakSummaryMeasure.count('count')],
+        );
   test(
     'groups the whole dataset and preserves normal soft-delete scope',
     () async {
-      final result = await source.summary(
-        summary(group: ProductColumns.active),
-      );
+      final result = await source.summary(summary(group: ProductModel.active));
       expect(result.truncated, isFalse);
       expect(
         result.rows.map((r) => r.values['count']).reduce((a, b) => a! + b!),
@@ -67,7 +73,7 @@ void main() {
   test('search uses the same population and overflow is explicit', () async {
     const search = BeakSearch('Even', ['name']);
     final result = await source.summary(
-      summary(group: ProductColumns.categoryId, limit: 1, search: search),
+      summary(group: ProductModel.categoryId, limit: 1, search: search),
     );
     expect(result.rows, hasLength(1));
     expect(result.truncated, isTrue);
@@ -89,7 +95,7 @@ void main() {
         ),
         BeakSummaryMeasure.sum(
           'inactiveTotal',
-          column: ProductColumns.price,
+          field: ProductModel.price,
           filter: const BeakFieldFilter.forKey(
             'active',
             BeakOperator.eq,
@@ -103,17 +109,12 @@ void main() {
         BeakIntValue(10),
       );
       final total = await source.summary(
-        BeakSummarySpec(
-          table: 'products',
-          measures: measures,
-          filter: population,
-        ),
+        products.summary(measures: measures, filter: population),
       );
       expect(total.rows.single.values, {'active': 5, 'inactiveTotal': 24});
       final groups = await source.summary(
-        BeakSummarySpec(
-          table: 'products',
-          groupBy: ProductColumns.active,
+        products.summary(
+          groupBy: ProductModel.active,
           measures: measures,
           filter: population,
         ),
@@ -127,19 +128,15 @@ void main() {
     'invalid fields and cross-resource requests cannot fall back to a page',
     () async {
       await expectLater(
-        source.summary(
-          summary(
-            group: const BeakStringColumn(key: 'missing', label: 'Missing'),
-          ),
-        ),
+        source.summary(summary(groupKey: 'missing')),
         throwsA(isA<BeakValidationException>()),
       );
       await expectLater(
         source.summary(
-          BeakSummarySpec(
+          BeakSummarySpec.forKeys(
             table: 'products',
-            measures: [
-              BeakSummaryMeasure.sum('sum', column: ProductColumns.name),
+            measures: const [
+              BeakSummaryMeasure.forKey('sum', columnKey: 'name'),
             ],
           ),
         ),

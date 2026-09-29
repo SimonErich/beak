@@ -2,6 +2,7 @@ import 'package:beak/panel.dart';
 import 'package:flutter/widgets.dart'
     show FontWeight, TextAlign, TextOverflow, TextStyle;
 
+import '../../../domain/order_behavior.dart';
 import '../../../models/models.dart';
 import '../../../theme/gabel_theme.dart';
 import '../dashboard/order_overview.dart';
@@ -149,10 +150,13 @@ orderDeliveryTitle() => BeakValueBinding<String>.computed(
     OrderModel.deliveryDate,
     OrderModel.nextAction,
   ],
-  tone: (row) =>
-      row.read(OrderModel.nextAction) == 'reschedule' ? BeakColor.muted : null,
+  tone: (row) => row.read(OrderModel.nextAction) == OrderActions.reschedule.name
+      ? BeakColor.muted
+      : null,
   compute: (row) {
-    if (row.read(OrderModel.nextAction) == 'reschedule') return 'Not scheduled';
+    if (row.read(OrderModel.nextAction) == OrderActions.reschedule.name) {
+      return 'Not scheduled';
+    }
     final slot = row.read(OrderModel.slot.name) ?? 'Not scheduled';
     final date = row.read(OrderModel.deliveryDate);
     if (date == null || date == foodioToday) return slot;

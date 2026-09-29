@@ -3,24 +3,41 @@ import 'dart:convert';
 import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 
+final class _Orders extends BeakModel {
+  const _Orders();
+  @override
+  String get table => 'orders';
+  @override
+  String get displayColumnKey => 'status';
+  @override
+  List<BeakColumn> get columns => const [];
+}
+
+const _customer = BeakBelongsTo(
+  key: 'customer',
+  label: 'Customer',
+  relatedTable: 'customers',
+  displayColumnKey: 'name',
+  foreignKey: 'customer_id',
+);
+
 void main() {
   const group = BeakStringColumn(key: 'status', label: 'Status');
   const amount = BeakIntColumn(key: 'cents', label: 'Amount');
-  BeakSummarySpec spec() => BeakSummarySpec(
-    table: 'orders',
-    groupBy: group,
-    measures: [
-      const BeakSummaryMeasure.count(
-        'count',
-        filter: BeakFieldFilter.forKey(
-          'status',
-          BeakOperator.eq,
-          BeakStringValue('paid'),
-        ),
-      ),
-      BeakSummaryMeasure.sum('gross', column: amount),
-    ],
+  const orders = _Orders();
+  const statusField = BeakScalarField<String>(model: orders, column: group);
+  const amountField = BeakScalarField<int>(model: orders, column: amount);
+  const paidCount = BeakSummaryMeasure.count(
+    'count',
+    filter: BeakFieldFilter.forKey(
+      'status',
+      BeakOperator.eq,
+      BeakStringValue('paid'),
+    ),
   );
+  final grossSum = BeakSummaryMeasure.sum('gross', field: amountField);
+  BeakSummarySpec spec() =>
+      orders.summary(groupBy: statusField, measures: [paidCount, grossSum]);
   Map<String, Object?> overTheWire(Map<String, Object?> json) =>
       switch (jsonDecode(jsonEncode(json))) {
         final Map<String, Object?> decoded => decoded,
@@ -84,6 +101,49 @@ void main() {
       ),
       resultWire,
     );
+  });
+  test('a model builds a summary from typed fields', () {
+    final built = orders.summary(
+      groupBy: statusField,
+      measures: [paidCount, grossSum],
+      filter: statusField.eq('paid'),
+      search: const BeakSearch('ada', ['status']),
+      limit: 12,
+      withTrashed: true,
+    );
+    expect(built.table, 'orders');
+    expect(built.groupByKey, 'status');
+    expect(built.measures, [paidCount, grossSum]);
+    expect(built.measures.last.columnKey, 'cents');
+    expect(built.filter, statusField.eq('paid'));
+    expect(built.search, const BeakSearch('ada', ['status']));
+    expect(built.limit, 12);
+    expect(built.withTrashed, isTrue);
+    final total = orders.summary(measures: [paidCount]);
+    expect(total.groupByKey, isNull);
+    expect(total.limit, 100);
+    expect(total.withTrashed, isFalse);
+  });
+  test('a summary cannot group by a field reached through a relationship', () {
+    const customerName = BeakScalarField<String>(
+      model: orders,
+      column: BeakStringColumn(key: 'name', label: 'Name'),
+      path: [_customer],
+    );
+    expect(
+      () => orders.summary(groupBy: customerName, measures: [paidCount]),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+  });
+  test('a measure keeps its own key while a row reads it by object', () {
+    final row = BeakSummaryRow(
+      group: const BeakStringValue('paid'),
+      values: {'count': 3, 'gross': 1250.5},
+    );
+    expect(row.valueOf(paidCount), 3);
+    expect(row.valueOf(grossSum), 1250.5);
+    final other = BeakSummaryMeasure.sum('other', field: amountField);
+    expect(row.valueOf(other), isNull);
   });
   test('absent and null optional keys decode to their defaults', () {
     final measure = BeakSummaryMeasure.fromJson({'key': 'count'});

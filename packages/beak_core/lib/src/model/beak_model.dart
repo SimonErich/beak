@@ -13,9 +13,11 @@ import '../query/beak_pagination.dart';
 import '../query/beak_query_spec.dart';
 import '../query/beak_relation_load.dart';
 import '../query/beak_sort.dart';
+import '../query/beak_summary_spec.dart';
 import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
+import 'beak_field_ref.dart';
 import 'beak_permissions.dart';
 import '../validation/beak_record_rule.dart';
 
@@ -189,34 +191,83 @@ abstract base class BeakModel {
         withTrashed: withTrashed,
       );
 
-  /// Sums [column] over this model's rows.
+  /// Sums [field] over this model's rows.
   ///
-  /// [column] should be numeric ([BeakIntColumn] or [BeakDecimalColumn]);
-  /// the data source rejects anything else. Results use physical storage units;
-  /// exact decimal fields offer a typed `field.sum(source)` helper.
+  /// [field] must be one of this model's own numeric fields. Results use
+  /// physical storage units; exact decimal fields offer a typed
+  /// `field.sum(source)` helper.
+  ///
+  /// ```dart
+  /// const OrderModel().sum(OrderModel.grossCents,
+  ///     filter: OrderModel.paid.eq(true));
+  /// ```
   BeakAggregateSpec sum(
-    BeakColumn column, {
+    BeakScalarField<num> field, {
     BeakFilter? filter,
     bool withTrashed = false,
   }) => BeakAggregateSpec.sum(
     table: table,
-    column: column,
+    column: _ownColumn(field),
     filter: filter,
     withTrashed: withTrashed,
   );
 
-  /// Averages [column] over this model's rows, returning physical storage units.
+  /// Averages [field] over this model's rows, returning physical storage units.
   /// Fixed-scale money may produce fractional units; choose rounding explicitly.
   BeakAggregateSpec avg(
-    BeakColumn column, {
+    BeakScalarField<num> field, {
     BeakFilter? filter,
     bool withTrashed = false,
   }) => BeakAggregateSpec.avg(
     table: table,
-    column: column,
+    column: _ownColumn(field),
     filter: filter,
     withTrashed: withTrashed,
   );
+
+  /// A grouped summary over this model's rows.
+  ///
+  /// [groupBy] is one of this model's own fields; omit it for a single total
+  /// row. Declare each measure once and read it back from a
+  /// [BeakSummaryRow] with `row.valueOf(measure)`:
+  ///
+  /// ```dart
+  /// final orders = const OrderModel();
+  /// final revenue = BeakSummaryMeasure.sum(
+  ///   'revenue',
+  ///   field: OrderModel.grossCents,
+  /// );
+  /// final byDay = orders.summary(
+  ///   groupBy: OrderModel.deliveryDate,
+  ///   measures: [revenue],
+  /// );
+  /// ```
+  BeakSummarySpec summary({
+    BeakScalarField<Object>? groupBy,
+    required List<BeakSummaryMeasure> measures,
+    BeakFilter? filter,
+    BeakSearch? search,
+    int limit = 100,
+    bool withTrashed = false,
+  }) => BeakSummarySpec.forKeys(
+    table: table,
+    groupByKey: groupBy == null ? null : _ownColumn(groupBy).key,
+    measures: measures,
+    filter: filter,
+    search: search,
+    limit: limit,
+    withTrashed: withTrashed,
+  );
+
+  BeakColumn _ownColumn(BeakScalarField<Object> field) {
+    if (field.path.isNotEmpty || field.model.table != table) {
+      throw BeakConfigurationException(
+        'Field "${field.qualifiedKey}" is not one of the fields of $table '
+        'itself.',
+      );
+    }
+    return field.column;
+  }
 
   /// The primary-key value of [record], or `null` when the record does not
   /// carry it — the single way Beak extracts a record's id.

@@ -421,8 +421,11 @@ void runBeakDataSourceContract(
 
       if (number != null) {
         test('sums and averages a numeric column', () async {
-          final num sum = await source.aggregate(model.sum(number));
-          final num avg = await source.aggregate(model.avg(number));
+          // The contract discovers its column from `model.columns`, so it has
+          // no generated field to hand: it wraps the column it found.
+          final field = BeakScalarField<num>(model: model, column: number);
+          final num sum = await source.aggregate(model.sum(field));
+          final num avg = await source.aggregate(model.avg(field));
           expect(sum, isA<num>());
           expect(
             avg,

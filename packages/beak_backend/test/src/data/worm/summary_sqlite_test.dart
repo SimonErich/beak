@@ -52,23 +52,21 @@ void main() {
         ),
       );
       final source = WormDataSource(createTestRegistry(), adapter: adapter);
+      const count = BeakSummaryMeasure.count('count');
+      final sum = BeakSummaryMeasure.sum('sum', field: ProductModel.price);
       final result = await source.summary(
-        BeakSummarySpec(
-          table: 'products',
-          groupBy: ProductColumns.categoryId,
-          measures: [
-            const BeakSummaryMeasure.count('count'),
-            BeakSummaryMeasure.sum('sum', column: ProductColumns.price),
-          ],
+        const ProductModel().summary(
+          groupBy: ProductModel.categoryId,
+          measures: [count, sum],
         ),
       );
       expect(result.rows.map((row) => row.group.raw), [0, 1, 2]);
       expect(
-        result.rows.map((row) => row.values['count']).reduce((a, b) => a! + b!),
+        result.rows.map((row) => row.valueOf(count)).reduce((a, b) => a! + b!),
         1001,
       );
       expect(
-        result.rows.map((row) => row.values['sum']).reduce((a, b) => a! + b!),
+        result.rows.map((row) => row.valueOf(sum)).reduce((a, b) => a! + b!),
         100100,
       );
     },

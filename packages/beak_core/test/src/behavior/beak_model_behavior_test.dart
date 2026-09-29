@@ -44,11 +44,20 @@ final class _Model extends BeakModel {
   ];
 }
 
+final _issue = BeakModelAction(
+  name: 'issue',
+  label: 'Issue',
+  availableWhen: (record) => _state.readFrom(record) == 'draft',
+  values: [
+    BeakValueBehavior<String>.derived(field: _state, resolve: (_) => 'issued'),
+  ],
+);
+
 BeakModelBehavior _behavior() => BeakModelBehavior(
   values: [
     BeakValueBehavior<int>.snapshot(
       field: _snapshot,
-      onAction: 'issue',
+      onAction: _issue,
       dependencies: [_total],
       resolve: (context) => context.read(_total),
     ),
@@ -65,19 +74,7 @@ BeakModelBehavior _behavior() => BeakModelBehavior(
     ),
     BeakValueBehavior<String>.initial(field: _state, resolve: (_) => 'draft'),
   ],
-  actions: [
-    BeakModelAction(
-      name: 'issue',
-      label: 'Issue',
-      availableWhen: (record) => _state.readFrom(record) == 'draft',
-      values: [
-        BeakValueBehavior<String>.derived(
-          field: _state,
-          resolve: (_) => 'issued',
-        ),
-      ],
-    ),
-  ],
+  actions: [_issue],
   editableWhen: (record) => _state.readFrom(record) == 'draft',
 );
 
@@ -249,7 +246,10 @@ void main() {
           values: [
             BeakValueBehavior<int>.snapshot(
               field: _price,
-              onAction: 'missing',
+              onAction: const BeakModelAction(
+                name: 'missing',
+                label: 'Missing',
+              ),
               resolve: (_) => 1,
             ),
           ],
@@ -277,6 +277,25 @@ void main() {
       expect(copy.root.hashCode, root.hashCode);
     },
   );
+
+  test('a save plan answers whether it runs a declared command', () {
+    const root = BeakRecordRef.existing('orders', 1);
+    const other = BeakModelAction(name: 'cancel', label: 'Cancel');
+    final plan = BeakSavePlan(
+      saveId: 'issue-2',
+      root: root,
+      action: _issue.name,
+      operations: [],
+    );
+    final plain = BeakSavePlan(saveId: 'plain', root: root, operations: []);
+    expect(plan.runs(_issue), isTrue);
+    expect(plan.runs(other), isFalse);
+    expect(plan.runsAny([other, _issue]), isTrue);
+    expect(plan.runsAny([other]), isFalse);
+    expect(plan.runsAny(const []), isFalse);
+    expect(plain.runs(_issue), isFalse);
+    expect(plain.runsAny([_issue, other]), isFalse);
+  });
   test(
     'initialization, original values and command-aware edit validation preserve explicit input',
     () {

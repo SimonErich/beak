@@ -17,7 +17,7 @@ BeakBlock orderCompactOverview() {
     BeakSummaryValue(
       measure: BeakSummaryMeasure.sum(
         'revenue',
-        column: OrderModel.grossCents.column,
+        field: OrderModel.grossCents,
         filter: BeakAndFilter([
           today,
           OrderModel.status.notEq(OrderStatus.cancelled),
@@ -52,8 +52,7 @@ BeakBlock orderCompactOverview() {
   ];
   return BeakSummaryBlock(
     title: 'Today at a glance',
-    query: BeakSummarySpec(
-      table: const OrderModel().table,
+    query: const OrderModel().summary(
       measures: [for (final value in values) value.measure],
     ),
     values: values,
@@ -91,6 +90,23 @@ BeakBlock orderOverview() {
       color: GabelLight.danger,
     ),
   ];
+  const orders = BeakSummaryMeasure.count('orders');
+  final delivered = BeakSummaryMeasure.count(
+    'delivered',
+    filter: OrderModel.status.eq(OrderStatus.delivered),
+  );
+  final cancelled = BeakSummaryMeasure.count(
+    'cancelled',
+    filter: OrderModel.status.eq(OrderStatus.cancelled),
+  );
+  final booked = BeakSummaryMeasure.sum(
+    'booked',
+    field: DeliverySlotModel.reservedOrders,
+  );
+  final capacity = BeakSummaryMeasure.sum(
+    'capacity',
+    field: DeliverySlotModel.capacity,
+  );
   return BeakRowBlock(
     expand: true,
     gapInPixels: 24,
@@ -108,28 +124,17 @@ BeakBlock orderOverview() {
         subtitle: 'KW 39 and KW 40, scheduled orders hatched',
         showTableToggle: true,
         span: const BeakSpan(columns: 5),
-        query: BeakSummarySpec(
-          table: const OrderModel().table,
-          groupBy: OrderModel.deliveryDate.column,
+        query: const OrderModel().summary(
+          groupBy: OrderModel.deliveryDate,
           filter: BeakAndFilter([
             OrderModel.deliveryDate.gte(const BeakDate(2026, 9, 21)),
             OrderModel.deliveryDate.lte(const BeakDate(2026, 10, 2)),
           ]),
-          measures: [
-            const BeakSummaryMeasure.count('orders'),
-            BeakSummaryMeasure.count(
-              'delivered',
-              filter: OrderModel.status.eq(OrderStatus.delivered),
-            ),
-            BeakSummaryMeasure.count(
-              'cancelled',
-              filter: OrderModel.status.eq(OrderStatus.cancelled),
-            ),
-          ],
+          measures: [orders, delivered, cancelled],
         ),
         values: const [
           BeakSummaryValue(
-            measure: BeakSummaryMeasure.count('orders'),
+            measure: orders,
             label: 'Orders',
             color: GabelLight.chart1,
           ),
@@ -156,11 +161,13 @@ BeakBlock orderOverview() {
                     row.group.raw.toString().startsWith(foodioToday.toString()),
               )
               .firstOrNull;
-          final delivered = today?.values['delivered']?.toInt() ?? 0;
-          final cancelled = today?.values['cancelled']?.toInt() ?? 0;
+          final deliveredToday = today?.valueOf(delivered)?.toInt() ?? 0;
+          final cancelledToday = today?.valueOf(cancelled)?.toInt() ?? 0;
           final progress =
-              (today?.values['orders']?.toInt() ?? 0) - delivered - cancelled;
-          return '$delivered delivered today, $progress in progress, $cancelled cancelled.';
+              (today?.valueOf(orders)?.toInt() ?? 0) -
+              deliveredToday -
+              cancelledToday;
+          return '$deliveredToday delivered today, $progress in progress, $cancelledToday cancelled.';
         },
         presentation: BeakSummaryPresentation.bar,
         scope: BeakSummaryScope.standalone,
@@ -171,8 +178,7 @@ BeakBlock orderOverview() {
         subtitle: 'Active orders today',
         showTableToggle: true,
         span: const BeakSpan(columns: 3),
-        query: BeakSummarySpec(
-          table: const OrderModel().table,
+        query: const OrderModel().summary(
           filter: OrderModel.deliveryDate.eq(foodioToday),
           measures: [for (final value in statusValues) value.measure],
         ),
@@ -196,39 +202,17 @@ BeakBlock orderOverview() {
         subtitle: 'Booked against kitchen capacity',
         showTableToggle: true,
         span: const BeakSpan(columns: 4),
-        query: BeakSummarySpec(
-          table: const DeliverySlotModel().table,
-          groupBy: DeliverySlotModel.startMinute.column,
+        query: const DeliverySlotModel().summary(
+          groupBy: DeliverySlotModel.startMinute,
           filter: BeakAndFilter([
             DeliverySlotModel.date.eq(foodioToday),
             DeliverySlotModel.method.eq('office'),
           ]),
-          measures: [
-            BeakSummaryMeasure.sum(
-              'booked',
-              column: DeliverySlotModel.reservedOrders.column,
-            ),
-            BeakSummaryMeasure.sum(
-              'capacity',
-              column: DeliverySlotModel.capacity.column,
-            ),
-          ],
+          measures: [booked, capacity],
         ),
         values: [
-          BeakSummaryValue(
-            measure: BeakSummaryMeasure.sum(
-              'booked',
-              column: DeliverySlotModel.reservedOrders.column,
-            ),
-            label: 'Booked',
-          ),
-          BeakSummaryValue(
-            measure: BeakSummaryMeasure.sum(
-              'capacity',
-              column: DeliverySlotModel.capacity.column,
-            ),
-            label: 'Capacity',
-          ),
+          BeakSummaryValue(measure: booked, label: 'Booked'),
+          BeakSummaryValue(measure: capacity, label: 'Capacity'),
         ],
         groupStyle: (row) {
           final minute = (row.group.raw as num).toInt();
@@ -242,11 +226,11 @@ BeakBlock orderOverview() {
         },
         capacity: BeakSummaryCapacity(
           trackHeight: 8,
-          used: 'booked',
-          total: 'capacity',
+          used: booked,
+          total: capacity,
           warningColor: GabelLight.warning,
           warning: (row) =>
-              '${row.values['capacity']! - row.values['booked']!} left · offer 12:00–12:30',
+              '${(row.valueOf(capacity) ?? 0) - (row.valueOf(booked) ?? 0)} left · offer 12:00–12:30',
         ),
         footer: (_) => 'Same-day orders close 10:30 · 48 minutes left',
         presentation: BeakSummaryPresentation.capacity,

@@ -334,7 +334,7 @@ void main() {
             value: BeakIntValue(3),
           ),
         )
-        .orderBy(NoteColumns.rating);
+        .orderBy(NoteModel.rating);
     final response = await handler(
       Request(
         'POST',

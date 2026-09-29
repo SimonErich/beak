@@ -1,6 +1,7 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
 
+import '../../../domain/order_behavior.dart';
 import '../../../models/models.dart';
 import '../dashboard/order_overview.dart';
 import 'order_list_filters.dart';
@@ -16,13 +17,14 @@ BeakTableScreen orderList() {
   final slot = filters.slot;
   final payment = filters.payment;
   final columns = orderTableColumns();
+  final presets = OrderListPresets(filters: filters, columns: columns);
   return BeakTableScreen(
     query: const OrderModel()
         .query()
-        .orderBy(OrderModel.number.column, descending: true)
+        .orderBy(OrderModel.number, descending: true)
         .paginate(perPage: 15),
     definition: BeakListDefinition(
-      initialPreset: 'today',
+      initialPreset: presets.today,
       filterSheetWidth: 480,
       recordNoun: 'orders',
       advancedFilterColumns: 2,
@@ -36,7 +38,7 @@ BeakTableScreen orderList() {
       title: 'Orders',
       searchPlaceholder: 'Search by order, customer, company or phone',
       subtitleBuilder: (counts) =>
-          '${counts['today'] ?? '—'} orders for today · ${counts['attention'] ?? '—'} need attention · updated 09:42',
+          '${counts[presets.today] ?? '—'} orders for today · ${counts[presets.attention] ?? '—'} need attention · updated 09:42',
       createLabel: 'New order',
       export: BeakListExport(
         fileName: 'orders.csv',
@@ -76,14 +78,14 @@ BeakTableScreen orderList() {
                 'Call ${row.read(OrderModel.customerName) ?? 'customer'}',
           ),
         ),
-        const BeakActionPresentation.model(
-          'addNote',
+        BeakActionPresentation.model(
+          OrderActions.addNote,
           label: 'Add internal note',
           icon: OiIcons.messageSquare,
           group: 'record',
         ),
-        const BeakActionPresentation.model(
-          'cancel',
+        BeakActionPresentation.model(
+          OrderActions.cancel,
           label: 'Cancel order',
           icon: OiIcons.circleX,
           destructive: true,
@@ -91,14 +93,14 @@ BeakTableScreen orderList() {
         ),
       ],
       bulkActions: [
-        const BeakActionPresentation.model(
-          'sendPaymentLink',
+        BeakActionPresentation.model(
+          OrderActions.sendPaymentLink,
           label: 'Send payment links',
           icon: OiIcons.send,
         ),
         const BeakActionPresentation(key: 'export', icon: OiIcons.download),
         BeakActionPresentation.model(
-          'cancel',
+          OrderActions.cancel,
           icon: OiIcons.circleX,
           destructive: true,
           selectionLabel: (count) => 'Cancel $count orders',
@@ -113,7 +115,7 @@ BeakTableScreen orderList() {
       header: orderOverview(),
       collapsedHeader: orderCompactOverview(),
       showHeaderToggle: true,
-      presets: orderListPresets(filters: filters, columns: columns),
+      presets: presets.values,
       columns: columns,
       filters: [
         date,

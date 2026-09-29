@@ -81,7 +81,7 @@ final class BeakSummaryLegend {
 
 /// Typed measure pairing for utilization and capacity displays.
 final class BeakSummaryCapacity {
-  /// Both keys must refer to measures in the summary query.
+  /// Both measures must be the objects declared in the summary query.
   const BeakSummaryCapacity({
     required this.used,
     required this.total,
@@ -91,11 +91,11 @@ final class BeakSummaryCapacity {
     this.trackHeight = 6,
   });
 
-  /// Booked/consumed measure key.
-  final String used;
+  /// Booked/consumed measure.
+  final BeakSummaryMeasure used;
 
-  /// Maximum available measure key.
-  final String total;
+  /// Maximum available measure.
+  final BeakSummaryMeasure total;
 
   /// Utilization ratio at which the warning treatment is applied.
   final double warningThreshold;

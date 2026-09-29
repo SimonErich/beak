@@ -1,18 +1,29 @@
-import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../common/json_support.dart';
+import '../model/beak_field_ref.dart';
 import 'beak_filter.dart';
 import 'beak_query_spec.dart';
 import 'beak_value.dart';
 
 /// A server-side summary measure. Amounts retain their stored exact units.
+///
+/// A measure is declared once and referenced by object: the row it produces is
+/// read with [BeakSummaryRow.valueOf], and a display binds to the same
+/// instance. Its [key] only names the value on the wire.
 final class BeakSummaryMeasure {
   /// Counts records, including records whose grouped value is null.
   const BeakSummaryMeasure.count(this.key, {this.filter}) : columnKey = null;
 
-  /// Sums a numeric column, with zero for an empty population.
-  BeakSummaryMeasure.sum(this.key, {required BeakColumn column, this.filter})
-    : columnKey = column.key;
+  /// Sums a numeric field of the summarized model, with zero for an empty
+  /// population.
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship.
+  BeakSummaryMeasure.sum(
+    this.key, {
+    required BeakScalarField<num> field,
+    this.filter,
+  }) : columnKey = field.rootKey;
 
   /// Wire constructor. A null column denotes a count.
   const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter});
@@ -57,30 +68,19 @@ final class BeakSummaryMeasure {
 
 /// A bounded grouped query over the entire matching population, never a page.
 ///
+/// Application code asks its model for one —
+/// `const OrderModel().summary(groupBy: OrderModel.status, measures: [...])` —
+/// so the table and the group key come from typed fields.
+///
 /// Calendar-date columns group by their canonical calendar date; instant
 /// columns group by exact instant. Bucketing instants implicitly in the browser
 /// timezone is deliberately not part of this contract.
 final class BeakSummarySpec {
-  /// Creates a summary using generated column metadata.
-  BeakSummarySpec({
-    required String table,
-    BeakColumn? groupBy,
-    required List<BeakSummaryMeasure> measures,
-    BeakFilter? filter,
-    BeakSearch? search,
-    int limit = 100,
-    bool withTrashed = false,
-  }) : this.forKeys(
-         table: table,
-         groupByKey: groupBy?.key,
-         measures: measures,
-         filter: filter,
-         search: search,
-         limit: limit,
-         withTrashed: withTrashed,
-       );
-
-  /// Wire constructor; applications normally use [BeakSummarySpec].
+  /// Creates a summary from raw keys, the wire-level path for decoders and
+  /// data-source adapters.
+  ///
+  /// Application code calls `model.summary(...)`, which fills in the table and
+  /// the group key from typed fields.
   BeakSummarySpec.forKeys({
     required this.table,
     this.groupByKey,
@@ -202,8 +202,13 @@ final class BeakSummaryRow {
   /// Canonical storage representation of the grouping field.
   final BeakValue group;
 
-  /// Values keyed by each measure's stable key.
+  /// Values keyed by each measure's stable key: the wire form of the row.
+  ///
+  /// Application code reads a value with [valueOf].
   final Map<String, num> values;
+
+  /// The value computed for [measure], or null when the response has none.
+  num? valueOf(BeakSummaryMeasure measure) => values[measure.key];
 
   /// Encodes this row.
   Map<String, Object?> toJson() => {'group': group.toJson(), 'values': values};

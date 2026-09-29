@@ -81,10 +81,13 @@ final class BeakValueBehavior<T extends Object> {
        onAction = null;
 
   /// Computes a read-only historical value only during [onAction].
+  ///
+  /// [onAction] is the declared command itself, never its name, so renaming it
+  /// cannot leave a dangling reference behind.
   const BeakValueBehavior.snapshot({
     required this.field,
     required this.resolve,
-    required String this.onAction,
+    required BeakModelAction this.onAction,
     this.dependencies = const [],
   }) : lifecycle = BeakValueLifecycle.snapshot;
 
@@ -100,8 +103,8 @@ final class BeakValueBehavior<T extends Object> {
   /// Evaluation and override semantics.
   final BeakValueLifecycle lifecycle;
 
-  /// Stable action name triggering a snapshot.
-  final String? onAction;
+  /// The command whose execution triggers a snapshot.
+  final BeakModelAction? onAction;
 
   /// Encoded result used without erasing the callback's value type.
   BeakValue evaluate(BeakValueContext context) =>
@@ -113,6 +116,21 @@ final class BeakValueBehavior<T extends Object> {
 /// The same declaration supplies UI labels, allowed states and typed input.
 /// [values] declares authoritative field changes; custom graph preparation may
 /// derive additional writes, which retain ordinary per-record authorization.
+///
+/// Declare each command once, then refer to that object everywhere: a form's
+/// submit action, a list's row and bulk actions, a snapshot's trigger, and a
+/// server preparer's `plan.runs(...)`. The [name] is only the identity the
+/// command carries over the wire, so no caller ever writes it:
+///
+/// ```dart
+/// abstract final class OrderActions {
+///   static final place = BeakModelAction(
+///     name: 'place',
+///     label: 'Place order',
+///     allowOnCreate: true,
+///   );
+/// }
+/// ```
 final class BeakModelAction {
   /// Defines a command. Names must be unique within a model.
   const BeakModelAction({
@@ -203,7 +221,10 @@ final class BeakModelBehavior {
       editableWhen == null &&
       deletableWhen == null;
 
-  /// Finds a named action, rejecting an undeclared command.
+  /// Resolves a command received over the wire by its [BeakModelAction.name],
+  /// rejecting an undeclared one.
+  ///
+  /// Application code holds the [BeakModelAction] itself and never needs this.
   BeakModelAction action(String name) => actions.firstWhere(
     (action) => action.name == name,
     orElse: () => throw BeakConfigurationException('Unknown action "$name".'),
@@ -236,7 +257,7 @@ final class BeakModelBehavior {
         : {
             for (final value in action(actionName).values) value.field.key,
             for (final value in values.where(
-              (value) => value.onAction == actionName,
+              (value) => value.onAction?.name == actionName,
             ))
               value.field.key,
           };
@@ -329,7 +350,7 @@ final class BeakModelBehavior {
         BeakValueLifecycle.initial =>
           initial == null && !current.values.containsKey(key),
         BeakValueLifecycle.derived => true,
-        BeakValueLifecycle.snapshot => action == value.onAction,
+        BeakValueLifecycle.snapshot => action == value.onAction?.name,
         BeakValueLifecycle.suggested =>
           !overriddenFields.contains(key) &&
               (initial == null ||
@@ -365,9 +386,10 @@ final class BeakModelBehavior {
           'Behavior field "${value.field.qualifiedKey}" must belong to ${model.table}.',
         );
       }
-      if (value.onAction != null && !names.contains(value.onAction)) {
+      if (value.onAction case final BeakModelAction snapshotAction
+          when !names.contains(snapshotAction.name)) {
         throw BeakConfigurationException(
-          'Snapshot refers to unknown action "${value.onAction}".',
+          'Snapshot refers to unknown action "${snapshotAction.name}".',
         );
       }
       for (final dependency in value.dependencies) {

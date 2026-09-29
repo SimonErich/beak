@@ -106,7 +106,7 @@ class _SummaryQueryView extends HookWidget {
                 BeakRecord(values: {block.groupField!.column.key: row.group}),
               ));
     String display(BeakSummaryRow row, BeakSummaryValue value) {
-      final number = row.values[value.measure.key];
+      final number = row.valueOf(value.measure);
       if (number == null) return formatting.emptyValue;
       if (value.minorUnits && number is int) {
         return formatting.format(
@@ -142,7 +142,7 @@ class _SummaryQueryView extends HookWidget {
             for (var i = 0; i < rows.length; i++)
               OiPieSegment(
                 label: label(rows[i]),
-                value: (rows[i].values[block.values.first.measure.key] ?? 0)
+                value: (rows[i].valueOf(block.values.first.measure) ?? 0)
                     .toDouble(),
                 color: color(i),
               ),
@@ -151,7 +151,7 @@ class _SummaryQueryView extends HookWidget {
             for (var i = 0; i < block.values.length; i++)
               OiPieSegment(
                 label: block.values[i].label,
-                value: (rows.first.values[block.values[i].measure.key] ?? 0)
+                value: (rows.first.valueOf(block.values[i].measure) ?? 0)
                     .toDouble(),
                 color: block.values[i].color ?? palette[i % palette.length],
               ),
@@ -312,7 +312,7 @@ class _SummaryQueryView extends HookWidget {
                 ],
                 values: [
                   for (final value in block.values)
-                    (row.values[value.measure.key] ?? 0).toDouble(),
+                    (row.valueOf(value.measure) ?? 0).toDouble(),
                 ],
               ),
           ],
@@ -378,8 +378,8 @@ class _SummaryQueryView extends HookWidget {
                   horizontal: true,
                   trackWidth: 110,
                   height: block.capacity!.trackHeight,
-                  value: row.values[block.capacity!.used] ?? 0,
-                  max: row.values[block.capacity!.total] ?? 0,
+                  value: row.valueOf(block.capacity!.used) ?? 0,
+                  max: row.valueOf(block.capacity!.total) ?? 0,
                   color: block.groupStyle?.call(row).color,
                   warningThreshold: block.capacity!.warningThreshold,
                   warningColor: block.capacity!.warningColor,

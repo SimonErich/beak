@@ -26,14 +26,65 @@ final class _NotifModel extends BeakModel {
   ];
 }
 
+const _title = BeakScalarField<String>(
+  model: _NotifModel(),
+  column: BeakStringColumn(key: 'title', label: 'Title'),
+);
+const _body = BeakScalarField<String>(
+  model: _NotifModel(),
+  column: BeakStringColumn(key: 'body', label: 'Body'),
+);
+const _createdAt = BeakScalarField<DateTime>(
+  model: _NotifModel(),
+  column: BeakDateTimeColumn(key: 'created_at', label: 'When'),
+);
+const _isRead = BeakScalarField<bool>(
+  model: _NotifModel(),
+  column: BeakBoolColumn(key: 'is_read', label: 'Read'),
+);
+
 void main() {
-  const source = BeakNotificationSource(
-    model: _NotifModel(),
-    titleField: BeakStringColumn(key: 'title', label: 'Title'),
-    bodyField: BeakStringColumn(key: 'body', label: 'Body'),
-    timeField: BeakDateTimeColumn(key: 'created_at', label: 'When'),
-    readField: BeakBoolColumn(key: 'is_read', label: 'Read'),
+  final source = BeakNotificationSource(
+    titleField: _title,
+    bodyField: _body,
+    timeField: _createdAt,
+    readField: _isRead,
   );
+
+  test('the source reads its model from the fields it is given', () {
+    expect(source.model.table, 'notifications');
+  });
+
+  test('every field must belong to the title field\'s model', () {
+    const foreign = BeakScalarField<String>(
+      model: NoteModel(),
+      column: BeakStringColumn(key: 'name', label: 'Name'),
+    );
+    expect(
+      () => BeakNotificationSource(titleField: _title, bodyField: foreign),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+  });
+
+  test('a field reached through a relationship cannot be a notification', () {
+    const related = BeakScalarField<bool>(
+      model: _NotifModel(),
+      column: BeakBoolColumn(key: 'is_read', label: 'Read'),
+      path: [
+        BeakBelongsTo(
+          key: 'recipient',
+          label: 'Recipient',
+          relatedTable: 'users',
+          displayColumnKey: 'name',
+          foreignKey: 'recipient_id',
+        ),
+      ],
+    );
+    expect(
+      () => BeakNotificationSource(titleField: _title, readField: related),
+      throwsA(isA<BeakConfigurationException>()),
+    );
+  });
 
   testWidgets('the bell shows the unread count and opens the panel', (
     tester,
@@ -75,7 +126,7 @@ void main() {
     await tester.pumpWidget(
       OiApp(
         theme: OiThemeData.light(),
-        home: const BeakNotificationBell(source: source),
+        home: BeakNotificationBell(source: source),
       ),
     );
     await tester.pumpAndSettle();
@@ -104,6 +155,23 @@ void main() {
     expect(find.byType(OiNotificationCenter), findsOneWidget);
     expect(find.text('New order'), findsWidgets);
     expect(find.text('Delivery update'), findsWidgets);
+
+    // Marking one notification read writes the flag back through the source.
+    final center = tester.widget<OiNotificationCenter>(
+      find.byType(OiNotificationCenter),
+    );
+    center.onMarkRead!(
+      center.notifications.firstWhere((item) => item.key == 'n1'),
+    );
+    await tester.pumpAndSettle();
+    expect(dataSource.updateCalls.map((call) => call.$2), ['n1']);
+    expect(_isRead.readFrom(dataSource.updateCalls.single.$3), isTrue);
+    expect(find.text('1'), findsWidgets);
+
+    // Marking all read leaves nothing unread and hides the badge.
+    center.onMarkAllRead!();
+    await tester.pumpAndSettle();
+    expect(dataSource.updateCalls.map((call) => call.$2), ['n1', 'n3']);
     tester.takeException();
   });
 }

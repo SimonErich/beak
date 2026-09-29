@@ -133,11 +133,12 @@ void main() {
     final response = await call(
       'POST',
       '/api/notes/summary',
-      body: BeakSummarySpec(
-        table: 'notes',
-        groupBy: NoteColumns.authorId,
-        measures: const [BeakSummaryMeasure.count('count')],
-      ).toJson(),
+      body: const NoteModel()
+          .summary(
+            groupBy: NoteModel.authorId,
+            measures: [const BeakSummaryMeasure.count('count')],
+          )
+          .toJson(),
     );
     expect(response.statusCode, 200);
     final result = BeakSummaryResult.fromJson(
@@ -149,7 +150,7 @@ void main() {
       (await call(
         'POST',
         '/api/notes/summary',
-        body: BeakSummarySpec(
+        body: BeakSummarySpec.forKeys(
           table: 'authors',
           measures: const [BeakSummaryMeasure.count('count')],
         ).toJson(),

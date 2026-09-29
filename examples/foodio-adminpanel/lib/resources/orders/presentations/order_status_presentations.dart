@@ -1,5 +1,6 @@
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+import '../../../domain/order_behavior.dart';
 import '../../../models/models.dart';
 import 'order_identity_tokens.dart';
 
@@ -15,10 +16,10 @@ BeakValueBinding<String> orderStatus() => BeakValueBinding<String>.computed(
   badgeDot: true,
   badgeDotFor: (row) =>
       row.read(OrderModel.paymentStatus) != PaymentStatus.failed &&
-      row.read(OrderModel.nextAction) != 'reschedule',
+      row.read(OrderModel.nextAction) != OrderActions.reschedule.name,
   iconFor: (row) =>
       row.read(OrderModel.paymentStatus) == PaymentStatus.failed ||
-          row.read(OrderModel.nextAction) == 'reschedule'
+          row.read(OrderModel.nextAction) == OrderActions.reschedule.name
       ? OiIcons.circleAlert
       : null,
   compute: (row) {
@@ -34,7 +35,7 @@ BeakValueBinding<String> orderStatus() => BeakValueBinding<String>.computed(
     if (row.read(OrderModel.paymentStatus) == PaymentStatus.pending) {
       return 'Pending payment';
     }
-    if (row.read(OrderModel.nextAction) == 'reschedule') {
+    if (row.read(OrderModel.nextAction) == OrderActions.reschedule.name) {
       return 'Delivery failed';
     }
     if (row.read(OrderModel.nextAction) == 'reviewChange') {
@@ -56,7 +57,7 @@ BeakValueBinding<String> orderStatus() => BeakValueBinding<String>.computed(
       return BeakColor.muted;
     }
     if (row.read(OrderModel.paymentStatus) == PaymentStatus.failed ||
-        row.read(OrderModel.nextAction) == 'reschedule') {
+        row.read(OrderModel.nextAction) == OrderActions.reschedule.name) {
       return BeakColor.error;
     }
     if (row.read(OrderModel.nextAction) == 'reviewChange') {

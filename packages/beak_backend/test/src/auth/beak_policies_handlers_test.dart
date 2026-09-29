@@ -385,11 +385,12 @@ void main() {
     });
 
     test('summary: 401, then groups of the scoped population only', () async {
-      final body = BeakSummarySpec(
-        table: 'notes',
-        groupBy: NoteColumns.authorId,
-        measures: const [BeakSummaryMeasure.count('count')],
-      ).toJson();
+      final body = const NoteModel()
+          .summary(
+            groupBy: NoteModel.authorId,
+            measures: [const BeakSummaryMeasure.count('count')],
+          )
+          .toJson();
       expect(
         (await call('POST', '/api/notes/summary', body: body)).statusCode,
         401,

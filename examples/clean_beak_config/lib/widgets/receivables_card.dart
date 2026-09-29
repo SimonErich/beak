@@ -28,9 +28,8 @@ class ShopReceivablesCard extends HookWidget {
     final attempt = useState(0);
     final request = useMemoized(
       () => BeakResourceRepository(source).aggregate(
-        BeakAggregateSpec.sum(
-          table: const InvoiceModel().table,
-          column: InvoiceModel.totalCents.column,
+        const InvoiceModel().sum(
+          InvoiceModel.totalCents,
           filter: InvoiceModel.status.eq(InvoiceStatus.issued),
         ),
       ),

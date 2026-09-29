@@ -1,3 +1,4 @@
+import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 
 import 'beak_record_template.dart';
@@ -29,11 +30,14 @@ final class BeakActionPresentation {
     this.destructive,
     this.group,
     this.placement = BeakActionPlacement.overflow,
-  });
+  }) : modelAction = null;
 
-  /// Names a shared model command without writing a callback.
-  const BeakActionPresentation.model(
-    String name, {
+  /// Presents a shared model command, run without writing a callback.
+  ///
+  /// [action] is the command declared on the model's behavior; it is never
+  /// named by a string.
+  BeakActionPresentation.model(
+    BeakModelAction action, {
     this.label,
     this.labelValue,
     this.selectionLabel,
@@ -41,7 +45,16 @@ final class BeakActionPresentation {
     this.destructive,
     this.group,
     this.placement = BeakActionPlacement.overflow,
-  }) : key = 'model:$name';
+  }) : key = keyOfModelAction(action),
+       modelAction = action;
+
+  /// The runtime identity of the table action running [action].
+  static String keyOfModelAction(BeakModelAction action) =>
+      'model:${action.name}';
+
+  /// The shared model command this presents, or null for a built-in or
+  /// resource action.
+  final BeakModelAction? modelAction;
 
   /// Runtime action identity, checked against configured available actions.
   final String key;

@@ -47,8 +47,8 @@ void main() {
               value: BeakBoolValue(true),
             ),
           )
-          .orderBy(ProductColumns.price, descending: true)
-          .searching('laser', [ProductColumns.name])
+          .orderBy(ProductModel.price, descending: true)
+          .searching('laser', [ProductModel.name])
           .paginate(page: 2, perPage: 5);
 
       expect(
@@ -299,8 +299,8 @@ void main() {
   group('sorts and search', () {
     test('multiple sorts apply in order', () {
       final spec = const BeakQuerySpec(table: 'products', withTrashed: true)
-          .orderBy(ProductColumns.name)
-          .orderBy(ProductColumns.price, descending: true);
+          .orderBy(ProductModel.name)
+          .orderBy(ProductModel.price, descending: true);
       expect(build(spec).toSql(), contains('ORDER BY name ASC, price DESC'));
     });
 
@@ -317,12 +317,12 @@ void main() {
       final spec = const BeakQuerySpec(
         table: 'products',
         withTrashed: true,
-      ).searching('beam', [ProductColumns.name, ProductColumns.price]);
+      ).searching('beam', [ProductModel.name, ProductModel.price]);
       expect(build(spec).toSql(), contains("(name ILIKE '%beam%')"));
       final numeric = const BeakQuerySpec(
         table: 'products',
         withTrashed: true,
-      ).searching('4.5', [ProductColumns.name, ProductColumns.price]);
+      ).searching('4.5', [ProductModel.name, ProductModel.price]);
       expect(
         build(numeric).toSql(),
         contains("(name ILIKE '%4.5%' OR price = 4.5)"),
@@ -333,7 +333,7 @@ void main() {
       final spec = const BeakQuerySpec(
         table: 'products',
         withTrashed: true,
-      ).searching('   ', [ProductColumns.name]);
+      ).searching('   ', [ProductModel.name]);
       expect(
         _withoutPaging(build(spec).toSql()),
         'SELECT id, name, price, active, created_at, category_id FROM products',

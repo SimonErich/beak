@@ -1,4 +1,5 @@
 import 'package:beak/panel.dart';
+import '../../../domain/order_behavior.dart';
 import 'order_summary_layout.dart';
 import 'order_review_step.dart';
 import 'steps/order_customer_step.dart';
@@ -17,7 +18,7 @@ BeakWizardScreen orderWizard() => BeakWizardScreen(
   navigationDescription:
       "Places an order on a customer's behalf, for example during a phone call.",
   header: const BeakFormHeader(title: 'New order'),
-  submitAction: 'place',
+  submitAction: OrderActions.place,
   submitLabel: 'Place order',
   drafts: const BeakFormDrafts(
     store: BeakBrowserDraftStore(),

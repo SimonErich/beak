@@ -20,6 +20,18 @@ const _inputName = BeakScalarField<String>(
   model: LabelModel(),
   column: BeakStringColumn(key: 'name', label: 'Name', rules: [BeakRequired()]),
 );
+final _publish = BeakModelAction(
+  name: 'publish',
+  label: 'Publish',
+  allowOnCreate: true,
+  availableWhen: (record) => _status.readFrom(record) == NoteStatus.draft,
+  values: [
+    BeakValueBehavior<NoteStatus>.derived(
+      field: _status,
+      resolve: (_) => NoteStatus.published,
+    ),
+  ],
+);
 int _evaluations = 0;
 
 final class _WorkflowNote extends BeakModel {
@@ -60,24 +72,13 @@ final class _WorkflowNote extends BeakModel {
       ),
       BeakValueBehavior<String>.snapshot(
         field: _body,
-        onAction: 'publish',
+        onAction: _publish,
         dependencies: [_title],
         resolve: (context) => context.read(_title),
       ),
     ],
     actions: [
-      BeakModelAction(
-        name: 'publish',
-        label: 'Publish',
-        allowOnCreate: true,
-        availableWhen: (record) => _status.readFrom(record) == NoteStatus.draft,
-        values: [
-          BeakValueBehavior<NoteStatus>.derived(
-            field: _status,
-            resolve: (_) => NoteStatus.published,
-          ),
-        ],
-      ),
+      _publish,
       BeakModelAction(
         name: 'rename',
         label: 'Rename',
@@ -206,7 +207,7 @@ void main() {
     () async {
       final draft = await service.commit(create('draft'));
       final id = draft.identities['new-note']!;
-      final plan = update('publish', id, action: 'publish');
+      final plan = update('publish', id, action: _publish.name);
       final published = await service.commit(plan);
       expect(published.complete, isTrue);
       expect(_body.readFrom(published.outcomes.single.record!), 'Title');
@@ -233,13 +234,13 @@ void main() {
     'create and publish is a single atomic graph and failure leaves no record',
     () async {
       final result = await service.commit(
-        create('create-publish', action: 'publish'),
+        create('create-publish', action: _publish.name),
       );
       expect(result.complete, isTrue);
       expect(_body.readFrom(result.outcomes.single.record!), 'Title');
       final invalid = create(
         'invalid-publish',
-        action: 'publish',
+        action: _publish.name,
         extra: {'title': ''},
       );
       expect((await service.commit(invalid)).complete, isFalse);
@@ -288,7 +289,7 @@ void main() {
           'message': 'Original',
         }),
       );
-      await service.commit(update('publish', id, action: 'publish'));
+      await service.commit(update('publish', id, action: _publish.name));
       final childRef = BeakRecordRef.existing('comments', child['id']!.raw!);
       final result = await service.commit(
         BeakSavePlan(
@@ -337,7 +338,7 @@ void main() {
         policy: const _FieldPolicy(),
       );
       final published = await service.commit(
-        create('publish', action: 'publish'),
+        create('publish', action: _publish.name),
       );
       expect(published.complete, isTrue);
       expect(
@@ -374,7 +375,7 @@ void main() {
         policy: const _DenyCommand(),
       );
       final denied = await service.commit(
-        update('denied', draft.identities['new-note']!, action: 'publish'),
+        update('denied', draft.identities['new-note']!, action: _publish.name),
       );
       expect(denied.complete, isFalse);
       expect(denied.hasUnknown, isFalse);
@@ -409,7 +410,7 @@ void main() {
       final created = await service.commit(
         create(
           'original',
-          action: 'publish',
+          action: _publish.name,
           extra: {'author_email': 'person@example.com'},
         ),
       );
@@ -508,7 +509,7 @@ void main() {
       }
 
       expect((await access(const BeakAllowAllPolicy())).executableActions, {
-        'publish',
+        _publish.name,
       });
       expect(
         (await access(const BeakAllowAllPolicy(), id: id)).executableActions,

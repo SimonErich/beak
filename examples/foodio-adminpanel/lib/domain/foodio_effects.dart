@@ -2,6 +2,7 @@ import 'package:beak/migrations.dart';
 
 import '../models/models.dart';
 import 'foodio_clock.dart';
+import 'order_behavior.dart';
 
 /// Atomically enqueues effects. The worker performs them only after commit.
 final class FoodioEffects {
@@ -39,7 +40,7 @@ final class FoodioEffects {
         'payment_mode': OrderModel.paymentMode.readFrom(record),
       }),
     );
-    if (plan.action == 'place') {
+    if (plan.runs(OrderActions.place)) {
       if (OrderModel.sendConfirmation.readFrom(record) == true) {
         await queue('confirmation');
       }
@@ -67,12 +68,14 @@ final class FoodioEffects {
             : 'charge',
       );
     }
-    if (plan.action == 'retryPayment') await queue('charge');
-    if (plan.action == 'sendPaymentLink') await queue('paymentLink');
-    if ((plan.action == 'place' &&
+    if (plan.runs(OrderActions.retryPayment)) await queue('charge');
+    if (plan.runs(OrderActions.sendPaymentLink)) {
+      await queue('paymentLink');
+    }
+    if ((plan.runs(OrderActions.place) &&
             OrderModel.approvalStatus.readFrom(record) ==
                 ApprovalStatus.pending) ||
-        plan.action == 'requestApproval') {
+        plan.runs(OrderActions.requestApproval)) {
       final profileId = OrderModel.profileId.readFrom(record);
       final profile = profileId == null
           ? null
@@ -90,7 +93,7 @@ final class FoodioEffects {
             : StaffMemberModel.email.readFrom(approver),
       );
     }
-    if ({'cancel', 'reject'}.contains(plan.action) &&
+    if (plan.runsAny([OrderActions.cancel, OrderActions.reject]) &&
         OrderModel.paymentStatus.readFrom(record) == PaymentStatus.paid) {
       await queue('refund');
     }
@@ -313,11 +316,11 @@ final class FoodioEffects {
                 'next_action': cancelled
                     ? ''
                     : !success
-                    ? 'retryPayment'
+                    ? OrderActions.retryPayment.name
                     : approvalPending
-                    ? 'requestApproval'
+                    ? OrderActions.requestApproval.name
                     : strict && !acknowledged
-                    ? 'acknowledgeAllergy'
+                    ? OrderActions.acknowledgeAllergy.name
                     : '',
                 'updated_at': _nextOrderRevision(order),
               },

@@ -1,3 +1,5 @@
+import 'package:beak_core/beak_core.dart';
+
 import '../blocks/beak_block.dart';
 import '../filters/beak_filter_widget.dart';
 import '../presentation/beak_record_template.dart';
@@ -56,7 +58,7 @@ final class BeakListDefinition {
   });
 
   /// Shared model commands offered for the selected rows, each with its own receipt.
-  final List<String> bulkModelActions;
+  final List<BeakModelAction> bulkModelActions;
 
   /// Ordered presentation of resource/model selection commands and `export`.
   /// Model commands named here are automatically included; no duplicate list is
@@ -127,7 +129,9 @@ final class BeakListDefinition {
   final BeakBlock? collapsedHeader;
 
   /// Default selected preset before applying a bookmark or saved view.
-  final String? initialPreset;
+  ///
+  /// One of the objects in [presets], never a key.
+  final BeakQueryPreset? initialPreset;
 
   /// Includes query state in the current route and restores browser history.
   final bool persistQueryInUrl;
@@ -149,7 +153,7 @@ final class BeakListDefinition {
 
   /// Formats framework-owned preset counts; missing counts are loading/unavailable.
   /// This is a presentation callback, not a data-fetch or state callback.
-  final String Function(Map<String, int> counts)? subtitleBuilder;
+  final String Function(BeakPresetCounts counts)? subtitleBuilder;
 
   /// Initial page length before a bookmarked or saved choice is applied.
   final int pageSize;

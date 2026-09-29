@@ -71,11 +71,7 @@ void main() {
           dataSource: dataSource,
           controller: controller,
           initialSpec: const NoteModel().query().orderBy(
-            const BeakStringColumn(
-              key: 'title',
-              label: 'Title',
-              sortable: true,
-            ),
+            field,
             descending: true,
           ),
           presentations: [

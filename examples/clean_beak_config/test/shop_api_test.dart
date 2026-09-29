@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:beak/migrations.dart';
 import 'package:clean_beak_config/beak/server.g.dart';
+import 'package:clean_beak_config/resources/invoices/models/invoice.dart';
 import 'package:clean_beak_config/resources/orders/models/order.dart';
 import 'package:clean_beak_config/resources/fulfillment/models/fulfillment_policy.dart';
 import 'package:clean_beak_config/resources/users/models/user_profile_connection.dart';
@@ -315,7 +316,7 @@ void main() {
       final paid = await client.commit(
         BeakSavePlan(
           saveId: 'mark-paid',
-          action: 'markPaid',
+          action: InvoiceActions.markPaid.name,
           root: root,
           operations: [
             BeakSaveOperation(
@@ -852,12 +853,12 @@ void main() {
       );
       BeakSavePlan command(
         String id,
-        String? action, [
+        BeakModelAction? action, [
         BeakRecord values = const BeakRecord(values: {}),
       ]) => BeakSavePlan(
         saveId: id,
         root: root,
-        action: action,
+        action: action?.name,
         operations: [
           BeakSaveOperation(
             id: 'invoice',
@@ -872,16 +873,20 @@ void main() {
       );
       expect(forged.complete, isFalse);
       expect(forged.hasUnknown, isFalse);
-      final plan = command('issue-workflow', 'issue');
+      final plan = command('issue-workflow', InvoiceActions.issue);
       final issued = await client.commit(plan);
       expect(issued.complete, isTrue, reason: '${issued.toJson()}');
       expect(issued.rootRecord?['status']?.raw, 'issued');
       final replay = await client.commit(plan);
       expect(replay.toJson(), issued.toJson());
-      final paid = await client.commit(command('paid-workflow', 'markPaid'));
+      final paid = await client.commit(
+        command('paid-workflow', InvoiceActions.markPaid),
+      );
       expect(paid.complete, isTrue, reason: '${paid.toJson()}');
       expect(paid.rootRecord?['status']?.raw, 'paid');
-      final cancelled = await client.commit(command('cancel-paid', 'cancel'));
+      final cancelled = await client.commit(
+        command('cancel-paid', InvoiceActions.cancel),
+      );
       expect(cancelled.complete, isFalse);
       expect(
         (await client.getOne(root.table, root.id!))?['status']?.raw,
@@ -969,7 +974,7 @@ BeakSavePlan _invoicePlan(
   const invoice = BeakRecordRef.draft('invoices', 'invoice');
   return BeakSavePlan(
     saveId: saveId,
-    action: status == 'issued' ? 'issue' : null,
+    action: status == 'issued' ? InvoiceActions.issue.name : null,
     root: invoice,
     operations: [
       BeakSaveOperation(

@@ -279,7 +279,7 @@ void main() {
         tester,
         const BeakKanbanBlock(
           model: TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
           subtitleField: TaskColumns.assignee,
         ),
@@ -298,13 +298,45 @@ void main() {
       expect(find.text('Write docs'), findsWidgets);
     });
 
+    test('the group field must be an enum field of the block model', () {
+      BeakKanbanBlock boardGroupedBy(BeakScalarField<Enum> field) =>
+          BeakKanbanBlock(
+            model: const TaskModel(),
+            groupField: field,
+            titleField: TaskColumns.title,
+          );
+      expect(
+        boardGroupedBy(TaskModel.status).groupColumn,
+        same(TaskColumns.status),
+      );
+      const notAnEnum = BeakScalarField<Enum>(
+        model: TaskModel(),
+        column: TaskColumns.title,
+      );
+      const elsewhere = BeakScalarField<Enum>(
+        model: MeetingModel(),
+        column: TaskColumns.status,
+      );
+      const related = BeakScalarField<Enum>(
+        model: TaskModel(),
+        column: TaskColumns.status,
+        path: [MailRelations.folder],
+      );
+      for (final field in [notAnEnum, elsewhere, related]) {
+        expect(
+          () => boardGroupedBy(field).groupColumn,
+          throwsA(isA<BeakConfigurationException>()),
+        );
+      }
+    });
+
     testWidgets('dropping a card persists its new group', (tester) async {
       BeakRecord? moved;
       await pump(
         tester,
         BeakKanbanBlock(
           model: const TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
           onCardMove: (record) => moved = record,
         ),
@@ -508,7 +540,7 @@ void main() {
         tester,
         const BeakKanbanBlock(
           model: TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
           sortField: TaskColumns.title,
         ),
@@ -526,7 +558,7 @@ void main() {
         tester,
         const BeakKanbanBlock(
           model: TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
         ),
       );
@@ -625,7 +657,6 @@ void main() {
     testWidgets('inbox filters by the selected data-driven folder', (
       tester,
     ) async {
-      const folderRelation = MailRelations.folder;
       const folderLabel = BeakStringColumn(key: 'label', label: 'Folder');
       BeakRecord mail(
         String id,
@@ -675,7 +706,7 @@ void main() {
           senderField: MailColumns.sender,
           subjectField: MailColumns.subject,
           unreadField: MailColumns.unread,
-          folderRelation: folderRelation,
+          folderRelation: MailModel.folder,
           folderLabelField: folderLabel,
         ),
       );
@@ -916,6 +947,12 @@ final class TaskModel extends BeakModel {
   /// Creates the model.
   const TaskModel();
 
+  /// Typed reference to the grouping status.
+  static const status = BeakScalarField<TaskStatus>(
+    model: TaskModel(),
+    column: TaskColumns.status,
+  );
+
   @override
   String get table => 'tasks';
 
@@ -1001,6 +1038,13 @@ final class MailModel extends BeakModel {
   /// Creates the model.
   const MailModel();
 
+  /// Typed reference to the folder a message sits in.
+  static const folder = BeakToOneField(
+    model: MailModel(),
+    relation: MailRelations.folder,
+    target: MailFolderModel(),
+  );
+
   @override
   String get table => 'mail';
 
@@ -1012,6 +1056,24 @@ final class MailModel extends BeakModel {
 
   @override
   List<BeakRelationship> get relationships => const [MailRelations.folder];
+}
+
+/// The folders a [MailModel] message can sit in.
+final class MailFolderModel extends BeakModel {
+  /// Creates the model.
+  const MailFolderModel();
+
+  @override
+  String get table => 'mail_folders';
+
+  @override
+  String get displayColumnKey => 'label';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'label', label: 'Folder'),
+  ];
 }
 
 /// Typed relations of the [MailModel] fixture.

@@ -35,7 +35,7 @@ enum BeakAggregateFunction {
 /// final sellable = products.count(filter: ProductModel.active.eq(true));
 ///
 /// // "What is the average product price?"
-/// final averagePrice = products.avg(ProductModel.price.column);
+/// final averagePrice = products.avg(ProductModel.price);
 /// ```
 ///
 /// The named constructors are what those methods call, and

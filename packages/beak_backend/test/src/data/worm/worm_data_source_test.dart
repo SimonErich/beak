@@ -226,7 +226,7 @@ void main() {
 
       final page = await dataSource.query(
         const BeakQuerySpec(table: 'products')
-            .orderBy(ProductColumns.price, descending: true)
+            .orderBy(ProductModel.price, descending: true)
             .paginate(page: 2, perPage: 3),
       );
 

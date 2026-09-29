@@ -23,6 +23,9 @@ final class BeakQueryPreset {
   });
 
   /// Stable URL and saved-view identifier.
+  ///
+  /// Declared once here; every other reference to a preset (the initial
+  /// selection, a navigation destination, a count) is the object itself.
   final String key;
 
   /// Visible tab label.
@@ -48,6 +51,26 @@ final class BeakQueryPreset {
   final BeakColor countColor;
 }
 
+/// Authoritative record counts of a list's presets, read by preset object.
+///
+/// A preset that has no count yet, or whose count failed, answers null rather
+/// than zero, so a loading tab is never shown as empty.
+final class BeakPresetCounts {
+  /// Captures the count of each preset that has one.
+  BeakPresetCounts(Map<BeakQueryPreset, int> counts)
+    : _byKey = Map.unmodifiable({
+        for (final entry in counts.entries) entry.key.key: entry.value,
+      });
+
+  /// No preset has been counted.
+  const BeakPresetCounts.none() : _byKey = const {};
+
+  final Map<String, int> _byKey;
+
+  /// The number of records in [preset], or null while it is unavailable.
+  int? operator [](BeakQueryPreset preset) => _byKey[preset.key];
+}
+
 /// Serializable user choices; permanent application scopes are never serialized.
 final class BeakQueryState {
   /// Creates the first page of a list.
@@ -70,7 +93,11 @@ final class BeakQueryState {
     }
   }
 
-  /// Selected preset, or the unfiltered base view.
+  /// [BeakQueryPreset.key] of the selected preset, or null for the unfiltered
+  /// base view.
+  ///
+  /// The serialized identity of the choice in URLs and saved views. Code that
+  /// configures a list refers to the [BeakQueryPreset] object instead.
   final String? preset;
 
   /// Predicates keyed by configured filter identifiers.
@@ -208,11 +235,13 @@ final class BeakQueryController extends BeakViewModel {
   /// Reactive current presentation state.
   ReadonlySignal<BeakQueryState> get state => _state;
 
-  late final Signal<Map<String, int>> _presetCounts = ownedSignal(const {});
+  late final Signal<BeakPresetCounts> _presetCounts = ownedSignal(
+    const BeakPresetCounts.none(),
+  );
   int _countGeneration = 0;
 
   /// Authoritative preset populations shared by tab badges and the page subtitle.
-  ReadonlySignal<Map<String, int>> get presetCounts => _presetCounts;
+  ReadonlySignal<BeakPresetCounts> get presetCounts => _presetCounts;
 
   /// Refreshes each preset once, discarding stale responses after a later refresh.
   Future<void> refreshPresetCounts(BeakDataSource source) async {
@@ -222,10 +251,10 @@ final class BeakQueryController extends BeakViewModel {
         BeakResourceRepository(source).query(countQuery(preset)),
     ]);
     if (isDisposed || generation != _countGeneration) return;
-    _presetCounts.value = Map.unmodifiable({
+    _presetCounts.value = BeakPresetCounts({
       for (final (index, result) in results.indexed)
         if (result case BeakOk<BeakPage<BeakRecord>>(:final value))
-          presets[index].key: value.total,
+          presets[index]: value.total,
     });
   }
 
@@ -298,8 +327,15 @@ final class BeakQueryController extends BeakViewModel {
   }
 
   /// Changes the preset and returns to the first page, retaining user filters.
-  void selectPreset(String? key) => restore(
-    _copy(preset: key, replacePreset: true, replaceColumns: true, page: 1),
+  ///
+  /// A null [preset] selects the unfiltered base view.
+  void selectPreset(BeakQueryPreset? preset) => restore(
+    _copy(
+      preset: preset?.key,
+      replacePreset: true,
+      replaceColumns: true,
+      page: 1,
+    ),
   );
 
   /// Commits the filter drawer only after Apply.

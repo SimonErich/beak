@@ -4,9 +4,9 @@ import '../common/json_support.dart';
 
 /// A single ordering directive of a query spec.
 ///
-/// Carries the raw [columnKey] for the wire; user code obtains sorts through
-/// the spec's typed `orderBy` builder, which reads the key from a column
-/// constant.
+/// Carries the raw [columnKey] for the wire; user code obtains sorts from a
+/// typed field — `OrderModel.number.descending()` — or through the spec's
+/// `orderBy` builder, never by writing the key.
 @immutable
 final class BeakSort {
   /// Creates a sort on [columnKey], ascending unless [descending].

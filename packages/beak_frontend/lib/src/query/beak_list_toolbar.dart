@@ -304,7 +304,7 @@ class _PresetTabs extends HookWidget {
     );
     String label(BeakQueryPreset preset) {
       if (!showCount) return preset.label;
-      final count = controller.presetCounts.value[preset.key];
+      final count = controller.presetCounts.value[preset];
       final formatted = count == null
           ? '—'
           : BeakFormatting.of(context).number(count);
@@ -321,11 +321,12 @@ class _PresetTabs extends HookWidget {
               semanticLabel: label(preset),
               trailing: showCount
                   ? _PresetCount(
-                      label: controller.presetCounts.value[preset.key] == null
-                          ? '—'
-                          : BeakFormatting.of(context).number(
-                              controller.presetCounts.value[preset.key]!,
-                            ),
+                      label: switch (controller.presetCounts.value[preset]) {
+                        final int count => BeakFormatting.of(
+                          context,
+                        ).number(count),
+                        null => '—',
+                      },
                       color: preset.countColor,
                     )
                   : null,
@@ -333,7 +334,7 @@ class _PresetTabs extends HookWidget {
         ],
         selectedIndex: selected < 0 ? 0 : selected,
         onSelected: (index) =>
-            controller.selectPreset(controller.presets[index].key),
+            controller.selectPreset(controller.presets[index]),
       ),
     );
   }

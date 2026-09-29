@@ -35,11 +35,10 @@ BeakPanelConfig foodioPanel({
   sidebarCollapsible: false,
   shellActions: foodioShellActions,
   notifications: BeakNotificationSource(
-    model: const NotificationModel(),
-    titleField: NotificationModel.title.column,
-    bodyField: NotificationModel.body.column,
-    timeField: NotificationModel.occurredAt.column,
-    readField: NotificationModel.isRead.column,
+    titleField: NotificationModel.title,
+    bodyField: NotificationModel.body,
+    timeField: NotificationModel.occurredAt,
+    readField: NotificationModel.isRead,
   ),
   refreshPolicy: const BeakRefreshPolicy(
     interval: Duration(seconds: 30),

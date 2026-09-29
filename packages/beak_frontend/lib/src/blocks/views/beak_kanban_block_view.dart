@@ -37,7 +37,7 @@ class _BeakKanbanBlockView extends HookWidget {
       return () => cancelled = true;
     }, [dataSource, block]);
 
-    final BeakEnumColumn<Enum> groupField = block.groupField;
+    final BeakEnumColumn<Enum> groupField = block.groupColumn;
     final columns = <OiKanbanColumn<BeakRecord>>[
       for (final value in groupField.values)
         OiKanbanColumn<BeakRecord>(

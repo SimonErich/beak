@@ -3,16 +3,17 @@ import 'package:beak/ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'models/models.dart';
+import 'pages/operations.dart';
 import 'theme/gabel_tokens.dart';
 
 /// Each workspace has a compact rail destination and contextual navigation.
-const foodioNavigation = BeakNavigation(
+final foodioNavigation = BeakNavigation(
   searchPlaceholder: 'Search orders, customers, invoices…',
   showThemeToggle: false,
   currentRecordBranch: true,
   searchShortcut: ['⌘', 'K'],
-  userMenu: Builder(builder: _accountMenu),
-  leading: Padding(
+  userMenu: const Builder(builder: _accountMenu),
+  leading: const Padding(
     padding: EdgeInsets.only(top: 4, bottom: 8),
     child: SizedBox.square(
       dimension: 40,
@@ -42,34 +43,24 @@ const foodioNavigation = BeakNavigation(
       key: 'home',
       label: 'Home',
       icon: OiIcons.layoutDashboard,
-      items: [
-        BeakNavigationItem.page(
-          '/overview',
-          label: 'Overview',
-          icon: OiIcons.layoutDashboard,
-        ),
-      ],
+      items: [BeakNavigationItem.screen(overviewScreen, label: 'Overview')],
     ),
     BeakNavigationSection(
       key: 'orders',
       label: 'Orders',
       icon: OiIcons.shoppingBag,
       items: [
-        BeakNavigationItem.resource(
+        const BeakNavigationItem.resource(
           OrderModel(),
           showCount: true,
           recordLabelMonospace: true,
         ),
-        BeakNavigationItem.resource(DeliverySlotModel()),
-        BeakNavigationItem.page(
-          '/kitchen',
-          label: 'Kitchen summary',
-          icon: OiIcons.clipboardList,
-        ),
-        BeakNavigationItem.resource(ComplaintModel(), showCount: true),
+        const BeakNavigationItem.resource(DeliverySlotModel()),
+        BeakNavigationItem.screen(kitchenScreen),
+        const BeakNavigationItem.resource(ComplaintModel(), showCount: true),
       ],
     ),
-    BeakNavigationSection(
+    const BeakNavigationSection(
       key: 'people',
       label: 'People',
       icon: OiIcons.users,
@@ -80,7 +71,7 @@ const foodioNavigation = BeakNavigation(
         BeakNavigationItem.resource(StaffMemberModel()),
       ],
     ),
-    BeakNavigationSection(
+    const BeakNavigationSection(
       key: 'kitchen',
       label: 'Kitchen',
       icon: OiIcons.chefHat,
@@ -89,7 +80,7 @@ const foodioNavigation = BeakNavigation(
         BeakNavigationItem.resource(MenuPlanModel()),
       ],
     ),
-    BeakNavigationSection(
+    const BeakNavigationSection(
       key: 'finance',
       label: 'Finance',
       icon: OiIcons.receipt,
@@ -99,7 +90,7 @@ const foodioNavigation = BeakNavigation(
         BeakNavigationItem.resource(BudgetAccountModel()),
       ],
     ),
-    BeakNavigationSection(
+    const BeakNavigationSection(
       key: 'settings',
       bottom: true,
       label: 'Settings',

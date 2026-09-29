@@ -20,7 +20,55 @@ const _title = BeakScalarField<String>(
   ),
 );
 
+const _settingsScreen = BeakScreen(
+  path: '/settings',
+  title: 'Workspace settings',
+  icon: BeakIconToken(OiIcons.settings),
+  body: BeakTextBlock('Settings content'),
+);
+const all = BeakQueryPreset(key: 'all', label: 'All', rowHeight: 56);
+const everything = BeakQueryPreset(key: 'all', label: 'All notes');
+
 void main() {
+  test(
+    'a screen destination takes its route, label and icon from the screen',
+    () {
+      const item = BeakNavigationItem.screen(_settingsScreen);
+      expect(item.route, '/settings');
+      expect(item.label, 'Workspace settings');
+      expect(item.icon, OiIcons.settings);
+      expect(item.model, isNull);
+      expect(item.preset, isNull);
+      const renamed = BeakNavigationItem.screen(
+        _settingsScreen,
+        label: 'Preferences',
+        icon: OiIcons.cog,
+      );
+      expect(renamed.route, '/settings');
+      expect(renamed.label, 'Preferences');
+      expect(renamed.icon, OiIcons.cog);
+    },
+  );
+
+  test('a resource destination with a preset bookmarks that preset', () {
+    const urgent = BeakQueryPreset(key: 'urgent', label: 'Urgent');
+    const other = BeakQueryPreset(key: 'other', label: 'Other');
+    const item = BeakNavigationItem.resource(NoteModel(), preset: urgent);
+    final uri = Uri.parse(item.route);
+    expect(uri.path, '/notes');
+    expect(BeakQueryController.readUri(uri)?.preset, 'urgent');
+    expect(item.matches(uri), isTrue);
+    expect(
+      const BeakNavigationItem.resource(
+        NoteModel(),
+        preset: other,
+      ).matches(uri),
+      isFalse,
+    );
+    expect(item.matches(Uri.parse('/notes')), isFalse);
+    expect(item.matches(Uri.parse('/notes?list=***')), isFalse);
+  });
+
   testWidgets('compact page lists scroll heading and rows to pagination', (
     tester,
   ) async {
@@ -108,10 +156,8 @@ void main() {
                     pageSize: 15,
                     columns: [BeakTableColumn.field(_title)],
                     showPresetCounts: false,
-                    presets: const [
-                      BeakQueryPreset(key: 'all', label: 'All', rowHeight: 56),
-                    ],
-                    initialPreset: 'all',
+                    presets: const [all],
+                    initialPreset: all,
                   ),
                 ),
               ],
@@ -167,10 +213,8 @@ void main() {
                 definition: BeakListDefinition(
                   pageSize: 1,
                   showHeaderToggle: true,
-                  presets: const [
-                    BeakQueryPreset(key: 'all', label: 'All notes'),
-                  ],
-                  initialPreset: 'all',
+                  presets: const [everything],
+                  initialPreset: everything,
                   columns: [BeakTableColumn.field(_title)],
                   filters: [titleFilter],
                   quickFilters: [titleFilter],
@@ -218,6 +262,12 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1400, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final source = _SummarySource();
+      const everyNote = BeakQueryPreset(key: 'all', label: 'All');
+      final ordinary = BeakQueryPreset(
+        key: 'ordinary',
+        label: 'Ordinary',
+        filter: _title.eq('Ordinary note'),
+      );
       final resource = BeakResource(
         model: const NoteModel(),
         screens: [
@@ -227,16 +277,9 @@ void main() {
               filter: _title.eq('Urgent note'),
             ),
             definition: BeakListDefinition(
-              initialPreset: 'all',
+              initialPreset: everyNote,
               columns: [BeakTableColumn.field(_title)],
-              presets: [
-                const BeakQueryPreset(key: 'all', label: 'All'),
-                BeakQueryPreset(
-                  key: 'ordinary',
-                  label: 'Ordinary',
-                  filter: _title.eq('Ordinary note'),
-                ),
-              ],
+              presets: [everyNote, ordinary],
             ),
           ),
         ],
@@ -245,18 +288,21 @@ void main() {
         BeakPanel(
           resources: [resource],
           dataSource: source,
-          navigation: const BeakNavigation(
+          navigation: BeakNavigation(
             sections: [
               BeakNavigationSection(
                 key: 'work',
                 label: 'Work',
                 icon: OiIcons.inbox,
                 items: [
-                  BeakNavigationItem.resource(NoteModel(), showCount: true),
-                  BeakNavigationItem.resource(
+                  const BeakNavigationItem.resource(
                     NoteModel(),
+                    showCount: true,
+                  ),
+                  BeakNavigationItem.resource(
+                    const NoteModel(),
                     label: 'Ordinary destination',
-                    preset: 'ordinary',
+                    preset: ordinary,
                     showCount: true,
                   ),
                 ],
@@ -287,42 +333,41 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final source = _SummarySource();
       const count = BeakSummaryMeasure.count('records');
+      const everyNote = BeakQueryPreset(key: 'all', label: 'All');
+      final attention = BeakQueryPreset(
+        key: 'attention',
+        label: 'Attention',
+        filter: _title.eq('Urgent note'),
+        columns: [
+          BeakTableColumn(
+            key: 'issue',
+            label: 'Issue',
+            template: BeakRecordTemplate.fields(title: _title),
+          ),
+        ],
+      );
       final resource = BeakResource(
         model: const NoteModel(),
         screens: [
           BeakTableScreen(
             definition: BeakListDefinition(
-              initialPreset: 'all',
+              initialPreset: everyNote,
               title: 'Order operations',
               subtitleBuilder: (counts) =>
-                  '${counts['all'] ?? '—'} total · ${counts['attention'] ?? '—'} urgent',
+                  '${counts[everyNote] ?? '—'} total · ${counts[attention] ?? '—'} urgent',
               showHeaderToggle: true,
-              presets: [
-                const BeakQueryPreset(key: 'all', label: 'All'),
-                BeakQueryPreset(
-                  key: 'attention',
-                  label: 'Attention',
-                  filter: _title.eq('Urgent note'),
-                  columns: [
-                    BeakTableColumn(
-                      key: 'issue',
-                      label: 'Issue',
-                      template: BeakRecordTemplate.fields(title: _title),
-                    ),
-                  ],
-                ),
-              ],
+              presets: [everyNote, attention],
               columns: [BeakTableColumn.field(_title)],
               header: BeakSummaryBlock(
                 title: 'Matching records',
-                query: BeakSummarySpec(table: 'notes', measures: [count]),
+                query: const NoteModel().summary(measures: [count]),
                 values: [
                   const BeakSummaryValue(measure: count, label: 'Records'),
                 ],
               ),
               collapsedHeader: BeakSummaryBlock(
                 title: 'Compact population',
-                query: BeakSummarySpec(table: 'notes', measures: [count]),
+                query: const NoteModel().summary(measures: [count]),
                 values: const [
                   BeakSummaryValue(measure: count, label: 'matching notes'),
                 ],
@@ -388,21 +433,20 @@ void main() {
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1400, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
+      const everyNote = BeakQueryPreset(key: 'all', label: 'All');
+      final attention = BeakQueryPreset(
+        key: 'attention',
+        label: 'Attention',
+        filter: _title.eq('Urgent note'),
+      );
       final resource = BeakResource(
         model: const NoteModel(),
         screens: [
           BeakTableScreen(
             definition: BeakListDefinition(
-              initialPreset: 'all',
+              initialPreset: everyNote,
               columns: [BeakTableColumn.field(_title)],
-              presets: [
-                const BeakQueryPreset(key: 'all', label: 'All'),
-                BeakQueryPreset(
-                  key: 'attention',
-                  label: 'Attention',
-                  filter: _title.eq('Urgent note'),
-                ),
-              ],
+              presets: [everyNote, attention],
             ),
           ),
         ],
@@ -652,14 +696,7 @@ void main() {
       BeakPanel(
         dataSource: _SummarySource(),
         resources: const [BeakResource(model: NoteModel())],
-        pages: const [
-          BeakScreen(
-            path: '/settings',
-            title: 'Workspace settings',
-            icon: BeakIconToken(OiIcons.settings),
-            body: BeakTextBlock('Settings content'),
-          ),
-        ],
+        pages: const [_settingsScreen],
         navigation: BeakNavigation(
           headerBuilder: (_, section) => OiLabel.body('Workspace: $section'),
           userMenu: const OiLabel.body('Account menu'),
@@ -677,13 +714,7 @@ void main() {
               label: 'Settings',
               icon: OiIcons.settings,
               bottom: true,
-              items: [
-                BeakNavigationItem.page(
-                  '/settings',
-                  label: 'Workspace settings',
-                  icon: OiIcons.settings,
-                ),
-              ],
+              items: [BeakNavigationItem.screen(_settingsScreen)],
             ),
           ],
         ),

@@ -7,39 +7,67 @@ import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import '../di/beak_locator.dart';
 
-/// Binds a model's rows to the panel's notification center: which columns
+/// Binds a model's rows to the panel's notification center: which fields
 /// carry the title, body, timestamp, read flag, and category. Set it on
 /// [BeakPanelConfig.notifications] and a bell with an unread badge appears in
 /// the shell — no per-app widget code.
+///
+/// The model is taken from the fields, so it is never named separately:
+///
+/// ```dart
+/// BeakNotificationSource(
+///   titleField: NotificationModel.title,
+///   bodyField: NotificationModel.body,
+///   timeField: NotificationModel.occurredAt,
+///   readField: NotificationModel.isRead,
+/// );
+/// ```
 final class BeakNotificationSource {
-  /// Creates a notification source over [model].
-  const BeakNotificationSource({
-    required this.model,
+  /// Creates a notification source over the model that owns [titleField].
+  ///
+  /// Throws a [BeakConfigurationException] when another field belongs to a
+  /// different model, or is reached through a relationship.
+  BeakNotificationSource({
     required this.titleField,
     this.bodyField,
     this.timeField,
     this.readField,
     this.categoryField,
-  });
+  }) {
+    for (final field in [
+      titleField,
+      ?bodyField,
+      ?timeField,
+      ?readField,
+      ?categoryField,
+    ]) {
+      if (field.path.isNotEmpty || field.model.table != model.table) {
+        throw BeakConfigurationException(
+          'Notification field "${field.qualifiedKey}" must be a field of '
+          '${model.table} itself.',
+        );
+      }
+    }
+  }
 
-  /// The model whose rows are notifications.
-  final BeakModel model;
+  /// The field holding each notification's title.
+  final BeakScalarField<String> titleField;
 
-  /// The column holding each notification's title.
-  final BeakColumn titleField;
+  /// The field holding the body, if any.
+  final BeakScalarField<String>? bodyField;
 
-  /// The column holding the body, if any.
-  final BeakColumn? bodyField;
+  /// The timestamp field used to order newest-first, if any.
+  final BeakScalarField<DateTime>? timeField;
 
-  /// The timestamp column used to order newest-first, if any.
-  final BeakColumn? timeField;
-
-  /// The boolean "read" column, if any (enables the unread badge and
+  /// The boolean "read" field, if any (enables the unread badge and
   /// mark-as-read).
-  final BeakColumn? readField;
+  final BeakScalarField<bool>? readField;
 
-  /// The column grouping notifications into categories, if any.
-  final BeakColumn? categoryField;
+  /// The field grouping notifications into categories, if any.
+  final BeakScalarField<Object>? categoryField;
+
+  /// The model whose rows are notifications, read from [titleField].
+  BeakModel get model => titleField.model;
 }
 
 /// The shell's notification bell: a badge showing the unread count that opens
@@ -63,12 +91,8 @@ class BeakNotificationBell extends HookWidget {
       var cancelled = false;
       Future<void> load() async {
         final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: source.model.table,
-            sorts: [
-              if (source.timeField case final BeakColumn time)
-                BeakSort(time.key, descending: true),
-            ],
+          source.model.query(
+            sorts: [?source.timeField?.descending()],
             pagination: const BeakPagination(perPage: 30),
           ),
         );
@@ -105,11 +129,11 @@ class BeakNotificationBell extends HookWidget {
   }
 
   int _unreadOf(List<BeakRecord> records) {
-    final BeakColumn? read = source.readField;
+    final BeakScalarField<bool>? read = source.readField;
     if (read == null) {
       return records.length;
     }
-    return records.where((r) => r[read.key]?.raw != true).length;
+    return records.where((r) => read.readFrom(r) != true).length;
   }
 
   void _open(
@@ -145,12 +169,8 @@ class _BeakNotificationPanel extends HookWidget {
       var cancelled = false;
       Future<void> load() async {
         final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: source.model.table,
-            sorts: [
-              if (source.timeField case final BeakColumn time)
-                BeakSort(time.key, descending: true),
-            ],
+          source.model.query(
+            sorts: [?source.timeField?.descending()],
             pagination: const BeakPagination(perPage: 30),
           ),
         );
@@ -167,7 +187,7 @@ class _BeakNotificationPanel extends HookWidget {
     }, [dataSource]);
 
     Future<void> markRead(Iterable<Object> ids) async {
-      final BeakColumn? read = source.readField;
+      final BeakScalarField<bool>? read = source.readField;
       if (read == null) {
         return;
       }
@@ -175,13 +195,13 @@ class _BeakNotificationPanel extends HookWidget {
         await dataSource.update(
           source.model.table,
           id,
-          BeakRecord.fromRow({read.key: true}),
+          read.writeTo(const BeakRecord(values: {}), true),
         );
       }
       records.value = [
         for (final record in records.value)
           _idOf(record) != null && ids.contains(_idOf(record))
-              ? BeakRecord.fromRow({...record.toRow(), read.key: true})
+              ? read.writeTo(record, true)
               : record,
       ];
       onChanged();
@@ -195,7 +215,7 @@ class _BeakNotificationPanel extends HookWidget {
         notifications: [
           for (final record in records.value) _notificationOf(record),
         ],
-        onMarkRead: (key) => markRead([key]),
+        onMarkRead: (notification) => markRead([notification.key]),
         onMarkAllRead: () => markRead(
           [
             for (final record in records.value)
@@ -209,38 +229,22 @@ class _BeakNotificationPanel extends HookWidget {
   int _unread(List<BeakRecord> records) => records.where(_isUnread).length;
 
   bool _isUnread(BeakRecord record) {
-    final BeakColumn? read = source.readField;
-    return read == null || record[read.key]?.raw != true;
+    final BeakScalarField<bool>? read = source.readField;
+    return read == null || read.readFrom(record) != true;
   }
 
   Object? _idOf(BeakRecord record) => source.model.primaryKeyOf(record);
 
   OiNotification _notificationOf(BeakRecord record) {
-    final Object key =
-        _idOf(record) ?? record[source.titleField.key]?.raw ?? '';
+    final String? title = source.titleField.readFrom(record);
+    final Object key = _idOf(record) ?? title ?? '';
     return OiNotification(
       key: key,
-      title: record[source.titleField.key]?.raw?.toString() ?? '',
-      body: source.bodyField == null
-          ? null
-          : record[source.bodyField!.key]?.raw?.toString(),
-      timestamp: _timeOf(record),
+      title: title ?? '',
+      body: source.bodyField?.readFrom(record),
+      timestamp: source.timeField?.readFrom(record) ?? DateTime.utc(2026),
       read: !_isUnread(record),
-      category: source.categoryField == null
-          ? null
-          : record[source.categoryField!.key]?.raw?.toString(),
+      category: source.categoryField?.readFrom(record)?.toString(),
     );
-  }
-
-  DateTime _timeOf(BeakRecord record) {
-    final BeakColumn? time = source.timeField;
-    if (time == null) {
-      return DateTime.utc(2026);
-    }
-    return switch (record[time.key]?.raw) {
-      final DateTime value => value,
-      final String value => DateTime.tryParse(value) ?? DateTime.utc(2026),
-      _ => DateTime.utc(2026),
-    };
   }
 }

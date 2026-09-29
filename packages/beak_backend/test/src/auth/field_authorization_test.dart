@@ -78,38 +78,40 @@ void main() {
         final response = await request(
           'POST',
           '/products/summary',
-          BeakSummarySpec(
-            table: 'products',
-            measures: [
-              BeakSummaryMeasure.count(
-                'secretCount',
-                filter: BeakFieldFilter.forKey(
-                  key,
-                  BeakOperator.isNotNull,
-                  const BeakNullValue(),
-                ),
-              ),
-            ],
-          ).toJson(),
+          const ProductModel()
+              .summary(
+                measures: [
+                  BeakSummaryMeasure.count(
+                    'secretCount',
+                    filter: BeakFieldFilter.forKey(
+                      key,
+                      BeakOperator.isNotNull,
+                      const BeakNullValue(),
+                    ),
+                  ),
+                ],
+              )
+              .toJson(),
         );
         expect(response.statusCode, 401, reason: key);
       }
       final allowed = await request(
         'POST',
         '/products/summary',
-        BeakSummarySpec(
-          table: 'products',
-          measures: [
-            const BeakSummaryMeasure.count(
-              'named',
-              filter: BeakFieldFilter.forKey(
-                'name',
-                BeakOperator.eq,
-                BeakStringValue('Beans'),
-              ),
-            ),
-          ],
-        ).toJson(),
+        const ProductModel()
+            .summary(
+              measures: [
+                const BeakSummaryMeasure.count(
+                  'named',
+                  filter: BeakFieldFilter.forKey(
+                    'name',
+                    BeakOperator.eq,
+                    BeakStringValue('Beans'),
+                  ),
+                ),
+              ],
+            )
+            .toJson(),
       );
       expect(allowed.statusCode, 200);
       expect(await allowed.readAsString(), contains('"named":1'));
@@ -182,14 +184,12 @@ void main() {
 
   test('summaries cannot infer hidden grouping or measure fields', () async {
     for (final spec in [
-      BeakSummarySpec(
-        table: 'products',
-        groupBy: ProductColumns.price,
-        measures: const [BeakSummaryMeasure.count('count')],
+      const ProductModel().summary(
+        groupBy: ProductModel.price,
+        measures: [const BeakSummaryMeasure.count('count')],
       ),
-      BeakSummarySpec(
-        table: 'products',
-        measures: [BeakSummaryMeasure.sum('sum', column: ProductColumns.price)],
+      const ProductModel().summary(
+        measures: [BeakSummaryMeasure.sum('sum', field: ProductModel.price)],
       ),
     ]) {
       expect(

@@ -66,7 +66,7 @@ class BeakFormScreen extends BeakResourceScreen {
   });
 
   /// Optional model command used by the final primary submission.
-  final String? submitAction;
+  final BeakModelAction? submitAction;
 
   /// Optional primary action label, otherwise the model command or Save/Finish.
   final String? submitLabel;

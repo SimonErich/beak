@@ -1,4 +1,5 @@
 import 'package:beak/beak.dart';
+import 'package:foodio_adminpanel/domain/order_behavior.dart';
 import 'package:foodio_adminpanel/models/models.dart';
 import 'package:test/test.dart';
 
@@ -81,7 +82,7 @@ void main() {
   test(
     'operational commands exclude drafts and finished orders while notes remain available',
     () {
-      final actions = const OrderModel().behavior.actions;
+      expect(const OrderModel().behavior.actions, OrderActions.all);
       for (final status in [
         OrderStatus.draft,
         OrderStatus.delivered,
@@ -95,29 +96,22 @@ void main() {
           'allergy_acknowledged': false,
           'next_action': 'reviewChange',
         });
-        for (final name in [
-          'approve',
-          'reject',
-          'requestApproval',
-          'sendPaymentLink',
-          'retryPayment',
-          'acknowledgeAllergy',
-          'resolveChange',
+        for (final action in [
+          OrderActions.approve,
+          OrderActions.reject,
+          OrderActions.requestApproval,
+          OrderActions.sendPaymentLink,
+          OrderActions.retryPayment,
+          OrderActions.acknowledgeAllergy,
+          OrderActions.resolveChange,
         ]) {
           expect(
-            actions
-                .firstWhere((action) => action.name == name)
-                .isAvailable(record),
+            action.isAvailable(record),
             isFalse,
-            reason: '$name on ${status.name}',
+            reason: '${action.name} on ${status.name}',
           );
         }
-        expect(
-          actions
-              .firstWhere((action) => action.name == 'addNote')
-              .isAvailable(record),
-          isTrue,
-        );
+        expect(OrderActions.addNote.isAvailable(record), isTrue);
       }
     },
   );

@@ -21,7 +21,7 @@ part of 'beak_block.dart';
 ///   enableDelete: false,
 ///   initialSpec: const OrderModel()
 ///       .query()
-///       .orderBy(OrderModel.deliveryDate.column)
+///       .orderBy(OrderModel.deliveryDate)
 ///       .paginate(perPage: 5),
 ///   baseFilter: OrderModel.status.notEq(OrderStatus.cancelled),
 /// );

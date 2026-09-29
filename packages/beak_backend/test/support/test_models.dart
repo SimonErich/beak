@@ -93,6 +93,24 @@ final class ProductModel extends BeakModel {
     column: ProductColumns.price,
   );
 
+  /// Typed reference to the on-sale flag.
+  static const active = BeakScalarField<bool>(
+    model: ProductModel(),
+    column: ProductColumns.active,
+  );
+
+  /// Typed reference to the creation timestamp.
+  static const createdAt = BeakScalarField<DateTime>(
+    model: ProductModel(),
+    column: ProductColumns.createdAt,
+  );
+
+  /// Typed reference to the owning category's foreign key.
+  static const categoryId = BeakScalarField<int>(
+    model: ProductModel(),
+    column: ProductColumns.categoryId,
+  );
+
   @override
   String get table => 'products';
 

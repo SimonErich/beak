@@ -1278,25 +1278,23 @@ class _ChoiceFilterControl extends HookWidget {
           final loaded = <String, num>{};
           for (var start = 0; start < def.options.length; start += 8) {
             final choices = def.options.skip(start).take(8).toList();
+            final measures = [
+              for (var i = 0; i < choices.length; i++)
+                BeakSummaryMeasure.count(
+                  'facet_${start + i}',
+                  filter: choices[i].filter,
+                ),
+            ];
             final result = await BeakResourceRepository(source!).run(
               () => (source! as BeakSummaryDataSource).summary(
-                BeakSummarySpec(
-                  table: query.table,
-                  measures: [
-                    for (var i = 0; i < choices.length; i++)
-                      BeakSummaryMeasure.count(
-                        'facet_${start + i}',
-                        filter: choices[i].filter,
-                      ),
-                  ],
-                ).withQuery(query),
+                def.field.model.summary(measures: measures).withQuery(query),
               ),
             );
             if (!current) return;
             if (result case BeakOk(:final value)) {
               if (value.rows.isNotEmpty) {
                 for (var i = 0; i < choices.length; i++) {
-                  final count = value.rows.first.values['facet_${start + i}'];
+                  final count = value.rows.first.valueOf(measures[i]);
                   if (count != null) loaded[choices[i].key] = count;
                 }
               }

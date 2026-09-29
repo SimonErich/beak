@@ -1,8 +1,8 @@
 import 'package:meta/meta.dart';
 
-import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
+import '../model/beak_field_ref.dart';
 import '../relations/beak_relationship.dart';
 import 'beak_filter.dart';
 import 'beak_pagination.dart';
@@ -28,7 +28,7 @@ import '../common/json_support.dart';
 /// final spec = const PostModel()
 ///     .query(filter: PostModel.status.eq('published'))
 ///     .withRelation(PostModel.author.relation)
-///     .orderBy(PostModel.createdAt.column, descending: true)
+///     .orderBy(PostModel.createdAt, descending: true)
 ///     .paginate(page: 2, perPage: 50);
 ///
 /// // Ship it across the wire, then rebuild it losslessly on the backend.
@@ -157,12 +157,15 @@ final class BeakQuerySpec {
     },
   );
 
-  /// Returns a copy additionally ordered by [column].
-  BeakQuerySpec orderBy(BeakColumn column, {bool descending = false}) => _copy(
-    sorts: [
-      ...sorts,
-      BeakSort(column.key, descending: descending),
-    ],
+  /// Returns a copy additionally ordered by [field].
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship: results are ordered by their own columns only.
+  BeakQuerySpec orderBy(
+    BeakScalarField<Object> field, {
+    bool descending = false,
+  }) => _copy(
+    sorts: [...sorts, descending ? field.descending() : field.ascending()],
   );
 
   /// Returns a copy additionally eager-loading [relation], optionally
@@ -177,10 +180,14 @@ final class BeakQuerySpec {
     ],
   );
 
-  /// Returns a copy searching for [term] across [columns].
-  BeakQuerySpec searching(String term, List<BeakColumn> columns) => _copy(
-    search: BeakSearch(term, [for (final column in columns) column.key]),
-  );
+  /// Returns a copy searching for [term] across [fields], which may reach
+  /// through a relationship.
+  BeakQuerySpec searching(String term, List<BeakScalarField<Object>> fields) =>
+      _copy(
+        search: BeakSearch(term, [
+          for (final field in fields) field.qualifiedKey,
+        ]),
+      );
 
   /// Returns a copy with an updated paging window; either half keeps its
   /// current value when omitted.
@@ -240,7 +247,7 @@ final class BeakQuerySpec {
 /// by [columnKeys].
 ///
 /// User code obtains searches through the spec's typed `searching` builder,
-/// which reads the keys from column constants.
+/// which reads the keys from typed fields.
 @immutable
 final class BeakSearch {
   /// Creates a search for [term] across [columnKeys].

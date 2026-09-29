@@ -23,10 +23,7 @@ part of 'beak_block.dart';
 ///   previewField: MailModel.preview.column,
 ///   timeField: MailModel.receivedAt.column,
 ///   readField: MailModel.isRead.column,
-///   // The rail needs the typed belongs-to, which the generated
-///   // MailRelations keeps; `MailModel.folder.relation` is a plain
-///   // BeakRelationship.
-///   folderRelation: MailRelations.folder,
+///   folderRelation: MailModel.folder,
 ///   folderLabelField: FolderModel.label.column,
 /// );
 /// ```
@@ -75,9 +72,9 @@ final class BeakInboxBlock extends BeakBlock {
   /// convention of [unreadField], for models that store `is_read`.
   final BeakColumn? readField;
 
-  /// The belongs-to relation from a message to its folder; when bound (with
+  /// The to-one field from a message to its folder; when bound (with
   /// [folderLabelField]) the rail is data-driven and filters the list.
-  final BeakBelongsTo? folderRelation;
+  final BeakToOneField? folderRelation;
 
   /// The related folder model's label column backing the rail entries.
   final BeakColumn? folderLabelField;

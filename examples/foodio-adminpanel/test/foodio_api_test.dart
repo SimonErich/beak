@@ -9,6 +9,7 @@ import 'package:foodio_adminpanel/beak/registry.g.dart';
 import 'package:foodio_adminpanel/domain/foodio_clock.dart';
 import 'package:foodio_adminpanel/domain/foodio_order_preparer.dart';
 import 'package:foodio_adminpanel/domain/foodio_effects.dart';
+import 'package:foodio_adminpanel/domain/order_behavior.dart';
 import 'package:foodio_adminpanel/models/models.dart';
 import 'package:foodio_adminpanel/seeders/foodio_seeder.dart';
 import 'package:test/test.dart';
@@ -123,7 +124,7 @@ void main() {
               .query(
                 filter: OrderModel.deliveryDate.eq(const BeakDate(2026, 9, 28)),
               )
-              .orderBy(field.column, descending: descending)
+              .orderBy(field, descending: descending)
               .paginate(perPage: 20),
         );
         final values = result.items.map((row) => field.readFrom(row)!).toList();
@@ -218,8 +219,7 @@ void main() {
         983980,
       );
       final summary = await client.summary(
-        BeakSummarySpec(
-          table: 'orders',
+        const OrderModel().summary(
           filter: OrderModel.deliveryDate.eq(const BeakDate(2026, 9, 28)),
           measures: [
             for (final status in [
@@ -339,7 +339,7 @@ void main() {
       );
       // Cancellation releases budget and unconsumed capacity.
       final cancelled = await client.commit(
-        actionPlan('cancel-wizard', record['id']!.raw!, 'cancel'),
+        actionPlan('cancel-wizard', record['id']!.raw!, OrderActions.cancel),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
       expect(
@@ -408,7 +408,7 @@ void main() {
       final forged = await client.commit(
         placePlan(
           'forged',
-          action: null,
+          withoutAction: true,
           extra: {'status': 'delivered', 'gross_cents': 1},
         ),
       );
@@ -630,7 +630,7 @@ void main() {
         ),
       );
       final retry = await client.commit(
-        actionPlan('retry-card', id, 'retryPayment'),
+        actionPlan('retry-card', id, OrderActions.retryPayment),
       );
       expect(retry.complete, isTrue, reason: '${retry.toJson()}');
       final retryRevision = OrderModel.updatedAt.readFrom(retry.rootRecord!)!;
@@ -688,7 +688,7 @@ void main() {
         expect((await stored('orders', id))['payment_status'], 'paid');
       }
       final cancelled = await client.commit(
-        actionPlan('refund-card', id, 'cancel'),
+        actionPlan('refund-card', id, OrderActions.cancel),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
       expect(await worker.drain(), 1);
@@ -712,7 +712,7 @@ void main() {
         actionPlan(
           'bad-redelivery',
           id,
-          'reschedule',
+          OrderActions.reschedule,
           arguments: {'delivery_date': '2026-09-30', 'slot_id': slot},
         ),
       );
@@ -722,7 +722,7 @@ void main() {
         actionPlan(
           'redelivery',
           id,
-          'reschedule',
+          OrderActions.reschedule,
           arguments: {'delivery_date': '2026-09-29', 'slot_id': slot},
         ),
       );
@@ -744,7 +744,7 @@ void main() {
         BeakSavePlan(
           saveId: 'issue-invoice',
           root: ref,
-          action: 'issue',
+          action: InvoiceActions.issue.name,
           operations: [
             BeakSaveOperation(
               id: 'invoice',
@@ -857,9 +857,13 @@ void main() {
           where: const Field<String>('id').eq(FoodioIds.lunch15),
         ),
       );
-      for (final action in ['startKitchen', 'dispatch', 'deliver']) {
+      for (final action in [
+        OrderActions.startKitchen,
+        OrderActions.dispatch,
+        OrderActions.deliver,
+      ]) {
         final changed = await client.commit(
-          actionPlan('settle-$action', id, action),
+          actionPlan('settle-${action.name}', id, action),
         );
         expect(changed.complete, isTrue, reason: '${changed.toJson()}');
         expect(changed.rootRecord!['gross_cents']!.raw, gross);
@@ -872,7 +876,9 @@ void main() {
       );
       expect(budget['spent_cents'], (before['spent_cents']! as int) + gross);
       expect((await stored('orders', id))['budget_reserved'], anyOf(false, 0));
-      await client.commit(actionPlan('settle-deliver', id, 'deliver'));
+      await client.commit(
+        actionPlan('settle-deliver', id, OrderActions.deliver),
+      );
       expect(
         (await stored('budget_accounts', FoodioIds.budget))['spent_cents'],
         budget['spent_cents'],
@@ -1081,7 +1087,7 @@ void main() {
     'Amend saves changes and an optional note atomically and idempotently',
     () async {
       final created = await client.commit(
-        placePlan('amend-fixture', action: null),
+        placePlan('amend-fixture', withoutAction: true),
       );
       expect(created.complete, isTrue, reason: '${created.toJson()}');
       final id = created.rootRecord!['id']!.raw! as String;
@@ -1095,7 +1101,7 @@ void main() {
         actionPlan(
           'amend-rollback',
           id,
-          'amend',
+          OrderActions.amend,
           values: {
             'delivery_note': 'Must roll back',
             'manual_discount_cents': 999999,
@@ -1113,7 +1119,7 @@ void main() {
       final plan = actionPlan(
         'amend-and-note',
         id,
-        'amend',
+        OrderActions.amend,
         values: {'delivery_note': 'Reception confirmed the delivery entrance.'},
         arguments: {
           'body': '  Updated together with the delivery instructions.  ',
@@ -1143,7 +1149,7 @@ void main() {
         actionPlan(
           'amend-without-note',
           id,
-          'amend',
+          OrderActions.amend,
           values: {'delivery_note': before['delivery_note']},
         ),
       );
@@ -1171,7 +1177,7 @@ void main() {
         actionPlan(
           'empty-order-note',
           id,
-          'addNote',
+          OrderActions.addNote,
           arguments: {'body': '   '},
         ),
       );
@@ -1179,7 +1185,7 @@ void main() {
       final plan = actionPlan(
         'finished-order-note',
         id,
-        'addNote',
+        OrderActions.addNote,
         arguments: {'body': '  Customer confirmed safe delivery.  '},
       );
       final result = await client.commit(plan);
@@ -1234,7 +1240,7 @@ void main() {
       BeakSavePlan notePlan(String saveId, int amount) => BeakSavePlan(
         saveId: saveId,
         root: root,
-        action: 'addNote',
+        action: OrderActions.addNote.name,
         arguments: BeakRecord.fromRow({'body': 'Checked the existing basket.'}),
         operations: [
           BeakSaveOperation(
@@ -1357,7 +1363,7 @@ void main() {
         final inactiveDraft = await client.commit(
           placePlan(
             'inactive-method-draft',
-            action: null,
+            withoutAction: true,
             extra: {'payment_mode': 'paypal'},
             references: {
               'payment_method_id': const BeakRecordRef.existing(
@@ -1397,7 +1403,7 @@ void main() {
         actionPlan(
           'matching-paypal-cancel',
           OrderModel.id.readFrom(paypal.rootRecord!)!,
-          'cancel',
+          OrderActions.cancel,
         ),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
@@ -1414,7 +1420,7 @@ void main() {
       final accepted = await client.commit(
         placePlan(
           'one-time-address',
-          action: null,
+          withoutAction: true,
           extra: {
             'address_override': true,
             'street': 'Karlsgasse 9, side entrance',
@@ -1452,7 +1458,7 @@ void main() {
       final outside = await client.commit(
         placePlan(
           'outside-delivery-area',
-          action: null,
+          withoutAction: true,
           extra: {
             'address_override': true,
             'street': 'Another city 1',
@@ -1466,7 +1472,7 @@ void main() {
       final implicit = await client.commit(
         placePlan(
           'implicit-address',
-          action: null,
+          withoutAction: true,
           extra: {'street': 'Must not override', 'postal_code': '9999'},
         ),
       );
@@ -1492,7 +1498,7 @@ void main() {
     );
     try {
       final result = await client.commit(
-        placePlan('inactive-location', action: null),
+        placePlan('inactive-location', withoutAction: true),
       );
       expect(result.complete, isFalse);
       expect('${result.toJson()}', contains('active delivery location'));
@@ -1510,7 +1516,11 @@ void main() {
   test(
     'API drafts derive profile, location and date from only the customer',
     () async {
-      final base = placePlan('customer-only-draft', action: null, quantity: 1);
+      final base = placePlan(
+        'customer-only-draft',
+        withoutAction: true,
+        quantity: 1,
+      );
       final saved = await client.commit(
         BeakSavePlan(
           saveId: base.saveId,
@@ -1642,15 +1652,19 @@ void main() {
         actionPlan(
           'inline-company-cancel',
           OrderModel.id.readFrom(record)!,
-          'cancel',
+          OrderActions.cancel,
         ),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
       expect((await stored('budget_accounts', budgetId))['reserved_cents'], 0);
-      for (final action in ['approve', 'reject', 'requestApproval']) {
+      for (final action in [
+        OrderActions.approve,
+        OrderActions.reject,
+        OrderActions.requestApproval,
+      ]) {
         final rejected = await client.commit(
           actionPlan(
-            'cancelled-company-$action',
+            'cancelled-company-${action.name}',
             OrderModel.id.readFrom(record)!,
             action,
           ),
@@ -1658,7 +1672,7 @@ void main() {
         expect(
           rejected.complete,
           isFalse,
-          reason: '$action on a cancelled order',
+          reason: '${action.name} on a cancelled order',
         );
       }
       expect(
@@ -1741,7 +1755,7 @@ void main() {
       actionPlan(
         'inline-private-cancel',
         OrderModel.id.readFrom(result.rootRecord!)!,
-        'cancel',
+        OrderActions.cancel,
       ),
     );
     expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
@@ -1786,7 +1800,7 @@ void main() {
       expect(foreign.complete, isFalse);
       expect('${foreign.toJson()}', contains('payment_method_id'));
       final cancelled = await client.commit(
-        actionPlan('inline-private-card-cancel', id, 'cancel'),
+        actionPlan('inline-private-card-cancel', id, OrderActions.cancel),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
     },
@@ -1850,7 +1864,7 @@ void main() {
         actionPlan(
           'inline-october-cancel',
           OrderModel.id.readFrom(record)!,
-          'cancel',
+          OrderActions.cancel,
         ),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
@@ -2013,7 +2027,7 @@ void main() {
       await worker.drain();
       final id = OrderModel.id.readFrom(placed.rootRecord!)!;
       final sent = await client.commit(
-        actionPlan('resend-revision-link', id, 'sendPaymentLink'),
+        actionPlan('resend-revision-link', id, OrderActions.sendPaymentLink),
       );
       expect(sent.complete, isTrue, reason: '${sent.toJson()}');
       final revision = OrderModel.updatedAt.readFrom(sent.rootRecord!)!;
@@ -2022,7 +2036,7 @@ void main() {
       expect(OrderModel.updatedAt.readFrom(updated)!.isAfter(revision), isTrue);
       expect(OrderModel.paymentLink.readFrom(updated), contains('/demo/$id'));
       final cancelled = await client.commit(
-        actionPlan('cancel-revision-link', id, 'cancel'),
+        actionPlan('cancel-revision-link', id, OrderActions.cancel),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
     },
@@ -2065,7 +2079,7 @@ void main() {
       );
       expect(changed.complete, isTrue, reason: '${changed.toJson()}');
       final approved = await client.commit(
-        actionPlan('approve-before-email', cardId, 'approve'),
+        actionPlan('approve-before-email', cardId, OrderActions.approve),
       );
       expect(approved.complete, isTrue, reason: '${approved.toJson()}');
       await worker.drain();
@@ -2088,7 +2102,7 @@ void main() {
       expect(link.complete, isTrue, reason: '${link.toJson()}');
       final linkId = link.rootRecord!['id']!.raw! as String;
       final cancelled = await client.commit(
-        actionPlan('cancel-before-link', linkId, 'cancel'),
+        actionPlan('cancel-before-link', linkId, OrderActions.cancel),
       );
       expect(cancelled.complete, isTrue, reason: '${cancelled.toJson()}');
       await worker.drain();
@@ -2203,7 +2217,7 @@ BeakSavePlan inlineProfilePlan(
 BeakSavePlan placePlan(
   String saveId, {
   int quantity = 2,
-  String? action = 'place',
+  bool withoutAction = false,
   Map<String, Object?> extra = const {},
   Map<String, BeakRecordRef> references = const {},
 }) {
@@ -2211,7 +2225,7 @@ BeakSavePlan placePlan(
   return BeakSavePlan(
     saveId: saveId,
     root: root,
-    action: action,
+    action: withoutAction ? null : OrderActions.place.name,
     operations: [
       BeakSaveOperation(
         id: 'order',
@@ -2274,7 +2288,7 @@ BeakSavePlan placePlan(
 BeakSavePlan actionPlan(
   String saveId,
   Object id,
-  String? action, {
+  BeakModelAction? action, {
   Map<String, Object?> values = const {},
   Map<String, Object?> arguments = const {},
 }) {
@@ -2282,7 +2296,7 @@ BeakSavePlan actionPlan(
   return BeakSavePlan(
     saveId: saveId,
     root: root,
-    action: action,
+    action: action?.name,
     arguments: BeakRecord.fromRow(arguments),
     operations: [
       BeakSaveOperation(

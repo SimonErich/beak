@@ -88,7 +88,7 @@ class BeakResourceListPage extends HookWidget {
                     ],
               searchFields: resource.globalSearchSources,
               initial: BeakQueryState(
-                preset: definition.initialPreset,
+                preset: definition.initialPreset?.key,
                 showHeader: definition.headerInitiallyVisible,
                 sorts: tableScreen?.query?.sorts ?? const [],
                 perPage:
@@ -234,19 +234,18 @@ class BeakResourceListPage extends HookWidget {
 
       final availableBulkActions = <BeakTableAction>[
         for (final action in resource.bulkActions) bulkAction(action),
-        for (final name in {
+        for (final commanded in {
           ...?definition?.bulkModelActions,
           for (final presentation
               in definition?.bulkActions ?? const <BeakActionPresentation>[])
-            if (presentation.key.startsWith('model:'))
-              presentation.key.substring(6),
+            ?presentation.modelAction,
         })
           BeakTableAction(
-            id: 'model:$name',
-            label: model.behavior.action(name).label,
+            id: BeakActionPresentation.keyOfModelAction(commanded),
+            label: model.behavior.action(commanded.name).label,
             icon: OiIcons.play,
             onRun: (ids) async {
-              final action = model.behavior.action(name);
+              final action = model.behavior.action(commanded.name);
               final confirmed = await showOiDialog<bool>(
                 context,
                 builder: (context, close) => OiDialog.confirm(
@@ -423,7 +422,7 @@ class BeakResourceListPage extends HookWidget {
           if (resource.allowsEdit)
             for (final action in model.behavior.actions)
               BeakTableAction(
-                id: 'model:${action.name}',
+                id: BeakActionPresentation.keyOfModelAction(action),
                 label: action.label,
                 icon: OiIcons.play,
                 visibleWhen: action.isAvailable,
@@ -717,7 +716,7 @@ class BeakResourceShowPage extends HookWidget {
           recordId: recordId,
           mode: BeakFormMode.read,
           canEdit: resource.allowsEdit,
-          submitAction: screen.submitAction,
+          submitAction: screen.submitAction?.name,
           submitLabel: screen.submitLabel,
           submitIcon: screen.submitIcon,
           outlinedCancel: screen.outlinedCancel,
@@ -869,7 +868,7 @@ class BeakResourceCreatePage extends HookWidget {
           final BeakRecord record => record,
           _ => null,
         },
-        submitAction: form?.submitAction,
+        submitAction: form?.submitAction?.name,
         submitLabel: form?.submitLabel,
         submitIcon: form?.submitIcon,
         outlinedCancel: form?.outlinedCancel ?? false,
@@ -960,7 +959,7 @@ class BeakResourceEditPage extends HookWidget {
         dataSource: dataSource,
         recordId: recordId,
         mode: BeakFormMode.edit,
-        submitAction: form?.submitAction,
+        submitAction: form?.submitAction?.name,
         submitLabel: form?.submitLabel,
         submitIcon: form?.submitIcon,
         outlinedCancel: form?.outlinedCancel ?? false,

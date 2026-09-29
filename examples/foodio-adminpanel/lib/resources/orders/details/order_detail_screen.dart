@@ -3,6 +3,7 @@ import 'package:beak/ui.dart';
 
 import '../../../domain/_order_note_input.dart';
 import '../../../domain/foodio_clock.dart';
+import '../../../domain/order_behavior.dart';
 import '../../../theme/gabel_theme.dart';
 import 'package:flutter/widgets.dart';
 
@@ -22,7 +23,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
   submitIcon: OiIcons.check,
   outlinedCancel: true,
   showActionsWhileEditing: false,
-  submitAction: 'amend',
+  submitAction: OrderActions.amend,
   editLabel: 'Edit order',
   editingLabel: 'Editing',
   prominentEdit: true,
@@ -214,8 +215,8 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
             ),
           ),
           BeakFormActionInput(
-            name: 'addNote',
-            submitWithForm: 'amend',
+            name: OrderActions.addNote.name,
+            submitWithForm: OrderActions.amend.name,
             optionalWithForm: true,
             description: 'Only staff can see internal notes.',
             editDescription: 'Saved with your other changes',
@@ -345,7 +346,9 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                                           const <BeakRecord>[])
                                       .map((row) => row.asOrderActivity)
                                       .where(
-                                        (event) => event.kind == 'startKitchen',
+                                        (event) =>
+                                            event.kind ==
+                                            OrderActions.startKitchen.name,
                                       )
                                       .firstOrNull
                                       ?.actor,

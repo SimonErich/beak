@@ -5,43 +5,54 @@ import 'package:flutter/widgets.dart';
 
 import '../query/beak_query_controller.dart';
 import 'beak_routes.dart';
+import 'beak_screen.dart';
 
-/// A resource or custom-page destination within a workspace section.
+/// A resource or custom-screen destination within a workspace section.
 final class BeakNavigationItem {
   /// A generated resource list, optionally selecting one declared preset.
+  ///
+  /// [preset] is one of the presets declared in the resource's
+  /// [BeakListDefinition.presets], referenced by the object itself.
   const BeakNavigationItem.resource(
     this.model, {
-    this.label,
-    this.icon,
+    String? label,
+    IconData? icon,
     this.preset,
     this.showCount = false,
     this.recordLabelMonospace = false,
-  }) : path = null;
+  }) : screen = null,
+       _label = label,
+       _icon = icon;
 
-  /// A custom screen registered with the panel.
-  const BeakNavigationItem.page(
-    this.path, {
-    required this.label,
-    required this.icon,
-  }) : model = null,
-       preset = null,
-       showCount = false,
-       recordLabelMonospace = false;
+  /// A custom [BeakScreen] registered with the panel.
+  ///
+  /// The label and icon default to the screen's own navigation title and icon.
+  const BeakNavigationItem.screen(this.screen, {String? label, IconData? icon})
+    : model = null,
+      preset = null,
+      showCount = false,
+      recordLabelMonospace = false,
+      _label = label,
+      _icon = icon;
 
   /// Model owning a generated route.
   final BeakModel? model;
 
-  /// Custom registered route.
-  final String? path;
+  /// Custom screen registered with the panel.
+  final BeakScreen? screen;
 
-  /// Defaults to the resource's navigation label.
-  final String? label;
+  final String? _label;
 
-  /// Defaults to the resource icon.
-  final IconData? icon;
+  final IconData? _icon;
+
+  /// Defaults to the resource's navigation label, or the screen's.
+  String? get label => _label ?? screen?.effectiveNavigationTitle;
+
+  /// Defaults to the resource icon, or the screen's.
+  IconData? get icon => _icon ?? screen?.icon.icon;
 
   /// Named list preset; its filter remains declared in the list definition.
-  final String? preset;
+  final BeakQueryPreset? preset;
 
   /// Formats this resource’s current-record label with the code text role.
   final bool recordLabelMonospace;
@@ -55,7 +66,7 @@ final class BeakNavigationItem {
     if (Uri.parse(route).path != current.path) return false;
     if (preset == null) return true;
     try {
-      return BeakQueryController.readUri(current)?.preset == preset;
+      return BeakQueryController.readUri(current)?.preset == preset?.key;
     } on BeakConfigurationException {
       return false;
     }
@@ -63,13 +74,14 @@ final class BeakNavigationItem {
 
   /// Navigable local URI including a stable serialized preset selection.
   String get route {
-    final base = path ?? BeakRoutes.list(model!.table);
-    if (preset == null) return base;
+    final base = screen?.path ?? BeakRoutes.list(model!.table);
+    final chosen = preset;
+    if (chosen == null) return base;
     return Uri(
       path: base,
       queryParameters: {
         'list': base64Url.encode(
-          utf8.encode(jsonEncode(BeakQueryState(preset: preset).toJson())),
+          utf8.encode(jsonEncode(BeakQueryState(preset: chosen.key).toJson())),
         ),
       },
     ).toString();

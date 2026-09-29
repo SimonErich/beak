@@ -187,7 +187,7 @@ void main() {
               value: BeakIntValue(2),
             ),
           )
-          .orderBy(NoteColumns.rating, descending: true)
+          .orderBy(NoteModel.rating, descending: true)
           .paginate(page: 1, perPage: 1);
 
       final response = await call(
@@ -211,7 +211,7 @@ void main() {
     test('honors search from the spec', () async {
       final spec = const BeakQuerySpec(
         table: 'notes',
-      ).searching('bea', [NoteColumns.title]);
+      ).searching('bea', [NoteModel.title]);
       final response = await call(
         'POST',
         '/api/notes/query',

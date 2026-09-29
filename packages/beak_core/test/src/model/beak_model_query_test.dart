@@ -21,8 +21,25 @@ final class _ProductModel extends BeakModel {
   List<BeakColumn> get columns => _ProductColumns.values;
 }
 
+final class _OtherModel extends BeakModel {
+  const _OtherModel();
+
+  @override
+  String get table => 'others';
+
+  @override
+  String get displayColumnKey => 'name';
+
+  @override
+  List<BeakColumn> get columns => _ProductColumns.values;
+}
+
 void main() {
   const model = _ProductModel();
+  const price = BeakScalarField<double>(
+    model: model,
+    column: _ProductColumns.price,
+  );
   const published = BeakFieldFilter(
     column: _ProductColumns.name,
     operator: BeakOperator.eq,
@@ -94,7 +111,7 @@ void main() {
     test('composes with the copy-builders', () {
       final spec = model
           .query()
-          .orderBy(_ProductColumns.price, descending: true)
+          .orderBy(price, descending: true)
           .paginate(perPage: 5);
       expect(spec.table, 'products');
       expect(spec.sorts.single.columnKey, 'price');
@@ -117,36 +134,65 @@ void main() {
     });
 
     test('sum names the column without a key string', () {
-      final spec = model.sum(_ProductColumns.price);
+      final spec = model.sum(price);
       expect(spec.table, 'products');
       expect(spec.function, BeakAggregateFunction.sum);
       expect(spec.columnKey, 'price');
     });
 
     test('sum forwards filter and withTrashed', () {
-      final spec = model.sum(
-        _ProductColumns.price,
-        filter: published,
-        withTrashed: true,
-      );
+      final spec = model.sum(price, filter: published, withTrashed: true);
       expect(spec.filter, published);
       expect(spec.withTrashed, isTrue);
     });
 
     test('avg names the column without a key string', () {
-      final spec = model.avg(_ProductColumns.price);
+      final spec = model.avg(price);
       expect(spec.function, BeakAggregateFunction.avg);
       expect(spec.columnKey, 'price');
     });
 
     test('avg forwards filter and withTrashed', () {
-      final spec = model.avg(
-        _ProductColumns.price,
-        filter: published,
-        withTrashed: true,
-      );
+      final spec = model.avg(price, filter: published, withTrashed: true);
       expect(spec.filter, published);
       expect(spec.withTrashed, isTrue);
+    });
+
+    test('sum and avg accept only the model\'s own fields', () {
+      const foreign = BeakScalarField<double>(
+        model: _OtherModel(),
+        column: _ProductColumns.price,
+      );
+      const related = BeakScalarField<double>(
+        model: model,
+        column: _ProductColumns.price,
+        path: [
+          BeakBelongsTo(
+            key: 'category',
+            label: 'Category',
+            relatedTable: 'categories',
+            displayColumnKey: 'name',
+            foreignKey: 'category_id',
+          ),
+        ],
+      );
+      for (final field in [foreign, related]) {
+        expect(
+          () => model.sum(field),
+          throwsA(isA<BeakConfigurationException>()),
+        );
+        expect(
+          () => model.avg(field),
+          throwsA(isA<BeakConfigurationException>()),
+        );
+        expect(
+          () => model.summary(
+            groupBy: field,
+            measures: [const BeakSummaryMeasure.count('n')],
+          ),
+          throwsA(isA<BeakConfigurationException>()),
+        );
+      }
     });
 
     test('serialize identically to the hand-written constructors', () {
@@ -155,7 +201,7 @@ void main() {
         const BeakAggregateSpec.count(table: 'products').toJson(),
       );
       expect(
-        model.sum(_ProductColumns.price).toJson(),
+        model.sum(price).toJson(),
         const BeakAggregateSpec.sum(
           table: 'products',
           column: _ProductColumns.price,

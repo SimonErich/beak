@@ -4,11 +4,13 @@ import '../columns/beak_column.dart';
 import '../columns/beak_semantic_values.dart';
 import '../data/beak_data_source.dart';
 import '../common/beak_exception.dart';
+import '../query/beak_aggregate_spec.dart';
 import '../query/beak_filter.dart';
 import '../query/beak_operator.dart';
 import '../query/beak_query_spec.dart';
 import '../query/beak_record.dart';
 import '../query/beak_relation_load.dart';
+import '../query/beak_sort.dart';
 import '../query/beak_value.dart';
 import '../relations/beak_relationship.dart';
 import 'beak_model.dart';
@@ -129,6 +131,33 @@ class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
     );
   }
 
+  /// The storage key of this field on its own model.
+  ///
+  /// Sorting, grouping and aggregating work on a model's own columns, so this
+  /// throws a [BeakConfigurationException] for a field reached through a
+  /// relationship.
+  String get rootKey {
+    if (path.isNotEmpty) {
+      throw BeakConfigurationException(
+        'Field "$qualifiedKey" is reached through a relationship; only a '
+        'field of ${model.table} itself can be used here.',
+      );
+    }
+    return key;
+  }
+
+  /// Orders results by this root field, smallest value first.
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship.
+  BeakSort ascending() => BeakSort(rootKey);
+
+  /// Orders results by this root field, largest value first.
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship.
+  BeakSort descending() => BeakSort(rootKey, descending: true);
+
   /// Equality predicate, with null represented as an explicit null check.
   BeakFilter eq(T? value) =>
       _compare(value == null ? BeakOperator.isNull : BeakOperator.eq, value);
@@ -191,7 +220,12 @@ extension BeakExactDecimalAggregates on BeakScalarField<BeakDecimal> {
       );
     }
     final units = await source.aggregate(
-      model.sum(column, filter: filter, withTrashed: withTrashed),
+      BeakAggregateSpec.sum(
+        table: model.table,
+        column: column,
+        filter: filter,
+        withTrashed: withTrashed,
+      ),
     );
     if (!units.isFinite ||
         units.abs() > BeakDecimal.maxUnits ||
@@ -237,6 +271,16 @@ class BeakToOneField extends BeakFieldRef<BeakRecord> {
   BeakRecord? readFrom(BeakRecord record) {
     final rows = ownerRecord(record)?.relations[key];
     return rows == null || rows.isEmpty ? null : rows.first;
+  }
+
+  /// The eager load that brings this related record along with its root
+  /// record, including every relationship on the [path] leading to it.
+  BeakRelationLoad get relationLoad {
+    var load = BeakRelationLoad(key);
+    for (final step in path.reversed) {
+      load = BeakRelationLoad(step.key, nested: [load]);
+    }
+    return load;
   }
 
   /// Matches the stored foreign key to a selected record's identity.
@@ -362,11 +406,7 @@ final class BeakOptionQuery {
           'Included field ${field.qualifiedKey} does not belong to ${model.table}.',
         );
       }
-      var nested = BeakRelationLoad(field.key);
-      for (final step in field.path.reversed) {
-        nested = BeakRelationLoad(step.key, nested: [nested]);
-      }
-      loads = _mergeOptionLoads(loads, [nested]);
+      loads = _mergeOptionLoads(loads, [field.relationLoad]);
     }
     return BeakOptionQuery(
       model: model,

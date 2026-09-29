@@ -1,3 +1,4 @@
+import '../behavior/beak_model_behavior.dart';
 import '../common/beak_exception.dart';
 import '../common/json_support.dart';
 import '../model/beak_model_registry.dart';
@@ -288,6 +289,15 @@ final class BeakSavePlan {
 
   /// Typed inputs validated against the named command input model.
   final BeakRecord arguments;
+
+  /// Whether this plan executes [command] on its root.
+  ///
+  /// The way a server preparer asks "which command is this?" without ever
+  /// comparing a name: [BeakModelAction.name] is only the wire identity.
+  bool runs(BeakModelAction command) => action == command.name;
+
+  /// Whether this plan executes any of [commands] on its root.
+  bool runsAny(Iterable<BeakModelAction> commands) => commands.any(runs);
 
   /// Validates model references and returns a stable topological ordering.
   List<BeakSaveOperation> orderedOperations(BeakModelRegistry registry) {

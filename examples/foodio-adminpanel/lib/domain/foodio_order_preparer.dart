@@ -6,6 +6,7 @@ import 'foodio_money.dart';
 import 'foodio_invoice_rules.dart';
 import '_redelivery_input.dart';
 import 'foodio_payment.dart';
+import 'order_behavior.dart';
 
 /// Order invariants evaluated against the complete proposed graph, in its transaction.
 final class FoodioOrderPreparer {
@@ -130,8 +131,8 @@ final class FoodioOrderPreparer {
       if (order.deleted) {
         continue; // The shared workflow allows deleting only drafts.
       }
-      final command = ref == plan.root ? plan.action : null;
-      if (command == 'reschedule') {
+      final command = ref == plan.root ? _commandOf(plan) : null;
+      if (command == OrderActions.reschedule) {
         graph.write(
           order,
           OrderModel.deliveryDate,
@@ -143,7 +144,7 @@ final class FoodioOrderPreparer {
           RedeliveryInputModel.slotId.readFrom(plan.arguments),
         );
       }
-      if (command == 'addNote') {
+      if (command == OrderActions.addNote) {
         for (final operation in plan.operations) {
           final candidate = await graph.load(operation.target);
           if (operation.kind != BeakSaveOperationKind.update ||
@@ -155,7 +156,8 @@ final class FoodioOrderPreparer {
         await _order(graph, order, source, command, principal);
       }
       final note = OrderNoteModel.body.readFrom(plan.arguments)?.trim() ?? '';
-      if (command == 'addNote' || command == 'amend' && note.isNotEmpty) {
+      if (command == OrderActions.addNote ||
+          command == OrderActions.amend && note.isNotEmpty) {
         activities.add(
           BeakSaveOperation(
             id: 'note',
@@ -188,8 +190,8 @@ final class FoodioOrderPreparer {
                   ? (order.initial == null ? 'Draft created' : 'Order updated')
                   : _actionTitle(command),
               'actor': _actor(principal),
-              'kind': command ?? 'edited',
-              'description': command == null || command == 'amend'
+              'kind': command?.name ?? 'edited',
+              'description': command == null || command == OrderActions.amend
                   ? _changeDescription(order)
                   : '',
               'save_key': plan.saveId,
@@ -289,7 +291,7 @@ final class FoodioOrderPreparer {
     BeakCandidateGraph graph,
     BeakCandidateNode order,
     WormDataSource source,
-    String? action,
+    BeakModelAction? action,
     BeakPrincipal? principal,
   ) async {
     final previousStatus =
@@ -324,7 +326,7 @@ final class FoodioOrderPreparer {
     if (order.initial != null &&
         previousStatus != OrderStatus.draft &&
         contentChanged &&
-        action != 'reschedule') {
+        action != OrderActions.reschedule) {
       final date = order.original(OrderModel.deliveryDate);
       if (date != null && clock.changesClosed(date)) {
         _invalid('delivery_date', 'The 10:30 change cutoff has passed.');
@@ -381,7 +383,8 @@ final class FoodioOrderPreparer {
     final invoice = await graph.linked(order, OrderModel.invoice);
     if (invoice != null &&
         invoice.read(InvoiceModel.status) != InvoiceStatus.draft &&
-        (contentChanged || {'cancel', 'reject'}.contains(action))) {
+        (contentChanged ||
+            {OrderActions.cancel, OrderActions.reject}.contains(action))) {
       _invalid(
         'invoice_id',
         'Issued invoice amounts are locked. Resolve billing before changing this order.',
@@ -406,7 +409,7 @@ final class FoodioOrderPreparer {
       _invalid('payment_mode', 'Choose a supported payment method.');
     }
     if (!draft &&
-        (action == 'place' || contentChanged) &&
+        (action == OrderActions.place || contentChanged) &&
         company == null &&
         foodioCompanyPaymentModes.contains(paymentMode)) {
       _invalid('payment_mode', 'Company billing requires a company profile.');
@@ -530,7 +533,7 @@ final class FoodioOrderPreparer {
     for (final item in liveItems) {
       final dish = item.reference(OrderItemModel.dish);
       if (dish != null &&
-          (action == 'place' ||
+          (action == OrderActions.place ||
               item.initial == null ||
               item.hasChanged(OrderItemModel.dishId) ||
               item.hasChanged(OrderItemModel.variantId))) {
@@ -568,7 +571,8 @@ final class FoodioOrderPreparer {
     }
     final voucher = await graph.linked(order, OrderModel.voucher);
     final deliveryDate = order.read(OrderModel.deliveryDate);
-    if (voucher != null && (draft || contentChanged || action == 'place')) {
+    if (voucher != null &&
+        (draft || contentChanged || action == OrderActions.place)) {
       if (voucher.read(VoucherModel.active) != true) {
         _invalid('voucher_id', 'This voucher is inactive.');
       }
@@ -675,7 +679,7 @@ final class FoodioOrderPreparer {
       if ((order.read(OrderModel.deliveryNote) ?? '').length > 200) {
         _invalid('delivery_note', 'Use at most 200 characters.');
       }
-      if (action == 'place' || contentChanged) {
+      if (action == OrderActions.place || contentChanged) {
         if (deliveryDate.toString().compareTo(clock.today.toString()) < 0) {
           _invalid('delivery_date', 'Delivery must not be in the past.');
         }
@@ -699,7 +703,7 @@ final class FoodioOrderPreparer {
           (order.read(OrderModel.costCenter) ?? '').trim().isEmpty) {
         _invalid('cost_center', 'Choose a company cost center.');
       }
-      if (company != null && (action == 'place' || contentChanged)) {
+      if (company != null && (action == OrderActions.place || contentChanged)) {
         final allowed = (company.read(OrganizationModel.costCenters) ?? '')
             .split(',')
             .map((value) => value.trim());
@@ -732,8 +736,10 @@ final class FoodioOrderPreparer {
         );
       }
     }
-    if (action == 'place') graph.write(order, OrderModel.placedAt, clock.now);
-    if (action == 'place' ||
+    if (action == OrderActions.place) {
+      graph.write(order, OrderModel.placedAt, clock.now);
+    }
+    if (action == OrderActions.place ||
         !draft && order.hasChanged(OrderModel.paymentMode)) {
       graph.write(
         order,
@@ -743,17 +749,17 @@ final class FoodioOrderPreparer {
             : PaymentStatus.pending,
       );
     }
-    if (action == 'startKitchen') {
+    if (action == OrderActions.startKitchen) {
       graph.write(order, OrderModel.kitchenStartedAt, clock.now);
       graph.write(order, OrderModel.awaitingRelease, false);
     }
-    if (action == 'dispatch') {
+    if (action == OrderActions.dispatch) {
       graph.write(order, OrderModel.dispatchedAt, clock.now);
     }
-    if (action == 'deliver') {
+    if (action == OrderActions.deliver) {
       graph.write(order, OrderModel.deliveredAt, clock.now);
     }
-    if (action == 'cancel' || action == 'reject') {
+    if (action == OrderActions.cancel || action == OrderActions.reject) {
       graph.write(order, OrderModel.cancelledAt, clock.now);
     }
     final exceedsThreshold =
@@ -761,7 +767,7 @@ final class FoodioOrderPreparer {
         totals.grossCents >
             (profile?.read(DeliveryProfileModel.approvalThresholdCents) ??
                 4000);
-    if (action == 'place' ||
+    if (action == OrderActions.place ||
         previousStatus == OrderStatus.draft ||
         contentChanged &&
             totals.grossCents > (order.original(OrderModel.grossCents) ?? 0)) {
@@ -771,7 +777,7 @@ final class FoodioOrderPreparer {
         exceedsThreshold ? ApprovalStatus.pending : ApprovalStatus.notRequired,
       );
     }
-    if (action == 'startKitchen' &&
+    if (action == OrderActions.startKitchen &&
         order.read(OrderModel.strictAllergy) == true &&
         order.read(OrderModel.allergyAcknowledged) != true) {
       _invalid(
@@ -779,7 +785,8 @@ final class FoodioOrderPreparer {
         'The kitchen must acknowledge this allergy note first.',
       );
     }
-    if (action == 'place' && (order.read(OrderModel.number) ?? 0) == 0) {
+    if (action == OrderActions.place &&
+        (order.read(OrderModel.number) ?? 0) == 0) {
       final rows = await source.adapter.select(
         QueryDescriptor(
           table: 'app_settings',
@@ -1093,7 +1100,7 @@ final class FoodioOrderPreparer {
   void _attention(
     BeakCandidateGraph graph,
     BeakCandidateNode order,
-    String? action,
+    BeakModelAction? action,
   ) {
     var reason = '';
     var next = '';
@@ -1101,17 +1108,17 @@ final class FoodioOrderPreparer {
         order.read(OrderModel.status) != OrderStatus.draft) {
       if (order.read(OrderModel.paymentStatus) == PaymentStatus.failed) {
         reason = 'Payment failed';
-        next = 'retryPayment';
+        next = OrderActions.retryPayment.name;
       } else if ({
         PaymentStatus.unpaid,
         PaymentStatus.pending,
       }.contains(order.read(OrderModel.paymentStatus))) {
         reason = 'Awaiting payment';
-        next = 'sendPaymentLink';
+        next = OrderActions.sendPaymentLink.name;
       } else if (order.read(OrderModel.approvalStatus) ==
           ApprovalStatus.pending) {
         reason = 'Approval needed';
-        next = 'requestApproval';
+        next = OrderActions.requestApproval.name;
       } else if (order.read(OrderModel.status) == OrderStatus.onHold) {
         reason =
             order.original(OrderModel.attentionReason) ?? 'Delivery on hold';
@@ -1119,8 +1126,8 @@ final class FoodioOrderPreparer {
       } else if (order.read(OrderModel.strictAllergy) == true &&
           order.read(OrderModel.allergyAcknowledged) != true) {
         reason = 'Allergy note needs kitchen confirmation';
-        next = 'acknowledgeAllergy';
-      } else if (action != 'resolveChange' &&
+        next = OrderActions.acknowledgeAllergy.name;
+      } else if (action != OrderActions.resolveChange &&
           order.original(OrderModel.nextAction) == 'reviewChange') {
         reason = 'Change requested';
         next = 'reviewChange';
@@ -1184,25 +1191,29 @@ final class FoodioOrderPreparer {
     return labels.join(', ');
   }
 
-  static String _actionTitle(String action) =>
-      const {
-        'addNote': 'Internal note added',
-        'amend': 'Order updated',
-        'place': 'Order placed',
-        'approve': 'Order approved',
-        'reject': 'Order rejected',
-        'cancel': 'Order cancelled',
-        'startKitchen': 'Moved to in kitchen',
-        'dispatch': 'Out for delivery',
-        'deliver': 'Order delivered',
-        'requestApproval': 'Approval requested',
-        'sendPaymentLink': 'Payment link requested',
-        'retryPayment': 'Payment retry requested',
-        'acknowledgeAllergy': 'Allergy confirmed with kitchen',
-        'reschedule': 'Redelivery scheduled',
-        'resolveChange': 'Requested changes accepted',
+  /// The declared order command a plan runs on its root, if any.
+  static BeakModelAction? _commandOf(BeakSavePlan plan) =>
+      OrderActions.all.where(plan.runs).firstOrNull;
+
+  static String _actionTitle(BeakModelAction action) =>
+      {
+        OrderActions.addNote: 'Internal note added',
+        OrderActions.amend: 'Order updated',
+        OrderActions.place: 'Order placed',
+        OrderActions.approve: 'Order approved',
+        OrderActions.reject: 'Order rejected',
+        OrderActions.cancel: 'Order cancelled',
+        OrderActions.startKitchen: 'Moved to in kitchen',
+        OrderActions.dispatch: 'Out for delivery',
+        OrderActions.deliver: 'Order delivered',
+        OrderActions.requestApproval: 'Approval requested',
+        OrderActions.sendPaymentLink: 'Payment link requested',
+        OrderActions.retryPayment: 'Payment retry requested',
+        OrderActions.acknowledgeAllergy: 'Allergy confirmed with kitchen',
+        OrderActions.reschedule: 'Redelivery scheduled',
+        OrderActions.resolveChange: 'Requested changes accepted',
       }[action] ??
-      action;
+      action.label;
   static Never _invalid(String field, String message) =>
       throw BeakValidationException(
         message,

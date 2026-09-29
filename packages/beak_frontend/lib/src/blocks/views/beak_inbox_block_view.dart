@@ -32,10 +32,7 @@ class _BeakInboxBlockView extends HookWidget {
               if (block.timeField case final BeakColumn column)
                 BeakSort(column.key, descending: true),
             ],
-            relationLoads: [
-              if (block.folderRelation case final BeakBelongsTo relation)
-                BeakRelationLoad(relation.key),
-            ],
+            relationLoads: [?block.folderRelation?.relationLoad],
             pagination: _modulePage,
           ),
         );
@@ -75,13 +72,13 @@ class _BeakInboxBlockView extends HookWidget {
 
   /// The related folder label of [record], or `null` when unbound/unloaded.
   String? _folderOf(BeakRecord record) {
-    final BeakBelongsTo? relation = block.folderRelation;
+    final BeakToOneField? relation = block.folderRelation;
     final BeakColumn? label = block.folderLabelField;
     if (relation == null || label == null) {
       return null;
     }
-    final related = record.relations[relation.key] ?? const <BeakRecord>[];
-    return related.isEmpty ? null : _readString(related.first, label);
+    final BeakRecord? folder = relation.readFrom(record);
+    return folder == null ? null : _readString(folder, label);
   }
 
   /// The rail entries: the distinct folder labels present in the data when

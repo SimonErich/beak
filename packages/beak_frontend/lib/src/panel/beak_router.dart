@@ -446,7 +446,7 @@ final class _BeakShell extends HookWidget {
               base: list?.query,
               presets: definition?.presets ?? const [],
               initial: BeakQueryState(
-                preset: item.preset ?? definition?.initialPreset,
+                preset: (item.preset ?? definition?.initialPreset)?.key,
               ),
             );
             try {
