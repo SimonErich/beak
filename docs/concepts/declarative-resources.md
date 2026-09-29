@@ -1,55 +1,171 @@
 ---
 title: Declarative resources
-description: Separate model behavior, resource navigation and presentation while Beak owns the runtime.
+description: "Schema, model, resource, screen and page: what each one decides, what Beak's runtime does with them, and why you write no fetching code."
 type: concept
 audience: [beginner, expert]
-status: draft
+status: stable
 ---
 
 # Declarative resources
 
-Define shared models, register resources and arrange their screens. Beak supplies fetching, typed binding, validation, relationship drafts, save plans and refresh. The maintained shop demonstrates the same configuration for CRUD, invoice workflows and custom content.
+You describe what your data is once, then what the panel shows. Everything in between (fetching, drafts, validation, saving, refreshing) is Beak's job. This page names the five things you write or generate and says where each one stops.
 
-```dart title="examples/clean_beak_config/lib/main.dart"
---8<-- "examples/clean_beak_config/lib/main.dart"
+## The idea in one picture
+
+```mermaid
+flowchart LR
+  schema["Schema<br/>@Resource class, you write it"] -->|"beak prepare"| model["Model<br/>BeakModel, generated"]
+  model --> resource["Resource<br/>BeakResource"]
+  resource --> screens["Screens<br/>list, read, create, edit"]
+  config["BeakPanelConfig"] --> resource
+  config --> pages["Pages<br/>BeakScreen with a block body"]
+  panel["BeakPanel<br/>router, data source, drafts"] --> config
 ```
 
-## Separate responsibilities
+Each piece decides one thing and nothing else.
 
-| Definition | Responsibility |
-| --- | --- |
-| Schema | Types, relationships, constraints and value lifecycles |
-| `BeakResource` | Model, navigation, search, filters and route screens |
-| Screen/layout | Cards, tabs, columns, sections and input placement |
-| `BeakFormSession` | Draft graph, validation, conflicts and save state |
-| Data-source capabilities | Queries, persistence, receipts, uploads and permissions |
+| Piece | Class | Who writes it | Decides |
+| --- | --- | --- | --- |
+| Schema | your class, `extends BeakSchema`, annotated `@Resource` | you | What the data is: types, nullability, rules, relationships, behavior. |
+| Model | a `BeakModel` subclass such as `NoteModel` | `beak prepare` | The same facts as runtime metadata, plus typed field references. |
+| Resource | `BeakResource` | a generated default, or you | How the model shows up in the panel: sidebar entry, filters, actions. |
+| Screen | a `BeakResourceScreen`: `BeakTableScreen`, `BeakFormScreen`, `BeakWizardScreen`, `BeakCustomResourceScreen` | you, optional | What one route of a resource looks like. |
+| Page | `BeakScreen`, listed in `BeakPanelConfig.pages` | you, optional | What is on a route that belongs to no resource. |
 
-A resource inherits standard list, create, read and edit routes. Configure a screen to replace those route roles. The panel discovers referenced models recursively, including related models without navigation entries. Each panel owns its dependency scope, so custom widgets resolve the correct source through `beakDependencies(context)`.
+The class names don't follow this vocabulary perfectly: a page is a `BeakScreen`, and a screen is a `BeakResourceScreen`. Beak's own error messages say "page" for the first, and these docs do too. (`BeakPage<T>` is something else: one page of query results.)
 
-## One typed vocabulary
+## How it works
 
-`beak prepare` emits scalar and relationship descriptors, typed query helpers and record readers beside each schema. Use the generated fields for inputs, table columns, search, filters and comparisons. The `fields` namespace is always available; direct shortcuts are omitted when they conflict with existing model members.
+Code first. Here is the smallest complete path, from the quickstart scaffold.
 
-Shared column and record rules run on both sides. Relationship eligibility declared with `BeakExists` and `BeakFieldMatch` also supplies picker filters, prerequisites and invalidation. Optional custom queries remain available for specialized searches.
+### The schema says what the data is
 
-## Layout without state plumbing
+```dart title="examples/quickstart/lib/resources/notes/models/note.dart"
+@Resource(timestamps: true)
+final class Note extends BeakSchema {
+  @Display()
+  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(255)])
+  late final String title;
 
-Use `BeakFormScreen` or `BeakWizardScreen`, with cards, columns, tabs, sections and generated field inputs. `BeakFormSections` can project the same section definitions into a wizard, tabs or a plain layout. Groups can share visibility and enabled conditions. Resource relationship presentation supplies defaults for reused editors.
+  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
+  late final BeakText? body;
 
-To-many editors stage additions, edits, removals and nested creation until Save. An advanced form can expose occasional options in a modal. Cancellation restores the draft checkpoint. Read mode uses the same structure with formatted values.
+  @Column(filterable: true)
+  late final bool pinned;
+}
+```
 
-## Behavior and recovery
+The Dart type picks the column kind, nullability decides whether a value is required, and `@Column` carries what a type cannot say: a label, rules, whether the table may sort or search the field. A class annotated with `@Resource` anywhere under `lib/` is found by `beak prepare`, so there is no registry to edit.
 
-Model behavior centralizes initial values, suggestions, derivations, snapshots and named transitions. Configured forms and tables discover those actions. Draft storage, review, conflict resolution and a diagnostic inspector are opt-in configuration on the same runtime. Duplication and batch editing reuse the graph protocol.
+### The model is generated
 
-## Custom content
+`beak prepare` writes `note.beak.dart` next to the schema. The model in it is what the rest of Beak actually holds.
 
-A `BeakScreen` can host declarative blocks or a `BeakWidgetBlock`. A custom input can use `BeakDraftScope` to stage typed changes while Beak retains validation and saving. A custom dashboard can query the panel source and listen to its mutation stream. The shop's Operations page, receivables widget and variant builder demonstrate these three boundaries.
+```dart title="examples/quickstart/lib/resources/notes/models/note.beak.dart"
+final class NoteModel extends BeakModel {
+  const NoteModel();
+  // ...
+  @override
+  String get table => 'notes';
 
-See [Custom screens](../panel/custom-screens.md) and [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) for compiling examples.
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => NoteColumns.values;
+  // ...
+}
+```
+
+The model is `const`, pure Dart and free of Flutter, because the server loads it too. That is why model and resource are two things. In the Serverpod example, `bookshop_beak` depends on `beak_core` alone, so the Serverpod server can register the models without pulling in a UI toolkit (see `examples/serverpod/README.md`).
+
+### A resource puts the model in the panel
+
+Every model gets a default resource, unless `beak.yaml` hides it (a hidden resource keeps its model and its API). The quickstart's is generated into `lib/beak/panel.g.dart`.
+
+```dart title="examples/quickstart/lib/beak/panel.g.dart"
+      BeakResource(
+        model: const NoteModel(),
+        icon: BeakIconToken(OiIcons.fileText),
+        navigationGroup: 'Content',
+      ),
+```
+
+The icon and the group came from `beak.yaml`. Everything else is a default: a list, a show page, a create page and an edit page, all built from the model.
+
+To configure more, write a resource of your own. It replaces the default for its model. Filters and screens are the two parameters you will reach for first.
+
+```dart title="examples/serverpod/bookshop_admin/lib/resources/book_resource.dart"
+--8<-- "examples/serverpod/bookshop_admin/lib/resources/book_resource.dart:BookResource"
+```
+
+Every reference in it is a generated one (`BookModel.title`, `BookModel.author.name`). Rename the field in the schema and this file stops compiling where it used it.
+
+### Screens fill the route roles of a resource
+
+A resource has four routes. A screen fills one or more of them, and a role without a screen keeps its generated default.
+
+| Role | Route | Filled by |
+| --- | --- | --- |
+| `BeakScreenRole.list` | `/{table}` | `BeakTableScreen`, or `BeakCustomResourceScreen` |
+| `BeakScreenRole.read` | `/{table}/{id}` | `BeakFormScreen` with `read` in its roles, or a custom screen |
+| `BeakScreenRole.create` | `/{table}/create` | `BeakFormScreen`, `BeakWizardScreen` |
+| `BeakScreenRole.edit` | `/{table}/{id}/edit` | `BeakFormScreen`, `BeakWizardScreen` |
+
+A `BeakFormScreen` serves `create` and `edit` unless you say otherwise. The bookshop widens it to `read` as well, so one layout serves all three modes and the read view can't drift from the form.
+
+### A page owns a route that has no resource
+
+A dashboard, a printable document or a settings screen belongs to no model. That is a `BeakScreen`.
+
+```dart title="packages/beak_frontend/lib/src/panel/beak_screen.dart"
+--8<-- "packages/beak_frontend/lib/src/panel/beak_screen.dart:BeakScreen"
+```
+
+A page has a path, a title, an icon and a `BeakBlock` body. The data blocks query through the panel's data source themselves, so a dashboard needs no view model of yours. [The block system](the-block-system.md) covers what goes in the body.
+
+### The runtime is not yours
+
+Nothing above fetches, paginates or saves. `BeakPanel` does, and it does it inside a scope of its own.
+
+```dart title="packages/beak_frontend/lib/src/panel/beak_panel.dart"
+--8<-- "packages/beak_frontend/lib/src/panel/beak_panel.dart:panelRouting"
+```
+
+`GetIt.asNewInstance()` is a fresh container, not the global one, so two panels (or a panel and your own app) never share registrations. `registerBeakDependencies` puts the model registry, the HTTP client, the session store and the data source into it, and `createBeakRouter` builds flat go_router routes from the resources' `BeakRoutes` paths. A custom widget reaches the container with `beakDependencies(context)`, and rarely needs to.
+
+Above that, two objects own the state you would otherwise write by hand. A list keeps its query spec, current page and error in a `BeakTableViewModel`. A form keeps a `BeakFormSession`: a local copy of the record and its nested rows, validation, conflict detection and save state. You configure both; you don't subclass either.
+
+## Why it is shaped this way
+
+Configuration is checked before anything renders. Everything you write above is a plain object. That has a price: to change how a form looks you change an object graph, not a `build` method. In return Beak can check it once. `BeakPanelConfig.buildRegistry` runs when the panel first builds and throws a `BeakConfigurationException` for a table registered twice, two screens claiming one role, a form screen on the list route, a table-screen query aimed at another table, a home destination that isn't in the panel, and a panel with nothing to show. A broken resource fails on startup, not on the third click.
+
+The split follows the dependency line. The model must load on a server that has never heard of Flutter, and the resource needs `obers_ui`. Putting facts about the data on one side of that line and presentation on the other is why the schema never mentions a sidebar icon, and why the same `bookshop_beak` package serves a Serverpod server and a Flutter admin.
+
+Writing widgets instead is possible, and it is the cheaper option for one odd screen. Three doors exist: `BeakCustomResourceScreen` replaces the routes of a resource with your widget, `BeakWidgetBlock` embeds one in a page, `BeakFormWidget` embeds one in a form. They cost you what the declarative path gives for free: the startup checks, draft handling and the shared look. Use them last, and keep the widget small.
+
+There are also two ways to boot the panel around these objects, a generated `BeakApp` and an authored `BeakPanel(resources: [...])`. Both are supported; [Two ways to boot a panel](../start-here/generated-or-authored.md) helps you pick.
+
+## What it means for you
+
+| You want | Put it on | Not on |
+| --- | --- | --- |
+| A rule every caller must obey (required, length, uniqueness, a derived total) | the schema class: `@Column(rules:)`, `validationRules`, `behavior` | a `BeakInput` in a screen |
+| A sidebar entry, filters, row actions | the `BeakResource` | the schema |
+| A different form or table layout | a `BeakFormScreen` or `BeakTableScreen` | a new widget |
+| A dashboard or a document view | a `BeakScreen` with blocks | a resource |
+| A widget with logic of its own | `BeakCustomResourceScreen`, `BeakWidgetBlock` or `BeakFormWidget` | anywhere else |
+
+Three smaller things:
+
+- A model reached only through a relationship needs no resource. It is registered through `relatedModels`, keeps its API, and gets no sidebar entry.
+- `canCreate`, `canEdit` and `canDelete` on a resource, and `BeakModel.permissions`, decide what the panel offers. They don't decide what the server accepts. [Where authority lives](where-authority-lives.md) draws that line.
+- `@Resource` is the annotation on a schema class, `BeakResource` is the panel class. They are unrelated. The annotation has no `Beak` prefix so both fit in one import.
 
 ## Continue reading
 
-- [Model behavior](../models/behavior.md)
-- [Forms](../forms/form-screens.md)
-- [Drafts and review](../forms/drafts-and-review.md)
+- [Defining models](../models/defining-models.md) every annotation a schema class takes.
+- [Resources](../panel/resources.md) the parameters of `BeakResource`, one by one.
+- [Form screens](../forms/form-screens.md) layouts, roles and sections for `BeakFormScreen`.
+- [Custom screens](../panel/custom-screens.md) pages, blocks and the widget escape hatches.
+- [Two ways to boot a panel](../start-here/generated-or-authored.md) the generated `BeakApp` and the authored `BeakPanel`.

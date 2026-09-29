@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: Learn the responsibilities behind Beak configuration.
+description: Why Beak is shaped the way it is, in eight short pages on the resource model, the two promises, authority, layers, data flow, blocks and errors.
 type: index
 audience: [beginner, expert]
 status: stable
@@ -8,25 +8,28 @@ status: stable
 
 # Concepts
 
-Concepts explain why Beak is shaped the way it is. Start with [Declarative resources](declarative-resources.md) for the complete application model, then read how shared definitions, typed fields, layers and data flow fit together.
+The guides tell you what to write. These pages tell you why Beak is built the way it is, so the API stops looking arbitrary. Each one has a diagram, working code from the maintained examples, and a short list of what it means for you.
 
-The maintained examples use the same contracts: the quickstart is the minimal scaffold, and the clean shop adds nested forms, workflows, custom pages and domain calculations.
+If you are new, read the first four in order. If you already have a panel running and something surprised you, go straight to the page that matches the surprise.
 
 ## Which page to read
 
-| You want to… | Read | For |
+| You want to... | Read | For that |
 | --- | --- | --- |
-| Separate model behavior, resource navigation and presentation while Beak owns the runtime | [Declarative resources](declarative-resources.md) | Concept for beginners and experts |
-| Reuse schema metadata without confusing presentation with authority | [The one-definition promise](the-one-definition-promise.md) | Concept for beginners and experts |
-| Use generated fields and typed values across queries and drafts | [The type-safety promise](the-type-safety-promise.md) | Concept for beginners, experts and agents |
-| Understand which checks the client previews and which the server decides | [Where authority lives](where-authority-lives.md) | Concept for beginners, experts and agents |
-| Understand shared metadata, persistence, presentation and generation | [The four layers](the-four-layers.md) | Concept for experts |
-| Follow a query from a table to the database and a save from a form to a receipt | [How data flows](how-data-flows.md) | Concept for experts |
-| Separate custom page composition from draft-based forms | [The block system](the-block-system.md) | Concept for beginners and experts |
-| Keep typed failures, field feedback and uncertain writes distinct | [Results and errors](results-and-errors.md) | Concept for experts |
+| See how a schema, a model, a resource, a screen and a page divide the work | [Declarative resources](declarative-resources.md) | The five things you write or generate, and what Beak's runtime owns |
+| Know why one field feeds the table, the form, the API and the migration | [The one-definition promise](the-one-definition-promise.md) | The seven consumers of a column, and where the promise stops |
+| Know why you never write a field name as a string | [The type-safety promise](the-type-safety-promise.md) | Generated typed fields, sealed families, and every string that remains |
+| Decide which side a rule belongs on | [Where authority lives](where-authority-lives.md) | Client preview against server authority, policies, and the Serverpod mapping |
+| Learn where code goes on the server and in the panel | [The four layers](the-four-layers.md) | Handler, Service, DataSource and Widget, ViewModel, Repository, DataSource |
+| Follow a query or a save end to end | [How data flows](how-data-flows.md) | `BeakQuerySpec`, save plans, receipts and refresh |
+| Choose between a block and a form node | [The block system](the-block-system.md) | Blocks for screens that show, form nodes for drafts that edit |
+| Tell a thrown exception, a result and a receipt apart | [Results and errors](results-and-errors.md) | Typed failures, field errors and uncertain writes |
+
+The code on these pages comes from three places. `examples/quickstart` is the smallest project `beak create` writes. `examples/serverpod` is a Beak admin inside a Serverpod workspace, with a real policy. The `packages/` sources are quoted where a page explains a mechanism, and every quote is either an include of a marked section or a fence the docs check against the file.
 
 ## Continue reading
 
-- [Declarative resources](declarative-resources.md): Separate model behavior, resource navigation and presentation while Beak owns the runtime.
-- [The one-definition promise](the-one-definition-promise.md): Reuse schema metadata without confusing presentation with authority.
-- [The type-safety promise](the-type-safety-promise.md): Use generated fields and typed values across queries and drafts.
+- [Tutorial](../tutorial/index.md) build a small panel step by step and meet these ideas in use.
+- [Models](../models/index.md) the guides behind the schema, field and relationship pages.
+- [Architecture](../architecture/index.md) the same layers in contributor detail.
+- [Examples](../examples/index.md) the maintained projects, from the quickstart to the full shop.
