@@ -18,16 +18,17 @@ BeakTableScreen orderList() {
   final payment = filters.payment;
   final columns = orderTableColumns();
   final presets = OrderListPresets(filters: filters, columns: columns);
+
   return BeakTableScreen(
-    query: const OrderModel()
     // --8<-- [start:composedListQuery]
+    query: const OrderModel()
         .query()
         .orderBy(OrderModel.number, descending: true)
         .paginate(perPage: 15),
-    definition: BeakListDefinition(
     // --8<-- [end:composedListQuery]
-      initialPreset: presets.today,
+    definition: BeakListDefinition(
       // --8<-- [start:composedListShape]
+      initialPreset: presets.today,
       filterSheetWidthInPixels: 480,
       recordNoun: 'orders',
       advancedFilterColumns: 2,
@@ -43,9 +44,9 @@ BeakTableScreen orderList() {
       subtitleBuilder: (counts) =>
           '${counts[presets.today] ?? '—'} orders for today · ${counts[presets.attention] ?? '—'} need attention · updated 09:42',
       createLabel: 'New order',
-      export: BeakListExport(
       // --8<-- [end:composedListShape]
       // --8<-- [start:composedListExport]
+      export: BeakListExport(
         fileName: 'orders.csv',
         fields: [
           OrderModel.reference,
@@ -58,13 +59,13 @@ BeakTableScreen orderList() {
           OrderModel.status,
         ],
       ),
-      quickFilters: [date, status, organization, slot, payment],
       // --8<-- [end:composedListExport]
       // --8<-- [start:composedListQuickFilters]
+      quickFilters: [date, status, organization, slot, payment],
       quickFilterLabels: {slot: 'Slot', payment: 'Payment'},
-      rowActions: [
       // --8<-- [end:composedListQuickFilters]
       // --8<-- [start:composedListActions]
+      rowActions: [
         const BeakActionPresentation(
           key: 'view',
           label: 'View order',
@@ -115,25 +116,25 @@ BeakTableScreen orderList() {
           selectionLabel: (count) => 'Cancel $count orders',
         ),
       ],
-      savedViews: BeakSavedViewStore.model(
       // --8<-- [end:composedListActions]
       // --8<-- [start:composedListSavedViews]
+      savedViews: BeakSavedViewStore.model(
         model: const SavedViewModel(),
         name: SavedViewModel.name,
         resource: SavedViewModel.resource,
         state: SavedViewModel.state,
       ),
-      header: orderOverview(),
       // --8<-- [end:composedListSavedViews]
       // --8<-- [start:composedListOverview]
+      header: orderOverview(),
       collapsedHeader: orderCompactOverview(),
       showHeaderToggle: true,
-      presets: presets.values,
       // --8<-- [end:composedListOverview]
       // --8<-- [start:composedListPresets]
+      presets: presets.values,
       columns: columns,
-      filters: [
       // --8<-- [end:composedListPresets]
+      filters: [
         date,
         status,
         BeakChoiceFilter(
