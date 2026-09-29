@@ -42,9 +42,13 @@ final class BeakAuthViewModel extends BeakViewModel {
   /// Ends the device session through the same typed pending/error boundary.
   Future<bool> logout() => _run(adapter.logout);
 
-  /// Signs in with a normalized email and the exact supplied password.
+  /// Signs in with the trimmed identifier and the exact supplied password.
+  ///
+  /// [email] is whatever the person typed to identify the account: an email
+  /// address for most backends, a plain username for Beak's own accounts. Only
+  /// registration and recovery insist on an email address.
   Future<bool> login({required String email, required String password}) async {
-    if (!_validEmail(email) || !_required(password)) return false;
+    if (!_required(email.trim()) || !_required(password)) return false;
     return _run(() => adapter.login(email: email.trim(), password: password));
   }
 

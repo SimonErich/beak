@@ -52,7 +52,8 @@ Beak boots a panel two ways. An authored `lib/main.dart` calls `BeakPanel` itsel
 | `theme`, `darkTheme` | `theme`, `darkTheme` | `beakLightTheme()`, `beakDarkTheme()` in `lib/theme.dart` |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | none | `theme.sidebar.collapsible`, `theme.sidebar.startCollapsed` in beak.yaml |
 | `locale`, `formatting`, `home`, `navigation`, `refreshPolicy` | same names | `beakPanel(defaults)` in `lib/panel.dart` |
-| `maintenance`, `initialThemeMode`, `supportedLocales`, `localizationsDelegates`, `notifications`, `shellActions`, `mapException` | none, use `config:` | `beakPanel(defaults)` in `lib/panel.dart` |
+| `maintenance`, `mapException` | same names | `beakPanel(defaults)` in `lib/panel.dart` |
+| `initialThemeMode`, `supportedLocales`, `localizationsDelegates`, `notifications`, `shellActions` | none, use `config:` | `beakPanel(defaults)` in `lib/panel.dart` |
 
 `lib/panel.dart` declares `BeakPanelConfig beakPanel(BeakPanelConfig defaults)`, and the generated code returns whatever it returns. `defaults.copyWith(...)` is the usual body. [Configuration and environment](configuration.md) lists the override files and the environment variables.
 
@@ -64,13 +65,10 @@ The root widget. It builds its own dependency container and router from the conf
   const BeakPanel({
     BeakPanelConfig? config,
     List<BeakResource>? resources,
-    this.title = 'Beak',
+    this.title,
     this.theme,
     this.darkTheme,
-    this.apiBaseUrl = const String.fromEnvironment(
-      'BEAK_API_BASE_URL',
-      defaultValue: 'http://localhost:8080',
-    ),
+    this.apiBaseUrl,
     this.pages = const [],
     this.auth,
     this.locale,
@@ -78,6 +76,8 @@ The root widget. It builds its own dependency container and router from the conf
     this.navigation,
     this.refreshPolicy,
     this.home,
+    this.maintenance,
+    this.mapException,
     this.dataSource,
     this.httpClient,
     super.key,
@@ -90,10 +90,10 @@ The root widget. It builds its own dependency container and router from the conf
 | --- | --- | --- | --- |
 | `config` | `BeakPanelConfig?` | `null` | A complete configuration. Exclusive with `resources`; the constructor asserts. |
 | `resources` | `List<BeakResource>?` | `[]` | The resources of a directly configured panel. |
-| `title` | `String` | `'Beak'` | Application title. |
+| `title` | `String?` | `null` | Application title; `Beak` when null. |
 | `theme` | `OiThemeData?` | `null` | Light theme, `OiThemeData.light()` when null. |
 | `darkTheme` | `OiThemeData?` | `null` | Dark theme, `OiThemeData.dark()` when null. |
-| `apiBaseUrl` | `String` | `String.fromEnvironment('BEAK_API_BASE_URL', defaultValue: 'http://localhost:8080')` | Backend origin. The shorthand reads the `--dart-define`; `BeakPanelConfig` does not. |
+| `apiBaseUrl` | `String?` | `null` | Backend origin; when null the `BEAK_API_BASE_URL` `--dart-define`, else `http://localhost:8080`. `BeakPanelConfig` does not read the `--dart-define`. |
 | `pages` | `List<BeakScreen>` | `[]` | Custom pages. |
 | `auth` | `BeakAuthConfig?` | `null` | Authentication configuration. |
 | `locale` | `Locale?` | `null` | Application locale; the platform's when null. |
@@ -101,10 +101,12 @@ The root widget. It builds its own dependency container and router from the conf
 | `navigation` | `BeakNavigation?` | `null` | Primary rail and contextual navigation. |
 | `refreshPolicy` | `BeakRefreshPolicy?` | `null` | Periodic and foreground refetch. |
 | `home` | `BeakDestination?` | `null` | Where `/` goes when no screen claims it. |
+| `maintenance` | `BeakMaintenanceConfig?` | `null` | The `/maintenance` and `/coming-soon` pages, and optionally a redirect to one of them. |
+| `mapException` | `BeakException? Function(Exception, StackTrace)?` | `null` | Maps a host exception, such as a Serverpod protocol error, to a `BeakException`. |
 | `dataSource` | `BeakDataSource?` | `null` | Replaces the HTTP-backed source for every model, including a model bound to its own source. |
 | `httpClient` | `http.Client?` | `null` | Replaces only the HTTP transport under the typed `BeakClient`. |
 
-`dataSource` is a test seam in widget tests (a fake source, no HTTP). The Serverpod admin app also passes it in production, with `serverpodBeakDataSource(dispatch)`:
+`dataSource` and `httpClient` work with `resources:` and with `config:`. A widget test passes a fake source (no HTTP). A host with its own transport passes one in production: the Serverpod admin app does, with `serverpodBeakDataSource(dispatch)`:
 
 ```dart title="examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart"
 --8<-- "examples/serverpod/bookshop_admin/lib/src/bookshop_admin.dart:bookshopAdminPanel"
@@ -475,7 +477,7 @@ The idle lock is a client-side route. After `idleLockTimeout` without a pointer 
 
 ## BeakMaintenanceConfig
 
-Mounts `/maintenance` and `/coming-soon` as `OiMaintenancePage` routes outside the shell. Nothing redirects to them and they do not stop API traffic; a host decides when to send users there, see [Maintenance and coming soon](../panel/maintenance-and-coming-soon.md).
+Mounts `/maintenance` and `/coming-soon` as `OiMaintenancePage` routes outside the shell. `redirectTo` sends every other route to one of them; without it nothing does. They never stop API traffic. See [Maintenance and coming soon](../panel/maintenance-and-coming-soon.md).
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_maintenance_config.dart"
 const BeakMaintenanceConfig({
@@ -485,6 +487,7 @@ const BeakMaintenanceConfig({
   this.comingSoonTitle = 'Coming soon',
   this.comingSoonDescription,
   this.launchAt,
+  this.redirectTo,
 });
 ```
 
@@ -496,6 +499,7 @@ const BeakMaintenanceConfig({
 | `comingSoonTitle` | `String` | `'Coming soon'` | Heading of the `/coming-soon` screen. |
 | `comingSoonDescription` | `String?` | `null` | Supporting copy of the `/coming-soon` screen. |
 | `launchAt` | `DateTime?` | `null` | Launch moment; drives the coming-soon countdown. |
+| `redirectTo` | `BeakMaintenancePage?` | `null` | `maintenance` or `comingSoon`: the page every other route redirects to. `null` only mounts the pages. |
 
 ```dart title="packages/beak_frontend/test/src/panel/beak_screen_routing_test.dart"
           maintenance: const BeakMaintenanceConfig(
@@ -694,7 +698,7 @@ A host with its own router and app widget can mount Beak's routes and skip `Beak
 
 ## Rules and limits
 
-- Pass `config:` or `resources:`, never both; the constructor asserts. Passing `config:` together with `title:`, `theme:` or the other individual arguments is not asserted, and those arguments are ignored.
+- Pass `config:` or `resources:`, never both; the constructor asserts. Passing `config:` together with `title:`, `theme:` or any other individual argument throws a `BeakConfigurationException` naming them when the panel builds, because the configuration would win silently. `dataSource:` and `httpClient:` are the exceptions: they work with either form.
 - `BeakPanel` builds its container and router once per config object. A config created inside `build` is a new panel on every frame and loses state. Build it once, as the generated `beakPanelConfig` does.
 - The validation errors under [BeakPanelConfig](#beakpanelconfig) surface when the panel first builds, not when the config object is created.
 - With a custom `auth.adapter` the panel registers no `BeakClient` and no `BeakSessionStore`. Every model must then carry its own data source, or you pass `dataSource:`; otherwise the panel throws `External authentication requires bound models or a data source.`
@@ -703,7 +707,7 @@ A host with its own router and app widget can mount Beak's routes and skip `Beak
 - The idle lock and the maintenance pages are client-side. Neither ends a session nor blocks requests.
 - `home` is ignored while its resource is not visible, and `/` then falls through to the next destination.
 - The notification bell reads 30 rows. Older rows are not reachable from it.
-- The `BeakPanel` shorthand has no `maintenance`, `notifications`, `shellActions`, `mapException`, locale delegate or sidebar options. Move to `BeakPanel(config: BeakPanelConfig(...))` when you need one.
+- The `BeakPanel` shorthand has no `notifications`, `shellActions`, locale delegate or sidebar options. Move to `BeakPanel(config: BeakPanelConfig(...))` when you need one.
 
 ## Source
 

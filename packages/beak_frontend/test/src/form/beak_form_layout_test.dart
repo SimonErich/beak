@@ -8,6 +8,58 @@ import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 import '../../support/panel_fixtures.dart';
 
 void main() {
+  test('inputCombobox takes the same live options as the other lookups', () {
+    const category = BeakToOneField(
+      model: ArticleModel(),
+      relation: ArticleRelations.category,
+      target: LabelModel(),
+    );
+    String? guidance(BeakFormReader state) => 'Pick one';
+    String? refuse(BeakRecord option, BeakFormReader state) => 'Taken';
+
+    final input = category.inputCombobox(
+      dependencies: const [category],
+      descriptionBuilder: guidance,
+      disabledReason: refuse,
+    );
+
+    expect(input.dependencies, const [category]);
+    expect(input.descriptionBuilder, same(guidance));
+    expect(input.disabledReason, same(refuse));
+  });
+
+  test('the tabs projection keeps a section\'s trailing and spacing', () {
+    final trailing = BeakValueBinding<Object>.field(
+      const BeakScalarField<String>(
+        model: ArticleModel(),
+        column: ArticleColumns.title,
+      ),
+    );
+    final sections = BeakFormSections(
+      sections: [
+        BeakSection(
+          title: 'Basics',
+          trailing: trailing,
+          divider: true,
+          dividerAfterSpacingInPixels: 12,
+          children: const [],
+        ),
+      ],
+    );
+
+    expect(
+      sections.tabs.tabs.single.children.single,
+      isA<BeakSection>()
+          .having((section) => section.trailing, 'trailing', same(trailing))
+          .having((section) => section.divider, 'divider', isTrue)
+          .having(
+            (section) => section.dividerAfterSpacingInPixels,
+            'dividerAfterSpacingInPixels',
+            12,
+          ),
+    );
+  });
+
   // A structured layout: a Basics card plus a Pricing card, exactly the shape
   // a detail screen would use — reused here to drive the form.
   final layout = BeakFormLayout(

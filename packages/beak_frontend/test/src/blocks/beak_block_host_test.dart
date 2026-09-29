@@ -229,6 +229,33 @@ void main() {
       expect(find.text('second'), findsOneWidget);
     });
 
+    testWidgets('a start index past the last tab selects the last tab', (
+      tester,
+    ) async {
+      await pumpBlock(
+        tester,
+        const BeakTabsBlock(
+          initialIndex: 7,
+          tabs: [
+            BeakTabBlockItem(label: 'One', content: BeakTextBlock('first')),
+            BeakTabBlockItem(label: 'Two', content: BeakTextBlock('second')),
+          ],
+        ),
+      );
+
+      expect(find.text('second'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('tabs without any tab render nothing and do not throw', (
+      tester,
+    ) async {
+      await pumpBlock(tester, const BeakTabsBlock(tabs: []));
+
+      expect(find.byType(OiTabs), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('accordion renders its sections and toggles on tap', (
       tester,
     ) async {

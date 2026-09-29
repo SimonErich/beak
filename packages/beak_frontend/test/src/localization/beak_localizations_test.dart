@@ -28,6 +28,36 @@ void main() {
     expect(const BeakLocalizations(Locale('fr')).save, en.save);
   });
 
+  test('German strings address the user formally', () {
+    const de = BeakLocalizations(Locale('de'));
+    expect(de.actionDenied, 'Sie haben keine Berechtigung für diese Aktion.');
+    expect(de.actionDenied, isNot(contains('Du ')));
+  });
+
+  test(
+    'infrastructure failures show the generic text, never their message',
+    () {
+      const en = BeakLocalizations.english;
+      const secret = 'postgres://admin:hunter2@db/internal';
+      for (final BeakException error in const [
+        BeakConfigurationException(secret),
+        BeakStorageException(secret),
+        BeakInternalException(secret),
+        BeakTransportException(secret),
+      ]) {
+        expect(en.errorMessage(error), en.operationFailed);
+      }
+      expect(
+        en.errorMessage(const BeakPayloadTooLargeException('Body too large.')),
+        'Body too large.',
+      );
+      expect(
+        en.errorMessage(const BeakValidationException('Fix the title.')),
+        'Fix the title.',
+      );
+    },
+  );
+
   testWidgets('resolves context language without requiring the delegate', (
     tester,
   ) async {

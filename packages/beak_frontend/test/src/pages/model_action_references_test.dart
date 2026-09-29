@@ -59,6 +59,7 @@ Future<void> _pumpTickets(
   WidgetTester tester,
   BeakListDefinition definition, {
   List<BeakResourceScreen> more = const [],
+  bool canEdit = true,
 }) async {
   await tester.binding.setSurfaceSize(const Size(1400, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -68,6 +69,7 @@ Future<void> _pumpTickets(
       resources: [
         BeakResource(
           model: const _TicketModel(),
+          canEdit: canEdit,
           screens: [
             BeakTableScreen(definition: definition),
             ...more,
@@ -122,6 +124,29 @@ void main() {
     await _selectFirstRow(tester);
     expect(find.text('Close ticket'), findsOneWidget);
     expect(find.text('Reopen ticket'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a resource that cannot be edited offers no bulk command', (
+    tester,
+  ) async {
+    await _pumpTickets(
+      tester,
+      BeakListDefinition(
+        columns: [BeakTableColumn.field(_title)],
+        bulkModelActions: const [_TicketActions.close],
+      ),
+      canEdit: false,
+    );
+    // With no command left there is nothing to select rows for.
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is OiCheckbox && widget.semanticLabel == 'Select row 1',
+      ),
+      findsNothing,
+    );
+    expect(find.text('Close ticket'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

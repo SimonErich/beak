@@ -12,8 +12,8 @@ enum BeakFieldLayout {
 /// A single record field: a label and the current record's value for
 /// [column], formatted exactly like the table and default detail view
 /// (badges, dates, images, swatches, relations). Resolves the value from the
-/// enclosing `BeakRecordScope`, so it is a `const` leaf a detail layout drops
-/// into any card, grid, or tab.
+/// enclosing `BeakRecordScope`, so it is a `const` leaf that goes into any
+/// card, grid, or tab of a screen that mounts such a scope.
 // --8<-- [start:BeakFieldBlock]
 final class BeakFieldBlock extends BeakBlock {
   /// Shows [column] from the scoped record.

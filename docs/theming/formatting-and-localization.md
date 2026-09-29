@@ -184,7 +184,7 @@ The same enum is the `format:` of `BeakMetricBlock` (number, currency or percent
 
 ## Empty values
 
-A null cell shows `emptyValue`, an em dash unless you change it. The same string is written into a formatted CSV export, because the policy travels with the request. There is one setting for both. `emptyValue: ''` gives blank cells in the export and blank cells on screen.
+A null cell shows `emptyValue`, an em dash unless you change it. So does a related-record cell whose record is missing, and an empty to-one relation on a read page. The same string is written into a formatted CSV export, because the policy travels with the request. There is one setting for both. `emptyValue: ''` gives blank cells in the export and blank cells on screen.
 
 ## Exports use the same policy
 
@@ -235,7 +235,7 @@ Anything you do not override stays English, because the base class decides Germa
 | Gap | Today |
 | --- | --- |
 | Labels, titles and enum labels | Plain strings in the schema and the screens, compile-time constants for columns, so one build speaks one language. Write them in the panel's language. |
-| Rule messages | `BeakPattern`, `BeakFutureDate` and the record rules take `message:`. The other built-in rules keep their English text ([Validation rules](../reference/validation-rules.md)). |
+| Rule messages | A form in a German panel words the built-in column rules in German (`BeakLocalizations.validate`), keeping a rule's own `message:` such as `BeakPattern`'s. Record rules and the messages of server-side validation keep the text they were written with ([Validation rules](../reference/validation-rules.md)). |
 | Hard-coded English in a composed list or a dialog | Nothing overrides it from outside. Accept English for that control, or build the screen from blocks. |
 | A live language switch | A new `locale` is a new configuration. The panel builds a new router and dependency scope and lands on `/`. |
 | Your own widgets | `BeakLocalizations.of(context)` and `BeakFormatting.of(context)`, as below. |
@@ -252,11 +252,11 @@ The shop's receivables card is a widget of the last kind. It takes loading, erro
 - **Screen and file can disagree.** The policy never sends the device's zone, so a panel on device time exports UTC unless `timeZoneOffsetMinutes` is set.
 - **An offset is not a time zone.** There is no daylight saving and no IANA zone.
 - **The locale does not choose patterns.** Write `datePattern` yourself.
-- **Do not add `.formatted(BeakValueFormat.currency)` to a `BeakDecimal` money field.** In 0.9 the override reads the stored integer and skips the semantic, so cents show as whole units. The shop's invoice list adds it to `total`, and an invoice of `1234.56` shows as `€ 123 456,00`. Leave a semantic field alone, or use `.currency(minorUnits: true)` on a plain integer.
+- **`.formatted` on a semantic field formats the decoded value.** A `BeakDecimal` money field shown with `.formatted(BeakValueFormat.currency)` prints an amount of `1234.56`, not `123456`, in the currency its semantic names, exactly as it does without the override. A `number` format prints the decimal, not the integer units it is stored as. The shop's invoice list uses `.formatted(..., label: 'Amount due')` to relabel `total`. Use `.currency(minorUnits: true)` on a plain integer column that holds cents.
 - **One empty value for screen and export.** Changing it changes both.
 - **CSV cells are quoted, not neutralized.** The exporter quotes commas, quotes and line breaks and does nothing else. A value that starts with `=` opens as a formula in a spreadsheet.
 - **English and German only.** Every other language falls back to English until you supply a subclass.
-- **Rule messages, `Back`, `Choose file` and the list toolbar stay English** in a German panel.
+- **`Back`, `Choose file`, the list toolbar, the saved-views dialog, the import view and the form's own status texts stay English** in a German panel. Built-in rule messages are translated.
 - **No test covers right-to-left languages.**
 
 ## Verify it

@@ -153,13 +153,13 @@ When a piece of the form is not an input, `BeakFormWidget` puts any widget insid
 | One screen per role | Two screens claiming the same role on one resource throw a `BeakConfigurationException` when the panel starts |
 | No list route | A `BeakFormScreen` with the `list` role throws at startup. The list is a `BeakTableScreen` |
 | Default roles | `create` and `edit`. The show page uses the generated layout until you add `read` |
-| Show page columns | The generated show page lists the columns visible in the form context. `visibleOn: {detail}` alone does not add a column to it |
+| Show page columns | The generated show page lists the columns visible in the detail context. A `BeakFormScreen` for the read role shares its layout with the forms, so there the form columns decide |
 | Form-only rules | `validate:` and `validators:` are not sent to the server. Put a rule the API must enforce on the schema |
 | Hidden means absent | A hidden input is skipped by validation and left out of the submitted record, unless `submitWhenHidden` is true |
 | Locked fields | A field the account cannot write, or that model behavior controls, is disabled and left out of the submitted record |
 | Calculated values | `BeakCalculated`, summaries, metrics and capacity bars display values. None of them is submitted or validated |
 | Presentation permissions | Hiding an Edit button or a field is a courtesy. The server enforces `BeakPolicies` on every write |
-| Wizard parameters | `BeakWizardScreen` forwards 22 of the 29 parameters of `BeakFormScreen`. Use `BeakFormScreen(steps: [...])` when you need the rest |
+| Wizard parameters | `BeakWizardScreen` forwards 26 of the 29 parameters of `BeakFormScreen`. It has no `layout`, `recordHeader` or `editingLabel`. Use `BeakFormScreen(steps: [...])` when you need one of them |
 
 ## Verify it
 

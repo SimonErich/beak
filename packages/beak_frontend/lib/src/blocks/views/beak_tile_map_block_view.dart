@@ -10,6 +10,7 @@ class _BeakTileMapBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final records = useState(const <BeakRecord>[]);
 
     useEffect(() {
@@ -28,7 +29,7 @@ class _BeakTileMapBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
     final markers = <OiMapMarker>[
       for (final record in records.value)

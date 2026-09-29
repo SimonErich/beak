@@ -173,6 +173,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final presentation in [
+    BeakChoiceFilterPresentation.chips,
+    BeakChoiceFilterPresentation.radio,
+    BeakChoiceFilterPresentation.select,
+  ]) {
+    testWidgets('facet counts show in the ${presentation.name} presentation', (
+      tester,
+    ) async {
+      const field = BeakScalarField<String>(
+        model: NoteModel(),
+        column: BeakStringColumn(key: 'title', label: 'Title', sortable: true),
+      );
+      await tester.binding.setSurfaceSize(const Size(1400, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakFilterBar(
+            dataSource: _FacetSource(),
+            filters: [
+              BeakChoiceFilter(
+                field: field,
+                label: 'Choices',
+                presentation: presentation,
+                showCounts: true,
+                options: [
+                  BeakFilterChoice(
+                    key: 'a',
+                    label: 'Alpha',
+                    filter: field.eq('a'),
+                  ),
+                  BeakFilterChoice(
+                    key: 'b',
+                    label: 'Beta',
+                    filter: field.eq('b'),
+                  ),
+                ],
+              ),
+            ],
+            onChanged: (_) {},
+            presentation: BeakFilterBarPresentation.controls,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // A select keeps its options in a closed menu; open it first.
+      if (presentation == BeakChoiceFilterPresentation.select) {
+        await tester.tap(find.byType(OiSelect<String>));
+        await tester.pumpAndSettle();
+      }
+      expect(find.textContaining('Alpha (11)'), findsWidgets);
+      expect(find.textContaining('Beta (12)'), findsWidgets);
+    });
+  }
+
   testWidgets(
     'one-sided currency range edits major units and submits exact cents',
     (tester) async {

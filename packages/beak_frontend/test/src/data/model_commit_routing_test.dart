@@ -18,6 +18,7 @@ final class _CommitSource extends FakeDataSource
   BeakWriteOutcome outcome = BeakWriteOutcome.applied;
   BeakSaveError? failure;
   bool loseResponse = false;
+  bool returnRecords = false;
   int recoveries = 0;
   BeakSaveResult? result;
   String? derivedTable;
@@ -39,7 +40,26 @@ final class _CommitSource extends FakeDataSource
             table: derivedTable,
           ),
         for (final op in plan.operations)
-          BeakOperationResult(id: op.id, status: outcome, error: failure),
+          BeakOperationResult(
+            id: op.id,
+            status: outcome,
+            error: failure,
+            resolvedId: returnRecords
+                ? (op.kind == BeakSaveOperationKind.create ? 'new-id' : null)
+                : null,
+            record: returnRecords
+                ? BeakRecord(
+                    values: {
+                      ...op.values.values,
+                      'id': BeakStringValue(
+                        op.kind == BeakSaveOperationKind.create
+                            ? 'new-id'
+                            : '${op.target.id}',
+                      ),
+                    },
+                  )
+                : null,
+          ),
       ],
     );
     if (loseResponse) throw const BeakStorageException('Reply lost.');
@@ -246,6 +266,116 @@ void main() {
       expect(changes, isEmpty);
     },
   );
+
+  test(
+    'a native update goes through the graph and returns the written record',
+    () async {
+      final source = _CommitSource()..returnRecords = true;
+      final router = ModelBeakDataSource(
+        registry: BeakModelRegistry()..register(_Model('notes', source)),
+      );
+      addTearDown(router.dispose);
+      final changes = <BeakDataChange>[];
+      final subscription = router.changes.listen(changes.add);
+      addTearDown(subscription.cancel);
+
+      final saved = await router.update(
+        'notes',
+        '1',
+        BeakRecord.fromRow({'title': 'Renamed'}),
+      );
+
+      expect(source.commits, 1);
+      expect(source.updateCalls, isEmpty);
+      final operation = source.lastPlan!.operations.single;
+      expect(operation.kind, BeakSaveOperationKind.update);
+      expect(operation.target, const BeakRecordRef.existing('notes', '1'));
+      expect(operation.values['title']?.raw, 'Renamed');
+      expect(saved['title']?.raw, 'Renamed');
+      expect(changes.single.tables, {'notes'});
+    },
+  );
+
+  test('a native create goes through the graph and resolves its id', () async {
+    final source = _CommitSource()..returnRecords = true;
+    final router = ModelBeakDataSource(
+      registry: BeakModelRegistry()..register(_Model('notes', source)),
+    );
+    addTearDown(router.dispose);
+
+    final created = await router.create(
+      'notes',
+      BeakRecord.fromRow({'title': 'Hello'}),
+    );
+
+    expect(source.createCalls, isEmpty);
+    expect(
+      source.lastPlan!.operations.single.kind,
+      BeakSaveOperationKind.create,
+    );
+    expect(created['id']?.raw, 'new-id');
+    expect(created['title']?.raw, 'Hello');
+  });
+
+  test(
+    'a refused native update throws its typed error and changes nothing',
+    () async {
+      final source = _CommitSource()
+        ..outcome = BeakWriteOutcome.unapplied
+        ..failure = BeakSaveError(code: 'authorization', message: 'Read only');
+      final router = ModelBeakDataSource(
+        registry: BeakModelRegistry()..register(_Model('notes', source)),
+      );
+      addTearDown(router.dispose);
+      final changes = <BeakDataChange>[];
+      final subscription = router.changes.listen(changes.add);
+      addTearDown(subscription.cancel);
+
+      await expectLater(
+        router.update('notes', '1', BeakRecord.fromRow({'title': 'x'})),
+        throwsA(isA<BeakAuthorizationException>()),
+      );
+      expect(changes, isEmpty);
+    },
+  );
+
+  test('an unconfirmed native update recovers instead of resending', () async {
+    final source = _CommitSource()
+      ..loseResponse = true
+      ..returnRecords = true;
+    final router = ModelBeakDataSource(
+      registry: BeakModelRegistry()..register(_Model('notes', source)),
+    );
+    addTearDown(router.dispose);
+    final data = BeakRecord.fromRow({'title': 'Again'});
+
+    await expectLater(
+      router.update('notes', '1', data),
+      throwsA(isA<BeakStorageException>()),
+    );
+    await router.update('notes', '1', data);
+
+    expect(source.commits, 1);
+    expect(source.recoveries, 1);
+  });
+
+  test('a source without a graph route still writes directly', () async {
+    final source = FakeDataSource(
+      records: {
+        'notes': {
+          '1': BeakRecord.fromRow({'id': '1', 'title': 'Old'}),
+        },
+      },
+    );
+    final router = ModelBeakDataSource(
+      registry: BeakModelRegistry()..register(_Model('notes', source)),
+    );
+    addTearDown(router.dispose);
+
+    await router.update('notes', '1', BeakRecord.fromRow({'title': 'New'}));
+
+    expect(source.updateCalls, hasLength(1));
+  });
 
   test(
     'a lost deletion response recovers the same receipt without replay',

@@ -18,6 +18,7 @@ import 'beak_router.dart';
 import 'beak_theme_controller.dart';
 import 'beak_auth_config.dart';
 import 'beak_destination.dart';
+import 'beak_maintenance_config.dart';
 import 'beak_screen.dart';
 import 'beak_navigation.dart';
 
@@ -40,7 +41,7 @@ import 'beak_navigation.dart';
 ///   BeakPanel(config: buildPanelConfig()),
 /// );
 ///
-/// // In a widget test, inject a fake source so no HTTP is issued:
+/// // A test, or a host with its own transport, injects the data source:
 /// await tester.pumpWidget(
 ///   BeakPanel(config: buildPanelConfig(), dataSource: fakeSource),
 /// );
@@ -48,20 +49,21 @@ import 'beak_navigation.dart';
 class BeakPanel extends HookWidget {
   /// Creates the panel from either [config] or the individual arguments, never
   /// both. `resources:` is the everyday form; `config:` takes a complete
-  /// [BeakPanelConfig] built by the host, including embedding options.
+  /// [BeakPanelConfig] built by the host, including embedding options. Giving
+  /// `config:` together with any of the individual arguments throws a
+  /// [BeakConfigurationException] when the panel builds, because the
+  /// configuration would silently win.
   ///
-  /// [dataSource] and [httpClient] inject fakes in tests; production
-  /// panels leave both null and talk HTTP to `apiBaseUrl`.
+  /// [dataSource] and [httpClient] work with either form. A panel that leaves
+  /// both null talks HTTP to its API origin; a host with its own transport
+  /// (the Serverpod admin) supplies [dataSource], and a test supplies a fake.
   const BeakPanel({
     BeakPanelConfig? config,
     List<BeakResource>? resources,
-    this.title = 'Beak',
+    this.title,
     this.theme,
     this.darkTheme,
-    this.apiBaseUrl = const String.fromEnvironment(
-      'BEAK_API_BASE_URL',
-      defaultValue: 'http://localhost:8080',
-    ),
+    this.apiBaseUrl,
     this.pages = const [],
     this.auth,
     this.locale,
@@ -69,6 +71,8 @@ class BeakPanel extends HookWidget {
     this.navigation,
     this.refreshPolicy,
     this.home,
+    this.maintenance,
+    this.mapException,
     this.dataSource,
     this.httpClient,
     super.key,
@@ -81,8 +85,8 @@ class BeakPanel extends HookWidget {
   /// Resources exposed by a directly configured panel.
   final List<BeakResource> resources;
 
-  /// Application title.
-  final String title;
+  /// Application title; `Beak` when null.
+  final String? title;
 
   /// Light theme.
   final OiThemeData? theme;
@@ -90,8 +94,9 @@ class BeakPanel extends HookWidget {
   /// Dark theme.
   final OiThemeData? darkTheme;
 
-  /// Backend origin, configurable through BEAK_API_BASE_URL.
-  final String apiBaseUrl;
+  /// Backend origin; the `BEAK_API_BASE_URL` compile-time variable, else
+  /// `http://localhost:8080`, when null.
+  final String? apiBaseUrl;
 
   /// Additional custom pages.
   final List<BeakScreen> pages;
@@ -115,28 +120,77 @@ class BeakPanel extends HookWidget {
   /// [BeakPanelConfig.home].
   final BeakDestination? home;
 
-  /// The panel configuration.
-  BeakPanelConfig get config =>
-      _config ??
-      BeakPanelConfig(
-        title: title,
-        resources: resources,
-        theme: theme,
-        darkTheme: darkTheme,
-        apiBaseUrl: apiBaseUrl,
-        pages: pages,
-        auth: auth,
-        locale: locale,
-        formatting: formatting,
-        navigation: navigation,
-        refreshPolicy: refreshPolicy,
-        home: home,
-      );
+  /// The `/maintenance` and `/coming-soon` pages; see
+  /// [BeakPanelConfig.maintenance].
+  final BeakMaintenanceConfig? maintenance;
 
-  /// Test seam: replaces the HTTP-backed data source entirely.
+  /// Maps a host exception, such as a Serverpod protocol error, to a
+  /// [BeakException]; see [BeakPanelConfig.mapException].
+  final BeakException? Function(Exception exception, StackTrace stackTrace)?
+  mapException;
+
+  /// The panel configuration.
+  ///
+  /// Throws a [BeakConfigurationException] when [config] was given together
+  /// with individual arguments the configuration would ignore.
+  BeakPanelConfig get config {
+    if (_config case final BeakPanelConfig given) {
+      final ignored = _ignoredShorthand();
+      if (ignored.isNotEmpty) {
+        throw BeakConfigurationException(
+          'BeakPanel was given a config and also ${ignored.join(', ')}, which '
+          'the config would ignore. Set them on the BeakPanelConfig '
+          '(copyWith) or drop the config.',
+        );
+      }
+      return given;
+    }
+    return BeakPanelConfig(
+      title: title ?? 'Beak',
+      resources: resources,
+      theme: theme,
+      darkTheme: darkTheme,
+      apiBaseUrl:
+          apiBaseUrl ??
+          const String.fromEnvironment(
+            'BEAK_API_BASE_URL',
+            defaultValue: 'http://localhost:8080',
+          ),
+      pages: pages,
+      auth: auth,
+      locale: locale,
+      formatting: formatting,
+      navigation: navigation,
+      refreshPolicy: refreshPolicy,
+      home: home,
+      maintenance: maintenance,
+      mapException: mapException,
+    );
+  }
+
+  List<String> _ignoredShorthand() => [
+    if (resources.isNotEmpty) 'resources',
+    if (title != null) 'title',
+    if (theme != null) 'theme',
+    if (darkTheme != null) 'darkTheme',
+    if (apiBaseUrl != null) 'apiBaseUrl',
+    if (pages.isNotEmpty) 'pages',
+    if (auth != null) 'auth',
+    if (locale != null) 'locale',
+    if (formatting != null) 'formatting',
+    if (navigation != null) 'navigation',
+    if (refreshPolicy != null) 'refreshPolicy',
+    if (home != null) 'home',
+    if (maintenance != null) 'maintenance',
+    if (mapException != null) 'mapException',
+  ];
+
+  /// Replaces the HTTP-backed data source entirely: a fake in a test, or the
+  /// host's own transport such as the Serverpod admin's.
   final BeakDataSource? dataSource;
 
-  /// Test seam: replaces the HTTP transport under the typed client.
+  /// Replaces the HTTP transport under the typed client, for a test or a host
+  /// that adds its own headers or retries.
   final http.Client? httpClient;
 
   @override
@@ -155,6 +209,8 @@ class BeakPanel extends HookWidget {
       navigation,
       refreshPolicy,
       home,
+      maintenance,
+      mapException,
     ]);
     // --8<-- [start:panelRouting]
     final routing = useMemoized(() {

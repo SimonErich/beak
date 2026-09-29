@@ -318,6 +318,236 @@ void main() {
     );
   });
 
+  group('navigation items must name something the panel has', () {
+    const notes = BeakResource(model: NoteModel());
+    const overview = BeakScreen(
+      path: '/overview',
+      title: 'Overview',
+      icon: BeakIconToken(OiIcons.house),
+      body: BeakTextBlock('Hello'),
+    );
+
+    BeakNavigation navigationOf(BeakNavigationItem item) => BeakNavigation(
+      sections: [
+        BeakNavigationSection(
+          key: 'main',
+          label: 'Main',
+          icon: OiIcons.house,
+          items: [item],
+        ),
+      ],
+    );
+
+    test('a resource item without its resource', () {
+      final config = BeakPanelConfig(
+        title: 'Admin',
+        resources: const [notes],
+        navigation: navigationOf(
+          const BeakNavigationItem.resource(LabelModel()),
+        ),
+      );
+
+      expect(
+        config.buildRegistry,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('labels'),
+          ),
+        ),
+      );
+    });
+
+    test('a screen item that is not among the pages', () {
+      final config = BeakPanelConfig(
+        title: 'Admin',
+        resources: const [notes],
+        navigation: navigationOf(const BeakNavigationItem.screen(overview)),
+      );
+
+      expect(
+        config.buildRegistry,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('/overview'),
+          ),
+        ),
+      );
+    });
+
+    test('declared items pass', () {
+      const config = BeakPanelConfig(
+        title: 'Admin',
+        resources: [notes],
+        pages: [overview],
+        navigation: BeakNavigation(
+          sections: [
+            BeakNavigationSection(
+              key: 'main',
+              label: 'Main',
+              icon: OiIcons.house,
+              items: [
+                BeakNavigationItem.resource(NoteModel()),
+                BeakNavigationItem.screen(overview),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(config.buildRegistry, returnsNormally);
+    });
+  });
+
+  group('action presentations must name an action of the resource', () {
+    BeakPanelConfig configWith(
+      BeakListDefinition definition, {
+      BeakRecordAction deleteAction = const BeakDeleteAction(),
+    }) => BeakPanelConfig(
+      title: 'Admin',
+      resources: [
+        BeakResource(
+          model: const NoteModel(),
+          deleteAction: deleteAction,
+          recordActions: [
+            BeakRecordAction(
+              key: 'ping',
+              label: 'Ping',
+              onExecute: (_, _) async {},
+            ),
+          ],
+          screens: [BeakTableScreen(definition: definition)],
+        ),
+      ],
+    );
+
+    test('an unknown row action key', () {
+      final config = configWith(
+        const BeakListDefinition(
+          columns: [],
+          rowActions: [BeakActionPresentation(key: 'archve')],
+        ),
+      );
+
+      expect(
+        config.buildRegistry,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('archve'), contains('rowActions'), contains('ping')),
+          ),
+        ),
+      );
+    });
+
+    test('an unknown bulk action key', () {
+      final config = configWith(
+        const BeakListDefinition(
+          columns: [],
+          bulkActions: [BeakActionPresentation(key: 'purge')],
+        ),
+      );
+
+      expect(
+        config.buildRegistry,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('purge'), contains('bulkActions')),
+          ),
+        ),
+      );
+    });
+
+    test('built-in, custom and export keys pass', () {
+      final config = configWith(
+        const BeakListDefinition(
+          columns: [],
+          rowActions: [
+            BeakActionPresentation(key: 'view'),
+            BeakActionPresentation(key: 'edit'),
+            BeakActionPresentation(key: 'archive'),
+            BeakActionPresentation(key: 'ping'),
+          ],
+          bulkActions: [BeakActionPresentation(key: 'export')],
+        ),
+        deleteAction: const BeakArchiveAction(),
+      );
+
+      expect(config.buildRegistry, returnsNormally);
+    });
+  });
+
+  group('registration and recovery need an adapter that offers them', () {
+    BeakPanelConfig configWith(BeakAuthConfig auth) => BeakPanelConfig(
+      title: 'Admin',
+      resources: const [BeakResource(model: NoteModel())],
+      auth: auth,
+    );
+
+    test('the default session store has neither flow', () {
+      expect(
+        configWith(const BeakAuthConfig(register: true)).buildRegistry,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('register'), contains('adapter')),
+          ),
+        ),
+      );
+      expect(
+        configWith(const BeakAuthConfig(recover: true)).buildRegistry,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('recover'), contains('adapter')),
+          ),
+        ),
+      );
+    });
+
+    test('sign-in alone is fine with the default store', () {
+      expect(configWith(const BeakAuthConfig()).buildRegistry, returnsNormally);
+    });
+  });
+
+  test('two filters on one field are refused: they would share state', () {
+    const title = BeakScalarField<String>(
+      model: NoteModel(),
+      column: BeakStringColumn(key: 'title', label: 'Title'),
+    );
+    final config = BeakPanelConfig(
+      title: 'Admin',
+      resources: [
+        BeakResource(
+          model: const NoteModel(),
+          filters: [
+            title.textFilter(label: 'Contains'),
+            title.textFilter(label: 'Also contains'),
+          ],
+        ),
+      ],
+    );
+
+    expect(
+      config.buildRegistry,
+      throwsA(
+        isA<BeakConfigurationException>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('notes'), contains('title')),
+        ),
+      ),
+    );
+  });
+
   test('navigation rank orders resources without changing registration', () {
     final notes = NoteResource();
     const labels = BeakResource(

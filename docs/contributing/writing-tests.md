@@ -93,17 +93,7 @@ The golden file is checked in, so an accidental change to the serialized shape b
 New `BeakDataSource` behavior goes into `runBeakDataSourceContract` first, so every implementation is held to it, including a third-party one. `InMemoryBeakDataSource` runs that contract against itself:
 
 ```dart title="packages/beak_test/test/src/in_memory_beak_data_source_test.dart"
-  // The full interface contract, run against the reference implementation.
-  runBeakDataSourceContract(
-    'InMemoryBeakDataSource',
-    registry: buildContractRegistry(),
-    model: _product,
-    create: () async => sourceWith(),
-    seed: (source, model, records) async =>
-        (source as InMemoryBeakDataSource).seed(model, records),
-    sortableTextColumn: ProductColumns.name,
-    numericColumn: ProductColumns.price,
-  );
+--8<-- "packages/beak_test/test/src/in_memory_beak_data_source_test.dart:contract"
 ```
 
 ## beak_backend: in-memory database, real handlers

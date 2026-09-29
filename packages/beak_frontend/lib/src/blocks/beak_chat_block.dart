@@ -27,6 +27,7 @@ final class BeakChatBlock extends BeakBlock {
     this.isMineField,
     this.composeRecord,
     this.label = 'Chat',
+    this.filter,
     super.span,
   });
 
@@ -52,4 +53,9 @@ final class BeakChatBlock extends BeakBlock {
 
   /// Accessibility label for the transcript.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 }

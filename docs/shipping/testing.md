@@ -197,7 +197,7 @@ expectNoOrphanTables(
 
 ## Your own data source
 
-If you wrote a `BeakDataSource` (see [Custom data sources](../extending/custom-data-sources.md)), run the shared contract against it. It is the ten-method interface as an executable specification, including the sharp edges: `getOne` returns null rather than throwing, `update` throws when the row is gone, `aggregate` returns 0 over nothing, soft deletes hide from `query` but not from `withTrashed`. Beak's own worm-backed source is held to the same suite:
+If you wrote a `BeakDataSource` (see [Custom data sources](../extending/custom-data-sources.md)), run the shared contract against it. It is the ten-method interface as an executable specification, including the sharp edges: `getOne` returns null rather than throwing, `update` throws when the row is gone, `aggregate` returns 0 over nothing, soft deletes hide from `query` but not from `withTrashed`. Eager loads (plain, filtered and nested), `attach` and `detach` run for the models you name in `relationModels`. Beak's own worm-backed source is held to the same suite:
 
 ```dart title="packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart"
 --8<-- "packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart:contract"

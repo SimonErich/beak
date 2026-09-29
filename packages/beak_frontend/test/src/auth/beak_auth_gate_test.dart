@@ -3,6 +3,7 @@ import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
 import 'package:signals/signals.dart';
 
@@ -126,6 +127,55 @@ void main() {
     },
   );
 
+  group('the 403 page offers a way out', () {
+    Future<_Auth> parked(WidgetTester tester, {required bool access}) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final auth = _Auth();
+      auth.snapshot.value = BeakAuthAuthenticated(
+        BeakAuthIdentity(id: 'user', canAccessPanel: access),
+      );
+      await tester.pumpWidget(
+        BeakPanel(
+          dataSource: FakeDataSource(),
+          auth: BeakAuthConfig(adapter: auth),
+          resources: const [BeakResource(model: NoteModel())],
+        ),
+      );
+      await tester.pumpAndSettle();
+      return auth;
+    }
+
+    testWidgets('an account without panel access can sign out from it', (
+      tester,
+    ) async {
+      final auth = await parked(tester, access: false);
+
+      expect(find.text('403'), findsWidgets);
+      expect(find.text('Back to dashboard'), findsNothing);
+      await tester.tap(find.text('Back to sign in'));
+      await tester.pumpAndSettle();
+
+      expect(auth.loggedOut, isTrue);
+      expect(find.byType(BeakAuthPage), findsOneWidget);
+    });
+
+    testWidgets(
+      'a forbidden page of an admitted account returns to the panel',
+      (tester) async {
+        await parked(tester, access: true);
+        GoRouter.of(tester.element(find.byType(OiAppShell))).go('/403');
+        await tester.pumpAndSettle();
+
+        expect(find.text('Back to sign in'), findsNothing);
+        await tester.tap(find.text('Back to dashboard'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(OiAppShell), findsOneWidget);
+      },
+    );
+  });
+
   testWidgets('initialization failure hides protected data and can retry', (
     tester,
   ) async {
@@ -149,8 +199,16 @@ void main() {
 
 class _Auth extends FakeAuthAdapter {
   final snapshot = signal<BeakAuthState>(const BeakAuthGuest());
+  bool loggedOut = false;
   @override
   ReadonlySignal<BeakAuthState> get state => snapshot;
+  @override
+  Future<BeakResult<void>> logout() async {
+    loggedOut = true;
+    snapshot.value = const BeakAuthGuest();
+    return const BeakOk(null);
+  }
+
   @override
   Future<BeakResult<void>> refresh() async {
     snapshot.value = const BeakAuthAuthenticated(BeakAuthIdentity(id: 'user'));

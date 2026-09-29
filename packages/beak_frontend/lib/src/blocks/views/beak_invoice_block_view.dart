@@ -138,6 +138,9 @@ class _BeakInvoiceBlockView extends HookWidget {
       block: BeakTableBlock(
         title: 'Line items',
         model: block.lineItemsModel,
+        // An invoice's lines are part of the document: this block reads them,
+        // it does not edit the invoice by deleting one.
+        enableDelete: false,
         baseFilter: foreignKey == null
             ? null
             : BeakFieldFilter(

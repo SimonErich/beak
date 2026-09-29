@@ -17,7 +17,7 @@ Two blocks put rows on a map, and they are different kinds of map. `BeakMapBlock
 | `BeakMapBlock` | a world map, countries shaded by a value, with a legend | an ISO 3166-1 alpha-2 country code and a number | none |
 | `BeakTileMapBlock` | a pannable, zoomable map with a pin per row | a latitude and a longitude, optionally a label | tile requests |
 
-Both take a `BeakQuerySpec`, so you scope, sort and page them like a chart. The default page of 25 rows applies here too, which is why the Aviary's queries ask for 500.
+Both take a `BeakQuerySpec`, so you scope, sort and page them like a chart. The default page of 25 rows applies here too, which is why the Aviary's queries ask for the largest page (200).
 
 ## The choropleth
 
@@ -53,7 +53,7 @@ The credit text is not a parameter of the block. It stays "© OpenStreetMap cont
 
 ## Rules and limits
 
-- **Same silence as charts.** Neither block has a loading or error state, and neither refetches after a write. A failed request leaves the map empty.
+- **Same silence as charts.** Neither block has a loading or error state. Both refetch after a write, and a failed request leaves the map empty.
 - **The query decides the rows.** 25 by default, and there is no server-side aggregation. For a country total, aggregate first.
 - **The tile map needs the network** to get its tiles. The choropleth draws from bundled geometry and works offline.
 - **One value per pin.** Every pin has the same weight; the block does not size pins by a column. If you need bubbles, use a [bubble chart](charts.md) or a summary.

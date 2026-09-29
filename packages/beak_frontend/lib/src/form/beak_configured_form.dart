@@ -101,10 +101,12 @@ class BeakConfiguredForm extends HookWidget {
   /// Optional primary button label.
   final String? submitLabel;
 
-  /// Optional icon for the nonwizard primary submission control.
+  /// Optional icon for the primary submission control, a wizard's Finish
+  /// included.
   final IconData? submitIcon;
 
-  /// Draws an outline around the existing-record Cancel control.
+  /// Draws an outline around the Cancel control of an existing record or of a
+  /// wizard's first step.
   final bool outlinedCancel;
 
   /// Whether model commands remain available in an existing-record edit.
@@ -215,8 +217,13 @@ class BeakConfiguredForm extends HookWidget {
       },
       [panel],
     );
+    // The session outlives a locale change, so its rule messages read the
+    // strings of the latest build.
+    final ruleStrings = useRef(BeakLocalizations.of(context))
+      ..value = BeakLocalizations.of(context);
     final session = useMemoized(
       () => BeakFormSession(
+        validateRule: (rule, value) => ruleStrings.value.validate(rule, value),
         model: model,
         dataSource: dataSource,
         layout: layout,
@@ -480,10 +487,12 @@ class BeakConfiguredForm extends HookWidget {
                     : '${receipt.outcomes.where((outcome) => outcome.status == BeakWriteOutcome.applied).length} changes saved. The remaining changes still need attention.',
                 dismissible: false,
               ),
-              for (final outcome in receipt.outcomes)
-                if (outcome.status != BeakWriteOutcome.applied &&
-                    outcome.error != null)
-                  OiLabel.body(outcome.error!.message),
+              for (final message in {
+                for (final outcome in receipt.outcomes)
+                  if (outcome.status != BeakWriteOutcome.applied)
+                    ?outcome.error?.message,
+              })
+                OiLabel.body(message),
               if (session.hasUnknown)
                 OiButton.secondary(
                   label: 'Check save status',
@@ -596,7 +605,7 @@ class BeakConfiguredForm extends HookWidget {
                 if (steps.isNotEmpty &&
                     session.currentStep == 0 &&
                     onClose != null)
-                  OiButton.ghost(
+                  (outlinedCancel ? OiButton.outline : OiButton.ghost)(
                     label: 'Cancel',
                     onTap: busy
                         ? null
@@ -986,6 +995,7 @@ class BeakConfiguredForm extends HookWidget {
                     steps.isNotEmpty &&
                     navigation == BeakWizardNavigation.rail) {
                   return OiWizardLayout(
+                    asideWidth: asideWidthInPixels,
                     navigationFooter: navigationDescription == null
                         ? null
                         : OiLabel.caption(
@@ -1039,6 +1049,8 @@ class BeakConfiguredForm extends HookWidget {
                         footer != null ||
                         changeBar != null)) {
                   return OiPageLayout(
+                    asideWidth: asideWidthInPixels,
+                    asideFraction: asideFraction,
                     header: header == null ? null : region(header!),
                     aside: aside == null ? null : region(aside!, compact: true),
                     asideFooter: asideFooter == null
@@ -2178,7 +2190,7 @@ bool _actionPlaced(
 }
 
 class _FormErrorRegistry {
-  final anchors = <_FormErrorAnchorState>[];
+  final anchors = <_FormErrorAnchorHandle>[];
   Future<void> revealFirst() async {
     for (final anchor in List.of(anchors)) {
       if (!anchor.canReveal) {
@@ -2233,7 +2245,9 @@ Widget _errorAnchor(
         );
 }
 
-class _FormErrorAnchor extends StatefulWidget {
+/// Registers its child as the place a field's error is shown, so the form can
+/// scroll to and focus the first invalid field after a failed submit.
+class _FormErrorAnchor extends HookWidget {
   const _FormErrorAnchor({
     required this.registry,
     required this.draft,
@@ -2246,13 +2260,46 @@ class _FormErrorAnchor extends StatefulWidget {
   final BeakFieldRef<Object> field;
   final bool enabled;
   final Widget child;
+
   @override
-  State<_FormErrorAnchor> createState() => _FormErrorAnchorState();
+  Widget build(BuildContext context) {
+    final handle = useMemoized(_FormErrorAnchorHandle.new);
+    handle.update(
+      context: context,
+      draft: draft,
+      field: field,
+      enabled: enabled,
+    );
+    useEffect(() {
+      registry.anchors.add(handle);
+      return () => registry.anchors.remove(handle);
+    }, [registry]);
+    return child;
+  }
 }
 
-class _FormErrorAnchorState extends State<_FormErrorAnchor> {
+/// What the registry knows about one mounted anchor: the latest properties of
+/// its widget and the element that hosts it.
+final class _FormErrorAnchorHandle {
+  late BuildContext context;
+  late BeakDraftRecord _draft;
+  late BeakFieldRef<Object> _field;
+  late bool _enabled;
+
+  void update({
+    required BuildContext context,
+    required BeakDraftRecord draft,
+    required BeakFieldRef<Object> field,
+    required bool enabled,
+  }) {
+    this.context = context;
+    _draft = draft;
+    _field = field;
+    _enabled = enabled;
+  }
+
   bool get canReveal {
-    if (!mounted || !widget.enabled || !hasError) return false;
+    if (!context.mounted || !_enabled || !hasError) return false;
     var visible = true;
     context.visitAncestorElements((element) {
       if (element.widget
@@ -2268,31 +2315,8 @@ class _FormErrorAnchorState extends State<_FormErrorAnchor> {
   }
 
   bool get hasError =>
-      widget.draft.errors[widget.field.key]?.isNotEmpty == true ||
-      widget.draft.controller.inputErrors.containsKey(widget.field.key);
-  @override
-  void initState() {
-    super.initState();
-    widget.registry.anchors.add(this);
-  }
-
-  @override
-  void didUpdateWidget(_FormErrorAnchor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.registry, widget.registry)) {
-      oldWidget.registry.anchors.remove(this);
-      widget.registry.anchors.add(this);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.registry.anchors.remove(this);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
+      _draft.errors[_field.key]?.isNotEmpty == true ||
+      _draft.controller.inputErrors.containsKey(_field.key);
 }
 
 class _FormCommandScope extends InheritedWidget {
@@ -2919,7 +2943,7 @@ class _ScalarInput extends HookWidget {
                     ? amount / math.pow(10, input.currencyScale)
                     : amount,
               ),
-              _ => '—',
+              _ => BeakFormatting.of(context).emptyValue,
             })
           else
             renderBeakField(
@@ -3076,7 +3100,7 @@ class _RelationInput extends HookWidget {
         );
       }
       return OiLabel.body(
-        '${label.isEmpty ? '' : '$label: '}${record == null ? '' : field.relation.displayLabelOf(record)}',
+        '${label.isEmpty ? '' : '$label: '}${record == null ? BeakFormatting.of(context).emptyValue : field.relation.displayLabelOf(record)}',
       );
     }
     if (input.presentation == BeakRelationPresentation.code) {
@@ -5368,6 +5392,7 @@ Future<BeakRecord?> showBeakActionInput(
     model: input,
     dataSource: session.repository.dataSource,
     registry: session.registry,
+    validateRule: session.validateRule,
   );
   try {
     final accepted = await _editModal(

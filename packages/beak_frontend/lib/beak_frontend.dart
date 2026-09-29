@@ -77,6 +77,7 @@ export 'src/form/beak_form_session.dart';
 export 'src/form/beak_form_drafts.dart';
 export 'src/form/beak_configured_form.dart';
 export 'src/data/beak_data_changes.dart';
+export 'src/data/beak_table_capabilities.dart';
 export 'src/formatting/beak_formatting.dart';
 export 'src/formatting/beak_field_format.dart';
 

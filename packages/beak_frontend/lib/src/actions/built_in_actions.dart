@@ -105,7 +105,16 @@ final class BeakDeleteAction extends BeakRecordAction {
       apply: () => restore = context.stageRemoval?.call(id),
       rollback: () => restore?.call(),
       commit: () async {
-        await context.dataSource.delete(context.model.table, id);
+        try {
+          await context.dataSource.delete(context.model.table, id);
+        } on BeakException catch (error) {
+          // The server refused, or could not confirm, the deletion: the row
+          // comes back and the person is told why, instead of the generic
+          // "Action failed" the undo window would show.
+          restore?.call();
+          if (context.buildContext.mounted) context.reportError(error);
+          return;
+        }
         if (!context.buildContext.mounted) return;
         if (context.dataSource is! BeakMutationSource) {
           await context.refresh?.call();

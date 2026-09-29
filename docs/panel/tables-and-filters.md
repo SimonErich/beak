@@ -114,7 +114,7 @@ The table watches its data source. A confirmed write to its table, or to a table
 | `fields` holds scalar fields | Relation paths are allowed. A related column does not sort |
 | A column sorts only when `sortable: true` | The header of any other column is inert |
 | Declared `filters` replace the derived ones | List a filter for every column you still want |
-| Two filters over one field share one state | Declare one filter per field |
+| Two filters over one field would share one state | The panel throws a `BeakConfigurationException` at startup. Declare one filter per field |
 | The filter bar does not survive a reload | Plain lists keep no filter state in the address. Composed lists do |
 | A filter change, or an action that refreshes the list, rebuilds the table | Sort and page go back to what `query` says |
 | Checkboxes need bulk actions | A resource with none has no selection |

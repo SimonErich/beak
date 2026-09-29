@@ -10,6 +10,7 @@ class _BeakCarouselBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final slides = useState(const <_Slide>[]);
 
     useEffect(() {
@@ -38,7 +39,7 @@ class _BeakCarouselBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
     if (slides.value.isEmpty) {
       return SizedBox(height: block.heightInPixels);

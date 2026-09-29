@@ -26,7 +26,7 @@ Module blocks are whole interfaces bound to a model: a chat transcript, a three-
 | `BeakPricingBlock` | a model, plus a features relation | plan cards | nothing |
 | `BeakFaqBlock` | a model | a searchable, categorized question list | nothing |
 
-Three binding styles, and they set how much control you have. A **model-bound** block (chat, inbox, file manager, pricing, FAQ) takes the model and reads its rows itself, with no way to filter them. A **query-bound** block (carousel, gallery, video) takes a `BeakQuerySpec`, so you filter, sort and page it. A **record-bound** block (profile, invoice) takes one `recordId` and loads that row. All of them fetch through the panel's data source, once, when they build.
+Three binding styles, and they set how much control you have. A **model-bound** block (chat, inbox, file manager, pricing, FAQ) takes the model and reads its rows itself, and takes a `filter:` if you want a subset. A **query-bound** block (carousel, gallery, video) takes a `BeakQuerySpec`, so you filter, sort and page it. A **record-bound** block (profile, invoice) takes one `recordId` and loads that row. All of them fetch through the panel's data source when they build, and again after a confirmed write to their table.
 
 Everything here is a full-height interface, so pages that hold one chat, inbox, file manager or FAQ set `framed: false` and let it fill the space:
 
@@ -42,9 +42,9 @@ Everything here is a full-height interface, so pages that hold one chat, inbox, 
 --8<-- "examples/showcase/lib/pages/module_blocks.dart:chat"
 ```
 
-`authorField`, `bodyField` and `timeField` bind the columns. When `isMineField` is set, records where it is `true` sit on the outgoing side and every other record on the incoming one. The block fetches the newest 500 messages and shows them oldest first, so a longer thread loses its oldest messages, never the latest.
+`authorField`, `bodyField` and `timeField` bind the columns. When `isMineField` is set, records where it is `true` sit on the outgoing side and every other record on the incoming one. The block fetches the newest 200 messages and shows them oldest first, so a longer thread loses its oldest messages, never the latest, and says so beneath the transcript.
 
-`composeRecord` turns the block from a transcript into a chat. Without it there is no composer. With it, sending trims the text, ignores an empty message, builds the record with your function, creates it through the data source and appends what came back. The function is where you fill in the sender, foreign keys and defaults, and `model.record([...])` builds the record from typed `field.to(value)` pairs, so no column is a string. A failed send shows nothing.
+`composeRecord` turns the block from a transcript into a chat. Without it there is no composer. With it, sending trims the text, ignores an empty message, builds the record with your function, creates it through the data source, as a graph commit, and appends what came back. The function is where you fill in the sender, foreign keys and defaults, and `model.record([...])` builds the record from typed `field.to(value)` pairs, so no column is a string. A refused send shows the reason in a toast and appends nothing.
 
 ### Inbox
 
@@ -68,7 +68,7 @@ The rail has two modes. With `folderRelation` (a to-one field from message to fo
 
 ## Media
 
-The three media blocks take a query, so they are the ones you can scope. The Aviary builds each query with a small helper that filters the assets by collection, sorts them by position and pages them at 500:
+The three media blocks take a query, so they are the ones you can scope. The Aviary builds each query with a small helper that filters the assets by collection, sorts them by position and pages them at the largest page:
 
 ```dart title="examples/showcase/lib/pages/module_blocks.dart"
 --8<-- "examples/showcase/lib/pages/module_blocks.dart:carousel"
@@ -122,13 +122,13 @@ Each row is a plan. `featuredField` marks the recommended one, `yearlyPriceField
 
 ## Rules and limits
 
-- **A window of rows.** Chat, inbox, FAQ, pricing, kanban and calendar read one page of 500 rows. `BeakFileManagerBlock` is the exception: it sends a plain query and gets the default page of 25, so a longer folder is cut without a word. The query-bound blocks use the page size of the query you give them, and a bare `model.query()` means 25.
-- **No filter on model-bound blocks.** They show every row of the model the user may read. To show a subset, use a query-bound block, a table block with a `baseFilter`, or a model of its own.
+- **A window of rows.** Chat, inbox, FAQ, pricing, file manager, kanban and calendar read one page of at most 200 rows (`BeakPagination.maxPerPage`). More matching rows are not there, and a line beneath the block says how many are shown. The query-bound blocks use the page size of the query you give them, and a bare `model.query()` means 25.
+- **`filter:` narrows a model-bound block.** Without it the block shows every row of the model the user may read. Pass a filter built from generated field references to show a subset.
 - **Silent when they fail.** Chat, inbox, file manager, pricing, FAQ and the media blocks have no error state: a failed request leaves them empty. Profile and invoice show "Loading…" and stay on it when the record cannot be read.
-- **Fetched once.** None of them watches for writes. A message added in another window appears after the screen is built again.
-- **Two blocks write.** Chat creates and the profile updates, both as single per-record requests. A model that only accepts graph commits refuses those, and the block shows no error. See [How data flows](../concepts/how-data-flows.md).
+- **Refetched after a write.** Every block fetches again when a write to its table is confirmed through this panel's data source. A message added in another window appears after the next fetch: on a `refreshPolicy` tick, or when the screen is built again.
+- **Two blocks write.** Chat creates and the profile updates, both as single-operation graph commits, so a model that only accepts graph commits works too. Chat shows a refused send in a toast. See [How data flows](../concepts/how-data-flows.md).
 - **English defaults.** Each block's `label` defaults to an English word (`'Chat'`, `'Inbox'`, `'Files'`, `'Pricing'`, `'Profile'`, `'Help'`) that screen readers announce, and the gallery, carousel and timeline are always labeled `Gallery`, `Carousel` and `Timeline`. Visible English strings you cannot override: "Select a message" in the inbox, "Loading…" in the profile and invoice, the invoice groups "Details", "From", "To", "Totals" and "Line items", and "Get Started" on a plan without a `ctaField`.
-- **Values are read leniently.** Numbers and dates are parsed from whatever the wire carries. A chat message without a readable time is stamped with the moment the block builds.
+- **Values are read leniently.** Numbers and dates are parsed from whatever the wire carries. A chat message without a readable time is stamped with the moment the block builds; a timeline or calendar row without one is left out.
 - **Bindings are columns, not fields.** These blocks take `BeakColumn`s (`MessageModel.body.column`) and `BeakRelationship`s, not the typed field references the table block uses, so a related field path is not available.
 
 ## Verify it
@@ -155,17 +155,17 @@ Required parameters are marked with a star. Every block also takes `span`.
 
 | Block | Parameters (default) |
 | --- | --- |
-| `BeakChatBlock` | `model`*, `authorField`*, `bodyField`*, `timeField`*, `isMineField`, `composeRecord`, `label` (`'Chat'`) |
-| `BeakInboxBlock` | `model`*, `senderField`*, `subjectField`*, `previewField`, `timeField`, `unreadField`, `readField`, `folderRelation`, `folderLabelField`, `folders` (`['Inbox']`), `label` (`'Inbox'`), `leftWidthInPixels` (220), `rightWidthInPixels` (360) |
-| `BeakFileManagerBlock` | `model`*, `nameField`*, `isFolderField`, `sizeField`, `modifiedField`, `thumbnailField`, `label` (`'Files'`), `onOpen` |
+| `BeakChatBlock` | `model`*, `authorField`*, `bodyField`*, `timeField`*, `isMineField`, `composeRecord`, `label` (`'Chat'`), `filter` |
+| `BeakInboxBlock` | `model`*, `senderField`*, `subjectField`*, `previewField`, `timeField`, `unreadField`, `readField`, `folderRelation`, `folderLabelField`, `folders` (`['Inbox']`), `label` (`'Inbox'`), `leftWidthInPixels` (220), `rightWidthInPixels` (360), `filter` |
+| `BeakFileManagerBlock` | `model`*, `nameField`*, `isFolderField`, `sizeField`, `modifiedField`, `thumbnailField`, `label` (`'Files'`), `onOpen`, `filter` |
 | `BeakThreePaneBlock` | `label`*, `left`*, `middle`*, `right`, `leftWidthInPixels` (260), `rightWidthInPixels` (320) |
 | `BeakCarouselBlock` | `query`*, `imageUrlField`*, `captionField`, `heightInPixels` (320), `autoplay` (true) |
 | `BeakGalleryBlock` | `query`*, `imageUrlField`*, `captionField`, `columns` (4) |
 | `BeakVideoBlock` | `query`*, `urlField`*, `posterField`, `title`, `autoPlay` (false), `loop` (false) |
 | `BeakProfileBlock` | `model`*, `recordId`*, `nameField`*, `emailField`, `roleField`, `avatarField`, `bioField`, `label` (`'Profile'`) |
 | `BeakInvoiceBlock` | `model`*, `recordId`*, `lineItemsModel`*, `totalField`*, `logoField`, `fromFields`, `toFields`, `metaFields`, `toRelation`, `toPartyFields`, `lineItemsForeignKey`, `subtotalField`, `discountField`, `shippingField`, `taxField`, `title` (`'Invoice'`) |
-| `BeakPricingBlock` | `model`*, `nameField`*, `priceField`*, `yearlyPriceField`, `featuredField`, `descriptionField`, `ctaField`, `featuresRelation`, `featureLabelField`, `sortField`, `label` (`'Pricing'`), `currencySymbol` (`$`) |
-| `BeakFaqBlock` | `model`*, `questionField`*, `answerField`*, `categoryField`, `sortField`, `label` (`'Help'`) |
+| `BeakPricingBlock` | `model`*, `nameField`*, `priceField`*, `yearlyPriceField`, `featuredField`, `descriptionField`, `ctaField`, `featuresRelation`, `featureLabelField`, `sortField`, `label` (`'Pricing'`), `currencySymbol` (`$`), `filter` |
+| `BeakFaqBlock` | `model`*, `questionField`*, `answerField`*, `categoryField`, `sortField`, `label` (`'Help'`), `filter` |
 
 Every block class with its constructor is on [Blocks](../reference/blocks.md).
 

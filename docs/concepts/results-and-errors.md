@@ -74,13 +74,13 @@ The `requestId` also tags the server's request log line, so a bug report can be 
 --8<-- "packages/beak_core/lib/src/client/beak_client.dart:ensureSuccess"
 ```
 
-The last arm is worth knowing. A code it doesn't recognise, or none at all, falls back to the HTTP status: `401`, `403`, `404`, `409`, `413` and `422` map to their types, every `5xx` to `BeakInternalException` and anything else to `BeakTransportException`. So a server failure is never reported as a configuration problem, and a proxy's HTML error page is a `BeakInternalException` with the message `HTTP 502.`. The panel's `BeakLocalizations.errorMessage` treats `BeakConfigurationException` and `BeakStorageException` as infrastructure detail and shows a generic "The operation could not be completed." instead of the message:
+The last arm is worth knowing. A code it doesn't recognise, or none at all, falls back to the HTTP status: `401`, `403`, `404`, `409`, `413` and `422` map to their types, every `5xx` to `BeakInternalException` and anything else to `BeakTransportException`. So a server failure is never reported as a configuration problem, and a proxy's HTML error page is a `BeakInternalException` with the message `HTTP 502.`. The panel's `BeakLocalizations.errorMessage` treats `BeakConfigurationException`, `BeakStorageException`, `BeakInternalException` and `BeakTransportException` as infrastructure detail and shows a generic "The operation could not be completed." instead of the message:
 
 ```dart title="packages/beak_frontend/lib/src/localization/beak_localizations.dart"
 --8<-- "packages/beak_frontend/lib/src/localization/beak_localizations.dart:errorMessage"
 ```
 
-So a configuration or storage message never leaks into the UI, and a validation message always does. An untyped failure on the server reaches the panel as a `BeakInternalException` whose message is the fixed `Internal server error.`.
+So a configuration, storage, internal or transport message never leaks into the UI, and a validation message always does. An untyped failure on the server reaches the panel as a `BeakInternalException` whose message is the fixed `Internal server error.`.
 
 ### The repository turns it into a value
 
@@ -142,7 +142,7 @@ Unknown is what the panel reports when it cannot tell. It comes from one place:
 --8<-- "packages/beak_frontend/lib/src/data/beak_form_commit_repository.dart:BeakFormCommitRepository"
 ```
 
-Any exception thrown while sending a plan, whether a dropped connection or a timeout, produces an `unknown` receipt with the reason `responseUnavailable`. The panel does not resend. It asks the server what it recorded for that save id:
+An exception thrown while sending a plan is sorted into one of two receipts. A typed refusal that the server states before it runs any write (`BeakValidationException` for a 422, `BeakPayloadTooLargeException`, `BeakAuthenticationException`, `BeakAuthorizationException`, `BeakNotFoundException` and `BeakConflictException`) produces an `unapplied` receipt with the reason `rejected`, and the form stays editable. Everything that cannot prove that nothing was written (a dropped connection, a timeout, a `BeakInternalException`, a `BeakTransportException`, a storage or configuration failure) produces an `unknown` receipt with the reason `responseUnavailable`. The panel does not resend an unknown save. It asks the server what it recorded for that save id:
 
 ```console
 GET /api/commits/{saveId}
@@ -150,7 +150,7 @@ GET /api/commits/{saveId}
 
 If the server stored a receipt, the answer resolves every operation to `applied` or `unapplied`, and the form carries on from there. Replaying the same plan is also safe when the source reports `idempotentReplay`, because the same save id returns the stored receipt without writing again. What is not safe is a blind resend under a new id, and the form never does that while a save is unknown.
 
-Recovery has a limit you should know about. If the server never stored a receipt for that id, the lookup answers 404 and the form stays in the unknown state, where it also refuses to discard its changes. That is the case for a failure before the server writes its pending receipt: a proxy that rejects the request, a body the server can't decode, or an unexpected error in your preparer. Reload the page to leave it. A rejection the server reaches inside the transaction doesn't have this problem, because the service answers it with an `unapplied` receipt.
+If the server never stored a receipt for that id, the lookup answers 404. The panel reads that as "never received": every operation becomes `unapplied` with the reason `notReceived`, the form is editable again and a new save goes out under a new id. That covers a proxy that dropped the request or an unexpected error in your preparer before the server wrote its pending receipt. A failed lookup for any other reason (the network is still down, the server answers 5xx) leaves the save unknown, and the form keeps refusing to discard its changes until a lookup succeeds.
 
 ## Why it is shaped this way
 

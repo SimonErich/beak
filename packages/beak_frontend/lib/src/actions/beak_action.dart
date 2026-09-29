@@ -169,7 +169,6 @@ final class BeakRecordAction extends BeakAction {
     this.roles = const {
       BeakScreenRole.list,
       BeakScreenRole.read,
-      BeakScreenRole.create,
       BeakScreenRole.edit,
     },
     super.icon,
@@ -219,7 +218,6 @@ final class BeakRecordAction extends BeakAction {
     Set<BeakScreenRole> roles = const {
       BeakScreenRole.list,
       BeakScreenRole.read,
-      BeakScreenRole.create,
       BeakScreenRole.edit,
     },
     IconData? icon,

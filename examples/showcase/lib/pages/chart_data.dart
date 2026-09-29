@@ -6,9 +6,12 @@ import '../resources/sightings/models/sighting.dart';
 import '../resources/specimens/models/specimen.dart';
 
 // --8<-- [start:chartPage]
-/// A page large enough to hold every seeded row, so a chart never draws a
-/// silently truncated first page (a query returns 25 rows by default).
-const BeakPagination chartPage = BeakPagination(perPage: 500);
+/// The largest page a server answers with, which holds every seeded row, so a
+/// chart never draws a silently truncated first page (a query returns 25 rows
+/// by default).
+const BeakPagination chartPage = BeakPagination(
+  perPage: BeakPagination.maxPerPage,
+);
 // --8<-- [end:chartPage]
 
 /// The weekday names a heat map labels its rows with, Monday first.

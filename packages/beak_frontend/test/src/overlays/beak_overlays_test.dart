@@ -1,4 +1,5 @@
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:obers_ui/obers_ui.dart';
@@ -66,6 +67,48 @@ void main() {
     });
   });
 
+  group('ask', () {
+    Future<void> openAsk(
+      WidgetTester tester,
+      void Function(BeakConfirmResult result) onResult,
+    ) async {
+      await pumpHost(
+        tester,
+        (overlays) async =>
+            onResult(await overlays.ask(title: 'Archive this order?')),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('reports a confirmation', (tester) async {
+      BeakConfirmResult? result;
+      await openAsk(tester, (value) => result = value);
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(result, BeakConfirmResult.confirmed);
+    });
+
+    testWidgets('reports the Cancel button as a refusal', (tester) async {
+      BeakConfirmResult? result;
+      await openAsk(tester, (value) => result = value);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(result, BeakConfirmResult.cancelled);
+    });
+
+    testWidgets('reports leaving the dialog as a dismissal', (tester) async {
+      BeakConfirmResult? result;
+      await openAsk(tester, (value) => result = value);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(result, BeakConfirmResult.dismissed);
+    });
+  });
+
   group('modal', () {
     testWidgets('renders a block body and dismisses', (tester) async {
       await pumpHost(
@@ -110,7 +153,7 @@ void main() {
     testWidgets('slides a block body in from the edge', (tester) async {
       await pumpHost(
         tester,
-        (overlays) => overlays.sheet<void>(
+        (overlays) => overlays.sheet(
           title: 'Filters',
           body: const BeakTextBlock('sheet body text'),
         ),
@@ -120,6 +163,27 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('sheet body text'), findsOneWidget);
+    });
+
+    testWidgets('a builder sheet returns the value its content closes with', (
+      tester,
+    ) async {
+      String? picked;
+      await pumpHost(tester, (overlays) async {
+        picked = await overlays.sheetWithResult<String>(
+          title: 'Pick one',
+          builder: (close) =>
+              OiButton.primary(label: 'choose', onTap: () => close('blue')),
+        );
+      });
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('choose'));
+      await tester.pumpAndSettle();
+
+      expect(picked, 'blue');
+      expect(find.text('choose'), findsNothing);
     });
   });
 
@@ -135,6 +199,52 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Saved successfully'), findsOneWidget);
+      await _letToastsExpire(tester);
+    });
+
+    testWidgets('stays for the requested duration', (tester) async {
+      await pumpHost(
+        tester,
+        (overlays) =>
+            overlays.toast('Long one', duration: const Duration(seconds: 30)),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 10));
+
+      expect(find.text('Long one'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pumpAndSettle();
+      expect(find.text('Long one'), findsNothing);
+    });
+
+    testWidgets('offers an action that runs once', (tester) async {
+      var undone = 0;
+      await pumpHost(
+        tester,
+        (overlays) => overlays.toast(
+          'Order archived',
+          actionLabel: 'Undo',
+          onAction: () => undone++,
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+
+      expect(undone, 1);
+      await _letToastsExpire(tester);
     });
   });
+}
+
+/// The toast queue is shared by the whole test isolate: let a shown toast run
+/// out so the next test starts on an empty one.
+Future<void> _letToastsExpire(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 40));
+  await tester.pumpAndSettle();
 }

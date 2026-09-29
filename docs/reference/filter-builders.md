@@ -235,7 +235,7 @@ BeakChoiceFilter({
 | `presentation` | `BeakChoiceFilterPresentation` | `checkboxes` | Control style, see below |
 | `columns` | `int` | `1` | Maximum checkbox columns; below 360 logical pixels of width the control uses one. Must be above 0 |
 | `allLabel` | `String` | `'All'` | Label of the unconstrained option in `radio` and `select` |
-| `showCounts` | `bool` | `false` | Shows the number of records per choice. Rendered by the `checkboxes` presentation only |
+| `showCounts` | `bool` | `false` | Shows the number of records per choice: beside each checkbox, and as `Label (12)` in the chips, radio, select and combobox presentations |
 | `addItemLabel` | `String?` | `null` | Prompt below the selected values of a `combobox` |
 | `showLabel` | `bool` | `true` | Shows the group heading; a single self-labelled checkbox may hide it |
 
@@ -391,13 +391,13 @@ Each definition contributes at most one predicate under its `key`. The bar combi
 
 ## Rules and limits
 
-- One state slot exists per `key`. Two definitions over the same field share it, so declare one filter per field.
+- One state slot exists per `key`. Two definitions over the same field would share it, so `BeakPanelConfig` refuses them with a `BeakConfigurationException` when the panel builds. Declare one filter per field.
 - A select filter must address an enum column. Elsewhere it renders "Unavailable" and emits nothing.
 - A choice restored from a bookmark or saved view is matched by the JSON of its predicate, not by its `key`. Changing a choice's predicate makes saved views stop selecting it.
 - A relation filter offers the first page of the option query (25 records unless `options` sets another page size) and searches only the relationship's search columns.
 - Number ranges truncate to `int` on integer columns. Use `rangeFilter` for money, exact decimals, dates, times and durations; `numberRangeFilter` accepts `num` fields only.
 - Date-range bounds are built as local midnight `DateTime` values and travel as ISO strings without an offset (see [Queries](queries.md#values-on-the-wire)).
-- `showCounts` needs a data source that implements `BeakSummaryDataSource` and shows counts in the `checkboxes` presentation only.
+- `showCounts` needs a data source that implements `BeakSummaryDataSource`.
 - Filters narrow what the panel asks for. The server still applies row policies and field policies to every query, so a filter never reveals a record or a field the caller could not read.
 
 ## Source

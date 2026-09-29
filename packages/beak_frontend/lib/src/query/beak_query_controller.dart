@@ -90,7 +90,7 @@ final class BeakQueryState {
            : List.unmodifiable(visibleColumns),
        filters = Map.unmodifiable(filters),
        sorts = List.unmodifiable(sorts) {
-    if (page < 1 || perPage < 1 || perPage > 1000) {
+    if (page < 1 || perPage < 1 || perPage > BeakPagination.maxPerPage) {
       throw const BeakConfigurationException('Invalid list pagination.');
     }
   }

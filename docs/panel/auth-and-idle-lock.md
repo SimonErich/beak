@@ -107,7 +107,7 @@ The auth routes sit outside the shell and outside the gate. That keeps the form 
 --8<-- "packages/beak_frontend/lib/src/panel/beak_router.dart:beakAuthRoutes"
 ```
 
-`/login` is always there. `/register` and `/recover` need two things at once: `register: true` (or `recover: true`) on the config, and an adapter that supplies the matching flow. The default store supplies neither, so with it those routes never mount and the address bar shows the not-found page. When a flow completes the page returns to `/login`. An adapter that signs the new account in moves on to `/` through the second row above.
+`/login` is always there. `/register` and `/recover` need two things at once: `register: true` (or `recover: true`) on the config, and an adapter that supplies the matching flow. The default store supplies neither, so `register: true` or `recover: true` without an `adapter` throws a `BeakConfigurationException` when the panel starts. An adapter that lacks the flow leaves the route unmounted, and the address bar shows the not-found page. When a flow completes the page returns to `/login`. An adapter that signs the new account in moves on to `/` through the second row above.
 
 Sign-in screens follow the panel locale. English and German ship with Beak.
 
@@ -127,7 +127,7 @@ An adapter replaces the HTTP store when the session lives somewhere else: your o
 --8<-- "packages/beak_frontend/lib/src/auth/beak_auth_adapter.dart:BeakAuthAdapter"
 ```
 
-The state it publishes is the sealed `BeakAuthState`: `BeakAuthLoading`, `BeakAuthGuest`, `BeakAuthAuthenticated(identity)` and `BeakAuthFailure(error)`. The identity is `BeakAuthIdentity(id:, displayName:, canAccessPanel:)`. Set `canAccessPanel` from your own permission rules, but prefer refusing the login outright: an account with `false` is parked on `/403`, and that page offers no sign-out.
+The state it publishes is the sealed `BeakAuthState`: `BeakAuthLoading`, `BeakAuthGuest`, `BeakAuthAuthenticated(identity)` and `BeakAuthFailure(error)`. The identity is `BeakAuthIdentity(id:, displayName:, canAccessPanel:)`. Set `canAccessPanel` from your own permission rules, but prefer refusing the login outright: an account with `false` is parked on `/403`, where the page offers `Back to sign in`, which ends the session.
 
 Registration and recovery are the same three-step flow (email, code, new password), each step a call on a `BeakEmailVerificationFlow`: `start(email:)`, `verify(code:)`, `complete(password:)`. The adapter's `registration` and `recovery` getters return a factory, so every mounted form owns a fresh flow and releases it in `dispose()`.
 
@@ -149,7 +149,7 @@ Grants, revokes and how long a revoked admin keeps working are on [Authenticatio
 
 ## Idle lock
 
-Set `idleLockTimeout` and the shell locks itself after that long without input. Leave it `null` and it never does. The lock needs an `auth:` config, because the timer is read from it:
+Set `idleLockTimeout` and the panel locks itself after that long without input. Leave it `null` and it never does. The lock needs an `auth:` config, because the timer is read from it:
 
 ```dart title="packages/beak_frontend/test/src/panel/beak_screen_routing_test.dart"
 auth: BeakAuthConfig(
@@ -159,7 +159,7 @@ auth: BeakAuthConfig(
 ),
 ```
 
-The timer belongs to the shell. Pointer down, pointer move, scroll and any key press reset it, so typing a long form does not lock the panel mid-sentence. When it fires, the router goes to `/lock`:
+The timer covers every routed page, a full-screen form included. Pointer down, pointer move, scroll and any key press reset it, so typing a long form does not lock the panel mid-sentence. When it fires, the router goes to `/lock`:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_router.dart"
 --8<-- "packages/beak_frontend/lib/src/panel/beak_router.dart:idleLock"
@@ -175,10 +175,9 @@ BeakAuthConfig beakAuth() => BeakAuthConfig(
 );
 ```
 
-The lock is a curtain, not a door. It hides the panel from someone walking past. It does not end the session: the token stays in memory and stays valid on the server until it expires or the user signs out. Four details follow from how it is built:
+The lock is a curtain, not a door. It hides the panel from someone walking past. It does not end the session: the token stays in memory and stays valid on the server until it expires or the user signs out. Three details follow from how it is built:
 
-- A dirty form defers the lock. The lock is a navigation, and a form with unsaved changes answers a navigation with the "Leave this form?" dialog. The dialog opens over the form, the form stays visible behind it, and the lock screen waits for someone to answer.
-- A full-screen form is never locked. A `BeakFormScreen(fullScreen: true)` renders without the shell, and the timer lives in the shell.
+- A form with unsaved changes does not hold the lock back. The lock is a navigation, but it skips the "Leave this form?" question, because nobody is there to answer it. What was typed is kept only if the screen has a `drafts:` store; without one, the unsaved input is gone when the person unlocks.
 - Unlocking lands on `/`, not on the page that was open.
 - A wrong password shows obers_ui's own message, `Operation failed. Please try again.`, in English.
 
@@ -200,12 +199,12 @@ An app that already has a `GoRouter` assembles the same pieces itself: `register
 | Sessions without a policy protect nothing | `authSessions` names the caller. `BeakServer` still defaults to allow-all until you pass a `policy` |
 | The panel is not the boundary | A guest who reaches a page sees an empty shell at worst. The API refuses the data. Write the rules as [policies](../backend/auth-and-policies.md) |
 | The default session lives in memory | Reloading the page signs the user out. The panel never calls `GET /api/auth/me` and stores no token |
-| The default session expires on the server | `InMemoryTokenSessionStore` keeps a session for 12 hours from creation by default, and forgets all of them on restart. The panel is not told: a request answered 401 shows its error message and the panel stays open. Sign out or reload |
-| The sign-in form wants an email address | `BeakAuthViewModel` checks the identifier with `BeakEmail` before it sends anything. A `BeakUserAccount` whose username is `admin` cannot sign in from the panel. Use email-shaped usernames |
-| `canAccessPanel: false` parks the account on `/403` | The page has one button, back to `/`, which redirects to `/403` again. Refuse such logins in the adapter, as `ServerpodAuthAdapter` does |
-| Register and recover need both switches | Config flag and adapter capability. A missing half means no route and the not-found page, not a disabled button |
+| The default session expires on the server | `InMemoryTokenSessionStore` keeps a session for 12 hours from creation by default, and forgets all of them on restart. A request the server answers with 401 ends the session in the panel: it signs the user out and lands on `/login`. The API keeps its rules, so signing in again starts a fresh session |
+| The sign-in field is a username or email | `BeakAuthViewModel.login` trims the identifier and only requires it to be non-empty, so a `BeakUserAccount` named `admin` signs in. Registration and recovery still check the address with `BeakEmail`, because they send a code to it |
+| `canAccessPanel: false` parks the account on `/403` | The page offers `Back to sign in` for such an account, which ends its session, because `Back to dashboard` would redirect to `/403` again. Refuse such logins in the adapter when you can, as `ServerpodAuthAdapter` does |
+| Register and recover need both switches | Config flag and adapter capability. Asking for either without an `adapter` throws at startup, because the default store has neither flow. An adapter that lacks the flow means no route and the not-found page, not a disabled button |
 | Deep links are not remembered | Sign-in always ends on `/` |
-| The lock is a UI lock | Token and server session stay valid. It is deferred by a dirty form and skipped on a full-screen form, see above |
+| The lock is a UI lock | Token and server session stay valid. It covers every routed page and is not held back by a form with unsaved changes, see above |
 | `shellActions` removes the sign-out button | Add `BeakLogoutButton` yourself |
 | One session authority | An adapter owns the session state. Do not copy its credentials into another Beak store |
 
@@ -214,12 +213,13 @@ An app that already has a `GoRouter` assembles the same pieces itself: `register
 The repo's tests cover the routes, the gate, the redirect and the lock. From `packages/beak_frontend`:
 
 ```console
-$ flutter test test/src/auth test/src/panel/beak_screen_routing_test.dart
-00:03 +23: auth routes login always mounts; register/recover follow config
-00:03 +24: auth routes register is absent when disabled
-00:04 +28: idle lock the lock route renders the lock screen
-00:04 +29: idle lock the panel auto-locks after the idle timeout
-00:04 +30: All tests passed!
+$ flutter test test/src/auth test/src/panel/beak_screen_routing_test.dart test/src/panel/beak_idle_lock_test.dart
+00:00 +19: a 401 from the API signs the panel out
+00:02 +36: auth routes login always mounts; register/recover follow config
+00:02 +37: auth routes register is absent when disabled
+00:02 +43: idle lock the lock route renders the lock screen
+00:02 +44: idle lock the panel auto-locks after the idle timeout
+00:02 +45: All tests passed!
 ```
 
 The generated path, in a scratch project made with `beak create demo --no-pub --beak-path <repo>`, after `beak eject auth` and `beak prepare`:
@@ -232,28 +232,18 @@ $ grep -n "auth" lib/beak/panel.g.dart
 23:    auth: auth.beakAuth(),
 ```
 
-A second scratch test drives the default store through a mocked HTTP client, with `auth: const BeakAuthConfig()` and no adapter. It records what the panel sends:
+Three behaviours have a test of their own. `test/src/auth/unauthorized_test.dart` drives the default store through a mocked HTTP client, with `auth: const BeakAuthConfig()` and no adapter: the person signs in as `admin`, the first query is answered 401, and the panel sends `POST /api/auth/logout` and ends on the sign-in page. `test/src/panel/beak_idle_lock_test.dart` uses a signed-in fake adapter, a one-second timeout and the default note resource:
 
 ```console
-start: /login
-after "admin": calls=[] path=/login
-after email: path=/notes shell=true login=false
-  POST /api/auth/login auth=null
-  POST /api/notes/query auth=Bearer tok-1
-401 text shown: true
+$ flutter test test/src/panel/beak_idle_lock_test.dart
+00:00 +1: an idle list locks the panel
+00:00 +2: a form with unsaved changes does not hold the lock back
+00:01 +3: a full-screen form locks too
+00:01 +4: activity keeps a full-screen form open
+00:01 +4: All tests passed!
 ```
 
-The panel starts on `/login`. The identifier `admin` never leaves the form, `admin@example.com` does. The token from the login response rides on the next request, and a 401 from that request lands as an error message inside the shell, not as a sign-out.
-
-Three lock details are not in the repo's suite. They came from a scratch widget test in the same project, with a one-second timeout, a signed-in fake adapter and the default note resource:
-
-```console
-list: path=/lock locked=true leaveDialog=false
-full-screen form: path=/notes/create locked=false leaveDialog=false
-dirty form: path=/lock locked=false leaveDialog=true
-```
-
-The first line is the lock working. The second is a `fullScreen: true` create form left alone for three seconds. The third is a normal create form with typed text: the router already reports `/lock`, and the "Leave this form?" dialog is what is on screen.
+The second line is a normal create form with typed text: the router reaches `/lock` and no "Leave this form?" dialog opens. The third is a `fullScreen: true` create form left alone for two seconds.
 
 ## Reference
 

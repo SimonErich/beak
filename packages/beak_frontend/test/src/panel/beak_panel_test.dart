@@ -292,6 +292,62 @@ void main() {
       expect(dependencies<BeakPanelConfig>().title, 'Beak Admin');
     });
   });
+
+  group('the resources shorthand', () {
+    BeakException? mapper(Exception error, StackTrace stack) => null;
+
+    test('carries mapException and maintenance into its configuration', () {
+      const maintenance = BeakMaintenanceConfig(
+        redirectTo: BeakMaintenancePage.maintenance,
+      );
+      final panel = BeakPanel(
+        resources: config.resources,
+        mapException: mapper,
+        maintenance: maintenance,
+      );
+
+      expect(panel.config.mapException, same(mapper));
+      expect(panel.config.maintenance, same(maintenance));
+    });
+
+    test('a bare panel keeps the default title and API origin', () {
+      final panel = BeakPanel(resources: config.resources);
+
+      expect(panel.config.title, 'Beak');
+      expect(panel.config.apiBaseUrl, 'http://localhost:8080');
+    });
+
+    test('rejects shorthand options that a given config would ignore', () {
+      final panel = BeakPanel(
+        config: config,
+        title: 'Other',
+        theme: OiThemeData.light(),
+        mapException: mapper,
+      );
+
+      expect(
+        () => panel.config,
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('title'),
+              contains('theme'),
+              contains('mapException'),
+              contains('BeakPanelConfig'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('a given config still takes the data and transport seams', () {
+      final panel = BeakPanel(config: config, dataSource: FakeDataSource());
+
+      expect(panel.config, same(config));
+    });
+  });
 }
 
 // --8<-- [start:WriteGatedNoteModel]

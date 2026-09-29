@@ -333,7 +333,7 @@ final class BeakSearchPalette extends HookWidget {
           OiSearchResult(
             id: command.id.substring(4),
             title: command.label,
-            subtitle: strings.navigate,
+            subtitle: command.category ?? strings.navigate,
           ),
     ];
     final items = [...navigation, ...response.value.items];

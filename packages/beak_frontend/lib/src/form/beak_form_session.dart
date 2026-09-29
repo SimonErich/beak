@@ -99,6 +99,7 @@ class BeakDraftRecord implements BeakDraftReader {
       model: model,
       sections: [BeakFormSection(title: '', columns: columns.values.toList())],
       valueMode: session.valueMode,
+      validateRule: session.validateRule,
     );
     controller.addListener(_changed);
     session._ownedDrafts.add(this);
@@ -394,6 +395,17 @@ class BeakDraftRecord implements BeakDraftReader {
       BeakRelationTable(:final field) => field,
       _ => null,
     };
+    if (node case BeakRelationTable(
+      :final field,
+      removeBehavior: BeakRemoveBehavior.deleteOwned,
+    ) when !_ownsRows(field)) {
+      throw BeakConfigurationException(
+        'The "${field.key}" table of ${model.table} deletes removed rows, but '
+        '"${field.key}" is not an owned has-many relationship. Declare the '
+        'relationship with `owned: true`, or keep the default remove '
+        'behavior, which only detaches.',
+      );
+    }
     if (field != null) {
       if (field.model.table != model.table || field.path.isNotEmpty) {
         throw BeakConfigurationException(
@@ -560,8 +572,15 @@ class BeakDraftRecord implements BeakDraftReader {
     final tables = _placements
         .map((p) => p.node)
         .whereType<BeakRelationTable>()
-        .where((node) => node.field.key == field.key);
-    return tables.where((node) => !node.readOnly).firstOrNull ?? tables.first;
+        .where((node) => node.field.key == field.key)
+        .toList();
+    return tables.where((node) => !node.readOnly).firstOrNull ??
+        tables.firstOrNull ??
+        (throw BeakConfigurationException(
+          'The "${model.table}" form has no table for its "${field.key}" '
+          'relationship, so it cannot add or list rows of it. Place '
+          '`tableForm` for that field in the layout.',
+        ));
   }
 
   BeakFormLayout _rowLayout(BeakToManyField field) => BeakFormLayout(
@@ -694,6 +713,12 @@ class BeakDraftRecord implements BeakDraftReader {
     return row;
   }
 
+  /// Whether removing a row of [field] may delete the related record.
+  static bool _ownsRows(BeakToManyField field) => switch (field.relation) {
+    BeakHasMany(:final owned) => owned,
+    _ => false,
+  };
+
   /// Stages a relationship removal; new unsaved rows are discarded locally.
   void removeRow(BeakDraftRecord row) {
     if (session.submitting.value || session.hasUnknown) return;
@@ -709,12 +734,7 @@ class BeakDraftRecord implements BeakDraftReader {
         'This relationship operation is disabled.',
       );
     }
-    if (deleteRemote &&
-        !(field.relation is BeakHasMany &&
-            switch (field.relation) {
-              BeakHasMany(:final owned) => owned,
-              _ => false,
-            })) {
+    if (deleteRemote && !_ownsRows(field)) {
       throw const BeakConfigurationException(
         'Deleting a related row requires an owned has-many relationship.',
       );
@@ -1272,6 +1292,20 @@ class BeakDraftRecord implements BeakDraftReader {
     }
   }
 
+  /// The model's own column errors, with each failed rule worded by the
+  /// session's [BeakFormSession.validateRule] when there is one.
+  List<String> localizedColumnErrors(BeakColumn column, Object? raw) {
+    final messages = const BeakValidation().columnErrors(column, raw);
+    final translate = session.validateRule;
+    if (translate == null) return messages;
+    final translated = {
+      for (final rule in column.rules)
+        if (rule.validate(raw) case final String english)
+          english: translate(rule, raw) ?? english,
+    };
+    return [for (final message in messages) translated[message] ?? message];
+  }
+
   bool _canValidate(BeakFormNode node) {
     if (node is BeakRelationTable && node.readOnly) return false;
     final field = _placementField(node);
@@ -1331,9 +1365,14 @@ class BeakDraftRecord implements BeakDraftReader {
             ...backingRules,
             ...validate,
           ];
+          final translate = session.validateRule;
           final messages = [
             for (final rule in rules)
-              if (rule.validate(value) case final String message) message,
+              if ((translate == null
+                      ? rule.validate(value)
+                      : translate(rule, value))
+                  case final String message)
+                message,
           ];
           if (value != null) {
             final reason = node.disabledReason?.call(
@@ -1580,6 +1619,7 @@ class BeakFormSession {
     BeakUploadClient? uploader,
     this.filePicker,
     this.drafts,
+    this.validateRule,
   }) : repository = BeakResourceRepository.coalescing(dataSource),
        registry = registry ?? BeakModelRegistry() {
     final uploadClient =
@@ -1653,6 +1693,7 @@ class BeakFormSession {
               dataSource: dataSource,
               layout: node.layout,
               registry: this.registry,
+              validateRule: validateRule,
             )
             .._indicatorOwner = this
             .._onInputChanged = _changed;
@@ -1667,6 +1708,10 @@ class BeakFormSession {
 
   /// Model metadata defining fields, rules and relationships.
   final BeakModel model;
+
+  /// Translates a failed rule into the user's language; null keeps the rule's
+  /// own message. Every draft of this session validates through it.
+  final String? Function(BeakRule rule, Object? value)? validateRule;
 
   /// Optional durable local draft storage with an explicit user/tenant namespace.
   final BeakFormDrafts? drafts;
@@ -2682,8 +2727,16 @@ class BeakFormSession {
 
   Future<void> _performRecovery() async {
     _submitting.value = true;
+    final pending = _pending!;
     final result = await repository
-        .run(() => _committer!.recover(_pending!.saveId))
+        .run(
+          () => BeakFormCommitRepository(_committer!).recover(
+            pending.saveId,
+            operationIds: [
+              for (final operation in pending.operations) operation.id,
+            ],
+          ),
+        )
         .whenComplete(() {
           if (!_disposed) _submitting.value = false;
         });

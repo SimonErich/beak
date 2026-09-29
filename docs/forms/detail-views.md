@@ -103,7 +103,7 @@ Outside a scope, a record block renders nothing, and it does not throw. If a she
 
 | Rule | Behavior |
 | --- | --- |
-| Show page columns | The generated page lists the columns visible in the form context, so a column with `visibleOn: {BeakContext.detail}` and nothing else does not appear. Related-row tabs do use the related model's detail columns |
+| Show page columns | The generated page lists the columns visible in the detail context, so a column with `visibleOn: {BeakContext.detail}` appears there and a form-only column does not. The primary key is never listed. A `BeakFormScreen` for the read role shares its layout with the create and edit forms, so the form columns decide there. Related-row tabs use the related model's detail columns |
 | Read role on a form screen | Only when `BeakScreenRole.read` is in `roles`. The default roles are `create` and `edit` |
 | No draft on the generated page | Related rows there are read-only. Edit goes to the edit route |
 | Record blocks | Need a `BeakRecordScope` that your code mounts. They are for `BeakCustomResourceScreen`, not for a form screen's layout |

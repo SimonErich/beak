@@ -272,7 +272,7 @@ Refresh is by table, not by row. It costs an extra query where a row-level patch
 ## What it means for you
 
 - Start every query from the model: `const BookModel().query(...)`, then the copy-builders with typed references. You never write a table or column string.
-- Anything with `behavior`, or whose rules read related rows, is saved through a commit only. The per-record routes answer "This resource must be saved through a graph commit."
+- Anything with `behavior`, or whose rules read related rows, is saved through a commit only. The per-record routes answer "This resource must be saved through a graph commit." The panel's own single-record writes (a dragged board card, an inline edit, a chat message) therefore travel as one-operation commits, so they work on those models too.
 - A page of results is 25 rows unless the spec says otherwise, the server always applies the limit, and it serves at most 200 rows a page. A data block over a table that can grow past that needs an explicit `perPage` of 200 or less and a sort.
 - If you write a `BeakDataSource`, implement `BeakCommitDataSource` too, or accept staged saves. The receipt's `mode` says which one you got.
 - A widget that reads data itself should call `useBeakDataRevision`, or it will show stale numbers after a save.

@@ -23,6 +23,7 @@ import '../blocks/beak_block.dart';
 import '../data/beak_data_changes.dart';
 import '../di/beak_locator.dart';
 import '../data/beak_resource_repository.dart';
+import '../data/beak_table_capabilities.dart';
 import '../filters/beak_filter_widget.dart';
 import '../form/beak_configured_form.dart';
 import '../form/beak_form_controller_builder.dart' show BeakFormValueMode;
@@ -99,6 +100,7 @@ class BeakResourceListPage extends HookWidget {
       [model, dataSource, definition, tableScreen?.query],
     );
     useEffect(() => sharedQuery?.dispose, [sharedQuery]);
+    final access = useBeakTableCapabilities(dataSource, model.table);
     final GoRouter router = GoRouter.of(context);
     final actionContext = BeakActionContext(
       buildContext: context,
@@ -146,7 +148,8 @@ class BeakResourceListPage extends HookWidget {
       destructive: action.color == BeakColor.error,
       visibleWhen: switch (action) {
         BeakEditAction() => model.behavior.editableWhen,
-        BeakDeleteAction() => model.behavior.deletableWhen,
+        BeakDeleteAction() ||
+        BeakArchiveAction() => model.behavior.deletableWhen,
         _ => null,
       },
       onRun: (ids) async {
@@ -234,74 +237,80 @@ class BeakResourceListPage extends HookWidget {
 
       final availableBulkActions = <BeakTableAction>[
         for (final action in resource.bulkActions) bulkAction(action),
-        for (final commanded in {
-          ...?definition?.bulkModelActions,
-          for (final presentation
-              in definition?.bulkActions ?? const <BeakActionPresentation>[])
-            ?presentation.modelAction,
-        })
-          BeakTableAction(
-            id: BeakActionPresentation.keyOfModelAction(commanded),
-            label: model.behavior.action(commanded.name).label,
-            icon: OiIcons.play,
-            onRun: (ids) async {
-              final action = model.behavior.action(commanded.name);
-              final confirmed = await showOiDialog<bool>(
-                context,
-                builder: (context, close) => OiDialog.confirm(
-                  label: action.label,
-                  title: action.label,
-                  content: OiLabel.body(
-                    'Apply ${action.label} to ${ids.length} selected records? Each record is saved independently.',
-                  ),
-                  actions: [
-                    OiButton.ghost(label: 'Cancel', onTap: () => close(false)),
-                    OiButton.primary(
-                      label: action.label,
-                      onTap: () => close(true),
+        // A model command writes, so a resource that cannot be edited offers
+        // none of them on a selection.
+        if (resource.allowsEdit)
+          for (final commanded in {
+            ...?definition?.bulkModelActions,
+            for (final presentation
+                in definition?.bulkActions ?? const <BeakActionPresentation>[])
+              ?presentation.modelAction,
+          })
+            BeakTableAction(
+              id: BeakActionPresentation.keyOfModelAction(commanded),
+              label: model.behavior.action(commanded.name).label,
+              icon: OiIcons.play,
+              onRun: (ids) async {
+                final action = model.behavior.action(commanded.name);
+                final confirmed = await showOiDialog<bool>(
+                  context,
+                  builder: (context, close) => OiDialog.confirm(
+                    label: action.label,
+                    title: action.label,
+                    content: OiLabel.body(
+                      'Apply ${action.label} to ${ids.length} selected records? Each record is saved independently.',
                     ),
-                  ],
-                  onClose: () => close(false),
-                ),
-              );
-              if (confirmed != true || !context.mounted) return;
-              BeakRecord? arguments = action.inputModel == null
-                  ? const BeakRecord(values: {})
-                  : null;
-              var cancelled = false;
-              var changed = false;
-              final failures = <String>[];
-              for (final id in ids) {
-                if (!context.mounted || cancelled) break;
-                await _executeModelAction(
-                  context: context,
-                  model: model,
-                  source: dataSource,
-                  recordId: id,
-                  action: action,
-                  onError: (error) => failures.add('$id: ${error.message}'),
-                  onComplete: () => changed = true,
-                  prepare: (session) async {
-                    if (arguments != null) return arguments;
-                    arguments = await showBeakActionInput(
-                      context,
-                      session,
-                      action,
-                    );
-                    cancelled = arguments == null;
-                    return arguments;
-                  },
+                    actions: [
+                      OiButton.ghost(
+                        label: 'Cancel',
+                        onTap: () => close(false),
+                      ),
+                      OiButton.primary(
+                        label: action.label,
+                        onTap: () => close(true),
+                      ),
+                    ],
+                    onClose: () => close(false),
+                  ),
                 );
-              }
-              if (!context.mounted) return;
-              if (changed) generation.value++;
-              if (failures.isNotEmpty) {
-                actionContext.reportError(
-                  BeakValidationException(failures.join('\n')),
-                );
-              }
-            },
-          ),
+                if (confirmed != true || !context.mounted) return;
+                BeakRecord? arguments = action.inputModel == null
+                    ? const BeakRecord(values: {})
+                    : null;
+                var cancelled = false;
+                var changed = false;
+                final failures = <String>[];
+                for (final id in ids) {
+                  if (!context.mounted || cancelled) break;
+                  await _executeModelAction(
+                    context: context,
+                    model: model,
+                    source: dataSource,
+                    recordId: id,
+                    action: action,
+                    onError: (error) => failures.add('$id: ${error.message}'),
+                    onComplete: () => changed = true,
+                    prepare: (session) async {
+                      if (arguments != null) return arguments;
+                      arguments = await showBeakActionInput(
+                        context,
+                        session,
+                        action,
+                      );
+                      cancelled = arguments == null;
+                      return arguments;
+                    },
+                  );
+                }
+                if (!context.mounted) return;
+                if (changed) generation.value++;
+                if (failures.isNotEmpty) {
+                  actionContext.reportError(
+                    BeakValidationException(failures.join('\n')),
+                  );
+                }
+              },
+            ),
       ];
       if (definition?.export case final export?) {
         availableBulkActions.add(
@@ -373,10 +382,13 @@ class BeakResourceListPage extends HookWidget {
         actions: _presentActions(definition, [
           rowAction(const BeakViewAction()),
           if (resource.allowsEdit) rowAction(const BeakEditAction()),
-          if (resource.allowsDelete) rowAction(resource.deleteAction),
+          if (resource.allowsDelete && access.canDelete)
+            rowAction(resource.deleteAction),
           for (final action in resource.recordActions)
             if (action.roles.contains(BeakScreenRole.list)) rowAction(action),
-          if (resource.allowsCreate && resource.duplication != null)
+          if (resource.allowsCreate &&
+              access.canCreate &&
+              resource.duplication != null)
             BeakTableAction(
               id: 'duplicate',
               label: 'Duplicate',
@@ -461,7 +473,7 @@ class BeakResourceListPage extends HookWidget {
           ),
         for (final action in resource.globalActions)
           BeakActionButton(action: action, actionContext: actionContext),
-        if (resource.allowsCreate)
+        if (resource.allowsCreate && access.canCreate)
           if (definition?.createLabel case final String label)
             OiButton.primary(
               label: label,
@@ -789,6 +801,7 @@ _defaultShowFrame(BeakResource resource, Object recordId) =>
               record: loaded,
             ),
           if (resource.allowsDelete &&
+              session.root.capabilities.canDelete &&
               (model.behavior.deletableWhen?.call(loaded) ?? true))
             BeakActionButton(
               action: resource.deleteAction,
@@ -1088,6 +1101,9 @@ Widget _formScaffold({
         variant: variant,
         title: title,
         surface: false,
+        showBack: form?.showBack ?? true,
+        padding: form?.pagePadding,
+        gapInPixels: form?.pageGapInPixels,
         child: child,
       );
 

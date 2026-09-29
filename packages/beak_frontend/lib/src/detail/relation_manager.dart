@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -74,6 +76,8 @@ class BeakRelationManager extends HookWidget {
   ///
   /// A to-many can be unbounded, so the manager reads a page and offers to
   /// read the next one rather than pretending the first page is all of it.
+  /// The window never grows past [BeakPagination.maxPerPage], the most rows a
+  /// server answers with; beyond it the manager says how many it shows.
   final int pageSize;
 
   /// The maximum height of the scrollable related-rows list, in pixels.
@@ -87,7 +91,8 @@ class BeakRelationManager extends HookWidget {
     ]);
     final related = useState<List<BeakRecord>>(initialRecords ?? const []);
     final total = useState(initialRecords?.length ?? 0);
-    final perPage = useState(pageSize);
+    final firstWindow = math.min(pageSize, BeakPagination.maxPerPage);
+    final perPage = useState(firstWindow);
     final reloadTick = useState(0);
     final dataRevision = useBeakDataRevision(dataSource);
 
@@ -97,7 +102,7 @@ class BeakRelationManager extends HookWidget {
       if (initialRecords != null &&
           reloadTick.value == 0 &&
           dataRevision == 0 &&
-          perPage.value == pageSize) {
+          perPage.value == firstWindow) {
         return null;
       }
       var cancelled = false;
@@ -196,10 +201,20 @@ class BeakRelationManager extends HookWidget {
                 // Only when there is more: a button that loads nothing is
                 // worse than no button.
                 if (related.value.length < total.value)
-                  OiButton.ghost(
-                    label: strings.loadMore(total.value - related.value.length),
-                    onTap: () => perPage.value += pageSize,
-                  ),
+                  if (perPage.value < BeakPagination.maxPerPage)
+                    OiButton.ghost(
+                      label: strings.loadMore(
+                        total.value - related.value.length,
+                      ),
+                      onTap: () => perPage.value = math.min(
+                        perPage.value + firstWindow,
+                        BeakPagination.maxPerPage,
+                      ),
+                    )
+                  else
+                    OiLabel.caption(
+                      strings.showingFirst(related.value.length, total.value),
+                    ),
               ],
             ),
           ),

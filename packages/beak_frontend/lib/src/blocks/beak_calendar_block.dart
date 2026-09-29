@@ -35,6 +35,7 @@ final class BeakCalendarBlock extends BeakBlock {
     this.label = 'Calendar',
     this.onEventTap,
     this.onEventMove,
+    this.filter,
     super.span,
   });
   // --8<-- [end:BeakCalendarBlockConstructor]
@@ -63,6 +64,11 @@ final class BeakCalendarBlock extends BeakBlock {
 
   /// Accessibility label for the calendar.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Invoked with the tapped event's record.
   final void Function(BeakRecord record)? onEventTap;

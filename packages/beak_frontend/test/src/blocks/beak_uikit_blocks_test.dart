@@ -195,6 +195,50 @@ void main() {
       expect(timeline.events.first.title, 'Beta');
       tester.takeException();
     });
+
+    testWidgets('a row without a time is left out, not given a date', (
+      tester,
+    ) async {
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: _MediaModel(),
+              icon: BeakIconToken(OiIcons.image),
+            ),
+          ],
+        ),
+        dataSource: FakeDataSource(
+          records: {
+            'media': {
+              'm1': BeakRecord.fromRow(const {
+                'id': 'm1',
+                'caption': 'Dated',
+                'at': '2026-01-01T00:00:00.000Z',
+              }),
+              'm2': BeakRecord.fromRow(const {
+                'id': 'm2',
+                'caption': 'Undated',
+                'at': null,
+              }),
+            },
+          },
+        ),
+      );
+      await pump(
+        tester,
+        const BeakTimelineBlock(
+          query: BeakQuerySpec(table: 'media'),
+          titleField: caption,
+          timeField: at,
+        ),
+      );
+
+      final timeline = tester.widget<OiTimeline>(find.byType(OiTimeline));
+      expect(timeline.events.map((event) => event.title), ['Dated']);
+    });
   });
 
   group('icon gallery', () {

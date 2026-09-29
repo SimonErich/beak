@@ -24,6 +24,42 @@ void main() {
     expect(vm.busy.value, false);
   });
 
+  test('login accepts a username that is not an email address', () async {
+    final adapter = FakeAuthAdapter();
+    final vm = BeakAuthViewModel(adapter: adapter);
+    addTearDown(vm.dispose);
+
+    expect(await vm.login(email: ' admin ', password: 'secret'), true);
+
+    expect(adapter.email, 'admin');
+    expect(vm.error.value, isNull);
+  });
+
+  test('login still requires both an identifier and a password', () async {
+    final adapter = FakeAuthAdapter();
+    final vm = BeakAuthViewModel(adapter: adapter);
+    addTearDown(vm.dispose);
+
+    expect(await vm.login(email: '  ', password: 'secret'), false);
+    expect(await vm.login(email: 'admin', password: ''), false);
+
+    expect(adapter.email, isNull);
+    expect(vm.error.value, isA<BeakValidationException>());
+  });
+
+  test('registration and recovery still check the email address', () async {
+    final vm = BeakAuthViewModel(
+      adapter: FakeAuthAdapter(),
+      flow: FakeEmailFlow(),
+    );
+    addTearDown(vm.dispose);
+
+    await vm.start('not-an-email');
+
+    expect(vm.step.value, BeakAuthStep.email);
+    expect(vm.error.value, isA<BeakValidationException>());
+  });
+
   test('verification advances only on success and supports retry', () async {
     final flow = FakeEmailFlow();
     final vm = BeakAuthViewModel(adapter: FakeAuthAdapter(), flow: flow);

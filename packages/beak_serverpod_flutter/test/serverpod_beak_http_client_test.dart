@@ -37,16 +37,16 @@ void main() {
       (ServerpodClientNotFound(), isA<BeakNotFoundException>()),
       (
         ServerpodClientUnknownHttpException('too big', 413),
-        isA<BeakConfigurationException>().having(
+        isA<BeakPayloadTooLargeException>().having(
           (e) => e.message,
           'message',
           'The request is larger than the server accepts.',
         ),
       ),
-      (ServerpodClientInternalServerError(), isA<BeakConfigurationException>()),
+      (ServerpodClientInternalServerError(), isA<BeakTransportException>()),
       (
         const ServerpodClientUnknownException('odd reply'),
-        isA<BeakConfigurationException>().having(
+        isA<BeakTransportException>().having(
           (e) => e.message,
           'message',
           'odd reply',

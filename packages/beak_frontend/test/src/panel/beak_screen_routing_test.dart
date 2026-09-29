@@ -402,6 +402,54 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Launching'), findsWidgets);
     });
+
+    testWidgets('redirectTo sends every other route to the chosen page', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        config(
+          maintenance: const BeakMaintenanceConfig(
+            maintenanceTitle: 'Back soon',
+            comingSoonTitle: 'Launching',
+            redirectTo: BeakMaintenancePage.maintenance,
+          ),
+        ),
+      );
+      final router = GoRouter.of(
+        tester.element(find.byType(OiMaintenancePage)),
+      );
+
+      expect(find.text('Back soon'), findsWidgets);
+      router.go('/notes');
+      await tester.pumpAndSettle();
+      expect(find.text('Back soon'), findsWidgets);
+      expect(find.byType(BeakResourceListPage), findsNothing);
+
+      // The other page stays reachable, so a launch page can be previewed.
+      router.go('/coming-soon');
+      await tester.pumpAndSettle();
+      expect(find.text('Launching'), findsWidgets);
+    });
+
+    testWidgets('a coming-soon redirect wins over the sign-in wall', (
+      tester,
+    ) async {
+      final adapter = FakeAuthAdapter();
+      await pump(
+        tester,
+        config(
+          auth: BeakAuthConfig(adapter: adapter),
+          maintenance: const BeakMaintenanceConfig(
+            comingSoonTitle: 'Launching',
+            redirectTo: BeakMaintenancePage.comingSoon,
+          ),
+        ),
+      );
+
+      expect(find.text('Launching'), findsWidgets);
+      expect(find.byType(OiMaintenancePage), findsOneWidget);
+    });
   });
 
   group('theme toggle', () {

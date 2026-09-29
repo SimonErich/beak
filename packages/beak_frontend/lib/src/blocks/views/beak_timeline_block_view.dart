@@ -10,6 +10,7 @@ class _BeakTimelineBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final records = useState(const <BeakRecord>[]);
 
     useEffect(() {
@@ -28,15 +29,17 @@ class _BeakTimelineBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
+    // A timeline places events by time: a row with no time has no place on
+    // it, and is left out rather than given an invented date.
     final events = <OiTimelineEvent>[
       for (final record in records.value)
-        OiTimelineEvent(
-          timestamp:
-              _readDateTime(record, block.timeField) ?? DateTime.utc(2026),
-          title: _readString(record, block.titleField) ?? '',
-        ),
+        if (_readDateTime(record, block.timeField) case final DateTime time)
+          OiTimelineEvent(
+            timestamp: time,
+            title: _readString(record, block.titleField) ?? '',
+          ),
     ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     return OiTimeline(label: 'Timeline', events: events);

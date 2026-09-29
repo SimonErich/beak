@@ -48,7 +48,7 @@ Every key is in the [Reference](#reference). Two things about the start values. 
 | `search` | `String` | `''` | The search term |
 | `sorts` | `List<BeakSort>` | `[]` | Current ordering. A header click replaces it with one sort |
 | `page` | `int` | `1` | One-based page |
-| `perPage` | `int` | `15` | Page length, 1 to 1000. The server serves at most 200 rows a page, so a longer page arrives as 200 |
+| `perPage` | `int` | `15` | Page length, 1 to 200 (`BeakPagination.maxPerPage`), the most rows the server serves in a page |
 | `visibleColumns` | `List<String>?` | `null` | Chosen column keys in order. `null` means the preset's or the list's columns |
 | `showHeader` | `bool?` | `null` | Whether the overview is shown. `null` follows `headerInitiallyVisible` |
 
@@ -113,7 +113,7 @@ Malformed state is rejected as a whole:
 | Not base64url JSON | `Invalid saved list state.` |
 | `version` other than `1`, or no `filters` map | `Unsupported saved list state.` |
 | Page or page size below 1 | `BeakPagination requires page >= 1 and perPage >= 1, got page 0, perPage 15.` |
-| Page size above 1000 | `Invalid list pagination.` |
+| Page size above 200 | `Invalid list pagination.` |
 | A column key the current preset does not offer | `The saved columns are no longer available.` |
 | A preset key that does not exist | `Unknown list preset "x".` |
 
@@ -207,12 +207,11 @@ A saved view is a name plus a `BeakQueryState`, stored as a row of a model you o
 --8<-- "examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart:composedListSavedViews"
 ```
 
-`resource` holds the table of the list, so one model serves every list, and `state` holds the versioned JSON. The panel has to know the model: list a `BeakResource` for it in `resources` (the generated panel does that for every model). Without one, saving fails with `No model registered for table "saved_views".` `SavedViewModel` is an ordinary resource: its policies decide who can read and write views, and `BeakSavedViewStore.model(filter: ...)` narrows which rows a list offers on top of that. Foodio's schema has `owner` and `shared` columns, and the store does not use them, so every view there is visible to everyone who can read the model. Narrow the list with the store's `filter`, or scope the model itself with a row rule.
+`resource` holds the table of the list, so one model serves every list, and `state` holds the versioned JSON. The panel registers the store's model itself, so it does not have to be a `BeakResource`; make it one only if people should get pages for it. Its policies decide who can read and write views, and `BeakSavedViewStore.model(filter: ...)` narrows which rows a list offers on top of that. Foodio's schema has `owner` and `shared` columns, and the store does not use them, so every view there is visible to everyone who can read the model. Narrow the list with the store's `filter`, or scope the model itself with a row rule.
 
-Saving works from the drawer. Next to Apply sits Save as view, which stores the staged state even if it was not applied. It opens a dialog with one field, the name, and saves through the normal form path, so it is a graph commit with a receipt like any other save. Decoding a stored state rejects any version other than `1`. The store reads at most 1000 views per list.
+Saving works from the drawer. Next to Apply sits Save as view, which stores the staged state even if it was not applied. It opens a dialog with one field, the name, and saves through the normal form path, so it is a graph commit with a receipt like any other save. Decoding a stored state rejects any version other than `1`. The store reads at most 200 views per list.
 
-!!! warning "Saving is wired, loading is not"
-    The built-in toolbar has no picker for saved views. The selector belongs to the exported `BeakSavedViews` widget, and the toolbar builds that widget with `showSelector: false`. To offer one, mount `BeakSavedViews` yourself, for example in the overview. It takes the store, the list's controller and the panel's data source.
+Loading works from the same footer. A `Saved views` select sits beside Save as view once the list has stored views. Choosing one restores its search, filters, sort, columns and page size, and closes the drawer. To offer the picker somewhere else too, mount the exported `BeakSavedViews` widget, for example in the overview. It takes the store, the list's controller and the panel's data source; see [A saved list view](../recipes/a-saved-list-view.md).
 
 ## Export
 
@@ -253,7 +252,8 @@ A confirmed write to a table reloads every mounted list, count and summary that 
 | Counts cost one request per preset | After every write and every refresh tick |
 | Only `BeakSummaryBlock` follows the list's query | Other blocks in a header do not |
 | Export fields are direct scalar fields of the list model | Checked at the click |
-| The saved-view model is a registered resource | Otherwise saving fails with `No model registered for table "saved_views".` |
+| The saved-view model needs no resource of its own | The panel registers the store's model. Its policies decide who reads and writes views |
+| Two filters may not share a field | The panel throws at startup: they would share one state. Use one choice filter with several options |
 | A restored choice is matched by the JSON of its predicate | Changing a choice's predicate makes bookmarks and saved views stop selecting it |
 | The state in the address is capped at 16384 characters | Larger values fail to restore |
 | `sortBy` is a `sortable` field of the listed model | Related sorting is not inferred |

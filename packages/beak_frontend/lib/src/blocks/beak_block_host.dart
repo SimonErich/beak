@@ -13,6 +13,7 @@ import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import '../query/beak_query_scope.dart';
 import '../localization/beak_localizations.dart';
+import '../overlays/beak_overlays.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
@@ -461,14 +462,20 @@ class _BeakTabsHost extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final selected = useState(block.initialIndex);
-    final active = block.tabs[selected.value];
+    if (block.tabs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    // A start index (or a tab list that shrank) past the end selects the last
+    // tab instead of throwing.
+    final index = selected.value.clamp(0, block.tabs.length - 1);
+    final active = block.tabs[index];
     return OiTabs(
       tabs: [
         for (final tab in block.tabs)
           OiTabItem(label: tab.label, icon: tab.icon),
       ],
-      selectedIndex: selected.value,
-      onSelected: (index) => selected.value = index,
+      selectedIndex: index,
+      onSelected: (next) => selected.value = next,
       content: BeakBlockHost(block: active.content),
     );
   }

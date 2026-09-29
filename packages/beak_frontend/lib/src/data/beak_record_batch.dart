@@ -464,7 +464,14 @@ final class BeakBatchRepository {
             'Wait for this batch before recovering a known save.',
           );
         }
-        final receipt = await source.recover(saveId);
+        final receipt = await BeakFormCommitRepository(source).recover(
+          saveId,
+          operationIds: [
+            for (final outcome
+                in _receipts[saveId]?.outcomes ?? const <BeakOperationResult>[])
+              outcome.id,
+          ],
+        );
         _receipts[saveId] = receipt;
         return receipt;
       });

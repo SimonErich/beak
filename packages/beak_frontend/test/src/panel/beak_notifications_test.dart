@@ -174,4 +174,53 @@ void main() {
     expect(dataSource.updateCalls.map((call) => call.$2), ['n1', 'n3']);
     tester.takeException();
   });
+
+  testWidgets('a row without a time is not listed under an invented date', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    registerBeakDependencies(
+      config: const BeakPanelConfig(
+        title: 'Demo',
+        apiBaseUrl: 'http://localhost',
+        resources: [
+          BeakResource(model: _NotifModel(), icon: BeakIconToken(OiIcons.bell)),
+        ],
+      ),
+      dataSource: FakeDataSource(
+        records: {
+          'notifications': {
+            'n1': BeakRecord.fromRow(const {
+              'id': 'n1',
+              'title': 'Dated',
+              'is_read': false,
+              'created_at': '2026-02-01T00:00:00.000Z',
+            }),
+            'n2': BeakRecord.fromRow(const {
+              'id': 'n2',
+              'title': 'Undated',
+              'is_read': false,
+              'created_at': null,
+            }),
+          },
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakNotificationBell(source: source),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(OiButton));
+    await tester.pumpAndSettle();
+
+    final center = tester.widget<OiNotificationCenter>(
+      find.byType(OiNotificationCenter),
+    );
+    expect(center.notifications.map((entry) => entry.title), ['Dated']);
+  });
 }

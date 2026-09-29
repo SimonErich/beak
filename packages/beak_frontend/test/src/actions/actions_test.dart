@@ -12,6 +12,38 @@ void main() {
 
   final note = BeakRecord.fromRow(const {'id': 'n1', 'title': 'One'});
 
+  test('a record action defaults to pages that have a record', () {
+    final action = BeakRecordAction(
+      key: 'x',
+      label: 'X',
+      onExecute: (_, _) async {},
+    );
+
+    // A create page has no saved record yet, so nothing could run there.
+    expect(action.roles, {
+      BeakScreenRole.list,
+      BeakScreenRole.read,
+      BeakScreenRole.edit,
+    });
+    expect(action.roles, isNot(contains(BeakScreenRole.create)));
+    expect(
+      BeakRecordAction.document(
+        key: 'doc',
+        label: 'Print',
+        document: BeakRecordDocument(
+          title: BeakValueBinding<Object>.field(
+            const BeakScalarField<Object>(
+              model: NoteModel(),
+              column: BeakStringColumn(key: 'title', label: 'Title'),
+            ),
+          ),
+          sections: const [],
+        ),
+      ).roles,
+      action.roles,
+    );
+  });
+
   setUp(() {
     dataSource = FakeDataSource(
       records: {

@@ -26,7 +26,7 @@ part of 'beak_block.dart';
 ///     BeakMetricBlock(
 ///       label: 'Stock on hand',
 ///       icon: OiIcons.package,
-///       aggregate: const ProductModel().sum(ProductModel.weightInKg.column),
+///       aggregate: const ProductModel().sum(ProductModel.weightInKg),
 ///       unit: 'kg',
 ///     ),
 ///     // Money stored in cents, compared with last month and a goal.
@@ -34,11 +34,11 @@ part of 'beak_block.dart';
 ///       label: 'Revenue this month',
 ///       icon: OiIcons.euro,
 ///       aggregate: const InvoiceModel().sum(
-///         InvoiceModel.totalCents.column,
+///         InvoiceModel.totalCents,
 ///         filter: InvoiceModel.issuedAt.gte(startOfMonth),
 ///       ),
 ///       previous: const InvoiceModel().sum(
-///         InvoiceModel.totalCents.column,
+///         InvoiceModel.totalCents,
 ///         filter: BeakAndFilter([
 ///           InvoiceModel.issuedAt.gte(startOfLastMonth),
 ///           InvoiceModel.issuedAt.lt(startOfMonth),

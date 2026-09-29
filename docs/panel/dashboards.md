@@ -105,7 +105,7 @@ A tick marks every registered table as changed, so every block on screen refetch
 ## Rules and limits
 
 - A screen is built once, when the app starts. A date you compute inside it (`DateTime.now()`) stays the date of that start. Foodio pins `foodioToday` for that reason, and it is a demo choice, not a pattern.
-- Table, metric and summary blocks refetch after a write to their table. Chart, kanban and calendar blocks do not yet, so a dashboard that puts one of them on screen shows stale figures until the page reloads.
+- Every block that reads a table refetches after a write to it, so a chart or a board on a dashboard follows a save made elsewhere in the panel.
 - Each metric costs one request (two with `previous`), each summary one, each table block one page. Twenty blocks are twenty requests on every refresh.
 - A dashboard has no permission of its own. Every block reads through the data source, and the server's row and field rules decide what appears. An account that may not read a model sees the error state in that block.
 - `lib/dashboard.dart` with a `beakDashboard()` function is no longer read. `beak prepare` stops and says what to do (see below). Declare a `BeakScreen` with `path: '/'` under `lib/screens/` and delete the file.

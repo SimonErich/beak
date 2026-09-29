@@ -368,35 +368,7 @@ class _SummaryQueryView extends HookWidget {
           ],
         ),
       ),
-      BeakSummaryPresentation.capacity => SizedBox(
-        height: block.heightInPixels,
-        child: Padding(
-          padding: EdgeInsets.only(
-            top: context.components.chart?.density?.padding?.top ?? 0,
-          ),
-          child: OiColumn(
-            breakpoint: context.breakpoint,
-            gap: const OiResponsive<double>(16),
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final row in rows)
-                OiCapacityIndicator(
-                  label: label(row),
-                  subtitle: block.groupStyle?.call(row).section,
-                  horizontal: true,
-                  trackWidth: 110,
-                  height: block.capacity!.trackHeightInPixels,
-                  value: row.valueOf(block.capacity!.used) ?? 0,
-                  max: row.valueOf(block.capacity!.total) ?? 0,
-                  color: block.groupStyle?.call(row).color,
-                  warningThreshold: block.capacity!.warningThreshold,
-                  warningColor: block.capacity!.warningColor,
-                  warningText: block.capacity!.warning?.call(row),
-                ),
-            ],
-          ),
-        ),
-      ),
+      BeakSummaryPresentation.capacity => _capacityView(context, rows, label),
       BeakSummaryPresentation.table => OiColumn(
         breakpoint: context.breakpoint,
         mainAxisSize: MainAxisSize.min,
@@ -477,6 +449,51 @@ class _SummaryQueryView extends HookWidget {
           body,
           if (block.footer != null) OiLabel.caption(block.footer!(summary)),
         ],
+      ),
+    );
+  }
+
+  /// The capacity tracks, one per group. Throws a
+  /// [BeakConfigurationException] when the block asks for the capacity
+  /// presentation without saying which measures fill and size the track.
+  Widget _capacityView(
+    BuildContext context,
+    List<BeakSummaryRow> rows,
+    String Function(BeakSummaryRow row) label,
+  ) {
+    final capacity =
+        block.capacity ??
+        (throw BeakConfigurationException(
+          'The "${block.title}" summary uses the capacity presentation but '
+          'sets no `capacity`: give it the used and total measures.',
+        ));
+    return SizedBox(
+      height: block.heightInPixels,
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: context.components.chart?.density?.padding?.top ?? 0,
+        ),
+        child: OiColumn(
+          breakpoint: context.breakpoint,
+          gap: const OiResponsive<double>(16),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final row in rows)
+              OiCapacityIndicator(
+                label: label(row),
+                subtitle: block.groupStyle?.call(row).section,
+                horizontal: true,
+                trackWidth: 110,
+                height: capacity.trackHeightInPixels,
+                value: row.valueOf(capacity.used) ?? 0,
+                max: row.valueOf(capacity.total) ?? 0,
+                color: block.groupStyle?.call(row).color,
+                warningThreshold: capacity.warningThreshold,
+                warningColor: capacity.warningColor,
+                warningText: capacity.warning?.call(row),
+              ),
+          ],
+        ),
       ),
     );
   }

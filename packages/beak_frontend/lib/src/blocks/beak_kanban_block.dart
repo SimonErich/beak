@@ -30,6 +30,7 @@ final class BeakKanbanBlock extends BeakBlock {
     this.sortDescending = false,
     this.label = 'Board',
     this.onCardMove,
+    this.filter,
     super.span,
   });
   // --8<-- [end:BeakKanbanBlockConstructor]
@@ -69,6 +70,11 @@ final class BeakKanbanBlock extends BeakBlock {
 
   /// Accessibility label for the board.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Invoked with a card's record after it is dropped in a new column; the
   /// block first persists the new group through the data source.

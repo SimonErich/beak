@@ -123,7 +123,7 @@ Opening a record from a list adds a `returnTo` parameter, so Back and the first 
 
 Ctrl-K or Cmd-K opens it from every screen inside the shell. It does two jobs in one field.
 
-Typing filters the destinations: one entry per visible resource and per page with `showInNav`, matched by label. An empty field lists all of them. This list comes from the resources and pages, not from `BeakNavigation`, so a resource that no section mentions is still there.
+Typing filters the destinations: one entry per visible resource and per page with `showInNav`, matched by label. An empty field lists all of them, each under its `navigationGroup` (or `Resources` and `Pages` when it has none). This list comes from the resources and pages, not from `BeakNavigation`, so a resource that no section mentions is still there.
 
 After 200 milliseconds without typing it also searches records. It sends one query per visible resource that has searchable fields, five records at most each, through the same query route the list uses, and shows the display label with the resource title. Each hit opens the show page. Because the panel asks the API the way a list does, the server's authorization and row scope apply to every hit, and a resource that fails answers with its own message and a Retry button while the others still list.
 
@@ -186,18 +186,18 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
 
 | Rule | What happens |
 | --- | --- |
-| Visibility follows the resource | A resource item shows only when the panel has a resource for that model and `isVisible` is true. Otherwise it drops without an error |
+| Visibility follows the resource | A resource item shows only when its resource is visible to the account. An item whose model has no resource at all is a configuration error instead (see below) |
 | A section needs one visible item | Sections without one vanish. When none remain, the automatic sidebar is used |
 | The first visible item is the landing | The rail button of a section opens it, and `/` falls back to it when no `home` and no screen at `/` exist |
 | The active section is the one whose item path matches | It matches on equal path or `path/`. A route no section contains keeps the first section active |
 | A resource in no section stays reachable | It has no sidebar entry, its routes work, and the command bar lists it |
-| A screen item is not checked | A `BeakNavigationItem.screen` whose screen is missing from `pages` links to the not-found page. `BeakPanelConfig` does not validate navigation |
+| Items must name something the panel has | A `BeakNavigationItem.resource` whose model has no `BeakResource`, or a `BeakNavigationItem.screen` whose path is not among `pages`, throws a `BeakConfigurationException` naming the section and the item when the panel builds |
 | Counts cover the active section only | Resource items with `showCount`, recounted after writes. A dash while loading or on failure |
 | The record child needs a `BeakNavigation` | One extra `getOne` per record page. Without navigation the shell does not fetch it |
 | `headerBuilder` owns the heading | The create button is part of the default heading and goes with it |
 | `shellActions` replaces sign-out | Add `BeakLogoutButton` yourself when the panel has `auth` |
 | `searchShortcut` is a label | Ctrl-K and Cmd-K are bound in the shell either way |
-| Only `BeakPanelConfig` has `notifications`, `shellActions`, `maintenance`, sidebar flags | The `BeakPanel(...)` shorthand does not, see [Resources](resources.md) |
+| Only `BeakPanelConfig` has `notifications`, `shellActions`, sidebar flags | The `BeakPanel(...)` shorthand does not, see [Resources](resources.md) |
 | A full-screen form has no shell | A `BeakFormScreen(fullScreen: true)` renders without navigation, top bar and command bar |
 | Hiding is not protecting | A resource left out of navigation, or hidden by permissions, still answers to anyone who calls the API |
 

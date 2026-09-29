@@ -100,8 +100,8 @@ A review step shows the answers again and links each block to its step. `BeakRev
 | Rule | Behavior |
 | --- | --- |
 | Same draft | Every step edits the one session. Nothing is saved between steps, and abandoning the wizard follows the form's `drafts` policy |
-| Not all parameters | `BeakWizardScreen` forwards 22 of the 29 parameters of `BeakFormScreen`. `layout`, `asideFraction`, `submitIcon`, `outlinedCancel`, `showActionsWhileEditing`, `editingLabel` and `showChangeBar` are missing. Write `BeakFormScreen(steps: [...])` when you need one |
-| No page frame | A screen with steps has no generated page frame. `showBack`, `pagePadding` and `pageGapInPixels` have no effect, `recordHeader` is not placed, and record actions such as a print button do not appear |
+| Not all parameters | `BeakWizardScreen` forwards 26 of the 29 parameters of `BeakFormScreen`. `layout` (the steps are the layout), `recordHeader` and `editingLabel` (both belong to the single-page heading) are missing. Write `BeakFormScreen(steps: [...])` when you need one. A test fails when a `BeakFormScreen` parameter is neither forwarded nor on that list |
+| No page frame | A screen with steps has no generated page frame with a record heading, so record actions such as a print button do not appear. `showBack`, `pagePadding` and `pageGapInPixels` still shape the page chrome, except with `fullScreen: true`, which has no page chrome at all |
 | Hidden steps stay | `visibleIf` on a step hides its contents. The step itself stays in the navigation as an empty page. Put the condition on the content |
 | Cancel | On a routed page the first step has a Cancel button that leaves through the unsaved-changes dialog. Later steps have Back |
 | Steps and roles | A wizard defaults to `create` and `edit`. Add `read` only if you also give the show page a layout |

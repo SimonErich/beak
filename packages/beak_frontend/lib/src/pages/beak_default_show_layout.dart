@@ -6,8 +6,15 @@ import '../form/beak_form_layout.dart';
 const int _relatedRowColumnLimit = 5;
 
 /// The read-only layout a resource shows for a record when it declares no read
-/// screen: a card of the inputs [BeakFormLayout.fromModel] implies, followed by
-/// a card with one tab per to-many relationship listing its related records.
+/// screen: a card with an input for each column visible on
+/// `BeakContext.detail`, followed by a card with one tab per to-many
+/// relationship listing its related records.
+///
+/// A column marked `visibleOn: {BeakContext.detail}` therefore appears here
+/// and not in the create and edit forms, and a form-only column such as a
+/// password does not appear here. A resource that declares its own read screen
+/// (a `BeakFormScreen` for the read role) shares one layout between reading
+/// and editing, so that layout decides what is shown.
 ///
 /// Related rows come from the same query as the record, so the page costs one
 /// round trip. A to-many relationship whose target model is not in [registry]
@@ -17,7 +24,11 @@ BeakFormLayout beakDefaultShowLayout(
   BeakModel model, {
   BeakModelRegistry? registry,
 }) {
-  final base = BeakFormLayout.fromModel(model, registry: registry);
+  final base = BeakFormLayout.fromModel(
+    model,
+    registry: registry,
+    surface: BeakContext.detail,
+  );
   final tabs = <BeakTab>[
     for (final relation in model.relationships)
       if (relation.cardinality == BeakRelationCardinality.many)

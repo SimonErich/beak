@@ -537,7 +537,6 @@ class BeakFilterEditor extends HookWidget {
                         controller: controller,
                         source: source,
                         saveState: candidateState,
-                        showSelector: false,
                         saveLabel: 'Save as view',
                         enabled: valid.value,
                         onSelected: () => onClose(),

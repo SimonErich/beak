@@ -139,17 +139,17 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 ## The panel around your resources
 
-`BeakPanel(...)` takes the everyday options directly. A complete `BeakPanelConfig` takes all of them, and `BeakPanel(config: ...)` hands it over. You cannot pass both: `config:` together with `resources:` fails an assertion.
+`BeakPanel(...)` takes the everyday options directly. A complete `BeakPanelConfig` takes all of them, and `BeakPanel(config: ...)` hands it over. You cannot pass both: `config:` together with `resources:` fails an assertion, and `config:` together with any other everyday option (`title`, `theme` and the rest) throws a `BeakConfigurationException` when the panel builds, because the configuration would silently win. Set such an option on the config, or use `copyWith`.
 
 | Option | `BeakPanel(...)` | `BeakPanelConfig` |
 | --- | --- | --- |
-| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `darkTheme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home` | yes | yes |
-| `maintenance`, `notifications`, `shellActions`, `mapException` | no | yes |
+| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `darkTheme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
+| `notifications`, `shellActions` | no | yes |
 | `initialThemeMode`, `supportedLocales`, `localizationsDelegates` | no | yes |
 | `sidebarCollapsible`, `sidebarDefaultCollapsed` | no | yes |
 | `dataSource`, `httpClient` | yes | no |
 
-`dataSource` and `httpClient` replace the transport under the panel. Widget tests use them to pump a panel against an in-memory source, and a panel with an external authentication adapter needs `dataSource` unless its models bring their own. Foodio builds a `BeakPanelConfig` because it uses notifications and shell actions:
+`dataSource` and `httpClient` replace the transport under the panel, with either form. Widget tests use them to pump a panel against an in-memory source, the Serverpod admin passes its tunnel as `dataSource`, and a panel with an external authentication adapter needs `dataSource` unless its models bring their own. Foodio builds a `BeakPanelConfig` because it uses notifications and shell actions:
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 --8<-- "examples/foodio-adminpanel/lib/main.dart:foodioPanelConfig"

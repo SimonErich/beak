@@ -70,9 +70,8 @@ Every block that shows data reads the panel's data source, so it works inside a 
 | layout, content | the arguments | not applicable |
 | `BeakMetricBlock`, `BeakSummaryBlock` | one aggregate or summary request | yes |
 | `BeakTableBlock` | pages of a model | yes |
-| charts, maps, `BeakTimelineBlock`, carousel, gallery, video | the query you pass | no |
-| kanban, calendar, chat, inbox, pricing, FAQ | the first 500 rows of a model | only their own moves and sends |
-| `BeakFileManagerBlock` | the first 25 rows of a model | no |
+| charts, maps, `BeakTimelineBlock`, carousel, gallery, video | the query you pass | yes |
+| kanban, calendar, chat, inbox, pricing, FAQ, `BeakFileManagerBlock` | the first 200 rows of a model (or of its `filter`) | yes |
 | `BeakProfileBlock`, `BeakInvoiceBlock` | one record by id | no |
 | field, field group | the nearest `BeakRecordScope` | not applicable |
 | `BeakRelationBlock` | the scope, then the relation's rows | yes |

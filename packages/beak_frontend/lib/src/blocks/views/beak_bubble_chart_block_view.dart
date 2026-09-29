@@ -10,6 +10,7 @@ class _BeakBubbleChartBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final points = useState(const <BeakBubblePoint>[]);
 
     useEffect(() {
@@ -28,7 +29,7 @@ class _BeakBubbleChartBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
     return OiCard(
       title: OiLabel.smallStrong(block.title),

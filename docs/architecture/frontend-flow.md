@@ -32,7 +32,7 @@ State flows up as `ReadonlySignal`s and intent flows down as method calls. The r
 
 ### Wiring above the widgets
 
-`BeakPanel` is the root widget. On its first build it creates a `GetIt.asNewInstance()` container of its own, registers Beak's dependencies into it, and builds the go_router. All three are memoized on the configuration and the two test seams (`dataSource:` and `httpClient:`).
+`BeakPanel` is the root widget. On its first build it creates a `GetIt.asNewInstance()` container of its own, registers Beak's dependencies into it, and builds the go_router. All three are memoized on the configuration and the two transport seams (`dataSource:` and `httpClient:`), which a test replaces with fakes and a host with its own transport, such as the Serverpod admin, sets in production.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel.dart"
 --8<-- "packages/beak_frontend/lib/src/panel/beak_panel.dart:panelRouting"
@@ -131,7 +131,7 @@ The dispatcher adds four things on top of the source it picks.
 
 #### One error mapper
 
-Every call runs through `_run`. Typed `BeakException`s pass, and a host exception goes through the panel's `mapException` when there is one:
+Every call runs through `_run`. Typed `BeakException`s pass, and a host exception goes through the panel's `mapException` when there is one. A `BeakAuthenticationException`, whether the server sent it or `mapException` produced it, also calls `onUnauthorized` before it is rethrown. The panel wires that to the session authority: the request that finds the session dead signs the user out, and the router lands on `/login`.
 
 ```dart title="packages/beak_frontend/lib/src/data/model_beak_data_source.dart"
 --8<-- "packages/beak_frontend/lib/src/data/model_beak_data_source.dart:run"
@@ -151,9 +151,9 @@ A form save is a `BeakSavePlan`. If every table in the plan resolves to one sour
 
 The same save id with different content is a `BeakConflictException` before anything is sent.
 
-#### Deletes through the same door
+#### Single-record writes through the same door
 
-A non-forced delete against a commit-capable source is sent as a one-operation plan, and a repeated click recovers the pending receipt instead of submitting a second delete. A forced delete uses the transport's own operation.
+A non-forced delete, and a create or an update made outside a form (a dragged board card, a chat message, an inline edit), against a commit-capable source is sent as a one-operation plan, so behavior, rules and `graphOnly` models apply to it. A repeated identical call recovers the pending receipt instead of submitting a second write, and a receipt that is not complete becomes the typed exception its error code names. A forced delete uses the transport's own operation.
 
 [Graph commits](graph-commits.md) covers what the server does with a plan.
 

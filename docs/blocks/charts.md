@@ -8,7 +8,7 @@ status: stable
 
 # Charts
 
-A chart block is a query and a function. The query says which rows, the function turns them into points, and the block draws them. After this page you can put any of ten chart shapes on a custom screen, and you know why the Aviary asks for 500 rows before it draws a line.
+A chart block is a query and a function. The query says which rows, the function turns them into points, and the block draws them. After this page you can put any of ten chart shapes on a custom screen, and you know why the Aviary asks for the largest page before it draws a line.
 
 For counts, sums and grouped totals, read [Population summaries](summaries.md) first. A summary is computed by the server over the whole population and refreshes after a write. A chart block draws the rows you query, so it fits data a summary cannot express: a time series of readings, a scatter of two columns, prices.
 
@@ -129,7 +129,7 @@ Charts read the theme. Series and segments take their colors from the theme's ch
 
 - **A chart shows what its query returns.** The default page is 25 rows. Pass `pagination` and `sorts` in the query.
 - **No loading state, no error state.** The chart draws empty, then fills in. A failed request leaves it empty, and nothing tells the reader why. If that is not acceptable, use a summary (which has both) or wrap the chart in your own widget.
-- **No refresh after a write.** The block fetches when it builds. Saving a record elsewhere does not redraw it until the screen is built again. Summaries and metrics do refresh.
+- **Refresh after a write.** The block fetches again when a write to its table is confirmed through the panel's data source. A failed request still leaves the chart empty.
 - **The mapper runs on the client.** Mapping happens in the app on the rows that arrived, so all the rows reach the device. For thousands of rows, aggregate on the server with a summary.
 - **Points are in mapper order.** Nothing sorts them, and line and area charts draw a segment between neighbors, so sort the query or the mapper's output.
 - **Categorical legends are fixed-height.** See the four-habitat query above.

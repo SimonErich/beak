@@ -1,6 +1,6 @@
 ---
 title: Maintenance and coming soon
-description: Mount /maintenance and /coming-soon pages with countdowns. They are presentation only, and nothing redirects to them or blocks the API.
+description: Mount /maintenance and /coming-soon pages with countdowns, and redirect every route to one of them. They are presentation only and do not block the API.
 type: guide
 audience: [beginner]
 status: stable
@@ -8,7 +8,7 @@ status: stable
 
 # Maintenance and coming soon
 
-You are about to migrate a database, or launch a panel next month, and you want a page that says so. `BeakMaintenanceConfig` gives the panel two ready-made pages for that. It does not switch anything on: nothing in Beak sends a visitor to them, and neither one stops a request.
+You are about to migrate a database, or launch a panel next month, and you want a page that says so. `BeakMaintenanceConfig` gives the panel two ready-made pages for that, and one switch, `redirectTo`, that sends every visitor to one of them. Neither page stops a request: the API keeps answering.
 
 ## At a glance
 
@@ -18,10 +18,10 @@ You are about to migrate a database, or launch a panel next month, and you want 
 | Routes | `/maintenance` and `/coming-soon`, outside the shell, so no sidebar |
 | Rendered by | obers_ui `OiMaintenancePage` |
 | Countdown | Only when `estimatedReturn` (maintenance) or `launchAt` (coming soon) is set |
-| Redirect to them | None. You send people there |
+| Redirect to them | Only with `redirectTo`. Without it you send people there |
 | Stops API traffic | No |
 | Signed out | Reachable. Both are public paths for the auth redirect |
-| Where you can set it | `BeakPanelConfig`. The `BeakPanel(...)` shorthand has no `maintenance:` parameter |
+| Where you can set it | `BeakPanelConfig.maintenance`, or `maintenance:` on the `BeakPanel(...)` shorthand |
 
 ## Mount the pages
 
@@ -59,7 +59,7 @@ You are about to migrate a database, or launch a panel next month, and you want 
 
 === "Authored panel"
 
-    Give `BeakPanel` a complete `config:`. Every option the shorthand lacks lives on `BeakPanelConfig`, this one included. From the package's own routing test:
+    Give `BeakPanel` a `maintenance:` argument, or put it on the `BeakPanelConfig` you pass as `config:`. From the package's own routing test:
 
     ```dart title="packages/beak_frontend/test/src/panel/beak_screen_routing_test.dart"
     maintenance: const BeakMaintenanceConfig(
@@ -81,7 +81,7 @@ That is the whole setup. Open `/maintenance` or `/coming-soon` and the page is t
 
 ## What the pages show
 
-The constructor has six optional named arguments, three per page:
+The constructor has seven optional named arguments, three per page and the redirect:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_maintenance_config.dart"
 --8<-- "packages/beak_frontend/lib/src/panel/beak_maintenance_config.dart:BeakMaintenanceConfig"
@@ -106,7 +106,17 @@ Neither page has a retry button or a status link. `OiMaintenancePage` supports b
 
 ## Send people there
 
-The pages are a sign on the door, not the lock. Nothing in the panel puts anyone in front of them: it never checks the server's health and never redirects on a failed request. A visitor sees `/maintenance` only when a link, a script or a proxy sends them there. From inside the app, `context.go('/maintenance')` (go_router) is the whole trip.
+The pages are a sign on the door, not the lock. `redirectTo` puts every visitor in front of one of them:
+
+```dart
+const BeakMaintenanceConfig(
+  maintenanceDescription: 'We are upgrading the database.',
+  estimatedReturn: DateTime.utc(2026, 10, 3, 6),
+  redirectTo: BeakMaintenancePage.maintenance,
+)
+```
+
+With that set, every route except the two pages redirects to `/maintenance` (or `/coming-soon` for `BeakMaintenancePage.comingSoon`), a signed-out visitor included: the redirect runs ahead of the sign-in wall. The other page stays reachable, so you can preview a launch page during a maintenance window. It is a client-side redirect in the panel build the visitor has already loaded. It never checks the server's health and never redirects on a failed request, so to switch it on you ship a build (or a config) with `redirectTo` set. Without `redirectTo` a visitor sees `/maintenance` only when a link, a script or a proxy sends them there. From inside the app, `context.go('/maintenance')` (go_router) is the whole trip.
 
 For a real outage the mechanics belong to your deployment:
 
@@ -123,25 +133,26 @@ A launch page has one more limit: `BeakPanelConfig.home` must be one of the pane
 
 | Rule | What it means |
 | --- | --- |
-| Presentation only | The pages change what a visitor sees on two routes. The API keeps answering |
-| No trigger | Nothing redirects to them. Not a failed request, not a date, not a server flag |
+| Presentation only | The pages change what a visitor sees. The API keeps answering |
+| One trigger | `redirectTo`. Not a failed request, not a date, not a server flag |
 | `maintenance: null` mounts neither | The routes then fall through to the not-found page |
-| `BeakPanelConfig` only | The `BeakPanel(...)` shorthand has no `maintenance:`. Use `config:`, or `lib/panel.dart` in a generated project |
 | `copyWith` can add, not remove | `copyWith(maintenance: null)` keeps the old value, because `null` means "unchanged" |
 | Signed-out visitors can open them | With `auth:` set, `/maintenance` and `/coming-soon` are public paths. Every other guest path redirects to `/login` |
 | Outside the shell | No sidebar, no top bar, no theme toggle |
-| `home:` cannot point at them | `home` must name a declared resource or screen, or the panel throws a `BeakConfigurationException` at startup |
+| `home:` cannot point at them | `home` must name a declared resource or screen, or the panel throws a `BeakConfigurationException` at startup. Use `redirectTo` to land on them |
 | Default titles are English | `Under maintenance` and `Coming soon` are plain strings, not localized. Pass your own for another language |
 
 ## Verify it
 
-The package tests mount both routes and read their titles. From `packages/beak_frontend`:
+The package tests mount both routes, read their titles and check both redirects. From `packages/beak_frontend`:
 
 ```console
 $ flutter test test/src/panel/beak_screen_routing_test.dart --plain-name maintenance
 00:00 +0: error + maintenance routes 403 and 500 render typed error pages
-00:01 +1: error + maintenance routes maintenance + coming-soon mount when configured
-00:01 +2: All tests passed!
+00:00 +1: error + maintenance routes maintenance + coming-soon mount when configured
+00:00 +2: error + maintenance routes redirectTo sends every other route to the chosen page
+00:00 +3: error + maintenance routes a coming-soon redirect wins over the sign-in wall
+00:00 +4: All tests passed!
 ```
 
 The generated path, in a scratch project made with `beak create demo --no-pub --beak-path <repo>` after `beak eject panel`, the edit above and `beak prepare`:
@@ -162,7 +173,7 @@ The two countdown lines, the redirect for a guest and the public paths come from
 START path=/login
 AT /maintenance -> /maintenance [Under maintenance, We are upgrading the database., Returning in 5h 29m]
 AT /coming-soon -> /coming-soon [Coming soon, Returning in 719h 59m]
-AT /notes -> /login [Demo, Sign in, Email address, Password]
+AT /notes -> /login [Demo, Sign in, Username or email, Password]
 ```
 
 A guest reaches both pages and is sent to `/login` for everything else.

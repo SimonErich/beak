@@ -151,7 +151,7 @@ A `restrict` refusal is enforced by the database, and Beak does not translate it
 
 `owned: true` says the children belong to this parent alone: a variant means nothing without its product, and an order line means nothing without its order. It is a promise about how the record is edited, and it changes four things:
 
-- The form may delete an owned child when its row is removed (`removeBehavior: BeakRemoveBehavior.deleteOwned`). For a shared relationship removing a row only detaches it, and asking for `deleteOwned` there throws `Deleting a related row requires an owned has-many relationship.` when the row is removed.
+- The form may delete an owned child when its row is removed (`removeBehavior: BeakRemoveBehavior.deleteOwned`). For a shared relationship removing a row only detaches it, and asking for `deleteOwned` there throws a `BeakConfigurationException` naming the relationship as soon as the form is built.
 - `galleryForm` needs an owned has-many, see [Files and storage columns](files-and-storage-columns.md).
 - Duplicating a record copies its owned collections and keeps shared links as they are.
 - When the owner declares `editableWhen`, its owned children are written only through a save of the owner, so the guard cannot be bypassed by editing a child by itself. The shop's `invoice_vouchers` answers a direct `POST` with `422 This resource must be saved through a graph commit.`, and `product_images` accepts it.
@@ -194,7 +194,7 @@ Beak never lazy-loads. A relationship you did not load reads as `null` (to-one) 
 - **Only `@BelongsTo(onDelete:)` is executed.** The other two are stored and unread, and a pivot always cascades.
 - **`restrict` and `cascade` are database rules.** The engine applies them, so they hold for a script and for the panel alike.
 - **A pivot has no columns of its own.** Data on a link means a schema with two belongs-to.
-- **`deleteOwned` needs an owned has-many.** It is checked when a row is removed, not when the form is built.
+- **`deleteOwned` needs an owned has-many.** It is checked when the form is built, so a misconfigured table fails on first open and not when someone removes a row.
 - **`searchOn` takes symbols.** Strings are an error that prints the symbols to write instead.
 - **Relations come from the schema, not from the query.** An unloaded relation is empty, so an "empty" collection can also mean "not asked for".
 

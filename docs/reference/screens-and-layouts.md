@@ -219,19 +219,23 @@ const BeakWizardScreen({
   super.reviewBeforeSave,
   super.showInspector,
   super.header,
-  super.recordHeader,
   super.aside,
   super.asideFooter,
   super.asideWidthInPixels,
+  super.asideFraction,
   super.footer,
   super.fullScreen,
   super.navigation,
   super.navigationDescription,
   super.submitAction,
   super.submitLabel,
+  super.submitIcon,
+  super.outlinedCancel,
+  super.showActionsWhileEditing,
   super.editLabel,
   super.prominentEdit,
   super.compactActions,
+  super.showChangeBar,
   super.showBack,
   super.pagePadding,
   super.pageGapInPixels,
@@ -239,9 +243,9 @@ const BeakWizardScreen({
 });
 ```
 
-`BeakWizardScreen` forwards 22 of the 29 parameters of `BeakFormScreen`, with `steps` required and `layout` gone. It does not take `layout`, `asideFraction`, `submitIcon`, `outlinedCancel`, `showActionsWhileEditing`, `editingLabel` or `showChangeBar`. A wizard that needs one of them is written as `BeakFormScreen(steps: [...])`, which accepts every parameter.
+`BeakWizardScreen` forwards 26 of the 29 parameters of `BeakFormScreen`, with `steps` required. It does not take `layout` (the steps are the layout), `recordHeader` or `editingLabel` (both belong to the single-page heading). A wizard that needs one of them is written as `BeakFormScreen(steps: [...])`, which accepts every parameter.
 
-`showBack`, `pagePadding` and `pageGapInPixels` are accepted and have no effect when `steps` is set or `fullScreen` is true: those screens do not use the generated page frame.
+`showBack`, `pagePadding` and `pageGapInPixels` shape the page around a wizard. They have no effect when `fullScreen` is true, because a full-screen wizard has no page chrome.
 
 ### BeakTableScreen
 
@@ -327,12 +331,13 @@ const BeakFormLayout({
 factory BeakFormLayout.fromModel(
   BeakModel model, {
   BeakModelRegistry? registry,
+  BeakContext surface = BeakContext.form,
 }) {
   // ...
 }
 ```
 
-It places one input for each column visible in a form, skipping the primary key and custom columns. A belongs-to foreign key becomes a `BeakRelationInput` when the target model is in the registry, and a plain input otherwise.
+It places one input for each column visible on `surface`, a form unless the caller asks for `BeakContext.detail`, skipping the primary key and custom columns. The generated read page asks for `detail`. A belongs-to foreign key becomes a `BeakRelationInput` when the target model is in the registry, and a plain input otherwise.
 
 ### BeakCard
 
@@ -594,7 +599,7 @@ final class BeakFormSections {
 | `tabs` | `BeakTabs` | One tab per section, each wrapping a copy of the section |
 | `steps` | `List<BeakWizardStep>` | One step per section |
 
-The projections carry the section's title, description, `visibleIf`, `enabledIf` and children. `tabs` also copies the section's title style, color, description style, gaps and divider. It does not copy `trailing` or `dividerAfterSpacingInPixels`, and `steps` does not copy any styling.
+The projections carry the section's title, description, `visibleIf`, `enabledIf` and children. `tabs` also copies the section's title style, color, description style, `trailing`, gaps and divider with the space after it. `steps` does not copy any styling, `trailing` or the divider.
 
 ### BeakFormDivider
 
@@ -1173,7 +1178,7 @@ const BeakRecordScope({
 | Calculated values | `BeakCalculated`, `BeakFormSummary`, `BeakFormMetrics` and `BeakFormCapacity` display values. None of them is submitted or validated |
 | Hidden by permission | A node whose field the account cannot read is hidden even when its `visibleIf` is true |
 | Asserts | `BeakColumns` needs `columns` and `minColumnWidthInPixels` above 0, `BeakSection` needs non-negative gaps, `BeakTabs` a non-negative `initialIndex`, `BeakFormMetric` a `flex` above 0, `BeakFormMetrics` a `minColumnWidthInPixels` above 0, and `BeakFormProgress` not both `states` and `steps`. These fail in debug builds |
-| Sections projection | `BeakFormSections.tabs` and `.steps` drop the fields listed under that class |
+| Sections projection | `BeakFormSections.steps` drops the styling, `trailing` and divider of a section, as listed under that class |
 
 ## Source
 

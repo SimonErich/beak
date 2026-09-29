@@ -54,6 +54,22 @@ void main() {
     ],
   );
 
+  testWidgets('a destination keeps its navigation group in the palette', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      BeakPanel(config: config, dataSource: FakeDataSource()),
+    );
+    await tester.pumpAndSettle();
+    openBeakCommandBar(tester.element(find.byType(OiAppShell)), config);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Insights'), findsOneWidget);
+    expect(find.text('Navigate'), findsNothing);
+  });
+
   testWidgets(
     'opening the real command dialog focuses its input for immediate typing',
     (tester) async {

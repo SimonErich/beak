@@ -705,6 +705,63 @@ void main() {
       );
     },
   );
+
+  test(
+    'deleting rows of a relationship the owner does not own fails at setup',
+    () {
+      const labels = BeakToManyField(
+        model: NoteModel(),
+        relation: NoteRelations.labels,
+        target: LabelModel(),
+      );
+
+      expect(
+        () => BeakFormSession(
+          model: const NoteModel(),
+          dataSource: FakeDataSource(),
+          layout: BeakFormLayout(
+            children: [
+              labels.tableForm(
+                children: const [],
+                removeBehavior: BeakRemoveBehavior.deleteOwned,
+              ),
+            ],
+          ),
+        ),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('"labels"'), contains('owned')),
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'adding a row to a relationship the layout has no editor for names it',
+    () async {
+      final session = BeakFormSession(
+        model: const _Basket(),
+        dataSource: FakeDataSource(models: const [_Basket(), _Line()]),
+        layout: BeakFormLayout(children: [_basketTitle.inputText()]),
+      );
+      addTearDown(session.dispose);
+      await session.load();
+
+      expect(
+        () => session.root.addRow(_items),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('"items"'), contains('baskets')),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 final class _Basket extends BeakModel {

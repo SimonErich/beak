@@ -120,7 +120,7 @@ Nothing in the framework provides that scope for you. A screen loads the record 
 
 #### The panel's data source
 
-Table, metric, chart, kanban, calendar and the other data blocks resolve `beakDependencies(context)<BeakDataSource>()` themselves and hold their loading and error state in hooks. The table refetches on its view model's change stream, and the metric and summary blocks refetch when `useBeakDataRevision` reports a write to a table they read. The chart, kanban and calendar blocks fetch when they are built and do not watch for writes. This is the metric block's state:
+Table, metric, chart, kanban, calendar and the other data blocks resolve `beakDependencies(context)<BeakDataSource>()` themselves and hold their loading and error state in hooks. The table refetches on its view model's change stream, and every other data block refetches when `useBeakDataRevision` reports a write to a table it reads. The board, calendar, chat, inbox, pricing, FAQ and file manager blocks share one hook, `_useModuleRows`, which also reports how many rows the query matched so the block can say it shows only the first page. This is the metric block's state:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart"
 --8<-- "packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart:metricState"
@@ -171,7 +171,7 @@ Conditions stay attached to the section when the presentation changes. A custom 
 
 - Prefer a typed block. Reach for `BeakWidgetBlock` only when none fits, and expect to test that part by hand.
 - A record block needs a `BeakRecordScope` above it. If a field block renders nothing, the scope is missing.
-- A data block needs no wiring. The table, metric and summary blocks refetch on their own when a table they read changes. The others need a rebuild.
+- A data block needs no wiring. Every data block refetches on its own when a table it reads changes.
 - Do not put state in a block. Put it in a `HookWidget` that builds blocks.
 - Adding a block type touches three places: the block class, the `part` line in `beak_block.dart`, and the arm in `BeakBlockHost`. The compiler tells you about the last one.
 

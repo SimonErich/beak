@@ -72,7 +72,7 @@ A field type Beak cannot map is an error from `beak prepare`, listed on [Annotat
 | --- | --- | --- | --- | --- |
 | `key` | `String` | required | `columnName` | Storage column name, snake case. Code references the column constant, not this string. |
 | `label` | `String` | required | `label` | Label in tables, forms and detail views. |
-| `visibleOn` | `Set<BeakContext>` | `{table, form, detail}` | `visibleOn` | Surfaces the column appears on. `filter` is off by default. |
+| `visibleOn` | `Set<BeakContext>` | `{table, form, detail}` | `visibleOn` | Surfaces the column appears on: the table, the form, the detail (show) page. `filter` is off by default, and nothing reads it for `visibleOn`: the filter bar comes from `filterable`. |
 | `sortable` | `bool` | `false` | `sortable` | Table views may order by it. |
 | `searchable` | `bool` | `false` | `searchable` | Search includes it. Reads `false` for a password semantic whatever was passed. |
 | `filterable` | `bool` | `false` | `filterable` | The list derives a filter control from it. |

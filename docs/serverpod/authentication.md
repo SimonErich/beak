@@ -140,7 +140,7 @@ await users.update(
 | Public registration never grants access | It is off unless `register: true`, and an account it creates holds no scope. The example turns it on so the first account can be created in the panel; a deployed admin usually leaves it off |
 | Only the email provider is tested | The adapter calls the generated email endpoint, and the script looks accounts up through `EmailIdp`. Another provider needs its own adapter |
 | Only JWT is tested | The tunnel reads `session.authenticated` and never looks at the token type, but nothing here tests server-side sessions or cookie mode |
-| Rejected sessions are cleared | A 401 while resolving the identity, or an error your `isUnauthenticated` recognizes, signs the device out and resolves to guest. Local logout works even if remote revocation fails |
+| Rejected sessions are cleared | A 401 while resolving the identity, or an error your `isUnauthenticated` recognizes, signs the device out and resolves to guest. A data request the gate answers with 401 does the same: the panel calls the adapter's `logout()`, so a revoked admin lands on the sign-in screen at its next request instead of reading errors. Local logout works even if remote revocation fails |
 | Beak sends no bearer token | The Serverpod client authenticates the `dispatch` call. Do not add an `Authorization` header |
 | Passwords and rate limits are Serverpod's | The panel shows `Too many sign-in attempts.` and `Invalid credentials.`; it stores no password policy of its own |
 | Keep the `serverpod*` pins identical | See [Version compatibility](versions.md) |

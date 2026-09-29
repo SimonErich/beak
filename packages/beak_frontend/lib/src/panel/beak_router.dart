@@ -53,12 +53,14 @@ GoRouter createBeakRouter(
   BeakAuthRouterRefresh? authRefresh,
 }) => GoRouter(
   refreshListenable: authRefresh,
-  redirect: (_, state) => authRefresh?.redirect(state.uri.path),
+  redirect: (_, state) =>
+      _maintenanceRedirect(config.maintenance, state.uri.path) ??
+      authRefresh?.redirect(state.uri.path),
   routes: [
     ...beakPanelRoutes(config),
     ...beakAuthRoutes(config),
     ..._maintenanceRoutes(config.maintenance),
-    ..._errorRoutes(),
+    ..._errorRoutes(config),
   ],
   errorBuilder: (context, state) => OiErrorPage.notFound(
     description: BeakLocalizations.of(context).notFoundPath(state.uri.path),
@@ -83,14 +85,18 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
               currentPath: state.uri.path,
               child: child,
             );
-      return config.auth == null
-          ? shell
-          : BeakAuthGate(
-              adapter:
-                  config.auth?.adapter ??
-                  beakDependencies(context)<BeakSessionStore>(),
-              child: shell,
-            );
+      final auth = config.auth;
+      if (auth == null) return shell;
+      return BeakAuthGate(
+        adapter: auth.adapter ?? beakDependencies(context)<BeakSessionStore>(),
+        child: switch (auth.idleLockTimeout) {
+          final Duration timeout => _BeakIdleLock(
+            timeout: timeout,
+            child: shell,
+          ),
+          null => shell,
+        },
+      );
     }),
     routes: [
       // `/` is claimed by a screen, or forwards to the panel's home; sign-in
@@ -104,7 +110,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
       for (final resource in config.resources) ...[
         GoRoute(
           path: resource.route,
-          onExit: (context, state) => beakConfirmFormExit(context),
+          onExit: (context, state) => _confirmExit(context),
           redirect: (_, _) => resource.isVisible ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -123,7 +129,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         ),
         GoRoute(
           path: '${resource.route}/create',
-          onExit: (context, state) => beakConfirmFormExit(context),
+          onExit: (context, state) => _confirmExit(context),
           redirect: (_, _) => resource.allowsCreate ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -142,7 +148,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         ),
         GoRoute(
           path: '${resource.route}/:id/edit',
-          onExit: (context, state) => beakConfirmFormExit(context),
+          onExit: (context, state) => _confirmExit(context),
           redirect: (_, _) => resource.allowsEdit ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -162,7 +168,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         ),
         GoRoute(
           path: '${resource.route}/:id',
-          onExit: (context, state) => beakConfirmFormExit(context),
+          onExit: (context, state) => _confirmExit(context),
           redirect: (_, _) => resource.isVisible ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -308,6 +314,19 @@ List<RouteBase> beakAuthRoutes(BeakPanelConfig config) {
 }
 // --8<-- [end:beakAuthRoutes]
 
+/// The page [maintenance] sends [path] to, or `null` when [path] may stay.
+String? _maintenanceRedirect(BeakMaintenanceConfig? maintenance, String path) {
+  final target = switch (maintenance?.redirectTo) {
+    BeakMaintenancePage.maintenance => '/maintenance',
+    BeakMaintenancePage.comingSoon => '/coming-soon',
+    null => null,
+  };
+  if (target == null || const {'/maintenance', '/coming-soon'}.contains(path)) {
+    return null;
+  }
+  return target;
+}
+
 // --8<-- [start:maintenanceRoutes]
 List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
   if (maintenance == null) {
@@ -338,13 +357,10 @@ List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
 }
 // --8<-- [end:maintenanceRoutes]
 
-List<RouteBase> _errorRoutes() => [
+List<RouteBase> _errorRoutes(BeakPanelConfig config) => [
   GoRoute(
     path: '/403',
-    builder: (context, state) => OiErrorPage.forbidden(
-      actionLabel: BeakLocalizations.of(context).backToDashboard,
-      onAction: () => context.go('/'),
-    ),
+    builder: (context, state) => _forbiddenPage(context, config),
   ),
   GoRoute(
     path: '/500',
@@ -354,6 +370,35 @@ List<RouteBase> _errorRoutes() => [
     ),
   ),
 ];
+
+/// The access-denied page. An account the panel refuses altogether cannot use
+/// "back to the dashboard", which leads straight back here, so it is offered
+/// the sign-in page instead, after its session ends.
+Widget _forbiddenPage(BuildContext context, BeakPanelConfig config) {
+  final strings = BeakLocalizations.of(context);
+  final container = beakDependencies(context);
+  final BeakAuthAdapter? adapter = config.auth == null
+      ? null
+      : config.auth?.adapter ??
+            (container.isRegistered<BeakSessionStore>()
+                ? container<BeakSessionStore>()
+                : null);
+  return Watch((context) {
+    final refused = switch (adapter?.state.value) {
+      BeakAuthAuthenticated(:final identity) => !identity.canAccessPanel,
+      _ => false,
+    };
+    return OiErrorPage.forbidden(
+      actionLabel: refused ? strings.authBackToLogin : strings.backToDashboard,
+      onAction: switch (adapter) {
+        final BeakAuthAdapter session when refused => () => unawaited(
+          session.logout(),
+        ),
+        _ => () => context.go('/'),
+      },
+    );
+  });
+}
 
 /// The panel chrome around every routed page: an `OiAppShell` whose
 /// navigation is generated from the configured resources and pages, grouped
@@ -522,7 +567,7 @@ final class _BeakShell extends HookWidget {
               .firstOrNull
         : null;
     void openCommandBar() => openBeakCommandBar(context, config);
-    final Widget shell = LayoutBuilder(
+    return LayoutBuilder(
       builder: (context, constraints) {
         final viewport = MediaQuery.of(context);
         // The panel may occupy a split view narrower than the window. Resolve
@@ -759,17 +804,27 @@ final class _BeakShell extends HookWidget {
         );
       },
     );
-    return switch (config.auth?.idleLockTimeout) {
-      final Duration timeout => _BeakIdleLock(timeout: timeout, child: shell),
-      null => shell,
-    };
   }
 }
 
-/// Locks the panel to `/lock` after [timeout] of no pointer activity inside
-/// the shell. Any pointer event resets the countdown; the timer is torn down
-/// when the shell unmounts (e.g. once navigation reaches the lock screen), so
-/// it never fires in a loop.
+/// Routers whose idle lock is closing the panel. A lock is not a decision to
+/// abandon the open forms, so their "Leave this form?" question is skipped
+/// until the lock screen has replaced the panel.
+final Set<GoRouter> _lockingRouters = {};
+
+/// Asks about leaving a form with unsaved changes, except while the idle lock
+/// is closing the panel: the dialog would keep the lock screen waiting for
+/// someone who is not there.
+Future<bool> _confirmExit(BuildContext context) async =>
+    _lockingRouters.contains(GoRouter.maybeOf(context)) ||
+    await beakConfirmFormExit(context);
+
+/// Locks the panel to `/lock` after [timeout] of no pointer or key activity,
+/// on every routed page including a full-screen form. Any pointer event resets
+/// the countdown; the timer is torn down when the panel unmounts (once
+/// navigation reaches the lock screen), so it never fires in a loop. Forms with
+/// unsaved changes do not hold the lock back; a form with a draft store keeps
+/// its draft, and one without loses its unsaved input.
 // --8<-- [start:idleLock]
 class _BeakIdleLock extends HookWidget {
   const _BeakIdleLock({required this.timeout, required this.child});
@@ -786,7 +841,11 @@ class _BeakIdleLock extends HookWidget {
       Timer? timer;
       void schedule() {
         timer?.cancel();
-        timer = Timer(timeout, () => router.go('/lock'));
+        _lockingRouters.remove(router);
+        timer = Timer(timeout, () {
+          _lockingRouters.add(router);
+          router.go('/lock');
+        });
       }
 
       // Keyboard events travel the focus pipeline, not the pointer pipeline
@@ -803,6 +862,7 @@ class _BeakIdleLock extends HookWidget {
       return () {
         HardwareKeyboard.instance.removeHandler(onKey);
         timer?.cancel();
+        _lockingRouters.remove(router);
       };
     }, [timeout, router]);
 

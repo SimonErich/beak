@@ -102,7 +102,7 @@ Widget renderBeakCell(
   final BeakValue? value = record[column.key];
   final Object? raw = value?.raw;
   if (raw == null) {
-    return const OiLabel.caption('—');
+    return OiLabel.caption(BeakFormatting.of(context).emptyValue);
   }
   return switch (intent) {
     BeakRenderIntent.text => OiLabel.body(raw.toString(), maxLines: 1),
@@ -147,6 +147,33 @@ Widget renderBeakCell(
   };
 }
 
+/// The text a display-format override shows for [record].
+///
+/// The value is read through the column's semantic first, so a money or exact
+/// decimal column formats its decoded amount and not the integer units it is
+/// stored as. A money column shown as currency keeps the currency of its own
+/// semantic, exactly as it does without an override.
+String _formattedFieldText(
+  BeakFormatting formatting,
+  BeakFormattedField<Object> field,
+  BeakRecord record,
+  BeakRecord owner,
+) {
+  final column = field.column;
+  if (field.format == BeakValueFormat.currency &&
+      column.semantic.kind == BeakSemanticKind.money) {
+    return formatting.formatColumn(column, owner) ?? formatting.emptyValue;
+  }
+  final value = field.readFrom(record);
+  final numeric = value == null ? null : _asNum(value);
+  return formatting.format(
+    field.minorUnits && numeric != null
+        ? numeric / math.pow(10, field.scale)
+        : value,
+    field.format,
+  );
+}
+
 /// Formats a typed field as plain text with the same policy as field cells.
 /// Useful for option labels that combine identity and price without widgets.
 String formatBeakField(
@@ -160,17 +187,8 @@ String formatBeakField(
   if (field.column.semantic.kind == BeakSemanticKind.password) {
     return formatting.formatColumn(field.column, owner) ?? '••••••••';
   }
-  if (field case BeakFormattedField<Object>(
-    :final format,
-    :final minorUnits,
-    :final scale,
-  )) {
-    final raw = field.readFrom(record);
-    final numeric = raw == null ? null : _asNum(raw);
-    return formatting.format(
-      minorUnits && numeric != null ? numeric / math.pow(10, scale) : raw,
-      format,
-    );
+  if (field case final BeakFormattedField<Object> formatted) {
+    return _formattedFieldText(formatting, formatted, record, owner);
   }
   return formatting.formatCell(field.column, owner);
 }
@@ -184,25 +202,20 @@ Widget renderBeakField(
   BeakContext renderContext = BeakContext.table,
 }) {
   final owner = field.ownerRecord(record);
-  if (owner == null) return const OiLabel.caption('—');
+  if (owner == null) {
+    return OiLabel.caption(BeakFormatting.of(context).emptyValue);
+  }
   if (field.column.semantic.kind == BeakSemanticKind.password) {
     return OiLabel.body(
       BeakFormatting.of(context).formatColumn(field.column, owner) ??
           '••••••••',
     );
   }
-  if (field case BeakFormattedField<Object>(
-    :final format,
-    :final minorUnits,
-    :final scale,
-  )) {
-    final formatting = BeakFormatting.of(context);
-    final raw = owner[field.key]?.raw;
-    final numeric = raw == null ? null : _asNum(raw);
-    final value = minorUnits && numeric != null
-        ? numeric / math.pow(10, scale)
-        : raw;
-    return OiLabel.body(formatting.format(value, format), maxLines: 1);
+  if (field case final BeakFormattedField<Object> formatted) {
+    return OiLabel.body(
+      _formattedFieldText(BeakFormatting.of(context), formatted, record, owner),
+      maxLines: 1,
+    );
   }
   if ((field.column, owner[field.key]?.raw) case (
     BeakImageColumn(),
@@ -238,13 +251,14 @@ String beakCellText(
   BeakFormatting? formatting,
   BeakRecord? record,
 }) {
-  final semantic = (formatting ?? const BeakFormatting()).formatColumn(
+  final policy = formatting ?? const BeakFormatting();
+  final semantic = policy.formatColumn(
     column,
     record ?? BeakRecord(values: {column.key: BeakValue.of(raw)}),
   );
   if (semantic != null) return semantic;
   if (raw == null) {
-    return '—';
+    return policy.emptyValue;
   }
   return switch (column.intentFor(renderContext)) {
     BeakRenderIntent.number => _numberText(column, raw, formatting),

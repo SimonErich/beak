@@ -42,6 +42,11 @@ has the whole table.
 
 ## Sign-in
 
+[Authentication and scopes](https://simonerich.github.io/beak/serverpod/authentication/)
+follows a sign-in from the adapter to the first request: who may pass each door,
+how to grant and revoke panel access, and how long a revoked admin keeps
+working.
+
 Build the adapter in `main`, after the client has restored its stored session,
 and call `initialize()` before `runApp`:
 

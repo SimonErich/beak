@@ -5,6 +5,7 @@ import 'package:obers_ui/obers_ui.dart';
 import '../data/beak_data_changes.dart';
 import '../localization/beak_localizations.dart';
 import '../formatting/beak_formatting.dart';
+import '../presentation/beak_action_presentation.dart';
 import 'beak_auth_config.dart';
 import 'beak_destination.dart';
 import 'beak_maintenance_config.dart';
@@ -237,6 +238,8 @@ final class BeakPanelConfig {
         'A panel needs at least one resource or page to show.',
       );
     }
+    _checkNavigation();
+    _checkAuth();
     final home = this.home;
     if (home == null) return;
     final declared = switch (home) {
@@ -262,6 +265,96 @@ final class BeakPanelConfig {
     }
   }
 
+  /// Registration and recovery are flows of a [BeakAuthAdapter]; the default
+  /// session store offers neither, so asking for them without an adapter would
+  /// mount no route at all.
+  void _checkAuth() {
+    final auth = this.auth;
+    if (auth == null || auth.adapter != null) return;
+    for (final (name, requested) in [
+      ('register', auth.register),
+      ('recover', auth.recover),
+    ]) {
+      if (requested) {
+        throw BeakConfigurationException(
+          'BeakAuthConfig sets `$name: true`, but the default session store '
+          'has no $name flow. Give the config an `adapter` that offers it, '
+          'or leave `$name` off.',
+        );
+      }
+    }
+  }
+
+  /// A composed list refers to actions by key. A key that matches nothing the
+  /// resource offers would be dropped without a word, so it is refused here.
+  void _checkActionPresentations(BeakResource resource) {
+    final modelKeys = [
+      for (final action in resource.model.behavior.actions)
+        BeakActionPresentation.keyOfModelAction(action),
+    ];
+    final rowKeys = {
+      'view',
+      'edit',
+      resource.deleteAction.key,
+      'duplicate',
+      for (final action in resource.recordActions) action.key,
+      ...modelKeys,
+    };
+    final bulkKeys = {
+      'export',
+      for (final action in resource.bulkActions) action.key,
+      ...modelKeys,
+    };
+    for (final screen in resource.screens) {
+      if (screen is! BeakTableScreen) continue;
+      final definition = screen.definition;
+      if (definition == null) continue;
+      final checks = <(String, List<BeakActionPresentation>?, Set<String>)>[
+        ('rowActions', definition.rowActions, rowKeys),
+        ('bulkActions', definition.bulkActions, bulkKeys),
+      ];
+      for (final (name, presentations, known) in checks) {
+        for (final presentation
+            in presentations ?? const <BeakActionPresentation>[]) {
+          if (!known.contains(presentation.key)) {
+            throw BeakConfigurationException(
+              'The "${resource.model.table}" list names the action '
+              '"${presentation.key}" in $name, but the resource offers only '
+              '${(known.toList()..sort()).join(', ')}.',
+            );
+          }
+        }
+      }
+    }
+  }
+
+  /// Every navigation item must lead somewhere the panel has: a resource item
+  /// names a declared resource, a screen item one of the [pages]. Otherwise the
+  /// item links to the not-found page, or silently vanishes.
+  void _checkNavigation() {
+    for (final section
+        in navigation?.sections ?? const <BeakNavigationSection>[]) {
+      for (final item in section.items) {
+        if (item.model case final BeakModel model
+            when !resources.any(
+              (resource) => resource.model.table == model.table,
+            )) {
+          throw BeakConfigurationException(
+            'The "${section.label}" navigation section lists "${model.table}", '
+            'but the panel declares no resource for it.',
+          );
+        }
+        if (item.screen case final BeakScreen screen
+            when !pages.any((page) => page.path == screen.path)) {
+          throw BeakConfigurationException(
+            'The "${section.label}" navigation section lists the screen at '
+            '"${screen.path}", but it is not among the panel\'s pages.',
+          );
+        }
+      }
+    }
+  }
+
   /// Builds a [BeakModelRegistry] over every resource model, in declaration
   /// order.
   ///
@@ -283,6 +376,17 @@ final class BeakPanelConfig {
           );
         }
       }
+      final filterKeys = <String>{};
+      for (final filter in resource.filters) {
+        if (!filterKeys.add(filter.key)) {
+          throw BeakConfigurationException(
+            'The "${resource.model.table}" resource declares two filters on '
+            '"${filter.key}". They would share one state, so each field takes '
+            'a single filter; use a choice filter for several predicates.',
+          );
+        }
+      }
+      _checkActionPresentations(resource);
       for (final screen in resource.screens) {
         if (screen is BeakTableScreen &&
             screen.query != null &&
@@ -318,6 +422,18 @@ final class BeakPanelConfig {
     final visited = <String>{};
     for (final resource in resources) {
       registerRelated(resource.model, visited);
+    }
+    // A list that saves views writes them to the store's model, which is
+    // usually no resource of the panel and so is registered here.
+    for (final resource in resources) {
+      for (final screen in resource.screens) {
+        if (screen is! BeakTableScreen) continue;
+        if (screen.definition?.savedViews?.model case final BeakModel views
+            when registry.byTable(views.table) == null) {
+          registry.register(views);
+          registerRelated(views, visited);
+        }
+      }
     }
     return registry;
   }

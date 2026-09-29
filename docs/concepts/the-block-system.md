@@ -88,7 +88,7 @@ Editing is a different problem. A form has live state: what the user typed, whic
 
 `visibleIf` and `enabledIf` are predicates over the live draft, `bool Function(BeakFormReader)`. They are usually lambdas, and the reader tracks which fields they read so the form re-evaluates them when those change. Inputs, relation inputs, nested-row tables, cards, tabs, wizard steps and calculated lines are all form nodes.
 
-The same tree serves three modes. `BeakFormMode` is `read`, `create` or `edit`, so the generated show page is a read-mode `BeakConfiguredForm` over the same layout as the edit form. The form's fields and the read view can't disagree.
+The same tree serves three modes. `BeakFormMode` is `read`, `create` or `edit`, so a read screen is a read-mode `BeakConfiguredForm` over the same layout as the edit form, and the form's fields and the read view can't disagree. The generated show page builds its own layout from the columns marked for the detail surface.
 
 ### Where a widget of your own fits
 

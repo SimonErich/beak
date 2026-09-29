@@ -68,7 +68,7 @@ final class BeakSavedViewStore {
       BeakQuerySpec(
         table: model.table,
         filter: BeakFilter.allOf([resource.eq(table), ?filter]),
-        pagination: const BeakPagination(perPage: 1000),
+        pagination: const BeakPagination(perPage: BeakPagination.maxPerPage),
       ),
     );
     return [
@@ -278,7 +278,12 @@ class _SaveViewDialog extends HookWidget {
             model: store.model,
             dataSource: source,
             layout: layout,
-            onSession: (value) => session.value = value,
+            // The form reports its session while it builds, when this dialog
+            // may not rebuild yet.
+            onSession: (value) =>
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) session.value = value;
+                }),
             onSaved: (_) => close(),
           ),
         ),

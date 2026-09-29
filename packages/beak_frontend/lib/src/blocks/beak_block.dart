@@ -57,11 +57,10 @@ part 'beak_widget_block.dart';
 /// A declarative, composable content node — the building block of every
 /// non-CRUD Beak surface.
 ///
-/// One sealed union drives three consumers with the same descriptors: a
-/// custom page's body, a resource's alternate view mode, and an overlay's
-/// content. `BeakBlockHost` renders the union exhaustively onto obers_ui
-/// widgets, so a new block type is a compile error until every renderer
-/// handles it.
+/// One sealed union drives two consumers with the same descriptors: a custom
+/// page's body and an overlay's content. `BeakBlockHost` renders the union
+/// exhaustively onto obers_ui widgets, so a new block type is a compile error
+/// until every renderer handles it.
 ///
 /// Blocks are pure `const` configuration — no widget code, no callbacks
 /// except where an interaction is the feature (and [BeakWidgetBlock], the

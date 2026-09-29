@@ -163,8 +163,8 @@ Only the relations a visible, editable placement owns are included. A table hidd
 | Required relations | A non-nullable relationship, or `BeakRequired` in `validate`, makes the picker required and not clearable |
 | Disabled options | `disabledReason` is enforced at validation. It is a form rule. State a limit that must hold in the model too |
 | One editable owner | Placing the same field twice as an editable input throws `Duplicate editable field`. Repeat a collection with `readOnly: true` |
-| `deleteOwned` | Valid for an owned has-many only. A misconfigured relation is caught when a saved row is removed, not when the form is built |
-| Row changes from code | `addRow` and `relationTable` need a `tableForm` for that relationship in the layout. Without one they fail with a bare `StateError` |
+| `deleteOwned` | Valid for an owned has-many only. A misconfigured relation throws a `BeakConfigurationException` naming it as soon as the form is built |
+| Row changes from code | `addRow` and `relationTable` need a `tableForm` for that relationship in the layout. Without one they throw a `BeakConfigurationException` naming the relationship and telling you to place `tableForm` for it |
 | Catalog presentation | `checkboxes` needs a finite `maxOptions`, no `quantity` and no `groupBy`. `pageSize` needs `maxOptions`. These are asserts, so they fail in debug builds |
 | Catalog scope | `selection` must belong to the row model, and a `matches` facet needs `maxOptions` |
 | Unknown save | While a save is running or its result is unknown, adding a row throws and other edits are ignored. Resolve the save first, see [Drafts, review and conflicts](drafts-and-review.md) |

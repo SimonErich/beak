@@ -30,6 +30,7 @@ final class BeakFileManagerBlock extends BeakBlock {
     this.thumbnailField,
     this.label = 'Files',
     this.onOpen,
+    this.filter,
     super.span,
   });
 
@@ -53,6 +54,11 @@ final class BeakFileManagerBlock extends BeakBlock {
 
   /// Accessibility label for the manager.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Invoked with the opened entry's record.
   final void Function(BeakRecord record)? onOpen;

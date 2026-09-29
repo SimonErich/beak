@@ -81,7 +81,7 @@ That is all. Create and edit now open the wizard, and the show page shows tabs.
 | The wizard on the whole screen, sending through a named command | `fullScreen: true` and `submitAction:`. Foodio's order wizard does. |
 | Fields that appear only for some answers | `visibleIf` on the input or the card. On a whole section it hides the content but leaves an empty step in the navigation. |
 | A plain stacked form from the same sections | `orderSections().form`. |
-| One of the `BeakFormScreen` options the wizard lacks | Write `BeakFormScreen(steps: [...])` directly. `BeakWizardScreen` forwards 22 of its 29 parameters. |
+| One of the `BeakFormScreen` options the wizard lacks (`layout`, `recordHeader`, `editingLabel`) | Write `BeakFormScreen(steps: [...])` directly. `BeakWizardScreen` forwards 26 of its 29 parameters. |
 
 A wizard has no generated page frame, so record actions such as a print button do not appear on it. If the model has commands, place them with `BeakFormActions` inside a step.
 

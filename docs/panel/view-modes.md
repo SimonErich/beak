@@ -21,7 +21,7 @@ A model is a set of records, and a view mode is one way to look at them. The tab
 | Timeline | `BeakTimelineBlock`, fed by its own `BeakQuerySpec` |
 | A switch between them | `BeakTabsBlock`, on a `BeakScreen` with `framed: false` |
 
-The board and the calendar write back: a dropped card and a dragged event update the record over its per-record route. That is convenient for plain models and rejected for models with business behavior, see [Writing from a view](#writing-from-a-view).
+The board and the calendar write back: a dropped card and a dragged event save the record through the panel's data source, the way a form saves, see [Writing from a view](#writing-from-a-view).
 
 ## One model, three looks
 
@@ -79,11 +79,9 @@ The timeline takes a whole `BeakQuerySpec`, so it is the one block here where yo
 
 ## Writing from a view
 
-A dropped card or a dragged event is a single `PATCH` on that record. The server validates the changed value with the column's rules and applies the account's row and field policies, then saves it. When the save succeeds, the block mirrors it, so the card stays in its new column. When it fails, the card snaps back and nothing tells the user why. `onCardMove` and `onEventMove` run after the attempt either way, so treat them as "the user tried", not as "the write worked".
+A dropped card or a dragged event is saved as a single-operation graph commit on that record, through `POST /api/commits`. The server validates the changed value with the column's rules, applies the account's row and field policies, and runs the model's behavior and rules, so a `graphOnly` model or one with `behavior` accepts the move. When the save succeeds, the block mirrors it, so the card stays in its new column, and `onCardMove` or `onEventMove` runs. When it fails, the card snaps back, a toast gives the reason (the server's message for a validation or permission failure, a generic line for an infrastructure one), and the callback does not run. Treat the callbacks as "the write worked".
 
-The server closes those per-record write routes for a model that declares `behavior`, is listed in `graphOnly` or takes part in validation rules that reach related tables. A drop on such a model is answered with `422` and `This resource must be saved through a graph commit.`, and the card returns. Model behavior and record rules only run in a graph commit, and a drag does not make one.
-
-For a model with business transitions, use a table with model actions instead of a board. The action runs through the graph commit, gets its rules checked and leaves a receipt, see [Actions](actions.md). A board over such a model is fine for looking.
+A transition that needs input, or a guard that has a name, still belongs in a model action on a table. The action runs through the graph commit, gets its rules checked and leaves a receipt, see [Actions](actions.md). A drop can only write the value the column takes.
 
 !!! note "Coming from viewModes"
     Earlier drafts declared table, calendar and kanban views on the resource (`viewModes`) with a switcher on the list page. That API is gone, and so are its view classes. A resource has its `screens`, and a board or a calendar is a block on a `BeakScreen`. The mapping is in [Upgrading](../start-here/upgrading.md).
@@ -92,12 +90,11 @@ For a model with business transitions, use a table with model actions instead of
 
 | Rule | What happens |
 | --- | --- |
-| A block loads up to 500 records of its model | There is no `baseFilter` on the board or the calendar. Row policies on the server still narrow what arrives |
-| Blocks load when they mount | A board or a calendar does not reload after a write made elsewhere. Leave and come back, or switch a tab. A `BeakTableBlock` does reload |
+| A block loads up to 200 records of its model | Pass `filter:` to narrow them. When more match, a line beneath the block says how many are shown. Row policies on the server narrow what arrives too |
+| Blocks load again after a write to their table | A board or a calendar queries again when a form, an action or another block writes its table. Only a colleague's write in another browser needs a `refreshPolicy` |
 | The group field belongs to the block's model | Related fields throw when the board renders |
 | Card and event text is the stored value | Enum columns show the enum name |
-| A drop or a drag is one `PATCH` | Rejected for models with behavior, `graphOnly` models and rule-linked models |
-| A failed write shows nothing | The card or event returns to where it was |
+| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback |
 | The timeline is read-only | Change the records in the table or the form |
 
 ## Verify it
@@ -107,13 +104,15 @@ The block tests build each block against a fake source, drop a card and drag an 
 ```console
 $ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|BeakCalendarBlock|kanban' --reporter expanded
 00:00 +0: BeakCalendarBlock maps records onto OiCalendar events
-00:00 +1: BeakCalendarBlock a tap resolves back to the record; a drag persists
-00:00 +2: BeakKanbanBlock one column per enum value, records grouped
-00:00 +3: BeakKanbanBlock the group field must be an enum field of the block model
-00:00 +4: BeakKanbanBlock dropping a card persists its new group
-00:00 +5: module hardening (audit regressions) kanban fetches one full sorted page
-00:00 +6: module hardening (audit regressions) a dropped kanban card stays in its new column
-00:00 +7: All tests passed!
+00:00 +1: BeakCalendarBlock a row without a start is left out, not given today
+00:00 +2: BeakCalendarBlock a tap resolves back to the record; a drag persists
+00:00 +3: BeakKanbanBlock one column per enum value, records grouped
+00:00 +4: BeakKanbanBlock the group field must be an enum field of the block model
+00:00 +5: BeakKanbanBlock dropping a card persists its new group
+00:00 +6: module hardening (audit regressions) kanban fetches one full sorted page
+00:00 +7: module hardening (audit regressions) a dropped kanban card stays in its new column
+00:00 +8: module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+00:00 +9: All tests passed!
 ```
 
 And the planner page renders in the showcase panel, from `examples/showcase`:

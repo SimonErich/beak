@@ -135,9 +135,13 @@ class BeakAuthPage extends HookWidget {
                       if (mode == BeakAuthMode.login ||
                           step == BeakAuthStep.email)
                         OiTextInput(
-                          label: strings.authEmail,
+                          label: mode == BeakAuthMode.login
+                              ? strings.authIdentifier
+                              : strings.authEmail,
                           controller: email,
-                          keyboardType: TextInputType.emailAddress,
+                          keyboardType: mode == BeakAuthMode.login
+                              ? TextInputType.text
+                              : TextInputType.emailAddress,
                           enabled: !busy,
                         ),
                       if (mode != BeakAuthMode.login &&

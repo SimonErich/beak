@@ -191,6 +191,62 @@ void main() {
     expect(indicator.max, 10);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a capacity presentation without a capacity names the mistake', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1300, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // The broken view reports on every frame, so collect what is reported.
+    final reported = <Object>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = (details) => reported.add(details.exception);
+    try {
+      await tester.pumpWidget(
+        BeakPanel(
+          dataSource: _SummarySource(
+            values: const {'booked': 3, 'capacity': 10},
+          ),
+          resources: [
+            BeakResource(
+              model: const NoteModel(),
+              screens: [
+                BeakTableScreen(
+                  definition: BeakListDefinition(
+                    header: BeakSummaryBlock(
+                      title: 'Slots',
+                      presentation: BeakSummaryPresentation.capacity,
+                      scope: BeakSummaryScope.standalone,
+                      query: const NoteModel().summary(
+                        groupBy: _title,
+                        measures: [_booked, _capacity],
+                      ),
+                      values: const [
+                        BeakSummaryValue(measure: _booked, label: 'Booked'),
+                      ],
+                    ),
+                    columns: [BeakTableColumn.field(_title)],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      GoRouter.of(tester.element(find.byType(OiAppShell))).go('/notes');
+      await tester.pumpAndSettle();
+    } finally {
+      FlutterError.onError = previous;
+    }
+
+    expect(
+      reported.whereType<BeakConfigurationException>().map(
+        (error) => error.message,
+      ),
+      contains(allOf(contains('Slots'), contains('capacity'))),
+    );
+  });
 }
 
 const _booked = BeakSummaryMeasure.count('booked');

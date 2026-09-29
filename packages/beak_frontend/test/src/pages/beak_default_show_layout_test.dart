@@ -28,6 +28,32 @@ void main() {
     expect(tabsOf(layout), isEmpty);
   });
 
+  List<String> inputKeysOf(BeakFormLayout layout) => [
+    for (final child in layout.children)
+      if (child is BeakCard)
+        for (final inner in child.children)
+          if (inner is BeakInput<Object>) inner.field.key,
+  ];
+
+  test('the card lists the detail columns, not the form columns', () {
+    final layout = beakDefaultShowLayout(const _AuditedModel());
+
+    // `created_at` is read-only detail, `secret` is form-only.
+    expect(inputKeysOf(layout), ['title', 'created_at']);
+  });
+
+  test('the generated form keeps listing the form columns', () {
+    final layout = BeakFormLayout.fromModel(const _AuditedModel());
+
+    expect(
+      [
+        for (final child in layout.children)
+          if (child is BeakInput<Object>) child.field.key,
+      ],
+      ['title', 'secret'],
+    );
+  });
+
   test('each to-many relationship with a known target gets a tab', () {
     final layout = beakDefaultShowLayout(
       const ArticleModel(),
@@ -107,5 +133,32 @@ final class _CommentModel extends BeakModel {
     BeakStringColumn(key: 'author', label: 'Author'),
     BeakStringColumn(key: 'body', label: 'Body'),
     BeakStringColumn(key: 'article_id', label: 'Article'),
+  ];
+}
+
+/// A model whose columns sit on different surfaces.
+final class _AuditedModel extends BeakModel {
+  const _AuditedModel();
+
+  @override
+  String get table => 'audited';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'title', label: 'Title'),
+    BeakStringColumn(
+      key: 'created_at',
+      label: 'Created',
+      visibleOn: {BeakContext.detail},
+    ),
+    BeakStringColumn(
+      key: 'secret',
+      label: 'Secret',
+      visibleOn: {BeakContext.form},
+    ),
   ];
 }

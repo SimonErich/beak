@@ -72,6 +72,107 @@ void main() {
     },
   );
 
+  group('a display format on a money-semantic decimal', () {
+    // The wire carries 123456 minor units of a scale-2 money column: 1234.56.
+    final record = BeakRecord.fromRow({'amount': 123456});
+    const money = BeakScalarField<BeakDecimal>(
+      model: _LabelModel(),
+      column: _LabelModel.amount,
+    );
+    const formatting = BeakFormatting(currency: 'EUR', locale: 'en_US');
+
+    Future<void> pumpUnder(
+      WidgetTester tester,
+      Widget Function(BuildContext) build,
+    ) => tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakFormattingScope(
+          formatting: formatting,
+          child: Builder(builder: build),
+        ),
+      ),
+    );
+
+    testWidgets('formatBeakField decodes the units before formatting', (
+      tester,
+    ) async {
+      late String text;
+      await pumpUnder(tester, (context) {
+        text = formatBeakField(
+          context,
+          field: money.formatted(BeakValueFormat.currency),
+          record: record,
+        );
+        return const SizedBox.shrink();
+      });
+
+      expect(text, '£1,234.56');
+    });
+
+    testWidgets('renderBeakField decodes the units before formatting', (
+      tester,
+    ) async {
+      await pumpUnder(
+        tester,
+        (context) => renderBeakField(
+          context,
+          field: money.formatted(BeakValueFormat.currency, label: 'Due'),
+          record: record,
+        ),
+      );
+
+      expect(find.text('£1,234.56'), findsOneWidget);
+      expect(find.textContaining('123,456'), findsNothing);
+    });
+
+    testWidgets('it agrees with the unformatted field', (tester) async {
+      late String plain;
+      late String formatted;
+      await pumpUnder(tester, (context) {
+        plain = formatBeakField(context, field: money, record: record);
+        formatted = formatBeakField(
+          context,
+          field: money.formatted(BeakValueFormat.currency),
+          record: record,
+        );
+        return const SizedBox.shrink();
+      });
+
+      expect(formatted, plain);
+    });
+
+    testWidgets('a number format shows the decimal, not the units', (
+      tester,
+    ) async {
+      late String text;
+      await pumpUnder(tester, (context) {
+        text = formatBeakField(
+          context,
+          field: money.formatted(BeakValueFormat.number),
+          record: record,
+        );
+        return const SizedBox.shrink();
+      });
+
+      expect(text, '1,234.56');
+    });
+
+    testWidgets('an empty amount shows the empty placeholder', (tester) async {
+      late String text;
+      await pumpUnder(tester, (context) {
+        text = formatBeakField(
+          context,
+          field: money.formatted(BeakValueFormat.currency),
+          record: BeakRecord.fromRow({'amount': null}),
+        );
+        return const SizedBox.shrink();
+      });
+
+      expect(text, '—');
+    });
+  });
+
   testWidgets('text and number intents render labels', (tester) async {
     await pumpCell(
       tester,
@@ -370,6 +471,11 @@ void main() {
 final class _LabelModel extends BeakModel {
   const _LabelModel();
   static const price = BeakIntColumn(key: 'price', label: 'Price');
+  static const amount = BeakIntColumn(
+    key: 'amount',
+    label: 'Amount',
+    semantic: BeakSemantic.money(currency: 'GBP'),
+  );
   static const password = BeakStringColumn(
     key: 'password',
     label: 'Password',
@@ -380,5 +486,5 @@ final class _LabelModel extends BeakModel {
   @override
   String get displayColumnKey => 'price';
   @override
-  List<BeakColumn> get columns => const [price, password];
+  List<BeakColumn> get columns => const [price, amount, password];
 }

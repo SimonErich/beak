@@ -280,7 +280,6 @@ const BeakRecordAction({
   this.roles = const {
     BeakScreenRole.list,
     BeakScreenRole.read,
-    BeakScreenRole.create,
     BeakScreenRole.edit,
   },
   super.icon,
@@ -292,7 +291,7 @@ const BeakRecordAction({
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `onExecute` | `Future<void> Function(BeakRecord, BeakActionContext)` | required | Runs the action |
-| `roles` | `Set<BeakScreenRole>` | list, read, create, edit | Generated surfaces that show the action. Presentation only. |
+| `roles` | `Set<BeakScreenRole>` | list, read, edit | Generated surfaces that show the action. Presentation only. A create page has no saved record, so it draws no record action and `create` is not in the default |
 
 Two factories cover common cases.
 
@@ -320,7 +319,6 @@ factory BeakRecordAction.document({
   Set<BeakScreenRole> roles = const {
     BeakScreenRole.list,
     BeakScreenRole.read,
-    BeakScreenRole.create,
     BeakScreenRole.edit,
   },
   IconData? icon,

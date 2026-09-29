@@ -10,6 +10,7 @@ class _BeakMapBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final values = useState(const <String, num>{});
 
     useEffect(() {
@@ -33,7 +34,7 @@ class _BeakMapBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
     return OiCard(
       title: OiLabel.smallStrong(block.title),

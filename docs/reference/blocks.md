@@ -21,7 +21,7 @@ import 'package:beak/panel.dart';
 
 ## Summary
 
-`BeakBlock` is sealed and all 47 subclasses live in `packages/beak_frontend/lib/src/blocks/`. `Reads` says where a block gets its data: `none` (configuration only), `query` (a `BeakQuerySpec` you pass), `model` (the first 500 rows of `model`), `record` (one row by `recordId`), `scope` (the record in the nearest `BeakRecordScope`), `aggregate` (one aggregate request) and `summary` (one grouped summary request).
+`BeakBlock` is sealed and all 47 subclasses live in `packages/beak_frontend/lib/src/blocks/`. `Reads` says where a block gets its data: `none` (configuration only), `query` (a `BeakQuerySpec` you pass), `model` (one page of at most 200 rows of `model`, the most a server serves), `record` (one row by `recordId`), `scope` (the record in the nearest `BeakRecordScope`), `aggregate` (one aggregate request) and `summary` (one grouped summary request).
 
 | Block | Group | Renders onto | Reads | Refetches after a write |
 | --- | --- | --- | --- | --- |
@@ -50,30 +50,30 @@ import 'package:beak/panel.dart';
 | [`BeakTableBlock`](#beaktableblock) | data | `BeakDataTable` | model, own paging | yes |
 | [`BeakMetricBlock`](#beakmetricblock) | data | a metric card | aggregate | yes |
 | [`BeakSummaryBlock`](#beaksummaryblock) | data | metrics, strip, bar, donut, table or capacity | summary | yes |
-| [`BeakTimelineBlock`](#beaktimelineblock) | data | `OiTimeline` | query | no |
-| [`BeakGalleryBlock`](#beakgalleryblock) | data | `OiGallery` | query | no |
-| [`BeakCarouselBlock`](#beakcarouselblock) | data | `OiCarousel` | query | no |
-| [`BeakVideoBlock`](#beakvideoblock) | data | `OiVideoPlayer` | query, first row | no |
-| [`BeakChartBlock`](#beakchartblock) | chart | line, bar, pie, donut, area, radar or funnel chart | query | no |
-| [`BeakBubbleChartBlock`](#beakbubblechartblock) | chart | `OiBubbleChart` | query | no |
-| [`BeakCandlestickChartBlock`](#beakcandlestickchartblock) | chart | `OiCandlestickChart` | query | no |
-| [`BeakHeatmapChartBlock`](#beakheatmapchartblock) | chart | `OiHeatmap` | query | no |
-| [`BeakMapBlock`](#beakmapblock) | map | `OiVectorMap` | query | no |
-| [`BeakTileMapBlock`](#beaktilemapblock) | map | `OiTileMap` | query | no |
+| [`BeakTimelineBlock`](#beaktimelineblock) | data | `OiTimeline` | query | yes |
+| [`BeakGalleryBlock`](#beakgalleryblock) | data | `OiGallery` | query | yes |
+| [`BeakCarouselBlock`](#beakcarouselblock) | data | `OiCarousel` | query | yes |
+| [`BeakVideoBlock`](#beakvideoblock) | data | `OiVideoPlayer` | query, first row | yes |
+| [`BeakChartBlock`](#beakchartblock) | chart | line, bar, pie, donut, area, radar or funnel chart | query | yes |
+| [`BeakBubbleChartBlock`](#beakbubblechartblock) | chart | `OiBubbleChart` | query | yes |
+| [`BeakCandlestickChartBlock`](#beakcandlestickchartblock) | chart | `OiCandlestickChart` | query | yes |
+| [`BeakHeatmapChartBlock`](#beakheatmapchartblock) | chart | `OiHeatmap` | query | yes |
+| [`BeakMapBlock`](#beakmapblock) | map | `OiVectorMap` | query | yes |
+| [`BeakTileMapBlock`](#beaktilemapblock) | map | `OiTileMap` | query | yes |
 | [`BeakFieldBlock`](#beakfieldblock) | record | the table cell renderer | scope | follows the scope |
 | [`BeakFieldGroupBlock`](#beakfieldgroupblock) | record | `OiGrid` of field blocks | scope | follows the scope |
 | [`BeakRelationBlock`](#beakrelationblock) | record | `BeakRelationManager` | scope, then the relation | yes |
-| [`BeakCalendarBlock`](#beakcalendarblock) | module | `OiCalendar` | model | own moves only |
-| [`BeakKanbanBlock`](#beakkanbanblock) | module | `OiKanban` | model | own moves only |
-| [`BeakChatBlock`](#beakchatblock) | module | `OiChat` | model | own messages only |
-| [`BeakInboxBlock`](#beakinboxblock) | module | folder rail, list and detail pane | model | no |
-| [`BeakFileManagerBlock`](#beakfilemanagerblock) | module | `OiFileManager` | model, first 25 rows | no |
+| [`BeakCalendarBlock`](#beakcalendarblock) | module | `OiCalendar` | model | yes |
+| [`BeakKanbanBlock`](#beakkanbanblock) | module | `OiKanban` | model | yes |
+| [`BeakChatBlock`](#beakchatblock) | module | `OiChat` | model | yes |
+| [`BeakInboxBlock`](#beakinboxblock) | module | folder rail, list and detail pane | model | yes |
+| [`BeakFileManagerBlock`](#beakfilemanagerblock) | module | `OiFileManager` | model | yes |
 | [`BeakInvoiceBlock`](#beakinvoiceblock) | module | header, line-item table and totals | record, plus a table | line items only |
 | [`BeakProfileBlock`](#beakprofileblock) | module | `OiProfilePage` | record | own edits only |
-| [`BeakPricingBlock`](#beakpricingblock) | module | `OiPricingTable` | model | no |
-| [`BeakFaqBlock`](#beakfaqblock) | module | `OiHelpCenter` | model | no |
+| [`BeakPricingBlock`](#beakpricingblock) | module | `OiPricingTable` | model | yes |
+| [`BeakFaqBlock`](#beakfaqblock) | module | `OiHelpCenter` | model | yes |
 
-Refetch is the important column when a block sits beside a form or a table on the same screen. A block marked "no" shows the data it loaded when it mounted. [Data loading](#data-loading) has the details.
+Refetch is the important column when a block sits beside a form or a table on the same screen. A block marked "yes" queries again when its table is written, whichever screen made the write. [Data loading](#data-loading) has the details.
 
 ## Shared by every block
 
@@ -1175,7 +1175,7 @@ Module blocks bind a whole model (or one record) to a richer obers_ui widget thr
 
 ### BeakCalendarBlock
 
-Each row is an event. Tapping calls `onEventTap`. Dragging an event writes the new start (and end, when `endField` is bound) with an update on the row and then calls `onEventMove`. A failed write snaps the event back.
+Each row is an event. Tapping calls `onEventTap`. Dragging an event writes the new start (and end, when `endField` is bound) through the resource's save path, the same one a form uses, and calls `onEventMove` once the server has accepted it. A refused write snaps the event back, shows the error in a toast and calls nothing. A row with no start is left out of the calendar.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart"
 const BeakCalendarBlock({
@@ -1189,6 +1189,7 @@ const BeakCalendarBlock({
   this.label = 'Calendar',
   this.onEventTap,
   this.onEventMove,
+  this.filter,
   super.span,
 });
 ```
@@ -1204,11 +1205,12 @@ const BeakCalendarBlock({
 | `mode` | `OiCalendarMode` | `OiCalendarMode.month` | The initial calendar mode (day/week/month). |
 | `label` | `String` | `'Calendar'` | Accessibility label for the calendar. |
 | `onEventTap` | `void Function(BeakRecord record)?` | `null` | Invoked with the tapped event's record. |
-| `onEventMove` | `void Function(BeakRecord record, DateTime start, DateTime end)?` | `null` | Invoked after an event is dragged to a new range; the block first persists the move through the data source. |
+| `onEventMove` | `void Function(BeakRecord record, DateTime start, DateTime end)?` | `null` | Invoked after an event is dragged to a new range and the server has accepted the move. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ### BeakKanbanBlock
 
-One column per value of an enum field, each holding the rows whose `groupField` matches. Column titles and colours come from the enum's labels and badge colours. Dropping a card writes the new enum value with an update and then calls `onCardMove`. `groupField` must be an enum field of `model` itself; `groupColumn` throws a `BeakConfigurationException` otherwise.
+One column per value of an enum field, each holding the rows whose `groupField` matches. Column titles and colours come from the enum's labels and badge colours. Dropping a card writes the new enum value through the resource's save path, the same one a form uses, and calls `onCardMove` once the server has accepted it. A refused move puts the card back, shows the error in a toast and calls nothing. `groupField` must be an enum field of `model` itself; `groupColumn` throws a `BeakConfigurationException` otherwise.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
 const BeakKanbanBlock({
@@ -1220,6 +1222,7 @@ const BeakKanbanBlock({
   this.sortDescending = false,
   this.label = 'Board',
   this.onCardMove,
+  this.filter,
   super.span,
 });
 ```
@@ -1233,7 +1236,8 @@ const BeakKanbanBlock({
 | `sortField` | `BeakColumn?` | `null` | Column ordering the cards within each column, when bound. Without it the card order is whatever the data source returns. |
 | `sortDescending` | `bool` | `false` | Whether `sortField` orders descending. |
 | `label` | `String` | `'Board'` | Accessibility label for the board. |
-| `onCardMove` | `void Function(BeakRecord record)?` | `null` | Invoked with a card's record after it is dropped in a new column; the block first persists the new group through the data source. |
+| `onCardMove` | `void Function(BeakRecord record)?` | `null` | Invoked with a card's record after it is dropped in a new column and the server has accepted the move. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ### BeakChatBlock
 
@@ -1248,6 +1252,7 @@ const BeakChatBlock({
   this.isMineField,
   this.composeRecord,
   this.label = 'Chat',
+  this.filter,
   super.span,
 });
 ```
@@ -1261,6 +1266,7 @@ const BeakChatBlock({
 | `isMineField` | `BeakColumn?` | `null` | Boolean column marking outgoing (own) messages, when bound. |
 | `composeRecord` | `BeakRecord Function(String body)?` | `null` | Builds the record persisted when the user sends `body` from the composer, fill in the FKs and defaults a new message needs. When unbound the transcript is read-only and no composer is shown. |
 | `label` | `String` | `'Chat'` | Accessibility label for the transcript. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ### BeakInboxBlock
 
@@ -1281,6 +1287,7 @@ const BeakInboxBlock({
   this.label = 'Inbox',
   this.leftWidthInPixels = 220,
   this.rightWidthInPixels = 360,
+  this.filter,
   super.span,
 }) : assert(
        unreadField == null || readField == null,
@@ -1304,6 +1311,7 @@ const BeakInboxBlock({
 | `label` | `String` | `'Inbox'` | Accessibility label for the layout. |
 | `leftWidthInPixels` | `double` | `220` | Initial width of the folder rail. |
 | `rightWidthInPixels` | `double` | `360` | Initial width of the detail pane. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ### BeakFileManagerBlock
 
@@ -1319,6 +1327,7 @@ const BeakFileManagerBlock({
   this.thumbnailField,
   this.label = 'Files',
   this.onOpen,
+  this.filter,
   super.span,
 });
 ```
@@ -1333,6 +1342,7 @@ const BeakFileManagerBlock({
 | `thumbnailField` | `BeakColumn?` | `null` | Column supplying each file's thumbnail URL, when bound. |
 | `label` | `String` | `'Files'` | Accessibility label for the manager. |
 | `onOpen` | `void Function(BeakRecord record)?` | `null` | Invoked with the opened entry's record. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ### BeakInvoiceBlock
 
@@ -1426,6 +1436,7 @@ const BeakPricingBlock({
   this.sortField,
   this.label = 'Pricing',
   this.currencySymbol = r'$',
+  this.filter,
   super.span,
 });
 ```
@@ -1444,6 +1455,7 @@ const BeakPricingBlock({
 | `sortField` | `BeakColumn?` | `null` | Column ordering the plans left-to-right, when bound. |
 | `label` | `String` | `'Pricing'` | Accessibility label for the table. |
 | `currencySymbol` | `String` | `r'$'` | Currency prefix shown on prices. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ### BeakFaqBlock
 
@@ -1457,6 +1469,7 @@ const BeakFaqBlock({
   this.categoryField,
   this.sortField,
   this.label = 'Help',
+  this.filter,
   super.span,
 });
 ```
@@ -1469,6 +1482,7 @@ const BeakFaqBlock({
 | `categoryField` | `BeakColumn?` | `null` | Column grouping entries into categories, when bound. |
 | `sortField` | `BeakColumn?` | `null` | Column ordering the entries, when bound. |
 | `label` | `String` | `'Help'` | Accessibility label for the help center. |
+| `filter` | `BeakFilter?` | `null` | Narrows the rows the block lists. The block reads one page of at most 200 rows and says so beneath itself when the query matches more. |
 
 ## Enumerations
 
@@ -1491,11 +1505,10 @@ A block that reads data resolves `BeakDataSource` from `beakDependencies(context
 
 | Aspect | Behaviour |
 | --- | --- |
-| Rows fetched by a module block | `BeakCalendarBlock`, `BeakKanbanBlock`, `BeakChatBlock`, `BeakInboxBlock`, `BeakFaqBlock` and `BeakPricingBlock` query their model with a page of 500 rows, so a board is not silently cut at the default 25. Chat sorts newest first, and so does the inbox when `timeField` is bound, so overflow drops the oldest rows. |
-| Rows fetched by `BeakFileManagerBlock` | The default page of 25 rows. Sizes, names and folders past row 25 do not appear. |
+| Rows fetched by a module block | `BeakCalendarBlock`, `BeakKanbanBlock`, `BeakChatBlock`, `BeakInboxBlock`, `BeakFaqBlock`, `BeakFileManagerBlock` and `BeakPricingBlock` query their model with a page of 200 rows (`BeakPagination.maxPerPage`, the most a server serves), so a board is not silently cut at the default 25. When the query matches more, a line beneath the block says how many are shown. Chat sorts newest first, and so does the inbox when `timeField` is bound, so overflow drops the oldest rows. |
 | Rows fetched by a query block | Chart, map, gallery, carousel, video and timeline blocks run `query` as you wrote it. The default page is 25 rows, so set `pagination` on the spec for more. |
-| Refetch after a write | `BeakTableBlock` (through its table view model), `BeakMetricBlock`, `BeakSummaryBlock` and `BeakRelationBlock` subscribe to the data source's change stream and query again when their table is written. Every other data block keeps what it loaded. |
-| Writes by a block | Calendar drag, kanban drop and profile edits send an update, chat send sends a create, all through `BeakResourceRepository` on the per-record routes. The block then mirrors the written row into what it shows. |
+| Refetch after a write | Every block that reads a table subscribes to the data source's change stream and queries again when that table is written: the table, metric, summary and relation blocks, the module blocks, and the chart, map, gallery, carousel, video and timeline blocks. `BeakInvoiceBlock` refetches its line items, and `BeakProfileBlock` shows its own edits. |
+| Writes by a block | Calendar drag, kanban drop and chat send go through `BeakResourceRepository` and the panel's data source, which saves through the graph commit route when the source can commit, so a model with behavior or a `graphOnly` model accepts them. A refused write is shown in a toast, the card, event or message stays as it was, and `onCardMove` and `onEventMove` are not called. Profile edits send an update. |
 | Failure | Metric and summary blocks show an error state with a retry. The other data blocks stay empty (or on `Loading…` for record-bound blocks) when the request fails or the server denies it. |
 
 ## Rules and limits
@@ -1503,9 +1516,10 @@ A block that reads data resolves `BeakDataSource` from `beakDependencies(context
 - `BeakBlock` is sealed. A new block type needs a change in `beak_frontend`; application code extends the union through `BeakWidgetBlock` only.
 - Blocks are `const` configuration. Callbacks exist only where the interaction is the feature (row tap and row actions, event tap and move, card move, open, compose, the summary footer and group style) and in the builder of `BeakWidgetBlock`.
 - A block has no visibility rule and no permission of its own. Show or hide a block by building a different tree, and enforce access on the server with policies. A denied read leaves a module or chart block empty.
-- `BeakTabsBlock.tabs` must not be empty and `initialIndex` must be in range. The constructor does not assert this; an empty list throws a `RangeError` at build time.
-- `BeakSummaryBlock` with `presentation: BeakSummaryPresentation.capacity` needs `capacity`. The constructor does not assert it; a missing value fails a null check at build time.
-- Writes from calendar, kanban, chat and profile blocks use the per-record routes, not `POST /api/commits`. A model that closes those routes with `graphOnly` rejects the write. Save through a form screen or a model action instead.
+- `BeakTabsBlock` with no tabs renders nothing, and an `initialIndex` past the last tab selects the last one.
+- `BeakSummaryBlock` with `presentation: BeakSummaryPresentation.capacity` needs `capacity`. The constructor does not assert it; the block throws a `BeakConfigurationException` naming the summary when it builds.
+- Writes from calendar, kanban and chat blocks go through the panel's data source, which uses `POST /api/commits` when the source can commit, so the server's rules run. A refusal is shown in a toast and the block does not report the move.
+- A module block reads one page of at most 200 rows. Give it a `filter` to narrow what it lists; when more rows match, a line beneath the block says how many are shown.
 - `BeakRecordScope` is provided by your screen. Nothing in the framework mounts it around a custom layout, see [Block system internals](../architecture/block-system-internals.md#where-a-block-gets-its-data).
 - Charts need bounded height, so chart, map and table blocks take `heightInPixels` and draw inside a fixed-height box.
 - Every column parameter takes a `BeakColumn`, in practice `Model.field.column` from the generated references. Table `fields` and kanban `groupField` take the field reference itself.

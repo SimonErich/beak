@@ -100,9 +100,13 @@ class BeakFormLayout extends BeakFormNode {
   final List<BeakFormNode> children;
 
   /// Uses each model column's default input and model validation rules.
+  ///
+  /// The columns are those the model shows on [surface], `BeakContext.form`
+  /// unless a read-only layout asks for `BeakContext.detail`.
   factory BeakFormLayout.fromModel(
     BeakModel model, {
     BeakModelRegistry? registry,
+    BeakContext surface = BeakContext.form,
   }) {
     final byKey = <String, BeakBelongsTo>{
       for (final relation in model.relationships)
@@ -110,7 +114,7 @@ class BeakFormLayout extends BeakFormNode {
     };
     return BeakFormLayout(
       children: [
-        for (final column in model.columnsFor(BeakContext.form))
+        for (final column in model.columnsFor(surface))
           if (column.key != model.primaryKey.key && column is! BeakCustomColumn)
             if (byKey[column.key] case final BeakBelongsTo relation)
               if (registry?.byTable(relation.relatedTable)
@@ -497,9 +501,11 @@ final class BeakFormSections {
               titleStyle: section.titleStyle,
               titleColor: section.titleColor,
               descriptionStyle: section.descriptionStyle,
+              trailing: section.trailing,
               headingGapInPixels: section.headingGapInPixels,
               gapInPixels: section.gapInPixels,
               divider: section.divider,
+              dividerAfterSpacingInPixels: section.dividerAfterSpacingInPixels,
               children: section.children,
             ),
           ],
@@ -656,10 +662,13 @@ class BeakInput<T extends Object> extends BeakFormNode {
   Future<List<String>> errors(BeakFormReader state) async {
     final value = state.read(field);
     final raw = state.draft.controller.validationValueOf(field.column);
-    final errors = [...const BeakValidation().columnErrors(field.column, raw)];
+    final translate = state.draft.session.validateRule;
+    final errors = [...state.draft.localizedColumnErrors(field.column, raw)];
     for (final rule in validate) {
       if (value == null && rule is! BeakRequired) continue;
-      final message = rule.validate(value);
+      final message = translate == null
+          ? rule.validate(value)
+          : translate(rule, value);
       if (message != null) errors.add(message);
     }
     final definition = attributeDefinition?.call(state);
@@ -2173,10 +2182,13 @@ extension BeakToOneInputs on BeakToOneField {
     BeakRecordTemplate? template,
     String? label,
     String? description,
+    String? Function(BeakFormReader)? descriptionBuilder,
+    List<BeakFieldRef<Object>> dependencies = const [],
     List<BeakScalarField<Object>> searchSources = const [],
     String? createLabel,
     List<BeakRule> validate = const [],
     BeakOptionQuery Function(BeakFormReader)? options,
+    BeakOptionDisabledReason? disabledReason,
     BeakVisibility? visibleIf,
     BeakVisibility? enabledIf,
     bool exclusive = true,
@@ -2186,10 +2198,13 @@ extension BeakToOneInputs on BeakToOneField {
     template: template,
     label: label,
     description: description,
+    descriptionBuilder: descriptionBuilder,
+    dependencies: dependencies,
     searchSources: searchSources,
     createLabel: createLabel,
     validate: validate,
     options: options,
+    disabledReason: disabledReason,
     visibleIf: visibleIf,
     enabledIf: enabledIf,
     exclusive: exclusive,

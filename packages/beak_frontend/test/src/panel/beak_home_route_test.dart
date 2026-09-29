@@ -146,6 +146,7 @@ void main() {
       final router = await pump(
         tester,
         config(
+          resources: const [_notes, _labels, _private],
           navigation: const BeakNavigation(
             sections: [
               BeakNavigationSection(

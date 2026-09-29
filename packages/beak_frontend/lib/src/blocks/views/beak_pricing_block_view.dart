@@ -10,47 +10,37 @@ class _BeakPricingBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final records = useState(const <BeakRecord>[]);
+    final rows = _useModuleRows(
+      dataSource,
+      BeakQuerySpec(
+        table: block.model.table,
+        filter: block.filter,
+        sorts: [
+          if (block.sortField case final BeakColumn column)
+            BeakSort(column.key),
+        ],
+        relationLoads: [
+          // Without this the plans arrive relation-less and every card
+          // renders an empty feature list.
+          if (block.featuresRelation case final BeakRelationship relation)
+            BeakRelationLoad(relation.key),
+        ],
+        pagination: _modulePage,
+      ),
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: block.model.table,
-            sorts: [
-              if (block.sortField case final BeakColumn column)
-                BeakSort(column.key),
-            ],
-            relationLoads: [
-              // Without this the plans arrive relation-less and every card
-              // renders an empty feature list.
-              if (block.featuresRelation case final BeakRelationship relation)
-                BeakRelationLoad(relation.key),
-            ],
-            pagination: _modulePage,
-          ),
-        );
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
-    return OiPricingTable(
-      label: block.label,
-      currencySymbol: block.currencySymbol,
-      showBillingToggle: block.yearlyPriceField != null,
-      plans: [
-        for (final (index, record) in records.value.indexed)
-          _planOf(index, record),
-      ],
+    return _withTruncationNote(
+      context,
+      rows.value,
+      OiPricingTable(
+        label: block.label,
+        currencySymbol: block.currencySymbol,
+        showBillingToggle: block.yearlyPriceField != null,
+        plans: [
+          for (final (index, record) in rows.value.records.indexed)
+            _planOf(index, record),
+        ],
+      ),
     );
   }
 

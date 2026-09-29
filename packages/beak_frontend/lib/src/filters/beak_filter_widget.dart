@@ -129,7 +129,9 @@ final class BeakChoiceFilter extends BeakFilterDef {
   /// Label of the unconstrained option in the radio presentation.
   final String allLabel;
 
-  /// Shows authoritative option counts for the applied query population.
+  /// Shows authoritative option counts for the applied query population: in
+  /// a column beside each checkbox, and appended to the label as `Label (12)`
+  /// in the chips, radio, select and combobox presentations.
   final bool showCounts;
 
   /// Shows the group heading; a single self-labelled checkbox may omit it.
@@ -1329,6 +1331,12 @@ class _ChoiceFilterControl extends HookWidget {
         ]),
       ],
     );
+    String labelOf(BeakFilterChoice option) =>
+        switch (counts.value[option.key]) {
+          final num count when def.showCounts =>
+            '${option.label} (${count.round()})',
+          _ => option.label,
+        };
     if (def.presentation == BeakChoiceFilterPresentation.select) {
       return OiSelect<String>(
         label: def.showLabel ? def.label : null,
@@ -1336,7 +1344,7 @@ class _ChoiceFilterControl extends HookWidget {
         options: [
           OiSelectOption(value: '', label: def.allLabel),
           for (final option in def.options)
-            OiSelectOption(value: option.key, label: option.label),
+            OiSelectOption(value: option.key, label: labelOf(option)),
         ],
         onChanged: (value) =>
             onChanged(value == null || value.isEmpty ? {} : {value}),
@@ -1354,7 +1362,7 @@ class _ChoiceFilterControl extends HookWidget {
             showLabel: false,
             addItemLabel: def.addItemLabel,
             placeholder: def.addItemLabel,
-            labelOf: (choice) => choice.label,
+            labelOf: labelOf,
             items: def.options,
             multiSelect: true,
             selectedValues: [
@@ -1382,7 +1390,7 @@ class _ChoiceFilterControl extends HookWidget {
             options: [
               OiRadioOption(value: '', label: def.allLabel),
               for (final option in def.options)
-                OiRadioOption(value: option.key, label: option.label),
+                OiRadioOption(value: option.key, label: labelOf(option)),
             ],
             onChanged: (value) => onChanged(value.isEmpty ? {} : {value}),
           ),
@@ -1392,8 +1400,8 @@ class _ChoiceFilterControl extends HookWidget {
             children: [
               for (final option in def.options)
                 OiFilterChip(
-                  label: option.label,
-                  semanticLabel: option.label,
+                  label: labelOf(option),
+                  semanticLabel: labelOf(option),
                   selected: selected.contains(option.key),
                   dashed: false,
                   showAddIcon: false,

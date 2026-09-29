@@ -16,53 +16,43 @@ class _BeakInboxBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final records = useState(const <BeakRecord>[]);
+    // Newest-first so that if the mailbox ever exceeds the page, it is the
+    // oldest mail that falls off — never the latest.
+    final rows = _useModuleRows(
+      dataSource,
+      BeakQuerySpec(
+        table: block.model.table,
+        filter: block.filter,
+        sorts: [
+          if (block.timeField case final BeakColumn column)
+            BeakSort(column.key, descending: true),
+        ],
+        relationLoads: [?block.folderRelation?.relationLoad],
+        pagination: _modulePage,
+      ),
+    );
     final selectedRow = useState<BeakRecord?>(null);
     final selectedFolder = useState<String?>(null);
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        // Newest-first so that if the mailbox ever exceeds the page, it is
-        // the oldest mail that falls off — never the latest.
-        final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: block.model.table,
-            sorts: [
-              if (block.timeField case final BeakColumn column)
-                BeakSort(column.key, descending: true),
-            ],
-            relationLoads: [?block.folderRelation?.relationLoad],
-            pagination: _modulePage,
-          ),
-        );
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
-    final List<String> folders = _folderLabels(records.value);
+    final List<String> folders = _folderLabels(rows.value.records);
     final List<BeakRecord> visible = [
-      for (final record in records.value)
+      for (final record in rows.value.records)
         if (selectedFolder.value == null ||
             _folderOf(record) == selectedFolder.value)
           record,
     ];
 
-    return OiThreeColumnLayout(
-      label: block.label,
-      leftColumnWidth: block.leftWidthInPixels,
-      rightColumnWidth: block.rightWidthInPixels,
-      leftColumn: _folders(context, folders, selectedFolder),
-      middleColumn: _messages(context, visible, selectedRow),
-      rightColumn: _detail(context, selectedRow.value),
+    return _withTruncationNote(
+      context,
+      rows.value,
+      OiThreeColumnLayout(
+        label: block.label,
+        leftColumnWidth: block.leftWidthInPixels,
+        rightColumnWidth: block.rightWidthInPixels,
+        leftColumn: _folders(context, folders, selectedFolder),
+        middleColumn: _messages(context, visible, selectedRow),
+        rightColumn: _detail(context, selectedRow.value),
+      ),
     );
   }
 

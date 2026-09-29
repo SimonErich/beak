@@ -9,6 +9,7 @@ class _BeakHeatmapChartBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final cells = useState(const <BeakMatrixCell>[]);
 
     useEffect(() {
@@ -27,7 +28,7 @@ class _BeakHeatmapChartBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
     // OiHeatmap indexes cells by integer row/column with parallel label
     // lists. Derive the label order from the block (or first-seen order) and

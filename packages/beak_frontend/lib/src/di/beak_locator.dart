@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:get_it/get_it.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
+import '../auth/beak_auth_adapter.dart';
 import '../auth/beak_session_store.dart';
 import '../actions/beak_model_action_runner.dart';
 import '../data/http_beak_data_source.dart';
@@ -80,7 +83,8 @@ void registerBeakDependencies({
   // and given the client afterwards so it can mint one — the two halves of
   // one session.
   BeakDataSource? fallback;
-  if (externalAuthentication || config.auth?.adapter != null) {
+  BeakAuthAdapter? authority = config.auth?.adapter;
+  if (externalAuthentication || authority != null) {
     if (dataSource == null &&
         registry.all.any((model) => model.dataSource == null)) {
       throw const BeakConfigurationException(
@@ -103,6 +107,7 @@ void registerBeakDependencies({
       tokenProvider: tokenProvider ?? () => sessions.token,
     );
     sessions = BeakSessionStore(client);
+    authority = sessions;
     fallback = dataSource ?? HttpBeakDataSource(client);
     container
       ..registerSingleton<BeakClient>(client)
@@ -115,6 +120,7 @@ void registerBeakDependencies({
     fallback: fallback,
     overrideBindings: dataSource != null,
     mapException: config.mapException,
+    onUnauthorized: authority == null ? null : _endSessionOf(authority),
     refreshPolicy: config.refreshPolicy,
   );
   container
@@ -132,4 +138,17 @@ void registerBeakDependencies({
       BeakThemeController(config.initialThemeMode),
     );
   // --8<-- [end:registerDataLayer]
+}
+
+/// The hook that ends [authority]'s session when the server stops accepting it.
+///
+/// Requests that fail together end the session once, and a signed-out
+/// authority is left alone.
+void Function() _endSessionOf(BeakAuthAdapter authority) {
+  var ending = false;
+  return () {
+    if (ending || authority.state.value is! BeakAuthAuthenticated) return;
+    ending = true;
+    unawaited(authority.logout().whenComplete(() => ending = false));
+  };
 }

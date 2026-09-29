@@ -27,6 +27,7 @@ final class ModelBeakDataSource
     BeakDataSource? fallback,
     bool overrideBindings = false,
     this.mapException,
+    this.onUnauthorized,
     this.refreshPolicy,
   }) : _registry = registry,
        _fallback = fallback,
@@ -55,6 +56,12 @@ final class ModelBeakDataSource
   /// Maps recognized host exceptions to safe, localized Beak errors.
   final BeakException? Function(Exception exception, StackTrace stackTrace)?
   mapException;
+
+  /// Called after a request fails with a [BeakAuthenticationException], the
+  /// failure of a session the server no longer accepts. The panel uses it to
+  /// end the session, so the person lands on the sign-in page instead of
+  /// reading a message inside a panel that can no longer load anything.
+  final void Function()? onUnauthorized;
 
   final Map<String, BeakDataSource?> _sources;
   final BeakDataSource? _fallback;
@@ -108,8 +115,8 @@ final class ModelBeakDataSource
 
   final Set<String> _pendingChanges = {};
   int _commitDepth = 0;
-  int _deleteSequence = 0;
-  final Map<(String, Object), BeakSavePlan> _pendingDeletes = {};
+  int _writeSequence = 0;
+  final Map<String, BeakSavePlan> _pendingWrites = {};
 
   @override
   Stream<BeakDataChange> get changes => _changes.stream;
@@ -249,13 +256,21 @@ final class ModelBeakDataSource
   Future<T> _run<T>(Future<T> Function() operation) async {
     try {
       return await operation();
-    } on BeakException {
+    } on BeakException catch (error) {
+      _reportUnauthorized(error);
       rethrow;
     } on Exception catch (error, stack) {
       final mapped = mapException?.call(error, stack);
-      if (mapped != null) Error.throwWithStackTrace(mapped, stack);
+      if (mapped != null) {
+        _reportUnauthorized(mapped);
+        Error.throwWithStackTrace(mapped, stack);
+      }
       rethrow;
     }
+  }
+
+  void _reportUnauthorized(BeakException error) {
+    if (error is BeakAuthenticationException) onUnauthorized?.call();
   }
   // --8<-- [end:run]
 
@@ -345,33 +360,75 @@ final class ModelBeakDataSource
   });
 
   @override
-  Future<BeakRecord> create(String table, BeakRecord data) =>
-      _mutate([table], () => _source(table).create(table, data));
+  Future<BeakRecord> create(String table, BeakRecord data) => _run(() async {
+    final source = _source(table);
+    if (_commitDepth > 0 || source is! BeakCommitDataSource) {
+      return _mutate([table], () => source.create(table, data));
+    }
+    final draft = BeakRecordRef.draft(table, 'created');
+    final result = await _writeThroughGraph(
+      key: 'create:$table:${jsonEncode(data.toJson())}',
+      plan: () => BeakSavePlan(
+        saveId: _nextWriteId('create'),
+        root: draft,
+        operations: [
+          BeakSaveOperation(
+            id: 'create',
+            kind: BeakSaveOperationKind.create,
+            target: draft,
+            values: data,
+          ),
+        ],
+      ),
+      unconfirmed: 'The record was not saved for certain. Retry to recover it.',
+      failed: 'The record could not be created.',
+    );
+    return _writtenRecord(table, result, 'create');
+  });
 
   @override
   Future<BeakRecord> update(String table, Object id, BeakRecord data) =>
-      _mutate([table], () => _source(table).update(table, id, data));
+      _run(() async {
+        final source = _source(table);
+        if (_commitDepth > 0 || source is! BeakCommitDataSource) {
+          return _mutate([table], () => source.update(table, id, data));
+        }
+        final target = BeakRecordRef.existing(table, id);
+        final result = await _writeThroughGraph(
+          key: 'update:$table:$id:${jsonEncode(data.toJson())}',
+          plan: () => BeakSavePlan(
+            saveId: _nextWriteId('update'),
+            root: target,
+            operations: [
+              BeakSaveOperation(
+                id: 'update',
+                kind: BeakSaveOperationKind.update,
+                target: target,
+                values: data,
+              ),
+            ],
+          ),
+          unconfirmed:
+              'The change was not saved for certain. Retry to recover it.',
+          failed: 'The change could not be saved.',
+        );
+        return _writtenRecord(table, result, 'update', id: id);
+      });
 
   @override
-  Future<void> delete(
-    String table,
-    Object id, {
-    bool force = false,
-  }) => _run(() async {
-    final source = _source(table);
-    // The graph protocol deliberately preserves configured soft deletion.
-    // Explicit force-deletes retain the transport's separate operation.
-    if (force || _commitDepth > 0 || source is! BeakCommitDataSource) {
-      return _mutate([table], () => source.delete(table, id, force: force));
-    }
-    final key = (table, id);
-    final pending = _pendingDeletes[key];
-    final target = BeakRecordRef.existing(table, id);
-    final plan =
-        pending ??
-        BeakSavePlan(
-          saveId:
-              'delete-${DateTime.now().microsecondsSinceEpoch}-${++_deleteSequence}',
+  Future<void> delete(String table, Object id, {bool force = false}) => _run(
+    () async {
+      final source = _source(table);
+      // The graph protocol deliberately preserves configured soft deletion.
+      // Explicit force-deletes retain the transport's separate operation.
+      if (force || _commitDepth > 0 || source is! BeakCommitDataSource) {
+        return _mutate([table], () => source.delete(table, id, force: force));
+      }
+      final target = BeakRecordRef.existing(table, id);
+      await _writeThroughGraph(
+        key: 'delete:$table:$id',
+        plan: () => BeakSavePlan(
+          saveId: _nextWriteId('delete'),
           root: target,
           operations: [
             BeakSaveOperation(
@@ -380,25 +437,37 @@ final class ModelBeakDataSource
               target: target,
             ),
           ],
-        );
-    _pendingDeletes[key] = plan;
-    // Retain an uncertain identity: a repeated click recovers its receipt and
-    // never submits the destructive operation with a new identity.
-    final result = pending == null
-        ? await commit(plan)
-        : await recover(plan.saveId);
-    if (result.complete) {
-      _pendingDeletes.remove(key);
-      return;
-    }
-    if (result.outcomes.any(
-      (outcome) => outcome.status == BeakWriteOutcome.unknown,
-    )) {
-      throw const BeakConflictException(
-        'Deletion is not confirmed. Retry to recover its result.',
+        ),
+        unconfirmed: 'Deletion is not confirmed. Retry to recover its result.',
+        failed: 'The deletion could not be completed.',
       );
+    },
+  );
+
+  String _nextWriteId(String kind) =>
+      '$kind-${DateTime.now().microsecondsSinceEpoch}-${++_writeSequence}';
+
+  /// Commits one single-operation plan, keeping an uncertain identity: a
+  /// repeated identical call recovers its receipt and never submits the write
+  /// again under a new identity.
+  Future<BeakSaveResult> _writeThroughGraph({
+    required String key,
+    required BeakSavePlan Function() plan,
+    required String unconfirmed,
+    required String failed,
+  }) async {
+    final pending = _pendingWrites[key];
+    final effective = pending ?? plan();
+    _pendingWrites[key] = effective;
+    final result = pending == null
+        ? await commit(effective)
+        : await recover(effective.saveId);
+    if (result.complete) {
+      _pendingWrites.remove(key);
+      return result;
     }
-    _pendingDeletes.remove(key);
+    if (result.hasUnknown) throw BeakConflictException(unconfirmed);
+    _pendingWrites.remove(key);
     final error = result.outcomes
         .map((outcome) => outcome.error)
         .nonNulls
@@ -413,11 +482,31 @@ final class ModelBeakDataSource
       'not_found' => BeakNotFoundException(error!.message),
       'configuration' => BeakConfigurationException(error!.message),
       'storage' => BeakStorageException(error!.message),
-      _ => BeakConflictException(
-        error?.message ?? 'The deletion could not be completed.',
-      ),
+      _ => BeakConflictException(error?.message ?? failed),
     };
-  });
+  }
+
+  /// The canonical record a confirmed single write produced: the receipt's own
+  /// copy when it carries one, otherwise a read of the row.
+  Future<BeakRecord> _writtenRecord(
+    String table,
+    BeakSaveResult result,
+    String operationId, {
+    Object? id,
+  }) async {
+    final outcome = result.outcomes
+        .where((outcome) => outcome.id == operationId)
+        .firstOrNull;
+    if (outcome?.record case final BeakRecord record) return record;
+    final written = id ?? outcome?.resolvedId;
+    if (written != null) {
+      final record = await _source(table).getOne(table, written);
+      if (record != null) return record;
+    }
+    throw BeakNotFoundException(
+      'The saved record of "$table" could not be read back.',
+    );
+  }
 
   @override
   Future<BeakRecord> restore(String table, Object id) =>

@@ -9,9 +9,14 @@ import 'package:obers_ui/obers_ui.dart';
 import '../../support/panel_fixtures.dart';
 
 final class _Model extends BeakModel {
-  const _Model({this.canDelete = _allowed});
+  const _Model({this.canDelete = _allowed, this.deletableWhen});
 
   final bool Function() canDelete;
+  final bool Function(BeakRecord record)? deletableWhen;
+
+  @override
+  BeakModelBehavior get behavior =>
+      BeakModelBehavior(deletableWhen: deletableWhen);
 
   static bool _allowed() => true;
 
@@ -73,6 +78,7 @@ void main() {
     void Function(BeakException)? onError,
     List<BeakRecordAction> recordActions = const [],
     BeakRecordAction deleteAction = const BeakArchiveAction(),
+    bool Function(BeakRecord record)? deletableWhen,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -82,7 +88,7 @@ void main() {
           title: 'Admin',
           resources: [
             BeakResource(
-              model: _Model(canDelete: canDelete),
+              model: _Model(canDelete: canDelete, deletableWhen: deletableWhen),
               icon: const BeakIconToken(OiIcons.notebook),
               deleteAction: deleteAction,
               onActionError: onError,
@@ -97,6 +103,25 @@ void main() {
     await tester.tap(find.text('Notes').first);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('a record the model says is not deletable offers no archive', (
+    tester,
+  ) async {
+    await pumpList(
+      tester,
+      _Source(),
+      deletableWhen: (record) => record['title']?.raw != 'One note',
+    );
+
+    expect(find.text('One note'), findsOneWidget);
+    expect(actionButton('Archive'), findsNothing);
+  });
+
+  testWidgets('a deletable record offers the archive action', (tester) async {
+    await pumpList(tester, _Source(), deletableWhen: (_) => true);
+
+    expect(actionButton('Archive'), findsOneWidget);
+  });
 
   testWidgets(
     'resource delete hides immediately, undo restores, and commit stays removed',

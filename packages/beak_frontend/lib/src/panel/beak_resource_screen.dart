@@ -74,7 +74,8 @@ class BeakFormScreen extends BeakResourceScreen {
   /// Optional icon for the heading's primary submission control.
   final IconData? submitIcon;
 
-  /// Gives the existing-record Cancel control an outlined surface.
+  /// Gives the existing-record Cancel control, and a wizard's first-step
+  /// Cancel, an outlined surface.
   final bool outlinedCancel;
 
   /// Keeps standalone model actions available while an existing record edits.
@@ -146,6 +147,12 @@ class BeakFormScreen extends BeakResourceScreen {
 }
 
 /// A resource form presented as automatically validated wizard steps.
+///
+/// Takes every [BeakFormScreen] option except three that only mean something
+/// on a single page: `layout` (the [steps] are the layout), `recordHeader` and
+/// `editingLabel` (both belong to the single-page heading). Use
+/// `BeakFormScreen(steps: [...])` if you need one of them. A test keeps the
+/// two constructors in step.
 class BeakWizardScreen extends BeakFormScreen {
   /// Creates a wizard whose values remain drafts until the final submission.
   const BeakWizardScreen({
@@ -154,19 +161,23 @@ class BeakWizardScreen extends BeakFormScreen {
     super.reviewBeforeSave,
     super.showInspector,
     super.header,
-    super.recordHeader,
     super.aside,
     super.asideFooter,
     super.asideWidthInPixels,
+    super.asideFraction,
     super.footer,
     super.fullScreen,
     super.navigation,
     super.navigationDescription,
     super.submitAction,
     super.submitLabel,
+    super.submitIcon,
+    super.outlinedCancel,
+    super.showActionsWhileEditing,
     super.editLabel,
     super.prominentEdit,
     super.compactActions,
+    super.showChangeBar,
     super.showBack,
     super.pagePadding,
     super.pageGapInPixels,

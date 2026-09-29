@@ -33,11 +33,11 @@ A resource gets view, edit, delete and create without a line of code. They are n
 | --- | --- |
 | View | The account may read the resource |
 | Edit | `canEdit`, the model supports update (or a custom edit screen exists), `BeakModel.permissions` allow update, and `editableWhen` holds for that record |
-| Delete or archive (`deleteAction`) | `canDelete`, the model supports delete, permissions allow it, and `deletableWhen` holds for that record |
-| Create | `canCreate`, the model supports create (or a custom create screen exists), and permissions allow it |
+| Delete or archive (`deleteAction`) | `canDelete`, the model supports delete, permissions allow it, `deletableWhen` holds for that record, and the server does not report `canDelete: false` for this account |
+| Create | `canCreate`, the model supports create (or a custom create screen exists), permissions allow it, and the server does not report `canCreate: false` for this account |
 | Duplicate | Create is allowed and the resource sets `duplication` |
 
-`canDelete: false` on a shop order hides the button. It does not stop the API: that is `deletableWhen` on the model, or a policy on the server. See [Resources](resources.md) for the switches.
+`canDelete: false` on a shop order hides the button. It does not stop the API: that is `deletableWhen` on the model, or a policy on the server. The panel also asks the server what the signed-in account may do (`GET /api/{table}/capabilities`), so a role without delete permission gets no trash icon and one without create permission gets no Create button, without a line of configuration. A list asks once for the table, which is exact for role rules. A read page asks for the record. See [Resources](resources.md) for the switches.
 
 ## Callback actions
 
@@ -97,7 +97,7 @@ BeakRecordAction deliveryNoteAction() => BeakRecordAction.document(
 
 ### Roles decide the surface
 
-`BeakRecordAction.roles` says which generated pages show the action: `list`, `read`, `create`, `edit`. The default is all four, `link` defaults to `list` and `read`. The role is presentation only. A form page follows its live mode, so an in-place Edit switches the read actions for the edit ones without a route change.
+`BeakRecordAction.roles` says which generated pages show the action: `list`, `read`, `edit`. The default is all three, `link` defaults to `list` and `read`. A create page has no saved record, so a record action is never drawn there and `create` is not in the default. The role is presentation only. A form page follows its live mode, so an in-place Edit switches the read actions for the edit ones without a route change.
 
 Two limits worth knowing. A form page shows record actions only for a saved record, so the `create` role never shows one. And wizard and full-screen forms have no generated page frame, so they show none at all. A model command can still be placed there with `BeakFormActions` (see [Screens and form layouts](../reference/screens-and-layouts.md)), a callback action cannot.
 
@@ -274,7 +274,7 @@ Nothing is saved. The Duplicate action opens the create form prefilled with the 
 
 | Value | Behavior |
 | --- | --- |
-| `BeakDeleteAction()` (default) | The row disappears at once and an undo snackbar reading `Record deleted` stays for 5 seconds. The delete reaches the data source when the window passes, then the router returns to the list. A failed delete rolls the row back and shows an error toast |
+| `BeakDeleteAction()` (default) | The row disappears at once and an undo snackbar reading `Record deleted` stays for 5 seconds. The delete reaches the data source when the window passes, then the router returns to the list. A delete the server refuses, or cannot confirm, puts the row back and shows the server's message in an error toast |
 | `BeakDeleteAction.confirmed()` | Asks first, waits for the server, then refreshes and returns to the list. No undo. A refusal keeps you on the record |
 | `BeakArchiveAction()` | The confirmed delete under the key `archive` and the label Archive. It calls the data source's delete, so what archiving means (soft delete, a status change) is the backend's decision. No restore is implied |
 
@@ -284,7 +284,7 @@ Pick the confirmed form whenever the server owns cleanup you cannot take back, o
 
 | Layer | Mechanism | Effect |
 | --- | --- | --- |
-| Panel presentation | `canCreate`, `canEdit`, `canDelete`, `BeakModel.permissions`, `editableWhen`, `deletableWhen`, `availableWhen`, `roles` | Buttons are not drawn, and routes redirect to `/403` |
+| Panel presentation | `canCreate`, `canEdit`, `canDelete`, `BeakModel.permissions`, the server's `canCreate` and `canDelete` capabilities, `editableWhen`, `deletableWhen`, `availableWhen`, `roles` | Buttons are not drawn, and routes redirect to `/403` |
 | Panel guard | `BeakActionContext.checkPermission`, before and after the confirmation | A stale button reports a `BeakAuthorizationException` (a toast unless `onActionError` takes it) and does not run |
 | Server | `BeakPolicies`, `BeakActionPolicy.canExecuteAction`, the command's `availableWhen`, `editableWhen`, `deletableWhen` | The write is refused |
 
@@ -292,13 +292,13 @@ A callback action has no name on the server. If it calls `context.dataSource.upd
 
 ## Rules and limits
 
-- `BeakActionPresentation` finds its action by `key`. A presentation whose key matches no action is ignored without a message, so a typo in `'delete'` looks like a missing button.
+- `BeakActionPresentation` finds its action by `key`. A `rowActions` or `bulkActions` entry whose key matches no action of the resource makes the panel throw a `BeakConfigurationException` at startup, naming the list and the keys the resource offers, so a typo in `'delete'` cannot pass as a missing button.
 - `requiresConfirmation` uses `overlays.confirm`, which renders the confirm button destructively when the action's `color` is `BeakColor.error`. For a custom message, skip the flag and call `context.overlays.confirm(...)` inside `onExecute`.
 - Global and bulk actions appear on the list only. A bulk callback receives all selected records in one call, and a bulk model command runs once per record.
 - Bulk model commands appear only in a composed list (`BeakTableScreen.definition`). Without one, a selection has only the actions in `bulkActions`.
 - A row's model action is drawn while `availableWhen` holds for the row as the table loaded it. The click re-checks against the stored record.
-- The list offers model commands on rows only when the resource allows edit, but the selection bar does not check that. The server still refuses the write.
-- On list rows, `deletableWhen` hides the button of a `BeakDeleteAction` (including `.confirmed()`) but not of a `BeakArchiveAction`. The server refuses the archive, so the button appears and then fails. The show page applies `deletableWhen` to both.
+- The list offers model commands, on rows and on a selection, only when the resource allows edit.
+- On list rows and on the show page, `deletableWhen` hides the button of a `BeakDeleteAction` (including `.confirmed()`) and of a `BeakArchiveAction`.
 - The banner for an unknown command outcome belongs to the principal that started it. Signing in as someone else hides it.
 - `BeakRecordAction.link` accepts only `http`, `https`, `mailto`, `tel` and `sms`. Relative, file and executable URIs are rejected.
 

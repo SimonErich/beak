@@ -56,7 +56,11 @@ final class BeakNotificationSource {
   /// The field holding the body, if any.
   final BeakScalarField<String>? bodyField;
 
-  /// The timestamp field used to order newest-first, if any.
+  /// The timestamp field used to order newest-first and to date each entry.
+  ///
+  /// Without one the list keeps the data source's order and every entry is
+  /// dated with the moment it was read. A row whose value is empty is not
+  /// listed.
   final BeakScalarField<DateTime>? timeField;
 
   /// The boolean "read" field, if any (enables the unread badge and
@@ -213,7 +217,8 @@ class _BeakNotificationPanel extends HookWidget {
         label: 'Notifications',
         unreadCount: _unread(records.value),
         notifications: [
-          for (final record in records.value) _notificationOf(record),
+          for (final record in records.value)
+            if (_notificationOf(record) case final OiNotification entry) entry,
         ],
         onMarkRead: (notification) => markRead([notification.key]),
         onMarkAllRead: () => markRead(
@@ -235,14 +240,25 @@ class _BeakNotificationPanel extends HookWidget {
 
   Object? _idOf(BeakRecord record) => source.model.primaryKeyOf(record);
 
-  OiNotification _notificationOf(BeakRecord record) {
+  /// The centre's entry for [record], or `null` for a row whose time field is
+  /// bound but empty: the centre dates every entry, and an invented date
+  /// would be worse than leaving the row out. A source with no time field at
+  /// all dates its entries with the moment they were read.
+  OiNotification? _notificationOf(BeakRecord record) {
     final String? title = source.titleField.readFrom(record);
     final Object key = _idOf(record) ?? title ?? '';
+    final DateTime? timestamp = switch (source.timeField) {
+      final BeakScalarField<DateTime> field => field.readFrom(record),
+      null => DateTime.now(),
+    };
+    if (timestamp == null) {
+      return null;
+    }
     return OiNotification(
       key: key,
       title: title ?? '',
       body: source.bodyField?.readFrom(record),
-      timestamp: source.timeField?.readFrom(record) ?? DateTime.utc(2026),
+      timestamp: timestamp,
       read: !_isUnread(record),
       category: source.categoryField?.readFrom(record)?.toString(),
     );

@@ -131,7 +131,7 @@ Inside a widget block you have the panel's services: `beakDependencies(context)<
 - `BeakScreen.body` is a `BeakBlock`. Anything else goes in through `BeakWidgetBlock`, and that block gives up the declarative guarantees for its subtree.
 - A framed screen scrolls its body. Blocks that want the viewport height (a kanban board, a map) belong in an unframed one.
 - `BeakScreenView(screen:)` renders a screen anywhere you have a context, for a host app that embeds one page.
-- Table, metric and summary blocks refetch after a write to their table. Chart, kanban and calendar blocks do not yet.
+- Every block that reads a table refetches after a write to it: table, metric, summary, chart, map, kanban, calendar and the other module blocks.
 
 ## Verify it
 

@@ -31,6 +31,10 @@ class BeakLocalizations {
   /// Email field label.
   String get authEmail => _de ? 'E-Mail-Adresse' : 'Email address';
 
+  /// Sign-in identifier label: an account name is not always an email address.
+  String get authIdentifier =>
+      _de ? 'Benutzername oder E-Mail-Adresse' : 'Username or email';
+
   /// Password field label.
   String get authPassword => _de ? 'Passwort' : 'Password';
 
@@ -138,7 +142,7 @@ class BeakLocalizations {
 
   /// An action became unavailable before it could execute.
   String get actionDenied => _de
-      ? 'Du hast keine Berechtigung für diese Aktion.'
+      ? 'Sie haben keine Berechtigung für diese Aktion.'
       : 'You do not have permission to perform this action.';
 
   /// Detail action label.
@@ -268,6 +272,11 @@ class BeakLocalizations {
   String loadMore(int count) =>
       _de ? 'Weitere laden ($count)' : 'Load more ($count)';
 
+  /// Notice that a list stops at the most rows a server answers with.
+  String showingFirst(int shown, int total) => _de
+      ? 'Die ersten $shown von $total Einträgen werden angezeigt.'
+      : 'Showing the first $shown of $total.';
+
   /// Empty related-record state.
   String noRelatedRecords(String label) => _de
       ? 'Noch keine Einträge für $label.'
@@ -279,8 +288,15 @@ class BeakLocalizations {
 
   // --8<-- [start:errorMessage]
   /// Displays already mapped domain failures while hiding infrastructure details.
+  ///
+  /// A configuration, storage, internal or transport failure describes the
+  /// deployment rather than the user's request, so it shows the generic
+  /// [operationFailed] text and never the message.
   String errorMessage(BeakException error) => switch (error) {
-    BeakConfigurationException() || BeakStorageException() => operationFailed,
+    BeakConfigurationException() ||
+    BeakStorageException() ||
+    BeakInternalException() ||
+    BeakTransportException() => operationFailed,
     _ => error.message,
   };
   // --8<-- [end:errorMessage]

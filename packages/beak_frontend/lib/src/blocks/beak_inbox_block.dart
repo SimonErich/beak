@@ -43,6 +43,7 @@ final class BeakInboxBlock extends BeakBlock {
     this.label = 'Inbox',
     this.leftWidthInPixels = 220,
     this.rightWidthInPixels = 360,
+    this.filter,
     super.span,
   }) : assert(
          unreadField == null || readField == null,
@@ -86,6 +87,11 @@ final class BeakInboxBlock extends BeakBlock {
 
   /// Accessibility label for the layout.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Initial width of the folder rail.
   final double leftWidthInPixels;

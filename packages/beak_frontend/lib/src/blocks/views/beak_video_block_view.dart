@@ -9,6 +9,7 @@ class _BeakVideoBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(dataSource, table: block.query.table);
     final records = useState(const <BeakRecord>[]);
 
     useEffect(() {
@@ -27,7 +28,7 @@ class _BeakVideoBlockView extends HookWidget {
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, revision]);
 
     final BeakRecord? first = records.value.isEmpty
         ? null
