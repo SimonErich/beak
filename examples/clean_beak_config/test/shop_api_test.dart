@@ -23,6 +23,7 @@ import 'package:test/test.dart';
 import 'support/money.dart';
 
 void main() {
+  // --8<-- [start:apiTestHarness]
   late DatabaseAdapter adapter;
   late HttpServer server;
   late BeakClient client;
@@ -56,8 +57,10 @@ void main() {
     await adapter.disconnect();
     await Worm.reset();
   });
+  // --8<-- [end:apiTestHarness]
 
   test('new products and customers apply non-null business defaults', () async {
+    // --8<-- [start:productDefaultsPlan]
     const root = BeakRecordRef.draft('products', 'product');
     final result = await client.commit(
       BeakSavePlan(
@@ -78,6 +81,7 @@ void main() {
     );
     expect(result.complete, isTrue, reason: result.toJson().toString());
     expect(result.rootRecord?['active']?.raw, isTrue);
+    // --8<-- [end:productDefaultsPlan]
     final customer = await client.create(
       'users',
       BeakRecord.fromRow({
@@ -201,6 +205,7 @@ void main() {
     },
   );
 
+  // --8<-- [start:graphSaveTests]
   test(
     'one final graph save creates owned lines and survives replay',
     () async {
@@ -244,6 +249,7 @@ void main() {
       expect(orders.items.single.asOrder.id, ShopSeedIds.order);
     },
   );
+  // --8<-- [end:graphSaveTests]
 
   test(
     'invoice graph snapshots variants, custom work, mixed taxes and vouchers',
@@ -844,6 +850,7 @@ void main() {
       }
     },
   );
+  // --8<-- [start:invoiceWorkflowTest]
   test(
     'invoice named actions enforce terminal states and idempotent receipts',
     () async {
@@ -898,6 +905,7 @@ void main() {
       );
     },
   );
+  // --8<-- [end:invoiceWorkflowTest]
 
   test(
     'duplicate variant combinations are rejected atomically including legacy keys',

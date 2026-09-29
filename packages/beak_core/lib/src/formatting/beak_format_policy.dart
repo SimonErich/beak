@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 
 /// Presentation of a calculated value or relationship summary.
+// --8<-- [start:BeakValueFormat]
 enum BeakValueFormat {
   /// Uses the value's text representation.
   text,
@@ -31,6 +32,7 @@ enum BeakValueFormat {
   /// Formats a fractional value as a percentage, for example 0.2 as 20%.
   percent,
 }
+// --8<-- [end:BeakValueFormat]
 
 /// One immutable display policy for a panel's forms, tables and summaries.
 ///
@@ -38,6 +40,7 @@ enum BeakValueFormat {
 /// in drafts and API payloads. A scope can override the policy for a subtree.
 class BeakFormatPolicy {
   /// Creates a locale-aware display policy with explicit date patterns.
+  // --8<-- [start:BeakFormatPolicy]
   const BeakFormatPolicy({
     this.locale = 'en_US',
     String currency = 'USD',
@@ -53,6 +56,7 @@ class BeakFormatPolicy {
     this.emptyValue = '—',
   }) : currencyCode = currency,
        dateInputPattern = dateInputPattern ?? datePattern;
+  // --8<-- [end:BeakFormatPolicy]
 
   /// ICU locale used for decimal separators, grouping and currency position.
   final String locale;

@@ -10,6 +10,7 @@ import 'steps/order_payment_step.dart';
 export 'order_items_table.dart';
 export 'order_summary_layout.dart';
 
+// --8<-- [start:orderWizard]
 /// Five stages over one draft; the final action saves the complete order graph.
 BeakWizardScreen orderWizard() => BeakWizardScreen(
   roles: const {BeakScreenRole.create},
@@ -36,3 +37,4 @@ BeakWizardScreen orderWizard() => BeakWizardScreen(
     orderReviewStep(),
   ],
 );
+// --8<-- [end:orderWizard]

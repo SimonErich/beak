@@ -61,6 +61,7 @@ final class BeakAuthFailure extends BeakAuthState {
 /// Implementations are the error boundary: operations return typed failures and
 /// never expose transport exceptions to widgets. The adapter owns session state;
 /// a host must not mirror its credentials into another Beak token store.
+// --8<-- [start:BeakAuthAdapter]
 abstract class BeakAuthAdapter {
   /// Live state consumed by the router and authentication initialization gate.
   ReadonlySignal<BeakAuthState> get state;
@@ -83,6 +84,7 @@ abstract class BeakAuthAdapter {
   /// Optional factory for a new, independently owned password recovery flow.
   BeakEmailVerificationFlow Function()? get recovery => null;
 }
+// --8<-- [end:BeakAuthAdapter]
 
 /// A backend email-code-password flow for registration or password recovery.
 ///

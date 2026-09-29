@@ -11,6 +11,7 @@ import '../presentations/order_presentations.dart';
 /// Columns and cell presentations for the order list's default table.
 List<BeakTableColumn> orderTableColumns() {
   return [
+    // --8<-- [start:composedListColumnOrder]
     BeakTableColumn(
       key: 'order',
       label: 'Order',
@@ -26,6 +27,7 @@ List<BeakTableColumn> orderTableColumns() {
         subtitle: [orderPlacementSummary()],
       ),
     ),
+    // --8<-- [end:composedListColumnOrder]
     BeakTableColumn(
       key: 'customer',
       label: 'Customer',
@@ -76,6 +78,7 @@ List<BeakTableColumn> orderTableColumns() {
         ),
       ),
     ),
+    // --8<-- [start:composedListColumnTotal]
     BeakTableColumn(
       key: 'total',
       label: 'Total',
@@ -88,6 +91,7 @@ List<BeakTableColumn> orderTableColumns() {
         ),
       ),
     ),
+    // --8<-- [end:composedListColumnTotal]
     BeakTableColumn(
       key: 'payment',
       label: 'Payment',

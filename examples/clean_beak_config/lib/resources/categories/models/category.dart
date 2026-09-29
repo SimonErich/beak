@@ -7,6 +7,7 @@ part 'category.beak.dart';
 /// Catalog grouping with reusable attribute definitions.
 @Resource()
 final class Category extends BeakSchema {
+  // --8<-- [start:CategoryFields]
   /// Category title.
   @Display()
   @Column(searchable: true, sortable: true)
@@ -14,8 +15,11 @@ final class Category extends BeakSchema {
 
   /// Description shown to administrators.
   late final String? description;
+  // --8<-- [end:CategoryFields]
 
+  // --8<-- [start:CategoryAttributes]
   /// Attributes expected for products in this category.
   @HasMany(owned: true, onDelete: BeakOnDelete.cascade)
   late final List<CategoryAttribute> attributes;
+  // --8<-- [end:CategoryAttributes]
 }

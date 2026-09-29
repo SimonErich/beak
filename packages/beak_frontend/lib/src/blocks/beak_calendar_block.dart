@@ -23,6 +23,7 @@ part of 'beak_block.dart';
 /// ```
 final class BeakCalendarBlock extends BeakBlock {
   /// Creates a calendar block over [model].
+  // --8<-- [start:BeakCalendarBlockConstructor]
   const BeakCalendarBlock({
     required this.model,
     required this.titleField,
@@ -36,6 +37,7 @@ final class BeakCalendarBlock extends BeakBlock {
     this.onEventMove,
     super.span,
   });
+  // --8<-- [end:BeakCalendarBlockConstructor]
 
   /// The model whose records become events.
   final BeakModel model;

@@ -27,6 +27,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
     BeakFormLayout(
       spacingInPixels: 16,
       children: [
+        // --8<-- [start:paymentModeCards]
         OrderModel.paymentMode.inputRadio(
           label: 'Payment method',
           cards: true,
@@ -51,6 +52,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
                 ),
           ],
         ),
+        // --8<-- [end:paymentModeCards]
         OrderModel.paymentMethod.inputCombobox(
           label: 'Saved payment method',
           exclusive: false,
@@ -66,6 +68,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
         ),
         BeakColumns(
           children: [
+            // --8<-- [start:costCentreSelect]
             BeakInput<String>(
               field: OrderModel.costCenter,
               label: 'Cost centre',
@@ -85,6 +88,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
               ],
               description: 'From the company profile; shown on the invoice.',
             ),
+            // --8<-- [end:costCentreSelect]
             BeakCalculated(
               label: 'Billed on',
               presentation: BeakCalculatedPresentation.field,
@@ -122,6 +126,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
       ),
       divider: true,
       children: [
+        // --8<-- [start:voucherCodeInput]
         OrderModel.voucher.inputCode(
           label: 'Voucher code',
           codeField: VoucherModel.code,
@@ -147,6 +152,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
             inlineBadges: true,
           ),
         ),
+        // --8<-- [end:voucherCodeInput]
       ],
     ),
     BeakFormLayout(
@@ -159,6 +165,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
             BeakFormLayout(
               spacingInPixels: 12,
               children: [
+                // --8<-- [start:confirmationCheckboxes]
                 OrderModel.sendConfirmation.inputCheckbox(
                   label: 'Send order confirmation to the customer',
                   dependencies: [OrderModel.customer.email],
@@ -179,6 +186,7 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
                           (state.asOrder.profile?.approvalThresholdCents ??
                               4000),
                 ),
+                // --8<-- [end:confirmationCheckboxes]
               ],
             ),
           ],
@@ -208,10 +216,12 @@ BeakWizardStep paymentAndVouchersStep() => BeakWizardStep(
               collapsible: true,
               initiallyExpanded: false,
               children: [
+                // --8<-- [start:manualDiscountInput]
                 OrderModel.manualDiscountCents.inputCurrency(
                   label: 'Manual discount',
                   minorUnits: true,
                 ),
+                // --8<-- [end:manualDiscountInput]
                 OrderModel.purchaseOrder.inputText(
                   label: 'Purchase order (optional)',
                 ),

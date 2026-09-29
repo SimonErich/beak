@@ -77,6 +77,7 @@ BeakBlock _metrics() => BeakGridBlock(
 /// Grouped figures in every presentation the summary block has.
 // --8<-- [start:summaries]
 BeakBlock _summaries() {
+  // --8<-- [start:summaryMeasures]
   const tasks = BeakSummaryMeasure.count('tasks');
   final done = BeakSummaryMeasure.count(
     'done',
@@ -87,9 +88,11 @@ BeakBlock _summaries() {
     'grams',
     field: SpecimenModel.weightInGrams,
   );
+  // --8<-- [end:summaryMeasures]
   return BeakGridBlock(
     minColumnWidthInPixels: 420,
     children: [
+      // --8<-- [start:summaryDonut]
       BeakSummaryBlock(
         title: 'Tasks by status',
         presentation: BeakSummaryPresentation.donut,
@@ -101,6 +104,8 @@ BeakBlock _summaries() {
         values: [const BeakSummaryValue(measure: tasks, label: 'Tasks')],
         centerLabel: 'tasks',
       ),
+      // --8<-- [end:summaryDonut]
+      // --8<-- [start:summaryBar]
       BeakSummaryBlock(
         title: 'Birds and weight by diet',
         presentation: BeakSummaryPresentation.bar,
@@ -115,6 +120,8 @@ BeakBlock _summaries() {
           BeakSummaryValue(measure: grams, label: 'Grams'),
         ],
       ),
+      // --8<-- [end:summaryBar]
+      // --8<-- [start:summaryCapacity]
       BeakSummaryBlock(
         title: 'Chores done',
         presentation: BeakSummaryPresentation.capacity,
@@ -129,6 +136,8 @@ BeakBlock _summaries() {
         ],
         capacity: BeakSummaryCapacity(used: done, total: tasks),
       ),
+      // --8<-- [end:summaryCapacity]
+      // --8<-- [start:summaryStrip]
       BeakSummaryBlock(
         title: 'The collection at a glance',
         presentation: BeakSummaryPresentation.strip,
@@ -148,6 +157,8 @@ BeakBlock _summaries() {
           ),
         ],
       ),
+      // --8<-- [end:summaryStrip]
+      // --8<-- [start:summaryTable]
       BeakSummaryBlock(
         title: 'Tasks by category',
         presentation: BeakSummaryPresentation.table,
@@ -161,6 +172,8 @@ BeakBlock _summaries() {
           BeakSummaryValue(measure: done, label: 'Done'),
         ],
       ),
+      // --8<-- [end:summaryTable]
+      // --8<-- [start:summaryMetrics]
       BeakSummaryBlock(
         title: 'Tasks in total',
         scope: BeakSummaryScope.standalone,
@@ -170,6 +183,7 @@ BeakBlock _summaries() {
           BeakSummaryValue(measure: done, label: 'Done'),
         ],
       ),
+      // --8<-- [end:summaryMetrics]
     ],
   );
 }

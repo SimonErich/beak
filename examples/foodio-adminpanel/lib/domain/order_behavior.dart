@@ -20,12 +20,14 @@ abstract final class OrderActions {
     }.contains(OrderModel.status.readFrom(record)),
   );
 
+  // --8<-- [start:FoodioAddNote]
   /// Adds an internal note without changing the order.
   static const addNote = BeakModelAction(
     name: 'addNote',
     label: 'Add note',
     inputModel: OrderNoteInputModel(),
   );
+  // --8<-- [end:FoodioAddNote]
 
   /// Confirms a draft order; allowed while creating it.
   static final place = BeakModelAction(

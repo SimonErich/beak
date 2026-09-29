@@ -223,6 +223,7 @@ void main() {
 
   group('authSessions', () {
     const secret = 'server-test-secret';
+    // --8<-- [start:authSessionsFixture]
     BeakAuthSessions sessions() => BeakAuthSessions(
       store: InMemoryTokenSessionStore(),
       secret: secret,
@@ -234,6 +235,7 @@ void main() {
         ),
       ],
     );
+    // --8<-- [end:authSessionsFixture]
 
     Future<String> login(BeakServer server) async {
       final response = await send(

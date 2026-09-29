@@ -1,5 +1,6 @@
 import 'package:beak/beak.dart';
 
+// --8<-- [start:FoodioNoteInput]
 /// Transient arguments shared by the Add note dialog and API validation.
 final class OrderNoteInputModel extends BeakModel {
   /// Requires a bounded, nonempty note without exposing audit metadata.
@@ -34,3 +35,4 @@ final class OrderNoteInputModel extends BeakModel {
     ),
   ];
 }
+// --8<-- [end:FoodioNoteInput]

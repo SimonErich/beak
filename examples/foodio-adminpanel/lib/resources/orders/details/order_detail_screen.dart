@@ -18,6 +18,7 @@ import 'order_detail_helpers.dart';
 
 /// The detail and edit routes share one graph and the same section definitions.
 BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
+  // --8<-- [start:orderDetailOptions]
   roles: const {BeakScreenRole.read, BeakScreenRole.edit},
   submitLabel: 'Save changes',
   submitIcon: OiIcons.check,
@@ -33,6 +34,8 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
   pagePadding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
   pageGapInPixels: 24,
   asideFraction: 1 / 3,
+  // --8<-- [end:orderDetailOptions]
+  // --8<-- [start:orderRecordHeader]
   recordHeader: BeakRecordTemplate(
     icon: const BeakValueBinding<IconData>.computed(
       dependencies: [],
@@ -65,17 +68,21 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
       BeakValueBinding.field(OrderModel.source, label: 'via'),
     ],
   ),
+  // --8<-- [end:orderRecordHeader]
   header: BeakFormLayout(
     spacingInPixels: 24,
     children: [
+      // --8<-- [start:orderModeNotice]
       BeakModeLayout(
         read: BeakFormLayout(children: [orderChangeNotice(editing: false)]),
         edit: BeakFormLayout(children: [orderChangeNotice(editing: true)]),
       ),
+      // --8<-- [end:orderModeNotice]
       BeakFormMetrics(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         gapInPixels: 4,
         metrics: [
+          // --8<-- [start:orderMetricPair]
           BeakFormMetric(
             valueStyle: gabelNumericMetricStyle,
             label: 'Total',
@@ -111,6 +118,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                   : orderDeliveryMethod(state.asOrder.deliveryMethod);
             },
           ),
+          // --8<-- [end:orderMetricPair]
           BeakFormMetric(
             valueStyle: const TextStyle(
               fontSize: 16,
@@ -180,6 +188,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
             dependencies: [OrderModel.customerNote, OrderModel.customer.name],
             presentation: BeakCalculatedPresentation.message,
           ),
+          // --8<-- [start:orderNotesTimeline]
           BeakFormTimeline(
             field: OrderModel.notes,
             title: OrderNoteModel.author,
@@ -234,6 +243,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
               ],
             ),
           ),
+          // --8<-- [end:orderNotesTimeline]
         ],
       ),
       BeakCard(
@@ -277,6 +287,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                   BeakFormProgress(
                     field: OrderModel.status,
                     steps: [
+                      // --8<-- [start:orderProgressSteps]
                       BeakProgressStep(
                         label: 'Placed',
                         details: BeakRecordTemplate(
@@ -328,6 +339,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
                           ],
                         ),
                       ),
+                      // --8<-- [end:orderProgressSteps]
                       BeakProgressStep(
                         state: OrderStatus.inKitchen,
                         label: 'In kitchen',
@@ -398,6 +410,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
               orderActivityCard(),
             ],
           ),
+          // --8<-- [start:orderItemsTab]
           BeakTab(
             title: 'Items',
             badge: BeakValueBinding<int>.computed(
@@ -420,6 +433,7 @@ BeakFormScreen orderDetailAndEdit() => BeakFormScreen(
               ),
             ],
           ),
+          // --8<-- [end:orderItemsTab]
           BeakTab(
             title: 'Delivery',
             children: [

@@ -3,6 +3,7 @@ import 'package:beak/schema.dart';
 
 part 'saved_view.beak.dart';
 
+// --8<-- [start:foodioSavedViewSchema]
 /// SavedView configuration shared by the panel and authoritative API.
 @Resource(timestamps: true)
 final class SavedView extends BeakSchema {
@@ -27,3 +28,4 @@ final class SavedView extends BeakSchema {
   @Column(defaultValue: true)
   late final bool shared;
 }
+// --8<-- [end:foodioSavedViewSchema]

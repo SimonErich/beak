@@ -61,6 +61,7 @@ final class Order extends BeakSchema {
   /// Internal fulfilment notes.
   late final String? notes;
 
+  // --8<-- [start:orderCustomerAndProfile]
   /// The customer placing the order.
   @BelongsTo(
     searchOn: [#email, #firstName, #lastName],
@@ -72,6 +73,7 @@ final class Order extends BeakSchema {
   /// One of the selected customer's profile associations.
   @BelongsTo(inverse: false, onDelete: BeakOnDelete.restrict)
   late final UserProfileConnection profile;
+  // --8<-- [end:orderCustomerAndProfile]
 
   /// Requested delivery instant; historical orders remain editable.
   @Column(sortable: true)

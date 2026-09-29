@@ -19,6 +19,7 @@ BeakFormLayout productForm() => BeakFormLayout(
           children: [
             BeakColumns(
               children: [
+                // --8<-- [start:ProductDetailsCard]
                 BeakCard(
                   title: 'Product details',
                   children: [
@@ -27,22 +28,29 @@ BeakFormLayout productForm() => BeakFormLayout(
                     ProductModel.description.inputText(),
                   ],
                 ),
+                // --8<-- [end:ProductDetailsCard]
                 BeakCard(
                   title: 'Organization and pricing',
                   children: [
+                    // --8<-- [start:productCategoryPicker]
                     ProductModel.category.inputCombobox(
                       exclusive: false,
                       createForm: categoryForm(includeAttributes: false),
                       description:
                           'Configure category attributes in Categories after saving.',
                     ),
+                    // --8<-- [end:productCategoryPicker]
+                    // --8<-- [start:ProductPriceInput]
                     ProductModel.price.inputCurrency(
                       label: 'Net catalog price',
                     ),
+                    // --8<-- [end:ProductPriceInput]
                     ProductModel.taxRate.inputCombobox(
                       label: 'Default tax rate',
                     ),
+                    // --8<-- [start:ProductActiveInput]
                     ProductModel.active.inputToggle(label: 'For sale'),
+                    // --8<-- [end:ProductActiveInput]
                   ],
                 ),
               ],
@@ -52,12 +60,14 @@ BeakFormLayout productForm() => BeakFormLayout(
         BeakTab(
           title: 'Images',
           children: [
+            // --8<-- [start:productGallery]
             ProductModel.images.galleryForm(
               image: ProductImageModel.image,
               caption: ProductImageModel.caption,
               position: ProductImageModel.position,
               label: 'Product gallery',
             ),
+            // --8<-- [end:productGallery]
           ],
         ),
         BeakTab(
@@ -68,6 +78,7 @@ BeakFormLayout productForm() => BeakFormLayout(
               description:
                   'Use a definition from the selected category, or add a custom specification.',
               children: [
+                // --8<-- [start:productAttributesTable]
                 ProductModel.attributes.tableForm(
                   label: 'Specifications',
                   removeBehavior: BeakRemoveBehavior.deleteOwned,
@@ -103,6 +114,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                     ),
                   ],
                 ),
+                // --8<-- [end:productAttributesTable]
               ],
             ),
           ],
@@ -121,6 +133,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                   builder: (context, draft) => ShopVariantBuilder(draft: draft),
                 ),
                 // --8<-- [end:variantBuilderWidget]
+                // --8<-- [start:productVariantsTable]
                 ProductModel.variants.tableForm(
                   label: 'Variants',
                   removeBehavior: BeakRemoveBehavior.deleteOwned,
@@ -137,6 +150,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                     ],
                   ),
                 ),
+                // --8<-- [end:productVariantsTable]
               ],
             ),
           ],

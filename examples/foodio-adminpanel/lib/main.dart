@@ -16,11 +16,15 @@ BeakPanelConfig foodioPanel({
     defaultValue: 'http://localhost:8081',
   ),
 }) => BeakPanelConfig(
+  // --8<-- [start:foodioPanelConfig]
   title: 'Gabel Admin',
+  // --8<-- [start:foodioThemes]
   theme: gabelTheme(),
   darkTheme: gabelTheme(dark: true),
+  // --8<-- [end:foodioThemes]
   apiBaseUrl: apiBaseUrl,
   locale: const Locale('en'),
+  // --8<-- [start:foodioFormatting]
   formatting: const BeakFormatting(
     locale: 'en_US',
     currency: 'EUR',
@@ -29,6 +33,7 @@ BeakPanelConfig foodioPanel({
     timeZoneOffsetMinutes: 120,
     dateTimePattern: 'dd MMM yyyy · HH:mm',
   ),
+  // --8<-- [end:foodioFormatting]
   resources: foodioResources(),
   pages: foodioPages(),
   navigation: foodioNavigation,
@@ -44,4 +49,5 @@ BeakPanelConfig foodioPanel({
     interval: Duration(seconds: 30),
     onResume: true,
   ),
+  // --8<-- [end:foodioPanelConfig]
 );

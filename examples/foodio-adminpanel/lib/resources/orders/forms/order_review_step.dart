@@ -23,6 +23,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
     BeakFormLayout(
       spacingInPixels: 0,
       children: [
+        // --8<-- [start:reviewCustomerSection]
         BeakReviewSection(
           title: 'Customer & profile',
           stepIndex: 0,
@@ -59,6 +60,7 @@ BeakWizardStep orderReviewStep() => BeakWizardStep(
             ),
           ],
         ),
+        // --8<-- [end:reviewCustomerSection]
         BeakReviewSection(
           title: 'Delivery',
           stepIndex: 1,

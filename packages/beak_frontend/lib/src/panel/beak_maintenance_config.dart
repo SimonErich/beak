@@ -9,6 +9,7 @@ import 'package:meta/meta.dart';
 @immutable
 final class BeakMaintenanceConfig {
   /// Creates a maintenance configuration.
+  // --8<-- [start:BeakMaintenanceConfig]
   const BeakMaintenanceConfig({
     this.maintenanceTitle = 'Under maintenance',
     this.maintenanceDescription,
@@ -17,6 +18,7 @@ final class BeakMaintenanceConfig {
     this.comingSoonDescription,
     this.launchAt,
   });
+  // --8<-- [end:BeakMaintenanceConfig]
 
   /// Heading of the `/maintenance` screen.
   final String maintenanceTitle;

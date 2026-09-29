@@ -66,6 +66,7 @@ OiThemeData gabelTheme({bool dark = false}) {
   final primaryInk = color(GabelLight.primaryInk, GabelDark.primaryInk);
   final primarySoft = color(GabelLight.primarySoft, GabelDark.primarySoft);
   final onPrimary = color(GabelLight.onPrimary, GabelDark.onPrimary);
+  // --8<-- [start:gabelBase]
   final base = dark
       ? OiThemeData.dark(
           fontFamily: 'Mona Sans',
@@ -75,6 +76,8 @@ OiThemeData gabelTheme({bool dark = false}) {
           fontFamily: 'Mona Sans',
           monoFontFamily: 'JetBrains Mono',
         );
+  // --8<-- [end:gabelBase]
+  // --8<-- [start:gabelSwatch]
   OiColorSwatch swatch(Color value, Color soft, Color foreground) =>
       OiColorSwatch(
         base: value,
@@ -83,6 +86,8 @@ OiThemeData gabelTheme({bool dark = false}) {
         muted: soft,
         foreground: foreground,
       );
+  // --8<-- [end:gabelSwatch]
+  // --8<-- [start:gabelTextHelper]
   TextStyle text(
     double size,
     double height, {
@@ -105,8 +110,10 @@ OiThemeData gabelTheme({bool dark = false}) {
     ],
     letterSpacing: tracking,
   );
+  // --8<-- [end:gabelTextHelper]
   final body = text(14, 20);
   final small = text(13, 18, foreground: muted);
+  // --8<-- [start:gabelColors]
   final colors = base.colors.copyWith(
     background: canvas,
     surface: sheet,
@@ -167,6 +174,7 @@ OiThemeData gabelTheme({bool dark = false}) {
             GabelLight.chart6,
           ],
   );
+  // --8<-- [end:gabelColors]
   return base.copyWith(
     colors: colors,
     shadows: base.shadows.copyWith(
@@ -193,6 +201,7 @@ OiThemeData gabelTheme({bool dark = false}) {
         color: color(GabelLight.danger, GabelDark.danger),
       ),
     ),
+    // --8<-- [start:gabelTextTheme]
     textTheme: base.textTheme.copyWith(
       headingScale: const OiResponsive<double>(1),
       display: text(40, 48, weight: 560, width: 106, tracking: -.8),
@@ -216,6 +225,7 @@ OiThemeData gabelTheme({bool dark = false}) {
       overline: text(11, 16, weight: 600, tracking: .5, foreground: muted),
       link: text(14, 20, foreground: primaryInk),
     ),
+    // --8<-- [end:gabelTextTheme]
     radius: const OiRadiusScale(
       none: BorderRadius.zero,
       xs: BorderRadius.all(Radius.circular(4)),
@@ -242,7 +252,9 @@ OiThemeData gabelTheme({bool dark = false}) {
         borderRadius: const BorderRadius.all(Radius.circular(14)),
         barrierColor: color(GabelLight.scrim, GabelDark.scrim),
       ),
+      // --8<-- [start:gabelIconTheme]
       icon: OiIconThemeData(sources: gabelIconSources, size: 18),
+      // --8<-- [end:gabelIconTheme]
       appShell: OiAppShellThemeData(
         breadcrumbLinkStyle: text(14, 20, foreground: muted),
         breadcrumbSeparatorIcon: OiIcons.chevronRight,
@@ -395,6 +407,7 @@ OiThemeData gabelTheme({bool dark = false}) {
         menuPadding: EdgeInsets.all(4),
         menuItemPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
+      // --8<-- [start:gabelChartTheme]
       chart: OiChartThemeData(
         grid: OiChartGridTheme(
           color: line,
@@ -425,6 +438,7 @@ OiThemeData gabelTheme({bool dark = false}) {
           sectionSpacing: 24,
         ),
       ),
+      // --8<-- [end:gabelChartTheme]
       checkbox: OiCheckboxThemeData(
         borderWidth: 1,
         size: 16,

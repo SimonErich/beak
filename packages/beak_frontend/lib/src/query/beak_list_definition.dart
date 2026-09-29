@@ -20,6 +20,7 @@ enum BeakListScrollMode {
 /// One declarative list and all the surfaces sharing its query.
 final class BeakListDefinition {
   /// Keeps ordinary table defaults when a presentation is omitted.
+  // --8<-- [start:BeakListDefinition]
   const BeakListDefinition({
     this.presets = const [],
     this.columns = const [],
@@ -56,6 +57,7 @@ final class BeakListDefinition {
     this.floatingBulkActions = false,
     this.pageSizeOptions = const [15, 25, 50, 100],
   });
+  // --8<-- [end:BeakListDefinition]
 
   /// Shared model commands offered for the selected rows, each with its own receipt.
   final List<BeakModelAction> bulkModelActions;

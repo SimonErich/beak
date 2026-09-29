@@ -20,14 +20,17 @@ BeakScreen shopOverview() => BeakScreen(
       const BeakTextBlock(
         'Your catalog, fulfillment and billing in one place.',
       ),
+      // --8<-- [start:overviewMetricGrid]
       BeakGridBlock(
         minColumnWidthInPixels: 220,
         children: [
+          // --8<-- [start:overviewProductsMetric]
           BeakMetricBlock(
             label: 'Products',
             icon: OiIcons.package,
             aggregate: const ProductModel().count(),
           ),
+          // --8<-- [end:overviewProductsMetric]
           BeakMetricBlock(
             label: 'Orders to fulfill',
             icon: OiIcons.shoppingCart,
@@ -51,6 +54,7 @@ BeakScreen shopOverview() => BeakScreen(
           ),
         ],
       ),
+      // --8<-- [end:overviewMetricGrid]
       BeakWidgetBlock((context) => const ShopReceivablesCard()),
       BeakGridBlock(
         minColumnWidthInPixels: 480,

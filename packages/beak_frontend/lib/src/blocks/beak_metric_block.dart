@@ -53,7 +53,7 @@ part of 'beak_block.dart';
 /// ```
 final class BeakMetricBlock extends BeakBlock {
   /// Creates a metric card showing [aggregate], captioned [label].
-// --8<-- [start:BeakMetricBlock]
+  // --8<-- [start:BeakMetricBlock]
   const BeakMetricBlock({
     required this.label,
     required this.aggregate,
@@ -72,9 +72,9 @@ final class BeakMetricBlock extends BeakBlock {
              format == BeakValueFormat.percent,
          'format must be number, currency or percent',
        );
+  // --8<-- [end:BeakMetricBlock]
 
   /// The metric caption.
-// --8<-- [end:BeakMetricBlock]
   final String label;
 
   /// The aggregate producing the value.

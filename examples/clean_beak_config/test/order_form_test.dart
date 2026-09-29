@@ -13,6 +13,7 @@ import 'support/shop_test_api.dart';
 import 'support/money.dart';
 
 void main() {
+  // --8<-- [start:formLogicInMemoryTest]
   test(
     'model suggestions follow catalog changes until the price is overridden',
     () async {
@@ -49,7 +50,9 @@ void main() {
       expect(row.read(OrderItemModel.label), 'First');
     },
   );
+  // --8<-- [end:formLogicInMemoryTest]
 
+  // --8<-- [start:formSaveThroughApiTest]
   test(
     'the actual configured wizard binds, calculates and saves its draft',
     () async {
@@ -114,4 +117,5 @@ void main() {
       );
     },
   );
+  // --8<-- [end:formSaveThroughApiTest]
 }

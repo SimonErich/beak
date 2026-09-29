@@ -85,6 +85,7 @@ BeakCard orderCustomerProfileCard() => BeakCard(
           BeakFormLayout(
             spacingInPixels: 6,
             children: [
+              // --8<-- [start:customerLinks]
               BeakFormLinks(
                 links: [
                   BeakFormLink(
@@ -115,6 +116,7 @@ BeakCard orderCustomerProfileCard() => BeakCard(
                   ),
                 ],
               ),
+              // --8<-- [end:customerLinks]
               BeakFormTemplate(
                 template: BeakRecordTemplate(
                   title: BeakValueBinding.field(
@@ -131,11 +133,13 @@ BeakCard orderCustomerProfileCard() => BeakCard(
       ),
       edit: BeakFormLayout(
         children: [
+          // --8<-- [start:customerLock]
           BeakFormLock(
             label: 'Change customer',
             description: 'Orders already in the kitchen keep their customer.',
             visibleIf: (state) => !orderIdentityEditable(state),
           ),
+          // --8<-- [end:customerLock]
         ],
       ),
     ),
@@ -329,6 +333,7 @@ BeakFormLayout _profileRead() => BeakFormLayout(
   ],
 );
 
+// --8<-- [start:addDishAction]
 BeakRelationAdd _addDish({bool search = false}) => BeakRelationAdd(
   field: OrderModel.items,
   label: 'Add a dish',
@@ -341,6 +346,7 @@ BeakRelationAdd _addDish({bool search = false}) => BeakRelationAdd(
     state.asOrder.deliveryDate ?? const FoodioClock().today,
   ),
 );
+// --8<-- [end:addDishAction]
 
 /// Add-item controls and a tax-aware order total under the items relation.
 BeakColumns orderDetailItemsFooter() => BeakColumns(

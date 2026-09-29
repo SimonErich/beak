@@ -63,6 +63,7 @@ BeakScreen shopOperations() => BeakScreen(
           ]),
         ),
       ),
+      // --8<-- [start:categoryImportBlock]
       BeakSectionBlock(
         title: 'Import categories',
         description:
@@ -77,13 +78,16 @@ BeakScreen shopOperations() => BeakScreen(
           ),
         ),
       ),
+      // --8<-- [end:categoryImportBlock]
     ],
   ),
 );
 // --8<-- [end:shopOperations]
 
+// --8<-- [start:fulfillmentQueueFilter]
 /// The same operational definition is used by the dashboard and work queue.
 BeakFilter fulfillmentQueueFilter() => BeakOrFilter([
   OrderModel.status.eq(OrderStatus.confirmed),
   OrderModel.status.eq(OrderStatus.packing),
 ]);
+// --8<-- [end:fulfillmentQueueFilter]

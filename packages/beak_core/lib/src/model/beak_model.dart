@@ -243,6 +243,7 @@ abstract base class BeakModel {
   ///   measures: [revenue],
   /// );
   /// ```
+  // --8<-- [start:BeakModelSummary]
   BeakSummarySpec summary({
     BeakScalarField<Object>? groupBy,
     required List<BeakSummaryMeasure> measures,
@@ -259,6 +260,7 @@ abstract base class BeakModel {
     limit: limit,
     withTrashed: withTrashed,
   );
+  // --8<-- [end:BeakModelSummary]
 
   BeakColumn _ownColumn(BeakScalarField<Object> field) {
     if (field.path.isNotEmpty || field.model.table != table) {

@@ -59,6 +59,7 @@ class BeakAuthRouterRefresh extends ChangeNotifier {
   ///
   /// Loading/failure remain on the requested URL under [BeakAuthGate]. Auth
   /// forms themselves are outside the gate and remain mounted across login.
+  // --8<-- [start:authRedirect]
   String? redirect(String path) {
     final authPath = const {'/login', '/register', '/recover'}.contains(path);
     final publicPath =
@@ -75,6 +76,7 @@ class BeakAuthRouterRefresh extends ChangeNotifier {
       _ => null,
     };
   }
+  // --8<-- [end:authRedirect]
 
   @override
   void dispose() {

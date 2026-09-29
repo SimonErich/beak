@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:beak/migrations.dart';
 import 'package:clean_beak_config/beak/server.g.dart';
 
+// --8<-- [start:ShopTestApi]
 /// Real transactional example API for form-to-server integration tests.
 final class ShopTestApi {
   ShopTestApi._(this.adapter, this.server, this.client);
@@ -52,3 +53,4 @@ final class ShopTestApi {
     await Worm.reset();
   }
 }
+// --8<-- [end:ShopTestApi]

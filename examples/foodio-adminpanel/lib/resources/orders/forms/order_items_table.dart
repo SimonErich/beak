@@ -41,6 +41,7 @@ BeakRelationTable orderItems({
   readOnly: !allowEditing,
   catalog: catalog
       ? BeakRelationCatalog(
+          // --8<-- [start:orderCatalogRows]
           presentation: BeakCatalogPresentation.rows,
           compactToolbar: true,
           controlHeightInPixels: 32,
@@ -103,6 +104,8 @@ BeakRelationTable orderItems({
           ],
           maxOptions: 200,
           pageSize: 6,
+          // --8<-- [end:orderCatalogRows]
+          // --8<-- [start:orderCatalogFilters]
           tabs: [
             BeakCatalogFilter(
               label: 'Menu plan',
@@ -141,6 +144,7 @@ BeakRelationTable orderItems({
                         .contains(allergen.key),
               ),
           ],
+          // --8<-- [end:orderCatalogFilters]
         )
       : null,
   rowTemplate: BeakRecordTemplate(
@@ -251,11 +255,13 @@ BeakRelationTable orderItems({
       ),
   ],
   children: [
+    // --8<-- [start:orderQuantityInput]
     if (!review)
       OrderItemModel.quantity.inputQuantity(
         label: 'Qty',
         controlWidthInPixels: 90,
       ),
+    // --8<-- [end:orderQuantityInput]
     BeakCalculated(
       valueStyle: gabelNumericMediumStyle,
       label: 'Total',

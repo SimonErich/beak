@@ -91,6 +91,7 @@ class ShopVariantBuilder extends HookWidget {
                 message.value = 'Preview at most 100 combinations at a time.';
                 return;
               }
+              // --8<-- [start:variantMatrixPreview]
               final matrix = BeakVariantMatrix([
                 BeakVariantAxis(
                   key: firstName.text.trim(),
@@ -107,6 +108,7 @@ class ShopVariantBuilder extends HookWidget {
               preview.value = matrix.preview(
                 existing: shopVariantCombinations(draft),
               );
+              // --8<-- [end:variantMatrixPreview]
               selected.value = {
                 for (final combination in preview.value) combination.key,
               };

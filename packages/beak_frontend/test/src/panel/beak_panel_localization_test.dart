@@ -141,6 +141,7 @@ class _HostDelegate extends LocalizationsDelegate<_HostLabels> {
   bool shouldReload(_HostDelegate old) => false;
 }
 
+// --8<-- [start:frenchLocalizations]
 class _FrenchBeakLabels extends BeakLocalizations {
   const _FrenchBeakLabels() : super(const Locale('fr'));
 
@@ -161,3 +162,4 @@ class _FrenchBeakDelegate extends LocalizationsDelegate<BeakLocalizations> {
   @override
   bool shouldReload(_FrenchBeakDelegate old) => false;
 }
+// --8<-- [end:frenchLocalizations]

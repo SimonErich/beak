@@ -15,7 +15,9 @@ import 'beak_routes.dart';
 /// A zero-cost wrapper over [IconData] so resource declarations stay
 /// expressive (`BeakIconToken(OiIcons.package)`) without leaking raw icon
 /// plumbing into Beak's config surface. Wrap any obers_ui `OiIcons` value.
+// --8<-- [start:BeakIconToken]
 extension type const BeakIconToken(IconData icon) {}
+// --8<-- [end:BeakIconToken]
 
 /// One resource surfaced in the panel: a registered [BeakModel] plus its
 /// navigation presentation and the typed actions and filters its generated

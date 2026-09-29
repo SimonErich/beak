@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 import 'support/money.dart';
 
 void main() {
+  // --8<-- [start:voucherOrderTest]
   test('multiple vouchers apply sequentially before exclusive line tax', () {
     final lines = [
       ShopLineInput(
@@ -54,6 +55,7 @@ void main() {
       eur('16.80'),
     );
   });
+  // --8<-- [end:voucherOrderTest]
 
   test('mixed tax rates and largest remainders preserve every cent', () {
     final totals = ShopTotals.calculate(

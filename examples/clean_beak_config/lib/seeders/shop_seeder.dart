@@ -33,17 +33,21 @@ abstract final class ShopSeedIds {
   /// Linus's association with his profile.
   static const linusProfile = '00000000-0000-4000-8000-000000000007';
 
+  // --8<-- [start:SeedIdProducts]
   /// Espresso beans, €12.50 per unit.
   static const beans = '00000000-0000-4000-8000-000000000008';
 
   /// A grinder, €48.00 per unit.
   static const grinder = '00000000-0000-4000-8000-000000000009';
+  // --8<-- [end:SeedIdProducts]
 
+  // --8<-- [start:SeedIdCategories]
   /// Coffee catalog category.
   static const coffeeCategory = '00000000-0000-4000-8000-000000000010';
 
   /// Equipment catalog category.
   static const equipmentCategory = '00000000-0000-4000-8000-000000000011';
+  // --8<-- [end:SeedIdCategories]
 
   /// Standard illustrative exclusive tax rate.
   static const standardTax = '00000000-0000-4000-8000-000000000012';
@@ -54,14 +58,18 @@ abstract final class ShopSeedIds {
   /// Zero tax rate.
   static const zeroTax = '00000000-0000-4000-8000-000000000014';
 
+  // --8<-- [start:SeedIdAttributes]
   /// Category attribute definition for roast level.
   static const roastAttribute = '00000000-0000-4000-8000-000000000015';
 
   /// Category attribute definition for origin.
   static const originAttribute = '00000000-0000-4000-8000-000000000016';
+  // --8<-- [end:SeedIdAttributes]
 
+  // --8<-- [start:SeedIdFilterCoffee]
   /// A new catalog product with variants and attributes.
   static const filterCoffee = '00000000-0000-4000-8000-000000000017';
+  // --8<-- [end:SeedIdFilterCoffee]
 
   /// Variant of the filter coffee.
   static const filterCoffeeLarge = '00000000-0000-4000-8000-000000000018';
@@ -82,13 +90,16 @@ abstract final class ShopSeedIds {
   static const order = '00000000-0000-4000-8000-000000000050';
 }
 
+// --8<-- [start:SeedStored]
 /// The stored value of the exact [amount] for [field], such as `'12.50'`.
 ///
 /// Amounts are written the way the API writes them, so a seeded row is
 /// indistinguishable from one saved through the panel.
 Object? _stored(BeakScalarField<BeakDecimal> field, String amount) =>
     field.encode(BeakDecimal.parse(amount)).raw;
+// --8<-- [end:SeedStored]
 
+// --8<-- [start:ShopSeederInsert]
 /// Idempotent demonstration data. Existing rows and user edits are preserved.
 final class ShopSeeder extends Seeder {
   /// Creates the deterministic demo seeder.
@@ -114,6 +125,7 @@ final class ShopSeeder extends Seeder {
       }
       await adapter.insert(InsertDescriptor(table: table, values: values));
     }
+    // --8<-- [end:ShopSeederInsert]
 
     await insert('fulfillment_policies', {
       'id': '00000000-0000-4000-8000-000000000060',
@@ -181,6 +193,7 @@ final class ShopSeeder extends Seeder {
       'user_id': ShopSeedIds.linus,
       'profile_id': ShopSeedIds.office,
     });
+    // --8<-- [start:SeedProductRows]
     await insert('products', {
       'id': ShopSeedIds.beans,
       'name': 'Espresso Beans',
@@ -191,7 +204,9 @@ final class ShopSeeder extends Seeder {
       'name': 'Hand Grinder',
       'price': _stored(ProductModel.price, '48.00'),
     });
+    // --8<-- [end:SeedProductRows]
 
+    // --8<-- [start:SeedCategoryRows]
     await insert('categories', {
       'id': ShopSeedIds.coffeeCategory,
       'name': 'Specialty coffee',
@@ -202,6 +217,7 @@ final class ShopSeeder extends Seeder {
       'name': 'Brewing equipment',
       'description': 'Tools for better coffee at home.',
     });
+    // --8<-- [end:SeedCategoryRows]
     for (final (id, name, rate) in [
       (ShopSeedIds.standardTax, 'Standard — 20%', '20.00'),
       (ShopSeedIds.reducedTax, 'Reduced — 10%', '10.00'),
@@ -214,6 +230,7 @@ final class ShopSeeder extends Seeder {
         'active': true,
       });
     }
+    // --8<-- [start:SeedAttributeRows]
     await insert('category_attributes', {
       'id': ShopSeedIds.roastAttribute,
       'name': 'Roast level',
@@ -229,7 +246,9 @@ final class ShopSeeder extends Seeder {
       'required': false,
       'category_id': ShopSeedIds.coffeeCategory,
     });
+    // --8<-- [end:SeedAttributeRows]
     await insert('products', {
+      // --8<-- [start:SeedFilterCoffeeFields]
       'id': ShopSeedIds.filterCoffee,
       'name': 'Ethiopia — Yirgacheffe',
       'sku': 'COF-ETH',
@@ -238,6 +257,7 @@ final class ShopSeeder extends Seeder {
       'price': _stored(ProductModel.price, '14.50'),
       'active': true,
       'category_id': ShopSeedIds.coffeeCategory,
+      // --8<-- [end:SeedFilterCoffeeFields]
       'tax_rate_id': ShopSeedIds.standardTax,
     });
     await insert('product_attributes', {

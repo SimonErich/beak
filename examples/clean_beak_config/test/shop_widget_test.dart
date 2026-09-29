@@ -43,6 +43,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // --8<-- [start:productPriceTest]
   testWidgets('the product list shows exact euro prices', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1440, 1080));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -74,6 +75,7 @@ void main() {
     expect(find.text(formatting.exactCurrency(eur('1234.05'))), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+  // --8<-- [end:productPriceTest]
 
   for (final width in [375.0, 1280.0]) {
     testWidgets(

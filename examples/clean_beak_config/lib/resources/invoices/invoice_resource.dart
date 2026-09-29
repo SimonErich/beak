@@ -25,12 +25,15 @@ final class InvoiceResource extends BeakResource {
           InvoiceModel.items.search(InvoiceItemModel.label),
           InvoiceModel.vouchers.search(InvoiceVoucherModel.codeSnapshot),
         ],
+        // --8<-- [start:listInvoiceFilters]
         filters: [
           InvoiceModel.status.selectFilter(),
           InvoiceModel.customer.relationFilter(),
           InvoiceModel.issuedAt.dateRangeFilter(label: 'Invoice date'),
         ],
+        // --8<-- [end:listInvoiceFilters]
         screens: [
+          // --8<-- [start:listInvoiceFields]
           BeakTableScreen(
             fields: [
               InvoiceModel.number,
@@ -44,6 +47,8 @@ final class InvoiceResource extends BeakResource {
               ),
             ],
           ),
+          // --8<-- [end:listInvoiceFields]
+          // --8<-- [start:invoiceWizardAndReadScreens]
           BeakWizardScreen(
             steps: invoiceSteps(),
             drafts: shopDrafts('invoice'),
@@ -60,6 +65,7 @@ final class InvoiceResource extends BeakResource {
               ],
             ),
           ),
+          // --8<-- [end:invoiceWizardAndReadScreens]
         ],
       );
 }

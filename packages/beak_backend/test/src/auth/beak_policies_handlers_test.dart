@@ -49,6 +49,7 @@ final class _ArchivableNote extends BeakModel {
       const BeakModelBehavior(actions: [archive, restore]);
 }
 
+// --8<-- [start:policyRules]
 /// Notes are readable by anyone signed in, writable by editors and deletable
 /// by managers, and each principal sees only the notes of their own author.
 BeakPolicies _policies({
@@ -74,6 +75,7 @@ BeakPolicies _policies({
     ),
   ],
 );
+// --8<-- [end:policyRules]
 
 Request _multipart(
   String path,
@@ -220,6 +222,7 @@ void main() {
       ('export', 'POST', '/api/comments/export', {'table': 'comments'}),
     ];
 
+    // --8<-- [start:unlistedModelTests]
     for (final (name, method, path, body) in unlisted) {
       test(
         '$name answers 401 anonymously and 403 to a signed-in caller',
@@ -236,6 +239,7 @@ void main() {
         },
       );
     }
+    // --8<-- [end:unlistedModelTests]
 
     test('no relationship of a ruled model exposes it', () async {
       final response = await call(
@@ -269,6 +273,7 @@ void main() {
   });
 
   group('the query family', () {
+    // --8<-- [start:rowScopedQueryTests]
     test('query: 401 anonymous, then a page scoped to the caller', () async {
       expect(
         (await call('POST', '/api/notes/query', body: querySpec)).statusCode,
@@ -302,6 +307,7 @@ void main() {
         expect(page['total'], 0);
       },
     );
+    // --8<-- [end:rowScopedQueryTests]
 
     test('query: a filter aimed at another owner returns nothing', () async {
       final response = await call(

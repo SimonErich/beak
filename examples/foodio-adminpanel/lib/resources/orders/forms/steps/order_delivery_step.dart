@@ -41,6 +41,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
         textStyle: const TextStyle(fontSize: 12, height: 4 / 3),
       ),
       children: [
+        // --8<-- [start:deliveryDateInput]
         OrderModel.deliveryDate.inputDate(
           label: '',
           validate: const [BeakRequired()],
@@ -66,11 +67,13 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
             ];
           },
         ),
+        // --8<-- [end:deliveryDateInput]
       ],
     ),
     BeakFormLayout(
       spacingInPixels: 8,
       children: [
+        // --8<-- [start:deliverySlotCards]
         OrderModel.slot.inputCards(
           selectDefaultOption: true,
           defaultOptionMatch: (option, state) {
@@ -152,6 +155,7 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
             ]),
           ),
         ),
+        // --8<-- [end:deliverySlotCards]
         const BeakCalculated(
           value: _slotReservationHint,
           valueStyle: TextStyle(fontSize: 12, height: 4 / 3),
@@ -286,12 +290,14 @@ BeakWizardStep deliveryStep() => BeakWizardStep(
               ),
               gapInPixels: 6,
               children: [
+                // --8<-- [start:deliveryNoteInput]
                 OrderModel.deliveryNote.inputText(
                   label: '',
                   description: 'Printed on the delivery note for the driver.',
                   maxLines: 3,
                   controlHeightInPixels: 88,
                 ),
+                // --8<-- [end:deliveryNoteInput]
               ],
             ),
           ],

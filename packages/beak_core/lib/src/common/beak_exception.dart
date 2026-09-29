@@ -70,6 +70,7 @@ final class BeakValidationException extends BeakException {
 }
 // --8<-- [end:BeakValidationException]
 
+// --8<-- [start:BeakOtherExceptions]
 /// Raised when a requested record or resource does not exist.
 final class BeakNotFoundException extends BeakException {
   /// Creates a not-found failure described by [message].
@@ -114,6 +115,7 @@ final class BeakConflictException extends BeakException {
   const BeakConflictException(String message)
     : super(code: 'conflict', message: message);
 }
+// --8<-- [end:BeakOtherExceptions]
 
 /// Raised when a record does not carry the value a column requires — the
 /// column is absent, null, or holds a shape the column cannot read.

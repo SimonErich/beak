@@ -7,6 +7,7 @@ export 'package:beak_core/beak_core.dart'
 /// A context-scoped display policy shared with API exports.
 class BeakFormatting extends BeakFormatPolicy {
   /// Creates a locale-aware display policy with explicit date patterns.
+  // --8<-- [start:BeakFormatting]
   const BeakFormatting({
     super.locale,
     super.currency,
@@ -21,6 +22,7 @@ class BeakFormatting extends BeakFormatPolicy {
     super.timeZoneOffsetMinutes,
     super.emptyValue,
   });
+  // --8<-- [end:BeakFormatting]
 
   /// Presents an instant as calendar/clock components in the panel's display zone.
   DateTime toEditorDateTime(DateTime value) => switch (timeZoneOffsetMinutes) {

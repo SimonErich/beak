@@ -37,6 +37,7 @@ final class BeakSavedView {
 /// Owner/team visibility and write permission belong to this model's policies.
 final class BeakSavedViewStore {
   /// Binds existing generated columns without application HTTP or serialization.
+  // --8<-- [start:BeakSavedViewStore]
   const BeakSavedViewStore.model({
     required this.model,
     required this.name,
@@ -44,6 +45,7 @@ final class BeakSavedViewStore {
     required this.state,
     this.filter,
   });
+  // --8<-- [end:BeakSavedViewStore]
 
   /// Resource storing named views.
   final BeakModel model;

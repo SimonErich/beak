@@ -6,6 +6,7 @@ import '../../../people/people_forms.dart';
 import '../../presentations/order_presentations.dart';
 import '../order_wizard_bindings.dart';
 
+// --8<-- [start:customerAndProfileStep]
 /// Customer and delivery-profile selection step.
 BeakWizardStep customerAndProfileStep() => BeakWizardStep(
   title: 'Customer & profile',
@@ -63,3 +64,4 @@ BeakWizardStep customerAndProfileStep() => BeakWizardStep(
     ),
   ],
 );
+// --8<-- [end:customerAndProfileStep]

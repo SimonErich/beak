@@ -97,6 +97,7 @@ final class BeakPanelSettings {
 
 /// Which `AGENTS.md` files `beak prepare` and `beak agents` may write.
 enum BeakAgentInstructions {
+  // --8<-- [start:BeakAgentInstructions]
   /// The project's own, and the workspace root's when it is a member of one.
   all,
 
@@ -105,6 +106,7 @@ enum BeakAgentInstructions {
 
   /// None: Beak never touches `AGENTS.md` or `CLAUDE.md`.
   none,
+  // --8<-- [end:BeakAgentInstructions]
 }
 
 /// What Beak writes for coding agents, and where.
@@ -201,6 +203,7 @@ final class BeakProjectConfig {
       return BeakProjectConfig.defaults(packageName: packageName);
     }
     final YamlMap root = _requireMap(document, 'the document root');
+    // --8<-- [start:beakYamlKeys]
     _rejectUnknownKeys(root, const {
       'name',
       'api',
@@ -242,6 +245,7 @@ final class BeakProjectConfig {
         'startCollapsed',
       }, 'theme.sidebar.');
     }
+    // --8<-- [end:beakYamlKeys]
 
     final resources = <String, BeakResourceOverride>{};
     final YamlMap? declared = _optionalMap(root['resources'], 'resources');

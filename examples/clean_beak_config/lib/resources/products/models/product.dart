@@ -12,11 +12,13 @@ part 'product.beak.dart';
 /// Product schema; all metadata and typed helpers are generated.
 @Resource()
 final class Product extends BeakSchema {
+  // --8<-- [start:ProductFields]
   /// Product name used in picker suggestions.
   @Display()
   @Column(searchable: true, sortable: true)
   late final String name;
 
+  // --8<-- [start:productPrice]
   /// Current catalog unit price, exact and in euros.
   @Column(
     label: 'Net price',
@@ -25,6 +27,7 @@ final class Product extends BeakSchema {
     rules: [BeakMin(0)],
   )
   late final BeakDecimal price;
+  // --8<-- [end:productPrice]
 
   /// Optional stock-keeping identifier for the base product.
   @Column(searchable: true)
@@ -36,10 +39,13 @@ final class Product extends BeakSchema {
   /// Whether this product can be sold.
   @Column(defaultValue: true)
   late final bool active;
+  // --8<-- [end:ProductFields]
 
+  // --8<-- [start:ProductCategory]
   /// Category and its attribute definitions.
   @BelongsTo(inverse: false, onDelete: BeakOnDelete.setNull)
   late final Category? category;
+  // --8<-- [end:ProductCategory]
 
   /// Default exclusive tax rate.
   @BelongsTo(inverse: false, onDelete: BeakOnDelete.setNull)

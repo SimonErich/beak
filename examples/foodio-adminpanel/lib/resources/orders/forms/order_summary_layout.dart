@@ -168,6 +168,7 @@ BeakFormLayout orderSummary() => BeakFormLayout(
       divider: true,
       dividerAfterSpacingInPixels: 4,
       children: [
+        // --8<-- [start:basketSummary]
         BeakFormPlaceholder(
           label: 'No dishes yet',
           visibleIf: (state) => state.rows(OrderModel.items).isEmpty,
@@ -206,6 +207,7 @@ BeakFormLayout orderSummary() => BeakFormLayout(
             ),
           ],
         ),
+        // --8<-- [end:basketSummary]
       ],
     ),
   ],
@@ -373,6 +375,7 @@ BeakFormLayout orderSummaryFooter() => BeakFormLayout(
         ),
       ],
     ),
+    // --8<-- [start:budgetCapacityAndNotice]
     BeakFormCapacity(
       label: 'Company budget this month',
       dependencies: [OrderModel.profile.budgets],
@@ -404,6 +407,7 @@ BeakFormLayout orderSummaryFooter() => BeakFormLayout(
       message: (state) =>
           '€${BeakDecimal(orderTotals(state).grossCents, scale: 2)} is over the €${BeakDecimal(state.asOrder.profile?.approvalThresholdCents ?? 0, scale: 2)} rule.',
     ),
+    // --8<-- [end:budgetCapacityAndNotice]
   ],
 );
 

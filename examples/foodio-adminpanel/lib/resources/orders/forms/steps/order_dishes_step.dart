@@ -5,6 +5,7 @@ import '../../../../models/models.dart';
 import '../order_items_table.dart';
 import '../order_totals.dart';
 
+// --8<-- [start:dishesStep]
 /// Menu selection and allergy confirmation step.
 BeakWizardStep dishesStep() => BeakWizardStep(
   title: 'Dishes',
@@ -36,3 +37,4 @@ BeakWizardStep dishesStep() => BeakWizardStep(
     ),
   ],
 );
+// --8<-- [end:dishesStep]

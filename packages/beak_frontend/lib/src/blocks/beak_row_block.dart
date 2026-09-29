@@ -7,7 +7,7 @@ part of 'beak_block.dart';
 /// would become narrower than [minChildWidthInPixels].
 final class BeakRowBlock extends BeakBlock {
   /// Creates a horizontal run of [children] separated by [gapInPixels].
-// --8<-- [start:BeakRowBlock]
+  // --8<-- [start:BeakRowBlock]
   const BeakRowBlock({
     required this.children,
     this.gapInPixels = 16,
@@ -16,7 +16,7 @@ final class BeakRowBlock extends BeakBlock {
     super.span,
   }) : assert(gapInPixels >= 0),
        assert(minChildWidthInPixels >= 0);
-// --8<-- [end:BeakRowBlock]
+  // --8<-- [end:BeakRowBlock]
 
   /// The blocks to lay out, start to end.
   final List<BeakBlock> children;

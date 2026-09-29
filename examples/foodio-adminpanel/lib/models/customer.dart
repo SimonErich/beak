@@ -23,6 +23,7 @@ final class Customer extends BeakSchema {
   @HasMany(foreignKey: 'customer_id')
   late final List<PaymentMethod> paymentMethods;
 
+  // --8<-- [start:FoodioCustomerBehavior]
   /// Common identity and enrollment values are supplied in every presentation.
   static BeakModelBehavior get behavior => BeakModelBehavior(
     values: [
@@ -40,6 +41,7 @@ final class Customer extends BeakSchema {
       ),
     ],
   );
+  // --8<-- [end:FoodioCustomerBehavior]
 
   /// Name.
   @Display()

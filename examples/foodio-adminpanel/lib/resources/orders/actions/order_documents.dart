@@ -2,6 +2,7 @@ import 'package:beak/panel.dart';
 
 import '../../../models/models.dart';
 
+// --8<-- [start:deliveryNoteAction]
 /// A print-ready snapshot of the persisted order, with no app fetch/print code.
 BeakRecordAction deliveryNoteAction() => BeakRecordAction.document(
   key: 'delivery-note',
@@ -65,3 +66,4 @@ BeakRecordAction deliveryNoteAction() => BeakRecordAction.document(
     ],
   ),
 );
+// --8<-- [end:deliveryNoteAction]

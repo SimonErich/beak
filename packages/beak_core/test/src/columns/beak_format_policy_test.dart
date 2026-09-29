@@ -2,6 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 
 void main() {
+  // --8<-- [start:dateInputPolicyTest]
   test('date input pattern defaults and explicit policy JSON roundtrip', () {
     const inherited = BeakFormatPolicy(datePattern: 'dd.MM.yyyy');
     expect(inherited.dateInputPattern, inherited.datePattern);
@@ -21,6 +22,7 @@ void main() {
       throwsFormatException,
     );
   });
+  // --8<-- [end:dateInputPolicyTest]
 
   test(
     'exact decimal localization uses the same numeral and sign conventions as numbers',
@@ -86,6 +88,7 @@ void main() {
     expect(policy.formatColumn(date, const BeakRecord(values: {})), '(empty)');
   });
 
+  // --8<-- [start:portablePolicyTest]
   test(
     'serialized display policy uses explicit offset, never server local timezone',
     () {
@@ -103,6 +106,7 @@ void main() {
       expect(decoded.toJson(), original.toJson());
     },
   );
+  // --8<-- [end:portablePolicyTest]
 
   test('semantic percentages, units and passwords share display behavior', () {
     const percent = BeakDecimalColumn(

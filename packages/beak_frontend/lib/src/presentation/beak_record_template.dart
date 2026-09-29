@@ -333,6 +333,7 @@ enum BeakRecordTemplatePart {
 /// One presentation column, optionally sortable by an explicit typed field.
 final class BeakTableColumn {
   /// A composite column whose field loads are automatically inferred.
+  // --8<-- [start:BeakTableColumn]
   const BeakTableColumn({
     required this.key,
     required this.label,
@@ -363,6 +364,7 @@ final class BeakTableColumn {
        fallbackAction = fallback,
        template = null,
        sortBy = null;
+  // --8<-- [end:BeakTableColumn]
 
   /// Optional record-dependent action selector.
   final BeakValueBinding<String>? actionSelector;
@@ -380,6 +382,7 @@ final class BeakTableColumn {
   ];
 
   /// Ordinary scalar shorthand with model label and formatting.
+  // --8<-- [start:BeakTableColumnField]
   factory BeakTableColumn.field(
     BeakScalarField<Object> field, {
     double? widthInPixels,
@@ -396,6 +399,7 @@ final class BeakTableColumn {
     textAlign: textAlign,
     cellPadding: cellPadding,
   );
+  // --8<-- [end:BeakTableColumnField]
 
   /// Stable presentation identity, not a database column name.
   final String key;

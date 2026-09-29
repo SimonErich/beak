@@ -6,6 +6,7 @@ import '../../keepers/models/keeper.dart';
 
 part 'task.beak.dart';
 
+// --8<-- [start:TaskStatusEnum]
 /// Where a task stands; the columns of the board.
 enum TaskStatus {
   /// Not started.
@@ -17,6 +18,7 @@ enum TaskStatus {
   /// Finished.
   done,
 }
+// --8<-- [end:TaskStatusEnum]
 
 /// The kind of chore, which colours the calendar.
 enum TaskCategory {

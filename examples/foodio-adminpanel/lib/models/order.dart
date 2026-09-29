@@ -12,6 +12,7 @@ final class Order extends BeakSchema {
   /// Named transactional actions and shared client-side workflow availability.
   static BeakModelBehavior get behavior => foodioOrderBehavior;
 
+  // --8<-- [start:FoodioOrderRules]
   /// Selected profile and payment identities belong to the chosen customer.
   static List<BeakRecordRule> get validationRules => [
     BeakExists(
@@ -36,6 +37,7 @@ final class Order extends BeakSchema {
       ],
     ),
   ];
+  // --8<-- [end:FoodioOrderRules]
 
   /// Reference.
   @Display()
@@ -50,6 +52,7 @@ final class Order extends BeakSchema {
   @Column(defaultValue: '2026')
   late final String series;
 
+  // --8<-- [start:orderStatusField]
   /// Status.
   @Column(defaultValue: OrderStatus.draft, filterable: true)
   @EnumLabels<OrderStatus>({
@@ -71,6 +74,7 @@ final class Order extends BeakSchema {
     OrderStatus.onHold: BeakColor.error,
   })
   late final OrderStatus status;
+  // --8<-- [end:orderStatusField]
 
   /// Payment status.
   @Column(defaultValue: PaymentStatus.unpaid, filterable: true)

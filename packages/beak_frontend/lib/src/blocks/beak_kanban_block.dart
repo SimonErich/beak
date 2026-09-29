@@ -20,6 +20,7 @@ part of 'beak_block.dart';
 /// ```
 final class BeakKanbanBlock extends BeakBlock {
   /// Creates a Kanban block over [model], grouped by [groupField].
+  // --8<-- [start:BeakKanbanBlockConstructor]
   const BeakKanbanBlock({
     required this.model,
     required this.groupField,
@@ -31,6 +32,7 @@ final class BeakKanbanBlock extends BeakBlock {
     this.onCardMove,
     super.span,
   });
+  // --8<-- [end:BeakKanbanBlockConstructor]
 
   /// The model whose records become cards.
   final BeakModel model;

@@ -172,6 +172,7 @@ BeakFormSections invoiceSections() => BeakFormSections(
   ],
 );
 
+// --8<-- [start:invoiceReview]
 /// Monetary review uses one globally configured format for every amount.
 List<BeakFormNode> invoiceReview() => [
   BeakCard(
@@ -228,6 +229,7 @@ List<BeakFormNode> invoiceReview() => [
     ],
   ),
 ];
+// --8<-- [end:invoiceReview]
 
 BeakDecimal? _amount(
   BeakFormReader state,

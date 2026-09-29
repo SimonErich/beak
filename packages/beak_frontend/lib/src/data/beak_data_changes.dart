@@ -42,9 +42,11 @@ int useBeakDataRevision(BeakDataSource? source, {String? table}) {
 // --8<-- [end:useBeakDataRevision]
 
 /// Optional remote refresh policy shared by all mounted panel data consumers.
+// --8<-- [start:BeakRefreshPolicy]
 final class BeakRefreshPolicy {
   /// Invalidates loaded data periodically and/or after returning to foreground.
   const BeakRefreshPolicy({this.interval, this.onResume = true});
+  // --8<-- [end:BeakRefreshPolicy]
 
   /// Poll cadence; null relies on local writes and foreground resume only.
   final Duration? interval;

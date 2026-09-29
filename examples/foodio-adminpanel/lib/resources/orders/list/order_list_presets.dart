@@ -23,6 +23,7 @@ final class OrderListPresets {
     final organization = filters.organization;
     final slot = filters.slot;
     final payment = filters.payment;
+    // --8<-- [start:composedListPresetToday]
     final today = BeakQueryPreset(
       key: 'today',
       label: 'Today',
@@ -33,7 +34,9 @@ final class OrderListPresets {
         ]),
       },
     );
+    // --8<-- [end:composedListPresetToday]
     final attention = BeakQueryPreset(
+      // --8<-- [start:composedListPresetAttention]
       key: 'attention',
       label: 'Needs attention',
       rowHeightInPixels: 64,
@@ -47,6 +50,7 @@ final class OrderListPresets {
           OrderModel.deliveryDate.lte(const BeakDate(2026, 9, 29)),
         ]),
       },
+      // --8<-- [end:composedListPresetAttention]
       columns: [
         for (final column in columns.where(
           (column) => {'order', 'customer', 'delivery'}.contains(column.key),
@@ -88,6 +92,7 @@ final class OrderListPresets {
             ),
           ),
         ),
+        // --8<-- [start:composedListActionColumn]
         BeakTableColumn.action(
           key: 'next_step',
           label: 'Next step',
@@ -126,6 +131,7 @@ final class OrderListPresets {
             label: 'Review order',
           ),
         ),
+        // --8<-- [end:composedListActionColumn]
         BeakTableColumn(
           key: 'status',
           label: 'Status',

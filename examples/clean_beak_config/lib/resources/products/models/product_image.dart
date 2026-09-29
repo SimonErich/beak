@@ -8,6 +8,7 @@ part 'product_image.beak.dart';
 /// One ordered catalog picture with accessible description.
 @Resource()
 final class ProductImage extends BeakSchema {
+  // --8<-- [start:productImageColumn]
   /// The uploaded original and automatic thumbnail.
   @Image(
     storagePath: 'product-images',
@@ -21,6 +22,7 @@ final class ProductImage extends BeakSchema {
     ],
   )
   late final BeakImageRef image;
+  // --8<-- [end:productImageColumn]
 
   /// Alternate text describing the product in the image.
   @Display()

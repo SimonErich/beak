@@ -17,6 +17,7 @@ import 'resources/users/user_resource.dart';
 import 'resources/vouchers/voucher_resource.dart';
 
 /// Resource registration and one formatting policy are the complete panel setup.
+// --8<-- [start:shopMain]
 void main() => runApp(
   BeakPanel(
     title: 'Clean Beak Shop',
@@ -48,3 +49,4 @@ void main() => runApp(
     ],
   ),
 );
+// --8<-- [end:shopMain]

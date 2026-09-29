@@ -16,12 +16,14 @@ import 'beak_query_controller.dart';
 /// Explicit scalar projection for a server-authorized CSV download.
 final class BeakListExport {
   /// Field order is stable and independent of composite UI column templates.
+  // --8<-- [start:BeakListExport]
   const BeakListExport({
     required this.fields,
     this.label = 'Export',
     this.fileName,
     this.raw = false,
   });
+  // --8<-- [end:BeakListExport]
 
   /// Direct scalar fields of the list model, in exported order.
   final List<BeakScalarField<Object>> fields;

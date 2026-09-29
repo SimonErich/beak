@@ -8,6 +8,7 @@ import '../../../theme/gabel_tokens.dart';
 const foodioToday = BeakDate(2026, 9, 28);
 
 /// Orders booked into each delivery slot.
+// --8<-- [start:foodioSlotMeasures]
 final _booked = BeakSummaryMeasure.sum(
   'booked',
   field: DeliverySlotModel.reservedOrders,
@@ -18,6 +19,7 @@ final _capacity = BeakSummaryMeasure.sum(
   'capacity',
   field: DeliverySlotModel.capacity,
 );
+// --8<-- [end:foodioSlotMeasures]
 
 /// Height of the five single-line slot rows and their warning line.
 const _slotRowsHeightInPixels = 216.0;
@@ -35,6 +37,7 @@ const _compactSlotRowsHeightInPixels = 306.0;
 const _compactSlotCardWidthInPixels = 330.0;
 
 /// A compact live overview remains useful when operational charts are hidden.
+// --8<-- [start:foodioCompactOverview]
 BeakBlock orderCompactOverview() {
   final today = OrderModel.deliveryDate.eq(foodioToday);
   final values = [
@@ -88,9 +91,11 @@ BeakBlock orderCompactOverview() {
     presentation: BeakSummaryPresentation.strip,
   );
 }
+// --8<-- [end:foodioCompactOverview]
 
 /// Full-population summaries stay independent of table pagination and tab state.
 BeakBlock orderOverview() {
+  // --8<-- [start:foodioStatusValues]
   final statusValues = [
     for (final entry in [
       (OrderStatus.confirmed, 'Confirmed', GabelLight.chart1),
@@ -118,6 +123,8 @@ BeakBlock orderOverview() {
       color: GabelLight.danger,
     ),
   ];
+  // --8<-- [end:foodioStatusValues]
+  // --8<-- [start:foodioDayMeasures]
   const orders = BeakSummaryMeasure.count('orders');
   final delivered = BeakSummaryMeasure.count(
     'delivered',
@@ -127,10 +134,12 @@ BeakBlock orderOverview() {
     'cancelled',
     filter: OrderModel.status.eq(OrderStatus.cancelled),
   );
+  // --8<-- [end:foodioDayMeasures]
   return BeakRowBlock(
     expand: true,
     gapInPixels: 24,
     children: [
+      // --8<-- [start:foodioDailyBars]
       BeakSummaryBlock(
         title: 'Orders by delivery day',
         legend: const [
@@ -192,6 +201,8 @@ BeakBlock orderOverview() {
         scope: BeakSummaryScope.standalone,
         heightInPixels: 216,
       ),
+      // --8<-- [end:foodioDailyBars]
+      // --8<-- [start:foodioStatusDonut]
       BeakSummaryBlock(
         title: 'Status right now',
         subtitle: 'Active orders today',
@@ -207,6 +218,7 @@ BeakBlock orderOverview() {
         scope: BeakSummaryScope.standalone,
         heightInPixels: 264,
       ),
+      // --8<-- [end:foodioStatusDonut]
       BeakWidgetBlock(
         (context) => LayoutBuilder(
           builder: (context, constraints) => BeakBlockHost(
@@ -225,6 +237,7 @@ BeakBlock orderOverview() {
 ///
 /// The capacity rows are a fixed-height stack, so [compact] gives them the
 /// extra height they need once each time range wraps onto two lines.
+// --8<-- [start:foodioSlotCapacity]
 BeakSummaryBlock _deliverySlotCapacity({required bool compact}) {
   return BeakSummaryBlock(
     title: 'Delivery slots today',
@@ -280,3 +293,4 @@ BeakSummaryBlock _deliverySlotCapacity({required bool compact}) {
         : _slotRowsHeightInPixels,
   );
 }
+// --8<-- [end:foodioSlotCapacity]

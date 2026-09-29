@@ -40,6 +40,7 @@ enum BeakSummaryPresentation {
 /// Per-group presentation, independent of the authoritative measure values.
 final class BeakSummaryGroupStyle {
   /// Defines chart labels and non-color forecast differentiation.
+  // --8<-- [start:BeakSummaryGroupStyle]
   const BeakSummaryGroupStyle({
     this.label,
     this.section,
@@ -47,6 +48,7 @@ final class BeakSummaryGroupStyle {
     this.hatched = false,
     this.emphasized = false,
   });
+  // --8<-- [end:BeakSummaryGroupStyle]
 
   /// Emphasizes this category and displays its value above the bar.
   final bool emphasized;
@@ -67,11 +69,13 @@ final class BeakSummaryGroupStyle {
 /// A key explaining semantic colors and forecast patterns in a summary.
 final class BeakSummaryLegend {
   /// Declares presentation independently of the summary's measured values.
+  // --8<-- [start:BeakSummaryLegend]
   const BeakSummaryLegend({
     required this.label,
     required this.color,
     this.hatched = false,
   });
+  // --8<-- [end:BeakSummaryLegend]
 
   /// Human-readable meaning.
   final String label;
@@ -86,6 +90,7 @@ final class BeakSummaryLegend {
 /// Typed measure pairing for utilization and capacity displays.
 final class BeakSummaryCapacity {
   /// Both measures must be the objects declared in the summary query.
+  // --8<-- [start:BeakSummaryCapacity]
   const BeakSummaryCapacity({
     required this.used,
     required this.total,
@@ -94,6 +99,7 @@ final class BeakSummaryCapacity {
     this.warningColor,
     this.trackHeightInPixels = 6,
   });
+  // --8<-- [end:BeakSummaryCapacity]
 
   /// Booked/consumed measure.
   final BeakSummaryMeasure used;
@@ -117,6 +123,7 @@ final class BeakSummaryCapacity {
 /// The display of a typed summary measure, retaining its storage units.
 final class BeakSummaryValue {
   /// Counts use number formatting; monetary measures may declare minor units.
+  // --8<-- [start:BeakSummaryValue]
   const BeakSummaryValue({
     required this.measure,
     required this.label,
@@ -127,6 +134,7 @@ final class BeakSummaryValue {
     this.icon,
     this.iconColor,
   });
+  // --8<-- [end:BeakSummaryValue]
 
   /// Same measure object declared in the summary query.
   final BeakSummaryMeasure measure;
@@ -156,7 +164,7 @@ final class BeakSummaryValue {
 /// A bounded server summary, automatically bound to the current list scope.
 final class BeakSummaryBlock extends BeakBlock {
   /// No application fetching, error state or aggregate mapping is required.
-// --8<-- [start:BeakSummaryBlock]
+  // --8<-- [start:BeakSummaryBlock]
   const BeakSummaryBlock({
     required this.title,
     required this.query,
@@ -177,7 +185,7 @@ final class BeakSummaryBlock extends BeakBlock {
     this.legend = const [],
     super.span,
   });
-// --8<-- [end:BeakSummaryBlock]
+  // --8<-- [end:BeakSummaryBlock]
 
   /// Optional chart key displayed above the data.
   final List<BeakSummaryLegend> legend;

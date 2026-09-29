@@ -11,6 +11,7 @@ import '../presentation/beak_record_template.dart';
 /// A named, counted view over the same resource and permanent query scope.
 final class BeakQueryPreset {
   /// Preset filters are combined with permanent and user filters.
+  // --8<-- [start:BeakQueryPreset]
   const BeakQueryPreset({
     required this.key,
     required this.label,
@@ -21,6 +22,7 @@ final class BeakQueryPreset {
     this.rowHeightInPixels,
     this.countColor = BeakColor.muted,
   });
+  // --8<-- [end:BeakQueryPreset]
 
   /// Stable URL and saved-view identifier.
   ///
@@ -122,6 +124,7 @@ final class BeakQueryState {
   final bool? showHeader;
 
   /// Stable persistence representation, shared by URLs and saved views.
+  // --8<-- [start:BeakQueryStateJson]
   Map<String, Object?> toJson() => {
     'version': 1,
     'preset': preset,
@@ -135,6 +138,7 @@ final class BeakQueryState {
     if (visibleColumns != null) 'columns': visibleColumns,
     if (showHeader != null) 'showHeader': showHeader,
   };
+  // --8<-- [end:BeakQueryStateJson]
 
   /// Decodes only the current version and rejects malformed state.
   factory BeakQueryState.fromJson(Map<String, Object?> json) {

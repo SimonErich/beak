@@ -13,6 +13,7 @@ final class BeakNavigationItem {
   ///
   /// [preset] is one of the presets declared in the resource's
   /// [BeakListDefinition.presets], referenced by the object itself.
+  // --8<-- [start:BeakNavigationItemResource]
   const BeakNavigationItem.resource(
     this.model, {
     String? label,
@@ -23,10 +24,12 @@ final class BeakNavigationItem {
   }) : screen = null,
        _label = label,
        _icon = icon;
+  // --8<-- [end:BeakNavigationItemResource]
 
   /// A custom [BeakScreen] registered with the panel.
   ///
   /// The label and icon default to the screen's own navigation title and icon.
+  // --8<-- [start:BeakNavigationItemScreen]
   const BeakNavigationItem.screen(this.screen, {String? label, IconData? icon})
     : model = null,
       preset = null,
@@ -34,6 +37,7 @@ final class BeakNavigationItem {
       recordLabelMonospace = false,
       _label = label,
       _icon = icon;
+  // --8<-- [end:BeakNavigationItemScreen]
 
   /// Model owning a generated route.
   final BeakModel? model;
@@ -91,6 +95,7 @@ final class BeakNavigationItem {
 /// A primary rail destination and its contextual resource navigation.
 final class BeakNavigationSection {
   /// The first visible item is the section's landing destination.
+  // --8<-- [start:BeakNavigationSection]
   const BeakNavigationSection({
     required this.key,
     required this.label,
@@ -98,6 +103,7 @@ final class BeakNavigationSection {
     required this.items,
     this.bottom = false,
   });
+  // --8<-- [end:BeakNavigationSection]
 
   /// Stable presentation identity.
   final String key;
@@ -118,6 +124,7 @@ final class BeakNavigationSection {
 /// Optional two-level navigation; ordinary resource navigation stays automatic.
 final class BeakNavigation {
   /// Adds a primary rail and selects contextual items from the active route.
+  // --8<-- [start:BeakNavigation]
   const BeakNavigation({
     required this.sections,
     this.leading,
@@ -132,6 +139,7 @@ final class BeakNavigation {
     this.currentRecordBranch = false,
     this.searchInHeader = true,
   });
+  // --8<-- [end:BeakNavigation]
 
   /// Workspace sections, filtered through the same resource permissions.
   final List<BeakNavigationSection> sections;

@@ -1,3 +1,4 @@
+// --8<-- [start:OrderStatusEnum]
 /// Fulfillment is independent of payment and approval.
 enum OrderStatus {
   /// Unsaved business intent; reserves no capacity or budget.
@@ -21,6 +22,7 @@ enum OrderStatus {
   /// A failed delivery awaits an explicit redelivery slot.
   onHold,
 }
+// --8<-- [end:OrderStatusEnum]
 
 /// Financial collection state; invoice billing can remain open after delivery.
 enum PaymentStatus {

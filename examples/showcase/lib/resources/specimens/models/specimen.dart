@@ -91,6 +91,7 @@ final class Specimen extends BeakSchema {
   @Column(sortable: true)
   late final DateTime? hatchedAt;
 
+  // --8<-- [start:SpecimenDiet]
   /// The bird's diet (enum column with badges).
   @Column(defaultValue: Diet.granivore, filterable: true)
   @EnumLabels<Diet>({
@@ -108,6 +109,7 @@ final class Specimen extends BeakSchema {
     Diet.nectarivore: BeakColor.secondary,
   })
   late final Diet diet;
+  // --8<-- [end:SpecimenDiet]
 
   /// Tracker readings as structured data (json column).
   late final BeakJson? telemetry;
@@ -115,6 +117,7 @@ final class Specimen extends BeakSchema {
   /// The dominant feather colour (color column).
   late final BeakHexColor? plumageColor;
 
+  // --8<-- [start:SpecimenUploads]
   /// A portrait, resized on upload (image column).
   @Image(
     storagePath: 'specimens',
@@ -136,6 +139,7 @@ final class Specimen extends BeakSchema {
     allowedTypes: [BeakFileType.pdf],
   )
   late final BeakFileRef? healthCertificate;
+  // --8<-- [end:SpecimenUploads]
 
   // --8<-- [start:SpecimenBandCode]
   /// The leg band, drawn by a renderer the app registers (custom column).

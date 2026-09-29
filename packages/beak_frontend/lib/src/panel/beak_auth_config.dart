@@ -9,6 +9,7 @@ import '../auth/beak_auth_adapter.dart';
 @immutable
 final class BeakAuthConfig {
   /// Configures built-in authentication screens; public registration is off.
+  // --8<-- [start:BeakAuthConfig]
   const BeakAuthConfig({
     this.adapter,
     this.register = false,
@@ -17,6 +18,7 @@ final class BeakAuthConfig {
     this.lockUserName,
     this.onUnlock,
   });
+  // --8<-- [end:BeakAuthConfig]
 
   /// Backend authority; null uses the registered HTTP session store.
   final BeakAuthAdapter? adapter;

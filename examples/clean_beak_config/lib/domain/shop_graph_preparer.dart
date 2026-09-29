@@ -128,6 +128,7 @@ final class ShopGraphPreparer {
             break;
         }
       }
+      // --8<-- [start:shopVariantCombinationCheck]
       for (final ref in variantRefs) {
         final variant = await graph.load(ref);
         if (variant.deleted) continue;
@@ -154,6 +155,7 @@ final class ShopGraphPreparer {
         }
         graph.write(variant, ProductVariantModel.combinationKey, key);
       }
+      // --8<-- [end:shopVariantCombinationCheck]
       for (final ref in productRefs) {
         await _product(graph, await graph.load(ref));
       }
@@ -170,6 +172,7 @@ final class ShopGraphPreparer {
       owner ??
       (throw field.invalid('An invoice row needs its owning invoice.'));
 
+  // --8<-- [start:shopCombinationKey]
   Future<String?> _combination(
     BeakCandidateGraph graph,
     BeakCandidateNode variant,
@@ -190,6 +193,7 @@ final class ShopGraphPreparer {
     }
     return values.isEmpty ? null : BeakVariantCombination(values).key;
   }
+  // --8<-- [end:shopCombinationKey]
 
   Future<void> _product(
     BeakCandidateGraph graph,
@@ -218,6 +222,7 @@ final class ShopGraphPreparer {
       category,
       CategoryModel.attributes,
     );
+    // --8<-- [start:shopAttributeReconcile]
     final result =
         BeakAttributeSet([
           for (final definition in definitions)
@@ -243,6 +248,7 @@ final class ShopGraphPreparer {
           : result.errors.values.first.first;
       _invalid(ProductModel.attributes, message);
     }
+    // --8<-- [end:shopAttributeReconcile]
   }
 
   Future<void> _attribute(

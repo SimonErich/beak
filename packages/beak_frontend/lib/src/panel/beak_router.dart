@@ -47,6 +47,7 @@ import 'beak_shell_page_scope.dart';
 /// Resource routes are intentionally flat rather than nested: nesting would
 /// keep a list page alive under its create/show/edit children, so returning
 /// to the list would show stale rows instead of re-querying.
+// --8<-- [start:createBeakRouter]
 GoRouter createBeakRouter(
   BeakPanelConfig config, {
   BeakAuthRouterRefresh? authRefresh,
@@ -65,6 +66,7 @@ GoRouter createBeakRouter(
     onAction: () => context.go('/'),
   ),
 );
+// --8<-- [end:createBeakRouter]
 
 /// Routes and shell for embedding Beak in a host application's router.
 ///
@@ -266,6 +268,7 @@ String? _homeLocation(BeakPanelConfig config) {
 /// Mount outside a loading gate so sign-in permission resolution cannot unmount
 /// the form awaiting its outcome. Registration/recovery require explicit opt-in
 /// and a backend capability; direct URLs cannot enable an absent workflow.
+// --8<-- [start:beakAuthRoutes]
 List<RouteBase> beakAuthRoutes(BeakPanelConfig config) {
   final auth = config.auth ?? const BeakAuthConfig();
   GoRoute route(String path, BeakAuthMode mode) => GoRoute(
@@ -303,7 +306,9 @@ List<RouteBase> beakAuthRoutes(BeakPanelConfig config) {
     ),
   ];
 }
+// --8<-- [end:beakAuthRoutes]
 
+// --8<-- [start:maintenanceRoutes]
 List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
   if (maintenance == null) {
     return const [];
@@ -331,6 +336,7 @@ List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
     ),
   ];
 }
+// --8<-- [end:maintenanceRoutes]
 
 List<RouteBase> _errorRoutes() => [
   GoRoute(
@@ -764,6 +770,7 @@ final class _BeakShell extends HookWidget {
 /// the shell. Any pointer event resets the countdown; the timer is torn down
 /// when the shell unmounts (e.g. once navigation reaches the lock screen), so
 /// it never fires in a loop.
+// --8<-- [start:idleLock]
 class _BeakIdleLock extends HookWidget {
   const _BeakIdleLock({required this.timeout, required this.child});
 
@@ -808,6 +815,7 @@ class _BeakIdleLock extends HookWidget {
     );
   }
 }
+// --8<-- [end:idleLock]
 
 bool _fullScreenRoute(BeakPanelConfig config, String path) {
   for (final resource in config.resources) {

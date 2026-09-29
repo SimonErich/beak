@@ -12,6 +12,7 @@ import 'beak_value.dart';
 /// instance. Its [key] only names the value on the wire.
 final class BeakSummaryMeasure {
   /// Counts records, including records whose grouped value is null.
+  // --8<-- [start:BeakSummaryMeasure]
   const BeakSummaryMeasure.count(this.key, {this.filter}) : columnKey = null;
 
   /// Sums a numeric field of the summarized model, with zero for an empty
@@ -27,6 +28,7 @@ final class BeakSummaryMeasure {
 
   /// Wire constructor. A null column denotes a count.
   const BeakSummaryMeasure.forKey(this.key, {this.columnKey, this.filter});
+  // --8<-- [end:BeakSummaryMeasure]
 
   /// Stable result key, independent of a translated display label.
   final String key;

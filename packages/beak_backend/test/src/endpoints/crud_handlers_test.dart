@@ -483,6 +483,7 @@ void main() {
   });
 
   group('query counts', () {
+    // --8<-- [start:queryCountTest]
     test(
       'a paged list with a pivot relation load stays at four queries',
       () async {
@@ -507,5 +508,6 @@ void main() {
         expect(logger.entries, hasLength(4));
       },
     );
+    // --8<-- [end:queryCountTest]
   });
 }

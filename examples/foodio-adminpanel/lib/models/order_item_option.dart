@@ -11,6 +11,7 @@ final class OrderItemOption extends BeakSchema {
   /// Selection suggestions share the same snapshot semantics as the order line.
   static BeakModelBehavior get behavior => BeakModelBehavior(
     values: [
+      // --8<-- [start:FoodioOptionLabel]
       BeakValueBehavior.suggested(
         field: OrderItemOptionModel.label,
         dependencies: [
@@ -24,6 +25,7 @@ final class OrderItemOption extends BeakSchema {
             ? state.original(OrderItemOptionModel.label)
             : state.read(OrderItemOptionModel.option.name),
       ),
+      // --8<-- [end:FoodioOptionLabel]
       BeakValueBehavior.suggested(
         field: OrderItemOptionModel.allergens,
         dependencies: [

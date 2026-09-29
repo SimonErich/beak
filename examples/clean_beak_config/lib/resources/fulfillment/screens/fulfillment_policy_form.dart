@@ -11,6 +11,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
           children: [
             BeakColumns(
               children: [
+                // --8<-- [start:fulfillmentIdentityCard]
                 BeakCard(
                   title: 'Policy identity',
                   children: [
@@ -25,6 +26,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
                     ),
                   ],
                 ),
+                // --8<-- [end:fulfillmentIdentityCard]
                 BeakCard(
                   title: 'Carrier contact',
                   children: [
@@ -35,6 +37,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
                 ),
               ],
             ),
+            // --8<-- [start:fulfillmentCoverageCard]
             BeakCard(
               title: 'Destination coverage',
               children: [
@@ -53,11 +56,13 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
                 ),
               ],
             ),
+            // --8<-- [end:fulfillmentCoverageCard]
           ],
         ),
         BeakTab(
           title: 'Pricing and timing',
           children: [
+            // --8<-- [start:fulfillmentPricingColumns]
             BeakColumns(
               children: [
                 BeakCard(
@@ -91,6 +96,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
                 ),
               ],
             ),
+            // --8<-- [end:fulfillmentPricingColumns]
             BeakSection(
               title: 'Promotional validity',
               description: 'Use a start and end date for time-limited offers.',
@@ -108,6 +114,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
         BeakTab(
           title: 'Origin and integration',
           children: [
+            // --8<-- [start:fulfillmentOriginColumns]
             BeakColumns(
               children: [
                 BeakCard(
@@ -131,6 +138,7 @@ BeakFormLayout fulfillmentPolicyForm() => BeakFormLayout(
                 ),
               ],
             ),
+            // --8<-- [end:fulfillmentOriginColumns]
           ],
         ),
       ],
