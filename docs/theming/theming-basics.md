@@ -36,7 +36,7 @@ That is the whole change to the panel. The shop does the same in its `main.dart`
 --8<-- "examples/clean_beak_config/lib/main.dart:shopMain"
 ```
 
-Read `fromBrand` for what it is. It replaces the primary swatch and the focus color and leaves everything else at the light or dark default. Success, warning, error, info and the neutral surfaces do not follow your brand, which is usually right for status colors. When they should, or when a design system dictates every color, build the theme by hand ([Colors and tokens](colors-and-tokens.md)).
+Read `fromBrand` for what it is. It replaces the primary swatch and the focus color (and the effects and decoration derived from them) and leaves everything else at the light or dark default. Success, warning, error, info and the neutral surfaces do not follow your brand, which is usually right for status colors. When they should, or when a design system dictates every color, build the theme by hand ([Colors and tokens](colors-and-tokens.md)).
 
 `OiThemeData.light()` and `.dark()` also take a `fontFamily`, a `monoFontFamily` and a `radiusPreference` (`sharp`, `medium` or `rounded`). Those three are the cheapest way to change how a panel feels without touching a color. `fromBrand` takes the same arguments.
 
@@ -81,7 +81,7 @@ import 'package:beak/panel.dart';
 BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
 ```
 
-For example, `defaults.copyWith(initialThemeMode: OiThemeMode.dark)`. The sidebar switches have a `beak.yaml` form too: `theme.sidebar.collapsible` and `theme.sidebar.startCollapsed`.
+For example, `defaults.copyWith(initialThemeMode: OiThemeMode.dark)`, with `OiThemeMode` imported from `package:beak/ui.dart`. The sidebar switches have a `beak.yaml` form too: `theme.sidebar.collapsible` and `theme.sidebar.startCollapsed`.
 
 ## Light, dark and the toggle
 
@@ -129,7 +129,7 @@ The generated path is checked by running the two commands above in a project: `l
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:05 +12: All tests passed!
+00:08 +12: All tests passed!
 ```
 
 Run either panel and press the theme toggle in the top bar. Every surface should change together. A color that stays put is hard-coded somewhere.

@@ -66,7 +66,7 @@ The keeper resource then gives that widget the read role, so `/keepers/<id>` sho
 | `BelongsToMany` | The attached rows with a detach button each, and a search box that attaches another. |
 | `BelongsTo`, `HasOne` | The text "Unavailable". Only to-many relationships are managed. |
 
-It reads 25 related rows at a time and offers "Load more (n)" for the rest. Buttons act immediately once you confirm: the delete button on a has-many row asks "Delete this record?" and then deletes that related record, and detach unlinks the pivot row without asking. Both go through the panel's data source, so the row's model has to allow the write. A refused write shows the server's reason in a toast, a failed read keeps the rows on screen and shows an error line with Retry, and both refresh the block afterwards.
+It reads 25 related rows at a time and offers "Load more (n)" for the rest, up to 200, and beyond that it says how many it shows. Buttons act immediately once you confirm: the delete button on a has-many row asks "Delete this record?" and then deletes that related record, and detach unlinks the pivot row without asking. Both go through the panel's data source, so the row's model has to allow the write. A refused write shows the reason in a toast, and the block reloads after every write, refused or not. A failed read keeps the rows on screen and shows an error line with Retry.
 
 ## Rules and limits
 

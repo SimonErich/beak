@@ -53,7 +53,7 @@ The credit text is not a parameter of the block. It stays "© OpenStreetMap cont
 
 ## Rules and limits
 
-- **Same states as charts.** Neither block has a loading state. A failed request shows the panel's generic error line above the map with a Retry button, and both refetch after a write.
+- **Same states as charts.** Neither block has a loading state. A failed request keeps the last map on screen and shows an error line above it with a Retry button (the server's message for a domain failure, the panel's generic sentence for an infrastructure one). Both refetch after a write.
 - **The query decides the rows.** 25 by default, and there is no server-side aggregation. For a country total, aggregate first.
 - **The tile map needs the network** to get its tiles. The choropleth draws from bundled geometry and works offline.
 - **One value per pin.** Every pin has the same weight; the block does not size pins by a column. If you need bubbles, use a [bubble chart](charts.md) or a summary.
@@ -68,9 +68,9 @@ The Aviary builds both maps on its Maps page, with fixture rows:
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:04 +7: Maps renders
+00:04 +5: Maps renders
 ...
-00:05 +12: All tests passed!
+00:08 +12: All tests passed!
 ```
 
 The habitats it maps have six different countries, so each shades once:

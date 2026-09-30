@@ -88,7 +88,7 @@ The same test file pins tabular figures. Money that changes digits should not ji
 
 ## Icons
 
-Icons are `IconData` tokens from `OiIcons`, the Lucide set that ships inside obers_ui: over 1,950 glyphs, named in camelCase (`OiIcons.layoutDashboard`, `OiIcons.receiptText`). A typo is a compile error. Beak asks for an icon in two spellings:
+Icons are `IconData` tokens from `OiIcons`, the Lucide set that ships inside obers_ui: about 1,950 glyphs, named in camelCase (`OiIcons.layoutDashboard`, `OiIcons.receiptText`). A typo is a compile error. Beak asks for an icon in two spellings:
 
 - Navigation destinations take a `BeakIconToken`, a zero-cost wrapper: `BeakResource(icon: BeakIconToken(OiIcons.users))` and `BeakScreen(icon: ...)`.
 - Blocks, actions and summary values take a plain `IconData`: `BeakMetricBlock(icon: OiIcons.bird)`, `BeakAction(icon:)`, `BeakSummaryValue(icon:)`.
