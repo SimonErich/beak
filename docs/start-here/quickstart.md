@@ -112,6 +112,8 @@ listening on http://0.0.0.0:8080
 
 `beak dev` regenerates the wiring, serves the API and prints the line that starts the panel. It does not start Flutter for you, so the panel gets a second terminal. Leave this one running.
 
+The first `beak dev` in a new project compiles native code and can take about 30 seconds before `listening` appears; after 3 seconds it prints `api        still starting (the first run compiles native code, ~30 s)` so the wait is not silent.
+
 The `warning` line is expected on a new project: nothing restricts the API yet, which is what you want on your own machine and not what you want on a network. `HOST=127.0.0.1 beak dev` silences it; [Security](../shipping/security.md) covers the real fix.
 
 ### 4. Open the panel

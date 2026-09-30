@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:path/path.dart' as p;
 
 import '../agents/beak_block_renderer.dart';
 import '../agents/beak_claude_md.dart';
@@ -9,6 +8,7 @@ import '../agents/beak_managed_block.dart';
 import '../agents/beak_skill_installer.dart';
 import '../agents/beak_workspace.dart';
 import '../cli_runner.dart';
+import '../project/beak_checkout.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
@@ -51,8 +51,9 @@ final class CreateCommand extends Command<int> {
       ..addOption(
         'beak-path',
         help:
-            'Depend on a local Beak checkout at this path instead of git. '
-            'Use it when developing Beak itself.',
+            'Depend on a local Beak checkout, the repo root that holds '
+            'packages/beak, instead of git. Use it when developing Beak '
+            'itself.',
         valueHelp: 'path/to/beak',
       )
       ..addOption(
@@ -137,6 +138,13 @@ final class CreateCommand extends Command<int> {
         invocation,
       );
     }
+    final String? checkoutRoot = beakPath is String
+        ? resolveBeakCheckout(
+            environment.rootDirectory,
+            beakPath,
+            usage: invocation,
+          )
+        : null;
     final String beakRef = switch (argResults?['beak-ref']) {
       final String ref => ref,
       _ => beakReleaseRef,
@@ -170,11 +178,7 @@ final class CreateCommand extends Command<int> {
       name,
       // The pubspec lands one folder below where the path was typed, so a
       // relative one would name a checkout that is not there.
-      beakPath: beakPath is String
-          ? p.normalize(
-              p.join(environment.rootDirectory.absolute.path, beakPath),
-            )
-          : null,
+      beakPath: checkoutRoot,
       beakRef: beakRef,
       authored: authored,
       example: example,

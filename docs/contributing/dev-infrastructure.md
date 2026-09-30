@@ -121,6 +121,7 @@ None of them migrate your data, and none touch a table they did not create.
 - **`up` alone leaves no bucket.** Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
 - **Three images are unpinned.** MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
 - **`e2e` also means slow.** Three CLI suites run on SQLite and need no container. They carry the tag because a real `flutter pub get` is too slow for the main gate.
+- **Run `dart run packages/beak_cli/bin/beak.dart` one at a time.** From a checkout, two of them started together can both build the native-assets hook and one fails with `PathNotFoundException ... .dart_tool/lib/libsqlite3.so`. It comes from `dart run` building in the shared checkout: six parallel runs of a `dart pub global activate --source path` executable all succeeded, so an installed `beak` is not affected.
 - **Project name follows the directory.** The compose project is named `beak` because the checkout folder is. A checkout in another folder gets other container and volume names.
 
 ## Verify it

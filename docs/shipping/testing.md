@@ -59,7 +59,7 @@ The generated `BeakApp` takes an optional `dataSource`. An authored panel takes 
 
 ## The panel over an in-memory data source
 
-`InMemoryBeakDataSource` is a complete `BeakDataSource` over maps. It honors every operator, nested and/or filters, sorts, search, paging, eager relation loads, soft deletes and aggregates, so a passing widget test says something about filtering. A fake that returns every row whatever the spec asks for cannot say that.
+`InMemoryBeakDataSource` is a complete `BeakDataSource` over maps. It honors every operator, nested and/or filters, sorts, search, paging, eager relation loads, soft deletes and aggregates, so a passing widget test says something about filtering. A fake that returns every row whatever the spec asks for cannot say that. It also refuses what the real store refuses: a second row under a taken key is a `BeakConflictException`, attaching to an owner that does not exist is a `BeakNotFoundException`, and `contains`, `startsWith` and `endsWith` ignore case.
 
 Seed it with typed records. `seed` replaces a model's rows and returns the source, `seedPivot` links a many-to-many, and `rowsOf` reads back what a write stored, soft-deleted rows included.
 
@@ -247,7 +247,7 @@ $ beak doctor
   OK   generated files up to date
   OK   every model has a migration
   WARN invoices.subtotal is declared by Invoice.subtotal but missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddSubtotalToInvoices --from-drift, then beak migrate
 ```
 
 ## Reference

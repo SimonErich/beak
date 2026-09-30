@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:args/command_runner.dart';
 
 import '../cli_runner.dart';
 import '../project/beak_dotenv.dart';
+import '../project/beak_project_config.dart';
 import 'prepare_command.dart';
 
 /// Runs a Beak project's backend, after regenerating its wiring.
@@ -26,7 +29,13 @@ import 'prepare_command.dart';
 /// ```
 final class DevCommand extends Command<int> {
   /// Creates the command against [environment].
-  DevCommand(this.environment) {
+  ///
+  /// [startupNoteDelay] is how long the server may take to listen before
+  /// `beak dev` says that a first start compiles native code.
+  DevCommand(
+    this.environment, {
+    this.startupNoteDelay = const Duration(seconds: 3),
+  }) {
     argParser
       ..addOption(
         'device',
@@ -43,6 +52,13 @@ final class DevCommand extends Command<int> {
 
   /// The injected seams (output sink, project directory, process runner).
   final BeakCliEnvironment environment;
+
+  /// How long to wait for the server to listen before printing the note about
+  /// the first start.
+  final Duration startupNoteDelay;
+
+  /// The port the server binds when nothing sets one.
+  static const int _defaultPort = 8080;
 
   @override
   String get name => 'dev';
@@ -77,11 +93,40 @@ final class DevCommand extends Command<int> {
     }
 
     environment.out.writeln('  api        starting…');
-    return environment.runInteractive('dart', const [
+    var ended = false;
+    final Timer note = Timer(startupNoteDelay, () async {
+      final bool listening = await environment.probe(
+        'localhost',
+        _portOf(prepared.config),
+      );
+      if (!listening && !ended) {
+        environment.out.writeln(
+          '  api        still starting (the first run compiles native code, '
+          '~30 s)',
+        );
+      }
+    });
+    final int exitCode = await environment.runInteractive('dart', const [
       'run',
       'bin/serve.dart',
     ], workingDirectory: environment.rootDirectory.path);
+    ended = true;
+    note.cancel();
+    return exitCode;
   }
+
+  /// The port the server will bind: `PORT` from the environment or `.env`,
+  /// then `beak.yaml`, then Beak's default.
+  int _portOf(BeakProjectConfig config) =>
+      int.tryParse(
+        BeakDotenv.resolve(
+              environment.rootDirectory,
+              processEnvironment: environment.processEnvironment,
+            )['PORT'] ??
+            '',
+      ) ??
+      config.server.port ??
+      _defaultPort;
 }
 
 /// What `beak migrate` can be asked to do, named the way a person says it.

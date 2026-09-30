@@ -953,12 +953,11 @@ String _remedyFor(
         : 'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
               '--from-drift, then beak migrate',
   BeakMissingColumn() =>
-    'write a migration with `beak make:migration <Name>` (a flag that '
-        'changes more than a column is not something --from-drift adds), '
-        'then beak migrate',
+    'beak make:migration <Name> and add the column yourself (--from-drift '
+        'adds only the columns a field declares), then beak migrate',
   BeakUndeclaredColumn(:final schema) =>
-    'declare the field on ${schema.className}, or drop the column in a '
-        'migration written with `beak make:migration <Name>`',
+    'declare the field on ${schema.className}, or drop the column with '
+        'beak make:migration <Name>, then beak migrate',
 };
 
 /// `stock_level` -> `StockLevel`.

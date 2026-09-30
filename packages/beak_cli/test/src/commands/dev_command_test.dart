@@ -102,6 +102,96 @@ void main() {
       expect(out.toString(), contains('Cannot generate'));
     });
 
+    group('the first start', () {
+      /// A `beak dev` whose server takes [serverTime] to exit, with the
+      /// probe answering [listening], and the note due after [noteDelay].
+      Future<String> devOutput({
+        required Duration serverTime,
+        required bool listening,
+        Map<String, String> processEnvironment = const {},
+        List<int>? probedPorts,
+      }) async {
+        final BeakCliEnvironment base = environment(
+          processEnvironment: processEnvironment,
+        );
+        final slow = BeakCliEnvironment(
+          out: out,
+          rootDirectory: root,
+          now: base.now,
+          probe: (host, port) async {
+            probedPorts?.add(port);
+            return listening;
+          },
+          processEnvironment: processEnvironment,
+          runProcess: base.runProcess,
+          runInteractive: (executable, arguments, {workingDirectory}) async {
+            await Future<void>.delayed(serverTime);
+            return 0;
+          },
+        );
+        final runner = CommandRunner<int>('beak', 'test')
+          ..addCommand(
+            DevCommand(
+              slow,
+              startupNoteDelay: const Duration(milliseconds: 40),
+            ),
+          );
+        await runner.run(['dev']);
+        return out.toString();
+      }
+
+      test('says the first run compiles native code when the server is not '
+          'listening yet', () async {
+        final String printed = await devOutput(
+          serverTime: const Duration(milliseconds: 200),
+          listening: false,
+        );
+
+        expect(printed, contains('the first run compiles native code'));
+        expect(printed, contains('~30 s'));
+      });
+
+      test('stays quiet once the server is listening', () async {
+        final String printed = await devOutput(
+          serverTime: const Duration(milliseconds: 200),
+          listening: true,
+        );
+
+        expect(printed, isNot(contains('compiles native code')));
+      });
+
+      test(
+        'stays quiet when the server ended before the note was due',
+        () async {
+          final String printed = await devOutput(
+            serverTime: Duration.zero,
+            listening: false,
+          );
+
+          expect(printed, isNot(contains('compiles native code')));
+        },
+      );
+
+      test('probes the port the server will bind', () async {
+        final List<int> probed = [];
+        await devOutput(
+          serverTime: const Duration(milliseconds: 200),
+          listening: true,
+          processEnvironment: {'PORT': '9191'},
+          probedPorts: probed,
+        );
+        expect(probed, [9191]);
+
+        probed.clear();
+        await devOutput(
+          serverTime: const Duration(milliseconds: 200),
+          listening: true,
+          probedPorts: probed,
+        );
+        expect(probed, [8080]);
+      });
+    });
+
     test('surfaces the server exit code', () async {
       expect(await run(['dev'], exitCode: 70), 70);
     });

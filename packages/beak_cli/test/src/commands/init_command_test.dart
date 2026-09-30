@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../../support/beak_cli_internals.dart';
@@ -113,12 +114,62 @@ void main() {
       expect((beak['git'] as YamlMap)['ref'], 'main');
     });
 
-    test('--beak-path depends on a local checkout instead', () async {
-      await init(['--no-pub', '--beak-path', '../beak']);
+    /// A directory shaped like a Beak checkout: `packages/beak` inside it.
+    Directory checkout() {
+      final Directory dir = Directory.systemTemp.createTempSync('beak_repo_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      Directory('${dir.path}/packages/beak').createSync(recursive: true);
+      return dir;
+    }
 
-      final beak = (pubspec()['dependencies'] as YamlMap)['beak'] as YamlMap;
-      expect(beak['path'], '../beak/packages/beak');
-      expect(beak.containsKey('git'), isFalse);
+    test('--beak-path depends on a local checkout instead', () async {
+      final Directory beak = checkout();
+
+      await init(['--no-pub', '--beak-path', beak.path]);
+
+      final dependency =
+          (pubspec()['dependencies'] as YamlMap)['beak'] as YamlMap;
+      expect(dependency['path'], '${beak.path}/packages/beak');
+      expect(dependency.containsKey('git'), isFalse);
+    });
+
+    test('--beak-path is normalised and made absolute, as beak create '
+        'does', () async {
+      final Directory beak = checkout();
+      final String unnormalised =
+          '${root.path}/../${p.basename(root.path)}/'
+          '${p.relative(beak.path, from: root.path)}';
+
+      await init(['--no-pub', '--beak-path', unnormalised]);
+
+      final dependency =
+          (pubspec()['dependencies'] as YamlMap)['beak'] as YamlMap;
+      expect(dependency['path'], '${beak.path}/packages/beak');
+    });
+
+    test('--beak-path that is no checkout is refused before anything is '
+        'written', () async {
+      final Directory beak = checkout();
+      final before = snapshot();
+
+      // The mistake the flag invites: naming the package, not the repo.
+      await expectLater(
+        init(['--beak-path', '${beak.path}/packages/beak']),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('${beak.path}/packages/beak/packages/beak'),
+              contains('repo root'),
+              isNot(contains('\n')),
+            ),
+          ),
+        ),
+      );
+
+      expect(snapshot(), before);
+      expect(spawned, isEmpty);
     });
 
     test('a ref and a path together are a usage error', () {
@@ -509,6 +560,38 @@ final class BrokenModel extends BeakModel {
         out.toString(),
         contains('flutter run -d chrome -t lib/admin_main.dart'),
       );
+    });
+
+    test(
+      '--example points at migrate before dev, with no make:resource',
+      () async {
+        await init(['--example']);
+
+        final String next = out.toString().split('  next:').last;
+        expect(next, isNot(contains('beak make:resource')));
+        expect(next.indexOf('beak migrate'), greaterThan(-1));
+        expect(
+          next.indexOf('beak dev'),
+          greaterThan(next.indexOf('beak migrate')),
+        );
+        expect(
+          next.indexOf('flutter run'),
+          greaterThan(next.indexOf('beak dev')),
+        );
+      },
+    );
+
+    test('without --example the list starts from make:resource, then '
+        'migrate, then dev', () async {
+      await init([]);
+
+      final String next = out.toString().split('  next:').last;
+      final int resource = next.indexOf('beak make:resource');
+      final int migrate = next.indexOf('beak migrate');
+      final int dev = next.indexOf('beak dev');
+      expect(resource, greaterThan(-1));
+      expect(migrate, greaterThan(resource));
+      expect(dev, greaterThan(migrate));
     });
 
     test('prints the strict analyzer flags it did not add', () async {

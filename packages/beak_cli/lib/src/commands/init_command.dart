@@ -8,6 +8,7 @@ import 'package:yaml_edit/yaml_edit.dart';
 import '../cli_runner.dart';
 import '../field_spec.dart';
 import '../project/beak_authored_main.dart';
+import '../project/beak_checkout.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
@@ -71,8 +72,9 @@ final class InitCommand extends Command<int> {
       ..addOption(
         'beak-path',
         help:
-            'Depend on a local Beak checkout at this path instead of git. '
-            'Use it when developing Beak itself.',
+            'Depend on a local Beak checkout, the repo root that holds '
+            'packages/beak, instead of git. Use it when developing Beak '
+            'itself.',
         valueHelp: 'dir',
       )
       ..addFlag(
@@ -134,19 +136,26 @@ final class InitCommand extends Command<int> {
     if ((argResults?.rest ?? const []).isNotEmpty) {
       throw UsageException('beak init takes no arguments.', invocation);
     }
-    final String? beakPath = switch (argResults?['beak-path']) {
+    final String? typedBeakPath = switch (argResults?['beak-path']) {
       final String path => path,
       _ => null,
     };
     // A local checkout replaces the git dependency, so a ref would silently
     // mean nothing.
-    if (beakPath != null && (argResults?.wasParsed('beak-ref') ?? false)) {
+    if (typedBeakPath != null && (argResults?.wasParsed('beak-ref') ?? false)) {
       throw UsageException(
         '--beak-ref pins the git dependency and --beak-path replaces it; '
         'pass one of them.',
         invocation,
       );
     }
+    final String? beakPath = typedBeakPath == null
+        ? null
+        : resolveBeakCheckout(
+            environment.rootDirectory,
+            typedBeakPath,
+            usage: invocation,
+          );
     final String? requestedEntrypoint = switch (argResults?['entrypoint']) {
       final String path => path,
       _ => null,
@@ -292,10 +301,18 @@ final class InitCommand extends Command<int> {
       return 1;
     }
     await _refreshAgentFiles?.call(environment);
+    // Migrate before dev: the API serves the tables the migration creates,
+    // and a first `beak dev` without them fails every request.
     environment.out
       ..writeln()
-      ..writeln('  next:')
-      ..writeln('    beak make:resource Product --fields name:string!')
+      ..writeln('  next:');
+    if (argResults?['example'] != true) {
+      environment.out.writeln(
+        '    beak make:resource Product --fields name:string!',
+      );
+    }
+    environment.out
+      ..writeln('    beak migrate')
       ..writeln('    beak dev')
       ..writeln('    flutter run -d chrome -t $entrypoint');
     return 0;

@@ -202,6 +202,46 @@ final class CreateNotesTable extends Migration {
       },
     );
 
+    test('a missing bookkeeping column is reported once, with the same hint '
+        'as any declared column', () async {
+      // `softDeletes: true` and `timestamps: true` put `deleted_at` and
+      // the stamps among the schema's declared columns, so reporting them
+      // again as implied ones printed two warnings for one missing column.
+      final List<IntrospectedTable> tables = [
+        for (final table in driftSchema())
+          IntrospectedTable(
+            name: table.name,
+            columns: [
+              for (final column in table.columns)
+                if (column.name != 'deleted_at' && column.name != 'updated_at')
+                  column,
+            ],
+            foreignKeys: table.foreignKeys,
+            primaryKey: table.primaryKey,
+          ),
+      ];
+
+      final checks = await _diagnose(
+        drifted(''),
+        databaseUp: true,
+        tables: tables,
+      );
+
+      final missing = [
+        for (final check in checks)
+          if (check.label.contains('deleted_at') ||
+              check.label.contains('updated_at'))
+            check,
+      ];
+      expect(missing, hasLength(2));
+      expect(missing.map((check) => check.remedy), [
+        'beak make:migration AddUpdatedAtToProducts --from-drift, then '
+            'beak migrate',
+        'beak make:migration AddDeletedAtToProducts --from-drift, then '
+            'beak migrate',
+      ]);
+    });
+
     test(
       'a column nothing declares is told to declare it or drop it',
       () async {
@@ -212,9 +252,11 @@ final class CreateNotesTable extends Migration {
         );
 
         final check = checkMatching(checks, 'products.legacy_sku');
-        expect(check.remedy, contains('declare'));
-        expect(check.remedy, contains('beak make:migration'));
-        expect(check.remedy, isNot(contains('--from-drift')));
+        expect(
+          check.remedy,
+          'declare the field on Product, or drop the column with '
+          'beak make:migration <Name>, then beak migrate',
+        );
       },
     );
   });

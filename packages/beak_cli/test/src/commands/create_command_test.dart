@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -643,37 +642,75 @@ void main() {
       expect(pubspec, isNot(contains('obers_ui:')));
     });
 
+    /// A directory shaped like a Beak checkout, named [name].
+    Directory checkout([String name = 'beak_repo']) {
+      final Directory dir = Directory('${root.path}/checkouts/$name')
+        ..createSync(recursive: true);
+      Directory('${dir.path}/packages/beak').createSync(recursive: true);
+      return dir;
+    }
+
     test('--beak-path points at a local checkout instead', () async {
-      await create(['acme_admin', '--beak-path', '/opt/beak']);
+      final Directory beak = checkout();
+      await create(['acme_admin', '--beak-path', beak.path]);
       final pubspec = read('acme_admin/pubspec.yaml');
-      expect(pubspec, contains('path: /opt/beak/packages/beak'));
+      expect(pubspec, contains('path: ${beak.path}/packages/beak'));
       expect(pubspec, isNot(contains('github.com/SimonErich/beak.git')));
       expect(pubspec, isNot(contains('ref:')));
     });
 
     test('--beak-path is written absolute, because the pubspec is one level '
         'below where it was typed', () async {
-      await create(['acme_admin', '--beak-path', '../beak']);
+      final Directory beak = checkout();
+      await create([
+        'acme_admin',
+        '--beak-path',
+        'checkouts/../checkouts/beak_repo',
+      ]);
 
-      final String expected = p.normalize(p.join(root.path, '../beak'));
       expect(
         read('acme_admin/pubspec.yaml'),
-        contains('path: $expected/packages/beak'),
+        contains('path: ${beak.path}/packages/beak'),
       );
+    });
+
+    test('--beak-path that is no checkout is refused, naming the repo root '
+        'it expected', () async {
+      final Directory beak = checkout();
+
+      // The mistake the flag invites: naming the package, not the repo.
+      await expectLater(
+        create(['acme_admin', '--beak-path', '${beak.path}/packages/beak']),
+        throwsA(
+          isA<UsageException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('${beak.path}/packages/beak/packages/beak'),
+              contains('repo root'),
+              isNot(contains('\n')),
+            ),
+          ),
+        ),
+      );
+
+      expect(exists('acme_admin'), isFalse);
+      expect(spawned, isEmpty);
     });
 
     test(
       '--beak-path with characters YAML reads differently is quoted',
       () async {
-        await create(['acme_admin', '--beak-path', '/opt/my beak: #1']);
+        final Directory beak = checkout('my beak: #1');
+        await create(['acme_admin', '--beak-path', beak.path]);
 
-        final beak =
+        final beakDependency =
             (loadYaml(read('acme_admin/pubspec.yaml'))
                     as YamlMap)['dependencies']
                 as YamlMap;
         expect(
-          (beak['beak'] as YamlMap)['path'],
-          '/opt/my beak: #1/packages/beak',
+          (beakDependency['beak'] as YamlMap)['path'],
+          '${beak.path}/packages/beak',
         );
       },
     );

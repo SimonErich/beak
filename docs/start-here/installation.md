@@ -87,7 +87,7 @@ The files are written, so nothing is lost, but the project is not resolved. Tell
 | `--beak-path <repo root>` | Writes a `path:` dependency on `<repo root>/packages/beak`. | You have a checkout, which is the case after the clone above. |
 | `--beak-ref <ref>` | Keeps the git dependency, pinned to a branch, tag or commit. | The ref exists on `github.com/SimonErich/beak`. |
 
-The argument of `--beak-path` is the root of the checkout. The CLI appends `/packages/beak` itself, so pointing it at `beak/packages/beak` writes a path that does not exist and `flutter pub get` fails. It resolves the argument against the directory you run `beak create` in and writes the absolute result, so a relative path works too:
+The argument of `--beak-path` is the root of the checkout. The CLI appends `/packages/beak` itself, so pointing it at `beak/packages/beak` is refused with a usage error (exit `64`) that names the `packages/beak` it expected. `beak create` and `beak init` resolve the argument against the directory you run them in and write the normalised absolute result, so a relative path works too:
 
 ```bash
 beak create acme_admin --beak-path "$PWD/beak"
