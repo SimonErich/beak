@@ -103,7 +103,7 @@ There is no file per field and no file per operation. A small resource is a sche
 - **Move a schema class before its migration exists, or fix the import.** Discovery ignores folders, but the create-table migration imports the schema by relative path. Move `note.dart` afterwards and `dart analyze` fails inside `lib/migrations/`. `beak doctor` fails too, with `lib/migrations/create_notes_table.dart imports ../resources/notes/models/note.dart, which does not exist`.
 - **A resource class must be public, not abstract, and constructible with no arguments** (an unnamed constructor without required parameters). A class with only named constructors is skipped, and its model keeps the generated default.
 - **The folder name is the plural of the class.** `Category` becomes `categories`, `Person` becomes `people`. It only names a folder and a table default; set `@Resource(table:)` to override the table when the pluraliser does not know the word.
-- **`beak prepare` does not check where it runs.** In an empty directory it writes `bin/` and `lib/`. Run every `beak` command from the project root.
+- **Run every `beak` command from the project root.** `beak prepare` refuses a directory without a `pubspec.yaml` (`run beak create <name>`) or whose `pubspec.yaml` has no Beak dependency (`run beak init`), and writes nothing.
 - **A package of schema classes on its own** (it depends on `beak_core` and not on `beak`) gets the `*.beak.dart` parts and `lib/beak/registry.g.dart` and nothing else. That is the shape of the shared models package in a Serverpod workspace.
 
 ## Verify it

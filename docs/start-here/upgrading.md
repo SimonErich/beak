@@ -19,7 +19,7 @@ You have a project written against the tree before the 0.9 cleanup, and you want
 | Method | Compile-driven. Let `beak prepare` and the analyzer produce the punch list |
 | Order | Schema classes, resource and screen options, typed references, blocks, server |
 | Biggest changes | One way to configure a resource, no string references, units in size names, typed policies |
-| Silent changes | Six, listed [below](#changes-that-do-not-fail-to-compile) |
+| Silent changes | Twelve, listed [below](#changes-that-do-not-fail-to-compile) |
 | Source of truth | [`CHANGELOG.md`](https://github.com/SimonErich/beak/blob/main/CHANGELOG.md) and the code |
 
 ## Do it in this order

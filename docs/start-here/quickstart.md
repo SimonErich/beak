@@ -106,10 +106,13 @@ $ beak dev
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
+warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, so every route answers every caller and CORS admits any origin. Pass a BeakPolicy to defaults.build(policy: ...), or set HOST=127.0.0.1 to keep it on this machine.
 listening on http://0.0.0.0:8080
 ```
 
 `beak dev` regenerates the wiring, serves the API and prints the line that starts the panel. It does not start Flutter for you, so the panel gets a second terminal. Leave this one running.
+
+The `warning` line is expected on a new project: nothing restricts the API yet, which is what you want on your own machine and not what you want on a network. `HOST=127.0.0.1 beak dev` silences it; [Security](../shipping/security.md) covers the real fix.
 
 ### 4. Open the panel
 
