@@ -98,7 +98,7 @@ That is all the panel needs. The default store does the rest:
 | Signed in, `canAccessPanel: false` | Any path except those and `/403` | Redirect to `/403` |
 | Signed in with access, panel locked | Any path except `/lock` | Redirect to `/lock`, see [Idle lock](#idle-lock) |
 | Signed in with access | `/login`, `/register`, `/recover` | Redirect to `/` |
-| Loading or failed | Anywhere | Stay on the URL. `BeakAuthGate` shows a loading label, or a card with Retry and Back to sign in. Protected content stays unmounted |
+| Loading or failed | Anywhere | Stay on the URL. `BeakAuthGate` shows a loading label, or the error with Retry and Back to sign in. Protected content stays unmounted |
 
 There is no return URL. A guest who opens `/orders/42` lands on `/login`, and after signing in lands on `/`: the screen mounted there, your `home:`, or the first destination. The panel forgets the page you came for.
 
@@ -178,8 +178,9 @@ BeakAuthConfig beakAuth() => BeakAuthConfig(
 );
 ```
 
-The lock is a curtain, not a door. It hides the panel from someone walking past, and Back cannot lift it. It does not end the session: the token stays in memory and stays valid on the server until it expires or the user signs out. Three details follow from how it is built:
+The lock is a curtain, not a door. It hides the panel from someone walking past, and Back cannot lift it. It does not end the session: the token stays in memory and stays valid on the server until it expires or the user signs out. Four details follow from how it is built:
 
+- An open dialog or sheet is closed when the lock fires, and activity inside one keeps the timer from firing.
 - A form with unsaved changes does not hold the lock back. The lock is a navigation, but it skips the "Leave this form?" question, because nobody is there to answer it. What was typed is kept only if the screen has a `drafts:` store; without one, the unsaved input is gone when the person unlocks.
 - Unlocking lands on `/`, not on the page that was open.
 - A wrong password shows obers_ui's own message, `Operation failed. Please try again.`, in English.
@@ -217,12 +218,11 @@ The repo's tests cover the routes, the gate, the redirect and the lock. From `pa
 
 ```console
 $ flutter test test/src/auth test/src/panel/beak_screen_routing_test.dart test/src/panel/beak_idle_lock_test.dart
-00:00 +19: a 401 from the API signs the panel out
-00:02 +36: auth routes login always mounts; register/recover follow config
-00:02 +37: auth routes register is absent when disabled
-00:02 +43: idle lock the lock route renders the lock screen
-00:02 +44: idle lock the panel auto-locks after the idle timeout
-00:02 +45: All tests passed!
+00:01 +21: a 401 from the API signs the panel out
+00:03 +46: auth routes login always mounts; register/recover follow config
+00:04 +55: idle lock the lock route renders the lock screen
+00:04 +56: idle lock the panel auto-locks after the idle timeout
+00:04 +57: All tests passed!
 ```
 
 The generated path, in a scratch project made with `beak create demo --no-pub --beak-path <repo>`, after `beak eject auth` and `beak prepare`:
@@ -239,11 +239,11 @@ Three behaviours have a test of their own. `test/src/auth/unauthorized_test.dart
 
 ```console
 $ flutter test test/src/panel/beak_idle_lock_test.dart
-00:00 +1: an idle list locks the panel
-00:00 +2: a form with unsaved changes does not hold the lock back
-00:01 +3: a full-screen form locks too
-00:01 +4: activity keeps a full-screen form open
-00:01 +4: All tests passed!
+00:01 +1: an idle list locks the panel
+00:02 +7: a form with unsaved changes does not hold the lock back
+00:02 +8: a full-screen form locks too
+00:02 +9: activity keeps a full-screen form open
+00:02 +10: All tests passed!
 ```
 
 The second line is a normal create form with typed text: the router reaches `/lock` and no "Leave this form?" dialog opens. The third is a `fullScreen: true` create form left alone for two seconds.

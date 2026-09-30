@@ -61,7 +61,7 @@ Every action, whether it comes from a button, a row or a menu, goes through one 
 
 In words: check permission, ask for confirmation when `requiresConfirmation` is set, run the callback, and hand a `BeakException` it throws to `onActionError` (or to an error toast when the resource has none). Any other exception propagates unchanged, because that is a bug and not a failure. The permission check runs a second time after the dialog closes, so a session that lost access while the dialog was open does not run the action. `BeakActionButton` ignores taps while its action is running, so a double click runs it once.
 
-A record action on a list row does not receive the row as the table loaded it. Beak fetches the current record first (one `getOne` for a record, one batch read for several) and hands you that, so a callback never acts on a stale copy.
+A custom record action on a list row does not receive the row as the table loaded it. Beak fetches the current record first (one `getOne` for a record, one batch read for several) and hands you that, so a callback never acts on a stale copy. The built-in view, edit, delete and archive act by id and skip the fetch.
 
 ### Two factories for common jobs
 
@@ -309,7 +309,7 @@ Callbacks, confirmations, the built-in delete and the row actions of a list are 
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/actions test/src/pages/resource_actions_test.dart
-00:03 +28: All tests passed!
+00:05 +33: All tests passed!
 ```
 
 The runner tests are the ones that pin the "never submitted twice" promise:

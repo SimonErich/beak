@@ -109,7 +109,7 @@ Neither page has a retry button or a status link. `OiMaintenancePage` supports b
 The pages are a sign on the door, not the lock. `redirectTo` puts every visitor in front of one of them:
 
 ```dart
-const BeakMaintenanceConfig(
+BeakMaintenanceConfig(
   maintenanceDescription: 'We are upgrading the database.',
   estimatedReturn: DateTime.utc(2026, 10, 3, 6),
   redirectTo: BeakMaintenancePage.maintenance,
@@ -159,10 +159,10 @@ The generated path, in a scratch project made with `beak create demo --no-pub --
 
 ```console
 $ beak prepare
-1 model · 0 resource classes · 0 screens · 2 overrides
+1 model · 0 resource classes · 0 screens · 1 override
 $ grep -n "as panel\|beakPanel" lib/beak/panel.g.dart
 8:import '../panel.dart' as panel;
-33:  return panel.beakPanel(config);
+31:  return panel.beakPanel(config);
 $ flutter analyze lib
 No issues found!
 ```

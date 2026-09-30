@@ -140,10 +140,12 @@ The discovery rules for `lib/screens/` are tested in the CLI:
 ```console
 $ cd packages/beak_cli
 $ dart test test/src/project/beak_discovery_test.dart --plain-name "screens"
+00:00 +0: screens are found as a top-level variable or a nullary function
 00:00 +1: screens only a const variable is a constant expression
-00:00 +2: screens a builder taking required arguments is reported
-00:00 +3: screens non-screen declarations are ignored
-00:00 +4: All tests passed!
+00:00 +2: screens a variable without a type annotation is found by its initializer
+00:00 +3: screens a builder taking required arguments is reported
+00:00 +4: screens non-screen declarations are ignored
+00:00 +5: All tests passed!
 ```
 
 In a scratch project (`beak create dash --no-pub --no-example`) with `lib/screens/overview.dart` holding `final BeakScreen overview = BeakScreen(path: '/', ...)`, `beak prepare` finds the screen and registers it:

@@ -59,15 +59,17 @@ A stored draft never contains file bytes, so a form resumed from a draft asks fo
 
 ## What the server checks
 
-The upload route is `POST /api/{table}/{column}/upload`, guarded by the same policy as creating a record of that resource and by the account's write access to the column. The `UploadService` validates the size, the allowed types, and for images the maximum dimensions and aspect ratio, then runs the declared transforms (the shop's `BeakThumbnailTransform` produces a `thumbnail` rendition), and stores the original and each rendition under a key it mints itself. A client filename never becomes part of a key. The response describes the stored file and its variants.
+The upload route is `POST /api/{table}/{column}/upload`, guarded by the same policy as creating a record of that resource and by the account's write access to the column. The `UploadService` validates the size, the allowed types, and for images the maximum dimensions and aspect ratio, then runs the declared transforms (the shop's `BeakThumbnailTransform` produces a `thumbnail` rendition), and stores the original and each rendition under a key it mints itself. A client filename never becomes part of a key, apart from a short plain extension (letters and digits, at most 16) when the MIME type names none. The response describes the stored file and its variants.
 
-Keys are checked against the column's storage path on the way back in: a key that does not start with the column's `storagePath`, or that contains `..`, is refused.
+Keys are checked against the column's storage path on the way back in: a key that does not start with the column's `storagePath`, or that is malformed (a `.` or `..` segment, a backslash, a control character), is refused with `422`. A key that passes but names no stored file answers `404`.
+
+An abandoned draft removes its own uploads through `DELETE /api/{table}/{column}/upload` with a JSON body `{"key": "..."}`. That route is guarded by `BeakPolicy.canDeleteUpload` and the same key checks.
 
 ## Showing stored files
 
 A saved key becomes a picture through `GET /api/{table}/{column}/upload?key=`, which returns the storage driver's URL for it. The endpoint requires read access to the resource and the column, and, for a resource with a row policy, that a visible record holds the key in this exact column. Hidden and unreferenced keys both answer `404`. A policy that implements `BeakUploadReadPolicy` can add a key-specific rule.
 
-That endpoint decides who may ask. It does not make a public file private. The local disk driver serves its files without authentication, and a public bucket stays public. The lookup asks the driver for a plain URL with no expiry, so an S3 driver returns its public URL form and never a presigned one. A private bucket therefore needs delivery of its own until that changes, see [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md).
+That endpoint decides who may ask, and it asks the driver for a link that expires after `signedUrlLifetime` (one hour by default). An S3 driver answers with a presigned URL, so a private bucket works through this route; with `BEAK_S3_PUBLIC_BASE_URL` set it answers with that public address instead. Resolve a key again when you need to show it, and do not store the link. The local disk driver serves its files without authentication and its links never expire, so authorizing the lookup does not make a local file private. See [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md).
 
 ## Replacing the picker or the transport
 
@@ -77,7 +79,7 @@ The native file picker is automatic. To take a photo or pick from an asset libra
 --8<-- "packages/beak_frontend/lib/src/form/upload_field.dart:BeakFilePicker"
 ```
 
-`BeakResource` accepts `filePicker:` and `uploader:`. The uploader is a `BeakUploadClient`: the HTTP data source is one by default, and a custom transport implements the interface. Two optional interfaces extend it. `BeakManagedUploadClient` adds `discardUpload`, which lets an abandoned draft delete its files, and `BeakUploadUrlClient` adds `uploadUrl`, which resolves a stored key for display. A transport without the first keeps its files for whatever collection you run on the host side.
+`BeakResource` accepts `filePicker:` and `uploader:`. The uploader is a `BeakUploadClient`: the HTTP data source is one by default, and a custom transport implements the interface. Two optional interfaces sit beside it. `BeakManagedUploadClient` adds `discardUpload`, which lets an abandoned draft delete its files, and `BeakUploadUrlClient` has `uploadUrl`, which resolves a stored key for display. A transport without the first keeps its files for whatever collection you run on the host side.
 
 `BeakUploadField` is the widget behind a single-file placement. `BeakConfiguredForm` wires one for you. Construct it yourself only in a hand-composed form; it then uploads through its `uploader` directly instead of staging in a session.
 
@@ -92,7 +94,7 @@ The native file picker is automatic. To take a photo or pick from an asset libra
 | Bytes are not stored in drafts | A resumed draft asks for the file again |
 | Gallery relationship | An owned has-many only. The child needs an image column, a string caption and an int position |
 | No transport, no upload | Without an upload transport in the panel, the Choose file button is disabled. Without a storage driver on the server, the upload routes are not mounted and an upload fails |
-| Private files | The URL lookup does not sign URLs today. Authorizing a lookup does not make a public URL private |
+| Private files | On S3 the lookup answers with a presigned link that expires after `signedUrlLifetime`. Local disk, memory and FTP links are public and never expire, so authorizing the lookup does not make them private |
 | Web images | Previews come from staged bytes or from the resolved URL. A URL the browser cannot fetch shows the image icon instead |
 
 ## Verify it

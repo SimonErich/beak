@@ -113,7 +113,7 @@ Malformed state is rejected as a whole:
 | Not base64url JSON | `Invalid saved list state.` |
 | `version` other than `1`, or no `filters` map | `Unsupported saved list state.` |
 | Page or page size below 1 | `BeakPagination requires page >= 1 and perPage >= 1, got page 0, perPage 15.` |
-| Page size above 200 | `Invalid list pagination.` |
+| Page size above 200 | Served at 200, not refused. Only a `BeakQueryState` built in code with more than 200 throws `Invalid list pagination.` |
 | A column key the current preset does not offer | `The saved columns are no longer available.` |
 | A preset key that does not exist | `Unknown list preset "x".` |
 
@@ -209,7 +209,7 @@ A saved view is a name plus a `BeakQueryState`, stored as a row of a model you o
 
 `resource` holds the table of the list, so one model serves every list, and `state` holds the versioned JSON. The panel registers the store's model itself, so it does not have to be a `BeakResource`; make it one only if people should get pages for it. Its policies decide who can read and write views, and `BeakSavedViewStore.model(filter: ...)` narrows which rows a list offers on top of that. Foodio's schema has `owner` and `shared` columns, and the store does not use them, so every view there is visible to everyone who can read the model. Narrow the list with the store's `filter`, or scope the model itself with a row rule.
 
-Saving works from the drawer. Next to Apply sits Save as view, which stores the staged state even if it was not applied. It opens a dialog with one field, the name, and saves through the normal form path, so it is a graph commit with a receipt like any other save. Decoding a stored state rejects any version other than `1`. The store reads at most 200 views per list.
+Saving works from the drawer. Next to Apply sits Save as view, which stores the staged state even if it was not applied. It opens a dialog with one field, the name, and saves through the normal form path, so it is a graph commit with a receipt like any other save. Decoding a stored state rejects any version other than `1`, and a view that fails to decode is left out of the picker instead of hiding the others. The store reads at most 200 views per list.
 
 Loading works from the same footer. A `Saved views` select sits beside Save as view once the list has stored views. Choosing one restores its search, filters, sort, columns and page size, and closes the drawer. To offer the picker somewhere else too, mount the exported `BeakSavedViews` widget, for example in the overview. It takes the store, the list's controller and the panel's data source; see [A saved list view](../recipes/a-saved-list-view.md).
 
@@ -225,7 +225,7 @@ The file has one column per field in `fields`, in that order. The server ignores
 
 `.currency(minorUnits: true)` on `grossCents` is how Foodio exports cents as money. A formatted field sends its format with the request, and the panel's `BeakFormatting` (locale, currency, date patterns) goes along, so the file reads like the screen. `raw: true` skips both and exports stored values. The route itself is in [REST API](../reference/rest-api.md#export).
 
-Everything can fail at the click, and the reason shows under the button. A source that does not implement `BeakExportDataSource` answers `This data source does not support CSV exports.` An export field that is empty, duplicated, reached through a relationship or missing from the model throws when the button is pressed, not when the panel starts. Delivery goes through a save dialog, or a browser download on the web.
+Everything can fail at the click, and the reason shows under the button. A source that does not implement `BeakExportDataSource` answers `This data source does not support CSV exports.` An export field that is empty, duplicated, reached through a relationship or missing from the model throws when the list first draws its Export button, not when the panel starts. Delivery goes through a save dialog, or a browser download on the web.
 
 ## Refresh
 
@@ -251,9 +251,9 @@ A confirmed write to a table reloads every mounted list, count and summary that 
 | `definition.filters` empty means the resource's filters | Declared filters replace those completely |
 | Counts cost one request per preset | After every write and every refresh tick |
 | Only `BeakSummaryBlock` follows the list's query | Other blocks in a header do not |
-| Export fields are direct scalar fields of the list model | Checked at the click |
+| Export fields are direct scalar fields of the list model | Checked when the button first draws |
 | The saved-view model needs no resource of its own | The panel registers the store's model. Its policies decide who reads and writes views |
-| Two filters may not share a field | The panel throws at startup: they would share one state. Use one choice filter with several options |
+| Two filters may not share a field | They would share one state. The panel throws at startup for `BeakResource.filters`; it does not check `definition.filters` or `quickFilters`, so keep those unique yourself. Use one choice filter with several options |
 | A restored choice is matched by the JSON of its predicate | Changing a choice's predicate makes bookmarks and saved views stop selecting it |
 | The state in the address is capped at 16384 characters | Larger values fail to restore |
 | `sortBy` is a `sortable` field of the listed model | Related sorting is not inferred |
@@ -265,10 +265,10 @@ The composed list, its query controller, saved views and export have tests that 
 
 ```console
 $ flutter test test/src/panel/beak_composed_list_test.dart test/src/table/beak_query_controller_test.dart test/src/table/beak_saved_views_test.dart test/src/table/beak_list_export_test.dart --reporter expanded
-00:00 +2: test/src/table/beak_query_controller_test.dart: preset counts are read by the preset object, never by its key
-00:05 +19: test/src/panel/beak_composed_list_test.dart: counted presets share query, columns, URL and summary population
-00:07 +22: test/src/panel/beak_composed_list_test.dart: filter sheet previews without changing active rows until Apply
-00:09 +25: All tests passed!
+00:00 +0: test/src/table/beak_query_controller_test.dart: preset counts are read by the preset object, never by its key
+00:03 +21: test/src/panel/beak_composed_list_test.dart: counted presets share query, columns, URL and summary population
+00:05 +24: test/src/panel/beak_composed_list_test.dart: filter sheet previews without changing active rows until Apply
+00:06 +27: All tests passed!
 ```
 
 ## Reference
