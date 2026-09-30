@@ -20,7 +20,7 @@ the database afterwards.
 
 | Ownership | Meaning | Writes |
 | --- | --- | --- |
-| `adopt` (default) | Beak owns the schema from now on. | Schema classes and `lib/migrations/<stamp>_adopt_existing_schema.dart`, a baseline that changes nothing on this database and builds the tables on an empty one. |
+| `adopt` (default) | Beak owns the schema from now on. | Schema classes and `lib/migrations/adopt_existing_schema.dart`, a baseline that changes nothing on this database and builds the tables on an empty one. |
 | `external` | Rails, Prisma, Django, Flyway, Alembic, Knex or another app keeps migrating. | Schema classes marked `managesSchema: false`, no migration. |
 
 Read first, by path: `.dart_tool/beak/docs/backend/migrations.md`,
@@ -32,18 +32,23 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md`,
 1. Work on a copy first (`pg_dump` and restore, or copy the `.db` file). Adopting
    changes no table, but `beak migrate` adds Beak's own tables to the database:
    `worm_migrations`, `_beak_commit_receipts` and `_beak_outbox`.
-2. Start from a project without the `Note` example that `beak create` writes. If
-   it is still there, delete `lib/resources/notes/`,
-   `lib/migrations/create_notes_table.dart` and the `resources: notes:` block in
-   `beak.yaml`. Otherwise `beak prepare` fails, and `beak migrate` would create a
-   `notes` table in this database.
+2. Start from a project without the `Note` example that `beak create` writes
+   (`beak create <name> --no-example`). If it is still there, delete
+   `lib/resources/notes/`, `lib/migrations/create_notes_table.dart` (once
+   `beak prepare` has written it) and the `resources: notes:` block in
+   `beak.yaml`; in an authored panel remove `NoteResource` and its import from
+   `lib/main.dart` instead of the block. Leave one of them and `beak prepare`,
+   `beak doctor` or `beak migrate` stops on the leftover; leave all of them and
+   `beak migrate` creates a `notes` table in this database.
 3. Decide ownership. Foreign bookkeeping (`schema_migrations`,
    `_prisma_migrations`, `django_migrations`, `flyway_schema_history`,
    `alembic_version`, `__EFMigrationsHistory`, `knex_migrations`) or the user
    saying another app migrates it means `external`; `beak introspect` then
    defaults to external and says so. Otherwise use `adopt` and state the choice.
 4. Run `beak introspect <url> --dry-run`. The URL is
-   `postgres://user:pass@host:5432/db` or `sqlite:path/to/file.db`. Relay every
+   `postgres://user:pass@host:5432/db` or `sqlite:path/to/file.db`, a path
+   relative to the project folder (`sqlite:../legacy.db` climbs out of it). A
+   file that is not there is an error, never created. Relay every
    `!` note to the user: omitted secret columns (`password`, `token`,
    `api_key`, ...), unsupported types, enum labels. Narrow with `--only a,b` or
    `--except a,b`; `--schema` picks a Postgres schema.
@@ -64,12 +69,14 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md`,
    External: run `beak migrate` once, for Beak's own tables only
    (`_beak_commit_receipts`, `_beak_outbox`, `worm_migrations`); it touches none
    of yours, and saves fail without the receipts table. Never run
-   `migrate:fresh` or `migrate:refresh` against either kind of database, and
-   never run `beak migrate` against production without a backup.
-9. Run `beak doctor` and read its drift lines. Expect one "in the database but
-   ... does not declare it" WARN per omitted secret column; anything else is a
-   real difference to fix in the schema class or, for adopt, with
-   `beak-evolve-schema`.
+   `beak migrate fresh` or `beak migrate refresh` against either kind of
+   database, and never run `beak migrate` against production without a backup.
+9. Run `beak doctor` and read its drift lines. For adopt, expect one "in the
+   database but ... does not declare it" WARN per omitted column (secrets and
+   unsupported types); anything else is a real difference to fix in the schema
+   class or with `beak-evolve-schema`. For external, doctor does not report
+   columns a class leaves out, so a clean run says "the database matches the
+   schema classes".
 10. Give each table the panel needs a resource: `beak eject resource <table>`
     writes a `BeakResource` class for the model, then follow `beak-add-resource`
     steps 6 and 7 to add its table, filters and form. Leave the folder layout

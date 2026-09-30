@@ -97,7 +97,37 @@ final class BeakSchemaReader {
     }
 
     issues.addAll(_validateRelations(schemas));
+    issues.addAll(_duplicateTableIssues(schemas));
     return (_resolveForeignKeyTypes(schemas), issues);
+  }
+
+  /// One issue for each schema class after the first that names a table
+  /// another one already uses.
+  ///
+  /// Every table maps to exactly one model. The registry says so when the
+  /// panel or the server boots, which is long after `beak prepare` called the
+  /// project fine.
+  List<BeakDiscoveryIssue> _duplicateTableIssues(List<BeakSchemaIr> schemas) {
+    final owners = <String, BeakSchemaIr>{};
+    final issues = <BeakDiscoveryIssue>[];
+    for (final schema in schemas) {
+      final BeakSchemaIr? owner = owners[schema.table];
+      if (owner == null) {
+        owners[schema.table] = schema;
+        continue;
+      }
+      issues.add(
+        BeakDiscoveryIssue(
+          path: 'lib/${schema.libraryPath}',
+          message:
+              '${schema.className} declares the table "${schema.table}", '
+              'which ${owner.className} (lib/${owner.libraryPath}) already '
+              'uses. A table has exactly one schema class: give one of them '
+              'another table, or merge them.',
+        ),
+      );
+    }
+    return issues;
   }
 
   /// [read] with the checks that need the source of a file again: everything
@@ -217,7 +247,31 @@ final class BeakSchemaReader {
     final issues = <BeakDiscoveryIssue>[];
     final String className = declaration.name.lexeme;
     final Map<String, String> options = _namedArguments(resource);
+    if (BeakReservedNames.generatedCodeTypes.contains(className)) {
+      issues.add(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className cannot be the name of a schema class: the code '
+              'generated for it uses that name for something else, and the '
+              'compile errors it causes never mention the class. Rename it '
+              "(`${className}Entry`, say) and keep the table with "
+              "`@Resource(table: '${tableNameOf(className)}')`.",
+        ),
+      );
+    }
     final String table = _unquote(options['table']) ?? tableNameOf(className);
+    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(table)) {
+      issues.add(
+        BeakDiscoveryIssue(
+          path: 'lib/$path',
+          message:
+              '$className names the table "$table", which is not a table '
+              'name Beak can write a migration for. Use letters, digits and '
+              'underscores, starting with a letter or an underscore.',
+        ),
+      );
+    }
     final columns = <BeakColumnIr>[];
     final relations = <BeakRelationIr>[];
     final displayFields = <String>[];
@@ -294,6 +348,25 @@ final class BeakSchemaReader {
 
     final bool timestamps = options['timestamps'] == 'true';
     final bool softDeletes = options['softDeletes'] == 'true';
+    for (final column in columns) {
+      final String? annotation = switch (column.columnKey) {
+        'created_at' || 'updated_at' when timestamps => 'timestamps: true',
+        'deleted_at' when softDeletes => 'softDeletes: true',
+        _ => null,
+      };
+      if (annotation != null) {
+        issues.add(
+          BeakDiscoveryIssue(
+            path: 'lib/$path',
+            message:
+                '$className.${column.fieldName} is the ${column.columnKey} '
+                'column that $annotation already adds, so the class would '
+                'declare it twice. Drop the field, or drop the annotation '
+                'and keep the field.',
+          ),
+        );
+      }
+    }
 
     // The primary key and the stamps are implied, never declared: writing
     // them out per schema is the boilerplate this whole surface removes.

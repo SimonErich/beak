@@ -22,7 +22,7 @@ import '../project/beak_emitters.dart';
 ///
 /// Who owns the schema afterwards is the one decision the command asks for.
 /// `--ownership adopt` (the default) makes the classes own their tables and
-/// writes `lib/migrations/<stamp>_adopt_existing_schema.dart`, a baseline that
+/// writes `lib/migrations/adopt_existing_schema.dart`, a baseline that
 /// changes nothing on this database and builds the tables on an empty one.
 /// `--ownership external` marks the classes `managesSchema: false` and writes
 /// no migration, for a database another tool keeps; one that carries another
@@ -35,7 +35,7 @@ import '../project/beak_emitters.dart';
 ///   read 12 tables, 68 columns, 9 foreign keys
 ///   created lib/resources/customers/models/customer.dart
 ///   created lib/resources/orders/models/order.dart
-///   created lib/migrations/20260928_101500_adopt_existing_schema.dart
+///   created lib/migrations/adopt_existing_schema.dart
 ///   ! orders.card_token looks like a secret and was omitted
 ///   created .env
 /// ```
@@ -106,8 +106,13 @@ final class IntrospectCommand extends Command<int> {
   /// The directory the baseline migration is written to.
   static const String migrationsRoot = 'lib/migrations';
 
-  /// What the baseline migration's file name ends with.
-  static const String baselineSuffix = '_adopt_existing_schema';
+  /// The baseline migration's file name, and what its `name` ends with after
+  /// the stamp.
+  ///
+  /// The file has no stamp of its own: a name that starts with digits is not a
+  /// Dart file name, which the analyzer reports on every adopted project. The
+  /// stamp is in the migration's `name`, where the order is decided.
+  static const String baselineFile = 'adopt_existing_schema';
 
   /// The message when the database turns out to be Serverpod's.
   static const String serverpodRefusal =
@@ -131,7 +136,10 @@ final class IntrospectCommand extends Command<int> {
     if (rest.length != 1) {
       throw UsageException('Expected exactly one database URL.', invocation);
     }
-    final Uri? url = Uri.tryParse(rest.single);
+    final Uri? url = beakParseDatabaseUrl(
+      rest.single,
+      environment.rootDirectory,
+    );
     if (url == null || url.scheme.isEmpty) {
       throw UsageException(
         '"${rest.single}" is not a database URL.',
@@ -146,13 +154,29 @@ final class IntrospectCommand extends Command<int> {
       return 1;
     }
 
-    final List<IntrospectedTable> tables = await _readSchema(
-      beakResolvedDatabaseUrl(url, environment.rootDirectory),
-      schema: switch (argResults?['schema']) {
-        final String value => value,
-        _ => 'public',
-      },
-    );
+    // Opening a SQLite file creates it, so reading one that is not there would
+    // leave an empty database in the project and report that it has no tables.
+    if (beakSqliteFileOf(url) != null &&
+        !beakSqliteFileExists(url, environment.rootDirectory)) {
+      environment.out.writeln(
+        'There is no database at ${beakSqliteFileOf(url)}: check the path.',
+      );
+      return 1;
+    }
+    final List<IntrospectedTable> tables;
+    try {
+      tables = await _readSchema(
+        beakResolvedDatabaseUrl(url, environment.rootDirectory),
+        schema: switch (argResults?['schema']) {
+          final String value => value,
+          _ => 'public',
+        },
+      );
+    } catch (error) {
+      // The address is left out: it may carry the password.
+      environment.out.writeln('Could not read the database schema: $error');
+      return 1;
+    }
 
     if (tables.any((table) => table.name.startsWith(serverpodTablePrefix))) {
       environment.out.writeln(serverpodRefusal);
@@ -174,6 +198,15 @@ final class IntrospectCommand extends Command<int> {
     };
     final String out = flatDirectory ?? featureFoldersRoot;
     final String normalizedOut = p.posix.normalize(out);
+    if (!p.isWithin(
+      environment.rootDirectory.absolute.path,
+      p.normalize(p.absolute(environment.rootDirectory.path, out)),
+    )) {
+      throw UsageException(
+        '--out must be a directory inside the project, not "$out".',
+        invocation,
+      );
+    }
     final String schemaRoot = p.posix.relative(
       normalizedOut,
       from: migrationsRoot,
@@ -307,8 +340,8 @@ final class IntrospectCommand extends Command<int> {
       );
       return;
     }
-    final String name = '${_stampOf(environment.now())}$baselineSuffix';
-    final String path = '$migrationsRoot/$name.dart';
+    final String name = '${_stampOf(environment.now())}_$baselineFile';
+    const String path = '$migrationsRoot/$baselineFile.dart';
     if (dryRun) {
       environment.out.writeln('  would create $path  (AdoptExistingSchema)');
       return;
@@ -334,7 +367,8 @@ final class IntrospectCommand extends Command<int> {
     }
     return directory.listSync().whereType<File>().any(
       (file) =>
-          file.path.endsWith('$baselineSuffix.dart') ||
+          p.basename(file.path) == '$baselineFile.dart' ||
+          file.path.endsWith('_$baselineFile.dart') ||
           file.readAsStringSync().contains('extends BeakBaselineMigration'),
     );
   }

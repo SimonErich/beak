@@ -149,7 +149,7 @@ $ beak make:migration AddWeight --from-drift
   nothing written: every missing column needs a decision first
 ```
 
-The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand.
+The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand. On Postgres the refusal is the same and its message does not name SQLite. `beak doctor` gives the same advice for such a column, instead of pointing at `--from-drift`.
 
 What `--from-drift` does not do, on purpose: it adds columns only. A missing table, a missing `deleted_at` and a database column that no class declares are yours to handle, and `beak doctor` reports each. It also refuses an in-memory SQLite URL (nothing on disk to compare), a URL scheme other than SQLite or Postgres, and a SQLite file that does not exist yet.
 

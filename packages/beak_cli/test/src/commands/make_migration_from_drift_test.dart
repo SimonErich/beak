@@ -44,6 +44,9 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('beak_from_drift_');
     addTearDown(() => root.deleteSync(recursive: true));
+    File(
+      '${root.path}/pubspec.yaml',
+    ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
     out = StringBuffer();
   });
 

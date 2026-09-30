@@ -45,7 +45,7 @@ A missing file, an empty file or a file of only comments means the defaults. The
 | [`resources.<table>.icon`](#resources) | lowerCamelCase string | `table` | `OiIcons` name of the sidebar icon |
 | [`resources.<table>.label`](#resources) | string | the model's label | Page and navigation title |
 | [`resources.<table>.section`](#resources) | string | none | Sidebar group heading |
-| [`resources.<table>.hidden`](#resources) | bool | `false` | Keep the default resource out of the sidebar |
+| [`resources.<table>.hidden`](#resources) | bool | `false` | Give the model no default resource: no sidebar entry and no pages |
 
 The shop, in full:
 
@@ -197,7 +197,7 @@ Keyed by **table name**, which is what `@Resource(table:)` says, or what Beak de
 | `icon` | `BeakIconToken(OiIcons.<icon>)` | Must be lowerCamelCase (`^[a-z][A-Za-z0-9]*$`). Whether the name exists in `OiIcons` is checked by the compiler, on the generated file |
 | `label` | `title:` | Page title, and the sidebar title unless the resource sets `navigationTitle` |
 | `section` | `navigationGroup:` | Sidebar group heading |
-| `hidden` | the model gets no default resource | The model keeps its table, its API and its relationships. It only loses a sidebar entry |
+| `hidden` | the model gets no default resource | The model keeps its table, its API and its relationships, so other resources still show and pick its records. It has no pages of its own: no sidebar entry, and its list, detail and form routes answer 404 |
 
 A model with its own `BeakResource` class ignores all four: the class replaces the default, so set `icon`, `title` and `navigationGroup` there, see [Panel and resource options](panel-options.md). A resource class is always shown, so `beak eject resource <table>` refuses a table with `hidden: true`. The same applies to the authored entrypoint: the keys were applied once, when it was written.
 

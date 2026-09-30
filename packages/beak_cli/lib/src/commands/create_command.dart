@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../agents/beak_block_renderer.dart';
 import '../agents/beak_claude_md.dart';
@@ -11,6 +12,7 @@ import '../cli_runner.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../schema/beak_reserved_names.dart';
 import '../templates.dart';
 import '../version.dart';
 import 'agents_command.dart';
@@ -118,6 +120,13 @@ final class CreateCommand extends Command<int> {
         invocation,
       );
     }
+    if (_unavailableNames.contains(name)) {
+      throw UsageException(
+        '"$name" cannot be the name of a project: it is a Dart keyword or the '
+        'name of a package the project depends on.',
+        invocation,
+      );
+    }
     final Object? beakPath = argResults?['beak-path'];
     // A local checkout replaces the git dependency, so a ref would silently
     // mean nothing.
@@ -159,7 +168,13 @@ final class CreateCommand extends Command<int> {
     // `prepare` keeps any entrypoint without the generated header.
     for (final file in scaffoldFiles(
       name,
-      beakPath: beakPath is String ? beakPath : null,
+      // The pubspec lands one folder below where the path was typed, so a
+      // relative one would name a checkout that is not there.
+      beakPath: beakPath is String
+          ? p.normalize(
+              p.join(environment.rootDirectory.absolute.path, beakPath),
+            )
+          : null,
       beakRef: beakRef,
       authored: authored,
       example: example,
@@ -252,6 +267,17 @@ final class CreateCommand extends Command<int> {
     );
     return 0;
   }
+
+  /// Names a project cannot take: the words Dart reserves, which pub refuses
+  /// as package names, and the packages the scaffold depends on, which would
+  /// make the project depend on itself.
+  static const Set<String> _unavailableNames = {
+    ...BeakReservedNames.dartKeywords,
+    'beak',
+    'flutter',
+    'flutter_test',
+    'lints',
+  };
 
   /// Whether [path] holds something already: a file, or a folder with
   /// anything in it. An empty folder is free to use.
@@ -631,7 +657,9 @@ dependencies:
     for (final package in beakPackages) {
       buffer.writeln('  $package:');
       if (beakPath != null) {
-        buffer.writeln('    path: $beakPath/packages/$package');
+        buffer.writeln(
+          '    path: ${_yamlScalar('$beakPath/packages/$package')}',
+        );
       } else {
         buffer
           ..writeln('    git:')
@@ -651,6 +679,14 @@ dev_dependencies:
 ''');
     return buffer.toString();
   }
+
+  /// [value] as a YAML scalar: as it is when it reads back the same, and in
+  /// single quotes when it would not, as a path with ` #` or `: ` in it.
+  static String _yamlScalar(String value) =>
+      RegExp(r'''^[A-Za-z0-9_./\\-][A-Za-z0-9_./\\ -]*$''').hasMatch(value) &&
+          !value.endsWith(' ')
+      ? value
+      : "'${value.replaceAll("'", "''")}'";
 
   static String _beakYaml(
     String name, {

@@ -31,10 +31,10 @@ final class FakeDatabase {
     if (sql.contains('pg_index')) {
       return indexes;
     }
-    if (sql.contains("'FOREIGN KEY'")) {
+    if (sql.contains("contype = 'f'")) {
       return foreignKeys;
     }
-    if (sql.contains("'PRIMARY KEY'")) {
+    if (sql.contains("contype = 'p'")) {
       return primaryKeys;
     }
     return columns;

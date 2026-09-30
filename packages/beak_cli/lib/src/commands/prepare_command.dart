@@ -231,6 +231,18 @@ String? beakNotAProject(Directory root, BeakProjectConfig config) {
             'or `beak init` in the root of a Flutter app';
 }
 
+/// [beakNotAProject] for the project at [root], reading its `beak.yaml` first.
+///
+/// For the commands that write a file into the project and have no config of
+/// their own to hand.
+String? beakNotAProjectAt(Directory root) => beakNotAProject(
+  root,
+  BeakProjectConfig.load(
+    root,
+    packageName: BeakProjectConfig.packageNameOf(root),
+  ),
+);
+
 /// Runs generation against [environment] and reports what happened.
 ///
 /// Exposed separately from [PrepareCommand] so other commands can prepare

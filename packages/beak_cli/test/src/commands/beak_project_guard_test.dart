@@ -51,6 +51,14 @@ void main() {
     'seed': ['seed'],
     'make:resource': ['make:resource', 'Product', '--fields', 'name:string'],
     'eject main': ['eject', 'main'],
+    'eject panel': ['eject', 'panel'],
+    'eject theme': ['eject', 'theme'],
+    'make:migration': ['make:migration', 'AddStatus'],
+    'make:migration --from-drift': [
+      'make:migration',
+      'AddStatus',
+      '--from-drift',
+    ],
   };
 
   for (final MapEntry(key: label, value: args) in outsideCommands.entries) {

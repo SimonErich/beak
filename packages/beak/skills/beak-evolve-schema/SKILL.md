@@ -43,10 +43,15 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md` and
    It writes `lib/migrations/<snake>.dart` for every declared column the
    database lacks. A belongs-to key comes with its index and its foreign-key
    constraint, in the same `alter`. Read every `!` line it prints: those columns
-   were refused, not written. Fix the schema (default or nullable), delete the
-   unapplied file and run it once more. Everything else (renames, retypes,
-   drops, backfills) is hand-written: `beak make:migration <Name>` gives an
-   empty, correctly named scaffold. Patterns: `references/migration-patterns.md`.
+   were refused, not written (it exits 0 when it wrote the others, 1 when nothing
+   was left to write). Fix the schema (default or nullable) and run it once more
+   with `--force`, which replaces the unapplied file; without it the command
+   will not overwrite one.
+   A new many-to-many needs no migration of yours: `beak prepare` writes the
+   pivot's create migration and `beak migrate` applies it. Everything else
+   (renames, retypes, drops, backfills) is hand-written:
+   `beak make:migration <Name>` gives an empty, correctly named scaffold.
+   Patterns: `references/migration-patterns.md`.
 6. Read the file it wrote before applying it. It is already safe on a fresh
    database: that database has the column from the create migration, so every
    add and drop first asks `schema.adapter.introspectSchema()` whether it is
@@ -55,7 +60,9 @@ Read first, by path: `.dart_tool/beak/docs/backend/migrations.md` and
    back would destroy data. The generated one only removes what it added.
 8. Run `beak migrate` (back up a production database first). A failing
    migration prints its error in your terminal and the command exits non-zero;
-   `beak migrate status` shows what is applied and what is pending.
+   `beak migrate status` shows what is applied and what is pending. On SQLite
+   the statements that ran before the failure stay applied and the migration
+   stays pending, so the step 6 guards are what make the retry safe.
 9. Prove both paths. Existing database: `beak doctor` reports "the database
    matches the schema classes". Fresh database: point `DATABASE_URL` at an empty
    one and migrate, for example

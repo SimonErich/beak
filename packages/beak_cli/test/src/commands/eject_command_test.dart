@@ -80,6 +80,8 @@ final class Note extends BeakSchema {
       "import 'beak/app.g.dart';\n";
 
   group('an override target', () {
+    setUp(() => seed({}));
+
     test('writes a file that compiles and changes nothing', () async {
       expect(await eject(['panel']), 0);
 
@@ -138,6 +140,7 @@ final class Note extends BeakSchema {
     late String source;
 
     setUp(() async {
+      seed({});
       expect(await eject(['server']), 0);
       source = file('lib/server.dart').readAsStringSync();
     });
@@ -377,6 +380,31 @@ final class JournalResource extends BeakResource {
   });
 
   group('eject main', () {
+    test('refuses an app that boots the panel from another file, even with '
+        '--force, and leaves its main.dart alone', () async {
+      // `lib/main.dart` is the app's own there: writing the panel into it
+      // would replace the app.
+      const appMain = 'void main() => runApp(const MyApp());\n';
+      seed({
+        'lib/resources/notes/models/note.dart': noteSchema,
+        'lib/main.dart': appMain,
+        'lib/admin_main.dart': '// the panel\n',
+        'beak.yaml': 'panel:\n  entrypoint: lib/admin_main.dart\n',
+      });
+
+      for (final args in [
+        ['main'],
+        ['main', '--force'],
+      ]) {
+        expect(await eject(args), 1, reason: '$args');
+      }
+
+      expect(file('lib/main.dart').readAsStringSync(), appMain);
+      expect(file('lib/admin_main.dart').readAsStringSync(), '// the panel\n');
+      expect(out.toString(), contains('lib/admin_main.dart'));
+      expect(out.toString(), contains('panel.entrypoint'));
+    });
+
     test('rewrites the generated entrypoint as one the project owns', () async {
       seed({
         'lib/resources/notes/models/note.dart': noteSchema,

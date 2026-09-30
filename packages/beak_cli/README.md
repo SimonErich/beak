@@ -88,7 +88,7 @@ of one command. Misuse prints the usage message and exits `64`.
 
 | Flag | Effect |
 | --- | --- |
-| `--beak-path <path>` | Depend on a local Beak checkout instead of git. Give the repository root, as an absolute path: `packages/<name>` is appended and the result goes into the pubspec as written, so a relative path is resolved from the new project. |
+| `--beak-path <path>` | Depend on a local Beak checkout instead of git. Give the repository root: `packages/<name>` is appended, and a relative path is made absolute from where you run the command before it goes into the pubspec. |
 | `--beak-ref <ref>` | The git ref to depend on. Defaults to `v0.9.0`, the version of this CLI. |
 | `--authored` | Write a `lib/main.dart` you own: a `BeakPanel(resources: [...])`, a `NoteResource` and a smoke test. |
 | `--no-example` | Leave out the `Note` example, so you start from `beak make:resource`. A panel needs a resource to show, so the generated widget test only checks the registry until you add one. |
@@ -108,8 +108,8 @@ to a generated `lib/main.dart`: with an authored one, or a `panel.entrypoint`,
 nothing imports them, so they are neither written nor compared, and a pair a
 generated entrypoint left behind is deleted. The `generated` line counts the
 schema parts among the files it considered, and a project with no model yet gets
-a `no models yet` note. `prepare`, `dev`, `migrate`, `seed`, `make:resource` and
-`eject main` refuse a directory that is not a Beak project. A `beak.yaml` that is not valid YAML is
+a `no models yet` note. `prepare`, `dev`, `migrate`, `seed`, `make:resource`,
+`make:migration` and every `eject` target but `resource` refuse a directory that is not a Beak project. A `beak.yaml` that is not valid YAML is
 reported with file, line and column, and exits `1`.
 
 Every other command that needs the wiring runs `prepare` first. The generated
@@ -165,7 +165,8 @@ $ beak make:resource Product --fields name:string!,price:decimal!,active:bool
 
 `--fields` takes comma-separated `name:kind` pairs, with `kind` one of `string`,
 `text`, `int`, `decimal` (an exact `BeakDecimal`), `double`, `bool` or `datetime`. A trailing `!` marks the field
-required; without it the Dart type is nullable. The command writes the schema
+required; without it the Dart type is nullable. A name that is a Dart keyword or
+one Beak adds itself (`id`, `created_at`, `updated_at`, `record`) is a usage error. The command writes the schema
 class `lib/resources/products/models/product.dart` and its resource class
 `lib/resources/products/product_resource.dart`, refuses to overwrite either, and
 runs `prepare`. In a project whose `lib/main.dart` is authored it prints the
@@ -191,18 +192,23 @@ class of each table to `lib/resources/<table>/models/`.
 
 | Flag | Effect |
 | --- | --- |
-| `--ownership adopt` | The default. Beak owns the tables. It writes a baseline migration, `lib/migrations/<stamp>_adopt_existing_schema.dart`, that changes nothing on this database and builds the tables on an empty one. |
+| `--ownership adopt` | The default. Beak owns the tables. It writes a baseline migration, `lib/migrations/adopt_existing_schema.dart`, that changes nothing on this database and builds the tables on an empty one. |
 | `--ownership external` | Another system owns the tables. The classes are marked `managesSchema: false` and no migration is written. Chosen for you when the database carries another tool's migration history. |
 | `--save-url` | Write `DATABASE_URL=<url>` into `.env`. |
 | `--only`, `--except` | Restrict the tables. |
 | `--schema <name>` | The Postgres schema to read. Defaults to `public`. |
-| `--out <dir>` | Write every schema file flat into this directory instead of one folder per table. With `adopt` it must be under `lib/`. |
+| `--out <dir>` | Write every schema file flat into this directory instead of one folder per table. It must be inside the project, and with `adopt` under `lib/`. |
 | `--force` | Replace schema files that exist and differ from what the database implies. Without it, running again refuses and writes nothing. |
 | `--dry-run` | Report what would be written. |
 
-A column that looks like a secret is left out and reported, and a `numeric`
-column is read as a `double` with a note that it can round. An integer `id` is
-declared as `int? id`. Beak's own `_beak_commit_receipts` and `_beak_outbox` are
+A column with `password`, `secret` or `token` as a word in its name, or an api,
+private or secret key, is left out and reported, and a `numeric` column is read
+as a `double` with a note that it can round. A column whose name the field name
+does not give back (`firstName`, `address_line_1`) keeps it through
+`@Column(columnName:)`, and a table without an `id` column gets a note, because
+Beak keys a record by `id`. An integer `id` is declared as `int? id`. A SQLite
+file that is not there is an error, never created, and so is a database that
+cannot be read. Beak's own `_beak_commit_receipts` and `_beak_outbox` are
 skipped. A Serverpod database is refused: its admin belongs in the Serverpod
 workspace.
 
@@ -239,7 +245,8 @@ admin app and the client bridge).
 
 `beak eject <target> [--force]` writes a default out as a file you own. `--force`
 replaces a file that exists, `eject main` on an authored `lib/main.dart`
-included.
+included. In an app whose `beak.yaml` sets `panel.entrypoint`, `eject main`
+refuses: `lib/main.dart` is the app's own.
 
 | Target | File |
 | --- | --- |

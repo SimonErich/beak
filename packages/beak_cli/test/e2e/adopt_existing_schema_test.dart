@@ -59,8 +59,7 @@ dependencies:
         ).run(['introspect', 'sqlite:$legacy', '--save-url']),
         0,
       );
-      const baseline =
-          'lib/migrations/20260928_101500_adopt_existing_schema.dart';
+      const baseline = 'lib/migrations/adopt_existing_schema.dart';
       expect(File('${project.path}/$baseline').existsSync(), isTrue);
       expect(
         File('${project.path}/.env').readAsStringSync(),
@@ -79,7 +78,7 @@ dependencies:
         Directory(
           '${project.path}/lib/migrations',
         ).listSync().map((entity) => entity.uri.pathSegments.last).toList(),
-        ['20260928_101500_adopt_existing_schema.dart'],
+        ['adopt_existing_schema.dart'],
       );
       await _run(project, ['flutter', 'pub', 'get']);
 

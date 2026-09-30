@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
+
 import '../../support/agents_fixture.dart';
 import '../../support/beak_cli_internals.dart';
-import 'package:test/test.dart';
 
 void main() {
   late Directory root;
@@ -648,6 +651,33 @@ void main() {
       expect(pubspec, isNot(contains('ref:')));
     });
 
+    test('--beak-path is written absolute, because the pubspec is one level '
+        'below where it was typed', () async {
+      await create(['acme_admin', '--beak-path', '../beak']);
+
+      final String expected = p.normalize(p.join(root.path, '../beak'));
+      expect(
+        read('acme_admin/pubspec.yaml'),
+        contains('path: $expected/packages/beak'),
+      );
+    });
+
+    test(
+      '--beak-path with characters YAML reads differently is quoted',
+      () async {
+        await create(['acme_admin', '--beak-path', '/opt/my beak: #1']);
+
+        final beak =
+            (loadYaml(read('acme_admin/pubspec.yaml'))
+                    as YamlMap)['dependencies']
+                as YamlMap;
+        expect(
+          (beak['beak'] as YamlMap)['path'],
+          '/opt/my beak: #1/packages/beak',
+        );
+      },
+    );
+
     test('--beak-ref pins another ref', () async {
       await create(['acme_admin', '--beak-ref', 'main']);
 
@@ -791,6 +821,26 @@ void main() {
       expect(create(['AcmeAdmin']), throwsA(isA<UsageException>()));
       expect(create(['acme-admin']), throwsA(isA<UsageException>()));
       expect(create(['1acme']), throwsA(isA<UsageException>()));
+    });
+
+    test('rejects a name pub would refuse or that collides with a '
+        'dependency of the scaffold', () async {
+      // `name: beak` depending on `beak` is a self-dependency, and a Dart
+      // keyword is not a package name; neither is worth writing files for.
+      for (final name in ['beak', 'flutter', 'flutter_test', 'class', 'if']) {
+        await expectLater(
+          create([name]),
+          throwsA(
+            isA<UsageException>().having(
+              (error) => error.message,
+              'message',
+              contains('"$name"'),
+            ),
+          ),
+          reason: name,
+        );
+      }
+      expect(root.listSync(), isEmpty);
     });
   });
 

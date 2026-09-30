@@ -498,6 +498,20 @@ int get monthlyTotal => 0;
       expect(check.remedy, contains('DATABASE_URL'));
     });
 
+    test('names the port it probed when the url gives none', () async {
+      final root = preparedProject();
+      File('${root.path}/.env').writeAsStringSync(
+        'DATABASE_URL=postgres://beak:beak@db.internal/beak\n',
+      );
+
+      final check = checkMatching(
+        await diagnose(environmentFor(root)),
+        'database unreachable',
+      );
+
+      expect(check.label, contains('db.internal:5432'));
+    });
+
     test('a reachable database passes', () async {
       final root = preparedProject();
       File('${root.path}/.env').writeAsStringSync(
@@ -621,6 +635,25 @@ int get monthlyTotal => 0;
         expect(check.remedy, contains('beak make:migration'));
       },
     );
+
+    test('a column --from-drift would refuse is not sent there', () async {
+      // The remedy named a command that then wrote nothing and said the column
+      // "needs a value for the rows already there".
+      final checks = await checksAgainst(
+        shopProject(
+          extraFields: '''
+
+  /// How many are reserved.
+  late final int reserved;
+''',
+        ),
+      );
+
+      final String remedy = checkMatching(checks, 'products.reserved').remedy!;
+      expect(remedy, contains('defaultValue'));
+      expect(remedy, contains('nullable'));
+      expect(remedy, isNot(contains('--from-drift, then')));
+    });
 
     test('a matching database reports one check, not one per column', () async {
       final checks = await checksAgainst(shopProject());

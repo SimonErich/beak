@@ -115,6 +115,32 @@ void main() {
       expect(source, contains('late final bool? active;'));
     });
 
+    test('refuses a name the generated code needs for something else, and '
+        'writes nothing', () async {
+      // `beak make:resource List` wrote a class that made every file around it
+      // fail to compile, and then said prepare had run.
+      for (final name in [
+        'List',
+        'Resource',
+        'Schema',
+        'Migration',
+        'String',
+      ]) {
+        await expectLater(
+          runner.run(['make:resource', name]),
+          throwsA(
+            isA<UsageException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('"$name"'), contains('generated')),
+            ),
+          ),
+          reason: name,
+        );
+      }
+      expect(Directory('${root.path}/lib').existsSync(), isFalse);
+    });
+
     test('decimal is exact, and double is the floating-point number', () async {
       // `price:decimal` used to write a `double`, which cannot add up a
       // ledger; the docs told everyone to change it afterwards.

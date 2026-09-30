@@ -33,14 +33,20 @@ abstract final class BeakDriftMigrationEmitter {
   /// The declared columns this cannot add, and why, for the caller to report.
   ///
   /// Kept beside [addable] so the two cannot disagree about which column
-  /// belongs where.
-  static Map<BeakMissingColumn, String> unaddable(List<BeakDrift> drift) => {
+  /// belongs where. [isSqlite] says whose limit a refusal may name: a unique
+  /// column is refused on every database, and only SQLite is the reason on
+  /// SQLite.
+  static Map<BeakMissingColumn, String> unaddable(
+    List<BeakDrift> drift, {
+    bool isSqlite = true,
+  }) => {
     for (final problem in drift)
       if (problem case BeakMissingColumn(
         cause: BeakMissingColumnCause.declared,
         column: final BeakColumnIr column,
       ))
-        if (!_canAddToLiveTable(column)) problem: _refusalFor(column),
+        if (!_canAddToLiveTable(column))
+          problem: _refusalFor(column, isSqlite: isSqlite),
   };
 
   /// Whether [column] can be added to a table that already holds rows.
@@ -67,12 +73,12 @@ abstract final class BeakDriftMigrationEmitter {
 
   /// Why [column] cannot be added, phrased as an edit that is actually
   /// available for its kind.
-  static String _refusalFor(BeakColumnIr column) {
+  static String _refusalFor(BeakColumnIr column, {required bool isSqlite}) {
     if (column.isUnique) {
       // Not "make it nullable": the refusal keys on `unique:`, so a nullable
       // column still carrying the option would be refused again, and the
       // remedy would have sent someone in a circle.
-      return 'SQLite cannot add a unique column to an existing table; '
+      return '${isSqlite ? 'SQLite cannot add a unique column to an existing table' : 'a unique column is not added to an existing table'}; '
           'declare it without `unique: true` for now, backfill, then add '
           'the unique index in a migration of its own';
     }

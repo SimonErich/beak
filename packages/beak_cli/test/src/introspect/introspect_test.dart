@@ -754,8 +754,10 @@ void main() {
       );
     }
 
-    const baselinePath =
-        'lib/migrations/20260101_000000_adopt_existing_schema.dart';
+    // Named without the stamp, like every other file `beak` writes into
+    // lib/migrations: a name that starts with digits is not a Dart file name,
+    // and the analyzer says so on every adopted project.
+    const baselinePath = 'lib/migrations/adopt_existing_schema.dart';
 
     bool exists(String path) => File('${root.path}/$path').existsSync();
 
@@ -845,6 +847,7 @@ void main() {
     test('accepts a SQLite url, which Beak can read too', () async {
       // The introspector for it exists, so refusing the scheme would be the
       // command declining a thing the library does.
+      File('${root.path}/legacy.db').createSync();
       expect(await run(['sqlite:legacy.db']), 0);
       expect(exists('lib/resources/products/models/product.dart'), isTrue);
     });
@@ -1320,6 +1323,7 @@ void main() {
       });
 
       test('a SQLite url is saved as it was given', () async {
+        File('${root.path}/legacy.db').createSync();
         await run(['sqlite:legacy.db', '--save-url']);
 
         expect(read('.env'), 'DATABASE_URL=sqlite:legacy.db\n');

@@ -262,6 +262,27 @@ void main() {
       expect(check.remedy, 'beak prepare');
     });
 
+    test('a copy of the same version with other pages does not claim the '
+        'versions differ', () async {
+      // The copy is `.dart_tool` state, and the bundle in beak_core changes
+      // while a version is still in development: the label said "Beak 0.9.0
+      // but the project resolved Beak 0.9.0".
+      project(version: '0.9.0');
+      agents();
+      fixture.writeBundle(
+        version: '0.9.0',
+        pages: {'ai/new-page.md': '# New\n'},
+      );
+
+      final BeakCheck check = checkMatching(await agentChecks(), 'docs bundle');
+
+      expect(check.status, BeakCheckStatus.warn);
+      expect(check.label, contains('0.9.0'));
+      expect(check.label, contains('out of date'));
+      expect(check.label, isNot(contains('but the project resolved')));
+      expect(check.remedy, 'beak prepare');
+    });
+
     test('disabled in beak.yaml is fine', () async {
       project(beakYaml: 'agents:\n  docs: false\n');
 

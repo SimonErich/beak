@@ -582,6 +582,30 @@ void main() {
       expect(why, contains('without `unique: true`'));
     });
 
+    test('a unique column blames SQLite only when the database is SQLite', () {
+      final drift = driftFor(
+        schemaWith(
+          'Product',
+          'products',
+          ['sku'],
+          options: const {'unique': 'true'},
+        ),
+      );
+
+      final String onSqlite = BeakDriftMigrationEmitter.unaddable(
+        drift,
+      ).values.single;
+      final String elsewhere = BeakDriftMigrationEmitter.unaddable(
+        drift,
+        isSqlite: false,
+      ).values.single;
+
+      expect(onSqlite, contains('SQLite cannot add a unique column'));
+      expect(elsewhere, isNot(contains('SQLite')));
+      expect(elsewhere, contains('without `unique: true`'));
+      expect(elsewhere, contains('backfill'));
+    });
+
     test('nothing addable means no migration at all', () {
       expect(
         BeakDriftMigrationEmitter.emit(

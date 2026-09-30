@@ -153,19 +153,54 @@ const Set<String> introspectionSkipTables = {
   ...foreignMigrationTables,
 };
 
-/// Column names that almost always hold a secret.
-///
-/// Omitted from generated schemas with a warning rather than rendered in a
-/// table: an admin panel that displays password hashes is a liability, and
-/// silently including them would be the worst possible default.
-const Set<String> introspectionSecretColumns = {
-  'password',
-  'password_hash',
-  'encrypted_password',
-  'secret',
-  'token',
-  'api_key',
-  'access_token',
-  'refresh_token',
-  'private_key',
+/// The words of a column name that mark it as holding a secret.
+const Set<String> _secretWords = {'password', 'passwd', 'secret', 'token'};
+
+/// The two-word names that mark a column as holding a secret, though neither
+/// word does alone: a `key` is often only an identifier.
+const Set<String> _secretPairs = {
+  'api key',
+  'apikey',
+  'private key',
+  'secret key',
+  'access key',
+  'encryption key',
+  'signing key',
 };
+
+/// Whether the column [name] almost always holds a secret.
+///
+/// Read by its words, not its whole name, so `card_token`,
+/// `password_reset_token`, `passwordHash` and `stripe_api_key` are caught as
+/// well as `token`, while `secretary` and `keyword` are not. Such a column is
+/// omitted from generated schemas with a warning rather than rendered in a
+/// table: an admin panel that displays password hashes or card tokens is a
+/// liability, and silently including them would be the worst possible default.
+bool isSecretColumnName(String name) {
+  final List<String> words = _wordsOf(name);
+  if (words.any(_secretWords.contains)) {
+    return true;
+  }
+  for (var index = 0; index < words.length; index++) {
+    if (_secretPairs.contains(words[index])) {
+      return true;
+    }
+    if (index + 1 < words.length &&
+        _secretPairs.contains('${words[index]} ${words[index + 1]}')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// The lower-case words of a `snake_case`, `camelCase` or `kebab-case` name.
+List<String> _wordsOf(String name) => [
+  for (final word
+      in name
+          .replaceAllMapped(
+            RegExp('([a-z0-9])([A-Z])'),
+            (match) => '${match[1]} ${match[2]}',
+          )
+          .split(RegExp('[^A-Za-z0-9]+')))
+    if (word.isNotEmpty) word.toLowerCase(),
+];

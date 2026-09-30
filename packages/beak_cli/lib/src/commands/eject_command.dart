@@ -151,6 +151,10 @@ final class EjectCommand extends Command<int> {
       return _ejectMain();
     }
 
+    if (beakNotAProjectAt(environment.rootDirectory) case final String reason) {
+      environment.out.writeln('  $reason');
+      return 1;
+    }
     final BeakOverrideKind kind = target.override!;
     return _write('lib/${kind.path}', ejectedSource(kind));
   }
@@ -284,6 +288,21 @@ final class EjectCommand extends Command<int> {
   /// project already owns is only rewritten when `--force` says so.
   int _ejectMain() {
     final Directory root = environment.rootDirectory;
+    final BeakProjectConfig configured = BeakProjectConfig.load(
+      root,
+      packageName: BeakProjectConfig.packageNameOf(root),
+    );
+    // An app that boots the panel from a file of its own keeps `lib/main.dart`
+    // for itself, and `--force` would replace the app with the panel.
+    if (configured.panel.entrypoint case final String entrypoint) {
+      environment.out.writeln(
+        '  beak.yaml sets panel.entrypoint to $entrypoint, so the panel is '
+        "already booted from a file that is yours, and lib/main.dart is the "
+        "app's own. `beak eject main` is for a project whose lib/main.dart "
+        'Beak generates.',
+      );
+      return 1;
+    }
     if (isAuthoredEntrypoint(root) && argResults?['force'] != true) {
       environment.out.writeln(
         '  lib/main.dart is already yours; pass --force to write it again '

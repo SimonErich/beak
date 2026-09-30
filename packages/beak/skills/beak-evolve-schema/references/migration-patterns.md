@@ -8,7 +8,10 @@ and the schema file that holds the `<Name>Columns` constants, for example
 generated constants (`SupplierColumns.code.key`).
 
 Migrations run in `name` order, and the stamp in the name (`20260929_054551_...`)
-is what orders them. `beak make:migration` writes it.
+is what orders them. `beak make:migration` writes it. The one exception is
+`beak prepare` registering the migration that creates a table ahead of the first
+migration whose tables point at it, so a fresh database never references a
+table that is not there yet. An `alter` keeps its place after its create.
 
 ## Add columns (what `--from-drift` writes)
 
@@ -76,9 +79,10 @@ await schema.alter('suppliers', (table) {
 Declared in the same `alter` as its column, the reference is additive on
 SQLite too. Its `downSchema` drops the index first
 (`table.dropIndex('suppliers_backup_company_id_idx')`) and then the column,
-because SQLite refuses to drop an indexed column. A many-to-many needs a pivot
-table: `BeakBlueprint.createPivot(schema, XRelations.tags, ownerTable:
-'products')`, guarded by the same `introspectSchema()` check on the pivot name.
+because SQLite refuses to drop an indexed column. A new many-to-many needs no
+migration of yours: `beak prepare` writes `create_<pivot table>_table.dart`,
+which calls `BeakBlueprint.createPivot(schema, XRelations.tags, ownerTable:
+'products')`, and `beak migrate` applies it.
 
 ## Required column on a table with rows
 
@@ -124,13 +128,18 @@ await schema.alter('products', (table) {
 ```
 
 The check matters: a fresh database never had the column, because the create
-migration reads a model that no longer declares it. A column that is indexed or
-unique cannot be dropped while its index exists (SQLite fails with "error in
-index ... after drop column"), so drop the index in the same `alter`, before
-the column: `table.dropIndex('products_sku_idx');`. Use the name the database
-reports; a `unique: true` column made at creation is `<table>_<column>_key`, an
-index added with `table.unique([...])` is `<table>_<columns>_idx`. Dropping
-loses data, so make `downSchema` throw:
+migration reads a model that no longer declares it. Postgres drops a column's
+indexes and unique constraint together with it. SQLite does not: an index on
+the column makes the drop fail with "error in index ... after drop column", so
+drop the index in the same `alter`, before the column:
+`table.dropIndex('products_sku_idx');`. An index added with
+`table.unique([...])` is named `<table>_<columns>_idx`; use the name the
+database reports. A column made with `unique: true` has a constraint in the
+table definition instead of an index. SQLite cannot drop such a column with
+`dropColumn`, and `dropIndex` on the constraint name (`<table>_<column>_key`)
+fails on both databases, so on SQLite rebuild the table with `rawExecute`
+(create the new table, `INSERT ... SELECT`, drop the old one, rename it) or keep
+the column. Dropping loses data, so make `downSchema` throw:
 
 ```dart
 @override

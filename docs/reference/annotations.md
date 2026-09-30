@@ -76,7 +76,7 @@ const Resource({
 
 | Parameter | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `table` | `String?` | class name, snake-cased and pluralised | Physical table name. The pluraliser is small, see the rules below. |
+| `table` | `String?` | class name, snake-cased and pluralised | Physical table name: letters, digits and underscores, and one schema class per table (`beak prepare` refuses a dash, and two classes on one table). The pluraliser is small, see the rules below. |
 | `softDeletes` | `bool` | `false` | Adds a `deletedAt` column (`deleted_at`). Deletes write it instead of removing the row, and the model reports `softDeletes => true`. |
 | `timestamps` | `bool` | `false` | Adds `createdAt` and `updatedAt` (`created_at`, `updated_at`), stamped by the API. |
 | `managesSchema` | `bool` | `true` | `false` when another system migrates the table (a Serverpod model, a database Beak was pointed at). `beak prepare` writes no migration for it. |
@@ -96,7 +96,7 @@ final class Book extends BeakSchema {
 | `updatedAt` | `timestamps: true` | `BeakDateTimeColumn`, sortable, `BeakDateFormat.relative` | table, detail |
 | `deletedAt` | `softDeletes: true` | `BeakDateTimeColumn` | detail |
 
-A class that declares its own `id` (the Serverpod models declare `int? id`) keeps it, and `beak prepare` adds no `id` column.
+A class that declares its own `id` (the Serverpod models declare `int? id`) keeps it, and `beak prepare` adds no `id` column. Declaring `createdAt` or `updatedAt` next to `timestamps: true`, or `deletedAt` next to `softDeletes: true`, would declare the column twice, so `beak prepare` refuses it.
 
 ## Column
 
@@ -222,7 +222,7 @@ const FileField({
 | Parameter | Type | Default | On | Effect |
 | --- | --- | --- | --- | --- |
 | `storagePath` | `String` | required | both | Storage subfolder uploads land in. |
-| `maxSizeInBytes` | `int?` | `null` | both | Highest accepted upload size. |
+| `maxSizeInBytes` | `int?` | `null` | both | Highest accepted upload size. `null` means the server's 100 MiB ceiling. |
 | `allowedTypes` | `List<BeakFileType>` | `@Image`: `jpeg`, `png`, `webp`, `gif`. `@FileField`: `[]`, unrestricted | both | Accepted types: `jpeg`, `png`, `webp`, `gif`, `svg`, `pdf`, `csv`, `json`, `zip`, `mp4`, `mp3`. |
 | `maxDimensions` | `BeakDimensions?` | `null` | `@Image` | Largest accepted source size. |
 | `aspectRatio` | `double?` | `null` | `@Image` | Required width to height ratio. |
@@ -435,6 +435,7 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 - A schema class has to be a `@Resource` under `lib/`. Files ending `.beak.dart`, `.g.dart` or `.freezed.dart`, and files whose name starts with `_`, are not scanned.
 - The pluraliser behind the default table name knows the regular rules and a short list of irregular words. It appends `es` after `s`, `x`, `z`, `ch` and `sh`, turns a consonant and `y` into `ies`, keeps the `y` after a vowel, and otherwise appends `s`. `Person` becomes `people`, `Day` and `Key` become `days` and `keys`, and `Staff` and `Media` stay as they are. Only the last word of a compound name changes, so `SalesPerson` becomes `sales_people`. Set `@Resource(table: 'analyses')` for a word it does not know, such as `Analysis`, which would otherwise become `analysises`.
 - Renaming a field renames its column key unless `columnName` pins it. Pin it when the table already exists.
+- A schema class cannot be called `List`, `String`, `Future`, `Function`, `Enum`, `DateTime`, `Schema`, `Migration`, `BeakSchema`, `Resource`, `Column`, `Display`, `BelongsTo`, `HasOne`, `HasMany` or `BelongsToMany`. The code generated for it, or its create-table migration, uses those names for something else, and the compile errors never mention the class. `beak prepare` refuses it, and `beak make:resource` and `beak introspect` name the class something else (`ListEntry`; keep the table with `@Resource(table: 'lists')`).
 - Annotations declare structure. Presentation lives in the resource, [form screens](screens-and-layouts.md) and `beak.yaml`, and behaviour in the `behavior` getter.
 
 ## Source

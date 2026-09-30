@@ -50,9 +50,9 @@ BeakServer beakServer(BeakServerDefaults defaults) {
 The two demo users above exist so the tests can sign in. Replace them with your
 own accounts before production: keep hashes out of source, load them from the
 environment or a table behind a custom `BeakAuthGuard` and `TokenSessionStore`,
-and pick a real `AUTH_SECRET`. After editing `lib/server.dart` run
-`beak prepare`, otherwise the generated host does not call it and
-`/api/auth/login` answers 404.
+and pick a real `AUTH_SECRET`. The first time `lib/server.dart` exists, run
+`beak prepare`: until then the generated host does not call it and
+`/api/auth/login` answers 404. Later edits need no regeneration.
 
 Other `BeakModelRules` arguments:
 

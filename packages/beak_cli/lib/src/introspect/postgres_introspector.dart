@@ -23,6 +23,13 @@ final class PostgresIntrospector {
   /// The Postgres schema to read.
   final String schema;
 
+  /// [schema] as the body of a SQL string literal.
+  ///
+  /// The queries cannot take a bind parameter (`beak doctor` and the tests run
+  /// them through a reader of plain SQL), so a schema name with a quote in it
+  /// must not end the literal it is written into.
+  static String _literal(String schema) => schema.replaceAll("'", "''");
+
   /// SQL listing every column of every base table in the schema.
   static String columnsSql(String schema) =>
       '''
@@ -32,35 +39,43 @@ SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
 FROM information_schema.columns c
 JOIN information_schema.tables t
   ON t.table_schema = c.table_schema AND t.table_name = c.table_name
-WHERE c.table_schema = '$schema' AND t.table_type = 'BASE TABLE'
+WHERE c.table_schema = '${_literal(schema)}' AND t.table_type = 'BASE TABLE'
 ORDER BY c.table_name, c.ordinal_position
 ''';
 
   /// SQL listing every foreign key in the schema.
+  ///
+  /// Read from `pg_constraint`, not from `information_schema`: a constraint
+  /// name is only unique within its table, and the `information_schema` views
+  /// join on it alone, so two tables that both hand-name a key `fk_owner` were
+  /// each given the other's columns and the other's target.
   static String foreignKeysSql(String schema) =>
       '''
-SELECT tc.table_name, kcu.column_name, ccu.table_name AS referenced_table
-FROM information_schema.table_constraints tc
-JOIN information_schema.key_column_usage kcu
-  ON tc.constraint_name = kcu.constraint_name
- AND tc.table_schema = kcu.table_schema
-JOIN information_schema.constraint_column_usage ccu
-  ON ccu.constraint_name = tc.constraint_name
- AND ccu.table_schema = tc.table_schema
-WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = '$schema'
-ORDER BY tc.table_name, kcu.column_name
+SELECT cl.relname AS table_name, a.attname AS column_name,
+       target.relname AS referenced_table
+FROM pg_constraint con
+JOIN pg_class cl ON cl.oid = con.conrelid
+JOIN pg_namespace n ON n.oid = cl.relnamespace
+JOIN pg_class target ON target.oid = con.confrelid
+CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, position)
+JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+WHERE con.contype = 'f' AND n.nspname = '${_literal(schema)}'
+ORDER BY cl.relname, a.attname
 ''';
 
-  /// SQL listing every primary-key column in the schema.
+  /// SQL listing every primary-key column in the schema, in key order.
+  ///
+  /// Read from `pg_constraint` for the reason [foreignKeysSql] is.
   static String primaryKeysSql(String schema) =>
       '''
-SELECT tc.table_name, kcu.column_name
-FROM information_schema.table_constraints tc
-JOIN information_schema.key_column_usage kcu
-  ON tc.constraint_name = kcu.constraint_name
- AND tc.table_schema = kcu.table_schema
-WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = '$schema'
-ORDER BY tc.table_name, kcu.ordinal_position
+SELECT cl.relname AS table_name, a.attname AS column_name
+FROM pg_constraint con
+JOIN pg_class cl ON cl.oid = con.conrelid
+JOIN pg_namespace n ON n.oid = cl.relnamespace
+CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, position)
+JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+WHERE con.contype = 'p' AND n.nspname = '${_literal(schema)}'
+ORDER BY cl.relname, k.position
 ''';
 
   /// SQL listing every enum type and its labels, in declaration order.
@@ -84,7 +99,7 @@ JOIN pg_class c ON c.oid = i.indexrelid
 JOIN pg_class t ON t.oid = i.indrelid
 JOIN pg_namespace n ON n.oid = t.relnamespace
 JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = i.indkey[0]
-WHERE n.nspname = '$schema'
+WHERE n.nspname = '${_literal(schema)}'
   AND i.indnatts = 1
   AND NOT i.indisprimary
 ''';

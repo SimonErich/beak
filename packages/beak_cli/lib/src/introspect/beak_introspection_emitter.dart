@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import '../field_spec.dart';
 import '../inflection.dart';
 import '../project/beak_emitters.dart';
+import '../schema/beak_reserved_names.dart';
 import 'beak_schema_introspection.dart';
 
 /// Where introspected schema files are laid out.
@@ -307,7 +308,7 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln('/// The values the `$type` database enum defines.')
       ..writeln('///')
       ..writeln('/// Stored by name, so renaming a value here renames it in')
-      ..writeln('/// every row — change the database with a migration first.')
+      ..writeln('/// every row, so change the database with a migration first.')
       ..writeln('enum $className {');
     for (final value in values) {
       buffer
@@ -398,17 +399,53 @@ abstract final class BeakIntrospectionEmitter {
         ..writeln('  late final int? id;')
         ..writeln();
     }
+    // Field names claimed so far. Two columns can spell one field (`firstName`
+    // and `first_name`), and a column can spell the field a relationship
+    // takes, so the relationships claim theirs first and a later column that
+    // wants a taken name gets a number.
+    final used = <String>{if (_hasIntegerKey(table)) 'id'};
+    String claim(String wanted) {
+      var name = wanted;
+      for (var number = 2; !used.add(name); number++) {
+        name = '$wanted$number';
+      }
+      return name;
+    }
+
+    final relationFields = <String, String>{
+      for (final fk in table.foreignKeys)
+        if (byTable.containsKey(fk.referencedTable))
+          fk.column: claim(
+            _fieldNameOf(
+              fk.column.endsWith('_id')
+                  ? fk.column.substring(0, fk.column.length - 3)
+                  : fk.column,
+            ),
+          ),
+    };
+    final pivotFields = <String, String>{
+      for (final pivot in _pivotsFor(table, pivots))
+        if (_otherSideOf(pivot, table) case final String other)
+          if (byTable.containsKey(other)) pivot.name: claim(camelCaseOf(other)),
+    };
+    if (_columnNamed(table, 'id') == null) {
+      notes.add(
+        '${table.name} has no `id` column${_keyClauseOf(table)}, but Beak '
+        'keys a record by `id`: the table cannot be read or written until it '
+        'has one',
+      );
+    }
     for (final column in table.columns) {
       if (column.name == table.primaryKey ||
           foreignKeyColumns.contains(column.name) ||
-          const {
-            'created_at',
-            'updated_at',
-            'deleted_at',
-          }.contains(column.name)) {
+          // The annotation adds them, so only when it does: a table with a
+          // `created_at` and no `updated_at` keeps the column it has.
+          (table.timestamps &&
+              const {'created_at', 'updated_at'}.contains(column.name)) ||
+          (table.softDeletes && column.name == 'deleted_at')) {
         continue;
       }
-      if (introspectionSecretColumns.contains(column.name)) {
+      if (isSecretColumnName(column.name)) {
         notes.add(
           '${table.name}.${column.name} looks like a secret and was omitted; '
           'add it deliberately if the panel really should show it',
@@ -443,13 +480,13 @@ abstract final class BeakIntrospectionEmitter {
       if (column.name == displayColumn) {
         buffer.writeln('  @Display()');
       }
-      buffer.writeln('  @Column(${_columnOptionsOf(column).join(', ')})');
+      final String field = claim(_fieldNameOf(column.name));
+      buffer.writeln(
+        '  @Column(${_columnOptionsOf(column, field: field).join(', ')})',
+      );
       final bool nullable = column.isNullable || column.hasDefault;
       buffer
-        ..writeln(
-          '  late final $type${nullable ? '?' : ''} '
-          '${camelCaseOf(column.name)};',
-        )
+        ..writeln('  late final $type${nullable ? '?' : ''} $field;')
         ..writeln();
     }
 
@@ -462,17 +499,16 @@ abstract final class BeakIntrospectionEmitter {
         );
         continue;
       }
-      final String field = camelCaseOf(
-        fk.column.endsWith('_id')
-            ? fk.column.substring(0, fk.column.length - 3)
-            : fk.column,
-      );
+      final String field = relationFields[fk.column]!;
       final IntrospectedColumn? column = _columnNamed(table, fk.column);
       buffer
-        ..writeln('  /// The ${_labelOf(fk.referencedTable)} this belongs to.')
+        ..writeln(
+          '  /// The ${_labelOf(singularOf(fk.referencedTable))} this belongs '
+          'to.',
+        )
         ..writeln(
           '  @BelongsTo('
-          "${fk.column == '${_snake(field)}_id' ? '' : "foreignKey: '${fk.column}'"}"
+          "${fk.column == '${snakeCaseOf(field)}_id' ? '' : "foreignKey: '${fk.column}'"}"
           ')',
         )
         ..writeln(
@@ -488,7 +524,7 @@ abstract final class BeakIntrospectionEmitter {
       if (related == null) {
         continue;
       }
-      final String field = camelCaseOf(related.name);
+      final String field = pivotFields[pivot.name]!;
       buffer
         ..writeln('  /// The ${_labelOf(related.name)} linked to this record.')
         ..writeln("  @BelongsToMany(pivotTable: '${pivot.name}')")
@@ -514,7 +550,13 @@ abstract final class BeakIntrospectionEmitter {
   /// is queried, and dropping it on the way through would hand back a schema
   /// that looks right and runs slowly. Foreign keys never reach here — the
   /// relationship declares them, and Beak indexes every one unasked.
-  static List<String> _columnOptionsOf(IntrospectedColumn column) => [
+  static List<String> _columnOptionsOf(
+    IntrospectedColumn column, {
+    required String field,
+  }) => [
+    // The reader gives a field the column its name snake-cases to, so a column
+    // the database spells otherwise has to be named.
+    if (snakeCaseOf(field) != column.name) "columnName: '${column.name}'",
     if (_isDisplayCandidate(column) || column.dataType == 'text')
       'searchable: true',
     if (_isSortable(column)) 'sortable: true',
@@ -594,14 +636,16 @@ abstract final class BeakIntrospectionEmitter {
       RegExp(r'^[a-z_][A-Za-z0-9_]*$').hasMatch(value) &&
       !_dartReservedWords.contains(value);
 
-  /// The reserved words that cannot be an enum constant name.
+  /// The words that cannot be an enum constant name: the ones Dart reserves,
+  /// and the members every enum already declares.
   static const Set<String> _dartReservedWords = {
-    'assert', 'break', 'case', 'catch', 'class', 'const', 'continue',
-    'default', 'do', 'else', 'enum', 'extends', 'false', 'final', 'finally',
-    'for', 'if', 'in', 'is', 'new', 'null', 'rethrow', 'return', 'super',
-    'switch', 'this', 'throw', 'true', 'try', 'var', 'void', 'while', 'with',
-    // Not reserved, but every enum already declares them.
-    'index', 'values', 'hashCode', 'runtimeType', 'toString', 'noSuchMethod',
+    ...BeakReservedNames.dartKeywords,
+    'index',
+    'values',
+    'hashCode',
+    'runtimeType',
+    'toString',
+    'noSuchMethod',
   };
 
   /// Whether [dataType] is a string column, and so could be a storage key.
@@ -775,6 +819,56 @@ abstract final class BeakIntrospectionEmitter {
     return null;
   }
 
+  /// The Dart field a column is declared as: `lowerCamelCase`, and a name the
+  /// language can spell.
+  ///
+  /// A column another tool named `class`, `2fa` or `Email` still gets a field,
+  /// with its stored name kept by `columnName`; `record` is the name the typed
+  /// record view reserves.
+  static String _fieldNameOf(String column) {
+    final words = [
+      for (final word in column.split(RegExp('[^A-Za-z0-9]+')))
+        if (word.isNotEmpty) word,
+    ];
+    if (words.isEmpty) {
+      return 'field';
+    }
+    String lowered(String word) =>
+        word == word.toUpperCase() ? word.toLowerCase() : word;
+    String capitalised(String word) {
+      final String text = lowered(word);
+      return '${text[0].toUpperCase()}${text.substring(1)}';
+    }
+
+    final String first = lowered(words.first);
+    final String name = [
+      '${first[0].toLowerCase()}${first.substring(1)}',
+      for (final word in words.skip(1)) capitalised(word),
+    ].join();
+    if (RegExp('^[0-9]').hasMatch(name)) {
+      return 'field${name[0].toUpperCase()}${name.substring(1)}';
+    }
+    return BeakReservedNames.dartKeywords.contains(name) ||
+            BeakReservedNames.recordView.contains(name) ||
+            _objectMembers.contains(name)
+        ? '${name}Value'
+        : name;
+  }
+
+  /// The members every object has, which a field cannot take the name of.
+  static const Set<String> _objectMembers = {
+    'hashCode',
+    'runtimeType',
+    'toString',
+    'noSuchMethod',
+  };
+
+  /// `" (its primary key is `sku`)"`, or nothing when [table] has none.
+  static String _keyClauseOf(IntrospectedTable table) =>
+      _columnNamed(table, table.primaryKey) == null
+      ? ''
+      : ' (its primary key is `${table.primaryKey}`)';
+
   static String _labelOf(String name) {
     final words = name.split('_').where((word) => word.isNotEmpty);
     return words
@@ -791,7 +885,16 @@ abstract final class BeakIntrospectionEmitter {
 }
 
 /// `order_items` -> `OrderItem`, the conventional schema class name.
-String classNameOf(String table) => pascalCaseOf(singularOf(table));
+///
+/// A table whose class name the generated code needs for something else
+/// (`lists`, `strings`, `resources`, `columns`, `schemas`) gets `Entry` after
+/// it, and `@Resource(table:)` says which table it is.
+String classNameOf(String table) {
+  final String name = pascalCaseOf(singularOf(table));
+  return BeakReservedNames.generatedCodeTypes.contains(name)
+      ? '${name}Entry'
+      : name;
+}
 
 /// `product_status` -> `ProductStatus`, without singularizing.
 ///

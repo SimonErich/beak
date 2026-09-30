@@ -1,4 +1,14 @@
 import 'inflection.dart';
+import 'schema/beak_reserved_names.dart';
+
+/// The field names `make:resource` cannot take: the key, the two stamps its
+/// `timestamps: true` adds, and the name the typed record view reserves.
+const Set<String> _addedByBeak = {
+  'id',
+  'created_at',
+  'updated_at',
+  ...BeakReservedNames.recordView,
+};
 
 /// The column kinds a `--fields` token can declare.
 ///
@@ -112,6 +122,19 @@ final class BeakFieldSpec {
     final String name = parts.first;
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) {
       throw FormatException('Field name "$name" must be lower_snake_case.');
+    }
+    if (BeakReservedNames.dartKeywords.contains(name)) {
+      throw FormatException(
+        'Field name "$name" is a Dart keyword, so `late final String? $name;` '
+        'is not Dart. Pick another name.',
+      );
+    }
+    if (_addedByBeak.contains(name)) {
+      throw FormatException(
+        'Field name "$name" is one Beak adds itself (the key, the '
+        'timestamps) or reserves for the typed record view, so declaring it '
+        'would declare it twice. Pick another name.',
+      );
     }
     return BeakFieldSpec(name: name, kind: kind, isRequired: isRequired);
   }

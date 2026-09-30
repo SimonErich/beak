@@ -78,6 +78,77 @@ abstract final class BeakReservedNames {
     'noSuchMethod',
   };
 
+  /// The words Dart reserves, which no field can be named.
+  ///
+  /// A schema class is Dart, so `late final String class;` is a syntax error
+  /// however the column is spelled. Such a column keeps its stored name with
+  /// `@Column(columnName:)` under a field name of another spelling.
+  static const Set<String> dartKeywords = {
+    'assert',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'default',
+    'do',
+    'else',
+    'enum',
+    'extends',
+    'false',
+    'final',
+    'finally',
+    'for',
+    'if',
+    'in',
+    'is',
+    'new',
+    'null',
+    'rethrow',
+    'return',
+    'super',
+    'switch',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'var',
+    'void',
+    'while',
+    'with',
+  };
+
+  /// The names a schema class cannot take, because the part file generated
+  /// for it, or the create-table migration written for it, uses them for
+  /// something else in the same library.
+  ///
+  /// `List`, `String`, `Future`, `Function`, `Enum` and `DateTime` are read by
+  /// the generated code as the Dart types; `Schema` and `Migration` are the
+  /// worm types every migration extends and takes; `BeakSchema` is what the
+  /// class extends; `Resource`, `Column`, `Display`, `BelongsTo`, `HasOne`,
+  /// `HasMany` and `BelongsToMany` are the annotations on the class itself. A
+  /// class declared under one of them shadows the real one, and the error the
+  /// analyzer gives never mentions the class.
+  static const Set<String> generatedCodeTypes = {
+    'List',
+    'String',
+    'Future',
+    'Function',
+    'Enum',
+    'DateTime',
+    'Schema',
+    'Migration',
+    'BeakSchema',
+    'Resource',
+    'Column',
+    'Display',
+    'BelongsTo',
+    'HasOne',
+    'HasMany',
+    'BelongsToMany',
+  };
+
   /// Names the generated record view cannot declare a getter for.
   ///
   /// The view is an extension type over a `BeakRecord` named `record`, so a

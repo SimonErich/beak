@@ -19,6 +19,7 @@ import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../schema/beak_drift_migration_emitter.dart';
 import '../schema/beak_migration_emitter.dart';
 import '../schema/beak_migration_order.dart';
 import '../schema/beak_schema_drift.dart';
@@ -845,15 +846,13 @@ Future<List<BeakCheck>> _databaseChecks(
     ];
   }
 
-  final bool reachable = await environment.probe(
-    url.host,
-    url.hasPort ? url.port : 5432,
-  );
+  final int port = url.hasPort ? url.port : 5432;
+  final bool reachable = await environment.probe(url.host, port);
   if (!reachable) {
     return [
       BeakCheck(
         status: BeakCheckStatus.warn,
-        label: 'database unreachable at ${url.host}:${url.port}',
+        label: 'database unreachable at ${url.host}:$port',
         remedy: 'start it, or correct DATABASE_URL in .env',
       ),
     ];
@@ -861,7 +860,7 @@ Future<List<BeakCheck>> _databaseChecks(
   return [
     BeakCheck(
       status: BeakCheckStatus.ok,
-      label: 'database reachable at ${url.host}:${url.port}',
+      label: 'database reachable at ${url.host}:$port',
     ),
     if (canDrift && beakCanReadSchema(url))
       ...await _driftChecks(url, readSchema, schemas, root, createdTables),
@@ -925,35 +924,42 @@ Future<List<BeakCheck>> _driftChecks(
 /// table that exists is drift: the create migration already ran without it,
 /// and `--from-drift` writes the `alter`. Everything else is a decision no
 /// command can make.
-String _remedyFor(BeakDrift problem, Set<String> createdTables) =>
-    switch (problem) {
-      BeakMissingTable(:final table) =>
-        createdTables.contains(table)
-            ? 'beak migrate'
-            : 'beak prepare, which writes the migration, then beak migrate',
-      BeakMissingPivot(:final table, :final schema, :final relation) =>
-        createdTables.contains(table) ||
-                createdTables.contains(
-                  '${schema.relationsClass}.${relation.fieldName}',
-                )
-            ? 'beak migrate'
-            : 'beak prepare, which writes the migration, then beak migrate',
-      BeakMissingColumn(
-        cause: BeakMissingColumnCause.declared ||
-            BeakMissingColumnCause.foreignKey,
-        :final columnKey,
-        :final table,
-      ) =>
-        'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
-            '--from-drift, then beak migrate',
-      BeakMissingColumn() =>
-        'write a migration with `beak make:migration <Name>` (a flag that '
-            'changes more than a column is not something --from-drift adds), '
-            'then beak migrate',
-      BeakUndeclaredColumn(:final schema) =>
-        'declare the field on ${schema.className}, or drop the column in a '
-            'migration written with `beak make:migration <Name>`',
-    };
+String _remedyFor(
+  BeakDrift problem,
+  Set<String> createdTables,
+) => switch (problem) {
+  BeakMissingTable(:final table) =>
+    createdTables.contains(table)
+        ? 'beak migrate'
+        : 'beak prepare, which writes the migration, then beak migrate',
+  BeakMissingPivot(:final table, :final schema, :final relation) =>
+    createdTables.contains(table) ||
+            createdTables.contains(
+              '${schema.relationsClass}.${relation.fieldName}',
+            )
+        ? 'beak migrate'
+        : 'beak prepare, which writes the migration, then beak migrate',
+  BeakMissingColumn(
+    cause: BeakMissingColumnCause.declared || BeakMissingColumnCause.foreignKey,
+    :final columnKey,
+    :final table,
+  ) =>
+    BeakDriftMigrationEmitter.unaddable([problem]).isNotEmpty
+        ? 'give the field `@Column(defaultValue: ...)` or make it '
+              'nullable, so that `beak make:migration Add'
+              '${_pascalOf(columnKey)}To${_pascalOf(table)} --from-drift` '
+              'can add it, or write the migration yourself, then beak '
+              'migrate'
+        : 'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
+              '--from-drift, then beak migrate',
+  BeakMissingColumn() =>
+    'write a migration with `beak make:migration <Name>` (a flag that '
+        'changes more than a column is not something --from-drift adds), '
+        'then beak migrate',
+  BeakUndeclaredColumn(:final schema) =>
+    'declare the field on ${schema.className}, or drop the column in a '
+        'migration written with `beak make:migration <Name>`',
+};
 
 /// `stock_level` -> `StockLevel`.
 String _pascalOf(String snake) => snake
@@ -1221,6 +1227,13 @@ BeakCheck _staleDocs(
           BeakCheckStatus.warn,
           'docs bundle not materialized in ${BeakWorkspace.docsPath}',
           remedy: 'beak docs',
+        )
+      : copied == resolvedVersion
+      ? check(
+          BeakCheckStatus.warn,
+          'docs bundle for Beak $copied is out of date: beak_core ships other '
+          'pages under the same version',
+          remedy: 'beak prepare',
         )
       : check(
           BeakCheckStatus.warn,

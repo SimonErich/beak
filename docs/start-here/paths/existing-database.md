@@ -103,7 +103,8 @@ The foreign key `customer_id` became a `@BelongsTo()` relationship, `created_at`
 2. **Types.** Read every `late final` line. A `numeric(10,2)` price arrives as a `double`, so money can round, and the command notes each such column. An exact `BeakDecimal` with `BeakSemantic.money` ([A money field](../../recipes/a-money-field.md)) is stored as integer units, so an existing `numeric` column has to be converted by a migration of your own before the class can change type.
 3. **Nullability.** `?` follows the database's nullability, and a column with a database default is optional too (`status` above is `NOT NULL DEFAULT 'open'`), because the database fills it in. A mismatch between a class and the database fails on save, not at compile time.
 4. **Rules.** Column lengths arrive as `BeakMaxLength` rules and an email-shaped column as `BeakEmail()`. Add the rules your business needs; the form and the API both apply them.
-5. **What was left out.** A column named like a secret (`password`, `password_hash`, `token`, `api_key` and a few more) is omitted with a warning, and a pure join table becomes a relationship and no class of its own.
+5. **What was left out.** A column with `password`, `secret` or `token` as a word in its name (`password_hash`, `card_token`) or an api or private key (`api_key`) is omitted with a warning, and a pure join table becomes a relationship and no class of its own.
+6. **Names.** A column the field name does not give back (`firstName`, `address_line_1`, `Email`) keeps its stored name with `@Column(columnName:)`, and a column Dart cannot spell as a field (`class`, `2fa`) gets a field name such as `classValue` under the same option. Beak keys a record by a column called `id`: a table without one is noted, and cannot be read or written until it has one.
 
 ## Prepare, migrate, serve
 
@@ -130,8 +131,8 @@ migrated  20260929_164522_adopt_existing_schema
 
 ## Rules and limits
 
-- **Integer keys work.** A table whose key is a serial integer is written with `late final int? id;`. The server mints a string id only for a string key, leaves an integer one to the database and returns what it assigned, and takes numeric ids on get, update and delete. This is tested on SQLite; a Postgres serial column relies on `RETURNING`.
-- **Native Postgres enums read as text.** A query returns the enum label as a string. Writing a label into an enum column is untested against a real Postgres, so try a write before you ship the form.
+- **Integer keys work.** A table whose key is a serial integer is written with `late final int? id;`. The server mints a string id only for a string key, leaves an integer one to the database and returns what it assigned, and takes numeric ids on get, update and delete. This is tested on SQLite and on a real Postgres, where the created row's key comes back through `RETURNING`.
+- **Native Postgres enums read and write as text.** A query returns the enum label as a string, and a label sent on create, update or in a graph commit is stored in the enum column. Both are tested against a real Postgres.
 - **Names are mapped, not translated.** A `total_cents` column becomes `totalCents` in Dart and stays `total_cents` in SQL and in the API. The panel label comes from the field name; set `@Column(label:)` where it reads badly.
 - **Schema drift is your call.** `beak doctor` compares the classes to the live database and reports each difference. In adopt mode you close a gap with `beak make:migration Name --from-drift`; in external mode you fix the class or the other tool's migration.
 - **`--only` and `--except` take comma-separated table names** (`--only customers,products`), and `--schema` picks a Postgres schema other than `public`. Without them every table is read.

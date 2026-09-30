@@ -4,6 +4,7 @@ import 'package:yaml/yaml.dart';
 
 import '../agents/beak_skill_installer.dart';
 import 'beak_discovery.dart';
+import 'beak_emitters.dart' show BeakEmitters;
 
 /// Thrown when `beak.yaml` cannot be understood.
 ///
@@ -45,7 +46,7 @@ final class BeakApiSettings {
   String get expression => isAuto
       ? "kIsWeb ? Uri.base.origin : 'http://localhost:8080'"
       : "const String.fromEnvironment('BEAK_API_BASE_URL', "
-            "defaultValue: '$baseUrl')";
+            "defaultValue: '${BeakEmitters.escape(baseUrl)}')";
 }
 
 /// Where the server listens, when the project wants something other than
@@ -153,14 +154,14 @@ final class BeakResourceOverride {
   /// Navigation group this resource belongs to.
   final String? section;
 
-  /// Whether to keep this resource out of the navigation.
+  /// Whether the model gets no default resource.
   ///
   /// The model is still registered, still has an API, and is still reachable
-  /// as the far side of a relationship — it simply does not earn a sidebar
-  /// entry. A real application has plenty of those: line items, pivots,
-  /// lookup tables, anything only ever opened from its parent.
-  ///
-  /// Navigability is presentation, which is what this file already decides.
+  /// as the far side of a relationship, so other resources show and pick its
+  /// records. It has no pages of its own: no sidebar entry, and its list,
+  /// detail and form routes answer 404. A real application has plenty of
+  /// those: line items, pivots, lookup tables, anything only ever opened from
+  /// its parent.
   final bool hidden;
 }
 

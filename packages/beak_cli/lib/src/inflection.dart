@@ -29,6 +29,36 @@ const Set<String> _invariantWords = {
   'media',
 };
 
+/// Words whose singular ends in `se`, so that `es` is not the ending of their
+/// plural: `purchases` is `purchase` and not `purchas`.
+///
+/// Small on purpose, like the other tables: `-ses` is `-s` in `buses` and `-se`
+/// in `purchases`, and only a list can tell them apart.
+const Set<String> _singularsEndingInSe = {
+  'purchase',
+  'license',
+  'response',
+  'course',
+  'case',
+  'database',
+  'phase',
+  'release',
+  'expense',
+  'house',
+  'warehouse',
+  'exercise',
+  'promise',
+  'lease',
+  'base',
+  'cause',
+  'clause',
+  'phrase',
+  'showcase',
+  'disease',
+  'increase',
+  'excuse',
+};
+
 /// The reverse of [_irregularPlurals].
 final Map<String, String> _irregularSingulars = {
   for (final entry in _irregularPlurals.entries) entry.value: entry.key,
@@ -102,6 +132,10 @@ String _singularWord(String word) {
   }
   if (_irregularSingulars[lower] case final String singular) {
     return _withCaseOf(word, singular);
+  }
+  if (lower.endsWith('s') &&
+      _singularsEndingInSe.contains(lower.substring(0, lower.length - 1))) {
+    return word.substring(0, word.length - 1);
   }
   if (lower.endsWith('ies')) {
     return '${word.substring(0, word.length - 3)}y';

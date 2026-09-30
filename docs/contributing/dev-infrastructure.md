@@ -51,7 +51,7 @@ Everything opt-in. Nothing in `melos run analyze`, `format-check`, `test` or `co
 | --- | --- | --- |
 | `packages/beak_backend/test/e2e/postgres_integration_test.dart` | Postgres | `melos run test-e2e` |
 | `packages/beak_backend/test/e2e/upload_s3_integration_test.dart`, `packages/beak_storage_s3/test/e2e/s3_minio_integration_test.dart` | MinIO | `melos run test-e2e` |
-| `packages/beak_cli/test/e2e/round_trip_test.dart` | Postgres | `melos run test-e2e` |
+| `packages/beak_cli/test/e2e/round_trip_test.dart`, `postgres_introspection_test.dart` | Postgres | `melos run test-e2e` |
 | The vendored `worm_postgres` contract suite | Postgres | `melos run test-worm`, or `melos run test-worm-postgres` alone |
 | Your own project on Postgres | Postgres | `DATABASE_URL` in the project's `.env` |
 | Reading the database in a browser | pgweb | open `http://localhost:28081` |
@@ -118,7 +118,6 @@ None of them migrate into the database `DATABASE_URL` names.
 - **Ports listen on the loopback interface only.** Compose publishes each on `127.0.0.1`, because the passwords are `beak` and `beaksecret`. Nothing on your network can reach the stack, and neither can a container on another machine or a phone testing the panel over Wi-Fi. To reach it from elsewhere, drop the `127.0.0.1:` prefix from that mapping and change the passwords first.
 - **`up` alone leaves no bucket.** Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
 - **Three images are unpinned.** MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
-- **One suite fails instead of skipping.** The other service suites print a message and skip when nothing is listening. `round_trip_test.dart` throws, so `melos run test-e2e` without the stack fails in `beak_cli`.
 - **`e2e` also means slow.** Three CLI suites run on SQLite and need no container. They carry the tag because a real `flutter pub get` is too slow for the main gate.
 - **Project name follows the directory.** The compose project is named `beak` because the checkout folder is. A checkout in another folder gets other container and volume names.
 

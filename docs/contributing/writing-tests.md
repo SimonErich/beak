@@ -222,7 +222,7 @@ A suite that needs Postgres or MinIO goes in `test/e2e/`, opens with `@Tags(['e2
 | `packages/beak_backend/test/e2e/postgres_integration_test.dart` | Postgres | skips with a message |
 | `packages/beak_backend/test/e2e/upload_s3_integration_test.dart` | MinIO | skips with a message |
 | `packages/beak_storage_s3/test/e2e/s3_minio_integration_test.dart` | MinIO | skips with a message |
-| `packages/beak_cli/test/e2e/round_trip_test.dart` | Postgres | fails |
+| `packages/beak_cli/test/e2e/round_trip_test.dart`, `postgres_introspection_test.dart` | Postgres | skips with a message |
 | `packages/beak_cli/test/e2e/adopt_existing_schema_test.dart`, `evolvability_test.dart`, `init_embedded_test.dart` | Flutter tooling, SQLite | none needed, but slow |
 
 [Dev infrastructure](dev-infrastructure.md) starts the stack and explains the ports.

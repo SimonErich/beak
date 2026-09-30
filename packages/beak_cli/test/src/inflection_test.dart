@@ -92,6 +92,38 @@ void main() {
       expect(singularOf('staff'), 'staff');
     });
 
+    test('takes only the s off a plural whose singular ends in se', () {
+      // `purchases` used to lose its `es` and come out as `Purchas`, in the
+      // name of every class and file `beak introspect` wrote for it.
+      for (final word in const [
+        'purchase',
+        'license',
+        'response',
+        'course',
+        'case',
+        'database',
+        'phase',
+        'release',
+        'expense',
+        'house',
+        'warehouse',
+        'exercise',
+        'promise',
+      ]) {
+        expect(singularOf('${word}s'), word, reason: word);
+        expect(singularOf(pluralOf(word)), word, reason: word);
+      }
+      expect(singularOf('order_purchases'), 'order_purchase');
+    });
+
+    test('still takes es off the plurals that need it', () {
+      expect(singularOf('buses'), 'bus');
+      expect(singularOf('addresses'), 'address');
+      expect(singularOf('classes'), 'class');
+      expect(singularOf('boxes'), 'box');
+      expect(singularOf('batches'), 'batch');
+    });
+
     test('leaves a singular that ends in s alone', () {
       expect(singularOf('status'), 'status');
       expect(singularOf('address'), 'address');

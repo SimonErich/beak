@@ -586,7 +586,7 @@ Future<void> main() async {
       return 'environment';
     }
     final String defaults = config.server.environmentDefaults.entries
-        .map((entry) => "'${entry.key}': '${entry.value}'")
+        .map((entry) => "'${entry.key}': '${escape(entry.value)}'")
         .join(', ');
     return '{$defaults, ...environment ?? BeakEnv.resolve()}';
   }
@@ -644,7 +644,7 @@ Future<void> main(List<String> args) async {
   /// hide.
   ///
   /// A hidden resource keeps its API and stays reachable through a
-  /// relationship; it just does not earn a sidebar entry.
+  /// relationship; it has no pages of its own, so no sidebar entry either.
   static List<BeakDiscoveredSymbol> _shownModels(
     BeakProjectConfig config,
     BeakDiscovery discovery,

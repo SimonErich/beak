@@ -20,6 +20,7 @@ import 'project/beak_authored_main.dart';
 import 'project/beak_emitters.dart';
 import 'project/beak_project_config.dart';
 import 'schema/beak_drift_migration_emitter.dart';
+import 'schema/beak_reserved_names.dart';
 import 'schema/beak_schema_drift.dart';
 import 'schema/beak_schema_reader.dart';
 import 'templates.dart';
@@ -255,6 +256,15 @@ final class _BeakCommandRunner extends CommandRunner<int> {
       // the tool's: say which key or line, rather than a stack trace.
       environment.out.writeln(exception);
       return 1;
+    } on FileSystemException catch (exception) {
+      // A folder that cannot be written to, or a file that cannot be read, is
+      // the machine's answer, and `EX_IOERR` says so.
+      final String? path = exception.path;
+      environment.out.writeln(
+        'error: ${exception.message}${path == null || path.isEmpty ? '' : ': $path'}'
+        '${exception.osError == null ? '' : ' (${exception.osError!.message})'}',
+      );
+      return 74;
     }
   }
 }
@@ -281,6 +291,14 @@ abstract base class _MakeCommand extends Command<int> {
         !RegExp(r'^[A-Z][A-Za-z0-9]*$').hasMatch(rest.single)) {
       throw UsageException(
         'Expected exactly one UpperCamelCase resource name.',
+        usage,
+      );
+    }
+    if (BeakReservedNames.generatedCodeTypes.contains(rest.single)) {
+      throw UsageException(
+        '"${rest.single}" cannot be the name of a resource: the code '
+        'generated for it uses that name for something else. Try '
+        '"${rest.single}Entry".',
         usage,
       );
     }
@@ -470,6 +488,12 @@ final class MakeMigrationCommand extends Command<int> {
     final String className = rest.single;
     final String snake = snakeCaseOf(className);
     final String stamp = _timestampOf(environment.now());
+    // Before anything is written: a migration outside a Beak project has
+    // nothing to run it.
+    if (beakNotAProjectAt(environment.rootDirectory) case final String reason) {
+      environment.out.writeln('  $reason');
+      return 1;
+    }
     if (_refusesToReplace('lib/migrations/$snake.dart')) {
       return 1;
     }
@@ -592,7 +616,10 @@ final class $className extends Migration {
     // "no drift" and "drift no migration can express" are different answers,
     // and conflating them tells someone their schema is applied when it is
     // not.
-    final refusals = BeakDriftMigrationEmitter.unaddable(drift);
+    final refusals = BeakDriftMigrationEmitter.unaddable(
+      drift,
+      isSqlite: beakIsSqliteUrl(url),
+    );
     for (final MapEntry(key: problem, value: why) in refusals.entries) {
       environment.out.writeln(
         '  ! ${problem.table}.${problem.columnKey}: $why',
