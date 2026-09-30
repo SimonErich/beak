@@ -61,7 +61,7 @@ This is the shop's gallery row:
 | Parameter | On | Default | Meaning |
 | --- | --- | --- | --- |
 | `storagePath` | both | required | Folder inside the storage driver. Keys start with it. |
-| `maxSizeInBytes` | both | no limit | Largest accepted upload. |
+| `maxSizeInBytes` | both | 100 MiB | Largest accepted upload. A column that sets none is held to 100 MiB, because the body is read into memory. |
 | `allowedTypes` | both | `@Image`: `jpeg`, `png`, `webp`, `gif`. `@FileField`: any | Accepted `BeakFileType` values. |
 | `maxDimensions` | `@Image` | none | Largest accepted width and height in pixels. |
 | `aspectRatio` | `@Image` | none | Required width divided by height, within 0.01. |
@@ -101,7 +101,7 @@ Violations come back together, one message list per key, as a `422`:
 
 Two behaviours are worth knowing before you rely on a rule:
 
-- An image column reads the bytes first. The server reads the header as PNG, JPEG, WebP or GIF before it looks at the type list. A text file sent to an image column is refused with `The uploaded file is not a supported raster image`, not with a `type` error. A real GIF into a PNG and JPEG column does get the `type` error.
+- An image column reads the bytes first. The server reads the header as PNG, JPEG, WebP or GIF before it looks at the type list. A text file sent to an image column is refused with `The uploaded file is not a supported raster image`, not with a `type` error. A real GIF into a PNG and JPEG column does get the `type` error. A file with a valid header and damaged content (truncated, corrupt) is refused with `The uploaded file could not be decoded as an image`.
 - A file column trusts the label. `BeakFileColumn` checks the size and the declared MIME type and extension, and nothing else. It does not read the bytes. PNG bytes uploaded as `x.pdf` with `Content-Type: application/pdf` are stored as a PDF. If people you do not trust upload files, put a scanner behind the bucket.
 
 ## Transforms

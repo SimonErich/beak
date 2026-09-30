@@ -188,15 +188,15 @@ Beak never lazy-loads. A relationship you did not load reads as `null` (to-one) 
 
 ## Rules and limits
 
-- **Declare the child's `@BelongsTo` for every has-many and has-one.** The parent side alone generates a relationship constant without a column. `beak prepare` and `dart analyze` accept it, and `beak migrate` fails with `unknown column "team_id" in foreign key definition`.
-- **A has-many key defaults to the owner class name**, not to the column the child's field produces. Set `foreignKey:` when they differ.
-- **A has-one is not unique** unless you make it so.
-- **Only `@BelongsTo(onDelete:)` is executed.** The other two are stored and unread, and a pivot always cascades.
-- **`restrict` and `cascade` are database rules.** The engine applies them, so they hold for a script and for the panel alike.
-- **A pivot has no columns of its own.** Data on a link means a schema with two belongs-to.
-- **`deleteOwned` needs an owned has-many.** It is checked when the form is built, so a misconfigured table fails on first open and not when someone removes a row.
-- **`searchOn` takes symbols.** Strings are an error that prints the symbols to write instead.
-- **Relations come from the schema, not from the query.** An unloaded relation is empty, so an "empty" collection can also mean "not asked for".
+- Declare the child's `@BelongsTo` for every has-many and has-one. The parent side alone generates a relationship constant without a column. `beak prepare` and `dart analyze` accept it, and `beak migrate` fails with `unknown column "team_id" in foreign key definition`.
+- A has-many key defaults to the owner class name, not to the column the child's field produces. Set `foreignKey:` when they differ.
+- A has-one is not unique unless you make it so.
+- Only `@BelongsTo(onDelete:)` is executed. The other two are stored and unread, and a pivot always cascades.
+- `restrict` and `cascade` are database rules. The engine applies them, so they hold for a script and for the panel alike.
+- A pivot has no columns of its own. Data on a link means a schema with two belongs-to.
+- `deleteOwned` needs an owned has-many. It is checked when the form is built, so a misconfigured table fails on first open and not when someone removes a row.
+- `searchOn` takes symbols. Strings are an error that prints the symbols to write instead.
+- Relations come from the schema, not from the query. An unloaded relation is empty, so an "empty" collection can also mean "not asked for".
 
 ## Verify it
 

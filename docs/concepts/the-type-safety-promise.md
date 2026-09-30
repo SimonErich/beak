@@ -93,7 +93,7 @@ The same references configure the UI. In the bookshop resource, `BookModel.title
 Some mistakes need the running program. A field reached through a relationship can be filtered but not sorted, and that is checked when the spec is built, not when it compiles:
 
 ```console
-BeakConfigurationException(configuration): Field "author.name" is reached through a relationship; only a field of book itself can be used here.
+BeakConfigurationException(configuration): Field "author.name" is reached through a relationship; only a field of books itself can be used here.
 ```
 
 ### Reading a row keeps the declared type
@@ -174,7 +174,7 @@ The rest is checkable. At the time of writing, this prints nothing:
 $ grep -rnw dynamic packages/beak_core/lib packages/beak_backend/lib packages/beak_frontend/lib | grep -v ':[0-9]*: *///'
 ```
 
-There is no `dynamic` in the code of the three runtime packages, only in doc comments that say so. A search for `as` casts finds English sentences inside string literals ("Save as draft") and no cast. The one place the code owns up to an untyped edge is `packages/beak_frontend/lib/src/table/beak_data_table.dart`, where a `// interop:` comment marks that `OiTable` hands back edited cell values untyped.
+There is no `dynamic` in the code of the three runtime packages, only in doc comments that say so. A search for the `as` keyword finds English inside string literals ("Save as draft"), import aliases and no cast.
 
 ## Why it is shaped this way
 

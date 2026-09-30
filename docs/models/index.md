@@ -8,7 +8,9 @@ status: stable
 
 # Models
 
-Schemas describe stored facts and relationships. Generated model descriptors are shared by the backend and the panel. Semantic metadata adds richer inputs without changing the underlying storage contract.
+A schema class describes one table: its fields, its links to other tables and the rules and behavior that go with them. `beak prepare` turns it into the typed model the backend and the panel both read. Start with Defining models, then read the pages below in the order the table lists them.
+
+The shop's `Product` is a typical schema:
 
 ```dart title="examples/clean_beak_config/lib/resources/products/models/product.dart"
 --8<-- "examples/clean_beak_config/lib/resources/products/models/product.dart"
@@ -19,7 +21,7 @@ Schemas describe stored facts and relationships. Generated model descriptors are
 | You want to… | Read | For |
 | --- | --- | --- |
 | Describe data once and generate typed model, field and record APIs | [Defining models](defining-models.md) | Guide for beginners |
-| Understand generated fields, record readers and preserved authored files | [Generated code](generated-code.md) | Guide for beginners, experts and agents |
+| Read the files `beak prepare` writes, pick the right symbol and know which files are yours | [Generated code](generated-code.md) | Guide for beginners, experts and agents |
 | Choose storage kinds and semantic values for generated controls | [Fields](fields.md) | Guide for beginners |
 | Define a field's meaning once for typed generation, inputs, validation, storage, filtering and display | [Semantic fields](semantic-fields.md) | Guide for experts |
 | Share scalar, record and relationship constraints between client and server | [Validation](validation.md) | Guide for beginners and experts |
@@ -31,5 +33,5 @@ Schemas describe stored facts and relationships. Generated model descriptors are
 ## Continue reading
 
 - [Defining models](defining-models.md): Describe data once and generate typed model, field and record APIs.
-- [Generated code](generated-code.md): Understand generated fields, record readers and preserved authored files.
+- [Generated code](generated-code.md): Read the files `beak prepare` writes, pick the right symbol and know which files are yours.
 - [Fields](fields.md): Choose storage kinds and semantic values for generated controls.

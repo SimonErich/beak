@@ -157,14 +157,14 @@ Symbols such as `#curency` and `#nme` are checked against the schema, so a typo 
 
 ## Rules and limits
 
-- **Parsed, not executed.** Beak reads annotation arguments as source text and writes them into the part. Anything valid in a `const` expression works, and a computed value does not.
-- **Every field needs a declared type.** The type picks the column, so a field without one is reported.
-- **Unsupported types are errors.** `Uri`, `Map`, `List<DateTime>` and the like do not map to a column. Use a supported [field type](fields.md), or `@Custom` for an opaque value you render yourself.
-- **Enums must live under `lib/`.** Beak collects the enum declarations of your source, so an enum imported from a package is not recognised.
-- **Renaming a field renames its column.** `--from-drift` adds the new column and leaves the old one alone, because it cannot know the data should move. Pin the old name with `@Column(columnName: 'old_name')` when the column must stay.
-- **Shared rules live on the class.** Static getters named `validationRules`, `behavior`, `permissions` and `capabilities` are forwarded to the generated model. See [Validation](validation.md) and [Model behavior](behavior.md).
-- **A package of schemas only.** A pure Dart package that depends on `beak_core` alone gets the `.beak.dart` parts and `lib/beak/registry.g.dart` from `beak prepare`, and no panel, server or entrypoint.
-- **Field names that collide.** A field named like a member of `BeakModel` gets no static shortcut, and a field named `record` is reported by `beak prepare` because the typed record view already owns that name. See [Generated code](generated-code.md#rules-and-limits).
+- Parsed, not executed. Beak reads annotation arguments as source text and writes them into the part. Anything valid in a `const` expression works, and a computed value does not.
+- Every field needs a declared type. The type picks the column, so a field without one is reported.
+- Unsupported types are errors. `Uri`, `Map`, `List<DateTime>` and the like do not map to a column. Use a supported [field type](fields.md), or `@Custom` for an opaque value you render yourself.
+- Enums must live under `lib/`. Beak collects the enum declarations of your source, so an enum imported from a package is not recognised.
+- Renaming a field renames its column. `--from-drift` adds the new column and leaves the old one alone, because it cannot know the data should move. Pin the old name with `@Column(columnName: 'old_name')` when the column must stay.
+- Shared rules live on the class. Static getters named `validationRules`, `behavior`, `permissions` and `capabilities` are forwarded to the generated model. See [Validation](validation.md) and [Model behavior](behavior.md).
+- A package of schemas only. A pure Dart package that depends on `beak_core` alone gets the `.beak.dart` parts and `lib/beak/registry.g.dart` from `beak prepare`, and no panel, server or entrypoint.
+- Field names that collide. A field named like a member of `BeakModel` gets no static shortcut, and a field named `record` is reported by `beak prepare` because the typed record view already owns that name. See [Generated code](generated-code.md#rules-and-limits).
 
 ## Verify it
 
@@ -179,7 +179,7 @@ beak doctor
   FAIL generated files out of date (0 missing, 1 stale)
        → beak prepare
   WARN notes.rating is declared by Note.rating but missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddRatingToNotes --from-drift, then beak migrate
 ```
 
 Run `dart analyze` too: a schema that reads fine can still fail to compile, for example a `defaultValue` that does not match the field type.

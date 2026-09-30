@@ -49,12 +49,29 @@ A `BeakAttributeDefinition` takes `id`, `label` and `type`, and optionally `requ
 
 The constructor throws `BeakConfigurationException('Invalid attribute definition.')` for an empty id or label, a version below 1, a `choice` without choices, or choices that are blank or repeated. `id` is the identity. It stays put when a label is renamed, which is why the adapter takes an `identity` (the server passes the definition's record key) and otherwise falls back to the record's id and, for an unsaved row, its name.
 
-`validate(value, {version})` returns the first problem as a message, or `null`. This is what it says for the definitions in the scratch demo below:
+`validate(value, {version})` returns the first problem as a message, or `null`. Two scratch definitions (illustrative, every name is real API) and what they say:
+
+```dart
+final roast = BeakAttributeDefinition(
+  id: 'roast',
+  label: 'Roast',
+  type: BeakAttributeType.choice,
+  required: true,
+  choices: ['light', 'dark'],
+  version: 2,
+);
+final weight = BeakAttributeDefinition(
+  id: 'weight',
+  label: 'Weight',
+  type: BeakAttributeType.number,
+  rules: [BeakMin(0)],
+);
+```
 
 ```text
 roast.validate('medium')            Enter a valid choice value for Roast.
 roast.validate('')                  Roast is required.
-roast.validate('dark', version: 2)  Review this value because its attribute definition changed.
+roast.validate('dark', version: 1)  Review this value because its attribute definition changed.
 weight.validate('12,5')             Enter a valid number value for Weight.
 weight.validate('-3')               Must be at least 0.
 weight.validate('12.5')             null
