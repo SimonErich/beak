@@ -80,7 +80,7 @@ The panel half, a presentation referring to its command by object and a form scr
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/pages/model_action_references_test.dart
-00:01 +4: All tests passed!
+00:01 +5: All tests passed!
 ```
 
 ## Continue reading

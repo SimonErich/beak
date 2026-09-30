@@ -60,7 +60,7 @@ With that policy an amount of 1234.05 shows as `€ 1 234,05` (with no-break spa
 | A percentage of an amount | `BeakDecimal * BeakDecimal` does not exist. Do the rounding in integers, as `ShopMoney.percentOf` in `examples/clean_beak_config/lib/domain/shop_totals.dart` does (half-up to a whole cent). |
 | Money you already store as `int` cents | Keep it. Use `.currency(minorUnits: true)` in tables and `inputCurrency(minorUnits: true)` in forms, as Foodio does with `grossCents`. It is exact, but sums go through `BeakModel.sum` in storage units. |
 | Three decimals for a rate or a unit price | `BeakSemantic.money(scale: 3)`, or `BeakSemantic.exactDecimal(scale: 3)` for a number that is not a currency. |
-| Money in a CSV import | The import reads numbers in the panel's locale. Under `de_AT` it accepts `12,50` and rejects `12.50` and `1.234,50`. See [A CSV import](a-csv-import.md). |
+| Money in a CSV import | The import reads numbers in the panel's locale. Under `de_AT` it accepts `12,50` (quoted in the CSV, as `"12,50"`, because the comma also separates cells) and rejects `12.50` and `1.234,50`. See [A CSV import](a-csv-import.md). |
 
 The per-record currency looks like this:
 

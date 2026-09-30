@@ -46,7 +46,7 @@ In a generated panel, put the `BeakScreen` (a top-level variable with an explici
 
 ## How it works
 
-- The columns are the enum's values, in declaration order, with each value's label and badge colour. There are no free-text swimlanes to keep in step with the model. An empty status still gets a column.
+- The columns are the enum's values, in declaration order, with each value's label and badge colour. There are no free-text swimlanes to keep in step with the model. A value with no cards still gets its column.
 - A record whose status is empty or not one of the enum values appears in no column.
 - `groupField` must be an enum field of the block's own model. A relation path or a non-enum field throws `Kanban group field "x" must be an enum field of tasks.` when the board renders.
 - The block reads one page of at most 200 records, or of its `filter`, and reads again whenever the table is written, from this screen or another. When more records match, a line beneath the board says `Showing the first 200 of 340.`
