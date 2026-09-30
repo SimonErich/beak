@@ -14,7 +14,7 @@ You write no controllers, no route table and no request parsing. `beak prepare` 
 
 ## The one rule
 
-Registering a model is all it takes to get its API. In a project that means a schema class and a `beak prepare`, and there is no second step where you declare routes. `beakApiRouter` walks the registry and mounts one resource router per model under `/api/{table}`, so the surface is a pure function of what you registered:
+Registering a model is all it takes to get its API. In a project that means a schema class and a `beak prepare`, and there is no second step where you declare routes. `beakApiRouter` walks the registry and mounts one `beakResourceRouter` (below) per model under `/api/{table}`, so the surface is a pure function of what you registered:
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
 --8<-- "packages/beak_backend/lib/src/endpoints/beak_resource_router.dart:beakResourceRouter"

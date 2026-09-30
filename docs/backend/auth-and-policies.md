@@ -177,7 +177,7 @@ Scopes may depend on fields the caller cannot read, because they are trusted ser
 
 ## Which fields
 
-With `BeakPolicies`, field access follows the model: a caller who may read the model may read every field of it, and a caller who may write it may supply every field. `hiddenFields` and `readOnlyFields` are the field-level tools. It names values the server owns, such as a calculated total or a number minted at creation, and a request that supplies one is rejected before anything else happens:
+With `BeakPolicies`, field access follows the model: a caller who may read the model may read every field of it, and a caller who may write it may supply every field. `hiddenFields` and `readOnlyFields` are the field-level tools. `readOnlyFields` names values the server owns, such as a calculated total or a number minted at creation, and a request that supplies one is rejected before anything else happens:
 
 ```console
 $ curl -s -w ' [%{http_code}]\n' -X PATCH localhost:8392/api/products/$ID \

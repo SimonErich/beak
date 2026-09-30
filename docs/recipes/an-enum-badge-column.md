@@ -62,7 +62,7 @@ Stored values are the Dart names, so renaming an enum value is a data migration.
 
 | You want | Do this |
 | --- | --- |
-| The state changes only through business commands | Declare a `BeakModelAction` per transition and leave the field out of the form. The server refuses a direct write with `This field is controlled by the record workflow.` See [A row action](a-row-action.md). |
+| The state changes only through business commands | Declare a `BeakModelAction` per transition whose `values` set the field. The server then refuses a direct edit of it with `This field is controlled by the record workflow.` See [A row action](a-row-action.md). |
 | One list tab per state | Give the list a `BeakQueryPreset` per value, see [Composed lists](../panel/composed-lists.md). |
 | A board with one column per state | [A kanban view](a-kanban-view.md) reads the same enum, in declaration order, with the same labels and colours. |
 | A stepper of the states in the form | `BeakFormProgress` over the enum field, see [Screens and form layouts](../reference/screens-and-layouts.md). |
