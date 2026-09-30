@@ -86,9 +86,33 @@ Your source swaps `client` for whatever answers your data: a SQL connection, a G
 
 A source used as a decorator is the smallest implementation of all. `BeakRecordingDataSource` (in `package:beak/testing.dart`) records each of the ten calls and forwards it to an inner source. Because it is a `base class`, a test overrides the single operation it wants to break, as the shop's `_FailingAggregate` does.
 
+## A source from scratch
+
+The smallest source that passes the suite keeps one map per table. It is about 170 lines, and most of them are the filter and sort code a database would do for you. It compiles against a fresh `beak create` project with `import 'package:beak/beak.dart';` in place of `package:beak_core/beak_core.dart`.
+
+```dart title="packages/beak_test/test/support/map_data_source.dart"
+--8<-- "packages/beak_test/test/support/map_data_source.dart:MapDataSource"
+```
+
+What it does not do, and says so:
+
+- No relations. `relationLoads`, `attach`, `detach` and a relation filter throw `BeakConfigurationException`, so the relation groups of the suite stay off.
+- No soft deletes. `restore` throws `BeakValidationException`, and `delete` removes the row for good.
+- No transactions and no persistence: a restart forgets everything, and two writes are two writes.
+- Filters cover `eq`, `neq`, `isNull`, `isNotNull`, `inList`, `notInList`, `contains`, `startsWith` and `endsWith`. Ranges, `between` and `like` throw. Sorting compares `Comparable` values and treats anything else as equal.
+- It mints no ids. `create` needs one in the record, which is what the suite expects.
+
+The test runs the suite against it. In a `beak create` project it sits in `test/`, and `NoteModel` and `buildBeakRegistry` are the generated ones (`beak prepare` writes the registry to `lib/beak/registry.g.dart`); the repository's copy carries hand-written stand-ins for both.
+
+```dart title="packages/beak_test/test/src/map_data_source_contract_test.dart"
+--8<-- "packages/beak_test/test/src/map_data_source_contract_test.dart:mapDataSourceContract"
+```
+
+Run in a scratch project made with `beak create`, it reports `+28 ~1: All tests passed!`. The skipped test is the relation group, waiting for `relationModels`, which is the suite telling you what this source leaves out.
+
 ## Prove it with the contract suite
 
-"Implement ten methods" is not a specification. The interface has edges that only bite in production: `getOne` returning null instead of throwing, `update` throwing when the row is gone, `aggregate` returning 0 over nothing, soft deletes hiding from `query` but not from `withTrashed`. `runBeakDataSourceContract` is the executable version, and every source Beak ships runs it. This is `WormDataSource`:
+"Implement ten methods" is not a specification. The interface has edges that only bite in production: `getOne` returning null instead of throwing, `update` throwing when the row is gone, `aggregate` returning 0 over nothing, soft deletes hiding from `query` but not from `withTrashed`. `runBeakDataSourceContract` is the executable version, and every source Beak ships runs it. This is `WormDataSource`, which also opts into the relation groups:
 
 ```dart title="packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart"
 --8<-- "packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart:contract"

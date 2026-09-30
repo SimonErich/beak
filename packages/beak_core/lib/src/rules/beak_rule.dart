@@ -26,8 +26,8 @@ part 'beak_url.dart';
 /// it as valid, so rules compose freely and presence stays [BeakRequired]'s
 /// job alone.
 ///
-/// Attach rules to a column's `rules` list; they run in order and the first
-/// non-null message wins:
+/// Attach rules to a column's `rules` list; they all run, in order, and every
+/// failing rule contributes its message:
 ///
 /// ```dart
 /// static const email = BeakStringColumn(

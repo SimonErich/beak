@@ -346,7 +346,7 @@ Real output, `BeakValidation().validate` on the quickstart `NoteModel` with an o
 - `BeakPattern` compiles the `regex` you write, and the server runs it against whatever the caller sends. A pattern with nested quantifiers such as `^(a+)+$` can backtrack for minutes on a hostile value, so keep patterns flat. Every rule of a column runs, so a `BeakMaxLength` next to it does not stop the pattern from seeing a long value.
 - Messages are English strings in `beak_core`. `BeakPattern`, `BeakFutureDate`, `BeakRequiredIf`, `BeakSameAs`, `BeakBeforeField` and `BeakAfterField` take a `message:` to replace theirs.
 - Rules cannot read the request principal. Authorization is a policy on the server, see [Auth and policies](../backend/auth-and-policies.md).
-- The doc comment on `BeakRule` says the first non-null message wins. `BeakValidation.columnErrors` collects every failing message, so a field can show several.
+- `BeakValidation.columnErrors` collects every failing message, not the first, so a field can carry several.
 
 ## Source
 

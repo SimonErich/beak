@@ -38,7 +38,7 @@ The gallery shows each picture as a card, titled "Cover image" for the first and
 | Image field | `@Image(...)` on the child, a `BeakImageRef` | Storage rules and transforms |
 | Caption and position | A string and an int on the child | Accessible description, and order |
 
-`galleryForm` takes exactly those three fields (`image`, `caption`, `position`) plus an optional label, a `minRows`, and extra `metadata` nodes. It requires an owned has-many, three fields that belong to the child model, and an image column. A shared, unowned relationship is refused when the form is built, because removing a picture deletes its row and that row would belong to someone else.
+`galleryForm` takes exactly those three fields (`image`, `caption`, `position`) plus an optional label, a `minRows`, and extra `metadata` nodes. It requires an owned has-many, three fields that belong to the child model, and an image column. A shared, unowned relationship is refused by the `BeakGallery` constructor, which `galleryForm` calls, so the `BeakConfigurationException` (`A gallery needs an owned has-many relationship.`) comes from the line that declares the gallery and not from a rendered form. The reason: removing a picture deletes its row, and that row would belong to someone else.
 
 ## When bytes leave the browser
 

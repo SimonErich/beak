@@ -44,6 +44,7 @@ A field with no annotation is a valid column: its Dart type picks the column kin
 Every schema class is a `final class X extends BeakSchema`. The base class only marks the class as a description: its fields are `late final` and no constructor runs, so nothing ever instantiates one.
 
 ```dart title="packages/beak_core/lib/src/schema/beak_schema_annotations.dart"
+@immutable
 abstract base class BeakSchema {
   /// Enables `const` construction by subclasses. Never actually construct one.
   const BeakSchema();
@@ -145,7 +146,7 @@ const Column({
 
 ### Parameters that belong to one kind
 
-`beak prepare` rejects one of these on a field of another kind, naming the field.
+`beak prepare` rejects one of these on a field of another kind or type, naming the field. A `Duration` is stored as an integer and a `BeakDate` or `BeakTime` as a string, but `prefix`, `suffix` and `placeholder` are refused on them too: the message reads `is a Duration field, which has no "prefix".`
 
 | Parameter | Type | Applies to | Effect |
 | --- | --- | --- | --- |
@@ -427,7 +428,7 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 | ``has no part directive. Add `part 'x.beak.dart';` under the imports`` | The schema file lacks `part '<file>.beak.dart';` | Add it under the imports |
 | `declares no fields, so it has nothing to display.` | An empty schema class | Add a field |
 | `names the table "bad-table", which is not a table name Beak can write a migration for.` | A `table:` with a dash, a space or a leading digit | Use letters, digits and underscores |
-| `declares the table "notes", which Note (lib/...) already uses. A table has exactly one schema class` | Two schema classes on one table | Give one another table, or merge them |
+| `declares the table "notes", which Note (lib/...) already uses. A table has exactly one schema class` | Two schema classes on one table. The issue is on the class that wrote `table:`, or on the later one when both did | Give one another table, or merge them |
 | `cannot be the name of a schema class: the code generated for it uses that name for something else` | A class named after a reserved type such as `List` | Rename the class and keep the table with `@Resource(table:)` |
 | `is the created_at column that timestamps: true already adds, so the class would declare it twice.` | A field for a column that `timestamps` or `softDeletes` adds | Drop the field, or drop the option |
 

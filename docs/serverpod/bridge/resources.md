@@ -14,54 +14,25 @@ After this page you can bind the endpoints you already have to a Beak resource b
 
 A `ServerpodResource<T, Id, Create, Update>` is a `BeakModel` that carries its own data source. You hand it typed callbacks over your generated client, one per operation. Beak stays out of your database: it calls the callbacks, converts the results to `BeakRecord`s, and refuses anything you did not bind.
 
-```dart title="packages/beak_serverpod/test/src/resource_test.dart"
-const codec = _UserCodec();
-const model = ServerpodModel(
-  resource: 'users',
-  columns: [
-    BeakStringColumn(key: 'id', label: 'ID'),
-    BeakStringColumn(key: 'name', label: 'Name'),
-  ],
-  primaryKey: BeakStringColumn(key: 'id', label: 'ID'),
-  displayColumn: BeakStringColumn(key: 'name', label: 'Name'),
-);
+The examples on this page use the bookshop's `Book`, the class `serverpod generate` writes into `bookshop_client`. The `BookEndpoint` in the test is a stand-in for the `client.books` endpoint a real project would expose; it holds rows in a map so the test runs without a server. The same code compiles unchanged against the generated `Book` in `examples/serverpod/bookshop_client`.
+
+```dart title="packages/beak_serverpod/test/src/bookshop_resource_test.dart"
+--8<-- "packages/beak_serverpod/test/src/bookshop_resource_test.dart:bookModel"
 ```
 
-`ServerpodModel` holds the presentation: which columns exist and which is the display column. `resource` is a logical key you choose, not a table name; Beak never sends it to a server. With the model in hand, bind the operations. This one binds all of them, from the package's own test:
+`ServerpodModel` holds the presentation: which columns exist and which is the display column. `resource` is a logical key you choose, not a table name; Beak never sends it to a server. The codec turns a `Book` into a `BeakRecord` and back, field by field, with the value codecs from `ServerpodCodecs`:
 
-```dart title="packages/beak_serverpod/test/src/resource_test.dart"
-final binding = ServerpodResource<_User, UuidValue, _User, _User>(
-  model: model,
-  codec: codec,
-  idCodec: ServerpodCodecs.uuid,
-  identify: (user) => user.id,
-  query: (_) async =>
-      BeakPage(items: [user], total: 1, page: 1, perPage: 20),
-  get: (key) async => key == id ? user : null,
-  createCodec: codec,
-  create: (input) async => input,
-  updateCodec: codec,
-  update: (_, input) async => input,
-  editValues: (user) => _User(user.id, '${user.name} edit'),
-  archive: (key) async {
-    expect(key, id);
-    archived = true;
-  },
-  forceDelete: (key) async {
-    expect(key, id);
-    purged = true;
-  },
-  restore: (_) async => user,
-  batchGet: (keys) async {
-    expect(keys, [id]);
-    return [user];
-  },
-  aggregate: (spec) async {
-    expect(spec.table, 'users');
-    return 7;
-  },
-);
+```dart title="packages/beak_serverpod/test/src/bookshop_resource_test.dart"
+--8<-- "packages/beak_serverpod/test/src/bookshop_resource_test.dart:bookCodec"
 ```
+
+With the model and codec in hand, bind the operations. This one binds all nine:
+
+```dart title="packages/beak_serverpod/test/src/bookshop_resource_test.dart"
+--8<-- "packages/beak_serverpod/test/src/bookshop_resource_test.dart:bookResource"
+```
+
+The `query` callback runs the request through `ServerpodQueryReader` first, so a filter or sort the endpoint cannot answer is refused before any call goes out. `reader.page(0)` translates Beak's 1-based page to the endpoint's origin. The test beside it drives every operation through a `ServerpodDataSource` and checks that a range filter throws.
 
 Only `query` and `get` are required. `create` needs its `createCodec`, `update` its `updateCodec`; without both halves the operation stays unbound. The resource's `capabilities` follow: `read` always, `create`, `update` and `delete` only when bound, so the panel does not offer what would fail.
 
@@ -70,8 +41,8 @@ Mount it like any resource. Because the model brings its data source, the panel 
 ```dart
 // Illustrative: real class names, assembled for this page.
 BeakPanel(
-  title: 'Entries',
-  resources: [BeakResource(model: entries, title: 'Entries')],
+  title: 'Bookshop',
+  resources: [BeakResource(model: bookResource(client.books), title: 'Books')],
   auth: BeakAuthConfig(adapter: auth),
 )
 ```
@@ -113,7 +84,7 @@ The runtime is covered by the package's own tests, which run without a server:
 
 ```console
 $ cd packages/beak_serverpod && dart test
-00:00 +28: All tests passed!
+00:00 +30: All tests passed!
 ```
 
 In your own project, write one test per resource before the first user does. Build the `ServerpodDataSource` with a fake client, call `query` with a spec that uses a range filter and expect the `BeakConfigurationException`. That test documents the limit and fails loudly the day someone adds a range filter to a screen.

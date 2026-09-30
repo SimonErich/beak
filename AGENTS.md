@@ -44,8 +44,9 @@ reading.
   Frontend: Widget -> ViewModel -> Repository -> DataSource; ViewModels never try/catch.
 - beak_core and beak_frontend never reach dart:io or server packages (`guard-web`).
 - Every public member has a doc comment. No print, no TODO, no commented-out code.
-- Pre-1.0: remove a superseded API instead of deprecating it. Record the break under
-  CHANGELOG.md [Unreleased] and add a row to the corrections table in docs/ai/index.md.
+- Pre-1.0: remove a superseded API instead of deprecating it. Record the break in
+  CHANGELOG.md, under the current `## [0.9.0] - Unreleased` heading, and add a row to the corrections
+  table in docs/ai/index.md.
 
 ## Test first
 

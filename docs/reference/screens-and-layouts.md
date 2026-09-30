@@ -611,6 +611,26 @@ Takes only `visibleIf`. The surrounding layout owns the vertical spacing.
 
 ## Presentation nodes
 
+Which node for which job:
+
+| You want to | Use | Note |
+| --- | --- | --- |
+| Put a title, close and draft-save controls on top | `BeakFormHeader` | Close is a guarded return to the resource list |
+| Show a record's identity (name, subtitle, avatar, badge) in the form | `BeakFormTemplate` | Renders a `BeakRecordTemplate` against the live draft |
+| Hold the place of content that waits on another selection | `BeakFormPlaceholder` | Neutral block with a label, optional template preview |
+| Tell the user something conditionally, inline | `BeakFormNotice` | The message is a function of the draft |
+| Show a few figures side by side | `BeakFormMetrics`, `BeakFormMetric` | A joined strip, observed from the draft |
+| Show label and value rows such as totals | `BeakFormSummary`, `BeakSummaryLine` | Compact, reactive; also used in review sections |
+| Show how much of a limit is used | `BeakFormCapacity` | Utilization bar with a warning threshold |
+| Show where an enum-driven record stands | `BeakFormProgress`, `BeakProgressStep` | Read-only progress through the enum's values |
+| List related rows chronologically | `BeakFormTimeline` | A to-many relationship as a timeline |
+| Link out to something computed from the draft | `BeakFormLinks`, `BeakFormLink` | External actions, no persistence logic |
+| Place a model command in the layout | `BeakFormActions` | Buttons for authoritative commands the model declares |
+| Collect a command's arguments on the same screen | `BeakFormActionInput` | Arguments belong to the session and are never written as record fields |
+| Explain why an action is unavailable | `BeakFormLock` | A disabled action with a reason; registers no callable command |
+| Display a derived value | `BeakCalculated` | Reactive and never submitted as a field |
+| Render anything else | `BeakFormWidget` | Your widget over the same tracked draft |
+
 ### BeakFormHeader
 
 ```dart title="packages/beak_frontend/lib/src/form/beak_form_layout.dart"

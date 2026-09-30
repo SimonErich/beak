@@ -132,6 +132,45 @@ A form save is a graph commit, and a graph commit keeps a receipt so a retry is 
 
 The model is `serverOnly: true`, so it is not in the generated client. It is not in Beak's registry either, so `POST /api/beak_commit_receipt/query` answers 404, like any table Beak was not told about.
 
+### Durable effects and pruning
+
+`beakServerpodFrameworkTables` maps two Beak tables, not one: the receipts (`beak_commit_receipt`) and the effect outbox (`beak_outbox`). The example ships the receipts model only, because the example sends no mail. A project that delivers effects (a confirmation mail after a save, a payment request) adds a second `serverOnly` model next to the receipts one. This is the shape `beakServerpodFrameworkTables` expects:
+
+```yaml
+class: BeakOutboxEffect
+serverOnly: true
+table: beak_outbox
+fields:
+  effectKey: String, unique
+  effectKind: String
+  payloadJson: String
+  deliveryStatus: String
+  attemptCount: int
+  availableAt: int
+  leaseToken: String
+  lastError: String
+```
+
+Then pass `beakServerpodFrameworkTables.outbox` wherever Beak takes an outbox table: `BeakOutbox.enqueue(..., table:)` in a `finalizePlan`, the `table:` of `BeakOutboxWorker` or `BeakOutboxSchedule`, and `BeakOutbox.prune(..., table:)`. Without it Beak looks for its own `_beak_outbox`, which Serverpod's migrations never create. The [durable effects](../../backend/durable-effects.md) page has the enqueue, delivery and retry rules; they are the same here.
+
+What is not there:
+
+- `BeakServerpodEngine` has no `outbox` parameter and starts no delivery loop. The host schedules a `BeakOutboxWorker` (or `BeakOutboxSchedule.start`) itself, on a database adapter that finds a Serverpod session, and stops it on shutdown.
+- No test drives that loop end to end. `test/integration/beak/outbox_mapping_test.dart` in `examples/serverpod/bookshop_server` proves the table mapping on Serverpod's own database: an effect is enqueued once, delivered once, marked `delivered`, and a delivered row is pruned by age while a pending one stays.
+- `finalizePlan` is passed through to Beak's router. The example uses none and no test on this path exercises it.
+
+Nothing prunes either table. Receipts pile up one row per form save, and the engine keeps the commit service to itself, so `pruneReceipts` is out of reach. Age them out with the generated model, from a script or a future call, and keep the cutoff longer than any window in which the same save id could be retried. A pruned save id is a new save.
+
+```dart
+final cutoff = DateTime.now().toUtc().subtract(const Duration(days: 30));
+await BeakCommitReceipt.db.deleteWhere(
+  session,
+  where: (t) => t.createdAt < cutoff,
+);
+```
+
+`BeakOutbox.prune(adapter, olderThan: ..., table: beakServerpodFrameworkTables.outbox)` does the same for delivered effects, with the same rule about the cutoff: pruning ends the duplicate protection for the rows it removes.
+
 ### The server-only column
 
 `book.supplierCostInCents` is declared `scope=serverOnly` in `book.spy.yaml`, and the Beak `Book` class does not declare it. Serverpod keeps it out of the client.

@@ -52,6 +52,8 @@ A generated project boots `BeakApp` from `lib/beak/app.g.dart`, which wraps `Bea
 
 The first is the whole generated boot, the second the shop's authored one. The shop passes `resources:` and `pages:` next to a theme and one formatting policy, and that is the complete panel setup.
 
+Pick one form per panel. `BeakPanel(config: ...)` together with an individual everyday argument (`title`, `theme`, `pages`, `auth`, `locale`, `navigation` and the rest) throws a `BeakConfigurationException` naming the ignored arguments when the panel builds, because the config would win silently. Passing `resources:` next to `config:` fails an assert in debug builds. Put the value on the `BeakPanelConfig` (`copyWith` works) or drop the config. `dataSource:` and `httpClient:` are the exceptions: they combine with `config:`, which is how the generated `BeakApp` injects a fake in a test. [Panel and resource options](../reference/panel-options.md) lists every option and which form takes it.
+
 ## Where each decision lives
 
 | Decision | Generated project | Authored project |

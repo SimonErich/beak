@@ -378,8 +378,9 @@ final class HasOne {
   /// Human-readable label. Defaults to the title-cased field name.
   final String? label;
 
-  /// Foreign-key column on the related table. Defaults to this table's
-  /// singular name plus `_id`.
+  /// Foreign-key column on the related table. Defaults to the snake-cased
+  /// name of the owning schema class plus `_id` (`Customer` gives
+  /// `customer_id`).
   final String? foreignKey;
 }
 
@@ -397,7 +398,8 @@ final class HasMany {
   /// Human-readable label. Defaults to the title-cased field name.
   final String? label;
 
-  /// Foreign-key column on the related table.
+  /// Foreign-key column on the related table. Defaults to the snake-cased
+  /// name of the owning schema class plus `_id`.
   final String? foreignKey;
 
   /// What happens to the children when this row is deleted.

@@ -111,6 +111,108 @@ Three rules come with it:
 
 Field types and serialization belong to the command model. A `BeakFormScreen` in the resource's `screens` changes presentation only.
 
+### Hand-write the command models under lib/
+
+The command models are ordinary `BeakModel` classes, so they can live in your project next to the read model. `beak prepare` does not list them, because it skips a private class, an abstract one, and any class that a `createModel` or `editModel` getter names. Only `TicketModel` reaches the registry:
+
+```dart title="lib/tickets/ticket_model.dart"
+import 'package:beak/beak.dart';
+
+import 'ticket_commands.dart';
+
+/// The read shape of a ticket: what the desk's list endpoint returns.
+final class TicketModel extends BeakModel {
+  const TicketModel();
+
+  static const id = BeakStringColumn(
+    key: 'id',
+    label: 'ID',
+    visibleOn: {BeakContext.detail},
+  );
+  static const title = BeakStringColumn(
+    key: 'title',
+    label: 'Title',
+    sortable: true,
+    searchable: true,
+  );
+  static const assigneeName = BeakStringColumn(
+    key: 'assignee_name',
+    label: 'Assignee',
+  );
+
+  @override
+  String get table => 'tickets';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  BeakColumn get primaryKey => id;
+
+  @override
+  List<BeakColumn> get columns => const [id, title, assigneeName];
+
+  @override
+  BeakModel? get createModel => const TicketCreateModel();
+
+  @override
+  BeakModel? get editModel => const _TicketEditModel();
+}
+
+/// The fields the desk accepts when it edits one.
+final class _TicketEditModel extends BeakModel {
+  const _TicketEditModel();
+
+  @override
+  String get table => 'tickets';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'title', label: 'Title'),
+  ];
+}
+```
+
+The create model is public and lives in its own file. The edit model is private, in the file of the model that returns it (a private class cannot be named from another file):
+
+```dart title="lib/tickets/ticket_commands.dart"
+import 'package:beak/beak.dart';
+
+/// The fields the desk accepts when it opens a ticket.
+final class TicketCreateModel extends BeakModel {
+  const TicketCreateModel();
+
+  @override
+  String get table => 'tickets';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'title', label: 'Title'),
+  ];
+}
+```
+
+Run `beak prepare` and look at what it wrote:
+
+```console
+$ beak prepare
+  1 model · 0 resource classes · 0 screens · 0 overrides
+$ grep -n "Model" lib/beak/registry.g.dart | head -1
+9:const List<BeakModel> beakModels = <BeakModel>[TicketModel()];
+$ ls lib/migrations
+create_tickets_table.dart
+```
+
+The registry lists `TicketModel` alone, and `TicketCreateModel` and `_TicketEditModel` appear in no generated file. The migration is the one for the read model. It is generated like any other, from the read model's columns (the joined `assignee_name` included), and `beak prepare` writes it again if you delete it. This was run in a project made with `beak create ticket_lab --no-example`, and the CLI's own test (`hand-written command models` in `packages/beak_cli/test/src/commands/prepare_command_test.dart`) asserts the same.
+
+The CLI finds a command model by the class name in the getter body, in any file under `lib/`. A command model that no getter names is listed like any other model, and the registry then refuses its second model for the shared `table`.
+
 ## Load detail records through query
 
 A record page loads its record with a single query on the primary key, and asks for the relations its layout uses in the same request:

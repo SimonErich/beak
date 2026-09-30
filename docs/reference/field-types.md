@@ -372,7 +372,7 @@ const BeakSemantic.object(BeakObjectSchema schema)
 | `phone` | `String` | text | `+` optional, 5 to 25 characters of digits, spaces, `()` and `-`, at least 5 digits |
 | `slug` | `String` | text | lowercase letters and digits with single hyphens |
 | `uuid` | `String` | text | canonical hyphenated form |
-| `password` | `String` | text | nothing extra. Input is obscured, cells show bullets, it is form-only by default, and it cannot be searchable or `@Display` |
+| `password` | `String` | text | nothing extra. Input is obscured and form-only by default. The server never returns the stored value (reads, relations and write responses omit it, the CSV export writes bullets), and a filter, sort or aggregate over it is a `422`. It cannot be searchable or `@Display`. The value is stored as sent, so hash it in a preparer or an action |
 | `calendarDate` | `BeakDate` | `YYYY-MM-DD` text | a valid Gregorian date |
 | `time` | `BeakTime` | `HH:mm:ss[.ffffff]` text | a valid time of day |
 | `duration` | `Duration` | integer microseconds | an integer within ±(2^53-1) |

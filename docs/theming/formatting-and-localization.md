@@ -157,7 +157,7 @@ Exact values never pass through a `double`. A `BeakDecimal` is formatted by `exa
 | `quantity` | `number`, then the unit |
 | `calendarDate`, `time` | `datePattern`, `timePattern`, no zone |
 | `duration`, `fileSize` | `HH:MM:SS`, binary units |
-| `password` | eight bullets, on screen and in the export |
+| `password` | eight bullets in the export and wherever a value reaches the screen; the server does not send the stored value |
 
 [Semantic fields](../models/semantic-fields.md) explains what each semantic stores. A value that does not fit its format shows as its own text, not as an error.
 

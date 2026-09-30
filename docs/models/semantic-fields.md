@@ -39,7 +39,7 @@ The meanings, what they store and what the reader sees:
 | `BeakSemantic.phone()` | `String` | Text | As typed. Conservative syntax check |
 | `BeakSemantic.slug()` | `String` | Text | Lowercase letters, numbers and single hyphens |
 | `BeakSemantic.uuid()` | `String` | Text | Canonical hyphenated form |
-| `BeakSemantic.password()` | `String` | Text | Bullets. Form-only by default |
+| `BeakSemantic.password()` | `String` | Text | Obscured input, form-only by default. Never returned by the server |
 | `BeakDate` | `BeakDate` | `YYYY-MM-DD` text | Date pattern, no timezone shift |
 | `BeakTime` | `BeakTime` | `HH:mm:ss` text | Time pattern, no date, no timezone |
 | `Duration` | `Duration` | Integer microseconds | `hh:mm:ss`, may pass 24 hours |
@@ -62,7 +62,11 @@ Email, URL, phone, slug and UUID are strings that get a syntax check on the clie
 {"code":"validation","message":"Validation failed for \"fulfillment_policies\".","fieldErrors":{"code":["Use lowercase letters, numbers and single hyphens."],"support_email":["Must be a valid email address."],"support_phone":["Must be a valid phone number."],"tracking_url":["Must be a valid URL."], ...}}
 ```
 
-`password()` obscures the input, masks the value everywhere else (a table cell, a CSV export) and is visible on the form only unless you say otherwise. It cannot be `@Display` or `searchable`. It does not hash anything: Beak stores the text you give it, so the value has to be a hash your authentication code made. A password field is a way to keep a secret off the screen, not a way to keep it safe at rest.
+`password()` obscures the input and is visible on the form only unless you say otherwise. It cannot be `@Display` or `searchable`.
+
+The stored value never leaves the server. Single reads, queries, batch reads, relations included in a response and the response to a create or an update all omit the field, whatever the policy says. A filter, sort or aggregate over it is a `422` (a search over it is refused too), because a `startsWith` filter would reveal a hash one character at a time. The CSV export writes `••••••••` where a value exists and never the value. Capabilities still list the field as readable and writable, so a form keeps the input.
+
+It does not hash anything: Beak stores the text as sent. Hash it before it is stored, in a save-plan preparer (`preparePlan`) or in an action, or let your authentication code write the column. A password field keeps a secret off the screen and out of the API, not safe at rest.
 
 ## Exact amounts and percentages
 

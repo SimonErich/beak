@@ -483,6 +483,8 @@ Accepts `label`, `description`, `validators`, `visibleIf` and `enabledIf`, plus:
 | `version` | `int? Function(BeakFormReader state)?` | none | Revision stored with the value when definition changes are tracked |
 | `options` | `BeakInputChoices?` | definition choices | Choices when no definition supplies them |
 
+`type` and `definition` are what switch the attribute editor on. Call `inputAttribute` with neither, and it does not use that editor at all: the field renders as `input` would, which for a plain string column is a plain text field. Passing only `options` does not switch it on either.
+
 The value is always persisted as a string. The form checks `Enter a valid number.` for `number` and `Choose Yes or No.` for `boolean`. See [Dynamic attributes and variants](../models/dynamic-attributes-and-variants.md).
 
 ### inputJson
@@ -671,6 +673,25 @@ const BeakRelationInput({
 | `placeholder` | `String?` | none | Hint for code entry | `inputCode` |
 | `visibleIf` | `BeakVisibility?` | always visible | Predicate over the live draft | all |
 | `enabledIf` | `BeakVisibility?` | always enabled | Predicate over the live draft | all |
+
+Which builder takes which parameter, for the ones that differ (a dash means the builder has no such parameter):
+
+| Parameter | `inputCombobox` | `inputCards` | `inputSearch` | `inputCode` |
+| --- | --- | --- | --- | --- |
+| `validate` | yes | yes | yes | yes |
+| `readOnly` | - | - | - | - |
+| `derive` | - | - | - | - |
+| `descriptionBuilder` | yes | yes | yes | yes |
+| `dependencies` | yes | yes | yes | - |
+| `disabledReason` | yes | yes | yes | yes |
+| `options` | yes | yes | yes | yes |
+| `template` | yes | yes | yes | yes |
+| `searchSources` | yes | yes | yes | - |
+| `exclusive`, `createForm` | yes | yes | yes | - |
+| `createLabel` | yes | yes | yes | - |
+| `visibleIf`, `enabledIf`, `label`, `description` | yes | yes | yes | yes |
+
+`readOnly` and `derive` exist on the scalar builders only. To lock a relationship input, use `enabledIf`.
 
 `BeakRelationPresentation` values:
 

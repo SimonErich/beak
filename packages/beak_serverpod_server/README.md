@@ -163,9 +163,11 @@ declare never leaves the database.
   example's test compares column names and enum values, not types, nullability or
   uniqueness, and there is no runtime drift check.
 - No uploads: the engine passes no storage to Beak's router, and the tunnel
-  carries text only. The engine has no outbox parameter. `preparePlan`,
-  `finalizePlan` and `graphOnly` are covered by this package's unit tests, and the
-  example uses none of them.
+  carries text only. The engine has no outbox parameter and no delivery loop:
+  `beakServerpodFrameworkTables.outbox` maps the outbox table, and the host
+  schedules the worker. `preparePlan` and `graphOnly` are covered by this
+  package's unit tests. `finalizePlan` is only passed through to Beak's router and
+  no test exercises it. The example uses none of them.
 - `ServerpodSessionAdapter` cannot create or change tables. `executeSchema` and
   `introspectSchema` throw `UnsupportedOperationException` and point at
   `serverpod create-migration`.
