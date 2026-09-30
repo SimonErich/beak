@@ -101,31 +101,44 @@ final class BeakSchemaReader {
     return (_resolveForeignKeyTypes(schemas), issues);
   }
 
-  /// One issue for each schema class after the first that names a table
-  /// another one already uses.
+  /// One issue for each schema class that shares its table with another,
+  /// except the one that owns it.
   ///
   /// Every table maps to exactly one model. The registry says so when the
   /// panel or the server boots, which is long after `beak prepare` called the
-  /// project fine.
+  /// project fine. The owner is the class whose table is its default name,
+  /// because the class that wrote `table:` is the one that chose the clash;
+  /// with no such class, the first read is. The issue sits on the offender's
+  /// own file, so it is the one to open.
   List<BeakDiscoveryIssue> _duplicateTableIssues(List<BeakSchemaIr> schemas) {
-    final owners = <String, BeakSchemaIr>{};
-    final issues = <BeakDiscoveryIssue>[];
+    final byTable = <String, List<BeakSchemaIr>>{};
     for (final schema in schemas) {
-      final BeakSchemaIr? owner = owners[schema.table];
-      if (owner == null) {
-        owners[schema.table] = schema;
+      (byTable[schema.table] ??= []).add(schema);
+    }
+    final issues = <BeakDiscoveryIssue>[];
+    for (final sharing in byTable.values) {
+      if (sharing.length < 2) {
         continue;
       }
-      issues.add(
-        BeakDiscoveryIssue(
-          path: 'lib/${schema.libraryPath}',
-          message:
-              '${schema.className} declares the table "${schema.table}", '
-              'which ${owner.className} (lib/${owner.libraryPath}) already '
-              'uses. A table has exactly one schema class: give one of them '
-              'another table, or merge them.',
-        ),
+      final BeakSchemaIr owner = sharing.firstWhere(
+        (schema) => schema.table == tableNameOf(schema.className),
+        orElse: () => sharing.first,
       );
+      for (final schema in sharing) {
+        if (identical(schema, owner)) {
+          continue;
+        }
+        issues.add(
+          BeakDiscoveryIssue(
+            path: 'lib/${schema.libraryPath}',
+            message:
+                '${schema.className} declares the table "${schema.table}", '
+                'which ${owner.className} (lib/${owner.libraryPath}) already '
+                'uses. A table has exactly one schema class: give one of them '
+                'another table, or merge them.',
+          ),
+        );
+      }
     }
     return issues;
   }
@@ -692,15 +705,15 @@ final class BeakSchemaReader {
     // file, which is a file the project is told never to edit. Name it here
     // instead, at the declaration that asked for it.
     for (final option in options.keys) {
-      if (_optionAppliesTo(option, kind)) {
+      if (_optionAppliesTo(option, kind, typeName)) {
         continue;
       }
       return _FieldIssue(
         BeakDiscoveryIssue(
           path: 'lib/$path',
           message:
-              '$className.$fieldName is a ${kind.name} column, which has no '
-              '"$option". ${_optionHint(option)}',
+              '$className.$fieldName is ${_describe(kind, typeName)}, which has '
+              'no "$option". ${_optionHint(option)}',
         ),
       );
     }
@@ -795,22 +808,38 @@ final class BeakSchemaReader {
     };
   }
 
-  /// Whether `@Column`'s [option] means anything for a [kind] column.
+  /// What a field is, for the message that says an option does not fit it.
   ///
-  /// Everything not listed here is shared by every kind.
-  static bool _optionAppliesTo(String option, BeakColumnKind kind) =>
-      switch (option) {
-        'prefix' || 'suffix' => const {
-          BeakColumnKind.integer,
-          BeakColumnKind.decimal,
-        }.contains(kind),
-        'precision' || 'totalDigits' => kind == BeakColumnKind.decimal,
-        'placeholder' => kind == BeakColumnKind.string,
-        'format' => kind == BeakColumnKind.dateTime,
-        'trueLabel' || 'falseLabel' => kind == BeakColumnKind.boolean,
-        'defaultValue' => true,
-        _ => true,
+  /// A `Duration` shares the integer kind and a `BeakDate` the string kind
+  /// with the types the options are for, so naming the kind would call a
+  /// `Duration` an "integer column" and leave the reader guessing.
+  static String _describe(BeakColumnKind kind, String typeName) =>
+      switch (typeName) {
+        'Duration' || 'BeakDate' || 'BeakTime' => 'a $typeName field',
+        _ => 'a ${kind.name} column',
       };
+
+  /// Whether `@Column`'s [option] means anything for a [kind] column whose
+  /// Dart type is [typeName].
+  ///
+  /// Everything not listed here is shared by every kind. Text and number
+  /// options also look at the type, because `Duration` is stored as an
+  /// integer and `BeakDate` and `BeakTime` as strings but are neither a
+  /// number nor text to the person typing into them.
+  static bool _optionAppliesTo(
+    String option,
+    BeakColumnKind kind,
+    String typeName,
+  ) => switch (option) {
+    'prefix' ||
+    'suffix' => const {'int', 'double', 'BeakDecimal'}.contains(typeName),
+    'precision' || 'totalDigits' => kind == BeakColumnKind.decimal,
+    'placeholder' => kind == BeakColumnKind.string && typeName == 'String',
+    'format' => kind == BeakColumnKind.dateTime,
+    'trueLabel' || 'falseLabel' => kind == BeakColumnKind.boolean,
+    'defaultValue' => true,
+    _ => true,
+  };
 
   /// Where [option] does belong, for the error message.
   static String _optionHint(String option) => switch (option) {

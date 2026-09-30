@@ -401,7 +401,7 @@ error: refusing to run destructive command in production without --force
 
 The first two migrations are Beak's own tables for graph-commit receipts and the outbox; they are always in the host. A batch is one `migrate` run, so `down --steps 1` above undid all three. Output from `dart run` may add a `Running build hooks...` line in front of the child's output.
 
-`WORM_ENV` selects `development` (the default), `staging`, `production` or `testing`. `beak migrate fresh` and `refresh` read it the way the server does, from the process environment over the project's `.env`, and refuse in production without `--force` with the message above. Worm's own gate, reached by running `dart run bin/migrate.dart` directly, reads the process environment only. The database comes from `DATABASE_URL`, see [Configuration and environment](configuration.md#the-server).
+`WORM_ENV` selects `development` (the default), `staging`, `production` or `testing`. `beak migrate fresh` and `refresh` read it the way the server does, from the process environment over the project's `.env`, and refuse in production without `--force` with the message above. `beak seed` resolves it the same way and hands it to worm as `--env`. Worm's own gate and seeder filter, reached by running `dart run bin/migrate.dart` directly, read the process environment only. The database comes from `DATABASE_URL`, see [Configuration and environment](configuration.md#the-server).
 
 Unknown verbs and more than one verb exit `64`. Known limit on SQLite: `migrate:refresh` cannot roll back a belongs-to column made by a create-table migration, because the foreign key is a table-level constraint. Postgres is fine.
 
@@ -429,7 +429,7 @@ beak seed [--class <SeederName>] [--env <name>] [--force] [-- <worm args>]
 | Flag | Meaning |
 | --- | --- |
 | `--class=<SeederName>` | Run only the seeder with this name |
-| `--env=<name>` | Filter seeders by this environment instead of `WORM_ENV` |
+| `--env=<name>` | Filter seeders by this environment instead of `WORM_ENV`, which `beak seed` reads from the shell over `.env` |
 | `--force` | Ignore the environment filter and run every seeder |
 
 ```console

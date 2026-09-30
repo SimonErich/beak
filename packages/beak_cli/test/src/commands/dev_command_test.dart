@@ -449,6 +449,43 @@ void main() {
       );
     });
 
+    group('WORM_ENV', () {
+      // Worm filters seeders by the process environment alone, so a value in
+      // .env restricted nothing while `beak migrate fresh` obeyed it.
+      test(
+        'in .env names the environment the seeders are filtered by',
+        () async {
+          File('${root.path}/.env').writeAsStringSync('WORM_ENV=Production\n');
+
+          expect(await run(['seed']), 0);
+
+          expect(spawned.single.skip(3).join(' '), 'db:seed --env=production');
+        },
+      );
+
+      test('from the shell wins over .env', () async {
+        File('${root.path}/.env').writeAsStringSync('WORM_ENV=production\n');
+
+        await run(['seed'], processEnvironment: {'WORM_ENV': 'staging'});
+
+        expect(spawned.single.skip(3).join(' '), 'db:seed --env=staging');
+      });
+
+      test('yields to an explicit --env', () async {
+        File('${root.path}/.env').writeAsStringSync('WORM_ENV=production\n');
+
+        await run(['seed', '--env=testing']);
+
+        expect(spawned.single.skip(3).join(' '), 'db:seed --env=testing');
+      });
+
+      test('unset adds nothing', () async {
+        await run(['seed']);
+
+        expect(spawned.single.skip(3).join(' '), 'db:seed');
+      });
+    });
+
     test('passes what follows -- to db:seed untouched', () async {
       await run(['seed', '--', '--anything']);
       expect(spawned.single.skip(3).join(' '), 'db:seed --anything');

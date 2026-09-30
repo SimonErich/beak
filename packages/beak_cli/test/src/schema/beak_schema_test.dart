@@ -731,6 +731,66 @@ final class Thing extends BeakSchema {
     });
   });
 
+  group('a number or text option on a field of another type', () {
+    const imports = """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+""";
+
+    List<String> issuesFor(String field) {
+      final (_, issues) = readSchemas({
+        'thing.dart':
+            '''
+$imports
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  late final String name;
+
+  $field
+}
+''',
+      });
+      return [for (final issue in issues) issue.message];
+    }
+
+    test('prefix on a Duration is a prepare issue', () {
+      expect(issuesFor("@Column(prefix: 'h')\n  late final Duration length;"), [
+        allOf(contains('Thing.length'), contains('"prefix"')),
+      ]);
+    });
+
+    test('suffix on a Duration is a prepare issue', () {
+      expect(
+        issuesFor("@Column(suffix: 'min')\n  late final Duration length;"),
+        [allOf(contains('Thing.length'), contains('"suffix"'))],
+      );
+    });
+
+    test('placeholder on a BeakDate or a BeakTime is a prepare issue', () {
+      expect(
+        issuesFor("@Column(placeholder: 'day')\n  late final BeakDate day;"),
+        [allOf(contains('Thing.day'), contains('"placeholder"'))],
+      );
+      expect(
+        issuesFor("@Column(placeholder: 'at')\n  late final BeakTime at;"),
+        [allOf(contains('Thing.at'), contains('"placeholder"'))],
+      );
+    });
+
+    test('prefix and suffix stay valid on int, double and BeakDecimal', () {
+      for (final type in ['int', 'double', 'BeakDecimal']) {
+        expect(
+          issuesFor("@Column(prefix: '€', suffix: 'x')\n  late final $type n;"),
+          isEmpty,
+          reason: type,
+        );
+      }
+    });
+  });
+
   group('rules size the column', () {
     const thing = """
 import 'package:beak_core/beak_core.dart';

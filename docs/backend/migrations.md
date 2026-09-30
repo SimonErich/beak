@@ -149,7 +149,7 @@ $ beak make:migration AddWeight --from-drift
   nothing written: every missing column needs a decision first
 ```
 
-The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand. On Postgres the refusal is the same and its message does not name SQLite. For the required column, `beak doctor` gives the same advice instead of pointing at `--from-drift`.
+The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand. On Postgres the refusal is the same and its message does not name SQLite. `beak doctor` gives the same advice for both, instead of pointing at `--from-drift` alone.
 
 What `--from-drift` does not do, on purpose: it adds columns only. A missing table, a missing `deleted_at` and a database column that no class declares are yours to handle, and `beak doctor` reports each. It also refuses an in-memory SQLite URL (nothing on disk to compare), a URL scheme other than SQLite or Postgres, and a SQLite file that does not exist yet.
 
@@ -252,7 +252,7 @@ Repeat the check on Postgres before a release if that is your production databas
 | `--from-drift` adds columns only | Tables, `deleted_at` and extra database columns are yours. It refuses in-memory SQLite and any scheme but SQLite and Postgres |
 | Both `make:migration` forms refuse a same-named file | A migration is edited by hand as soon as it is written. `--force` replaces it, edits included |
 | `--from-drift` and `beak doctor` read `DATABASE_URL` from the shell first and `.env` second | The order the server uses. See [Databases](databases.md) |
-| `beak migrate fresh` and `refresh` run every `downSchema` | An irreversible migration stops them. Both refuse `WORM_ENV=production` without `--force`. `beak migrate` reads `WORM_ENV` from the shell and `.env`, the way the server does; worm's own gate, reached through `dart run bin/migrate.dart`, reads the shell only |
+| `beak migrate fresh` and `refresh` run every `downSchema` | An irreversible migration stops them. Both refuse `WORM_ENV=production` without `--force`. `beak migrate` reads `WORM_ENV` from the shell and `.env`, the way the server does; worm's own gate, reached through `dart run bin/migrate.dart`, reads the shell only, and `beak migrate fresh --seed` filters its seeders by the shell value only |
 | `down` undoes a batch, not one migration | One `beak migrate` run is one batch. `--steps N` counts batches |
 | SQLite: `refresh` cannot roll back a belongs-to column made by a create-table migration | The foreign key is a table-level constraint there. Postgres rolls it back |
 | A create migration reads the model as it is now | On a fresh Postgres it could declare a foreign key to a table that a later migration creates, and Postgres rejects that. The generated host orders the migrations to avoid it, see [Order](#order). A hand-written migration that does the same needs `dependsOn` |

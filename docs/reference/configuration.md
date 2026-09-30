@@ -65,7 +65,7 @@ The server reads its environment once, at startup, through `BeakEnv.resolve()`. 
 | `sqlite::memory:` | In-memory SQLite. Vanishes with the process. `serve()` applies the migrations and seeders itself, because `beak migrate` is another process |
 | `postgres://user:pass@host:5432/db`, `postgresql://...` | Postgres. The port defaults to 5432, `?sslmode=require` turns TLS on, credentials are URL-decoded, the pool holds up to 10 connections |
 
-Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm, though `beak migrate fresh` and `refresh` read it there for their `--force` guard.
+Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm, though `beak migrate fresh`, `beak migrate refresh` and `beak seed` read it there, for the `--force` guard and the seeder filter.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
 --8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"
@@ -333,7 +333,7 @@ Holds uploads in memory and takes no fields. For tests: `BEAK_STORAGE_DRIVER=mem
 - Configuration errors are `BeakConfigurationException` (HTTP `500`, code `configuration`) and stop the boot; see [Exceptions](exceptions.md).
 - `BeakBackendConfig.toString` and the storage configs redact secrets.
 - The Postgres pool size (10) is not configurable from the environment.
-- `WORM_ENV` comes from the process environment. `.env` does not set it.
+- `WORM_ENV` comes from the process environment for the server and for worm run directly. `beak migrate fresh`, `refresh` and `beak seed` also read it from `.env`.
 - Configuration is read once at boot. Changing a variable needs a restart.
 
 ## Source

@@ -51,7 +51,7 @@ final class Item extends BeakSchema {
       expect(schemas.single.table, 'OrderItems');
     });
 
-    test('used by two schema classes is reported on the second', () {
+    test('used by two schema classes is reported on the one that chose it', () {
       // The registry throws at boot when two models share a table, which is
       // long after `beak prepare` said everything was fine.
       final (_, issues) = readSchemas({
@@ -81,7 +81,35 @@ final class Memo extends BeakSchema {
           contains('exactly one schema class'),
         ),
       ]);
-      expect(issues.single.path, 'lib/models/note.dart');
+      // `memo.dart` is read first, but `Memo` is the class that wrote
+      // `table: 'notes'`, so its file is the one to open.
+      expect(issues.single.path, 'lib/models/memo.dart');
+      expect(issues.single.message, startsWith('Memo declares'));
+    });
+
+    test('with no class on its default name is reported on the later one', () {
+      final (_, issues) = readSchemas({
+        'apple.dart':
+            '''
+$_imports
+@Resource(table: 'fruit')
+final class Apple extends BeakSchema {
+  late final String title;
+}
+''',
+        'pear.dart':
+            '''
+$_imports
+@Resource(table: 'fruit')
+final class Pear extends BeakSchema {
+  late final String title;
+}
+''',
+      });
+
+      expect(issues, hasLength(1));
+      expect(issues.single.path, 'lib/models/pear.dart');
+      expect(issues.single.message, contains('Apple (lib/models/apple.dart)'));
     });
   });
 

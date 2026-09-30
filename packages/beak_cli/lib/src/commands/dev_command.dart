@@ -218,15 +218,28 @@ abstract base class _WormPassThroughCommand extends Command<int> {
     return separator < 0 ? const [] : arguments.sublist(separator + 1);
   }
 
-  /// Runs worm's [subcommand] with the declared flags and the pass-through.
-  Future<int> runWorm(String subcommand) => runProjectCli(environment, [
-    subcommand,
-    for (final option in forwardedOptions)
-      if (argResults?[option] case final String value) '--$option=$value',
-    for (final flag in forwardedFlags)
-      if (argResults?[flag] == true) '--$flag',
-    ...passedThrough,
-  ]);
+  /// The `WORM_ENV` the server would resolve: the shell over the project's
+  /// `.env`, trimmed and lower-cased, or `null` when neither sets it.
+  String? get resolvedWormEnv {
+    final String? raw = BeakDotenv.resolve(
+      environment.rootDirectory,
+      processEnvironment: environment.processEnvironment,
+    )['WORM_ENV']?.trim().toLowerCase();
+    return raw == null || raw.isEmpty ? null : raw;
+  }
+
+  /// Runs worm's [subcommand] with the declared flags, any [implied]
+  /// options, and the pass-through.
+  Future<int> runWorm(String subcommand, {List<String> implied = const []}) =>
+      runProjectCli(environment, [
+        subcommand,
+        for (final option in forwardedOptions)
+          if (argResults?[option] case final String value) '--$option=$value',
+        ...implied,
+        for (final flag in forwardedFlags)
+          if (argResults?[flag] == true) '--$flag',
+        ...passedThrough,
+      ]);
 }
 
 /// Runs the project's migrations, after regenerating the wiring.
@@ -349,12 +362,7 @@ final class MigrateCommand extends _WormPassThroughCommand {
   /// Worm's own gate reads the process environment alone, so a `.env` that
   /// says `WORM_ENV=production` armed nothing. The same message and exit code,
   /// decided here from the environment the server resolves.
-  bool _isProduction() =>
-      BeakDotenv.resolve(
-        environment.rootDirectory,
-        processEnvironment: environment.processEnvironment,
-      )['WORM_ENV']?.trim().toLowerCase() ==
-      'production';
+  bool _isProduction() => resolvedWormEnv == 'production';
 }
 
 /// Runs the project's seeders, after regenerating the wiring.
@@ -410,7 +418,16 @@ final class SeedCommand extends _WormPassThroughCommand {
         usage,
       );
     }
-    return runWorm('db:seed');
+    // Worm reads WORM_ENV from the process alone, so a `.env` value would
+    // filter nothing. `--env` is worm's own way to name the environment, so
+    // the resolved one goes through it unless the caller chose another.
+    final String? active = resolvedWormEnv;
+    return runWorm(
+      'db:seed',
+      implied: [
+        if (argResults?['env'] == null && active != null) '--env=$active',
+      ],
+    );
   }
 }
 

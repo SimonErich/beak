@@ -270,6 +270,7 @@ void main() {
 
       expect(await runner.run(['make:resource', 'Widget']), 1);
       expect(read('lib/resources/widgets/models/widget.dart'), '// mine\n');
+      expect(out.toString(), contains('error: lib/resources/widgets'));
       expect(out.toString(), contains('already exists'));
     });
   });
@@ -305,7 +306,7 @@ void main() {
       );
       expect(
         out.toString(),
-        contains('lib/migrations/add_status.dart already exists'),
+        contains('error: lib/migrations/add_status.dart already exists'),
       );
       expect(out.toString(), contains('--force'));
     });

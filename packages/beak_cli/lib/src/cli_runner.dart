@@ -382,7 +382,7 @@ final class MakeResourceCommand extends _MakeCommand {
     for (final path in [schemaPath, resourcePath]) {
       if (File(p.join(environment.rootDirectory.path, path)).existsSync()) {
         environment.out.writeln(
-          '  $path already exists: pick another name, or edit it',
+          'error: $path already exists: pick another name, or edit it',
         );
         return 1;
       }
@@ -536,7 +536,7 @@ final class $className extends Migration {
     final file = File(p.join(environment.rootDirectory.path, path));
     if (file.existsSync() && argResults?['force'] != true) {
       environment.out.writeln(
-        '  $path already exists: pick another name, or pass --force to '
+        'error: $path already exists: pick another name, or pass --force to '
         'replace it',
       );
       return true;

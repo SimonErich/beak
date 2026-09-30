@@ -912,7 +912,11 @@ Future<List<BeakCheck>> _driftChecks(
       BeakCheck(
         status: BeakCheckStatus.warn,
         label: problem.message,
-        remedy: _remedyFor(problem, createdTables),
+        remedy: _remedyFor(
+          problem,
+          createdTables,
+          isSqlite: beakIsSqliteUrl(url),
+        ),
       ),
   ];
 }
@@ -926,8 +930,9 @@ Future<List<BeakCheck>> _driftChecks(
 /// command can make.
 String _remedyFor(
   BeakDrift problem,
-  Set<String> createdTables,
-) => switch (problem) {
+  Set<String> createdTables, {
+  required bool isSqlite,
+}) => switch (problem) {
   BeakMissingTable(:final table) =>
     createdTables.contains(table)
         ? 'beak migrate'
@@ -944,14 +949,9 @@ String _remedyFor(
     :final columnKey,
     :final table,
   ) =>
-    BeakDriftMigrationEmitter.unaddable([problem]).isNotEmpty
-        ? 'give the field `@Column(defaultValue: ...)` or make it '
-              'nullable, so that `beak make:migration Add'
-              '${_pascalOf(columnKey)}To${_pascalOf(table)} --from-drift` '
-              'can add it, or write the migration yourself, then beak '
-              'migrate'
-        : 'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
-              '--from-drift, then beak migrate',
+    _unaddableRemedy(problem, isSqlite: isSqlite) ??
+        'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
+            '--from-drift, then beak migrate',
   BeakMissingColumn() =>
     'beak make:migration <Name> and add the column yourself (--from-drift '
         'adds only the columns a field declares), then beak migrate',
@@ -959,6 +959,37 @@ String _remedyFor(
     'declare the field on ${schema.className}, or drop the column with '
         'beak make:migration <Name>, then beak migrate',
 };
+
+/// The remedy for a column `--from-drift` would refuse, or `null` when it
+/// would write the `alter`.
+///
+/// A unique column is already nullable, so it gets the advice
+/// `make:migration --from-drift` prints for it: leave `unique: true` off,
+/// backfill, then add the index in a migration of its own. A required column
+/// is asked for a default or a nullable type.
+String? _unaddableRemedy(BeakDrift problem, {required bool isSqlite}) {
+  if (problem is! BeakMissingColumn) {
+    return null;
+  }
+  final String? reason = BeakDriftMigrationEmitter.unaddable([
+    problem,
+  ], isSqlite: isSqlite)[problem];
+  if (reason == null) {
+    return null;
+  }
+  final String migrate =
+      'beak make:migration Add${_pascalOf(problem.columnKey)}'
+      'To${_pascalOf(problem.table)} --from-drift';
+  return switch (problem.column) {
+    BeakColumnIr(isUnique: true) =>
+      '$reason; `$migrate` adds the column while it is not unique, then '
+          'beak migrate',
+    _ =>
+      'give the field `@Column(defaultValue: ...)` or make it nullable, so '
+          'that `$migrate` can add it, or write the migration yourself, then '
+          'beak migrate',
+  };
+}
 
 /// `stock_level` -> `StockLevel`.
 String _pascalOf(String snake) => snake

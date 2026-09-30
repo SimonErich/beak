@@ -655,6 +655,45 @@ int get monthlyTotal => 0;
       expect(remedy, isNot(contains('--from-drift, then')));
     });
 
+    test(
+      'a required column is told to take a default or be nullable',
+      () async {
+        final checks = await checksAgainst(
+          shopProject(extraFields: '\n  late final int reserved;\n'),
+        );
+
+        final String remedy = checkMatching(
+          checks,
+          'products.reserved',
+        ).remedy!;
+        expect(remedy, contains('`@Column(defaultValue: ...)`'));
+        expect(remedy, contains('make it nullable'));
+      },
+    );
+
+    test('a unique column gets the --from-drift advice, on SQLite', () async {
+      // The column is nullable already, so "make it nullable" sends nobody
+      // anywhere; `--from-drift` says to drop `unique: true`, backfill, then
+      // add the index in a migration of its own.
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/product.dart': productSchema(
+          '\n  @Column(unique: true)\n  late final String? sku;\n',
+        ),
+        '.env': 'DATABASE_URL=sqlite:beak.db\n',
+        'beak.db': '',
+      });
+      runPrepare(environmentFor(root));
+
+      final checks = await checksAgainst(root);
+
+      final String remedy = checkMatching(checks, 'products.sku').remedy!;
+      expect(remedy, contains('SQLite cannot add a unique column'));
+      expect(remedy, contains('without `unique: true`'));
+      expect(remedy, contains('unique index in a migration of its own'));
+      expect(remedy, isNot(contains('make it nullable')));
+    });
+
     test('a matching database reports one check, not one per column', () async {
       final checks = await checksAgainst(shopProject());
 

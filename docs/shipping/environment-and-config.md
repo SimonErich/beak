@@ -26,7 +26,7 @@ None of the variables is required. A project that sets nothing runs on a SQLite 
 | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `local` |
 | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `ftp` |
 | `BEAK_FTP_PORT` | `BeakStorageSettings.fromEnv` | `21` | FTP port |
-| `WORM_ENV` | worm, from the process environment only | `development` | `development`, `staging`, `production`, `testing` (case-insensitive); see below |
+| `WORM_ENV` | worm, from the process environment; the CLI also reads `.env` | `development` | `development`, `staging`, `production`, `testing` (case-insensitive); see below |
 | `BEAK_API_BASE_URL` | the Flutter compiler, as `--dart-define` | `api.baseUrl` from `beak.yaml` | The origin the panel calls; compiled in, not read at runtime |
 
 That is the whole list. Beak has no built-in variable for an authentication secret; you choose a name and read it through `defaults.environment` in `lib/server.dart`.
@@ -115,7 +115,7 @@ The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for pat
 
 ## `WORM_ENV`
 
-`WORM_ENV` is worm's variable, not Beak's, and it matters in production. It is read from the real process environment only, never from `.env`, and it defaults to `development` when unset. The one exception is the guard on `beak migrate fresh` and `refresh`: the CLI reads `WORM_ENV` from `.env` too, so a production marker in the file arms the `--force` requirement.
+`WORM_ENV` is worm's variable, not Beak's, and it matters in production. It is read from the real process environment only, never from `.env`, and it defaults to `development` when unset. The exception is the CLI: `beak migrate fresh`, `refresh` and `beak seed` read `WORM_ENV` from `.env` too (the shell wins), so a production marker in the file arms the `--force` requirement and filters the seeders.
 
 - `migrate:fresh` and `migrate:refresh` refuse to run under `WORM_ENV=production` without `--force`. Under any other value, including unset, they run, and they roll every migration back first.
 - A seeder can declare the environment it belongs to, and `db:seed` skips seeders declared for another one. Seeders that declare nothing run everywhere, and `db:seed` runs every eligible seeder every time you call it, so write them to be repeatable.
