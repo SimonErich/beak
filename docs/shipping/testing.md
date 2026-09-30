@@ -178,7 +178,7 @@ Two things belong in a test: that an upgrade preserves the data already in the d
 
 The shop answers the first by migrating only the early part of its migration list, inserting legacy rows, running the rest and asserting the rows survived. Its `shop_migration_test.dart` also asserts the foreign keys a fresh database declares.
 
-For the second, `expectSchemaParity` checks that every model has a table with the columns it declares (including the foreign key a belongs-to implies and `deleted_at` on soft-deleting models), and `expectNoOrphanTables` checks the reverse. The worm adapter can list what it built. This is illustrative code, compiled and run against the shop:
+For the second, `expectSchemaParity` checks that every model has a table with the columns it declares (including the foreign key a belongs-to implies and `deleted_at` on soft-deleting models), and `expectNoOrphanTables` checks the reverse. The worm adapter can list what it built. This block is illustrative (it is not a repository file). It compiled and passed against a fresh `beak create` project after `MigrationRunner.migrate()`:
 
 ```dart
 final live = await adapter.introspectSchema();

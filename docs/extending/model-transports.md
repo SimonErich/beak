@@ -150,6 +150,7 @@ Archiving and browsing archived rows are separate capabilities. A transport can 
 | An explicit `BeakPanel(dataSource:)` overrides bindings | Client | Useful for isolated widget tests, and wrong for a test that means to exercise the binding. |
 | Permissions and capabilities only hide UI | Client | The backend authorizes every call. `BeakPermissions` denies an operation with no rule. |
 | The command model shares the `table` | Client | `createModel` and `editModel` describe the write shape of the same table. |
+| Keep command models out of `lib/` | Generator | `beak prepare` registers every `BeakModel` subclass under `lib/`, a private one included, and the registry refuses a second model for the same table. A `createModel` or `editModel` class declared in the project therefore breaks the generated registry. Declare it in a package the project depends on: discovery reads only the project's own `lib/`. |
 | Unsupported operations fail loudly | You | Throw `BeakValidationException` or `BeakConfigurationException` for a filter, sort or operation the transport cannot serve. The Serverpod bridge does this per operation. |
 | Record pages depend on `query` by id | Client | See above. A transport that cannot filter by primary key cannot show record pages. |
 
@@ -162,9 +163,9 @@ Also cover a read-only account, a permission change during the session, a failed
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/panel/model_configuration_test.dart
-00:01 +6: edit projection and failures use the shared transport boundary
-00:01 +7: an explicit panel source overrides bound transports for tests
-00:01 +8: All tests passed!
+00:00 +6: an explicit panel source overrides bound transports for tests
+00:00 +7: fallback sources serve authorized dashboard-only tables
+00:00 +8: All tests passed!
 ```
 
 ## Reference

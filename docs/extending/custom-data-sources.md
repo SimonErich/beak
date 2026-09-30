@@ -76,7 +76,7 @@ The ten methods are the floor. Panel features that need more ask the source for 
 | `BeakExportDataSource` | `export(spec, ...)` | CSV export throws `This data source does not support CSV exports.` |
 | `BeakUploadClient`, `BeakManagedUploadClient`, `BeakUploadUrlClient` | `upload`, `discardUpload`, `uploadUrl` | Upload columns throw `The data source for "<table>" does not support uploads.` |
 
-`HttpBeakDataSource` implements all of them by delegating to the typed REST client, which makes it the readable example. Its declaration lists the interfaces, and each method forwards to `client`:
+`HttpBeakDataSource` implements every one of them except `BeakEditDataSource` (a REST edit form prefills from `getOne`) by delegating to the typed REST client, which makes it the readable example. Its declaration lists the interfaces, and each method forwards to `client`:
 
 ```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
 --8<-- "packages/beak_frontend/lib/src/data/http_beak_data_source.dart:HttpBeakDataSource"
@@ -108,8 +108,8 @@ A source used as a decorator is the smallest implementation of all. `BeakRecordi
 ```console
 $ cd packages/beak_backend
 $ dart test test/src/data/worm/worm_data_source_contract_test.dart
-00:00 +75: WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
-00:00 +76: All tests passed!
+00:00 +81: WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
+00:00 +82: All tests passed!
 ```
 
 A green run is your source saying it belongs. It does not say everything, because of the limits listed next.

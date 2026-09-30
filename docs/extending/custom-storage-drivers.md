@@ -142,7 +142,7 @@ The wire's semantics rarely match the interface's. S3 deletes are idempotent, so
 | `none` | nothing: uploads are disabled |
 | `memory` | nothing |
 | `local` | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL` |
-| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION`, optional `BEAK_S3_USE_PATH_STYLE` |
+| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION`, optional `BEAK_S3_USE_PATH_STYLE` and `BEAK_S3_PUBLIC_BASE_URL` |
 | `ftp` | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL`, optional `BEAK_FTP_PORT` |
 
 ```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"

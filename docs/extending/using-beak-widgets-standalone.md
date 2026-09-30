@@ -33,13 +33,13 @@ $ beak init --example
   created lib/admin_main.dart
   created lib/resources/notes/models/note.dart
   created lib/resources/notes/note_resource.dart
-  created .gitignore
+  updated .gitignore
   1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
   generated  6 of 6 files
   agents     AGENTS.md created · CLAUDE.md created · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 
   next:
-    beak make:resource Product --fields name:string!
+    beak migrate
     beak dev
     flutter run -d chrome -t lib/admin_main.dart
 ```
@@ -200,6 +200,7 @@ $ beak doctor
   OK   beak.yaml parses
   OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
   OK   lib/admin_main.dart lists every resource class
+  OK   migrations import files that exist
   OK   generated files up to date
   ...
 All checks passed.
