@@ -75,7 +75,7 @@ A `BeakRelationAdd` shown in read mode is a shortcut into editing: tapping it sw
 --8<-- "examples/foodio-adminpanel/lib/resources/orders/details/order_detail_screen.dart:orderItemsTab"
 ```
 
-The overview tab of the same page holds the editable lines, and this tab repeats them with `allowEditing: false`. Only one placement of a field may be editable, so the second one is read-only. [Related records in forms](related-records.md) explains why.
+The overview tab of the same page holds the editable lines, and this tab repeats them as a read-only `tableForm` (Foodio's `orderItems` helper maps its own `allowEditing: false` to `readOnly: true`). Only one placement of a field may be editable, so the second one has to be read-only. [Related records in forms](related-records.md) explains why.
 
 ## A page built from record blocks
 

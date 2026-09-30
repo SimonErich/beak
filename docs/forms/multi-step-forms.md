@@ -33,7 +33,7 @@ Register it in the resource's `screens:` list. It serves `create` and `edit` unl
 | Action | Behavior |
 | --- | --- |
 | Continue | Validates the current step and every step before it. On success the wizard advances and marks the step done. Errors in later steps stay hidden until you reach them |
-| Clicking a later step in the rail | The same as Continue, for every step in between. The first invalid step is shown and the jump stops there |
+| Clicking the next step in the rail | The same as Continue. `goToStep` with a target further ahead validates every step in between and stops at the first invalid one |
 | Back | Never validates. Values, staged rows and errors are kept |
 | Finish | Validates all steps, then saves. If a step fails validation, the wizard opens the first step with an error and keeps the draft |
 | Edit link in a review | Jumps back to the step. It does not validate, because it only goes backwards |

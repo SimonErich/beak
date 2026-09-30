@@ -102,7 +102,7 @@ Three types and an instant, each with one job:
 
 | Type | Means | Never does |
 | --- | --- | --- |
-| `DateTime` | An instant | Nothing to hide: it is shown in the panel's display timezone |
+| `DateTime` | An instant | Ignore the timezone: it is shown in the panel's display timezone |
 | `BeakDate` | A calendar day (a birthday, a due date) | Convert through a timezone |
 | `BeakTime` | A time of day (a cutoff) | Carry a date or a zone |
 | `Duration` | Elapsed time | Wrap at 24 hours |

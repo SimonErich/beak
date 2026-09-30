@@ -151,7 +151,9 @@ Builders forward the parameters that make sense for their control. When you need
 --8<-- "examples/foodio-adminpanel/lib/resources/orders/forms/steps/order_payment_step.dart:costCentreSelect"
 ```
 
-## The parameters every input shares
+## The parameters inputs share
+
+These are the parameters of `BeakInput`. `input()`, `inputText()` and `inputNumber()` take all of them. The choice, date and list builders forward a subset (`inputSelect` and `inputRadio` take `label`, `description`, `visibleIf` and `enabledIf`, for example), so a parameter a builder lacks is a compile error, and the `BeakInput` constructor is the way to get the full set.
 
 | Parameter | Meaning |
 | --- | --- |
