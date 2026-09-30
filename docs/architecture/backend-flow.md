@@ -133,10 +133,13 @@ The body is `{code, message, fieldErrors?, requestId?}`. Validation failures car
 | `BeakAuthorizationException` | 403 | signed in, not permitted |
 | `BeakConflictException` | 409 | a stale revision, a reused save id, a uniqueness clash |
 | `BeakConfigurationException` | 500 | the server or a request is misconfigured, with its message |
-| `BeakStorageException` | 500 | a storage driver failed, with its message |
+| `BeakStorageException` | 500 | a storage driver failed; the caller gets `File storage failed.` |
+| `BeakInternalException` | 500 | a broken invariant; the caller gets `Internal server error.` and `onUnexpectedError` gets the original |
+| `BeakPayloadTooLargeException` | 413 | a JSON request body is larger than 16 MiB (`beakMaxJsonBodyInBytes`) |
+| `BeakTransportException` | 502 | an unexpected response or a failed tunnel; mainly raised on the client, but the switch is exhaustive |
 | anything else | 500 | opaque, sent to `onUnexpectedError` |
 
-Untyped failures are opaque, and so is a `BeakStorageException`, whose message quotes the system behind the driver: the caller gets `File storage failed.` and `onUnexpectedError` gets the original. The message of the other typed `500`s goes to the client as written, which is convenient for a `BeakConfigurationException`. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
+Untyped failures are opaque, and so are a `BeakStorageException`, whose message quotes the system behind the driver (the caller gets `File storage failed.`), and a `BeakInternalException` (the caller gets `Internal server error.`). `onUnexpectedError` gets the original in each case. A `BeakConfigurationException` is the one typed `500` whose message goes to the client as written, which is convenient when a request is misconfigured. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
 
 ### The Handler: authorize, parse, delegate
 

@@ -217,7 +217,7 @@ const BeakFrameworkTables beakServerpodFrameworkTables = BeakFrameworkTables(
 
 Serverpod's database exceptions become worm exceptions per statement and around the whole transaction, keyed on the SQLSTATE, so a unique violation reads as a `UniqueConstraintException` whether it happens mid-transaction or at `COMMIT`. Every instant is sent as UTC, because Postgres drops the offset of an untyped timestamp parameter and Serverpod stores UTC.
 
-Because the tunnel carries text bodies and the engine mounts no storage, the admin app has no uploads. `BeakFrameworkTables` maps only the receipts, so `BeakOutbox` (durable effects) is not available either. [Limits and next steps](../serverpod/admin-app/limits-and-next-steps.md) keeps the current list.
+Because the tunnel carries text bodies and the engine mounts no storage, the admin app has no uploads. The engine has no `outbox` parameter and starts no delivery loop, so durable effects are not delivered on this path, although `beakServerpodFrameworkTables.outbox` maps the table for a host that composes its own. [Limits and next steps](../serverpod/admin-app/limits-and-next-steps.md) keeps the current list.
 
 ### Serverpod, path two: the frontend-only bridge
 

@@ -126,7 +126,7 @@ Table, metric, chart, kanban, calendar and the other data blocks resolve `beakDe
 --8<-- "packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart:metricState"
 ```
 
-Inside a composed list, `BeakSummaryBlock` can read the surrounding `BeakQueryScope`. Its `scope` picks the active query (the default, so totals follow the filters the reader applies), the list's base query, or none. Without a scope it runs its own summary spec.
+Inside a composed list, `BeakSummaryBlock` can read the surrounding `BeakQueryScope`. Its `scope` (`BeakSummaryScope`) picks the active query (`active`, the default, so totals follow the filters the reader applies), the list's base query (`base`), or the block's own summary spec (`standalone`). Outside a composed list it runs its own spec too.
 
 ### Where interaction state lives
 

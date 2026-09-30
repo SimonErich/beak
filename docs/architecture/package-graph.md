@@ -124,7 +124,7 @@ Three guards run inside `melos run analyze`.
 
 ```console
 $ dart run tool/check_no_material.dart
-Material-import guard passed (1186 Dart files scanned).
+Material-import guard passed (1251 Dart files scanned).
 $ dart run tool/check_hook_widgets.dart
 Hook-widget guard passed (no StatefulWidget or State).
 $ dart run tool/check_web_safe.dart
