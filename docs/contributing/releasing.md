@@ -18,8 +18,8 @@ Nothing here is automated. No workflow bumps a version, creates a tag or publish
 | --- | --- | --- |
 | 1 | Branch the release | `git switch -c release/0.9` |
 | 2 | Bump the version in every place it lives | see [Versions move together](#versions-move-together) |
-| 3 | Rename `[Unreleased]` in `CHANGELOG.md` to the version and date, open a fresh one, and do the same in each package's `CHANGELOG.md` | edit |
-| 4 | Point obers_ui at its pinned commit, not a local checkout | `melos run unlink-obers-ui` |
+| 3 | Replace `Unreleased` in the `## [0.9.0] - Unreleased` heading of `CHANGELOG.md` with the release date, and do the same in the `## 0.9.0 - Unreleased` heading of each package's `CHANGELOG.md` | edit |
+| 4 | Pin an obers_ui commit that is pushed and compiles, and drop any local link | `melos run unlink-obers-ui` |
 | 5 | Make every docs page `stable` or `preview` | `dart run tool/check_docs.dart --release` |
 | 6 | List the newly published pages in the URL manifest | edit `docs/_internal/url-manifest.txt` |
 | 7 | Regenerate and check the agent docs bundle | `melos run agent-docs`, then `melos run check-agent-docs` |
@@ -98,6 +98,7 @@ Users get obers_ui from the commit the pubspecs pin, so the release must pin one
 
 - Check the three refs in `packages/beak_frontend/pubspec.yaml` and the three in `packages/beak/pubspec.yaml` name the same commit. `test/obers_ui_pin_test.dart` fails the tree if they diverge.
 - Check that commit is pushed to the obers_ui repository. A SHA that exists only in your local checkout resolves for nobody else.
+- Check that commit is new enough for `beak_frontend` to compile. A pin that resolves but lacks APIs the panel calls passes `pub get` and fails every panel build, so a release cut on it hands users a project that does not compile. `CHANGELOG.md` records whether the current pin has this gap, and the comment at the top of `.github/workflows/ci.yaml` lists the CI jobs that stay red until it is fixed: `static`, `test`, `web`, `showcase-web`, `foodio-web` and `serverpod-admin`. Move the SHA in every pubspec that pins it, and let `test/obers_ui_pin_test.dart` confirm the copies match.
 - Run `melos run unlink-obers-ui`, which unlinks and then bootstraps. The lockfiles of the examples are tracked, and `pub get` writes whatever it resolved into them. A lockfile that records a path into a sibling checkout does not belong in the release commit, and `git grep -ln 'path: "../../../obers_ui' -- '*pubspec.lock'` prints nothing when none does.
 
 [Working with obers_ui](working-with-obers-ui.md) covers the pin and the link tool.
@@ -147,8 +148,8 @@ Published skills check passed.
 - **Nothing verifies lockstep.** A package left on the old version passes every check except your eyes. Run the `grep` above after the bump.
 - **A stale bundle fails `analyze`.** `check-agent-docs` is part of `melos run analyze` and of the docs workflow, so a bump, a `CHANGELOG.md` edit or a docs change turns both red until `melos run agent-docs` has regenerated the bundle and you have committed it.
 - **The pre-1.0 promise.** The package changelogs say the API is not frozen and the wire format is. Breaking an API is allowed, and it goes in `CHANGELOG.md` under the release. Changing the wire format is not.
-- **The root changelog header is out of date.** It still says all packages share a `0.0.x` line. Fix the sentence when you move `[Unreleased]`.
-- **Two packages have no changelog.** `beak_serverpod_generator` and `beak_serverpod_server` have none, while their eleven siblings do.
+- **The root changelog names the version in prose too.** Its opening notes say the packages share `0.9.0` and that nothing is tagged yet. Update both sentences when you tag.
+- **Every package has a changelog.** All thirteen `packages/beak*/CHANGELOG.md` files point back to the root one, so step 3 touches fourteen files.
 - **No pub.dev.** Every package is `publish_to: none`, so there is no publish step, dry run or score to check.
 
 ## Verify it

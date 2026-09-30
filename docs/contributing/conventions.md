@@ -102,7 +102,7 @@ Every public behavior is covered, red before green. Assert what a unit returns o
 
 ## Regenerate, never hand-edit
 
-Generated files (`*.g.dart`, `*.beak.dart`) are excluded from analysis and coverage, and nothing in review should be a hand edit to one. Change the generator or the source it reads, then regenerate and commit the output.
+Generated files (`*.g.dart`, `*.beak.dart`) are excluded from coverage (`*.g.dart` also from analysis), and nothing in review should be a hand edit to one. Change the generator or the source it reads, then regenerate and commit the output.
 
 | You changed | Run |
 | --- | --- |
@@ -119,7 +119,7 @@ Generated files (`*.g.dart`, `*.beak.dart`) are excluded from analysis and cover
 
 ## Breaking changes before 1.0
 
-Beak is pre-1.0, so a superseded API is removed instead of deprecated. Delete it, record the break under `[Unreleased]` in `CHANGELOG.md`, and add a row to the corrections table on the AI directory page (`docs/ai/index.md`), which is how coding agents learn that the old name is gone. `melos run check-agent-docs` fails when a row names a symbol that does not exist, or marks as removed a symbol that still exists.
+Beak is pre-1.0, so a superseded API is removed instead of deprecated. Delete it, record the break in the open section at the top of `CHANGELOG.md` (`## [0.9.0] - Unreleased` today), and add a row to the corrections table on the AI directory page (`docs/ai/index.md`), which is how coding agents learn that the old name is gone. `melos run check-agent-docs` fails when a row names a symbol that does not exist, or marks as removed a symbol that still exists.
 
 ## Rules and limits
 
@@ -162,6 +162,9 @@ Warnings above those lines about a local SQLite file are true of a checkout that
 | `BeakConflictException` | `conflict` | 409 | the write conflicts with current state |
 | `BeakConfigurationException` | `configuration` | 500 | Beak itself is set up wrong, a developer error |
 | `BeakStorageException` | `storage` | 500 | a storage driver failed to store, read or delete a file |
+| `BeakInternalException` | `internal` | 500 | the server failed in a way it does not describe |
+| `BeakPayloadTooLargeException` | `payload_too_large` | 413 | a request body is larger than the server accepts |
+| `BeakTransportException` | `transport` | 502 | a response never reached Beak's error format, for example a failing tunnel |
 
 `BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to 500 and shares its code. The full list with wire bodies is in [Exceptions](../reference/exceptions.md).
 

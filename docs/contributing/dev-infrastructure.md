@@ -49,7 +49,7 @@ Everything opt-in. Nothing in `melos run analyze`, `format-check`, `test` or `co
 
 | Suite or use | Needs | Runs with |
 | --- | --- | --- |
-| `packages/beak_backend/test/e2e/postgres_integration_test.dart` | Postgres | `melos run test-e2e` |
+| The `postgres_*_test.dart` files in `packages/beak_backend/test/e2e/` | Postgres | `melos run test-e2e` |
 | `packages/beak_backend/test/e2e/upload_s3_integration_test.dart`, `packages/beak_storage_s3/test/e2e/s3_minio_integration_test.dart` | MinIO | `melos run test-e2e` |
 | `packages/beak_cli/test/e2e/round_trip_test.dart`, `postgres_introspection_test.dart` | Postgres | `melos run test-e2e` |
 | The vendored `worm_postgres` contract suite | Postgres | `melos run test-worm`, or `melos run test-worm-postgres` alone |
@@ -107,9 +107,11 @@ So copy `.env.example` into the directory you run the server from, and edit the 
 
 ## What the suites do to the database
 
-None of them migrate into the database `DATABASE_URL` names.
+None of them migrate your data, and none touch a table they did not create.
 
-- The backend Postgres suite connects and runs `SELECT 1`.
+- `postgres_integration_test.dart` connects and runs `SELECT 1`.
+- `postgres_commit_test.dart` and `postgres_outbox_test.dart` create a scratch database named `beak_commit_e2e_<microseconds>` or `beak_outbox_e2e_<microseconds>` and drop it afterwards.
+- `postgres_write_errors_test.dart` creates and drops tables prefixed `wr_`, and `postgres_legacy_schema_test.dart` a table and an enum type prefixed `e2e_`, in the database `DATABASE_URL` names.
 - The CLI round trip works in two databases of its own, `beak_round_trip_origin` and `beak_round_trip_rebuilt`, created next to `beak` on first use. It drops the `public` schema in those two at the start of each run and leaves the databases behind. It derives their names from `DATABASE_URL`, so a stray value cannot make it drop a database you care about.
 - The MinIO suites write to the bucket `beak-uploads`. The upload test deletes what it stored.
 
@@ -138,7 +140,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:28081/
 melos run test-e2e
 ```
 
-With the stack up, each suite ends in a pass. Before, the backend and storage suites read `All tests skipped.` and the CLI round trip failed:
+With the stack up, each suite ends in a pass. Without it, each one skips itself with an `is unreachable` message and ends in `All tests skipped.`.
 
 ```text
 00:00 +2: All tests passed!

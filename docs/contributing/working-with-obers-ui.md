@@ -21,6 +21,9 @@ Beak's panel is built on obers_ui, and obers_ui is not on pub.dev: its own pubsp
 
 ## The pin
 
+!!! warning "The current pin is behind"
+    The pinned commit lacks obers_ui APIs that `beak_frontend` calls (the root `CHANGELOG.md` lists them under Known issues). `melos bootstrap` resolves, and then `flutter analyze` and every panel build fail. Until the pin moves to a pushed commit that has them, run `melos run link-obers-ui` before you touch anything that compiles the panel. The header of `.github/workflows/ci.yaml` names the CI jobs that stay red for the same reason.
+
 Two pubspecs declare the dependency: `packages/beak_frontend`, which builds the panel on it, and `packages/beak`, whose `ui.dart` and `charts.dart` re-export it. No example declares it. A project reaches `OiIcons` and the rest of the widget set through `package:beak/ui.dart`, so it never adds an obers_ui dependency of its own.
 
 Each pubspec declares three packages from one repository. Only the `ref` lines are elided below:
@@ -139,8 +142,10 @@ dart test test/obers_ui_pin_test.dart
 ```
 
 ```text
-00:00 +14: All tests passed!
+00:00 +18: All tests passed!
 ```
+
+The count grows with the tests. Any `All tests passed!` line is the result.
 
 While linked, the overrides are in place and point at the checkout:
 
