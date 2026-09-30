@@ -30,7 +30,7 @@ $ curl -s -X POST localhost:8392/api/products/query -H 'content-type: applicatio
 
 `columns` are column keys, and a dotted key walks a relationship: `variants.sku` searches the SKUs of a product's variants. The server folds the search into the spec's `filter` before it runs anything, as one `OR` over the columns, then combines it with the permanent filter and the caller's row scope. So `total`, paging and sorting all describe the searched population, and the query that reaches the database carries no separate search.
 
-The shop searches a product by its own fields, its category, and its collections. A search through a to-many path is a relation filter, so no product is listed twice:
+The shop searches a product by its own fields, its category, and its images, attributes and variants. A search through a to-many path is a relation filter, so no product is listed twice:
 
 ```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"
 --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:listProductSearch"
@@ -96,7 +96,7 @@ The response is `text/csv; charset=utf-8` with `content-disposition: attachment;
 
 What the file contains:
 
-- Every row that matches the spec's `filter`, `search` and `sorts`. The spec's `pagination` is ignored: the service reads the table 500 rows at a time and streams them, so memory stays flat and the browser downloads everything. Your sorts come first and the primary key breaks their ties (it is added when you sent none), so a row written while the file is being made is not skipped or written twice at a page boundary.
+- Every row that matches the spec's `filter`, `search` and `sorts`. The spec's `pagination` is ignored: the service reads the table 500 rows at a time and streams them, so memory stays flat and the browser downloads everything. Your sorts come first and the primary key breaks their ties (it is appended unless you already sort by it), so a row written while the file is being made is not skipped or written twice at a page boundary.
 - The header is the labels of the columns the model shows in a table, in order, unless `columns` names others. Those are the columns whose `visibleOn` includes the table context.
 - Only columns the caller may read. An unreadable column is dropped from the header and from every row.
 - Password columns as `••••••••`, in every mode.

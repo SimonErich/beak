@@ -61,7 +61,7 @@ BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
 
 1. The environment is `.env` overlaid by the process environment, and `BeakBackendConfig` reads `DATABASE_URL`, `PORT` and `HOST` from it. [Environment and config](../shipping/environment-and-config.md) lists every variable.
 2. `initializeBeakDatabase` opens the adapter the `DATABASE_URL` scheme names, see [Databases](databases.md).
-3. Migrations are applied here for one database only: `sqlite::memory:`, which vanishes with the process and cannot be prepared by another one. Every other database is migrated by `beak migrate`, on purpose, before the server that needs the columns starts.
+3. Migrations and seeders run here for one database only: `sqlite::memory:`, which vanishes with the process and cannot be prepared by another one. Every other database is migrated by `beak migrate`, on purpose, before the server that needs the columns starts.
 4. `resolveStorageDriver()` picks the upload driver, see [Uploads and storage wiring](uploads-and-storage-wiring.md).
 5. `buildServer` calls your `beakServer` if `lib/server.dart` has one, and `defaults.build()` if it does not.
 6. If the server carries an outbox schedule, the host validates it before binding the port, so a broken schedule fails the boot and not the first effect. Its drain loop starts once the socket is bound and stops when you close the server.
@@ -105,6 +105,8 @@ Pass what you want to change. Everything else keeps the value the host resolved.
 | `corsOrigin` | `*` | [Middleware](middleware.md) |
 | `onRequest` | one line per request on stderr | [Middleware](middleware.md) |
 | `onUnexpectedError` | the error and its stack trace on stderr | [Middleware](middleware.md) |
+| `onWarning` | the boot warning on stderr | The `warning:` line in [Rules and limits](#rules-and-limits) |
+| `maxPerPage` | `200`: a larger `perPage` is answered at that size | [REST API](../reference/rest-api.md) |
 | `preparePlan` | none | [Transactional business rules](graph-business-rules.md) |
 | `graphOnly` | none | [Transactional business rules](graph-business-rules.md) |
 | `finalizePlan` | none | [Durable effects](durable-effects.md) |
@@ -156,9 +158,9 @@ Future<void> main() async {
 }
 ```
 
-That serves `/ping` from your code and everything else from Beak, with your `beakServer` applied. For most projects `routes:` on `defaults.build` does the same job without a second server, and a route of yours wins over a generated one on the same path.
+That serves `/ping` from your code and everything else from Beak, with your `beakServer` applied. The `shelf_io` import needs `shelf` in your own `pubspec.yaml` (`dart pub add shelf`), or the analyzer flags it. For most projects `routes:` on `defaults.build` does the same job without a second server, and a route of yours wins over a generated one on the same path.
 
-Two things `buildServer` does not do, because `serve()` does them. It does not migrate `sqlite::memory:`, and it does not start the outbox: call `beak.outbox?.start(adapter, onError: beak.onUnexpectedError)` yourself, and stop the loop it returns when you shut down.
+Two things `buildServer` does not do, because `serve()` does them. It does not migrate or seed `sqlite::memory:`, and it does not start the outbox: call `beak.outbox?.start(adapter, onError: beak.onUnexpectedError)` yourself, and stop the loop it returns when you shut down.
 
 ## Test the same host
 

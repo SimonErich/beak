@@ -65,7 +65,8 @@ Every rule fails as a `422` that names the rule, and the rest as the usual envel
 | An image column and bytes that are not a raster image | `422` `The uploaded file is not a supported raster image (PNG, JPEG, WebP or GIF).` |
 | An image that has a valid header and damaged content (truncated, corrupt) | `422` `The uploaded file could not be decoded as an image.` |
 | Dimensions or aspect ratio outside the column's limits | `422` with `fieldErrors.dimensions` or `aspectRatio` |
-| Not `multipart/form-data`, or no `file` part | `422` `Upload requests must be multipart/form-data with a "file" field.` |
+| Not `multipart/form-data` | `422` `Upload requests must be multipart/form-data with a "file" field.` |
+| A multipart body with no `file` part | `422` `The multipart body has no "file" field.` |
 | A column that stores no file | `422` `Column "caption" of "photos" is a BeakStringColumn; uploads need a file or image column.` |
 | A key outside the column's `storagePath`, or with `..`, a backslash or a control character in it | `422` `Key "other/x.png" does not belong to column "image" (expected the "photos/" prefix).` |
 | A key with no stored file | `404` `No stored file "..."` |
@@ -83,13 +84,13 @@ There is nothing to turn on. The host resolves a driver at boot, and with nothin
 --8<-- "packages/beak_backend/lib/src/server/beak_serve_host.dart:resolveStorageDriver"
 ```
 
-`BEAK_STORAGE_DRIVER` picks another one, and an incomplete or unknown value stops the boot with a message that names the fix:
+`BEAK_STORAGE_DRIVER` picks another one, and an incomplete or unknown value stops the boot with one line that names the fix (exit `78`, the same as any other configuration failure, see [Running the server](running-the-server.md#rules-and-limits)):
 
 ```console
 $ BEAK_STORAGE_DRIVER=s3 dart run bin/serve.dart
-BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
+error: BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
 $ BEAK_STORAGE_DRIVER=s4 dart run bin/serve.dart
-BeakConfigurationException(configuration): Unsupported BEAK_STORAGE_DRIVER "s4": use one of s3, ftp, memory, local, none.
+error: Unsupported BEAK_STORAGE_DRIVER "s4": use one of s3, ftp, memory, local, none.
 ```
 
 The variables each driver reads:
@@ -158,7 +159,7 @@ $ curl -s -X POST localhost:8392/api/photos/image/upload -F "file=@pic.png;type=
 Without the registration, the boot fails by name:
 
 ```console
-BeakConfigurationException(configuration): No storage driver is registered for "s3". Registered drivers: memory, local.
+error: No storage driver is registered for "s3". Registered drivers: memory, local.
 ```
 
 The bucket must exist, and its policy decides whether the URL in the upload response opens. The upload returns the plain object URL. The reference stack creates its bucket with anonymous download, so those URLs open. A private bucket answers that URL with `403`. The resolve route (`GET .../upload?key=`) asks the driver for a link that expires after `signedUrlLifetime` and answers with a presigned one, so use it for a private bucket. With `BEAK_S3_PUBLIC_BASE_URL` set, for a CDN or proxy that authorizes reads, both routes answer with that public address instead.

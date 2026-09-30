@@ -72,7 +72,7 @@ Freeze yours once you cannot rebuild the database from scratch. Until then, edit
 | Model says | Table gets |
 | --- | --- |
 | Primary key `id` | A `uuid` primary key |
-| Column with a `BeakRequired` rule | `NOT NULL`. Every other column is nullable |
+| Column with a `BeakRequired` rule | `NOT NULL`. A column with a default is `NOT NULL` with that default; every other column is nullable |
 | Belongs-to relationship | A nullable `uuid` column, an index, and a foreign key honouring the relationship's `BeakOnDelete` |
 | Two-state boolean | Default `false`. A nullable three-state boolean stays nullable |
 | Enum with a default | That default as the schema default |
@@ -140,7 +140,7 @@ migrated  20260929_162645_add_stock_to_products
 
 ### When Beak stops and asks
 
-Some columns cannot be added without a decision, and the command writes nothing until you have made it. Each is reported with `!` and exits `1`:
+Some columns cannot be added without a decision. Each is reported with `!`. When every missing column is one of these, the command writes nothing and exits `1`; when others can be added, it writes those, prints the `!` lines and exits `0`, so read the output before you migrate:
 
 ```console
 $ beak make:migration AddWeight --from-drift
@@ -149,7 +149,7 @@ $ beak make:migration AddWeight --from-drift
   nothing written: every missing column needs a decision first
 ```
 
-The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand. On Postgres the refusal is the same and its message does not name SQLite. `beak doctor` gives the same advice for such a column, instead of pointing at `--from-drift`.
+The first is the general case: a `NOT NULL` column has nothing to hold for the rows that exist. Give the field a `defaultValue`, or make it nullable, fill it, and tighten it in a later migration. The second is SQLite: `ALTER TABLE` cannot add a unique column, so add the column, backfill, and create the unique index by hand. On Postgres the refusal is the same and its message does not name SQLite. For the required column, `beak doctor` gives the same advice instead of pointing at `--from-drift`.
 
 What `--from-drift` does not do, on purpose: it adds columns only. A missing table, a missing `deleted_at` and a database column that no class declares are yours to handle, and `beak doctor` reports each. It also refuses an in-memory SQLite URL (nothing on disk to compare), a URL scheme other than SQLite or Postgres, and a SQLite file that does not exist yet.
 
