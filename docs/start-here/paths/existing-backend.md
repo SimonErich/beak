@@ -26,7 +26,7 @@ This page is about the first row. You bind a transport to a `BeakModel` once, re
 --8<-- "packages/beak_frontend/test/src/panel/model_configuration_test.dart:BoundModel"
 ```
 
-A `BeakModel` is metadata plus five optional hooks, and the two that matter first are these:
+A `BeakModel` is metadata plus five optional hooks (`dataSource`, `capabilities`, `permissions`, `createModel`, `editModel`). These are the ones to know first:
 
 | Hook | Default | What the panel does with it |
 | --- | --- | --- |

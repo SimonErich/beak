@@ -19,7 +19,7 @@ You have a database with tables and rows, and you want an admin panel over it. A
 | Command | `beak introspect <database-url>` |
 | Databases | Postgres (`postgres://...`, `postgresql://...`) and SQLite (`sqlite:path/to/file.db`) |
 | Reads | Tables, columns and types, nullability, foreign keys, unique constraints, column lengths, enum types |
-| Writes | One schema class per table into `lib/resources/<table>/models/`, an enum file per database enum, and (adopt only) a baseline migration |
+| Writes | One schema class per table into `lib/resources/<table>/models/`, an enum file per database enum, and (adopt only) a baseline migration, `lib/migrations/adopt_existing_schema.dart` |
 | Two modes | `--ownership adopt` (Beak owns the schema from here) or `--ownership external` (another tool keeps it) |
 | Never | Changes your database. It only reads. |
 
@@ -79,6 +79,9 @@ part 'order.beak.dart';
 /// The orders resource, read from the database.
 @Resource(managesSchema: false, timestamps: true)
 final class Order extends BeakSchema {
+  /// The primary key.
+  late final int? id;
+
   /// Total Cents.
   @Column(sortable: true)
   late final int totalCents;
@@ -91,7 +94,7 @@ final class Order extends BeakSchema {
   @Column(searchable: true)
   late final BeakText? note;
 
-  /// The Customers this belongs to.
+  /// The Customer this belongs to.
   @BelongsTo()
   late final Customer customer;
 }
@@ -172,7 +175,7 @@ $ curl -s -X POST localhost:8080/api/customers/query -H 'content-type: applicati
 | `--save-url` | off | Write `DATABASE_URL=<url>` into `.env`, where the server reads it. |
 | `--dry-run` | off | Report what would be written and write nothing. |
 
-Tables Beak never surfaces: the migration tables of other tools (listed above), `migrations`, `worm_migrations`, `ar_internal_metadata` and `knex_migrations_lock`.
+Tables Beak never surfaces: the migration tables of other tools (listed above), `migrations`, `worm_migrations`, `ar_internal_metadata`, `knex_migrations_lock` and its own `_beak_commit_receipts` and `_beak_outbox`.
 
 ## Continue reading
 

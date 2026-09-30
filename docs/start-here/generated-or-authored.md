@@ -50,7 +50,7 @@ You own `lib/main.dart`. `beak prepare` recognises that by the first line: a fil
 --8<-- "examples/clean_beak_config/lib/main.dart:shopMain"
 ```
 
-The list is the panel. A resource is in the sidebar when it is in `resources: [...]`, and not otherwise, so hiding one means leaving it out. Theme, locale, formatting, pages, navigation and auth are `BeakPanel` arguments, or a whole `BeakPanelConfig` passed as `config:` (`BeakPanel` takes `config:` or the individual arguments, never both).
+The list is the panel. A resource is in the sidebar when it is in `resources: [...]`, and not otherwise, so hiding one means leaving it out. Theme, locale, formatting, pages, navigation and auth are `BeakPanel` arguments, or a whole `BeakPanelConfig` passed as `config:` (`BeakPanel` takes `config:` or the individual arguments, never both; `dataSource:` works with either).
 
 `beak create acme_admin --authored` starts a project this way. A test can pump the same panel against an in-memory data source, because the scaffold's `buildPanel({BeakDataSource? dataSource})` passes it through.
 
@@ -69,7 +69,7 @@ $ beak eject main
 
 `beak eject main` writes the file `beak prepare` would have generated, in the same resource order and with the same icons, sections and titles, so nothing on screen changes. It removes `/lib/main.dart` from `.gitignore`. When the project has a `lib/panel.dart` override or non-default sidebar settings in `beak.yaml`, it writes `BeakPanel(config: BeakPanelConfig(...))` instead, passing the override through. It warns about each resource class whose model it cannot tell from the source, so you can delete the duplicate default it would otherwise list next to it.
 
-A second `beak eject main` prints `lib/main.dart is already yours` and does nothing, and `--force` does not change that message. Going back is manual: delete `lib/main.dart`, put `/lib/main.dart` back into `.gitignore`, run `beak prepare`.
+A second `beak eject main` prints `lib/main.dart is already yours; pass --force to write it again from what the generated panel would show` and writes nothing. `--force` does exactly that: it replaces your file, edits included. In a project whose `beak.yaml` sets `panel.entrypoint`, `beak eject main` refuses (exit `1`), because `lib/main.dart` there is your app's own. Going back to generated is manual: delete `lib/main.dart`, put `/lib/main.dart` back into `.gitignore`, run `beak prepare`.
 
 ### What beak.yaml controls in each
 

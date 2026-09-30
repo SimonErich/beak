@@ -33,11 +33,11 @@ Answer them in order and stop at the first row that applies.
 
 | Question | If yes | If no |
 | --- | --- | --- |
+| Do you need uploads on Serverpod-owned tables? | Neither yet: the tunnel mounts no upload routes and the bridge has no upload client | Continue |
+| Does the admin need data Serverpod should never see? | A separate Beak app on its own database, which is not a Serverpod integration | Continue |
 | Can you change and redeploy the Serverpod server? | Continue | The bridge: it needs no server change |
 | Do your endpoints hold rules the admin must not bypass (an audit row, a webhook, a refund check)? | The bridge: every write is one of your endpoint calls | Continue |
 | Do you need atomic multi-row form saves, relations loaded with the rows, summaries or CSV export? | The admin app: only Beak's API on a database session can do these | Either fits; try the bridge first, because backing out is deleting a package |
-| Do you need uploads on Serverpod-owned tables? | Neither yet: the tunnel mounts no upload routes and the bridge has no upload client | Continue |
-| Does the admin need data Serverpod should never see? | A separate Beak app on its own database, which is not a Serverpod integration | Take the path from the rows above |
 
 [Choosing an integration](../../serverpod/choosing-an-integration.md) has the full comparison matrix behind these five rows, and the reasoning for each.
 

@@ -18,6 +18,7 @@ The rule that shapes the path is that your files stay yours. `beak init` adds fi
 | --- | --- |
 | Command | `beak init` in the root of the Flutter app |
 | Adds | The `beak` dependency, `beak.yaml` with `panel.entrypoint`, an authored `lib/admin_main.dart`, a `.gitignore` block |
+| Also writes | For coding agents: `AGENTS.md` (a managed block, created if missing), `CLAUDE.md` and the workflow skills under `.claude/skills` and `.agents/skills`. `--no-pub` skips them |
 | Leaves alone | `lib/main.dart`, your router, your theme, your `analysis_options.yaml` |
 | Runs | `flutter pub get`, then `beak prepare` (skip both with `--no-pub`) |
 | Refuses | A pubspec without `flutter: sdk: flutter`; a project inside a Serverpod workspace |

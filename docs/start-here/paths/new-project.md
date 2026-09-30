@@ -27,6 +27,8 @@ The whole start, for a shop-like project with the entrypoint you will keep:
 beak create shop --authored --no-example --beak-path "$PWD/beak"
 cd shop
 beak make:resource Product --fields name:string!,price:decimal!
+# an authored panel shows a resource only once lib/main.dart lists it:
+# add `const ProductResource()` to resources: [...], as make:resource prints
 beak migrate
 beak dev
 ```
@@ -65,6 +67,8 @@ With an authored panel, `beak make:resource` tells you what to add:
 $ beak make:resource Product --fields name:string!,price:decimal!
   created lib/resources/products/models/product.dart
   created lib/resources/products/product_resource.dart
+  1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
+  generated  4 of 7 files
 
   lib/main.dart is yours; register the resource there:
     import 'resources/products/product_resource.dart';
@@ -73,7 +77,7 @@ $ beak make:resource Product --fields name:string!,price:decimal!
 
 ## Authentication: later is fine, exposed is not
 
-A new project has no sign-in. The panel renders for everyone and the API allows every request. That is the right state for a laptop and the wrong state for any URL another person can reach. Sign-in has two halves, and neither is enough alone:
+A new project has no sign-in. The panel renders for everyone and the API allows every request. That is the right state for a laptop and the wrong state for any URL another person can reach. `beak dev` listens on `0.0.0.0`, so the API is reachable from your network, and it prints a warning that says so; `HOST=127.0.0.1 beak dev` keeps it on your machine and silences the warning. Sign-in has two halves, and neither is enough alone:
 
 - **Server.** Sessions say who is calling, and a policy says what they may do. Without a policy, `BeakServer` allows everything, whoever the caller is. [Auth and policies](../../backend/auth-and-policies.md) and [Security](../../shipping/security.md) close the seams in order.
 - **Panel.** `BeakPanel(auth: ...)` puts a sign-in in front of the shell. It only hides UI. [Auth and idle-lock](../../panel/auth-and-idle-lock.md) covers it.
@@ -83,9 +87,9 @@ Do the server half before you share a link, not after.
 ## Rules and limits
 
 - **`beak create` refuses a directory that already has files.** It exits `1` and writes nothing, so give it a new name or an empty directory.
-- **A project name is `lower_snake_case`**, because it becomes the Dart package name. `beak create Acme` is a usage error.
+- **A project name is `lower_snake_case`**, because it becomes the Dart package name. `beak create Acme` is a usage error (exit `64`).
 - **`beak create` runs `flutter pub get`**, so it needs the network unless you pass `--no-pub`. With `--no-pub` you run `flutter pub get`, `beak prepare` and `beak agents` yourself.
-- **`beak prepare` on a project with no models succeeds, and says so.** It ends the summary with `no models yet: add a @Resource class under lib/, or run beak make:resource Product`.
+- **`beak prepare` on a project with no models succeeds, and says so.** It prints ``no models yet: add a @Resource class under lib/, or run `beak make:resource Product`, then `beak prepare` again``.
 - **The default `.gitignore` keeps `beak.db`, `.env` and `storage/` out of git.** A generated project also ignores `lib/main.dart`; an authored one commits it.
 - **Coding agents get a head start.** `beak create` writes `AGENTS.md` and `CLAUDE.md` and installs the workflow skills into `.claude/skills` and `.agents/skills`. `--skills none` skips them, and `beak agents` updates them later.
 
@@ -97,6 +101,7 @@ $ beak doctor
   OK   beak.yaml parses
   OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
   OK   lib/main.dart lists every resource class
+  OK   migrations import files that exist
   OK   generated files up to date
   OK   every model has a migration
   ...
