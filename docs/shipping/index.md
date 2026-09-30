@@ -25,7 +25,7 @@ A project is one package that compiles to two programs. The server is pure Dart:
 
 ## Read this before you deploy
 
-`deploy/` in the repository is a reference for the shop, not a platform. As checked for 0.9.0, its server image, its panel image and its default storage setting each have a known failure, and each has a workaround. They are listed at the top of [Going to production](going-to-production.md), with the commands that do work.
+`deploy/` in the repository is a reference for the shop, not a platform. As checked for 0.9.0, its panel image cannot build until the obers_ui pin moves. The failure is described at the top of [Going to production](going-to-production.md), next to the server and migrate steps that do work.
 
 The dev stack in the repository's `docker-compose.yml` (Postgres, MinIO, a console) is for working on Beak and for the service-backed test suites, not for deploying. It lives under Contributing: [Dev infrastructure](../contributing/dev-infrastructure.md).
 

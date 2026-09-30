@@ -202,7 +202,7 @@ Route `/uploads/` the same way if the local driver serves your files, and size `
 
 ## The compose stack
 
-`deploy/docker-compose.prod.yml` wires Postgres 16, the server and the panel. It parses (`docker compose -f deploy/docker-compose.prod.yml config`). Its intended flow, from the repository root:
+`deploy/docker-compose.prod.yml` wires Postgres 16, the server and the panel. It parses once the `.env.prod` copied in the flow below exists (`docker compose -f deploy/docker-compose.prod.yml config` stops at a missing `env_file`). Its intended flow, from the repository root:
 
 ```bash
 cp deploy/.env.prod.example deploy/.env.prod   # then edit the secrets

@@ -69,7 +69,6 @@ The contract has one sharp edge. `null` means anonymous, meaning no credentials 
 | --- | --- | --- |
 | Accounts | A `List<BeakUserAccount>` built at boot | No user table, no password change, no disabling an account without a deploy |
 | Password hash | HMAC-SHA256 under one shared secret | A fast hash with no per-user salt and no work factor; not a password KDF |
-| Comparison | A plain string comparison of hashes | Not constant-time |
 | Login attempts | Not counted, throttled or locked out | Every attempt is a 401 line in the request log and nothing more |
 | Sessions | `InMemoryTokenSessionStore`, per process | A restart signs everyone out, and a second process does not know the first one's tokens |
 
@@ -77,7 +76,7 @@ The contract has one sharp edge. `null` means anonymous, meaning no credentials 
 --8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:hashBeakPassword"
 ```
 
-Tokens themselves are sound: 256 bits from `Random.secure()`, hex-encoded, 12 hours by default (`sessionTtl`). The weak parts are the accounts and the store around them.
+Tokens themselves are sound: 256 bits from `Random.secure()`, hex-encoded, 12 hours by default (`sessionTtl`). Login compares hashes in constant time, and hashes the password even for a username that does not exist, so timing does not reveal which usernames are real. The weak parts are the accounts and the store around them.
 
 For production, put the identity somewhere that already does this well and let Beak consume it. Implement `BeakAuthGuard` over your identity provider or gateway, and implement `TokenSessionStore` over shared storage if you keep Beak's own sessions:
 
@@ -171,11 +170,11 @@ The default origin is `*`. Name the panel's origin with `defaults.build(corsOrig
 
 Because tokens are bearer tokens, the connection must be HTTPS. Beak listens on plain HTTP. Terminate TLS at the proxy and keep the Beak port off the public interface, with `HOST=127.0.0.1` when the proxy is on the same host or a private container network otherwise.
 
-Response headers come from three places. `dart:io` adds `x-content-type-options: nosniff`, `x-frame-options: SAMEORIGIN` and `x-xss-protection`. Beak adds `x-request-id`. Nothing adds `Strict-Transport-Security` or a `Content-Security-Policy`, and the repository's `deploy/nginx.conf` does not either. Add them at the proxy.
+Response headers come from three places. `dart:io` adds `x-content-type-options: nosniff`, `x-frame-options: SAMEORIGIN` and `x-xss-protection`. Shelf adds `x-powered-by`. Beak adds `x-request-id` and the CORS headers. Nothing adds `Strict-Transport-Security` or a `Content-Security-Policy`, and the repository's `deploy/nginx.conf` does not either. Add them at the proxy.
 
 ## Errors, logs and what a response reveals
 
-The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). Two typed exceptions are 500s that carry their message as written: `BeakConfigurationException` and `BeakInternalException`. A `BeakStorageException` does not: a storage driver's message can include an endpoint or a bucket name, so the caller gets `File storage failed.` and the full message goes to `onUnexpectedError`.
+The error-mapping middleware is the one catch boundary. A typed `BeakException` becomes its status and JSON body; anything else becomes an opaque 500 with the message `Internal server error.` and the request id, and the real error goes to the `onUnexpectedError` listener (stderr by default). `BeakConfigurationException` is a 500 that carries its message as written, because it names a setting the operator has to fix. `BeakInternalException` and `BeakStorageException` do not. An internal message describes a broken invariant, so the caller gets `Internal server error.`. A storage driver's message can include an endpoint or a bucket name, so the caller gets `File storage failed.`. In both cases the full message goes to `onUnexpectedError`.
 
 The request log records the method, the path (without the query string), the status, the duration and the request id. It never records bodies or tokens. The probes `GET /healthz` and `GET /readyz` sit outside `/api` and outside authentication, on purpose, and a failing `/readyz` names no cause.
 

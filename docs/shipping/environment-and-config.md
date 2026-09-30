@@ -90,7 +90,7 @@ With `BEAK_STORAGE_DRIVER` unset, uploads go to `storage/uploads` relative to th
 
 ```console
 $ BEAK_STORAGE_DRIVER=s3 ./build/serve/bundle/bin/serve
-BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
+error: BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
 ```
 
 Two things need care on a real host.
@@ -161,13 +161,13 @@ Keep secrets out of the repository. `.env` is git-ignored here and your project 
 
 ## Verify it
 
-Boot with a wrong value and read the message. Each of these fails before the server binds a port:
+Boot with a wrong value and read the message. Each of these fails before the server binds a port, prints one line and exits with code 78:
 
 ```console
 $ PORT=abc ./build/serve/bundle/bin/serve
-BeakConfigurationException(configuration): PORT must be an integer between 1 and 65535, got "abc".
+error: PORT must be an integer between 1 and 65535, got "abc".
 $ BEAK_STORAGE_DRIVER=local ./build/serve/bundle/bin/serve
-BeakConfigurationException(configuration): BEAK_LOCAL_ROOT_DIR is required when BEAK_STORAGE_DRIVER=local.
+error: BEAK_LOCAL_ROOT_DIR is required when BEAK_STORAGE_DRIVER=local.
 ```
 
 A driver name that does not exist fails the same way and lists the five that do.
