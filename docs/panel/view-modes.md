@@ -104,25 +104,25 @@ The block tests build each block against a fake source, drop a card and drag an 
 
 ```console
 $ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|BeakCalendarBlock|kanban' --reporter expanded
-00:00 +0: BeakCalendarBlock maps records onto OiCalendar events
-00:00 +1: BeakCalendarBlock a row without a start is left out, not given today
-00:00 +2: BeakCalendarBlock a tap resolves back to the record; a drag persists
-00:01 +3: BeakCalendarBlock time zone shows an event at the panel zone and moves it by wall clock
-00:01 +4: BeakKanbanBlock one column per enum value, records grouped
-00:01 +5: BeakKanbanBlock the group field must be an enum field of the block model
-00:01 +6: BeakKanbanBlock dropping a card persists its new group
-00:01 +7: module hardening (audit regressions) kanban fetches one full sorted page
-00:01 +8: module hardening (audit regressions) a dropped kanban card stays in its new column
-00:01 +9: module blocks read a filtered, bounded page kanban, calendar and chat send their filter
-00:02 +10: All tests passed!
+BeakCalendarBlock maps records onto OiCalendar events
+BeakCalendarBlock a row without a start is left out, not given today
+BeakCalendarBlock a tap resolves back to the record; a drag persists
+BeakCalendarBlock time zone shows an event at the panel zone and moves it by wall clock
+BeakKanbanBlock one column per enum value, records grouped
+BeakKanbanBlock the group field must be an enum field of the block model
+BeakKanbanBlock dropping a card persists its new group
+module hardening (audit regressions) kanban fetches one full sorted page
+module hardening (audit regressions) a dropped kanban card stays in its new column
+module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+All tests passed!
 ```
 
 And the planner page renders in the showcase panel, from `examples/showcase`:
 
 ```console
 $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
-00:00 +0: Planner renders
-00:01 +1: All tests passed!
+Planner renders
+All tests passed!
 ```
 
 ## Reference

@@ -237,10 +237,10 @@ Run the shop's two suites as a check that your environment builds and runs them:
 $ cd examples/clean_beak_config
 $ flutter test test/custom_shop_test.dart test/shop_api_test.dart
 ...
-00:04 +21: All tests passed!
+All tests passed!
 ```
 
-Between those two files, 21 tests pass in a few seconds of test time. In your own project the same command shape is `flutter test`, and API tests carry `@TestOn('vm')`. To check that the models and the migrations still agree from the command line, `beak doctor` reports drift against the database `DATABASE_URL` names, and exits non-zero on a failed check (a WARN does not fail the run):
+Both files pass in a few seconds of test time. In your own project the same command shape is `flutter test`, and API tests carry `@TestOn('vm')`. To check that the models and the migrations still agree from the command line, `beak doctor` reports drift against the database `DATABASE_URL` names, and exits non-zero on a failed check (a WARN does not fail the run):
 
 ```console
 $ beak doctor

@@ -77,9 +77,9 @@ The shop stores `delivery_fee` as `12345` for 123.45, reads it back through the 
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/shop_api_test.dart --plain-name 'semantic policy values round-trip'
-00:00 +1: All tests passed!
+All tests passed!
 $ flutter test test/shop_widget_test.dart --plain-name 'the product list shows exact euro prices'
-00:01 +1: All tests passed!
+All tests passed!
 ```
 
 The first test ends on the physical value, which is the assertion that matters:

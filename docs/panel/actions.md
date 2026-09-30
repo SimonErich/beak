@@ -309,24 +309,24 @@ Callbacks, confirmations, the built-in delete and the row actions of a list are 
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/actions test/src/pages/resource_actions_test.dart
-00:05 +33: All tests passed!
+All tests passed!
 ```
 
 The runner tests are the ones that pin the "never submitted twice" promise:
 
 ```console
 $ flutter test test/src/actions/beak_model_action_runner_test.dart
-00:00 +0: unknown commands recover the same save without another confirmation or dispatch
-00:00 +1: concurrent invocations coalesce and another principal cannot reuse the pending record
-00:00 +2: All tests passed!
+unknown commands recover the same save without another confirmation or dispatch
+concurrent invocations coalesce and another principal cannot reuse the pending record
+All tests passed!
 ```
 
 A resource with `canCreate`, `canEdit` and `canDelete` off loses the buttons and the write routes:
 
 ```console
 $ flutter test test/src/panel/beak_panel_test.dart --plain-name "read-only resources hide writes"
-00:00 +0: generated routes read-only resources hide writes and reject write routes
-00:01 +1: All tests passed!
+generated routes read-only resources hide writes and reject write routes
+All tests passed!
 ```
 
 The shop tests its duplication spec, including which selling identities it resets:
@@ -334,8 +334,8 @@ The shop tests its duplication spec, including which selling identities it reset
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/shop_resource_test.dart --plain-name "product duplication"
-00:00 +0: product duplication preserves catalog values and resets selling identities
-00:00 +1: All tests passed!
+product duplication preserves catalog values and resets selling identities
+All tests passed!
 ```
 
 ## Reference

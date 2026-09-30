@@ -85,13 +85,13 @@ A crumb with a `route` navigates there through the panel's router on tap (`go`, 
 
 ## Rules and limits
 
-- **Content blocks add no visible text of their own.** Every string on screen is one you passed.
-- **`BeakRatingBlock.readOnly` defaults to `true`, and `false` does not make it editable.** The block has no callback, so nothing can change the value and nothing learns that someone tapped. Leave it read-only.
-- **`BeakRadialSliderBlock` keeps its value to itself.** It starts at `initialValue`, the knob moves, and the number goes nowhere: no binding, no callback. It is a showcase control. A knob that saves is a `BeakWidgetBlock` around `OiRadialSlider`.
-- **`BeakImageBlock` passes no placeholder and no error widget to `OiImage`.** A failed load falls through to Flutter's default handling, so check the URL or the asset path before you blame the block.
-- **Alerts are dismissible.** There is no parameter to turn the dismiss control off.
-- **Breadcrumb routes are panel routes.** A route the router does not know opens the panel's not-found page.
-- **Nothing validates the numbers.** `BeakProgressBlock` documents 0 to 1 and does not assert it.
+- Content blocks add no visible text of their own. Every string on screen is one you passed.
+- `BeakRatingBlock.readOnly` defaults to `true`, and `false` does not make it editable. The block has no callback, so nothing can change the value and nothing learns that someone tapped. Leave it read-only.
+- `BeakRadialSliderBlock` keeps its value to itself. It starts at `initialValue`, the knob moves, and the number goes nowhere: no binding, no callback. It is a showcase control. A knob that saves is a `BeakWidgetBlock` around `OiRadialSlider`.
+- `BeakImageBlock` passes no placeholder and no error widget to `OiImage`. A failed load falls through to Flutter's default handling, so check the URL or the asset path before you blame the block.
+- Alerts are dismissible. There is no parameter to turn the dismiss control off.
+- Breadcrumb routes are panel routes. A route the router does not know opens the panel's not-found page.
+- Nothing validates the numbers. `BeakProgressBlock` documents 0 to 1 and does not assert it.
 
 ## Verify it
 
@@ -101,8 +101,8 @@ The Aviary renders every page against a fixture source on each test run. A page 
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:04 +11: FAQ renders
-00:05 +12: All tests passed!
+FAQ renders
+All tests passed!
 ```
 
 The tests do not judge how a page looks. Run the panel and open Content blocks for that.

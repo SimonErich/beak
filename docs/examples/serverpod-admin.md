@@ -113,7 +113,7 @@ cd examples/serverpod/bookshop_server && dart test     # embedded Postgres, no D
 cd examples/serverpod/bookshop_admin && flutter test   # widget tests, fake dispatch
 ```
 
-The server suite ran 155 tests and the admin suite 6 (2026-09-30). All passed. One group in the server suite skips itself, the relation contract, because the example passes no `relationModels` to it.
+Both suites pass. One group in the server suite skips itself, the relation contract, because the example passes no `relationModels` to it.
 
 | Suite | What it proves |
 | --- | --- |

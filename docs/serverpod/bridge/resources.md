@@ -84,7 +84,7 @@ The runtime is covered by the package's own tests, which run without a server:
 
 ```console
 $ cd packages/beak_serverpod && dart test
-00:00 +30: All tests passed!
+All tests passed!
 ```
 
 In your own project, write one test per resource before the first user does. Build the `ServerpodDataSource` with a fake client, call `query` with a spec that uses a range filter and expect the `BeakConfigurationException`. That test documents the limit and fails loudly the day someone adds a range filter to a screen.

@@ -69,10 +69,10 @@ The frontend test checks that the button sends the active query, the column list
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/table/beak_list_export_test.dart
-00:00 +5: All tests passed!
+All tests passed!
 $ cd ../beak_backend
 $ dart test test/src/export/csv_export_test.dart
-00:00 +16: All tests passed!
+All tests passed!
 ```
 
 To see the file, run the Foodio API (port 8081) and the panel, open Orders, filter the list, and press `Export`. The rows in the file are the rows the filters match, not the 15 on the first page.

@@ -265,10 +265,10 @@ The composed list, its query controller, saved views and export have tests that 
 
 ```console
 $ flutter test test/src/panel/beak_composed_list_test.dart test/src/table/beak_query_controller_test.dart test/src/table/beak_saved_views_test.dart test/src/table/beak_list_export_test.dart --reporter expanded
-00:00 +0: test/src/table/beak_query_controller_test.dart: preset counts are read by the preset object, never by its key
-00:03 +21: test/src/panel/beak_composed_list_test.dart: counted presets share query, columns, URL and summary population
-00:05 +24: test/src/panel/beak_composed_list_test.dart: filter sheet previews without changing active rows until Apply
-00:06 +27: All tests passed!
+test/src/table/beak_query_controller_test.dart: preset counts are read by the preset object, never by its key
+test/src/panel/beak_composed_list_test.dart: counted presets share query, columns, URL and summary population
+test/src/panel/beak_composed_list_test.dart: filter sheet previews without changing active rows until Apply
+All tests passed!
 ```
 
 ## Reference

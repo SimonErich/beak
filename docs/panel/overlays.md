@@ -135,19 +135,19 @@ The package tests pump a real obers_ui host and drive every method:
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/overlays/beak_overlays_test.dart --reporter expanded
-00:00 +0: confirm resolves true when confirmed
-00:00 +1: confirm resolves false when cancelled
-00:00 +2: ask reports a confirmation
-00:00 +3: ask reports the Cancel button as a refusal
-00:00 +4: ask reports leaving the dialog as a dismissal
-00:00 +5: modal renders a block body and dismisses
-00:00 +6: dialog returns the value the content closes with
-00:00 +7: sheet slides a block body in from the edge
-00:00 +8: sheet a builder sheet returns the value its content closes with
-00:00 +9: toast shows a transient message
-00:00 +10: toast stays for the requested duration
-00:00 +11: toast offers an action that runs once
-00:00 +12: All tests passed!
+confirm resolves true when confirmed
+confirm resolves false when cancelled
+ask reports a confirmation
+ask reports the Cancel button as a refusal
+ask reports leaving the dialog as a dismissal
+modal renders a block body and dismisses
+dialog returns the value the content closes with
+sheet slides a block body in from the edge
+sheet a builder sheet returns the value its content closes with
+toast shows a transient message
+toast stays for the requested duration
+toast offers an action that runs once
+All tests passed!
 ```
 
 ## Reference

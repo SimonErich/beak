@@ -123,11 +123,11 @@ Beak is pre-1.0, so a superseded API is removed instead of deprecated. Delete it
 
 ## Rules and limits
 
-- **Nothing checks commit messages.** The convention holds because reviewers hold it.
-- **Nothing checks "reuse first".** A duplicate passes every tool. It fails on the first review that remembers the original.
-- **A default branch opts out of the sealed check.** Every `switch` over `BeakException` should list the variants and have no `default`, so a new variant breaks the build instead of falling through.
-- **Vendored worm code follows other rules.** `packages/worm*` are outside the melos gate, so a change to them is checked by `melos run test-worm` instead. They are still edited here when Beak needs a change; the pull request says why.
-- **Local agent files stay local.** `CLAUDE.md`, `.claude/`, `PLAN/` and `PROMPT.md` at the repo root are git-ignored. `AGENTS.md` is the committed instruction file, and `*.db` files never get committed.
+- Nothing checks commit messages. The convention holds because reviewers hold it.
+- Nothing checks "reuse first". A duplicate passes every tool. It fails on the first review that remembers the original.
+- A default branch opts out of the sealed check. Every `switch` over `BeakException` should list the variants and have no `default`, so a new variant breaks the build instead of falling through.
+- Vendored worm code follows other rules. `packages/worm*` are outside the melos gate, so a change to them is checked by `melos run test-worm` instead. They are still edited here when Beak needs a change; the pull request says why.
+- Local agent files stay local. `CLAUDE.md`, `.claude/`, `PLAN/` and `PROMPT.md` at the repo root are git-ignored. `AGENTS.md` is the committed instruction file, and `*.db` files never get committed.
 
 ## Verify it
 

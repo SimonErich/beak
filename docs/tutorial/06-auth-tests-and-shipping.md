@@ -391,7 +391,7 @@ $ flutter analyze
 Analyzing shop...
 No issues found! (ran in 2.6s)
 $ flutter test
-00:03 +4: All tests passed!
+All tests passed!
 ```
 
 The API tests log every request to stderr, so a real run is chattier than this. Each test gets its own database, and the run takes a few seconds.

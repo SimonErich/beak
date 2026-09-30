@@ -34,6 +34,8 @@ the code above just did. Say what it does. Stop.
 - No urgency theatre, no engagement bait, no exclamation-point storms.
 - No bold-carpeting. Bold is for a term being defined, a filename, or a label.
   Two or three per page is plenty.
+  In a bullet list where more than three bullets start with a bold label,
+  remove the bold and keep the label text with its period or colon.
 
 **Structural moves (these matter more than word choice)**
 

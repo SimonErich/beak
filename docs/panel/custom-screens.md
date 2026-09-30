@@ -140,12 +140,12 @@ The discovery rules for `lib/screens/` are tested in the CLI:
 ```console
 $ cd packages/beak_cli
 $ dart test test/src/project/beak_discovery_test.dart --plain-name "screens"
-00:00 +0: screens are found as a top-level variable or a nullary function
-00:00 +1: screens only a const variable is a constant expression
-00:00 +2: screens a variable without a type annotation is found by its initializer
-00:00 +3: screens a builder taking required arguments is reported
-00:00 +4: screens non-screen declarations are ignored
-00:00 +5: All tests passed!
+screens are found as a top-level variable or a nullary function
+screens only a const variable is a constant expression
+screens a variable without a type annotation is found by its initializer
+screens a builder taking required arguments is reported
+screens non-screen declarations are ignored
+All tests passed!
 ```
 
 In a scratch project (`beak create dash --no-pub --no-example`) with `lib/screens/overview.dart` holding `final BeakScreen overview = BeakScreen(path: '/', ...)`, `beak prepare` finds the screen and registers it:
@@ -163,14 +163,14 @@ Routing, sidebar placement and the custom resource screens are tested in the fro
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/panel/beak_screen_routing_test.dart --plain-name "custom screens" --reporter expanded
-00:00 +0: custom screens a page appears in the nav and routes to its body
-00:01 +1: custom screens the sidebar title defaults to the title
-00:01 +2: custom screens a page is filed under its navigation group
-00:01 +3: custom screens a hidden page routes but has no nav entry
-00:01 +4: All tests passed!
+custom screens a page appears in the nav and routes to its body
+custom screens the sidebar title defaults to the title
+custom screens a page is filed under its navigation group
+custom screens a hidden page routes but has no nav entry
+All tests passed!
 $ flutter test test/src/panel/beak_panel_test.dart --plain-name "custom create and edit"
-00:00 +0: generated routes custom create and edit workflows keep resource routes
-00:01 +1: All tests passed!
+generated routes custom create and edit workflows keep resource routes
+All tests passed!
 ```
 
 The shop's operations page is pumped at three widths, committed receivables included:
@@ -178,11 +178,11 @@ The shop's operations page is pumped at three widths, committed receivables incl
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/custom_shop_test.dart
-00:01 +1: custom operations fits 375.0 pixels and refreshes committed receivables
-00:01 +2: custom operations fits 600.0 pixels and refreshes committed receivables
-00:01 +3: custom operations fits 1440.0 pixels and refreshes committed receivables
-00:01 +4: custom billing widget shows a retryable error without a false zero
-00:01 +5: All tests passed!
+custom operations fits 375.0 pixels and refreshes committed receivables
+custom operations fits 600.0 pixels and refreshes committed receivables
+custom operations fits 1440.0 pixels and refreshes committed receivables
+custom billing widget shows a retryable error without a false zero
+All tests passed!
 ```
 
 ## Reference

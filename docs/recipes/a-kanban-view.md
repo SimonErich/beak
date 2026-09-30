@@ -74,13 +74,13 @@ The block tests build a board against a fake source, check the columns, drop a c
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|kanban' --reporter expanded
-00:00 +0: BeakKanbanBlock one column per enum value, records grouped
-00:00 +1: BeakKanbanBlock the group field must be an enum field of the block model
-00:00 +2: BeakKanbanBlock dropping a card persists its new group
-00:00 +3: module hardening (audit regressions) kanban fetches one full sorted page
-00:00 +4: module hardening (audit regressions) a dropped kanban card stays in its new column
-00:00 +5: module blocks read a filtered, bounded page kanban, calendar and chat send their filter
-00:00 +6: All tests passed!
+BeakKanbanBlock one column per enum value, records grouped
+BeakKanbanBlock the group field must be an enum field of the block model
+BeakKanbanBlock dropping a card persists its new group
+module hardening (audit regressions) kanban fetches one full sorted page
+module hardening (audit regressions) a dropped kanban card stays in its new column
+module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+All tests passed!
 ```
 
 The planner page renders in the showcase panel:
@@ -88,8 +88,8 @@ The planner page renders in the showcase panel:
 ```console
 $ cd examples/showcase
 $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
-00:00 +0: Planner renders
-00:00 +1: All tests passed!
+Planner renders
+All tests passed!
 ```
 
 To see it, run the showcase API on port 8082 and the panel, open Planner and drag a chore from `todo` to `doing`.

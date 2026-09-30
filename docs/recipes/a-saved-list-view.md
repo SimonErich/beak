@@ -81,7 +81,7 @@ The store round trip has a package test: it saves a view through the store's for
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/table/beak_saved_views_test.dart test/src/panel/beak_saved_view_picker_test.dart
-00:01 +6: All tests passed!
+All tests passed!
 ```
 
 To try it by hand, run Foodio, open Orders, set a filter in the drawer and save it. The view appears in the `Saved views` select of the drawer, and choosing it sets the filter again.

@@ -103,7 +103,7 @@ The package tests resolve models with the analyzer, then compile and run the gen
 
 ```console
 $ cd packages/beak_serverpod_generator && dart test
-01:12 +11: All tests passed!
+All tests passed!
 ```
 
 ## Reference

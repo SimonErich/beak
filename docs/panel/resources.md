@@ -246,9 +246,9 @@ The shop tests its own resources: duplication resets the selling identities, and
 
 ```console
 $ flutter test test/shop_resource_test.dart
-00:00 +0: product duplication preserves catalog values and resets selling identities
-00:00 +1: catalog and customer forms share a structured read/create/edit layout
-00:00 +2: All tests passed!
+product duplication preserves catalog values and resets selling identities
+catalog and customer forms share a structured read/create/edit layout
+All tests passed!
 ```
 
 For a generated project, `beak prepare` prints what it found (`1 model · 1 resource class · 0 screens · 1 override`; an authored one says `screens and overrides not applicable` instead) and `beak doctor` names any resource class the authored panel does not list, as shown above.

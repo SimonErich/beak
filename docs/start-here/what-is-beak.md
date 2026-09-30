@@ -94,10 +94,10 @@ You write a schema class per table and run three commands. The rest of your time
 
 ### What Beak is not
 
-- **Not an app framework.** It builds the admin side. Your customer-facing UI is yours, in whatever you like. [An existing Flutter app](paths/existing-flutter-app.md) shows the two living in one repository.
-- **Not a no-code tool.** Everything is Dart. If nobody on the team writes Dart, Beak is the wrong tool.
-- **Not a backend-as-a-service.** The API runs in your process on your database. For a backend you already have, see [An existing backend](paths/existing-backend.md).
-- **Not mature.** It is pre-1.0, version `0.9.0` is not tagged yet, and the API is not frozen. [Upgrading](upgrading.md) lists what changed in this release, and the [changelog](https://github.com/SimonErich/beak/blob/main/CHANGELOG.md) carries a known-issues list. [Why Beak?](why-beak.md) has the longer version of when it fits.
+- Not an app framework. It builds the admin side. Your customer-facing UI is yours, in whatever you like. [An existing Flutter app](paths/existing-flutter-app.md) shows the two living in one repository.
+- Not a no-code tool. Everything is Dart. If nobody on the team writes Dart, Beak is the wrong tool.
+- Not a backend-as-a-service. The API runs in your process on your database. For a backend you already have, see [An existing backend](paths/existing-backend.md).
+- Not mature. It is pre-1.0, version `0.9.0` is not tagged yet, and the API is not frozen. [Upgrading](upgrading.md) lists what changed in this release, and the [changelog](https://github.com/SimonErich/beak/blob/main/CHANGELOG.md) carries a known-issues list. [Why Beak?](why-beak.md) has the longer version of when it fits.
 
 ## Continue reading
 

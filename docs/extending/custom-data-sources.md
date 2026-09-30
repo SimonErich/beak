@@ -108,7 +108,7 @@ The test runs the suite against it. In a `beak create` project it sits in `test/
 --8<-- "packages/beak_test/test/src/map_data_source_contract_test.dart:mapDataSourceContract"
 ```
 
-Run in a scratch project made with `beak create`, it reports `+28 ~1: All tests passed!`. The skipped test is the relation group, waiting for `relationModels`, which is the suite telling you what this source leaves out.
+Run in a scratch project made with `beak create`, it ends with `All tests passed!` and one skipped group, the relation group, waiting for `relationModels`, which is the suite telling you what this source leaves out.
 
 ## Prove it with the contract suite
 
@@ -132,8 +132,8 @@ Run in a scratch project made with `beak create`, it reports `+28 ~1: All tests 
 ```console
 $ cd packages/beak_backend
 $ dart test test/src/data/worm/worm_data_source_contract_test.dart
-00:00 +81: WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
-00:00 +82: All tests passed!
+WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
+All tests passed!
 ```
 
 A green run is your source saying it belongs. It does not say everything, because of the limits listed next.

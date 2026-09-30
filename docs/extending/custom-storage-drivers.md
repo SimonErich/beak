@@ -212,8 +212,8 @@ Cover at least these cases for a new driver: a malformed key is rejected before 
 ```console
 $ cd packages/beak_storage_ftp
 $ dart test test/ftp_storage_driver_test.dart
-00:00 +16: registerFtpStorage the factory rejects foreign configs
-00:00 +17: All tests passed!
+registerFtpStorage the factory rejects foreign configs
+All tests passed!
 ```
 
 Then boot the real host with the environment set and check `resolveStorageDriver()`, as the probe above does. A driver that passes its unit tests and was never registered fails there.

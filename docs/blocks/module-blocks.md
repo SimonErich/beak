@@ -122,14 +122,14 @@ Each row is a plan. `featuredField` marks the recommended one, `yearlyPriceField
 
 ## Rules and limits
 
-- **A window of rows.** Chat, inbox, FAQ, pricing, file manager, kanban and calendar read one page of at most 200 rows (`BeakPagination.maxPerPage`). More matching rows are not there, and a line beneath the block says how many are shown. The query-bound blocks use the page size of the query you give them, and a bare `model.query()` means 25.
-- **`filter:` narrows a model-bound block.** Without it the block shows every row of the model the user may read. Pass a filter built from generated field references to show a subset.
-- **A failed read is shown.** Chat, inbox, file manager, pricing, FAQ and the media blocks put an error line above what they drew before and offer Retry, so an empty block means an empty result. The line carries the server's message for a domain failure and the panel's generic sentence for a configuration, storage, internal or transport one. Profile and invoice show "Loading…" until the record arrives, then the same error line with Retry when it cannot be read.
-- **Refetched after a write.** Chat, inbox, file manager, pricing, FAQ, kanban, calendar and the media blocks fetch again when a write to their table is confirmed through this panel's data source. Profile and invoice do not: the profile shows what it saved, and the invoice header and totals stay as loaded until the screen is built again. A message added in another window appears after the next fetch: on a `refreshPolicy` tick, or when the screen is built again.
-- **Two blocks write.** Chat creates and the profile updates, both as single-operation graph commits, so a model that only accepts graph commits works too. Chat shows a refused send in a toast. See [How data flows](../concepts/how-data-flows.md).
-- **English defaults.** Each block's `label` defaults to an English word (`'Chat'`, `'Inbox'`, `'Files'`, `'Pricing'`, `'Profile'`, `'Help'`) that screen readers announce. The gallery, carousel, timeline and the invoice's groups ("Details", "From", "To", "Totals", "Line items") and loading text follow the panel's language. Visible English strings you cannot override: "Select a message" in the inbox, "Get Started" on a plan without a `ctaField`, and the text the obers_ui modules draw themselves: the chat composer's "Type a message…", the pricing table's "Monthly" and "Yearly" toggle and "Recommended" badge, and the profile page's field names.
-- **Values are read leniently.** Numbers and dates are parsed from whatever the wire carries. A chat message without a readable time is stamped with the moment the block builds; a timeline or calendar row without one is left out.
-- **Bindings are columns, not fields.** These blocks take `BeakColumn`s (`MessageModel.body.column`) and `BeakRelationship`s, not the typed field references the table block uses, so a related field path is not available.
+- A window of rows. Chat, inbox, FAQ, pricing, file manager, kanban and calendar read one page of at most 200 rows (`BeakPagination.maxPerPage`). More matching rows are not there, and a line beneath the block says how many are shown. The query-bound blocks use the page size of the query you give them, and a bare `model.query()` means 25.
+- `filter:` narrows a model-bound block. Without it the block shows every row of the model the user may read. Pass a filter built from generated field references to show a subset.
+- A failed read is shown. Chat, inbox, file manager, pricing, FAQ and the media blocks put an error line above what they drew before and offer Retry, so an empty block means an empty result. The line carries the server's message for a domain failure and the panel's generic sentence for a configuration, storage, internal or transport one. Profile and invoice show "Loading…" until the record arrives, then the same error line with Retry when it cannot be read.
+- Refetched after a write. Chat, inbox, file manager, pricing, FAQ, kanban, calendar and the media blocks fetch again when a write to their table is confirmed through this panel's data source. Profile and invoice do not: the profile shows what it saved, and the invoice header and totals stay as loaded until the screen is built again. A message added in another window appears after the next fetch: on a `refreshPolicy` tick, or when the screen is built again.
+- Two blocks write. Chat creates and the profile updates, both as single-operation graph commits, so a model that only accepts graph commits works too. Chat shows a refused send in a toast. See [How data flows](../concepts/how-data-flows.md).
+- English defaults. Each block's `label` defaults to an English word (`'Chat'`, `'Inbox'`, `'Files'`, `'Pricing'`, `'Profile'`, `'Help'`) that screen readers announce. The gallery, carousel, timeline and the invoice's groups ("Details", "From", "To", "Totals", "Line items") and loading text follow the panel's language. Visible English strings you cannot override: "Select a message" in the inbox, "Get Started" on a plan without a `ctaField`, and the text the obers_ui modules draw themselves: the chat composer's "Type a message…", the pricing table's "Monthly" and "Yearly" toggle and "Recommended" badge, and the profile page's field names.
+- Values are read leniently. Numbers and dates are parsed from whatever the wire carries. A chat message without a readable time is stamped with the moment the block builds; a timeline or calendar row without one is left out.
+- Bindings are columns, not fields. These blocks take `BeakColumn`s (`MessageModel.body.column`) and `BeakRelationship`s, not the typed field references the table block uses, so a related field path is not available.
 
 ## Verify it
 
@@ -139,12 +139,12 @@ Every module block is built by the Aviary's pages, and the page tests fail on an
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:05 +7: Inbox renders
-00:05 +8: Files renders
-00:06 +9: Media renders
-00:07 +10: Documents renders
-00:07 +11: FAQ renders
-00:08 +12: All tests passed!
+Inbox renders
+Files renders
+Media renders
+Documents renders
+FAQ renders
+All tests passed!
 ```
 
 The fixture rows come from `BeakRecordFactory`, so the test knows every column. It does not send a chat message or edit a profile. To watch those, run the panel against the API as the [Showcase](../examples/showcase.md) page describes, and use the composer and the profile fields.

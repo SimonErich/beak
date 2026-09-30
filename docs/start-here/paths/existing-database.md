@@ -134,12 +134,12 @@ migrated  20260929_164522_adopt_existing_schema
 
 ## Rules and limits
 
-- **Integer keys work.** A table whose key is a serial integer is written with `late final int? id;`. The server mints a string id only for a string key, leaves an integer one to the database and returns what it assigned, and takes numeric ids on get, update and delete. This is tested on SQLite and on a real Postgres, where the created row's key comes back through `RETURNING`.
-- **Native Postgres enums read and write as text.** A query returns the enum label as a string, and a label sent on create, update or in a graph commit is stored in the enum column. Both are tested against a real Postgres.
-- **Names are mapped, not translated.** A `total_cents` column becomes `totalCents` in Dart and stays `total_cents` in SQL and in the API. The panel label comes from the field name; set `@Column(label:)` where it reads badly.
-- **Schema drift is your call.** `beak doctor` compares the classes to the live database and reports each difference. In adopt mode you close a gap with `beak make:migration Name --from-drift`; in external mode you fix the class or the other tool's migration.
-- **`--only` and `--except` take comma-separated table names** (`--only customers,products`), and `--schema` picks a Postgres schema other than `public`. Without them every table is read.
-- **Running introspect again never takes your edits back.** A schema file that already holds exactly what would be written is reported as `unchanged`. One you edited stops the run, which names the file and writes nothing; `--force` replaces it, and `--only` or `--except` leaves the table out. A baseline migration that already exists is left alone.
+- Integer keys work. A table whose key is a serial integer is written with `late final int? id;`. The server mints a string id only for a string key, leaves an integer one to the database and returns what it assigned, and takes numeric ids on get, update and delete. This is tested on SQLite and on a real Postgres, where the created row's key comes back through `RETURNING`.
+- Native Postgres enums read and write as text. A query returns the enum label as a string, and a label sent on create, update or in a graph commit is stored in the enum column. Both are tested against a real Postgres.
+- Names are mapped, not translated. A `total_cents` column becomes `totalCents` in Dart and stays `total_cents` in SQL and in the API. The panel label comes from the field name; set `@Column(label:)` where it reads badly.
+- Schema drift is your call. `beak doctor` compares the classes to the live database and reports each difference. In adopt mode you close a gap with `beak make:migration Name --from-drift`; in external mode you fix the class or the other tool's migration.
+- `--only` and `--except` take comma-separated table names (`--only customers,products`), and `--schema` picks a Postgres schema other than `public`. Without them every table is read.
+- Running introspect again never takes your edits back. A schema file that already holds exactly what would be written is reported as `unchanged`. One you edited stops the run, which names the file and writes nothing; `--force` replaces it, and `--only` or `--except` leaves the table out. A baseline migration that already exists is left alone.
 
 ## Verify it
 

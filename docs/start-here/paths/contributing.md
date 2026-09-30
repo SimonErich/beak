@@ -70,18 +70,18 @@ Unlink before you commit or tag a release: the tracked lockfiles of a few exampl
 
 ## Where to pick up work
 
-- **The known-issues list.** The 0.9.0 entry of `CHANGELOG.md` has a `Known issues` section. It is the honest backlog: each item is a bug or a gap somebody hit, written with the file it lives in.
-- **Docs.** Every page under `docs/` carries a `status`. `dart run tool/check_docs.dart --release` fails while any page is still a `draft`, and lists them. [Writing docs](../../contributing/writing-docs.md) says how a page moves to `stable`.
-- **Tests and examples.** The coverage floors and the example checks are in [Writing tests](../../contributing/writing-tests.md).
-- **Issues.** Open one on GitHub before a large change. The bug template asks for the affected package and what happened.
+- The known-issues list. The 0.9.0 entry of `CHANGELOG.md` has a `Known issues` section. It is the honest backlog: each item is a bug or a gap somebody hit, written with the file it lives in.
+- Docs. Every page under `docs/` carries a `status`. `dart run tool/check_docs.dart --release` fails while any page is still a `draft`, and lists them. [Writing docs](../../contributing/writing-docs.md) says how a page moves to `stable`.
+- Tests and examples. The coverage floors and the example checks are in [Writing tests](../../contributing/writing-tests.md).
+- Issues. Open one on GitHub before a large change. The bug template asks for the affected package and what happened.
 
 ## Rules and limits
 
-- **Do not send changes to the vendored worm packages.** `packages/worm*` are consumed as path dependencies and are not in the Melos gate. Report those upstream. The repository still runs their suites with `melos run test-worm`.
-- **Melos 7 does not bootstrap this repository.** It reads its configuration from `pubspec.yaml`, and this repo keeps it in `melos.yaml`.
-- **No Material, no `dynamic`, no `as`, no `StatefulWidget`.** [Code guardrails](../../contributing/code-guardrails.md) lists each rule and the tool that enforces it.
-- **Service-backed suites are separate from the gate.** `melos run up`, `melos run test-e2e` and `melos run test-worm` need Docker and run in CI after the four commands. A pull request should not need Docker to go green.
-- **Generated files are committed.** After a change to the generators, run `beak prepare` in the examples (the `check-examples` guard tells you which). After a change to `docs/`, a file a page quotes or `CHANGELOG.md`, run `melos run agent-docs` and commit the bundle.
+- Do not send changes to the vendored worm packages. `packages/worm*` are consumed as path dependencies and are not in the Melos gate. Report those upstream. The repository still runs their suites with `melos run test-worm`.
+- Melos 7 does not bootstrap this repository. It reads its configuration from `pubspec.yaml`, and this repo keeps it in `melos.yaml`.
+- No Material, no `dynamic`, no `as`, no `StatefulWidget`. [Code guardrails](../../contributing/code-guardrails.md) lists each rule and the tool that enforces it.
+- Service-backed suites are separate from the gate. `melos run up`, `melos run test-e2e` and `melos run test-worm` need Docker and run in CI after the four commands. A pull request should not need Docker to go green.
+- Generated files are committed. After a change to the generators, run `beak prepare` in the examples (the `check-examples` guard tells you which). After a change to `docs/`, a file a page quotes or `CHANGELOG.md`, run `melos run agent-docs` and commit the bundle.
 
 ## Verify it
 

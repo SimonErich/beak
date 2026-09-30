@@ -175,15 +175,15 @@ The block turns `truncated` into a line above the chart: "Only the first groups 
 
 ## Rules and limits
 
-- **Authorization is the server's.** Before it computes anything, the server checks view permission on the table, read access to the grouping field and to every summed field, and every field named in the spec's filter or a measure's filter, relationship paths included. Row policy and soft-delete scope are added to the shared population, so they apply to every measure. A summary can never count a row a list would not show.
-- **Which sources can answer.** `WormDataSource` computes summaries, and the panel's HTTP source forwards to it. The in-memory source in `beak_test` and the Serverpod bridge do not implement `BeakSummaryDataSource`, so a summary over them shows an error card with a Retry button and the panel's generic sentence ("The operation could not be completed."): the source's own "does not support summaries" message is a configuration failure, and the panel never prints those. In tests, give your fake source the interface, as the package tests do.
-- **Bounds.** 1 to 8 measures with unique keys of at most 80 characters, and a `limit` from 1 to 500 (default 100). Outside those, the spec constructor throws a `BeakConfigurationException` and a hand-written request gets a 422.
-- **Summed fields are numeric root fields.** `BeakSummaryMeasure.sum` takes an `int` or `double` field of the summarized model. `BeakSummaryMeasure.sumDecimal` takes a `BeakDecimal` (money or exact-decimal) field and adds its stored integer units on the server, which is exact. A field reached through a relationship is rejected when the measure is built, and a text field does not type-check. In code, `row.decimalOf(measure)` reads a decimal sum back as a `BeakDecimal`. A summary block shows the number `valueOf` returns, which for a decimal sum is a count of minor units, so give its value `minorUnits: true` and the field's `scale`.
-- **Group by scalars and dates, not instants.** A date column groups by calendar date. A timestamp column groups by exact instant, which gives one group per distinct timestamp, and the API never buckets instants in a guessed timezone. Group by the date column, or by an enum. JSON and custom columns cannot be grouped, and neither can a related field.
-- **`groupBy` and filters differ on relationships.** The grouping field must belong to the model. A filter may reach across relationships: Foodio's kitchen list filters order items by their order's delivery date.
-- **`capacity` needs its parameter.** `presentation: BeakSummaryPresentation.capacity` without a `capacity:` throws a `BeakConfigurationException` that names the summary by its title and asks for the used and total measures. It happens when the block renders, and nothing asserts it earlier, so a widget test is where you find it.
-- **English UI text.** The truncation line ("Only the first groups are shown...") and the `presentation` suffix of the toggle's screen-reader name are English whatever the panel locale. The toggle's own "Chart view" and "Table view" labels follow the panel's language.
-- **The palette.** Without a color, series and segments cycle through the theme's primary, warning, info, success and error colors. Charts built by `BeakChartBlock` use the theme's chart palette instead, so a summary and a chart on one page can disagree. Set `color` on the values, or in `groupStyle`, when they must match ([Colors and tokens](../theming/colors-and-tokens.md)).
+- Authorization is the server's. Before it computes anything, the server checks view permission on the table, read access to the grouping field and to every summed field, and every field named in the spec's filter or a measure's filter, relationship paths included. Row policy and soft-delete scope are added to the shared population, so they apply to every measure. A summary can never count a row a list would not show.
+- Which sources can answer. `WormDataSource` computes summaries, and the panel's HTTP source forwards to it. The in-memory source in `beak_test` and the Serverpod bridge do not implement `BeakSummaryDataSource`, so a summary over them shows an error card with a Retry button and the panel's generic sentence ("The operation could not be completed."): the source's own "does not support summaries" message is a configuration failure, and the panel never prints those. In tests, give your fake source the interface, as the package tests do.
+- Bounds. 1 to 8 measures with unique keys of at most 80 characters, and a `limit` from 1 to 500 (default 100). Outside those, the spec constructor throws a `BeakConfigurationException` and a hand-written request gets a 422.
+- Summed fields are numeric root fields. `BeakSummaryMeasure.sum` takes an `int` or `double` field of the summarized model. `BeakSummaryMeasure.sumDecimal` takes a `BeakDecimal` (money or exact-decimal) field and adds its stored integer units on the server, which is exact. A field reached through a relationship is rejected when the measure is built, and a text field does not type-check. In code, `row.decimalOf(measure)` reads a decimal sum back as a `BeakDecimal`. A summary block shows the number `valueOf` returns, which for a decimal sum is a count of minor units, so give its value `minorUnits: true` and the field's `scale`.
+- Group by scalars and dates, not instants. A date column groups by calendar date. A timestamp column groups by exact instant, which gives one group per distinct timestamp, and the API never buckets instants in a guessed timezone. Group by the date column, or by an enum. JSON and custom columns cannot be grouped, and neither can a related field.
+- `groupBy` and filters differ on relationships. The grouping field must belong to the model. A filter may reach across relationships: Foodio's kitchen list filters order items by their order's delivery date.
+- `capacity` needs its parameter. `presentation: BeakSummaryPresentation.capacity` without a `capacity:` throws a `BeakConfigurationException` that names the summary by its title and asks for the used and total measures. It happens when the block renders, and nothing asserts it earlier, so a widget test is where you find it.
+- English UI text. The truncation line ("Only the first groups are shown...") and the `presentation` suffix of the toggle's screen-reader name are English whatever the panel locale. The toggle's own "Chart view" and "Table view" labels follow the panel's language.
+- The palette. Without a color, series and segments cycle through the theme's primary, warning, info, success and error colors. Charts built by `BeakChartBlock` use the theme's chart palette instead, so a summary and a chart on one page can disagree. Set `color` on the values, or in `groupStyle`, when they must match ([Colors and tokens](../theming/colors-and-tokens.md)).
 
 ## Verify it
 
@@ -192,11 +192,11 @@ The presentation tests build every kind of summary against a source that answers
 ```console
 $ cd packages/beak_frontend
 $ flutter test --no-pub test/src/panel/beak_summary_presentation_test.dart
-00:00 +0: conditional donut and accessible table share one authoritative result
-00:01 +1: group labels come from the summarised field, declared once
-00:01 +2: capacity compares the used and total measures by object
-00:01 +3: a capacity presentation without a capacity names the mistake
-00:01 +4: All tests passed!
+conditional donut and accessible table share one authoritative result
+group labels come from the summarised field, declared once
+capacity compares the used and total measures by object
+a capacity presentation without a capacity names the mistake
+All tests passed!
 ```
 
 The server side is covered by `packages/beak_backend/test/src/data/worm/summary_test.dart` and `summary_sqlite_test.dart`. To see the real numbers, run the Aviary API and use the `curl` requests above.

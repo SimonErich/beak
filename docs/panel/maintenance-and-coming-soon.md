@@ -148,11 +148,11 @@ The package tests mount both routes, read their titles and check both redirects.
 
 ```console
 $ flutter test test/src/panel/beak_screen_routing_test.dart --plain-name maintenance
-00:00 +0: error + maintenance routes 403 and 500 render typed error pages
-00:00 +1: error + maintenance routes maintenance + coming-soon mount when configured
-00:00 +2: error + maintenance routes redirectTo sends every other route to the chosen page
-00:00 +3: error + maintenance routes a coming-soon redirect wins over the sign-in wall
-00:00 +4: All tests passed!
+error + maintenance routes 403 and 500 render typed error pages
+error + maintenance routes maintenance + coming-soon mount when configured
+error + maintenance routes redirectTo sends every other route to the chosen page
+error + maintenance routes a coming-soon redirect wins over the sign-in wall
+All tests passed!
 ```
 
 The generated path, in a scratch project made with `beak create demo --no-pub --beak-path <repo>` after `beak eject panel`, the edit above and `beak prepare`:

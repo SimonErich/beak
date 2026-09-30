@@ -61,7 +61,7 @@ The parser and the review have package tests: quotes, newlines, typed cells, inv
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/form/beak_import_view_test.dart
-00:00 +11: All tests passed!
+All tests passed!
 ```
 
 For the import on your own page, mount it in a widget test with an in-memory source and paste a CSV. The shop's operations screen was driven this way with the CSV above: the two rows were previewed, imported, and read back from the source as `Beans` and `Filters`. To try it by hand, run the shop (API on port 8080), open Operations, and paste the CSV into the category import.

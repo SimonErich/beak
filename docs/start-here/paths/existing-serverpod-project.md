@@ -78,12 +78,12 @@ Both paths share Beak's login, registration and recovery screens over Serverpod'
 
 ## Rules and limits
 
-- **One panel takes one path.** A `BeakPanel` given a `dataSource:` (the admin path) routes every resource to it. Bridge resources bring their own source. Use two panels or pick one.
-- **The admin app needs a policy.** There is no allow-all default on that path: the engine is built with a `BeakPolicies` you write, deny by default.
-- **Serverpod stays the schema owner.** Never run `beak migrate` against Serverpod's database from a Beak app of its own, and never give Beak the database URL of a Serverpod project.
-- **Versions do not float.** The admin app tests against Serverpod 4.0.3 only. The break between the 4.0 beta and 4.0.x is on [Version compatibility](../../serverpod/versions.md).
-- **Uploads are not available** on either path, so a file or image column on a Serverpod-owned table has nowhere to go.
-- **The bridge is the older and narrower path.** It is covered by unit tests and a generator run against fixtures, not by a running Serverpod server.
+- One panel takes one path. A `BeakPanel` given a `dataSource:` (the admin path) routes every resource to it. Bridge resources bring their own source. Use two panels or pick one.
+- The admin app needs a policy. There is no allow-all default on that path: the engine is built with a `BeakPolicies` you write, deny by default.
+- Serverpod stays the schema owner. Never run `beak migrate` against Serverpod's database from a Beak app of its own, and never give Beak the database URL of a Serverpod project.
+- Versions do not float. The admin app tests against Serverpod 4.0.3 only. The break between the 4.0 beta and 4.0.x is on [Version compatibility](../../serverpod/versions.md).
+- Uploads are not available on either path, so a file or image column on a Serverpod-owned table has nowhere to go.
+- The bridge is the older and narrower path. It is covered by unit tests and a generator run against fixtures, not by a running Serverpod server.
 
 ## Verify it
 

@@ -55,7 +55,7 @@ Both halves are covered by frontend package tests: the review shows `Title: Befo
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/form/beak_import_view_test.dart --plain-name 'bulk'
-00:00 +2: All tests passed!
+All tests passed!
 ```
 
 To try it by hand, run the shop, open Products, tick two rows and choose `Stop selling`. The review lists both, and after `Update 2 records` and closing the dialog, the `Active` column shows the new value on both rows.

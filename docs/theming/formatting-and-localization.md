@@ -258,16 +258,16 @@ The shop's receivables card is a widget of the last kind. It takes loading, erro
 
 ## Rules and limits
 
-- **Set `formatting:` explicitly.** Without it timestamps are UTC and plain numbers are unformatted, while semantic fields already use a default policy.
-- **Screen and file can disagree.** The policy never sends the device's zone, so a panel on device time exports UTC unless `timeZoneOffsetMinutes` is set.
-- **An offset is not a time zone.** There is no daylight saving and no IANA zone.
-- **The locale does not choose patterns.** Write `datePattern` yourself.
-- **`.formatted` on a semantic field formats the decoded value.** A `BeakDecimal` money field shown with `.formatted(BeakValueFormat.currency)` prints an amount of `1234.56`, not `123456`, in the currency its semantic names, exactly as it does without the override. A `number` format prints the decimal, not the integer units it is stored as. The shop's invoice list uses `.formatted(..., label: 'Amount due')` to relabel `total`. Use `.currency(minorUnits: true)` on a plain integer column that holds cents.
-- **One empty value for screen and export.** Changing it changes both.
-- **Formula-looking CSV cells change.** The exporter quotes commas, quotes and line breaks, and puts a `'` in front of a cell that starts with `=`, `+`, `-` or `@` (also behind leading spaces), so a spreadsheet reads it as text instead of running it. A cell that is only a number, such as `-5`, is left alone. That cell differs from what the screen shows, by one character.
-- **English and German only.** Every other language falls back to English until you supply a subclass.
-- **The messages a form session and the import view write themselves stay English** in a German panel; the import view's labels, buttons and hints are translated. The list toolbar, the filter sheet, the saved-views dialog and the record actions menu are translated, and so are built-in rule messages.
-- **No test covers right-to-left languages.**
+- Set `formatting:` explicitly. Without it timestamps are UTC and plain numbers are unformatted, while semantic fields already use a default policy.
+- Screen and file can disagree. The policy never sends the device's zone, so a panel on device time exports UTC unless `timeZoneOffsetMinutes` is set.
+- An offset is not a time zone. There is no daylight saving and no IANA zone.
+- The locale does not choose patterns. Write `datePattern` yourself.
+- `.formatted` on a semantic field formats the decoded value. A `BeakDecimal` money field shown with `.formatted(BeakValueFormat.currency)` prints an amount of `1234.56`, not `123456`, in the currency its semantic names, exactly as it does without the override. A `number` format prints the decimal, not the integer units it is stored as. The shop's invoice list uses `.formatted(..., label: 'Amount due')` to relabel `total`. Use `.currency(minorUnits: true)` on a plain integer column that holds cents.
+- One empty value for screen and export. Changing it changes both.
+- Formula-looking CSV cells change. The exporter quotes commas, quotes and line breaks, and puts a `'` in front of a cell that starts with `=`, `+`, `-` or `@` (also behind leading spaces), so a spreadsheet reads it as text instead of running it. A cell that is only a number, such as `-5`, is left alone. That cell differs from what the screen shows, by one character.
+- English and German only. Every other language falls back to English until you supply a subclass.
+- The messages a form session and the import view write themselves stay English in a German panel; the import view's labels, buttons and hints are translated. The list toolbar, the filter sheet, the saved-views dialog and the record actions menu are translated, and so are built-in rule messages.
+- No test covers right-to-left languages.
 
 ## Verify it
 
@@ -276,15 +276,15 @@ The policy, its JSON and the German table and delete flows have tests:
 ```console
 $ cd packages/beak_core
 $ dart test test/src/columns/beak_format_policy_test.dart test/src/columns/beak_format_policy_boundaries_test.dart
-00:00 +12: All tests passed!
+All tests passed!
 $ cd ../beak_frontend
 $ flutter test --no-pub test/src/localization/beak_localizations_test.dart test/src/panel/beak_panel_localization_test.dart test/src/form/date_input_format_test.dart test/src/form/declarative_layout_and_formatting_test.dart
-00:02 +28: All tests passed!
+All tests passed!
 $ flutter test --no-pub test/src/table/beak_data_table_test.dart --plain-name "table chrome"
-00:00 +2: All tests passed!
+All tests passed!
 $ cd ../../examples/clean_beak_config
 $ flutter test --no-pub test/shop_widget_test.dart --plain-name "exact euro prices"
-00:01 +1: All tests passed!
+All tests passed!
 ```
 
 To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button, the table footer and the `Back` button on a form are German, the column headers are not, because they are your labels. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.

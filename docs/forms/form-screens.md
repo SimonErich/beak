@@ -182,7 +182,7 @@ cd examples/clean_beak_config
 flutter test test/fulfillment_form_test.dart test/order_form_test.dart test/invoice_form_test.dart
 ```
 
-The second command runs six tests and ends with `All tests passed!`. To see a form rather than test one, run the shop (`examples/clean_beak_config`, API on port 8080) and open Customers, then a customer, then Edit.
+The second command ends with `All tests passed!`. To see a form rather than test one, run the shop (`examples/clean_beak_config`, API on port 8080) and open Customers, then a customer, then Edit.
 
 ## Reference
 

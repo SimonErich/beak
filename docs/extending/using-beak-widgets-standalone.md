@@ -186,10 +186,10 @@ Pump the widget the way Beak does: inside `OiApp`, over `InMemoryBeakDataSource`
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/panel/beak_panel_test.dart --plain-name "host router owns authentication"
-00:00 +0: generated routes host router owns authentication and the app root
-00:00 +1: All tests passed!
+generated routes host router owns authentication and the app root
+All tests passed!
 $ flutter test test/src/blocks/beak_metric_block_test.dart
-00:00 +23: All tests passed!
+All tests passed!
 ```
 
 For the second-entrypoint route, `beak doctor` checks that the entrypoint lists every resource class and that the generated files are current:

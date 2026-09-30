@@ -76,9 +76,9 @@ Both halves are covered by package tests: the column (labels, colours, default, 
 
 ```console
 $ cd packages/beak_core && dart test test/src/columns/beak_enum_column_test.dart
-00:00 +11: All tests passed!
+All tests passed!
 $ cd packages/beak_frontend && flutter test test/src/table/column_cell_renderer_test.dart --plain-name 'enum badges'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 In your own project, `beak prepare` followed by a look at the generated `*.beak.dart` shows whether the labels and colours arrived. A missing one means the annotation is on the wrong field or its map keys belong to a different enum.

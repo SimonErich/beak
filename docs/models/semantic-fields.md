@@ -145,14 +145,14 @@ The editor renders the child fields recursively, and the child rules run in the 
 
 ## Rules and limits
 
-- **The semantic must fit the type.** `email()` on an `int`, or `money()` on a `double`, is an error from `beak prepare` naming the field.
-- **Money is never a `double`.** A `double` with a `€` prefix is still a floating-point number. Use `BeakDecimal` with `money` for anything that has to add up.
-- **The wire carries the stored form.** Over the REST route a money amount is integer units (`490`, not `"4.90"`), a duration is microseconds, and a list or an object is JSON text. The panel does the conversion for you, a script has to do it itself.
-- **Defaults apply to omissions.** A default fills a value that is left out of a create, and the form starts on it. An explicit `null` stays `null`, and a required field then fails.
-- **Display never converts storage.** Formatting changes what is shown and typed. It does not touch the stored value, the query value or the export of raw units.
-- **Scale is 0 to 12.** `BeakSemantic` asserts it.
-- **`placement validate:` is not a server rule.** A `validate:` or `validators:` callback on a screen runs in the form only. Put constraints that every caller must obey on the field or in `validationRules`.
-- **`percentage` and `quantity` do not change the column.** They are labels on a number, so `BeakMin` and `BeakMax` still do the bounding.
+- The semantic must fit the type. `email()` on an `int`, or `money()` on a `double`, is an error from `beak prepare` naming the field.
+- Money is never a `double`. A `double` with a `€` prefix is still a floating-point number. Use `BeakDecimal` with `money` for anything that has to add up.
+- The wire carries the stored form. Over the REST route a money amount is integer units (`490`, not `"4.90"`), a duration is microseconds, and a list or an object is JSON text. The panel does the conversion for you, a script has to do it itself.
+- Defaults apply to omissions. A default fills a value that is left out of a create, and the form starts on it. An explicit `null` stays `null`, and a required field then fails.
+- Display never converts storage. Formatting changes what is shown and typed. It does not touch the stored value, the query value or the export of raw units.
+- Scale is 0 to 12. `BeakSemantic` asserts it.
+- `placement validate:` is not a server rule. A `validate:` or `validators:` callback on a screen runs in the form only. Put constraints that every caller must obey on the field or in `validationRules`.
+- `percentage` and `quantity` do not change the column. They are labels on a number, so `BeakMin` and `BeakMax` still do the bounding.
 
 ## Verify it
 

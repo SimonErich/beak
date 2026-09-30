@@ -117,12 +117,12 @@ None of them migrate your data, and none touch a table they did not create.
 
 ## Rules and limits
 
-- **Ports listen on the loopback interface only.** Compose publishes each on `127.0.0.1`, because the passwords are `beak` and `beaksecret`. Nothing on your network can reach the stack, and neither can a container on another machine or a phone testing the panel over Wi-Fi. To reach it from elsewhere, drop the `127.0.0.1:` prefix from that mapping and change the passwords first.
-- **`up` alone leaves no bucket.** Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
-- **Three images are unpinned.** MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
-- **`e2e` also means slow.** Three CLI suites run on SQLite and need no container. They carry the tag because a real `flutter pub get` is too slow for the main gate.
-- **Run `dart run packages/beak_cli/bin/beak.dart` one at a time.** From a checkout, two of them started together can both build the native-assets hook and one fails with `PathNotFoundException ... .dart_tool/lib/libsqlite3.so`. It comes from `dart run` building in the shared checkout: six parallel runs of a `dart pub global activate --source path` executable all succeeded, so an installed `beak` is not affected.
-- **Project name follows the directory.** The compose project is named `beak` because the checkout folder is. A checkout in another folder gets other container and volume names.
+- Ports listen on the loopback interface only. Compose publishes each on `127.0.0.1`, because the passwords are `beak` and `beaksecret`. Nothing on your network can reach the stack, and neither can a container on another machine or a phone testing the panel over Wi-Fi. To reach it from elsewhere, drop the `127.0.0.1:` prefix from that mapping and change the passwords first.
+- `up` alone leaves no bucket. Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
+- Three images are unpinned. MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
+- `e2e` also means slow. Three CLI suites run on SQLite and need no container. They carry the tag because a real `flutter pub get` is too slow for the main gate.
+- Run `dart run packages/beak_cli/bin/beak.dart` one at a time. From a checkout, two of them started together can both build the native-assets hook and one fails with `PathNotFoundException ... .dart_tool/lib/libsqlite3.so`. It comes from `dart run` building in the shared checkout: six parallel runs of a `dart pub global activate --source path` executable all succeeded, so an installed `beak` is not affected.
+- Project name follows the directory. The compose project is named `beak` because the checkout folder is. A checkout in another folder gets other container and volume names.
 
 ## Verify it
 
@@ -144,7 +144,7 @@ melos run test-e2e
 With the stack up, each suite ends in a pass. Without it, each one skips itself with an `is unreachable` message and ends in `All tests skipped.`.
 
 ```text
-00:00 +2: All tests passed!
+All tests passed!
 ```
 
 The count differs per suite. `round_trip_test.dart` takes about 40 seconds on its own, because it introspects a schema, generates code and runs the migrations.

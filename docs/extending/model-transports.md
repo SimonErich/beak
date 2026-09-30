@@ -265,9 +265,9 @@ Also cover a read-only account, a permission change during the session, a failed
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/panel/model_configuration_test.dart
-00:00 +6: an explicit panel source overrides bound transports for tests
-00:00 +7: fallback sources serve authorized dashboard-only tables
-00:00 +8: All tests passed!
+an explicit panel source overrides bound transports for tests
+fallback sources serve authorized dashboard-only tables
+All tests passed!
 ```
 
 ## Reference

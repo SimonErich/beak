@@ -130,20 +130,20 @@ The table, its filter bar and the shop's product list have tests that run withou
 
 ```console
 $ flutter test test/src/table/beak_data_table_test.dart test/src/table/resource_filters_test.dart test/src/table/beak_table_view_model_test.dart --reporter expanded
-00:00 +0: test/src/table/resource_filters_test.dart: derived enum filters have one typed control on a resource
-00:01 +27: test/src/table/beak_data_table_test.dart: cells are read only a double tap on a cell opens no editor that could blank it
-00:01 +29: test/src/table/beak_data_table_test.dart: server-side operations tapping a sortable header emits a replaced BeakSort
-00:01 +30: test/src/table/beak_data_table_test.dart: server-side operations pagination emits the requested BeakPagination
-00:01 +31: test/src/table/beak_data_table_test.dart: server-side operations changing the page size refetches from page one
-00:03 +40: All tests passed!
+test/src/table/resource_filters_test.dart: derived enum filters have one typed control on a resource
+test/src/table/beak_data_table_test.dart: cells are read only a double tap on a cell opens no editor that could blank it
+test/src/table/beak_data_table_test.dart: server-side operations tapping a sortable header emits a replaced BeakSort
+test/src/table/beak_data_table_test.dart: server-side operations pagination emits the requested BeakPagination
+test/src/table/beak_data_table_test.dart: server-side operations changing the page size refetches from page one
+All tests passed!
 ```
 
 And the shop's product list against an in-memory source, from `examples/clean_beak_config`:
 
 ```console
 $ flutter test test/shop_widget_test.dart --reporter expanded
-00:01 +1: the product list shows exact euro prices
-00:03 +7: All tests passed!
+the product list shows exact euro prices
+All tests passed!
 ```
 
 ## Reference

@@ -82,9 +82,9 @@ The shop's overview renders its metrics and tables against an in-memory source. 
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/shop_widget_test.dart --plain-name 'shop overview'
-00:00 +1: All tests passed!
+All tests passed!
 $ flutter test test/custom_shop_test.dart --plain-name 'custom billing widget'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 ## Continue reading

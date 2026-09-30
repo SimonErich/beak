@@ -198,26 +198,26 @@ A panel that reads through an existing Serverpod client changes in three places.
 
 These compile and behave differently. Check them by hand.
 
-- **`/` no longer shows a dashboard.** It redirects to `home:` or the first visible navigation destination.
-- **The default show page is derived from the model**, with a read-only tab per to-many relationship, loaded by one query.
-- **`rules: [BeakMaxLength(n)]` now sets the column length.** A Postgres database created with the old default may show length drift in `beak doctor`. `beak make:migration --from-drift` adds columns only, so an altered length is a migration you write.
-- **`authSessions` without an `authGuard` now installs `TokenSessionAuthGuard`**, so issued tokens are validated and `/api/auth/me` works.
-- **The host clock reaches every write**, including per-record CRUD, graph commits and upload storage keys.
-- **CORS allows the `if-unmodified-since` header**, and `/readyz` answers `503` with a generic detail instead of the driver's text. `PUT` is no longer a CORS method.
-- **A backslash in `like` and `ilike` is the escape character.** `contains`, `startsWith`, `endsWith` and searches escape `%`, `_` and `\` in the term. A hand-written pattern that meant a literal backslash needs two.
-- **A page is at most 200 rows.** A request for more gets 200, and the envelope's `perPage` says so. Page through the rest, or take totals from a summary.
-- **A wrong spec is a `422`, not a `500`.** That covers an unknown table, field or relation, a dotted sort key and a non-numeric aggregate column.
-- **Dates travel as UTC**, and `BeakDateTimeValue` compares by instant.
-- **A CSV cell that would run as a formula starts with `'`.** A null cell is empty.
-- **`beak make:resource --fields price:decimal` writes a `BeakDecimal`.** It wrote a `double` before; the kind for that is now `double`.
+- `/` no longer shows a dashboard. It redirects to `home:` or the first visible navigation destination.
+- The default show page is derived from the model, with a read-only tab per to-many relationship, loaded by one query.
+- `rules: [BeakMaxLength(n)]` now sets the column length. A Postgres database created with the old default may show length drift in `beak doctor`. `beak make:migration --from-drift` adds columns only, so an altered length is a migration you write.
+- `authSessions` without an `authGuard` now installs `TokenSessionAuthGuard`, so issued tokens are validated and `/api/auth/me` works.
+- The host clock reaches every write, including per-record CRUD, graph commits and upload storage keys.
+- CORS allows the `if-unmodified-since` header, and `/readyz` answers `503` with a generic detail instead of the driver's text. `PUT` is no longer a CORS method.
+- A backslash in `like` and `ilike` is the escape character. `contains`, `startsWith`, `endsWith` and searches escape `%`, `_` and `\` in the term. A hand-written pattern that meant a literal backslash needs two.
+- A page is at most 200 rows. A request for more gets 200, and the envelope's `perPage` says so. Page through the rest, or take totals from a summary.
+- A wrong spec is a `422`, not a `500`. That covers an unknown table, field or relation, a dotted sort key and a non-numeric aggregate column.
+- Dates travel as UTC, and `BeakDateTimeValue` compares by instant.
+- A CSV cell that would run as a formula starts with `'`. A null cell is empty.
+- `beak make:resource --fields price:decimal` writes a `BeakDecimal`. It wrote a `double` before; the kind for that is now `double`.
 
 ## Rules and limits
 
-- **`beak prepare` does not touch your database.** The upgrade changes code and generated files. Run `beak migrate` only for migrations you have read.
-- **The shop example needs a fresh database.** It stores every amount as an exact `BeakDecimal`, so an older `beak.db` must be deleted, then migrated and seeded. That applies to the example, not to your project.
-- **Nothing is deprecated first.** Removed APIs are gone, not marked. There is no compatibility shim.
-- **The CLI and the packages move together.** All `beak*` packages share `0.9.0`, and `beak doctor` reports whether the CLI matches the project's Beak.
-- **A default `beak create` cannot resolve until the tag exists.** The scaffold pins `ref: v0.9.0`.
+- `beak prepare` does not touch your database. The upgrade changes code and generated files. Run `beak migrate` only for migrations you have read.
+- The shop example needs a fresh database. It stores every amount as an exact `BeakDecimal`, so an older `beak.db` must be deleted, then migrated and seeded. That applies to the example, not to your project.
+- Nothing is deprecated first. Removed APIs are gone, not marked. There is no compatibility shim.
+- The CLI and the packages move together. All `beak*` packages share `0.9.0`, and `beak doctor` reports whether the CLI matches the project's Beak.
+- A default `beak create` cannot resolve until the tag exists. The scaffold pins `ref: v0.9.0`.
 
 ## Verify it
 

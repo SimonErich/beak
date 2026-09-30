@@ -218,11 +218,11 @@ The repo's tests cover the routes, the gate, the redirect and the lock. From `pa
 
 ```console
 $ flutter test test/src/auth test/src/panel/beak_screen_routing_test.dart test/src/panel/beak_idle_lock_test.dart
-00:01 +21: a 401 from the API signs the panel out
-00:03 +46: auth routes login always mounts; register/recover follow config
-00:04 +55: idle lock the lock route renders the lock screen
-00:04 +56: idle lock the panel auto-locks after the idle timeout
-00:04 +57: All tests passed!
+a 401 from the API signs the panel out
+auth routes login always mounts; register/recover follow config
+idle lock the lock route renders the lock screen
+idle lock the panel auto-locks after the idle timeout
+All tests passed!
 ```
 
 The generated path, in a scratch project made with `beak create demo --no-pub --beak-path <repo>`, after `beak eject auth` and `beak prepare`:
@@ -239,11 +239,11 @@ Three behaviours have a test of their own. `test/src/auth/unauthorized_test.dart
 
 ```console
 $ flutter test test/src/panel/beak_idle_lock_test.dart
-00:01 +1: an idle list locks the panel
-00:02 +7: a form with unsaved changes does not hold the lock back
-00:02 +8: a full-screen form locks too
-00:02 +9: activity keeps a full-screen form open
-00:02 +10: All tests passed!
+an idle list locks the panel
+a form with unsaved changes does not hold the lock back
+a full-screen form locks too
+activity keeps a full-screen form open
+All tests passed!
 ```
 
 The second line is a normal create form with typed text: the router reaches `/lock` and no "Leave this form?" dialog opens. The third is a `fullScreen: true` create form left alone for two seconds.

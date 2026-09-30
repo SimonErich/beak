@@ -262,7 +262,7 @@ flutter test test/shop_api_test.dart --plain-name "invoice named actions"
 ```
 
 ```text
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 For your own model, the pattern in `shop_api_test.dart` is the one to copy: start `beakHost` with `DATABASE_URL` set to `sqlite::memory:`, migrate, and post plans through `BeakClient.commit`. Assert on `complete`, on `outcomes.single.error` and on a follow-up read, since a rejected save must leave the stored record as it was.

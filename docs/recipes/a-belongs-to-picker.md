@@ -81,13 +81,13 @@ The form behaviour (disabled until the customer is set, scoped options, cleared 
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/form/declarative_behavior_test.dart --plain-name 'existence rules infer picker'
-00:00 +1: All tests passed!
+All tests passed!
 $ cd ../beak_backend
 $ dart test test/src/service/shared_validation_test.dart --plain-name 'existence preflight'
-00:00 +1: All tests passed!
+All tests passed!
 $ cd ../../examples/clean_beak_config
 $ flutter test test/shop_api_test.dart --plain-name 'typed dependent choices'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 The shop's option query is typed all the way down. This is the assertion the last test makes:

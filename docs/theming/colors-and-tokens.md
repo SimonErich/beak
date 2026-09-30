@@ -105,12 +105,12 @@ The panel receives the result as `theme: gabelTheme()` and `darkTheme: gabelThem
 
 ## Rules and limits
 
-- **Names are fixed.** `BeakColor` has seven values and you cannot add one. A hue the theme lacks, such as purple, is a theme decision: pick the closest role and put the hue in that swatch.
-- **Only `BeakColor` follows the mode.** `BeakSummaryValue.color` and `BeakSummaryGroupStyle.color` take a plain `Color`, so they keep their value in dark mode. Foodio passes its `GabelLight` chart tokens there and accepts that.
-- **Charts have their own palette.** `BeakChartBlock` series come from the theme's `chart` list. Summary bars and donuts cycle `primary`, `warning`, `info`, `success` and `error` unless you give a color ([Charts](../blocks/charts.md), [Population summaries](../blocks/summaries.md)).
-- **Status is not only color.** Give every state a label, as badges do, and use the non-color cues Beak already has: a metric's change carries a sign and an arrow, and summary bars and legends take `hatched` for forecast values.
-- **Contrast is yours.** Beak resolves names to tokens and never measures contrast. Check swatches in both modes.
-- **Formatting is separate.** A number, date or currency looks the same in every theme. That is set by [BeakFormatting](formatting-and-localization.md).
+- Names are fixed. `BeakColor` has seven values and you cannot add one. A hue the theme lacks, such as purple, is a theme decision: pick the closest role and put the hue in that swatch.
+- Only `BeakColor` follows the mode. `BeakSummaryValue.color` and `BeakSummaryGroupStyle.color` take a plain `Color`, so they keep their value in dark mode. Foodio passes its `GabelLight` chart tokens there and accepts that.
+- Charts have their own palette. `BeakChartBlock` series come from the theme's `chart` list. Summary bars and donuts cycle `primary`, `warning`, `info`, `success` and `error` unless you give a color ([Charts](../blocks/charts.md), [Population summaries](../blocks/summaries.md)).
+- Status is not only color. Give every state a label, as badges do, and use the non-color cues Beak already has: a metric's change carries a sign and an arrow, and summary bars and legends take `hatched` for forecast values.
+- Contrast is yours. Beak resolves names to tokens and never measures contrast. Check swatches in both modes.
+- Formatting is separate. A number, date or currency looks the same in every theme. That is set by [BeakFormatting](formatting-and-localization.md).
 
 ## Verify it
 
@@ -119,9 +119,9 @@ Open the Aviary's Content blocks page, look at the Badges card, and press the th
 ```console
 $ cd packages/beak_frontend
 $ flutter test --no-pub test/src/table/column_cell_renderer_test.dart --plain-name "BeakColor"
-00:00 +0: enum badges use the configured BeakColor and label
-00:00 +1: every BeakColor maps onto an obers badge color
-00:00 +2: All tests passed!
+enum badges use the configured BeakColor and label
+every BeakColor maps onto an obers badge color
+All tests passed!
 ```
 
 Nothing tests Foodio's dark palette. Run Foodio, switch to dark, and look at a status badge and a chart.

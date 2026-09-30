@@ -92,9 +92,9 @@ The wizard's package tests check that a step with an empty required field blocks
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/form/beak_wizard_form_test.dart --plain-name 'blocks advancing'
-00:00 +1: All tests passed!
+All tests passed!
 $ flutter test test/src/form/beak_wizard_form_test.dart --plain-name 'advances to the next step'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 The shop's test drives its real order sections through `validateStep`, then saves through an in-process API:

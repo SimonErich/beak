@@ -61,6 +61,7 @@ The `title` equals the nav label and is unique on the site. The H1 repeats it. A
 3. Open with where the reader stands, then the new thing. Name a flaw early, with its reason and what it buys.
 4. One adjective, or a number, or a fact. Give ranges for anything estimated.
 5. Bold is for a term being defined, a file name or a label. Two or three per page.
+   In a bullet list where more than three bullets start with a bold label, remove the bold and keep the label text with its period or colon.
 6. Delete every clause the reader would not miss, including a closing sentence that praises the code above it.
 
 The gate also greps prose for these words: `seamless`, `effortless`, `powerful`, `blazing`, `robust`, `simply`, `supercharge`, `delightful`, `magic`, `revolutionary` and their forms, `just` before a verb (`just call`), two exclamation marks on a line, "unlock" plus `power`, `potential`, `value`, `magic`, `full`, `true`, `hidden` or `insights`, and the word `UseCase`, which names a layer Beak does not have. Inline code and fenced code are skipped, so a symbol that contains one of them is safe, and console output copied from a real error keeps its em-dash. Do not reword real output to satisfy the gate.
@@ -182,13 +183,13 @@ melos run agent-docs
 
 ## Rules and limits
 
-- **Voice is mostly a review matter.** The gate knows the ban list and nothing else. A page that passes it and reads like a brochure fails review.
-- **The routing check reads one section.** A link to each child has to sit between `## Which page to read` and the next `#` or `##` heading. It does not check that the links are in a table.
-- **Mermaid is not checked.** The diagrams render in the browser, so a syntax error shows up as an error box on the published page and nowhere in the gate. `mkdocs serve` shows it. A real check needs a headless browser, which is why CI does not have one.
-- **Transcripts are not compared.** Output pasted into a `bash` or `text` fence can go stale without a failure.
-- **The style guide is not on the site.** Link it by its GitHub URL. A relative `.md` link into `docs/_internal` builds with a single INFO line, even under `--strict`, and leaves a dead link on the published page.
-- **Pages in `docs/_agents` are templates.** They ship in the bundle, not on the site, and are checked by `build_agent_docs.dart`.
-- **`serve` is not the gate.** It builds without `--strict`, so a broken link shows up as a warning in the terminal and nowhere else.
+- Voice is mostly a review matter. The gate knows the ban list and nothing else. A page that passes it and reads like a brochure fails review.
+- The routing check reads one section. A link to each child has to sit between `## Which page to read` and the next `#` or `##` heading. It does not check that the links are in a table.
+- Mermaid is not checked. The diagrams render in the browser, so a syntax error shows up as an error box on the published page and nowhere in the gate. `mkdocs serve` shows it. A real check needs a headless browser, which is why CI does not have one.
+- Transcripts are not compared. Output pasted into a `bash` or `text` fence can go stale without a failure.
+- The style guide is not on the site. Link it by its GitHub URL. A relative `.md` link into `docs/_internal` builds with a single INFO line, even under `--strict`, and leaves a dead link on the published page.
+- Pages in `docs/_agents` are templates. They ship in the bundle, not on the site, and are checked by `build_agent_docs.dart`.
+- `serve` is not the gate. It builds without `--strict`, so a broken link shows up as a warning in the terminal and nowhere else.
 
 ## Verify it
 

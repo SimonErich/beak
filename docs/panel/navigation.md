@@ -207,20 +207,20 @@ Three panel tests cover the parts that are easy to get wrong: counts share the l
 
 ```console
 $ flutter test test/src/panel/beak_composed_list_test.dart --name navigation
-00:00 +0: navigation counts share permanent scopes and refresh after writes
-00:01 +1: contextual record navigation returns to the originating preset and clears on plain URL
-00:03 +2: workspace header and bottom navigation share shell routing
-00:03 +3: All tests passed!
+navigation counts share permanent scopes and refresh after writes
+contextual record navigation returns to the originating preset and clears on plain URL
+workspace header and bottom navigation share shell routing
+All tests passed!
 ```
 
 The command bar and the notification bell have their own suites:
 
 ```console
 $ flutter test test/src/panel/beak_command_bar_test.dart test/src/panel/beak_notifications_test.dart
-00:01 +17: All tests passed!
+All tests passed!
 ```
 
-The `/` fallback order, including navigation sections, is covered by `beak_home_route_test.dart` (17 tests).
+The `/` fallback order, including navigation sections, is covered by `beak_home_route_test.dart`.
 
 ## Reference
 

@@ -252,7 +252,7 @@ dart test test/foodio_money_test.dart test/foodio_behavior_test.dart test/foodio
 flutter test --concurrency=1
 ```
 
-The first command ran 43 tests, the second 101 across 16 files (2026-09-29). Both passed. The tests use isolated in-memory SQLite and never touch `foodio.sqlite`.
+Both commands pass. The tests use isolated in-memory SQLite and never touch `foodio.sqlite`.
 
 | Test file | What it proves |
 | --- | --- |

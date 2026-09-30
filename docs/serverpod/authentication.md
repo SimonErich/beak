@@ -193,7 +193,7 @@ The adapter's tests inject generated endpoint and session fakes and cover the id
 
 ```console
 $ cd packages/beak_serverpod_flutter && flutter test
-00:20 +22: All tests passed!
+All tests passed!
 $ cd examples/serverpod/bookshop_server && dart test
 $ cd examples/serverpod/bookshop_admin && flutter test
 ```

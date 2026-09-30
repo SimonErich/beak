@@ -117,8 +117,8 @@ The shop's overview is pumped against an in-memory source and must render its me
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/shop_widget_test.dart --plain-name "shop overview"
-00:00 +0: shop overview loads its operational metrics and tables
-00:01 +1: All tests passed!
+shop overview loads its operational metrics and tables
+All tests passed!
 ```
 
 The refresh policy has package tests for the timer and the resume path:
@@ -126,9 +126,9 @@ The refresh policy has package tests for the timer and the resume path:
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/data/beak_refresh_policy_test.dart --reporter expanded
-00:00 +0: one subscribed timer pauses in background and refreshes on resume
-00:00 +1: remote refresh updates a clean record and preserves dirty form edits
-00:00 +2: All tests passed!
+one subscribed timer pauses in background and refreshes on resume
+remote refresh updates a clean record and preserves dirty form edits
+All tests passed!
 ```
 
 In a scratch project, the removed override is refused, and a screen under `lib/screens/` is picked up (`beak create dash --no-pub --no-example`, then `beak prepare`):

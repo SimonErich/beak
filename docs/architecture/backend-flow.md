@@ -143,7 +143,7 @@ Untyped failures are opaque, and so are a `BeakStorageException`, whose message 
 
 ### The Handler: authorize, parse, delegate
 
-`BeakCrudHandlers` are the authorization layer, not just a router. For each request a handler consults the `BeakPolicy`, the field policy and the row scope, decodes the body into typed `beak_core` values, calls the service, and encodes the result with the fields the principal may read.
+`BeakCrudHandlers` are the authorization layer as well as the router. For each request a handler consults the `BeakPolicy`, the field policy and the row scope, decodes the body into typed `beak_core` values, calls the service, and encodes the result with the fields the principal may read.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
 --8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:create"

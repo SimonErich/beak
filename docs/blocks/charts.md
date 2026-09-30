@@ -127,15 +127,15 @@ Charts read the theme. Series and segments take their colors from the theme's ch
 
 ## Rules and limits
 
-- **A chart shows what its query returns.** The default page is 25 rows. Pass `pagination` and `sorts` in the query.
-- **No loading state.** The chart draws empty, then fills in. A [summary](summaries.md) has one.
-- **A failed read is shown.** The chart keeps what it drew before, shows the panel's error line above it and offers Retry.
-- **Refresh after a write.** The block fetches again when a write to its table is confirmed through the panel's data source.
-- **The mapper runs on the client.** Mapping happens in the app on the rows that arrived, so all the rows reach the device. For thousands of rows, aggregate on the server with a summary.
-- **Points are in mapper order.** Nothing sorts them, and line and area charts draw a segment between neighbors, so sort the query or the mapper's output.
-- **Categorical legends are fixed-height.** See the four-habitat query above.
-- **Heat map labels are strict.** Cells outside the label lists are dropped.
-- **The tile and vector maps are separate blocks.** See [Maps](maps.md).
+- A chart shows what its query returns. The default page is 25 rows. Pass `pagination` and `sorts` in the query.
+- No loading state. The chart draws empty, then fills in. A [summary](summaries.md) has one.
+- A failed read is shown. The chart keeps what it drew before, shows the panel's error line above it and offers Retry.
+- Refresh after a write. The block fetches again when a write to its table is confirmed through the panel's data source.
+- The mapper runs on the client. Mapping happens in the app on the rows that arrived, so all the rows reach the device. For thousands of rows, aggregate on the server with a summary.
+- Points are in mapper order. Nothing sorts them, and line and area charts draw a segment between neighbors, so sort the query or the mapper's output.
+- Categorical legends are fixed-height. See the four-habitat query above.
+- Heat map labels are strict. Cells outside the label lists are dropped.
+- The tile and vector maps are separate blocks. See [Maps](maps.md).
 
 ## Verify it
 
@@ -145,9 +145,9 @@ The Aviary draws every family against fixture rows, and the page test fails on a
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:02 +4: Charts renders
+Charts renders
 ...
-00:05 +12: All tests passed!
+All tests passed!
 ```
 
 To see the page-size effect yourself, ask the Aviary API for the sightings the way a chart without `pagination` would:

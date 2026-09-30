@@ -96,14 +96,14 @@ Both blocks write. Drop a card in another column and the block saves the new val
 
 ## Rules and limits
 
-- **Fetching blocks need the panel.** They read `beakDependencies(context)<BeakDataSource>()`. Outside a `BeakPanel`, provide that scope yourself ([Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)).
-- **200 rows, no more.** Kanban, calendar, chat, inbox, pricing, FAQ and the file manager read one page of at most 200 (`BeakPagination.maxPerPage`, what the server answers with). More matching rows are not there, and a line beneath the block says how many are shown. The default page of a plain query is 25, which is why the Aviary's chart queries ask for the largest page themselves ([Charts](charts.md)).
-- **A failed read is shown.** The metric replaces its number with the error text and a Retry button, the summary with an error card, the table with its error state. The timeline, the board and the calendar keep what they drew before, put the panel's error line above it and offer Retry. None of them draws an empty block as if the data were empty. A block that has not loaded anything yet stays empty under the error line.
-- **Undated rows are left out.** A timeline row without a readable time and a calendar row without a readable start are not drawn. No date is invented for them.
-- **Times follow the panel's zone.** The calendar and the timeline show a stored instant in the panel's `formatting` zone (device time by default, or `timeZoneOffsetMinutes`), and a dragged event is written back as the instant that wall-clock time names in that zone, so a drag never shifts the hour.
-- **Aggregates are storage units.** `avg` comes back with its fraction (880.857... above) and rounding is the display's job.
-- **Metrics are separate requests.** A metric with `previous` sends two. A page with twelve metrics sends twelve, each on its own, and refreshes each after a write to its table.
-- **Sort and page inside `initialSpec` are a start.** The reader can change both in a table block. Put permanent scoping in `baseFilter`.
+- Fetching blocks need the panel. They read `beakDependencies(context)<BeakDataSource>()`. Outside a `BeakPanel`, provide that scope yourself ([Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)).
+- 200 rows, no more. Kanban, calendar, chat, inbox, pricing, FAQ and the file manager read one page of at most 200 (`BeakPagination.maxPerPage`, what the server answers with). More matching rows are not there, and a line beneath the block says how many are shown. The default page of a plain query is 25, which is why the Aviary's chart queries ask for the largest page themselves ([Charts](charts.md)).
+- A failed read is shown. The metric replaces its number with the error text and a Retry button, the summary with an error card, the table with its error state. The timeline, the board and the calendar keep what they drew before, put the panel's error line above it and offer Retry. None of them draws an empty block as if the data were empty. A block that has not loaded anything yet stays empty under the error line.
+- Undated rows are left out. A timeline row without a readable time and a calendar row without a readable start are not drawn. No date is invented for them.
+- Times follow the panel's zone. The calendar and the timeline show a stored instant in the panel's `formatting` zone (device time by default, or `timeZoneOffsetMinutes`), and a dragged event is written back as the instant that wall-clock time names in that zone, so a drag never shifts the hour.
+- Aggregates are storage units. `avg` comes back with its fraction (880.857... above) and rounding is the display's job.
+- Metrics are separate requests. A metric with `previous` sends two. A page with twelve metrics sends twelve, each on its own, and refreshes each after a write to its table.
+- Sort and page inside `initialSpec` are a start. The reader can change both in a table block. Put permanent scoping in `baseFilter`.
 
 ## Verify it
 
@@ -113,9 +113,9 @@ Run the Aviary's page tests, which build every data block against a fixture sour
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:00 +0: Data blocks renders
+Data blocks renders
 ...
-00:05 +12: All tests passed!
+All tests passed!
 ```
 
 The fixture source cannot answer aggregates, so this proves the page builds and not that the numbers are right. For the numbers, start the Aviary API as its README describes (`dart run bin/serve.dart`, port 8082) and ask it what a metric asks:

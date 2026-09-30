@@ -116,10 +116,10 @@ A hex value in a widget keeps its color in dark mode, and the toggle test below 
 
 ## Rules and limits
 
-- **Both themes, or the default.** A missing `theme` is `OiThemeData.light()`, a missing `darkTheme` is `OiThemeData.dark()`. A panel that sets only `theme` gets Beak's stock dark theme in dark mode, not a dark version of yours.
-- **The mode is not persisted.** A reload restores `initialThemeMode`.
-- **`BeakPanel(...)` does not take `initialThemeMode`.** The shorthand has `theme` and `darkTheme` only. For the mode, the sidebar flags, `supportedLocales` and `localizationsDelegates`, build a `BeakPanelConfig`.
-- **No Material.** A Beak panel imports neither `material.dart` nor `cupertino.dart`. `OiApp` provides what those would have. Do not wrap a panel in a Material `Theme`.
+- Both themes, or the default. A missing `theme` is `OiThemeData.light()`, a missing `darkTheme` is `OiThemeData.dark()`. A panel that sets only `theme` gets Beak's stock dark theme in dark mode, not a dark version of yours.
+- The mode is not persisted. A reload restores `initialThemeMode`.
+- `BeakPanel(...)` does not take `initialThemeMode`. The shorthand has `theme` and `darkTheme` only. For the mode, the sidebar flags, `supportedLocales` and `localizationsDelegates`, build a `BeakPanelConfig`.
+- No Material. A Beak panel imports neither `material.dart` nor `cupertino.dart`. `OiApp` provides what those would have. Do not wrap a panel in a Material `Theme`.
 
 ## Verify it
 
@@ -129,7 +129,7 @@ The generated path is checked by running the two commands above in a project: `l
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:08 +12: All tests passed!
+All tests passed!
 ```
 
 Run either panel and press the theme toggle in the top bar. Every surface should change together. A color that stays put is hard-coded somewhere.

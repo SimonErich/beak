@@ -168,7 +168,7 @@ testWidgets('the products section lists a seeded product', (tester) async {
 
 ```console
 $ flutter test
-00:01 +2: All tests passed!
+All tests passed!
 ```
 
 `beak doctor` prints no `WARN` line for the resource once the model, the migration and the registration agree. It ends with `All checks passed.` even when it warned, so read the lines above it.
