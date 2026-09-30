@@ -153,12 +153,12 @@ Add `priority` to `Note`, right under `pinned`:
 
 ```console
 $ beak prepare
-  2 models · 1 resource class · 0 screens · 0 overrides
-  generated  1 of 9 files
+  1 model · 0 resource classes · 0 screens · 0 overrides
+  generated  1 of 8 files
 $ beak doctor
   ...
   WARN notes.priority is declared by Note.priority but missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddPriorityToNotes --from-drift, then beak migrate
 ```
 
 A new column needs a migration, and Beak drafts it from the difference between your classes and the live database:
