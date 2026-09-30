@@ -119,7 +119,7 @@ The skills are workflows with a verification gate. Each already contains an exam
 | `beak-frontend-build-screens` | `Use the beak-frontend-build-screens skill: split the product form into Overview and Pricing tabs, edit variants in an inline table, and add a category filter to the product table.` |
 | `beak-serverpod-setup` | `Use the beak-serverpod-setup skill to add a Beak admin to this Serverpod workspace for the Author and Book tables: staff read and write, nobody deletes, supplierCostInCents never leaves the server. Don't start the server; tell me when to run serverpod start.` |
 
-Add one line to any of them: `Show me the output of every command the skill's verification step lists.`
+Add one line to any of them: `Show me the output of every command the skill's Gate section lists.`
 
 ## Evidence to demand
 
