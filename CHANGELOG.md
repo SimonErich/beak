@@ -1089,9 +1089,6 @@ These are open at 0.9.0. None is listed as fixed above.
   `--beak-path` or `--beak-ref` until then). `beak create` and `beak init`
   write `--beak-path` as a normalised absolute path and refuse a directory with
   no `packages/beak` under it (exit `64`).
-- The tracked lockfiles of `clean_beak_config`, `foodio-adminpanel` and
-  `showcase` record a linked obers_ui (`path: "../../../obers_ui"`) until they are
-  re-resolved against the pin. Run `melos run unlink-obers-ui` before you tag.
 - An action a composed list leaves out of `rowActions` moves to column placement
   without a warning (neither `beak_core` nor `beak_frontend` has a logger to
   warn with), so forgetting `delete` removes the row's delete button silently.
