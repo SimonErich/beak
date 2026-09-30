@@ -45,7 +45,7 @@ import 'package:beak_serverpod_generator/beak_serverpod_generator.dart';
 | 422 on a create, patch or commit | The request carries a column the Beak model does not declare, for example the server-only column | Expected. Do not model the column |
 | A timeout on CSV export, with the 20 second default | The export is one call and Serverpod's `connectionTimeout` defaults to 20 seconds | `Client(url, connectionTimeout: const Duration(seconds: 60))`, as `main` does |
 | `StateError`: `No Serverpod Session in this zone. Beak database calls must run inside BeakServerpod.runInSession(session, ...).` | A `ServerpodSessionAdapter` was used outside `dispatch` | Wrap the call in `BeakServerpod.runInSession`, or build the adapter with `ServerpodSessionAdapter.forSession(session)` |
-| `UnsupportedOperationException`: `Serverpod owns the schema: change it in a *.spy.yaml file and create a migration with serverpod create-migration.` | Code asked the adapter to create, alter or introspect tables, for example a Beak migration | Do not run Beak migrations on this path. Change the `.spy.yaml` and run `serverpod create-migration` |
+| `UnsupportedOperationException`: ``Serverpod owns the schema: change it in a *.spy.yaml file and create a migration with `serverpod create-migration`.`` | Code asked the adapter to create, alter or introspect tables, for example a Beak migration | Do not run Beak migrations on this path. Change the `.spy.yaml` and run `serverpod create-migration` |
 | Reads work, form saves fail with a server error naming `beak_commit_receipt` (likely) | The receipts table is missing: the model file was not copied, or its migration was not created or not applied | Copy the model file, run `serverpod generate` and `serverpod create-migration`, start the server with `--apply-migrations` |
 
 ### Build, run and tests (admin app)
@@ -74,7 +74,8 @@ import 'package:beak_serverpod_generator/beak_serverpod_generator.dart';
 | `The verification request or password was rejected.` | Wrong code, expired request, or a password Serverpod refuses | Start the flow again |
 | `The device session is no longer valid.` | Serverpod answered 401 to a call of the auth adapter | Sign in |
 | `Access denied.` | Serverpod answered 403 to a call of the auth adapter | The account lacks a scope |
-| `Authentication transport failed.` | The server could not be reached, or answered a status the adapter does not classify (a `BeakTransportException`); or an error nothing mapped (a `BeakConfigurationException`). Pass an `exceptionMapper` for your own domain exceptions | Check the connection, or map it |
+| `Authentication transport failed.` | The server could not be reached, or answered a status the adapter does not classify (a `BeakTransportException`); or an error nothing mapped (a `BeakConfigurationException`). The panel itself shows `The operation could not be completed.` for both. Pass an `exceptionMapper` for your own domain exceptions | Check the connection, or map it |
+| `The operation could not be completed.` | The panel's generic text for a configuration, storage, internal or transport failure. The real message is kept from the user, so the `BeakConfigurationException` rows of the bridge table below do not appear in the panel as written | Read the exception in the log or reproduce it in a test, then look the message up here |
 | `Start a new email verification request.` | A registration or recovery step ran with no open request | Begin again from the email step |
 
 ### The bridge at runtime

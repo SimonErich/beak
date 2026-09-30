@@ -138,7 +138,7 @@ Future<String> generateServerpodCompanions({
 }) async {
 ```
 
-Supported scalar types are strings, integers, doubles, booleans, `DateTime`, `Uri`, `UuidValue` and Dart enums, nullable or not, plus lists and sets of those. Nested objects and lists of non-nullable objects work. Arbitrary maps, nullable object-list elements, duplicate class names in the selected graph and constructors that are private, named or take positional parameters fail with an explicit message.
+Supported scalar types are strings, integers, doubles, booleans, `DateTime`, `Uri`, `UuidValue` and Dart enums, nullable or not, plus lists and sets of those. Nested objects and lists of non-nullable objects work. Arbitrary maps, nullable object-list elements, duplicate class names in the selected graph and models whose unnamed constructor is missing, private or takes positional parameters fail with an explicit message.
 
 ## Continue reading
 

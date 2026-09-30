@@ -36,7 +36,7 @@ The third package is shared with the [admin app](../admin-app/index.md); the fir
 
 The bridge can only ask your endpoints, so it cannot build what needs a database. It supports an AND of equality filters, one sort and one search term. It refuses relation loads, has no summaries, no CSV export and no server-side field permissions, and its form saves are staged calls, not one transaction. [Bridge resources](resources.md) has the full table, and [Choosing an integration](../choosing-an-integration.md) compares it with the admin app.
 
-`beak init` refuses to run inside a Serverpod workspace, and its message names both ways in: the admin app, and this bridge. The bridge is wired by hand: add the dependencies, build the resources and mount a `BeakPanel` (see [Bridge resources](resources.md)).
+`beak init` refuses to run inside a Serverpod workspace, and its message names both ways in: the admin app, and this bridge. The bridge is wired by hand. In your Flutter app, depend on `beak`, `beak_core`, `beak_serverpod` and, for Serverpod's email sign-in, `beak_serverpod_flutter`, plus `beak_serverpod_generator` as a dev dependency if you generate the bindings. Beak is not on pub.dev yet, so all of them come from one git ref, as [Setting up the admin app](../admin-app/setup.md#before-you-start) shows. Then build the resources and mount a `BeakPanel` (see [Bridge resources](resources.md)).
 
 ## Which page to read
 

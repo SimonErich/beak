@@ -72,7 +72,7 @@ Parameters may be named or positional. A `locale: String` parameter on any metho
 | `String`, `int`, `double`, `bool`, `DateTime`, `Uri`, `UuidValue` | `Map` of any kind |
 | Dart enums, resolved through their declared type | Nullable elements in an object list |
 | Nullable versions of all of these | Duplicate class names in the selected graph |
-| `List` and `Set` of a scalar | Constructors that are private, or take positional parameters |
+| `List` and `Set` of a scalar | Models without a public unnamed constructor, or whose constructor takes positional parameters |
 | Nested objects, and lists of non-nullable objects | |
 
 Flattened descriptors name nested paths: `entry.title` becomes `entryTitle`, and a path that collides with an existing property uses `__` separators. Flattening stops at a recursive type.
@@ -97,6 +97,7 @@ Each is a `FormatException`. The command prints it as `Companion generation fail
 | `Unsupported Serverpod property <path>: <type>.` | A field is a `Map` or another unsupported type |
 | `Two distinct model types are named <name>.` | Two classes with one name in the selected graph |
 | `Unsupported nested shape <type>.` | A nullable element in an object list |
+| `<Model>.<name> is not a readable field.` | A constructor parameter of a model has no public field of the same name |
 
 ## Source
 
