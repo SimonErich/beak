@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'beak_data_changes.dart';
 
 import 'package:beak_core/beak_core.dart';
+import 'package:http/http.dart' as http;
 
 /// Routes panel operations to model-owned transports, with one error boundary.
 ///
@@ -54,6 +55,10 @@ final class ModelBeakDataSource
   final BeakRefreshPolicy? refreshPolicy;
 
   /// Maps recognized host exceptions to safe, localized Beak errors.
+  ///
+  /// Asked before the built-in classification: a request that never reached
+  /// the server (an [http.ClientException] or a [TimeoutException]) becomes a
+  /// [BeakTransportException] when this returns null.
   final BeakException? Function(Exception exception, StackTrace stackTrace)?
   mapException;
 
@@ -114,6 +119,13 @@ final class ModelBeakDataSource
   }
 
   final Set<String> _pendingChanges = {};
+
+  /// Marks the zone a commit runs in, so a write the staged source makes back
+  /// into this router is told apart from an unrelated write made meanwhile.
+  final Object _commitZoneKey = Object();
+
+  /// Whether the caller runs inside a commit of this router.
+  bool get _insideCommit => Zone.current[_commitZoneKey] == true;
   int _commitDepth = 0;
   int _writeSequence = 0;
   final Map<String, BeakSavePlan> _pendingWrites = {};
@@ -218,7 +230,10 @@ final class ModelBeakDataSource
     _savePlans[plan.saveId] = plan;
     _commitDepth++;
     try {
-      final result = await selected.commit(plan);
+      final result = await runZoned(
+        () => selected.commit(plan),
+        zoneValues: {_commitZoneKey: true},
+      );
       _committed(plan, result);
       return result;
     } finally {
@@ -260,7 +275,8 @@ final class ModelBeakDataSource
       _reportUnauthorized(error);
       rethrow;
     } on Exception catch (error, stack) {
-      final mapped = mapException?.call(error, stack);
+      final mapped =
+          mapException?.call(error, stack) ?? _transportFailure(error);
       if (mapped != null) {
         _reportUnauthorized(mapped);
         Error.throwWithStackTrace(mapped, stack);
@@ -268,6 +284,18 @@ final class ModelBeakDataSource
       rethrow;
     }
   }
+
+  /// A failure to talk to the server at all, as a typed exception.
+  ///
+  /// Without it a dropped connection would leave every list spinning and reach
+  /// no error state. The message is generic on purpose: the host and port in
+  /// the original exception describe the deployment, not the person's request.
+  static BeakTransportException? _transportFailure(Exception error) =>
+      switch (error) {
+        http.ClientException() || TimeoutException() =>
+          const BeakTransportException('The server could not be reached.'),
+        _ => null,
+      };
 
   void _reportUnauthorized(BeakException error) {
     if (error is BeakAuthenticationException) onUnauthorized?.call();
@@ -362,7 +390,7 @@ final class ModelBeakDataSource
   @override
   Future<BeakRecord> create(String table, BeakRecord data) => _run(() async {
     final source = _source(table);
-    if (_commitDepth > 0 || source is! BeakCommitDataSource) {
+    if (_insideCommit || source is! BeakCommitDataSource) {
       return _mutate([table], () => source.create(table, data));
     }
     final draft = BeakRecordRef.draft(table, 'created');
@@ -390,7 +418,7 @@ final class ModelBeakDataSource
   Future<BeakRecord> update(String table, Object id, BeakRecord data) =>
       _run(() async {
         final source = _source(table);
-        if (_commitDepth > 0 || source is! BeakCommitDataSource) {
+        if (_insideCommit || source is! BeakCommitDataSource) {
           return _mutate([table], () => source.update(table, id, data));
         }
         final target = BeakRecordRef.existing(table, id);
@@ -421,7 +449,7 @@ final class ModelBeakDataSource
       final source = _source(table);
       // The graph protocol deliberately preserves configured soft deletion.
       // Explicit force-deletes retain the transport's separate operation.
-      if (force || _commitDepth > 0 || source is! BeakCommitDataSource) {
+      if (force || _insideCommit || source is! BeakCommitDataSource) {
         return _mutate([table], () => source.delete(table, id, force: force));
       }
       final target = BeakRecordRef.existing(table, id);
@@ -450,6 +478,10 @@ final class ModelBeakDataSource
   /// Commits one single-operation plan, keeping an uncertain identity: a
   /// repeated identical call recovers its receipt and never submits the write
   /// again under a new identity.
+  ///
+  /// Only a write whose outcome is unknown is remembered. Two identical writes
+  /// made while the first is still in flight are two writes, as when a person
+  /// sends the same chat message twice.
   Future<BeakSaveResult> _writeThroughGraph({
     required String key,
     required BeakSavePlan Function() plan,
@@ -458,15 +490,24 @@ final class ModelBeakDataSource
   }) async {
     final pending = _pendingWrites[key];
     final effective = pending ?? plan();
-    _pendingWrites[key] = effective;
-    final result = pending == null
-        ? await commit(effective)
-        : await recover(effective.saveId);
+    final BeakSaveResult result;
+    try {
+      result = pending == null
+          ? await commit(effective)
+          : await _recoverOrResend(effective);
+    } on Exception {
+      // Nothing is known about the outcome, so a repeat asks for this receipt.
+      _pendingWrites[key] = effective;
+      rethrow;
+    }
     if (result.complete) {
       _pendingWrites.remove(key);
       return result;
     }
-    if (result.hasUnknown) throw BeakConflictException(unconfirmed);
+    if (result.hasUnknown) {
+      _pendingWrites[key] = effective;
+      throw BeakConflictException(unconfirmed);
+    }
     _pendingWrites.remove(key);
     final error = result.outcomes
         .map((outcome) => outcome.error)
@@ -484,6 +525,17 @@ final class ModelBeakDataSource
       'storage' => BeakStorageException(error!.message),
       _ => BeakConflictException(error?.message ?? failed),
     };
+  }
+
+  /// The receipt of [plan]'s save, or the plan sent again when the server has
+  /// none: a missing receipt proves the request never arrived, and the same
+  /// save identity keeps a second delivery from writing twice.
+  Future<BeakSaveResult> _recoverOrResend(BeakSavePlan plan) async {
+    try {
+      return await recover(plan.saveId);
+    } on BeakNotFoundException {
+      return commit(plan);
+    }
   }
 
   /// The canonical record a confirmed single write produced: the receipt's own

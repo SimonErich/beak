@@ -111,22 +111,75 @@ void main() {
       expect(data.map(series.yMapper), [1, 2]);
     });
 
-    testWidgets('a failed query leaves the chart empty', (tester) async {
+    testWidgets('a failed query says so and a retry reads again', (
+      tester,
+    ) async {
+      final flaky = _Flaky(
+        records: {
+          'notes': {
+            'n1': BeakRecord.fromRow(const {'id': 'n1', 'title': 'Alpha'}),
+            'n2': BeakRecord.fromRow(const {'id': 'n2', 'title': 'Beta'}),
+          },
+        },
+      )..failing = true;
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(model: NoteModel(), icon: BeakIconToken(OiIcons.file)),
+          ],
+        ),
+        dataSource: flaky,
+      );
+      await pump(tester, chartOf(BeakChartType.pie));
+
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('disk detail'), findsNothing);
+      expect(
+        tester.widget<OiPieChart>(find.byType(OiPieChart)).segments,
+        isEmpty,
+      );
+
+      flaky.failing = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Retry'), findsNothing);
+      expect(
+        tester.widget<OiPieChart>(find.byType(OiPieChart)).segments,
+        hasLength(2),
+      );
+    });
+
+    testWidgets('a list block says so when its read fails', (tester) async {
+      final flaky = _Flaky(records: const {})..failing = true;
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(model: NoteModel(), icon: BeakIconToken(OiIcons.file)),
+          ],
+        ),
+        dataSource: flaky,
+      );
       await pump(
         tester,
-        BeakChartBlock(
-          title: 'Missing',
-          type: BeakChartType.pie,
-          query: const BeakQuerySpec(table: 'missing'),
-          map: (records) => [
-            for (final record in records)
-              BeakChartPoint(label: record.toString(), value: 1),
-          ],
+        BeakGalleryBlock(
+          query: const NoteModel().query(),
+          imageUrlField: const NoteModel().columns.first,
         ),
       );
 
-      final chart = tester.widget<OiPieChart>(find.byType(OiPieChart));
-      expect(chart.segments, isEmpty);
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsOneWidget);
     });
 
     testWidgets('maps records to a donut chart', (tester) async {
@@ -257,4 +310,17 @@ void main() {
       expect(find.text('Alpha'), findsWidgets);
     });
   });
+}
+
+/// A source whose reads fail while [failing] is set.
+final class _Flaky extends FakeDataSource {
+  _Flaky({required super.records});
+
+  bool failing = false;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    if (failing) throw const BeakStorageException('disk detail');
+    return super.query(spec);
+  }
 }

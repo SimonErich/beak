@@ -10,38 +10,30 @@ class _BeakTimelineBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final revision = useBeakDataRevision(dataSource, table: block.query.table);
-    final records = useState(const <BeakRecord>[]);
-
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(block.query);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block, revision]);
+    final records = _useBlockRead(
+      dataSource,
+      block.query,
+      identity: block,
+      initial: const <BeakRecord>[],
+      map: (page) => page.items,
+    );
 
     // A timeline places events by time: a row with no time has no place on
     // it, and is left out rather than given an invented date.
+    final formatting = BeakFormatting.of(context);
     final events = <OiTimelineEvent>[
-      for (final record in records.value)
+      for (final record in records.data)
         if (_readDateTime(record, block.timeField) case final DateTime time)
           OiTimelineEvent(
-            timestamp: time,
+            timestamp: formatting.toEditorDateTime(time),
             title: _readString(record, block.titleField) ?? '',
           ),
     ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-    return OiTimeline(label: 'Timeline', events: events);
+    return _withReadFailure(
+      context,
+      records,
+      OiTimeline(label: BeakLocalizations.of(context).timeline, events: events),
+    );
   }
 }

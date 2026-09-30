@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../localization/beak_localizations.dart';
+
 /// Beak's optimistic-mutation façade over `OiOptimisticAction`: apply the
 /// change locally right away, offer undo, and only commit to the backend
 /// once the undo window passes (rolling back on failure).
@@ -36,5 +38,6 @@ abstract final class BeakOptimistic {
     commit: commit,
     message: message,
     undoDuration: undoDuration,
+    undoLabel: BeakLocalizations.of(context).undo,
   );
 }

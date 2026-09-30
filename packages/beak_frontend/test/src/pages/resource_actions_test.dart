@@ -117,6 +117,23 @@ void main() {
     expect(actionButton('Archive'), findsNothing);
   });
 
+  testWidgets(
+    'a built-in action listed as a record action follows permissions',
+    (tester) async {
+      await pumpList(
+        tester,
+        _Source(),
+        canDelete: () => false,
+        deleteAction: const BeakArchiveAction(),
+        recordActions: const [BeakDeleteAction()],
+      );
+
+      expect(find.text('One note'), findsOneWidget);
+      expect(actionButton('Delete'), findsNothing);
+      expect(actionButton('Archive'), findsNothing);
+    },
+  );
+
   testWidgets('a deletable record offers the archive action', (tester) async {
     await pumpList(tester, _Source(), deletableWhen: (_) => true);
 

@@ -40,6 +40,34 @@ void main() {
     },
   );
 
+  test('one unreadable saved view does not hide the others', () async {
+    final Map<String, Object?> wide = BeakQueryState(search: 'wide').toJson()
+      ..['perPage'] = 1000;
+    BeakRecord view(String id, String name, String state) => BeakRecord.fromRow(
+      {'id': id, 'name': name, 'resource': 'notes', 'state': state},
+    );
+    final source = FakeDataSource(
+      models: const [_View()],
+      records: {
+        'views': {
+          'v1': view('v1', 'Good', jsonEncode(BeakQueryState().toJson())),
+          'v2': view('v2', 'Broken', '{'),
+          'v3': view('v3', 'Old', jsonEncode({'version': 0})),
+          'v4': view('v4', 'Wide', jsonEncode(wide)),
+        },
+      },
+    );
+
+    final views = await _store.list(source, 'notes');
+
+    expect(views.map((view) => view.name), unorderedEquals(['Good', 'Wide']));
+    expect(
+      views.singleWhere((view) => view.name == 'Wide').state.perPage,
+      BeakPagination.maxPerPage,
+      reason: 'a page size saved before the ceiling loads at the ceiling',
+    );
+  });
+
   test(
     'unsafe return URLs and malformed list bookmarks remain local failures',
     () {

@@ -97,7 +97,7 @@ List nothing and the search runs over the model's `@Column(searchable: true)` co
 
 ## Rows, selection and actions
 
-A row click opens the show page and appends `returnTo`, the address of the list you left. The Back button follows it, so you land on the same list. Only local paths are accepted: a `returnTo` with a scheme or a host is ignored and Back goes to the resource's list route.
+A row click opens the show page and appends `returnTo`, the address of the list you left. The Back button follows it, so you land on the same list. View, Edit and Create pass it on, so saving an edit and going Back, or creating a record, ends at the same list too. Only local paths are accepted: a `returnTo` with a scheme or a host is ignored and Back goes to the resource's list route.
 
 The row menu holds View, Edit and Delete (each only while the resource and the model's permissions allow it), the resource's `recordActions` and the model actions available for that row. Checkboxes appear once the list has bulk actions, and the selection belongs to the current page. Defining the actions is on the [Actions](actions.md) page.
 

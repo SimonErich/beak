@@ -53,7 +53,7 @@ The credit text is not a parameter of the block. It stays "© OpenStreetMap cont
 
 ## Rules and limits
 
-- **Same silence as charts.** Neither block has a loading or error state. Both refetch after a write, and a failed request leaves the map empty.
+- **Same states as charts.** Neither block has a loading state. A failed request shows the panel's generic error line above the map with a Retry button, and both refetch after a write.
 - **The query decides the rows.** 25 by default, and there is no server-side aggregation. For a country total, aggregate first.
 - **The tile map needs the network** to get its tiles. The choropleth draws from bundled geometry and works offline.
 - **One value per pin.** Every pin has the same weight; the block does not size pins by a column. If you need bubbles, use a [bubble chart](charts.md) or a summary.

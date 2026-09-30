@@ -36,6 +36,7 @@ class _BeakChatBlockView extends HookWidget {
         return left.compareTo(right);
       });
 
+    final formatting = BeakFormatting.of(context);
     return _withTruncationNote(
       context,
       rows.value,
@@ -44,7 +45,7 @@ class _BeakChatBlockView extends HookWidget {
         currentUserId: _kBeakChatCurrentUser,
         messages: [
           for (final (index, record) in ordered.indexed)
-            _messageOf(index, record),
+            _messageOf(formatting, index, record),
         ],
         onSend: block.composeRecord == null
             ? null
@@ -70,7 +71,11 @@ class _BeakChatBlockView extends HookWidget {
     );
   }
 
-  OiChatMessage _messageOf(int index, BeakRecord record) {
+  OiChatMessage _messageOf(
+    BeakFormatting formatting,
+    int index,
+    BeakRecord record,
+  ) {
     final bool mine = _readBool(record, block.isMineField);
     final String author = _readString(record, block.authorField) ?? '';
     return OiChatMessage(
@@ -78,7 +83,9 @@ class _BeakChatBlockView extends HookWidget {
       senderId: mine ? _kBeakChatCurrentUser : author,
       senderName: author,
       content: _readString(record, block.bodyField) ?? '',
-      timestamp: _readDateTime(record, block.timeField) ?? DateTime.now(),
+      timestamp: formatting.toEditorDateTime(
+        _readDateTime(record, block.timeField) ?? DateTime.now(),
+      ),
     );
   }
 }

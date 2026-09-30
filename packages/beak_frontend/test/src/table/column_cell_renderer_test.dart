@@ -326,6 +326,34 @@ void main() {
     expect(opened, 1);
   });
 
+  testWidgets('a relation link is a focusable control with a label', (
+    tester,
+  ) async {
+    await pumpCell(
+      tester,
+      column: const BeakStringColumn(key: 'category', label: 'Category'),
+      record: BeakRecord.fromRow(const {'category': 'Toys'}),
+      intentOverride: BeakRenderIntent.relationLink,
+      onOpenRelation: () {},
+    );
+
+    final tappable = tester.widget<OiTappable>(find.byType(OiTappable));
+    expect(tappable.semanticLabel, 'Toys');
+    expect(tappable.focusable, isTrue);
+  });
+
+  testWidgets('a relation link nobody can open is plain text', (tester) async {
+    await pumpCell(
+      tester,
+      column: const BeakStringColumn(key: 'category', label: 'Category'),
+      record: BeakRecord.fromRow(const {'category': 'Toys'}),
+      intentOverride: BeakRenderIntent.relationLink,
+    );
+
+    expect(find.text('Toys'), findsOneWidget);
+    expect(find.byType(OiTappable), findsNothing);
+  });
+
   testWidgets('relation badges render one badge per related label', (
     tester,
   ) async {

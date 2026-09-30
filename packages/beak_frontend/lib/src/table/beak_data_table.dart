@@ -9,6 +9,7 @@ import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/optimistic.dart';
 import '../localization/beak_localizations.dart';
+import '../overlays/beak_overlays.dart';
 import 'beak_table_action.dart';
 import 'column_cell_renderer.dart';
 import 'beak_table_view_model.dart';
@@ -37,8 +38,9 @@ final class BeakTableSelection {
 
 /// The generated list view: a model's table-context columns rendered as an
 /// `OiTable` with server-side sort/filter/pagination through
-/// [BeakQuerySpec], per-row and bulk actions, optimistic delete with undo,
-/// and inline edit — zero per-resource table code.
+/// [BeakQuerySpec], per-row and bulk actions and optimistic delete with
+/// undo — zero per-resource table code. Cells are read only: a record changes
+/// through its form.
 ///
 /// Every column's cell is drawn by [renderBeakCell] from its table-context
 /// render intent, so badges, dates, thumbnails, and custom cells match the
@@ -99,8 +101,13 @@ class BeakDataTable extends HookWidget {
     this.showBulkActionBar = true,
     this.onSelectionChanged,
     this.pageSizeOptions = const [10, 25, 50, 100],
+    this.label,
     super.key,
   });
+
+  /// Name a screen reader announces for the table; the generic "Records" when
+  /// null. Give each table on a page its own, so they can be told apart.
+  final String? label;
 
   /// Observes each owned view model once, for advanced surface integrations.
   /// The table owns disposal; callers must not dispose the supplied instance.
@@ -264,10 +271,22 @@ class BeakDataTable extends HookWidget {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || viewModel.isDisposed) return;
           final Set<String> current = {...tableController.selectedRows};
+          final rows = viewModel.page.peek()?.items ?? const <BeakRecord>[];
+          // A selection belongs to the page it was made on: the bulk bar acts
+          // on visible rows, so a row that left the page is deselected.
+          final Set<String> visible = {
+            for (final row in rows)
+              if (model.primaryKeyOf(row) case final Object id) id.toString(),
+          };
+          if (current.any((key) => !visible.contains(key))) {
+            tableController.selectRange(
+              current.where(visible.contains).toSet(),
+            );
+            return;
+          }
           if (!setEquals(current, selectedKeys.value)) {
             selectedKeys.value = current;
           }
-          final rows = viewModel.page.peek()?.items ?? const <BeakRecord>[];
           final ids = [
             for (final row in rows)
               if (model.primaryKeyOf(row) case final Object id)
@@ -384,7 +403,7 @@ class BeakDataTable extends HookWidget {
               child: OiTable<BeakRecord>(
                 shrinkWrap: shrinkWrap,
                 rowHeight: rowHeightInPixels,
-                label: strings.records,
+                label: label ?? strings.records,
                 labels: OiTableLabels(
                   rows: strings.tableRows,
                   rowCount: strings.tableRowCount,
@@ -443,10 +462,6 @@ class BeakDataTable extends HookWidget {
                   } else if (zeroBasedPage + 1 != spec.pagination.page) {
                     viewModel.goToPage(zeroBasedPage + 1);
                   }
-                },
-                onCellChanged: (record, rowIndex, columnId, value) {
-                  // interop: OiTable delivers edited cell values untyped.
-                  _commitCellEdit(viewModel, record, columnId, value);
                 },
                 loading: viewModel.loading.value,
                 emptyState: OiEmptyState(
@@ -623,12 +638,10 @@ class BeakDataTable extends HookWidget {
             return const OiLabel.body('');
           }
           final String label = relation.displayLabelOf(related);
-          if (onOpenRelation == null) {
-            return OiLabel.body(label, maxLines: 1);
-          }
-          return GestureDetector(
-            onTap: () => onOpenRelation?.call(relation, related),
-            child: OiLabel.link(label, maxLines: 1),
+          final open = onOpenRelation;
+          return beakRelationLink(
+            label,
+            onOpen: open == null ? null : () => open(relation, related),
           );
         },
       );
@@ -701,60 +714,37 @@ class BeakDataTable extends HookWidget {
     Object id,
   ) {
     ({BeakRecord record, int index})? removed;
+    void restore() {
+      final ({BeakRecord record, int index})? toRestore = removed;
+      removed = null;
+      if (toRestore != null) {
+        viewModel.insertLocally(toRestore.record, toRestore.index);
+      }
+    }
+
+    final strings = BeakLocalizations.of(context);
     BeakOptimistic.mutate(
       context,
       apply: () => removed = viewModel.removeLocally(id),
-      rollback: () {
-        final ({BeakRecord record, int index})? toRestore = removed;
-        if (toRestore != null) {
-          viewModel.insertLocally(toRestore.record, toRestore.index);
+      rollback: restore,
+      commit: () async {
+        final result = await BeakResourceRepository(
+          dataSource,
+        ).delete(model.table, id);
+        if (result case BeakErr(:final error)) {
+          // The server refused, or could not confirm, the deletion: the row
+          // comes back and the person is told why, instead of the generic
+          // "Action failed" the undo window would show.
+          restore();
+          if (context.mounted) {
+            BeakOverlays(
+              context,
+            ).toast(strings.errorMessage(error), level: OiToastLevel.error);
+          }
         }
       },
-      commit: () => dataSource.delete(model.table, id),
-      message: BeakLocalizations.of(context).recordDeleted,
+      message: strings.recordDeleted,
     );
-  }
-
-  Future<void> _commitCellEdit(
-    BeakTableViewModel viewModel,
-    BeakRecord record,
-    String columnId,
-    Object? editedValue,
-  ) async {
-    final column = model.columnByKey(columnId);
-    final Object? id = model.primaryKeyOf(record);
-    if (column == null || id == null) {
-      return;
-    }
-    final BeakValue typed = _coerceEdited(column, editedValue);
-    final updated = BeakRecord(
-      values: {...record.values, columnId: typed},
-      relations: record.relations,
-    );
-    final previous = viewModel.replaceRecordLocally(id, updated);
-    final result = await BeakResourceRepository(
-      dataSource,
-    ).update(model.table, id, BeakRecord(values: {columnId: typed}));
-    if (result case BeakErr() when previous != null) {
-      viewModel.replaceRecordLocally(id, previous);
-    }
-  }
-
-  /// Coerces an inline-edited string back to the column's value type.
-  BeakValue _coerceEdited(BeakColumn column, Object? editedValue) {
-    final String text = editedValue?.toString() ?? '';
-    return switch (column) {
-      BeakIntColumn() => switch (int.tryParse(text)) {
-        final int number => BeakIntValue(number),
-        null => BeakStringValue(text),
-      },
-      BeakDecimalColumn() => switch (double.tryParse(text)) {
-        final double number => BeakDoubleValue(number),
-        null => BeakStringValue(text),
-      },
-      BeakBoolColumn() => BeakBoolValue(text == 'true'),
-      _ => BeakStringValue(text),
-    };
   }
 
   BeakFilter? _filterTree(Map<String, String> filters) {
@@ -866,7 +856,7 @@ class _RowOverflowActions extends HookWidget {
   Widget build(BuildContext context) {
     final pending = useState(false);
     return OiActionBar(
-      label: 'Record actions',
+      label: BeakLocalizations.of(context).recordActions,
       separator: true,
       overflowIcon: OiIcons.ellipsis,
       size: OiButtonSize.small,

@@ -44,12 +44,14 @@ class BeakPendingActions extends HookWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const OiLabel.body(
-                  'Some actions are awaiting confirmation. Their original receipts will be checked without resubmitting.',
+                OiLabel.body(
+                  BeakLocalizations.of(context).pendingActionsNotice,
                 ),
                 for (final entry in pending)
                   OiButton.secondary(
-                    label: 'Check ${entry.action.label}',
+                    label: BeakLocalizations.of(
+                      context,
+                    ).checkPendingAction(entry.action.label),
                     loading: busy.value,
                     onTap: busy.value
                         ? null

@@ -39,6 +39,94 @@ void main() {
     expect(guard.redirect('/login'), '/');
   });
 
+  test('a locked panel redirects every page to the lock screen', () {
+    final auth = _Auth();
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'user'),
+    );
+    final guard = BeakAuthRouterRefresh(auth);
+    addTearDown(guard.dispose);
+    var notifications = 0;
+    guard.addListener(() => notifications++);
+
+    guard.lock();
+
+    expect(guard.locked, isTrue);
+    expect(notifications, 1);
+    expect(guard.redirect('/notes'), '/lock');
+    expect(guard.redirect('/login'), '/lock');
+    expect(guard.redirect('/lock'), null);
+
+    guard.unlock();
+
+    expect(guard.locked, isFalse);
+    expect(guard.redirect('/notes'), null);
+  });
+
+  test('a failed refresh does not lift the lock', () {
+    final auth = _Auth();
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'user'),
+    );
+    final guard = BeakAuthRouterRefresh(auth);
+    addTearDown(guard.dispose);
+    guard.lock();
+
+    auth.snapshot.value = const BeakAuthFailure(
+      BeakTransportException('offline'),
+    );
+    auth.snapshot.value = const BeakAuthLoading();
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'user'),
+    );
+
+    expect(guard.locked, isTrue);
+    expect(guard.redirect('/notes'), '/lock');
+  });
+
+  test('a lock cannot be taken out on nobody', () {
+    final guard = BeakAuthRouterRefresh(_Auth());
+    addTearDown(guard.dispose);
+
+    guard.lock();
+
+    expect(guard.locked, isFalse);
+  });
+
+  test('a different account does not inherit the lock', () {
+    final auth = _Auth();
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'user'),
+    );
+    final guard = BeakAuthRouterRefresh(auth);
+    addTearDown(guard.dispose);
+    guard.lock();
+
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'other'),
+    );
+
+    expect(guard.locked, isFalse);
+  });
+
+  test('signing out ends the lock', () {
+    final auth = _Auth();
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'user'),
+    );
+    final guard = BeakAuthRouterRefresh(auth);
+    addTearDown(guard.dispose);
+    guard.lock();
+
+    auth.snapshot.value = const BeakAuthGuest();
+    auth.snapshot.value = const BeakAuthAuthenticated(
+      BeakAuthIdentity(id: 'other'),
+    );
+
+    expect(guard.locked, isFalse);
+    expect(guard.redirect('/notes'), null);
+  });
+
   testWidgets('routed protected state cannot survive a direct account switch', (
     tester,
   ) async {

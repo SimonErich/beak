@@ -25,10 +25,11 @@ extension type const BeakIconToken(IconData icon) {}
 ///
 /// Declaring a resource is all it takes to get a full list/create/show/edit
 /// CRUD surface — no per-page code. The built-in view, edit, delete and
-/// create actions are always present; [recordActions], [bulkActions],
-/// [globalActions] and [filters] add to them. What the current account may
-/// see or change follows [BeakModel.permissions], and [screens] replace any of
-/// the generated pages.
+/// create actions appear where [canCreate], [canEdit], [canDelete], the
+/// model's permissions and the server's capabilities allow them, and
+/// [recordActions], [bulkActions], [globalActions] and [filters] add to them.
+/// What the current account may see or change follows
+/// [BeakModel.permissions], and [screens] replace any of the generated pages.
 ///
 /// ```dart
 /// BeakResource(

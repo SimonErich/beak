@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:beak_core/beak_core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -57,8 +58,8 @@ GoRouter createBeakRouter(
       _maintenanceRedirect(config.maintenance, state.uri.path) ??
       authRefresh?.redirect(state.uri.path),
   routes: [
-    ...beakPanelRoutes(config),
-    ...beakAuthRoutes(config),
+    ...beakPanelRoutes(config, authRefresh: authRefresh),
+    ...beakAuthRoutes(config, authRefresh: authRefresh),
     ..._maintenanceRoutes(config.maintenance),
     ..._errorRoutes(config),
   ],
@@ -75,7 +76,14 @@ GoRouter createBeakRouter(
 /// The host registers Beak dependencies, owns the app widget and authentication,
 /// and can put these routes inside its own guarded shell. No second router or
 /// authentication routes are created.
-List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
+///
+/// Pass the [authRefresh] the router listens to, so the idle lock keeps the
+/// panel closed until it is unlocked. Without it the lock only navigates to
+/// `/lock`, and a later navigation, the browser's Back button for one, leaves it.
+List<RouteBase> beakPanelRoutes(
+  BeakPanelConfig config, {
+  BeakAuthRouterRefresh? authRefresh,
+}) => [
   ShellRoute(
     builder: (context, state, child) => _watchAuth(context, config, (context) {
       final shell = _fullScreenRoute(config, state.uri.path)
@@ -92,6 +100,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         child: switch (auth.idleLockTimeout) {
           final Duration timeout => _BeakIdleLock(
             timeout: timeout,
+            authRefresh: authRefresh,
             child: shell,
           ),
           null => shell,
@@ -110,7 +119,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
       for (final resource in config.resources) ...[
         GoRoute(
           path: resource.route,
-          onExit: (context, state) => _confirmExit(context),
+          onExit: (context, state) => _confirmExit(context, config),
           redirect: (_, _) => resource.isVisible ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -129,7 +138,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         ),
         GoRoute(
           path: '${resource.route}/create',
-          onExit: (context, state) => _confirmExit(context),
+          onExit: (context, state) => _confirmExit(context, config),
           redirect: (_, _) => resource.allowsCreate ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -148,7 +157,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         ),
         GoRoute(
           path: '${resource.route}/:id/edit',
-          onExit: (context, state) => _confirmExit(context),
+          onExit: (context, state) => _confirmExit(context, config),
           redirect: (_, _) => resource.allowsEdit ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -168,7 +177,7 @@ List<RouteBase> beakPanelRoutes(BeakPanelConfig config) => [
         ),
         GoRoute(
           path: '${resource.route}/:id',
-          onExit: (context, state) => _confirmExit(context),
+          onExit: (context, state) => _confirmExit(context, config),
           redirect: (_, _) => resource.isVisible ? null : '/403',
           builder: (context, state) => _watchAuth(
             context,
@@ -274,8 +283,14 @@ String? _homeLocation(BeakPanelConfig config) {
 /// Mount outside a loading gate so sign-in permission resolution cannot unmount
 /// the form awaiting its outcome. Registration/recovery require explicit opt-in
 /// and a backend capability; direct URLs cannot enable an absent workflow.
+///
+/// [authRefresh] is the one given to [beakPanelRoutes]: a successful unlock
+/// releases the idle lock on it.
 // --8<-- [start:beakAuthRoutes]
-List<RouteBase> beakAuthRoutes(BeakPanelConfig config) {
+List<RouteBase> beakAuthRoutes(
+  BeakPanelConfig config, {
+  BeakAuthRouterRefresh? authRefresh,
+}) {
   final auth = config.auth ?? const BeakAuthConfig();
   GoRoute route(String path, BeakAuthMode mode) => GoRoute(
     path: path,
@@ -305,6 +320,7 @@ List<RouteBase> beakAuthRoutes(BeakPanelConfig config) {
           final unlocked =
               await (auth.onUnlock?.call(password) ??
                   Future<bool>.value(false));
+          if (unlocked) authRefresh?.unlock();
           if (unlocked && context.mounted) context.go('/');
           return unlocked;
         },
@@ -550,7 +566,7 @@ final class _BeakShell extends HookWidget {
                   contextChild: config.navigation?.currentRecordBranch ?? false,
                   monospace: item.recordLabelMonospace,
                   icon: resource!.icon.icon,
-                  route: '${resource.route}/$recordId',
+                  route: BeakRoutes.show(resource.model.table, recordId!),
                 ),
               ]
             : null,
@@ -685,8 +701,9 @@ final class _BeakShell extends HookWidget {
                                     ? null
                                     : OiButton.icon(
                                         icon: OiIcons.plus,
-                                        label:
-                                            '${BeakLocalizations.of(context).create} in ${section.label}',
+                                        label: BeakLocalizations.of(
+                                          context,
+                                        ).createIn(section.label),
                                         size: OiButtonSize.small,
                                         onTap: () => context.go(
                                           BeakRoutes.create(
@@ -699,7 +716,7 @@ final class _BeakShell extends HookWidget {
                     navigationFooter: config.navigation?.footer,
                     currentRoute:
                         currentRecord.value != null && recordResource != null
-                        ? '${recordResource.route}/$recordId'
+                        ? BeakRoutes.show(recordResource.model.table, recordId!)
                         : section?.items
                                   .where(
                                     (item) =>
@@ -813,11 +830,26 @@ final class _BeakShell extends HookWidget {
 final Set<GoRouter> _lockingRouters = {};
 
 /// Asks about leaving a form with unsaved changes, except while the idle lock
-/// is closing the panel: the dialog would keep the lock screen waiting for
-/// someone who is not there.
-Future<bool> _confirmExit(BuildContext context) async =>
+/// is closing the panel or after the session has ended: the dialog would keep
+/// the lock screen or the sign-in page waiting for someone who cannot save
+/// anyway, and "Stay" would leave a signed-out visitor on a protected page.
+Future<bool> _confirmExit(BuildContext context, BeakPanelConfig config) async =>
     _lockingRouters.contains(GoRouter.maybeOf(context)) ||
+    _sessionEnded(context, config) ||
     await beakConfirmFormExit(context);
+
+/// Whether the panel has an authentication adapter whose session is over.
+bool _sessionEnded(BuildContext context, BeakPanelConfig config) {
+  final auth = config.auth;
+  if (auth == null) return false;
+  final container = beakDependencies(context);
+  final BeakAuthAdapter? adapter =
+      auth.adapter ??
+      (container.isRegistered<BeakSessionStore>()
+          ? container<BeakSessionStore>()
+          : null);
+  return adapter?.state.value is BeakAuthGuest;
+}
 
 /// Locks the panel to `/lock` after [timeout] of no pointer or key activity,
 /// on every routed page including a full-screen form. Any pointer event resets
@@ -827,15 +859,19 @@ Future<bool> _confirmExit(BuildContext context) async =>
 /// its draft, and one without loses its unsaved input.
 // --8<-- [start:idleLock]
 class _BeakIdleLock extends HookWidget {
-  const _BeakIdleLock({required this.timeout, required this.child});
+  const _BeakIdleLock({
+    required this.timeout,
+    required this.authRefresh,
+    required this.child,
+  });
 
   final Duration timeout;
+  final BeakAuthRouterRefresh? authRefresh;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final router = GoRouter.of(context);
-    final reset = useRef<VoidCallback>(() {});
 
     useEffect(() {
       Timer? timer;
@@ -844,6 +880,7 @@ class _BeakIdleLock extends HookWidget {
         _lockingRouters.remove(router);
         timer = Timer(timeout, () {
           _lockingRouters.add(router);
+          authRefresh?.lock();
           router.go('/lock');
         });
       }
@@ -856,23 +893,28 @@ class _BeakIdleLock extends HookWidget {
         return false;
       }
 
-      reset.value = schedule;
+      // A pointer route sees every press, drag and scroll wherever it lands,
+      // dialogs and sheets included; a Listener around the shell would not.
+      void onPointer(PointerEvent event) {
+        if (event is PointerDownEvent ||
+            event is PointerMoveEvent ||
+            event is PointerSignalEvent) {
+          schedule();
+        }
+      }
+
       schedule();
       HardwareKeyboard.instance.addHandler(onKey);
+      GestureBinding.instance.pointerRouter.addGlobalRoute(onPointer);
       return () {
+        GestureBinding.instance.pointerRouter.removeGlobalRoute(onPointer);
         HardwareKeyboard.instance.removeHandler(onKey);
         timer?.cancel();
         _lockingRouters.remove(router);
       };
-    }, [timeout, router]);
+    }, [timeout, router, authRefresh]);
 
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => reset.value(),
-      onPointerMove: (_) => reset.value(),
-      onPointerSignal: (_) => reset.value(),
-      child: child,
-    );
+    return child;
   }
 }
 // --8<-- [end:idleLock]
@@ -923,7 +965,7 @@ class _BottomNavigation extends StatelessWidget {
           context.go(sections[index].items.firstWhere(visible).route),
       width: context.components.appShell?.primaryNavigationWidth ?? 64,
       labelBehavior: OiRailLabelBehavior.none,
-      semanticLabel: 'Workspace settings',
+      semanticLabel: BeakLocalizations.of(context).workspaceSettings,
     ),
   );
 }

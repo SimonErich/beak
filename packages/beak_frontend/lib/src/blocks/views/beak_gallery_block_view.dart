@@ -10,38 +10,29 @@ class _BeakGalleryBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final revision = useBeakDataRevision(dataSource, table: block.query.table);
-    final records = useState(const <BeakRecord>[]);
+    final records = _useBlockRead(
+      dataSource,
+      block.query,
+      identity: block,
+      initial: const <BeakRecord>[],
+      map: (page) => page.items,
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(block.query);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block, revision]);
-
-    return OiGallery(
-      label: 'Gallery',
-      columns: block.columns,
-      items: [
-        for (final (index, record) in records.value.indexed)
-          OiGalleryItem(
-            key: index,
-            src: _readString(record, block.imageUrlField) ?? '',
-            alt: _readString(record, block.captionField) ?? '',
-          ),
-      ],
+    return _withReadFailure(
+      context,
+      records,
+      OiGallery(
+        label: BeakLocalizations.of(context).gallery,
+        columns: block.columns,
+        items: [
+          for (final (index, record) in records.data.indexed)
+            OiGalleryItem(
+              key: index,
+              src: _readString(record, block.imageUrlField) ?? '',
+              alt: _readString(record, block.captionField) ?? '',
+            ),
+        ],
+      ),
     );
   }
 }

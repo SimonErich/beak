@@ -143,6 +143,11 @@ class BeakAuthPage extends HookWidget {
                               ? TextInputType.text
                               : TextInputType.emailAddress,
                           enabled: !busy,
+                          // Sign-in submits from the password field; here the
+                          // email step has nothing else to fill in.
+                          onSubmitted: mode == BeakAuthMode.login
+                              ? null
+                              : (_) => submit(),
                         ),
                       if (mode != BeakAuthMode.login &&
                           step == BeakAuthStep.verify) ...[

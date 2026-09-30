@@ -44,6 +44,13 @@ final class HttpBeakDataSource
       client.validateRecord(request);
 
   // --8<-- [start:httpCommit]
+  /// Claims durable receipts only: a missing receipt then proves the server
+  /// never got the plan, so a form may save again after a reload. Whether the
+  /// graph rolls back depends on the data source behind the server, which the
+  /// client cannot see, so `atomicGraph` stays false and a recovered receipt
+  /// carries the real save mode. Over a server whose receipts live in memory,
+  /// the claim fails only when that server restarted between the send and the
+  /// recovery.
   @override
   BeakCommitCapabilities get commitCapabilities =>
       const BeakCommitCapabilities(durableReceipts: true);

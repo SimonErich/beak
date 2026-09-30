@@ -97,7 +97,7 @@ The resource registers it for the read role:
 
 Outside a scope, a record block renders nothing, and it does not throw. If a sheet comes up blank, look for the missing scope first.
 
-`BeakRelationBlock` deserves a warning. It is the relation manager, not a read-only list: each row of a has-many gets a Delete button, and each row of a many-to-many gets Detach and an attach picker. Those act immediately, through the resource routes, outside any form draft. Use it where that is the intent. For a read-only list of related rows, use the default show page or a `tableForm(readOnly: true)` in a form screen. The block system is described in [The block system](../concepts/the-block-system.md) and [Record blocks](../blocks/record-blocks.md).
+`BeakRelationBlock` deserves a warning. It is the relation manager, not a read-only list: each row of a has-many gets a Delete button, and each row of a many-to-many gets Detach and an attach picker. Those act immediately (a delete after a confirmation), through the resource routes, outside any form draft. Use it where that is the intent. For a read-only list of related rows, use the default show page or a `tableForm(readOnly: true)` in a form screen. The block system is described in [The block system](../concepts/the-block-system.md) and [Record blocks](../blocks/record-blocks.md).
 
 ## Rules and limits
 

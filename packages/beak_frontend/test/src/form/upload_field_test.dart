@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_frontend/src/form/beak_form_controller_builder.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:obers_ui/obers_ui.dart';
 
@@ -117,6 +118,60 @@ void main() {
 
     expect(uploader.calls, isEmpty);
     expect(find.byType(OiImage), findsNothing);
+  });
+
+  testWidgets('buttons name the field they belong to, and errors are live', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: Column(
+          children: [
+            BeakUploadField(
+              controller: controller,
+              column: ArticleColumns.avatar,
+              uploader: uploader,
+              filePicker: () async => png(17),
+            ),
+            BeakUploadField(
+              controller: controller,
+              column: ArticleColumns.attachment,
+              uploader: uploader,
+              filePicker: () async => png(8),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Two "Choose file" buttons would be indistinguishable to a screen reader.
+    expect(find.bySemanticsLabel('Choose file for Avatar'), findsOneWidget);
+    expect(find.bySemanticsLabel('Choose file for Attachment'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Choose file for Avatar'));
+    await tester.pumpAndSettle();
+
+    final message = find.textContaining('exceeding the limit of 16 bytes');
+    expect(message, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(message)
+          .getSemanticsData()
+          .flagsCollection
+          .isLiveRegion,
+      isTrue,
+    );
+
+    await tester.tap(find.bySemanticsLabel('Choose file for Attachment'));
+    await tester.pumpAndSettle();
+    expect(
+      find.bySemanticsLabel('Remove file from Attachment'),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 
   testWidgets('renders disabled without an uploader', (tester) async {

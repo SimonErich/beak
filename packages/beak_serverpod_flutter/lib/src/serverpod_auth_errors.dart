@@ -48,6 +48,11 @@ class ServerpodAuthErrors {
       ),
     ServerpodClientHttpException(statusCode: 403) =>
       const BeakAuthorizationException('Access denied.'),
+    ServerpodClientHttpException() ||
+    ServerpodClientNetworkException() ||
+    ServerpodClientUnknownException() => const BeakTransportException(
+      'Authentication transport failed.',
+    ),
     _ =>
       mapper?.call(error, stackTrace) ??
           const BeakConfigurationException('Authentication transport failed.'),

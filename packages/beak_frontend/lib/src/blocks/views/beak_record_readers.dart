@@ -15,10 +15,17 @@ const BeakPagination _modulePage = BeakPagination(
 /// The rows a module view drew and how many its query matched in all.
 final class _ModuleRows {
   /// The rows of one fetched page and the size of the whole result.
-  const _ModuleRows(this.records, this.total);
+  ///
+  /// [failure] and [retry] describe a read that failed: the rows are then the
+  /// last ones that were read, and [retry] reads again.
+  const _ModuleRows(this.records, this.total, {this.failure, this.retry});
 
   /// Nothing fetched yet.
-  const _ModuleRows.empty() : records = const [], total = 0;
+  const _ModuleRows.empty()
+    : records = const [],
+      total = 0,
+      failure = null,
+      retry = null;
 
   /// The fetched rows, in query order.
   final List<BeakRecord> records;
@@ -26,12 +33,18 @@ final class _ModuleRows {
   /// How many rows the query matched across all pages.
   final int total;
 
+  /// Why the last read failed, or null when it did not.
+  final BeakException? failure;
+
+  /// Reads again after a failure.
+  final VoidCallback? retry;
+
   /// Whether the query matched more rows than were fetched.
   bool get truncated => total > records.length;
 }
 
 /// Runs [spec] against [dataSource], and again whenever a write to its table
-/// is confirmed.
+/// is confirmed or [_ModuleRows.retry] is called.
 ///
 /// The notifier is writable so a view can mirror a confirmed write into what it
 /// draws before the refetch lands.
@@ -40,6 +53,7 @@ ValueNotifier<_ModuleRows> _useModuleRows(
   BeakQuerySpec spec,
 ) {
   final rows = useState(const _ModuleRows.empty());
+  final attempt = useState(0);
   final revision = useBeakDataRevision(dataSource, table: spec.table);
   useEffect(() {
     var cancelled = false;
@@ -48,37 +62,146 @@ ValueNotifier<_ModuleRows> _useModuleRows(
       if (cancelled) {
         return;
       }
-      if (result case BeakOk(:final value)) {
-        rows.value = _ModuleRows(value.items, value.total);
+      rows.value = switch (result) {
+        BeakOk(:final value) => _ModuleRows(value.items, value.total),
+        // What was read before stays: an empty board would say "nothing is
+        // here" about a read that never happened.
+        BeakErr(:final error) => _ModuleRows(
+          rows.value.records,
+          rows.value.total,
+          failure: error,
+          retry: () => attempt.value++,
+        ),
+      };
+    }
+
+    load();
+    return () => cancelled = true;
+  }, [dataSource, jsonEncode(spec.toJson()), revision, attempt.value]);
+  return rows;
+}
+
+/// What a block that reads for itself has: its mapped [data], the [failure] of
+/// the last read (the previous [data] stays while it is shown), and a [retry].
+final class _BlockRead<T> {
+  /// Captures one moment of a block's read.
+  const _BlockRead(this.data, this.failure, this.retry);
+
+  /// What the block draws from the last successful read.
+  final T data;
+
+  /// Why the last read failed, or null when it did not.
+  final BeakException? failure;
+
+  /// Reads again.
+  final VoidCallback retry;
+}
+
+/// Runs [spec] through [dataSource] and maps each answer with [map], again
+/// whenever a write to its table is confirmed, [identity] changes or
+/// [_BlockRead.retry] is called.
+///
+/// [initial] is what the block draws until the first answer arrives. A failed
+/// read keeps the previous data and reports itself through
+/// [_BlockRead.failure], which [_withReadFailure] draws.
+_BlockRead<T> _useBlockRead<T>(
+  BeakDataSource dataSource,
+  BeakQuerySpec spec, {
+  required Object identity,
+  required T initial,
+  required T Function(BeakPage<BeakRecord> page) map,
+}) {
+  final data = useState(initial);
+  final failure = useState<BeakException?>(null);
+  final attempt = useState(0);
+  final revision = useBeakDataRevision(dataSource, table: spec.table);
+  useEffect(() {
+    var cancelled = false;
+    Future<void> load() async {
+      final result = await BeakResourceRepository(dataSource).query(spec);
+      if (cancelled) {
+        return;
+      }
+      switch (result) {
+        case BeakOk(:final value):
+          data.value = map(value);
+          failure.value = null;
+        case BeakErr(:final error):
+          failure.value = error;
       }
     }
 
     load();
     return () => cancelled = true;
-  }, [dataSource, jsonEncode(spec.toJson()), revision]);
-  return rows;
+  }, [dataSource, identity, revision, attempt.value]);
+  return _BlockRead(data.value, failure.value, () => attempt.value++);
 }
 
-/// [view] with a note beneath it when [rows] holds only part of the result.
+/// [view] with the failure of [read] above it and a Retry, or [view] alone.
+Widget _withReadFailure(
+  BuildContext context,
+  _BlockRead<Object?> read,
+  Widget view,
+) => _withFailure(context, read.failure, read.retry, view);
+
+/// [view] with [failure] and a [retry] above it, or [view] alone when nothing
+/// failed. The message is the panel's own, so an infrastructure detail never
+/// reaches the screen.
+Widget _withFailure(
+  BuildContext context,
+  BeakException? failure,
+  VoidCallback? retry,
+  Widget view,
+) {
+  if (failure == null) {
+    return view;
+  }
+  final strings = BeakLocalizations.of(context);
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(child: OiLabel.caption(strings.errorMessage(failure))),
+          if (retry != null)
+            OiButton.ghost(
+              size: OiButtonSize.small,
+              label: strings.retry,
+              onTap: retry,
+            ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Flexible(child: view),
+    ],
+  );
+}
+
+/// [view] with a note beneath it when [rows] holds only part of the result, and
+/// the failure of the last read above it.
 Widget _withTruncationNote(
   BuildContext context,
   _ModuleRows rows,
   Widget view,
-) => !rows.truncated
-    ? view
-    : Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Flexible(child: view),
-          const SizedBox(height: 8),
-          OiLabel.caption(
-            BeakLocalizations.of(
-              context,
-            ).showingFirst(rows.records.length, rows.total),
-          ),
-        ],
-      );
+) {
+  final Widget noted = !rows.truncated
+      ? view
+      : Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Flexible(child: view),
+            const SizedBox(height: 8),
+            OiLabel.caption(
+              BeakLocalizations.of(
+                context,
+              ).showingFirst(rows.records.length, rows.total),
+            ),
+          ],
+        );
+  return _withFailure(context, rows.failure, rows.retry, noted);
+}
 
 /// Tells the user a write from a module view was refused, in the words the
 /// rest of the panel uses for a failure.

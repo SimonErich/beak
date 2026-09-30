@@ -216,7 +216,7 @@ const BeakPanelConfig({
 
 ## BeakResource
 
-One model presented in the panel. Declaring one gives the list, create, show and edit routes; the built-in view, edit, delete and create actions are always present and the lists below add to them. A resource is usually a `final class ... extends BeakResource` in `lib/resources/<table>/`, which the generated bootstrap discovers and uses in place of the default resource for that model. The schema annotation `@Resource` is a different thing: it declares the model, see [Annotations](annotations.md#resource).
+One model presented in the panel. Declaring one gives the list, create, show and edit routes; the built-in view, edit, delete and create actions appear where the resource flags, the model permissions and the server capabilities allow them, and the lists below add to them. A resource is usually a `final class ... extends BeakResource` in `lib/resources/<table>/`, which the generated bootstrap discovers and uses in place of the default resource for that model. The schema annotation `@Resource` is a different thing: it declares the model, see [Annotations](annotations.md#resource).
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_resource.dart"
 const BeakResource({
@@ -366,7 +366,7 @@ const BeakNavigation({
 | `headerBuilder` | `Widget Function(BuildContext context, String section)?` | `null` | Replaces the contextual heading with an application workspace header. |
 | `userMenu` | `Widget?` | `null` | Profile or account menu placed after the shared header actions. |
 | `searchPlaceholder` | `String?` | `null` | Command search hint; the same shared search still handles activation. |
-| `searchShortcut` | `List<String>` | `const ['meta', 'K']` | Visible logical shortcut keys beside the shared command-search hint. |
+| `searchShortcut` | `List<String>` | `const ['meta', 'K']` | Shortcut keys shown beside the command-search hint. Only the hint changes: the palette always opens with Ctrl-K or Cmd-K. |
 | `showCreateAction` | `bool` | `true` | Automatically offers creation for the first creatable workspace resource. The resource's current visibility and creation permissions are respected. |
 | `showThemeToggle` | `bool` | `true` | Whether the shared theme switch is included in the top bar. |
 | `showCurrentRecord` | `bool` | `true` | Includes the loaded current record under its resource when applicable. |
@@ -692,8 +692,8 @@ A host with its own router and app widget can mount Beak's routes and skip `Beak
 | --- | --- | --- |
 | `registerBeakDependencies` | `void registerBeakDependencies({required BeakPanelConfig config, GetIt? locator, BeakDataSource? dataSource, http.Client? httpClient, String? Function()? tokenProvider, bool externalAuthentication = false})` | Registers the container entries above; synchronous, and re-registration replaces the previous entries |
 | `createBeakRouter` | `GoRouter createBeakRouter(BeakPanelConfig config, {BeakAuthRouterRefresh? authRefresh})` | The full router the panel uses |
-| `beakPanelRoutes` | `List<RouteBase> beakPanelRoutes(BeakPanelConfig config)` | The shell and the resource and screen routes, for a host router |
-| `beakAuthRoutes` | `List<RouteBase> beakAuthRoutes(BeakPanelConfig config)` | The sign-in, registration, recovery and lock routes |
+| `beakPanelRoutes` | `List<RouteBase> beakPanelRoutes(BeakPanelConfig config, {BeakAuthRouterRefresh? authRefresh})` | The shell and the resource and screen routes, for a host router. Pass the `authRefresh` the router listens to so the idle lock can hold |
+| `beakAuthRoutes` | `List<RouteBase> beakAuthRoutes(BeakPanelConfig config, {BeakAuthRouterRefresh? authRefresh})` | The sign-in, registration, recovery and lock routes. A successful unlock releases the lock on `authRefresh` |
 | `openBeakCommandBar` | `void openBeakCommandBar(BuildContext context, BeakPanelConfig config)` | Opens the command palette |
 
 ## Rules and limits

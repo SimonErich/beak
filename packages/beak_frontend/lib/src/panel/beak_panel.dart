@@ -29,7 +29,9 @@ import 'beak_navigation.dart';
 /// This is the root widget of a Beak app; hand it to `runApp`. On first
 /// build it registers the panel's dependencies (see
 /// [registerBeakDependencies]) and builds the router, both memoized on
-/// [config].
+/// [config] and the arguments it is built from. Those keys are identities: a
+/// rebuild that passes new list or resource instances starts a new router and
+/// a new session, so keep the configuration in a field or a `const`.
 ///
 /// ```dart
 /// void main() => runApp(

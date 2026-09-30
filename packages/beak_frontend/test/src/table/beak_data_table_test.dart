@@ -359,6 +359,55 @@ void main() {
     });
   });
 
+  group('cells are read only', () {
+    testWidgets('a double tap on a cell opens no editor that could blank it', (
+      tester,
+    ) async {
+      await pumpTable(tester, enableDelete: false);
+
+      final display = find.byKey(const Key('cell_display'));
+      expect(display, findsNothing, reason: 'no cell offers to be edited');
+      await tester.tap(find.text('Note 1'));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(find.text('Note 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('\u2713'), findsNothing);
+      expect(dataSource.updateCalls, isEmpty);
+      expect(find.text('Note 1'), findsOneWidget);
+    });
+  });
+
+  testWidgets('a table can be named for screen readers', (tester) async {
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakDataTable(
+          model: const NoteModel(),
+          dataSource: dataSource,
+          label: 'Latest notes',
+          enableDelete: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<OiTable<BeakRecord>>(find.byType(OiTable<BeakRecord>))
+          .label,
+      'Latest notes',
+    );
+
+    await pumpTable(tester, enableDelete: false);
+    expect(
+      tester
+          .widget<OiTable<BeakRecord>>(find.byType(OiTable<BeakRecord>))
+          .label,
+      'Records',
+      reason: 'without a name the generic label stays',
+    );
+  });
+
   group('server-side operations', () {
     testWidgets('tapping a sortable header emits a replaced BeakSort', (
       tester,
@@ -555,6 +604,57 @@ void main() {
       expect(received.single, unorderedEquals(['n1', 'n3']));
     });
 
+    testWidgets('a selection does not follow the person to another page', (
+      tester,
+    ) async {
+      dataSource = FakeDataSource(
+        records: {
+          'notes': {
+            for (var index = 1; index <= 60; index += 1) 'n$index': note(index),
+          },
+        },
+      );
+      final selections = <BeakTableSelection>[];
+      await tester.binding.setSurfaceSize(const Size(1400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakDataTable(
+            model: const NoteModel(),
+            dataSource: dataSource,
+            controller: controller,
+            enableDelete: false,
+            bulkActions: [
+              BeakTableAction(
+                id: 'archive',
+                label: 'Archive',
+                onRun: (_) async {},
+              ),
+            ],
+            onSelectionChanged: selections.add,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      controller.selectRow('n1');
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsOneWidget);
+
+      final table = tester.widget<OiTable<BeakRecord>>(
+        find.byType(OiTable<BeakRecord>),
+      );
+      table.onPageChange!(1, 25);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Note 26'), findsOneWidget);
+      expect(controller.selectedRows, isEmpty);
+      expect(find.text('0 selected'), findsNothing);
+      expect(find.text('Archive'), findsNothing);
+      expect(selections.last.ids, isEmpty);
+    });
+
     testWidgets('a row action receives that row id', (tester) async {
       final received = <List<Object>>[];
       await pumpTable(
@@ -599,6 +699,23 @@ void main() {
       expect(dataSource.deleteCalls, isEmpty);
     });
 
+    testWidgets('a refused delete restores the row and says why', (
+      tester,
+    ) async {
+      dataSource = _RefusingDeleteSource();
+      await pumpTable(tester);
+
+      _tapButton(tester, _deleteButton());
+      await tester.pumpAndSettle();
+      expect(find.text('Note 1'), findsNothing, reason: 'optimistic removal');
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Note 1'), findsOneWidget, reason: 'rolled back');
+      expect(find.text('You may not delete notes.'), findsOneWidget);
+      expect(find.text('Action failed'), findsNothing);
+    });
+
     testWidgets('delete commits to the data source after the undo window', (
       tester,
     ) async {
@@ -624,6 +741,27 @@ final class _FailingSource extends FakeDataSource {
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     throw const BeakStorageException('backend unreachable');
+  }
+}
+
+/// A data source that refuses every delete with a domain message.
+final class _RefusingDeleteSource extends FakeDataSource {
+  _RefusingDeleteSource()
+    : super(
+        records: {
+          'notes': {
+            for (var index = 1; index <= 3; index += 1)
+              'n$index': BeakRecord.fromRow({
+                'id': 'n$index',
+                'title': 'Note $index',
+              }),
+          },
+        },
+      );
+
+  @override
+  Future<void> delete(String table, Object id, {bool force = false}) async {
+    throw const BeakAuthorizationException('You may not delete notes.');
   }
 }
 

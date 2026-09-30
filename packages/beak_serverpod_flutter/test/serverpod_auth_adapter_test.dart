@@ -75,6 +75,33 @@ void main() {
     return value;
   }
 
+  test('a network failure while signing in is a transport failure', () async {
+    for (final error in const <Exception>[
+      ServerpodClientNetworkException('connection reset by 10.0.0.7'),
+      ServerpodClientUnknownException('proxy said something odd'),
+    ]) {
+      when(
+        () => endpoint.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenThrow(error);
+      final auth = adapter();
+
+      final result = await auth.login(email: 'a@b.c', password: 'secret');
+
+      expect(result, isA<BeakErr<void>>());
+      expect(
+        (result as BeakErr<void>).error,
+        isA<BeakTransportException>().having(
+          (error) => error.message,
+          'message',
+          isNot(contains('10.0.0.7')),
+        ),
+      );
+    }
+  });
+
   test('login preserves the committed domain identity subtype', () async {
     final auth = adapter(
       resolve: (signedIn) async => signedIn ? const _Identity() : null,

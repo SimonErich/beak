@@ -49,7 +49,11 @@ class _BeakKanbanBlockView extends HookWidget {
         onCardMove: (record, from, to, index) async {
           final Enum? target = groupField.valueByName(to.toString());
           final Object? id = block.model.primaryKeyOf(record);
-          if (target == null || id == null) {
+          // A drop inside the card's own column changes no group: there is
+          // nothing to write, and no move to report.
+          if (target == null ||
+              id == null ||
+              _readString(record, groupField) == target.name) {
             return;
           }
           final result = await BeakResourceRepository(dataSource).update(

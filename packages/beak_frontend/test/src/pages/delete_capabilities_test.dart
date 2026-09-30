@@ -147,7 +147,7 @@ void main() {
     await tester.tap(actionButton('Delete'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('One note'), findsNothing);
-    expect(find.text('Record deleted'), findsOneWidget);
+    expect(find.text('Record deleted.'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 6));
     await tester.pumpAndSettle();

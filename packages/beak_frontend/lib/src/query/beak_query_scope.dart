@@ -85,7 +85,7 @@ class BeakQueryScope extends HookWidget {
               description: BeakLocalizations.of(
                 context,
               ).errorMessage(error.value!),
-              actionLabel: 'Reset view',
+              actionLabel: BeakLocalizations.of(context).resetView,
               onAction: () {
                 error.value = null;
                 if (router != null && uri != null) {

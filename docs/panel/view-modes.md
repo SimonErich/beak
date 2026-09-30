@@ -67,7 +67,7 @@ Dropping a card writes the new enum name into `groupField`. It does not renumber
 
 Every record becomes one event. `titleField` labels it, `startField` places it and `endField` closes it. Without an end the event ends where it starts, and a record with no start is left out, because it has no place on a calendar. `allDayField` is a boolean column, and a `categoryField` that is an enum column tints each event with the badge color of its value. `mode` (`OiCalendarMode.day`, `week` or `month`) is the view it opens in, `month` by default.
 
-Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`.
+Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`. Events are drawn in the panel's `formatting` zone, and a drag is stored as the instant that wall-clock time names in that zone, so moving an event to another day keeps its hour.
 
 ## The timeline
 
@@ -94,7 +94,8 @@ A transition that needs input, or a guard that has a name, still belongs in a mo
 | Blocks load again after a write to their table | A board or a calendar queries again when a form, an action or another block writes its table. Only a colleague's write in another browser needs a `refreshPolicy` |
 | The group field belongs to the block's model | Related fields throw when the board renders |
 | Card and event text is the stored value | Enum columns show the enum name |
-| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback |
+| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback. A card dropped in its own column writes nothing |
+| A failed read shows an error line | The block keeps what it drew before, shows the panel's generic error above it and offers Retry |
 | The timeline is read-only | Change the records in the table or the form |
 
 ## Verify it

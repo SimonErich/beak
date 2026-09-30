@@ -135,9 +135,9 @@ Widget renderBeakCell(
     ),
     BeakRenderIntent.thumbnail => _image(column, raw, sizeInPixels: 40),
     BeakRenderIntent.image => _image(column, raw, sizeInPixels: 160),
-    BeakRenderIntent.relationLink => GestureDetector(
-      onTap: onOpenRelation,
-      child: OiLabel.link(raw.toString(), maxLines: 1),
+    BeakRenderIntent.relationLink => beakRelationLink(
+      raw.toString(),
+      onOpen: onOpenRelation,
     ),
     BeakRenderIntent.relationBadges => _relationBadges(raw),
     BeakRenderIntent.richText => OiLabel.body(raw.toString(), maxLines: 2),
@@ -146,6 +146,19 @@ Widget renderBeakCell(
     BeakRenderIntent.custom => _custom(context, column, record),
   };
 }
+
+/// A relationship's label as a link a keyboard and a screen reader can use.
+///
+/// Without [onOpen] there is nowhere to go, so the label is plain text: a
+/// link that goes nowhere is worse than none.
+Widget beakRelationLink(String label, {required VoidCallback? onOpen}) =>
+    onOpen == null
+    ? OiLabel.body(label, maxLines: 1)
+    : OiTappable(
+        semanticLabel: label,
+        onTap: onOpen,
+        child: OiLabel.link(label, maxLines: 1),
+      );
 
 /// The text a display-format override shows for [record].
 ///

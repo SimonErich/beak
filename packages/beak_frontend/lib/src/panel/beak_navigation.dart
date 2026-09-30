@@ -159,7 +159,8 @@ final class BeakNavigation {
   /// Command search hint; the same shared search still handles activation.
   final String? searchPlaceholder;
 
-  /// Visible logical shortcut keys beside the shared command-search hint.
+  /// Shortcut keys shown beside the command-search hint. The hint is all this
+  /// changes: the palette always opens with Ctrl-K or Cmd-K.
   final List<String> searchShortcut;
 
   /// Automatically offers creation for the first creatable workspace resource.

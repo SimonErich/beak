@@ -96,6 +96,7 @@ That is all the panel needs. The default store does the rest:
 | --- | --- | --- |
 | Guest | Any path except `/login`, `/register`, `/recover`, `/500`, `/maintenance`, `/coming-soon` | Redirect to `/login` |
 | Signed in, `canAccessPanel: false` | Any path except those and `/403` | Redirect to `/403` |
+| Signed in with access, panel locked | Any path except `/lock` | Redirect to `/lock`, see [Idle lock](#idle-lock) |
 | Signed in with access | `/login`, `/register`, `/recover` | Redirect to `/` |
 | Loading or failed | Anywhere | Stay on the URL. `BeakAuthGate` shows a loading label, or a card with Retry and Back to sign in. Protected content stays unmounted |
 
@@ -116,6 +117,8 @@ Sign-in screens follow the panel locale. English and German ship with Beak.
 With `auth:` set and no `shellActions`, the top bar carries `BeakLogoutButton`. Once you set `shellActions` the panel drops that button, because the top bar is yours, so you place it yourself: `BeakLogoutButton(adapter: ...)` takes the same adapter, and `beakDependencies(context)<BeakSessionStore>()` is the default one.
 
 The default store clears its local session first, then asks the server to revoke the token. If the revocation fails, the visitor is signed out locally either way, and the token stays valid on the server until it expires.
+
+A session that ends under an open form leaves without the "Leave this form?" question, whether the person signed out or the server answered 401. Nobody can save into a session that is over, and "Stay" would leave a signed-out visitor on a protected page. What was typed is kept only if the screen has a `drafts:` store.
 
 Switching accounts is safe by construction. The shell is keyed by the identity id, so a different account gets a fresh tree and the previous account's open forms and drafts are disposed. The same account refreshing its permissions keeps its tree and its drafts.
 
@@ -159,13 +162,13 @@ auth: BeakAuthConfig(
 ),
 ```
 
-The timer covers every routed page, a full-screen form included. Pointer down, pointer move, scroll and any key press reset it, so typing a long form does not lock the panel mid-sentence. When it fires, the router goes to `/lock`:
+The timer covers every routed page, a full-screen form included. Pointer down, pointer move, scroll and any key press reset it, in dialogs and sheets too, so typing a long form does not lock the panel mid-sentence. When it fires, the router goes to `/lock`:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_router.dart"
 --8<-- "packages/beak_frontend/lib/src/panel/beak_router.dart:idleLock"
 ```
 
-`/lock` shows the obers_ui lock screen with `lockUserName` (default: the panel title) and a password field. Whatever the visitor types goes to `onUnlock`, and a `true` answer sends them to `/`. Beak ships no default check: an absent `onUnlock` rejects every password. What to verify is up to you, usually the password against your backend. Illustrative, with a stand-in for that check:
+`/lock` shows the obers_ui lock screen with `lockUserName` (default: the panel title) and a password field. Whatever the visitor types goes to `onUnlock`, and a `true` answer sends them to `/`. Until then the panel stays closed: a request for any other page, the browser's Back button or a typed address, lands on `/lock` again. Signing out, or a different account signing in, ends the lock too. A refresh of permissions that fails or is still running does not. Beak ships no default check: an absent `onUnlock` rejects every password. What to verify is up to you, usually the password against your backend. Illustrative, with a stand-in for that check:
 
 ```dart
 BeakAuthConfig beakAuth() => BeakAuthConfig(
@@ -175,7 +178,7 @@ BeakAuthConfig beakAuth() => BeakAuthConfig(
 );
 ```
 
-The lock is a curtain, not a door. It hides the panel from someone walking past. It does not end the session: the token stays in memory and stays valid on the server until it expires or the user signs out. Three details follow from how it is built:
+The lock is a curtain, not a door. It hides the panel from someone walking past, and Back cannot lift it. It does not end the session: the token stays in memory and stays valid on the server until it expires or the user signs out. Three details follow from how it is built:
 
 - A form with unsaved changes does not hold the lock back. The lock is a navigation, but it skips the "Leave this form?" question, because nobody is there to answer it. What was typed is kept only if the screen has a `drafts:` store; without one, the unsaved input is gone when the person unlocks.
 - Unlocking lands on `/`, not on the page that was open.
@@ -189,7 +192,7 @@ The lock is a curtain, not a door. It hides the panel from someone walking past.
 --8<-- "packages/beak_frontend/lib/src/panel/beak_panel.dart:panelRouting"
 ```
 
-An app that already has a `GoRouter` assembles the same pieces itself: `registerBeakDependencies(config: ...)`, then `beakPanelRoutes(config)` for the shell and `beakAuthRoutes(config)` for the sign-in screens inside its own route list. To reuse Beak's redirect, give the router `refreshListenable: refresh` and `redirect: (_, state) => refresh.redirect(state.uri.path)`. If the host owns sign-in completely, skip `beakAuthRoutes`, pass `externalAuthentication: true` to `registerBeakDependencies`, and guard the shell with your own redirect. [Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md) walks through that mount.
+An app that already has a `GoRouter` assembles the same pieces itself: `registerBeakDependencies(config: ...)`, then `beakPanelRoutes(config, authRefresh: refresh)` for the shell and `beakAuthRoutes(config, authRefresh: refresh)` for the sign-in screens inside its own route list. To reuse Beak's redirect, give the router `refreshListenable: refresh` and `redirect: (_, state) => refresh.redirect(state.uri.path)`. The `authRefresh:` argument is how the idle lock closes and opens the panel: leave it out and the lock only navigates to `/lock`, which a later navigation can leave. If the host owns sign-in completely, skip `beakAuthRoutes`, pass `externalAuthentication: true` to `registerBeakDependencies`, and guard the shell with your own redirect. [Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md) walks through that mount.
 
 ## Rules and limits
 
@@ -204,7 +207,7 @@ An app that already has a `GoRouter` assembles the same pieces itself: `register
 | `canAccessPanel: false` parks the account on `/403` | The page offers `Back to sign in` for such an account, which ends its session, because `Back to dashboard` would redirect to `/403` again. Refuse such logins in the adapter when you can, as `ServerpodAuthAdapter` does |
 | Register and recover need both switches | Config flag and adapter capability. Asking for either without an `adapter` throws at startup, because the default store has neither flow. An adapter that lacks the flow means no route and the not-found page, not a disabled button |
 | Deep links are not remembered | Sign-in always ends on `/` |
-| The lock is a UI lock | Token and server session stay valid. It covers every routed page and is not held back by a form with unsaved changes, see above |
+| The lock is a UI lock | Token and server session stay valid. It covers every routed page, is not held back by a form with unsaved changes, and holds against the Back button, see above |
 | `shellActions` removes the sign-out button | Add `BeakLogoutButton` yourself |
 | One session authority | An adapter owns the session state. Do not copy its credentials into another Beak store |
 
@@ -271,7 +274,7 @@ Import `package:beak/panel.dart`. The server types are in `package:beak/server.d
 | `BeakAuthIdentity` | class | `id`, `displayName`, `canAccessPanel` (default `true`) |
 | `BeakEmailVerificationFlow` | interface | `start`, `verify`, `complete`, `dispose` |
 | `BeakAuthGate` | widget | Renders its child only for a signed-in account with access |
-| `BeakAuthRouterRefresh` | `ChangeNotifier` | `redirect(String path)` and the refresh signal for a `GoRouter` |
+| `BeakAuthRouterRefresh` | `ChangeNotifier` | `redirect(String path)` and the refresh signal for a `GoRouter`, plus `locked`, `lock()` and `unlock()` for the idle lock |
 | `BeakAuthPage`, `BeakAuthMode` | widget, enum | The sign-in, registration and recovery screens; `login`, `register`, `recover` |
 | `BeakLogoutButton` | widget | Sign-out button for an adapter |
 | `beakAuthRoutes`, `beakPanelRoutes`, `createBeakRouter` | functions | Routes for a host router, and the full router |

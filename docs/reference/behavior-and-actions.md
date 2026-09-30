@@ -387,7 +387,7 @@ const BeakGlobalAction({
 | `BeakDeleteAction.confirmed()` | `delete` | Delete | record | Asks first, waits for the server, then refreshes and returns to the list. No undo, and a refusal keeps you on the record. |
 | `BeakArchiveAction` | `archive` | Archive | record | The confirmed delete under another key and label, through the resource's configured deletion operation. No restore is implied. |
 
-`BeakResource.deleteAction` defaults to `const BeakDeleteAction()`. View, edit, delete and create are always present, and `recordActions`, `bulkActions` and `globalActions` on the resource add to them, see [Panel and resource options](panel-options.md).
+`BeakResource.deleteAction` defaults to `const BeakDeleteAction()`. View, edit, delete and create appear where the resource flags, the model permissions and the server capabilities allow them, and `recordActions`, `bulkActions` and `globalActions` on the resource add to them, see [Panel and resource options](panel-options.md).
 
 ### BeakActionContext
 

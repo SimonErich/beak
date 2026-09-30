@@ -178,8 +178,9 @@ types without Flutter, for Dart VM tools and tests.
 - Credential writes are ordered, so a logout that starts while a login is still
   persisting wins. Local logout stays effective when remote revocation fails.
 - `exceptionMapper` (a `ServerpodAuthExceptionMapper`) maps your own serialized
-  exceptions. Unknown transport failures become a
-  `BeakConfigurationException("Authentication transport failed.")`.
+  exceptions. A network failure or a status the adapter does not classify becomes
+  a `BeakTransportException("Authentication transport failed.")`, and an error
+  nothing maps becomes a `BeakConfigurationException` with the same message.
 - For a host router, `BeakAuthRouterRefresh`, `beakAuthRoutes` and
   `beakPanelRoutes` (from `beak_frontend`) mount Beak's gates, screens and logout.
 

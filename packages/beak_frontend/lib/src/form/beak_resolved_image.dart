@@ -12,8 +12,8 @@ class BeakResolvedImage extends HookWidget {
   const BeakResolvedImage({
     required this.src,
     required this.alt,
-    this.width,
-    this.height,
+    this.widthInPixels,
+    this.heightInPixels,
     this.fit,
     this.errorWidget,
     super.key,
@@ -25,11 +25,11 @@ class BeakResolvedImage extends HookWidget {
   /// Accessible description passed to the Obers component.
   final String alt;
 
-  /// Optional logical width.
-  final double? width;
+  /// Optional logical width, in logical pixels.
+  final double? widthInPixels;
 
-  /// Optional logical height.
-  final double? height;
+  /// Optional logical height, in logical pixels.
+  final double? heightInPixels;
 
   /// How the image fits its available bounds.
   final BoxFit? fit;
@@ -51,8 +51,8 @@ class BeakResolvedImage extends HookWidget {
     final image = OiImage(
       src: src,
       alt: alt,
-      width: width,
-      height: height,
+      width: widthInPixels,
+      height: heightInPixels,
       fit: fit,
       errorWidget: fallback,
     );

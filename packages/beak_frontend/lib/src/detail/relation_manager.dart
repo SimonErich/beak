@@ -9,6 +9,7 @@ import '../data/beak_relation_loads.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import '../localization/beak_localizations.dart';
+import '../overlays/beak_overlays.dart';
 
 /// The embedded manager of a to-many relationship on one parent record:
 /// lists the related records by their display column and offers the
@@ -94,6 +95,7 @@ class BeakRelationManager extends HookWidget {
     final firstWindow = math.min(pageSize, BeakPagination.maxPerPage);
     final perPage = useState(firstWindow);
     final reloadTick = useState(0);
+    final loadFailure = useState<BeakException?>(null);
     final dataRevision = useBeakDataRevision(dataSource);
 
     useEffect(() {
@@ -107,10 +109,17 @@ class BeakRelationManager extends HookWidget {
       }
       var cancelled = false;
       Future<void> load() async {
-        final (rows, count) = await _load(repository, perPage.value);
-        if (!cancelled) {
-          related.value = rows;
-          total.value = count;
+        final result = await _load(repository, perPage.value);
+        if (cancelled) return;
+        switch (result) {
+          case BeakOk(value: (final rows, final count)):
+            related.value = rows;
+            total.value = count;
+            loadFailure.value = null;
+          case BeakErr(:final error):
+            // Keep what was shown: an empty list would say "nothing is
+            // related" about a read that never happened.
+            loadFailure.value = error;
         }
       }
 
@@ -125,7 +134,12 @@ class BeakRelationManager extends HookWidget {
     void reload() => reloadTick.value += 1;
 
     Future<void> mutate(Future<BeakResult<void>> Function() run) async {
-      await run();
+      final result = await run();
+      if (result case BeakErr(:final error) when context.mounted) {
+        BeakOverlays(
+          context,
+        ).toast(strings.errorMessage(error), level: OiToastLevel.error);
+      }
       reload();
     }
 
@@ -146,7 +160,7 @@ class BeakRelationManager extends HookWidget {
           ],
         ),
         if (relationship case final BeakBelongsToMany manyToMany)
-          _attachPicker(repository, manyToMany, reload, strings),
+          _attachPicker(context, repository, manyToMany, reload, strings),
         // The related rows scroll within a bounded box, so a record with many
         // relations never overflows the surrounding form or detail layout.
         ConstrainedBox(
@@ -184,8 +198,14 @@ class BeakRelationManager extends HookWidget {
                         _ => OiButton.icon(
                           icon: OiIcons.trash2,
                           label: strings.delete,
-                          onTap: () => _withRecordId(record, (relatedId) {
-                            mutate(
+                          onTap: () => _withRecordId(record, (relatedId) async {
+                            final confirmed = await BeakOverlays(context)
+                                .confirm(
+                                  title: strings.deleteRecordQuestion,
+                                  confirmLabel: strings.confirm,
+                                );
+                            if (!confirmed || !context.mounted) return;
+                            await mutate(
                               () => repository.delete(
                                 relationship.relatedTable,
                                 relatedId,
@@ -196,7 +216,16 @@ class BeakRelationManager extends HookWidget {
                       },
                     ],
                   ),
-                if (related.value.isEmpty)
+                if (loadFailure.value case final BeakException failure)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OiLabel.caption(strings.errorMessage(failure)),
+                      ),
+                      OiButton.ghost(label: strings.retry, onTap: reload),
+                    ],
+                  )
+                else if (related.value.isEmpty)
                   OiLabel.caption(strings.noRelatedRecords(relationship.label)),
                 // Only when there is more: a button that loads nothing is
                 // worse than no button.
@@ -226,6 +255,7 @@ class BeakRelationManager extends HookWidget {
   /// The attach picker of a belongs-to-many manager: search the related
   /// table, selecting attaches through the pivot.
   Widget _attachPicker(
+    BuildContext context,
     BeakResourceRepository repository,
     BeakBelongsToMany manyToMany,
     VoidCallback reload,
@@ -245,9 +275,17 @@ class BeakRelationManager extends HookWidget {
           return;
         }
         _withRecordId(record, (relatedId) async {
-          await repository.attach(parentModel.table, parentId, manyToMany.key, [
-            relatedId,
-          ]);
+          final result = await repository.attach(
+            parentModel.table,
+            parentId,
+            manyToMany.key,
+            [relatedId],
+          );
+          if (result case BeakErr(:final error) when context.mounted) {
+            BeakOverlays(
+              context,
+            ).toast(strings.errorMessage(error), level: OiToastLevel.error);
+          }
           reload();
         });
       },
@@ -259,7 +297,7 @@ class BeakRelationManager extends HookWidget {
   /// The count matters: a has-many reads a page, so a parent with 400
   /// children used to show a badge reading 25 — the page size, presented as
   /// the truth.
-  Future<(List<BeakRecord>, int)> _load(
+  Future<BeakResult<(List<BeakRecord>, int)>> _load(
     BeakResourceRepository repository,
     int perPage,
   ) async {
@@ -274,23 +312,24 @@ class BeakRelationManager extends HookWidget {
               ),
             )
             .paginate(perPage: perPage);
-        final result = await repository.query(spec);
-        return switch (result) {
-          BeakOk(:final value) => (value.items, value.total),
-          BeakErr() => (const <BeakRecord>[], 0),
+        return switch (await repository.query(spec)) {
+          BeakOk(:final value) => BeakOk((value.items, value.total)),
+          BeakErr(:final error) => BeakErr(error),
         };
       case final BeakBelongsToMany manyToMany:
         // A pivot load comes back whole with the parent, so what arrived is
         // all there is.
-        final attached = await _loadAttachedRecords(
+        return switch (await _loadAttachedRecords(
           repository,
           parentModel: parentModel,
           parentId: parentId,
           relation: manyToMany,
-        );
-        return (attached, attached.length);
+        )) {
+          BeakOk(:final value) => BeakOk((value, value.length)),
+          BeakErr(:final error) => BeakErr(error),
+        };
       case BeakBelongsTo() || BeakHasOne():
-        return (const <BeakRecord>[], 0);
+        return const BeakOk((<BeakRecord>[], 0));
     }
   }
 
@@ -324,9 +363,9 @@ Future<List<BeakRecord>> _searchRelated(
 }
 
 /// Loads the records currently attached through [relation] on the
-/// [parentId] record of [parentModel] (one relation-loaded parent query);
-/// empty on failure or when the parent is missing.
-Future<List<BeakRecord>> _loadAttachedRecords(
+/// [parentId] record of [parentModel] (one relation-loaded parent query); an
+/// empty list when the parent is missing, and the failure when the read fails.
+Future<BeakResult<List<BeakRecord>>> _loadAttachedRecords(
   BeakResourceRepository repository, {
   required BeakModel parentModel,
   required Object parentId,
@@ -339,7 +378,7 @@ Future<List<BeakRecord>> _loadAttachedRecords(
     relations: [relation],
   );
   return switch (result) {
-    BeakOk(:final value) => value.relations[relation.key] ?? const [],
-    BeakErr() => const [],
+    BeakOk(:final value) => BeakOk(value.relations[relation.key] ?? const []),
+    BeakErr(:final error) => BeakErr(error),
   };
 }

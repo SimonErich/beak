@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
@@ -14,7 +15,8 @@ final class BeakDraftUploads implements BeakUploadClient, BeakUploadUrlClient {
 
   final BeakUploadClient _client;
   final Map<String, _DraftUpload> _files = {};
-  final String _namespace = DateTime.now().microsecondsSinceEpoch.toString();
+  final String _namespace =
+      '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x3fffffff)}';
   int _sequence = 0;
   bool _closed = false;
   Future<BeakSavePlan>? _activePrepare;

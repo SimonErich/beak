@@ -81,8 +81,8 @@ class BeakStoredImage extends HookWidget {
           ? BeakResolvedImage(
               src: url.toString(),
               alt: alt,
-              width: sizeInPixels,
-              height: sizeInPixels,
+              widthInPixels: sizeInPixels,
+              heightInPixels: sizeInPixels,
               fit: BoxFit.cover,
               errorWidget: const OiIcon.decorative(icon: OiIcons.image),
             )

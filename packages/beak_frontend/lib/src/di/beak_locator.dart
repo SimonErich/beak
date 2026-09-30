@@ -50,8 +50,9 @@ class BeakDependencyScope extends InheritedWidget {
 /// [beakLocator]): the [BeakModelRegistry], the [BeakClient] and the
 /// [BeakDataSource].
 ///
-/// [dataSource] overrides the HTTP-backed source with a fake for tests;
-/// [httpClient] swaps only the transport under the real client;
+/// [dataSource] replaces the HTTP-backed source: with the host's own transport
+/// (the Serverpod admin) or with a fake in a test; [httpClient] swaps only the
+/// transport under the real client;
 /// [tokenProvider] supplies the bearer token per request — omit it and the
 /// registered [BeakSessionStore] supplies it, so signing in is all it takes. Registration is
 /// synchronous — the router built right after reads the locator on its
@@ -64,7 +65,7 @@ class BeakDependencyScope extends InheritedWidget {
 /// ```dart
 /// registerBeakDependencies(
 ///   config: buildPanelConfig(),
-///   dataSource: fakeSource, // omit in production to talk HTTP
+///   dataSource: fakeSource, // omit to talk HTTP to the API origin
 /// );
 /// final source = beakLocator<BeakDataSource>();
 /// ```

@@ -35,6 +35,11 @@ import 'beak_stored_image.dart';
 import 'upload_field.dart';
 
 /// A form/detail/wizard host with automatic loading, state, validation and saves.
+///
+/// The form owns one session for the model, data source, layout or steps, regions
+/// and record it is given. Pass the same [layout] and [steps] objects on every
+/// build (a constant, a field, or built once with `useMemoized`): a new instance,
+/// even one equal in content, starts a new session and drops what was typed.
 class BeakConfiguredForm extends HookWidget {
   /// Renders one configured form, detail view or wizard.
   const BeakConfiguredForm({
@@ -314,10 +319,22 @@ class BeakConfiguredForm extends HookWidget {
           final BeakModelAction action => model.behavior.action(action.name),
           null => null,
         };
+        // A failed submit moves the reader to what needs fixing: the first
+        // invalid field is scrolled into view and focused, where a screen
+        // reader announces it.
+        Future<void> revealFirstError() async {
+          await WidgetsBinding.instance.endOfFrame;
+          if (context.mounted) await errorAnchors.revealFirst();
+        }
+
         Future<void> finish() async {
           if (reviewBeforeSave) {
-            if (!await session.validate() || !context.mounted) return;
-            if (await showBeakFormReview(context, session) != true ||
+            if (!await session.validate()) {
+              if (context.mounted) await revealFirstError();
+              return;
+            }
+            if (!context.mounted ||
+                await showBeakFormReview(context, session) != true ||
                 !context.mounted) {
               return;
             }
@@ -346,13 +363,16 @@ class BeakConfiguredForm extends HookWidget {
             } else {
               displayMode.value = BeakFormMode.read;
             }
-          } else if (steps.isNotEmpty) {
-            for (var i = 0; i < steps.length; i++) {
-              if (!await session.validateStep(i)) {
-                await session.goToStep(i);
-                break;
+          } else {
+            if (steps.isNotEmpty) {
+              for (var i = 0; i < steps.length; i++) {
+                if (!await session.validateStep(i)) {
+                  await session.goToStep(i);
+                  break;
+                }
               }
             }
+            if (context.mounted) await revealFirstError();
           }
         }
 
@@ -389,7 +409,7 @@ class BeakConfiguredForm extends HookWidget {
                 gap: const OiResponsive<double>(4),
                 children: [
                   OiLabel.caption(
-                    'Step ${session.currentStep + 1} of ${steps.length}',
+                    strings.formStepOf(session.currentStep + 1, steps.length),
                   ),
                   OiLabel.h2(currentStep.heading ?? currentStep.title),
                   if (currentStep.introductionBuilder?.call(
@@ -416,13 +436,12 @@ class BeakConfiguredForm extends HookWidget {
             navigation == BeakWizardNavigation.rail ? 4 : 16,
           ),
           children: [
-            if (session.root.validating)
-              const OiLabel.caption('Checking values…'),
+            if (session.root.validating) OiLabel.caption(strings.formChecking),
             if (session.error.value case final BeakException error) ...[
               OiBanner.error(message: error.message, dismissible: false),
               if (session.root.id != null && !session.hasUnknown)
                 OiButton.secondary(
-                  label: 'Compare with latest version',
+                  label: strings.formCompareLatest,
                   onTap: busy ? null : session.refreshForConflicts,
                 ),
             ],
@@ -430,17 +449,17 @@ class BeakConfiguredForm extends HookWidget {
               OiBanner.info(message: notice, dismissible: false),
             if (session.hasStoredDraft)
               OiCard(
-                title: const OiLabel.h4('An unfinished draft is available'),
+                title: OiLabel.h4(strings.formDraftAvailable),
                 child: Wrap(
                   spacing: context.spacing.sm,
                   runSpacing: context.spacing.sm,
                   children: [
                     OiButton.secondary(
-                      label: 'Resume draft',
+                      label: strings.formResumeDraft,
                       onTap: session.resumeDraft,
                     ),
                     OiButton.ghost(
-                      label: 'Discard saved draft',
+                      label: strings.formDiscardStoredDraft,
                       onTap: session.discardStoredDraft,
                     ),
                   ],
@@ -453,23 +472,27 @@ class BeakConfiguredForm extends HookWidget {
                   breakpoint: context.breakpoint,
                   children: [
                     OiLabel.body(
-                      'Your draft: ${_reviewValue(context, conflict.column, conflict.local)}',
+                      strings.formYourValue(
+                        _reviewValue(context, conflict.column, conflict.local),
+                      ),
                     ),
                     OiLabel.body(
-                      'Latest version: ${_reviewValue(context, conflict.column, conflict.remote)}',
+                      strings.formLatestValue(
+                        _reviewValue(context, conflict.column, conflict.remote),
+                      ),
                     ),
                     OiRow(
                       breakpoint: context.breakpoint,
                       children: [
                         OiButton.secondary(
-                          label: 'Keep draft',
+                          label: strings.formKeepDraft,
                           onTap: () => session.resolveConflict(
                             conflict.path,
                             useRemote: false,
                           ),
                         ),
                         OiButton.secondary(
-                          label: 'Use latest',
+                          label: strings.formUseLatest,
                           onTap: () => session.resolveConflict(
                             conflict.path,
                             useRemote: true,
@@ -483,8 +506,15 @@ class BeakConfiguredForm extends HookWidget {
             if (receipt != null && !receipt.complete) ...[
               OiBanner.warning(
                 message: session.hasUnknown
-                    ? 'Some save results are unknown. Check the save status before continuing.'
-                    : '${receipt.outcomes.where((outcome) => outcome.status == BeakWriteOutcome.applied).length} changes saved. The remaining changes still need attention.',
+                    ? strings.formSaveUnknown
+                    : strings.formPartlySaved(
+                        receipt.outcomes
+                            .where(
+                              (outcome) =>
+                                  outcome.status == BeakWriteOutcome.applied,
+                            )
+                            .length,
+                      ),
                 dismissible: false,
               ),
               for (final message in {
@@ -495,8 +525,18 @@ class BeakConfiguredForm extends HookWidget {
                 OiLabel.body(message),
               if (session.hasUnknown)
                 OiButton.secondary(
-                  label: 'Check save status',
+                  label: strings.formCheckSaveStatus,
                   onTap: busy ? null : session.recover,
+                ),
+              if (session.receiptLost)
+                OiButton.secondary(
+                  label: strings.formDiscardChanges,
+                  onTap: busy ? null : session.discardChanges,
+                ),
+              if (session.refusedAsConflict)
+                OiButton.secondary(
+                  label: strings.formCompareLatest,
+                  onTap: busy ? null : session.refreshForConflicts,
                 ),
             ],
             if (steps.isNotEmpty &&
@@ -552,7 +592,7 @@ class BeakConfiguredForm extends HookWidget {
               session.isDirty &&
               navigation != BeakWizardNavigation.rail)
             OiButton.ghost(
-              label: 'Review changes',
+              label: strings.formReviewChanges,
               onTap: () => showBeakFormReview(context, session),
             ),
           if (showInspector)
@@ -583,7 +623,7 @@ class BeakConfiguredForm extends HookWidget {
               children: [
                 if (steps.isEmpty && session.root.id != null) ...[
                   (outlinedCancel ? OiButton.outline : OiButton.ghost)(
-                    label: 'Cancel',
+                    label: strings.cancel,
                     onTap: busy || session.hasStoredDraft
                         ? null
                         : () async {
@@ -606,7 +646,7 @@ class BeakConfiguredForm extends HookWidget {
                     session.currentStep == 0 &&
                     onClose != null)
                   (outlinedCancel ? OiButton.outline : OiButton.ghost)(
-                    label: 'Cancel',
+                    label: strings.cancel,
                     onTap: busy
                         ? null
                         : () async {
@@ -625,8 +665,8 @@ class BeakConfiguredForm extends HookWidget {
                         ? OiIcons.arrowLeft
                         : null,
                     label: navigation == BeakWizardNavigation.rail
-                        ? 'Back'
-                        : 'Previous',
+                        ? strings.back
+                        : strings.formPrevious,
                     onTap: busy
                         ? null
                         : () => session.goToStep(session.currentStep - 1),
@@ -648,7 +688,10 @@ class BeakConfiguredForm extends HookWidget {
                                             BeakFormatting.of(context),
                                           ) ??
                                       steps[session.currentStep].footerHint ??
-                                      'Step ${session.currentStep + 1} of ${steps.length}',
+                                      strings.formStepOf(
+                                        session.currentStep + 1,
+                                        steps.length,
+                                      ),
                                 ),
                               ),
                       ),
@@ -663,8 +706,8 @@ class BeakConfiguredForm extends HookWidget {
                     label:
                         steps[session.currentStep].continueLabel ??
                         (navigation == BeakWizardNavigation.rail
-                            ? 'Continue'
-                            : 'Next'),
+                            ? strings.formContinue
+                            : strings.formNext),
                     onTap: busy || session.hasStoredDraft
                         ? null
                         : () async {
@@ -683,10 +726,12 @@ class BeakConfiguredForm extends HookWidget {
                     label: busy
                         ? strings.saving
                         : receipt != null && !receipt.complete
-                        ? 'Save remaining changes'
+                        ? strings.formSaveRemaining
                         : submitLabel ??
                               primaryAction?.label ??
-                              (steps.isEmpty ? strings.save : 'Finish'),
+                              (steps.isEmpty
+                                  ? strings.save
+                                  : strings.formFinish),
                     icon:
                         submitIcon ??
                         (navigation == BeakWizardNavigation.rail
@@ -695,6 +740,7 @@ class BeakConfiguredForm extends HookWidget {
                     onTap:
                         busy ||
                             session.hasUnknown ||
+                            session.hasStoredDraft ||
                             session.conflicts.isNotEmpty ||
                             (primaryAction != null &&
                                 !session.canExecuteAction(primaryAction))
@@ -750,7 +796,9 @@ class BeakConfiguredForm extends HookWidget {
                         const SizedBox(width: 12),
                         Flexible(
                           child: OiLabel.body(
-                            '${session.reviewChangeCount} unsaved ${session.reviewChangeCount == 1 ? 'change' : 'changes'}',
+                            strings.formUnsavedChanges(
+                              session.reviewChangeCount,
+                            ),
                             style: const TextStyle(fontWeight: FontWeight.w500),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -776,8 +824,9 @@ class BeakConfiguredForm extends HookWidget {
                     final issue = session.validationIssueCount == 0
                         ? null
                         : OiTappable(
-                            semanticLabel:
-                                '${session.validationIssueCount} ${session.validationIssueCount == 1 ? 'field needs' : 'fields need'} attention',
+                            semanticLabel: strings.formFieldsNeedAttention(
+                              session.validationIssueCount,
+                            ),
                             onTap: () async {
                               // Validation also reveals invalid tabs, cards and
                               // advanced rows through their existing epoch hooks.
@@ -811,7 +860,9 @@ class BeakConfiguredForm extends HookWidget {
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: OiLabel.caption(
-                                    '${session.validationIssueCount} ${session.validationIssueCount == 1 ? 'field needs' : 'fields need'} attention',
+                                    strings.formFieldsNeedAttention(
+                                      session.validationIssueCount,
+                                    ),
                                     color: context.colors.error.base,
                                   ),
                                 ),
@@ -824,7 +875,7 @@ class BeakConfiguredForm extends HookWidget {
                       alignment: WrapAlignment.end,
                       children: [
                         OiButton.secondary(
-                          label: 'Discard changes',
+                          label: strings.formDiscardChanges,
                           onTap: busy || session.hasUnknown
                               ? null
                               : () async {
@@ -846,6 +897,7 @@ class BeakConfiguredForm extends HookWidget {
                           onTap:
                               busy ||
                                   session.hasUnknown ||
+                                  session.hasStoredDraft ||
                                   session.conflicts.isNotEmpty ||
                                   (primaryAction != null &&
                                       !session.canExecuteAction(primaryAction))
@@ -907,6 +959,8 @@ class BeakConfiguredForm extends HookWidget {
           }
         }
 
+        final VoidCallback? leave =
+            onClose ?? (router?.canPop() == true ? router!.pop : null);
         return _FormCommandScope(
           errorAnchors: errorAnchors,
           onEdit:
@@ -917,9 +971,7 @@ class BeakConfiguredForm extends HookWidget {
                       true)
               ? () => displayMode.value = BeakFormMode.edit
               : null,
-          onClose:
-              onClose ??
-              (router?.canPop() == true ? () => router!.pop() : null),
+          onClose: leave,
           onSaved: (record) {
             if (onSaved != null) {
               onSaved!(record);
@@ -929,6 +981,15 @@ class BeakConfiguredForm extends HookWidget {
           },
           child: PopScope(
             canPop: session.canLeave,
+            // The system back gesture and the browser's back button arrive here.
+            // Without this they would do nothing and say nothing.
+            onPopInvokedWithResult: (didPop, _) async {
+              if (didPop || leave == null) return;
+              if (await beakConfirmFormExit(context, session: session) &&
+                  context.mounted) {
+                leave();
+              }
+            },
             child: LayoutBuilder(
               builder: (context, constraints) {
                 if (externalFrame) {
@@ -3361,7 +3422,7 @@ class _RelationChoices extends StatelessWidget {
       search: input.presentation == BeakRelationPresentation.search,
       compactResults: input.presentation == BeakRelationPresentation.search,
       grid: input.presentation == BeakRelationPresentation.cards,
-      minCardWidth: input.minCardWidthInPixels,
+      minCardWidthInPixels: input.minCardWidthInPixels,
       enabled: enabled,
       onCreate: input.exclusive
           ? null
@@ -4185,7 +4246,7 @@ class _CatalogGroup extends StatelessWidget {
                           ),
                           child: _InlineRelationAdvanced(
                             key: ValueKey('advanced:${row.localId}'),
-                            topSpacing: 15,
+                            topSpacingInPixels: 15,
                             table: table,
                             row: row,
                             readOnly: !enabled || !table.allowEdit,
@@ -4308,7 +4369,7 @@ class _RecordOptions extends HookWidget {
     required this.enabled,
     required this.search,
     this.grid = false,
-    this.minCardWidth = 260,
+    this.minCardWidthInPixels = 260,
     this.compactResults = false,
     this.searchPlaceholder = false,
     this.recordFilter,
@@ -4338,7 +4399,7 @@ class _RecordOptions extends HookWidget {
   final Widget Function(BeakRecord, String) itemBuilder;
   final Widget Function(List<BeakRecord>)? itemsBuilder;
   final bool enabled, search, grid, compactResults;
-  final double minCardWidth;
+  final double minCardWidthInPixels;
   final bool searchPlaceholder;
   final bool descriptionInline, divider;
   final bool Function(BeakRecord record)? recordFilter;
@@ -4562,7 +4623,7 @@ class _RecordOptions extends HookWidget {
         else if (grid)
           OiGrid(
             breakpoint: context.breakpoint,
-            minColumnWidth: OiResponsive<double>(minCardWidth),
+            minColumnWidth: OiResponsive<double>(minCardWidthInPixels),
             gap: const OiResponsive<double>(12),
             stretchRows: true,
             children: records
@@ -4635,7 +4696,10 @@ Future<bool?> _editModal(
       },
     ),
     actions: [
-      OiButton.ghost(label: 'Cancel', onTap: () => close(false)),
+      OiButton.ghost(
+        label: BeakLocalizations.of(context).cancel,
+        onTap: () => close(false),
+      ),
       OiButton.primary(
         label: 'Apply',
         onTap: () async {
@@ -4655,7 +4719,7 @@ class _InlineRelationAdvanced extends HookWidget {
     this.expanded,
     this.onChanged,
     this.showHeading = true,
-    this.topSpacing = 12,
+    this.topSpacingInPixels = 12,
     super.key,
   });
   final BeakRelationTable table;
@@ -4664,7 +4728,7 @@ class _InlineRelationAdvanced extends HookWidget {
   final bool? expanded;
   final ValueChanged<bool>? onChanged;
   final bool showHeading;
-  final double topSpacing;
+  final double topSpacingInPixels;
 
   @override
   Widget build(BuildContext context) {
@@ -4700,7 +4764,7 @@ class _InlineRelationAdvanced extends HookWidget {
       child: ExcludeFocus(
         excluding: !open,
         child: Padding(
-          padding: EdgeInsets.only(top: topSpacing),
+          padding: EdgeInsets.only(top: topSpacingInPixels),
           child: opened.value ? content : const SizedBox.shrink(),
         ),
       ),
@@ -5071,6 +5135,7 @@ class _RelationTable extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = BeakLocalizations.of(context);
     final rows = draft.rows(table.field);
     final locked = readOnly || !draft.enabled(table);
     final label = table.label ?? table.field.label;
@@ -5090,7 +5155,7 @@ class _RelationTable extends HookWidget {
                     BeakCatalogPresentation.checkboxes &&
                 (table.catalog?.groupBy == null &&
                     table.catalog?.quantity == null)))
-          for (final row in rows)
+          for (final (index, row) in rows.indexed)
             OiCard(
               key: ValueKey(row.localId),
               child: OiColumn(
@@ -5125,7 +5190,11 @@ class _RelationTable extends HookWidget {
                             table.advancedPresentation ==
                                 BeakAdvancedPresentation.dialog)
                           OiButton.ghost(
-                            label: 'Advanced',
+                            label: strings.formAdvanced,
+                            semanticLabel: strings.formAdvancedRow(
+                              label,
+                              index + 1,
+                            ),
                             onTap:
                                 draft.session.submitting.value ||
                                     draft.session.hasUnknown
@@ -5145,7 +5214,11 @@ class _RelationTable extends HookWidget {
                           ),
                         if (table.allowRemove)
                           OiButton.ghost(
-                            label: 'Remove',
+                            label: strings.formRemove,
+                            semanticLabel: strings.formRemoveRow(
+                              label,
+                              index + 1,
+                            ),
                             onTap:
                                 draft.session.submitting.value ||
                                     draft.session.hasUnknown
@@ -5224,16 +5297,17 @@ Future<bool> beakConfirmFormExit(
     ?session,
   }.where((session) => !session.canLeave).toList();
   if (sessions.isEmpty) return true;
+  final strings = BeakLocalizations.of(context);
   if (sessions.any((session) => session.submitting.value)) {
     await showOiDialog<void>(
       context,
       builder: (context, close) => OiDialog.standard(
-        label: 'Save in progress',
-        title: 'Save in progress',
-        content: const OiLabel.body(
-          'Wait for the save result before leaving this form.',
-        ),
-        actions: [OiButton.primary(label: 'Stay', onTap: () => close(null))],
+        label: strings.formSaveInProgress,
+        title: strings.formSaveInProgress,
+        content: OiLabel.body(strings.formWaitForSave),
+        actions: [
+          OiButton.primary(label: strings.formStay, onTap: () => close(null)),
+        ],
         onClose: () => close(null),
       ),
     );
@@ -5250,21 +5324,23 @@ Future<bool> beakConfirmFormExit(
   final accepted = await showOiDialog<bool>(
     context,
     builder: (context, close) => OiDialog.confirm(
-      label: 'Unsaved changes',
-      title: 'Leave this form?',
+      label: strings.formUnsavedChangesLabel,
+      title: strings.formLeaveQuestion,
       content: OiLabel.body(
         unknown
-            ? 'Some save results are unknown. Leaving cannot undo changes already saved. Stay to check the save status.'
+            ? strings.formLeaveUnknown
             : partial
-            ? 'Some changes are already saved. Discard only the remaining unsaved changes?'
+            ? strings.formLeavePartial
             : stored
-            ? 'Your draft is stored locally and can be resumed when you return.'
-            : 'Discard the unsaved changes in this form?',
+            ? strings.formLeaveStored
+            : strings.formLeaveDiscard,
       ),
       actions: [
-        OiButton.secondary(label: 'Stay', onTap: () => close(false)),
+        OiButton.secondary(label: strings.formStay, onTap: () => close(false)),
         OiButton.destructive(
-          label: unknown || stored ? 'Leave' : 'Discard changes',
+          label: unknown || stored
+              ? strings.formLeave
+              : strings.formDiscardChanges,
           onTap: () => close(true),
         ),
       ],
@@ -5286,8 +5362,8 @@ Future<bool?> showBeakFormReview(
 ) => showOiDialog<bool>(
   context,
   builder: (context, close) => OiDialog.standard(
-    label: 'Review changes',
-    title: 'Review changes',
+    label: BeakLocalizations.of(context).formReviewChanges,
+    title: BeakLocalizations.of(context).formReviewChanges,
     content: SingleChildScrollView(
       child: OiColumn(
         breakpoint: context.breakpoint,
@@ -5295,7 +5371,7 @@ Future<bool?> showBeakFormReview(
         gap: const OiResponsive<double>(12),
         children: [
           if (session.reviewChanges.isEmpty)
-            const OiLabel.body('No field or relationship changes.'),
+            OiLabel.body(BeakLocalizations.of(context).formNoChanges),
           for (final change in session.reviewChanges)
             OiColumn(
               breakpoint: context.breakpoint,
@@ -5312,8 +5388,14 @@ Future<bool?> showBeakFormReview(
       ),
     ),
     actions: [
-      OiButton.ghost(label: 'Back', onTap: () => close(false)),
-      OiButton.primary(label: 'Continue', onTap: () => close(true)),
+      OiButton.ghost(
+        label: BeakLocalizations.of(context).back,
+        onTap: () => close(false),
+      ),
+      OiButton.primary(
+        label: BeakLocalizations.of(context).formContinue,
+        onTap: () => close(true),
+      ),
     ],
     onClose: () => close(false),
   ),
@@ -5380,7 +5462,10 @@ Future<BeakRecord?> showBeakActionInput(
           action.description ?? 'Apply this action to the record?',
         ),
         actions: [
-          OiButton.ghost(label: 'Cancel', onTap: () => close(false)),
+          OiButton.ghost(
+            label: BeakLocalizations.of(context).cancel,
+            onTap: () => close(false),
+          ),
           OiButton.primary(label: action.label, onTap: () => close(true)),
         ],
         onClose: () => close(false),

@@ -50,7 +50,7 @@ part 'views/beak_timeline_block_view.dart';
 part 'views/beak_video_block_view.dart';
 
 /// Renders a [BeakBlock] tree onto obers_ui widgets — the single renderer
-/// behind custom pages, resource view modes, and overlay bodies.
+/// behind custom pages and overlay bodies.
 ///
 /// The switch over the sealed union is exhaustive, so adding a block type
 /// without teaching the host about it is a compile error.

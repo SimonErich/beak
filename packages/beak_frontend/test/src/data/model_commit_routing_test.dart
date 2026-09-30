@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -70,6 +71,49 @@ final class _CommitSource extends FakeDataSource
   Future<BeakSaveResult> recover(String saveId) async {
     recoveries++;
     return result!;
+  }
+}
+
+/// A commit source whose first request is lost before the server sees it.
+final class _DroppingSource extends _CommitSource {
+  final attempts = <String>[];
+  bool _dropped = false;
+
+  @override
+  Future<BeakSaveResult> commit(BeakSavePlan plan) async {
+    attempts.add(plan.saveId);
+    if (!_dropped) {
+      _dropped = true;
+      throw const BeakTransportException('Offline.');
+    }
+    return super.commit(plan);
+  }
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) async {
+    if (result == null) throw const BeakNotFoundException('No receipt.');
+    return super.recover(saveId);
+  }
+}
+
+/// A commit source that holds every request until [open] is called.
+final class _GatedSource extends _CommitSource {
+  final saveIds = <String>[];
+  final _gate = Completer<void>();
+
+  void open() => _gate.complete();
+
+  @override
+  Future<BeakSaveResult> commit(BeakSavePlan plan) async {
+    saveIds.add(plan.saveId);
+    await _gate.future;
+    return super.commit(plan);
+  }
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) async {
+    recoveries++;
+    throw const BeakNotFoundException('Still in flight.');
   }
 }
 
@@ -357,6 +401,49 @@ void main() {
 
     expect(source.commits, 1);
     expect(source.recoveries, 1);
+  });
+
+  test(
+    'a write that never reached the server is sent again, not recovered for ever',
+    () async {
+      final source = _DroppingSource()..returnRecords = true;
+      final router = ModelBeakDataSource(
+        registry: BeakModelRegistry()..register(_Model('notes', source)),
+      );
+      addTearDown(router.dispose);
+      final data = BeakRecord.fromRow({'title': 'Again'});
+
+      await expectLater(
+        router.update('notes', '1', data),
+        throwsA(isA<BeakTransportException>()),
+      );
+      // The reply never came and the server has no receipt: the same change,
+      // repeated, is a new attempt at the same write.
+      await router.update('notes', '1', data);
+
+      expect(source.attempts, hasLength(2));
+      expect(source.attempts.first, source.attempts.last);
+      expect(source.commits, 1);
+    },
+  );
+
+  test('two identical writes in flight are two writes', () async {
+    final source = _GatedSource()..returnRecords = true;
+    final router = ModelBeakDataSource(
+      registry: BeakModelRegistry()..register(_Model('notes', source)),
+    );
+    addTearDown(router.dispose);
+    final data = BeakRecord.fromRow({'title': 'ok'});
+
+    final first = router.create('notes', data);
+    final second = router.create('notes', data);
+    await pumpEventQueue();
+    source.open();
+    await Future.wait([first, second]);
+
+    expect(source.commits, 2);
+    expect(source.recoveries, 0);
+    expect(source.saveIds.toSet(), hasLength(2));
   });
 
   test('a source without a graph route still writes directly', () async {

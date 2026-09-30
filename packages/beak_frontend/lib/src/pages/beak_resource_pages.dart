@@ -258,11 +258,13 @@ class BeakResourceListPage extends HookWidget {
                     label: action.label,
                     title: action.label,
                     content: OiLabel.body(
-                      'Apply ${action.label} to ${ids.length} selected records? Each record is saved independently.',
+                      BeakLocalizations.of(
+                        context,
+                      ).applyToSelection(action.label, ids.length),
                     ),
                     actions: [
                       OiButton.ghost(
-                        label: 'Cancel',
+                        label: BeakLocalizations.of(context).cancel,
                         onTap: () => close(false),
                       ),
                       OiButton.primary(
@@ -288,7 +290,9 @@ class BeakResourceListPage extends HookWidget {
                     source: dataSource,
                     recordId: id,
                     action: action,
-                    onError: (error) => failures.add('$id: ${error.message}'),
+                    onError: (error) => failures.add(
+                      '$id: ${BeakLocalizations.of(context).errorMessage(error)}',
+                    ),
                     onComplete: () => changed = true,
                     prepare: (session) async {
                       if (arguments != null) return arguments;
@@ -385,13 +389,15 @@ class BeakResourceListPage extends HookWidget {
           if (resource.allowsDelete && access.canDelete)
             rowAction(resource.deleteAction),
           for (final action in resource.recordActions)
-            if (action.roles.contains(BeakScreenRole.list)) rowAction(action),
+            if (action.roles.contains(BeakScreenRole.list) &&
+                resource.allowsAction(action))
+              rowAction(action),
           if (resource.allowsCreate &&
               access.canCreate &&
               resource.duplication != null)
             BeakTableAction(
               id: 'duplicate',
-              label: 'Duplicate',
+              label: BeakLocalizations.of(context).duplicate,
               icon: OiIcons.copy,
               onRun: (ids) async {
                 if (ids.isEmpty) return;
@@ -824,7 +830,8 @@ _defaultShowFrame(BeakResource resource, Object recordId) =>
                   ),
                 ),
           for (final action in resource.recordActions)
-            if (action.roles.contains(BeakScreenRole.read))
+            if (action.roles.contains(BeakScreenRole.read) &&
+                resource.allowsAction(action))
               BeakActionButton(
                 action: action,
                 actionContext: actionContext,
@@ -997,8 +1004,12 @@ class BeakResourceEditPage extends HookWidget {
         showInspector: form?.showInspector ?? false,
         valueMode: _valueModeOf(resource.model),
         editValues: editLoader,
-        onSaved: (_) =>
-            router.go(BeakRoutes.show(resource.model.table, recordId)),
+        onSaved: (_) => router.go(
+          BeakBackButton.keep(
+            router.routeInformationProvider.value.uri,
+            BeakRoutes.show(resource.model.table, recordId),
+          ),
+        ),
       ),
     );
   }
@@ -1222,13 +1233,11 @@ List<BeakTableAction> _configureActionPresentations(
       ),
 ];
 
-String _withReturnTo(GoRouter router, String destination) {
-  final current = router.routeInformationProvider.value.uri;
-  final back = current.queryParameters['returnTo'] ?? current.toString();
-  return Uri.parse(
-    destination,
-  ).replace(queryParameters: {'returnTo': back}).toString();
-}
+String _withReturnTo(GoRouter router, String destination) =>
+    BeakBackButton.carry(
+      router.routeInformationProvider.value.uri,
+      destination,
+    );
 
 /// Adapts the same authorized commands to the shared floating selection surface.
 class _FloatingSelectionBar extends HookWidget {

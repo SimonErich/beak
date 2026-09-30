@@ -10,6 +10,7 @@ import '../form/beak_import_view.dart';
 import '../data/beak_data_changes.dart';
 import '../overlays/beak_overlays.dart';
 import '../localization/beak_localizations.dart';
+import '../panel/beak_back_button.dart';
 import '../panel/beak_routes.dart';
 import '../panel/beak_resource_screen.dart';
 import '../documents/beak_record_document.dart';
@@ -90,12 +91,19 @@ final class BeakActionContext {
     return false;
   }
 
-  /// Reports a safe typed failure through the host or the default overlay.
+  /// Reports a typed failure through the host or the default overlay.
+  ///
+  /// The default overlay shows a domain failure's own message, and the
+  /// generic text for a failure that describes the deployment (see
+  /// [BeakLocalizations.errorMessage]).
   void reportError(BeakException error) {
     if (onError case final report?) {
       report(error);
     } else if (buildContext.mounted) {
-      overlays.toast(error.message, level: OiToastLevel.error);
+      overlays.toast(
+        BeakLocalizations.of(buildContext).errorMessage(error),
+        level: OiToastLevel.error,
+      );
     }
   }
 

@@ -383,7 +383,7 @@ class BeakFilterBar extends HookWidget {
           if (active.value.isNotEmpty)
             OiButton.ghost(
               size: OiButtonSize.small,
-              label: 'Clear all',
+              label: BeakLocalizations.of(context).clearAll,
               onTap: () {
                 active.value = const {};
                 controls.value = const {};
@@ -431,7 +431,7 @@ class BeakFilterBar extends HookWidget {
           const SizedBox(height: 16),
           OiDivider(color: context.colors.borderSubtle),
           OiTappable(
-            semanticLabel: 'More filters',
+            semanticLabel: BeakLocalizations.of(context).moreFilters,
             onTap: () => advancedOpen.value = !advancedOpen.value,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -444,7 +444,7 @@ class BeakFilterBar extends HookWidget {
                     size: 16,
                   ),
                   const SizedBox(width: 8),
-                  const OiLabel.body('More filters'),
+                  OiLabel.body(BeakLocalizations.of(context).moreFilters),
                   if (advancedDescription case final String text) ...[
                     const SizedBox(width: 8),
                     Flexible(

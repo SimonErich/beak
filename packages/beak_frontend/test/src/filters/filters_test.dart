@@ -513,6 +513,34 @@ void main() {
     );
   });
 
+  testWidgets('the advanced section heading follows the panel language', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        locale: const Locale('de'),
+        supportedLocales: BeakLocalizations.supportedLocales,
+        localizationsDelegates: const [BeakLocalizations.delegate],
+        home: BeakFilterBar(
+          stacked: true,
+          filters: [
+            BeakTextFilter(
+              field: _article(ArticleColumns.title),
+              label: 'Title',
+              advanced: true,
+            ),
+          ],
+          onChanged: emitted.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Weitere Filter'), findsOneWidget);
+    expect(find.text('More filters'), findsNothing);
+  });
+
   testWidgets('renders the matching obers_ui control per filter type', (
     tester,
   ) async {

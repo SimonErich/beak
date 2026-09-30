@@ -10,29 +10,16 @@ class _BeakTileMapBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final revision = useBeakDataRevision(dataSource, table: block.query.table);
-    final records = useState(const <BeakRecord>[]);
-
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(block.query);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block, revision]);
+    final records = _useBlockRead(
+      dataSource,
+      block.query,
+      identity: block,
+      initial: const <BeakRecord>[],
+      map: (page) => page.items,
+    );
 
     final markers = <OiMapMarker>[
-      for (final record in records.value)
+      for (final record in records.data)
         if (_coordOf(record, block.latitudeField) case final double lat)
           if (_coordOf(record, block.longitudeField) case final double lng)
             OiMapMarker(
@@ -50,15 +37,19 @@ class _BeakTileMapBlockView extends HookWidget {
       block.centerLongitude ?? (markers.isEmpty ? 0 : markers.first.longitude),
     );
 
-    return OiCard(
-      title: OiLabel.smallStrong(block.title),
-      child: OiTileMap(
-        label: block.title,
-        center: center,
-        zoom: block.zoom,
-        markers: markers,
-        tileUrlTemplate: block.tileUrlTemplate,
-        heightInPixels: block.heightInPixels,
+    return _withReadFailure(
+      context,
+      records,
+      OiCard(
+        title: OiLabel.smallStrong(block.title),
+        child: OiTileMap(
+          label: block.title,
+          center: center,
+          zoom: block.zoom,
+          markers: markers,
+          tileUrlTemplate: block.tileUrlTemplate,
+          heightInPixels: block.heightInPixels,
+        ),
       ),
     );
   }

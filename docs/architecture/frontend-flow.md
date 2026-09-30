@@ -81,7 +81,7 @@ Panel widgets are `HookWidget`s. `StatefulWidget` is forbidden in Beak code. A w
 --8<-- "packages/beak_frontend/lib/src/table/beak_data_table.dart:watchPage"
 ```
 
-`BeakDataTable` is the generated list view. It renders a model's table columns as an `OiTable` with server-side sort, filter and pagination, per-row and bulk actions, optimistic delete with undo and inline edit. Every sort, filter or page change goes to its view model as a method call. There is no business logic in the widget and no `try/catch` around a data call.
+`BeakDataTable` is the generated list view. It renders a model's table columns as an `OiTable` with server-side sort, filter and pagination, per-row and bulk actions and optimistic delete with undo. Cells are read only. Every sort, filter or page change goes to its view model as a method call. There is no business logic in the widget and no `try/catch` around a data call.
 
 ### The ViewModel: owns Signals, never catches
 
@@ -153,7 +153,7 @@ The same save id with different content is a `BeakConflictException` before anyt
 
 #### Single-record writes through the same door
 
-A non-forced delete, and a create or an update made outside a form (a dragged board card, a chat message, an inline edit), against a commit-capable source is sent as a one-operation plan, so behavior, rules and `graphOnly` models apply to it. A repeated identical call recovers the pending receipt instead of submitting a second write, and a receipt that is not complete becomes the typed exception its error code names. A forced delete uses the transport's own operation.
+A non-forced delete, and a create or an update made outside a form (a dragged board card, a chat message), against a commit-capable source is sent as a one-operation plan, so behavior, rules and `graphOnly` models apply to it. A repeated identical call after an unknown outcome recovers the pending receipt instead of submitting a second write (and sends the plan again under the same save identity when the server has no receipt, because the request never arrived). Identical writes made while the first is still in flight are separate writes. A receipt that is not complete becomes the typed exception its error code names. A forced delete uses the transport's own operation.
 
 [Graph commits](graph-commits.md) covers what the server does with a plan.
 

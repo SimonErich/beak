@@ -62,6 +62,26 @@ void main() {
     },
   );
 
+  testWidgets('Enter in the email field of a recovery sends the code', (
+    tester,
+  ) async {
+    final adapter = _FlowAdapter();
+    await pump(
+      tester,
+      BeakAuthPage(
+        title: 'Example',
+        config: BeakAuthConfig(adapter: adapter, recover: true),
+        mode: BeakAuthMode.recover,
+      ),
+    );
+
+    await tester.enterText(find.byType(EditableText), 'person@example.com');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(adapter.flow.calls, ['start:person@example.com']);
+  });
+
   testWidgets('German recovery executes code and new-password steps', (
     tester,
   ) async {

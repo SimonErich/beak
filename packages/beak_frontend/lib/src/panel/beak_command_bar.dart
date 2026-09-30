@@ -388,7 +388,7 @@ final class BeakSearchPalette extends HookWidget {
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: OiLabel.body(
-                        '${entry.key}: ${entry.value.message}',
+                        '${entry.key}: ${strings.errorMessage(entry.value)}',
                       ),
                     ),
                   ),
@@ -402,7 +402,10 @@ final class BeakSearchPalette extends HookWidget {
                     selected: index == current,
                     child: OiButton.ghost(
                       label:
-                          '${index == current ? '› ' : ''}${items[index].title}${items[index].subtitle == null ? '' : ' · ${items[index].subtitle}'}',
+                          '${index == current ? '› ' : ''}${_resultLabel(items[index])}',
+                      // The marker is for the eye; a screen reader hears the
+                      // result and the selected state, not an angle bracket.
+                      semanticLabel: _resultLabel(items[index]),
                       onTap: () => onSelect(items[index].id),
                     ),
                   ),
@@ -418,3 +421,6 @@ final class BeakSearchPalette extends HookWidget {
     );
   }
 }
+
+String _resultLabel(OiSearchResult result) =>
+    '${result.title}${result.subtitle == null ? '' : ' · ${result.subtitle}'}';

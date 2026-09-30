@@ -79,20 +79,53 @@ void main() {
       expect(filter.value, const BeakStringValue('a1'));
     });
 
-    testWidgets('deleting a child reloads the list', (tester) async {
+    testWidgets('deleting a child asks first, then reloads the list', (
+      tester,
+    ) async {
       await pumpManager(tester, ArticleRelations.comments);
 
-      final OiButton deleteButton = tester.widget(
-        find.byWidgetPredicate(
-          (widget) => widget is OiButton && widget.semanticLabel == 'Delete',
-        ),
-      );
-      deleteButton.onTap!();
+      _tapTrash(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete this record?'), findsOneWidget);
+      expect(dataSource.deleteCalls, isEmpty, reason: 'nothing before the yes');
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(dataSource.deleteCalls, isEmpty, reason: 'cancel keeps the row');
+      expect(find.text('First!'), findsOneWidget);
+
+      _tapTrash(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
       await tester.pumpAndSettle();
 
       expect(dataSource.deleteCalls, [('comments', 'k1', false)]);
       expect(find.text('First!'), findsNothing);
       expect(find.text('No comments yet.'), findsOneWidget);
+    });
+
+    testWidgets('a refused delete says why and keeps the row', (tester) async {
+      dataSource = _Refusing(
+        records: {
+          'comments': {
+            'k1': BeakRecord.fromRow(const {
+              'id': 'k1',
+              'text': 'First!',
+              'article_id': 'a1',
+            }),
+          },
+        },
+      )..refuseWrites = const BeakAuthorizationException('Not your comment.');
+      await pumpManager(tester, ArticleRelations.comments);
+
+      _tapTrash(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Not your comment.'), findsOneWidget);
+      expect(find.text('First!'), findsOneWidget);
+      await _drainToasts(tester);
     });
 
     testWidgets('surfaces the create hook', (tester) async {
@@ -158,6 +191,75 @@ void main() {
     expect(find.text('Unavailable'), findsOneWidget);
   });
 
+  group('a failure is never shown as an empty list', () {
+    testWidgets('a failed read says so and retries', (tester) async {
+      final source = _Refusing(
+        records: {
+          'comments': {
+            'k1': BeakRecord.fromRow(const {
+              'id': 'k1',
+              'text': 'First!',
+              'article_id': 'a1',
+            }),
+          },
+        },
+      )..refuseReads = const BeakStorageException('disk detail');
+      dataSource = source;
+      await pumpManager(tester, ArticleRelations.comments);
+
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('disk detail'), findsNothing);
+      expect(find.text('No comments yet.'), findsNothing);
+
+      source.refuseReads = null;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('First!'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+    });
+
+    testWidgets('a refused detach says why', (tester) async {
+      dataSource = _Refusing(
+        records: {
+          'tags': {
+            't1': BeakRecord.fromRow(const {'id': 't1', 'name': 'hot'}),
+          },
+          'articles': {
+            'a1': const BeakRecord(
+              values: {'id': BeakStringValue('a1')},
+              relations: {
+                'tags': [
+                  BeakRecord(
+                    values: {
+                      'id': BeakStringValue('t1'),
+                      'name': BeakStringValue('hot'),
+                    },
+                  ),
+                ],
+              },
+            ),
+          },
+        },
+      )..refuseWrites = const BeakAuthorizationException('Tags are locked.');
+      await pumpManager(tester, ArticleRelations.tags);
+
+      final OiButton detach = tester.widget(
+        find.byWidgetPredicate(
+          (widget) => widget is OiButton && widget.semanticLabel == 'Detach',
+        ),
+      );
+      detach.onTap!();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tags are locked.'), findsOneWidget);
+      await _drainToasts(tester);
+    });
+  });
+
   group('paging', () {
     testWidgets('the badge counts what exists, and more can be loaded', (
       tester,
@@ -204,4 +306,51 @@ void main() {
       expect(find.text('Comment 5'), findsNothing);
     });
   });
+}
+
+/// Lets the toast queue empty, so no toast leaks into the next test (the
+/// queue is process-wide).
+Future<void> _drainToasts(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 5));
+  await tester.pumpAndSettle();
+}
+
+void _tapTrash(WidgetTester tester) {
+  final OiButton trash = tester.widget(
+    find.byWidgetPredicate(
+      (widget) => widget is OiButton && widget.semanticLabel == 'Delete',
+    ),
+  );
+  trash.onTap!();
+}
+
+/// A source that can be told to refuse its reads or its relationship writes.
+final class _Refusing extends FakeDataSource {
+  _Refusing({required super.records});
+
+  BeakException? refuseReads;
+  BeakException? refuseWrites;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    if (refuseReads case final BeakException failure) throw failure;
+    return super.query(spec);
+  }
+
+  @override
+  Future<void> delete(String table, Object id, {bool force = false}) async {
+    if (refuseWrites case final BeakException failure) throw failure;
+    return super.delete(table, id, force: force);
+  }
+
+  @override
+  Future<void> detach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) async {
+    if (refuseWrites case final BeakException failure) throw failure;
+    return super.detach(table, id, relationKey, relatedIds);
+  }
 }

@@ -409,15 +409,15 @@ class _SummaryQueryView extends HookWidget {
               semanticLabel: '${block.title} presentation',
               selected: table.value,
               onChanged: (value) => table.value = value,
-              segments: const [
+              segments: [
                 OiSegment(
                   value: false,
-                  label: 'Chart view',
+                  label: strings.chartView,
                   icon: OiIcons.chartColumn,
                 ),
                 OiSegment(
                   value: true,
-                  label: 'Table view',
+                  label: strings.tableView,
                   icon: OiIcons.table,
                 ),
               ],

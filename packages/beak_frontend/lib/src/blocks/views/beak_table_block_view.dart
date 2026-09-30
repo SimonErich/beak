@@ -21,6 +21,7 @@ class _BeakTableBlockView extends StatelessWidget {
         enableDelete: block.enableDelete,
         initialSpec: block.initialSpec,
         baseFilter: block.baseFilter,
+        label: block.title,
       ),
     );
     final title = block.title;

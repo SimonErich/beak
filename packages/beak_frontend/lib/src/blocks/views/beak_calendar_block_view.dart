@@ -20,6 +20,7 @@ class _BeakCalendarBlockView extends HookWidget {
       ),
     );
 
+    final formatting = BeakFormatting.of(context);
     final byKey = <Object, BeakRecord>{
       for (final record in rows.value.records)
         if (block.model.primaryKeyOf(record) case final Object id) id: record,
@@ -29,7 +30,7 @@ class _BeakCalendarBlockView extends HookWidget {
     final events = <OiCalendarEvent>[
       for (final MapEntry(key: id, value: record) in byKey.entries)
         if (_readDateTime(record, block.startField) case final DateTime start)
-          _eventOf(context, id, record, start),
+          _eventOf(context, formatting, id, record, start),
     ];
 
     return _withTruncationNote(
@@ -46,11 +47,15 @@ class _BeakCalendarBlockView extends HookWidget {
                   block.onEventTap!(record);
                 }
               },
-        onEventMove: (event, start, end) async {
+        onEventMove: (event, shownStart, shownEnd) async {
           final BeakRecord? record = byKey[event.key];
           if (record == null) {
             return;
           }
+          // The calendar reports wall-clock components in the zone it was
+          // shown in; the record stores the instant they name.
+          final DateTime start = formatting.fromEditorDateTime(shownStart);
+          final DateTime end = formatting.fromEditorDateTime(shownEnd);
           final result = await BeakResourceRepository(dataSource).update(
             block.model.table,
             event.key,
@@ -93,6 +98,7 @@ class _BeakCalendarBlockView extends HookWidget {
 
   OiCalendarEvent _eventOf(
     BuildContext context,
+    BeakFormatting formatting,
     Object id,
     BeakRecord record,
     DateTime start,
@@ -101,8 +107,8 @@ class _BeakCalendarBlockView extends HookWidget {
     return OiCalendarEvent(
       key: id,
       title: _readString(record, block.titleField) ?? '',
-      start: start,
-      end: end,
+      start: formatting.toEditorDateTime(start),
+      end: formatting.toEditorDateTime(end),
       allDay: _readBool(record, block.allDayField),
       color: _categoryColor(context, record),
     );

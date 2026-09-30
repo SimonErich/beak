@@ -142,6 +142,26 @@ void main() {
     },
   );
 
+  testWidgets('a wrong export projection fails when the button builds', (
+    tester,
+  ) async {
+    final source = FakeDataSource();
+    final controller = BeakQueryController(model: const NoteModel());
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakListExportButton(
+          definition: const BeakListExport(fields: [_title, _title]),
+          controller: controller,
+          source: source,
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isA<BeakConfigurationException>());
+  });
+
   test('invalid projections and unsupported sources fail explicitly', () async {
     expect(
       () => const BeakListExport(fields: []).columnsFor(const NoteModel()),

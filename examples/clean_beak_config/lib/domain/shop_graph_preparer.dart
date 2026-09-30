@@ -40,6 +40,7 @@ final class ShopGraphPreparer {
         plan: plan,
         source: source,
         registry: registry,
+        authorizeRead: source.authorizeRead,
       );
       _validateOwnership(plan, graph);
       for (final node in graph.nodes.toList()) {

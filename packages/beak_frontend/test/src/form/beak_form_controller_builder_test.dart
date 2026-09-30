@@ -29,6 +29,45 @@ void main() {
     },
   );
 
+  group('a stored value the form cannot represent', () {
+    test('is not written back as null when it is left alone', () {
+      final form = controller(const ArticleModel())
+        ..prefill(
+          BeakRecord.fromRow({
+            'title': 'Kept',
+            // A member the enum no longer has, and a timestamp that is not one.
+            'status': 'archived',
+            'published_at': 'not a date',
+          }),
+        );
+      expect(form.valueOf<Object>(ArticleColumns.status), isNull);
+
+      form.setValue(ArticleColumns.title, 'Renamed');
+      final patch = form.buildData();
+
+      expect(patch['title'], const BeakStringValue('Renamed'));
+      expect(patch['status'], isNull);
+      expect(patch['published_at'], isNull);
+    });
+
+    test('is replaced once the user picks a value', () {
+      final form = controller(const ArticleModel())
+        ..prefill(BeakRecord.fromRow({'title': 'Kept', 'status': 'archived'}));
+
+      form.setValue(ArticleColumns.status, ArticleStatus.published);
+
+      expect(form.buildData()['status'], const BeakStringValue('published'));
+    });
+
+    test('is not remembered after the next prefill', () {
+      final form = controller(const ArticleModel())
+        ..prefill(BeakRecord.fromRow({'status': 'archived'}))
+        ..prefill(BeakRecord.fromRow({'status': null}));
+
+      expect(form.buildData()['status'], const BeakNullValue());
+    });
+  });
+
   group('field registration', () {
     test('registers a typed field per form column', () {
       final form = controller(const ArticleModel());

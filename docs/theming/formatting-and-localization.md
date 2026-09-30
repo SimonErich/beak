@@ -198,21 +198,21 @@ The Export button sends `POST /api/{table}/export` with the panel's policy as JS
 
 ## The language of the controls
 
-`BeakLocalizations` holds 78 strings and messages, one member each, for the controls Beak draws. `BeakPanel` installs its delegate after yours, on every panel, and `supportedLocales` defaults to `[Locale('en'), Locale('de')]`. A device set to French gets English. So does an explicit `Locale('fr')`, because `BeakLocalizations` treats every language other than German as English.
+`BeakLocalizations` holds a string or a message per member, for the controls Beak draws. `BeakPanel` installs its delegate after yours, on every panel, and `supportedLocales` defaults to `[Locale('en'), Locale('de')]`. A device set to French gets English. So does an explicit `Locale('fr')`, because `BeakLocalizations` treats every language other than German as English.
 
 ### What is translated
 
 Checked in a German panel (the Aviary with `locale: Locale('de')`): the Create, Edit and Delete buttons (`Erstellen`, `Bearbeiten`, `Löschen`), Save (`Speichern`), the table footer (`Einträge pro Seite`, `1–8 von 8 Einträgen`, `8 Einträge`), the column menu, the pagination labels, and `Nicht verfügbar` where a custom field has no renderer registered. Archive and its confirmation dialog are tested too.
 
-Wired to `BeakLocalizations` in the source: the sign-in, register and recovery screens and their errors, yes and no badges, relative timestamps, loading and retry states, the command bar, relation attach and detach, the not-found page, and a generic fallback for server failures of kind `configuration` and `storage`.
+Wired to `BeakLocalizations` in the source: the sign-in, register and recovery screens and their errors, yes and no badges, relative timestamps, loading and retry states, the command bar, the list toolbar, the filter sheet and the saved-views dialog, relation attach and detach, the `Back` button, the undo button and the delete toast, the notification bell and the pending-actions banner, the not-found page, a generic fallback for server failures of kind `configuration` and `storage`, and the controls of a form: the save status and compare buttons, the review and leave dialogs, the wizard's step buttons, the upload field and the gallery (with a screen-reader name for each picture and each row button).
 
 ### What is not
 
-Checked in the same German panel: the `Back` button on create and show pages, `Choose file` on an upload field, and the validation message under an empty required field, which reads `This field is required.` `BeakLocalizations` has a German sentence for that rule, but the form calls the rule directly and never asks it.
+Text that code writes itself stays English in a German panel: the validation messages of a form session (`Add at least 1 row.`, `Complete the related rows.`, `Enter a valid amount.`), the exception messages behind an unexpected failure, the default titles of `BeakMaintenanceConfig`, the words `create` and `update` in the review dialog, and the model action runner's `not permitted` and `outcome not yet known` texts.
 
-In the source, hard-coded English: the composed list toolbar (`All filters`, `Columns`, `Clear all`, `Show charts`), saved views, the unsaved changes and review dialogs (`Leave this form?`, `Review changes`, `Form inspector`), the wizard's `Finish`, the import view, the gallery and upload buttons, and the notification bell's labels.
+The controls of a few screens have no German either: the form inspector, the import view, the `Add`, `Edit`, `Remove` and `Apply` buttons of related-records tables, and the semantic range control's `Custom` preset.
 
-Not Beak's to translate: your text, the messages the server sends (`errorMessage` shows them as written, except the two generic kinds), and the CSV header, which is your column labels. A boolean in a CSV reads `Yes` and `No` unless its column sets `trueLabel` and `falseLabel`.
+Not Beak's to translate: your text, the messages the server sends (`errorMessage` shows them as written, except the generic kinds), and the CSV header, which is your column labels. A boolean in a CSV reads `Yes` and `No` unless its column sets `trueLabel` and `falseLabel`.
 
 ### Add a language
 
@@ -222,7 +222,7 @@ Subclass `BeakLocalizations`, override the getters you want, and install a deleg
 --8<-- "packages/beak_frontend/test/src/panel/beak_panel_localization_test.dart:frenchLocalizations"
 ```
 
-Anything you do not override stays English, because the base class decides German by `locale.languageCode == 'de'` and treats every other language as English. All 78 members carry a doc comment; the class is the checklist. Then list the language on the panel:
+Anything you do not override stays English, because the base class decides German by `locale.languageCode == 'de'` and treats every other language as English. Every member carries a doc comment; the class is the checklist. Then list the language on the panel:
 
 ```dart title="packages/beak_frontend/test/src/panel/beak_panel_localization_test.dart"
 --8<-- "packages/beak_frontend/test/src/panel/beak_panel_localization_test.dart:frenchPanelLocale"
@@ -236,7 +236,7 @@ Anything you do not override stays English, because the base class decides Germa
 | --- | --- |
 | Labels, titles and enum labels | Plain strings in the schema and the screens, compile-time constants for columns, so one build speaks one language. Write them in the panel's language. |
 | Rule messages | A form in a German panel words the built-in column rules in German (`BeakLocalizations.validate`), keeping a rule's own `message:` such as `BeakPattern`'s. Record rules and the messages of server-side validation keep the text they were written with ([Validation rules](../reference/validation-rules.md)). |
-| Hard-coded English in a composed list or a dialog | Nothing overrides it from outside. Accept English for that control, or build the screen from blocks. |
+| Hard-coded English in a form inspector, the import view or a related-records button | Nothing overrides it from outside. Accept English for that control, or build the screen from blocks. |
 | A live language switch | A new `locale` is a new configuration. The panel builds a new router and dependency scope and lands on `/`. |
 | Your own widgets | `BeakLocalizations.of(context)` and `BeakFormatting.of(context)`, as below. |
 
@@ -256,7 +256,7 @@ The shop's receivables card is a widget of the last kind. It takes loading, erro
 - **One empty value for screen and export.** Changing it changes both.
 - **CSV cells are quoted, not neutralized.** The exporter quotes commas, quotes and line breaks and does nothing else. A value that starts with `=` opens as a formula in a spreadsheet.
 - **English and German only.** Every other language falls back to English until you supply a subclass.
-- **`Back`, `Choose file`, the list toolbar, the saved-views dialog, the import view and the form's own status texts stay English** in a German panel. Built-in rule messages are translated.
+- **The import view and the messages a form session writes itself stay English** in a German panel. The list toolbar, the filter sheet, the saved-views dialog and the record actions menu are translated, and so are built-in rule messages.
 - **No test covers right-to-left languages.**
 
 ## Verify it
@@ -277,7 +277,7 @@ $ flutter test --no-pub test/shop_widget_test.dart --plain-name "exact euro pric
 00:01 +1: All tests passed!
 ```
 
-To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button and the table footer are German, the column headers and the `Back` button on a form are not. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.
+To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button, the table footer and the `Back` button on a form are German, the column headers are not, because they are your labels. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.
 
 ## Reference
 

@@ -10,41 +10,32 @@ class _BeakMapBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final revision = useBeakDataRevision(dataSource, table: block.query.table);
-    final values = useState(const <String, num>{});
+    final values = _useBlockRead(
+      dataSource,
+      block.query,
+      identity: block,
+      initial: const <String, num>{},
+      map: (page) => {
+        for (final record in page.items)
+          if (record[block.regionCodeField.key]?.raw?.toString()
+              case final String code when code.isNotEmpty)
+            code: _numberOf(record[block.valueField.key]?.raw),
+      },
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(block.query);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          values.value = {
-            for (final record in value.items)
-              if (record[block.regionCodeField.key]?.raw?.toString()
-                  case final String code when code.isNotEmpty)
-                code: _numberOf(record[block.valueField.key]?.raw),
-          };
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block, revision]);
-
-    return OiCard(
-      title: OiLabel.smallStrong(block.title),
-      child: SizedBox(
-        height: block.heightInPixels,
-        child: OiVectorMap(
-          label: block.title,
-          values: values.value,
-          valueLabel: block.valueLabel,
-          showLegend: true,
+    return _withReadFailure(
+      context,
+      values,
+      OiCard(
+        title: OiLabel.smallStrong(block.title),
+        child: SizedBox(
+          height: block.heightInPixels,
+          child: OiVectorMap(
+            label: block.title,
+            values: values.data,
+            valueLabel: block.valueLabel,
+            showLegend: true,
+          ),
         ),
       ),
     );

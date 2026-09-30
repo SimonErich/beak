@@ -63,7 +63,7 @@ class BeakListToolbar extends HookWidget {
   Future<void> _edit(BuildContext context, List<BeakFilterDef> fields) async {
     final applied = await OiSheet.showAsync<Map<String, BeakFilter>>(
       context,
-      label: 'All filters',
+      label: BeakLocalizations.of(context).allFilters,
       side: OiPanelSide.right,
       size: definition.filterSheetWidthInPixels,
       builder: (close) => BeakFilterEditor(
@@ -128,7 +128,7 @@ class BeakListToolbar extends HookWidget {
                       definition.showHeaderToggle &&
                           onHeaderVisibleChanged != null
                       ? OiSwitch(
-                          label: 'Show charts',
+                          label: BeakLocalizations.of(context).showCharts,
                           labelLeading: true,
                           value: headerVisible,
                           onChanged: onHeaderVisibleChanged,
@@ -163,18 +163,18 @@ class BeakListToolbar extends HookWidget {
                     if (filters.isNotEmpty || definition.savedViews != null)
                       OiButton.secondary(
                         size: OiButtonSize.small,
-                        label: 'All filters',
+                        label: BeakLocalizations.of(context).allFilters,
                         icon: OiIcons.slidersHorizontal,
                         onTap: () => _edit(context, filters),
                       ),
                     if (controller.availableColumns.isNotEmpty)
                       OiButton.secondary(
                         size: OiButtonSize.small,
-                        label: 'Columns',
+                        label: BeakLocalizations.of(context).tableColumns,
                         icon: OiIcons.columns3,
                         onTap: () => OiSheet.showAsync<void>(
                           context,
-                          label: 'Columns',
+                          label: BeakLocalizations.of(context).tableColumns,
                           side: OiPanelSide.right,
                           size: 360,
                           builder: (close) => _ColumnEditor(
@@ -202,7 +202,9 @@ class BeakListToolbar extends HookWidget {
                         ),
                       ),
                       child: OiTextInput.search(
-                        placeholder: definition.searchPlaceholder ?? 'Search…',
+                        placeholder:
+                            definition.searchPlaceholder ??
+                            BeakLocalizations.of(context).searchPlaceholder,
                         controller: search,
                         onChanged: controller.setSearch,
                       ),
@@ -267,7 +269,7 @@ class BeakListToolbar extends HookWidget {
                       if (active.isNotEmpty || state.search.isNotEmpty)
                         OiButton.ghost(
                           size: OiButtonSize.small,
-                          label: 'Clear all',
+                          label: BeakLocalizations.of(context).clearAll,
                           onTap: controller.clearFilters,
                         ),
                     ],
@@ -454,7 +456,9 @@ class BeakFilterEditor extends HookWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
-                const Expanded(child: OiLabel.h2('All filters')),
+                Expanded(
+                  child: OiLabel.h2(BeakLocalizations.of(context).allFilters),
+                ),
                 OiTappable(
                   semanticLabel: BeakLocalizations.of(context).close,
                   onTap: () => onClose(),
@@ -519,7 +523,7 @@ class BeakFilterEditor extends HookWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 OiButton.ghost(
-                  label: 'Clear all',
+                  label: BeakLocalizations.of(context).clearAll,
                   onTap: () {
                     staged.value = {};
                     valid.value = true;
@@ -537,14 +541,17 @@ class BeakFilterEditor extends HookWidget {
                         controller: controller,
                         source: source,
                         saveState: candidateState,
-                        saveLabel: 'Save as view',
+                        saveLabel: BeakLocalizations.of(context).saveAsView,
                         enabled: valid.value,
                         onSelected: () => onClose(),
                       ),
                     OiButton.primary(
-                      label: count.value == null
-                          ? 'Apply filters'
-                          : 'Show ${count.value} $recordNoun',
+                      label: switch (count.value) {
+                        null => BeakLocalizations.of(context).applyFilters,
+                        final int matching => BeakLocalizations.of(
+                          context,
+                        ).showMatching(matching, recordNoun),
+                      },
                       loading: loading.value,
                       onTap:
                           loading.value || error.value != null || !valid.value
@@ -577,7 +584,7 @@ class _ColumnEditor extends HookWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OiLabel.h3('Columns'),
+          OiLabel.h3(BeakLocalizations.of(context).tableColumns),
           for (final column in controller.availableColumns)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -598,9 +605,12 @@ class _ColumnEditor extends HookWidget {
           Wrap(
             spacing: 8,
             children: [
-              OiButton.ghost(label: 'Cancel', onTap: close),
+              OiButton.ghost(
+                label: BeakLocalizations.of(context).cancel,
+                onTap: close,
+              ),
               OiButton.primary(
-                label: 'Apply columns',
+                label: BeakLocalizations.of(context).applyColumns,
                 onTap: selected.value.isEmpty
                     ? null
                     : () {

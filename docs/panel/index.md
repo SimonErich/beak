@@ -12,7 +12,7 @@ You have models and want the admin app around them. This section covers the pane
 
 ## What the panel does on first build
 
-`BeakPanel` is the root widget. Hand it resources (or one `BeakPanelConfig`) and it builds everything else once, memoized on the config, so a rebuild does not rebuild the router.
+`BeakPanel` is the root widget. Hand it resources (or one `BeakPanelConfig`) and it builds everything else once, memoized on the config, so a rebuild that passes the same config does not rebuild the router. The keys are identities: a parent that rebuilds `BeakPanel(resources: [...])` with new list or resource instances counts as a new configuration, and that starts a new router, a new container and a signed-out session. Keep the config (or the lists) in a field or a `const`, or call `runApp` with the panel once.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel.dart"
 --8<-- "packages/beak_frontend/lib/src/panel/beak_panel.dart:panelRouting"

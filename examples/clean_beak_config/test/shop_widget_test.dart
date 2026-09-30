@@ -6,6 +6,7 @@ import 'package:clean_beak_config/overview.dart';
 import 'package:clean_beak_config/resources/fulfillment/models/fulfillment_policy.dart';
 import 'package:clean_beak_config/resources/fulfillment/screens/fulfillment_policy_form.dart';
 import 'package:clean_beak_config/resources/invoices/invoice_resource.dart';
+import 'package:clean_beak_config/resources/invoices/models/invoice.dart';
 import 'package:clean_beak_config/resources/orders/order_resource.dart';
 import 'package:clean_beak_config/resources/products/product_resource.dart';
 import 'package:clean_beak_config/resources/products/variant_resource.dart';
@@ -76,6 +77,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   // --8<-- [end:productPriceTest]
+
+  testWidgets('the invoice list shows the exact amount due', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 1080));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const formatting = BeakFormatting(locale: 'de_AT', currency: 'EUR');
+    final registry = buildBeakRegistry();
+    final source = InMemoryBeakDataSource(registry: registry)
+      ..seed(const InvoiceModel(), [
+        const InvoiceModel().record([
+          InvoiceModel.id.to('inv-1'),
+          InvoiceModel.number.to('INV-1'),
+          InvoiceModel.total.to(eur('1234.56')),
+        ]),
+      ]);
+    await tester.pumpWidget(
+      BeakPanel(
+        formatting: formatting,
+        resources: [InvoiceResource()],
+        dataSource: source,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('INV-1'), findsOneWidget);
+    expect(find.text(formatting.exactCurrency(eur('1234.56'))), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final width in [375.0, 1280.0]) {
     testWidgets(

@@ -46,7 +46,15 @@ class BeakAuthRouterRefresh extends ChangeNotifier {
   /// Observes the exact committed auth state from [adapter].
   BeakAuthRouterRefresh(this.adapter) {
     _cleanup = effect(() {
-      adapter.state.value;
+      switch (adapter.state.value) {
+        case BeakAuthGuest():
+          _lockedFor = null;
+        case BeakAuthAuthenticated(:final identity)
+            when _lockedFor != null && identity.id != _lockedFor:
+          _lockedFor = null;
+        case _:
+          break;
+      }
       notifyListeners();
     });
   }
@@ -54,6 +62,34 @@ class BeakAuthRouterRefresh extends ChangeNotifier {
   /// Existing backend session authority.
   final BeakAuthAdapter adapter;
   late final void Function() _cleanup;
+  Object? _lockedFor;
+
+  /// Whether the idle lock has closed the panel.
+  ///
+  /// While it is set, [redirect] sends every page except `/lock` back to the
+  /// lock screen, so the browser's Back button or a typed address cannot walk
+  /// around it. Signing out or a different account signing in clears it, and
+  /// so does [unlock]; a refresh that fails or is still resolving does not.
+  bool get locked => _lockedFor != null;
+
+  /// Closes the panel behind `/lock` until [unlock] is called.
+  ///
+  /// Only a signed-in identity can be locked out; with nobody signed in it does
+  /// nothing.
+  void lock() {
+    if (locked) return;
+    if (adapter.state.value case BeakAuthAuthenticated(:final identity)) {
+      _lockedFor = identity.id;
+      notifyListeners();
+    }
+  }
+
+  /// Lets the panel open again after a successful unlock.
+  void unlock() {
+    if (!locked) return;
+    _lockedFor = null;
+    notifyListeners();
+  }
 
   /// Redirect decision shared by standalone and embedded panel routers.
   ///
@@ -70,6 +106,7 @@ class BeakAuthRouterRefresh extends ChangeNotifier {
       BeakAuthAuthenticated(:final identity)
           when !identity.canAccessPanel && !publicPath && path != '/403' =>
         '/403',
+      BeakAuthAuthenticated() when locked && path != '/lock' => '/lock',
       BeakAuthAuthenticated(:final identity)
           when identity.canAccessPanel && authPath =>
         '/',

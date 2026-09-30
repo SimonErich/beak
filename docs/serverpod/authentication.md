@@ -145,7 +145,7 @@ await users.update(
 | Passwords and rate limits are Serverpod's | The panel shows `Too many sign-in attempts.` and `Invalid credentials.`; it stores no password policy of its own |
 | Keep the `serverpod*` pins identical | See [Version compatibility](versions.md) |
 
-Errors the adapter maps, as Beak's typed exceptions (the panel shows their messages, never the transport's):
+Errors the adapter maps, as Beak's typed exceptions. The panel shows the sign-in failures' own wording, and for a transport failure only the generic operation-failed text, never the transport's message:
 
 ```dart title="packages/beak_serverpod_flutter/lib/src/serverpod_auth_errors.dart"
 BeakException map(Object error, StackTrace stackTrace) => switch (error) {
@@ -173,6 +173,11 @@ BeakException map(Object error, StackTrace stackTrace) => switch (error) {
     ),
   ServerpodClientHttpException(statusCode: 403) =>
     const BeakAuthorizationException('Access denied.'),
+  ServerpodClientHttpException() ||
+  ServerpodClientNetworkException() ||
+  ServerpodClientUnknownException() => const BeakTransportException(
+    'Authentication transport failed.',
+  ),
   _ =>
     mapper?.call(error, stackTrace) ??
         const BeakConfigurationException('Authentication transport failed.'),
@@ -187,7 +192,7 @@ The adapter's tests inject generated endpoint and session fakes and cover the id
 
 ```console
 $ cd packages/beak_serverpod_flutter && flutter test
-00:00 +20: All tests passed!
+00:00 +21: All tests passed!
 $ cd examples/serverpod/bookshop_server && dart test
 $ cd examples/serverpod/bookshop_admin && flutter test
 ```

@@ -6,6 +6,8 @@ import 'package:obers_ui/obers_ui.dart';
 import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import '../di/beak_locator.dart';
+import '../localization/beak_localizations.dart';
+import '../overlays/beak_overlays.dart';
 
 /// Binds a model's rows to the panel's notification center: which fields
 /// carry the title, body, timestamp, read flag, and category. Set it on
@@ -119,7 +121,7 @@ class BeakNotificationBell extends HookWidget {
       children: [
         OiButton.icon(
           icon: OiIcons.bell,
-          label: 'Notifications',
+          label: BeakLocalizations.of(context).notifications,
           onTap: () => _open(context, dataSource, () => reloadTick.value++),
         ),
         if (unread > 0)
@@ -147,7 +149,7 @@ class BeakNotificationBell extends HookWidget {
   ) {
     OiSheet.showAsync<void>(
       context,
-      label: 'Notifications',
+      label: BeakLocalizations.of(context).notifications,
       side: OiPanelSide.right,
       builder: (close) =>
           _BeakNotificationPanel(source: source, onChanged: onChanged),
@@ -195,26 +197,47 @@ class _BeakNotificationPanel extends HookWidget {
       if (read == null) {
         return;
       }
+      final repository = BeakResourceRepository(dataSource);
+      final marked = <Object>{};
+      BeakException? refusal;
       for (final id in ids) {
-        await dataSource.update(
-          source.model.table,
-          id,
-          read.writeTo(const BeakRecord(values: {}), true),
+        final result = await repository.run(
+          () => dataSource.update(
+            source.model.table,
+            id,
+            read.writeTo(const BeakRecord(values: {}), true),
+          ),
         );
+        if (result case BeakErr(:final error)) {
+          refusal = error;
+          break;
+        }
+        marked.add(id);
+      }
+      if (!context.mounted) {
+        return;
       }
       records.value = [
         for (final record in records.value)
-          _idOf(record) != null && ids.contains(_idOf(record))
+          _idOf(record) != null && marked.contains(_idOf(record))
               ? read.writeTo(record, true)
               : record,
       ];
-      onChanged();
+      if (marked.isNotEmpty) {
+        onChanged();
+      }
+      if (refusal != null) {
+        BeakOverlays(context).toast(
+          BeakLocalizations.of(context).errorMessage(refusal),
+          level: OiToastLevel.error,
+        );
+      }
     }
 
     return SizedBox(
       width: 380,
       child: OiNotificationCenter(
-        label: 'Notifications',
+        label: BeakLocalizations.of(context).notifications,
         unreadCount: _unread(records.value),
         notifications: [
           for (final record in records.value)

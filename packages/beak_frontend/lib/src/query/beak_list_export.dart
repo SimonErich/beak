@@ -132,6 +132,12 @@ class BeakListExportButton extends HookWidget {
   Widget build(BuildContext context) {
     final loading = useState(false);
     final failure = useState<BeakException?>(null);
+    // A wrong projection is a mistake in the definition: fail when the button
+    // first draws, not when somebody clicks it.
+    useMemoized(() => definition.columnsFor(controller.model), [
+      definition,
+      controller.model,
+    ]);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,

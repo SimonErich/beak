@@ -114,6 +114,14 @@ void main() {
     },
   );
 
+  test('claims durable receipts but not an atomic graph', () {
+    // The server may be a worm source (atomic) or a staged one (no rollback);
+    // the client cannot tell them apart, and a missing receipt must stay
+    // provable so a form can save again after a reload.
+    expect(dataSource.commitCapabilities.durableReceipts, isTrue);
+    expect(dataSource.commitCapabilities.atomicGraph, isFalse);
+  });
+
   test('a malformed aggregate response is a configuration error', () async {
     final broken = HttpBeakDataSource(
       BeakClient(

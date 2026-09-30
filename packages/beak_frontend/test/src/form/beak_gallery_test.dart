@@ -1,6 +1,8 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:obers_ui/obers_ui.dart';
 import '../../support/panel_fixtures.dart';
 
 const _pictures = BeakToManyField(
@@ -61,6 +63,43 @@ void main() {
       expect(source.store.rowsOf('pictures'), hasLength(1));
     },
   );
+
+  testWidgets('each picture names its own move and remove controls', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final gallery = _pictures.galleryForm(
+      image: _image,
+      caption: _caption,
+      position: _position,
+    );
+    BeakFormSession? session;
+    await tester.binding.setSurfaceSize(const Size(1200, 2000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakConfiguredForm(
+          model: const _Catalog(),
+          dataSource: FakeDataSource(models: const [_Catalog(), _Picture()]),
+          layout: BeakFormLayout(children: [gallery]),
+          onSession: (value) => session = value,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    gallery
+      ..add(session!.root)
+      ..add(session!.root);
+    await tester.pumpAndSettle();
+
+    // Three identical "Move later" buttons tell a screen reader nothing.
+    expect(find.bySemanticsLabel('Move image 1 later'), findsOneWidget);
+    expect(find.bySemanticsLabel('Move image 2 earlier'), findsOneWidget);
+    expect(find.bySemanticsLabel('Remove image 1'), findsOneWidget);
+    expect(find.bySemanticsLabel('Remove image 2'), findsOneWidget);
+    semantics.dispose();
+  });
 
   test('rejects shared collections and mismatched fields', () {
     const shared = BeakToManyField(

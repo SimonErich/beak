@@ -159,6 +159,37 @@ void main() {
       }
     });
 
+    group('a missing receipt only proves anything if it could be stored', () {
+      BeakFormCommitRepository lookup() =>
+          BeakFormCommitRepository(_MemorySource());
+
+      test(
+        'receipts kept in memory cannot prove a save never arrived',
+        () async {
+          final receipt = await lookup().recover(
+            'save-1',
+            operationIds: ['note', 'label'],
+          );
+          expect(receipt.hasUnknown, isTrue);
+          for (final outcome in receipt.outcomes) {
+            expect(outcome.status, BeakWriteOutcome.unknown);
+            expect(outcome.reason, 'receiptLost');
+            expect(outcome.error?.message, contains('memory'));
+          }
+        },
+      );
+
+      test('unless this page sent the save itself', () async {
+        final receipt = await lookup().recover(
+          'save-1',
+          operationIds: ['note'],
+          sentByThisSession: true,
+        );
+        expect(receipt.hasUnknown, isFalse);
+        expect(receipt.outcomes.single.reason, 'notReceived');
+      });
+    });
+
     test('a network failure while recovering still throws', () async {
       final repository = BeakFormCommitRepository(
         _Source(onRecover: (_) => Future.error(const SocketException('Down.'))),
@@ -195,4 +226,19 @@ final class _AtomicSource implements BeakCommitDataSource {
 
   @override
   Future<BeakSaveResult> recover(String saveId) => throw UnimplementedError();
+}
+
+/// A source that keeps its receipts in memory only, like the staged fallback.
+final class _MemorySource implements BeakCommitDataSource {
+  @override
+  BeakCommitCapabilities get commitCapabilities =>
+      const BeakCommitCapabilities();
+
+  @override
+  Future<BeakSaveResult> commit(BeakSavePlan plan) =>
+      throw UnimplementedError();
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) =>
+      Future.error(const BeakNotFoundException('No receipt.'));
 }

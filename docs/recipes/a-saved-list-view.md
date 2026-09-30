@@ -59,7 +59,7 @@ header: BeakWidgetBlock(
 ```
 
 - `resource` holds the table of the list, so one model serves every list. The form fills `resource` and `state` itself and submits them hidden, so the person only types the name.
-- Decoding accepts version `1` only. A row with anything else fails with `The saved view contains invalid state.` in the picker.
+- Decoding accepts version `1` only. A row with anything else (or text that is not JSON) is left out of the picker, so one bad row never hides the others. `BeakSavedViewStore.decode` itself still throws `The saved view contains invalid state.`
 - Who sees a view is the model's business. The store reads through the normal query route, so the model's policies and row rules decide. Foodio's `shared` and `owner` columns are declared and unused: every view there is visible to everyone who can read the model. Narrow it with `BeakSavedViewStore.model(filter: ...)` or scope the model with a row rule.
 - A list shows at most 200 views.
 - A restored choice is matched by the JSON of its predicate. Change a preset's or a filter's definition in code and old views stop selecting it.

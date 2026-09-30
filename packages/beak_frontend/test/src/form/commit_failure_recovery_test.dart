@@ -160,6 +160,26 @@ void main() {
     expect(session.error.value, isNotNull);
   });
 
+  test('recover leaves edits alone once the save outcome is known', () async {
+    final source = FakeDataSource(models: const [_Memo()]);
+    final session = BeakFormSession(
+      model: const _Memo(),
+      dataSource: source,
+      layout: BeakFormLayout(children: [_title.inputText()]),
+    );
+    addTearDown(session.dispose);
+    await session.load();
+    session.root.set(_title, 'Lunch');
+    final receipt = await session.save();
+    expect(receipt?.complete, isTrue);
+
+    session.root.set(_title, 'Dinner');
+    await session.recover();
+
+    expect(session.root.read(_title), 'Dinner');
+    expect(session.isDirty, isTrue);
+  });
+
   testWidgets('a rejected save shows its reason once and offers no recovery', (
     tester,
   ) async {

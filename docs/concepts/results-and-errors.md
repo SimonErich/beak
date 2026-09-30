@@ -150,7 +150,7 @@ GET /api/commits/{saveId}
 
 If the server stored a receipt, the answer resolves every operation to `applied` or `unapplied`, and the form carries on from there. Replaying the same plan is also safe when the source reports `idempotentReplay`, because the same save id returns the stored receipt without writing again. What is not safe is a blind resend under a new id, and the form never does that while a save is unknown.
 
-If the server never stored a receipt for that id, the lookup answers 404. The panel reads that as "never received": every operation becomes `unapplied` with the reason `notReceived`, the form is editable again and a new save goes out under a new id. That covers a proxy that dropped the request or an unexpected error in your preparer before the server wrote its pending receipt. A failed lookup for any other reason (the network is still down, the server answers 5xx) leaves the save unknown, and the form keeps refusing to discard its changes until a lookup succeeds.
+If the server never stored a receipt for that id, the lookup answers 404. When the source keeps receipts durably (the HTTP source over a real server does), or when the same page sent the save, the panel reads that as "never received": every operation becomes `unapplied` with the reason `notReceived`, the form is editable again and a new save goes out under a new id. That covers a proxy that dropped the request or an unexpected error in your preparer before the server wrote its pending receipt. After a reload against a source that keeps receipts in memory only, a 404 proves nothing, because the receipt went with the page: the save stays `unknown` with the reason `receiptLost`, the form says so, and the only ways on are to look for the record and then discard the edits. A failed lookup for any other reason (the network is still down, the server answers 5xx) leaves the save unknown, and the form keeps refusing to discard its changes until a lookup succeeds.
 
 ## Why it is shaped this way
 
@@ -158,7 +158,7 @@ Exceptions inside, values at the edge. Throwing keeps services and data sources 
 
 A receipt, because a network can lie. After a dropped connection you can't know whether the server wrote anything. Reporting that as success loses data quietly, and reporting it as failure invites a second insert. So the answer has a third value, `unknown`, and the only way out of it is to ask under the same identity.
 
-A sealed exception family with a string `code`. The types give the server an exhaustive status switch and give a caller something to pattern-match. The `code` is the wire form and the fallback for a client that meets a code it doesn't know. It is also a string where an enum would do: `BeakOperationResult.reason` is a free string too (`rejected`, `rolledBack`, `notStarted`, `inFlight`, `responseUnavailable`), so compare against those values with care.
+A sealed exception family with a string `code`. The types give the server an exhaustive status switch and give a caller something to pattern-match. The `code` is the wire form and the fallback for a client that meets a code it doesn't know. It is also a string where an enum would do: `BeakOperationResult.reason` is a free string too (`rejected`, `rolledBack`, `notStarted`, `inFlight`, `responseUnavailable`, `notReceived`, `receiptLost`), so compare against those values with care.
 
 ## What it means for you
 

@@ -195,7 +195,9 @@ void main() {
         scoped.goToPage(2);
         await pumpEventQueue();
         expect(scoped.page.value!.total, 1);
-        expect(scoped.page.value!.items, isEmpty);
+        expect(scoped.page.value!.items.map((row) => row['id']?.raw), [
+          'n1',
+        ], reason: 'page 2 does not exist: the list shows its last page');
         scoped.setFilter(null);
         scoped.goToPage(1);
         await scoped.refresh();
@@ -250,16 +252,98 @@ void main() {
   );
 
   test('goToPage and setPageSize drive pagination', () async {
-    viewModel.goToPage(4);
-    await pumpEventQueue();
-    expect(dataSource.queryCalls.last.pagination.page, 4);
-
-    viewModel.setPageSize(50);
-    await pumpEventQueue();
-    expect(
-      dataSource.queryCalls.last.pagination,
-      const BeakPagination(perPage: 50),
+    final many = FakeDataSource(
+      records: {
+        'notes': {
+          for (var index = 1; index <= 100; index += 1)
+            'n$index': BeakRecord.fromRow({
+              'id': 'n$index',
+              'title': 'Note $index',
+            }),
+        },
+      },
     );
+    final paged = BeakTableViewModel(const NoteModel(), many);
+    addTearDown(paged.dispose);
+    paged.goToPage(4);
+    await pumpEventQueue();
+    expect(many.queryCalls.last.pagination.page, 4);
+
+    paged.setPageSize(50);
+    await pumpEventQueue();
+    expect(many.queryCalls.last.pagination, const BeakPagination(perPage: 50));
+  });
+
+  group('a page that ran out', () {
+    late FakeDataSource five;
+
+    setUp(() {
+      five = FakeDataSource(
+        records: {
+          'notes': {
+            for (var index = 1; index <= 5; index += 1)
+              'n$index': BeakRecord.fromRow({
+                'id': 'n$index',
+                'title': 'Note $index',
+              }),
+          },
+        },
+      );
+    });
+
+    test('a refresh past the last page returns to the last page', () async {
+      final model = BeakTableViewModel(const NoteModel(), five);
+      addTearDown(model.dispose);
+      model
+        ..setPageSize(2)
+        ..goToPage(3);
+      await pumpEventQueue();
+      expect(model.page.value?.items, hasLength(1));
+
+      await five.delete('notes', 'n5');
+      await model.refresh();
+      await pumpEventQueue();
+
+      expect(model.spec.value.pagination.page, 2);
+      expect(model.page.value?.items, hasLength(2));
+      expect(model.page.value?.total, 4);
+      expect(model.loading.value, isFalse);
+    });
+
+    test('an emptied list stays on its first page', () async {
+      final model = BeakTableViewModel(const NoteModel(), five);
+      addTearDown(model.dispose);
+      for (final id in ['n1', 'n2', 'n3', 'n4', 'n5']) {
+        await five.delete('notes', id);
+      }
+      await model.refresh();
+      await pumpEventQueue();
+
+      expect(model.spec.value.pagination.page, 1);
+      expect(model.page.value?.items, isEmpty);
+      expect(model.loading.value, isFalse);
+    });
+
+    test('a shared list controller follows to the last page', () async {
+      final controller = BeakQueryController(model: const NoteModel());
+      addTearDown(controller.dispose);
+      final model = BeakTableViewModel(
+        const NoteModel(),
+        five,
+        queryController: controller,
+      );
+      addTearDown(model.dispose);
+      controller
+        ..setPageSize(2)
+        ..goToPage(3);
+      await pumpEventQueue();
+      await five.delete('notes', 'n5');
+      await model.refresh();
+      await pumpEventQueue();
+
+      expect(controller.state.value.page, 2);
+      expect(model.page.value?.items, hasLength(2));
+    });
   });
 
   test('failures surface as typed error state', () async {

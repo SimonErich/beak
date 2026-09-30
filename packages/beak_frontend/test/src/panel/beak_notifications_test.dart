@@ -175,6 +175,65 @@ void main() {
     tester.takeException();
   });
 
+  testWidgets(
+    'a refused mark-as-read keeps the notification unread and says so',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: _NotifModel(),
+              icon: BeakIconToken(OiIcons.bell),
+            ),
+          ],
+        ),
+        dataSource: _RefusingUpdates(
+          records: {
+            'notifications': {
+              'n1': BeakRecord.fromRow(const {
+                'id': 'n1',
+                'title': 'New order',
+                'is_read': false,
+                'created_at': '2026-02-01T00:00:00.000Z',
+              }),
+            },
+          },
+        ),
+      );
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakNotificationBell(source: source),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(OiButton));
+      await tester.pumpAndSettle();
+
+      final center = tester.widget<OiNotificationCenter>(
+        find.byType(OiNotificationCenter),
+      );
+      center.onMarkRead!(center.notifications.single);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Not your notification.'), findsOneWidget);
+      expect(
+        tester
+            .widget<OiNotificationCenter>(find.byType(OiNotificationCenter))
+            .notifications
+            .single
+            .read,
+        isFalse,
+      );
+      await tester.pump(const Duration(seconds: 6));
+    },
+  );
+
   testWidgets('a row without a time is not listed under an invented date', (
     tester,
   ) async {
@@ -223,4 +282,12 @@ void main() {
     );
     expect(center.notifications.map((entry) => entry.title), ['Dated']);
   });
+}
+
+final class _RefusingUpdates extends FakeDataSource {
+  _RefusingUpdates({super.records});
+
+  @override
+  Future<BeakRecord> update(String table, Object id, BeakRecord data) =>
+      throw const BeakAuthorizationException('Not your notification.');
 }

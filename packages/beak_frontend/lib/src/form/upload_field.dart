@@ -6,6 +6,7 @@ import 'package:obers_ui/obers_ui.dart';
 import 'package:mime/mime.dart';
 
 import '../data/beak_upload_repository.dart';
+import '../localization/beak_localizations.dart';
 import 'beak_form_controller_builder.dart';
 import 'beak_draft_uploads.dart';
 import 'beak_resolved_image.dart';
@@ -108,6 +109,7 @@ class BeakUploadField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final Enum slot = controller.slotOf(column);
+    final strings = BeakLocalizations.of(context);
     useListenable(controller);
     final feedback = useState<String?>(null);
     final stored = useState<BeakStoredFile?>(null);
@@ -137,7 +139,7 @@ class BeakUploadField extends HookWidget {
           busy.value = false;
           feedback.value = error is BeakException
               ? error.message
-              : 'Unable to open the file. Please try again.';
+              : strings.formOpenFileFailed;
         }
         return;
       }
@@ -197,17 +199,18 @@ class BeakUploadField extends HookWidget {
     final imageUrl =
         preview?.variants['thumbnail']?.url ?? preview?.url ?? resolved.data;
 
+    final fieldLabel = label ?? column.label;
     return OiColumn(
       breakpoint: context.breakpoint,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        OiLabel.smallStrong(label ?? column.label),
+        OiLabel.smallStrong(fieldLabel),
         if (imageUrl != null && isImage)
           BeakResolvedImage(
             src: imageUrl.toString(),
             alt: column.label,
-            width: 80,
-            height: 80,
+            widthInPixels: 80,
+            heightInPixels: 80,
             fit: BoxFit.cover,
             errorWidget: const OiIcon.decorative(icon: OiIcons.image),
           ),
@@ -217,13 +220,17 @@ class BeakUploadField extends HookWidget {
                 storedKey.split('/').last,
           ),
         OiButton.secondary(
-          label: busy.value ? 'Preparing file…' : 'Choose file',
+          label: busy.value
+              ? strings.formPreparingFile
+              : strings.formChooseFile,
+          semanticLabel: strings.formChooseFileFor(fieldLabel),
           enabled: client != null && !busy.value && enabled,
           onTap: client == null || busy.value || !enabled ? null : pick,
         ),
         if (storedKey != null && enabled)
           OiButton.ghost(
-            label: 'Remove file',
+            label: strings.formRemoveFile,
+            semanticLabel: strings.formRemoveFileFrom(fieldLabel),
             onTap: busy.value
                 ? null
                 : () {
@@ -231,7 +238,8 @@ class BeakUploadField extends HookWidget {
                     controller.set<String>(slot, null);
                   },
           ),
-        if (message != null) OiLabel.caption(message),
+        if (message != null)
+          Semantics(liveRegion: true, child: OiLabel.caption(message)),
       ],
     );
   }

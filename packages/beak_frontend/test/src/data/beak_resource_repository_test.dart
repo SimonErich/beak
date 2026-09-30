@@ -92,11 +92,11 @@ void main() {
     );
     expect(await repository.delete('notes', 'n1'), isA<BeakOk<void>>());
     expect(
-      await repository.attach('notes', 'n1', 'labels', const ['l1']),
+      await repository.attach('notes', 'n2', 'labels', const ['l1']),
       isA<BeakOk<void>>(),
     );
     expect(
-      await repository.detach('notes', 'n1', 'labels', const ['l1']),
+      await repository.detach('notes', 'n2', 'labels', const ['l1']),
       isA<BeakOk<void>>(),
     );
   });

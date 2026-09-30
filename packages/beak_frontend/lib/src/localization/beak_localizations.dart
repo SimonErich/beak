@@ -16,6 +16,220 @@ class BeakLocalizations {
 
   bool get _de => locale.languageCode == 'de';
 
+  /// Status line while the form asks the server to check its values.
+  String get formChecking => _de ? 'Werte werden geprüft…' : 'Checking values…';
+
+  /// Reloads a record after another editor saved first, to merge the edits.
+  String get formCompareLatest =>
+      _de ? 'Mit aktueller Version vergleichen' : 'Compare with latest version';
+
+  /// Heading of the notice offering a stored draft.
+  String get formDraftAvailable => _de
+      ? 'Ein nicht abgeschlossener Entwurf ist verfügbar'
+      : 'An unfinished draft is available';
+
+  /// Loads the stored draft into the form.
+  String get formResumeDraft => _de ? 'Entwurf fortsetzen' : 'Resume draft';
+
+  /// Deletes the stored draft.
+  String get formDiscardStoredDraft =>
+      _de ? 'Gespeicherten Entwurf verwerfen' : 'Discard saved draft';
+
+  /// The user's own value in a merge conflict.
+  String formYourValue(String value) =>
+      _de ? 'Ihr Entwurf: $value' : 'Your draft: $value';
+
+  /// The value another editor saved, in a merge conflict.
+  String formLatestValue(String value) =>
+      _de ? 'Aktuelle Version: $value' : 'Latest version: $value';
+
+  /// Keeps the user's own value in a merge conflict.
+  String get formKeepDraft => _de ? 'Entwurf behalten' : 'Keep draft';
+
+  /// Takes the other editor's value in a merge conflict.
+  String get formUseLatest =>
+      _de ? 'Aktuelle Version übernehmen' : 'Use latest';
+
+  /// Banner after a save whose outcome is not known.
+  String get formSaveUnknown => _de
+      ? 'Der Status einiger Speichervorgänge ist unbekannt. Prüfen Sie den Speicherstatus, bevor Sie fortfahren.'
+      : 'Some save results are unknown. Check the save status before continuing.';
+
+  /// Banner after a save that applied only part of the graph.
+  String formPartlySaved(int count) => _de
+      ? (count == 1
+            ? '1 Änderung gespeichert. Die übrigen Änderungen benötigen noch Ihre Aufmerksamkeit.'
+            : '$count Änderungen gespeichert. Die übrigen Änderungen benötigen noch Ihre Aufmerksamkeit.')
+      : (count == 1
+            ? '1 change saved. The remaining changes still need attention.'
+            : '$count changes saved. The remaining changes still need attention.');
+
+  /// Asks the server for the receipt of a save whose outcome is not known.
+  String get formCheckSaveStatus =>
+      _de ? 'Speicherstatus prüfen' : 'Check save status';
+
+  /// Position in a multi-step form.
+  String formStepOf(int current, int total) =>
+      _de ? 'Schritt $current von $total' : 'Step $current of $total';
+
+  /// Moves a multi-step form back one step.
+  String get formPrevious => _de ? 'Vorheriger Schritt' : 'Previous';
+
+  /// Moves a multi-step form forward one step.
+  String get formNext => _de ? 'Weiter' : 'Next';
+
+  /// Moves a multi-step form forward, or confirms the review.
+  String get formContinue => _de ? 'Weiter' : 'Continue';
+
+  /// Saves the last step of a multi-step form.
+  String get formFinish => _de ? 'Abschließen' : 'Finish';
+
+  /// Saves what a partial save left over.
+  String get formSaveRemaining =>
+      _de ? 'Übrige Änderungen speichern' : 'Save remaining changes';
+
+  /// Opens the review of a form's changes.
+  String get formReviewChanges => _de ? 'Änderungen prüfen' : 'Review changes';
+
+  /// Resets a form to the saved record.
+  String get formDiscardChanges =>
+      _de ? 'Änderungen verwerfen' : 'Discard changes';
+
+  /// Body of the review when the form has nothing to save.
+  String get formNoChanges => _de
+      ? 'Keine Feld- oder Beziehungsänderungen.'
+      : 'No field or relationship changes.';
+
+  /// Count in the change bar.
+  String formUnsavedChanges(int count) => _de
+      ? '$count ${count == 1 ? 'ungespeicherte Änderung' : 'ungespeicherte Änderungen'}'
+      : '$count unsaved ${count == 1 ? 'change' : 'changes'}';
+
+  /// Count of invalid fields in the change bar.
+  String formFieldsNeedAttention(int count) => _de
+      ? (count == 1
+            ? '1 Feld benötigt Aufmerksamkeit'
+            : '$count Felder benötigen Aufmerksamkeit')
+      : '$count ${count == 1 ? 'field needs' : 'fields need'} attention';
+
+  /// Title of the dialog shown while a save is running.
+  String get formSaveInProgress => _de ? 'Speichern läuft' : 'Save in progress';
+
+  /// Body of the dialog shown while a save is running.
+  String get formWaitForSave => _de
+      ? 'Warten Sie auf das Speicherergebnis, bevor Sie dieses Formular verlassen.'
+      : 'Wait for the save result before leaving this form.';
+
+  /// Accessible name of the leave confirmation.
+  String get formUnsavedChangesLabel =>
+      _de ? 'Ungespeicherte Änderungen' : 'Unsaved changes';
+
+  /// Title of the leave confirmation.
+  String get formLeaveQuestion =>
+      _de ? 'Dieses Formular verlassen?' : 'Leave this form?';
+
+  /// Leave confirmation when a save outcome is unknown.
+  String get formLeaveUnknown => _de
+      ? 'Der Status einiger Speichervorgänge ist unbekannt. Beim Verlassen werden bereits gespeicherte Änderungen nicht rückgängig gemacht. Bleiben Sie, um den Speicherstatus zu prüfen.'
+      : 'Some save results are unknown. Leaving cannot undo changes already saved. Stay to check the save status.';
+
+  /// Leave confirmation after a partial save.
+  String get formLeavePartial => _de
+      ? 'Einige Änderungen sind bereits gespeichert. Nur die übrigen ungespeicherten Änderungen verwerfen?'
+      : 'Some changes are already saved. Discard only the remaining unsaved changes?';
+
+  /// Leave confirmation when a local draft keeps the edits.
+  String get formLeaveStored => _de
+      ? 'Ihr Entwurf ist lokal gespeichert und kann fortgesetzt werden, wenn Sie zurückkehren.'
+      : 'Your draft is stored locally and can be resumed when you return.';
+
+  /// Leave confirmation when the edits would be lost.
+  String get formLeaveDiscard => _de
+      ? 'Die ungespeicherten Änderungen in diesem Formular verwerfen?'
+      : 'Discard the unsaved changes in this form?';
+
+  /// Stays on the form.
+  String get formStay => _de ? 'Bleiben' : 'Stay';
+
+  /// Leaves the form.
+  String get formLeave => _de ? 'Verlassen' : 'Leave';
+
+  /// File picker button of an upload field.
+  String get formChooseFile => _de ? 'Datei auswählen' : 'Choose file';
+
+  /// File picker button while a file is being read.
+  String get formPreparingFile =>
+      _de ? 'Datei wird vorbereitet…' : 'Preparing file…';
+
+  /// Clears the file of an upload field.
+  String get formRemoveFile => _de ? 'Datei entfernen' : 'Remove file';
+
+  /// Shown when the platform picker fails.
+  String get formOpenFileFailed => _de
+      ? 'Die Datei konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.'
+      : 'Unable to open the file. Please try again.';
+
+  /// Screen-reader name of an upload field's picker button.
+  String formChooseFileFor(String label) =>
+      _de ? 'Datei auswählen für $label' : 'Choose file for $label';
+
+  /// Screen-reader name of an upload field's remove button.
+  String formRemoveFileFrom(String label) =>
+      _de ? 'Datei entfernen aus $label' : 'Remove file from $label';
+
+  /// Explains what a gallery's first picture is for.
+  String get formGalleryHint => _de
+      ? 'Das erste Bild ist das Titelbild. Bilder und Reihenfolge werden mit dem Eintrag gespeichert.'
+      : 'The first image is the cover. Images and ordering are saved with the record.';
+
+  /// Shown by a gallery without pictures.
+  String get formGalleryEmpty => _de ? 'Noch keine Bilder.' : 'No images yet.';
+
+  /// Heading of a gallery's first picture.
+  String get formCoverImage => _de ? 'Titelbild' : 'Cover image';
+
+  /// Heading of a gallery picture; [number] counts from one.
+  String formImageNumber(int number) => _de ? 'Bild $number' : 'Image $number';
+
+  /// Moves a gallery picture one place towards the front.
+  String get formMoveEarlier => _de ? 'Weiter nach vorn' : 'Move earlier';
+
+  /// Moves a gallery picture one place towards the back.
+  String get formMoveLater => _de ? 'Weiter nach hinten' : 'Move later';
+
+  /// Removes a gallery picture.
+  String get formRemoveImage => _de ? 'Bild entfernen' : 'Remove image';
+
+  /// Adds a gallery picture.
+  String get formAddImage => _de ? 'Bild hinzufügen' : 'Add image';
+
+  /// Screen-reader name of the move-earlier button of picture [number].
+  String formMoveImageEarlier(int number) =>
+      _de ? 'Bild $number weiter nach vorn' : 'Move image $number earlier';
+
+  /// Screen-reader name of the move-later button of picture [number].
+  String formMoveImageLater(int number) =>
+      _de ? 'Bild $number weiter nach hinten' : 'Move image $number later';
+
+  /// Screen-reader name of the remove button of picture [number].
+  String formRemoveImageNumber(int number) =>
+      _de ? 'Bild $number entfernen' : 'Remove image $number';
+
+  /// Removes a row of a related-records table.
+  String get formRemove => _de ? 'Entfernen' : 'Remove';
+
+  /// Opens the advanced fields of a related-records row.
+  String get formAdvanced => _de ? 'Erweitert' : 'Advanced';
+
+  /// Screen-reader name of the remove button of row [number] of [label].
+  String formRemoveRow(String label, int number) =>
+      _de ? '$label $number entfernen' : 'Remove $label $number';
+
+  /// Screen-reader name of the advanced button of row [number] of [label].
+  String formAdvancedRow(String label, int number) => _de
+      ? 'Erweiterte Angaben zu $label $number'
+      : 'Advanced options for $label $number';
+
   /// Sign-in action and screen title.
   String get authSignIn => _de ? 'Anmelden' : 'Sign in';
 
@@ -327,6 +541,40 @@ class BeakLocalizations {
   /// Successful deletion message.
   String get recordDeleted => _de ? 'Eintrag gelöscht.' : 'Record deleted.';
 
+  /// Return to the previous page.
+  String get back => _de ? 'Zurück' : 'Back';
+
+  /// Reverts the last change while its undo window is open.
+  String get undo => _de ? 'Rückgängig' : 'Undo';
+
+  /// The notification bell and its sheet.
+  String get notifications => _de ? 'Benachrichtigungen' : 'Notifications';
+
+  /// Copies a record into a new one.
+  String get duplicate => _de ? 'Duplizieren' : 'Duplicate';
+
+  /// Explains the banner shown while commands await their receipts.
+  String get pendingActionsNotice => _de
+      ? 'Einige Aktionen warten auf Bestätigung. Ihre ursprünglichen Belege werden geprüft, ohne sie erneut zu senden.'
+      : 'Some actions are awaiting confirmation. Their original receipts will be checked without resubmitting.';
+
+  /// Re-checks the receipt of an action whose outcome is unknown.
+  String checkPendingAction(String label) =>
+      _de ? '$label prüfen' : 'Check $label';
+
+  /// Confirmation text before a command runs over the selected records.
+  String applyToSelection(String label, int count) => _de
+      ? '$label auf $count ausgewählte Einträge anwenden? Jeder Eintrag wird einzeln gespeichert.'
+      : 'Apply $label to $count selected records? Each record is saved independently.';
+
+  /// Accessible label of the rail that holds the workspace settings.
+  String get workspaceSettings =>
+      _de ? 'Arbeitsbereich-Einstellungen' : 'Workspace settings';
+
+  /// Tooltip of the shell's create button, naming the workspace it creates in.
+  String createIn(String section) =>
+      _de ? 'Erstellen in $section' : '$create in $section';
+
   /// Form step validation summary.
   String get requiredStep => _de
       ? 'Bitte füllen Sie alle erforderlichen Felder dieses Schritts aus.'
@@ -352,6 +600,77 @@ class BeakLocalizations {
     final message = rule.validate(value);
     return message == null || !_de ? message : validationMessage(rule);
   }
+
+  /// Question asked before a related record is deleted for good.
+  String get deleteRecordQuestion =>
+      _de ? 'Diesen Eintrag löschen?' : 'Delete this record?';
+
+  /// Title of the list's filter sheet and its opening button.
+  String get allFilters => _de ? 'Alle Filter' : 'All filters';
+
+  /// Switch that shows or hides a list's overview charts.
+  String get showCharts => _de ? 'Diagramme anzeigen' : 'Show charts';
+
+  /// Resets every filter and the search of a list.
+  String get clearAll => _de ? 'Alle zurücksetzen' : 'Clear all';
+
+  /// Applies the filters staged in the filter sheet.
+  String get applyFilters => _de ? 'Filter anwenden' : 'Apply filters';
+
+  /// Applies the filters staged in the sheet and says how many rows match.
+  String showMatching(int count, String noun) =>
+      _de ? '$count $noun anzeigen' : 'Show $count $noun';
+
+  /// Applies the columns chosen in the column sheet.
+  String get applyColumns => _de ? 'Spalten übernehmen' : 'Apply columns';
+
+  /// Placeholder of a list's search field.
+  String get searchPlaceholder => _de ? 'Suchen…' : 'Search…';
+
+  /// Selector of the views saved for a list.
+  String get savedViews => _de ? 'Gespeicherte Ansichten' : 'Saved views';
+
+  /// Saves the current list choices as a named view.
+  String get saveView => _de ? 'Ansicht speichern' : 'Save view';
+
+  /// Saves the staged filters as a named view.
+  String get saveAsView => _de ? 'Als Ansicht speichern' : 'Save as view';
+
+  /// Drops a bookmarked list state that cannot be restored.
+  String get resetView => _de ? 'Ansicht zurücksetzen' : 'Reset view';
+
+  /// Overflow menu of a table row's actions.
+  String get recordActions => _de ? 'Eintragsaktionen' : 'Record actions';
+
+  /// Invoice line items heading.
+  String get invoiceLineItems => _de ? 'Positionen' : 'Line items';
+
+  /// Invoice totals heading.
+  String get invoiceTotals => _de ? 'Summen' : 'Totals';
+
+  /// Invoice sender heading.
+  String get invoiceFrom => _de ? 'Von' : 'From';
+
+  /// Invoice recipient heading.
+  String get invoiceTo => _de ? 'An' : 'To';
+
+  /// Accessible label of a carousel block.
+  String get carousel => _de ? 'Karussell' : 'Carousel';
+
+  /// Accessible label of a timeline block.
+  String get timeline => _de ? 'Zeitverlauf' : 'Timeline';
+
+  /// Accessible label of a gallery block.
+  String get gallery => _de ? 'Galerie' : 'Gallery';
+
+  /// Summary switch that shows the chart.
+  String get chartView => _de ? 'Diagramm' : 'Chart view';
+
+  /// Summary switch that shows the table.
+  String get tableView => _de ? 'Tabelle' : 'Table view';
+
+  /// Opens the filters a quick-filter row does not show.
+  String get moreFilters => _de ? 'Weitere Filter' : 'More filters';
 
   /// Translates declarative rule failures while retaining custom pattern text.
   String validationMessage(BeakRule rule) => switch (rule) {

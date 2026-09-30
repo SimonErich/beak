@@ -74,7 +74,8 @@ final class BeakCalendarBlock extends BeakBlock {
   final void Function(BeakRecord record)? onEventTap;
 
   /// Invoked after an event is dragged to a new range; the block first
-  /// persists the move through the data source.
+  /// persists the move through the data source. [start] and [end] are the
+  /// instants that were written, not the wall-clock time the calendar showed.
   final void Function(BeakRecord record, DateTime start, DateTime end)?
   onEventMove;
 }

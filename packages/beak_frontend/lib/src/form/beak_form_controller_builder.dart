@@ -257,6 +257,7 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
   final Map<Enum, BeakColumn> _columnBySlot = {};
   final Map<Enum, String> _keyBySlot = {};
   final Set<String> _prefilledKeys = {};
+  final Set<String> _unreadableKeys = {};
   final Map<String, String> _inputErrors = {};
   final Set<String> _invalidEdits = {};
 
@@ -349,8 +350,14 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
 
   /// Seeds every field from [record] without marking the form dirty — the
   /// edit-mode prefill.
+  ///
+  /// A stored value the field cannot show (an enum member the model no longer
+  /// has, a timestamp that is not one) leaves the field empty and stays out of
+  /// [buildData] until the user picks a value: saving an untouched field must
+  /// not overwrite what the database holds with null.
   void prefill(BeakRecord record) {
     _prefilledKeys.clear();
+    _unreadableKeys.clear();
     _inputErrors.clear();
     _invalidEdits.clear();
     final values = <Enum, Object?>{};
@@ -359,10 +366,16 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
       if (value != null) _prefilledKeys.add(columnKey);
       // A prefill is a replacement baseline, not a partial update. Explicitly
       // reset absent slots so discarded command arguments cannot survive.
-      values[slot] = _fieldValueOf(
+      final Object? shown = _fieldValueOf(
         slot,
         value == null ? _columnBySlot[slot]?.defaultValue : value.raw,
       );
+      if (shown == null &&
+          value?.raw != null &&
+          !_inputErrors.containsKey(columnKey)) {
+        _unreadableKeys.add(columnKey);
+      }
+      values[slot] = shown;
     }
     rebase(values);
   }
@@ -430,6 +443,7 @@ final class BeakFormController extends OiAfController<Enum, BeakRecord> {
       if (valueMode == BeakFormValueMode.changes && !isFieldDirty(slot)) {
         continue;
       }
+      if (_unreadableKeys.contains(columnKey) && !isFieldDirty(slot)) continue;
       final BeakValue? wire = _wireValueOf(slot);
       if (wire != null) {
         values[columnKey] = wire;

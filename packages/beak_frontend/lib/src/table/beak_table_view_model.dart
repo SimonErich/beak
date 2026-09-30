@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:beak_core/beak_core.dart';
 import 'package:signals/signals.dart';
@@ -215,30 +216,6 @@ final class BeakTableViewModel extends BeakViewModel {
     );
   }
 
-  /// Replaces one value of the record with [id] locally (optimistic inline
-  /// edit), returning the previous record for a revert — or `null` when the
-  /// page has no such record.
-  BeakRecord? replaceRecordLocally(Object id, BeakRecord updated) {
-    final current = _page.value;
-    if (current == null) {
-      return null;
-    }
-    final int index = _indexOf(current, id);
-    if (index < 0) {
-      return null;
-    }
-    final previous = current.items[index];
-    _page.value = BeakPage(
-      items: [...current.items]
-        ..removeAt(index)
-        ..insert(index, updated),
-      total: current.total,
-      page: current.page,
-      perPage: current.perPage,
-    );
-    return previous;
-  }
-
   int _indexOf(BeakPage<BeakRecord> page, Object id) {
     final String primaryKeyColumn = model.primaryKey.key;
     for (final (index, record) in page.items.indexed) {
@@ -265,6 +242,16 @@ final class BeakTableViewModel extends BeakViewModel {
     }
     switch (result) {
       case BeakOk(:final value):
+        final int lastPage = math.max(
+          1,
+          (value.total + value.perPage - 1) ~/ value.perPage,
+        );
+        if (value.items.isEmpty && lastPage < _spec.value.pagination.page) {
+          // Rows were deleted from under this page (here or elsewhere), so the
+          // page no longer exists: show the last one that does, not a blank.
+          goToPage(lastPage);
+          return;
+        }
         _page.value = value;
       case BeakErr(:final error):
         _error.value = error;

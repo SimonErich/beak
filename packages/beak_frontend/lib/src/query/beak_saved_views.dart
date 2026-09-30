@@ -63,6 +63,8 @@ final class BeakSavedViewStore {
   final BeakFilter? filter;
 
   /// Reads a namespace through the panel's normal transport.
+  ///
+  /// A row whose state cannot be decoded is skipped.
   Future<List<BeakSavedView>> list(BeakDataSource source, String table) async {
     final page = await source.query(
       BeakQuerySpec(
@@ -74,12 +76,24 @@ final class BeakSavedViewStore {
     return [
       for (final row in page.items)
         if (model.primaryKeyOf(row) case final Object id)
-          BeakSavedView(
-            id: id,
-            name: name.readFrom(row) ?? '',
-            state: decode(state.readFrom(row) ?? ''),
-          ),
+          if (_decodeOrNull(state.readFrom(row) ?? '')
+              case final BeakQueryState restored)
+            BeakSavedView(
+              id: id,
+              name: name.readFrom(row) ?? '',
+              state: restored,
+            ),
     ];
+  }
+
+  /// [decode] for a row of a shared list: a view somebody saved with another
+  /// version, or by hand, is left out instead of hiding every other view.
+  BeakQueryState? _decodeOrNull(String value) {
+    try {
+      return decode(value);
+    } on BeakConfigurationException {
+      return null;
+    }
   }
 
   /// Rejects malformed or incompatible persisted state at the repository boundary.
@@ -130,7 +144,7 @@ class BeakSavedViews extends HookWidget {
     this.saveState,
     this.onSelected,
     this.showSelector = true,
-    this.saveLabel = 'Save view',
+    this.saveLabel,
     this.enabled = true,
     super.key,
   });
@@ -150,8 +164,9 @@ class BeakSavedViews extends HookWidget {
   /// Whether existing views are offered alongside the save action.
   final bool showSelector;
 
-  /// Label for the save action in a containing toolbar or editor.
-  final String saveLabel;
+  /// Label for the save action in a containing toolbar or editor; the
+  /// localized "Save view" when null.
+  final String? saveLabel;
 
   /// Prevents saving while a containing editor has invalid input.
   final bool enabled;
@@ -190,7 +205,7 @@ class BeakSavedViews extends HookWidget {
           SizedBox(
             width: 220,
             child: OiSelect<Object>(
-              label: 'Saved views',
+              label: BeakLocalizations.of(context).savedViews,
               options: [
                 for (final view in views.value)
                   OiSelectOption(value: view.id, label: view.name),
@@ -215,7 +230,7 @@ class BeakSavedViews extends HookWidget {
             ),
           ),
         OiButton.secondary(
-          label: saveLabel,
+          label: saveLabel ?? BeakLocalizations.of(context).saveView,
           icon: OiIcons.bookmark,
           onTap: !enabled
               ? null
@@ -263,8 +278,8 @@ class _SaveViewDialog extends HookWidget {
     );
     return Watch(
       (context) => OiDialog.standard(
-        label: 'Save view',
-        title: 'Save view',
+        label: BeakLocalizations.of(context).saveView,
+        title: BeakLocalizations.of(context).saveView,
         dismissible: false,
         onClose:
             session.value?.hasUnknown == true ||

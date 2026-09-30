@@ -49,17 +49,27 @@ final class BeakFormCommitRepository {
 
   /// Reads the receipt of [saveId] without repeating any mutation.
   ///
-  /// A missing receipt proves the server never received the plan, so every id
-  /// in [operationIds] is reported `unapplied` with the reason `notReceived`
-  /// and the form may save again. Any other failure is rethrown: the outcome
-  /// is still unknown.
+  /// A missing receipt proves the plan never arrived only when it could have
+  /// been stored: the source keeps receipts durably, or [sentByThisSession]
+  /// says the plan was sent by the same page, so an in-memory source would
+  /// still hold it. Then every id in [operationIds] is reported `unapplied`
+  /// with the reason `notReceived` and the form may save again.
+  ///
+  /// Otherwise (a reload found a pending save and the source forgot its
+  /// receipts with the page) the outcome stays `unknown` with the reason
+  /// `receiptLost`: the save may have been applied, and saving again could
+  /// write it twice. Any other failure is rethrown: the outcome is still
+  /// unknown.
   Future<BeakSaveResult> recover(
     String saveId, {
     required Iterable<String> operationIds,
+    bool sentByThisSession = false,
   }) async {
     try {
       return await source.recover(saveId);
     } on BeakNotFoundException {
+      final proven =
+          source.commitCapabilities.durableReceipts || sentByThisSession;
       return BeakSaveResult(
         saveId: saveId,
         mode: source.commitCapabilities.atomicGraph
@@ -69,13 +79,23 @@ final class BeakFormCommitRepository {
           for (final id in operationIds)
             BeakOperationResult(
               id: id,
-              status: BeakWriteOutcome.unapplied,
-              reason: 'notReceived',
+              status: proven
+                  ? BeakWriteOutcome.unapplied
+                  : BeakWriteOutcome.unknown,
+              reason: proven ? 'notReceived' : 'receiptLost',
+              error: proven
+                  ? null
+                  : BeakSaveError(code: 'unknown', message: _receiptLostText),
             ),
         ],
       );
     }
   }
+
+  static const String _receiptLostText =
+      'This save was interrupted and its receipt cannot be read again, because '
+      'this data source keeps receipts in memory only. Check whether the '
+      'record was saved before you save again, then discard these edits.';
 
   /// The failure recorded on one operation.
   ///

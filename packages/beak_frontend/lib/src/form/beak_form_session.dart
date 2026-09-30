@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:beak_core/beak_core.dart';
 import 'package:signals/signals.dart';
@@ -1847,8 +1848,12 @@ class BeakFormSession {
   int _changeVersion = 0;
   int _loadVersion = 0;
   StreamSubscription<BeakDataChange>? _mutations;
-  final String _sessionId = DateTime.now().microsecondsSinceEpoch.toString();
+  // On the web the clock ticks in milliseconds, so two forms mounted in one
+  // frame need more than the time to tell their save identities apart.
+  final String _sessionId =
+      '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x3fffffff)}';
   BeakSavePlan? _pending;
+  bool _pendingSentHere = false;
   BeakCommitDataSource? _committer;
   final Map<String, BeakDraftRecord> _operations = {};
   String _nextId() => 'draft_${++_sequence}';
@@ -2438,9 +2443,13 @@ class BeakFormSession {
   }
 
   /// Discards unapplied field, relationship and command-argument edits together.
-  /// Unknown or active writes must be resolved before their drafts can be reset.
+  ///
+  /// Unknown or active writes must be resolved before their drafts can be reset,
+  /// except a save whose receipt is gone ([receiptLost]): nothing can resolve it,
+  /// so the user, who has been told to check, may discard the edits and the
+  /// pending snapshot with them.
   Future<void> discardChanges() async {
-    if (submitting.value || hasUnknown) return;
+    if (submitting.value || (hasUnknown && !receiptLost)) return;
     root._prefill(root.initialRecord, existing: root.id != null);
     for (final input in _actionInputs.values) {
       await input.discardChanges();
@@ -2448,6 +2457,8 @@ class BeakFormSession {
     _conflicts.clear();
     _saveResult.value = null;
     _error.value = null;
+    _pending = null;
+    _pendingSentHere = false;
     await discardStoredDraft();
     _changed();
   }
@@ -2683,6 +2694,7 @@ class BeakFormSession {
           };
           await _persistPendingDraft();
           uploader?.submitted(_pending!);
+          _pendingSentHere = true;
           final receipt = await BeakFormCommitRepository(
             _committer!,
           ).commit(_pending!);
@@ -2710,9 +2722,13 @@ class BeakFormSession {
   }
 
   /// Reconciles uncertain operations; never blindly repeats an unknown write.
+  ///
+  /// Does nothing once every outcome is known: a receipt that was already applied
+  /// would otherwise overwrite the edits made since with the values it saved.
   Future<void> recover() {
     if (_activeRecovery case final Future<void> active) return active;
     if (_disposed ||
+        !hasUnknown ||
         _pending == null ||
         _committer == null ||
         _submitting.value) {
@@ -2735,6 +2751,7 @@ class BeakFormSession {
             operationIds: [
               for (final operation in pending.operations) operation.id,
             ],
+            sentByThisSession: _pendingSentHere,
           ),
         )
         .whenComplete(() {

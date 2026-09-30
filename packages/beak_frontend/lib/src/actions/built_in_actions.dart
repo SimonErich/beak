@@ -9,7 +9,12 @@ final class BeakViewAction extends BeakRecordAction {
   static Future<void> _run(BeakRecord record, BeakActionContext context) async {
     final Object? id = context.model.primaryKeyOf(record);
     if (id != null) {
-      context.router.go(BeakRoutes.show(context.model.table, id));
+      context.router.go(
+        BeakBackButton.carry(
+          context.router.routeInformationProvider.value.uri,
+          BeakRoutes.show(context.model.table, id),
+        ),
+      );
     }
   }
 }
@@ -23,7 +28,12 @@ final class BeakEditAction extends BeakRecordAction {
   static Future<void> _run(BeakRecord record, BeakActionContext context) async {
     final Object? id = context.model.primaryKeyOf(record);
     if (id != null) {
-      context.router.go(BeakRoutes.edit(context.model.table, id));
+      context.router.go(
+        BeakBackButton.carry(
+          context.router.routeInformationProvider.value.uri,
+          BeakRoutes.edit(context.model.table, id),
+        ),
+      );
     }
   }
 }
@@ -41,7 +51,12 @@ final class BeakCreateAction extends BeakGlobalAction {
       );
 
   static Future<void> _run(BeakActionContext context) async {
-    context.router.go(BeakRoutes.create(context.model.table));
+    context.router.go(
+      BeakBackButton.carry(
+        context.router.routeInformationProvider.value.uri,
+        BeakRoutes.create(context.model.table),
+      ),
+    );
   }
 }
 
@@ -51,8 +66,9 @@ final class BeakCreateAction extends BeakGlobalAction {
 /// Renders destructively ([BeakColor.error]) and commits through
 /// [BeakOptimistic.mutate]: the delete is offered with an undo toast and
 /// only hits the data source once the undo window passes, after which the
-/// list refreshes and the router navigates back. Included on every
-/// resource's show page — you rarely construct it yourself.
+/// list refreshes and the router navigates back. The generated list and show
+/// pages offer it while the account may delete — you rarely construct it
+/// yourself.
 final class BeakDeleteAction extends BeakRecordAction {
   /// Creates the built-in delete action.
   const BeakDeleteAction()
@@ -89,9 +105,20 @@ final class BeakDeleteAction extends BeakRecordAction {
     if (context.dataSource is! BeakMutationSource) {
       await context.refresh?.call();
     }
-    if (context.buildContext.mounted) {
-      context.router.go(BeakRoutes.list(context.model.table));
-    }
+    if (context.buildContext.mounted) _leaveDeleted(context);
+  }
+
+  /// Sends the person away from a record that no longer exists.
+  ///
+  /// From a record page that is the list the page was opened from, with the
+  /// search, filters, sort and page it had (the `returnTo` the list added). A
+  /// list stays where it is: going to its bare route would drop the view the
+  /// person chose.
+  static void _leaveDeleted(BeakActionContext context) {
+    final list = BeakRoutes.list(context.model.table);
+    final current = context.router.routeInformationProvider.value.uri;
+    if (current.path == list) return;
+    context.router.go(BeakBackButton.destination(current, list));
   }
 
   static Future<void> _run(BeakRecord record, BeakActionContext context) async {
@@ -119,11 +146,9 @@ final class BeakDeleteAction extends BeakRecordAction {
         if (context.dataSource is! BeakMutationSource) {
           await context.refresh?.call();
         }
-        if (context.buildContext.mounted) {
-          context.router.go(BeakRoutes.list(context.model.table));
-        }
+        if (context.buildContext.mounted) _leaveDeleted(context);
       },
-      message: 'Record deleted',
+      message: BeakLocalizations.of(context.buildContext).recordDeleted,
     );
   }
 }

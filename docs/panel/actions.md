@@ -274,8 +274,8 @@ Nothing is saved. The Duplicate action opens the create form prefilled with the 
 
 | Value | Behavior |
 | --- | --- |
-| `BeakDeleteAction()` (default) | The row disappears at once and an undo snackbar reading `Record deleted` stays for 5 seconds. The delete reaches the data source when the window passes, then the router returns to the list. A delete the server refuses, or cannot confirm, puts the row back and shows the server's message in an error toast |
-| `BeakDeleteAction.confirmed()` | Asks first, waits for the server, then refreshes and returns to the list. No undo. A refusal keeps you on the record |
+| `BeakDeleteAction()` (default) | The row disappears at once and an undo snackbar reading `Record deleted.` (in the panel language) stays for 5 seconds. The delete reaches the data source when the window passes. Deleted from a record page, the router then returns to the list that page was opened from, with its search, filters, sort and page; deleted from a list row, the list stays where it is. A delete the server refuses, or cannot confirm, puts the row back and shows the server's message in an error toast |
+| `BeakDeleteAction.confirmed()` | Asks first, waits for the server, then refreshes and leaves the way the default delete does. No undo. A refusal keeps you on the record |
 | `BeakArchiveAction()` | The confirmed delete under the key `archive` and the label Archive. It calls the data source's delete, so what archiving means (soft delete, a status change) is the backend's decision. No restore is implied |
 
 Pick the confirmed form whenever the server owns cleanup you cannot take back, or refuses deletes in some states. Starting a second undoable delete commits the first one immediately, so the undo window is per action, not a queue.

@@ -143,6 +143,30 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+    testWidgets('an infrastructure failure never shows its message', (
+      tester,
+    ) async {
+      await pumpHost(tester, [
+        BeakRecordAction(
+          key: 'fail',
+          label: 'Try operation',
+          onExecute: (_, _) async =>
+              throw const BeakStorageException('bucket beak-prod is full'),
+        ),
+      ], record: note);
+
+      await tester.tap(find.text('Try operation'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('beak-prod'), findsNothing);
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('a record action receives its record', (tester) async {
       BeakRecord? executed;
       await pumpHost(tester, [

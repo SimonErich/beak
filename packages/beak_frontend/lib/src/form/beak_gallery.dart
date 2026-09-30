@@ -2,6 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
+import '../localization/beak_localizations.dart';
 import 'beak_form_layout.dart';
 import 'beak_form_session.dart';
 
@@ -159,6 +160,7 @@ class BeakGalleryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = BeakLocalizations.of(context);
     final rows = gallery.orderedRows(draft);
     final locked =
         readOnly ||
@@ -173,10 +175,8 @@ class BeakGalleryView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         gap: const OiResponsive<double>(12),
         children: [
-          const OiLabel.body(
-            'The first image is the cover. Images and ordering are saved with the record.',
-          ),
-          if (rows.isEmpty) const OiLabel.body('No images yet.'),
+          OiLabel.body(strings.formGalleryHint),
+          if (rows.isEmpty) OiLabel.body(strings.formGalleryEmpty),
           OiGrid(
             breakpoint: context.breakpoint,
             minColumnWidth: const OiResponsive<double>(260),
@@ -186,7 +186,9 @@ class BeakGalleryView extends StatelessWidget {
                 OiCard(
                   key: ValueKey(rows[i].localId),
                   title: OiLabel.smallStrong(
-                    i == 0 ? 'Cover image' : 'Image ${i + 1}',
+                    i == 0
+                        ? strings.formCoverImage
+                        : strings.formImageNumber(i + 1),
                   ),
                   child: OiColumn(
                     breakpoint: context.breakpoint,
@@ -205,14 +207,20 @@ class BeakGalleryView extends StatelessWidget {
                           children: [
                             if (gallery.allowEdit) ...[
                               OiButton.ghost(
-                                label: 'Move earlier',
+                                label: strings.formMoveEarlier,
+                                semanticLabel: strings.formMoveImageEarlier(
+                                  i + 1,
+                                ),
                                 enabled: i > 0,
                                 onTap: i == 0
                                     ? null
                                     : () => gallery.move(draft, rows[i], -1),
                               ),
                               OiButton.ghost(
-                                label: 'Move later',
+                                label: strings.formMoveLater,
+                                semanticLabel: strings.formMoveImageLater(
+                                  i + 1,
+                                ),
                                 enabled: i < rows.length - 1,
                                 onTap: i == rows.length - 1
                                     ? null
@@ -221,7 +229,10 @@ class BeakGalleryView extends StatelessWidget {
                             ],
                             if (gallery.allowRemove)
                               OiButton.ghost(
-                                label: 'Remove image',
+                                label: strings.formRemoveImage,
+                                semanticLabel: strings.formRemoveImageNumber(
+                                  i + 1,
+                                ),
                                 onTap: () => draft.removeRow(rows[i]),
                               ),
                           ],
@@ -235,7 +246,7 @@ class BeakGalleryView extends StatelessWidget {
             OiLabel.body(errors.join(' ')),
           if (!locked && gallery.allowAdding)
             OiButton.secondary(
-              label: 'Add image',
+              label: strings.formAddImage,
               onTap: () => gallery.add(draft),
             ),
         ],

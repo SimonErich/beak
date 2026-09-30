@@ -9,48 +9,39 @@ class _BeakHeatmapChartBlockView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final dataSource = beakDependencies(context)<BeakDataSource>();
-    final revision = useBeakDataRevision(dataSource, table: block.query.table);
-    final cells = useState(const <BeakMatrixCell>[]);
-
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(block.query);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          cells.value = block.map(value.items);
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block, revision]);
+    final cells = _useBlockRead(
+      dataSource,
+      block.query,
+      identity: block,
+      initial: const <BeakMatrixCell>[],
+      map: (page) => block.map(page.items),
+    );
 
     // OiHeatmap indexes cells by integer row/column with parallel label
     // lists. Derive the label order from the block (or first-seen order) and
     // resolve each string key to its index.
-    final rows = block.rowLabels ?? _distinct(cells.value, (c) => c.row);
+    final rows = block.rowLabels ?? _distinct(cells.data, (c) => c.row);
     final columns =
-        block.columnLabels ?? _distinct(cells.value, (c) => c.column);
+        block.columnLabels ?? _distinct(cells.data, (c) => c.column);
 
-    return OiCard(
-      title: OiLabel.smallStrong(block.title),
-      child: SizedBox(
-        height: block.heightInPixels,
-        child: OiHeatmap(
-          label: block.title,
-          rowLabels: rows,
-          columnLabels: columns,
-          cells: [
-            for (final cell in cells.value)
-              if (rows.indexOf(cell.row) case final int r when r >= 0)
-                if (columns.indexOf(cell.column) case final int c when c >= 0)
-                  OiHeatmapCell(row: r, column: c, value: cell.value),
-          ],
+    return _withReadFailure(
+      context,
+      cells,
+      OiCard(
+        title: OiLabel.smallStrong(block.title),
+        child: SizedBox(
+          height: block.heightInPixels,
+          child: OiHeatmap(
+            label: block.title,
+            rowLabels: rows,
+            columnLabels: columns,
+            cells: [
+              for (final cell in cells.data)
+                if (rows.indexOf(cell.row) case final int r when r >= 0)
+                  if (columns.indexOf(cell.column) case final int c when c >= 0)
+                    OiHeatmapCell(row: r, column: c, value: cell.value),
+            ],
+          ),
         ),
       ),
     );

@@ -310,6 +310,7 @@ extension BeakFormDraftRuntime on BeakFormSession {
   void _restorePendingDraft(Map<String, Object?> document) {
     final plan = BeakSavePlan.fromJson(_draftMap(document['pending']));
     _pending = plan;
+    _pendingSentHere = false;
     _committer = switch (repository.dataSource) {
       final BeakCommitDataSource capable => capable,
       _ => BeakStagedCommitDataSource(
@@ -506,8 +507,38 @@ extension BeakFormDraftRuntime on BeakFormSession {
     _notify();
   }
 
+  /// Whether a save is unknown because its receipt cannot be read again.
+  ///
+  /// That happens when a reload finds a pending save and the data source keeps
+  /// receipts in memory only. The save may have been applied, so the form stays
+  /// frozen until the user has checked and discards its edits with
+  /// [discardChanges].
+  bool get receiptLost =>
+      hasUnknown &&
+      _saveResult.value!.outcomes
+          .where((outcome) => outcome.status == BeakWriteOutcome.unknown)
+          .every((outcome) => outcome.reason == 'receiptLost');
+
+  /// Whether the last receipt refused a write of an existing record as a
+  /// conflict, most often because another editor saved first.
+  ///
+  /// Saving the same edits again would send the same stale version and be
+  /// refused again, so the form offers [refreshForConflicts] instead.
+  bool get refusedAsConflict =>
+      root.id != null &&
+      !hasUnknown &&
+      (_saveResult.value?.outcomes.any(
+            (outcome) =>
+                outcome.status == BeakWriteOutcome.unapplied &&
+                outcome.error?.code == const BeakConflictException('').code,
+          ) ??
+          false);
+
   /// Fetches the latest graph and rebases local edits with field-level conflicts.
   /// Useful after the server rejects a stale write or another view edits a record.
+  ///
+  /// A successful refresh replaces the earlier refusal: the receipt and the error
+  /// described the version that was just replaced.
   Future<void> refreshForConflicts() async {
     if (root.id == null || submitting.value || hasUnknown) return;
     final stored = _captureDraft(root);
@@ -536,6 +567,8 @@ extension BeakFormDraftRuntime on BeakFormSession {
           _conflicts.clear();
           _conflictResolutions.clear();
           _mergeDraft(root, stored);
+          _error.value = null;
+          _saveResult.value = null;
         case BeakOk():
           _error.value = const BeakNotFoundException(
             'The record no longer exists.',

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:beak_core/beak_core.dart';
 import 'package:signals/signals.dart';
@@ -175,7 +176,9 @@ final class BeakQueryState {
       },
       sorts: spec.sorts,
       page: spec.pagination.page,
-      perPage: spec.pagination.perPage,
+      // A page size saved before the ceiling existed is served at the ceiling
+      // rather than refused: it is old, not malformed.
+      perPage: math.min(spec.pagination.perPage, BeakPagination.maxPerPage),
       visibleColumns: switch (json['columns']) {
         null => null,
         final List<Object?> values when values.every((v) => v is String) =>

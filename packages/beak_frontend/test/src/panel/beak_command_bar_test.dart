@@ -70,6 +70,36 @@ void main() {
     expect(find.text('Navigate'), findsNothing);
   });
 
+  testWidgets('the highlighted result is announced without its marker', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      BeakPanel(config: config, dataSource: FakeDataSource()),
+    );
+    await tester.pumpAndSettle();
+    openBeakCommandBar(tester.element(find.byType(OiAppShell)), config);
+    await tester.pumpAndSettle();
+
+    final labels = [
+      for (final button in tester.widgetList<OiButton>(
+        find.descendant(
+          of: find.byType(BeakSearchPalette),
+          matching: find.byType(OiButton),
+        ),
+      ))
+        button.semanticLabel,
+    ];
+
+    expect(labels, contains('Notes · Resources'));
+    expect(
+      labels.whereType<String>().where((label) => label.contains('›')),
+      isEmpty,
+    );
+    expect(find.textContaining('› Notes'), findsOneWidget);
+  });
+
   testWidgets(
     'opening the real command dialog focuses its input for immediate typing',
     (tester) async {
@@ -198,7 +228,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Notes: Search unavailable'), findsOneWidget);
+      expect(
+        find.textContaining('Notes: The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Search unavailable'), findsNothing);
       expect(find.text('Retry'), findsOneWidget);
       storage.fail = false;
       await tester.tap(find.text('Retry'));

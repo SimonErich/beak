@@ -89,6 +89,35 @@ void main() {
     );
   });
 
+  testWidgets('the back button follows the panel language', (tester) async {
+    await tester.pumpWidget(
+      OiApp(
+        locale: const Locale('de'),
+        supportedLocales: const [Locale('de')],
+        localizationsDelegates: const [BeakLocalizations.delegate],
+        theme: OiThemeData.light(),
+        home: const BeakBackButton(),
+      ),
+    );
+
+    expect(find.text('Zurück'), findsOneWidget);
+    expect(find.text('Back'), findsNothing);
+  });
+
+  testWidgets('a label given to the back button wins', (tester) async {
+    await tester.pumpWidget(
+      OiApp(
+        locale: const Locale('de'),
+        supportedLocales: const [Locale('de')],
+        localizationsDelegates: const [BeakLocalizations.delegate],
+        theme: OiThemeData.light(),
+        home: const BeakBackButton(label: 'Zur Liste'),
+      ),
+    );
+
+    expect(find.text('Zur Liste'), findsOneWidget);
+  });
+
   testWidgets('a supplied framework delegate can add another language', (
     tester,
   ) async {
