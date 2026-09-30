@@ -13,7 +13,6 @@ class _BeakChartBlockView extends HookWidget {
     final points = _useBlockRead(
       dataSource,
       block.query,
-      identity: block,
       initial: const <BeakChartPoint>[],
       map: (page) => block.map(page.items),
     );

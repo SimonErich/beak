@@ -13,7 +13,6 @@ class _BeakCandlestickChartBlockView extends HookWidget {
     final candles = _useBlockRead(
       dataSource,
       block.query,
-      identity: block,
       initial: const <BeakCandle>[],
       map: (page) => block.map(page.items),
     );

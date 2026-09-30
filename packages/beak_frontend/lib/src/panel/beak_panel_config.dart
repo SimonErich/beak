@@ -4,7 +4,9 @@ import 'package:obers_ui/obers_ui.dart';
 
 import '../data/beak_data_changes.dart';
 import '../localization/beak_localizations.dart';
+import '../filters/beak_filter_widget.dart';
 import '../formatting/beak_formatting.dart';
+import '../query/beak_list_definition.dart';
 import '../presentation/beak_action_presentation.dart';
 import 'beak_auth_config.dart';
 import 'beak_destination.dart';
@@ -355,6 +357,40 @@ final class BeakPanelConfig {
     }
   }
 
+  /// Refuses a composed list that repeats a filter key in one place.
+  ///
+  /// The filters of the definition, its quick filters and each preset's quick
+  /// filters are separate lists: the same field may appear in more than one of
+  /// them, and only a repeat inside one list would share one state entry.
+  static void _checkListDefinition(String table, BeakListDefinition list) {
+    _checkUniqueFilterKeys(table, 'list filters', list.filters);
+    _checkUniqueFilterKeys(table, 'list quick filters', list.quickFilters);
+    for (final preset in list.presets) {
+      _checkUniqueFilterKeys(
+        table,
+        'quick filters of the "${preset.key}" preset',
+        preset.quickFilters ?? const [],
+      );
+    }
+  }
+
+  static void _checkUniqueFilterKeys(
+    String table,
+    String place,
+    Iterable<BeakFilterDef> filters,
+  ) {
+    final keys = <String>{};
+    for (final filter in filters) {
+      if (!keys.add(filter.key)) {
+        throw BeakConfigurationException(
+          'The "$table" resource declares two filters on "${filter.key}" in '
+          'its $place. They would share one state, so each field takes a '
+          'single filter there; use a choice filter for several predicates.',
+        );
+      }
+    }
+  }
+
   /// Builds a [BeakModelRegistry] over every resource model, in declaration
   /// order.
   ///
@@ -376,18 +412,18 @@ final class BeakPanelConfig {
           );
         }
       }
-      final filterKeys = <String>{};
-      for (final filter in resource.filters) {
-        if (!filterKeys.add(filter.key)) {
-          throw BeakConfigurationException(
-            'The "${resource.model.table}" resource declares two filters on '
-            '"${filter.key}". They would share one state, so each field takes '
-            'a single filter; use a choice filter for several predicates.',
-          );
-        }
-      }
+      _checkUniqueFilterKeys(
+        resource.model.table,
+        'resource filters',
+        resource.filters,
+      );
       _checkActionPresentations(resource);
       for (final screen in resource.screens) {
+        if (screen case BeakTableScreen(
+          definition: final BeakListDefinition list,
+        )) {
+          _checkListDefinition(resource.model.table, list);
+        }
         if (screen is BeakTableScreen &&
             screen.query != null &&
             screen.query!.table != resource.model.table) {

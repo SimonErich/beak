@@ -13,7 +13,6 @@ class _BeakMapBlockView extends HookWidget {
     final values = _useBlockRead(
       dataSource,
       block.query,
-      identity: block,
       initial: const <String, num>{},
       map: (page) => {
         for (final record in page.items)

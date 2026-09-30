@@ -621,6 +621,107 @@ class BeakLocalizations {
   String showMatching(int count, String noun) =>
       _de ? '$count $noun anzeigen' : 'Show $count $noun';
 
+  /// Instruction above the CSV field of an import; [headers] is the
+  /// comma-separated header row the import expects.
+  String importPasteHint(String headers) => _de
+      ? 'Fügen Sie CSV mit diesen Spaltenköpfen ein: $headers.'
+      : 'Paste CSV with these headers: $headers.';
+
+  /// Label of the CSV text field of an import.
+  String get importCsvData => _de ? 'CSV-Daten' : 'CSV data';
+
+  /// Validates the pasted CSV and shows what an import would do.
+  String get importPreview => _de ? 'Import prüfen' : 'Preview import';
+
+  /// Validates a bulk edit and shows what it would change.
+  String get importPreviewChanges =>
+      _de ? 'Änderungen prüfen' : 'Preview changes';
+
+  /// Notice that the source changed while a batch was under review.
+  String get importConfigurationChanged => _de
+      ? 'Die Quelle oder die Stapelkonfiguration hat sich geändert. Klären Sie ein unterbrochenes Speichern, bevor Sie eine neue Prüfung beginnen.'
+      : 'The source or batch configuration changed. Resolve any interrupted save before starting a new review.';
+
+  /// Discards the review and starts again from the current configuration.
+  String get importStartNewReview =>
+      _de ? 'Neue Prüfung beginnen' : 'Start new review';
+
+  /// Hint shown while the rows of a partly saved import are corrected.
+  String get importCorrectUnsaved => _de
+      ? 'Korrigieren Sie nicht gespeicherte Zeilen im CSV. Bereits gespeicherte Zeilen bleiben an ihrer Position und unverändert.'
+      : 'Correct unsaved rows in the CSV. Keep already saved rows in their original positions and unchanged.';
+
+  /// Headline of a review: [total] records, [invalid] of them with errors.
+  String importSummary(int total, int invalid) => _de
+      ? '$total Einträge. $invalid müssen korrigiert werden.'
+      : '$total records. $invalid need correction.';
+
+  /// Heading of one reviewed CSV row.
+  String importRow(int number) => _de ? 'Zeile $number' : 'Row $number';
+
+  /// Note that a review lists only its first [shown] records.
+  String importShowingFirst(int shown) => _de
+      ? 'Die ersten $shown Einträge werden angezeigt. Jeder Eintrag wird vor dem Speichern geprüft.'
+      : 'Showing the first $shown records. Every record is validated before submission.';
+
+  /// Note that a batch saves record by record.
+  String get importSavesIndividually => _de
+      ? 'Einträge werden einzeln gespeichert. Abgeschlossene Einträge bleiben gespeichert, wenn ein späterer fehlschlägt oder Sie anhalten.'
+      : 'Records save individually. Completed records stay saved if a later record fails or you stop.';
+
+  /// Starts saving [count] imported records.
+  String importSubmit(int count) =>
+      _de ? '$count Einträge importieren' : 'Import $count records';
+
+  /// Starts saving [count] updated records.
+  String importUpdate(int count) =>
+      _de ? '$count Einträge aktualisieren' : 'Update $count records';
+
+  /// Continues an import that stopped part way.
+  String get importResume => _de ? 'Import fortsetzen' : 'Resume import';
+
+  /// Continues a bulk edit that stopped part way.
+  String get importResumeUpdates =>
+      _de ? 'Aktualisierung fortsetzen' : 'Resume updates';
+
+  /// Returns to the CSV to correct the rows that are not saved yet.
+  String get importEditRemaining =>
+      _de ? 'Verbleibende Zeilen bearbeiten' : 'Edit remaining rows';
+
+  /// Reloads the records of a bulk edit that are not saved yet.
+  String get importReloadRemaining =>
+      _de ? 'Verbleibende Einträge neu laden' : 'Reload remaining records';
+
+  /// Status while a batch saves.
+  String get importWorking => _de ? 'Wird ausgeführt…' : 'Working…';
+
+  /// Stops a running batch once the current record is done.
+  String get importStop =>
+      _de ? 'Nach dem aktuellen Eintrag anhalten' : 'Stop after current record';
+
+  /// Progress of a batch: [done] of [total] records are saved.
+  String importProgress(int done, int total) => _de
+      ? '$done von $total Einträgen gespeichert.'
+      : '$done of $total records saved.';
+
+  /// Asks the server what became of a batch save whose outcome is unknown.
+  String get importCheckInterrupted =>
+      _de ? 'Unterbrochenes Speichern prüfen' : 'Check interrupted save';
+
+  /// Opens the form inspector, which lists the fields and values of a form.
+  String get formInspect => _de ? 'Formular untersuchen' : 'Inspect form';
+
+  /// Stores the form's current values as a draft.
+  String get formSaveDraft => _de ? 'Als Entwurf speichern' : 'Save as draft';
+
+  /// Status of the draft button while the draft is stored.
+  String get formSavingDraft =>
+      _de ? 'Entwurf wird gespeichert…' : 'Saving draft…';
+
+  /// Line saying when the draft was stored; [time] is already formatted.
+  String formDraftSavedAt(String time) =>
+      _de ? 'Entwurf gespeichert $time' : 'Draft saved $time';
+
   /// Applies the columns chosen in the column sheet.
   String get applyColumns => _de ? 'Spalten übernehmen' : 'Apply columns';
 

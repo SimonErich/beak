@@ -13,7 +13,6 @@ class _BeakCarouselBlockView extends HookWidget {
     final slides = _useBlockRead(
       dataSource,
       block.query,
-      identity: block,
       initial: const <_Slide>[],
       map: (page) => [
         for (final record in page.items)

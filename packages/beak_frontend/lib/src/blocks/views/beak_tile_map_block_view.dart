@@ -13,7 +13,6 @@ class _BeakTileMapBlockView extends HookWidget {
     final records = _useBlockRead(
       dataSource,
       block.query,
-      identity: block,
       initial: const <BeakRecord>[],
       map: (page) => page.items,
     );

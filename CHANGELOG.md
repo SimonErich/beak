@@ -720,6 +720,9 @@ migration table at the end collects the common ones.
   `registerBeakCommitRoutes`, `beakResourceRouter`, `beakLocalUploadsRouter`,
   `beakHealthRouter`, `generateUuidV4`, `CsvExportService`, `UploadService`,
   `BeakResourceService`, `ValidationService` and `beakRowScope`.
+- **Breaking, `beak_core`.** `BeakImageColumn.thumbnail` and `@Image(thumbnail:)`.
+  Nothing read them. A rendition comes from a `BeakThumbnailTransform` in
+  `transforms`.
 - `beak_cli`: the unused `BeakDatabaseOpener` typedef; `isIntrospectableUrl` and
   `openPostgresConnection` are private to the live-schema reader.
 - `beak_frontend`: the `StatefulWidget` behind the form error anchor, now a hook
@@ -733,6 +736,19 @@ migration table at the end collects the common ones.
 
 ### Fixed
 
+- A restricted foreign key answers `409` and not `500`. SQLite reports an `ON
+  DELETE RESTRICT` refusal with a result code the driver did not map, and
+  PostgreSQL reports it as `23001`; both are now a `ForeignKeyException`, so a
+  direct `DELETE` is a `409 conflict` and a delete in a graph commit is an
+  `unapplied` `rejected` outcome.
+- `GET /api/{table}/capabilities?id=` decoded the id twice, so an id holding a
+  literal `%` answered `404` or matched another record.
+- A `BeakInternalException` thrown on the server reached the client with its own
+  message; the body is now the fixed `Internal server error.`, and the message
+  goes to `onUnexpectedError`.
+- A direct write on a `graphOnly` table answered `422` before the policy check,
+  so an anonymous caller could learn which tables are graph-only; the policy
+  answers first (`401`/`403`).
 - `beak make:migration --from-drift` produced an unguarded alter that failed with
   `duplicate column name` on a fresh database. Every alteration is now guarded on
   the introspected schema, so the migration is re-runnable. Its belongs-to key was
@@ -1087,8 +1103,9 @@ These are open at 0.9.0. None is listed as fixed above.
 - With a custom `auth.adapter` the panel registers no `BeakClient` and no
   `BeakSessionStore`, by design: every model then needs a data source of its own,
   or the panel a `dataSource:`.
-- Hard-coded English strings remain in the panel (the form inspector, the import
-  view, the buttons of related-records tables, the messages a form session writes
+- Hard-coded English strings remain in the panel (the form inspector, the
+  import view's default titles and error messages, the buttons of related-records
+  tables, the messages a form session writes
   itself, the default titles of `BeakMaintenanceConfig`); they are not in
   `BeakLocalizations`. The gaps table in the theming docs lists them.
 - `HttpBeakDataSource` claims durable receipts, which is true only when the

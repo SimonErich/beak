@@ -126,7 +126,7 @@ final class BeakChoiceFilter extends BeakFilterDef {
   /// Maximum checkbox columns; narrow containers fall back to one column.
   final int columns;
 
-  /// Label of the unconstrained option in the radio presentation.
+  /// Label of the unconstrained option in the radio and select presentations.
   final String allLabel;
 
   /// Shows authoritative option counts for the applied query population: in
@@ -787,6 +787,14 @@ String beakFilterSummary(
     if (inclusiveUpper == null) return 'From ${display(lower.value)}';
     return '${display(lower.value)} – ${display(inclusiveUpper)}';
   }
+  if (definition is BeakNumberRangeFilter) {
+    final (lower, upper) = beakFilterRange(filter);
+    if (lower != null && upper != null) {
+      return '${display(lower)} – ${display(upper)}';
+    }
+    if (lower != null) return '≥ ${display(lower)}';
+    if (upper != null) return '≤ ${display(upper)}';
+  }
   if (filter case BeakFieldFilter(:final value)) return display(value);
   return 'Active';
 }
@@ -815,10 +823,10 @@ final class BeakNumberRangeFilter extends BeakFilterDef {
   /// Example shown when either bound is empty.
   final String? placeholder;
 
-  /// Optional full label of a lower-bound-only input.
+  /// Label of the lower-bound input, in place of the default `<label> ≥`.
   final String? minimumLabel;
 
-  /// Optional full label of an upper-bound-only input.
+  /// Label of the upper-bound input, in place of the default `<label> ≤`.
   final String? maximumLabel;
 }
 

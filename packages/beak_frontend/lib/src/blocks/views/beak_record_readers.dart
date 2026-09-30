@@ -98,8 +98,11 @@ final class _BlockRead<T> {
 }
 
 /// Runs [spec] through [dataSource] and maps each answer with [map], again
-/// whenever a write to its table is confirmed, [identity] changes or
+/// whenever a write to its table is confirmed, the [spec] changes by value or
 /// [_BlockRead.retry] is called.
+///
+/// A screen that builds its block tree inside `build` hands the view a new
+/// block object on every rebuild; only a different query reads again.
 ///
 /// [initial] is what the block draws until the first answer arrives. A failed
 /// read keeps the previous data and reports itself through
@@ -107,7 +110,6 @@ final class _BlockRead<T> {
 _BlockRead<T> _useBlockRead<T>(
   BeakDataSource dataSource,
   BeakQuerySpec spec, {
-  required Object identity,
   required T initial,
   required T Function(BeakPage<BeakRecord> page) map,
 }) {
@@ -133,7 +135,7 @@ _BlockRead<T> _useBlockRead<T>(
 
     load();
     return () => cancelled = true;
-  }, [dataSource, identity, revision, attempt.value]);
+  }, [dataSource, jsonEncode(spec.toJson()), revision, attempt.value]);
   return _BlockRead(data.value, failure.value, () => attempt.value++);
 }
 

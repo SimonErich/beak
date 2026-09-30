@@ -253,7 +253,7 @@ A confirmed write to a table reloads every mounted list, count and summary that 
 | Only `BeakSummaryBlock` follows the list's query | Other blocks in a header do not |
 | Export fields are direct scalar fields of the list model | Checked when the button first draws |
 | The saved-view model needs no resource of its own | The panel registers the store's model. Its policies decide who reads and writes views |
-| Two filters may not share a field | They would share one state. The panel throws at startup for `BeakResource.filters`; it does not check `definition.filters` or `quickFilters`, so keep those unique yourself. Use one choice filter with several options |
+| Two filters may not share a field | They would share one state. The panel throws at startup when `BeakResource.filters`, `definition.filters`, `definition.quickFilters` or one preset's `quickFilters` repeats a field, naming the table and the list. The same field may appear in `filters` and in `quickFilters`, because those are separate lists over one state. Use one choice filter with several options |
 | A restored choice is matched by the JSON of its predicate | Changing a choice's predicate makes bookmarks and saved views stop selecting it |
 | The state in the address is capped at 16384 characters | Larger values fail to restore |
 | `sortBy` is a `sortable` field of the listed model | Related sorting is not inferred |

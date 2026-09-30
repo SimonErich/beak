@@ -383,7 +383,7 @@ const BeakFilterBar({
 | `advancedDescription` | `String?` | `null` | Text beside the "More filters" heading |
 | `advancedColumns` | `int` | `1` | Columns of the expanded advanced group |
 
-In `chips` presentation an inactive filter is an outlined chip labelled with the filter's label, an active one shows a short summary of its value with a remove action, and a "Clear all" button appears while any filter is active. The summary text comes from `beakFilterSummary(context, definition, filter)`: the selected choice labels for a choice filter; `From x`, `Through x` or both bounds joined by an en dash for a date range; `x – y` (an open bound shows `…`) or the matching preset's label for a semantic range; the value alone for a single comparison, which includes a number range with one bound; and `Active` otherwise, which includes a number range with both bounds.
+In `chips` presentation an inactive filter is an outlined chip labelled with the filter's label, an active one shows a short summary of its value with a remove action, and a "Clear all" button appears while any filter is active. The summary text comes from `beakFilterSummary(context, definition, filter)`: the selected choice labels for a choice filter; `From x`, `Through x` or both bounds joined by an en dash for a date range; `x – y` (an open bound shows `…`) or the matching preset's label for a semantic range; `x – y`, `≥ x` or `≤ y` for a number range; the value alone for any other single comparison; and `Active` otherwise.
 
 ## From controls to a query
 

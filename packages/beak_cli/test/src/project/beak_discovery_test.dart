@@ -439,6 +439,82 @@ final class ProductModel extends BeakModel {
       expect(discovery.models.map((model) => model.name), ['ProductModel']);
     });
 
+    group('command models', () {
+      String readModel(String name, {String commandCreate = ''}) =>
+          '''
+import 'package:beak_core/beak_core.dart';
+
+final class $name extends BeakModel {
+  const $name();
+  @override
+  String get table => 'users';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [];
+  $commandCreate
+}
+''';
+
+      test('a private class is never listed, its subclasses still are', () {
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/models/user.dart': readModel(
+              'UserModel',
+              commandCreate:
+                  '@override BeakModel? get editModel => const _UserEdit();',
+            ),
+            'lib/models/private.dart': '''
+import 'package:beak_core/beak_core.dart';
+
+abstract base class _Base extends BeakModel {
+  const _Base();
+}
+
+final class _UserEdit extends _Base {
+  const _UserEdit();
+}
+
+final class Tagged extends _Base {
+  const Tagged();
+  @override
+  String get table => 'tags';
+}
+''',
+          }),
+        ).scan();
+
+        expect(discovery.issues, isEmpty);
+        expect(discovery.models.map((model) => model.name), [
+          'Tagged',
+          'UserModel',
+        ]);
+      });
+
+      test('a public class a model returns as createModel or editModel is '
+          'skipped', () {
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/models/user.dart': readModel(
+              'UserModel',
+              commandCreate:
+                  '@override\n'
+                  '  BeakModel? get createModel => const UserCreate();\n'
+                  '  @override\n'
+                  '  BeakModel? get editModel {\n'
+                  '    return UserEdit();\n'
+                  '  }',
+            ),
+            'lib/models/user_create.dart': readModel('UserCreate'),
+            'lib/models/user_edit.dart': readModel('UserEdit'),
+          }),
+        ).scan();
+
+        expect(discovery.issues, isEmpty);
+        expect(discovery.models.map((model) => model.name), ['UserModel']);
+      });
+    });
+
     test('a project with no models directory scans cleanly', () {
       final discovery = BeakProjectScanner(projectWith({})).scan();
       expect(discovery.models, isEmpty);

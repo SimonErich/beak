@@ -11,6 +11,7 @@ import '../data/beak_record_batch.dart';
 import '../data/beak_run.dart';
 import '../di/beak_locator.dart';
 import '../formatting/beak_formatting.dart';
+import '../localization/beak_localizations.dart';
 
 /// Review-first CSV import with typed parsing, graph saves and receipt recovery.
 class BeakImportView extends StatelessWidget {
@@ -110,6 +111,7 @@ class _BeakBatchView extends HookWidget {
   Widget build(BuildContext context) {
     final source = dataSource ?? beakDependencies(context)<BeakDataSource>();
     final formatting = BeakFormatting.of(context);
+    final strings = BeakLocalizations.of(context);
     final controller = useTextEditingController(text: initialCsv);
     final configuration = _BatchConfiguration(
       definition,
@@ -140,26 +142,28 @@ class _BeakBatchView extends HookWidget {
           OiLabel.h3(title),
           if (records == null) ...[
             OiLabel.body(
-              'Paste CSV with these headers: ${definition.fields.map(definition.header).join(', ')}.',
+              strings.importPasteHint(
+                definition.fields.map(definition.header).join(', '),
+              ),
             ),
             OiTextInput(
               controller: controller,
-              label: 'CSV data',
+              label: strings.importCsvData,
               maxLines: 8,
               enabled: !locked,
               onChanged: (_) => state.invalidate(),
             ),
           ],
           OiButton.secondary(
-            label: records == null ? 'Preview import' : 'Preview changes',
+            label: records == null
+                ? strings.importPreview
+                : strings.importPreviewChanges,
             onTap: locked ? null : () => state.prepare(controller.text),
           ),
           if (state.configurationChanged.value) ...[
-            const OiLabel.body(
-              'The source or batch configuration changed. Resolve any interrupted save before starting a new review.',
-            ),
+            OiLabel.body(strings.importConfigurationChanged),
             OiButton.secondary(
-              label: 'Start new review',
+              label: strings.importStartNewReview,
               onTap: !state.busy.value && !unknown
                   ? () {
                       if (state.acceptConfiguration()) {
@@ -170,13 +174,14 @@ class _BeakBatchView extends HookWidget {
             ),
           ],
           if (state.editing.value && records == null)
-            const OiLabel.caption(
-              'Correct unsaved rows in the CSV. Keep already saved rows in their original positions and unchanged.',
-            ),
+            OiLabel.caption(strings.importCorrectUnsaved),
           if (state.error.value case final String error) OiLabel.body(error),
           if (preview != null) ...[
             OiLabel.body(
-              '${preview.rows.length} records. ${preview.rows.where((row) => !row.valid).length} need correction.',
+              strings.importSummary(
+                preview.rows.length,
+                preview.rows.where((row) => !row.valid).length,
+              ),
             ),
             for (final row in preview.rows.take(20))
               OiCard(
@@ -185,7 +190,7 @@ class _BeakBatchView extends HookWidget {
                   gap: const OiResponsive(8),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    OiLabel.body('Row ${row.number}'),
+                    OiLabel.body(strings.importRow(row.number)),
                     for (final field in definition.fields)
                       OiLabel.body(
                         '${definition.header(field)}: ${row.initial == null ? '' : '${formatting.formatCell(field.column, row.initial!)} → '}${formatting.formatCell(field.column, row.values)}',
@@ -196,16 +201,16 @@ class _BeakBatchView extends HookWidget {
                 ),
               ),
             if (preview.rows.length > 20)
-              const OiLabel.caption(
-                'Showing the first 20 records. Every record is validated before submission.',
-              ),
-            const OiLabel.caption(
-              'Records save individually. Completed records stay saved if a later record fails or you stop.',
-            ),
+              OiLabel.caption(strings.importShowingFirst(20)),
+            OiLabel.caption(strings.importSavesIndividually),
             OiButton.primary(
               label: receipts.isEmpty
-                  ? '${records == null ? 'Import' : 'Update'} ${preview.rows.length} records'
-                  : 'Resume ${records == null ? 'import' : 'updates'}',
+                  ? records == null
+                        ? strings.importSubmit(preview.rows.length)
+                        : strings.importUpdate(preview.rows.length)
+                  : records == null
+                  ? strings.importResume
+                  : strings.importResumeUpdates,
               onTap:
                   preview.valid &&
                       !state.busy.value &&
@@ -219,24 +224,21 @@ class _BeakBatchView extends HookWidget {
           if (state.canCorrect)
             OiButton.secondary(
               label: records == null
-                  ? 'Edit remaining rows'
-                  : 'Reload remaining records',
+                  ? strings.importEditRemaining
+                  : strings.importReloadRemaining,
               onTap: records == null ? state.correct : state.reloadRemaining,
             ),
           if (state.busy.value) ...[
-            const OiLabel.body('Working…'),
-            OiButton.secondary(
-              label: 'Stop after current record',
-              onTap: state.cancel,
-            ),
+            OiLabel.body(strings.importWorking),
+            OiButton.secondary(label: strings.importStop, onTap: state.cancel),
           ],
           if (receipts.isNotEmpty)
             OiLabel.body(
-              '${state.completed.value} of ${state.total} records saved.',
+              strings.importProgress(state.completed.value, state.total),
             ),
           if (unknown)
             OiButton.secondary(
-              label: 'Check interrupted save',
+              label: strings.importCheckInterrupted,
               onTap: state.busy.value ? null : state.recover,
             ),
         ],

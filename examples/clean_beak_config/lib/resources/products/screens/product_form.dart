@@ -83,6 +83,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                   label: 'Specifications',
                   removeBehavior: BeakRemoveBehavior.deleteOwned,
                   children: [
+                    // --8<-- [start:productAttributeCombobox]
                     ProductAttributeModel.definition.inputCombobox(
                       label: 'Category attribute',
                       enabledIf: (state) =>
@@ -93,6 +94,7 @@ BeakFormLayout productForm() => BeakFormLayout(
                         ),
                       ),
                     ),
+                    // --8<-- [end:productAttributeCombobox]
                     ProductAttributeModel.name.inputText(
                       label: 'Attribute name',
                       derive: (state) =>

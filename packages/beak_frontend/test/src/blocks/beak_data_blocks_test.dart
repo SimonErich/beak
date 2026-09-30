@@ -43,6 +43,65 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  group('a screen that rebuilds its block tree', () {
+    testWidgets('does not read again for an equal chart query', (tester) async {
+      final counting = _Counting(
+        records: {
+          'notes': {
+            'n1': BeakRecord.fromRow(const {'id': 'n1', 'title': 'Alpha'}),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(model: NoteModel(), icon: BeakIconToken(OiIcons.file)),
+          ],
+        ),
+        dataSource: counting,
+      );
+      late StateSetter rebuild;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              rebuild = setState;
+              return BeakBlockHost(
+                block: BeakChartBlock(
+                  title: 'Notes',
+                  type: BeakChartType.bar,
+                  query: const NoteModel().query(),
+                  map: (records) => [
+                    for (final record in records)
+                      BeakChartPoint(
+                        label: record['title']?.raw?.toString() ?? '',
+                        value: 1,
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final int afterFirstDraw = counting.reads;
+      expect(afterFirstDraw, greaterThan(0));
+
+      rebuild(() {});
+      await tester.pumpAndSettle();
+      rebuild(() {});
+      await tester.pumpAndSettle();
+
+      expect(counting.reads, afterFirstDraw);
+    });
+  });
+
   group('BeakChartBlock', () {
     BeakChartBlock chartOf(BeakChartType type) => BeakChartBlock(
       title: 'Notes',
@@ -321,6 +380,19 @@ final class _Flaky extends FakeDataSource {
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     if (failing) throw const BeakStorageException('disk detail');
+    return super.query(spec);
+  }
+}
+
+/// A source that counts the reads it answers.
+final class _Counting extends FakeDataSource {
+  _Counting({required super.records});
+
+  int reads = 0;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) {
+    reads++;
     return super.query(spec);
   }
 }

@@ -509,6 +509,62 @@ resources:
     });
   });
 
+  group('hand-written command models', () {
+    const String userModel = '''
+import 'package:beak_core/beak_core.dart';
+
+import '_user_edit.dart';
+import 'user_create.dart';
+
+final class UserModel extends BeakModel {
+  const UserModel();
+  @override
+  String get table => 'users';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [];
+  @override
+  BeakModel? get createModel => const UserCreate();
+  @override
+  BeakModel? get editModel => const UserEdit();
+}
+''';
+    String command(String name) => noteModel
+        .replaceAll('NoteModel', name)
+        .replaceAll("'notes'", "'users'");
+
+    test('a private and a public one stay out of registry and migrations', () {
+      final root = projectWith({
+        'lib/models/user.dart': userModel,
+        'lib/models/_user_edit.dart': command('UserEdit'),
+        'lib/models/user_create.dart': command('UserCreate'),
+        'lib/models/private.dart': '''
+import 'package:beak_core/beak_core.dart';
+
+final class _Hidden extends BeakModel {
+  const _Hidden();
+}
+''',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isTrue);
+      final registry = read(root, 'lib/beak/registry.g.dart');
+      expect(registry, contains('UserModel()'));
+      expect(registry, isNot(contains('UserEdit')));
+      expect(registry, isNot(contains('UserCreate')));
+      expect(registry, isNot(contains('_Hidden')));
+      expect(
+        Directory(
+          '${root.path}/lib/migrations',
+        ).listSync().map((entity) => entity.path.split('/').last).toList(),
+        ['create_users_table.dart'],
+      );
+    });
+  });
+
   group('beak.yaml', () {
     test('drives the title, icon and section of a resource', () {
       final root = projectWith({

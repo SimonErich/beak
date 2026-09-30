@@ -548,6 +548,79 @@ void main() {
     );
   });
 
+  group('a composed list refuses a repeated filter key', () {
+    const title = BeakScalarField<String>(
+      model: NoteModel(),
+      column: BeakStringColumn(key: 'title', label: 'Title'),
+    );
+    BeakFilterDef containing() => title.textFilter(label: 'Contains');
+    BeakFilterDef also() => title.textFilter(label: 'Also contains');
+
+    Matcher namesPlace(String place) => throwsA(
+      isA<BeakConfigurationException>().having(
+        (error) => error.message,
+        'message',
+        allOf(contains('notes'), contains('title'), contains(place)),
+      ),
+    );
+
+    BeakPanelConfig configWith(BeakListDefinition definition) =>
+        BeakPanelConfig(
+          title: 'Admin',
+          resources: [
+            BeakResource(
+              model: const NoteModel(),
+              screens: [BeakTableScreen(definition: definition)],
+            ),
+          ],
+        );
+
+    test('in the definition filters', () {
+      expect(
+        configWith(
+          BeakListDefinition(filters: [containing(), also()]),
+        ).buildRegistry,
+        namesPlace('list filters'),
+      );
+    });
+
+    test('in the definition quick filters', () {
+      expect(
+        configWith(
+          BeakListDefinition(quickFilters: [containing(), also()]),
+        ).buildRegistry,
+        namesPlace('list quick filters'),
+      );
+    });
+
+    test('in the quick filters of a preset', () {
+      expect(
+        configWith(
+          BeakListDefinition(
+            presets: [
+              BeakQueryPreset(
+                key: 'all',
+                label: 'All',
+                quickFilters: [containing(), also()],
+              ),
+            ],
+          ),
+        ).buildRegistry,
+        namesPlace('"all" preset'),
+      );
+    });
+
+    test('but the same field may be a filter and a quick filter', () {
+      final BeakFilterDef shared = containing();
+      expect(
+        configWith(
+          BeakListDefinition(filters: [shared], quickFilters: [shared]),
+        ).buildRegistry,
+        returnsNormally,
+      );
+    });
+  });
+
   test('navigation rank orders resources without changing registration', () {
     final notes = NoteResource();
     const labels = BeakResource(

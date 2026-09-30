@@ -55,6 +55,81 @@ void main() {
     expect(de.pendingActionsNotice, isNot(en.pendingActionsNotice));
   });
 
+  test('the import view and the draft controls speak both languages', () {
+    const en = BeakLocalizations.english;
+    const de = BeakLocalizations(Locale('de'));
+    expect(en.importCsvData, 'CSV data');
+    expect(de.importCsvData, 'CSV-Daten');
+    expect(en.importPreview, 'Preview import');
+    expect(de.importPreview, 'Import prüfen');
+    expect(en.importPreviewChanges, 'Preview changes');
+    expect(de.importPreviewChanges, 'Änderungen prüfen');
+    expect(
+      en.importPasteHint('Title, Body'),
+      'Paste CSV with these headers: Title, Body.',
+    );
+    expect(
+      de.importPasteHint('Title, Body'),
+      'Fügen Sie CSV mit diesen Spaltenköpfen ein: Title, Body.',
+    );
+    expect(en.importSummary(5, 2), '5 records. 2 need correction.');
+    expect(de.importSummary(5, 2), '5 Einträge. 2 müssen korrigiert werden.');
+    expect(en.importRow(3), 'Row 3');
+    expect(de.importRow(3), 'Zeile 3');
+    expect(en.importSubmit(4), 'Import 4 records');
+    expect(de.importSubmit(4), '4 Einträge importieren');
+    expect(en.importUpdate(4), 'Update 4 records');
+    expect(de.importUpdate(4), '4 Einträge aktualisieren');
+    expect(
+      (en.importResume, de.importResume),
+      ('Resume import', 'Import fortsetzen'),
+    );
+    expect(
+      (en.importResumeUpdates, de.importResumeUpdates),
+      ('Resume updates', 'Aktualisierung fortsetzen'),
+    );
+    expect(en.importEditRemaining, 'Edit remaining rows');
+    expect(de.importEditRemaining, 'Verbleibende Zeilen bearbeiten');
+    expect(en.importReloadRemaining, 'Reload remaining records');
+    expect(de.importReloadRemaining, 'Verbleibende Einträge neu laden');
+    expect(en.importStop, 'Stop after current record');
+    expect(de.importStop, 'Nach dem aktuellen Eintrag anhalten');
+    expect(en.importCheckInterrupted, 'Check interrupted save');
+    expect(de.importCheckInterrupted, 'Unterbrochenes Speichern prüfen');
+    expect(en.importWorking, 'Working…');
+    expect(de.importWorking, 'Wird ausgeführt…');
+    expect(en.importProgress(2, 5), '2 of 5 records saved.');
+    expect(de.importProgress(2, 5), '2 von 5 Einträgen gespeichert.');
+    expect(en.importStartNewReview, 'Start new review');
+    expect(de.importStartNewReview, 'Neue Prüfung beginnen');
+    expect(
+      en.importSavesIndividually,
+      startsWith('Records save individually.'),
+    );
+    expect(de.importSavesIndividually, startsWith('Einträge werden einzeln'));
+    expect(
+      en.importShowingFirst(20),
+      startsWith('Showing the first 20 records.'),
+    );
+    expect(de.importShowingFirst(20), startsWith('Die ersten 20 Einträge'));
+    expect(en.importCorrectUnsaved, startsWith('Correct unsaved rows'));
+    expect(de.importCorrectUnsaved, startsWith('Korrigieren Sie'));
+    expect(en.importConfigurationChanged, startsWith('The source or batch'));
+    expect(de.importConfigurationChanged, startsWith('Die Quelle oder'));
+    expect(en.formInspect, 'Inspect form');
+    expect(de.formInspect, 'Formular untersuchen');
+    expect(
+      (en.formSaveDraft, de.formSaveDraft),
+      ('Save as draft', 'Als Entwurf speichern'),
+    );
+    expect(
+      (en.formSavingDraft, de.formSavingDraft),
+      ('Saving draft…', 'Entwurf wird gespeichert…'),
+    );
+    expect(en.formDraftSavedAt('12:30'), 'Draft saved 12:30');
+    expect(de.formDraftSavedAt('12:30'), 'Entwurf gespeichert 12:30');
+  });
+
   test('German strings address the user formally', () {
     const de = BeakLocalizations(Locale('de'));
     expect(de.actionDenied, 'Sie haben keine Berechtigung für diese Aktion.');

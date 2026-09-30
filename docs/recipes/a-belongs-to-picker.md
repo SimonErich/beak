@@ -53,16 +53,7 @@ Run `beak prepare` after editing the schema. The form now behaves like this:
 Scoping with `options:` on the picker is form-only. It narrows the choices and the server never sees it. The shop uses it where the dependency is a UI convenience, not a data rule: product attributes may only use definitions of the product's category.
 
 ```dart title="examples/clean_beak_config/lib/resources/products/screens/product_form.dart"
-ProductAttributeModel.definition.inputCombobox(
-  label: 'Category attribute',
-  enabledIf: (state) =>
-      state.parent?.asProduct.categoryId != null,
-  options: (state) => CategoryAttributeModel.options(
-    filter: CategoryAttributeModel.categoryId.eq(
-      state.parent?.asProduct.categoryId,
-    ),
-  ),
-),
+--8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:productAttributeCombobox"
 ```
 
 | You want | Do this |

@@ -12,7 +12,6 @@ class _BeakHeatmapChartBlockView extends HookWidget {
     final cells = _useBlockRead(
       dataSource,
       block.query,
-      identity: block,
       initial: const <BeakMatrixCell>[],
       map: (page) => block.map(page.items),
     );

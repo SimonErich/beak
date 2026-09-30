@@ -161,6 +161,44 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('a German panel words the import view in German', (tester) async {
+    final source = _Source();
+    await tester.binding.setSurfaceSize(const Size(900, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        locale: const Locale('de'),
+        supportedLocales: BeakLocalizations.supportedLocales,
+        localizationsDelegates: [BeakLocalizations.delegate],
+        home: SingleChildScrollView(
+          child: BeakImportView(
+            definition: BeakImportDefinition(
+              model: const _Model(),
+              fields: [_title],
+            ),
+            dataSource: source,
+            initialCsv: 'Title\nOne',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('CSV-Daten'), findsWidgets);
+    expect(find.text('CSV data'), findsNothing);
+
+    await tester.tap(find.text('Import prüfen'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Zeile '), findsOneWidget);
+    expect(
+      find.text('1 Einträge. 0 müssen korrigiert werden.'),
+      findsOneWidget,
+    );
+    expect(find.text('1 Einträge importieren'), findsOneWidget);
+    expect(find.textContaining('Einträge werden einzeln'), findsOneWidget);
+  });
+
   testWidgets('valid rows require review and save only on explicit import', (
     tester,
   ) async {

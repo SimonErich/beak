@@ -597,7 +597,7 @@ class BeakConfiguredForm extends HookWidget {
             ),
           if (showInspector)
             OiButton.ghost(
-              label: 'Inspect form',
+              label: BeakLocalizations.of(context).formInspect,
               onTap: () => showBeakFormInspector(context, session),
             ),
           if (readOnly &&
@@ -2006,7 +2006,9 @@ class _FormHeaderView extends HookWidget {
                   OiLabel.caption(node.description!),
                 if (node.showDraftSavedAt && session.draftSavedAt != null)
                   OiLabel.caption(
-                    'Draft saved ${BeakFormatting.of(context).time(session.draftSavedAt!)}',
+                    BeakLocalizations.of(context).formDraftSavedAt(
+                      BeakFormatting.of(context).time(session.draftSavedAt!),
+                    ),
                   ),
               ],
             ),
@@ -2014,7 +2016,9 @@ class _FormHeaderView extends HookWidget {
           if (node.showDraftAction && session.drafts != null)
             OiButton.secondary(
               size: OiButtonSize.small,
-              label: saving.value ? 'Saving draft…' : 'Save as draft',
+              label: saving.value
+                  ? BeakLocalizations.of(context).formSavingDraft
+                  : BeakLocalizations.of(context).formSaveDraft,
               onTap:
                   saving.value ||
                       session.submitting.value ||

@@ -12,7 +12,7 @@ After this page you can let an existing backend keep its models, authorization a
 
 A `BeakModel` is metadata plus five optional hooks. A `BeakResource` selects the model and adds presentation: labels, icons, layouts, actions. You register the resource once in the panel. The panel finds the model's transport by itself, so there is no second list mapping resources to sources.
 
-The hooks live on a hand-written `BeakModel`. A schema class with `@Resource` forwards only two of them from static getters (`permissions` and `capabilities`), and the names `dataSource`, `createModel` and `editModel` are reserved on it. `beak prepare` lists a hand-written model in the generated registry when it is a `const` class with a zero-argument constructor, anywhere under `lib/`. `ServerpodResource` is a `BeakModel` that sets all five hooks, built at runtime from a Serverpod client, and the Serverpod generator writes its subclasses for you.
+The hooks live on a hand-written `BeakModel`. A schema class with `@Resource` forwards only two of them from static getters (`permissions` and `capabilities`), and the names `dataSource`, `createModel` and `editModel` are reserved on it. `beak prepare` lists a hand-written model in the generated registry when it is a public, non-abstract `const` class with a zero-argument constructor, anywhere under `lib/`. `ServerpodResource` is a `BeakModel` that sets all five hooks, built at runtime from a Serverpod client, and the Serverpod generator writes its subclasses for you.
 
 ## At a glance
 
@@ -150,7 +150,7 @@ Archiving and browsing archived rows are separate capabilities. A transport can 
 | An explicit `BeakPanel(dataSource:)` overrides bindings | Client | Useful for isolated widget tests, and wrong for a test that means to exercise the binding. |
 | Permissions and capabilities only hide UI | Client | The backend authorizes every call. `BeakPermissions` denies an operation with no rule. |
 | The command model shares the `table` | Client | `createModel` and `editModel` describe the write shape of the same table. |
-| Keep command models out of `lib/` | Generator | `beak prepare` registers every `BeakModel` subclass under `lib/`, a private one included, and the registry refuses a second model for the same table. A `createModel` or `editModel` class declared in the project therefore breaks the generated registry. Declare it in a package the project depends on: discovery reads only the project's own `lib/`. |
+| Command models stay out of the registry | Generator | `beak prepare` does not list a private or abstract class, nor a class another model returns from its `createModel` or `editModel` getter, so a command model can live in the project's `lib/`. It finds the class by the name in the getter body. A command model no getter names is listed like any other model, and the registry then refuses its shared `table`. |
 | Unsupported operations fail loudly | You | Throw `BeakValidationException` or `BeakConfigurationException` for a filter, sort or operation the transport cannot serve. The Serverpod bridge does this per operation. |
 | Record pages depend on `query` by id | Client | See above. A transport that cannot filter by primary key cannot show record pages. |
 

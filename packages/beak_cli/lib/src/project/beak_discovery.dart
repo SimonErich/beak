@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 
 /// One declaration Beak found in a project, and where it lives.
 ///
@@ -416,12 +417,43 @@ final class BeakProjectScanner {
       issues: issues,
       requireConstConstructor: true,
       tables: tables,
+      excluding: _commandModelNames(),
     );
     _rejectDuplicateNames(models, 'model', issues);
     return models;
   }
 
+  /// The classes a model hands out as its `createModel` or `editModel`.
+  ///
+  /// A command model describes the write shape of a table another model
+  /// already owns, so it is reachable from that model and never a registry
+  /// entry of its own: the registry refuses a second model for one table.
+  Set<String> _commandModelNames() {
+    final names = <String>{};
+    for (final file in _dartFilesUnder('')) {
+      for (final declaration in _parse(file).declarations) {
+        if (declaration is! ClassDeclaration) {
+          continue;
+        }
+        for (final member in declaration.members) {
+          if (member is MethodDeclaration &&
+              member.isGetter &&
+              _commandModelGetters.contains(member.name.lexeme)) {
+            member.body.accept(_IdentifierCollector(names));
+          }
+        }
+      }
+    }
+    return names;
+  }
+
+  static const Set<String> _commandModelGetters = {'createModel', 'editModel'};
+
   /// Classes under `lib/<directory>` extending [supertype], in path order.
+  ///
+  /// A private or abstract class is followed as a base but never listed: the
+  /// generated code could not name it or build it. A class in [excluding] is
+  /// skipped the same way.
   List<BeakDiscoveredSymbol> _scanClasses(
     String directory, {
     required String supertype,
@@ -429,6 +461,7 @@ final class BeakProjectScanner {
     required List<BeakDiscoveryIssue> issues,
     required bool requireConstConstructor,
     Map<String, String> tables = const {},
+    Set<String> excluding = const {},
   }) {
     final found = <BeakDiscoveredSymbol>[];
     // Two passes: the first collects classes extending the supertype
@@ -462,6 +495,11 @@ final class BeakProjectScanner {
             continue;
           }
           directBases.add(name);
+          if (name.startsWith('_') ||
+              declaration.abstractKeyword != null ||
+              excluding.contains(name)) {
+            continue;
+          }
           if (requireConstConstructor &&
               !_hasConstDefaultConstructor(declaration)) {
             issues.add(
@@ -1069,5 +1107,24 @@ final class BeakProjectScanner {
       }
       yield entity;
     }
+  }
+}
+
+/// Collects every identifier under a node into [names].
+final class _IdentifierCollector extends RecursiveAstVisitor<void> {
+  _IdentifierCollector(this.names);
+
+  final Set<String> names;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    names.add(node.name);
+    super.visitSimpleIdentifier(node);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    names.add(node.name.lexeme);
+    super.visitNamedType(node);
   }
 }

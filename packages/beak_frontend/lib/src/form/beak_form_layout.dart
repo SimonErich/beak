@@ -1728,7 +1728,6 @@ final class BeakFormTimeline extends BeakFormNode {
   final int columns;
 }
 
-/// Places a collection's managed add action independently of its rows.
 /// The collection insertion control's visual presentation.
 enum BeakRelationAddPresentation {
   /// A quiet dashed collection action.
@@ -1738,6 +1737,8 @@ enum BeakRelationAddPresentation {
   search,
 }
 
+/// Places a collection's managed add action independently of its rows.
+///
 /// Opens the declared collection editor over the same owner draft.
 final class BeakRelationAdd extends BeakFormNode {
   /// Reuses the declared table layout, validation, permission and draft graph.
