@@ -1,291 +1,210 @@
 ---
 title: Custom screens
-description: Add any free-form page to the panel by dropping a BeakScreen in lib/screens/: a route, a nav entry, and a block-tree body, including the dashboard at the home route.
+description: Add a page that belongs to no resource, replace one route of a resource with your own widget, and embed a widget in a page of blocks.
+type: guide
+audience: [beginner, expert]
+status: stable
 ---
 
 # Custom screens
 
-After this page you can add pages to the panel that are not tied to a resource:
-a restock list, an analytics landing page, a chat app, an invoice document. Each
-one is a `BeakScreen`: a route, an optional sidebar entry, and a body made of
-[blocks](../blocks/index.md).
+A resource gives you four routes. Some pages belong to no resource (an overview, a work queue), and sometimes one route of a resource needs a page Beak cannot derive. There are two tools for that, and a third for the widget that fits neither.
 
-Where a `BeakResource` gives you generated list/detail/form pages for a model, a
-`BeakScreen` gives you a blank canvas. You compose it from the same block tree
-everything else in Beak uses, which is why it still gets the panel's data
-wiring, theming and empty states.
+## At a glance
 
-## Where a screen lives
+| You want | Use | Route | Sidebar entry |
+| --- | --- | --- | --- |
+| A page that belongs to no resource | `BeakScreen`, registered in `pages:` (authored panel) or declared under `lib/screens/` (generated panel) | Its own `path` | Yes, unless `showInNav: false` |
+| One route of a resource to show your widget | `BeakCustomResourceScreen` in the resource's `screens` | The resource's own route | The resource's |
+| A widget inside a page of blocks | `BeakWidgetBlock` | None | None |
+| A widget inside a form | `BeakFormWidget`, see [Form screens](../forms/form-screens.md) | None | None |
 
-Put the file in `lib/screens/`. `beak prepare` scans that directory and wires
-what it finds into the panel. There is no list to register it on.
+A widget is the quickest way to get one odd page done, and it costs what the declarative path gives for free: the block types, the startup checks and the shared look. Try blocks first. A `BeakScreen` made of blocks is a tree of constants, a widget is code you maintain.
 
-```text
-lib/
-  screens/
-    restock_screen.dart     <- discovered
-  dashboard.dart            <- the screen at "/"
-  beak/
-    panel.g.dart            <- generated, lists them for you
+## A screen made of blocks
+
+A `BeakScreen` has a route, a title, an icon and a body. The body is one `BeakBlock`, usually a column of others. The shop's operations page is a real one: a text block, a widget block, two tables in sections and a CSV import.
+
+```dart title="examples/clean_beak_config/lib/operations.dart"
+--8<-- "examples/clean_beak_config/lib/operations.dart:shopOperations"
 ```
 
-Beak recognises two shapes, so you can write whichever reads better:
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `path` | required | The route, such as `'/operations'`. `'/'` makes it the landing page (see [Dashboards](dashboards.md)) |
+| `title` | required | The heading of the framed page, and the sidebar title unless `navigationTitle` is set |
+| `icon` | required | A `BeakIconToken` for the sidebar |
+| `body` | required | The `BeakBlock` that is the page |
+| `navigationTitle` | `title` | A shorter sidebar label |
+| `navigationGroup` | none | The sidebar heading the entry is filed under |
+| `showInNav` | `true` | `false` keeps the route and drops the sidebar entry, for pages reached only by a link |
+| `framed` | `true` | Wraps the body in the page header, gutters and scrolling |
 
-```dart title="packages/beak_cli/lib/src/project/beak_discovery.dart"
-/// `BeakScreen` declarations: a top-level variable of that type, or a
-/// zero-argument function returning one.
-List<BeakDiscoveredSymbol> _scanScreens(List<BeakDiscoveryIssue> issues) {
+A framed screen adds a heading and 32 pixels of side gutter, and no card behind the body: cards, charts and tables bring their own surface, and `BeakCardBlock` puts a group on a shared one. An unframed screen (`framed: false`) renders the body full-bleed and owns the whole viewport, which is what a board or a calendar wants:
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:plannerPage"
 ```
 
-A `const BeakScreen` variable is the simplest. A function is for a screen whose
-body is assembled at startup. A function that takes a required argument is an
-error at `beak prepare` time, with the reason, rather than a screen that
-silently never appears.
+Foodio's kitchen page shows the same shape with a grouped summary. It sits in the Orders section of the custom navigation and is filed under `navigationGroup: 'Orders'`:
 
-The generated panel lists every discovered screen on `BeakPanelConfig.pages`:
-
-```dart title="examples/store/lib/beak/panel.g.dart"
-pages: [dashboard.beakDashboard(), restockScreen],
-```
-
-Each entry becomes a `GoRoute` inside the panel shell and, unless `showInNav` is
-false, an `OiNavItem` in the sidebar and a destination in the command bar.
-
-## The anatomy of a screen
-
-A screen is data. You declare where it lives, how it shows in the shell, and
-what it contains.
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_screen.dart"
-const BeakScreen({
-  required this.path,
-  required this.title,
-  required this.icon,
-  required this.body,
-  this.label,
-  this.section,
-  this.showInNav = true,
-  this.framed = true,
-});
-```
-
-| Field | What it does |
-| --- | --- |
-| `path` | The route the screen mounts at (e.g. `'/restock'`, or `'/'` to own the home page). |
-| `title` | Shown in the framed header and used as the nav label fallback. |
-| `icon` | The sidebar icon, a `BeakIconToken` wrapping an `OiIcons` value. |
-| `body` | The screen content: any single `BeakBlock` (usually a column or grid of blocks). |
-| `label` | Overrides the nav label; defaults to `title`. |
-| `section` | Optional sidebar group heading this screen files under. Use a resource's section to file it beside them. |
-| `showInNav` | Whether the screen appears in the sidebar. Set `false` for pages reached only by navigation. |
-| `framed` | Whether to wrap the body in the standard page chrome (header and padding). Set `false` for full-bleed screens. |
-
-## A simple screen
-
-The store's restock page is a screen the generated pages could not produce:
-everything running low, in one list, next to the numbers that matter. Two
-metrics, one filtered table, one `const` expression.
-
-```dart title="examples/store/lib/screens/restock_screen.dart"
-const BeakScreen restockScreen = BeakScreen(
-  path: '/restock',
-  title: 'Restock',
-  icon: BeakIconToken(OiIcons.packageSearch),
-  section: 'Catalog',
+```dart title="examples/foodio-adminpanel/lib/pages/operations.dart"
+final BeakScreen kitchenScreen = BeakScreen(
+  path: '/kitchen',
+  title: 'Kitchen summary',
+  navigationGroup: 'Orders',
+  icon: const BeakIconToken(OiIcons.clipboardList),
   body: BeakColumnBlock(
-    gapInPixels: 20,
+    gapInPixels: 24,
     children: [
-      BeakGridBlock(
-        columns: 12,
-        children: [
-          BeakMetricBlock(
-            span: BeakSpan(columns: 6),
-            label: 'Out of stock',
-            aggregate: BeakAggregateSpec.count(
-              table: 'products',
-              filter: BeakFieldFilter(
-                column: ProductColumns.stock,
-                operator: BeakOperator.eq,
-                value: BeakIntValue(0),
-              ),
-            ),
-            icon: OiIcons.packageX,
-          ),
-          BeakMetricBlock(
-            span: BeakSpan(columns: 6),
-            label: 'Stock on hand',
-            aggregate: BeakAggregateSpec.sum(
-              table: 'products',
-              column: ProductColumns.stock,
-            ),
-            icon: OiIcons.package,
-          ),
-        ],
-      ),
-      BeakCardBlock(
-        title: 'Running low',
-        child: BeakTableBlock(
-          model: ProductModel(),
-          columns: [
-            ProductColumns.name,
-            ProductColumns.sku,
-            ProductColumns.stock,
-            ProductColumns.status,
-          ],
-          baseFilter: BeakFieldFilter(
-            column: ProductColumns.stock,
-            operator: BeakOperator.lt,
-            value: BeakIntValue(10),
-          ),
-          initialSpec: BeakQuerySpec(
-            table: 'products',
-            sorts: [BeakSort('stock')],
-          ),
-        ),
-      ),
-    ],
+      const BeakTextBlock('Today’s preparation list · Changes close at 10:30'),
+      BeakSummaryBlock(
+// ...
+```
+
+Block types, queries and summaries are in [Blocks](../blocks/index.md).
+
+### Register it
+
+The authored panel takes a list. Order is sidebar order:
+
+```dart title="examples/clean_beak_config/lib/main.dart"
+pages: [shopOverview(), shopOperations()],
+```
+
+The generated panel finds screens for you. `beak prepare` scans `lib/screens/` (subfolders included, files starting with `_` and `*.g.dart` skipped) and writes what it finds into the `pages:` of `lib/beak/panel.g.dart`, in import-path order. A screen is either:
+
+- a top-level `BeakScreen` variable, typed `BeakScreen` or initialised with `BeakScreen(...)`, or
+- a function returning `BeakScreen` that takes no required arguments.
+
+A function with required arguments is reported as a problem and skipped. A variable whose initializer is a call to something other than the `BeakScreen` constructor, `final x = buildScreen()`, is not seen at all, so annotate it. A screen is only as visible as its sidebar: with a `BeakNavigation` in play, a screen appears only in a section that lists it with `BeakNavigationItem.screen`, see [Navigation](navigation.md).
+
+## Replace one route of a resource
+
+A `BeakCustomResourceScreen` takes over one or more routes of a resource and builds whatever you like. The route, the redirect to `/403` for an account that may not read it, and the sidebar entry stay with the resource. The showcase's keepers list uses the generated table and swaps only the read route:
+
+```dart title="examples/showcase/lib/resources/keepers/keeper_resource.dart"
+screens: [
+  BeakTableScreen(
+    fields: [KeeperModel.name, KeeperModel.email, KeeperModel.role],
   ),
-);
-```
-
-!!! note "What just happened"
-    - `ProductColumns` and `ProductModel` came from the `@Resource` class in
-      `lib/models/product.dart`, so this screen cannot outlive a renamed field.
-    - `section: 'Catalog'` files the screen under the same sidebar heading as
-      the catalog resources. Screens and resources sharing a section cluster
-      together.
-    - The two aggregates are computed by the API, not in the browser.
-    - `framed` defaults to `true`, so the page gets the standard header and
-      padding. Nothing else was wired.
-
-## Replacing the dashboard at `/`
-
-A screen whose `path` is `/` claims the home route and replaces Beak's built-in
-stats-and-charts dashboard. That screen has a fixed home of its own:
-`lib/dashboard.dart`, declaring `BeakScreen beakDashboard()`.
-
-```bash
-beak eject dashboard
-```
-
-The store's says what it is in its own doc comment:
-
-```dart title="examples/store/lib/dashboard.dart"
-/// The screen mounted at `/`, replacing the generated dashboard.
-///
-/// Four numbers, one chart and the two lists a shopkeeper opens the panel to
-/// read. Every figure is a [BeakAggregateSpec] the API computes — nothing is
-/// counted in the browser, and nothing is hardcoded.
-BeakScreen beakDashboard() => const BeakScreen(
-  path: '/',
-  title: 'Today',
-  icon: BeakIconToken(OiIcons.layoutDashboard),
-  body: BeakColumnBlock(gapInPixels: 20, children: [_kpis, _revenue, _lists]),
-);
-```
-
-When a page claims `/`, Beak drops the generated `BeakDashboard` and mounts your
-screen instead. You never see both. That trade-off is covered from the other
-side on [Dashboards](dashboards.md).
-
-`lib/dashboard.dart` is a convention file, not a screens-directory file. Beak
-puts it first in `pages` and every other screen after it, so the home page has
-one obvious home. Keep `/` there rather than in `lib/screens/`: two pages
-claiming the same path is two routes claiming the same path.
-
-## Module screens and `framed: false`
-
-Some pages want the full viewport with no page chrome: a calendar, a kanban
-board, a chat thread, an inbox. Set `framed: false` and Beak renders the body
-edge to edge. These "module" screens pair a single high-level block with a
-model.
-
-```dart title="examples/superdashboard/lib/screens/chat_screen.dart"
---8<-- "examples/superdashboard/lib/screens/chat_screen.dart:buildChatScreen"
-```
-
-The invoice screen shows the other reason to reach for a screen: a detail
-document built from one module block, wired to a fixed record and its line items
-through generated column constants.
-
-```dart title="examples/superdashboard/lib/screens/invoice_screen.dart"
-BeakScreen buildInvoiceScreen() => const BeakScreen(
-  path: '/invoice',
-  title: 'Invoice',
-  icon: BeakIconToken(OiIcons.fileText),
-  section: 'Apps',
-  body: BeakInvoiceBlock(
-    model: InvoiceModel(),
-    recordId: SeedIds.invoice,
-    lineItemsModel: InvoiceItemModel(),
-    lineItemsForeignKey: InvoiceItemColumns.invoiceId,
-    metaFields: [
-      InvoiceColumns.number,
-      InvoiceColumns.status,
-      InvoiceColumns.issueDate,
-      InvoiceColumns.dueDate,
-    ],
-    // ...bill-to and totals fields
+  BeakCustomResourceScreen(
+    roles: const {BeakScreenRole.read},
+    builder: (context, recordId) => KeeperSheet(recordId: recordId),
   ),
-);
+],
 ```
 
-The module blocks (`BeakChatBlock`, `BeakInvoiceBlock`, `BeakInboxBlock`,
-`BeakFileManagerBlock`, and friends) are cataloged in
-[Module blocks](../blocks/module-blocks.md).
+`builder` gets the `BuildContext` and the record id: `null` on the list and create routes, the value from the URL on read and edit. It arrives as the path segment, a `String`, so an integer key needs `int.parse` before it goes anywhere typed. Loading the record and handing it to blocks is your code:
 
-## Hiding a screen from the sidebar
-
-Set `showInNav: false` for a page you reach by navigation but do not want
-cluttering the sidebar: a document opened from a table row, or a detail view
-behind a "view" action. The route still exists; only the nav entry disappears.
-The effective nav label, when a screen does show, is `label ?? title`:
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_screen.dart"
-/// The label shown in navigation and the page header.
-String get effectiveLabel => label ?? title;
+```dart title="examples/showcase/lib/resources/keepers/keeper_sheet.dart"
+--8<-- "examples/showcase/lib/resources/keepers/keeper_sheet.dart:recordScopeHandOff"
 ```
 
-Hiding a *resource* is a different lever, and it lives in `beak.yaml`:
+`BeakRecordScope` is how record blocks (`BeakFieldBlock`, `BeakRelationBlock`) find their record; no built-in page mounts one, so a custom read screen does it itself.
 
-```yaml title="examples/store/beak.yaml"
-resources:
-  # ...the six navigable resources
-  # Lines are always reached through their order, never from the sidebar —
-  # but they keep their API, their model and their relationships.
-  order_items:
-    hidden: true
+What you take on when you replace a route:
+
+- The generated page frame is gone: no title, Back button or record actions. The keepers sheet builds its own `OiPageLayout`. The sidebar and header of the shell stay.
+- A custom `create` or `edit` screen makes that route available even if the model does not expose the operation as standard, as long as `canCreate` or `canEdit` and the model's permissions allow it. This is how a checkout-style workflow keeps a resource URL.
+- Permissions are still the resource's. The server still decides what your widget may read and write.
+
+The panel tests pin the routing: a custom create and edit screen answer `/notes/create` and `/notes/:id/edit`, with the record id handed to the builder.
+
+## A widget inside a page of blocks
+
+`BeakWidgetBlock` embeds an arbitrary widget where no block fits.
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_widget_block.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_widget_block.dart:BeakWidgetBlock"
+```
+
+The operations page above uses two. `BeakWidgetBlock((context) => const ShopReceivablesCard())` embeds the receivables card, a `HookWidget` that reads the panel's data source, formatting and refresh scope from its context; it is the worked example on [Dashboards](dashboards.md). The second wraps `BeakImportView` for the category import, which previews a CSV, lists row errors and saves each accepted row with its own receipt ([Imports and bulk edits](../forms/imports-and-bulk-edits.md)).
+
+Inside a widget block you have the panel's services: `beakDependencies(context)<BeakDataSource>()`, `BeakFormatting.of(context)`, `BeakLocalizations.of(context)`, `useBeakDataRevision` to refetch after writes. Prefer them to your own HTTP client, or your widget bypasses authentication and the error mapping.
+
+## Rules and limits
+
+- A screen has no permission of its own. It is visible to anyone the auth gate lets in, and every block reads through the same data source, so the server's row and field rules decide what shows. A block over a model the account cannot read renders the error, not the page redirect that a resource route gives.
+- Give a screen a `path` no resource uses. Resource routes are `/<table>`, `/<table>/create`, `/<table>/:id` and `/<table>/:id/edit`, and they are registered before the pages, so a screen at `/orders/summary` meets the order's show route first (go_router takes the first match).
+- At most one screen per role per resource, custom or not. A second one throws `Resource "x" defines more than one read screen.` when the panel starts.
+- `BeakScreen.body` is a `BeakBlock`. Anything else goes in through `BeakWidgetBlock`, and that block gives up the declarative guarantees for its subtree.
+- A framed screen scrolls its body. Blocks that want the viewport height (a kanban board, a map) belong in an unframed one.
+- `BeakScreenView(screen:)` renders a screen anywhere you have a context, for a host app that embeds one page.
+- Every block that reads a table refetches after a write to it: table, metric, summary, chart, map, kanban, calendar and the other module blocks.
+
+## Verify it
+
+The discovery rules for `lib/screens/` are tested in the CLI:
+
+```console
+$ cd packages/beak_cli
+$ dart test test/src/project/beak_discovery_test.dart --plain-name "screens"
+screens are found as a top-level variable or a nullary function
+screens only a const variable is a constant expression
+screens a variable without a type annotation is found by its initializer
+screens a builder taking required arguments is reported
+screens non-screen declarations are ignored
+All tests passed!
+```
+
+In a scratch project (`beak create dash --no-pub --no-example`) with `lib/screens/overview.dart` holding `final BeakScreen overview = BeakScreen(path: '/', ...)`, `beak prepare` finds the screen and registers it:
+
+```console
+$ beak prepare
+  0 models · 0 resource classes · 1 screen · 0 overrides
+  generated  6 of 7 files
+$ grep -n "pages" lib/beak/panel.g.dart
+22:    pages: [overview],
+```
+
+Routing, sidebar placement and the custom resource screens are tested in the frontend package:
+
+```console
+$ cd packages/beak_frontend
+$ flutter test test/src/panel/beak_screen_routing_test.dart --plain-name "custom screens" --reporter expanded
+custom screens a page appears in the nav and routes to its body
+custom screens the sidebar title defaults to the title
+custom screens a page is filed under its navigation group
+custom screens a hidden page routes but has no nav entry
+All tests passed!
+$ flutter test test/src/panel/beak_panel_test.dart --plain-name "custom create and edit"
+generated routes custom create and edit workflows keep resource routes
+All tests passed!
+```
+
+The shop's operations page is pumped at three widths, committed receivables included:
+
+```console
+$ cd examples/clean_beak_config
+$ flutter test test/custom_shop_test.dart
+custom operations fits 375.0 pixels and refreshes committed receivables
+custom operations fits 600.0 pixels and refreshes committed receivables
+custom operations fits 1440.0 pixels and refreshes committed receivables
+custom billing widget shows a retryable error without a false zero
+All tests passed!
 ```
 
 ## Reference
 
-`BeakScreen` is immutable and `const`-constructible. Full field docs live in the
-source; the load-bearing defaults are `showInNav = true` and `framed = true`. A
-screen contributes to two places in the shell: the router (a `GoRoute` at
-`path`) and, when `showInNav`, the sidebar and the command bar.
-
-Rendering is one small widget, which is worth knowing when a screen looks wrong:
-
-```dart title="packages/beak_frontend/lib/src/pages/beak_screen_view.dart"
-final body = BeakBlockHost(block: screen.body);
-if (!screen.framed) {
-  return body;
-}
-return OiResourcePage(
-  label: screen.effectiveLabel,
-  title: screen.title,
-  actions: const [],
-  child: SingleChildScrollView(child: body),
-);
+```dart title="packages/beak_frontend/lib/src/panel/beak_screen.dart"
+--8<-- "packages/beak_frontend/lib/src/panel/beak_screen.dart:BeakScreen"
 ```
 
-A framed screen scrolls its body for you. An unframed screen owns its viewport,
-scrolling included.
+| Symbol | Notes |
+| --- | --- |
+| `BeakScreen` | Immutable; `effectiveNavigationTitle` is `navigationTitle ?? title`; `location` is `path` |
+| `BeakScreenView` | Widget that renders a `BeakScreen`, framed or full-bleed |
+| `BeakCustomResourceScreen` | `const BeakCustomResourceScreen({required this.builder, required super.roles})`, with `Widget Function(BuildContext context, Object? recordId) builder` |
+| `BeakScreenRole` | `list`, `read`, `create`, `edit` |
+| `BeakWidgetBlock` | `const BeakWidgetBlock(this.builder, {super.span})`, `builder` is a `WidgetBuilder` |
+| `BeakRecordScope` | Carries the record that record blocks read; mount it yourself on a custom read screen |
+
+The complete parameter tables of the screen classes are on [Screens and form layouts](../reference/screens-and-layouts.md).
 
 ## Continue reading
 
-- [Dashboards](dashboards.md) the home route, and how `lib/dashboard.dart` replaces the generated dashboard.
-- [The navigation shell](the-navigation-shell.md) how sections, the sidebar, and the command bar pick up your screens.
-- [Module blocks](../blocks/module-blocks.md) the chat, inbox, invoice, and file-manager blocks screens are built from.
-- [Generated code](../models/generated-code.md) what `beak prepare` writes after it finds your screen.
-- [Custom screens and pages](../extending/custom-screens-and-pages.md) extending Beak with screens that reach past the built-in blocks.
+- [Dashboards](dashboards.md) an overview page at `/` built from metric, table and summary blocks.
+- [Navigation](navigation.md) how a screen gets into a custom sidebar.
+- [Blocks](../blocks/index.md) the block catalog a screen body is made of.
+- [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) writing a block of your own.

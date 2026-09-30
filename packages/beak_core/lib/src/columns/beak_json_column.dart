@@ -29,8 +29,21 @@ final class BeakJsonColumn extends BeakColumn with BeakTypedColumn<String> {
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
   });
   // --8<-- [end:BeakJsonColumn]
+
+  /// Reads the JSON document as a typed tree, preserving objects and arrays.
+  BeakJson? readDocument(BeakValue? value) {
+    final source = readValue(value);
+    if (source == null) return null;
+    try {
+      return BeakJson.decode(source);
+    } on FormatException {
+      return null;
+    }
+  }
 
   @override
   BeakRenderConfig get renderConfig =>

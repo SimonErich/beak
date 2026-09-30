@@ -6,6 +6,16 @@ import 'package:test/test.dart';
 
 import '../../support/runtime_values.dart';
 
+final class _Posts extends BeakModel {
+  const _Posts();
+  @override
+  String get table => 'posts';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [];
+}
+
 void main() {
   const status = BeakStringColumn(key: 'status', label: 'Status');
   const lastActive = BeakDateTimeColumn(
@@ -15,6 +25,12 @@ void main() {
   const createdAt = BeakDateTimeColumn(key: 'created_at', label: 'Created at');
   const name = BeakStringColumn(key: 'name', label: 'Name');
   const email = BeakStringColumn(key: 'email', label: 'Email');
+  const createdAtField = BeakScalarField<DateTime>(
+    model: _Posts(),
+    column: createdAt,
+  );
+  const nameField = BeakScalarField<String>(model: _Posts(), column: name);
+  const emailField = BeakScalarField<String>(model: _Posts(), column: email);
 
   const author = BeakBelongsTo(
     key: 'author',
@@ -28,6 +44,7 @@ void main() {
 
   /// The concept example: with([author]), where(status eq active),
   /// where(lastActive lt cutoff), orderBy(createdAt desc), search, paginate.
+  // --8<-- [start:richSpec]
   BeakQuerySpec richSpec() => const BeakQuerySpec(table: 'posts')
       .withRelation(author)
       .withFilter(
@@ -44,9 +61,10 @@ void main() {
           value: BeakValue.of(cutoff),
         ),
       )
-      .orderBy(createdAt, descending: true)
-      .searching('ada', const [name, email])
+      .orderBy(createdAtField, descending: true)
+      .searching('ada', const [nameField, emailField])
       .paginate(page: 2, perPage: 50);
+  // --8<-- [end:richSpec]
 
   group('BeakSearch', () {
     test('pins the exact JSON map', () {
@@ -80,6 +98,29 @@ void main() {
           'columns': [1],
         }),
         throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('fromJson names the missing key', () {
+      expect(
+        () => BeakSearch.fromJson(const {'columns': <Object?>[]}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"term"'),
+          ),
+        ),
+      );
+      expect(
+        () => BeakSearch.fromJson(const {'term': 'a'}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"columns"'),
+          ),
+        ),
       );
     });
 
@@ -160,7 +201,9 @@ void main() {
     });
 
     test('orderBy appends typed sorts in order', () {
-      final sorted = base.orderBy(createdAt, descending: true).orderBy(name);
+      final sorted = base
+          .orderBy(createdAtField, descending: true)
+          .orderBy(nameField);
       expect(sorted.sorts, const [
         BeakSort('created_at', descending: true),
         BeakSort('name'),
@@ -177,10 +220,34 @@ void main() {
       ]);
     });
 
-    test('searching reads column keys from typed columns', () {
+    test('searching reads storage keys from typed fields', () {
       expect(
-        base.searching('ada', const [name, email]).search,
+        base.searching('ada', const [nameField, emailField]).search,
         const BeakSearch('ada', ['name', 'email']),
+      );
+    });
+
+    test('searching keeps a relationship path in the searched key', () {
+      const authorName = BeakScalarField<String>(
+        model: _Posts(),
+        column: name,
+        path: [author],
+      );
+      expect(
+        base.searching('ada', const [nameField, authorName]).search,
+        const BeakSearch('ada', ['name', 'author.name']),
+      );
+    });
+
+    test('orderBy refuses a field reached through a relationship', () {
+      const authorName = BeakScalarField<String>(
+        model: _Posts(),
+        column: name,
+        path: [author],
+      );
+      expect(
+        () => base.orderBy(authorName),
+        throwsA(isA<BeakConfigurationException>()),
       );
     });
 
@@ -200,9 +267,9 @@ void main() {
     test('builders never mutate the receiving spec', () {
       final built = base
           .withFilter(active)
-          .orderBy(createdAt)
+          .orderBy(createdAtField)
           .withRelation(author)
-          .searching('ada', const [name])
+          .searching('ada', const [nameField])
           .paginate(page: 9);
       expect(built, isNot(base));
       expect(base, const BeakQuerySpec(table: 'posts'));
@@ -245,7 +312,7 @@ void main() {
       final specs = <BeakQuerySpec>[
         const BeakQuerySpec(table: 'products'),
         const BeakQuerySpec(table: 'posts', withTrashed: true),
-        const BeakQuerySpec(table: 'users').searching('ada', [name]),
+        const BeakQuerySpec(table: 'users').searching('ada', [nameField]),
         richSpec(),
       ];
       for (final spec in specs) {
@@ -324,6 +391,28 @@ void main() {
       expect(spec.withTrashed, isFalse);
     });
 
+    test('nested objects written by hand may omit their optional keys', () {
+      final spec = BeakQuerySpec.fromJson(<String, Object?>{
+        'table': 'posts',
+        'sorts': [
+          {'column': 'title'},
+        ],
+        'search': {
+          'term': 'ada',
+          'columns': ['title'],
+        },
+        'relations': [
+          {'relation': 'author'},
+        ],
+        'pagination': {'perPage': 10},
+      });
+
+      expect(spec.sorts, const [BeakSort('title')]);
+      expect(spec.search, const BeakSearch('ada', ['title']));
+      expect(spec.relationLoads, const [BeakRelationLoad('author')]);
+      expect(spec.pagination, const BeakPagination(perPage: 10));
+    });
+
     test('an omitted section decodes exactly as an explicit null', () {
       for (final key in const [
         'filter',
@@ -363,8 +452,8 @@ void main() {
         base,
         isNot(base.withFilter(runtimeValue(const BeakOrFilter([])))),
       );
-      expect(base, isNot(base.orderBy(createdAt)));
-      expect(base, isNot(base.searching('ada', const [name])));
+      expect(base, isNot(base.orderBy(createdAtField)));
+      expect(base, isNot(base.searching('ada', const [nameField])));
       expect(base, isNot(base.withRelation(author)));
       expect(base, isNot(base.paginate(page: 2)));
       expect(

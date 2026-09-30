@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -90,11 +90,13 @@ BeakCliEnvironment environmentFor(
   Directory root, {
   bool databaseUp = false,
   StringSink? out,
+  Map<String, String> processEnvironment = const {},
 }) => BeakCliEnvironment(
   out: out ?? StringBuffer(),
   rootDirectory: root,
   now: () => DateTime.utc(2026, 7, 26, 12),
   probe: (host, port) async => databaseUp,
+  processEnvironment: processEnvironment,
 );
 
 /// Every check for a project seeded with [files].
@@ -210,7 +212,11 @@ void main() {
       final checks = await diagnose(environmentFor(root));
       final check = checkMatching(checks, 'no models found');
       expect(check.status, BeakCheckStatus.warn);
-      expect(check.remedy, contains('lib/models/'));
+      // Models are found anywhere under lib/, so the remedy names the
+      // command that writes one where the scaffold keeps them.
+      expect(check.label, isNot(contains('lib/models/')));
+      expect(check.remedy, contains('beak make:resource'));
+      expect(check.remedy, contains('lib/resources/'));
     });
 
     test('a discovery issue is surfaced as a failure', () async {
@@ -416,7 +422,7 @@ int get monthlyTotal => 0;
     });
 
     test('a server-side file the panel never imports is not a panel file', () {
-      // `examples/embedded` keeps `lib/legacy_system.dart`, which migrates
+      // An embedded host may keep a helper under `lib/` that migrates
       // the host system's own table and is imported by `bin/host.dart`
       // alone. A path allowlist called that a failure; the import graph
       // knows better.
@@ -492,6 +498,20 @@ int get monthlyTotal => 0;
       expect(check.remedy, contains('DATABASE_URL'));
     });
 
+    test('names the port it probed when the url gives none', () async {
+      final root = preparedProject();
+      File('${root.path}/.env').writeAsStringSync(
+        'DATABASE_URL=postgres://beak:beak@db.internal/beak\n',
+      );
+
+      final check = checkMatching(
+        await diagnose(environmentFor(root)),
+        'database unreachable',
+      );
+
+      expect(check.label, contains('db.internal:5432'));
+    });
+
     test('a reachable database passes', () async {
       final root = preparedProject();
       File('${root.path}/.env').writeAsStringSync(
@@ -505,6 +525,50 @@ int get monthlyTotal => 0;
         'database reachable',
       );
       expect(check.status, BeakCheckStatus.ok);
+    });
+  });
+
+  group('a DATABASE_URL from the shell', () {
+    test('is the one doctor checks, when there is no .env', () async {
+      // The server reads the shell and the .env, and the shell wins. Doctor
+      // looked at the .env alone, so a variable set in CI or a container was
+      // ignored and the default SQLite file was reported instead.
+      final root = preparedProject();
+      final checks = await diagnose(
+        environmentFor(
+          root,
+          processEnvironment: {
+            'DATABASE_URL': 'postgres://beak:beak@db.internal:5432/beak',
+          },
+        ),
+        readSchema: neverRead,
+      );
+
+      final check = checkMatching(checks, 'database unreachable');
+      expect(check.label, contains('db.internal:5432'));
+      expect(checks.where((c) => c.label.contains('no DATABASE_URL')), isEmpty);
+    });
+
+    test('beats the one in .env', () async {
+      final root = preparedProject();
+      File('${root.path}/.env').writeAsStringSync(
+        'DATABASE_URL=postgres://beak:beak@from-file:5432/beak\n',
+      );
+
+      final checks = await diagnose(
+        environmentFor(
+          root,
+          processEnvironment: {
+            'DATABASE_URL': 'postgres://beak:beak@from-shell:5432/beak',
+          },
+        ),
+        readSchema: neverRead,
+      );
+
+      expect(
+        checkMatching(checks, 'database unreachable').label,
+        contains('from-shell'),
+      );
     });
   });
 
@@ -571,6 +635,64 @@ int get monthlyTotal => 0;
         expect(check.remedy, contains('beak make:migration'));
       },
     );
+
+    test('a column --from-drift would refuse is not sent there', () async {
+      // The remedy named a command that then wrote nothing and said the column
+      // "needs a value for the rows already there".
+      final checks = await checksAgainst(
+        shopProject(
+          extraFields: '''
+
+  /// How many are reserved.
+  late final int reserved;
+''',
+        ),
+      );
+
+      final String remedy = checkMatching(checks, 'products.reserved').remedy!;
+      expect(remedy, contains('defaultValue'));
+      expect(remedy, contains('nullable'));
+      expect(remedy, isNot(contains('--from-drift, then')));
+    });
+
+    test(
+      'a required column is told to take a default or be nullable',
+      () async {
+        final checks = await checksAgainst(
+          shopProject(extraFields: '\n  late final int reserved;\n'),
+        );
+
+        final String remedy = checkMatching(
+          checks,
+          'products.reserved',
+        ).remedy!;
+        expect(remedy, contains('`@Column(defaultValue: ...)`'));
+        expect(remedy, contains('make it nullable'));
+      },
+    );
+
+    test('a unique column gets the --from-drift advice, on SQLite', () async {
+      // The column is nullable already, so "make it nullable" sends nobody
+      // anywhere; `--from-drift` says to drop `unique: true`, backfill, then
+      // add the index in a migration of its own.
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: ^0.9.0\n',
+        'lib/models/product.dart': productSchema(
+          '\n  @Column(unique: true)\n  late final String? sku;\n',
+        ),
+        '.env': 'DATABASE_URL=sqlite:beak.db\n',
+        'beak.db': '',
+      });
+      runPrepare(environmentFor(root));
+
+      final checks = await checksAgainst(root);
+
+      final String remedy = checkMatching(checks, 'products.sku').remedy!;
+      expect(remedy, contains('SQLite cannot add a unique column'));
+      expect(remedy, contains('without `unique: true`'));
+      expect(remedy, contains('unique index in a migration of its own'));
+      expect(remedy, isNot(contains('make it nullable')));
+    });
 
     test('a matching database reports one check, not one per column', () async {
       final checks = await checksAgainst(shopProject());
@@ -671,7 +793,7 @@ int get monthlyTotal => 0;
           'id TEXT PRIMARY KEY, name TEXT, price NUMERIC(12, 4), '
           'created_at TEXT, updated_at TEXT, deleted_at TEXT)',
         );
-        database.dispose();
+        database.close();
 
         final checks = await diagnose(environmentFor(root));
         expect(

@@ -8,8 +8,9 @@ import '../panel/beak_screen.dart';
 /// Renders a [BeakScreen]: its declarative [BeakBlock] body, optionally
 /// inside the standard page chrome.
 ///
-/// A framed screen wraps the body in an `OiResourcePage` (title header +
-/// padding); an unframed screen renders the body full-bleed for calendars,
+/// A framed screen supplies a page header and gutters without painting a
+/// surface behind its body. Blocks own their individual surfaces; an unframed
+/// screen renders the body full-bleed for calendars,
 /// kanban boards, and other screens that own their whole viewport.
 class BeakScreenView extends StatelessWidget {
   /// Creates the view for [screen].
@@ -24,11 +25,16 @@ class BeakScreenView extends StatelessWidget {
     if (!screen.framed) {
       return body;
     }
-    return OiResourcePage(
-      label: screen.effectiveLabel,
-      title: screen.title,
-      actions: const [],
-      child: SingleChildScrollView(child: body),
+    return OiPageLayout(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+      gap: 16,
+      header: OiPageHeader(
+        title: screen.title,
+        titleVariant: OiLabelVariant.h1,
+        padding: EdgeInsets.zero,
+      ),
+      scrollable: true,
+      child: body,
     );
   }
 }

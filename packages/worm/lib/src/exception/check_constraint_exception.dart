@@ -3,7 +3,8 @@ library;
 
 import 'adapter_exception.dart';
 
-/// Thrown when a `CHECK` constraint is violated.
+/// Thrown when a `CHECK` or `NOT NULL` constraint is violated: the row breaks
+/// a rule the table declares about its own values.
 class CheckConstraintException extends AdapterException {
   /// Creates a [CheckConstraintException].
   const CheckConstraintException({

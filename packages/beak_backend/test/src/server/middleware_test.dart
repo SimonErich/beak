@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 
 Request _get(String path, {Map<String, String> headers = const {}}) =>
@@ -86,6 +85,57 @@ void main() {
       expect(entries.single.requestId, 'from-client');
     });
 
+    test(
+      'replaces an incoming x-request-id that is not a plain token',
+      () async {
+        // The id is echoed as a response header and printed in log lines, so a
+        // client must not choose bytes a header cannot carry, or a value long
+        // enough to fill the log.
+        for (final hostile in [
+          'caf\u00e9',
+          'two words',
+          'a;b',
+          '',
+          'x' * 129,
+        ]) {
+          final entries = <BeakRequestLogEntry>[];
+          final handler = const Pipeline()
+              .addMiddleware(
+                beakRequestLogMiddleware(
+                  onRequest: entries.add,
+                  requestIdFactory: () => 'minted',
+                ),
+              )
+              .addHandler((request) => Response.ok('ok'));
+
+          final response = await handler(
+            _get('products', headers: {'x-request-id': hostile}),
+          );
+
+          expect(response.headers['x-request-id'], 'minted', reason: hostile);
+          expect(entries.single.requestId, 'minted', reason: hostile);
+        }
+      },
+    );
+
+    test('keeps an incoming id made of token characters', () async {
+      final handler = const Pipeline()
+          .addMiddleware(
+            beakRequestLogMiddleware(
+              onRequest: (_) {},
+              requestIdFactory: () => 'minted',
+            ),
+          )
+          .addHandler((request) => Response.ok('ok'));
+
+      for (final id in ['a-b_c.d:e/f', 'X' * 128, '123e4567-e89b-12d3']) {
+        final response = await handler(
+          _get('products', headers: {'x-request-id': id}),
+        );
+        expect(response.headers['x-request-id'], id);
+      }
+    });
+
     test('generates unique ids by default', () async {
       final entries = <BeakRequestLogEntry>[];
       final handler = const Pipeline()
@@ -132,6 +182,62 @@ void main() {
         expect(response.headers['access-control-allow-methods'], isNotEmpty);
         expect(response.headers['access-control-allow-headers'], isNotEmpty);
         expect(handlerCalls, 0);
+      },
+    );
+
+    test('a preflight admits every header the Beak client sends', () async {
+      // A browser refuses the real request when a header it carries is not
+      // listed here. `if-unmodified-since` is the optimistic-lock header an
+      // edit sends, so leaving it out breaks every save from another origin.
+      final handler = const Pipeline()
+          .addMiddleware(beakCorsMiddleware())
+          .addHandler((request) => Response.ok('ok'));
+
+      final response = await handler(
+        Request(
+          'OPTIONS',
+          Uri.parse('http://localhost/api/notes/n1'),
+          headers: const {
+            'access-control-request-method': 'PUT',
+            'access-control-request-headers':
+                'authorization, content-type, if-unmodified-since',
+          },
+        ),
+      );
+
+      final allowed = {
+        for (final header
+            in response.headers['access-control-allow-headers']!.split(','))
+          header.trim(),
+      };
+      expect(
+        allowed,
+        containsAll([
+          'authorization',
+          'content-type',
+          'if-unmodified-since',
+          'x-request-id',
+        ]),
+      );
+    });
+
+    test(
+      'a preflight lists the methods the routes use, and no others',
+      () async {
+        final handler = const Pipeline()
+            .addMiddleware(beakCorsMiddleware())
+            .addHandler((request) => Response.ok('ok'));
+
+        final response = await handler(
+          Request('OPTIONS', Uri.parse('http://localhost/api/notes/n1')),
+        );
+
+        final allowed = {
+          for (final method
+              in response.headers['access-control-allow-methods']!.split(','))
+            method.trim(),
+        };
+        expect(allowed, {'GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'});
       },
     );
 
@@ -209,6 +315,67 @@ void main() {
         throwsA(isA<BeakValidationException>()),
       );
     });
+
+    test('rejects a body that is not UTF-8 with a validation failure', () {
+      final request = Request(
+        'POST',
+        Uri.parse('http://localhost/products'),
+        body: const [0x7b, 0xff, 0xfe, 0x7d],
+      );
+      expect(
+        () => readJsonObject(request),
+        throwsA(isA<BeakValidationException>()),
+      );
+    });
+
+    test('accepts a body that fills the limit exactly', () async {
+      const body = '{"name":"abcdef"}';
+      final request = Request(
+        'POST',
+        Uri.parse('http://localhost/products'),
+        body: body,
+      );
+      expect(await readJsonObject(request, maxBodyInBytes: body.length), {
+        'name': 'abcdef',
+      });
+    });
+
+    test('refuses a body whose declared length is over the limit', () {
+      final request = Request(
+        'POST',
+        Uri.parse('http://localhost/products'),
+        body: '{"name":"abcdef"}',
+      );
+      expect(
+        () => readJsonObject(request, maxBodyInBytes: 8),
+        throwsA(isA<BeakPayloadTooLargeException>()),
+      );
+    });
+
+    test('stops reading a stream that outgrows the limit', () async {
+      var chunksRead = 0;
+      Stream<List<int>> endless() async* {
+        while (true) {
+          chunksRead += 1;
+          yield List<int>.filled(1024, 0x20);
+        }
+      }
+
+      final request = Request(
+        'POST',
+        Uri.parse('http://localhost/products'),
+        body: endless(),
+      );
+      await expectLater(
+        readJsonObject(request, maxBodyInBytes: 4096),
+        throwsA(isA<BeakPayloadTooLargeException>()),
+      );
+      expect(chunksRead, lessThan(16));
+    });
+
+    test('the default limit is 16 MiB', () {
+      expect(beakMaxJsonBodyInBytes, 16 * 1024 * 1024);
+    });
   });
 
   group('error mapping middleware', () {
@@ -242,7 +409,8 @@ void main() {
         (BeakAuthorizationException('forbidden'), 403),
         (BeakConflictException('duplicate'), 409),
         (BeakConfigurationException('broken setup'), 500),
-        (BeakStorageException('disk on fire'), 500),
+        (BeakPayloadTooLargeException('too big'), 413),
+        (BeakTransportException('bad gateway'), 502),
       ];
       for (final (exception, expectedStatus) in cases) {
         final response = await throwing(exception)(_get('products'));
@@ -252,6 +420,30 @@ void main() {
         expect(body['message'], exception.message, reason: exception.code);
         expect(body.containsKey('fieldErrors'), isFalse);
       }
+    });
+
+    test('answers a typed internal failure with the generic message and '
+        'reports its detail', () async {
+      final reported = <Object>[];
+      final handler = const Pipeline()
+          .addMiddleware(
+            beakErrorMappingMiddleware(
+              onUnexpectedError: (error, stackTrace) => reported.add(error),
+            ),
+          )
+          .addHandler(
+            (request) => throw const BeakInternalException(
+              'The updated record could not be read from db-7.internal.',
+            ),
+          );
+
+      final response = await handler(_get('products'));
+
+      expect(response.statusCode, 500);
+      final body = _bodyJson(await response.readAsString());
+      expect(body['code'], 'internal');
+      expect(body['message'], 'Internal server error.');
+      expect(reported.single, isA<BeakInternalException>());
     });
 
     test('includes the request id in error bodies when present', () async {

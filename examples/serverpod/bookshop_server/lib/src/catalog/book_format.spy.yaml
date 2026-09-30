@@ -1,0 +1,7 @@
+### How a book is bound (or not bound at all).
+enum: BookFormat
+serialized: byName
+values:
+  - paperback
+  - hardcover
+  - ebook

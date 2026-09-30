@@ -1,86 +1,51 @@
 ---
 title: Contributing
-description: Get from a fresh clone to a green gate, run the docs locally, and learn the four commands every change must pass.
+description: Take a fresh clone to a green gate and find the rules, tools and pages that every change to Beak passes through.
+type: index
+audience: [contributor]
+status: stable
 ---
 
 # Contributing
 
-After this page you can take a fresh clone to a green gate: bootstrap the
-monorepo, bring up the local services, and run the four commands that decide
-whether a change is mergeable. It also shows how to preview these docs.
+You have a clone of Beak and a change in mind. This tab covers what sits between the two: the rules a change has to satisfy, the four commands that check it, and the tools behind those commands. By taking part you agree to the [Code of Conduct](https://github.com/SimonErich/beak/blob/main/CODE_OF_CONDUCT.md).
 
-The canonical, always-current version of this guide lives in the repo root at
-[`CONTRIBUTING.md`](https://github.com/SimonErich/beak/blob/main/CONTRIBUTING.md).
-This page mirrors it for readers already in the docs and links out to the
-deeper pages for each rule. By taking part you agree to the
-[Code of Conduct](https://github.com/SimonErich/beak/blob/main/CODE_OF_CONDUCT.md).
+`CONTRIBUTING.md` at the repo root is the short version of this tab, and `AGENTS.md` next to it is the version for coding agents. Where they disagree with the code, the code wins.
 
-## Prerequisites
+## Set up
 
-- **Dart** `^3.11` and **Flutter** (stable channel).
-- **Docker** + Docker Compose, for the Postgres + MinIO integration and E2E tests.
-- **Melos `6.3.3`**, pinned. Install exactly this version:
+| You need | Version | Why |
+| --- | --- | --- |
+| Dart | `^3.11` | the SDK constraint of every package |
+| Flutter | stable, `>=3.41.0` | the panel, the umbrella package and the examples |
+| Melos | exactly `6.3.3` | runs the gate scripts in `melos.yaml` |
+| Docker with Compose | any recent | optional, for the Postgres and MinIO suites only |
+| Python 3 | 3.14 in CI | optional, only to preview the docs |
 
 ```bash
+git clone https://github.com/SimonErich/beak.git
+cd beak
 dart pub global activate melos 6.3.3
+melos bootstrap
 ```
 
-!!! warning "Do not use Melos 7+"
-    The 7.x line moved its configuration out of `melos.yaml` and into
-    `pubspec.yaml`. This repo is on the `melos.yaml`-based `6.3.3` line and will
-    not bootstrap under 7.
+`melos bootstrap` resolves every package under `packages/` and `examples/`. obers_ui comes from the commit the pubspecs pin, so nothing else has to sit next to the clone. That commit is behind what `beak_frontend` calls, so the panel does not compile on the pin alone: run `melos run link-obers-ui` first, with a checkout at `../obers_ui`. [Working with obers_ui](working-with-obers-ui.md) has the details. Two trees are outside melos on purpose: the vendored `packages/worm*` packages and the Serverpod workspace in `examples/serverpod`. That workspace pins Serverpod 4, needs Dart 3.12.2 or newer, and is gated by its own two CI jobs.
 
-## The obers_ui dependency
+!!! warning "Melos 7 does not bootstrap this repo"
+    Melos 7 reads its configuration from `pubspec.yaml`. This repo keeps it in `melos.yaml`, so 7.x finds no scripts. Install `6.3.3` and stay there.
 
-`beak_frontend` and `beak` reference **`obers_ui`** by pinned git commit, so
-`melos bootstrap` fetches it for you and a plain clone of this repo is all
-you need. If your change spans both repositories, clone obers_ui beside this one
-and run `melos run link-obers-ui` to swap the pin for your working copy.
-[Working with obers_ui](../deployment/working-with-obers-ui.md) has the
-details.
+## The gate
 
-## Setup
+Four commands decide whether a change can merge. Run them from the repo root.
 
 ```bash
-# 1. From the repo root. obers_ui resolves from its pinned commit, so a
-#    plain clone is all you need:
-melos bootstrap                      # resolve every package
-
-# 2. Local services (Postgres + MinIO), waits for health, inits the bucket:
-melos run up
-
-# 3. Environment file for the reference server and integration tests:
-cp .env.example .env
+melos run analyze
+melos run format-check
+melos run test
+melos run coverage
 ```
 
-Local dev ports are remapped so they do not collide with default installs
-(each is configurable via a `BEAK_*_PORT` env var, see `docker-compose.yml`):
-
-| Service        | Host port | Notes                         |
-| -------------- | --------- | ----------------------------- |
-| Postgres       | `25432`   | `postgres://beak:beak@…/beak` |
-| MinIO (S3 API) | `29000`   | bucket `beak-uploads`         |
-| MinIO console  | `29001`   | `beak` / `beaksecret`         |
-| pgweb          | `28081`   | database browser              |
-
-`melos run down` stops the services and drops their volumes. The
-[dev infrastructure](../deployment/dev-infrastructure.md) page explains the
-compose stack in full.
-
-## The gate (Definition of Done)
-
-Every change must keep these four green, run from the repo root:
-
-```bash
-melos run analyze        # 0 issues, plus the four guards
-melos run format-check   # dart format --set-exit-if-changed, clean
-melos run test           # all package tests, no skips
-melos run coverage       # per-package line-coverage thresholds
-```
-
-These are Melos scripts. `analyze` chains the analyzers and the guards; `test`
-chains the Dart, Flutter, and tooling suites. The definitions live in
-`melos.yaml`:
+`analyze` is a chain, not one analyzer. The script is the definition:
 
 ```yaml title="melos.yaml"
   analyze:
@@ -89,76 +54,91 @@ chains the Dart, Flutter, and tooling suites. The definitions live in
       melos run analyze-flutter &&
       melos run analyze-root &&
       melos run guard-material &&
+      melos run guard-hooks &&
       melos run guard-web &&
       melos run check-docs &&
+      melos run check-agent-docs &&
       melos run check-examples
-    description: Static analysis across all packages (0 issues required).
+    description: >-
+      Static analysis across all packages (0 issues required), the repo guards,
+      the docs checks and the agent docs bundle check.
 ```
 
-Two more run in CI and are worth running before you push anything that touches
-a driver or a service path:
+| Command | What it runs | Fails on |
+| --- | --- | --- |
+| `melos run analyze` | `dart analyze` and `flutter analyze` with `--fatal-infos --fatal-warnings`, the tooling in `tool/` and `test/`, then the guards and checks | any info, a Material import, a `StatefulWidget`, `dart:io` in the panel graph, a broken docs page, a stale agent docs bundle, a stale example |
+| `melos run format-check` | `dart format --output=none --set-exit-if-changed .` | any file `dart format` would change |
+| `melos run test` | `dart test` and `flutter test` per package with `--exclude-tags e2e`, then `dart test` at the root | any failing test |
+| `melos run coverage` | `dart run tool/check_coverage.dart` | a package below its line-coverage floor |
+
+Two more checks run in CI after the gate. They need the Docker stack from [Dev infrastructure](dev-infrastructure.md), which `melos run up` starts.
 
 ```bash
-melos run up             # Postgres + MinIO
-melos run test-e2e       # every test/e2e directory, --tags e2e
-melos run test-worm      # the vendored worm packages, which melos ignores
+melos run up
+melos run test-e2e
+melos run test-worm
 ```
 
-The service-backed suites are health-check-guarded, so `melos run test` passes
-without Docker: they skip rather than fail.
+`test-e2e` runs the suites tagged `e2e`, and `test-worm` runs the vendored worm packages, including their Postgres suite. Neither is part of the four, because a pull request should not need Docker to go green.
 
-### The coverage gotcha
+### Coverage reads what is on disk
 
-`melos run coverage` reads existing `lcov.info` files and does **not** regenerate
-them. If you changed code, delete stale reports first so the gate sees fresh
-numbers:
+`melos run coverage` does not run any tests. Flutter packages rewrite `coverage/lcov.info` on every `melos run test`. Pure Dart packages write raw coverage files and get an `lcov.info` only when none exists, so an old one is reused as if it were current. After a code change, delete the reports first:
 
 ```bash
 rm -rf packages/*/coverage examples/*/coverage
 melos run test && melos run coverage
 ```
 
-The floor is 85% line coverage per package, higher for the pure ones (`beak_core`
-holds 100%). See [Writing tests](writing-tests.md) for the per-package thresholds
-and the patterns that reach them.
+[Writing tests](writing-tests.md) lists the floors.
 
-## Running the docs locally
+### Run one check at a time
 
-The site is MkDocs with the Material theme, the minify plugin, and the redirects
-plugin that keeps moved pages' old addresses working. Install the three Python
-packages, then serve with live reload:
+While you iterate, run the check you are working against instead of the whole chain. Each one is a script.
 
-```bash
-pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects
-mkdocs serve
-```
+| Check | Command | Time |
+| --- | --- | --- |
+| No Material or Cupertino imports | `dart run tool/check_no_material.dart` | seconds |
+| No `StatefulWidget` or `State` | `dart run tool/check_hook_widgets.dart` | seconds |
+| Web-safe panel import graph | `dart run tool/check_web_safe.dart` | seconds |
+| Docs structure and style | `dart run tool/check_docs.dart` | seconds |
+| Examples still match their generator | `dart run tool/check_examples.dart` | about a minute |
+| Coverage floors | `dart run tool/check_coverage.dart` | seconds |
+| Published agent skills | `dart run tool/published_skills.dart` | seconds |
+| Agent docs bundle is current | `dart run tool/build_agent_docs.dart --check` | seconds |
+| The tooling's own tests | `dart test` | seconds |
 
-`mkdocs serve` hosts the site at `http://127.0.0.1:8000` and rebuilds on save.
-Before opening a docs PR, build with the strict flag so a broken cross-link fails
-the build the way CI will:
+The skills check also runs inside `melos run test`, through `test/published_skills_test.dart`. The bundle check runs inside `melos run analyze` and in the docs workflow, so a change to `docs/`, `mkdocs.yml`, `CHANGELOG.md` or the version fails until `melos run agent-docs` has regenerated the bundle. [Releasing](releasing.md) covers when to run it.
 
-```bash
-mkdocs build --strict
-```
+## What CI runs
 
-Every cross-link in these pages is a relative path to a `.md` file; `--strict`
-turns any dangling link into an error, which is why the whole site stays
-connected.
+| Workflow | Job | Runs |
+| --- | --- | --- |
+| `ci.yaml` | Analyze & format | `melos run analyze`, `melos run format-check` |
+| `ci.yaml` | Web build | `flutter build web --release` for `examples/quickstart` and `examples/clean_beak_config` |
+| `ci.yaml` | Web build (showcase), Web build (foodio) | `flutter build web --release` for `examples/showcase` and `examples/foodio-adminpanel`, one job each |
+| `ci.yaml` | Install smoke | `dart pub global activate --source path packages/beak_cli`, `beak --version`, `beak create --beak-path` in a temporary directory, then `beak prepare` |
+| `ci.yaml` | Serverpod example | `flutter pub get` in `examples/serverpod`, `dart analyze` of its server, schema and client packages and `flutter analyze` of the template app, then the bookshop server's tests: without the `integration` tag, and with it on the embedded Postgres (the gate, policy and adapter-contract proofs) |
+| `ci.yaml` | Serverpod admin app | `flutter analyze` and `flutter test` in `bookshop_admin`, which compiles the panel |
+| `ci.yaml` | Test & coverage | `melos run test`, `melos run coverage`, then `melos run up`, `melos run test-e2e`, `melos run test-worm` |
+| `docs.yml` | Build documentation | the docs checker and its tests, the agent docs bundle check, `mkdocs build --strict`, and on `release/**` branches and `v*` tags `check_docs.dart --release` |
+| `docs.yml` | Deploy to Pages | publishes the built site, on `main` only |
 
-## Commits and pull requests
+## Which page to read
 
-- Use [Conventional Commits](https://www.conventionalcommits.org/), for example
-  `feat(beak_core): add typed column system`.
-- Keep PRs focused. New behavior needs tests; changed behavior needs updated
-  tests; every bug fix ships a regression test.
-- Get the full gate green locally before opening the PR. CI runs the same four
-  commands.
-
-The [Conventions](conventions.md) page has the full commit and review rules.
+| You want to... | Read | For that |
+| --- | --- | --- |
+| Know which imports, escape hatches and layer boundaries a change may never cross | [Code guardrails](code-guardrails.md) | the hard rules and the tool that enforces each |
+| Shape a commit, an exception or a test the way a reviewer expects | [Conventions](conventions.md) | the softer rules, and what to regenerate after a change |
+| Add a test to a package with the harness it expects | [Writing tests](writing-tests.md) | runners, fakes, the e2e tag and the coverage floors |
+| Write a docs page that passes the docs gate | [Writing docs](writing-docs.md) | page types, snippets, the draft to stable ratchet and the local preview |
+| Cut a release | [Releasing](releasing.md) | the version bump, the tag, the bundle and the obers_ui pin |
+| Run real Postgres and MinIO next to your code | [Dev infrastructure](dev-infrastructure.md) | the compose stack, its ports and the suites that use it |
+| Change obers_ui and Beak together | [Working with obers_ui](working-with-obers-ui.md) | the git pin and `melos run link-obers-ui` |
+| See how Beak is built inside | [Architecture](../architecture/index.md) | the principles, the package graph and the two flows |
 
 ## Continue reading
 
-- [Code guardrails](code-guardrails.md) the hard rules the analyzer and reviewers enforce.
-- [Conventions](conventions.md) commits, reuse-first, typed exceptions, and test style.
-- [Writing tests](writing-tests.md) where tests live and the patterns per package.
-- [Writing a storage driver](writing-a-storage-driver.md) the worked example of extending Beak.
+- [Code guardrails](code-guardrails.md) the rules that fail review.
+- [Writing tests](writing-tests.md) where tests live and which fake to reach for.
+- [Dev infrastructure](dev-infrastructure.md) the optional Docker stack.

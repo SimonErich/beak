@@ -82,7 +82,7 @@ final class MongoFilterCompiler {
       case Operator.ilike:
         return <String, Object?>{
           field: <String, Object?>{
-            r'$regex': _likeToRegex(p.value),
+            r'$regex': _likeToRegex(p.value, p.escape),
             if (p.operator == Operator.ilike) r'$options': 'i',
             if (p.operator == Operator.notLike) r'$not': true,
           },
@@ -148,11 +148,19 @@ final class MongoFilterCompiler {
     };
   }
 
-  String _likeToRegex(Object? pattern) {
+  String _likeToRegex(Object? pattern, String? escape) {
     if (pattern is! String) return '';
     final buffer = StringBuffer('^');
-    for (final ch in pattern.split('')) {
-      if (ch == '%') {
+    final characters = pattern.split('');
+    for (var index = 0; index < characters.length; index++) {
+      final ch = characters[index];
+      if (ch == escape) {
+        buffer.write(
+          RegExp.escape(
+            index + 1 < characters.length ? characters[++index] : ch,
+          ),
+        );
+      } else if (ch == '%') {
         buffer.write('.*');
       } else if (ch == '_') {
         buffer.write('.');

@@ -1,266 +1,363 @@
 ---
-title: Relationships
-description: Link resources by naming the other class, and get pickers, relation tabs and name columns in the panel from one field each.
+title: Related records
+description: Link products to categories, give categories an owned list of attribute definitions, and edit both from one form that saves in a single request.
+type: tutorial
+audience: [beginner]
+status: stable
 ---
 
-# Relationships
+# Related records
 
-After this chapter your records point at each other: a product sits in a
-category, carries tags, has a roast profile, and an order lists the lines that
-make it up. Each link is one field, and each one changes the form, the list
-table and the show page at once.
+Products and categories exist side by side and know nothing about each other yet. This chapter links them, adds a second kind of link (rows that belong to one category and to nothing else), and changes an existing table without losing a row.
 
-## One field per link
+## What you'll build
 
-A relationship is a field whose type is another schema class. Here are all four
-kinds, on one product.
+- `Product.category`: a product points at a category it shares with other products.
+- `Category.attributes`: a category owns a list of attribute definitions, such as "Roast level".
+- A migration for the new column, scaffolded from the difference between your schema and the database.
+- A category form with an editable table of attributes, and a product form that can create a category on the spot.
 
-```dart title="examples/store/lib/models/product.dart"
-  /// The category this product is filed under.
-  @BelongsTo(onDelete: BeakOnDelete.setNull)
-  late final Category? category;
+## Before you start
 
-  /// The roast profile for this product, if it is coffee.
-  @HasOne()
-  late final RoastProfile? roastProfile;
+You need chapter 2 finished, with Products and Categories migrated. Stop `beak dev` if it is still running; you change the schema below and it does not watch files.
 
-  /// The tags attached to this product.
-  @BelongsToMany(allowCreate: true)
-  late final List<Tag> tags;
+## Two kinds of link
 
-  /// The order lines that sold this product.
-  @HasMany(onDelete: BeakOnDelete.restrict)
-  late final List<OrderItem> orderItems;
-```
+A link in Beak is one of two things, and the difference decides how the form treats it.
 
-You name the other class. Beak works out the rest.
-
-| Annotation | Field type | Where the foreign key lives |
+| | Shared | Owned |
 | --- | --- | --- |
-| `@BelongsTo` | `Other` or `Other?` | a column on **this** table |
-| `@HasOne` | `Other?` | a column on the **other** table |
-| `@HasMany` | `List<Other>` | a column on the **other** table |
-| `@BelongsToMany` | `List<Other>` | a pivot table holding both ids |
+| Example | A product and its category | A category and its attribute definitions |
+| Other rows may point at the same record | Yes, many products share a category | No, the rows exist for this parent alone |
+| Annotation | `@BelongsTo` on the product | `@HasMany(owned: true)` on the category, `@BelongsTo` on the child |
+| In the form | A picker, cleared to unlink | A table, and removing a row deletes it once the parent is saved |
+| When the category is deleted | Products stay, their link clears (`setNull`) | Attributes go with it (`cascade`) |
 
-Nullability is not the switch here that it is on a column. Beak writes every
-foreign key as a nullable column and puts no `BeakRequired()` on it, so
-`Category? category` and a non-null `User customer` produce the same column and
-the same picker: one the form will submit empty. The `?` documents intent, and
-the Dart view agrees with the column rather than with the field, so
-`OrderRecord.customer` is a `UserRecord?` either way.
+The rest of the chapter builds one of each.
 
-## The models on the other end
+## Declare the owned side
 
-Product names four classes, so those four have to exist. Add `Tag`,
-`RoastProfile`, `User`, `Order` and `OrderItem` under `lib/models/`, each with
-the imports and the `part` line chapter 1 showed. Their columns are chapter 2
-work: a `@Display()` name each, plus a user's `email` and `role`, a roast
-profile's `level`, and an order's `reference`, `status`, `total` and
-`placedAt`. These are the fields this chapter is about.
+A category attribute is a name, a value type, an optional list of choices and a required flag. It points back at its category. Create `lib/resources/categories/models/category_attribute.dart`; the file is the shop's, unchanged:
 
-```dart title="examples/store/lib/models/order.dart"
-  /// The customer who placed it.
-  @BelongsTo(onDelete: BeakOnDelete.cascade)
-  late final User customer;
-
-  /// The lines on the order.
-  @HasMany(onDelete: BeakOnDelete.cascade)
-  late final List<OrderItem> items;
+```dart title="lib/resources/categories/models/category_attribute.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/models/category_attribute.dart"
 ```
 
-```dart title="examples/store/lib/models/order_item.dart"
-  /// The order this line belongs to.
-  @BelongsTo(onDelete: BeakOnDelete.cascade, inverse: false)
-  late final Order order;
+Two things are new here. `AttributeValueType` is an enum, so the form gets a select and any table a badge without you writing either. And the `@BelongsTo` on `category` is the side that owns the database column, `category_id`, together with its delete rule: `cascade` means the database removes an attribute when its category goes.
 
-  /// The product this line sells.
-  @BelongsTo(onDelete: BeakOnDelete.restrict, inverse: false)
-  late final Product product;
+Now the parent. Add the import and the `attributes` list to `lib/resources/categories/models/category.dart`:
+
+```dart title="lib/resources/categories/models/category.dart"
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+import 'category_attribute.dart';
+
+part 'category.beak.dart';
+
+/// Catalog grouping with reusable attribute definitions.
+@Resource()
+final class Category extends BeakSchema {
+  --8<-- "examples/clean_beak_config/lib/resources/categories/models/category.dart:CategoryFields"
+
+  --8<-- "examples/clean_beak_config/lib/resources/categories/models/category.dart:CategoryAttributes"
+}
 ```
 
-Then generate.
+`owned: true` is a promise about editing: these rows are changed through their category, so the category form may add, edit and remove them. It deletes nothing by itself. The `cascade` on the child's `@BelongsTo` does that, and the shop repeats it on the `@HasMany` so either class reads the same.
+
+## Declare the shared side
+
+A product may have a category, so the field is nullable. Add the import and the field to `lib/resources/products/models/product.dart`:
+
+```dart title="lib/resources/products/models/product.dart"
+import 'package:beak/beak.dart';
+import 'package:beak/schema.dart';
+
+import '../../categories/models/category.dart';
+
+part 'product.beak.dart';
+
+/// Product schema; all metadata and typed helpers are generated.
+@Resource()
+final class Product extends BeakSchema {
+  --8<-- "examples/clean_beak_config/lib/resources/products/models/product.dart:ProductFields"
+
+  --8<-- "examples/clean_beak_config/lib/resources/products/models/product.dart:ProductCategory"
+}
+```
+
+`Category?` makes the link optional. `onDelete: BeakOnDelete.setNull` means deleting a category keeps its products and clears their category, which is what a shop wants. `inverse: false` stops Beak from also giving `Category` a `products` list; categories do not need to know.
+
+You declared no column. `@BelongsTo` adds `category_id` to `products`, with an index and a foreign key. It also gives you `ProductModel.category` as a typed reference, and `ProductModel.category.name` reaches through it to the category's name. Chapter 5 uses that.
+
+## Change the database
+
+Generate, then ask `beak doctor` what the database is missing:
+
+```bash
+beak prepare
+```
 
 ```console
 $ beak prepare
-  7 models · 0 screens · 0 overrides
-  generated  16 of 20 files
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  6 of 9 files
+  agents     up to date · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 ```
 
-!!! note "What just happened"
-
-    - Every schema got a fresh `*.beak.dart`: columns, relationships, model,
-      typed record view.
-    - Each new table got a migration under `lib/migrations/`, including one for
-      a pivot table nobody declared.
-    - `lib/beak/*.g.dart` picked up five new resources. You registered nothing.
-
-## belongs-to: the child holds the key
-
-`@BelongsTo` puts the foreign key on this table. `beak prepare` writes that
-column too: `category_id`, labelled "Category" after the relationship rather
-than after the table it points at, and visible on the form only.
-
-Declaring one side declares both. `Category` says nothing about products, yet
-it comes out of `beak prepare` with the matching has-many.
-
-```dart title="examples/store/lib/models/category.beak.dart"
-  /// The products on the other side of [ProductRelations.category].
-  static const BeakHasMany products = BeakHasMany(
-    key: 'products',
-    label: 'Products',
-    relatedTable: 'products',
-    displayColumnKey: 'name',
-    foreignKey: 'category_id',
-    searchColumnKeys: ['name'],
-    onDelete: BeakOnDelete.setNull,
-  );
+```bash
+beak doctor
 ```
 
-Pass `inverse: false` when the back-reference is noise, or when the other side
-names it itself. `OrderItem` uses it twice: `Order` already calls its children
-`items`, and `Product` already calls them `orderItems`.
-
-Two more arguments are worth knowing. The label follows the field name, which is
-why the order form's picker reads "Customer" and not "User", and why the
-`customer_id` column is filed under "Customer" too. `label:` overrides it.
-`searchOn:` widens what the picker searches, from the related model's
-display column to a list of your own: `searchOn: ['name', 'email']` finds a
-customer by either. Each key is checked against the related schema, so a typo is
-an error naming the field.
-
-## has-many: the parent lists the children
-
-`@HasMany` reads the key from the child table and derives it from the parent's
-own name. `Order.items` works out of the box for that reason: `OrderItem.order`
-stores `order_id`, which is exactly what a has-many on `Order` looks for.
-
-A user's orders are the awkward case. `User` looks for `user_id`, but `Order`
-calls its field `customer`, which makes the key `customer_id`. When the two
-names disagree, say which one you mean. Add this to `User`:
-
-```dart
-/// The orders this customer placed.
-@HasMany(foreignKey: 'customer_id', onDelete: BeakOnDelete.cascade)
-late final List<Order> orders;
+```console
+$ beak doctor
+  OK   every model has a migration
+  ...
+  WARN CategoryAttribute declares table "category_attributes", which the database does not have
+       → beak migrate
+  WARN products.category_id is declared by Product.categoryId but missing from the database
+       → beak make:migration AddCategoryIdToProducts --from-drift, then beak migrate
+  WARN products.category_id backs Product.category but is missing from the database
+       → beak make:migration AddCategoryIdToProducts --from-drift, then beak migrate
+  ...
+All checks passed.
 ```
 
-You can also leave the field out. `@BelongsTo` on `Order.customer` generates
-`orders` on `User` anyway, with `customer_id` already filled in.
+Warnings, not failures, and they are two different problems, which the remedy lines tell apart. The first has a fix waiting: `beak prepare` wrote `create_category_attributes_table.dart` for the new model, exactly as it did for categories, so `beak migrate` is all it needs. The other two are one problem seen twice. The `products` table exists, and a create-table migration never runs again, so a column you add later needs a migration of its own.
 
-## has-one: one child, not a list
+Apply the pending one first:
 
-`@HasOne` is a has-many with the list taken away: at most one record on the
-other table points back. The key and the delete behaviour live over there, on
-the belongs-to. `@HasOne()` takes two arguments, `label:` and `foreignKey:`, and
-the product side needs neither: the key it looks for is `product_id`, which is
-exactly what `RoastProfile.product` stores.
-
-```dart title="examples/store/lib/models/roast_profile.dart"
-  /// The product this profile roasts.
-  @BelongsTo(onDelete: BeakOnDelete.cascade, inverse: false)
-  late final Product product;
+```bash
+beak migrate
 ```
 
-## belongs-to-many: the pivot Beak writes
+```console
+$ beak migrate
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  up to date (8 files)
+migrated  20260929_174548_create_category_attributes_table
+```
 
-`@BelongsToMany` needs a join table. Beak names it from the two singular table
-names, sorted and joined with an underscore, so `products` and `tags` give
-`product_tag`, and it writes the migration.
+Then let Beak write the second from the difference between your schema classes and the database:
 
-```dart title="examples/store/lib/migrations/create_product_tag_table.dart"
+```bash
+beak make:migration AddCategoryToProducts --from-drift
+```
+
+```console
+$ beak make:migration AddCategoryToProducts --from-drift
+  created lib/migrations/add_category_to_products.dart
+  run `beak migrate` to apply it
+```
+
+Read it before you run it. It is yours from now on, like every migration:
+
+```dart title="add_category_to_products.dart (generated, trimmed)"
   @override
-  Future<void> upSchema(Schema schema) => BeakBlueprint.createPivot(
-    schema,
-    ProductRelations.tags,
-    ownerTable: 'products',
-  );
+  Future<void> upSchema(Schema schema) async {
+    final live = await schema.adapter.introspectSchema();
+    if (!_has(live, 'products', 'category_id')) {
+      await schema.alter('products', (table) {
+        BeakBlueprint.defineColumn(
+          table,
+          ProductColumns.categoryId,
+          isForeignKey: true,
+        );
+        final relation = ProductRelations.category;
+        table.index([relation.foreignKey]);
+        table.foreign(
+          column: relation.foreignKey,
+          references: 'id',
+          onTable: relation.relatedTable,
+          onDelete: wormOnDelete(relation.onDelete),
+        );
+      });
+    }
+  }
 ```
 
-The pivot holds `product_id` and `tag_id`, a unique constraint on the pair, an
-index on the second column so a tag can list its products without a full scan,
-and a cascading foreign key on each side. It has no `id`: the pair is the key.
-`allowCreate: true` records that a tag may be created from the picker rather
-than on the tags page, and `maxAllowed:` caps how many may be attached. `Tag`
-gains `products` the way `Category` gained its list.
+The `if` is there on purpose. `create_products_table` reads `ProductModel` as it is today, so on a fresh database it already creates `category_id`, and an unguarded `alter` would then fail with a duplicate column. On your database the guard finds the column missing and adds it.
 
-## What a delete does
-
-`onDelete` answers "someone deleted the record on the other end".
-
-| Value | Effect |
-| --- | --- |
-| `cascade` | delete the dependent rows too |
-| `restrict` | refuse the delete while dependents exist |
-| `setNull` | keep them, clear the foreign key |
-| `ormCascade` | delete them one by one, firing model hooks |
-| `setDefault`, `noAction` | leave it to the database |
-
-Deleting a category unfiles its products (`setNull`). Deleting an order takes
-its lines with it (`cascade`). Deleting a product that was ever sold fails
-(`restrict`): an invoice line pointing at nothing is worse than a refused
-delete.
-
-## What you get in the panel
-
-None of this is configured. It follows from the fields.
-
-| Surface | What a relationship adds |
-| --- | --- |
-| Form | a picker per belongs-to: searches the related table as you type, shows the display column, stores the id. A to-many needs a saved record to attach to, so its manager appears on the edit form and not on create |
-| List table | the related record's name in place of the foreign key it owns, never both, eager loaded with the page in one query |
-| Show page | one tab per to-many, in a "Related" card under the fields |
-| Relation tab | the related records, a badge carrying the true total rather than the page size, "Load more", and delete (has-many) or attach and detach (belongs-to-many) |
-| Dart | `ProductRecord.category` as a `CategoryRecord?`, `.tags` as a `List<TagRecord>` |
-
-## Keep a table out of the sidebar
-
-Order lines are always reached through their order. They still need an API, a
-model and their relationships, so deleting the resource is the wrong tool. Hide
-it with one entry under `resources:` in `beak.yaml`.
-
-```yaml title="examples/store/beak.yaml"
-  order_items:
-    hidden: true
+```bash
+beak migrate
 ```
 
-Only the sidebar entry goes. The API still answers, the relationships still
-load, and the Items tab on an order still lists the rows.
+```console
+$ beak migrate
+  3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  1 of 8 files
+migrated  20260929_174611_add_category_to_products
+```
+
+`beak doctor` now says `the database matches the schema classes`, and the timestamps in your file names differ from these.
+
+## Give the forms a layout
+
+Start `beak dev` and the panel if you want to look before you continue. Without a layout Beak still helps. The product form has grown a Category picker at the bottom, searching by the category's `@Display` field, because a to-one link needs no decisions. The category form shows a Name and a Description and nothing else. An owned collection is a table, and Beak cannot guess which of the child's fields belong in its columns.
+
+So the category form needs a layout. The shop's is one function, and this is the whole file:
+
+```dart title="lib/resources/categories/screens/category_form.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/screens/category_form.dart"
+```
+
+Three ideas are in there. `BeakTabs` splits the form into Overview and Attribute definitions. `CategoryModel.attributes.tableForm(...)` is the table editor: `children` are the columns, `advancedForm` holds the fields that would make the row too wide, and `removeBehavior: BeakRemoveBehavior.deleteOwned` says removing a row deletes the owned child. And the `includeAttributes` flag exists so that the same layout can be reused without the second tab, which the product form does in a moment.
+
+Every input starts from a generated reference, `CategoryModel.name.inputText()` or `CategoryAttributeModel.valueType.input()`. There is no string field name anywhere, so a rename shows up as a compile error and not as an empty input.
+
+Hand the layout to the resource. `screens:` takes the screens you want to configure, and the ones you leave out keep their defaults. The list page stays as it was:
+
+```dart title="lib/resources/categories/category_resource.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+import 'models/category.dart';
+import 'screens/category_form.dart';
+
+/// Catalog organization and reusable attribute definitions.
+final class CategoryResource extends BeakResource {
+  /// Creates the categories section.
+  CategoryResource()
+    : super(
+        --8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryIdentity"
+        screens: [
+          --8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryFormScreen"
+        ],
+      );
+}
+```
+
+One form serves three roles. `BeakScreenRole.read`, `create` and `edit` share the layout, so the detail page, the create form and the edit form cannot drift apart.
+
+The product form is smaller. Two cards side by side, with the category picker taught one new trick:
+
+```dart title="lib/resources/products/screens/product_form.dart"
+import 'package:beak/panel.dart';
+import '../../categories/screens/category_form.dart';
+import '../models/product.dart';
+
+/// Shared product layout: core data, organization and pricing.
+BeakFormLayout productForm() => BeakFormLayout(
+  children: [
+    BeakColumns(
+      children: [
+        --8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:ProductDetailsCard"
+        BeakCard(
+          title: 'Organization and pricing',
+          children: [
+            --8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:productCategoryPicker"
+            --8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:ProductPriceInput"
+            --8<-- "examples/clean_beak_config/lib/resources/products/screens/product_form.dart:ProductActiveInput"
+          ],
+        ),
+      ],
+    ),
+  ],
+);
+```
+
+`exclusive: false` lets the picker offer to create a record that does not exist yet, and `createForm:` says what that dialog contains: the category layout, without its attributes tab. The shop's product form also has a tax rate picker, a gallery and tabs. This one keeps the pieces that fit your project.
+
+```dart title="lib/resources/products/product_resource.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+import 'models/product.dart';
+import 'screens/product_form.dart';
+
+/// Catalog management.
+final class ProductResource extends BeakResource {
+  /// Creates the products section.
+  ProductResource()
+    : super(
+        --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductResourceIdentity"
+        screens: [
+          BeakFormScreen(
+            --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductFormLayout"
+          ),
+        ],
+      );
+}
+```
 
 ## Run it
 
-The new tables need creating, and `products` needs the `category_id` column it
-did not have when you first migrated. That migration has already run and will
-not run again, and its DDL is read from the model, so rebuilding the database
-from scratch is what picks the new column up. Nothing in it is worth keeping.
+Nothing new to migrate. Start the API and the panel:
 
-```console
-$ dart run bin/migrate.dart migrate:fresh
-$ beak dev
+```bash
+beak dev
 ```
 
-Open the panel. Products, categories, tags, roast profiles, users and orders are
-in the sidebar; order items are not. Create a category, then a product: the
-create form has a Category picker. Save it and edit it again, and a Tags
-multi-select and an Order Items list are waiting below the fields, because
-attaching a row takes a row to attach it to. The show page carries a "Related"
-card with a Tags tab and an Order Items tab, and back on the list the Category
-column reads the category's name rather than a uuid.
+```bash
+flutter run -d chrome
+```
+
+Open Categories and edit `Coffee`, the category you created with `curl` in chapter 1: press the pencil icon in its row. The form now has two tabs. Switch to Attribute definitions and press Add Attributes. A dialog opens with the fields of one attribute. Give it the name `Roast level` and press Apply: the row lands in the table with a Name, a Value Type and a Required switch. Then press Save.
+
+Everything before Save happened in the browser. The API log of `beak dev` shows what reached the server:
+
+```console
+[0d47ce336c1294ec] POST /api/categories/query -> 200 (1ms)
+[afcaf43766ef27a1] GET /api/categories/capabilities -> 200 (1ms)
+[35996a226b454ffb] GET /api/category_attributes/capabilities -> 200 (1ms)
+[f9b6a0f971838f37] OPTIONS /api/commits -> 204 (0ms)
+[f7ff6c3d0c00d367] POST /api/commits -> 200 (33ms)
+```
+
+Reads while the form opened, then one write. Adding the row sent nothing, because the draft holds every change until Save. Chapter 4 opens that request up.
+
+Now Products. Edit `Espresso Beans` and open the Category picker: it lists `Coffee`. Pick it and Save. Then press Create for a new product, open the picker and type `Tea`. The list is empty and offers `Create "Tea"`. Pick that, and the dialog opens with the name already filled in and only the Overview tab. Press Apply, give the product a name (`Green Tea`) and a price (`8.5`), and press Save. One `POST /api/commits` carries the new category and the product that points at it.
+
+Relations are never loaded on their own. Ask for the category and you get it:
+
+```bash
+curl -s -X POST localhost:8080/api/products/query \
+  -H 'content-type: application/json' \
+  -d '{"table":"products","relations":[{"relation":"category","filter":null,"nested":[]}]}'
+```
+
+```json
+{"items":[{"values":{"id":"ab8bf8c4-7c0e-4310-bc3d-1b484dc18859","name":"Espresso Beans","price":1290,"sku":"ESP-001","description":null,"active":true,"category_id":"67060d38-2d5d-499e-9b85-b339ff3c51cd"},"relations":{"category":[{"values":{"id":"67060d38-2d5d-499e-9b85-b339ff3c51cd","name":"Coffee","description":"Beans and blends"},"relations":{}}]}},{"values":{"id":"5eeac3e8-c806-4cbc-8590-7e306dc7a8a6","name":"Green Tea","price":850,"sku":null,"description":null,"active":true,"category_id":"3555833c-8b7a-4fcc-8d85-fb602808266c"},"relations":{"category":[{"values":{"id":"3555833c-8b7a-4fcc-8d85-fb602808266c","name":"Tea","description":null},"relations":{}}]}}],"total":2,"page":1,"perPage":25}
+```
+
+Each product now carries its category under `relations`, and `category_id` sits in `values` as before. Leave `relations` out of the query and every record comes back with `"relations":{}` while `category_id` is still there. Beak does not lazy-load: a relation is on the record because the query asked for it, and the panel's tables ask for exactly the ones their columns show.
+
+Finally the delete rules, which are the second row of the table above. Delete the `Tea` category with the trash icon in its row: Green Tea stays, and its Category picker is empty when you open it. That is `setNull`. Delete a category that owns attributes and its attributes go with it, which is `cascade`. Both are foreign-key rules in the database, so a script or a second admin gets the same result. Try the second one on a category you made for the purpose, not on `Coffee`.
+
+!!! note "What just happened"
+    - Two `@BelongsTo` annotations and one `@HasMany(owned: true)` gave you a picker, a table editor, two foreign keys and the delete behavior. No join and no column name appears in your code.
+    - Nested edits are staged. Rows added, changed or removed in the category form live in a draft until Save, and Save sends the whole draft as one graph commit that either applies fully or not at all.
+    - Adding a column to an existing table is a migration you scaffold and read, not a side effect of running the app.
 
 !!! question "What this skipped"
+    - Has-one, many-to-many and the `foreignKey:` override: [Relationships](../models/relationships.md).
+    - The picker's other modes, cards, dependent options and galleries: [Related records in forms](../forms/related-records.md). A picker whose choices depend on another field (an order's delivery profile must belong to its customer) is the recipe [A belongs-to picker](../recipes/a-belongs-to-picker.md).
+    - The table editor in depth: [A nested table editor](../recipes/a-nested-table-editor.md).
+    - The shop also gives products variants and specifications, edited the same way. They are not in your project, so `ProductModel` here has no `variants`.
 
-    - The tables are empty, so the pickers have little to find.
-      [Seeding and the API](04-seeding-and-the-api.md) fills them and shows what
-      a relationship looks like over HTTP.
-    - Icons, sections and layouts for the new resources are
-      [Shaping the panel](05-shaping-the-panel.md).
-    - Adding a column to a table that already exists deserves its own migration
-      rather than a `migrate:fresh`. See [Migrations](../backend/migrations.md).
+## Checkpoint
+
+```bash
+beak doctor
+```
+
+```console
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  OK   lib/main.dart lists every resource class
+  OK   generated files up to date
+  OK   every model has a migration
+  ...
+  OK   the database matches the schema classes
+  ...
+All checks passed.
+```
+
+Your project has three schema classes, two resources, four migrations of your own, and a form that saves a category, its attributes and a product in one request. The database is still nearly empty. Chapter 4 fills it and looks at the API.
 
 ## Continue reading
 
-- [Seeding and the API](04-seeding-and-the-api.md) put data behind the
-  relationships, then read it back over REST.
-- [Columns and validation](02-columns-and-validation.md) the chapter these
-  fields were added to.
-- [Relationships](../models/relationships.md) the reference: every argument of
-  all four kinds, and how eager loading is expressed in a query spec.
+- [Seeding and the API](04-seeding-and-the-api.md): a seeder for the shop data, and the API called by hand.
+- [Relationships](../models/relationships.md): every link kind, `onDelete`, `inverse` and `owned` in one place.
+- [Related records in forms](../forms/related-records.md): pickers, cards and inline creation.

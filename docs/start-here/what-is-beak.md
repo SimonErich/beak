@@ -1,176 +1,107 @@
 ---
 title: What is Beak?
-description: What Beak is, where the name comes from, what it is for and what it is not, and the one dependency and eight libraries it ships as.
+description: Beak is a Dart and Flutter framework that builds an admin panel, a REST API and migrations from four things you write, and what it is not for.
+type: concept
+audience: [beginner]
+status: stable
 ---
 
 # What is Beak?
 
-After this page you will be able to say in one sentence what Beak does, know
-which library holds which piece, and recognize the one declaration the whole
-framework reads from.
+Beak builds the admin panel that almost every Dart or Flutter app grows sooner or later: the tables, forms and detail pages over your data, and the REST API and migrations underneath them. You write four small things. Beak writes the rest, and everything it writes is Dart you can read.
 
-Beak is a low-code, configuration-driven admin-panel framework for Dart and
-Flutter. You declare a resource once, as an annotated Dart class, and Beak
-generates the REST API, the migration, and a panel of obers_ui widgets over it.
-No hand-written endpoints, no client/server plumbing, fully type-safe, zero
-Material.
+Flutter's mascot is a bird, birds have beaks, and a dashboard is where the app gets picked apart record by record. Its ORM sibling is `worm`, because the bird has to eat something.
 
-## The one-definition idea in a sentence
+## The idea in one picture
 
-Most admin panels are the same code written three times: once for the database,
-once for the API, and once for the UI, kept in sync by hand until they drift.
-Beak asks you to declare the field once, as a typed Dart field, and then reads
-that one declaration from every side. Change it in one place and the table, the
-form, the validator, the migration, and the export all move together.
-
-## The one definition, in code
-
-Here is the promise made concrete. This is a whole resource, and the file is
-complete:
-
-```dart title="examples/store/lib/models/category.dart"
---8<-- "examples/store/lib/models/category.dart"
+```mermaid
+flowchart LR
+  schema["Schema class<br/>(fields, rules, relations)"] --> prepare["beak prepare"]
+  resource["Resource class<br/>(title, filters, screens)"] --> prepare
+  panel["Panel<br/>(main.dart or beak.yaml)"] --> prepare
+  hook["Server hook<br/>(policy, graph rules)"] --> prepare
+  prepare --> gen["Typed field refs, migration,<br/>registry, server and panel wiring"]
+  gen --> api["Shelf REST API<br/>+ SQLite or Postgres"]
+  gen --> ui["Flutter panel<br/>on obers_ui"]
 ```
 
-The field's **type** picks the column kind. `String` is a single-line text
-column, `BeakText` a multi-line one, `double` a decimal, `DateTime` a date and
-time, `BeakImageRef` an upload. Its **nullability** decides required-ness, once, for
-the form validator, the API's validation and the database's `NOT NULL` alike.
-`@Column` carries only what a Dart type cannot say: the label, the rules, which
-surfaces show the field.
+The four boxes on the left are the only files whose content is your decision. The shop example (`examples/clean_beak_config`) shows each of them at full size, and this page uses its smallest resource, categories, to show the shape.
 
-Then you run:
+## How it works
 
-```bash
-beak prepare
+### 1. The schema class
+
+A field is a Dart field. Its type picks the column, its nullability decides whether it is required, and annotations add the rest:
+
+```dart title="examples/clean_beak_config/lib/resources/categories/models/category.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/models/category.dart"
 ```
 
-Beak writes `category.beak.dart` beside the class: the typed column constants
-(`CategoryColumns.name`), the relationship constants on both sides
-(`CategoryRelations.products`, from the `@BelongsTo` on `Product`), the
-`CategoryModel` that the server and the panel both read, and a typed
-`CategoryRecord`. It also writes the migration this table
-needs and the wiring that registers all of it. There is no registry to edit and
-no resource to declare: a file under `lib/models/` is a resource.
+From this class, `beak prepare` generates typed field references (`CategoryModel.name`), the model, both sides of every relationship, a typed record view and the create-table migration. That is the whole database definition. Nobody writes a column name.
 
-That generated model is not UI code, and it is not server code. It is a
-description both sides read. From `ProductColumns.price` alone, the panel
-renders a currency cell in the table and a numeric input in the form (with
-`BeakMin(0)` as a client validator), while the server re-runs the same
-`BeakMin(0)` on every write and adds a `Price` column to the CSV export. One
-declaration, six consumers, no drift.
+### 2. The resource class
 
-!!! note "Where this goes next"
-    The product model in the store example carries every column kind Beak has,
-    all four relationship kinds, soft deletes and timestamps, in one class. See
-    [Defining a resource](../models/defining-models.md) for the full shape,
-    [Generated code](../models/generated-code.md) for what lands in the part
-    file, and
-    [The one-definition promise](../concepts/the-one-definition-promise.md) for
-    the mechanism behind the six consumers.
+The schema says what the data is. The resource says how the panel presents it: title, sidebar group, search, filters and which screens the resource has.
 
-## Where the name comes from
-
-Flutter's mascot is a bird (Dash). Birds have beaks, and a beak is the tool the
-bird uses to get things done. Beak is the tool you reach for when your Flutter
-app grows the dashboard or admin panel that almost every app grows eventually.
-
-Its sibling is `worm`, the ORM Beak's server half runs on. The bird has to eat
-something. You will meet worm in two places only, migrations and seeders;
-everywhere else Beak keeps the ORM behind an interface so it never leaks into
-your models or your panel.
-
-## What Beak is for
-
-Beak is built for the internal-facing surface of an app: the place your team,
-your admins, or your operators go to manage the data the public app produces.
-
-- **The admin panel every app grows.** Products and orders, users and roles,
-  content and moderation queues. The CRUD-heavy back office that is unglamorous
-  to build by hand and easy to build inconsistently.
-- **The dashboard that is the whole product.** Sometimes the internal tool *is*
-  the product: an ops console, a data-review workbench, a B2B admin you ship to
-  customers. Beak scales up to that with custom screens, dashboards, and a full
-  block system.
-- **A panel bolted onto an app that already exists.** `BeakServer.handler`
-  mounts inside a Shelf pipeline you already run, and a `BeakBlockHost` renders
-  inside a screen that is not a panel. See `examples/embedded`.
-- **Config-over-code teams.** If you would rather describe a resource than wire
-  one, and you want AI agents to generate correct panels from a schema, Beak's
-  declarative surface is the point.
-
-## What Beak is not for
-
-Being honest about the edges saves you a wrong turn.
-
-- **Not a public-facing app builder.** Beak's UI is obers_ui admin widgets:
-  tables, forms, detail views, dashboards. It is not a toolkit for a consumer
-  marketing site or a pixel-bespoke mobile app.
-- **Not a headless CMS or a no-code SaaS.** Beak is a Dart/Flutter package you
-  add to a project you own. There is no hosted control panel; the panel is your
-  Flutter app.
-- **Not tied to one database forever.** Beak's server half runs on worm today,
-  but `BeakDataSource` is an interface. The seam is there so a different ORM
-  (or a future `beak_serverpod`) can slot in without rewriting your models.
-
-## One dependency, eight libraries
-
-Your pubspec names Beak once:
-
-```yaml
-dependencies:
-  beak:
-    git:
-      url: https://github.com/SimonErich/beak.git
-      path: packages/beak
+```dart title="examples/clean_beak_config/lib/resources/categories/category_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryResource"
 ```
 
-Behind that one name are eight libraries. Which one a file imports says what
-that file is: a model, a screen, a server, a migration, a test.
+Every argument is optional except the model. Leave `screens` out and Beak derives the table, the form and the detail page from the schema.
 
-| Import | What it holds |
+### 3. The panel
+
+One widget lists the resources and holds the app-wide choices (theme, formatting, extra pages). In an authored project it is `lib/main.dart`; in a generated one it comes from `beak.yaml`. [Two ways to boot a panel](generated-or-authored.md) explains both.
+
+```dart title="examples/clean_beak_config/lib/main.dart"
+--8<-- "examples/clean_beak_config/lib/main.dart:shopMain"
+```
+
+### 4. The server hook
+
+The generated server already serves every model. `lib/server.dart` is where you change it: a policy, sessions, middleware, and the rules that must hold across several records at once.
+
+```dart title="examples/clean_beak_config/lib/server.dart"
+--8<-- "examples/clean_beak_config/lib/server.dart:shopServer"
+```
+
+It is optional. A project with no `lib/server.dart` gets the defaults, which is exactly what the quickstart runs.
+
+### What Beak writes
+
+| Written by `beak prepare` | Holds |
 | --- | --- |
-| `package:beak/beak.dart` | Columns, models, relationships, the serializable `BeakQuerySpec`, the `BeakDataSource` seam, the storage abstraction, and the raw `BeakClient`. No Flutter, no `dart:io`. |
-| `package:beak/schema.dart` | The annotations a schema class carries: `@Resource`, `@Column`, `@Display`, `@BelongsTo` and the rest. |
-| `package:beak/panel.dart` | The panel: `BeakPanel`, resources, blocks, tables, forms, detail views, actions, dashboards. |
-| `package:beak/server.dart` | The Shelf host: config, storage wiring, auth, policies. |
-| `package:beak/migrations.dart` | The schema DSL for migrations and seeders. |
-| `package:beak/testing.dart` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, record factories, and the executable data-source contract. |
-| `package:beak/ui.dart` | obers_ui, for a screen that draws its own widgets. |
-| `package:beak/charts.dart` | obers_ui_charts. |
+| `<schema>.beak.dart` next to each schema class | Columns, relations, typed field references, the model, a typed record view |
+| `lib/migrations/create_<table>_table.dart` | The table, once; yours from then on |
+| `lib/beak/registry.g.dart`, `panel.g.dart`, `app.g.dart`, `server.g.dart` | The model registry and the wiring of panel and server |
+| `bin/serve.dart`, `bin/migrate.dart` | The entrypoints that serve the API and run migrations |
 
-The split is enforced rather than trusted, because `bin/serve.dart` reaches
-your models through the generated registry and a stray `dart:ui` import there
-would stop the server compiling ahead of time.
-[Libraries](../reference/libraries.md) has the long version.
+You never edit those, and [Generated files and symbols](../reference/generated-files.md) lists every one.
 
-Underneath, Beak is a small monorepo of layered packages: `beak_core` (the
-shared vocabulary), `beak_backend` (the Shelf server), `beak_frontend` (the
-panel), `beak_cli` (the `beak` command), the S3 and FTP storage drivers,
-`beak_image`, and the vendored worm ORM. You never depend on them individually.
-[Packages](../reference/packages.md) describes them for contributors and for
-anyone reading the source.
+### What runs
 
-The obers_ui trio (`obers_ui`, `obers_ui_autoforms`, `obers_ui_charts`) comes
-in with the `beak` package and supplies every widget the panel renders. Beak
-never draws a Material widget of its own.
+The API is a Shelf server over the worm ORM. It exposes one set of routes per model (query, create, update, delete, export) and a graph-commit route that saves a whole form, related records included, in one transaction. The panel is a Flutter app built on obers_ui, with no Material anywhere in it. The two halves talk over REST, and each half sits behind an interface (`BeakDataSource`), so a different backend can replace the default. [The four layers](../concepts/the-four-layers.md) and the [Architecture](../architecture/index.md) section go inside.
 
-## The examples
+## Why it is shaped this way
 
-Four projects in the repository, each answering a different question.
+An admin resource is three things that drift: a table, a REST surface over it and a set of screens over that surface. Written by hand, a rule lands in the API and not in the form, or a column is renamed in the table and not in the export. Beak has one declaration and reads it from every side, so there is nothing to keep in step. [The one-definition promise](../concepts/the-one-definition-promise.md) shows the seven places a single field ends up.
 
-| Example | What it is |
-| --- | --- |
-| `examples/quickstart` | Exactly what `beak create` produces, checked in. |
-| `examples/store` | The teaching example this section and the tutorial quote: every column kind, all four relationship kinds, auth with a row policy, uploads, a wizard, a dashboard. API on port 8080. |
-| `examples/superdashboard` | The same ideas at 49 models: 17 navigable resources, every one of the 48 block types, charts, maps. API on port 8180. |
-| `examples/embedded` | Beak mounted inside an application that already exists, including a table another system owns. |
+The declaration is Dart, not YAML or a UI builder, for two reasons. The compiler checks it: a field reference is a generated symbol, so a typo is a missing name and not a blank column at runtime. And it lives in your repository, next to your other code, where your reviews, your tests and your coding agents already work. Beak's promise is that you never write a string field reference and never touch `dynamic`.
+
+## What it means for you
+
+You write a schema class per table and run three commands. The rest of your time goes to the parts that differ from the default: a form laid out in steps, a business rule that spans records, a custom page. Those have named extension points (screens, blocks, `preparePlan`, custom widgets), and nothing stops you from dropping to plain Flutter for a screen.
+
+### What Beak is not
+
+- Not an app framework. It builds the admin side. Your customer-facing UI is yours, in whatever you like. [An existing Flutter app](paths/existing-flutter-app.md) shows the two living in one repository.
+- Not a no-code tool. Everything is Dart. If nobody on the team writes Dart, Beak is the wrong tool.
+- Not a backend-as-a-service. The API runs in your process on your database. For a backend you already have, see [An existing backend](paths/existing-backend.md).
+- Not mature. It is pre-1.0, version `0.9.0` is not tagged yet, and the API is not frozen. [Upgrading](upgrading.md) lists what changed in this release, and the [changelog](https://github.com/SimonErich/beak/blob/main/CHANGELOG.md) carries a known-issues list. [Why Beak?](why-beak.md) has the longer version of when it fits.
 
 ## Continue reading
 
-- [Why Beak?](why-beak.md) the argument for this approach and its tradeoffs.
-- [The one-definition promise](../concepts/the-one-definition-promise.md) how one
-  declaration feeds six surfaces.
-- [Quickstart](quickstart.md) see the whole thing running in a few minutes.
-- [Annotations](../reference/annotations.md) every annotation a schema class can
-  carry.
+- [Why Beak?](why-beak.md): when it fits, when a hand-built admin is cheaper, and how it compares.
+- [Installation](installation.md): get the `beak` command and create a project.
+- [The one-definition promise](../concepts/the-one-definition-promise.md): what a single field drives.
+- [Declarative resources](../concepts/declarative-resources.md): schemas, resources and screens as configuration.

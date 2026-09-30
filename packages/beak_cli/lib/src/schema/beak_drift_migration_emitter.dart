@@ -33,14 +33,20 @@ abstract final class BeakDriftMigrationEmitter {
   /// The declared columns this cannot add, and why, for the caller to report.
   ///
   /// Kept beside [addable] so the two cannot disagree about which column
-  /// belongs where.
-  static Map<BeakMissingColumn, String> unaddable(List<BeakDrift> drift) => {
+  /// belongs where. [isSqlite] says whose limit a refusal may name: a unique
+  /// column is refused on every database, and only SQLite is the reason on
+  /// SQLite.
+  static Map<BeakMissingColumn, String> unaddable(
+    List<BeakDrift> drift, {
+    bool isSqlite = true,
+  }) => {
     for (final problem in drift)
       if (problem case BeakMissingColumn(
         cause: BeakMissingColumnCause.declared,
         column: final BeakColumnIr column,
       ))
-        if (!_canAddToLiveTable(column)) problem: _refusalFor(column),
+        if (!_canAddToLiveTable(column))
+          problem: _refusalFor(column, isSqlite: isSqlite),
   };
 
   /// Whether [column] can be added to a table that already holds rows.
@@ -57,24 +63,22 @@ abstract final class BeakDriftMigrationEmitter {
   /// Whether a required [column] arrives with a value the existing rows can
   /// take.
   ///
-  /// Mirrors what `BeakBlueprint.defineColumn` will really emit, which is not
-  /// the same as "the field declared a default": a boolean always defaults to
-  /// false, because a nullable boolean is three-valued and no Beak form can
-  /// express that, and an enum contributes its own `defaultValue`. Only an
-  /// enum may declare one at all, since `@Column(defaultValue:)` is rejected
-  /// on every other kind.
+  /// Scalar defaults are applied by the schema builder. Non-nullable boolean
+  /// columns also retain the conventional false default; tri-state booleans do
+  /// not collapse absence into false.
   static bool _hasValueForExistingRows(BeakColumnIr column) =>
-      column.kind == BeakColumnKind.boolean ||
-      (column.kind == BeakColumnKind.enumeration && column.hasDefault);
+      column.hasDefault ||
+      (column.kind == BeakColumnKind.boolean &&
+          column.arguments['tristate'] != 'true');
 
   /// Why [column] cannot be added, phrased as an edit that is actually
   /// available for its kind.
-  static String _refusalFor(BeakColumnIr column) {
+  static String _refusalFor(BeakColumnIr column, {required bool isSqlite}) {
     if (column.isUnique) {
       // Not "make it nullable": the refusal keys on `unique:`, so a nullable
       // column still carrying the option would be refused again, and the
       // remedy would have sent someone in a circle.
-      return 'SQLite cannot add a unique column to an existing table; '
+      return '${isSqlite ? 'SQLite cannot add a unique column to an existing table' : 'a unique column is not added to an existing table'}; '
           'declare it without `unique: true` for now, backfill, then add '
           'the unique index in a migration of its own';
     }
@@ -83,10 +87,8 @@ abstract final class BeakDriftMigrationEmitter {
           'there; give it `@Column(defaultValue: ...)`, or make it nullable '
           'and backfill';
     }
-    // `@Column(defaultValue:)` is enum-only, so naming it here would send
-    // someone after an option the reader rejects.
-    return 'a required column needs a value for the rows already there, and '
-        'only an enum can declare one; make it nullable and backfill';
+    return 'a required column needs a value for the rows already there; '
+        'give it `@Column(defaultValue: ...)`, or make it nullable and backfill';
   }
 
   /// The migration body for [drift], grouped by table.
@@ -110,9 +112,11 @@ abstract final class BeakDriftMigrationEmitter {
     }
     final tables = byTable.keys.toList()..sort();
 
+    // Relative to lib/migrations/, like the create migration's import: a
+    // schema may live anywhere under lib/, a resource folder included.
     final imports = <String>{
       for (final table in tables)
-        "import '../models/${_libraryOf(byTable[table]!.first.schema)}';",
+        "import '../${byTable[table]!.first.schema.libraryPath}';",
     };
 
     final buffer = StringBuffer()
@@ -127,6 +131,17 @@ abstract final class BeakDriftMigrationEmitter {
       ..writeln('///')
       ..writeln('/// Written from the difference between the schema classes')
       ..writeln('/// and the database, and yours from now on.')
+      ..writeln('///')
+      ..writeln(
+        '/// Every alteration first asks the database whether it is needed.',
+      )
+      ..writeln('/// A fresh database already has these columns, because the')
+      ..writeln(
+        '/// create-table migration reads the model as it is now, so an',
+      )
+      ..writeln(
+        '/// unguarded `alter` would fail there with a duplicate column.',
+      )
       ..writeln('final class $className extends Migration {')
       ..writeln('  /// Creates the migration.')
       ..writeln('  const $className();')
@@ -135,42 +150,112 @@ abstract final class BeakDriftMigrationEmitter {
       ..writeln("  String get name => '${timestamp}_${_snakeOf(className)}';")
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  Future<void> upSchema(Schema schema) async {');
+      ..writeln('  Future<void> upSchema(Schema schema) async {')
+      ..writeln('    final live = await schema.adapter.introspectSchema();');
     for (final table in tables) {
-      buffer.writeln("    await schema.alter('$table', (table) {");
       for (final column in byTable[table]!) {
-        // The same mapping the create migration used, so a column added here
-        // and a column created there cannot become different columns.
-        buffer.writeln(
-          '      BeakBlueprint.defineColumn('
-          'table, ${column.schema.columnsClass}.${column.column?.fieldName});',
-        );
+        buffer
+          ..writeln("    if (!_has(live, '$table', '${column.columnKey}')) {")
+          ..writeln("      await schema.alter('$table', (table) {");
+        _writeAddition(buffer, column);
+        buffer
+          ..writeln('      });')
+          ..writeln('    }');
       }
-      buffer.writeln('    });');
     }
     buffer
       ..writeln('  }')
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  Future<void> downSchema(Schema schema) async {');
+      ..writeln('  Future<void> downSchema(Schema schema) async {')
+      ..writeln('    final live = await schema.adapter.introspectSchema();');
     for (final table in tables) {
-      buffer.writeln("    await schema.alter('$table', (table) {");
       for (final column in byTable[table]!) {
-        buffer.writeln("      table.dropColumn('${column.columnKey}');");
+        buffer
+          ..writeln("    if (_has(live, '$table', '${column.columnKey}')) {")
+          ..writeln("      await schema.alter('$table', (table) {");
+        _writeRemoval(buffer, column);
+        buffer
+          ..writeln('      });')
+          ..writeln('    }');
       }
-      buffer.writeln('    });');
     }
     buffer
       ..writeln('  }')
+      ..writeln()
+      ..writeln(
+        '  /// Whether [column] is already in [table] of the live schema.',
+      )
+      ..writeln('  static bool _has(')
+      ..writeln('    Map<String, List<String>> live,')
+      ..writeln('    String table,')
+      ..writeln('    String column,')
+      ..writeln('  ) => live[table]?.contains(column) ?? false;')
       ..writeln('}');
     return BeakEmitters.format(buffer.toString());
   }
 
-  /// The `lib/models/`-relative library a schema is declared in.
-  static String _libraryOf(BeakSchemaIr schema) =>
-      schema.libraryPath.startsWith('models/')
-      ? schema.libraryPath.substring('models/'.length)
-      : schema.libraryPath;
+  /// The statements inside the `alter` that adds [missing].
+  ///
+  /// The same mapping the create migration used, so a column added here and a
+  /// column created there cannot become different columns.
+  static void _writeAddition(StringBuffer buffer, BeakMissingColumn missing) {
+    final BeakColumnIr column = missing.column!;
+    final String reference =
+        '${missing.schema.columnsClass}.${column.fieldName}';
+    final BeakRelationIr? relation = _belongsToBackedBy(missing);
+    if (relation == null) {
+      buffer.writeln('        BeakBlueprint.defineColumn(table, $reference);');
+      return;
+    }
+    // What `defineColumns` and `defineForeignKeys` do for a key on create: a
+    // nullable uuid, its index, and its constraint. The constraint is read
+    // from the relationship constant rather than restated, so the referenced
+    // table and the delete rule cannot disagree with the model.
+    buffer
+      ..writeln(
+        '        BeakBlueprint.defineColumn('
+        'table, $reference, isForeignKey: true);',
+      )
+      ..writeln(
+        '        final relation = '
+        '${missing.schema.relationsClass}.${relation.fieldName};',
+      )
+      ..writeln('        table.index([relation.foreignKey]);')
+      ..writeln('        table.foreign(')
+      ..writeln('          column: relation.foreignKey,')
+      ..writeln("          references: 'id',")
+      ..writeln('          onTable: relation.relatedTable,')
+      ..writeln('          onDelete: wormOnDelete(relation.onDelete),')
+      ..writeln('        );');
+  }
+
+  /// The statements inside the `alter` that takes [missing] away again.
+  ///
+  /// A key's index goes first: SQLite refuses to drop an indexed column, and
+  /// the index is Beak's own, named the way `table.index` names it.
+  static void _writeRemoval(StringBuffer buffer, BeakMissingColumn missing) {
+    if (_belongsToBackedBy(missing) != null) {
+      buffer.writeln(
+        "        table.dropIndex('${missing.table}_${missing.columnKey}_idx');",
+      );
+    }
+    buffer.writeln("        table.dropColumn('${missing.columnKey}');");
+  }
+
+  /// The belongs-to relationship whose key is [missing], if there is one.
+  ///
+  /// The schema lists such a key among its columns as a plain `String`, which
+  /// is right for reading it and wrong for creating it.
+  static BeakRelationIr? _belongsToBackedBy(BeakMissingColumn missing) {
+    for (final relation in missing.schema.relations) {
+      if (relation.kind == BeakRelationKind.belongsTo &&
+          relation.foreignKey == missing.columnKey) {
+        return relation;
+      }
+    }
+    return null;
+  }
 
   /// `AddStockToProducts` -> `add_stock_to_products`.
   static String _snakeOf(String className) => className

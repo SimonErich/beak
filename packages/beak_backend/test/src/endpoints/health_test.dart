@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -110,9 +109,10 @@ void main() {
       expect(await bodyOf(response), {'status': 'ok'});
     });
 
-    test('reports 503 and the cause when it does not', () async {
+    test('reports 503 when it does not, without leaking the cause', () async {
       // Readiness decides whether to route traffic. This is the one that must
-      // fail, so a rolling deploy drains rather than serving errors.
+      // fail, so a rolling deploy drains rather than serving errors. The
+      // probe is unauthenticated, so the driver's message stays in the logs.
       final response = await get(
         handlerFor(registry, const _DownDataSource()),
         '/readyz',
@@ -121,8 +121,36 @@ void main() {
       expect(response.statusCode, 503);
       final body = await bodyOf(response);
       expect(body['status'], 'unavailable');
-      expect(body['detail'], contains('connection refused'));
+      expect(body['detail'], 'the data source did not answer');
+      expect('$body', isNot(contains('connection refused')));
     });
+
+    test(
+      'hands the swallowed failure to the unexpected-error listener',
+      () async {
+        final reported = <Object>[];
+        final handler = const Pipeline()
+            .addMiddleware(beakJsonMiddleware())
+            .addMiddleware(beakErrorMappingMiddleware())
+            .addHandler(
+              beakApiRouter(
+                registry: registry,
+                dataSource: const _DownDataSource(),
+                onUnexpectedError: (error, stackTrace) => reported.add(error),
+              ),
+            );
+
+        await get(handler, '/readyz');
+
+        expect(reported, [
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            'connection refused',
+          ),
+        ]);
+      },
+    );
 
     test('an empty registry is ready, and says why', () async {
       final response = await get(

@@ -22,11 +22,13 @@
 /// ```
 ///
 /// [S3ObjectClient] is the wire seam the driver speaks through; production
-/// code uses [MinioS3ObjectClient], and tests substitute a fake.
+/// code uses [HttpS3ObjectClient], and tests substitute a fake.
 library;
 
+export 'src/http_s3_object_client.dart';
 export 'src/s3_object_client.dart';
+export 'src/s3_response_exception.dart';
 export 'src/s3_storage_driver.dart';
 
 /// The version of the `beak_storage_s3` package.
-const String beakStorageS3Version = '0.0.1';
+const String beakStorageS3Version = '0.9.0';

@@ -33,6 +33,7 @@ final class SqlCompiler {
     buffer
       ..write(' FROM ')
       ..write(descriptor.table);
+    if (descriptor.tableAlias case final alias?) buffer.write(' AS $alias');
     for (final join in descriptor.joins) {
       buffer
         ..write(' ${join.kind.sql} ')
@@ -121,9 +122,9 @@ final class SqlCompiler {
       Operator.gte => '$field >= ${_literal(p.value)}',
       Operator.lt => '$field < ${_literal(p.value)}',
       Operator.lte => '$field <= ${_literal(p.value)}',
-      Operator.like => '$field LIKE ${_literal(p.value)}',
-      Operator.notLike => '$field NOT LIKE ${_literal(p.value)}',
-      Operator.ilike => '$field ILIKE ${_literal(p.value)}',
+      Operator.like => '$field LIKE ${_literal(p.value)}${_escape(p)}',
+      Operator.notLike => '$field NOT LIKE ${_literal(p.value)}${_escape(p)}',
+      Operator.ilike => '$field ILIKE ${_literal(p.value)}${_escape(p)}',
       Operator.isNull => '$field IS NULL',
       Operator.isNotNull => '$field IS NOT NULL',
       Operator.inList => '$field IN ${_listLiteral(p.value)}',
@@ -132,6 +133,9 @@ final class SqlCompiler {
       Operator.notBetween => '$field NOT BETWEEN ${_rangeLiteral(p.value)}',
     };
   }
+
+  String _escape(Predicate p) =>
+      p.escape == null ? '' : ' ESCAPE ${_literal(p.escape)}';
 
   String _renderColumn(ColumnNode node) {
     final left = node.leftTable != null

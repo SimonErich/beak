@@ -11,7 +11,11 @@ import 'package:beak_core/beak_core.dart';
 ///
 /// ```dart
 /// final repository = BeakUploadRepository(uploadClient);
-/// final result = await repository.upload('products', ProductColumns.image, file);
+/// final result = await repository.upload(
+///   'products',
+///   ProductModel.image.column,
+///   file,
+/// );
 /// switch (result) {
 ///   case BeakOk(:final value):
 ///     print('stored at ${value.url}');
@@ -62,6 +66,10 @@ final class BeakUploadRepository {
       return BeakOk(await client.upload(table, column.key, file));
     } on BeakException catch (exception) {
       return BeakErr(exception);
+    } on Exception {
+      return const BeakErr(
+        BeakStorageException('Unable to upload the file. Please try again.'),
+      );
     }
   }
 }

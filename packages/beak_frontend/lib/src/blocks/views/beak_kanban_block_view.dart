@@ -9,35 +9,21 @@ class _BeakKanbanBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
-    final records = useState(const <BeakRecord>[]);
+    final dataSource = beakDependencies(context)<BeakDataSource>();
+    final rows = _useModuleRows(
+      dataSource,
+      BeakQuerySpec(
+        table: block.model.table,
+        filter: block.filter,
+        sorts: [
+          if (block.sortField case final BeakColumn column)
+            BeakSort(column.key, descending: block.sortDescending),
+        ],
+        pagination: _modulePage,
+      ),
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: block.model.table,
-            sorts: [
-              if (block.sortField case final BeakColumn column)
-                BeakSort(column.key, descending: block.sortDescending),
-            ],
-            pagination: _modulePage,
-          ),
-        );
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
-    final BeakEnumColumn<Enum> groupField = block.groupField;
+    final BeakEnumColumn<Enum> groupField = block.groupColumn;
     final columns = <OiKanbanColumn<BeakRecord>>[
       for (final value in groupField.values)
         OiKanbanColumn<BeakRecord>(
@@ -45,47 +31,60 @@ class _BeakKanbanBlockView extends HookWidget {
           title: groupField.labelFor(value),
           color: _resolveBeakColor(context, groupField.badgeColorFor(value)),
           items: [
-            for (final record in records.value)
+            for (final record in rows.value.records)
               if (_readString(record, groupField) == value.name) record,
           ],
         ),
     ];
 
-    return OiKanban<BeakRecord>(
-      label: block.label,
-      columns: columns,
-      cardKey: (record) =>
-          block.model.primaryKeyOf(record) ?? identityHashCode(record),
-      cardBuilder: (record) => _card(context, record),
-      onCardMove: (record, from, to, index) async {
-        final Enum? target = groupField.valueByName(to.toString());
-        final Object? id = block.model.primaryKeyOf(record);
-        if (target != null && id != null) {
+    return _withTruncationNote(
+      context,
+      rows.value,
+      OiKanban<BeakRecord>(
+        label: block.label,
+        columns: columns,
+        cardKey: (record) =>
+            block.model.primaryKeyOf(record) ?? identityHashCode(record),
+        cardBuilder: (record) => _card(context, record),
+        onCardMove: (record, from, to, index) async {
+          final Enum? target = groupField.valueByName(to.toString());
+          final Object? id = block.model.primaryKeyOf(record);
+          // A drop inside the card's own column changes no group: there is
+          // nothing to write, and no move to report.
+          if (target == null ||
+              id == null ||
+              _readString(record, groupField) == target.name) {
+            return;
+          }
           final result = await BeakResourceRepository(dataSource).update(
             block.model.table,
             id,
             BeakRecord(values: {groupField.key: BeakStringValue(target.name)}),
           );
-          // Mirror a successful write into the rendered records so the card
-          // stays in its new column; on failure it visibly snaps back.
-          if (result case BeakOk()) {
-            records.value = [
-              for (final row in records.value)
-                if (identical(row, record))
-                  BeakRecord(
-                    values: {
-                      ...row.values,
-                      groupField.key: BeakStringValue(target.name),
-                    },
-                    relations: row.relations,
-                  )
-                else
-                  row,
-            ];
+          switch (result) {
+            case BeakOk():
+              // Mirror the confirmed write into the rendered records so the
+              // card stays in its new column until the refetch lands.
+              rows.value = _ModuleRows([
+                for (final row in rows.value.records)
+                  if (identical(row, record))
+                    BeakRecord(
+                      values: {
+                        ...row.values,
+                        groupField.key: BeakStringValue(target.name),
+                      },
+                      relations: row.relations,
+                    )
+                  else
+                    row,
+              ], rows.value.total);
+              block.onCardMove?.call(record);
+            case BeakErr(:final error):
+              // A refused move leaves the card where it was.
+              if (context.mounted) _reportWriteFailure(context, error);
           }
-        }
-        block.onCardMove?.call(record);
-      },
+        },
+      ),
     );
   }
 

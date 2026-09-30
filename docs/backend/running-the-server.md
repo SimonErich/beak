@@ -1,455 +1,217 @@
 ---
 title: Running the server
-description: Boot a Beak backend from the generated bin/serve.dart, understand the BeakServeHost behind it, and change the parts that are yours in lib/server.dart.
+description: Boot the generated Shelf host, see what it resolves, change it in lib/server.dart and mount the same handler in a Shelf app of your own.
+type: guide
+audience: [beginner, expert]
+status: stable
 ---
 
 # Running the server
 
-After this page you can start a Beak backend, point it at a database, and change
-the parts of it that are actually yours: the policy, the login accounts, the
-middleware, the upload driver.
+`beak prepare` already wrote a server. After this page you can start it, name what it resolved from your environment, change it in one file, and mount the same handler inside a Shelf app you own.
 
-You no longer write a `main()` for the server. `beak prepare` writes two of them,
-`bin/serve.dart` and `bin/migrate.dart`, and both are a single statement over the
-same generated host.
+You do not write routes, a `main()` or a database bootstrap. The generated `bin/serve.dart` asks the generated `beakHost()` for a `BeakServeHost`, the host builds a `BeakServer`, and the server serves every model in your registry. The one file that is yours is the optional `lib/server.dart`.
 
-## The whole entrypoint
+## At a glance
 
-Here is `examples/store/bin/serve.dart`, minus the "generated, do not edit"
-header every generated file carries.
-
-```dart title="examples/store/bin/serve.dart"
-import 'dart:io';
-
-import 'package:store/beak/server.g.dart';
-
-/// Serves the API.
-Future<void> main() async {
-  final HttpServer server = await beakHost().serve();
-  stderr.writeln('listening on http://${server.address.host}:${server.port}');
-}
-```
-
-Run it from the project directory:
+| Piece | Who writes it | What it does |
+| --- | --- | --- |
+| `lib/beak/server.g.dart` | `beak prepare` | `beakHost()`: the registry, the migrations, the seeders and your `beakServer` function, wired into a `BeakServeHost` |
+| `bin/serve.dart` | `beak prepare` | `beakHost().serve()`, then waits for SIGINT or SIGTERM and closes the server |
+| `bin/migrate.dart` | `beak prepare` | `beakHost().runCli(args)`, which is what `beak migrate` and `beak seed` call |
+| `lib/server.dart` | you, optional | `BeakServer beakServer(BeakServerDefaults defaults)`: policy, sessions, middleware, routes, graph rules, outbox |
 
 ```bash
-cd examples/store
-dart run bin/serve.dart
+beak migrate   # apply pending migrations, see the Migrations page
+beak dev       # regenerate, print the flutter run line, serve the API
 ```
 
-You should see, on stderr:
+`beak dev` is `prepare` plus `dart run bin/serve.dart`. It does not watch files, so a change to a schema class or to `lib/server.dart` needs a restart. [CLI commands](../reference/cli-commands.md#beak-dev) has its flags.
 
-```text
-listening on http://0.0.0.0:8080
+```console
+$ PORT=8391 HOST=127.0.0.1 dart run bin/serve.dart
+listening on http://127.0.0.1:8391
+[cd3cbc2ad0a8b9fc] GET /healthz -> 200 (4ms)
+[781a5f186f4c00c9] POST /api/products/query -> 200 (11ms)
 ```
 
-The store binds `0.0.0.0` on port **8080** by default, so the panel reaches it at
-`http://localhost:8080`. The kitchen-sink showcase, `examples/superdashboard`,
-sets `server.port: 8180` in its `beak.yaml` because both run from this
-repository. Match the port to the app or a client hits connection-refused.
+With nothing set, that is `0.0.0.0:8080` on a SQLite file called `beak.db`. The two log lines are the request log, one per request, on stderr.
 
-`beak dev` is the same boot with a regeneration in front of it: it runs
-`beak prepare`, prints the `flutter run` line for the panel, and then starts
-`bin/serve.dart` for you.
+## What the host resolves
 
-!!! note "What just happened"
-    - `beakHost()` came from `lib/beak/server.g.dart`: your registry, your
-      migrations, your seeders, and your `lib/server.dart` if you wrote one.
-    - `serve()` resolved the environment, validated it into a typed config,
-      connected the database, resolved the upload driver, built the server, and
-      bound the socket.
-    - Not one line of that chain is a file you maintain.
+The generated file is short, because everything it lists was found on disk:
 
-## What beakHost() is
-
-`lib/beak/server.g.dart` is generated and committed. It is the only place your
-project's parts are named, and `beak prepare` names them by looking at the
-folders they live in.
-
-```dart title="examples/store/lib/beak/server.g.dart"
+```dart title="examples/clean_beak_config/lib/beak/server.g.dart"
 BeakServeHost beakHost({Map<String, String>? environment}) => BeakServeHost(
   environment: environment,
   registry: buildBeakRegistry(),
   migrations: const [
-    CreateCategoriesTable(),
-    CreateUsersTable(),
-    CreateOrdersTable(),
-    CreateProductsTable(),
-    CreateOrderItemsTable(),
-    CreateRoastProfilesTable(),
-    CreateTagsTable(),
-    CreateProductTagTable(),
+    // ...
   ],
-  seeders: const [StoreSeeder()],
+  seeders: const [ShopSeeder()],
   configure: server.beakServer,
 );
 ```
 
-| Argument | Where it comes from |
+`serve()` turns that into a listening socket. Read it once, because it says what happens at boot and, more usefully, what does not:
+
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+--8<-- "packages/beak_backend/lib/src/server/beak_serve_host.dart:BeakServeHostServe"
+```
+
+1. The environment is `.env` overlaid by the process environment, and `BeakBackendConfig` reads `DATABASE_URL`, `PORT` and `HOST` from it. [Environment and config](../shipping/environment-and-config.md) lists every variable.
+2. `initializeBeakDatabase` opens the adapter the `DATABASE_URL` scheme names, see [Databases](databases.md).
+3. Migrations and seeders run here for one database only: `sqlite::memory:`, which vanishes with the process and cannot be prepared by another one. Every other database is migrated by `beak migrate`, on purpose, before the server that needs the columns starts.
+4. `resolveStorageDriver()` picks the upload driver, see [Uploads and storage wiring](uploads-and-storage-wiring.md).
+5. `buildServer` calls your `beakServer` if `lib/server.dart` has one, and `defaults.build()` if it does not.
+6. If the server carries an outbox schedule, the host validates it before binding the port, so a broken schedule fails the boot and not the first effect. Its drain loop starts once the socket is bound and stops when you close the server.
+
+The constructor arguments are the only levers, and `beak prepare` fills all of them. A test overrides `environment` and `now`:
+
+| Argument | Meaning |
 | --- | --- |
-| `registry` | Every `@Resource` class under `lib/models/`, through the generated `buildBeakRegistry()`. |
-| `migrations` | Every `Migration` under `lib/migrations/`, ordered by its `name`. |
-| `seeders` | Every `Seeder` under `lib/seeders/`. |
-| `configure` | Present only because the store has a `lib/server.dart` declaring `beakServer`. |
-| `storageRegistry` | Present only when that same file also declares `beakStorageRegistry`. |
-| `environment` | The parameter above, or `BeakEnv.resolve()` when the caller passes nothing. |
+| `registry` | Every model this backend serves |
+| `migrations`, `seeders` | What the CLI applies and runs, in the order `beak prepare` listed them |
+| `storageRegistry` | A `BeakStorageRegistry Function()` from `beakStorageRegistry()` in `lib/server.dart`, for plug-in upload drivers |
+| `configure` | Your `beakServer` function |
+| `environment` | Replaces the whole resolved environment, `.env` included |
+| `now` | The clock behind every write |
 
-There is no list to keep in step. Adding a migration means adding a file under
-`lib/migrations/`; adding a seeder means adding a file under `lib/seeders/`. The
-list that used to be hand-maintained is the list that used to be wrong.
+## Change the server in lib/server.dart
 
-The `environment` parameter is what makes the backend testable end to end. A test
-hands the real host a different database and a temporary upload directory, and
-still exercises the wiring the deployment runs:
+The file declares one top-level function. The host hands it everything it resolved (`config`, `registry`, `dataSource`, `environment`, `storage`, `now`), and you return the server. `beak eject server` writes a starter that returns `defaults.build()` unchanged. Run `beak prepare` after creating the file, because until then the generated host does not call it.
 
-```dart title="examples/store/test/api_sqlite_test.dart"
-  runStoreApiScenario(
-    description: 'store API on sqlite',
-    environmentFor: (port) => {
-      'DATABASE_URL': 'sqlite::memory:',
-      'BEAK_STORAGE_DRIVER': 'local',
-      'BEAK_LOCAL_ROOT_DIR': uploads.path,
-      // Served by the Beak server itself, so an uploaded file's URL resolves
-      // with nothing else running.
-      'BEAK_LOCAL_PUBLIC_BASE_URL': 'http://127.0.0.1:$port/uploads',
-    },
+The shop passes two things: the preparer that owns its cross-record rules, and the tables that may only be written through it.
+
+```dart title="examples/clean_beak_config/lib/server.dart"
+--8<-- "examples/clean_beak_config/lib/server.dart:shopServer"
+```
+
+Everything `build` accepts, quoted from the source:
+
+```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
+--8<-- "packages/beak_backend/lib/src/server/beak_serve_host.dart:BeakServerDefaultsBuild"
+```
+
+Pass what you want to change. Everything else keeps the value the host resolved.
+
+| Parameter | Default | Covered in |
+| --- | --- | --- |
+| `policy` | `BeakAllowAllPolicy()`, which allows everything | [Auth and policies](auth-and-policies.md) |
+| `authSessions` | none: no `/api/auth` routes | [Auth and policies](auth-and-policies.md) |
+| `authGuard` | a token guard over the sessions' store, or none | [Auth and policies](auth-and-policies.md) |
+| `middleware` | none | [Middleware](middleware.md) |
+| `routes` | none | [Middleware](middleware.md) |
+| `corsOrigin` | `*` | [Middleware](middleware.md) |
+| `onRequest` | one line per request on stderr | [Middleware](middleware.md) |
+| `onUnexpectedError` | the error and its stack trace on stderr | [Middleware](middleware.md) |
+| `onWarning` | the boot warning on stderr | The `warning:` line in [Rules and limits](#rules-and-limits) |
+| `maxPerPage` | `200`: a larger `perPage` is answered at that size | [REST API](../reference/rest-api.md) |
+| `preparePlan` | none | [Transactional business rules](graph-business-rules.md) |
+| `graphOnly` | none | [Transactional business rules](graph-business-rules.md) |
+| `finalizePlan` | none | [Durable effects](durable-effects.md) |
+| `outbox` | none | [Durable effects](durable-effects.md) |
+| `generateId` | a v4 uuid | Replaces the id mint behind every write, handy in tests |
+| `transformRunner` | the `beak_image` runner | [Uploads and storage wiring](uploads-and-storage-wiring.md) |
+| `storage` | the driver the environment selects | [Uploads and storage wiring](uploads-and-storage-wiring.md) |
+| `dataSource` | the worm source over the database | [Custom data sources](../extending/custom-data-sources.md) |
+| `signedUrlLifetime` | one hour | [Uploads and storage wiring](uploads-and-storage-wiring.md) |
+
+`build` also takes `storage:` and `dataSource:`, which replace what the host resolved: `defaults.build(storage: MyStorageDriver())` serves uploads through a driver you built, and `defaults.build(dataSource: MyDataSource())` serves the API from a source that is not worm, which is where [Custom data sources](../extending/custom-data-sources.md) picks up. A driver from a package goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER` instead. `signedUrlLifetime:` sets how long the links of a signing driver stay valid (default one hour).
+
+## Health probes
+
+Two routes sit outside `/api`, mounted before it, for a container platform:
+
+```console
+$ curl -s localhost:8391/healthz
+{"status":"ok"}
+$ curl -s localhost:8391/readyz
+{"status":"ok"}
+```
+
+`/healthz` answers while the process serves and never touches the database, so an outage cannot start a restart loop. `/readyz` counts the rows of the first registered model. It answers `503` with `{"status":"unavailable","detail":"the data source did not answer"}` when that fails, and the real error goes to `onUnexpectedError`. Neither probe consults a policy. [REST API](../reference/rest-api.md#health-probes) has the details.
+
+## Embed the handler in a Shelf app
+
+`BeakServer.handler` is the whole pipeline (request log, CORS, JSON, error mapping, auth, your middleware, the router) as one Shelf `Handler`. `host.buildServer` makes the server without binding a port, so another process can own the socket:
+
+```dart
+// Illustrative: a file of your own, using real Beak names. Nothing here is generated.
+import 'package:beak/migrations.dart';
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shop_admin/beak/server.g.dart';
+
+Future<void> main() async {
+  final BeakServeHost host = beakHost();
+  final DatabaseAdapter adapter = adapterFromUrl(host.config.databaseUrl);
+  await adapter.connect();
+  final BeakServer beak = host.buildServer(
+    adapter: adapter,
+    storage: host.resolveStorageDriver(),
   );
-```
-
-## What the host does
-
-`BeakServeHost` owns the whole lifecycle: environment, typed config, database
-adapter, registry, running server, plus the migration and seeding CLI over the
-same wiring.
-
-```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
-  BeakServeHost({
-    required this.registry,
-    this.migrations = const [],
-    this.seeders = const [],
-    this.storageRegistry,
-    this.configure,
-    Map<String, String>? environment,
-    DateTime Function()? now,
-  }) : _environment = environment ?? BeakEnv.resolve(),
-       _now = now ?? DateTime.now;
-```
-
-`serve()` does what every hand-written `main()` used to do, in the order it has
-to happen: connect the database, resolve the upload driver, build the server,
-bind the socket.
-
-```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
-  Future<HttpServer> serve() async {
-    await initializeWormPostgres(config);
-    final server = buildServer(
-      adapter: Worm.adapter(),
-      storage: resolveStorageDriver(),
-    );
-    return server.start();
-  }
-```
-
-`buildServer` is the seam underneath it: it assembles the data source and the
-defaults, and hands them to your `configure` hook if you have one.
-
-```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
-  BeakServer buildServer({
-    required DatabaseAdapter adapter,
-    BeakStorageDriver? storage,
-  }) {
-    final defaults = BeakServerDefaults(
-      config: config,
-      registry: registry,
-      dataSource: WormDataSource(registry, adapter: adapter, now: _now),
-      environment: _environment,
-      storage: storage,
-    );
-    return configure?.call(defaults) ?? defaults.build();
-  }
-```
-
-Because `buildServer` binds no socket, it is also how tests and embedded hosts
-get a real server without a port. The
-[`examples/embedded`](https://github.com/SimonErich/beak/tree/main/examples/embedded)
-app calls it and mounts `server.handler` inside a Shelf app it already had.
-
-## Configuration from the environment
-
-The server's own settings are parsed in exactly one factory,
-`BeakBackendConfig.fromEnv`. It takes an already-resolved map and validates it,
-throwing a `BeakConfigurationException` on anything malformed, so a bad value
-fails at startup instead of halfway through a request. (`BeakStorageSettings`
-does the same job for the `BEAK_STORAGE_*` variables covered further down, over
-the same resolved map. Those two are the whole of it: no handler, service or
-data source reads a variable.)
-
-The variables it reads:
-
-| Variable | Required | Default | Rule |
-| --- | --- | --- | --- |
-| `DATABASE_URL` | no | `sqlite:beak.db` | An absolute URL with a scheme. A `sqlite:` URL names a file (or `:memory:`); anything else needs a host, for example `postgres://user:pass@host:5432/db`. |
-| `PORT` | no | `8080` | An integer between 1 and 65535. |
-| `HOST` | no | `0.0.0.0` | Non-empty. |
-
-The defaults are named constants, so the `8080` above is not a bare literal:
-
-```dart title="packages/beak_backend/lib/src/config/beak_backend_config.dart"
-  /// The port the server listens on when `PORT` is unset.
-  static const int defaultPort = 8080;
-
-  /// The interface the server binds when `HOST` is unset.
-  static const String defaultHost = '0.0.0.0';
-```
-
-So is the database:
-
-```dart title="packages/beak_backend/lib/src/config/beak_backend_config.dart"
-  /// The database a project gets when it names none.
-  ///
-  /// A file beside the project, so the very first `beak dev` needs no Docker,
-  /// no credentials and no `.env`. Requiring a database to see anything at all
-  /// loses more first-time users than any other step.
-  static const String defaultDatabaseUrl = 'sqlite:beak.db';
-```
-
-One more thing worth knowing: the config's `toString` redacts the database
-credentials, so you can log the config object without leaking a password.
-
-### A fixed development port
-
-A project that wants a different port every day sets `PORT`. A project that
-wants the same one forever says so in `beak.yaml`:
-
-```yaml title="examples/superdashboard/beak.yaml"
-server:
-  # The store example already has 8080, and both run from this repository.
-  port: 8180
-```
-
-`beak prepare` folds that into the generated host as a *default*, spread before
-the resolved environment so a real `PORT` in a deployment still wins:
-
-```dart title="examples/superdashboard/lib/beak/server.g.dart"
-  environment: {'PORT': '8180', ...environment ?? BeakEnv.resolve()},
-```
-
-### Where the values come from: BeakEnv.resolve
-
-`BeakEnv.resolve()` produces the map `fromEnv` validates. It reads an optional
-`.env` file and lets the real process environment win over it, so local
-development uses the file and a deployment configures itself with real
-environment variables. No file is required in any environment.
-
-```dart title="packages/beak_backend/lib/src/config/env_loader.dart"
-  static Map<String, String> resolve({
-    String filePath = '.env',
-    Map<String, String>? processEnvironment,
-  }) => {...loadFile(filePath), ...processEnvironment ?? Platform.environment};
-```
-
-Secrets live in `.env`, which is git-ignored. A committed `.env.example`
-documents the keys without the values. See
-[Environment and config](../deployment/environment-and-config.md) for the
-deployment side of this.
-
-## Connecting the database
-
-One function maps a `DATABASE_URL` to a driver, and everything that opens a
-connection goes through it: the server, the migration CLI, and a hand-built
-adapter in a test.
-
-```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
---8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:adapterFromUrl"
-```
-
-`initializeWormPostgres` is the call `serve()` makes before anything else. It
-registers a single `'default'` adapter chosen by that scheme.
-
-```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
---8<-- "packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart:initializeWormPostgres"
-```
-
-Switching database is one variable:
-
-=== "SQLite (the default)"
-
-    ```bash
-    # Nothing to set. The server writes beak.db beside the project,
-    # and .gitignore already excludes it.
-    ```
-
-=== "Postgres"
-
-    ```bash
-    DATABASE_URL=postgres://beak:beak@localhost:25432/beak
-    ```
-
-The Postgres adapter is lazy: it opens a pool of up to ten connections on first
-use, not at `initialize` time. After the call, `Worm.adapter()` returns the live
-adapter the data source runs on.
-
-!!! warning "Call it once"
-    Calling `initializeWormPostgres` twice without a `Worm.reset()` in between
-    throws. In tests, `tearDown(Worm.reset)` keeps each test on a fresh adapter.
-
-## Changing what the server does
-
-`lib/server.dart` is the file you write when the defaults are not enough.
-Declare a top-level function called `beakServer` taking `BeakServerDefaults`, and
-`beak prepare` wires it into the host. `beak eject server` writes the starter
-version, which returns Beak's own default and changes nothing until your first
-edit.
-
-The store uses it for the two things Beak cannot guess: who may log in, and
-which rows each of them sees.
-
-```dart title="examples/store/lib/server.dart"
-BeakServer beakServer(BeakServerDefaults defaults) {
-  final String secret =
-      defaults.environment['AUTH_SECRET'] ?? 'store-dev-secret';
-  final store = InMemoryTokenSessionStore();
-  return defaults.build(
-    policy: const StorePolicy(),
-    authSessions: BeakAuthSessions(
-      store: store,
-      secret: secret,
-      users: [
-        BeakUserAccount(
-          username: 'ada@example.com',
-          passwordHash: hashBeakPassword('espresso', secret: secret),
-          principal: const BeakPrincipal(
-            id: StoreSeedIds.userAda,
-            roles: {'staff'},
-          ),
-        ),
-        // ...and linus@example.com, a customer.
-      ],
-    ),
-    authGuard: TokenSessionAuthGuard(store),
-  );
+  Future<Response> app(Request request) async => switch (request.url.path) {
+    'ping' => Response.ok('pong'),
+    _ => await beak.handler(request),
+  };
+  await shelf_io.serve(app, '127.0.0.1', 8394);
 }
 ```
 
-`BeakServerDefaults` carries everything the host already resolved:
+That serves `/ping` from your code and everything else from Beak, with your `beakServer` applied. The `shelf_io` import needs `shelf` in your own `pubspec.yaml` (`dart pub add shelf`), or the analyzer flags it. For most projects `routes:` on `defaults.build` does the same job without a second server, and a route of yours wins over a generated one on the same path.
 
-| Member | What it holds |
+Two things `buildServer` does not do, because `serve()` does them. It does not migrate or seed `sqlite::memory:`, and it does not start the outbox: call `beak.outbox?.start(adapter, onError: beak.onUnexpectedError)` yourself, and stop the loop it returns when you shut down.
+
+## Test the same host
+
+Because the host is built from the registry, the policies and the transport contracts you ship, a test can run the real thing. The shop's harness starts an isolated host on an ephemeral loopback port and talks to it with the same `BeakClient` the panel uses:
+
+```dart title="examples/clean_beak_config/test/support/shop_test_api.dart"
+--8<-- "examples/clean_beak_config/test/support/shop_test_api.dart:ShopTestApi"
+```
+
+Three seams do the work. `beakHost(environment: {...})` replaces the resolved environment, so a test never reads your `.env`. `MigrationRunner(...).fresh(seed: true)` builds the schema and the seed data in memory. `host.buildServer(adapter:)` builds the server over the adapter you hand it and binds nothing until you call `start()`. `dispose` closes the client, the server and the adapter, and resets worm's state.
+
+## Rules and limits
+
+| Rule | Consequence |
 | --- | --- |
-| `config` | Host, port and database URL, validated. |
-| `registry` | Every model the project registered. |
-| `dataSource` | The `WormDataSource` over the connected adapter. |
-| `storage` | The resolved upload driver, or `null` when uploads are off. |
-| `environment` | The environment the host resolved, `.env` included. |
-| `build(...)` | The server Beak would have built, with your changes applied. |
+| No `policy` means `BeakAllowAllPolicy` | A server built with `defaults.build()` answers anonymous requests in full. Bound beyond loopback (the default `0.0.0.0` counts) it prints one `warning:` line at boot; `onWarning` redirects it |
+| The host binds `0.0.0.0` and answers CORS with `*` by default | Fine in a container or on your laptop, open to the network anywhere else. Set `HOST` and `corsOrigin`. See [Security](../shipping/security.md) |
+| `lib/server.dart` is wired by `beak prepare` | A new or renamed `beakServer` is ignored until you run it. `beak dev`, `beak migrate` and `beak seed` run it for you |
+| A bad `DATABASE_URL`, `PORT` or `HOST` fails the boot | `serve()` throws a `BeakConfigurationException` that names the variable. The generated `bin/serve.dart` prints it as one line (`error: PORT must be ...`) and exits `BeakServeHost.configurationExitCode` (`78`); an entry point that does not catch it ends in `Unhandled exception:` and exit `255` |
+| A port that is already taken is a configuration failure | `Port 8080 is already in use on 0.0.0.0. Stop the other process or choose another port with PORT (server.port in beak.yaml).` It is a `BeakConfigurationException` from `BeakServer.start()`, so it prints as one line like the others |
+| `serve()` initializes worm's default adapter | Calling it twice in one process, without `Worm.reset()` between, throws |
+| `storage:` and `dataSource:` replace what the host resolved | A driver from a package goes through `beakStorageRegistry()` and `BEAK_STORAGE_DRIVER`. A data source that is not worm saves graph commits staged, not atomic, see [Custom data sources](../extending/custom-data-sources.md) |
+| One process holds the default sessions | The built-in session store is in memory, so a second instance does not know the first one's tokens. See [Auth and policies](auth-and-policies.md) |
 
-`build` takes the arguments worth changing and fills the rest in from the
-defaults:
+## Verify it
 
-```dart title="packages/beak_backend/lib/src/server/beak_serve_host.dart"
-  BeakServer build({
-    BeakPolicy policy = const BeakAllowAllPolicy(),
-    BeakAuthSessions? authSessions,
-    BeakAuthGuard? authGuard,
-    BeakRequestLogger? onRequest,
-    BeakUnexpectedErrorListener? onUnexpectedError,
-  }) => BeakServer(
+Start the server and ask it three things. The first two prove the process is up and the database answers, the third proves the API exists and shows what your policy says to an anonymous caller:
+
+```console
+$ curl -s localhost:8391/healthz
+{"status":"ok"}
+$ curl -s localhost:8391/readyz
+{"status":"ok"}
+$ curl -s -X POST localhost:8391/api/products/query \
+    -H 'content-type: application/json' -d '{"table":"products"}'
+{"items":[{"values":{"id":"00000000-0000-4000-8000-000000000001","name":"Espresso beans","price":12.5,"active":true,"created_at":null,"updated_at":null},"relations":{}}],"total":1,"page":1,"perPage":25}
 ```
 
-!!! tip "Read settings from `defaults.environment`, not `Platform.environment`"
-    The store reads its `AUTH_SECRET` off `defaults.environment`. That is what
-    makes the whole server testable: a test that hands `beakHost` an environment
-    hands it to the policy and the auth configuration too. Reaching for
-    `Platform.environment` inside `beakServer` would quietly opt out of that.
+With a `BeakPolicies` set that does not list the model, the third call must answer `401`. `beak doctor` checks that the generated files are current, that every model has a migration and that the database has the columns your schema classes declare.
 
-Leaving `policy` at its default `BeakAllowAllPolicy` permits every request.
-Tighten it with a real policy, covered in
-[Auth and policies](auth-and-policies.md).
+## Reference
 
-### Registering an upload driver
-
-`beak_backend` depends on no driver package on purpose, so an S3 dependency does
-not land in the graph of every Beak backend. A project that uploads to S3
-declares the package and registers it from the same `lib/server.dart`, in a
-second function called `beakStorageRegistry`:
-
-```dart title="examples/embedded/lib/server.dart"
---8<-- "examples/embedded/lib/server.dart:beakStorageRegistry"
-```
-
-`beak prepare` notices the second function and passes it through as the host's
-`storageRegistry`. Selecting a driver that is not registered throws a
-`BeakConfigurationException` naming it at boot, rather than failing on the first
-upload.
-
-## Uploads without S3, MinIO or a proxy
-
-`BEAK_STORAGE_DRIVER` picks the driver, and `local` needs nothing else running.
-Files land under `BEAK_LOCAL_ROOT_DIR`, and the Beak server serves them itself
-under the path of `BEAK_LOCAL_PUBLIC_BASE_URL`:
-
-```bash
-BEAK_STORAGE_DRIVER=local
-BEAK_LOCAL_ROOT_DIR=var/uploads
-BEAK_LOCAL_PUBLIC_BASE_URL=http://localhost:8080/uploads
-```
-
-That is the same posture as the default SQLite database: the first upload works
-on a laptop with no infrastructure. A deployment usually puts a CDN or a web
-server in front instead, in which case you point the public base URL at that and
-the built-in route stops being used. The details are in
-[Uploads and storage wiring](uploads-and-storage-wiring.md).
-
-With `BEAK_STORAGE_DRIVER` unset you get that same local disk driver without
-setting anything: files land under `storage/uploads` and the server serves them
-at `/uploads`. `BEAK_STORAGE_DRIVER=none` is the way to turn uploads off, and
-then the upload endpoints are not mounted at all.
-
-## Migrations and seeds run separately
-
-The server binary does not touch your schema. `bin/migrate.dart` is the same
-host with `runCli` instead of `serve`, so the migrations it applies and the API
-the server exposes can never come from different registries:
-
-```bash
-cd examples/store
-dart run bin/migrate.dart migrate
-dart run bin/migrate.dart db:seed
-```
-
-`beak migrate` and `beak seed` are the same two commands with a regeneration in
-front. Booting the server never applies a migration: a production schema change
-should be a decision you make, not a side effect of a deploy. See
-[Migrations](migrations.md) and [Seeding](seeding.md).
-
-## Booting the host in a test
-
-Because `beakHost` takes an environment and `buildServer` takes an adapter, an
-integration test drives the real backend with no infrastructure at all. The
-store's API suite does exactly that on `sqlite::memory:`, then runs the identical
-assertions against Postgres under the `e2e` tag.
-
-```dart title="examples/store/test/api_scenario.dart"
-      final BeakServeHost host = beakHost(environment: environment);
-      adapter = adapterFromUrl(host.config.databaseUrl);
-      await adapter.connect();
-      await MigrationRunner(
-        adapter: adapter,
-        migrations: host.migrations.toList(),
-        seeders: host.seeders,
-      ).fresh(seed: true);
-
-      final server = host.buildServer(
-        adapter: adapter,
-        storage: host.resolveStorageDriver(),
-      );
-      httpServer = await server.start();
-```
+- `packages/beak_backend/lib/src/server/beak_serve_host.dart`: `BeakServeHost`, `BeakServerDefaults`.
+- `packages/beak_backend/lib/src/server/beak_server.dart`: `BeakServer` and its pipeline.
+- `packages/beak_backend/lib/src/endpoints/health_router.dart`: the probes.
+- [Configuration and environment](../reference/configuration.md) lists `BeakServerDefaults`, `BeakBackendConfig` and `BeakServeHost` member by member.
+- [Backend flow](../architecture/backend-flow.md) follows one request through the layers.
 
 ## Continue reading
 
-- [The generated API](the-generated-api.md) the routes the running server exposes.
-- [Migrations](migrations.md) get the schema in place before the first boot.
-- [Middleware](middleware.md) what wraps the router inside `BeakServer.handler`.
-- [Auth and policies](auth-and-policies.md) what `lib/server.dart` usually exists for.
-- [Environment and config](../deployment/environment-and-config.md) the same config in a
-  deployment.
+- [Databases](databases.md) how `DATABASE_URL` picks SQLite or Postgres.
+- [Migrations](migrations.md) the step that has to run before the server does.
+- [Auth and policies](auth-and-policies.md) closing the door `BeakAllowAllPolicy` leaves open.
+- [Middleware](middleware.md) the pipeline around the router and how to add to it.

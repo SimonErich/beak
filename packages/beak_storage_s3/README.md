@@ -1,23 +1,86 @@
 # beak_storage_s3
 
-S3/MinIO storage driver for Beak's storage abstraction.
+The storage driver that keeps Beak's uploads in an S3 bucket: AWS S3, MinIO or
+anything else that speaks the S3 API. Without it, uploads go to a folder next to
+the server, which is fine on a laptop and wrong behind a load balancer.
 
-Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
-configuration-driven admin-panel framework for Dart/Flutter. See the
-[architecture guide](../../docs/architecture.md) for how the packages fit
-together.
+Part of [Beak](https://github.com/SimonErich/beak), a configuration-driven
+admin-panel framework for Dart and Flutter. Pure Dart, server side only.
 
-## What it is
+## Use it in an app
 
-A pluggable storage driver that plugs an S3-compatible backend (AWS S3, MinIO,
-...) into `beak_core`'s source-agnostic storage layer. Pure server-side Dart;
-it depends on `beak_core` and `package:minio` for the wire protocol, and
-nothing is hard-wired into core. Register it once with [registerS3Storage] and
-a `BeakStorageRegistry` resolves any `BeakS3Config` to an [S3StorageDriver],
-which implements `beak_core`'s `BeakStorageDriver` (`put`/`get`/`delete`/`url`/
-`exists`).
+Three steps: depend on the package, register the driver, pick it with
+environment variables.
 
-## Usage
+**1. Depend on it.** `beak_backend` depends on no driver package on purpose, so
+a server that never uploads to S3 does not carry this one. Add it next to
+`beak`:
+
+```yaml
+dependencies:
+  beak_storage_s3:
+    git:
+      url: https://github.com/SimonErich/beak.git
+      ref: v0.9.0
+      path: packages/beak_storage_s3
+```
+
+Until the `v0.9.0` tag exists, use `path:` to a checkout or another `ref:`.
+
+**2. Register the driver** in `lib/server.dart`. `beak prepare` finds
+`beakStorageRegistry()` and hands it to the generated server host; the file
+needs no `beakServer` function for this. This block is illustrative, and every
+name in it is real:
+
+```dart title="lib/server.dart"
+import 'package:beak/server.dart';
+import 'package:beak_storage_s3/beak_storage_s3.dart';
+
+/// The storage drivers this app can resolve.
+BeakStorageRegistry beakStorageRegistry() {
+  final registry = createDefaultStorageRegistry();
+  registerS3Storage(registry);
+  return registry;
+}
+```
+
+`registerS3Storage` is one line:
+
+```dart title="packages/beak_storage_s3/lib/src/s3_storage_driver.dart"
+void registerS3Storage(BeakStorageRegistry registry) {
+  registry.register('s3', S3StorageDriver.fromConfig);
+}
+```
+
+**3. Select it** in `.env` or the process environment. `BEAK_STORAGE_DRIVER=s3`
+requires the endpoint, bucket, access key, secret key and region, and a missing
+one fails at boot with its name. `BEAK_S3_USE_PATH_STYLE` is optional and
+defaults to virtual-host addressing, and `BEAK_S3_PUBLIC_BASE_URL` (also
+optional) names the address browsers read files from when a CDN sits in front:
+
+```bash
+BEAK_STORAGE_DRIVER=s3
+BEAK_S3_ENDPOINT=http://localhost:29000
+BEAK_S3_BUCKET=beak-uploads
+BEAK_S3_ACCESS_KEY=beak
+BEAK_S3_SECRET_KEY=beaksecret
+BEAK_S3_REGION=us-east-1
+BEAK_S3_USE_PATH_STYLE=true
+```
+
+Those are the values of `.env.example` in the Beak repository, which match the
+MinIO in its `docker-compose.yml` (`melos run up`). Selecting `s3` without step 2
+fails at boot and names the registered drivers:
+
+```console
+$ dart run bin/serve.dart
+BeakConfigurationException(configuration): No storage driver is registered for "s3". Registered drivers: memory, local.
+```
+
+## Use it on its own
+
+Every image and file column uploads through a `BeakStorageDriver`, and nothing
+stops a script from using one directly:
 
 ```dart
 import 'package:beak_core/beak_core.dart';
@@ -32,36 +95,75 @@ final driver = registry.resolve(BeakS3Config(
   accessKey: 'minioadmin',
   secretKey: 'minioadmin',
   region: 'us-east-1',
-  usePathStyle: true, // MinIO requires path-style addressing
+  usePathStyle: true, // MinIO needs path-style addressing
 ));
 
 final stored = await driver.put(upload, path: 'products');
-final signed = await driver.url(stored.key, expiresIn: Duration(hours: 1));
+final signed = await driver.url(stored.key, expiresIn: const Duration(hours: 1));
 ```
 
-Inject a fake [S3ObjectClient] to unit-test driver behavior without a live
-bucket:
+`BeakS3Config`, `BeakStorageRegistry`, `BeakUpload`, `BeakStoredFile` and
+`BeakStorageException` come from `beak_core`.
+
+## What the driver does
+
+| Call | Behavior |
+| --- | --- |
+| `put(upload, path:)` | Stores the bytes under `path/filename` with the upload's content type and returns a `BeakStoredFile` (key, URL, size, MIME type). |
+| `get(key)` | Returns the bytes. A missing object is a `BeakStorageException`. |
+| `delete(key)` | Checks the object exists, then removes it. Deleting an absent file is an error, unlike S3's own idempotent delete. |
+| `url(key)` | The public URL: `BeakS3Config.publicBaseUrl` when set (a CDN, say), else `endpoint/bucket/key` with `usePathStyle`, else `bucket.host/key`. |
+| `url(key, expiresIn:)` | A presigned GET URL that expires, unless `publicBaseUrl` is set: that address wins, because a presigned link would name the bucket endpoint. `expiresIn` is held to what S3 accepts, one second to seven days. |
+| `exists(key)` | Whether an object is stored under the key. |
+
+Every key is validated, and every client or transport failure is wrapped in a
+`BeakStorageException` (`S3 put failed for "products/a.png": ...`), so no raw S3
+error crosses the driver.
+
+## Test against a fake
+
+`S3ObjectClient` is the wire seam: five methods (`putObject`, `getObject`,
+`removeObject`, `objectExists`, `presignedGetUrl`). Production uses
+`HttpS3ObjectClient` (S3's REST API over `package:http`, signed with AWS
+Signature Version 4), tests substitute their own:
 
 ```dart
 final driver = S3StorageDriver(config, client: FakeS3ObjectClient());
 ```
 
-## Key types
+The suite in this package does that, and adds a live MinIO suite tagged `e2e`
+(`melos run up`, then `melos run test-e2e`).
 
-- `S3StorageDriver` — the `BeakStorageDriver` that stores files in an S3 bucket.
-- `registerS3Storage` — registers the driver factory under `'s3'` in a registry.
-- `S3ObjectClient` — the wire seam the driver speaks through; swap for a fake.
-- `MinioS3ObjectClient` — the production client, backed by `package:minio`.
+## Limits
 
-`BeakS3Config`, `BeakStorageRegistry`, `BeakStoredFile`, `BeakUpload`, and
-`BeakStorageException` come from `beak_core`.
+- **One request per object.** `put` sends the file in a single `PUT`, which S3
+  accepts up to 5 GiB. An upload is held in memory whole either way, so
+  `maxSizeInBytes` on the column is the limit that matters.
+- **`HEAD` cannot tell a missing bucket from a missing key.** S3 answers both
+  with a bodyless `404`, so `exists` returns `false` for either. `get` and
+  `put` see the error document and report `NoSuchBucket` by name.
+- **Upload links are signed for an hour.** Beak's upload route asks for a link
+  that expires after `signedUrlLifetime` (default one hour), so a private bucket
+  is readable through it. With `publicBaseUrl` set, that address is returned
+  instead.
+- **`BEAK_S3_PUBLIC_BASE_URL` sets `publicBaseUrl`.** A CDN in front of the
+  bucket needs no code.
+- **Storage failures stay on the server.** This driver's message ends with the
+  client's own error text, which can name the endpoint or the bucket. Over HTTP
+  the caller only sees `File storage failed.`, and the full message goes to
+  `onUnexpectedError`.
+
+## Continue reading
+
+- [Files and storage columns](https://simonerich.github.io/beak/models/files-and-storage-columns/): the columns that upload through a driver.
+- [Custom storage drivers](https://simonerich.github.io/beak/extending/custom-storage-drivers/): registering a shipped driver and writing your own.
+- [Environment and config](https://simonerich.github.io/beak/shipping/environment-and-config/): every variable, including `BEAK_STORAGE_DRIVER`.
+- [Storage internals](https://simonerich.github.io/beak/architecture/storage-internals/): how the registry resolves a config.
 
 ## Status
 
-Pre-1.0, part of the Beak monorepo. Consumed by the
-[reference admin](../../apps/reference_admin). Contributions welcome — see
-[CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
+Pre-1.0 and versioned in lockstep with the other `beak_*` packages (0.9.0). Not on pub.dev yet: depend on it from git with `ref: v0.9.0` once that tag exists, or from a checkout with `path:`. What changed: the [root changelog](https://github.com/SimonErich/beak/blob/main/CHANGELOG.md). Contributing: [CONTRIBUTING.md](https://github.com/SimonErich/beak/blob/main/CONTRIBUTING.md).
 
 ## License
 
-Apache-2.0 © Marqably GmbH. See [LICENSE](LICENSE).
+Apache-2.0 © Marqably GmbH. See [LICENSE](https://github.com/SimonErich/beak/blob/main/LICENSE).

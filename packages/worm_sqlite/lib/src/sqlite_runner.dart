@@ -104,7 +104,28 @@ final class SqliteRunner {
   Future<Map<String, Object?>> insert(InsertDescriptor d) =>
       SqliteErrorMapper.wrap(() async {
         _cachedWrite(compiler.compileInsert(d));
-        return _project(d.values, d.returning);
+        final projected = _project(d.values, d.returning);
+        final returning = d.returning;
+        if (returning == null) return projected;
+        // A returned column the statement did not supply (a serial key, a
+        // column default) is the database's to answer, and SQLite has no
+        // RETURNING in every build: read the new row back by its rowid. No
+        // await separates the write from the read, so nothing can insert in
+        // between on this connection.
+        final generated = <String>[
+          for (final column in returning)
+            if (!d.values.containsKey(column)) column,
+        ];
+        if (generated.isEmpty) return projected;
+        final rows = _rows(
+          _db.select(
+            'SELECT ${generated.map(_quote).join(', ')} '
+            'FROM ${_quote(d.table)} WHERE rowid = last_insert_rowid()',
+          ),
+        );
+        return rows.isEmpty
+            ? projected
+            : <String, Object?>{...projected, ...rows.first};
       }, table: d.table);
 
   Future<List<Map<String, Object?>>> insertMany(InsertManyDescriptor d) =>
@@ -365,7 +386,7 @@ final class SqliteRunner {
   /// Dispose the cached statements and the underlying connection.
   void dispose() {
     _cache.clear();
-    _db.dispose();
+    _db.close();
   }
 
   Future<Map<String, Object?>> _aggregateRow(AggregateDescriptor d) async {
@@ -386,14 +407,16 @@ final class SqliteRunner {
   }
 
   /// SQLite binds only int / double / String / Uint8List / null, so
-  /// normalise bools to 0/1 and DateTimes to ISO-8601 text.
+  /// normalise bools to 0/1 and DateTimes to ISO-8601 text, always of the UTC
+  /// instant: SQLite compares that text, and a local time written without its
+  /// offset would sort away from the UTC value naming the same moment.
   List<Object?> _bind(List<Object?> parameters) => <Object?>[
     for (final value in parameters) _bindValue(value),
   ];
 
   Object? _bindValue(Object? value) => switch (value) {
     final bool b => b ? 1 : 0,
-    final DateTime d => d.toIso8601String(),
+    final DateTime d => d.toUtc().toIso8601String(),
     _ => value,
   };
 

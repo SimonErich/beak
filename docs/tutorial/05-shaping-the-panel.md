@@ -1,415 +1,262 @@
 ---
 title: Shaping the panel
-description: Icons, sections, filters, actions, view modes, a shared show/edit layout, a form wizard, a custom screen and the dashboard, each decided in one small file.
+description: Choose table columns, add typed filters and search, set the brand and money formatting, and add an overview page and a workspace page built from blocks.
+type: tutorial
+audience: [beginner]
+status: stable
 ---
 
 # Shaping the panel
 
-Your models already produce a working panel. This chapter covers the decisions
-Beak cannot read off a schema class: where a resource sits, which filters and
-actions it offers, how its show page and form look, and what a reader sees at
-`/`. Every override is additive, and a resource you say nothing about stays
-generated.
+The panel you have works, and it looks like every Beak panel on its first day. This chapter changes what it shows: which columns a table has, which filters sit above it, what the search finds, how money reads, and two extra pages that are not lists at all.
 
-## Presentation lives in beak.yaml
+## What you'll build
 
-Icons, labels, sidebar sections and visibility are presentation, so they stay
-in configuration rather than in Dart.
+- a Products table with a Category column, and three filters above it,
+- a command-bar search that finds a product by its category's name and a category by its attributes,
+- a brand colour and a money format for the whole panel,
+- a Shop overview page with a live product count, and an Operations page with a category import.
 
-```yaml title="examples/store/beak.yaml"
-name: Beak Store
+## Before you start
 
-api:
-  baseUrl: http://localhost:8080
+You need chapter 4 finished, with the seeded data in place. Stop `beak dev` while you edit; you restart it at the end.
 
-resources:
-  products:
-    icon: package
-    section: Catalog
-  categories:
-    icon: folderTree
-    section: Catalog
-  tags:
-    icon: tag
-    section: Catalog
-  roast_profiles:
-    icon: flame
-    section: Catalog
-  orders:
-    icon: receipt
-    section: Sales
-  users:
-    icon: users
-    section: Sales
-  order_items:
-    hidden: true
-```
+Nothing here touches the database, so there is no migration in this chapter.
 
-| Key | What it does |
-|---|---|
-| `icon` | an `OiIcons` name, shown in the sidebar |
-| `label` | the navigation label (defaults to the title-cased table name) |
-| `section` | the sidebar group this resource is filed under |
-| `hidden` | keeps the resource out of the sidebar |
+## Shape the resource
 
-`name` titles the panel and the login screen. `api.baseUrl` is the origin the
-panel calls, where `auto` means the origin that served it, and `server.port`
-moves the API off 8080. The file is optional: delete it and Beak names the
-panel after your package.
+Three additions to `ProductResource`, in one file: which columns the list shows, which filters sit above it, and what the search reaches. The identity and the form screen are unchanged from chapter 3:
 
-!!! note "What just happened"
-    - A table you did not list is still discovered, with a default icon and a
-      title-cased label.
-    - `hidden: true` removes a sidebar entry and nothing else. `order_items`
-      keeps its model, its REST endpoints and its tab on the order's show page.
+```dart title="lib/resources/products/product_resource.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+import 'models/product.dart';
+import 'screens/product_form.dart';
 
-## Filters follow the columns
-
-You marked a few columns `filterable: true` in
-[chapter 2](02-columns-and-validation.md). That is the whole filter
-declaration: a resource that lists none of its own derives its filter bar from
-the model.
-
-| Column type | Derived control |
-|---|---|
-| enum | a select of its values |
-| `bool` | a switch |
-| `String`, `BeakText` | a contains-search box |
-| `DateTime` | a date range |
-| numbers, JSON, colour, rich text, uploads | none, because no control obviously fits |
-
-Declare filters yourself for a different control, a different label, or a
-column that derives none. Declaring one replaces the derived set entirely:
-
-```dart
-filters: const [
-  BeakSelectFilter(column: ProductColumns.status, label: 'Status'),
-  BeakTextFilter(column: ProductColumns.name, label: 'Name'),
-],
-```
-
-## Taking over one resource
-
-That `filters:` argument belongs in `lib/resources/<table>.dart`, the file
-holding everything a person decides about a single resource. Scaffold it:
-
-```console
-$ beak eject resource products
-  created lib/resources/products.dart
-
-  run `beak prepare` to wire it up
-```
-
-It starts as one function that changes nothing:
-`BeakResource beakResource(BeakResource generated) => generated;`. The
-`generated` argument is what Beak derived from the model and `beak.yaml`.
-Return it, or return `generated.copyWith(...)`.
-
-| `copyWith` parameter | What it replaces |
-|---|---|
-| `filters` | the list page's filter bar |
-| `recordActions` | per-row actions, beside the built-in view, edit and delete |
-| `bulkActions` | actions over the current selection |
-| `globalActions` | page-level actions, beside the built-in create |
-| `viewModes` | the presentations the list page switches between |
-| `detail` | the show page's block tree |
-| `formLayout` | the create and edit form's block tree |
-| `formSteps` | the form as a wizard, used instead of `formLayout` |
-| `label`, `section`, `icon` | navigation, when you would rather decide it in Dart |
-
-Beak discovers the file by name: `products.dart` adjusts the `products`
-resource. There is no list to add it to.
-
-## Actions
-
-A record action is a button on each row and on the show page. It receives the
-record and a context carrying the model and the data source. The store declares
-no `filters` here, so the derived bar stands.
-
-```dart title="examples/store/lib/resources/products.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: productLayout,
-  formLayout: productLayout,
-  recordActions: [
-    BeakRecordAction(
-      key: 'publish',
-      label: 'Publish',
-      icon: OiIcons.rocket,
-      onExecute: (record, context) async {
-        final Object? id = context.model.primaryKeyOf(record);
-        if (id == null) {
-          return;
-        }
-        await context.dataSource.update(
-          context.model.table,
-          id,
-          BeakRecord(
-            values: {
-              ProductColumns.status.key: BeakValue.of(
-                ProductStatus.published.name,
-              ),
-              ProductColumns.publishedAt.key: BeakValue.of(DateTime.now()),
-            },
-          ),
-        );
-      },
-    ),
-  ],
-```
-
-The fence stops mid-call: the next two sections finish it. Icons and column
-constants need two more imports, `package:beak/ui.dart` and
-`../models/product.dart`, and `productLayout` is the constant written further
-down, so the file compiles once all three parts are in.
-
-A `BeakBulkAction` in `bulkActions` looks the same, except `onExecute` receives
-`List<BeakRecord> records`, so it runs once over the whole selection instead of
-once per row. The store has one: an Archive action that walks the selected
-products. Both kinds take `color` and `requiresConfirmation: true`, which puts a
-dialog in front of the action.
-
-## Two views of one list
-
-A list page renders a table until you give it more than one view mode. Then it
-grows a switcher.
-
-```dart title="examples/store/lib/resources/products.dart"
-  viewModes: const [
-    BeakTableView(),
-    BeakKanbanView(
-      groupField: ProductColumns.status,
-      titleField: ProductColumns.name,
-      subtitleField: ProductColumns.sku,
-    ),
-  ],
-);
-```
-
-`groupField` has to be an enum column: its values are the board's columns.
-`BeakCalendarView` is the third mode, built from a `titleField` and the
-`startField` that dates each record.
-
-## One layout for the show page and the form
-
-Without a `detail`, the show page is derived from the model: a headline card of
-the display column and the first few fields, the rest in a wide card beside a
-narrow one, and one tab per to-many relationship. Adding a column changes that
-page with nothing to regenerate.
-
-For a different shape, describe it as blocks. The same tree renders read-only
-values on the show page and editable inputs on the form, which is why
-`products.dart` passes one constant to both `detail` and `formLayout`.
-
-```dart title="examples/store/lib/resources/products.dart"
-const BeakBlock productLayout = BeakColumnBlock(
-  gapInPixels: 20,
-  children: [
-    BeakCardBlock(
-      title: 'Product',
-      child: BeakFieldGroupBlock([
-        ProductColumns.name,
-        ProductColumns.sku,
-        ProductColumns.status,
-        ProductColumns.price,
-      ], columnCount: 4),
-    ),
-    // ... a grid: a wide Overview card beside a narrow Media card ...
-    BeakCardBlock(
-      title: 'Related',
-      child: BeakTabsBlock(
-        tabs: [
-          BeakTabBlockItem(
-            label: 'Category',
-            icon: OiIcons.folderTree,
-            content: BeakFieldBlock(ProductColumns.categoryId),
-          ),
-          BeakTabBlockItem(
-            label: 'Tags',
-            icon: OiIcons.tag,
-            content: BeakRelationBlock(ProductRelations.tags),
-          ),
-          BeakTabBlockItem(
-            label: 'Sold in',
-            icon: OiIcons.receipt,
-            content: BeakRelationBlock(ProductRelations.orderItems),
+/// Catalog management.
+final class ProductResource extends BeakResource {
+  /// Creates the products section.
+  ProductResource()
+    : super(
+        --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductResourceIdentity"
+        globalSearchSources: [
+          --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductSearchOwnFields"
+          --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductSearchCategory"
+        ],
+        --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:listProductFilters"
+        screens: [
+          --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:listProductFields"
+          BeakFormScreen(
+            --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductFormLayout"
           ),
         ],
-      ),
-    ),
-  ],
-);
+      );
+}
 ```
 
-Between those two cards the store's file puts a `BeakGridBlock`: a wide
-Overview card holding the summary, the description and a four-up group of
-stock, featured, published at and swatch, beside a narrow Media card for the
-image and the spec sheet.
+### The columns
 
-!!! note "What just happened"
-    - `BeakFieldBlock` and `BeakFieldGroupBlock` take column constants, so a
-      renamed column is a compile error rather than a blank cell.
-    - `BeakRelationBlock` takes a relationship constant and renders its manager:
-      a table on the show page, an attach control on the form.
-    - The two pages cannot drift apart, because there is one tree.
+Without a `screens:` entry for the list, Beak shows every scalar column of the model. A `BeakTableScreen` says which ones instead, and in what order. It replaces only the list, and the form screen from chapter 3 stays where it is.
 
-## A form in steps
+In the table screen's field list, the third entry is the interesting one. `ProductModel.category.name` follows the `category` link to the category's name, and `.formatted(BeakValueFormat.text, label: 'Category')` gives the column a heading of its own, so it does not read `Name` twice. Beak loads the category with the page, one query and not one per row. A related column displays but cannot be sorted, because a sort names a column of the listed model.
 
-A create form with nine inputs is a wall. `formSteps` turns it into a wizard.
-Each step validates before the next one opens. Listing a column in a step both
-selects and orders it, and a column named by no step gets no field at all.
+### The filters
 
-Run `beak eject resource orders`, then fill the function in:
+Filters are typed too. Each is a method on a generated field, and the method you pick says what control appears:
 
-```dart title="examples/store/lib/resources/orders.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  formSteps: const [
-    BeakFormStep(
-      title: 'Customer',
-      subtitle: 'Who is buying',
-      icon: OiIcons.user,
-      description:
-          'Pick the customer this order belongs to. Their past orders appear '
-          'on their own page once this one is saved.',
-      columns: [OrderColumns.customerId],
-    ),
-    // ... the Order, Money and Delivery steps ...
-  ],
-);
+| Field | Filter | Control |
+| --- | --- | --- |
+| `ProductModel.category` | `relationFilter()` | A picker of categories |
+| `ProductModel.active` | `boolFilter(label: 'Available')` | Yes or no |
+| `ProductModel.price` | `rangeFilter(label: 'Net price')` | Two inputs, from and to, in the price's currency |
+
+### The search
+
+`globalSearchSources` lists the fields that the command bar searches for this resource. It can reach through a link: `ProductModel.category.name` is in there, so a search for `coffee` finds the product whose category is called that, even though the word is not in the product.
+
+The shop's product resource searches more: image captions, attribute values and variant SKUs, which your project does not have. It also has bulk actions and record duplication. The three ideas are the same.
+
+The category resource gets the same treatment. Its search reaches into its own children, the attribute definitions from chapter 3, so typing `level` finds the category that defines a "Roast level":
+
+```dart title="lib/resources/categories/category_resource.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+import 'models/category.dart';
+import 'models/category_attribute.dart';
+import 'screens/category_form.dart';
+
+/// Catalog organization and reusable attribute definitions.
+final class CategoryResource extends BeakResource {
+  /// Creates the categories section.
+  CategoryResource()
+    : super(
+        --8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryIdentity"
+        --8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategorySearchAndFilters"
+        screens: [
+          --8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryTableScreen"
+          --8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryFormScreen"
+        ],
+      );
+}
 ```
 
-The store's file has four steps: customer, order, money, and an optional one
-for delivery notes. `formSteps` wins over `formLayout` when both are set.
+## Two pages that are not lists
 
-## A screen of your own
+A resource gets a list, a form and a detail page. Anything else is a `BeakScreen`: a route, a title, an icon and a body built from blocks. The overview is the first one.
 
-Some pages are not a resource. A file under `lib/screens/` declaring a
-top-level `BeakScreen` becomes one, with its own route and sidebar entry.
-Write `lib/screens/restock_screen.dart`, with the same three imports a resource
-override takes:
+```dart title="lib/overview.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
-```dart title="examples/store/lib/screens/restock_screen.dart"
-const BeakScreen restockScreen = BeakScreen(
-  path: '/restock',
-  title: 'Restock',
-  icon: BeakIconToken(OiIcons.packageSearch),
-  section: 'Catalog',
+import 'resources/products/models/product.dart';
+
+/// Live overview assembled entirely from Beak's data blocks.
+BeakScreen shopOverview() => BeakScreen(
+  path: '/',
+  title: 'Shop overview',
+  icon: const BeakIconToken(OiIcons.layoutDashboard),
   body: BeakColumnBlock(
-    gapInPixels: 20,
+    gapInPixels: 24,
     children: [
-      // ... a grid of two BeakMetricBlock counters ...
-      BeakCardBlock(
-        title: 'Running low',
-        child: BeakTableBlock(
-          model: ProductModel(),
-          columns: [
-            ProductColumns.name,
-            ProductColumns.sku,
-            ProductColumns.stock,
-            ProductColumns.status,
-          ],
-          baseFilter: BeakFieldFilter(
-            column: ProductColumns.stock,
-            operator: BeakOperator.lt,
-            value: BeakIntValue(10),
-          ),
-          initialSpec: BeakQuerySpec(
-            table: 'products',
-            sorts: [BeakSort('stock')],
-          ),
-        ),
+      const BeakTextBlock('Your catalog at a glance.'),
+      BeakGridBlock(
+        minColumnWidthInPixels: 220,
+        children: [
+          --8<-- "examples/clean_beak_config/lib/overview.dart:overviewProductsMetric"
+        ],
       ),
     ],
   ),
 );
 ```
 
-The store's file opens with two `BeakMetricBlock` counters above that table,
-out of stock and stock on hand. A custom screen is blocks rather than widgets,
-so it gets the data wiring, theming and empty states a generated page has.
+`BeakMetricBlock` takes an aggregate, here `const ProductModel().count()`, and shows it as a card. The number is a query, not a constant, and it fetches again after a save or delete made in the panel. The shop's overview has metrics for orders, invoices and stock, plus tables and text blocks. Yours has one card, and adding the next takes one more entry in the grid.
 
-## The screen at /
+The second page is a workspace for tasks that do not belong on a list. The shop's has an import for categories, and it works against your `CategoryModel` as it is:
 
-`beak eject dashboard` writes `lib/dashboard.dart`, whose `beakDashboard()`
-replaces the generated home screen.
+```dart title="lib/operations.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
 
-```dart title="examples/store/lib/dashboard.dart"
-BeakScreen beakDashboard() => const BeakScreen(
-  path: '/',
-  title: 'Today',
-  icon: BeakIconToken(OiIcons.layoutDashboard),
-  body: BeakColumnBlock(gapInPixels: 20, children: [_kpis, _revenue, _lists]),
-);
+import 'resources/categories/models/category.dart';
 
-const BeakBlock _kpis = BeakGridBlock(
-  columns: 4,
-  children: [
-    BeakKpiBlock(
-      title: 'Revenue',
-      value: BeakAggregateSpec.sum(table: 'orders', column: OrderColumns.total),
-      format: BeakKpiFormat.currency,
-      currencySymbol: '€',
-    ),
-    // ... three more tiles ...
-  ],
-);
-
-const BeakBlock _revenue = BeakChartBlock(
-  title: 'Order totals',
-  type: BeakChartType.bar,
-  query: BeakQuerySpec(
-    table: 'orders',
-    sorts: [BeakSort('placed_at')],
-    pagination: BeakPagination(perPage: 30),
+/// A custom operations route sharing ordinary resource queries and mutations.
+BeakScreen shopOperations() => BeakScreen(
+  path: '/operations',
+  title: 'Operations',
+  navigationGroup: 'Workspace',
+  icon: const BeakIconToken(OiIcons.listChecks),
+  body: BeakColumnBlock(
+    gapInPixels: 24,
+    children: [
+      --8<-- "examples/clean_beak_config/lib/operations.dart:categoryImportBlock"
+    ],
   ),
-  map: orderTotalPoints,
 );
 ```
 
-A chart queries, then maps. `map` takes a top-level function from the records
-the query returned to the points to draw:
+`navigationGroup: 'Workspace'` puts the page under its own heading in the sidebar. The overview names no group, so it follows the resources.
 
-```dart title="examples/store/lib/dashboard.dart"
---8<-- "examples/store/lib/dashboard.dart:orderTotalPoints"
+## Give the panel a look
+
+Brand and formatting are arguments of `BeakPanel`, so they belong in `main.dart`. Register the pages there too:
+
+```dart title="lib/main.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+import 'package:flutter/widgets.dart';
+
+import 'operations.dart';
+import 'overview.dart';
+import 'resources/categories/category_resource.dart';
+import 'resources/products/product_resource.dart';
+
+/// Boots the panel.
+void main() => runApp(buildPanel());
+
+/// The panel, and every resource it shows.
+///
+/// This file is yours: `beak prepare` never rewrites it, so add each
+/// resource class you write to `resources`.
+///
+/// [dataSource] replaces the HTTP-backed source, so a widget test
+/// can pump this exact panel against an in-memory one.
+BeakPanel buildPanel({BeakDataSource? dataSource}) => BeakPanel(
+  title: 'Shop',
+  --8<-- "examples/clean_beak_config/lib/main.dart:shopBranding"
+  pages: [shopOverview(), shopOperations()],
+  resources: [ProductResource(), CategoryResource()],
+  dataSource: dataSource,
+);
 ```
 
-Every figure is a `BeakAggregateSpec` the API computes: nothing is counted in
-the browser, nothing is hardcoded. The mapper reads through the generated
-column constants, so a renamed column is a compile error rather than an empty
-chart. The store's file has three more KPI tiles (orders, awaiting payment, out
-of stock) and a `_lists` grid of two `BeakTableBlock` cards. Copy those from the
-example, or drop `_lists` from `children` and stop at the chart.
+`theme` and `darkTheme` are made from one brand colour each, and the panel follows the system setting to choose between them. `locale` is the language of the panel's own text. `formatting` is separate on purpose: it says how numbers, currency and dates read, and here that is Austrian German (`12,50`, `dd.MM.yyyy`) around an English interface.
 
-Restart it all:
+## Run it
 
-```console
-$ beak dev
+```bash
+beak dev
 ```
 
-`beak dev` runs `beak prepare` first, so the sections, actions, view modes,
-wizard, screen and dashboard are wired before the API starts. The sidebar now
-groups the resources under Catalog and Sales, with Restock among the catalog
-entries and no Order Items anywhere. Products has a Table/Board switcher and a
-Publish button on every row, an order's create form arrives in four steps, and
-`/` is the Today screen.
+```bash
+flutter run -d chrome
+```
+
+Open Products. The table has Name, Sku, Category, Net price and Active, and the net price now reads `€ 12,50`. Above the table sit three dashed chips, `Category`, `Available` and `Net price`. Press the last one and two inputs open, one for the lowest price and one for the highest, each with `EUR` on the right. Type `20` in the lower bound and the table narrows to the products at or above twenty euros.
+
+Press Ctrl-K, or Cmd-K on a Mac, or the magnifier in the top bar. A dialog called Go to opens. Type `coffee`. It lists the Ethiopia product, which contains no such word but sits in the `Specialty coffee` category, and both categories, one through its name and one through its description. That is `globalSearchSources` at work.
+
+Open Shop overview, which lives at the panel's home route `/`. It shows a Products card with the current count. Create a product, come back, and the number has caught up. Blocks refetch after a write made through this panel; they cannot see a colleague's write in another browser.
+
+Open Operations. The category import asks for CSV with the headers `Name` and `Description`, previews the records, and imports them one by one. The page says so itself: records save individually, and the ones that succeeded stay saved if a later one fails.
 
 !!! note "What just happened"
-    - Nothing above was registered. A key in `beak.yaml`, a file named after a
-      table, a file under `lib/screens/`: `beak prepare` found each one.
-    - Everything you did not decide is still derived. The other resources kept
-      their generated filters, layouts and pages.
+    - Every choice was a typed reference on a resource: a field for a column, a method for a filter, a path for a search. Rename `active` and every place that mentions it fails to compile.
+    - A filter, a sort or a search is a value in the query body from chapter 4. The table asks the server for the page you see, with the filters applied.
+    - The overview is made of the same blocks you could embed anywhere. A block queries and mutates through the panel's data source, so it stays in step with the tables around it.
+    - Formatting changed how money reads without touching the stored value or the API.
 
 !!! question "What this skipped"
-    - The rest of the block catalogue, including the widget escape hatch:
-      [Blocks](../blocks/index.md).
-    - Colours, typography and the shell: [Theming](../theming/index.md).
-    - Every key in one table: [beak.yaml reference](../reference/beak-yaml.md).
+    - Columns, sorts, scopes and filter kinds: [Tables and filters](../panel/tables-and-filters.md).
+    - Saved views, presets and a search field on the list: [Composed lists](../panel/composed-lists.md).
+    - Every block, chart and summary: [Blocks](../blocks/index.md), and the page on [dashboards](../panel/dashboards.md).
+    - Forms as tabs, wizards or read-only documents: [Form screens](../forms/form-screens.md) and [Multi-step forms](../forms/multi-step-forms.md).
+    - Your own widget in a page: below.
+
+## A widget of your own
+
+Blocks cover the common cases. When they do not, `BeakWidgetBlock` embeds any widget, and `beakDependencies(context)` hands that widget the same data source the rest of the panel uses. The shop's receivables card is the working example. It reads invoices, which your project does not have, so this is a look and not a step:
+
+```dart
+--8<-- "examples/clean_beak_config/lib/widgets/receivables_card.dart:receivablesData"
+```
+
+Three things are in there. The widget takes the panel's `BeakDataSource` from the scope, `useBeakDataRevision` re-runs the request when a save or delete touches the `invoices` table, and `BeakResourceRepository.run` turns a thrown error into a value, so the widget shows a message and a retry button instead of crashing. [Custom screens](../panel/custom-screens.md) covers the pattern.
+
+## Checkpoint
+
+```bash
+beak doctor
+```
+
+```console
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 3 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  OK   lib/main.dart lists every resource class
+  OK   generated files up to date
+  OK   every model has a migration
+  ...
+All checks passed.
+```
+
+The panel now has a brand, a money format, table columns you chose, three filters, a search that follows links, an overview and a workspace page. The `0 screens` in `beak doctor` counts `BeakScreen` declarations under `lib/screens/`, which is where the generated panel looks for pages. Yours live beside `main.dart` and your `pages:` list registers them by hand, which is the authored way.
+
+Next: who is allowed to do any of this, and how to prove it stays that way.
 
 ## Continue reading
 
-- [Auth, tests, and shipping](06-auth-tests-and-shipping.md) closes the
-  tutorial: who signs in, which rows they see, and how to build for production.
-- [Seeding and the API](04-seeding-and-the-api.md) is the chapter before this.
-- [Tables and filters](../panel/tables-and-filters.md) covers every filter kind.
-- [Detail and dual mode](../panel/detail-and-dual-mode.md) explains how one
-  block tree renders both values and inputs.
-- [Dashboards](../panel/dashboards.md) has the full aggregate and chart surface.
+- [Auth, tests, and shipping](06-auth-tests-and-shipping.md): policies, tests for the API and the panel, and a build you can deploy.
+- [Tables and filters](../panel/tables-and-filters.md): everything a list can be told.
+- [Dashboards](../panel/dashboards.md): more blocks for pages like the overview.

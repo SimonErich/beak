@@ -8,9 +8,8 @@ import '../common/uuid_v4.dart';
 ///
 /// Handlers stay parse-thin; this service throws typed exceptions only
 /// (not-found for unknown columns/keys, validation for rule violations and
-/// non-file columns). [BeakServer] builds one for you when `storage` is
-/// configured; construct it directly only to compose the upload routes by
-/// hand.
+/// non-file columns). Internal to `beak_backend`: `beakApiRouter` builds one
+/// when a storage driver is configured, and the upload routes call it.
 ///
 /// ```dart
 /// final service = UploadService(
@@ -27,7 +26,7 @@ import '../common/uuid_v4.dart';
 ///     bytes: pngBytes,
 ///   ),
 /// );
-/// print(stored.url); // the public URL of the stored file
+/// final Uri url = stored.url; // the public URL of the stored file
 /// ```
 final class UploadService {
   /// Creates an upload service over [registry], [storage], and
@@ -35,12 +34,26 @@ final class UploadService {
   ///
   /// [generateKeyId] injects the storage-key mint for tests (defaults to
   /// uuid v4) — client filenames are never trusted for keys.
+  ///
+  /// [signedUrlLifetime] is how long the links [url] hands out stay valid on
+  /// drivers that sign them (S3 presigned GETs); drivers whose links do not
+  /// expire ignore it. It must be positive.
   UploadService({
     required this.registry,
     required this.storage,
     required this.transformRunner,
     String Function()? generateKeyId,
-  }) : _generateKeyId = generateKeyId ?? generateUuidV4;
+    this.signedUrlLifetime = defaultSignedUrlLifetime,
+  }) : _generateKeyId = generateKeyId ?? generateUuidV4 {
+    if (signedUrlLifetime <= Duration.zero) {
+      throw BeakConfigurationException(
+        'The signed URL lifetime must be positive, got $signedUrlLifetime.',
+      );
+    }
+  }
+
+  /// How long a signed link stays valid unless the host says otherwise.
+  static const Duration defaultSignedUrlLifetime = Duration(hours: 1);
 
   /// The models whose file columns may be uploaded to.
   final BeakModelRegistry registry;
@@ -50,6 +63,9 @@ final class UploadService {
 
   /// The pixel pipeline executing image transforms.
   final BeakTransformRunner transformRunner;
+
+  /// How long the links [url] returns stay valid on signing drivers.
+  final Duration signedUrlLifetime;
 
   final String Function() _generateKeyId;
 
@@ -78,6 +94,21 @@ final class UploadService {
   /// Deletes the stored file under [key], which must belong to the storage
   /// path of `table.columnKey`.
   Future<void> remove(String table, String columnKey, String key) async {
+    await _requireKey(table, columnKey, key);
+    await storage.delete(key);
+  }
+
+  /// Resolves only existing keys belonging to this column's storage path.
+  ///
+  /// The link is signed for [signedUrlLifetime] where the driver signs, so a
+  /// private bucket is readable through the upload endpoint; a driver with
+  /// public links returns them unchanged.
+  Future<Uri> url(String table, String columnKey, String key) async {
+    await _requireKey(table, columnKey, key);
+    return storage.url(key, expiresIn: signedUrlLifetime);
+  }
+
+  Future<void> _requireKey(String table, String columnKey, String key) async {
     final String storagePath = switch (_columnOf(table, columnKey)) {
       BeakUploadColumn(:final storagePath) => storagePath,
       final BeakColumn other => throw BeakValidationException(
@@ -85,7 +116,7 @@ final class UploadService {
         'uploads need a file or image column.',
       ),
     };
-    if (!key.startsWith('$storagePath/')) {
+    if (!key.startsWith('$storagePath/') || !_isWellFormedKey(key)) {
       throw BeakValidationException(
         'Key "$key" does not belong to column "$columnKey" '
         '(expected the "$storagePath/" prefix).',
@@ -94,7 +125,18 @@ final class UploadService {
     if (!await storage.exists(key)) {
       throw BeakNotFoundException('No stored file "$key".');
     }
-    await storage.delete(key);
+  }
+
+  /// Whether [key] is a well-formed storage key. A key a client sends never
+  /// reaches a driver otherwise: a malformed one is the client's mistake (422),
+  /// not a storage failure.
+  static bool _isWellFormedKey(String key) {
+    try {
+      BeakStorageKeys.validate(key);
+      return true;
+    } on BeakStorageException {
+      return false;
+    }
   }
 
   BeakColumn _columnOf(String table, String columnKey) {
@@ -133,10 +175,12 @@ final class UploadService {
     BeakImageColumn column,
     BeakUpload upload,
   ) async {
-    // An empty pipeline is a decoding pass-through: it yields the source
-    // bytes plus decoded dimensions (or a validation failure for bytes that
-    // are not a supported raster image).
-    final decoded = await transformRunner.run(upload.bytes, const []);
+    // The header answers the dimension rules before a pixel is decoded, so a
+    // few bytes declaring a huge bitmap never reach the decoder, and the
+    // pipeline then decodes the file once (an empty one is a pass-through
+    // that still proves the bytes decode).
+    // --8<-- [start:imagePipeline]
+    final BeakDimensions declared = await transformRunner.inspect(upload.bytes);
     _validator
         .validate(
           upload,
@@ -144,12 +188,14 @@ final class UploadService {
           allowedTypes: column.allowedTypes,
           maxDimensions: column.maxDimensions,
           aspectRatio: column.aspectRatio,
-          actualDimensions: decoded.dimensions,
+          actualDimensions: declared,
         )
         .valueOrThrow;
-    final transformed = column.transforms.isEmpty
-        ? decoded
-        : await transformRunner.run(upload.bytes, column.transforms);
+    final transformed = await transformRunner.run(
+      upload.bytes,
+      column.transforms,
+    );
+    // --8<-- [end:imagePipeline]
 
     final String keyId = _generateKeyId();
     final mainStored = await storage.put(
@@ -161,25 +207,41 @@ final class UploadService {
       path: column.storagePath,
     );
     final variants = <String, BeakStoredFileVariant>{};
-    for (final MapEntry(:key, :value) in transformed.variants.entries) {
-      final variantStored = await storage.put(
-        BeakUpload(
-          filename: _filenameFor(
-            '${keyId}_$key',
-            value.mimeType,
-            fallback: upload,
+    try {
+      for (final MapEntry(:key, :value) in transformed.variants.entries) {
+        final variantStored = await storage.put(
+          BeakUpload(
+            filename: _filenameFor(
+              '${keyId}_$key',
+              value.mimeType,
+              fallback: upload,
+            ),
+            mimeType: value.mimeType,
+            bytes: value.bytes,
           ),
-          mimeType: value.mimeType,
-          bytes: value.bytes,
-        ),
-        path: column.storagePath,
-      );
-      variants[key] = BeakStoredFileVariant(
-        key: variantStored.key,
-        url: variantStored.url,
-        widthInPixels: value.dimensions.widthInPixels,
-        heightInPixels: value.dimensions.heightInPixels,
-      );
+          path: column.storagePath,
+        );
+        variants[key] = BeakStoredFileVariant(
+          key: variantStored.key,
+          url: variantStored.url,
+          widthInPixels: value.dimensions.widthInPixels,
+          heightInPixels: value.dimensions.heightInPixels,
+        );
+      }
+    } on Exception {
+      // A rendition failure must not strand successfully written predecessors.
+      for (final key in [
+        mainStored.key,
+        ...variants.values.map((v) => v.key),
+      ]) {
+        try {
+          await storage.delete(key);
+        } on Exception {
+          // Preserve the original storage failure. Hosts can collect orphaned
+          // files after infrastructure recovery.
+        }
+      }
+      rethrow;
     }
     return BeakStoredFile(
       key: mainStored.key,
@@ -200,9 +262,20 @@ final class UploadService {
     String mimeType, {
     required BeakUpload fallback,
   }) {
-    final String? extension = _extensionForMime(mimeType) ?? fallback.extension;
+    final String? extension =
+        _extensionForMime(mimeType) ?? _safeExtension(fallback.extension);
     return extension == null ? base : '$base.$extension';
   }
+
+  /// [extension] as the client declared it, when it is short and plain enough
+  /// to sit in a storage key: the filename is client input, and a key is a
+  /// path on disk, a URL and an FTP command, so anything else is dropped.
+  static String? _safeExtension(String? extension) =>
+      extension != null && _plainExtension.hasMatch(extension)
+      ? extension
+      : null;
+
+  static final RegExp _plainExtension = RegExp(r'^[a-z0-9]{1,16}$');
 
   String? _extensionForMime(String mimeType) {
     for (final type in BeakFileType.values) {

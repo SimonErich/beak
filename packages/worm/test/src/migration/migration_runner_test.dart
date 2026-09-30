@@ -6,6 +6,7 @@ import 'package:worm/src/migration/migration_base.dart';
 import 'package:worm/src/migration/migration_record_store.dart';
 import 'package:worm/src/migration/migration_runner.dart';
 import 'package:worm/src/migration/migration_status.dart';
+import 'package:worm/src/query/insert_descriptor.dart';
 import 'package:worm/src/query/query_descriptor.dart';
 import 'package:worm/src/query/schema_descriptor.dart';
 import 'package:worm/src/schema/column_type.dart';
@@ -191,6 +192,58 @@ void main() {
       );
       expect(rows, hasLength(1));
     });
+
+    test(
+      'repeated fresh drops existing data and reruns tracked seeders',
+      () async {
+        final adapter = await _adapter();
+        final runner = MigrationRunner(
+          adapter: adapter,
+          migrations: const [_CreateUsers(), _CreatePosts()],
+          seeders: const [_RecordingSeeder()],
+        );
+        expect(await runner.fresh(seed: true), ['RecordingSeeder']);
+        await adapter.insert(
+          const InsertDescriptor(
+            table: 'users',
+            values: {'id': 'old', 'name': 'Removed'},
+          ),
+        );
+        expect(await runner.fresh(seed: true), ['RecordingSeeder']);
+        expect(
+          await adapter.select(const QueryDescriptor(table: 'users')),
+          isEmpty,
+        );
+        expect(
+          await adapter.select(const QueryDescriptor(table: migrationsTable)),
+          hasLength(2),
+        );
+      },
+    );
+
+    test(
+      'unknown migration rejects before deleting known tables or history',
+      () async {
+        final adapter = await _adapter();
+        await MigrationRunner(
+          adapter: adapter,
+          migrations: const [_CreateUsers(), _CreatePosts()],
+        ).migrate();
+        final incomplete = MigrationRunner(
+          adapter: adapter,
+          migrations: const [_CreateUsers()],
+        );
+        await expectLater(incomplete.fresh, throwsA(isA<MigrationException>()));
+        expect(
+          (await adapter.introspectSchema()).keys,
+          containsAll(['users', 'posts']),
+        );
+        expect(
+          await adapter.select(const QueryDescriptor(table: migrationsTable)),
+          hasLength(2),
+        );
+      },
+    );
 
     test('refresh rolls back every batch and re-applies', () async {
       final adapter = await _adapter();

@@ -9,53 +9,40 @@ class _BeakCarouselBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
-    final slides = useState(const <_Slide>[]);
-
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(
-          dataSource,
-        ).query(block.query);
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          slides.value = [
-            for (final record in value.items)
-              if (record[block.imageUrlField.key]?.raw?.toString()
-                  case final String url when url.isNotEmpty)
-                _Slide(
-                  url: url,
-                  caption: block.captionField == null
-                      ? null
-                      : record[block.captionField!.key]?.raw?.toString(),
-                ),
-          ];
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
-    if (slides.value.isEmpty) {
-      return SizedBox(height: block.heightInPixels);
-    }
-    return OiCarousel(
-      label: 'Carousel',
-      height: block.heightInPixels,
-      autoplay: block.autoplay,
-      items: [
-        for (final slide in slides.value)
-          OiImage(
-            src: slide.url,
-            alt: slide.caption ?? 'Slide',
-            fit: BoxFit.cover,
-          ),
+    final dataSource = beakDependencies(context)<BeakDataSource>();
+    final slides = _useBlockRead(
+      dataSource,
+      block.query,
+      initial: const <_Slide>[],
+      map: (page) => [
+        for (final record in page.items)
+          if (record[block.imageUrlField.key]?.raw?.toString()
+              case final String url when url.isNotEmpty)
+            _Slide(
+              url: url,
+              caption: block.captionField == null
+                  ? null
+                  : record[block.captionField!.key]?.raw?.toString(),
+            ),
       ],
     );
+
+    final Widget view = slides.data.isEmpty
+        ? SizedBox(height: block.heightInPixels)
+        : OiCarousel(
+            label: BeakLocalizations.of(context).carousel,
+            height: block.heightInPixels,
+            autoplay: block.autoplay,
+            items: [
+              for (final slide in slides.data)
+                OiImage(
+                  src: slide.url,
+                  alt: slide.caption ?? 'Slide',
+                  fit: BoxFit.cover,
+                ),
+            ],
+          );
+    return _withReadFailure(context, slides, view);
   }
 }
 

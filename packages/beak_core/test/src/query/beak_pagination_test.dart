@@ -35,14 +35,32 @@ void main() {
   });
 
   group('fromJson', () {
-    test('rejects JSON missing a key', () {
+    test('fills a missing key with the constructor default', () {
+      expect(BeakPagination.fromJson(const {}), const BeakPagination());
       expect(
-        () => BeakPagination.fromJson(const {'page': 1}),
-        throwsA(isA<BeakConfigurationException>()),
+        BeakPagination.fromJson(const {'page': 3}),
+        const BeakPagination(page: 3),
       );
       expect(
-        () => BeakPagination.fromJson(const {'perPage': 25}),
-        throwsA(isA<BeakConfigurationException>()),
+        BeakPagination.fromJson(const {'perPage': 50}),
+        const BeakPagination(perPage: 50),
+      );
+      expect(
+        BeakPagination.fromJson(const {'page': null, 'perPage': null}),
+        const BeakPagination(),
+      );
+    });
+
+    test('names the key of a wrongly typed value', () {
+      expect(
+        () => BeakPagination.fromJson(const {'perPage': 'many'}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"perPage"'),
+          ),
+        ),
       );
     });
 

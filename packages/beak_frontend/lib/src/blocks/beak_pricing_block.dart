@@ -13,11 +13,11 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakPricingBlock(
 ///   model: const PlanModel(),
-///   nameField: PlanColumns.name,
-///   priceField: PlanColumns.monthlyPrice,
-///   featuredField: PlanColumns.recommended,
-///   featuresRelation: PlanRelations.features,
-///   featureLabelField: FeatureColumns.label,
+///   nameField: PlanModel.name.column,
+///   priceField: PlanModel.monthlyPrice.column,
+///   featuredField: PlanModel.recommended.column,
+///   featuresRelation: PlanModel.features.relation,
+///   featureLabelField: FeatureModel.label.column,
 /// );
 /// ```
 final class BeakPricingBlock extends BeakBlock {
@@ -35,6 +35,7 @@ final class BeakPricingBlock extends BeakBlock {
     this.sortField,
     this.label = 'Pricing',
     this.currencySymbol = r'$',
+    this.filter,
     super.span,
   });
 
@@ -70,6 +71,11 @@ final class BeakPricingBlock extends BeakBlock {
 
   /// Accessibility label for the table.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Currency prefix shown on prices.
   final String currencySymbol;

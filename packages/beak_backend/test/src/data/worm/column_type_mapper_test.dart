@@ -1,4 +1,4 @@
-import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/data/worm/column_type_mapper.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';

@@ -1,265 +1,177 @@
 ---
 title: Results and errors
-description: How Beak models failure as typed exceptions and typed values, and the typed row model that carries data across every boundary without dynamic.
+description: "Keep typed failures, field feedback and uncertain writes distinct: BeakException on the server, BeakResult in the panel, a receipt for every save."
+type: concept
+audience: [expert]
+status: stable
 ---
 
 # Results and errors
 
-Beak has two ways to signal that something went wrong, and one typed shape for
-the data that flows when nothing does. After this page you know when Beak throws
-and when it returns a value, which exception maps to which situation, and how a
-row stays typed from the database all the way to the widget.
+Beak reports a problem in three different ways, and they are not interchangeable. A thrown `BeakException` crosses a layer. A `BeakResult` carries a failure through the panel as a value. A save receipt says, per operation, whether a write happened, did not, or can't be proven either way. After this page you can tell which one you are looking at and what the panel does with it.
 
-## Two ways to fail: throw or return
+## The idea in one picture
 
-The layering rule decides which mechanism a piece of code uses.
-
-- **Exceptions travel at layer boundaries.** A Shelf handler on the backend and a
-  repository on the frontend are the catch points. Services and data sources
-  throw; the boundary catches.
-- **`BeakResult` travels at the value level.** When a failure should ride along
-  with the data instead of unwinding the stack (a parse, a validation, a
-  per-item outcome), Beak returns a result you switch on.
-
-`BeakResult` is a sealed pair: `BeakOk` carries a value, `BeakErr` carries a
-`BeakException`.
-
-```dart title="packages/beak_core/lib/src/common/beak_result.dart"
-@immutable
-sealed class BeakResult<T> {
-  const BeakResult();
-
-  /// Whether this result is a [BeakOk].
-  bool get isOk;
-
-  /// The success value; throws the wrapped [BeakException] on a [BeakErr].
-  T get valueOrThrow;
-
-  /// Reduces both cases into a single value of type [R].
-  R fold<R>({
-    required R Function(T value) onOk,
-    required R Function(BeakException error) onErr,
-  });
-
-  /// Transforms the success value with [transform], leaving errors untouched.
-  BeakResult<R> map<R>(R Function(T value) transform);
-}
+```mermaid
+flowchart LR
+  ex["Service or data source<br/>throws BeakException"] --> mw["Error-mapping middleware<br/>status + JSON body"]
+  mw --> cl["BeakClient<br/>rebuilds the BeakException from the code"]
+  cl --> repo["Repository: beakRun<br/>BeakOk or BeakErr"]
+  repo --> vm["ViewModel<br/>switches on the result"]
+  commit["POST /api/commits"] --> rc["BeakSaveResult<br/>per operation: applied, unapplied, unknown"]
+  rc --> form["Form session<br/>keeps the draft, shows field errors"]
 ```
 
-Collapse both cases into one value with `fold`, or keep the failure and rework
-only the success with `map`:
+The top row is the ordinary path for reads and single-record writes. The bottom row is the save path, where a failure is data inside a successful HTTP response.
 
-```dart
-BeakResult<int> parseQuantity(String raw) {
-  final int? value = int.tryParse(raw);
-  return value == null
-      ? BeakErr(BeakValidationException('"$raw" is not a number'))
-      : BeakOk(value);
-}
+## How it works
 
-final String label = parseQuantity('12').fold(
-  onOk: (value) => 'quantity: $value',
-  onErr: (error) => 'invalid: ${error.message}',
-);
-```
+### The server throws, one place answers
 
-## The exception family
-
-Every failure Beak raises is a `BeakException`. The type is sealed and each
-variant carries a stable, machine-readable `code` (for wire formats) and a
-human-readable `message`.
+Every failure Beak raises is a `BeakException`. The family is sealed, and each variant carries a stable `code` for the wire and a human-readable `message`.
 
 ```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
-@immutable
-sealed class BeakException implements Exception {
-  /// Creates an exception carrying a stable [code] and a [message].
-  const BeakException({required this.code, required this.message});
-
-  /// Stable machine-readable identifier of the failure category.
-  final String code;
-
-  /// Human-readable description of what went wrong.
-  final String message;
-
-  @override
-  String toString() => '$runtimeType($code): $message';
-}
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakException"
 ```
 
-There are seven variants. Pick the one whose meaning matches; the code and the
-HTTP status follow from the type.
+| Exception | `code` | HTTP | Raised when |
+| --- | --- | --- | --- |
+| `BeakValidationException` | `validation` | 422 | input violates a rule; carries `fieldErrors` |
+| `BeakNotFoundException` | `not_found` | 404 | a record, route or receipt does not exist, or is outside the caller's row scope |
+| `BeakAuthenticationException` | `authentication` | 401 | no valid identity |
+| `BeakAuthorizationException` | `authorization` | 403 | the identity may not do this |
+| `BeakConflictException` | `conflict` | 409 | a concurrent change, or a save id reused with different content |
+| `BeakConfigurationException` | `configuration` | 500 | Beak is set up wrong; a developer error |
+| `BeakStorageException` | `storage` | 500 | a storage driver failed; the caller gets the fixed message "File storage failed." and the operator gets the real one |
+| `BeakInternalException` | `internal` | 500 | the server failed unexpectedly, or a proxy answered with a 5xx |
+| `BeakPayloadTooLargeException` | `payload_too_large` | 413 | a request body is larger than the host accepts |
+| `BeakTransportException` | `transport` | 502 | a fault outside Beak's API that no other type fits |
 
-| Exception | `code` | Raised when |
+Services and data sources throw and stay short. One middleware turns the exception into a response:
+
+```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:exceptionStatus"
+```
+
+Anything that isn't a `BeakException` becomes `{"code":"internal","message":"Internal server error."}` with a 500, and the real error goes to `onUnexpectedError`. The client never sees it. Here is what a caller gets for a missing receipt, a spec that names a table nobody registered and a body that isn't JSON:
+
+```console
+$ curl -s localhost:8080/api/commits/nope
+{"code":"not_found","message":"No receipt for save \"nope\".","requestId":"b68cac8d1c399273"}
+$ curl -s -XPOST localhost:8080/api/notes/query -d '{"table":"orders"}'
+{"code":"validation","message":"Unknown table \"orders\".","requestId":"ecc6eaef760e06cb"}
+$ curl -s -XPOST localhost:8080/api/notes/query -d 'not json'
+{"code":"validation","message":"Request body is not valid JSON: Unexpected character.","requestId":"40f1b3481447cc1f"}
+```
+
+The `requestId` also tags the server's request log line, so a bug report can be matched to the request that caused it.
+
+### The client rebuilds the type
+
+`BeakClient` turns the response body back into the exception the server threw, so a `BeakValidationException` in a service arrives in the panel as a `BeakValidationException` with the same `fieldErrors`.
+
+```dart title="packages/beak_core/lib/src/client/beak_client.dart"
+--8<-- "packages/beak_core/lib/src/client/beak_client.dart:ensureSuccess"
+```
+
+The last arm is worth knowing. A code it doesn't recognise, or none at all, falls back to the HTTP status: `401`, `403`, `404`, `409`, `413` and `422` map to their types, every `5xx` to `BeakInternalException` and anything else to `BeakTransportException`. So a server failure is never reported as a configuration problem, and a proxy's HTML error page is a `BeakInternalException` with the message `HTTP 502.`. The panel's `BeakLocalizations.errorMessage` treats `BeakConfigurationException`, `BeakStorageException`, `BeakInternalException` and `BeakTransportException` as infrastructure detail and shows a generic "The operation could not be completed." instead of the message:
+
+```dart title="packages/beak_frontend/lib/src/localization/beak_localizations.dart"
+--8<-- "packages/beak_frontend/lib/src/localization/beak_localizations.dart:errorMessage"
+```
+
+So a configuration, storage, internal or transport message never leaks into the UI, and a validation message always does. An untyped failure on the server reaches the panel as a `BeakInternalException` whose message is the fixed `Internal server error.`.
+
+### The repository turns it into a value
+
+`beakRun` is the panel's catch boundary. A `BeakException` becomes a `BeakErr`, success a `BeakOk`, and anything else is either mapped by `mapException` or rethrown:
+
+```dart title="packages/beak_frontend/lib/src/data/beak_run.dart"
+--8<-- "packages/beak_frontend/lib/src/data/beak_run.dart:beakRun"
+```
+
+`BeakResult<T>` is the sealed pair a view model switches on. Collapse both cases with `fold`, or rework only the success with `map`:
+
+```dart title="packages/beak_core/lib/src/common/beak_result.dart"
+--8<-- "packages/beak_core/lib/src/common/beak_result.dart:BeakResult"
+```
+
+Programming errors (`Error`s, and exceptions nobody mapped) are not results. They propagate, on purpose. A widget that loads its own data reports failure the way `BeakMetricBlock` does: it keeps the error in state next to the loading flag and offers a retry, and it never renders a zero it invented (`packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart`).
+
+```dart title="packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart:metricState"
+```
+
+### Field errors name the field
+
+A validation failure says which inputs are wrong. `fieldErrors` maps a column key to its messages, and the form puts each message under its input.
+
+```dart title="packages/beak_core/lib/src/common/beak_exception.dart"
+--8<-- "packages/beak_core/lib/src/common/beak_exception.dart:BeakValidationException"
+```
+
+The keys are strings on the wire, so a rule you write on the server doesn't spell one. It raises the error from the typed field:
+
+```dart title="packages/beak_core/lib/src/model/beak_field_ref.dart"
+--8<-- "packages/beak_core/lib/src/model/beak_field_ref.dart:invalid"
+```
+
+For a belongs-to field the key is the foreign key that backs it, so the message lands on the picker.
+
+### A save has three outcomes
+
+A form save is not one call that either throws or doesn't. Each operation in the plan gets a status:
+
+```dart title="packages/beak_core/lib/src/data/beak_commit.dart"
+--8<-- "packages/beak_core/lib/src/data/beak_commit.dart:BeakSaveOutcomes"
+```
+
+| Status | Means | The form does |
 | --- | --- | --- |
-| `BeakValidationException` | `validation` | User input violates column rules. Carries `fieldErrors` per column key. |
-| `BeakNotFoundException` | `not_found` | A requested record or resource does not exist. |
-| `BeakAuthenticationException` | `authentication` | A request carries no valid identity (missing, invalid, or expired credentials). |
-| `BeakAuthorizationException` | `authorization` | The current user is not allowed to perform the operation. |
-| `BeakConfigurationException` | `configuration` | Beak itself is set up wrong (missing driver, duplicate key). A developer error, not user input. |
-| `BeakStorageException` | `storage` | A storage driver fails to store, read, or delete a file. |
-| `BeakConflictException` | `conflict` | An operation conflicts with existing state (duplicate unique value, concurrent modification). |
+| `applied` | the write is confirmed | adopts the server's values as the new baseline and clears its errors |
+| `unapplied` | it did not happen; may carry an `error` with `fieldErrors` and a `reason` | keeps the draft, shows the errors on the inputs, lets the user fix and save again under a new save id |
+| `unknown` | nothing proves either way | locks editing and offers "Check save status" |
 
-Because the family is sealed, the backend's exception-to-response mapping is an
-exhaustive switch: add a variant and every mapper stops compiling until it
-handles the new case.
+`BeakSaveResult.complete` is true only when every operation is `applied`, so a partial success never looks like a rollback or like completion. `hasUnknown` is true when any operation is `unknown`.
 
-```dart
-int httpStatus(BeakException exception) => switch (exception) {
-  BeakValidationException() => 422,
-  BeakNotFoundException() => 404,
-  BeakAuthenticationException() => 401,
-  BeakAuthorizationException() => 403,
-  BeakConflictException() => 409,
-  BeakConfigurationException() => 500,
-  BeakStorageException() => 500,
-};
+A rejection the server processes, such as a validation error, an authorization failure or a locked record, comes back as HTTP 200 with the operation `unapplied`, `reason` `rejected` or `rolledBack`, and the error inside the receipt. The whole transaction is rolled back, so nothing partial remains.
+
+Unknown is what the panel reports when it cannot tell. It comes from one place:
+
+```dart title="packages/beak_frontend/lib/src/data/beak_form_commit_repository.dart"
+--8<-- "packages/beak_frontend/lib/src/data/beak_form_commit_repository.dart:BeakFormCommitRepository"
 ```
 
-`BeakValidationException` is the one that carries structure. Its `fieldErrors`
-map lets a form highlight the offending inputs individually instead of showing
-one blanket message.
+An exception thrown while sending a plan is sorted into one of two receipts. A typed refusal that the server states before it runs any write (`BeakValidationException` for a 422, `BeakPayloadTooLargeException`, `BeakAuthenticationException`, `BeakAuthorizationException`, `BeakNotFoundException` and `BeakConflictException`) produces an `unapplied` receipt with the reason `rejected`, and the form stays editable. Everything that cannot prove that nothing was written (a dropped connection, a timeout, a `BeakInternalException`, a `BeakTransportException`, a storage or configuration failure) produces an `unknown` receipt with the reason `responseUnavailable`. The panel does not resend an unknown save. It asks the server what it recorded for that save id:
 
-```dart
-throw const BeakValidationException(
-  'The product could not be saved.',
-  fieldErrors: {
-    'price': ['Must be greater than 0'],
-    'sku': ['Already taken'],
-  },
-);
+```console
+GET /api/commits/{saveId}
 ```
 
-## Failure becomes a value at the repository
+If the server stored a receipt, the answer resolves every operation to `applied` or `unapplied`, and the form carries on from there. Replaying the same plan is also safe when the source reports `idempotentReplay`, because the same save id returns the stored receipt without writing again. What is not safe is a blind resend under a new id, and the form never does that while a save is unknown.
 
-On the frontend, the catch boundary is `BeakResourceRepository`. It wraps every
-data-source call: a thrown `BeakException` comes back as `BeakErr`, and anything
-else still propagates (a real bug should not be silently swallowed).
+If the server never stored a receipt for that id, the lookup answers 404. When the source keeps receipts durably (the HTTP source over a real server does), or when the same page sent the save, the panel reads that as "never received": every operation becomes `unapplied` with the reason `notReceived`, the form is editable again and a new save goes out under a new id. That covers a proxy that dropped the request or an unexpected error in your preparer before the server wrote its pending receipt. After a reload against a source that keeps receipts in memory only, a 404 proves nothing, because the receipt went with the page: the save stays `unknown` with the reason `receiptLost`, the form says so, and the only ways on are to look for the record and then discard the edits. A failed lookup for any other reason (the network is still down, the server answers 5xx) leaves the save unknown, and the form keeps refusing to discard its changes until a lookup succeeds.
 
-```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
-Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
-  try {
-    return BeakOk(await run());
-  } on BeakException catch (exception) {
-    return BeakErr(exception);
-  }
-}
-```
+## Why it is shaped this way
 
-Above the repository, view models never write `try/catch`. They receive a
-`BeakResult` and switch on the outcome, which keeps the failure path visible in
-the type rather than hidden in control flow.
+Exceptions inside, values at the edge. Throwing keeps services and data sources short, and one catch per side keeps error shaping in one file. But a view model that had to `try/catch` would hide the failure path in control flow. `BeakResult` puts it in the type, and the sealed pair makes a caller handle both.
 
-```dart
-final repository = BeakResourceRepository(dataSource);
-final result = await repository.query(
-  const BeakQuerySpec(table: 'products'),
-);
-switch (result) {
-  case BeakOk(:final value):
-    print('${value.items.length} products');
-  case BeakErr(:final error):
-    print('load failed: ${error.message}');
-}
-```
+A receipt, because a network can lie. After a dropped connection you can't know whether the server wrote anything. Reporting that as success loses data quietly, and reporting it as failure invites a second insert. So the answer has a third value, `unknown`, and the only way out of it is to ask under the same identity.
 
-!!! note "What just happened"
-    - The data source threw a typed `BeakException` (or returned normally).
-    - The repository caught it and handed back a `BeakResult`.
-    - The view model matched `BeakOk` or `BeakErr`, no `try/catch` in sight.
-    - The frontend flow is Widget then ViewModel then Repository then DataSource;
-      the repository is the single catch point.
+A sealed exception family with a string `code`. The types give the server an exhaustive status switch and give a caller something to pattern-match. The `code` is the wire form and the fallback for a client that meets a code it doesn't know. It is also a string where an enum would do: `BeakOperationResult.reason` is a free string too (`rejected`, `rolledBack`, `notStarted`, `inFlight`, `responseUnavailable`, `notReceived`, `receiptLost`), so compare against those values with care.
 
-## The typed row: BeakValue and BeakRecord
+## What it means for you
 
-Data crossing a boundary is never a `Map<String, dynamic>`. Beak wraps each cell
-in a `BeakValue` and each row in a `BeakRecord`, so a value keeps its type from
-the database to the widget and query specs serialize losslessly.
-
-A `BeakValue` is a sealed wrapper with a variant per primitive. Build one from
-plain Dart with `BeakValue.of`, which picks the matching variant and throws a
-`BeakConfigurationException` for anything it cannot represent.
-
-```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-static BeakValue of(Object? raw) => switch (raw) {
-  null => const BeakNullValue(),
-  final BeakValue value => value,
-  final bool value => BeakBoolValue(value),
-  final int value => BeakIntValue(value),
-  final double value => BeakDoubleValue(value),
-  final String value => BeakStringValue(value),
-  final DateTime value => BeakDateTimeValue(value),
-  final List<Object?> values => BeakListValue([
-    for (final value in values) BeakValue.of(value),
-  ]),
-  _ => throw BeakConfigurationException(
-    'BeakValue does not support ${raw.runtimeType} values (got $raw).',
-  ),
-};
-```
-
-Two getters matter. `raw` unwraps back to plain Dart (a `BeakDateTimeValue`
-returns a `DateTime`). `toJson` produces the wire form, where a timestamp becomes
-a tagged object so decoding never confuses it with a plain string.
-
-```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-@override
-Object? get raw => value;
-
-@override
-Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
-```
-
-A `BeakRecord` is a row: `BeakValue`s keyed by column key, plus any eager-loaded
-relations keyed by relation key. It round-trips to a plain ORM row
-(`fromRow`/`toRow`) and to JSON (`fromJson`/`toJson`), and you read a value back
-out by column key with `operator []`.
-
-```dart
-// Wrap a raw ORM row, then read typed values back out by column key.
-final record = BeakRecord.fromRow({
-  'id': 7,
-  'title': 'Hello',
-  'published': true,
-});
-
-final BeakValue? title = record['title']; // BeakStringValue('Hello')
-final Object? id = record['id']?.raw;      // 7
-```
-
-That is the same `BeakRecord` a data source returns, a form controller edits, and
-`renderBeakCell` reads. No `dynamic` in the middle, and no stringly-typed map to
-guess the shape of. A record never lazy-loads either: a relation is present only
-if the query asked for it.
-
-### Your own rows read as your own types
-
-`record['title']` is the core-level API, the one every layer of Beak is built on.
-In your app you rarely reach for it, because `beak prepare` writes an extension
-type per resource that reads each field through its own column:
-
-```dart title="examples/store/lib/models/category.beak.dart"
-/// What the category is called.
-String get name => CategoryColumns.name.require(record);
-
-/// The one-line blurb shown above the product list.
-String? get blurb => CategoryColumns.blurb.readFrom(record);
-```
-
-`require` is generated for a non-nullable field and `readFrom` for a nullable
-one, so the getter's nullability matches the schema class it came from. Reach for
-a row with `record.asCategory` and you get `String name` and `String? blurb`
-instead of two `BeakValue?`s to unwrap. The extension type is zero-cost: it is
-the same `BeakRecord` underneath.
+- Throw a `BeakException` from your services and preparers. Let the middleware answer. Don't build HTTP responses by hand.
+- Attach a validation message to a field with `Model.field.invalid('...')`, not with a hand-written `fieldErrors` map.
+- Switch on `BeakResult` in a view model or widget. Handle `BeakErr` with a visible error and a retry, never with a default value that looks real.
+- Wrap your own async workflows in `beakRun`, passing `mapException` for the host's exceptions, so they fail the same way the built-in ones do.
+- When you call the API by hand, look for two shapes of failure: a 4xx with `code` for a direct write, and a 200 with `unapplied` operations for a commit.
+- Never treat `unknown` as failure or as success. Ask for the receipt.
 
 ## Continue reading
 
-- [The four layers](the-four-layers.md) where exceptions are thrown and caught on
-  each side.
-- [How data flows](how-data-flows.md) the serializable query spec that carries
-  `BeakValue`s over the wire.
-- [The type-safety promise](the-type-safety-promise.md) why users never touch
-  `dynamic` or a raw map.
-- [Exceptions](../reference/exceptions.md) the full reference for every variant.
-- [Generated code](../models/generated-code.md) the typed record view, and everything else `beak prepare` writes.
-- [Middleware](../backend/middleware.md) the backend boundary that maps the
-  exception family to HTTP status and JSON.
+- [Exceptions](../reference/exceptions.md) every variant, its code and its status.
+- [Drafts, review and conflicts](../forms/drafts-and-review.md) how a form keeps its draft while errors are corrected.
+- [Middleware](../backend/middleware.md) the server stack the error-mapping boundary sits in.
+- [Graph commits](../architecture/graph-commits.md) receipts, replay and recovery in contributor detail.

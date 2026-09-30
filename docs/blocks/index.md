@@ -1,210 +1,90 @@
 ---
-title: Blocks
-description: What a BeakBlock is, how BeakBlockHost renders the sealed family, grid spans, the two record scopes, and the block categories.
+title: Blocks and charts
+description: Compose custom screens, list headers and dialogs from 47 typed blocks for layout, content, data, records, modules, charts and maps.
+type: index
+audience: [beginner, expert]
+status: stable
 ---
 
-# Blocks
+# Blocks and charts
 
-After this page you can read a `BeakBlock` tree, know where blocks show up in a
-panel, size them on a grid with `BeakSpan`, and pick the right category page for
-the block you need.
+A generated resource gives you a table, a form and a show page. Everything else in a panel, the overview with its numbers, the kitchen list, the page that maps your customers, is a tree of blocks. This section catalogs all 47 of them, grouped the way you reach for them, with the Aviary example on every page.
 
-A block is a piece of screen described as data. You never write widget code for
-a custom page: you compose `const BeakBlock` values, hand the tree to
-`BeakBlockHost`, and Beak renders it onto obers_ui. One sealed union, one
-renderer, everything type-checked.
-
-A block tree reaches a page through one of three files:
-
-| File | What the tree becomes |
-| --- | --- |
-| `lib/screens/<name>.dart` | A `BeakScreen`'s `body`: a page in the sidebar |
-| `lib/dashboard.dart` | The screen mounted at `/` |
-| `lib/resources/<table>.dart` | A resource's `detail` or `formLayout` |
-
-All three are discovered. You never register a screen or a layout by hand.
-
-## One block, three mouths to feed
-
-The same block descriptors drive three surfaces. A custom screen's body, a
-resource's alternate view mode, and an overlay's content are all block
-trees handed to the same host.
+A block is a `const` description of something to show: a card, a metric, a line chart. It carries configuration and no widget code, so a whole screen is a literal you can read top to bottom. `BeakBlockHost` turns the tree into obers_ui widgets, and it does so with one exhaustive `switch`:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
-/// One sealed union drives three consumers with the same descriptors: a
-/// custom page's body, a resource's alternate view mode, and an overlay's
-/// content. `BeakBlockHost` renders the union exhaustively onto obers_ui
-/// widgets, so a new block type is a compile error until every renderer
-/// handles it.
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_block.dart:BeakBlock"
 ```
 
-Here is a small tree of your own. It stacks a heading over a two-up grid of
-cards, and each card claims half of a twelve-track grid with its `span`:
+## Which page to read
 
-```dart
-const body = BeakColumnBlock(
-  children: [
-    BeakTextBlock('Welcome back', variant: BeakTextVariant.h1),
-    BeakGridBlock(
-      columns: 12,
-      children: [
-        BeakCardBlock(
-          span: BeakSpan(columns: 6),
-          child: BeakTextBlock('Half width'),
-        ),
-        BeakCardBlock(
-          span: BeakSpan(columns: 6),
-          child: BeakTextBlock('Other half'),
-        ),
-      ],
-    ),
-  ],
-);
-```
-
-!!! note "What just happened"
-    - `BeakColumnBlock`, `BeakTextBlock`, `BeakGridBlock`, and `BeakCardBlock`
-      are all `const`. No widgets, no callbacks, no state.
-    - The tree is pure configuration. Nothing has been rendered yet.
-    - You would hand `body` to a [custom screen](../panel/custom-screens.md), a
-      view mode, or an overlay to see it on screen.
-    - `const` is the norm, not a trick. Column constants, aggregates and query
-      specs are all `const` constructors, so a whole dashboard is usually one
-      `const` expression.
-
-## The renderer
-
-`BeakBlockHost` is the one widget that turns a block tree into obers_ui widgets.
-It is a plain `StatelessWidget` that switches over the sealed family.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-class BeakBlockHost extends StatelessWidget {
-  /// Creates a host rendering [block].
-  const BeakBlockHost({required this.block, super.key});
-
-  /// The block tree to render.
-  final BeakBlock block;
-
-  @override
-  Widget build(BuildContext context) => switch (block) {
-    final BeakColumnBlock column => _column(context, column),
-    final BeakRowBlock row => _row(context, row),
-    final BeakGridBlock grid => _grid(context, grid),
-    final BeakCardBlock card => _card(card),
-    // ... one arm per block type, exhaustively.
-  };
-}
-```
-
-The switch is exhaustive. Because `BeakBlock` is `sealed`, adding a new block
-type without teaching the host to render it is a compile error, not a runtime
-surprise. You rarely construct `BeakBlockHost` yourself: the panel wraps your
-screen body, view mode, and overlay content in one for you. You reach for it
-directly only when [embedding a block in a hand-written widget](../extending/using-beak-widgets-standalone.md).
-
-## Grid spans
-
-Every block carries an optional `span`. It is read only when the block is a
-direct child of a `BeakGridBlock`, and ignored everywhere else.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block.dart"
-@immutable
-sealed class BeakBlock {
-  /// Creates a block, optionally sized by [span] inside grid parents.
-  const BeakBlock({this.span});
-
-  /// How many grid tracks this block occupies when it is a direct child
-  /// of a [BeakGridBlock]; ignored elsewhere.
-  final BeakSpan? span;
-}
-
-/// Grid placement of a block inside a [BeakGridBlock].
-@immutable
-final class BeakSpan {
-  /// Creates a span covering [columns] × [rows] grid tracks.
-  const BeakSpan({this.columns = 1, this.rows = 1})
-    : assert(columns >= 1, 'columns must be >= 1'),
-      assert(rows >= 1, 'rows must be >= 1');
-
-  /// Number of grid columns covered.
-  final int columns;
-
-  /// Number of grid rows covered.
-  final int rows;
-}
-```
-
-A `BeakSpan(columns: 6)` on a card inside a twelve-column grid takes half the
-row. Grids and spans are covered in full on the [layout blocks](layout-blocks.md)
-page.
-
-## The two record scopes
-
-Most blocks render the same way wherever you put them. Three of them do not: the
-record-bound blocks (`BeakFieldBlock`, `BeakFieldGroupBlock`,
-`BeakRelationBlock`) read their surrounding scope and change shape.
-
-- Inside a **`BeakRecordScope`** (a resource's detail view) they render the
-  record's values read-only.
-- Inside a **`BeakFormScope`** (a resource's form) they render editable inputs
-  wired to the form controller.
-- Outside both scopes they render nothing.
-
-One layout, two surfaces. That dual-mode behaviour is the whole point of
-[record blocks](record-blocks.md), and it powers
-[detail views](../panel/detail-and-dual-mode.md).
-
-You only write one when the derived default is not what you want. A resource
-with no `detail` gets a layout the model implies: a headline card, the
-remaining fields, and a tab per to-many relationship. Set `detail` in
-`lib/resources/<table>.dart` to replace it.
-
-## The categories
-
-Blocks fall into six families plus one escape hatch. Each has its own page.
-
-| Category | Blocks | Page |
+| You want to... | Read | For that |
 | --- | --- | --- |
-| Layout | column, row, grid, card, section, tabs, accordion, breadcrumbs, masonry, three-pane, carousel, divider, spacer, timeline | [Layout blocks](layout-blocks.md) |
-| Display | text, markdown, image, video, icon-gallery | [Display blocks](display-blocks.md) |
-| UI kit | alert, badge, progress, rating, radial-slider | [UI-kit blocks](ui-kit-blocks.md) |
-| Data-bound | kpi, metric, chart, table, calendar, kanban, map | [Data blocks](data-blocks.md) |
-| Record-bound | field, field-group, relation | [Record blocks](record-blocks.md) |
-| Module | chat, inbox, file-manager, invoice, profile, pricing, faq, wizard, gallery | [Module blocks](module-blocks.md) |
-| Escape hatch | widget | [The widget escape hatch](the-widget-escape-hatch.md) |
+| Arrange a screen with columns, rows, grids, cards, tabs and accordions | [Layout blocks](layout-blocks.md) | The frame of a screen, and when rows and grids stack |
+| Show text, markdown, images, alerts, badges, progress and ratings | [Content blocks](content-blocks.md) | Blocks that show what you hand them |
+| Put live numbers, a table, a timeline, a board or a calendar on a page | [Data blocks](data-blocks.md) | Blocks that fetch for themselves, and where they stop |
+| Total and group the whole authorized population on the server | [Population summaries](summaries.md) | Measures, six presentations and list scope |
+| Show one record's fields and related rows on a screen you write | [Record blocks](record-blocks.md) | `BeakRecordScope` and the blocks that read it |
+| Add a chat, inbox, file manager, media, profile, invoice, pricing or FAQ view | [Module blocks](module-blocks.md) | Ready-made interfaces bound to your models |
+| Draw a query as a line, bar, pie, donut, area, radar, funnel, bubble, candlestick or heat map | [Charts](charts.md) | The mapper pattern for chart points |
+| Shade countries by a value or pin rows on a map | [Maps](maps.md) | The vector choropleth and the tile map |
 
-A few blocks blur the lines. `BeakCarouselBlock` and `BeakTimelineBlock` are
-data-bound (they take a `BeakQuerySpec`) but live with layout because that is how
-you place them. When in doubt, the block's own page shows the exact constructor.
+## Where blocks appear
 
-## Where blocks are used
+Blocks describe things that show, and a page of them lands in three places:
 
-```mermaid
-flowchart LR
-  A[BeakBlock tree] --> H[BeakBlockHost]
-  H --> S[Custom screen body]
-  H --> V[Resource view mode]
-  H --> O[Overlay content]
+- **A custom screen.** `BeakScreen(body: ...)` takes one block, registered in `BeakPanel(pages: [...])`.
+- **A composed list's header.** `BeakListDefinition.header` and `collapsedHeader` take a block, usually a [summary](summaries.md) that shares the list's filters.
+- **A dialog or side sheet.** `BeakOverlays.modal(body:)` and `BeakOverlays.sheet(body:)` render a block tree in an obers_ui dialog or sheet.
+
+The Aviary registers twelve screens, from the data blocks to the FAQ:
+
+```dart title="examples/showcase/lib/main.dart"
+--8<-- "examples/showcase/lib/main.dart:aviaryPages"
 ```
 
-- **Custom screens.** A `BeakScreen`'s `body` is a block. Declare the screen in
-  `lib/screens/<name>.dart` and `beak prepare` routes it and gives it a sidebar
-  entry. See [custom screens](../panel/custom-screens.md).
-- **Dashboards.** `lib/dashboard.dart` returns the `BeakScreen` mounted at `/`,
-  whose body is a tree of KPIs, charts, maps, and tables. See
-  [dashboards](../panel/dashboards.md).
-- **Detail and form layouts.** A resource's `detail` and `formLayout` are block
-  trees of record blocks, set in `lib/resources/<table>.dart`. See
-  [detail and dual-mode blocks](../panel/detail-and-dual-mode.md).
-- **View modes and overlays.** A resource's alternate view modes and the
-  panel's overlays take the same trees, through the same host.
+Forms are a different tree. A read, create or edit screen is a list of form nodes bound to a draft, because a form has state a block does not. [The block system](../concepts/the-block-system.md) explains the split, and [Block system internals](../architecture/block-system-internals.md) shows how the host dispatches.
+
+## The 47 blocks
+
+Every block, once, under the page that documents it:
+
+| Page | Blocks |
+| --- | --- |
+| [Layout blocks](layout-blocks.md) | `BeakColumnBlock`, `BeakRowBlock`, `BeakGridBlock`, `BeakCardBlock`, `BeakSectionBlock`, `BeakTabsBlock`, `BeakAccordionBlock`, `BeakMasonryBlock`, `BeakDividerBlock`, `BeakSpacerBlock`, `BeakWidgetBlock` |
+| [Content blocks](content-blocks.md) | `BeakTextBlock`, `BeakMarkdownBlock`, `BeakImageBlock`, `BeakAlertBlock`, `BeakBadgeBlock`, `BeakProgressBlock`, `BeakRatingBlock`, `BeakRadialSliderBlock`, `BeakBreadcrumbsBlock`, `BeakIconGalleryBlock` |
+| [Data blocks](data-blocks.md) | `BeakMetricBlock`, `BeakTableBlock`, `BeakTimelineBlock`, `BeakKanbanBlock`, `BeakCalendarBlock`, and `BeakSummaryBlock` (see [Population summaries](summaries.md)) |
+| [Record blocks](record-blocks.md) | `BeakFieldBlock`, `BeakFieldGroupBlock`, `BeakRelationBlock` |
+| [Module blocks](module-blocks.md) | `BeakChatBlock`, `BeakInboxBlock`, `BeakFileManagerBlock`, `BeakThreePaneBlock`, `BeakCarouselBlock`, `BeakGalleryBlock`, `BeakVideoBlock`, `BeakProfileBlock`, `BeakInvoiceBlock`, `BeakPricingBlock`, `BeakFaqBlock` |
+| [Charts](charts.md) | `BeakChartBlock`, `BeakBubbleChartBlock`, `BeakCandlestickChartBlock`, `BeakHeatmapChartBlock` |
+| [Maps](maps.md) | `BeakMapBlock`, `BeakTileMapBlock` |
+
+The list is closed. `BeakBlock` is sealed, so you cannot add a block type from outside the package. The escape hatch is `BeakWidgetBlock`, which hosts any widget, and [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) shows how far it goes.
+
+## What a block needs from the panel
+
+Every block that shows data reads the panel's data source, so it works inside a `BeakPanel` with no wiring, and asks the server the same questions a list page would. They differ in how much they fetch and what makes them fetch again:
+
+| Blocks | Get their data from | Fetch again after a write |
+| --- | --- | --- |
+| layout, content | the arguments | not applicable |
+| `BeakMetricBlock`, `BeakSummaryBlock` | one aggregate or summary request | yes |
+| `BeakTableBlock` | pages of a model | yes |
+| charts, maps, `BeakTimelineBlock`, carousel, gallery, video | the query you pass | yes |
+| kanban, calendar, chat, inbox, pricing, FAQ, `BeakFileManagerBlock` | the first 200 rows of a model (or of its `filter`) | yes |
+| `BeakProfileBlock`, `BeakInvoiceBlock` | one record by id | no |
+| field, field group | the nearest `BeakRecordScope` | not applicable |
+| `BeakRelationBlock` | the scope, then the relation's rows | yes |
+
+A panel's `refreshPolicy` makes the "yes" rows fetch on a timer as well. The "no" rows keep what they loaded until the screen is built again. Every block that fetches shows a failed request as an error with a Retry button, so an error is never passed off as an empty result. Each page under this section says what stays on screen while the error shows.
+
+## Spans
+
+Every block takes an optional `span`, a `BeakSpan(columns:, rows:)`. Inside a `BeakGridBlock` it is the number of tracks the block covers. Inside an expanded `BeakRowBlock` its `columns` is a relative width. Everywhere else it is ignored. [Layout blocks](layout-blocks.md) has the arithmetic.
 
 ## Continue reading
 
-- [Layout blocks](layout-blocks.md) columns, grids, cards, tabs, and the rest of
-  the structural family.
-- [Record blocks](record-blocks.md) the dual-mode field and relation blocks that
-  read their scope.
-- [The block system](../concepts/the-block-system.md) the design idea behind the
-  sealed union and its one renderer.
-- [Custom screens](../panel/custom-screens.md) where a block tree becomes a page.
+- [Layout blocks](layout-blocks.md) start here to build the frame of a screen.
+- [Data blocks](data-blocks.md) the fastest way to a working overview page.
+- [Blocks](../reference/blocks.md) every block class, its constructor and its defaults.
+- [Dashboards](../panel/dashboards.md) blocks assembled into an overview.

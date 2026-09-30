@@ -10,8 +10,10 @@ class _BeakInvoiceBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final record = useState<BeakRecord?>(null);
+    final failure = useState<BeakException?>(null);
+    final attempt = useState(0);
 
     useEffect(() {
       var cancelled = false;
@@ -36,8 +38,14 @@ class _BeakInvoiceBlockView extends HookWidget {
           if (cancelled) {
             return;
           }
-          if (result case BeakOk(:final value) when value.items.isNotEmpty) {
-            record.value = value.items.first;
+          switch (result) {
+            case BeakOk(:final value) when value.items.isNotEmpty:
+              record.value = value.items.first;
+              failure.value = null;
+            case BeakOk():
+              break;
+            case BeakErr(:final error):
+              failure.value = error;
           }
           return;
         }
@@ -48,14 +56,18 @@ class _BeakInvoiceBlockView extends HookWidget {
         if (cancelled) {
           return;
         }
-        if (result case BeakOk(:final value)) {
-          record.value = value;
+        switch (result) {
+          case BeakOk(:final value):
+            record.value = value;
+            failure.value = null;
+          case BeakErr(:final error):
+            failure.value = error;
         }
       }
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, attempt.value]);
 
     final BeakRecord? invoice = record.value;
     return SingleChildScrollView(
@@ -66,12 +78,20 @@ class _BeakInvoiceBlockView extends HookWidget {
         children: [
           OiLabel.h2(block.title),
           if (invoice == null)
-            const OiLabel.body('Loading…')
+            if (failure.value == null)
+              OiLabel.body(BeakLocalizations.of(context).loading)
+            else
+              _withFailure(
+                context,
+                failure.value,
+                () => attempt.value++,
+                const SizedBox.shrink(),
+              )
           else ...[
             _header(context, invoice),
             const OiDivider(spacing: 8),
-            _lineItems(),
-            _totals(invoice),
+            _lineItems(context),
+            _totals(context, invoice),
           ],
         ],
       ),
@@ -87,13 +107,34 @@ class _BeakInvoiceBlockView extends HookWidget {
         if (_readString(invoice, column) case final String url)
           OiImage(src: url, alt: '${block.title} logo', height: 48),
       if (block.metaFields.isNotEmpty)
-        _party('Details', invoice, block.metaFields),
+        _party(
+          context,
+          BeakLocalizations.of(context).details,
+          invoice,
+          block.metaFields,
+        ),
       if (block.fromFields.isNotEmpty)
-        _party('From', invoice, block.fromFields),
-      if (block.toFields.isNotEmpty) _party('To', invoice, block.toFields),
+        _party(
+          context,
+          BeakLocalizations.of(context).invoiceFrom,
+          invoice,
+          block.fromFields,
+        ),
+      if (block.toFields.isNotEmpty)
+        _party(
+          context,
+          BeakLocalizations.of(context).invoiceTo,
+          invoice,
+          block.toFields,
+        ),
       if (_billedParty(invoice) case final BeakRecord party)
         if (block.toPartyFields.isNotEmpty)
-          _party('To', party, block.toPartyFields),
+          _party(
+            context,
+            BeakLocalizations.of(context).invoiceTo,
+            party,
+            block.toPartyFields,
+          ),
     ],
   );
 
@@ -108,27 +149,38 @@ class _BeakInvoiceBlockView extends HookWidget {
     return related.isEmpty ? null : related.first;
   }
 
-  Widget _party(String title, BeakRecord invoice, List<BeakColumn> fields) =>
-      SizedBox(
-        width: 280,
-        child: OiKeyValue.group(
-          title: title,
-          children: [
-            for (final column in fields)
-              OiKeyValue(
-                label: column.label,
-                value: beakCellText(column, invoice[column.key]?.raw),
-              ),
-          ],
-        ),
-      );
+  Widget _party(
+    BuildContext context,
+    String title,
+    BeakRecord invoice,
+    List<BeakColumn> fields,
+  ) => SizedBox(
+    width: 280,
+    child: OiKeyValue.group(
+      title: title,
+      children: [
+        for (final column in fields)
+          OiKeyValue(
+            label: column.label,
+            value: beakCellText(
+              column,
+              invoice[column.key]?.raw,
+              formatting: BeakFormatting.maybeOf(context),
+            ),
+          ),
+      ],
+    ),
+  );
 
-  Widget _lineItems() {
+  Widget _lineItems(BuildContext context) {
     final BeakColumn? foreignKey = block.lineItemsForeignKey;
     return BeakBlockHost(
       block: BeakTableBlock(
-        title: 'Line items',
+        title: BeakLocalizations.of(context).invoiceLineItems,
         model: block.lineItemsModel,
+        // An invoice's lines are part of the document: this block reads them,
+        // it does not edit the invoice by deleting one.
+        enableDelete: false,
         baseFilter: foreignKey == null
             ? null
             : BeakFieldFilter(
@@ -140,13 +192,17 @@ class _BeakInvoiceBlockView extends HookWidget {
     );
   }
 
-  Widget _totals(BeakRecord invoice) {
+  Widget _totals(BuildContext context, BeakRecord invoice) {
     // Through the shared cell formatter so decimal columns keep their
     // configured currency prefix and precision — Postgres numerics arrive
     // over the wire as strings.
     OiKeyValue row(BeakColumn column) => OiKeyValue(
       label: column.label,
-      value: beakCellText(column, invoice[column.key]?.raw),
+      value: beakCellText(
+        column,
+        invoice[column.key]?.raw,
+        formatting: BeakFormatting.maybeOf(context),
+      ),
     );
     final rows = <OiKeyValue>[
       if (block.subtotalField case final BeakColumn column) row(column),
@@ -155,6 +211,9 @@ class _BeakInvoiceBlockView extends HookWidget {
       if (block.taxField case final BeakColumn column) row(column),
       row(block.totalField),
     ];
-    return OiKeyValue.group(title: 'Totals', children: rows);
+    return OiKeyValue.group(
+      title: BeakLocalizations.of(context).invoiceTotals,
+      children: rows,
+    );
   }
 }

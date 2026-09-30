@@ -1,7 +1,7 @@
 part of 'beak_block.dart';
 
 /// A choropleth world map: each region is shaded by a value read from the
-/// bound query — the dashboard's "live users by country".
+/// bound query, such as live users by country.
 ///
 /// Renders onto `OiVectorMap` with its bundled world geometry. [query]
 /// returns one row per region; [regionCodeField] is the ISO 3166-1 alpha-2
@@ -10,9 +10,9 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakMapBlock(
 ///   title: 'Live users by country',
-///   query: BeakQuerySpec(table: 'country_stats'),
-///   regionCodeField: CountryStatColumns.countryCode,
-///   valueField: CountryStatColumns.activeUsers,
+///   query: const CountryStatModel().query(),
+///   regionCodeField: CountryStatModel.countryCode.column,
+///   valueField: CountryStatModel.activeUsers.column,
 ///   valueLabel: 'Active users',
 /// );
 /// ```

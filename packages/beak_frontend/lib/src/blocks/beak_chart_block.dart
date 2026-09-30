@@ -3,18 +3,26 @@ part of 'beak_block.dart';
 /// A composable, data-bound chart: a query, a typed record→point mapping,
 /// and the chart family to draw.
 ///
-/// Where `BeakChart` lives only on the flat dashboard, a [BeakChartBlock]
-/// joins the block union, so charts drop into any grid, card, or page. It
-/// runs [query] through the data source, maps records to typed
-/// [BeakChartPoint]s via [map], and draws the [type] family.
+/// As a member of the block union, a chart drops into any grid, card, or
+/// page. It runs [query] through the data source, maps records to typed
+/// [BeakChartPoint]s via [map], and draws the [type] family. Bubble,
+/// candlestick and heatmap charts have blocks of their own.
 ///
 /// ```dart
 /// BeakChartBlock(
-///   title: 'Sales this year',
-///   type: BeakChartType.area,
-///   query: BeakQuerySpec(table: 'time_series_points', filter: salesSeries),
-///   map: (records) => [for (final r in records) BeakChartPoint(...)],
-///   span: BeakSpan(columns: 8),
+///   title: 'Stock per variant',
+///   type: BeakChartType.bar,
+///   query: const ProductVariantModel().query(
+///     filter: ProductVariantModel.active.eq(true),
+///   ),
+///   map: (records) => [
+///     for (final record in records)
+///       BeakChartPoint(
+///         label: ProductVariantModel.name.readFrom(record) ?? '',
+///         value: (ProductVariantModel.stock.readFrom(record) ?? 0).toDouble(),
+///       ),
+///   ],
+///   span: const BeakSpan(columns: 8),
 /// );
 /// ```
 final class BeakChartBlock extends BeakBlock {

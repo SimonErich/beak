@@ -18,6 +18,10 @@ import 'package:worm/worm.dart';
 /// - `1062` / `1169` duplicate entry        → [UniqueConstraintException]
 /// - `1451` / `1452` / `1216` / `1217`
 ///   foreign-key violations                 → [ForeignKeyException]
+/// - `1406` data too long / `1264` out of range / `1265` / `1292` /
+///   `1366` truncated or incorrect value    → [DataException]
+/// - `1048` column cannot be null /
+///   `3819` / `4025` check violated         → [CheckConstraintException]
 /// - `1205` lock wait timeout /
 ///   `1213` deadlock                        → [TransactionException]
 /// - `1042` / `1043` / `1045` / `2002` /
@@ -91,6 +95,17 @@ final class MysqlErrorMapper {
       1451 || 1452 || 1216 || 1217 => ForeignKeyException(
         table: label,
         column: column,
+        message: message,
+      ),
+      1406 || 1264 || 1265 || 1292 || 1366 => DataException(
+        table: label,
+        column: column.isEmpty ? null : column,
+        message: message,
+      ),
+      1048 || 3819 || 4025 => CheckConstraintException(
+        table: label,
+        column: column.isEmpty ? null : column,
+        constraintName: constraint.isEmpty ? null : constraint,
         message: message,
       ),
       1205 || 1213 => TransactionException(message: message),

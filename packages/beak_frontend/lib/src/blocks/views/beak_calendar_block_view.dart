@@ -10,96 +10,105 @@ class _BeakCalendarBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
-    final records = useState(const <BeakRecord>[]);
+    final dataSource = beakDependencies(context)<BeakDataSource>();
+    final rows = _useModuleRows(
+      dataSource,
+      BeakQuerySpec(
+        table: block.model.table,
+        filter: block.filter,
+        pagination: _modulePage,
+      ),
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(table: block.model.table, pagination: _modulePage),
-        );
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
+    final formatting = BeakFormatting.of(context);
     final byKey = <Object, BeakRecord>{
-      for (final record in records.value)
+      for (final record in rows.value.records)
         if (block.model.primaryKeyOf(record) case final Object id) id: record,
     };
+    // A calendar places events by their start: a row with no start has no
+    // place on it, and is left out rather than given an invented date.
     final events = <OiCalendarEvent>[
       for (final MapEntry(key: id, value: record) in byKey.entries)
-        _eventOf(context, id, record),
+        if (_readDateTime(record, block.startField) case final DateTime start)
+          _eventOf(context, formatting, id, record, start),
     ];
 
-    return OiCalendar(
-      label: block.label,
-      mode: block.mode,
-      events: events,
-      onEventTap: block.onEventTap == null
-          ? null
-          : (event) {
-              if (byKey[event.key] case final BeakRecord record) {
-                block.onEventTap!(record);
-              }
-            },
-      onEventMove: (event, start, end) async {
-        final BeakRecord? record = byKey[event.key];
-        if (record == null) {
-          return;
-        }
-        final result = await BeakResourceRepository(dataSource).update(
-          block.model.table,
-          event.key,
-          BeakRecord(
-            values: {
-              block.startField.key: BeakDateTimeValue(start),
-              if (block.endField case final BeakColumn column)
-                column.key: BeakDateTimeValue(end),
-            },
-          ),
-        );
-        // Mirror a successful write into the rendered records so the event
-        // stays on its new day; on failure it visibly snaps back.
-        if (result case BeakOk()) {
-          records.value = [
-            for (final row in records.value)
-              if (identical(row, record))
-                BeakRecord(
-                  values: {
-                    ...row.values,
-                    block.startField.key: BeakDateTimeValue(start),
-                    if (block.endField case final BeakColumn column)
-                      column.key: BeakDateTimeValue(end),
-                  },
-                  relations: row.relations,
-                )
-              else
-                row,
-          ];
-        }
-        block.onEventMove?.call(record, start, end);
-      },
+    return _withTruncationNote(
+      context,
+      rows.value,
+      OiCalendar(
+        label: block.label,
+        mode: block.mode,
+        events: events,
+        onEventTap: block.onEventTap == null
+            ? null
+            : (event) {
+                if (byKey[event.key] case final BeakRecord record) {
+                  block.onEventTap!(record);
+                }
+              },
+        onEventMove: (event, shownStart, shownEnd) async {
+          final BeakRecord? record = byKey[event.key];
+          if (record == null) {
+            return;
+          }
+          // The calendar reports wall-clock components in the zone it was
+          // shown in; the record stores the instant they name.
+          final DateTime start = formatting.fromEditorDateTime(shownStart);
+          final DateTime end = formatting.fromEditorDateTime(shownEnd);
+          final result = await BeakResourceRepository(dataSource).update(
+            block.model.table,
+            event.key,
+            BeakRecord(
+              values: {
+                block.startField.key: BeakDateTimeValue(start),
+                if (block.endField case final BeakColumn column)
+                  column.key: BeakDateTimeValue(end),
+              },
+            ),
+          );
+          switch (result) {
+            case BeakOk():
+              // Mirror the confirmed write into the rendered records so the
+              // event stays on its new day until the refetch lands.
+              rows.value = _ModuleRows([
+                for (final row in rows.value.records)
+                  if (identical(row, record))
+                    BeakRecord(
+                      values: {
+                        ...row.values,
+                        block.startField.key: BeakDateTimeValue(start),
+                        if (block.endField case final BeakColumn column)
+                          column.key: BeakDateTimeValue(end),
+                      },
+                      relations: row.relations,
+                    )
+                  else
+                    row,
+              ], rows.value.total);
+              block.onEventMove?.call(record, start, end);
+            case BeakErr(:final error):
+              // A refused move leaves the event where it was.
+              if (context.mounted) _reportWriteFailure(context, error);
+          }
+        },
+      ),
     );
   }
 
-  OiCalendarEvent _eventOf(BuildContext context, Object id, BeakRecord record) {
-    final DateTime start =
-        _readDateTime(record, block.startField) ?? DateTime.now();
+  OiCalendarEvent _eventOf(
+    BuildContext context,
+    BeakFormatting formatting,
+    Object id,
+    BeakRecord record,
+    DateTime start,
+  ) {
     final DateTime end = _readDateTime(record, block.endField) ?? start;
     return OiCalendarEvent(
       key: id,
       title: _readString(record, block.titleField) ?? '',
-      start: start,
-      end: end,
+      start: formatting.toEditorDateTime(start),
+      end: formatting.toEditorDateTime(end),
       allDay: _readBool(record, block.allDayField),
       color: _categoryColor(context, record),
     );

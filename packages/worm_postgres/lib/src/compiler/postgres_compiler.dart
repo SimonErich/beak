@@ -31,6 +31,9 @@ final class PostgresCompiler {
       ..write(_projection(descriptor.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(descriptor.table));
+    if (descriptor.tableAlias case final alias?) {
+      sql.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendJoins(sql, descriptor.joins);
     _appendWhere(sql, descriptor.where, params);
     _appendGroupBy(sql, descriptor.groupBy);
@@ -619,6 +622,9 @@ final class PostgresCompiler {
       ..write(_projection(node.subquery.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(node.subquery.table));
+    if (node.subquery.tableAlias case final alias?) {
+      sub.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendWhere(sub, node.subquery.where, params);
     _appendOrderBy(sub, node.subquery.orderBy);
     _appendLimitOffset(sub, node.subquery.limit, node.subquery.offset);
@@ -679,6 +685,12 @@ final class PostgresCompiler {
     return buffer.toString();
   }
 
+  /// The `ESCAPE` clause for [predicate]'s pattern, or nothing when the
+  /// pattern keeps PostgreSQL's default escape character.
+  String _escapeClause(Predicate predicate) => predicate.escape == null
+      ? ''
+      : " ESCAPE '${predicate.escape!.replaceAll("'", "''")}'";
+
   String _compilePredicate(Predicate predicate, List<Object?> params) {
     final column = _qualified(predicate.tableName, predicate.fieldName);
     return switch (predicate.operator) {
@@ -688,11 +700,15 @@ final class PostgresCompiler {
       Operator.gte => '$column >= ${_placeholder(params, predicate.value)}',
       Operator.lt => '$column < ${_placeholder(params, predicate.value)}',
       Operator.lte => '$column <= ${_placeholder(params, predicate.value)}',
-      Operator.like => '$column LIKE ${_placeholder(params, predicate.value)}',
+      Operator.like =>
+        '$column LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.notLike =>
-        '$column NOT LIKE ${_placeholder(params, predicate.value)}',
+        '$column NOT LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.ilike =>
-        '$column ILIKE ${_placeholder(params, predicate.value)}',
+        '$column ILIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.isNull => '$column IS NULL',
       Operator.isNotNull => '$column IS NOT NULL',
       Operator.inList => _compileInList(

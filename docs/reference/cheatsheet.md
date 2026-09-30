@@ -1,371 +1,236 @@
 ---
 title: Cheatsheet
-description: One dense page: a resource end to end, every annotation, authoring type, column, rule, block and REST route, and every CLI command.
+description: The whole toolbox on one page. One resource end to end, then every common task mapped to the Beak declaration that does it.
+type: reference
+audience: [expert, agent]
+status: stable
+search: {boost: 2}
 ---
 
 # Cheatsheet
 
-Everything you reach for while building, on one page. Skim it, pin it, or feed
-it to an AI agent. Each row links out to the page that explains it in full.
-Snippets come from the store example (a coffee roastery, API on port 8080), so
-the names all line up.
+Every row says what you want, what you declare, and which page has the signature. Nothing here is a string field name: fields are the generated references (`CategoryModel.name`), and every declaration is a typed object. Dense on purpose; the pages linked in the right column are the complete tables.
 
-## A resource, end to end
+## Import
 
-One file. No registry to edit, no endpoint to write, no resource to register.
-
-```dart title="examples/store/lib/models/category.dart"
---8<-- "examples/store/lib/models/category.dart"
-```
-
-Then:
-
-```bash
-beak prepare   # generate; every other beak command runs this first
-beak migrate   # apply the migration prepare wrote
-beak dev       # serve the API, print the flutter run line
-```
-
-`prepare` writes `category.beak.dart` beside the class:
-
-```dart title="examples/store/lib/models/category.beak.dart"
-/// Typed column constants of the categories resource.
-abstract final class CategoryColumns {
-  // ... the primary key ...
-
-  /// What the category is called.
-  static const BeakStringColumn name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    rules: [BeakRequired(), BeakMaxLength(120)],
-    searchable: true,
-    sortable: true,
-  );
-
-  // ... blurb ...
-
-  /// Every column, in declaration order.
-  static const List<BeakColumn> values = [id, name, blurb];
-}
-```
-
-plus `CategoryRelations` (both sides of every relationship), `CategoryModel`,
-and a typed `CategoryRecord` view. Committed, never edited.
-
-The **field's type picks the column kind**. Its **nullability decides
-required-ness**, once, for the form validator, the API and the database:
-`String name` is required, `BeakText? blurb` is not.
-
-## Where each decision lives
-
-| Decision | Where |
+| A file that is... | Imports |
 | --- | --- |
-| Columns, relationships, table, soft deletes, timestamps | the `@Resource` class in `lib/models/<name>.dart` |
-| Panel title, API origin, server port | `beak.yaml` |
-| A resource's icon, label, section, or hiding it | `beak.yaml`, under `resources.<table>` |
-| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart` |
-| Theme, auth, the `/` screen, the server | `lib/theme.dart`, `lib/auth.dart`, `lib/dashboard.dart`, `lib/server.dart` |
-| Everything else | generated into `lib/beak/*.g.dart` and `lib/models/*.beak.dart`, committed, never edited |
+| a schema class | `package:beak/beak.dart` and `package:beak/schema.dart` |
+| a resource, screen or `main.dart` | `package:beak/panel.dart`, plus `package:beak/ui.dart` for `OiIcons` and your own widgets |
+| `lib/server.dart` | `package:beak/server.dart` |
+| a migration or seeder | `package:beak/migrations.dart` |
+| a test | `package:beak/testing.dart` |
 
-`beak eject <target>` writes any of those override files out, pre-filled with
-Beak's own default so it compiles and changes nothing until your first edit.
+The other libraries and what each may reach are in [Libraries](libraries.md).
 
-## Libraries
+## Summary
 
-One dependency, `beak`; eight libraries. Which one a file imports says what the
-file is.
-
-| Import | What it holds |
+| Section | Answers |
 | --- | --- |
-| `package:beak/beak.dart` | columns, models, relationships, the query spec, `BeakClient`, storage |
-| `package:beak/schema.dart` | the annotations a schema class carries |
-| `package:beak/panel.dart` | the panel: `BeakPanel`, resources, blocks, tables, forms |
-| `package:beak/server.dart` | the Shelf host, config, storage wiring, auth, policy |
-| `package:beak/migrations.dart` | `Migration`, `Schema`, `Seeder`, `BeakBlueprint` |
-| `package:beak/testing.dart` | `InMemoryBeakDataSource`, `BeakRecordingDataSource`, fixtures |
-| `package:beak/ui.dart` | obers_ui, for a screen that draws its own widgets |
-| `package:beak/charts.dart` | obers_ui_charts |
+| [One resource, end to end](#one-resource-end-to-end) | What a complete resource looks like, and the four commands around it |
+| [Commands](#commands) | Which `beak` command for which job |
+| [Schema](#schema) | Tables, columns, rules, relationships, behavior |
+| [Lists and filters](#lists-and-filters) | Columns, filters, search, presets, saved views, summaries, export |
+| [Forms](#forms) | Layouts, inputs, wizards, related rows, drafts, review |
+| [Actions](#actions) | Buttons, bulk actions, model commands |
+| [Pages and blocks](#pages-and-blocks) | Custom pages, dashboards, custom widgets |
+| [The panel](#the-panel) | Navigation, auth, maintenance, theme, formatting |
+| [The backend](#the-backend) | Policies, business rules, effects, storage, middleware |
+| [Data and tests](#data-and-tests) | Queries, the data source, the testing toolkit |
+| [Where a decision lives](#where-a-decision-lives) | Which file owns which choice |
 
-Full table and the reason for the split: [Libraries](libraries.md).
+## One resource, end to end
 
-## Authoring types and the columns they become
+The schema class declares the table, the columns and the relationship. `beak prepare` writes everything derived from it.
 
-The type on the left is what you write; the column on the right is what
-`beak prepare` generates. Reference the generated constant
-(`CategoryColumns.name`), never a string.
-
-| You declare | Column | Options beyond the base |
-| --- | --- | --- |
-| `String` | `BeakStringColumn` | `placeholder`, `maxLength` |
-| `BeakText` | `BeakTextColumn` | none |
-| `BeakRichText` | `BeakRichTextColumn` | none |
-| `int` | `BeakIntColumn` | `min`, `max`, `prefix`, `suffix` |
-| `double` | `BeakDecimalColumn` | `precision` (2), `prefix`, `suffix` |
-| `bool` | `BeakBoolColumn` | `trueLabel`, `falseLabel` |
-| `DateTime` | `BeakDateTimeColumn` | `format` (`BeakDateFormat`) |
-| any `enum` | `BeakEnumColumn<T>` | `defaultValue`, plus `@Badges({...})` |
-| `BeakJson` | `BeakJsonColumn` | none |
-| `BeakHexColor` | `BeakColorColumn` | none |
-| `BeakImageRef` + `@Image(...)` | `BeakImageColumn` | `storagePath`, `maxSizeInBytes`, `allowedTypes`, `maxDimensions`, `aspectRatio`, `thumbnail`, `transforms` |
-| `BeakFileRef` + `@FileField(...)` | `BeakFileColumn` | `storagePath`, `maxSizeInBytes`, `allowedTypes` |
-| `Object?` + `@Custom('tag')` | `BeakCustomColumn` | the tag your renderer is registered under |
-
-`BeakDateFormat` values: `standard`, `relative`, `dateOnly`, `timeOnly`, `iso`.
-Full options per type: [Column types reference](column-types.md).
-
-## `@Resource` and `@Column`
-
-```dart
-@Resource(table: 'products', softDeletes: true, timestamps: true, managesSchema: true)
+```dart title="examples/clean_beak_config/lib/resources/categories/models/category.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/models/category.dart:CategoryFields"
 ```
 
-| `@Resource` parameter | Default | What it does |
-| --- | --- | --- |
-| `table` | pluralised, snake-cased class name | The physical table name |
-| `softDeletes` | `false` | Deletes write a `deleted_at` marker |
-| `timestamps` | `false` | Adds `created_at` and `updated_at` |
-| `managesSchema` | `true` | Whether Beak generates a migration for this table |
-
-`@Column` carries what the type cannot: `columnName`, `label`, `visibleOn`,
-`sortable`, `searchable`, `filterable`, `indexed`, `unique`, `rules`, `prefix`,
-`suffix`, `precision`, `min`, `max`, `maxLength`, `format`, `placeholder`,
-`trueLabel`, `falseLabel`, `defaultValue`.
-
-`@Display()` marks the field that names a record in pickers, links and titles
-(one per schema; without it, the first string field). Full table:
-[Annotations](annotations.md).
-
-## Relationships
-
-Each takes the related **schema class** as the field type. Beak derives the
-foreign key, the pivot table, and the other side.
-
-| Annotation | Field type | Where the key lives | Renders as |
-| --- | --- | --- | --- |
-| `@BelongsTo` | `Other?` or `Other` | this table | link / searchable single-select |
-| `@HasOne` | `Other?` | the other table | link / searchable single-select |
-| `@HasMany` | `List<Other>` | the other table | badge list / relation manager |
-| `@BelongsToMany` | `List<Other>` | a pivot table | badge list / searchable multi-select |
-
-All four take `label:`. `@BelongsTo` and `@BelongsToMany` take
-`searchOn: ['name', 'email']`, the columns of the related table a picker
-searches (default: its display column). `onDelete` defaults to `setNull` for
-belongs-to, `restrict` for has-many, `cascade` for many-to-many;
-`inverse: false` stops Beak generating the other side.
-
-```dart title="examples/store/lib/models/product.dart"
-  /// The category this product is filed under.
-  @BelongsTo(onDelete: BeakOnDelete.setNull)
-  late final Category? category;
-
-  /// The roast profile for this product, if it is coffee.
-  @HasOne()
-  late final RoastProfile? roastProfile;
-
-  /// The tags attached to this product.
-  @BelongsToMany(allowCreate: true)
-  late final List<Tag> tags;
-
-  /// The order lines that sold this product.
-  @HasMany(onDelete: BeakOnDelete.restrict)
-  late final List<OrderItem> orderItems;
+```dart title="examples/clean_beak_config/lib/resources/categories/models/category.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/models/category.dart:CategoryAttributes"
 ```
 
-`BeakOnDelete` values mirror worm one for one: `cascade`, `ormCascade`,
-`restrict`, `setNull`, `setDefault`, `noAction`. See
-[Relationships](../models/relationships.md).
+The resource class presents it: navigation, search, filters and screens. Everything not listed keeps its default.
 
-## Validation rules
+```dart title="examples/clean_beak_config/lib/resources/categories/category_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryResource"
+```
 
-Eleven rules, listed in `@Column(rules: [...])`, run in order; the first
-non-null message wins. A rule that does not apply to the value's runtime type
-reports it as valid, so rules compose freely. Presence is not among them: a
-non-nullable field gets `BeakRequired()` from its type.
+```console
+$ beak make:resource Category --fields name:string!,description:string   # or write the two classes by hand
+$ beak prepare      # parts, registry, panel, server, entrypoints, first migration
+$ beak migrate      # create the tables
+$ beak dev          # serve the API, print the flutter run line
+```
 
-| Rule | Bites on | Fails when |
+Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generated `lib/main.dart` finds it by itself. Details: [CLI commands](cli-commands.md), [Generated files and symbols](generated-files.md).
+
+## Commands
+
+| You want to... | Run | Page |
 | --- | --- | --- |
-| `BeakRequired()` | anything | value is null, a blank/whitespace string, or an empty collection |
-| `BeakMin(num min)` | `num` | value `< min` |
-| `BeakMax(num max)` | `num` | value `> max` |
-| `BeakMinLength(int minLength)` | `String` | length `< minLength` |
-| `BeakMaxLength(int maxLength)` | `String` | length `> maxLength` |
-| `BeakPattern(String regex, {String? message})` | `String` | no match (the pattern is unanchored) |
-| `BeakEmail()` | `String` | not `local@domain.tld` shaped |
-| `BeakUrl()` | `String` | not an absolute `http`/`https` URL with a host |
-| `BeakInList<T>(List<T> allowed)` | any non-null | value not in `allowed` |
-| `BeakAllowedFileTypes(List<BeakFileType>)` | `BeakFileType`, filename, or MIME | type not in the allowed set |
-| `BeakMaxFileSize(int maxSizeInBytes)` | `int` (size in bytes) | size `> maxSizeInBytes` |
+| Start a project | `beak create <name>` (`--authored`, `--no-example`, `--skills`) | [CLI commands](cli-commands.md#beak-create) |
+| Add the panel to a Flutter app | `beak init` | [CLI commands](cli-commands.md#beak-init) |
+| Regenerate after any declaration changed | `beak prepare` | [CLI commands](cli-commands.md#beak-prepare) |
+| Scaffold a resource | `beak make:resource Name --fields a:string!,b:int` | [CLI commands](cli-commands.md#beak-makeresource) |
+| Change a shipped table | `beak make:migration Name --from-drift` | [CLI commands](cli-commands.md#beak-makemigration) |
+| Apply, inspect, undo migrations | `beak migrate [up\|status\|down\|fresh\|refresh]` | [CLI commands](cli-commands.md#beak-migrate) |
+| Load demo data | `beak seed [--class Name]` | [CLI commands](cli-commands.md#beak-seed) |
+| Adopt an existing database | `beak introspect <url> [--ownership adopt\|external]` | [CLI commands](cli-commands.md#beak-introspect) |
+| Own a default | `beak eject main\|panel\|resource <table>\|theme\|auth\|server` | [CLI commands](cli-commands.md#beak-eject) |
+| Serve the API | `beak dev` | [CLI commands](cli-commands.md#beak-dev) |
+| Check the project | `beak doctor [--json]` | [CLI commands](cli-commands.md#beak-doctor) |
+| Prepare a coding agent | `beak agents`, `beak docs` | [CLI commands](cli-commands.md#beak-agents) |
 
-Details and worked examples: [Validation rules reference](validation-rules.md).
+## Schema
 
-## What the panel derives
+| You want... | Declare | Page |
+| --- | --- | --- |
+| A table and a model from a class | `@Resource()` on `final class X extends BeakSchema`, with `part 'x.beak.dart';` | [Annotations](annotations.md#resource) |
+| A custom table name, soft deletes, timestamps | `@Resource(table:, softDeletes: true, timestamps: true)` | [Annotations](annotations.md#resource) |
+| A table another system migrates | `@Resource(managesSchema: false)` | [Annotations](annotations.md#resource) |
+| A field to be required | A non-nullable Dart type | [Field types](field-types.md) |
+| A record to be named in pickers and titles | `@Display()` on one field | [Annotations](annotations.md#display) |
+| Search, sort or filter a column | `@Column(searchable: true, sortable: true, filterable: true)` | [Annotations](annotations.md#column) |
+| A bound or a format on a value | `@Column(rules: [BeakMin(0), BeakMaxLength(255), BeakEmail()])` | [Validation rules](validation-rules.md) |
+| Exact money | A `BeakDecimal` field with `semantic: BeakSemantic.money(currency: 'EUR')` | [Field types](field-types.md) |
+| Long text, rich text, a colour, JSON | `BeakText`, `BeakRichText`, `BeakHexColor`, `BeakJson` | [Field types](field-types.md) |
+| An enum shown as a badge | An enum-typed field with `@Badges` and `@EnumLabels` | [Annotations](annotations.md#badges-and-enumlabels) |
+| An uploaded image or file | `@Image(...)` or `@FileField(...)` | [Annotations](annotations.md#image-and-filefield) |
+| One related record | `@BelongsTo` (this table holds the key), `@HasOne` | [Annotations](annotations.md#belongsto) |
+| Many related records | `@HasMany` (`owned: true` to edit them with the parent), `@BelongsToMany` | [Annotations](annotations.md#hasmany) |
+| A rule across fields or rows | `static List<BeakRecordRule> get validationRules` with `BeakCount`, `BeakSameAs`, `BeakRequiredIf`, `BeakDistinct`, `BeakSum` | [Validation rules](validation-rules.md#record-rules) |
+| A rule that asks the database | `BeakUnique`, `BeakExists` with `BeakFieldMatch` | [Validation rules](validation-rules.md#async-rules) |
+| Default, suggested or calculated values | `static BeakModelBehavior get behavior` with `BeakValueBehavior.initial`, `.suggested`, `.derived`, `.snapshot` | [Behavior and actions](behavior-and-actions.md) |
+| A guarded state change | `BeakModelAction` objects in `BeakModelBehavior.actions` | [Behavior and actions](behavior-and-actions.md) |
+| Edit and delete guards | `BeakModelBehavior.editableWhen`, `deletableWhen` | [Behavior and actions](behavior-and-actions.md) |
+| A column Beak has no type for | `@Custom` on an `Object` field, plus a registered renderer | [Custom columns](../extending/custom-columns.md) |
 
-Nothing below needs configuring. Each one is what you get before you say
-anything, and each is replaceable.
+## Lists and filters
 
-| Surface | Derived default |
+| You want... | Declare | Page |
+| --- | --- | --- |
+| A list with chosen columns | `BeakTableScreen(fields: [X.a, X.b])` in `BeakResource.screens` | [Screens and form layouts](screens-and-layouts.md) |
+| A permanent scope on a list | `BeakTableScreen(query: const XModel().query(filter: ...))` | [Queries](queries.md) |
+| Filter controls | `BeakResource.filters: [X.name.textFilter(), X.status.selectFilter(), X.price.numberRangeFilter()]` | [Filter builders](filter-builders.md) |
+| Search across own and related fields | `BeakResource.globalSearchSources: [X.name, X.attributes.search(Y.name)]` | [Queries](queries.md#search) |
+| Named views with counts, quick filters, saved views | `BeakTableScreen(definition: BeakListDefinition(presets: [BeakQueryPreset(...)], savedViews: ...))` | [Composed lists](../panel/composed-lists.md) |
+| A CSV of the whole query | `BeakListDefinition(export: BeakListExport(...))` | [Composed lists](../panel/composed-lists.md) |
+| Totals over the whole matching set | `model.summary(...)` rendered by a summary block | [Queries](queries.md#summaries) |
+| One number | `model.count`, `model.sum`, `model.avg` | [Queries](queries.md#aggregates) |
+| A CSV import | `BeakImportView(definition: BeakImportDefinition(...))` | [Imports and bulk edits](../forms/imports-and-bulk-edits.md) |
+
+## Forms
+
+| You want... | Declare | Page |
+| --- | --- | --- |
+| One form for read, create and edit | `BeakFormScreen(roles: {read, create, edit}, layout: ...)` | [Screens and form layouts](screens-and-layouts.md) |
+| Layout | `BeakFormLayout`, `BeakCard`, `BeakSection`, `BeakColumns`, `BeakTabs` | [Screens and form layouts](screens-and-layouts.md) |
+| Sections shown as a form, tabs or steps | `BeakFormSections` projections | [Screens and form layouts](screens-and-layouts.md) |
+| A wizard | `BeakWizardScreen` with `BeakWizardStep` | [Multi-step forms](../forms/multi-step-forms.md) |
+| An input for a field | `X.name.inputText()`, `X.price.inputCurrency()`, `X.active.inputToggle()`, `X.due.inputDate()` | [Input builders](input-builders.md) |
+| A related record picker | `X.category.inputCombobox()`, `.inputSearch()`, `.inputCards()` | [Input builders](input-builders.md) |
+| Owned children edited inline | `X.items.tableForm(...)` | [Related records in forms](../forms/related-records.md) |
+| An image gallery | `X.images.galleryForm(...)` | [Uploads and galleries](../forms/uploads-and-galleries.md) |
+| Show or enable an input conditionally | `visibleIf:` and `enabledIf:` on any node or input | [Input builders](input-builders.md) |
+| Client-only validation | `validate: [...]`, `validators: [...]` on an input | [Input builders](input-builders.md) |
+| A reactive display value | `BeakCalculated`, `BeakFormSummary`, `BeakFormMetrics` | [Screens and form layouts](screens-and-layouts.md) |
+| Resume drafts | `BeakFormScreen(drafts: ...)` | [Drafts, review and conflicts](../forms/drafts-and-review.md) |
+| Review before saving | `BeakFormScreen(reviewBeforeSave: true)` with `BeakReviewSection` | [Drafts, review and conflicts](../forms/drafts-and-review.md) |
+| See resolved state while building | `BeakFormScreen(showInspector: true)`, `session.explain()` | [Drafts, review and conflicts](../forms/drafts-and-review.md) |
+| A custom input over the same draft | `BeakFormWidget`, reading `BeakDraftScope` | [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) |
+| Duplicate a record with its children | `BeakResource.duplication: BeakDuplicationSpec(...)` | [Actions](../panel/actions.md#bulk-edits-and-duplication) |
+
+## Actions
+
+| You want... | Declare | Page |
+| --- | --- | --- |
+| A button per row | `BeakResource.recordActions: [BeakRecordAction(...)]` | [Behavior and actions](behavior-and-actions.md) |
+| A button over the selection | `BeakResource.bulkActions: [BeakBulkAction(...)]` | [Behavior and actions](behavior-and-actions.md) |
+| A bulk edit of typed fields | `BeakBulkAction.edit(...)` | [Imports and bulk edits](../forms/imports-and-bulk-edits.md) |
+| A page-level button | `BeakResource.globalActions: [BeakGlobalAction(...)]` | [Behavior and actions](behavior-and-actions.md) |
+| A guarded command in the layout | `BeakFormActions` over a `BeakModelAction` | [Behavior and actions](behavior-and-actions.md) |
+| Hide create, edit or delete | `BeakResource(canCreate: false, canEdit: false, canDelete: false)` (UI only; the server decides) | [Panel and resource options](panel-options.md#beakresource) |
+
+## Pages and blocks
+
+| You want... | Declare | Page |
+| --- | --- | --- |
+| A custom page | `BeakScreen(path:, title:, icon:, body: ...)` in `lib/screens/` | [Custom screens](../panel/custom-screens.md) |
+| A KPI, a chart, a table on a page | `BeakMetricBlock`, `BeakChartBlock`, `BeakTableBlock` | [Blocks](blocks.md) |
+| A kanban, calendar, map, timeline | `BeakKanbanBlock`, `BeakCalendarBlock`, `BeakMapBlock`, `BeakTimelineBlock` | [Blocks](blocks.md) |
+| Your own widget in a page | `BeakWidgetBlock((context) => ...)` | [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) |
+| A dashboard as the home page | `BeakPanelConfig.home: BeakDestination` | [Dashboards](../panel/dashboards.md) |
+
+## The panel
+
+| You want... | Declare | Page |
+| --- | --- | --- |
+| A panel from resources you list | `BeakPanel(title:, resources: [...])` in an authored `lib/main.dart` | [Panel and resource options](panel-options.md#beakpanel) |
+| A panel generated from the models | `beak.yaml` and `runApp(const BeakApp())` | [beak.yaml](beak-yaml.md) |
+| Navigation groups and order | `BeakResource(navigationGroup:, navigationRank:)`, `BeakNavigation` with `BeakNavigationSection` and `BeakNavigationItem` | [Navigation](../panel/navigation.md) |
+| Hide a resource from the sidebar | `resources.<table>.hidden: true` in `beak.yaml`, or leave it out of `resources: [...]` | [beak.yaml](beak-yaml.md#resources) |
+| Sign-in, registration, idle lock | `BeakAuthConfig` in `lib/auth.dart` | [Auth and idle-lock](../panel/auth-and-idle-lock.md) |
+| Maintenance and coming-soon pages | `BeakMaintenanceConfig` | [Maintenance and coming soon](../panel/maintenance-and-coming-soon.md) |
+| Themes | `beakLightTheme()`, `beakDarkTheme()` in `lib/theme.dart` | [Theming basics](../theming/theming-basics.md) |
+| Date, number and currency display | `BeakFormatting` | [Formatting and localization](../theming/formatting-and-localization.md) |
+| Map server errors to messages | `BeakPanelConfig.mapException` | [Panel and resource options](panel-options.md#mapexception) |
+
+## The backend
+
+| You want... | Declare | Page |
+| --- | --- | --- |
+| Who may do what | `BeakPolicies(rules: [BeakModelRules(const OrderModel(), read: BeakAccess.role('staff'))])` passed to `defaults.build(policy:)` | [Auth and policies](../backend/auth-and-policies.md) |
+| Row scoping | A `BeakRowPolicy` | [Auth and policies](../backend/auth-and-policies.md) |
+| Field and action gates | `BeakFieldPolicy`, `BeakActionPolicy` | [Auth and policies](../backend/auth-and-policies.md) |
+| Login, logout, me | `authSessions:` on `defaults.build` | [Auth and policies](../backend/auth-and-policies.md) |
+| Business rules inside one transaction | `preparePlan:` returning an edited `BeakSavePlan` | [Transactional business rules](../backend/graph-business-rules.md) |
+| Force writes through those rules | `graphOnly: const [OrderModel()]` | [Transactional business rules](../backend/graph-business-rules.md) |
+| Durable effects | `finalizePlan:` and `outbox: BeakOutboxSchedule(...)` | [Durable effects](../backend/durable-effects.md) |
+| Middleware and extra routes | `middleware:` and `routes:` on `defaults.build` | [Middleware](../backend/middleware.md) |
+| A database | `DATABASE_URL` (`sqlite:` or `postgres://`) | [Configuration and environment](configuration.md#the-server) |
+| An upload driver | `BEAK_STORAGE_DRIVER` and the driver's variables | [Configuration and environment](configuration.md#storage) |
+| A migration | `beak make:migration Name`, or `--from-drift` | [Migrations](../backend/migrations.md) |
+| Seed data | A `Seeder` under `lib/seeders/` | [Seeding](../backend/seeding.md) |
+
+## Data and tests
+
+| You want... | Use | Page |
+| --- | --- | --- |
+| A typed query | `const ProductModel().query(filter: BeakFilter.allOf([ProductModel.active.eq(true)]))` | [Queries](queries.md) |
+| Sort | `X.price.ascending()`, `X.price.descending()` | [Queries](queries.md#sorts) |
+| Load a relation | `spec.withRelation(...)` | [Queries](queries.md#relation-loads) |
+| Call the API from Dart | `BeakClient`, or a `BeakDataSource` | [REST API](rest-api.md) |
+| Handle a failure | `BeakException` variants; `BeakResult` in the panel | [Exceptions](exceptions.md) |
+| A fake data source | `InMemoryBeakDataSource(registry: buildBeakRegistry())` | [Testing](../shipping/testing.md) |
+| Prove a data source correct | `runBeakDataSourceContract` | [Testing](../shipping/testing.md) |
+| Prove a model matches its migration | `expectSchemaParity` | [Testing](../shipping/testing.md) |
+| Fake records | `beakFakeRecord(const ProductModel())` | [Testing](../shipping/testing.md) |
+
+## Where a decision lives
+
+| Decision | File |
 | --- | --- |
-| Filters | one control per `@Column(filterable: true)`: select for an enum, switch for a bool, contains-search for text, range for a date |
-| Show page | a headline card of the first four fields, the rest beside it, and a tab per to-many relationship |
-| List table | a column per to-one relationship showing the related record's **name**, not the foreign key, loaded with the page in one query |
-| Label | the title-cased table name |
-| View modes | a single table view |
+| Columns, relationships, rules, behavior, table name | the schema class, `lib/resources/<plural>/models/<name>.dart` |
+| How the panel presents one model | its `BeakResource` class, `lib/resources/<plural>/<name>_resource.dart` |
+| A custom page | `lib/screens/<name>.dart` |
+| Panel title, API origin, default port, agent files | `beak.yaml` |
+| Which resources the panel lists, when you own `lib/main.dart` | `lib/main.dart` (or `panel.entrypoint`) |
+| Theme, auth, panel config | `lib/theme.dart`, `lib/auth.dart`, `lib/panel.dart` |
+| Policy, middleware, business rules, extra storage drivers | `lib/server.dart` |
+| Database, port, storage credentials | the environment and `.env` |
+| Derived code | `lib/beak/*.g.dart` and `*.beak.dart`: committed, never edited |
 
-## Adjusting one resource
+## Source
 
-`lib/resources/<table>.dart`, written by `beak eject resource <table>`:
-
-```dart
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: productLayout,
-  formLayout: productLayout,
-  viewModes: const [BeakTableView(), BeakKanbanView(/* ... */)],
-);
-```
-
-| `copyWith` field | Type | Default |
-| --- | --- | --- |
-| `model` | `BeakModel` | the generated one |
-| `icon` | `BeakIconToken` | `beak.yaml`, else a default |
-| `label` | `String?` | title-cased table name |
-| `section` | `String?` | `beak.yaml`, else none |
-| `recordActions` | `List<BeakRecordAction>` | `const []` (view/edit/delete are built in) |
-| `bulkActions` | `List<BeakBulkAction>` | `const []` |
-| `globalActions` | `List<BeakGlobalAction>` | `const []` (create is built in) |
-| `filters` | `List<BeakFilterDef>` | derived from `filterable` columns |
-| `viewModes` | `List<BeakResourceView>` | `const [BeakTableView()]` |
-| `detail` | `BeakBlock?` | the derived show page |
-| `formSteps` | `List<BeakFormStep>?` | single-page form |
-| `formLayout` | `BeakBlock?` | generated form |
-
-See [Resources](../panel/resources.md).
-
-## Blocks you reach for most
-
-Blocks compose the dashboard, custom screens, and (record-bound) the detail and
-form layouts. The record-bound trio renders read-only inside a detail scope and
-editable inside a form scope. Full catalog: [Blocks index](blocks-index.md).
-
-| Block | What it is | Key args |
-| --- | --- | --- |
-| `BeakColumnBlock` | vertical stack | `children`, `gapInPixels` (16) |
-| `BeakRowBlock` | horizontal stack | `children`, `gapInPixels` |
-| `BeakGridBlock` | responsive grid | `children`, `columns`, `minColumnWidthInPixels` |
-| `BeakCardBlock` | card container | `child`, `title`, `subtitle`, `footer`, `span` |
-| `BeakTabsBlock` | tabbed panes | `tabs`, `initialIndex` (0) |
-| `BeakTextBlock` | typographic text | `text`, `variant` (`body`) |
-| `BeakMarkdownBlock` | rendered markdown | source string |
-| `BeakAlertBlock` | inline alert | `message`, `level` (`info`) |
-| `BeakKpiBlock` | metric card from an aggregate | `title`, `value` (`BeakAggregateSpec`), `format` (`number`) |
-| `BeakChartBlock` | a dashboard chart | `title`, `type`, `query`, `map`, `heightInPixels` (260) |
-| `BeakTableBlock` | embedded data table | `model`, `title`, `baseFilter` |
-| `BeakFieldBlock` | dual-mode single field | `column`, `label`, `layout` (`stacked`) |
-| `BeakFieldGroupBlock` | grid of fields | `columns`, `columnCount` (2) |
-| `BeakRelationBlock` | dual-mode relation | `relationship`, `title` |
-| `BeakWidgetBlock` | escape hatch to a raw widget | a `WidgetBuilder` |
-
-## beak.yaml
-
-```yaml title="examples/store/beak.yaml"
-name: Beak Store
-
-api:
-  # The origin the panel calls. `auto` calls the origin the panel was served
-  # from, which is what a single-host deployment wants.
-  baseUrl: http://localhost:8080
-```
-
-| Key | Default | Decides |
-| --- | --- | --- |
-| `name` | title-cased package name | The panel title |
-| `api.baseUrl` | `http://localhost:8080` | Where the panel calls. `auto` means the origin it was served from |
-| `server.port` / `server.host` | Beak's defaults (`8080`, `0.0.0.0`) | Where the server binds, unless `PORT`/`HOST` say otherwise |
-| `resources.<table>.icon` | a default | The sidebar icon, a lowerCamelCase `OiIcons` name |
-| `resources.<table>.label` | title-cased table | The navigation label |
-| `resources.<table>.section` | none | The sidebar group |
-| `resources.<table>.hidden` | `false` | `true` keeps it out of the sidebar; the API and relationships stay |
-| `theme.sidebar.collapsible` / `.startCollapsed` | `true` / `false` | How the sidebar behaves |
-
-Every key is optional. Delete the file and Beak still boots. Full page:
-[beak.yaml](beak-yaml.md).
-
-## REST endpoints
-
-Registering a model mounts its surface under `/api/{table}`. `{id}` is the
-record id, `{columnKey}` an upload column, `{relationKey}` a to-many relation.
-
-| Method + path | Does |
-| --- | --- |
-| `POST /api/{table}/query` | list with filter, sort, search, eager loads, pagination |
-| `POST /api/{table}/aggregate` | count / sum / avg |
-| `POST /api/{table}/batch` | fetch many records by id |
-| `POST /api/{table}` | create a record |
-| `GET /api/{table}/{id}` | read one record |
-| `PATCH /api/{table}/{id}` | update a record (honours `If-Unmodified-Since`) |
-| `DELETE /api/{table}/{id}` | soft-delete, or `?force=true` to delete for real |
-| `POST /api/{table}/{id}/restore` | clear a soft-delete marker |
-| `POST /api/{table}/{id}/relations/{relationKey}/attach` | attach to-many records |
-| `POST /api/{table}/{id}/relations/{relationKey}/detach` | detach to-many records |
-| `POST /api/{table}/export` | CSV export |
-| `POST /api/{table}/{columnKey}/upload` | upload to a file/image column |
-| `DELETE /api/{table}/{columnKey}/upload` | remove an uploaded file |
-
-Global routes: `GET /api/search`, the `/healthz` and `/readyz` probes (outside
-`/api`, so they skip auth), and, when auth is configured,
-`POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`. Upload
-routes appear only when storage is wired.
-
-A query spec needs only `table`; every other key falls back to its default. Its
-eager loads are objects, not names:
-
-```json
-{
-  "table": "products",
-  "relations": [{ "relation": "category", "filter": null, "nested": [] }],
-  "pagination": { "page": 1, "perPage": 25 }
-}
-```
-
-Bodies, error codes, and the record wire shape:
-[REST API reference](rest-api.md).
-
-## CLI commands
-
-Run `beak <command>` from the project root. Every command regenerates first, so
-none of them can act on stale wiring.
-
-| Command | Does |
-| --- | --- |
-| `beak create <name>` | Scaffold a project (`--beak-path` for a local Beak checkout). |
-| `beak prepare` | Regenerate the part files, the wiring, and any missing migration. |
-| `beak dev` | Regenerate, print the `flutter run` line, serve the API (`-d`, `--no-serve`). |
-| `beak migrate [status\|fresh\|refresh]` | Apply migrations. |
-| `beak seed` | Run the seeders. |
-| `beak make:resource Name --fields name:string!,price:decimal` | One `@Resource` class, then `prepare`. |
-| `beak make:migration Name` | An empty, correctly-named migration for a change `prepare` cannot derive. |
-| `beak make:migration Name --from-drift` | The same, filled in from what the database is missing. |
-| `beak eject <main\|panel\|resource\|theme\|auth\|dashboard\|server>` | Take a default over (`--force` to overwrite). |
-| `beak introspect <database-url>` | Write schema classes for a database you already have (Postgres or SQLite). |
-| `beak doctor` | Diagnose the project (`--json` for CI). |
-
-`--fields` kinds: `string`, `text`, `int`, `decimal`, `bool`, `datetime`. A
-trailing `!` means non-nullable, and so required. See
-[CLI commands](cli-commands.md).
-
-## Testing
-
-```dart
-final source = InMemoryBeakDataSource(registry: buildBeakRegistry());
-await tester.pumpWidget(BeakApp(dataSource: source));
-```
-
-`package:beak/testing.dart` gives you `InMemoryBeakDataSource` (a complete data
-source over maps that honours the query spec), `BeakRecordingDataSource` (wraps
-any source and counts the round trips a screen costs), `beakFakeRecord`, and the
-data-source contract suite. See [Testing](../guides/testing.md).
+- `examples/clean_beak_config` is the maintained shop that every row above can be found in.
+- `examples/quickstart` is the scaffold `beak create` writes.
+- The pages linked in each table are the complete lookups.
 
 ## Continue reading
 
-- [Reference index](index.md) the exhaustive per-topic reference pages.
-- [Quickstart](../start-here/quickstart.md) the same resource, run end to end.
-- [Annotations](annotations.md) everything a schema class can say.
+- [Annotations](annotations.md) the schema side in full.
+- [Panel and resource options](panel-options.md) the presentation side in full.
+- [CLI commands](cli-commands.md) every command, flag and exit code.
+- [Configuration and environment](configuration.md) the environment and the override files.

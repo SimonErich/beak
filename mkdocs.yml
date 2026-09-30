@@ -10,6 +10,21 @@ docs_dir: docs
 # Authoring aids that ship in the repo but are not part of the built site.
 exclude_docs: |
   _internal/
+  _agents/
+  requirements.txt
+
+# With `mkdocs build --strict` every warning below is a failure: a page left out
+# of the nav, a link that resolves to nothing, an anchor that does not exist.
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
 
 theme:
   name: material
@@ -36,12 +51,16 @@ theme:
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
+    - navigation.prune
+    - navigation.path
     - navigation.top
     - navigation.footer
     - search.suggest
     - search.highlight
     - content.code.copy
     - content.code.annotate
+    - content.action.edit
+    - content.action.view
     - content.tabs.link
     - toc.follow
   icon:
@@ -63,7 +82,7 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  # Quote source rather than copying it: `--8<-- "examples/store/lib/..."`
+  # Quote source rather than copying it: `--8<-- "examples/clean_beak_config/lib/..."`
   # reads the file at build time, and `check_paths` fails the build when the
   # file moves instead of publishing an empty block.
   - pymdownx.snippets:
@@ -81,11 +100,56 @@ markdown_extensions:
 
 plugins:
   - search
+  # /llms.txt, /llms-full.txt and a Markdown twin of every listed page (at
+  # <page-url>index.md) are generated at build time. A `*` in a glob crosses
+  # directories, and the sections list pages alphabetically by path, not in nav
+  # order. tool/check_docs.dart fails when a page matches no glob or a glob
+  # matches no page.
+  - llmstxt:
+      markdown_description: >-
+        Beak is a configuration-driven admin framework for Dart and Flutter.
+        Annotated schema classes generate typed field references such as
+        ProductModel.name, a Shelf REST API with graph commits, migrations and a
+        Flutter panel built from BeakResource screens. Users never write string
+        field references or touch dynamic.
+      full_output: llms-full.txt
+      sections:
+        Start:
+          - index.md
+          - start-here/*.md
+        Learn:
+          - learn/index.md
+          - tutorial/*.md
+          - examples/*.md
+          - concepts/*.md
+        Guides:
+          - guides/index.md
+          - models/*.md
+          - panel/*.md
+          - forms/*.md
+          - blocks/*.md
+          - theming/*.md
+          - backend/*.md
+          - extending/*.md
+          - shipping/*.md
+          - recipes/*.md
+        Serverpod:
+          - serverpod/*.md
+        Reference:
+          - reference/*.md
+        AI directory:
+          - ai/*.md
+        Optional:
+          - contributing/*.md
+          - architecture/*.md
   # The site is published, so a moved page keeps its old address working.
-  # The tutorial went from ten chapters to six; every old slug lands on the
-  # chapter that now covers it.
+  # Every path the site has ever served is listed in
+  # docs/_internal/url-manifest.txt, and tool/check_docs.dart fails when one of
+  # them is neither a page nor a key below.
   - redirects:
       redirect_maps:
+        # The tutorial went from ten chapters to six; every old slug lands on
+        # the chapter that now covers it, and the recipe page became a section.
         tutorial/01-hatch-the-project.md: tutorial/01-your-first-resource.md
         tutorial/02-first-model-and-migration.md: tutorial/01-your-first-resource.md
         tutorial/03-the-panel-comes-alive.md: tutorial/01-your-first-resource.md
@@ -96,8 +160,53 @@ plugins:
         tutorial/08-forms-wizards-and-dual-mode-detail.md: tutorial/05-shaping-the-panel.md
         tutorial/09-auth-theming-and-polish.md: tutorial/06-auth-tests-and-shipping.md
         tutorial/10-wrap-up.md: tutorial/06-auth-tests-and-shipping.md
-        # The recipe page became a section, one addressable page per recipe.
         guides/common-recipes.md: recipes/index.md
+        # Pages that moved to a new home in the 0.9 restructure.
+        architecture/foodio-composition.md: examples/foodio.md
+        blocks/display-blocks.md: blocks/content-blocks.md
+        charts/chart-basics.md: blocks/charts.md
+        charts/maps.md: blocks/maps.md
+        charts/population-summaries.md: blocks/summaries.md
+        deployment/dev-infrastructure.md: contributing/dev-infrastructure.md
+        deployment/environment-and-config.md: shipping/environment-and-config.md
+        deployment/going-to-production.md: shipping/going-to-production.md
+        deployment/index.md: shipping/index.md
+        deployment/working-with-obers-ui.md: contributing/working-with-obers-ui.md
+        guides/performance.md: shipping/performance.md
+        guides/security.md: shipping/security.md
+        guides/testing.md: shipping/testing.md
+        guides/working-with-ai-agents.md: ai/setup.md
+        models/column-types.md: models/fields.md
+        models/validation-rules.md: models/validation.md
+        panel/detail-and-dual-mode.md: forms/detail-views.md
+        panel/drafts-and-review.md: forms/drafts-and-review.md
+        panel/forms.md: forms/form-screens.md
+        panel/import-and-bulk-edit.md: forms/imports-and-bulk-edits.md
+        panel/media-galleries.md: forms/uploads-and-galleries.md
+        panel/multi-step-forms.md: forms/multi-step-forms.md
+        panel/record-documents.md: forms/record-documents.md
+        panel/the-navigation-shell.md: panel/navigation.md
+        panel/workflow-presentations.md: forms/workflow-presentations.md
+        reference/blocks-index.md: reference/blocks.md
+        reference/column-types.md: reference/field-types.md
+        reference/configuration-options.md: reference/configuration.md
+        # Pages merged into another page.
+        backend/the-data-source-seam.md: architecture/data-source-seam.md
+        backend/the-generated-api.md: reference/rest-api.md
+        blocks/the-widget-escape-hatch.md: extending/custom-blocks-and-widgets.md
+        blocks/ui-kit-blocks.md: blocks/content-blocks.md
+        # The target keeps its fragment (verified on redirects 1.2.3). The Charts
+        # page must carry an "Advanced charts" heading for it to land.
+        charts/advanced-charts.md: blocks/charts.md#advanced-charts
+        charts/index.md: blocks/charts.md
+        concepts/rendering-per-surface.md: concepts/the-one-definition-promise.md
+        contributing/writing-a-storage-driver.md: extending/custom-storage-drivers.md
+        extending/custom-screens-and-pages.md: panel/custom-screens.md
+        models/column-basics.md: models/fields.md
+        models/escape-hatches.md: extending/index.md
+        models/the-registry.md: models/generated-code.md
+        start-here/index.md: index.md
+        theming/the-shell.md: panel/navigation.md
   - minify:
       minify_html: true
 
@@ -107,142 +216,203 @@ extra:
       link: https://github.com/SimonErich/beak
 
 nav:
-  - Home: index.md
-  - "Cheatsheet": reference/cheatsheet.md
-  - "Start here":
-      - start-here/index.md
+  - "Start":
+      - index.md
       - "What is Beak?": start-here/what-is-beak.md
       - "Why Beak?": start-here/why-beak.md
       - "Installation": start-here/installation.md
       - "Quickstart": start-here/quickstart.md
       - "Project structure": start-here/project-structure.md
-      - "Libraries": reference/libraries.md
-  - "Tutorial: First Flight":
-      - tutorial/index.md
-      - "1. Your first resource": tutorial/01-your-first-resource.md
-      - "2. Columns and validation": tutorial/02-columns-and-validation.md
-      - "3. Relationships": tutorial/03-relationships.md
-      - "4. Seeding and the API": tutorial/04-seeding-and-the-api.md
-      - "5. Shaping the panel": tutorial/05-shaping-the-panel.md
-      - "6. Auth, tests, and shipping": tutorial/06-auth-tests-and-shipping.md
-  - "Core concepts":
-      - concepts/index.md
-      - "The one-definition promise": concepts/the-one-definition-promise.md
-      - "The type-safety promise": concepts/the-type-safety-promise.md
-      - "The four layers": concepts/the-four-layers.md
-      - "How data flows": concepts/how-data-flows.md
-      - "Rendering per surface": concepts/rendering-per-surface.md
-      - "The block system": concepts/the-block-system.md
-      - "Results and errors": concepts/results-and-errors.md
-  - "Schema":
-      - models/index.md
-      - "Defining a resource": models/defining-models.md
-      - "Generated code": models/generated-code.md
-      - "Column basics": models/column-basics.md
-      - "Column types": models/column-types.md
-      - "Validation rules": models/validation-rules.md
-      - "Relationships": models/relationships.md
-      - "Files and storage columns": models/files-and-storage-columns.md
-      - "Escape hatches": models/escape-hatches.md
-      - "The model registry": models/the-registry.md
-  - "Building":
-      - "The backend":
-          - backend/index.md
-          - "Running the server": backend/running-the-server.md
-          - "The generated API": backend/the-generated-api.md
-          - "Migrations": backend/migrations.md
-          - "Seeding": backend/seeding.md
-          - "Auth and policies": backend/auth-and-policies.md
-          - "Search and export": backend/search-and-export.md
-          - "Uploads and storage wiring": backend/uploads-and-storage-wiring.md
-          - "The data source seam": backend/the-data-source-seam.md
-          - "Middleware": backend/middleware.md
+      - "Two ways to boot a panel": start-here/generated-or-authored.md
+      - "Choose your path":
+          - start-here/paths/index.md
+          - "A new project": start-here/paths/new-project.md
+          - "An existing database": start-here/paths/existing-database.md
+          - "An existing Flutter app": start-here/paths/existing-flutter-app.md
+          - "An existing Serverpod project": start-here/paths/existing-serverpod-project.md
+          - "An existing backend": start-here/paths/existing-backend.md
+          - "Contributing to Beak": start-here/paths/contributing.md
+      - "Upgrading": start-here/upgrading.md
+  - "Learn":
+      - learn/index.md
+      - "Tutorial":
+          - tutorial/index.md
+          - "Your first resource": tutorial/01-your-first-resource.md
+          - "Columns and validation": tutorial/02-columns-and-validation.md
+          - "Related records": tutorial/03-relationships.md
+          - "Seeding and the API": tutorial/04-seeding-and-the-api.md
+          - "Shaping the panel": tutorial/05-shaping-the-panel.md
+          - "Auth, tests, and shipping": tutorial/06-auth-tests-and-shipping.md
+      - "Examples":
+          - examples/index.md
+          - "Quickstart scaffold": examples/quickstart.md
+          - "Clean shop": examples/clean-shop.md
+          - "Foodio admin": examples/foodio.md
+          - "Showcase": examples/showcase.md
+          - "Serverpod admin": examples/serverpod-admin.md
+          - "Feature map": examples/feature-map.md
+      - "Concepts":
+          - concepts/index.md
+          - "Declarative resources": concepts/declarative-resources.md
+          - "The one-definition promise": concepts/the-one-definition-promise.md
+          - "The type-safety promise": concepts/the-type-safety-promise.md
+          - "Where authority lives": concepts/where-authority-lives.md
+          - "The four layers": concepts/the-four-layers.md
+          - "How data flows": concepts/how-data-flows.md
+          - "The block system": concepts/the-block-system.md
+          - "Results and errors": concepts/results-and-errors.md
+  - "Guides":
+      - guides/index.md
+      - "Models":
+          - models/index.md
+          - "Defining models": models/defining-models.md
+          - "Generated code": models/generated-code.md
+          - "Fields": models/fields.md
+          - "Semantic fields": models/semantic-fields.md
+          - "Validation": models/validation.md
+          - "Relationships": models/relationships.md
+          - "Model behavior": models/behavior.md
+          - "Files and storage columns": models/files-and-storage-columns.md
+          - "Dynamic attributes and variants": models/dynamic-attributes-and-variants.md
       - "The panel":
           - panel/index.md
           - "Resources": panel/resources.md
+          - "Navigation": panel/navigation.md
           - "Tables and filters": panel/tables-and-filters.md
+          - "Composed lists and query state": panel/composed-lists.md
           - "View modes": panel/view-modes.md
-          - "Forms": panel/forms.md
-          - "Multi-step forms": panel/multi-step-forms.md
-          - "Detail views and dual-mode blocks": panel/detail-and-dual-mode.md
           - "Actions": panel/actions.md
           - "Overlays": panel/overlays.md
-          - "Dashboards": panel/dashboards.md
           - "Custom screens": panel/custom-screens.md
-          - "The navigation shell": panel/the-navigation-shell.md
+          - "Dashboards": panel/dashboards.md
           - "Auth and idle-lock": panel/auth-and-idle-lock.md
           - "Maintenance and coming soon": panel/maintenance-and-coming-soon.md
-      - "Blocks":
+      - "Forms and records":
+          - forms/index.md
+          - "Form screens": forms/form-screens.md
+          - "Inputs": forms/inputs.md
+          - "Related records in forms": forms/related-records.md
+          - "Multi-step forms": forms/multi-step-forms.md
+          - "Workflow presentations": forms/workflow-presentations.md
+          - "Detail views": forms/detail-views.md
+          - "Drafts, review and conflicts": forms/drafts-and-review.md
+          - "Uploads and galleries": forms/uploads-and-galleries.md
+          - "Imports and bulk edits": forms/imports-and-bulk-edits.md
+          - "Printable record documents": forms/record-documents.md
+      - "Blocks and charts":
           - blocks/index.md
           - "Layout blocks": blocks/layout-blocks.md
-          - "Display blocks": blocks/display-blocks.md
-          - "UI-kit blocks": blocks/ui-kit-blocks.md
+          - "Content blocks": blocks/content-blocks.md
           - "Data blocks": blocks/data-blocks.md
+          - "Population summaries": blocks/summaries.md
           - "Record blocks": blocks/record-blocks.md
           - "Module blocks": blocks/module-blocks.md
-          - "The widget escape hatch": blocks/the-widget-escape-hatch.md
-      - "Charts and maps":
-          - charts/index.md
-          - "Chart basics": charts/chart-basics.md
-          - "Advanced charts": charts/advanced-charts.md
-          - "Maps": charts/maps.md
-      - "Styling and theming":
+          - "Charts": blocks/charts.md
+          - "Maps": blocks/maps.md
+      - "Theming and formatting":
           - theming/index.md
           - "Theming basics": theming/theming-basics.md
           - "Colors and tokens": theming/colors-and-tokens.md
           - "Typography and icons": theming/typography-and-icons.md
-          - "The shell": theming/the-shell.md
+          - "Formatting and localization": theming/formatting-and-localization.md
+      - "The backend":
+          - backend/index.md
+          - "Running the server": backend/running-the-server.md
+          - "Databases": backend/databases.md
+          - "Migrations": backend/migrations.md
+          - "Seeding": backend/seeding.md
+          - "Auth and policies": backend/auth-and-policies.md
+          - "Transactional business rules": backend/graph-business-rules.md
+          - "Durable effects": backend/durable-effects.md
+          - "Search and export": backend/search-and-export.md
+          - "Uploads and storage wiring": backend/uploads-and-storage-wiring.md
+          - "Middleware": backend/middleware.md
       - "Extending Beak":
           - extending/index.md
           - "Custom columns": extending/custom-columns.md
           - "Custom blocks and widgets": extending/custom-blocks-and-widgets.md
-          - "Custom screens and pages": extending/custom-screens-and-pages.md
           - "Custom data sources": extending/custom-data-sources.md
+          - "Model-owned transports": extending/model-transports.md
           - "Custom storage drivers": extending/custom-storage-drivers.md
           - "Using Beak widgets standalone": extending/using-beak-widgets-standalone.md
-  - "Guides":
-      - guides/index.md
-      - "Testing": guides/testing.md
-      - "Working with AI agents": guides/working-with-ai-agents.md
-      - "Performance": guides/performance.md
-      - "Security": guides/security.md
+      - "Testing and shipping":
+          - shipping/index.md
+          - "Testing": shipping/testing.md
+          - "Performance": shipping/performance.md
+          - "Security": shipping/security.md
+          - "Environment and config": shipping/environment-and-config.md
+          - "Going to production": shipping/going-to-production.md
       - "Recipes":
           - recipes/index.md
-          - "Add a resource end-to-end": recipes/add-a-resource.md
+          - "Add a resource": recipes/add-a-resource.md
           - "An enum badge column": recipes/an-enum-badge-column.md
+          - "A money field": recipes/a-money-field.md
           - "A belongs-to picker": recipes/a-belongs-to-picker.md
-          - "A custom row action": recipes/a-row-action.md
+          - "A nested table editor": recipes/a-nested-table-editor.md
+          - "A row action": recipes/a-row-action.md
+          - "A bulk edit": recipes/a-bulk-edit.md
+          - "A multi-step form": recipes/a-multi-step-form.md
           - "A kanban view": recipes/a-kanban-view.md
-          - "A KPI on the dashboard": recipes/a-dashboard-kpi.md
-          - "Split a long form into steps": recipes/a-multi-step-form.md
-          - "Hide a resource from the sidebar": recipes/hide-a-resource.md
+          - "A dashboard KPI": recipes/a-dashboard-kpi.md
+          - "A saved list view": recipes/a-saved-list-view.md
+          - "A CSV import": recipes/a-csv-import.md
           - "Export to CSV": recipes/export-to-csv.md
-  - "Deployment":
-      - deployment/index.md
-      - "Environment and config": deployment/environment-and-config.md
-      - "Going to production": deployment/going-to-production.md
+          - "Hide a resource": recipes/hide-a-resource.md
+  - "Serverpod":
+      - serverpod/index.md
+      - "Choosing an integration": serverpod/choosing-an-integration.md
+      - "Admin app in your workspace":
+          - serverpod/admin-app/index.md
+          - "How the admin app works": serverpod/admin-app/how-it-works.md
+          - "Setting up the admin app": serverpod/admin-app/setup.md
+          - "Limits and next steps": serverpod/admin-app/limits-and-next-steps.md
+      - "Client bridge":
+          - serverpod/bridge/index.md
+          - "Bridge resources": serverpod/bridge/resources.md
+          - "Generating bridge resources": serverpod/bridge/generator.md
+          - "Endpoint conventions": serverpod/bridge/endpoint-conventions.md
+      - "Authentication and scopes": serverpod/authentication.md
+      - "Version compatibility": serverpod/versions.md
+      - "Troubleshooting": serverpod/troubleshooting.md
   - "Reference":
       - reference/index.md
+      - "Cheatsheet": reference/cheatsheet.md
       - "Annotations": reference/annotations.md
+      - "Field types": reference/field-types.md
+      - "Validation rules": reference/validation-rules.md
+      - "Behavior and actions": reference/behavior-and-actions.md
+      - "Generated files and symbols": reference/generated-files.md
+      - "Input builders": reference/input-builders.md
+      - "Filter builders": reference/filter-builders.md
+      - "Screens and form layouts": reference/screens-and-layouts.md
+      - "Blocks": reference/blocks.md
+      - "Queries": reference/queries.md
+      - "Panel and resource options": reference/panel-options.md
       - "beak.yaml": reference/beak-yaml.md
-      - "Libraries": reference/libraries.md
-      - "Column types reference": reference/column-types.md
-      - "Validation rules reference": reference/validation-rules.md
-      - "Blocks index": reference/blocks-index.md
+      - "Configuration and environment": reference/configuration.md
       - "CLI commands": reference/cli-commands.md
       - "REST API": reference/rest-api.md
-      - "Configuration options": reference/configuration-options.md
       - "Exceptions": reference/exceptions.md
-      - "Glossary": reference/glossary.md
+      - "Libraries": reference/libraries.md
       - "Packages": reference/packages.md
+      - "Glossary": reference/glossary.md
+  - "AI directory":
+      - ai/index.md
+      - "Set up your agent": ai/setup.md
+      - "Rules for agents": ai/rules.md
+      - "Task map": ai/task-map.md
+      - "Source map": ai/source-map.md
+      - "Prompt recipes": ai/prompts.md
+      - "Machine-readable docs": ai/machine-readable-docs.md
   - "Contributing":
       - contributing/index.md
       - "Code guardrails": contributing/code-guardrails.md
       - "Conventions": contributing/conventions.md
       - "Writing tests": contributing/writing-tests.md
-      - "Writing a storage driver": contributing/writing-a-storage-driver.md
-      - "Dev infrastructure": deployment/dev-infrastructure.md
-      - "Working with obers_ui": deployment/working-with-obers-ui.md
+      - "Writing docs": contributing/writing-docs.md
+      - "Releasing": contributing/releasing.md
+      - "Dev infrastructure": contributing/dev-infrastructure.md
+      - "Working with obers_ui": contributing/working-with-obers-ui.md
       - "Architecture":
           - architecture/index.md
           - "Principles": architecture/principles.md
@@ -250,6 +420,8 @@ nav:
           - "Backend flow": architecture/backend-flow.md
           - "Frontend flow": architecture/frontend-flow.md
           - "The query contract": architecture/query-contract.md
+          - "Graph commits": architecture/graph-commits.md
           - "The data source seam": architecture/data-source-seam.md
+          - "Code generation": architecture/code-generation.md
           - "Block system internals": architecture/block-system-internals.md
           - "Storage internals": architecture/storage-internals.md

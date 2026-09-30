@@ -207,7 +207,12 @@ List<BeakDrift> beakSchemaDrift({
         );
       }
     }
-    if (schema.softDeletes && !columns.contains('deleted_at')) {
+    final Set<String> declared = {
+      for (final column in schema.columns) column.columnKey,
+    };
+    if (schema.softDeletes &&
+        !declared.contains('deleted_at') &&
+        !columns.contains('deleted_at')) {
       problems.add(
         BeakMissingColumn(
           schema: schema,
@@ -218,7 +223,7 @@ List<BeakDrift> beakSchemaDrift({
     }
     if (schema.timestamps) {
       for (final column in const ['created_at', 'updated_at']) {
-        if (!columns.contains(column)) {
+        if (!declared.contains(column) && !columns.contains(column)) {
           problems.add(
             BeakMissingColumn(
               schema: schema,

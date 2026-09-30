@@ -1,31 +1,62 @@
 ---
 title: Theming basics
-description: Restyle a Beak panel from lib/theme.dart, choose the mode it boots in, and wire the live theme toggle.
+description: Give the panel a light and a dark theme from one brand color, choose the starting mode, and read theme tokens in your own widgets.
+type: guide
+audience: [beginner]
+status: stable
 ---
 
 # Theming basics
 
-After this page you can give a Beak panel its own light and dark theme, choose
-which mode it starts in, and understand how the top-bar toggle flips between them
-without a rebuild of the router.
+You set the theme once, on the panel, and every table, form, block and dialog reads it. After this page you can theme a panel from a single brand color, pick the mode it starts in, wire a theme into a generated panel, and read the theme from a widget of your own.
 
-A new project has no theme file at all: Beak uses obers_ui's stock light and dark
-themes. When you want your own, you write one file.
+## At a glance
 
-```bash
-beak eject theme
+| Knob | Where | Default |
+| --- | --- | --- |
+| `theme`, `darkTheme` | `BeakPanel`, `BeakPanelConfig` | `OiThemeData.light()` and `OiThemeData.dark()` |
+| `initialThemeMode` | `BeakPanelConfig` only | `OiThemeMode.system` |
+| Theme toggle in the shell | `BeakNavigation.showThemeToggle` | shown |
+| `sidebarCollapsible`, `sidebarDefaultCollapsed` | `BeakPanelConfig`, or `theme.sidebar` in `beak.yaml` | `true`, `false` |
+| Locale, number, date and currency format | [Formatting and localization](formatting-and-localization.md) | English, `en_US`, `USD` |
+
+`OiThemeData` is the obers_ui theme object: colors, type ramp, spacing, radii, shadows, motion and per-component styles in one immutable value. Beak has no theme type of its own, so everything you learn about `OiThemeData` in the obers_ui documentation applies as written.
+
+## One brand color
+
+`OiThemeData.fromBrand` builds a theme from a single color. The Aviary passes one color for light and a lighter one for dark, because a dark surface needs a brighter accent to read as the same brand:
+
+```dart title="examples/showcase/lib/main.dart"
+--8<-- "examples/showcase/lib/main.dart:aviaryTheme"
 ```
 
-That writes `lib/theme.dart`, pre-filled with the defaults, and the next
-`beak prepare` wires it into the generated panel config. Everything else (badge
-colors, type, spacing) flows out of the `OiThemeData` those two functions return.
+That is the whole change to the panel. The shop does the same in its `main.dart` with a blue:
 
-## The file you own
+```dart title="examples/clean_beak_config/lib/main.dart"
+--8<-- "examples/clean_beak_config/lib/main.dart:shopMain"
+```
 
-`beak eject theme` writes exactly this. It compiles and changes nothing, so your
-first edit is a diff against a working default rather than a blank page:
+Read `fromBrand` for what it is. It replaces the primary swatch and the focus color (and the effects and decoration derived from them) and leaves everything else at the light or dark default. Success, warning, error, info and the neutral surfaces do not follow your brand, which is usually right for status colors. When they should, or when a design system dictates every color, build the theme by hand ([Colors and tokens](colors-and-tokens.md)).
 
-```dart title="packages/beak_cli/lib/src/commands/eject_command.dart"
+`OiThemeData.light()` and `.dark()` also take a `fontFamily`, a `monoFontFamily` and a `radiusPreference` (`sharp`, `medium` or `rounded`). Those three are the cheapest way to change how a panel feels without touching a color. `fromBrand` takes the same arguments.
+
+## Where the theme goes
+
+**Authored panel.** Pass the themes to `BeakPanel(theme:, darkTheme:)`, as above. When you build a `BeakPanelConfig` yourself, the same names are fields on it, plus `initialThemeMode`.
+
+**Generated panel.** `lib/main.dart` is a single `runApp(const BeakApp())` and `beak prepare` writes the config. Take over the theme with the `theme` ejection:
+
+```console
+$ beak eject theme
+  created lib/theme.dart
+
+  run `beak prepare` to wire it up
+$ beak prepare
+  1 model · 0 resource classes · 0 screens · 1 override
+  generated  1 of 8 files
+```
+
+```dart title="lib/theme.dart"
 import 'package:beak/ui.dart';
 
 /// The theme the panel uses in light mode.
@@ -35,214 +66,89 @@ OiThemeData beakLightTheme() => OiThemeData.light();
 OiThemeData beakDarkTheme() => OiThemeData.dark();
 ```
 
-The contract is the file name and the two function names. Nothing registers
-them: `beak prepare` finds `lib/theme.dart` and emits the wiring into
-`lib/beak/panel.g.dart`:
+`beak prepare` finds `lib/theme.dart` by its `beakLightTheme` function and writes `theme: theme.beakLightTheme()` and `darkTheme: theme.beakDarkTheme()` into `lib/beak/panel.g.dart`. Declare both functions. The generated code calls both, so a file with only the light one does not compile. Edit the bodies to `fromBrand` or to a full theme, then run `beak prepare` again if you added or removed the file.
 
-```dart
-theme: theme.beakLightTheme(),
-darkTheme: theme.beakDarkTheme(),
+The other settings the generated panel needs, such as formatting and the starting mode, go in `lib/panel.dart` (`beak eject panel`), which receives the generated `BeakPanelConfig` and returns the one to use:
+
+```dart title="lib/panel.dart"
+import 'package:beak/panel.dart';
+
+/// The last word on this panel's configuration.
+///
+/// [defaults] is everything `beak.yaml`, the models, the resource classes and
+/// `lib/screens/` produced. Return it to change nothing, or `copyWith` the
+/// parts you want different: the resources list, the notification source.
+BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
 ```
 
-Delete the file and the stock themes come back.
+For example, `defaults.copyWith(initialThemeMode: OiThemeMode.dark)`, with `OiThemeMode` imported from `package:beak/ui.dart`. The sidebar switches have a `beak.yaml` form too: `theme.sidebar.collapsible` and `theme.sidebar.startCollapsed`.
 
-## The three config fields
+## Light, dark and the toggle
 
-Underneath, `lib/theme.dart` fills two of three properties on `BeakPanelConfig`.
-You rarely touch them yourself, but they are what the panel actually reads:
+The panel builds one `OiApp` with both themes and a mode. `OiThemeMode.system` follows the operating system, `light` and `dark` pin it. The shell shows a toggle (`OiThemeToggle`) that changes the mode live, without rebuilding the router or losing the page you are on. Switch it off with `BeakNavigation.showThemeToggle: false` when the panel should not offer the choice.
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
-/// The light theme (defaults to `OiThemeData.light()`).
-final OiThemeData? theme;
-
-/// The dark theme (defaults to `OiThemeData.dark()`).
-final OiThemeData? darkTheme;
-
-/// The theme mode the panel starts in; toggled live from the shell.
-final OiThemeMode initialThemeMode;
-```
-
-Leave `theme` and `darkTheme` null and Beak uses obers_ui's stock light and dark
-themes. `initialThemeMode` decides which one the panel shows on first paint. It
-is `OiThemeMode`, obers_ui's own enum, one of three values:
-
-```dart
-enum OiThemeMode {
-  /// Always use the light theme.
-  light,
-
-  /// Always use the dark theme.
-  dark,
-
-  /// Follow the system's brightness setting.
-  system,
-}
-```
-
-The default is `system`, which follows the operating system's brightness.
-`initialThemeMode` is not something `beak.yaml` or `lib/theme.dart` sets, so the
-place for it is `lib/panel.dart`, the hook that sees the finished config. The
-superdashboard demo pins itself to light there:
-
-```dart title="examples/superdashboard/lib/panel.dart"
-BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
-  initialThemeMode: OiThemeMode.light,
-  // ... the notification source, the app screens, auth and maintenance.
-);
-```
-
-!!! note "What just happened"
-    - `defaults` is everything `beak.yaml`, `lib/models/` and `lib/screens/`
-      produced, including the themes from `lib/theme.dart`. `copyWith` changes
-      one field and leaves the rest generated.
-    - The panel boots in light mode. Because that project has no
-      `lib/theme.dart`, it renders obers_ui's `OiThemeData.light()` now and
-      switches to `OiThemeData.dark()` when the user flips the toggle.
-    - `beak eject panel` writes the starter for this file. It returns `defaults`
-      unchanged until you edit it.
-
-## Bringing your own theme
-
-`OiThemeData` is obers_ui's master theme container. It has three factory
-constructors you will reach for, all declared in obers_ui:
-
-```dart
-/// Creates the standard light theme.
-factory OiThemeData.light({
-  String? fontFamily,
-  String? monoFontFamily,
-  OiRadiusPreference radiusPreference = OiRadiusPreference.medium,
-  OiComponentThemes? components,
-  OiPerformanceConfig? performanceConfig,
-  OiBreakpointScale? breakpoints,
-});
-
-/// Creates the standard dark theme (the same parameters).
-factory OiThemeData.dark({
-  String? fontFamily,
-  String? monoFontFamily,
-  OiRadiusPreference radiusPreference = OiRadiusPreference.medium,
-  OiComponentThemes? components,
-  OiPerformanceConfig? performanceConfig,
-  OiBreakpointScale? breakpoints,
-});
-
-/// Creates a theme derived from a brand color.
-factory OiThemeData.fromBrand({
-  required Color color,
-  Brightness brightness = Brightness.light,
-  String? fontFamily,
-  String? monoFontFamily,
-  OiRadiusPreference radiusPreference = OiRadiusPreference.medium,
-  OiComponentThemes? components,
-  OiPerformanceConfig? performanceConfig,
-  OiBreakpointScale? breakpoints,
-});
-```
-
-`OiThemeData.fromBrand` is the shortcut for a branded panel: pass one `Color`
-and obers_ui derives the primary swatch and the semantic colors around it.
-Return a light and a dark variant from `lib/theme.dart`:
-
-```dart
-import 'package:beak/ui.dart';
-
-/// The brand purple every surface derives from.
-const Color _brand = Color(0xFF663399);
-
-/// The theme the panel uses in light mode.
-OiThemeData beakLightTheme() => OiThemeData.fromBrand(color: _brand);
-
-/// The theme the panel uses in dark mode.
-OiThemeData beakDarkTheme() =>
-    OiThemeData.fromBrand(color: _brand, brightness: Brightness.dark);
-```
-
-`package:beak/ui.dart` is the library that re-exports obers_ui, and it is the
-only import this file needs. `Color` and `Brightness` are core Flutter types,
-allowed under the no-Material rule. Everything downstream (buttons, cards, table
-rows, badge colors) picks up the brand swatch, because they all read from the
-same theme.
-
-Run `beak prepare` after creating the file. It regenerates
-`lib/beak/panel.g.dart` with the two calls wired in.
-
-## The live toggle
-
-The panel does not only pick a theme at startup. The shell's top bar carries a
-toggle, and flipping it changes the mode for the running app. The plumbing is a
-single small controller in the DI container:
+The chosen mode is not saved. A reload goes back to `initialThemeMode`, so set that if your users all want dark. Custom widgets can read and change the mode through the panel's `BeakThemeController`, a `ValueNotifier<OiThemeMode>`:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_theme_controller.dart"
-/// Holds the panel's active [OiThemeMode] and notifies when it changes.
-final class BeakThemeController extends ValueNotifier<OiThemeMode> {
-  /// Creates a controller starting in the given mode (default: system).
-  BeakThemeController([super.initialMode = OiThemeMode.system]);
-}
+--8<-- "packages/beak_frontend/lib/src/panel/beak_theme_controller.dart:BeakThemeController"
 ```
 
-The root `BeakPanel` listens to it and rebuilds `OiApp.router` with the new mode.
-Notice the theme fallbacks here: this is where a project with no
-`lib/theme.dart` gets obers_ui's stock themes.
+## Reading the theme in your own widgets
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_panel.dart"
-final themeController = beakLocator<BeakThemeController>();
-return ValueListenableBuilder<OiThemeMode>(
-  valueListenable: themeController,
-  builder: (context, themeMode, _) => OiApp.router(
-    routerConfig: router,
-    title: config.title,
-    theme: config.theme ?? OiThemeData.light(),
-    darkTheme: config.darkTheme ?? OiThemeData.dark(),
-    themeMode: themeMode,
-    debugShowCheckedModeBanner: false,
+Colors, spacing and radii are extensions on `BuildContext`: `context.colors`, `context.spacing`, `context.radius`, and `context.components` for per-component styles. A custom widget that uses them follows the theme and flips with the toggle. Beak's own blocks resolve their semantic colors this way:
+
+```dart title="packages/beak_frontend/lib/src/blocks/views/beak_record_readers.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/views/beak_record_readers.dart:resolveBeakColor"
+```
+
+The same idea in a widget of your own (illustrative; the names are real):
+
+```dart
+BeakWidgetBlock(
+  (context) => OiLabel.small(
+    'Last synced 5 minutes ago',
+    color: context.colors.textMuted,
   ),
-);
+)
 ```
 
-The top bar renders an `OiThemeToggle` that writes straight back to the
-controller. go_router keeps the shell mounted across navigations, so the toggle
-listens to the controller directly rather than waiting for a route change:
+A hex value in a widget keeps its color in dark mode, and the toggle test below is how you find it.
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_router.dart"
-ValueListenableBuilder<OiThemeMode>(
-  valueListenable: themeController,
-  builder: (context, mode, _) => OiThemeToggle(
-    currentMode: mode,
-    onModeChange: (next) => themeController.value = next,
-  ),
-),
+## Rules and limits
+
+- Both themes, or the default. A missing `theme` is `OiThemeData.light()`, a missing `darkTheme` is `OiThemeData.dark()`. A panel that sets only `theme` gets Beak's stock dark theme in dark mode, not a dark version of yours.
+- The mode is not persisted. A reload restores `initialThemeMode`.
+- `BeakPanel(...)` does not take `initialThemeMode`. The shorthand has `theme` and `darkTheme` only. For the mode, the sidebar flags, `supportedLocales` and `localizationsDelegates`, build a `BeakPanelConfig`.
+- No Material. A Beak panel imports neither `material.dart` nor `cupertino.dart`. `OiApp` provides what those would have. Do not wrap a panel in a Material `Theme`.
+
+## Verify it
+
+The generated path is checked by running the two commands above in a project: `lib/beak/panel.g.dart` then contains `import '../theme.dart' as theme;` and the two `theme:` lines. For the authored path, the Aviary's page tests build the panel with its brand themes:
+
+```console
+$ cd examples/showcase
+$ flutter test --no-pub test/aviary_pages_test.dart
+...
+All tests passed!
 ```
 
-Put together, the flow is short:
+Run either panel and press the theme toggle in the top bar. Every surface should change together. A color that stays put is hard-coded somewhere.
 
-```mermaid
-flowchart LR
-  Config[BeakPanelConfig.initialThemeMode] --> Controller[BeakThemeController]
-  Toggle[OiThemeToggle in the shell] --> Controller
-  Controller --> Panel[BeakPanel rebuilds OiApp.router]
-  Panel --> UI[Every obers_ui widget re-resolves its colors]
-```
+## Reference
 
-!!! tip "You rarely touch the controller yourself"
-    App authors write `lib/theme.dart` and, optionally, set `initialThemeMode`
-    in `lib/panel.dart`. Beak registers the `BeakThemeController` and wires the
-    toggle for you. Reach for the controller directly only if you are building a
-    custom screen that wants to read or set the mode.
-
-## Where each theming decision lives
-
-| Decision | Where |
+| Symbol | What it is |
 | --- | --- |
-| The light and dark `OiThemeData` | `lib/theme.dart` (`beak eject theme`) |
-| The mode the panel boots in | `initialThemeMode` in `lib/panel.dart` |
-| Sidebar collapse behaviour | `theme.sidebar` in `beak.yaml` |
-| A resource's icon, label or section | `resources.<table>` in `beak.yaml` |
-| Everything else | generated into `lib/beak/panel.g.dart`, never edited |
+| `OiThemeData.light`, `.dark` | The stock themes. Take `fontFamily`, `monoFontFamily`, `radiusPreference`, `components`, `breakpoints`. |
+| `OiThemeData.fromBrand(color:, brightness:)` | A stock theme with a new primary swatch and focus color. |
+| `OiThemeData.copyWith` | Replace any part: `colors`, `textTheme`, `radius`, `shadows`, `components` and more. |
+| `OiThemeMode` | `light`, `dark`, `system`. |
+| `BeakPanelConfig.theme`, `.darkTheme`, `.initialThemeMode` | Where the panel takes them. |
+| `BeakThemeController` | The panel's live mode, registered in its dependency scope. |
+| `BeakNavigation.showThemeToggle` | Whether the shell shows the toggle. |
 
 ## Continue reading
 
-- [Colors and tokens](colors-and-tokens.md) the semantic colors your theme resolves.
-- [The shell](the-shell.md) the sidebar and framing the theme paints.
-- [Project structure](../start-here/project-structure.md) every optional override file and what it takes over.
-- [Configuration options](../reference/configuration-options.md) every `BeakPanelConfig` field in one table.
+- [Colors and tokens](colors-and-tokens.md) build a full theme and see how `BeakColor` becomes a color.
+- [Typography and icons](typography-and-icons.md) the type ramp and the icon set a theme can re-skin.
+- [Formatting and localization](formatting-and-localization.md) dates, numbers, currency and the UI language.
+- [Foodio](../examples/foodio.md) a complete custom theme in a real panel.

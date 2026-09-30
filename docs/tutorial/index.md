@@ -1,70 +1,60 @@
 ---
-title: "Tutorial: First Flight"
-description: Build a coffee-roastery admin panel from an empty folder to a deployed, authenticated store, one concept per chapter.
+title: Tutorial
+description: Build a small shop admin in six chapters, from an empty folder to a panel behind a sign-in, an API that refuses strangers, tests and two build outputs.
+type: index
+audience: [beginner]
+status: stable
 ---
 
-# Tutorial: First Flight
+# Tutorial
 
-By the end of these six chapters you will have built
-[`examples/store`](https://github.com/SimonErich/beak/tree/main/examples/store):
-a working admin panel for a small coffee roastery, grown from an empty folder.
-Seven resources declared once, a REST API generated from them, a panel that
-lists, filters, edits and charts every one of them, accounts that decide who
-sees what, and a test suite that proves it.
+First Flight builds one project, called `shop`, in six chapters. It starts as an empty folder and ends as a panel behind a sign-in, an API that refuses strangers, four tests and two things you can deploy. You type most of it, and every command output on these pages was produced by running that command on this project.
 
-The bird has to leave the nest sometime. This is that flight, taken in short
-hops.
+The `shop` is a slice of the maintained example in [`examples/clean_beak_config`](https://github.com/SimonErich/beak/tree/main/examples/clean_beak_config). Its code blocks are quoted from that example's files, so they compile, and the chapters say when a block is your own or not part of your project. If you would rather read the finished thing than build it, [Clean shop](../examples/clean-shop.md) is the tour.
 
-Every code block is quoted from the finished example, so a snippet you copy is
-code that compiles and ships. Nothing here is a toy version of the real thing.
+## What you will end up with
 
-## What you need
+- Categories and products, with exact money, rules that hold in the form and at the API, and links between them.
+- A panel you shaped: table columns, filters, search, an overview page, a brand colour and a money format.
+- A seeded database you can rebuild in seconds, and an API you have called by hand.
+- Authorization on the server, a sign-in in the panel, and tests for the panel, the API and the policy.
+- A server bundle and a static panel, built the way a host would run them.
 
-Dart 3.11 and Flutter stable. That is all: the database is a SQLite file Beak
-creates on first run, and uploads land beside it. Postgres, S3 and Docker are
-opt-in, and the last chapter shows where they plug in.
+## How the chapters work
 
-If you have not installed the CLI yet, start with
-[Installation](../start-here/installation.md).
+Every chapter opens with what you will build and what you need before you start, walks through the steps, and ends with a command you run and the output you should see, followed by a checkpoint you can compare your project against. The project runs at every checkpoint, so you can stop after any chapter and come back.
 
-## The six chapters
+A `What just happened` box after a step says what Beak did for you. A `What this skipped` box names the pages that cover what the step left out.
 
-| | Chapter | What you can do after it |
+## Before you start
+
+| You need | Why |
+| --- | --- |
+| Dart `^3.11` and Flutter stable `3.41` or newer | The CLI and the server run on Dart, the panel on Flutter. |
+| The `beak` command | [Installation](../start-here/installation.md) has the one line. |
+| Chrome and `curl` | Chrome runs the panel, `curl` talks to the API. |
+| Port `8080` free | The API listens there. |
+
+No database to install. A new project uses a SQLite file that Beak creates on the first migrate.
+
+Two things are worth knowing before chapter 1:
+
+- The tutorial uses the authored panel: you own `lib/main.dart` and list your resources in it, which is what `beak create --authored` writes. The [quickstart](../start-here/quickstart.md) uses the generated one instead, and [Two ways to boot a panel](../start-here/generated-or-authored.md) compares them. The chapters say which form they assume.
+- Until a release exists, `beak create` needs a local checkout of Beak to point at. Chapter 1 shows the flag and what changes in `pubspec.yaml`.
+
+## Which page to read
+
+| You want to... | Read | For that |
 | --- | --- | --- |
-| 1 | [Your first resource](01-your-first-resource.md) | Scaffold a project, declare a resource, and use the panel and API it produces |
-| 2 | [Columns and validation](02-columns-and-validation.md) | Reach for the right column kind, and write rules that hold in the form and in the API |
-| 3 | [Relationships](03-relationships.md) | Link resources by naming a class, and read what that gives you in the panel |
-| 4 | [Seeding and the API](04-seeding-and-the-api.md) | Fill the store with fixed data, and drive every endpoint from the command line |
-| 5 | [Shaping the panel](05-shaping-the-panel.md) | Decide icons, filters, actions, view modes, layouts, wizards, screens and the dashboard |
-| 6 | [Auth, tests, and shipping](06-auth-tests-and-shipping.md) | Add accounts and a row policy, test the lot, and build for production |
-
-Read them in order the first time. Each chapter starts where the last one
-finished, and the project you end up with is the example you can clone.
-
-## What you will not write
-
-It is worth knowing in advance what the tutorial never asks you to type, so
-you can notice its absence:
-
-- No REST endpoints, request parsing, or response shaping.
-- No table, form, detail page, filter bar, or router.
-- No registry, no resource list, no migration list.
-- No string column references, no `dynamic`, no casts.
-
-You write schema classes, a handful of small files that state decisions, and
-the code that is genuinely yours.
-
-## If you would rather skim
-
-- [Quickstart](../start-here/quickstart.md) is the same first chapter in a
-  quarter of the words.
-- [Cheatsheet](../reference/cheatsheet.md) is every command and annotation on
-  one page.
-- [`examples/store`](https://github.com/SimonErich/beak/tree/main/examples/store)
-  is the finished project. Clone it and run it.
+| Start a project and get one resource running | [Your first resource](01-your-first-resource.md) | `beak create`, a schema class, a resource, a migration, the panel and the REST API |
+| Store money and make a rule hold in two places | [Columns and validation](02-columns-and-validation.md) | Products, exact prices, `BeakMin`, and the same error from the form and the server |
+| Link records and edit them together | [Related records](03-relationships.md) | A picker, an owned table of attributes, a drift migration and one save for the whole draft |
+| Fill the database and see what the panel sends | [Seeding and the API](04-seeding-and-the-api.md) | A repeatable seeder, queries and graph commits by hand |
+| Change how the panel looks and what it finds | [Shaping the panel](05-shaping-the-panel.md) | Columns, filters, search, an overview page, a brand and a money format |
+| Lock it down, test it and build it | [Auth, tests, and shipping](06-auth-tests-and-shipping.md) | Policies, a sign-in, three kinds of test, and the server and panel builds |
 
 ## Continue reading
 
-- [Chapter 1: Your first resource](01-your-first-resource.md) starts the flight.
-- [Core concepts](../concepts/index.md) is the same material as ideas rather
-  than steps, if you prefer to read that way first.
+- [Your first resource](01-your-first-resource.md): start here.
+- [Quickstart](../start-here/quickstart.md): the ten-minute version, with the generated panel.
+- [Concepts](../concepts/index.md): the reasons behind what the tutorial has you type.

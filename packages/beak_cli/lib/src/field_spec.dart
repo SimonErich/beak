@@ -1,10 +1,22 @@
+import 'inflection.dart';
+import 'schema/beak_reserved_names.dart';
+
+/// The field names `make:resource` cannot take: the key, the two stamps its
+/// `timestamps: true` adds, and the name the typed record view reserves.
+const Set<String> _addedByBeak = {
+  'id',
+  'created_at',
+  'updated_at',
+  ...BeakReservedNames.recordView,
+};
+
 /// The column kinds a `--fields` token can declare.
 ///
 /// Each kind maps to a Dart type, a worm blueprint column, and a Beak
 /// column in the generated code (for example [string] becomes a Dart
 /// `String`, a `table.string(...)` migration column, and a
 /// `BeakStringColumn`). Tokens are matched by [parse], which also accepts a
-/// few aliases (`int`, `datetime`, `date`, `double`).
+/// few aliases (`int`, `datetime`, `date`, `float`).
 enum BeakFieldKind {
   /// Single-line string.
   string,
@@ -15,8 +27,11 @@ enum BeakFieldKind {
   /// Integer.
   integer,
 
-  /// Fractional number.
+  /// Exact decimal number, a `BeakDecimal` stored as integer units.
   decimal,
+
+  /// Floating-point number, a `double`.
+  floating,
 
   /// Boolean flag.
   boolean,
@@ -27,8 +42,8 @@ enum BeakFieldKind {
   /// Returns the kind named by [token], or `null` if it is unrecognized.
   ///
   /// Accepts the canonical name of each kind plus common aliases: `int`
-  /// for [integer], `double` for [decimal], `boolean` for [boolean], and
-  /// `datetime`/`date` for [dateTime]. Callers that want a hard failure
+  /// for [integer], `double` and `float` for [floating], `boolean` for
+  /// [boolean], and `datetime`/`date` for [dateTime]. Callers that want a hard failure
   /// instead of `null` should go through [BeakFieldSpec.parse].
   ///
   /// ```dart
@@ -40,7 +55,8 @@ enum BeakFieldKind {
     'string' => string,
     'text' => text,
     'int' || 'integer' => integer,
-    'decimal' || 'double' => decimal,
+    'decimal' => decimal,
+    'double' || 'float' => floating,
     'bool' || 'boolean' => boolean,
     'datetime' || 'date' => dateTime,
     _ => null,
@@ -99,13 +115,26 @@ final class BeakFieldSpec {
     final BeakFieldKind? kind = BeakFieldKind.parse(parts[1]);
     if (kind == null) {
       throw FormatException(
-        'Unknown field kind "${parts[1]}" in "$token" — use one of: '
-        'string, text, int, decimal, bool, datetime.',
+        'Unknown field kind "${parts[1]}" in "$token"; use one of: '
+        'string, text, int, decimal, double, bool, datetime.',
       );
     }
     final String name = parts.first;
     if (!RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name)) {
       throw FormatException('Field name "$name" must be lower_snake_case.');
+    }
+    if (BeakReservedNames.dartKeywords.contains(name)) {
+      throw FormatException(
+        'Field name "$name" is a Dart keyword, so `late final String? $name;` '
+        'is not Dart. Pick another name.',
+      );
+    }
+    if (_addedByBeak.contains(name)) {
+      throw FormatException(
+        'Field name "$name" is one Beak adds itself (the key, the '
+        'timestamps) or reserves for the typed record view, so declaring it '
+        'would declare it twice. Pick another name.',
+      );
     }
     return BeakFieldSpec(name: name, kind: kind, isRequired: isRequired);
   }
@@ -170,34 +199,14 @@ String snakeCaseOf(String resourceName) => resourceName
 
 /// Returns the plural, snake-case table name for [resourceName].
 ///
-/// Pluralization is deliberately naive: `s`/`x`/`ch` endings take `es`, a
-/// trailing `y` becomes `ies`, and everything else takes `s`. It is right
-/// often enough to scaffold from; rename the generated `tableName` and
-/// migration when a resource pluralizes irregularly.
+/// Pluralization follows [pluralOf]: the regular English rules plus a short
+/// table of irregular words, so `Person` becomes `people` and `Day` becomes
+/// `days`. Anything it gets wrong is named with `@Resource(table:)`.
 ///
 /// ```dart
 /// tableNameOf('Product'); // 'products'
 /// tableNameOf('Category'); // 'categories'
 /// tableNameOf('Box'); // 'boxes'
+/// tableNameOf('Person'); // 'people'
 /// ```
 String tableNameOf(String resourceName) => pluralOf(snakeCaseOf(resourceName));
-
-/// `category` -> `categories`, `box` -> `boxes`, `product` -> `products`.
-///
-/// The one pluraliser: a table name and the migration class naming it must
-/// agree, and appending a bare `s` gave `CreateCategorysTable` beside a
-/// `categories` table.
-///
-/// ```dart
-/// pluralOf('Category'); // 'Categories'
-/// pluralOf('product');  // 'products'
-/// ```
-String pluralOf(String word) {
-  if (word.endsWith('s') || word.endsWith('x') || word.endsWith('ch')) {
-    return '${word}es';
-  }
-  if (word.endsWith('y')) {
-    return '${word.substring(0, word.length - 1)}ies';
-  }
-  return '${word}s';
-}

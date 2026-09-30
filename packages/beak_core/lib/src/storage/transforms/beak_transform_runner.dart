@@ -9,16 +9,30 @@ import 'beak_image_transform.dart';
 ///
 /// `beak_core` deliberately ships no pixel codec: implementations live in
 /// driver-level packages that bring an image library. The upload
-/// endpoint decodes, runs the configured pipeline through this interface and
-/// stores the results via the configured `BeakStorageDriver`.
+/// endpoint reads the size from the header through [inspect], checks the
+/// column's dimension rules, and only then decodes once through [run] before
+/// storing the results via the configured `BeakStorageDriver`.
+// --8<-- [start:BeakTransformRunner]
 abstract interface class BeakTransformRunner {
+  /// Reads the pixel size [source] declares without decoding a pixel.
+  ///
+  /// This is what makes a dimension rule enforceable before memory is spent:
+  /// a few dozen bytes can declare a bitmap of gigabytes. Throws a
+  /// `BeakValidationException` when [source] is not a readable supported
+  /// image.
+  Future<BeakDimensions> inspect(Uint8List source);
+
   /// Runs [pipeline] over [source] in order and returns the transformed
   /// primary image plus any named variants (e.g. thumbnails).
+  ///
+  /// Decodes [source] once, and refuses one whose declared size is beyond
+  /// what the implementation is willing to hold in memory.
   Future<BeakTransformedImage> run(
     Uint8List source,
     List<BeakImageTransform> pipeline,
   );
 }
+// --8<-- [end:BeakTransformRunner]
 
 /// The output of a transform pipeline: encoded bytes plus decoded metadata.
 ///

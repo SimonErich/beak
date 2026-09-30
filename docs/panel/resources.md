@@ -1,340 +1,282 @@
 ---
 title: Resources
-description: How Beak assembles a resource from the schema class, beak.yaml, and an optional lib/resources/<table>.dart, and the four CRUD pages it generates.
+description: Declare how a model appears in the panel with a BeakResource, from its title and sidebar group to its screens, filters, search sources and actions.
+type: guide
+audience: [beginner]
+status: stable
 ---
 
 # Resources
 
-After this page you can turn any schema class into a full list/create/show/edit
-surface, file it under a sidebar section, and add typed actions, filters, and
-view modes to it. You will not write a `BeakResource` to do any of it.
+You have a model and no screen for it yet. A `BeakResource` says how that model shows up in the panel: its title, its place in the sidebar, the screens behind its four routes, the filters, the search fields and the actions on its rows.
 
-## What a resource is
+You only write one when the defaults are not enough. A resource that names nothing but `model:` already gets a list, a create form, a show page and an edit form, all derived from the model's columns.
 
-A `BeakResource` is one model surfaced in the panel: the model, its navigation
-presentation, and the typed actions, filters, and view modes its generated pages
-expose. Beak builds that value for you. Your side of the deal is a schema class:
+## At a glance
 
-```dart title="examples/store/lib/models/category.dart"
-@Resource()
-final class Category extends BeakSchema {
-  /// What the category is called.
-  @Display()
-  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
-  late final String name;
-
-  /// The one-line blurb shown above the product list.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakText? blurb;
-}
-```
-
-`beak prepare` reads that class, writes `lib/models/category.beak.dart` (the
-columns, the relationships, the model, the typed record view), writes the
-migration once, and adds the resource to `lib/beak/panel.g.dart`. Categories now
-have a sidebar entry, four pages, and an API. Nobody typed a `BeakResource`.
-
-### Where each decision lives
-
-The split is the thing to learn. Each decision has exactly one home.
-
-| Decision | Where it lives |
+| | |
 | --- | --- |
-| Columns, relationships, table name, soft deletes, timestamps | the `@Resource` class in `lib/models/<name>.dart` |
-| Panel title, API origin, server port | `beak.yaml` |
-| A resource's sidebar icon, label, section, or whether it is hidden | `beak.yaml`, under `resources.<table>` |
-| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart` |
-| Theme, auth, dashboard, server, whole-panel overrides | `lib/theme.dart`, `lib/auth.dart`, `lib/dashboard.dart`, `lib/server.dart`, `lib/panel.dart` |
-| Everything else | generated into `lib/beak/*.g.dart` and `lib/models/*.beak.dart`, committed, never edited |
+| Declared in | `lib/resources/<feature>/<name>_resource.dart`, one `final class XResource extends BeakResource` per model |
+| Smallest form | `BeakResource(model: const NoteModel())` |
+| Routes it owns | `/notes`, `/notes/create`, `/notes/:id`, `/notes/:id/edit` (the path comes from `model.table`) |
+| Registered by | Generated panel: `beak prepare` finds the class. Authored panel: you list it in `BeakPanel(resources: [...])` |
+| Enforces access | No. It hides UI. The server enforces |
 
-The type Beak assembles is still worth knowing, because the file you write to
-adjust one resource takes it and returns it:
+## The smallest useful resource
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_panel_config.dart"
-const BeakResource({
-  required this.model,
-  required this.icon,
-  this.label,
-  this.section,
-  this.recordActions = const [],
-  this.bulkActions = const [],
-  this.globalActions = const [],
-  this.filters = const [],
-  this.viewModes = const [BeakTableView()],
-  this.detail,
-  this.formSteps,
-  this.formLayout,
-});
+This is the shop's category resource. `model` is the only required argument, everything else is a decision you make on purpose.
+
+```dart title="examples/clean_beak_config/lib/resources/categories/category_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/categories/category_resource.dart:CategoryResource"
 ```
 
-| Field | Type | Comes from | What it does |
-| --- | --- | --- | --- |
-| `model` | `BeakModel` | the schema class | The model this resource exposes. |
-| `icon` | `BeakIconToken` | `beak.yaml` | The sidebar icon. |
-| `label` | `String?` | `beak.yaml` | Navigation label override (defaults to the title-cased table name). |
-| `section` | `String?` | `beak.yaml` | Sidebar group heading this resource is filed under. |
-| `recordActions` | `List<BeakRecordAction>` | your override | Extra per-row actions (view/edit/delete are built in). |
-| `bulkActions` | `List<BeakBulkAction>` | your override | Actions over the list page's selection. |
-| `globalActions` | `List<BeakGlobalAction>` | your override | Extra page-level list actions (create is built in). |
-| `filters` | `List<BeakFilterDef>` | your override, or derived | The list page's filter controls. Empty means "derive them from the model". |
-| `viewModes` | `List<BeakResourceView>` | your override | The list page's presentations; more than one adds a switcher. |
-| `detail` | `BeakBlock?` | your override | A custom, record-bound show-page layout. |
-| `formSteps` | `List<BeakFormStep>?` | your override | Renders the create/edit form as a multi-step wizard. |
-| `formLayout` | `BeakBlock?` | your override | Renders the create/edit form through a record-bound block layout. |
+Typing the class yourself is optional. `beak eject resource <table>` writes it for a model that exists:
 
-Three of those never need an override at all. `filters` falls back to the
-controls the model's `filterable` columns imply, `detail` falls back to the
-layout the model implies, and `label` falls back to the title-cased table name.
+```console
+$ beak eject resource notes
+  created lib/resources/notes/note_resource.dart
 
-### The icon is typed too
-
-`icon` is a `BeakIconToken`, a zero-cost wrapper over `IconData` so the config
-surface stays expressive without leaking raw icon plumbing. You do not construct
-one. You name an `OiIcons` value in `beak.yaml`, in lowerCamelCase:
-
-```yaml title="examples/store/beak.yaml"
-resources:
-  products:
-    icon: package
-    section: Catalog
-  categories:
-    icon: folderTree
-    section: Catalog
+  run `beak prepare` to wire it up
 ```
 
-and `beak prepare` splices it into the generated resource:
+The file is a `BeakResource` subclass that carries whatever `beak.yaml` gave the default resource, so it changes nothing until your first edit:
 
-```dart title="examples/store/lib/beak/panel.g.dart"
-      BeakResource(
-        model: const CategoryModel(),
-        icon: BeakIconToken(OiIcons.folderTree),
-        section: 'Catalog',
-      ),
-```
-
-An icon name that is not a lowerCamelCase identifier fails at `beak prepare`,
-naming the offending line, rather than becoming a compile error inside a file you
-did not write. Leave `icon` out and the resource gets `OiIcons.table`.
-
-## The pages you get for free
-
-One resource generates four routes and their pages, keyed on the model's table
-name:
-
-| Page | Route | What it renders |
-| --- | --- | --- |
-| List | `/{table}` | The model's table-context columns in a `BeakDataTable`, with the filter bar and the create action. |
-| Create | `/{table}/create` | A `BeakDataForm` in create mode that returns to the list after saving. |
-| Show | `/{table}/{id}` | The record through the detail layout, plus its to-many relation managers. |
-| Edit | `/{table}/{id}/edit` | A `BeakDataForm` prefilled from `getOne`, returning to the show page after saving. |
-
-The resource exposes helpers the pages read: `effectiveLabel` is the label shown
-in navigation and page titles, `route` is the resource's list route,
-`effectiveDetail` is the show-page layout, and `effectiveFilters` is the filter
-bar. The last two are the fallbacks, and they are the reason most resources need
-no file of their own.
-
-## The built-in actions
-
-Every resource carries four actions you never declare. The list page adds a
-**view** and an **edit** row action to each row and a **create** global action to
-the page header; the show page adds an **edit** and a **delete** action. They are
-ordinary members of the sealed `BeakAction` family, so your custom actions sit
-right beside them.
-
-```dart title="packages/beak_frontend/lib/src/actions/built_in_actions.dart"
-/// Navigates to the record's show page.
-final class BeakViewAction extends BeakRecordAction {
-  /// Creates the built-in view action.
-  const BeakViewAction()
-    : super(key: 'view', label: 'View', icon: OiIcons.eye, onExecute: _run);
-
-  static Future<void> _run(BeakRecord record, BeakActionContext context) async {
-    final Object? id = context.model.primaryKeyOf(record);
-    if (id != null) {
-      context.router.go(BeakRoutes.show(context.model.table, id));
-    }
-  }
+```dart title="lib/resources/notes/note_resource.dart"
+final class NoteResource extends BeakResource {
+  /// Creates the notes resource.
+  const NoteResource()
+    : super(
+        model: const NoteModel(),
+        icon: const BeakIconToken(OiIcons.fileText),
+        navigationGroup: 'Content',
+      );
 }
 ```
 
-The **delete** action is the interesting one: it renders destructively
-(`BeakColor.error`) and commits through an optimistic-with-undo path. The delete
-is offered with an undo toast and only hits the data source once the undo window
-passes, after which the list refreshes and the router navigates back.
+## What a resource holds
 
-To add your own, hand a `BeakRecordAction` (or a bulk or global action) to the
-matching list in your `copyWith`. [Actions](actions.md) covers the full family
-and the `BeakActionContext` an action executes against.
+| Field | Default | What it does |
+| --- | --- | --- |
+| `model` | required | The model this resource exposes |
+| `icon` | `BeakIconToken(OiIcons.database)` | Sidebar icon. Wrap any `OiIcons` value. Default resources from `beak prepare` use `OiIcons.table` |
+| `title` | table name, title-cased (`order_items` becomes "Order Items") | Page title of the list |
+| `navigationTitle` | `title` | Sidebar label, when it should differ from the page title |
+| `navigationGroup` | none | Heading in the automatic sidebar. See [Navigation](navigation.md) |
+| `navigationRank` | `0` | Order among resources. Ties keep declaration order |
+| `screens` | `[]` | Table, form, wizard or custom screens for the four routes |
+| `globalSearchSources` | `[]` | Fields the command bar and a composed list's search box use. Empty means the model's `searchable` columns |
+| `filters` | `[]` | Filter controls on the list. Empty means the model's `filterable` columns |
+| `recordActions`, `bulkActions`, `globalActions` | `[]` | Extra actions on a row, on a selection and on the page. See [Actions](actions.md) |
+| `canCreate`, `canEdit`, `canDelete` | `true` | Switches for the matching route and button |
+| `deleteAction` | `BeakDeleteAction()` | What the Delete button does. `BeakDeleteAction.confirmed()` asks first and waits for the server, `BeakArchiveAction()` is the same under another label |
+| `duplication` | none | Adds a Duplicate row action to the list. See below |
+| `onActionError` | none | Your hook for failures of custom actions. Without it Beak shows an error toast |
+| `filePicker`, `uploader` | none | Overrides for upload fields in this resource's forms |
 
-## Sections group the sidebar
+The shop's product resource fills the first block of that table like this. Group and rank shape the sidebar, the search sources and filters come further down the same file:
 
-Give a resource a `section` in `beak.yaml` and Beak groups it under that heading
-in the sidebar. The superdashboard files its 17 navigable resources into Store,
-People, Projects, and Content, and keeps the other 32 models out of the sidebar
-entirely:
-
-```yaml title="examples/superdashboard/beak.yaml"
-resources:
-  # Store
-  products:
-    icon: package
-    section: Store
-  categories:
-    icon: folderTree
-    section: Store
-  tags:
-    icon: tag
-    section: Store
-  orders:
-    icon: shoppingCart
-    section: Store
-  transactions:
-    icon: creditCard
-    section: Store
-  # People
-  users:
-    icon: users
-    section: People
+```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductResourceIdentity"
 ```
 
-Leave `section` off and the resource sits at the top level of the sidebar. Set
-`hidden: true` and it leaves the sidebar without leaving the panel:
+## Registering resources
 
-```yaml title="examples/store/beak.yaml"
-  order_items:
-    hidden: true
+A resource that nobody registers is a class in a folder. How it gets into the panel depends on how the panel boots. Both ways take the same classes, and `beak eject main` moves a generated project to the authored form, see [Two ways to boot a panel](../start-here/generated-or-authored.md).
+
+=== "Generated panel"
+
+    `beak prepare` scans `lib/` for classes that extend `BeakResource`. It finds public, non-abstract classes with an unnamed constructor that takes no required arguments. Each one replaces the default resource of the model it configures, matched by table when the panel starts. A resource that needs arguments is composed by hand, and the generated panel keeps the default for its model.
+
+    Models without a class get a default resource, dressed with whatever `beak.yaml` says under `resources:`, keyed by table:
+
+    ```yaml title="examples/quickstart/beak.yaml"
+    resources:
+      notes:
+        icon: fileText
+        section: Content
+    ```
+
+    | Key | Becomes | Meaning |
+    | --- | --- | --- |
+    | `icon` | `icon` | An `OiIcons` name in lowerCamelCase. `beak prepare` rejects anything that is not a lowerCamelCase identifier, and a name `OiIcons` lacks fails the compile of `panel.g.dart` |
+    | `label` | `title` | Page title and sidebar label |
+    | `section` | `navigationGroup` | Heading in the automatic sidebar |
+    | `hidden` | none | `true` skips the default resource. No sidebar entry, no routes. The model keeps its API and stays reachable through relationships |
+
+    A `BeakResource` class for a hidden model is still shown: writing the class is the decision. The result is `lib/beak/panel.g.dart`:
+
+    ```dart title="examples/quickstart/lib/beak/panel.g.dart"
+    --8<-- "examples/quickstart/lib/beak/panel.g.dart"
+    ```
+
+    To change something about the whole panel that no resource owns, run `beak eject panel`. It writes `lib/panel.dart`, and its `beakPanel` function receives the finished config:
+
+    ```console
+    $ tail -n 1 lib/panel.dart
+    BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
+    ```
+
+    Return `defaults.copyWith(...)` there to add a navigation, a notification source or a maintenance page, see [Navigation](navigation.md).
+
+=== "Authored panel"
+
+    You own the list. `beak prepare` never rewrites an authored `lib/main.dart`, so a new resource class is unused until you add it to `resources:`. `beak doctor` warns about the ones you forgot:
+
+    ```console
+    $ beak doctor
+      OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/main.dart is authored)
+      WARN NoteResource (lib/resources/notes/note_resource.dart) is not listed in lib/main.dart's resources: [...], so the panel never shows it
+           → add NoteResource() to the resources list in lib/main.dart; `beak prepare` never rewrites an authored entrypoint
+    ```
+
+    The shop registers its resources this way:
+
+    ```dart title="examples/clean_beak_config/lib/main.dart"
+    --8<-- "examples/clean_beak_config/lib/main.dart:shopMain"
+    ```
+
+The shop registers 11 resources for 20 models. Related models register themselves through the relationships that reach them, so a line-item model does not need a sidebar entry to take part in an order form.
+
+## The panel around your resources
+
+`BeakPanel(...)` takes the everyday options directly. A complete `BeakPanelConfig` takes all of them, and `BeakPanel(config: ...)` hands it over. You cannot pass both: `config:` together with `resources:` fails an assertion in debug builds, and `config:` together with any everyday option (`resources`, `title`, `theme` and the rest) throws a `BeakConfigurationException` when the panel builds, because the configuration would silently win. Set such an option on the config, or use `copyWith`.
+
+| Option | `BeakPanel(...)` | `BeakPanelConfig` |
+| --- | --- | --- |
+| `title`, `resources`, `pages`, `apiBaseUrl`, `theme`, `darkTheme`, `locale`, `formatting`, `auth`, `navigation`, `refreshPolicy`, `home`, `maintenance`, `mapException` | yes | yes |
+| `notifications`, `shellActions` | no | yes |
+| `initialThemeMode`, `supportedLocales`, `localizationsDelegates` | no | yes |
+| `sidebarCollapsible`, `sidebarDefaultCollapsed` | no | yes |
+| `dataSource`, `httpClient` | yes | no |
+
+`dataSource` and `httpClient` replace the transport under the panel, with either form. Widget tests use them to pump a panel against an in-memory source, the Serverpod admin passes its tunnel as `dataSource`, and a panel with an external authentication adapter needs `dataSource` unless its models bring their own. Foodio builds a `BeakPanelConfig` because it uses notifications and shell actions:
+
+```dart title="examples/foodio-adminpanel/lib/main.dart"
+--8<-- "examples/foodio-adminpanel/lib/main.dart:foodioPanelConfig"
 ```
 
-A hidden resource is still registered, still has an API, and is still reachable
-as the far side of a relationship. It does not earn a sidebar entry, and that is
-the whole of the difference.
-[beak.yaml](../reference/beak-yaml.md) is the full key list.
+Every option with its default is on [Panel and resource options](../reference/panel-options.md).
 
-## Adjusting a generated resource
+### Where `/` goes
 
-When a resource needs something the schema class cannot say, add
-`lib/resources/<table>.dart` exporting one function:
+`home:` takes a `BeakResource` or a `BeakScreen`, never a route string. It is where `/` sends the user, and where sign-in and the error pages' back buttons land. The order is fixed:
 
-```dart
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  // the parts a person decides
-);
+1. A `BeakScreen` mounted at `/` wins, and `home` is not consulted.
+2. `home`, when the resource is visible to the current account.
+3. The first visible item of the `BeakNavigation` sections, in order, bottom sections last.
+4. The first visible resource in navigation order, then the first page with `showInNav`.
+5. Nothing to show: the not-found page.
+
+## The four routes
+
+Every resource owns four routes, all flat (a list page is not kept alive under its create or edit page, so coming back re-queries).
+
+| Route | Role | Generated page | Opens when | Otherwise |
+| --- | --- | --- | --- | --- |
+| `/notes` | `list` | Table with filters, search and pagination | `isVisible` | redirect to `/403` |
+| `/notes/create` | `create` | Create form | `allowsCreate` | redirect to `/403` |
+| `/notes/:id` | `read` | Read-only show page with Edit, Delete and record actions | `isVisible` | redirect to `/403` |
+| `/notes/:id/edit` | `edit` | Edit form | `allowsEdit` | redirect to `/403` |
+
+`screens` replaces any of them. It takes any mix of `BeakTableScreen` (the list), `BeakFormScreen` and `BeakWizardScreen` (read, create and edit) and `BeakCustomResourceScreen` (any role, your widget). Each screen declares the roles it serves. A `BeakFormScreen` serves create and edit unless you say otherwise, so the shop lists `read` too and gets one layout for all three routes:
+
+```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductScreens"
 ```
 
-`beak prepare` notices the file by its path and wraps the generated resource in
-it. Nothing else changes: the model, icon, label, and section keep coming from
-the schema class and `beak.yaml`, and every other resource in the panel stays
-fully generated.
+A role you leave out falls back to the generated page. The screens themselves are covered in [Tables and filters](tables-and-filters.md), [Form screens](../forms/form-screens.md) and [Custom screens](custom-screens.md).
 
-```dart title="examples/store/lib/beak/panel.g.dart"
-      resource_products.beakResource(
-        BeakResource(
-          model: const ProductModel(),
-          icon: BeakIconToken(OiIcons.package),
-          section: 'Catalog',
-        ),
-      ),
+## Who may see and change it
+
+Two layers hide UI, and neither one protects data.
+
+`canCreate`, `canEdit` and `canDelete` are per-resource switches. `BeakModel.permissions` is per model, so every resource that uses the model shares it. It maps each `BeakOperation` (`read`, `create`, `update`, `delete`) to a closure that answers for the account signed in right now. A missing rule denies, and a model without a `permissions` getter allows everything.
+
+A schema class supplies the getter as `static BeakPermissions get permissions` and the generated model forwards it. Here it is on a plain model, from the panel's own tests:
+
+```dart title="packages/beak_frontend/test/src/panel/beak_panel_test.dart"
+--8<-- "packages/beak_frontend/test/src/panel/beak_panel_test.dart:WriteGatedNoteModel"
 ```
 
-`beak eject resource <table>` writes the starter for you. It returns `generated`
-unchanged, so it compiles and changes nothing until your first edit.
+Three inputs decide each operation. All must say yes:
 
-!!! note "Notice the column constants"
-    `ProductColumns.status`, `UserColumns.role`, `CalendarEventColumns.title`:
-    filters, actions, and view modes bind to typed column constants, never to a
-    string field name. Those constants are generated from the schema class, so
-    renaming a field is a compile error rather than a broken filter. See
-    [Column basics](../models/column-basics.md).
+| Operation | Model transport supports it | Resource switch | `permissions` rule |
+| --- | --- | --- | --- |
+| Read (list, show, sidebar, command bar) | `capabilities` has `read` | none | `read` |
+| Create | `capabilities` has `create`, or a custom create screen exists | `canCreate` | `create` |
+| Edit | `capabilities` has `update`, or a custom edit screen exists | `canEdit` | `update` |
+| Delete | `capabilities` has `delete` | `canDelete` | `delete` |
 
-## Custom detail and form layouts
+Every other operation needs read access first. A resource whose `read` rule says no leaves the sidebar and the command bar, and its routes redirect to `/403`. A `create` or `update` rule that says no does the same for its route and button, and `delete` hides the Delete button. Custom actions need read access and keep their own checks.
 
-`detail`, `formLayout`, and `formSteps` replace the derived show page and form
-with your own block tree. `detail` takes a record-bound `BeakBlock` (cards,
-sections, tabs, grids of field blocks) rendered inside the loaded record's scope.
-Leave it out and `effectiveDetail` derives a layout from the model: the display
-column and the first few fields as a headline card, the rest beside it, and one
-tab per to-many relationship.
+The server keeps answering anyone who calls the API directly. The real rule belongs in `BeakPolicies` on the backend, see [Auth and policies](../backend/auth-and-policies.md). One case is worth knowing: a `deletableWhen` on the model's behavior is checked by the server too, because a model with behavior is served graph-only and the panel deletes through a graph commit (the HTTP source does; a source without commits sends a plain delete).
 
-`formLayout` gives the create/edit form that same cards-and-columns structure.
-The trick the store uses is to pass the **same block tree** to both, so the show
-page and the form cannot drift apart:
+## Duplicating a record
 
-```dart title="examples/store/lib/resources/products.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: productLayout,
-  formLayout: productLayout,
-  recordActions: [
-    BeakRecordAction(
-      key: 'publish',
-      label: 'Publish',
-      icon: OiIcons.rocket,
-      onExecute: (record, context) async {
-        final Object? id = context.model.primaryKeyOf(record);
-        if (id == null) {
-          return;
-        }
-        await context.dataSource.update(
-          context.model.table,
-          id,
-          BeakRecord(
-            values: {
-              ProductColumns.status.key: BeakValue.of(
-                ProductStatus.published.name,
-              ),
-              ProductColumns.publishedAt.key: BeakValue.of(DateTime.now()),
-            },
-          ),
-        );
-      },
-    ),
-  ],
-  // ... bulk actions ...
-  viewModes: const [
-    BeakTableView(),
-    BeakKanbanView(
-      groupField: ProductColumns.status,
-      titleField: ProductColumns.name,
-      subtitleField: ProductColumns.sku,
-    ),
-  ],
-);
+`duplication` adds a Duplicate action to each list row. It opens the create form with a copy of the record, and nothing is written until the user saves. Ordinary values and shared references (the category, the tax rate) are kept. Identity, timestamps, unique columns, password columns and calculated values are cleared. Collections you name in `relations` are copied with new identities, and `reset` clears further fields that must be unique again.
+
+```dart title="examples/clean_beak_config/lib/resources/products/product_resource.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductDuplication"
 ```
 
-`formSteps` instead turns the form into a multi-step wizard and takes precedence
-over `formLayout`. The store's orders use it to break the create form into four
-explained steps, each covering one or two columns:
+`relations` accepts owned has-many relationships of the resource's own model, and `includeNestedOwned` (default `true`) copies the owned descendants of those collections too. `reset` accepts fields of the model and of the copied child models. The action shows only when the resource allows create.
 
-```dart title="examples/store/lib/resources/orders.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  formSteps: const [
-    BeakFormStep(
-      title: 'Customer',
-      subtitle: 'Who is buying',
-      icon: OiIcons.user,
-      description:
-          'Pick the customer this order belongs to. Their past orders appear '
-          'on their own page once this one is saved.',
-      columns: [OrderColumns.customerId],
-    ),
-    // ...Order, Money, Delivery
-  ],
-);
+## Rules and limits
+
+| Rule | What happens |
+| --- | --- |
+| A panel needs a resource or a page | `A panel needs at least one resource or page to show.` |
+| At most one screen per role | `Resource "orders" defines more than one list screen.` |
+| `BeakTableScreen.query` targets the resource's own table | `Table screen query must target "orders".` |
+| A `BeakFormScreen` cannot serve the list route | `A form screen cannot serve the list route.` Use `BeakTableScreen` or `BeakCustomResourceScreen` |
+| `globalSearchSources` are scalar fields rooted at this model | Related paths are fine (`OrderModel.customer.email`, `OrderModel.items.search(OrderItemModel.label)`). Otherwise `Global search for "orders" requires scalar fields rooted at that model.` |
+| One resource per table | `A model for table "orders" is already registered.` |
+| `home` is one of the panel's resources or pages | `The home destination "/other" must be one of the panel's resources or pages.` |
+| `home` does not sit behind a screen at `/` | `The home destination "/orders" is unreachable: a screen already claims "/".` |
+| A password column is never searched | The command bar reports `Password column "password" cannot be searched.` under the resource name. This one shows at search time, not at boot |
+| `BeakModel.permissions` holds closures, not values | They run each time a route or button is evaluated, so they see the account signed in at that moment |
+| `canDelete: false` hides the button | Only the model's `deletableWhen` (or a server policy) stops the API. The shop's invoice sets both, its order sets the switch alone |
+| `copyWith` cannot clear a value | Passing `null` keeps the current one |
+
+The first eight fail when the panel first builds, not at the first click.
+
+## Verify it
+
+The shop tests its own resources: duplication resets the selling identities, and the catalog and customer resources share one read, create and edit layout. From `examples/clean_beak_config`:
+
+```console
+$ flutter test test/shop_resource_test.dart
+product duplication preserves catalog values and resets selling identities
+catalog and customer forms share a structured read/create/edit layout
+All tests passed!
 ```
 
-These three are the bridge to Beak's dual-mode record blocks: one tree renders
-read-only in a detail scope and editable in a form scope. That story lives on
-[Detail views and dual-mode blocks](detail-and-dual-mode.md) and
-[Multi-step forms](multi-step-forms.md).
+For a generated project, `beak prepare` prints what it found (`1 model · 1 resource class · 0 screens · 1 override`; an authored one says `screens and overrides not applicable` instead) and `beak doctor` names any resource class the authored panel does not list, as shown above.
+
+## Reference
+
+The constructor, verbatim:
+
+```dart title="packages/beak_frontend/lib/src/panel/beak_resource.dart"
+--8<-- "packages/beak_frontend/lib/src/panel/beak_resource.dart:BeakResource"
+```
+
+| Member | Meaning |
+| --- | --- |
+| `screenFor(BeakScreenRole role)` | The configured screen for a role, or `null` for the generated page. Throws when a role has two |
+| `isVisible`, `allowsCreate`, `allowsEdit`, `allowsDelete` | Live availability: the model's `capabilities`, the resource switch and `BeakModel.permissions` combined |
+| `allowsAction(BeakAction action)` | The same answer for one action. The `deleteAction` follows `allowsDelete`, create and edit follow theirs, other actions need read access |
+| `effectiveLabel`, `effectiveNavigationTitle` | The title and the sidebar label after defaults |
+| `effectiveFilters` | The declared `filters`, or the ones `filterable` columns imply |
+| `route`, `location` | The list route, `/<table>` |
+| `copyWith(...)` | A copy with parts replaced, for adjusting a shared resource without redeclaring it |
+
+`BeakIconToken` is an extension type over Flutter's `IconData`: `BeakIconToken(OiIcons.package)`. The columns, roles and layouts a screen takes are in [Screens and form layouts](../reference/screens-and-layouts.md), the filter definitions in [Filter builders](../reference/filter-builders.md).
 
 ## Continue reading
 
-- [Tables and filters](tables-and-filters.md) how the generated list renders,
-  sorts, filters, and paginates, and where filters come from when you declare
-  none.
-- [View modes](view-modes.md) add a calendar or a board beside the table.
-- [Actions](actions.md) the typed action family behind view/edit/delete/create.
-- [Defining models](../models/defining-models.md) the schema class a resource is
-  built from.
-- [beak.yaml](../reference/beak-yaml.md) the icon, label, section, and hidden
-  keys.
+- [Navigation](navigation.md): build the sidebar, counts and command bar around your resources.
+- [Tables and filters](tables-and-filters.md): choose the columns, filters and search of the list.
+- [Actions](actions.md): row, bulk and global actions and model commands.
+- [Form screens](../forms/form-screens.md): one layout for read, create and edit.
+- [Add a resource](../recipes/add-a-resource.md): the shortest path from a schema class to a working screen.

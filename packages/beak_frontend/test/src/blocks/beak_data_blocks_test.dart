@@ -43,42 +43,204 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  group('BeakKpiBlock', () {
-    testWidgets('fetches value and prior period into an OiKpiCard', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        const BeakKpiBlock(
-          title: 'Revenue',
-          value: BeakAggregateSpec.count(table: 'notes'),
-          previous: BeakAggregateSpec.count(table: 'notes_prior'),
-          format: BeakKpiFormat.currency,
+  group('a screen that rebuilds its block tree', () {
+    testWidgets('does not read again for an equal chart query', (tester) async {
+      final counting = _Counting(
+        records: {
+          'notes': {
+            'n1': BeakRecord.fromRow(const {'id': 'n1', 'title': 'Alpha'}),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(model: NoteModel(), icon: BeakIconToken(OiIcons.file)),
+          ],
+        ),
+        dataSource: counting,
+      );
+      late StateSetter rebuild;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              rebuild = setState;
+              return BeakBlockHost(
+                block: BeakChartBlock(
+                  title: 'Notes',
+                  type: BeakChartType.bar,
+                  query: const NoteModel().query(),
+                  map: (records) => [
+                    for (final record in records)
+                      BeakChartPoint(
+                        label: record['title']?.raw?.toString() ?? '',
+                        value: 1,
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       );
+      await tester.pumpAndSettle();
+      final int afterFirstDraw = counting.reads;
+      expect(afterFirstDraw, greaterThan(0));
 
-      expect(find.byType(OiKpiCard), findsOneWidget);
-      final card = tester.widget<OiKpiCard>(find.byType(OiKpiCard));
-      expect(card.metric.value, 200);
-      expect(card.metric.previousValue, 160);
-      expect(card.showDelta, isTrue);
-    });
+      rebuild(() {});
+      await tester.pumpAndSettle();
+      rebuild(() {});
+      await tester.pumpAndSettle();
 
-    testWidgets('hides the delta without a prior period', (tester) async {
-      await pump(
-        tester,
-        const BeakKpiBlock(
-          title: 'Orders',
-          value: BeakAggregateSpec.count(table: 'notes'),
-        ),
-      );
-
-      final card = tester.widget<OiKpiCard>(find.byType(OiKpiCard));
-      expect(card.showDelta, isFalse);
+      expect(counting.reads, afterFirstDraw);
     });
   });
 
   group('BeakChartBlock', () {
+    BeakChartBlock chartOf(BeakChartType type) => BeakChartBlock(
+      title: 'Notes',
+      type: type,
+      query: const NoteModel().query(),
+      map: (records) => [
+        for (final (index, record) in records.indexed)
+          BeakChartPoint(
+            label: record['title']?.raw?.toString() ?? '',
+            value: index + 1,
+          ),
+      ],
+    );
+
+    testWidgets('maps records to a line chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.line));
+
+      final chart = tester.widget<OiLineChart>(find.byType(OiLineChart));
+      expect(chart.series.single.points.map((point) => (point.x, point.y)), [
+        (0, 1),
+        (1, 2),
+      ]);
+    });
+
+    testWidgets('an explicit x positions a line point', (tester) async {
+      await pump(
+        tester,
+        BeakChartBlock(
+          title: 'Notes',
+          type: BeakChartType.line,
+          query: const NoteModel().query(),
+          map: (_) => const [BeakChartPoint(label: 'Q3', value: 4, x: 3)],
+        ),
+      );
+
+      final chart = tester.widget<OiLineChart>(find.byType(OiLineChart));
+      expect(chart.series.single.points.single.x, 3);
+    });
+
+    testWidgets('maps records to a bar chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.bar));
+
+      final chart = tester.widget<OiBarChart>(find.byType(OiBarChart));
+      expect(chart.categories.map((category) => category.label), [
+        'Alpha',
+        'Beta',
+      ]);
+    });
+
+    testWidgets('maps records to a pie chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.pie));
+
+      final chart = tester.widget<OiPieChart>(find.byType(OiPieChart));
+      expect(chart.segments.map((segment) => segment.value), [1, 2]);
+    });
+
+    testWidgets('maps records to an area chart', (tester) async {
+      await pump(tester, chartOf(BeakChartType.area));
+
+      final chart = tester.widget<OiAreaChart<BeakChartPoint>>(
+        find.byType(OiAreaChart<BeakChartPoint>),
+      );
+      final series = chart.series.single;
+      final data = series.data ?? const <BeakChartPoint>[];
+      expect(data.map(series.xMapper), [0, 1]);
+      expect(data.map(series.yMapper), [1, 2]);
+    });
+
+    testWidgets('a failed query says so and a retry reads again', (
+      tester,
+    ) async {
+      final flaky = _Flaky(
+        records: {
+          'notes': {
+            'n1': BeakRecord.fromRow(const {'id': 'n1', 'title': 'Alpha'}),
+            'n2': BeakRecord.fromRow(const {'id': 'n2', 'title': 'Beta'}),
+          },
+        },
+      )..failing = true;
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(model: NoteModel(), icon: BeakIconToken(OiIcons.file)),
+          ],
+        ),
+        dataSource: flaky,
+      );
+      await pump(tester, chartOf(BeakChartType.pie));
+
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('disk detail'), findsNothing);
+      expect(
+        tester.widget<OiPieChart>(find.byType(OiPieChart)).segments,
+        isEmpty,
+      );
+
+      flaky.failing = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Retry'), findsNothing);
+      expect(
+        tester.widget<OiPieChart>(find.byType(OiPieChart)).segments,
+        hasLength(2),
+      );
+    });
+
+    testWidgets('a list block says so when its read fails', (tester) async {
+      final flaky = _Flaky(records: const {})..failing = true;
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Demo',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(model: NoteModel(), icon: BeakIconToken(OiIcons.file)),
+          ],
+        ),
+        dataSource: flaky,
+      );
+      await pump(
+        tester,
+        BeakGalleryBlock(
+          query: const NoteModel().query(),
+          imageUrlField: const NoteModel().columns.first,
+        ),
+      );
+
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
     testWidgets('maps records to a donut chart', (tester) async {
       await pump(
         tester,
@@ -144,22 +306,49 @@ void main() {
     });
   });
 
-  group('BeakMetricBlock', () {
-    testWidgets('renders the aggregate through a stat card', (tester) async {
-      await pump(
-        tester,
-        const BeakMetricBlock(
-          label: 'Notes',
-          aggregate: BeakAggregateSpec.count(table: 'notes'),
-        ),
-      );
-
-      expect(find.text('Notes'), findsOneWidget);
-      expect(find.text('200'), findsOneWidget);
-    });
-  });
-
   group('BeakTableBlock', () {
+    testWidgets(
+      'typed fields are exact and read-only blocks omit delete actions',
+      (tester) async {
+        const fields = [
+          BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.title,
+          ),
+          BeakScalarField<String>(
+            model: ArticleModel(),
+            column: BeakStringColumn(key: 'name', label: 'Category'),
+            path: [ArticleRelations.category],
+          ),
+        ];
+        await pump(
+          tester,
+          const BeakTableBlock(
+            model: ArticleModel(),
+            fields: fields,
+            enableDelete: false,
+          ),
+        );
+        final table = tester.widget<BeakDataTable>(find.byType(BeakDataTable));
+        final rendered = tester.widget<OiTable<BeakRecord>>(
+          find.byType(OiTable<BeakRecord>),
+        );
+        expect(table.fields, fields);
+        expect(table.enableDelete, false);
+        expect(rendered.columns.map((column) => column.id), [
+          'title',
+          'category.name',
+        ]);
+        expect(
+          dataSource.queryCalls.single.relationLoads.map(
+            (load) => load.relationKey,
+          ),
+          ['category'],
+        );
+        expect(find.bySemanticsLabel('Delete'), findsNothing);
+      },
+    );
+
     testWidgets('binds the model into a bounded data table', (tester) async {
       await pump(
         tester,
@@ -168,8 +357,42 @@ void main() {
 
       final table = tester.widget<BeakDataTable>(find.byType(BeakDataTable));
       expect(table.model.table, 'notes');
+      expect(table.enableDelete, true);
+      expect(
+        tester
+            .widget<OiTable<BeakRecord>>(find.byType(OiTable<BeakRecord>))
+            .columns
+            .map((column) => column.id),
+        contains('_actions'),
+      );
       expect(find.text('All notes'), findsWidgets);
       expect(find.text('Alpha'), findsWidgets);
     });
   });
+}
+
+/// A source whose reads fail while [failing] is set.
+final class _Flaky extends FakeDataSource {
+  _Flaky({required super.records});
+
+  bool failing = false;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    if (failing) throw const BeakStorageException('disk detail');
+    return super.query(spec);
+  }
+}
+
+/// A source that counts the reads it answers.
+final class _Counting extends FakeDataSource {
+  _Counting({required super.records});
+
+  int reads = 0;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) {
+    reads++;
+    return super.query(spec);
+  }
 }

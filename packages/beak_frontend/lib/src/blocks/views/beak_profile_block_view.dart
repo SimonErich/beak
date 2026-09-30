@@ -9,8 +9,10 @@ class _BeakProfileBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
+    final dataSource = beakDependencies(context)<BeakDataSource>();
     final record = useState<BeakRecord?>(null);
+    final failure = useState<BeakException?>(null);
+    final attempt = useState(0);
 
     useEffect(() {
       var cancelled = false;
@@ -21,20 +23,31 @@ class _BeakProfileBlockView extends HookWidget {
         if (cancelled) {
           return;
         }
-        if (result case BeakOk(:final value)) {
-          record.value = value;
+        switch (result) {
+          case BeakOk(:final value):
+            record.value = value;
+            failure.value = null;
+          case BeakErr(:final error):
+            failure.value = error;
         }
       }
 
       load();
       return () => cancelled = true;
-    }, [dataSource, block]);
+    }, [dataSource, block, attempt.value]);
 
     final BeakRecord? profile = record.value;
     if (profile == null) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: OiLabel.body('Loading…'),
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: failure.value == null
+            ? OiLabel.body(BeakLocalizations.of(context).loading)
+            : _withFailure(
+                context,
+                failure.value,
+                () => attempt.value++,
+                const SizedBox.shrink(),
+              ),
       );
     }
 

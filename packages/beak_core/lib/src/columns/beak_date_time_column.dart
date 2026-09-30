@@ -47,6 +47,8 @@ final class BeakDateTimeColumn extends BeakColumn
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
     this.format = BeakDateFormat.standard,
   });
   // --8<-- [end:BeakDateTimeColumn]
@@ -64,6 +66,10 @@ final class BeakDateTimeColumn extends BeakColumn
     searchable: searchable,
     filterable: filterable,
     rules: rules,
+    indexed: indexed,
+    unique: unique,
+    semantic: semantic,
+    defaultValue: defaultValue,
     format: format,
   );
 

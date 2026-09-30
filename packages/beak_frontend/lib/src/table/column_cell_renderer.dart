@@ -1,10 +1,15 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
 import '../common/hex_color.dart';
+import '../form/beak_stored_image.dart';
+import '../formatting/beak_formatting.dart';
+import '../formatting/beak_field_format.dart';
+import '../localization/beak_localizations.dart';
 
 /// Renders a custom-column cell — the escape hatch consumers register per
 /// [BeakColumnTag].
@@ -47,6 +52,7 @@ abstract final class BeakCustomRenderers {
 }
 
 /// Maps Beak's semantic colors onto obers_ui badge colors.
+// --8<-- [start:oiBadgeColorFor]
 OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
   BeakColor.primary => OiBadgeColor.primary,
   BeakColor.secondary => OiBadgeColor.accent,
@@ -56,6 +62,7 @@ OiBadgeColor oiBadgeColorFor(BeakColor color) => switch (color) {
   BeakColor.info => OiBadgeColor.info,
   BeakColor.muted => OiBadgeColor.neutral,
 };
+// --8<-- [end:oiBadgeColorFor]
 
 /// Renders [column]'s value from [record] by its render intent for
 /// [renderContext] — the single place intents become widgets, shared by
@@ -84,33 +91,53 @@ Widget renderBeakCell(
   VoidCallback? onOpenRelation,
   DateTime Function()? now,
 }) {
+  final intent = intentOverride ?? column.intentFor(renderContext);
+  final formatting = BeakFormatting.maybeOf(context);
+  // Custom cells may render eager relations or several fields of the record.
+  if (intent == BeakRenderIntent.custom) {
+    return _custom(context, column, record);
+  }
+  final semantic = BeakFormatting.of(context).formatColumn(column, record);
+  if (semantic != null) return OiLabel.body(semantic, maxLines: 1);
   final BeakValue? value = record[column.key];
   final Object? raw = value?.raw;
   if (raw == null) {
-    return const OiLabel.caption('—');
+    return OiLabel.caption(BeakFormatting.of(context).emptyValue);
   }
-  return switch (intentOverride ?? column.intentFor(renderContext)) {
+  return switch (intent) {
     BeakRenderIntent.text => OiLabel.body(raw.toString(), maxLines: 1),
     BeakRenderIntent.number => OiLabel.body(
-      _numberText(column, raw),
+      _numberText(column, raw, formatting),
       maxLines: 1,
     ),
     BeakRenderIntent.currency => OiLabel.body(
-      _currencyText(column, raw),
+      _currencyText(column, raw, formatting),
       maxLines: 1,
     ),
     BeakRenderIntent.badge => _enumBadge(column, raw),
-    BeakRenderIntent.boolean => _booleanBadge(column, raw),
-    BeakRenderIntent.date => OiLabel.body(_dateText(column, raw), maxLines: 1),
+    BeakRenderIntent.boolean => _booleanBadge(
+      column,
+      raw,
+      BeakLocalizations.of(context),
+    ),
+    BeakRenderIntent.date => OiLabel.body(
+      _dateText(column, raw, formatting),
+      maxLines: 1,
+    ),
     BeakRenderIntent.relativeDate => OiLabel.body(
-      _relativeText(raw, (now ?? DateTime.now)()),
+      _relativeText(
+        raw,
+        (now ?? DateTime.now)(),
+        BeakLocalizations.of(context),
+        formatting,
+      ),
       maxLines: 1,
     ),
     BeakRenderIntent.thumbnail => _image(column, raw, sizeInPixels: 40),
     BeakRenderIntent.image => _image(column, raw, sizeInPixels: 160),
-    BeakRenderIntent.relationLink => GestureDetector(
-      onTap: onOpenRelation,
-      child: OiLabel.link(raw.toString(), maxLines: 1),
+    BeakRenderIntent.relationLink => beakRelationLink(
+      raw.toString(),
+      onOpen: onOpenRelation,
     ),
     BeakRenderIntent.relationBadges => _relationBadges(raw),
     BeakRenderIntent.richText => OiLabel.body(raw.toString(), maxLines: 2),
@@ -118,6 +145,111 @@ Widget renderBeakCell(
     BeakRenderIntent.json => OiLabel.code(_jsonText(raw), maxLines: 2),
     BeakRenderIntent.custom => _custom(context, column, record),
   };
+}
+
+/// A relationship's label as a link a keyboard and a screen reader can use.
+///
+/// Without [onOpen] there is nowhere to go, so the label is plain text: a
+/// link that goes nowhere is worse than none.
+Widget beakRelationLink(String label, {required VoidCallback? onOpen}) =>
+    onOpen == null
+    ? OiLabel.body(label, maxLines: 1)
+    : OiTappable(
+        semanticLabel: label,
+        onTap: onOpen,
+        child: OiLabel.link(label, maxLines: 1),
+      );
+
+/// The text a display-format override shows for [record].
+///
+/// The value is read through the column's semantic first, so a money or exact
+/// decimal column formats its decoded amount and not the integer units it is
+/// stored as. A money column shown as currency keeps the currency of its own
+/// semantic, exactly as it does without an override.
+String _formattedFieldText(
+  BeakFormatting formatting,
+  BeakFormattedField<Object> field,
+  BeakRecord record,
+  BeakRecord owner,
+) {
+  final column = field.column;
+  if (field.format == BeakValueFormat.currency &&
+      column.semantic.kind == BeakSemanticKind.money) {
+    return formatting.formatColumn(column, owner) ?? formatting.emptyValue;
+  }
+  final value = field.readFrom(record);
+  final numeric = value == null ? null : _asNum(value);
+  return formatting.format(
+    field.minorUnits && numeric != null
+        ? numeric / math.pow(10, field.scale)
+        : value,
+    field.format,
+  );
+}
+
+/// Formats a typed field as plain text with the same policy as field cells.
+/// Useful for option labels that combine identity and price without widgets.
+String formatBeakField(
+  BuildContext context, {
+  required BeakScalarField<Object> field,
+  required BeakRecord record,
+}) {
+  final formatting = BeakFormatting.of(context);
+  final owner = field.ownerRecord(record);
+  if (owner == null) return formatting.emptyValue;
+  if (field.column.semantic.kind == BeakSemanticKind.password) {
+    return formatting.formatColumn(field.column, owner) ?? '••••••••';
+  }
+  if (field case final BeakFormattedField<Object> formatted) {
+    return _formattedFieldText(formatting, formatted, record, owner);
+  }
+  return formatting.formatCell(field.column, owner);
+}
+
+/// Renders a typed field path, including display-only formatting overrides.
+/// Related fields use the already eager-loaded owner record automatically.
+Widget renderBeakField(
+  BuildContext context, {
+  required BeakScalarField<Object> field,
+  required BeakRecord record,
+  BeakContext renderContext = BeakContext.table,
+}) {
+  final owner = field.ownerRecord(record);
+  if (owner == null) {
+    return OiLabel.caption(BeakFormatting.of(context).emptyValue);
+  }
+  if (field.column.semantic.kind == BeakSemanticKind.password) {
+    return OiLabel.body(
+      BeakFormatting.of(context).formatColumn(field.column, owner) ??
+          '••••••••',
+    );
+  }
+  if (field case final BeakFormattedField<Object> formatted) {
+    return OiLabel.body(
+      _formattedFieldText(BeakFormatting.of(context), formatted, record, owner),
+      maxLines: 1,
+    );
+  }
+  if ((field.column, owner[field.key]?.raw) case (
+    BeakImageColumn(),
+    final String key,
+  )) {
+    return BeakStoredImage(
+      column: field.column,
+      storageKey: key,
+      alt: field.label,
+      table: field.path.isEmpty
+          ? field.model.table
+          : field.path.last.relatedTable,
+      sizeInPixels: renderContext == BeakContext.detail ? 160 : 40,
+    );
+  }
+  return renderBeakCell(
+    context,
+    column: field.column,
+    record: owner,
+    renderContext: renderContext,
+  );
 }
 
 /// The formatted display text of [column]'s [raw] value for text-shaped
@@ -129,17 +261,27 @@ String beakCellText(
   Object? raw, {
   BeakContext renderContext = BeakContext.detail,
   DateTime Function()? now,
+  BeakFormatting? formatting,
+  BeakRecord? record,
 }) {
+  final policy = formatting ?? const BeakFormatting();
+  final semantic = policy.formatColumn(
+    column,
+    record ?? BeakRecord(values: {column.key: BeakValue.of(raw)}),
+  );
+  if (semantic != null) return semantic;
   if (raw == null) {
-    return '—';
+    return policy.emptyValue;
   }
   return switch (column.intentFor(renderContext)) {
-    BeakRenderIntent.number => _numberText(column, raw),
-    BeakRenderIntent.currency => _currencyText(column, raw),
-    BeakRenderIntent.date => _dateText(column, raw),
+    BeakRenderIntent.number => _numberText(column, raw, formatting),
+    BeakRenderIntent.currency => _currencyText(column, raw, formatting),
+    BeakRenderIntent.date => _dateText(column, raw, formatting),
     BeakRenderIntent.relativeDate => _relativeText(
       raw,
       (now ?? DateTime.now)(),
+      BeakLocalizations.english,
+      formatting,
     ),
     _ => raw.toString(),
   };
@@ -163,14 +305,23 @@ DateTime? _asDateTime(Object raw) => switch (raw) {
 
 /// Formats a numeric cell: decimal columns honor their configured
 /// precision (matching the CSV export), everything else renders raw.
-String _numberText(BeakColumn column, Object raw) =>
-    switch ((column, _asNum(raw))) {
-      (BeakDecimalColumn(:final precision), final num number) =>
+String _numberText(
+  BeakColumn column,
+  Object raw, [
+  BeakFormatting? formatting,
+]) => switch ((column, _asNum(raw))) {
+  (BeakDecimalColumn(:final precision), final num number) =>
+    formatting?.number(number, precision: precision) ??
         number.toStringAsFixed(precision),
-      _ => raw.toString(),
-    };
+  (_, final num number) when formatting != null => formatting.number(number),
+  _ => raw.toString(),
+};
 
-String _currencyText(BeakColumn column, Object raw) {
+String _currencyText(
+  BeakColumn column,
+  Object raw, [
+  BeakFormatting? formatting,
+]) {
   final (int precision, String prefix, String suffix) = switch (column) {
     BeakDecimalColumn(:final precision, :final prefix, :final suffix) => (
       precision,
@@ -185,7 +336,19 @@ String _currencyText(BeakColumn column, Object raw) {
     ),
     _ => (2, '', ''),
   };
-  final String amount = switch (_asNum(raw)) {
+  final numeric = _asNum(raw);
+  if (formatting != null && numeric != null) {
+    if (suffix.isEmpty &&
+        (prefix.isEmpty || const ['€', r'$', '£', '¥'].contains(prefix))) {
+      return formatting.currency(
+        numeric,
+        precision: formatting.currencyPrecision ?? precision,
+        symbol: prefix.isEmpty ? null : prefix,
+      );
+    }
+    return '$prefix${formatting.number(numeric, precision: precision)}$suffix';
+  }
+  final String amount = switch (numeric) {
     final num number => number.toStringAsFixed(precision),
     null => raw.toString(),
   };
@@ -208,7 +371,7 @@ Widget _enumBadge(BeakColumn column, Object raw) {
   return OiBadge.soft(label: name, color: OiBadgeColor.neutral);
 }
 
-Widget _booleanBadge(BeakColumn column, Object raw) {
+Widget _booleanBadge(BeakColumn column, Object raw, BeakLocalizations strings) {
   final bool isTrue = raw == true;
   final (String? trueLabel, String? falseLabel) = switch (column) {
     BeakBoolColumn(:final trueLabel, :final falseLabel) => (
@@ -218,12 +381,12 @@ Widget _booleanBadge(BeakColumn column, Object raw) {
     _ => (null, null),
   };
   return OiBadge.soft(
-    label: isTrue ? (trueLabel ?? 'Yes') : (falseLabel ?? 'No'),
+    label: isTrue ? (trueLabel ?? strings.yes) : (falseLabel ?? strings.no),
     color: isTrue ? OiBadgeColor.success : OiBadgeColor.neutral,
   );
 }
 
-String _dateText(BeakColumn column, Object raw) {
+String _dateText(BeakColumn column, Object raw, [BeakFormatting? formatting]) {
   final DateTime? instant = _asDateTime(raw);
   if (instant == null) {
     return raw.toString();
@@ -232,6 +395,15 @@ String _dateText(BeakColumn column, Object raw) {
     BeakDateTimeColumn(:final format) => format,
     _ => BeakDateFormat.standard,
   };
+  if (formatting != null) {
+    return switch (format) {
+      BeakDateFormat.dateOnly => formatting.date(instant),
+      BeakDateFormat.timeOnly => formatting.time(instant),
+      BeakDateFormat.iso => instant.toIso8601String(),
+      BeakDateFormat.standard ||
+      BeakDateFormat.relative => formatting.dateTime(instant),
+    };
+  }
   String two(int part) => part.toString().padLeft(2, '0');
   final String date =
       '${instant.year}-${two(instant.month)}-${two(instant.day)}';
@@ -244,28 +416,33 @@ String _dateText(BeakColumn column, Object raw) {
   };
 }
 
-String _relativeText(Object rawValue, DateTime now) {
+String _relativeText(
+  Object rawValue,
+  DateTime now, [
+  BeakLocalizations strings = BeakLocalizations.english,
+  BeakFormatting? formatting,
+]) {
   final DateTime? raw = _asDateTime(rawValue);
   if (raw == null) {
     return rawValue.toString();
   }
   final Duration elapsed = now.difference(raw);
   if (elapsed.isNegative) {
-    return _dateTextOf(raw);
+    return formatting?.date(raw) ?? _dateTextOf(raw);
   }
   if (elapsed.inMinutes < 1) {
-    return 'just now';
+    return strings.justNow;
   }
   if (elapsed.inHours < 1) {
-    return '${elapsed.inMinutes}m ago';
+    return strings.minutesAgo(elapsed.inMinutes);
   }
   if (elapsed.inDays < 1) {
-    return '${elapsed.inHours}h ago';
+    return strings.hoursAgo(elapsed.inHours);
   }
   if (elapsed.inDays < 30) {
-    return '${elapsed.inDays}d ago';
+    return strings.daysAgo(elapsed.inDays);
   }
-  return _dateTextOf(raw);
+  return formatting?.date(raw) ?? _dateTextOf(raw);
 }
 
 String _dateTextOf(DateTime instant) {
@@ -274,13 +451,11 @@ String _dateTextOf(DateTime instant) {
 }
 
 Widget _image(BeakColumn column, Object raw, {required int sizeInPixels}) =>
-    OiImage(
-      src: raw.toString(),
+    BeakStoredImage(
+      column: column,
+      storageKey: raw.toString(),
       alt: column.label,
-      width: sizeInPixels.toDouble(),
-      height: sizeInPixels.toDouble(),
-      fit: BoxFit.cover,
-      errorWidget: const OiIcon.decorative(icon: OiIcons.image),
+      sizeInPixels: sizeInPixels.toDouble(),
     );
 
 Widget _relationBadges(Object raw) {
@@ -335,9 +510,9 @@ Widget _custom(BuildContext context, BeakColumn column, BeakRecord record) {
     if (builder != null) {
       return builder(context, column, record);
     }
-    return OiLabel.caption('No renderer for "${tag.value}"');
+    return OiLabel.caption(BeakLocalizations.of(context).unavailable);
   }
-  return const OiLabel.caption('Unsupported custom cell');
+  return OiLabel.caption(BeakLocalizations.of(context).unavailable);
 }
 
 // --8<-- [end:custom]

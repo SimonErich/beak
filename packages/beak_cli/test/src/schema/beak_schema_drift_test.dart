@@ -1,4 +1,4 @@
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// The `products` table as the schema class describes it.

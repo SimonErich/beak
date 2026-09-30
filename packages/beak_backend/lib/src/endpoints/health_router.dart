@@ -4,6 +4,8 @@ import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
+import '../server/middleware/error_mapping_middleware.dart';
+
 /// The two probes every container platform asks for.
 ///
 /// Kubernetes, Cloud Run, Fly and ECS all want the same distinction, and
@@ -15,20 +17,30 @@ import 'package:shelf_router/shelf_router.dart';
 /// - `GET /healthz` — 200 as long as the process is serving. Never touches
 ///   the database, so a database outage cannot trigger a restart loop.
 /// - `GET /readyz` — 200 when the data source answers, 503 when it does not.
+///   The 503 body names no cause: the probe is unauthenticated, and a driver's
+///   message can carry a host name, a user or a query. The failure itself goes
+///   to [onUnexpectedError], where the operator's logs already are.
 ///
 /// Mounted automatically by [beakApiRouter], outside `/api` so they are not
 /// subject to auth.
+// --8<-- [start:beakHealthRouter]
 Router beakHealthRouter({
   required BeakModelRegistry registry,
   required BeakDataSource dataSource,
+  BeakUnexpectedErrorListener? onUnexpectedError,
 }) => Router()
   ..get('/healthz', (Request request) => _json(200, {'status': 'ok'}))
-  ..get('/readyz', (Request request) => _readiness(registry, dataSource));
+  ..get(
+    '/readyz',
+    (Request request) => _readiness(registry, dataSource, onUnexpectedError),
+  );
+// --8<-- [end:beakHealthRouter]
 
 /// Whether the data source answers, as a readiness response.
 Future<Response> _readiness(
   BeakModelRegistry registry,
   BeakDataSource dataSource,
+  BeakUnexpectedErrorListener? onUnexpectedError,
 ) async {
   final BeakModel? probe = registry.all.isEmpty ? null : registry.all.first;
   if (probe == null) {
@@ -37,13 +49,15 @@ Future<Response> _readiness(
     return _json(200, {'status': 'ok', 'detail': 'no models registered'});
   }
   try {
-    await dataSource.aggregate(BeakAggregateSpec.count(table: probe.table));
+    await dataSource.aggregate(probe.count());
     return _json(200, {'status': 'ok'});
-  } on Object catch (error) {
-    // Any failure at all means "do not send me traffic". The message is the
-    // exception's own, so an operator sees the real cause in the probe
-    // response rather than having to correlate it with the logs.
-    return _json(503, {'status': 'unavailable', 'detail': '$error'});
+  } on Object catch (error, stackTrace) {
+    // Any failure at all means "do not send me traffic".
+    onUnexpectedError?.call(error, stackTrace);
+    return _json(503, {
+      'status': 'unavailable',
+      'detail': 'the data source did not answer',
+    });
   }
 }
 

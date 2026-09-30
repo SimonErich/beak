@@ -149,7 +149,7 @@ Wrap the native call in every executor method, as the skeleton above does. Recog
 | Connection loss | `ConnectionException` |
 | Anything else | `QueryException` |
 
-`PostgresErrorMapper` shows the SQLSTATE version: `23505` to `UniqueConstraintException`, `23503` to `ForeignKeyException`, `40001` / `40P01` to `TransactionException`, the `08xxx` family to `ConnectionException`, and every unrecognised code to `QueryException`. Always let an existing `WormException` pass through untouched so your own guard clauses are not re-wrapped.
+`PostgresErrorMapper` shows the SQLSTATE version: `23505` to `UniqueConstraintException`, `23503` to `ForeignKeyException`, `23514` and `23502` to `CheckConstraintException`, the class `22` codes to `DataException`, `40001` / `40P01` to `TransactionException`, the `08xxx` family to `ConnectionException`, and every unrecognised code to `QueryException`. Always let an existing `WormException` pass through untouched so your own guard clauses are not re-wrapped.
 
 ## Transactions and savepoints, or throw
 

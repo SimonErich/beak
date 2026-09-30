@@ -2,7 +2,7 @@ name: beak_image
 description: >-
   Image transform runner for Beak — executes BeakImageTransform pipelines
   (resize, format re-encode, thumbnails) using package:image.
-version: 0.0.1
+version: 0.9.0
 publish_to: none
 repository: https://github.com/SimonErich/beak/tree/main/packages/beak_image
 homepage: https://github.com/SimonErich/beak

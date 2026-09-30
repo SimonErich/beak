@@ -22,18 +22,33 @@ Directory _treeWith(Map<String, bool> packages) {
 void main() {
   group('examplesIn', () {
     test('finds every directory that is a package, in a stable order', () {
-      final root = _treeWith({'store': true, 'embedded': true});
+      // Listing order is up to the filesystem, which commonly returns
+      // creation order or its reverse. Neither `beta, alpha, gamma` nor
+      // `gamma, alpha, beta` is sorted, so without the sort this fails.
+      final root = _treeWith({'beta': true, 'alpha': true, 'gamma': true});
 
       expect(examplesIn(root).map((d) => d.path.split('/').last), <String>[
-        'embedded',
-        'store',
+        'alpha',
+        'beta',
+        'gamma',
       ]);
     });
 
     test('skips a directory with no pubspec', () {
       // `build/`, `.dart_tool/` and a half-deleted example are not examples,
       // and running the CLI in one would fail for the wrong reason.
-      final root = _treeWith({'store': true, 'scratch': false});
+      final root = _treeWith({'alpha': true, 'scratch': false});
+
+      expect(examplesIn(root).map((d) => d.path.split('/').last), <String>[
+        'alpha',
+      ]);
+    });
+
+    test('skips a pub workspace root, which has its own CI job', () {
+      final root = _treeWith({'store': true, 'serverpod': true});
+      File(
+        '${root.path}/$examplesDir/serverpod/pubspec.yaml',
+      ).writeAsStringSync('name: _\nworkspace:\n  - shop_server\n');
 
       expect(examplesIn(root).map((d) => d.path.split('/').last), <String>[
         'store',
@@ -53,7 +68,7 @@ void main() {
       // A checkout without Flutter's web scaffold, or without a running
       // Postgres, warns — and neither is a defect in the example.
       const health = ExampleHealth(
-        name: 'store',
+        name: 'alpha',
         failures: [],
         warnings: ['no web/ scaffold'],
       );
@@ -63,7 +78,7 @@ void main() {
 
     test('is unhealthy as soon as one check failed', () {
       const health = ExampleHealth(
-        name: 'store',
+        name: 'alpha',
         failures: ['generated files out of date (0 missing, 2 stale)'],
         warnings: [],
       );
@@ -73,16 +88,14 @@ void main() {
   });
 
   group('the repository itself', () {
-    test('has the four examples the docs describe', () {
-      // The gate walks whatever it finds, so a fifth example is picked up
-      // for free — but the four the plan named must all be there.
+    test('has the documented examples', () {
+      // The gate walks all packages; keep the documented entry points present.
       expect(
         examplesIn(Directory.current).map((d) => d.path.split('/').last),
         containsAll(<String>[
-          'embedded',
+          'clean_beak_config',
+          'foodio-adminpanel',
           'quickstart',
-          'store',
-          'superdashboard',
         ]),
       );
     });

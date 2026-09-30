@@ -1,0 +1,33 @@
+import 'package:beak/server.dart';
+
+import 'domain/foodio_effects.dart';
+import 'domain/foodio_order_preparer.dart';
+import 'models/models.dart';
+
+// --8<-- [start:foodioServer]
+/// Generated registration plus the example's transaction and provider rules.
+///
+/// The host drains the persistent demo providers while it serves, so the
+/// generated `bin/serve.dart` needs nothing of its own.
+BeakServer beakServer(BeakServerDefaults defaults) {
+  final effects = FoodioEffects(defaults.registry);
+  return defaults.build(
+    preparePlan: FoodioOrderPreparer(defaults.registry).prepare,
+    finalizePlan: effects.finalize,
+    outbox: effects.schedule(defaults.dataSource.adapter),
+    graphOnly: const [
+      AppSettingModel(),
+      OrderModel(),
+      OrderItemModel(),
+      OrderItemOptionModel(),
+      OrderNoteModel(),
+      OrderActivityModel(),
+      BudgetAccountModel(),
+      DeliveryProfileModel(),
+      DeliverySlotModel(),
+      PaymentAttemptModel(),
+      MessageDeliveryModel(),
+    ],
+  );
+}
+// --8<-- [end:foodioServer]

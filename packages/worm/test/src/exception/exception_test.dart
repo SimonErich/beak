@@ -763,6 +763,45 @@ void main() {
     });
   });
 
+  group('DataException', () {
+    const e = DataException(
+      table: 'users',
+      column: 'name',
+      message: 'value too long for type character varying(255)',
+    );
+
+    test('is an AdapterException', () {
+      expect(e, isA<AdapterException>());
+      expect(e, isA<WormException>());
+    });
+
+    test('exposes table and column', () {
+      expect(e.table, 'users');
+      expect(e.column, 'name');
+    });
+
+    test('column defaults to null when the driver names none', () {
+      const minimal = DataException(table: 'users', message: 'bad value');
+      expect(minimal.column, isNull);
+    });
+
+    test('context carries table and column', () {
+      expect(e.context, {'table': 'users', 'column': 'name'});
+    });
+
+    test('toString names the table and, when known, the column', () {
+      expect(
+        e.toString(),
+        'DataException: value too long for type character varying(255) '
+        '(table: users, column: name)',
+      );
+      expect(
+        const DataException(table: 'users', message: 'bad').toString(),
+        'DataException: bad (table: users)',
+      );
+    });
+  });
+
   group('CheckConstraintException (new)', () {
     const e = CheckConstraintException(
       table: 'users',

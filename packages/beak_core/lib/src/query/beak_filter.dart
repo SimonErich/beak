@@ -39,6 +39,8 @@ import '../common/json_support.dart';
 ///     '$columnKey ${operator.name}',
 ///   BeakAndFilter(:final filters) => filters.map(describe).join(' AND '),
 ///   BeakOrFilter(:final filters) => filters.map(describe).join(' OR '),
+///   BeakRelationFilter(:final relationKey, :final filter) =>
+///     '$relationKey WHERE ${describe(filter)}',
 /// };
 /// ```
 @immutable
@@ -57,13 +59,41 @@ sealed class BeakFilter {
 
   /// Decodes [json] (produced by [toJson]) back into a predicate tree.
   ///
-  /// Throws a [BeakConfigurationException] on malformed input.
-  static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
-    {'type': 'field'} => _fieldFromJson(json),
-    {'type': 'and'} => BeakAndFilter(_childrenFromJson(json, 'BeakAndFilter')),
-    {'type': 'or'} => BeakOrFilter(_childrenFromJson(json, 'BeakOrFilter')),
-    _ => throw BeakConfigurationException('Malformed BeakFilter JSON: $json.'),
-  };
+  /// Throws a [BeakConfigurationException] on malformed input, including a
+  /// tree nested more than 64 levels deep: a request can be megabytes of
+  /// brackets, and decoding it recursively would end in a stack overflow.
+  static BeakFilter fromJson(Map<String, Object?> json) => _decode(json, 0);
+
+  static const int _maxNesting = 64;
+
+  // --8<-- [start:fromJson]
+  static BeakFilter _decode(Map<String, Object?> json, int depth) {
+    if (depth >= _maxNesting) {
+      throw const BeakConfigurationException(
+        'BeakFilter JSON is nested more than $_maxNesting levels deep.',
+      );
+    }
+    return switch (json) {
+      {'type': 'field'} => _fieldFromJson(json),
+      {'type': 'and'} => BeakAndFilter(
+        _childrenFromJson(json, 'BeakAndFilter', depth),
+      ),
+      {'type': 'or'} => BeakOrFilter(
+        _childrenFromJson(json, 'BeakOrFilter', depth),
+      ),
+      {'type': 'relation'} => BeakRelationFilter(
+        requireJsonString(json, 'relation', 'BeakRelationFilter'),
+        _decode(
+          requireJsonMap(json, 'filter', 'BeakRelationFilter'),
+          depth + 1,
+        ),
+      ),
+      _ => throw BeakConfigurationException(
+        'Malformed BeakFilter JSON: $json.',
+      ),
+    };
+  }
+  // --8<-- [end:fromJson]
 
   static BeakFieldFilter _fieldFromJson(Map<String, Object?> json) =>
       BeakFieldFilter.forKey(
@@ -75,13 +105,14 @@ sealed class BeakFilter {
   static List<BeakFilter> _childrenFromJson(
     Map<String, Object?> json,
     String context,
+    int depth,
   ) => [
     for (final child in requireJsonMapList(
       requireJsonKey(json, 'filters', context),
       'filters',
       context,
     ))
-      BeakFilter.fromJson(child),
+      _decode(child, depth + 1),
   ];
 
   static BeakOperator _operatorByName(String name) {
@@ -96,11 +127,47 @@ sealed class BeakFilter {
   Map<String, Object?> toJson();
 }
 
+/// Matches an owner when one related record satisfies the complete [filter].
+///
+/// Keeping the child predicate grouped ensures that a row-level access scope
+/// and the user's filter apply to the same child. Generated field references
+/// provide this structure without requiring relation-key strings in app code.
+final class BeakRelationFilter extends BeakFilter {
+  /// Creates an existential predicate over [relationKey].
+  const BeakRelationFilter(this.relationKey, this.filter);
+
+  /// Relationship on the current model.
+  final String relationKey;
+
+  /// Predicate evaluated against each related record.
+  final BeakFilter filter;
+
+  @override
+  Map<String, Object?> toJson() => {
+    'type': 'relation',
+    'relation': relationKey,
+    'filter': filter.toJson(),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is BeakRelationFilter &&
+      other.relationKey == relationKey &&
+      other.filter == filter;
+
+  @override
+  int get hashCode => Object.hash(relationKey, filter);
+
+  @override
+  String toString() => 'BeakRelationFilter($relationKey, $filter)';
+}
+
 /// Compares a single column against an operand with a [BeakOperator].
 final class BeakFieldFilter extends BeakFilter {
   /// Creates a predicate on [column] — the type-safe path: the column
   /// constant supplies its own [columnKey], so callers never write key
   /// strings.
+  // --8<-- [start:fieldFilterConstructors]
   const BeakFieldFilter({
     required BeakColumn column,
     required this.operator,
@@ -117,6 +184,7 @@ final class BeakFieldFilter extends BeakFilter {
     this.value = const BeakNullValue(),
   ]) : _columnKey = columnKey,
        _column = null;
+  // --8<-- [end:fieldFilterConstructors]
 
   /// The column this predicate applies to, when built from a constant.
   ///

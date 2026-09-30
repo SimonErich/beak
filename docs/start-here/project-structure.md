@@ -1,164 +1,148 @@
 ---
 title: Project structure
-description: What a Beak project contains, which folders are discovered, which files are generated, and which optional files override a default.
+description: Where every file of a Beak project lives, which ones you write, which ones beak prepare writes, and how the layout grows from one model to a shop.
+type: guide
+audience: [beginner, agent]
+status: stable
 ---
 
 # Project structure
 
-After this page you know what every folder in your project is for, which files
-Beak writes, and which ones you can create to take a default over.
+A Beak project is a normal Flutter package with one rule of thumb: you write the schema, the resource and the screens that differ from the default, and `beak prepare` writes everything that only connects them. This page shows the layout on day one, how it grows, and where each kind of decision lives.
 
-## What `beak create` gives you
+## At a glance
+
+What `beak create acme_admin` plus `beak prepare` leaves on disk, generated bootstrap (files marked `*` are the ones you author):
 
 ```text
 acme_admin/
-  pubspec.yaml          REQUIRED   one dependency: beak
-  beak.yaml             optional   title, api origin, icons, sections
-  lib/
-    models/             DISCOVERED one @Resource class per file
-    screens/            optional   a top-level BeakScreen per file
-    migrations/         GENERATED first, then yours; discovered and registered
-    resources/          optional   one file per resource you want to adjust
-    seeders/            optional   discovered and registered
-    beak/*.g.dart       GENERATED, committed
-    main.dart           GENERATED, git-ignored
-  bin/
-    serve.dart          GENERATED, git-ignored
-    migrate.dart        GENERATED, git-ignored
-  test/
-  web/
-  assets/               optional
+├── pubspec.yaml               *  one dependency: beak
+├── beak.yaml                  *  title, API origin, per-table icon and section
+├── analysis_options.yaml
+├── AGENTS.md  CLAUDE.md          managed block for coding agents, plus your notes
+├── lib/
+│   ├── main.dart                 generated, git-ignored: runApp(const BeakApp())
+│   ├── resources/
+│   │   └── notes/
+│   │       └── models/
+│   │           ├── note.dart     *  the @Resource class
+│   │           └── note.beak.dart   generated part: fields, model, record view
+│   ├── migrations/
+│   │   └── create_notes_table.dart  written once by prepare, then yours
+│   └── beak/                     generated wiring, committed, never edited
+│       ├── registry.g.dart       every model
+│       ├── panel.g.dart          the panel configuration (generated bootstrap only)
+│       ├── app.g.dart            the BeakApp widget (generated bootstrap only)
+│       └── server.g.dart         beakHost(): database, migrations, storage
+├── bin/
+│   ├── serve.dart                generated, git-ignored: serves the API
+│   └── migrate.dart              generated, git-ignored: migrations and seeders
+├── test/widget_test.dart         boots the panel against an in-memory source
+└── web/                          Flutter's own web scaffold
 ```
 
-The smallest working project is a `pubspec.yaml` and one model file. Everything
-else is optional or generated.
+The same project, authored (`beak create --authored`, or `beak eject main` later), differs in two places:
 
-## Discovered folders
-
-You never register anything. `beak prepare` scans these and wires up what it
-finds, reporting a one-line summary (`4 models · 1 screen · 2 overrides`) so a
-miss is visible rather than silent.
-
-| Folder | What Beak looks for |
-| --- | --- |
-| `lib/models/` | A class extending `BeakSchema` with `@Resource`, or a hand-written `BeakModel`. Becomes a resource: pages, routes, REST endpoints. |
-| `lib/screens/` | A top-level `BeakScreen`, or a zero-argument function returning one. Becomes a page in the sidebar. |
-| `lib/migrations/` | A class extending `Migration` with a `const` constructor. Registered on the host in **declared-name order**, so a timestamp prefix controls when it runs. |
-| `lib/seeders/` | A class extending `Seeder`. Registered for `beak seed`. |
-| `lib/resources/` | `BeakResource beakResource(BeakResource generated)`, in a file named after the table. Adjusts that one resource. |
-
-A class that cannot be used is reported by name and file (a model with no
-`const` constructor, a screen of the wrong type) rather than skipped.
-
-## Generated files
-
-Two policies, deliberately different.
-
-**`lib/models/*.beak.dart` and `lib/beak/*.g.dart` are committed.** A
-path-dependency consumer cannot generate its dependency's sources, and a fresh
-clone must analyze before any `beak` command runs. They carry a
-`GENERATED — DO NOT EDIT` header; `beak doctor` fails when they are stale.
-
-| File | What it is |
-| --- | --- |
-| `lib/models/<name>.beak.dart` | The typed column constants and their `values` list, the relationship constants on **both** sides, the `BeakModel`, and a typed record view. |
-| `lib/beak/registry.g.dart` | `beakModels` and `buildBeakRegistry()`. |
-| `lib/beak/panel.g.dart` | The `BeakPanelConfig`: resources, icons, sections, screens. |
-| `lib/beak/app.g.dart` | The root widget, with the `dataSource` seam widget tests use. |
-| `lib/beak/server.g.dart` | The `BeakServeHost`: registry, migrations, seeders. |
-
-**`lib/main.dart`, `bin/serve.dart` and `bin/migrate.dart` are git-ignored.**
-They sit at the canonical paths so `flutter run`, IDE run buttons, hot reload
-and `dart compile exe` work with no flags, and nothing about them is a decision
-worth reviewing. Every `beak` command regenerates them first, which is what
-makes ignoring them safe. If your team would rather commit them, run
-`beak eject main` once.
-
-## Optional override files
-
-Each is presence-based: create the file and Beak uses it; delete it and the
-default comes back. Each receives Beak's own defaults, so overriding is
-additive rather than a rewrite.
-
-| Path | Symbol | Overrides |
+| | Generated | Authored |
 | --- | --- | --- |
-| `lib/panel.dart` | `BeakPanelConfig beakPanel(BeakPanelConfig defaults)` | Everything: the last word on the panel. |
-| `lib/theme.dart` | `OiThemeData beakLightTheme()` / `beakDarkTheme()` | The light and dark themes. |
-| `lib/auth.dart` | `BeakAuthConfig beakAuth()` | Which auth routes exist and what they call. |
-| `lib/dashboard.dart` | `BeakScreen beakDashboard()` | The screen at `/`. |
-| `lib/server.dart` | `BeakServer beakServer(BeakServerDefaults defaults)` | Middleware, extra routes, the policy. |
+| `lib/main.dart` | Generated, git-ignored. | Yours, committed: `BeakPanel(resources: [...])`. |
+| `lib/resources/notes/` | The schema only. | The schema plus `note_resource.dart`, a `BeakResource` listed in `main.dart`. |
 
-`beak eject <target>` writes any of them out, pre-filled with the default:
+Everything else is identical. [Two ways to boot a panel](generated-or-authored.md) explains the choice.
 
-```bash
-beak eject theme
-```
+## How the layout grows
 
-Precedence runs library default → `beak.yaml` → `lib/panel.dart`.
-
-## `beak.yaml`
-
-YAML for scalars, enums, ordering and infrastructure; Dart for anything holding
-a symbol or a closure. Every key is optional. Delete the file and Beak still
-boots, titling the panel after the package.
-
-```yaml title="beak.yaml"
-name: Acme Admin
-
-api:
-  # `auto` calls the origin the panel was served from — what a
-  # single-host deployment wants.
-  baseUrl: auto
-
-theme:
-  sidebar:
-    collapsible: true
-    startCollapsed: false
-
-resources:
-  products:
-    icon: package
-    section: Catalog
-```
-
-It is decoded at generate time into a typed config and emitted as Dart
-literals, so no `Map<String, Object?>` ever reaches your runtime. An unknown key
-is an error naming the line, an icon has to be a lowerCamelCase `OiIcons` name,
-and a `resources` key naming no discovered table is reported with a
-did-you-mean.
-
-## The layers, and why `beak.dart` has no widgets
-
-`bin/serve.dart` reaches `lib/beak/server.g.dart`, which reaches
-`registry.g.dart`, which reaches your models. If any of those pulled in
-`dart:ui`, the server would stop compiling ahead of time. So:
+The layout is a convention, not a requirement: `beak prepare` scans every `.dart` file under `lib/`, except `*.beak.dart`, `*.g.dart`, `*.freezed.dart` and names starting with `_`. `beak create`, `beak make:resource` and `beak introspect` all use the same one, a folder per resource:
 
 ```text
-bin/serve.dart ──► server.dart ──► registry.g.dart ──► models/ ──► beak.dart
-lib/main.dart  ──► app.g.dart  ──► panel.g.dart    ──► panel.dart ──► beak.dart
+lib/resources/<plural>/
+├── models/<name>.dart        the @Resource schema class (and its generated <name>.beak.dart)
+├── <name>_resource.dart      a BeakResource subclass: title, navigation, filters, screens
+└── screens/                  forms, tables and reusable sections for this resource
 ```
 
-`package:beak/beak.dart` is the shared vocabulary (columns, models, query
-specs) with no Flutter and no `dart:io`. `panel.dart` adds the widgets and
-re-exports it, so a screen needs one import. `beak doctor` fails when a panel
-file imports the server half by hand.
+The shop (`examples/clean_beak_config`) is that layout at eleven resources, with the rest of a real application around it:
 
-## Where common things live
+```text
+lib/main.dart                   authored: the panel and its resource list
+lib/resources/<resource>/       models/, <resource>_resource.dart, screens/
+lib/domain/                     pure calculations shared by screens and the server
+lib/server.dart                 beakServer(...): policy, graph rules, graphOnly
+lib/migrations/                 create-table migrations, plus the ones you wrote
+lib/seeders/                    repeatable example data
+lib/widgets/                    custom widgets used by screens
+lib/overview.dart, operations.dart   custom pages, passed to BeakPanel(pages: [...])
+lib/beak/                       generated registry, panel and server wiring
+bin/                            generated serve.dart and migrate.dart
+test/                           model, API, form and widget tests
+```
 
-| I want to… | Go here |
-| --- | --- |
-| Add a resource | A new file in `lib/models/`, then `beak prepare`. |
-| Change a column's label, rules or visibility | The `@Column` annotation on the field. |
-| Add a page that is not a resource | `lib/screens/`. |
-| Change an icon or a sidebar section | `beak.yaml`, under `resources:`. |
-| Restyle the panel | `beak eject theme`. |
-| Add middleware or a policy | `beak eject server`. |
-| Change the schema | Edit the schema class, `beak prepare`, then `beak migrate`. Beak writes the first migration for a resource; changing a table later is a migration you write. |
-| See what Beak sees | `beak doctor`. |
+There is no file per field and no file per operation. A small resource is a schema class and, when you want to shape it, a resource class. Add a `screens/` folder when a form or table earns its own file. A folder per resource keeps the diff of one feature in one place, which matters more the day a coding agent works on it.
+
+## Where each decision lives
+
+| You want to change | Edit | Then run |
+| --- | --- | --- |
+| A field, its type, validation, label or visibility | The schema class in `models/` | `beak prepare` |
+| A relationship | The schema class (`@BelongsTo`, `@HasMany`, `@BelongsToMany`) | `beak prepare` |
+| The database columns | A migration in `lib/migrations/` (start from `beak make:migration Name --from-drift`) | `beak migrate` |
+| Title, icon, sidebar group, filters, which screens a resource has | The `<name>_resource.dart` (`beak eject resource <table>` writes the starter) | `beak prepare` |
+| Table columns, form layout, wizard steps | A `BeakTableScreen` or `BeakFormScreen` in the resource | hot restart the panel (`R`) |
+| Panel title, API origin, sidebar behaviour | `beak.yaml` (generated), or `BeakPanel(...)` in `main.dart` (authored) | `beak prepare` (generated) |
+| A custom page | A top-level `BeakScreen` in `lib/screens/` (generated), or in any file you pass to `pages:` (authored) | `beak prepare` (generated) |
+| Theme, auth, whole panel config | `beak eject theme\|auth\|panel` (generated), or `BeakPanel` arguments (authored) | `beak prepare` |
+| Who may read and write what | `lib/server.dart` (`beak eject server`) and the model's policies | restart `beak dev` |
+| Seed data | A `Seeder` in `lib/seeders/` | `beak seed` |
+| Port, host | `beak.yaml` `server:`, or `PORT` and `HOST` in the environment | restart `beak dev` |
+
+## Rules and limits
+
+- Never edit generated files. `*.beak.dart` and `lib/beak/*.g.dart` are rewritten by `beak prepare` and byte-compared by `beak doctor`. A change belongs in the schema class, the resource class or `beak.yaml`.
+- Commit the generated wiring. `lib/beak/*.g.dart` and the `*.beak.dart` parts are committed, so a fresh clone analyzes before any `beak` command runs. The three entrypoints (`lib/main.dart` when generated, `bin/serve.dart`, `bin/migrate.dart`) are git-ignored, because they change nothing worth reviewing.
+- Migrations are yours once written. `beak prepare` writes a `create_<table>_table.dart` for a table without one and never touches it again. Migrations run in the order of their declared `name` (a timestamp prefix), not their file name.
+- Move a schema class before its migration exists, or fix the import. Discovery ignores folders, but the create-table migration imports the schema by relative path. Move `note.dart` afterwards and `dart analyze` fails inside `lib/migrations/`. `beak doctor` fails too, with `lib/migrations/create_notes_table.dart imports ../resources/notes/models/note.dart, which does not exist`.
+- A resource class must be public, not abstract, and constructible with no arguments (an unnamed constructor without required parameters). A class with only named constructors is skipped, and its model keeps the generated default.
+- The folder name is the plural of the class. `Category` becomes `categories`, `Person` becomes `people`. It only names a folder and a table default; set `@Resource(table:)` to override the table when the pluraliser does not know the word.
+- Run every `beak` command from the project root. `beak prepare` refuses a directory without a `pubspec.yaml` (`run beak create <name>`) or whose `pubspec.yaml` has no Beak dependency (`run beak init`), and writes nothing.
+- A package of schema classes on its own (it depends on `beak_core` and not on `beak`) gets the `*.beak.dart` parts and `lib/beak/registry.g.dart` and nothing else. That is the shape of the shared models package in a Serverpod workspace.
+
+## Verify it
+
+```console
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 2 models · 1 resource class · 0 screens · 0 overrides
+  OK   generated files up to date
+  OK   every model has a migration
+  ...
+All checks passed.
+```
+
+The `discovered` line is the fastest way to see what Beak found: models, resource classes, screens under `lib/screens/`, and override files. A resource class that is missing from the count is not public, is abstract, or has no usable constructor. `beak prepare` twice in a row must report `up to date`; if it does not, something rewrites a generated file behind its back.
+
+## Reference
+
+| Path | Written by | Committed | Rewritten |
+| --- | --- | --- | --- |
+| `lib/resources/<plural>/models/<name>.dart` | you (`make:resource` starts it) | yes | never |
+| `lib/resources/<plural>/models/<name>.beak.dart` | `beak prepare` | yes | when the schema changes |
+| `lib/resources/<plural>/<name>_resource.dart` | you (`make:resource`, `eject resource`) | yes | never |
+| `lib/migrations/create_<table>_table.dart` | `beak prepare`, once | yes | never |
+| `lib/beak/registry.g.dart`, `server.g.dart` | `beak prepare` | yes | when their inputs change |
+| `lib/beak/panel.g.dart`, `app.g.dart` | `beak prepare`, with a generated `lib/main.dart` | yes | when their inputs change; deleted once the entrypoint is yours |
+| `lib/main.dart` | `beak prepare` (generated) or you (authored) | authored only | generated only |
+| `bin/serve.dart`, `bin/migrate.dart` | `beak prepare` | no | when their inputs change |
+| `lib/screens/*.dart` | you | yes | never |
+| `lib/server.dart`, `lib/theme.dart`, `lib/auth.dart`, `lib/panel.dart` | you (`beak eject server\|theme\|auth\|panel`) | yes | never |
+| `lib/seeders/*.dart` | you | yes | never |
+| `beak.db`, `.env`, `storage/` | runtime | no | n/a |
+
+The complete list, with the symbols generated for each schema, is [Generated files and symbols](../reference/generated-files.md).
 
 ## Continue reading
 
-- [Quickstart](quickstart.md) runs the whole loop in one page.
-- [CLI commands](../reference/cli-commands.md) lists every command and flag.
-- [Contributing](../contributing/index.md) describes the Beak monorepo's own
-  layout, which is a different thing from your project's.
+- [Two ways to boot a panel](generated-or-authored.md): what `lib/main.dart` is in each, and how to switch.
+- [Defining models](../models/defining-models.md): the schema classes in `models/`.
+- [Resources](../panel/resources.md): the `<name>_resource.dart` files.
+- [Generated files and symbols](../reference/generated-files.md): every file and symbol `beak prepare` writes.

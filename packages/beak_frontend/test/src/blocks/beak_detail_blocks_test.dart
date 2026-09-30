@@ -67,6 +67,31 @@ void main() {
     expect(find.text('WM-001'), findsOneWidget);
   });
 
+  testWidgets('an inline field sets its value beside the label', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const BeakFieldBlock(name, layout: BeakFieldLayout.inline),
+    );
+    await tester.pumpAndSettle();
+
+    final label = tester.getTopLeft(find.text('Name'));
+    final value = tester.getTopLeft(find.text('Wireless mouse'));
+    expect(value.dx, greaterThanOrEqualTo(label.dx + 160));
+    expect((value.dy - label.dy).abs(), lessThan(8));
+  });
+
+  testWidgets('a stacked field sets its value below the label', (tester) async {
+    await pump(tester, const BeakFieldBlock(name));
+    await tester.pumpAndSettle();
+
+    final label = tester.getTopLeft(find.text('Name'));
+    final value = tester.getTopLeft(find.text('Wireless mouse'));
+    expect(value.dy, greaterThan(label.dy));
+    expect(value.dx, label.dx);
+  });
+
   testWidgets('field group lays several fields onto a grid', (tester) async {
     await pump(
       tester,

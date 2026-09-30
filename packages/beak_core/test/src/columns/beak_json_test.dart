@@ -143,6 +143,39 @@ void main() {
     });
   });
 
+  group('hostile nesting', () {
+    String nested(int levels) => '${'[' * levels}1${']' * levels}';
+
+    test('a document nested past the limit is a FormatException, not a '
+        'stack overflow', () {
+      expect(
+        () => BeakJson.decode(nested(100000)),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('nested'),
+          ),
+        ),
+      );
+    });
+
+    test('the same holds for an already-decoded structure', () {
+      Object? structure = 1;
+      for (var level = 0; level < 100000; level++) {
+        structure = <String, Object?>{'k': structure};
+      }
+      expect(
+        () => BeakJson.fromEncodable(structure),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('nesting a real document has is accepted', () {
+      expect(() => BeakJson.decode(nested(32)), returnsNormally);
+    });
+  });
+
   test('prints readable debug output', () {
     expect(tree.toString(), contains('Beak'));
     expect(const BeakJsonArray([]).toString(), contains('BeakJsonArray'));

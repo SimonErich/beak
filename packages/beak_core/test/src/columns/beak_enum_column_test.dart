@@ -64,6 +64,27 @@ void main() {
     expect(labelled.labelFor(_OrderStatus.paid), 'PAID');
   });
 
+  test('declarative labels preserve wire names and callback precedence', () {
+    const mapped = BeakEnumColumn<_OrderStatus>(
+      key: 'status',
+      label: 'Status',
+      values: _OrderStatus.values,
+      labels: {_OrderStatus.paid: 'Payment received'},
+    );
+    expect(mapped.labelFor(_OrderStatus.paid), 'Payment received');
+    expect(mapped.labelFor(_OrderStatus.pending), 'pending');
+    expect(mapped.valueByName('paid'), _OrderStatus.paid);
+    expect(mapped.valueByName('Payment received'), isNull);
+    const callback = BeakEnumColumn<_OrderStatus>(
+      key: 'status',
+      label: 'Status',
+      values: _OrderStatus.values,
+      labels: {_OrderStatus.paid: 'Payment received'},
+      labelOf: _screaming,
+    );
+    expect(callback.labelFor(_OrderStatus.paid), 'PAID');
+  });
+
   test('defaultValue is null unless configured', () {
     expect(column.defaultValue, isNull);
     const preset = BeakEnumColumn<_OrderStatus>(

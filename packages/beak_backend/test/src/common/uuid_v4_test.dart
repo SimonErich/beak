@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/common/uuid_v4.dart';
 import 'package:test/test.dart';
 
 void main() {

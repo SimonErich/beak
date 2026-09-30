@@ -116,6 +116,24 @@ void main() {
       expect(await dataSource.getOne('products', 404), isNull);
     });
 
+    test('a route id arrives as text and finds the integer key', () async {
+      await dataSource.create('products', product(id: 3, name: 'Prism'));
+
+      expect(
+        (await dataSource.getOne('products', '3'))?['name'],
+        const BeakStringValue('Prism'),
+      );
+      expect(await dataSource.getOne('products', 'not-a-number'), isNull);
+      final updated = await dataSource.update(
+        'products',
+        '3',
+        BeakRecord.fromRow(const {'name': 'Prism XL'}),
+      );
+      expect(updated['name'], const BeakStringValue('Prism XL'));
+      await dataSource.delete('products', '3', force: true);
+      expect(await dataSource.getOne('products', 3), isNull);
+    });
+
     test('update of a missing record throws not-found', () {
       expect(
         () => dataSource.update(
@@ -161,7 +179,13 @@ void main() {
           const BeakQuerySpec(table: 'products', withTrashed: true),
         );
         expect(trashed.items, hasLength(1));
-        expect(trashed.items.single['deleted_at'], BeakDateTimeValue(fixedNow));
+        // The marker is framework-owned and undeclared, so it stays out of
+        // the record (an allowlist of declared keys); the row carries it.
+        expect(trashed.items.single['deleted_at'], isNull);
+        final stored = await inner.selectOne(
+          const QueryDescriptor(table: 'products', columns: ['deleted_at']),
+        );
+        expect(stored?['deleted_at'], fixedNow);
       },
     );
 
@@ -202,7 +226,7 @@ void main() {
 
       final page = await dataSource.query(
         const BeakQuerySpec(table: 'products')
-            .orderBy(ProductColumns.price, descending: true)
+            .orderBy(ProductModel.price, descending: true)
             .paginate(page: 2, perPage: 3),
       );
 

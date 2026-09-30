@@ -17,7 +17,13 @@ import 'package:worm/worm.dart';
 /// from the client side) falls through to [QueryException]:
 ///
 /// - `23505` unique_violation            → [UniqueConstraintException]
-/// - `23503` foreign_key_violation       → [ForeignKeyException]
+/// - `23503` foreign_key_violation /
+///   `23001` restrict_violation          → [ForeignKeyException]
+/// - `23514` check_violation /
+///   `23502` not_null_violation          → [CheckConstraintException]
+/// - every code of class `22` (data
+///   exception: value too long, out of
+///   range, malformed text)              → [DataException]
 /// - `40P01` deadlock_detected           → [TransactionException]
 /// - `40001` serialization_failure       → [TransactionException]
 /// - `08000` / `08001` / `08003` /
@@ -81,9 +87,20 @@ final class PostgresErrorMapper {
         column: column,
         message: message,
       ),
-      '23503' => ForeignKeyException(
+      '23503' || '23001' => ForeignKeyException(
         table: label,
         column: column,
+        message: message,
+      ),
+      '23514' || '23502' => CheckConstraintException(
+        table: label,
+        column: column.isEmpty ? null : column,
+        constraintName: constraint.isEmpty ? null : constraint,
+        message: message,
+      ),
+      final String dataCode when dataCode.startsWith('22') => DataException(
+        table: label,
+        column: column.isEmpty ? null : column,
         message: message,
       ),
       '40001' || '40P01' => TransactionException(message: message),

@@ -1,8 +1,12 @@
+import '../behavior/beak_model_behavior.dart';
 import 'package:meta/meta.dart';
 
 import '../columns/beak_column.dart';
+import '../columns/beak_json.dart';
+import '../columns/beak_semantic_values.dart';
 import '../common/beak_exception.dart';
 import '../context/beak_context.dart';
+import '../data/beak_data_source.dart';
 import '../query/beak_aggregate_spec.dart';
 import '../query/beak_filter.dart';
 import '../query/beak_record.dart';
@@ -10,46 +14,42 @@ import '../query/beak_pagination.dart';
 import '../query/beak_query_spec.dart';
 import '../query/beak_relation_load.dart';
 import '../query/beak_sort.dart';
+import '../query/beak_summary_spec.dart';
 import '../query/beak_value.dart';
 import '../query/beak_table_ref.dart';
 import '../relations/beak_relationship.dart';
+import 'beak_field_ref.dart';
+import 'beak_field_value.dart';
+import 'beak_permissions.dart';
+import '../validation/beak_record_rule.dart';
 
 /// ORM-agnostic metadata describing one admin resource: its table, columns,
 /// relationships, delete semantics, and display column.
 ///
-/// A `BeakModel` describes metadata only — it never runs queries. The
-/// backend pairs it with a `BeakDataSource`, which is the seam that lets
-/// worm today and other ORMs later both drive the same Beak panels.
+/// A model describes metadata and may bind a [dataSource]. The panel uses that
+/// binding automatically; models without one use the panel's default source.
+/// Persistence stays behind [BeakDataSource], so ORM-specific operations never
+/// leak into forms, tables or application screens.
 ///
-/// Subclass it once per resource, wiring up its columns, relationships, and
-/// delete semantics:
+/// `beak prepare` writes one subclass per `@Resource` schema class, named
+/// after it (`Product` becomes `ProductModel`), together with a typed field
+/// reference per property. Application code starts from those, so it never
+/// names a table or a column:
 ///
 /// ```dart
-/// final class ProductModel extends BeakModel {
-///   const ProductModel();
+/// const products = ProductModel();
 ///
-///   @override
-///   String get table => 'products';
-///
-///   @override
-///   String get displayColumnKey => 'name';
-///
-///   @override
-///   List<BeakColumn> get columns => ProductColumns.values;
-///
-///   @override
-///   List<BeakRelationship> get relationships => const [
-///     ProductRelations.category,
-///     ProductRelations.tags,
-///   ];
-///
-///   @override
-///   bool get softDeletes => true;
-/// }
+/// final sellable = products.query(filter: ProductModel.active.eq(true));
+/// final retired = products.count(filter: ProductModel.active.eq(false));
 /// ```
 ///
+/// Subclassing by hand is for an adapter describing tables Beak does not
+/// generate: override [table], [displayColumnKey] and [columns], plus
+/// [relationships] and [softDeletes] where the resource has them.
+///
 /// Register the instance in a [BeakModelRegistry] so the backend and frontend
-/// can resolve it by [table].
+/// can resolve it by [table]; the generated registry does this for every
+/// generated model.
 @immutable
 abstract base class BeakModel {
   /// Enables `const` construction by subclasses.
@@ -64,8 +64,46 @@ abstract base class BeakModel {
   /// The columns of this model, in display order.
   List<BeakColumn> get columns;
 
+  /// Shared typed scalar, cross-field, collection and asynchronous constraints.
+  List<BeakRecordRule> get validationRules => const [];
+
+  /// Shared value lifecycles, workflow guards and named commands.
+  BeakModelBehavior get behavior => const BeakModelBehavior();
+
+  /// Live presentation policy shared by every resource using this model.
+  BeakPermissions get permissions => const BeakPermissions.allowAll();
+
+  /// Operations actually supported by this model's transport.
+  ///
+  /// Defaults to ordinary CRUD for HTTP/Worm models. Adapters narrow this set
+  /// when an endpoint is absent; a custom screen may supply a missing workflow.
+  Set<BeakOperation> get capabilities => const {
+    BeakOperation.read,
+    BeakOperation.create,
+    BeakOperation.update,
+    BeakOperation.delete,
+  };
+
+  /// Optional model-owned transport, registered automatically by the panel.
+  ///
+  /// Return a stable instance. A null source uses the panel's HTTP or explicitly
+  /// supplied source, preserving the standalone handwritten-model workflow.
+  BeakDataSource? get dataSource => null;
+
+  /// Create command metadata when the write shape differs from the read model.
+  BeakModel? get createModel => null;
+
+  /// Update command metadata; an edit-capable source supplies its prefill data.
+  BeakModel? get editModel => null;
+
   /// The relationships of this model. Defaults to none.
   List<BeakRelationship> get relationships => const [];
+
+  /// Models referenced by this model, registered without navigation entries.
+  ///
+  /// Generated models supply these declarations so a panel only needs its
+  /// visible resources. Cycles are resolved by the panel registry.
+  List<BeakModel> get relatedModels => const [];
 
   /// Whether deletes are soft (a deleted-at marker the backend filters on)
   /// instead of physical row removal. Defaults to `false`.
@@ -111,8 +149,10 @@ abstract base class BeakModel {
 
   /// A typed reference to this model's [table].
   ///
-  /// Hand this to any API that needs to name the table, so the name is
-  /// derived from the model instead of retyped as a string.
+  /// The same stored name as [table], wrapped as a value for code that passes
+  /// a table around. An API that takes a table name reads [table] instead,
+  /// and [query] and [count] need neither, so the name is always derived from
+  /// the model and never retyped as a string.
   BeakTableRef get ref => BeakTableRef.raw(table);
 
   /// A query over this model's table.
@@ -121,8 +161,8 @@ abstract base class BeakModel {
   /// here and no table string is ever written.
   ///
   /// ```dart
-  /// const ProductModel().query()
-  ///     .orderBy(ProductColumns.price, descending: true)
+  /// const ProductModel()
+  ///     .query(filter: ProductModel.active.eq(true))
   ///     .paginate(perPage: 10);
   /// ```
   ///
@@ -153,32 +193,151 @@ abstract base class BeakModel {
         withTrashed: withTrashed,
       );
 
-  /// Sums [column] over this model's rows.
+  /// Sums [field] over this model's rows.
   ///
-  /// [column] should be numeric ([BeakIntColumn] or [BeakDecimalColumn]);
-  /// the data source rejects anything else.
+  /// [field] must be one of this model's own numeric fields. Results use
+  /// physical storage units; exact decimal fields offer a typed
+  /// `field.sum(source)` helper.
+  ///
+  /// ```dart
+  /// const OrderModel().sum(OrderModel.grossCents,
+  ///     filter: OrderModel.paid.eq(true));
+  /// ```
   BeakAggregateSpec sum(
-    BeakColumn column, {
+    BeakScalarField<num> field, {
     BeakFilter? filter,
     bool withTrashed = false,
   }) => BeakAggregateSpec.sum(
     table: table,
-    column: column,
+    column: _ownColumn(field),
     filter: filter,
     withTrashed: withTrashed,
   );
 
-  /// Averages [column] over this model's rows.
+  /// Averages [field] over this model's rows, returning physical storage units.
+  /// Fixed-scale money may produce fractional units; choose rounding explicitly.
   BeakAggregateSpec avg(
-    BeakColumn column, {
+    BeakScalarField<num> field, {
     BeakFilter? filter,
     bool withTrashed = false,
   }) => BeakAggregateSpec.avg(
     table: table,
-    column: column,
+    column: _ownColumn(field),
     filter: filter,
     withTrashed: withTrashed,
   );
+
+  /// Sums the exact-decimal or money [field] over this model's rows.
+  ///
+  /// The request is the same as [sum]'s on the wire: the server adds stored
+  /// integer units, which is exact. Read the result as an amount with the
+  /// field's own `field.sum(source)`.
+  ///
+  /// Throws a [BeakConfigurationException] for a field of another model, one
+  /// reached through a relationship, or one without exact-decimal or money
+  /// semantics.
+  ///
+  /// ```dart
+  /// const OrderModel().sumDecimal(OrderModel.total,
+  ///     filter: OrderModel.paid.eq(true));
+  /// ```
+  BeakAggregateSpec sumDecimal(
+    BeakScalarField<BeakDecimal> field, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.sum(
+    table: table,
+    column: _ownDecimalColumn(field),
+    filter: filter,
+    withTrashed: withTrashed,
+  );
+
+  /// Averages the exact-decimal or money [field] over this model's rows.
+  ///
+  /// The result is a number of stored units and is usually fractional; bring
+  /// it to an amount with the field's `field.avg(source, rounding: ...)`,
+  /// which makes the rounding explicit. Fails like [sumDecimal].
+  BeakAggregateSpec avgDecimal(
+    BeakScalarField<BeakDecimal> field, {
+    BeakFilter? filter,
+    bool withTrashed = false,
+  }) => BeakAggregateSpec.avg(
+    table: table,
+    column: _ownDecimalColumn(field),
+    filter: filter,
+    withTrashed: withTrashed,
+  );
+
+  /// A grouped summary over this model's rows.
+  ///
+  /// [groupBy] is one of this model's own fields; omit it for a single total
+  /// row. Declare each measure once and read it back from a
+  /// [BeakSummaryRow] with `row.valueOf(measure)`:
+  ///
+  /// ```dart
+  /// final orders = const OrderModel();
+  /// final revenue = BeakSummaryMeasure.sum(
+  ///   'revenue',
+  ///   field: OrderModel.grossCents,
+  /// );
+  /// final byDay = orders.summary(
+  ///   groupBy: OrderModel.deliveryDate,
+  ///   measures: [revenue],
+  /// );
+  /// ```
+  // --8<-- [start:BeakModelSummary]
+  BeakSummarySpec summary({
+    BeakScalarField<Object>? groupBy,
+    required List<BeakSummaryMeasure> measures,
+    BeakFilter? filter,
+    BeakSearch? search,
+    int limit = 100,
+    bool withTrashed = false,
+  }) => BeakSummarySpec.forKeys(
+    table: table,
+    groupByKey: groupBy == null ? null : _ownColumn(groupBy).key,
+    measures: measures,
+    filter: filter,
+    search: search,
+    limit: limit,
+    withTrashed: withTrashed,
+  );
+  // --8<-- [end:BeakModelSummary]
+
+  BeakColumn _ownDecimalColumn(BeakScalarField<BeakDecimal> field) {
+    _ownColumn(field);
+    return field.exactColumn;
+  }
+
+  BeakColumn _ownColumn(BeakScalarField<Object> field) {
+    if (field.path.isNotEmpty || field.model.table != table) {
+      throw BeakConfigurationException(
+        'Field "${field.qualifiedKey}" is not one of the fields of $table '
+        'itself.',
+      );
+    }
+    return field.column;
+  }
+
+  /// A record holding [values], each a root field of this model.
+  ///
+  /// The typed way to build a row to create or patch: nothing here names a
+  /// column key. Throws a [BeakConfigurationException] for a field of another
+  /// model or one reached through a relationship.
+  ///
+  /// ```dart
+  /// final note = const OrderNoteModel().record([
+  ///   OrderNoteModel.body.to('Call the customer'),
+  ///   OrderNoteModel.visibility.to('internal'),
+  /// ]);
+  /// ```
+  BeakRecord record(Iterable<BeakFieldValue> values) {
+    final entries = <String, BeakValue>{};
+    for (final BeakFieldValue(:field, :value) in values) {
+      entries[_ownColumn(field).key] = value;
+    }
+    return BeakRecord(values: entries);
+  }
 
   /// The primary-key value of [record], or `null` when the record does not
   /// carry it — the single way Beak extracts a record's id.
@@ -223,7 +382,21 @@ abstract base class BeakModel {
 /// This is the one place that decides, so every data source agrees. A value
 /// the column cannot read keeps its literal form rather than being dropped.
 BeakValue beakValueForColumn(BeakColumn? column, Object? raw) {
-  final BeakValue value = BeakValue.of(raw);
+  if (column is BeakJsonColumn &&
+      !column.semantic.hasCodec &&
+      raw is BeakJson) {
+    return BeakStringValue(raw.encode());
+  }
+  if (column != null && column.semantic.hasCodec) {
+    // Typed callers and drivers meet at the same canonical primitive shape.
+    // Preserve malformed driver data so boundary validation can report it.
+    try {
+      return column.semantic.encode(raw);
+    } on FormatException {
+      return BeakValue.of(raw);
+    }
+  }
+  final BeakValue value = BeakValue.of(raw is Enum ? raw.name : raw);
   return switch (column) {
         BeakBoolColumn() => switch (column.readValue(value)) {
           final bool parsed => BeakBoolValue(parsed),

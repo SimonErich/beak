@@ -22,15 +22,12 @@ const Map<String, int> thresholdOverridesPct = {
   'beak_cli': 85,
   // A testing toolkit whose own tests are thin would be a poor advert.
   'beak_test': 90,
-  // The examples earn their keep by being read and run, and much of what they
-  // declare is data a widget suite instantiates without executing line by
-  // line. What has to work is checked directly instead: the store's API
-  // scenario exercises its models, policy and seeders end to end, and the
-  // coverage matrices fail when a feature stops being demonstrated at all.
+  // The quickstart must stay byte-identical to what `beak create` writes
+  // (beak_cli's quickstart_parity_test compares them file by file), so it can
+  // carry only the one boot test the scaffold ships. The floor is set for what
+  // that test reaches; adding tests here would make the example drift from
+  // the scaffold it documents. Every other example gates at the default.
   'quickstart': 50,
-  'store': 70,
-  'superdashboard': 85,
-  'embedded': 85,
 };
 
 /// Directories that hold gated packages, relative to the repo root.

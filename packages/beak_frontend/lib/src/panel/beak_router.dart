@@ -1,196 +1,349 @@
 import 'dart:async';
 
 import 'package:beak_core/beak_core.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:go_router/go_router.dart';
 import 'package:obers_ui/obers_ui.dart';
+import 'package:signals/signals_flutter.dart';
 
+import '../auth/beak_auth_page.dart';
+import '../actions/beak_model_action_runner.dart';
+import '../actions/beak_pending_actions.dart';
+import '../auth/beak_auth_adapter.dart';
+import '../auth/beak_auth_gate.dart';
 import '../auth/beak_session_store.dart';
-import '../dashboard/beak_dashboard.dart';
-import '../data/reference_cache.dart';
+import '../auth/beak_logout_button.dart';
+import '../localization/beak_localizations.dart';
 import '../di/beak_locator.dart';
 import '../pages/beak_resource_pages.dart';
+import '../form/beak_configured_form.dart';
+import 'beak_resource_screen.dart';
+import 'beak_routes.dart';
+import 'beak_navigation.dart';
+import '../data/beak_resource_repository.dart';
+import '../data/beak_data_changes.dart';
 import '../pages/beak_screen_view.dart';
+import '../query/beak_query_controller.dart';
 import 'beak_auth_config.dart';
 import 'beak_command_bar.dart';
 import 'beak_maintenance_config.dart';
 import 'beak_notifications.dart';
 import 'beak_panel_config.dart';
 import 'beak_theme_controller.dart';
+import 'beak_back_button.dart';
+import 'beak_shell_page_scope.dart';
 
-/// Builds the panel's router from [config]: a shell route wrapping the
-/// dashboard at `/`, every resource's generated list/create/show/edit pages,
-/// and every custom [BeakPage]; plus auth, error, and maintenance routes
-/// mounted outside the shell.
+/// Builds the panel's router from [config]: a shell route wrapping every
+/// resource's generated list/create/show/edit pages and every custom
+/// [BeakScreen]; plus auth, error, and maintenance routes mounted outside the
+/// shell. `/` is the screen that claims it, and otherwise redirects to the
+/// panel's home destination ([BeakPanelConfig.home], then the first visible
+/// navigation destination).
 ///
 /// [BeakPanel] calls this after [registerBeakDependencies], so the pages
 /// resolve their [BeakDataSource] from [beakLocator] on their first frame.
 /// Resource routes are intentionally flat rather than nested: nesting would
 /// keep a list page alive under its create/show/edit children, so returning
 /// to the list would show stale rows instead of re-querying.
-GoRouter createBeakRouter(BeakPanelConfig config) => GoRouter(
+// --8<-- [start:createBeakRouter]
+GoRouter createBeakRouter(
+  BeakPanelConfig config, {
+  BeakAuthRouterRefresh? authRefresh,
+}) => GoRouter(
+  refreshListenable: authRefresh,
+  redirect: (_, state) =>
+      _maintenanceRedirect(config.maintenance, state.uri.path) ??
+      authRefresh?.redirect(state.uri.path),
   routes: [
-    ShellRoute(
-      builder: (context, state, child) =>
-          _BeakShell(config: config, currentPath: state.uri.path, child: child),
-      routes: [
-        // The built-in stats/charts dashboard is mounted only when no custom
-        // page claims `/`; a `BeakScreen(path: '/')` replaces it wholesale.
-        if (!_hasHomePage(config))
-          GoRoute(
-            path: '/',
-            builder: (context, state) => OiResourcePage(
-              label: 'Dashboard',
-              title: 'Dashboard',
-              actions: const [],
-              child: BeakDashboard(
-                stats: config.dashboardStats,
-                charts: config.dashboardCharts,
-                dataSource: beakLocator<BeakDataSource>(),
-              ),
-            ),
-          ),
-        // Flat routes on purpose: nested routes would keep the list page
-        // alive under create/show/edit, so returning to it would show
-        // stale data instead of re-querying.
-        for (final resource in config.resources) ...[
-          GoRoute(
-            path: resource.route,
-            builder: (context, state) => BeakResourceListPage(
-              resource: resource,
-              dataSource: beakLocator<BeakDataSource>(),
-            ),
-          ),
-          GoRoute(
-            path: '${resource.route}/create',
-            builder: (context, state) => BeakResourceCreatePage(
-              resource: resource,
-              dataSource: beakLocator<BeakDataSource>(),
-              referenceCache: beakLocator<ReferenceCache>(),
-            ),
-          ),
-          GoRoute(
-            path: '${resource.route}/:id/edit',
-            builder: (context, state) => BeakResourceEditPage(
-              resource: resource,
-              dataSource: beakLocator<BeakDataSource>(),
-              referenceCache: beakLocator<ReferenceCache>(),
-              recordId: state.pathParameters['id'] ?? '',
-            ),
-          ),
-          GoRoute(
-            path: '${resource.route}/:id',
-            builder: (context, state) => BeakResourceShowPage(
-              resource: resource,
-              dataSource: beakLocator<BeakDataSource>(),
-              recordId: state.pathParameters['id'] ?? '',
-            ),
-          ),
-        ],
-        for (final screen in config.pages)
-          GoRoute(
-            path: screen.path,
-            builder: (context, state) => BeakScreenView(screen: screen),
-          ),
-      ],
-    ),
-    ..._authRoutes(config),
+    ...beakPanelRoutes(config, authRefresh: authRefresh),
+    ...beakAuthRoutes(config, authRefresh: authRefresh),
     ..._maintenanceRoutes(config.maintenance),
-    ..._errorRoutes(),
+    ..._errorRoutes(config),
   ],
   errorBuilder: (context, state) => OiErrorPage.notFound(
-    description: 'No panel page at "${state.uri.path}".',
-    actionLabel: 'Back to dashboard',
+    description: BeakLocalizations.of(context).notFoundPath(state.uri.path),
+    actionLabel: BeakLocalizations.of(context).backToDashboard,
     onAction: () => context.go('/'),
   ),
 );
+// --8<-- [end:createBeakRouter]
 
-/// Whether a custom page claims the home route `/`, in which case it
-/// replaces the built-in dashboard.
+/// Routes and shell for embedding Beak in a host application's router.
+///
+/// The host registers Beak dependencies, owns the app widget and authentication,
+/// and can put these routes inside its own guarded shell. No second router or
+/// authentication routes are created.
+///
+/// Pass the [authRefresh] the router listens to, so the idle lock keeps the
+/// panel closed until it is unlocked. Without it the lock only navigates to
+/// `/lock`, and a later navigation, the browser's Back button for one, leaves it.
+List<RouteBase> beakPanelRoutes(
+  BeakPanelConfig config, {
+  BeakAuthRouterRefresh? authRefresh,
+}) => [
+  ShellRoute(
+    builder: (context, state, child) => _watchAuth(context, config, (context) {
+      final shell = _fullScreenRoute(config, state.uri.path)
+          ? child
+          : _BeakShell(
+              config: config,
+              currentPath: state.uri.path,
+              child: child,
+            );
+      final auth = config.auth;
+      if (auth == null) return shell;
+      return BeakAuthGate(
+        adapter: auth.adapter ?? beakDependencies(context)<BeakSessionStore>(),
+        child: switch (auth.idleLockTimeout) {
+          final Duration timeout => _BeakIdleLock(
+            timeout: timeout,
+            authRefresh: authRefresh,
+            child: shell,
+          ),
+          null => shell,
+        },
+      );
+    }),
+    routes: [
+      // `/` is claimed by a screen, or forwards to the panel's home; sign-in
+      // and the error pages' back actions rely on it landing somewhere real.
+      if (!_hasHomePage(config))
+        if (_homeLocation(config) case final String home)
+          GoRoute(path: '/', redirect: (_, _) => home),
+      // Flat routes on purpose: nested routes would keep the list page
+      // alive under create/show/edit, so returning to it would show
+      // stale data instead of re-querying.
+      for (final resource in config.resources) ...[
+        GoRoute(
+          path: resource.route,
+          onExit: (context, state) => _confirmExit(context, config),
+          redirect: (_, _) => resource.isVisible ? null : '/403',
+          builder: (context, state) => _watchAuth(
+            context,
+            config,
+            (context) =>
+                _customResourceScreen(
+                  resource.screenFor(BeakScreenRole.list),
+                  context,
+                  null,
+                ) ??
+                BeakResourceListPage(
+                  resource: resource,
+                  dataSource: beakDependencies(context)<BeakDataSource>(),
+                ),
+          ),
+        ),
+        GoRoute(
+          path: '${resource.route}/create',
+          onExit: (context, state) => _confirmExit(context, config),
+          redirect: (_, _) => resource.allowsCreate ? null : '/403',
+          builder: (context, state) => _watchAuth(
+            context,
+            config,
+            (context) =>
+                _customResourceScreen(
+                  resource.screenFor(BeakScreenRole.create),
+                  context,
+                  null,
+                ) ??
+                BeakResourceCreatePage(
+                  resource: resource,
+                  dataSource: beakDependencies(context)<BeakDataSource>(),
+                ),
+          ),
+        ),
+        GoRoute(
+          path: '${resource.route}/:id/edit',
+          onExit: (context, state) => _confirmExit(context, config),
+          redirect: (_, _) => resource.allowsEdit ? null : '/403',
+          builder: (context, state) => _watchAuth(
+            context,
+            config,
+            (context) =>
+                _customResourceScreen(
+                  resource.screenFor(BeakScreenRole.edit),
+                  context,
+                  state.pathParameters['id'],
+                ) ??
+                BeakResourceEditPage(
+                  resource: resource,
+                  dataSource: beakDependencies(context)<BeakDataSource>(),
+                  recordId: state.pathParameters['id'] ?? '',
+                ),
+          ),
+        ),
+        GoRoute(
+          path: '${resource.route}/:id',
+          onExit: (context, state) => _confirmExit(context, config),
+          redirect: (_, _) => resource.isVisible ? null : '/403',
+          builder: (context, state) => _watchAuth(
+            context,
+            config,
+            (context) =>
+                _customResourceScreen(
+                  resource.screenFor(BeakScreenRole.read),
+                  context,
+                  state.pathParameters['id'],
+                ) ??
+                BeakResourceShowPage(
+                  resource: resource,
+                  dataSource: beakDependencies(context)<BeakDataSource>(),
+                  recordId: state.pathParameters['id'] ?? '',
+                ),
+          ),
+        ),
+      ],
+      for (final screen in config.pages)
+        GoRoute(
+          path: screen.path,
+          builder: (context, state) => _watchAuth(
+            context,
+            config,
+            (context) => BeakScreenView(screen: screen),
+          ),
+        ),
+    ],
+  ),
+];
+
+Widget? _customResourceScreen(
+  BeakResourceScreen? screen,
+  BuildContext context,
+  Object? id,
+) => switch (screen) {
+  final BeakCustomResourceScreen custom => custom.builder(context, id),
+  _ => null,
+};
+
+// GoRouter refresh reevaluates redirects but can retain the same route child.
+// Preserve controllers during a same-identity permission refresh, but reset
+// routed state when the principal changes. A shell key alone is insufficient:
+// the nested Navigator owns a global key and can otherwise reparent old pages.
+Widget _watchAuth(
+  BuildContext context,
+  BeakPanelConfig config,
+  WidgetBuilder builder,
+) {
+  final auth = config.auth;
+  if (auth == null) return Builder(builder: builder);
+  final adapter = auth.adapter ?? beakDependencies(context)<BeakSessionStore>();
+  return Watch((context) {
+    final identity = switch (adapter.state.value) {
+      BeakAuthAuthenticated(:final identity) => identity.id,
+      _ => null,
+    };
+    return KeyedSubtree(key: ValueKey(identity), child: builder(context));
+  });
+}
+
+/// Whether a custom page claims the home route `/`.
 bool _hasHomePage(BeakPanelConfig config) =>
     config.pages.any((screen) => screen.path == '/');
 
-List<RouteBase> _authRoutes(BeakPanelConfig config) {
-  final BeakAuthConfig? auth = config.auth;
-  return [
-    GoRoute(
-      path: '/login',
-      // Successful sign-in navigates into the panel — OiAuthPage itself only
-      // clears its spinner, so without this the login is a dead end.
-      builder: (context, state) => OiAuthPage.login(
-        label: config.title,
-        onLogin: (email, password) async {
-          // With no callback the panel signs in against the generated
-          // `/api/auth/login`: a project that configured server-side auth
-          // does not also have to wire the request that uses it.
-          final bool signedIn =
-              await (auth?.onLogin?.call(email, password) ??
-                  beakLocator<BeakSessionStore>().signIn(
-                    username: email,
-                    password: password,
-                  ));
-          if (signedIn && context.mounted) {
-            context.go('/');
-          }
-          return signedIn;
-        },
-      ),
+/// Where `/` forwards when no page claims it: [BeakPanelConfig.home] while it
+/// is visible, and otherwise the first visible navigation destination in the
+/// order the shell lists them. `null` when the panel has nothing to show.
+String? _homeLocation(BeakPanelConfig config) {
+  final resources = {
+    for (final resource in config.resources) resource.model.table: resource,
+  };
+  bool visible(BeakNavigationItem item) =>
+      item.model == null || (resources[item.model!.table]?.isVisible ?? false);
+  final home = config.home;
+  if (home != null) {
+    final reachable = switch (home) {
+      final BeakResource resource => resource.isVisible,
+      _ => true,
+    };
+    if (reachable) return home.location;
+  }
+  final sections = config.navigation?.sections ?? const [];
+  for (final section in [
+    ...sections.where((section) => !section.bottom),
+    ...sections.where((section) => section.bottom),
+  ]) {
+    for (final item in section.items) {
+      if (visible(item)) return item.route;
+    }
+  }
+  for (final resource in config.navigationResources) {
+    if (resource.isVisible) return resource.route;
+  }
+  for (final screen in config.pages) {
+    if (screen.showInNav) return screen.path;
+  }
+  return null;
+}
+
+/// Authentication routes for standalone or host-router composition.
+///
+/// Mount outside a loading gate so sign-in permission resolution cannot unmount
+/// the form awaiting its outcome. Registration/recovery require explicit opt-in
+/// and a backend capability; direct URLs cannot enable an absent workflow.
+///
+/// [authRefresh] is the one given to [beakPanelRoutes]: a successful unlock
+/// releases the idle lock on it.
+// --8<-- [start:beakAuthRoutes]
+List<RouteBase> beakAuthRoutes(
+  BeakPanelConfig config, {
+  BeakAuthRouterRefresh? authRefresh,
+}) {
+  final auth = config.auth ?? const BeakAuthConfig();
+  GoRoute route(String path, BeakAuthMode mode) => GoRoute(
+    path: path,
+    builder: (context, state) => BeakAuthPage(
+      key: ValueKey(mode),
+      title: config.title,
+      config: auth,
+      mode: mode,
+      onSignedIn: () => context.go(mode == BeakAuthMode.login ? '/' : '/login'),
+      onModeChanged: (next) => context.go(switch (next) {
+        BeakAuthMode.login => '/login',
+        BeakAuthMode.register => '/register',
+        BeakAuthMode.recover => '/recover',
+      }),
     ),
-    if (auth != null && auth.register)
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => OiAuthPage.register(
-          label: config.title,
-          onRegister: (name, email, password) async {
-            final bool registered =
-                await (auth.onRegister?.call(name, email, password) ??
-                    Future<bool>.value(true));
-            if (registered && context.mounted) {
-              context.go('/');
-            }
-            return registered;
-          },
-        ),
-      ),
-    if (auth != null && auth.recover)
-      GoRoute(
-        path: '/recover',
-        builder: (context, state) => OiAuthPage(
-          label: config.title,
-          initialMode: OiAuthMode.forgotPassword,
-          // Recovery "success" means the reset email went out — return to
-          // the sign-in form rather than into the panel.
-          onForgotPassword: (email) async {
-            final bool sent =
-                await (auth.onRecover?.call(email) ?? Future<bool>.value(true));
-            if (sent && context.mounted) {
-              context.go('/login');
-            }
-            return sent;
-          },
-        ),
-      ),
+  );
+  return [
+    route('/login', BeakAuthMode.login),
+    if (auth.allowsRegistration) route('/register', BeakAuthMode.register),
+    if (auth.allowsRecovery) route('/recover', BeakAuthMode.recover),
     GoRoute(
       path: '/lock',
       builder: (context, state) => OiAuthPage.lock(
         label: config.title,
-        userName: auth?.lockUserName ?? config.title,
+        userName: auth.lockUserName ?? config.title,
         onUnlock: (password) async {
-          final bool unlocked =
-              await (auth?.onUnlock?.call(password) ??
-                  Future<bool>.value(true));
-          if (unlocked && context.mounted) {
-            context.go('/');
-          }
+          final unlocked =
+              await (auth.onUnlock?.call(password) ??
+                  Future<bool>.value(false));
+          if (unlocked) authRefresh?.unlock();
+          if (unlocked && context.mounted) context.go('/');
           return unlocked;
         },
       ),
     ),
   ];
 }
+// --8<-- [end:beakAuthRoutes]
 
+/// The page [maintenance] sends [path] to, or `null` when [path] may stay.
+String? _maintenanceRedirect(BeakMaintenanceConfig? maintenance, String path) {
+  final target = switch (maintenance?.redirectTo) {
+    BeakMaintenancePage.maintenance => '/maintenance',
+    BeakMaintenancePage.comingSoon => '/coming-soon',
+    null => null,
+  };
+  if (target == null || const {'/maintenance', '/coming-soon'}.contains(path)) {
+    return null;
+  }
+  return target;
+}
+
+// --8<-- [start:maintenanceRoutes]
 List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
   if (maintenance == null) {
     return const [];
@@ -218,28 +371,55 @@ List<RouteBase> _maintenanceRoutes(BeakMaintenanceConfig? maintenance) {
     ),
   ];
 }
+// --8<-- [end:maintenanceRoutes]
 
-List<RouteBase> _errorRoutes() => [
+List<RouteBase> _errorRoutes(BeakPanelConfig config) => [
   GoRoute(
     path: '/403',
-    builder: (context, state) => OiErrorPage.forbidden(
-      actionLabel: 'Back to dashboard',
-      onAction: () => context.go('/'),
-    ),
+    builder: (context, state) => _forbiddenPage(context, config),
   ),
   GoRoute(
     path: '/500',
     builder: (context, state) => OiErrorPage.serverError(
-      actionLabel: 'Back to dashboard',
+      actionLabel: BeakLocalizations.of(context).backToDashboard,
       onAction: () => context.go('/'),
     ),
   ),
 ];
 
+/// The access-denied page. An account the panel refuses altogether cannot use
+/// "back to the dashboard", which leads straight back here, so it is offered
+/// the sign-in page instead, after its session ends.
+Widget _forbiddenPage(BuildContext context, BeakPanelConfig config) {
+  final strings = BeakLocalizations.of(context);
+  final container = beakDependencies(context);
+  final BeakAuthAdapter? adapter = config.auth == null
+      ? null
+      : config.auth?.adapter ??
+            (container.isRegistered<BeakSessionStore>()
+                ? container<BeakSessionStore>()
+                : null);
+  return Watch((context) {
+    final refused = switch (adapter?.state.value) {
+      BeakAuthAuthenticated(:final identity) => !identity.canAccessPanel,
+      _ => false,
+    };
+    return OiErrorPage.forbidden(
+      actionLabel: refused ? strings.authBackToLogin : strings.backToDashboard,
+      onAction: switch (adapter) {
+        final BeakAuthAdapter session when refused => () => unawaited(
+          session.logout(),
+        ),
+        _ => () => context.go('/'),
+      },
+    );
+  });
+}
+
 /// The panel chrome around every routed page: an `OiAppShell` whose
 /// navigation is generated from the configured resources and pages, grouped
 /// by their optional sections, with a live theme toggle in the top bar.
-final class _BeakShell extends StatelessWidget {
+final class _BeakShell extends HookWidget {
   const _BeakShell({
     required this.config,
     required this.currentPath,
@@ -252,97 +432,457 @@ final class _BeakShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeController = beakLocator<BeakThemeController>();
-    void openCommandBar() => openBeakCommandBar(context, config);
-    final Widget shell = CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            openCommandBar,
-        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            openCommandBar,
-      },
-      child: Focus(
-        autofocus: true,
-        child: OiAppShell(
-          label: config.title,
-          title: config.title,
-          sidebarCollapsible: config.sidebarCollapsible,
-          sidebarDefaultCollapsed: config.sidebarDefaultCollapsed,
-          currentRoute: currentPath,
-          onNavigate: (route) => context.go(route),
-          actions: [
-            OiButton.icon(
-              icon: OiIcons.search,
-              label: 'Search (Ctrl-K)',
-              onTap: openCommandBar,
-            ),
-            if (config.notifications case final BeakNotificationSource source)
-              BeakNotificationBell(source: source),
-            // Listens directly to the controller: go_router preserves the
-            // shell across navigations, so it would not otherwise see mode
-            // changes.
-            ValueListenableBuilder<OiThemeMode>(
-              valueListenable: themeController,
-              builder: (context, mode, _) => OiThemeToggle(
-                currentMode: mode,
-                onModeChange: (next) => themeController.value = next,
-              ),
-            ),
-          ],
-          navigation: [
-            if (!_hasHomePage(config))
-              const OiNavItem(
-                label: 'Dashboard',
-                icon: OiIcons.layoutDashboard,
-                route: '/',
-              ),
-            for (final resource in config.resources)
-              OiNavItem(
-                label: resource.effectiveLabel,
-                icon: resource.icon.icon,
-                route: resource.route,
-                section: resource.section,
-              ),
-            for (final screen in config.pages)
-              if (screen.showInNav)
-                OiNavItem(
-                  label: screen.effectiveLabel,
-                  icon: screen.icon.icon,
-                  route: screen.path,
-                  section: screen.section,
-                ),
-          ],
-          child: child,
-        ),
-      ),
-    );
-    return switch (config.auth?.idleLockTimeout) {
-      final Duration timeout => _BeakIdleLock(timeout: timeout, child: shell),
-      null => shell,
+    final resources = {
+      for (final resource in config.resources) resource.model.table: resource,
     };
+    bool visible(BeakNavigationItem item) =>
+        item.model == null ||
+        (resources[item.model!.table]?.isVisible ?? false);
+    final sections =
+        config.navigation?.sections
+            .where((section) => section.items.any(visible))
+            .toList() ??
+        [];
+    final section =
+        sections
+            .where(
+              (section) => section.items.any((item) {
+                final path = Uri.parse(item.route).path;
+                return currentPath == path || currentPath.startsWith('$path/');
+              }),
+            )
+            .firstOrNull ??
+        sections.firstOrNull;
+    final recordResource = config.resources
+        .where(
+          (resource) =>
+              currentPath.startsWith('${resource.route}/') &&
+              !currentPath.endsWith('/create'),
+        )
+        .firstOrNull;
+    final recordId = recordResource == null
+        ? null
+        : Uri.decodeComponent(
+            currentPath
+                .substring(recordResource.route.length + 1)
+                .split('/')
+                .first,
+          );
+    final currentRecord = useState<BeakRecord?>(null);
+    final source = beakDependencies(context)<BeakDataSource>();
+    final revision = useBeakDataRevision(
+      source,
+      table: recordResource?.model.table ?? '',
+    );
+    useEffect(() {
+      currentRecord.value = null;
+      if (recordResource == null ||
+          recordId == null ||
+          config.navigation == null) {
+        return null;
+      }
+      var active = true;
+      BeakResourceRepository(
+        source,
+      ).getOne(recordResource.model.table, recordId).then((result) {
+        if (active) {
+          if (result case BeakOk(:final value)) currentRecord.value = value;
+        }
+      });
+      return () => active = false;
+    }, [source, recordResource, recordId, revision]);
+    final countRevision = useBeakDataRevision(source);
+    final navigationCounts = useState(const <String, int?>{});
+    useEffect(() {
+      var active = true;
+      navigationCounts.value = const {};
+      final entries =
+          section?.items
+              .where((item) => item.showCount && visible(item))
+              .toList() ??
+          const <BeakNavigationItem>[];
+      Future.wait(
+        entries.map((item) async {
+          final resource = resources[item.model!.table]!;
+          final screen = resource.screenFor(BeakScreenRole.list);
+          final list = screen is BeakTableScreen ? screen : null;
+          final definition = list?.definition;
+          final result = await BeakResourceRepository(source).run(() async {
+            final controller = BeakQueryController(
+              model: resource.model,
+              base: list?.query,
+              presets: definition?.presets ?? const [],
+              initial: BeakQueryState(
+                preset: (item.preset ?? definition?.initialPreset)?.key,
+              ),
+            );
+            try {
+              final query = controller.query.paginate(page: 1, perPage: 1);
+              return (await source.query(query)).total;
+            } finally {
+              controller.dispose();
+            }
+          });
+          return MapEntry(item.route, switch (result) {
+            BeakOk(:final value) => value,
+            BeakErr() => null,
+          });
+        }),
+      ).then((counts) {
+        if (active) navigationCounts.value = Map.fromEntries(counts);
+      });
+      return () => active = false;
+    }, [source, section, config.resources, countRevision]);
+    final recordLabel = currentRecord.value == null || recordResource == null
+        ? recordId ?? ''
+        : currentRecord.value![recordResource.model.displayColumnKey]?.raw
+                  ?.toString() ??
+              recordId ??
+              '';
+    final recordMonospace =
+        section?.items.any(
+          (item) =>
+              item.model?.table == recordResource?.model.table &&
+              item.recordLabelMonospace,
+        ) ??
+        false;
+    OiNavItem navItem(BeakNavigationItem item) {
+      final resource = resources[item.model?.table];
+      return OiNavItem(
+        label: item.label ?? resource?.effectiveNavigationTitle ?? '',
+        icon: item.icon ?? resource?.icon.icon ?? OiIcons.layoutDashboard,
+        route: item.route,
+        badge: item.showCount
+            ? navigationCounts.value[item.route]?.toString() ?? '—'
+            : null,
+        children:
+            currentRecord.value != null &&
+                recordResource == resource &&
+                item.preset == null &&
+                (config.navigation?.showCurrentRecord ?? false)
+            ? [
+                OiNavItem(
+                  label: recordLabel,
+                  contextChild: config.navigation?.currentRecordBranch ?? false,
+                  monospace: item.recordLabelMonospace,
+                  icon: resource!.icon.icon,
+                  route: BeakRoutes.show(resource.model.table, recordId!),
+                ),
+              ]
+            : null,
+      );
+    }
+
+    final themeController = beakDependencies(context)<BeakThemeController>();
+    final workspaceCreate = config.navigation?.showCreateAction == true
+        ? section?.items
+              .where((item) => item.model != null && visible(item))
+              .map((item) => resources[item.model!.table])
+              .whereType<BeakResource>()
+              .where((resource) => resource.allowsCreate)
+              .firstOrNull
+        : null;
+    void openCommandBar() => openBeakCommandBar(context, config);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = MediaQuery.of(context);
+        // The panel may occupy a split view narrower than the window. Resolve
+        // shell navigation and all descendant breakpoints against its own space.
+        final size = Size(
+          constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : viewport.size.width,
+          constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : viewport.size.height,
+        );
+        return MediaQuery(
+          data: viewport.copyWith(size: size),
+          child: Builder(
+            builder: (context) {
+              final ownsBreadcrumbs =
+                  config.navigation != null &&
+                  recordResource != null &&
+                  MediaQuery.sizeOf(context).width >= 600;
+              return CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+                      openCommandBar,
+                  const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+                      openCommandBar,
+                },
+                child: Focus(
+                  autofocus: true,
+                  child: OiAppShell(
+                    label: config.title,
+                    title:
+                        MediaQuery.sizeOf(context).width < 600 ||
+                            ownsBreadcrumbs
+                        ? null
+                        : config.navigation == null
+                        ? config.title
+                        : recordResource?.effectiveNavigationTitle ??
+                              section?.label ??
+                              config.title,
+                    breadcrumbs: ownsBreadcrumbs
+                        ? [
+                            OiBreadcrumbItem(
+                              label: recordResource.effectiveNavigationTitle,
+                              onTap: () => context.go(
+                                BeakBackButton.destination(
+                                  GoRouterState.of(context).uri,
+                                  recordResource.route,
+                                ),
+                              ),
+                            ),
+                            OiBreadcrumbItem(
+                              label: recordLabel,
+                              monospace: recordMonospace,
+                            ),
+                          ]
+                        : null,
+                    search: config.navigation?.searchInHeader == true
+                        ? SizedBox(
+                            width: MediaQuery.sizeOf(context).width < 900
+                                ? 180
+                                : 360,
+                            child: OiSearchTrigger(
+                              label:
+                                  config.navigation?.searchPlaceholder ??
+                                  '${BeakLocalizations.of(context).search} (Ctrl-K)',
+                              shortcut:
+                                  config.navigation?.searchShortcut ??
+                                  const ['meta', 'K'],
+                              onPressed: openCommandBar,
+                            ),
+                          )
+                        : null,
+                    onSearch: config.navigation?.searchInHeader == true
+                        ? openCommandBar
+                        : null,
+                    searchLabel:
+                        config.navigation?.searchPlaceholder ??
+                        '${BeakLocalizations.of(context).search} (Ctrl-K)',
+                    sidebarCollapsible: config.sidebarCollapsible,
+                    sidebarDefaultCollapsed: config.sidebarDefaultCollapsed,
+                    primaryNavigation: [
+                      for (final section in sections.where(
+                        (section) => !section.bottom,
+                      ))
+                        OiNavItem(
+                          label: section.label,
+                          icon: section.icon,
+                          route: section.items.firstWhere(visible).route,
+                        ),
+                    ],
+                    currentPrimaryRoute: section?.items
+                        .firstWhere(visible)
+                        .route,
+                    onPrimaryNavigate: (route) => context.go(route),
+                    primaryLeading: config.navigation?.leading,
+                    primaryTrailing: sections.any((section) => section.bottom)
+                        ? _BottomNavigation(
+                            sections: sections
+                                .where((section) => section.bottom)
+                                .toList(),
+                            current: section,
+                            visible: visible,
+                          )
+                        : null,
+                    navigationHeader: section == null
+                        ? null
+                        : config.navigation?.headerBuilder?.call(
+                                context,
+                                section.label,
+                              ) ??
+                              OiSidebarHeader(
+                                title: section.label,
+                                trailing: workspaceCreate == null
+                                    ? null
+                                    : OiButton.icon(
+                                        icon: OiIcons.plus,
+                                        label: BeakLocalizations.of(
+                                          context,
+                                        ).createIn(section.label),
+                                        size: OiButtonSize.small,
+                                        onTap: () => context.go(
+                                          BeakRoutes.create(
+                                            workspaceCreate.model.table,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                    userMenu: config.navigation?.userMenu,
+                    navigationFooter: config.navigation?.footer,
+                    currentRoute:
+                        currentRecord.value != null && recordResource != null
+                        ? BeakRoutes.show(recordResource.model.table, recordId!)
+                        : section?.items
+                                  .where(
+                                    (item) =>
+                                        item.preset != null &&
+                                        item.matches(
+                                          GoRouterState.of(context).uri,
+                                        ),
+                                  )
+                                  .firstOrNull
+                                  ?.route ??
+                              section?.items
+                                  .where(
+                                    (item) => item.matches(
+                                      GoRouterState.of(context).uri,
+                                    ),
+                                  )
+                                  .firstOrNull
+                                  ?.route ??
+                              currentPath,
+                    onNavigate: (route) => context.go(route),
+                    actions: [
+                      ...?config.shellActions?.call(context),
+                      if (config.shellActions == null && config.auth != null)
+                        BeakLogoutButton(
+                          adapter:
+                              config.auth?.adapter ??
+                              beakDependencies(context)<BeakSessionStore>(),
+                        ),
+                      if (config.navigation?.searchInHeader != true)
+                        OiButton.icon(
+                          icon: OiIcons.search,
+                          label:
+                              '${BeakLocalizations.of(context).search} (Ctrl-K)',
+                          onTap: openCommandBar,
+                        ),
+                      if (config.notifications
+                          case final BeakNotificationSource source)
+                        BeakNotificationBell(source: source),
+                      // Listens directly to the controller: go_router preserves the
+                      // shell across navigations, so it would not otherwise see mode
+                      // changes.
+                      if (config.navigation?.showThemeToggle ?? true)
+                        ValueListenableBuilder<OiThemeMode>(
+                          valueListenable: themeController,
+                          builder: (context, mode, _) => OiThemeToggle(
+                            currentMode: mode,
+                            onModeChange: (next) =>
+                                themeController.value = next,
+                          ),
+                        ),
+                    ],
+                    navigation: section != null
+                        ? [
+                            for (final item in section.items.where(visible))
+                              navItem(item),
+                          ]
+                        : [
+                            for (final resource in config.navigationResources)
+                              if (resource.isVisible)
+                                OiNavItem(
+                                  label: resource.effectiveNavigationTitle,
+                                  icon: resource.icon.icon,
+                                  route: resource.route,
+                                  section: resource.navigationGroup,
+                                ),
+                            for (final screen in config.pages)
+                              if (screen.showInNav)
+                                OiNavItem(
+                                  label: screen.effectiveNavigationTitle,
+                                  icon: screen.icon.icon,
+                                  route: screen.path,
+                                  section: screen.navigationGroup,
+                                ),
+                          ],
+                    child: BeakPendingActions(
+                      runner: beakDependencies(
+                        context,
+                      )<BeakModelActionRunner>(),
+                      principal: switch ((config.auth?.adapter ??
+                              (beakDependencies(
+                                    context,
+                                  ).isRegistered<BeakSessionStore>()
+                                  ? beakDependencies(
+                                      context,
+                                    )<BeakSessionStore>()
+                                  : null))
+                          ?.state
+                          .value) {
+                        BeakAuthAuthenticated(:final identity) => identity.id,
+                        _ => null,
+                      },
+                      child: BeakShellPageScope(
+                        ownsBreadcrumbs: ownsBreadcrumbs,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 }
 
-/// Locks the panel to `/lock` after [timeout] of no pointer activity inside
-/// the shell. Any pointer event resets the countdown; the timer is torn down
-/// when the shell unmounts (e.g. once navigation reaches the lock screen), so
-/// it never fires in a loop.
+/// Routers whose idle lock is closing the panel. A lock is not a decision to
+/// abandon the open forms, so their "Leave this form?" question is skipped
+/// until the lock screen has replaced the panel.
+final Set<GoRouter> _lockingRouters = {};
+
+/// Asks about leaving a form with unsaved changes, except while the idle lock
+/// is closing the panel or after the session has ended: the dialog would keep
+/// the lock screen or the sign-in page waiting for someone who cannot save
+/// anyway, and "Stay" would leave a signed-out visitor on a protected page.
+Future<bool> _confirmExit(BuildContext context, BeakPanelConfig config) async =>
+    _lockingRouters.contains(GoRouter.maybeOf(context)) ||
+    _sessionEnded(context, config) ||
+    await beakConfirmFormExit(context);
+
+/// Whether the panel has an authentication adapter whose session is over.
+bool _sessionEnded(BuildContext context, BeakPanelConfig config) {
+  final auth = config.auth;
+  if (auth == null) return false;
+  final container = beakDependencies(context);
+  final BeakAuthAdapter? adapter =
+      auth.adapter ??
+      (container.isRegistered<BeakSessionStore>()
+          ? container<BeakSessionStore>()
+          : null);
+  return adapter?.state.value is BeakAuthGuest;
+}
+
+/// Locks the panel to `/lock` after [timeout] of no pointer or key activity,
+/// on every routed page including a full-screen form. Any pointer event resets
+/// the countdown; the timer is torn down when the panel unmounts (once
+/// navigation reaches the lock screen), so it never fires in a loop. Forms with
+/// unsaved changes do not hold the lock back; a form with a draft store keeps
+/// its draft, and one without loses its unsaved input.
+// --8<-- [start:idleLock]
 class _BeakIdleLock extends HookWidget {
-  const _BeakIdleLock({required this.timeout, required this.child});
+  const _BeakIdleLock({
+    required this.timeout,
+    required this.authRefresh,
+    required this.child,
+  });
 
   final Duration timeout;
+  final BeakAuthRouterRefresh? authRefresh;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final router = GoRouter.of(context);
-    final reset = useRef<VoidCallback>(() {});
 
     useEffect(() {
       Timer? timer;
       void schedule() {
         timer?.cancel();
-        timer = Timer(timeout, () => router.go('/lock'));
+        _lockingRouters.remove(router);
+        timer = Timer(timeout, () {
+          _lockingRouters.add(router);
+          authRefresh?.lock();
+          router.go('/lock');
+        });
       }
 
       // Keyboard events travel the focus pipeline, not the pointer pipeline
@@ -353,21 +893,79 @@ class _BeakIdleLock extends HookWidget {
         return false;
       }
 
-      reset.value = schedule;
+      // A pointer route sees every press, drag and scroll wherever it lands,
+      // dialogs and sheets included; a Listener around the shell would not.
+      void onPointer(PointerEvent event) {
+        if (event is PointerDownEvent ||
+            event is PointerMoveEvent ||
+            event is PointerSignalEvent) {
+          schedule();
+        }
+      }
+
       schedule();
       HardwareKeyboard.instance.addHandler(onKey);
+      GestureBinding.instance.pointerRouter.addGlobalRoute(onPointer);
       return () {
+        GestureBinding.instance.pointerRouter.removeGlobalRoute(onPointer);
         HardwareKeyboard.instance.removeHandler(onKey);
         timer?.cancel();
+        _lockingRouters.remove(router);
       };
-    }, [timeout, router]);
+    }, [timeout, router, authRefresh]);
 
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => reset.value(),
-      onPointerMove: (_) => reset.value(),
-      onPointerSignal: (_) => reset.value(),
-      child: child,
-    );
+    return child;
   }
+}
+// --8<-- [end:idleLock]
+
+bool _fullScreenRoute(BeakPanelConfig config, String path) {
+  for (final resource in config.resources) {
+    if (!path.startsWith('${resource.route}/')) continue;
+    final role = path == '${resource.route}/create'
+        ? BeakScreenRole.create
+        : path.endsWith('/edit')
+        ? BeakScreenRole.edit
+        : BeakScreenRole.read;
+    final screen = resource.screenFor(role);
+    return screen is BeakFormScreen && screen.fullScreen;
+  }
+  return false;
+}
+
+class _BottomNavigation extends StatelessWidget {
+  const _BottomNavigation({
+    required this.sections,
+    required this.current,
+    required this.visible,
+  });
+  final List<BeakNavigationSection> sections;
+  final BeakNavigationSection? current;
+  final bool Function(BeakNavigationItem) visible;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height:
+        sections.length *
+            ((context.components.navigationRail?.itemHeight ?? 32) +
+                (context.components.navigationRail?.itemSpacing ?? 4)) +
+        8,
+    child: OiNavigationRail(
+      items: [
+        for (final section in sections)
+          OiNavigationItem(
+            icon: section.icon,
+            label: section.label,
+            tooltip: section.label,
+          ),
+      ],
+      currentIndex: sections.indexWhere(
+        (section) => section.key == current?.key,
+      ),
+      onTap: (index) =>
+          context.go(sections[index].items.firstWhere(visible).route),
+      width: context.components.appShell?.primaryNavigationWidth ?? 64,
+      labelBehavior: OiRailLabelBehavior.none,
+      semanticLabel: BeakLocalizations.of(context).workspaceSettings,
+    ),
+  );
 }

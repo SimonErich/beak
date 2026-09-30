@@ -13,12 +13,15 @@ class _BeakTableBlockView extends StatelessWidget {
       height: block.heightInPixels,
       child: BeakDataTable(
         model: block.model,
-        dataSource: beakLocator<BeakDataSource>(),
+        dataSource: beakDependencies(context)<BeakDataSource>(),
         actions: block.actions,
         onRowTap: block.onRowTap,
         columns: block.columns,
+        fields: block.fields,
+        enableDelete: block.enableDelete,
         initialSpec: block.initialSpec,
         baseFilter: block.baseFilter,
+        label: block.title,
       ),
     );
     final title = block.title;

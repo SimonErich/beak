@@ -1,83 +1,35 @@
 ---
-title: Core concepts
-description: The seven ideas that make Beak tick, each in a paragraph, with a link to the page that goes deep.
+title: Concepts
+description: Why Beak is shaped the way it is, in eight short pages on the resource model, the two promises, authority, layers, data flow, blocks and errors.
+type: index
+audience: [beginner, expert]
+status: stable
 ---
 
-# Core concepts
+# Concepts
 
-By the end of this section you will hold Beak's whole mental model in your head:
-one annotated field, everything that one field generates, the layers a request
-travels through, and the way results and errors come back. Read the pages top to
-bottom the first time. After that, this hub is a map you can jump around in.
+The guides tell you what to write. These pages tell you why Beak is built the way it is, so the API stops looking arbitrary. Each one has a diagram, working code from the maintained examples, and a short list of what it means for you.
 
-Every page here quotes the tutorial store, a small coffee roastery
-(`examples/store`) whose server runs on port 8080. The models are small on
-purpose so the ideas stay in focus.
+If you are new, read the first four in order. If you already have a panel running and something surprised you, go straight to the page that matches the surprise.
 
-!!! tip "Reading order"
-    The two promises come first because everything else is a consequence of
-    them. The four layers and how data flows explain the plumbing. Rendering,
-    blocks, and results are where the plumbing surfaces in your UI.
+## Which page to read
 
-## The one-definition promise
+| You want to... | Read | For that |
+| --- | --- | --- |
+| See how a schema, a model, a resource, a screen and a page divide the work | [Declarative resources](declarative-resources.md) | The five things you write or generate, and what Beak's runtime owns |
+| Know why one field feeds the table, the form, the API and the migration | [The one-definition promise](the-one-definition-promise.md) | The seven consumers of a column, and where the promise stops |
+| Know why you never write a field name as a string | [The type-safety promise](the-type-safety-promise.md) | Generated typed fields, sealed families, and every string that remains |
+| Decide which side a rule belongs on | [Where authority lives](where-authority-lives.md) | Client preview against server authority, policies, and the Serverpod mapping |
+| Learn where code goes on the server and in the panel | [The four layers](the-four-layers.md) | Handler, Service, DataSource and Widget, ViewModel, Repository, DataSource |
+| Follow a query or a save end to end | [How data flows](how-data-flows.md) | `BeakQuerySpec`, save plans, receipts and refresh |
+| Choose between a block and a form node | [The block system](the-block-system.md) | Blocks for screens that show, form nodes for drafts that edit |
+| Tell a thrown exception, a result and a receipt apart | [Results and errors](results-and-errors.md) | Typed failures, field errors and uncertain writes |
 
-You declare a field once on a `@Resource` class, and `beak prepare` writes the
-typed `const` behind it. That const then feeds six consumers: the table cell,
-the form field, the detail row, the filter, the REST validator, and the CSV
-export column. The same declaration also produces the migration that creates the
-column and the wiring that registers the resource, so the database, the API and
-the panel cannot disagree about what a field is. See
-[The one-definition promise](the-one-definition-promise.md).
-
-## The type-safety promise
-
-You never write a string field reference and you never touch `dynamic`. The
-generated column and relationship constants are what you point at everywhere
-else, the sealed families (columns, values, filters, results, exceptions) force
-you to handle every case, and `BeakValue` carries filter operands across the
-wire without losing their type. The one place a schema class names another
-table's column by key is checked at generation time. See
-[The type-safety promise](the-type-safety-promise.md).
-
-## The four layers
-
-Each side of Beak has four layers with one job apiece. The backend runs
-`Handler -> Service -> DataSource`, with error-mapping middleware as the single
-catch boundary. The panel runs `Widget -> ViewModel -> Repository -> DataSource`,
-with the Repository as the catch boundary that turns thrown failures into
-`BeakResult` values. See [The four layers](the-four-layers.md).
-
-## How data flows
-
-A query is a value. `BeakQuerySpec` is a fully serializable description of what
-you want (filters, sorts, search, pagination, relation loads) that the panel
-builds with immutable copy-builders and posts to the server, where a translator
-turns it into a real database query. See [How data flows](how-data-flows.md).
-
-## Rendering per surface
-
-The same column looks like different things depending on where it appears: a
-currency figure in a table cell, a validated input in a form, a read-only row in
-a detail view. A column carries a render intent per `BeakContext`, and the panel
-picks the matching obers_ui widget. See [Rendering per surface](rendering-per-surface.md).
-
-## The block system
-
-Screens, dashboards, detail layouts, and forms are all trees of `BeakBlock`s
-rendered by one host widget. Record blocks are dual-mode: the same block tree
-shows read-only values inside a detail scope and editable inputs inside a form
-scope. See [The block system](the-block-system.md).
-
-## Results and errors
-
-Failures are values, not surprises. The Repository catches exceptions and returns
-`BeakResult<T>` (`BeakOk` or `BeakErr`), and the server maps the sealed
-`BeakException` family to HTTP status codes and a stable JSON envelope. See
-[Results and errors](results-and-errors.md).
+The code on these pages comes from three places. `examples/quickstart` is the smallest project `beak create` writes. `examples/serverpod` is a Beak admin inside a Serverpod workspace, with a real policy. The `packages/` sources are quoted where a page explains a mechanism, and every quote is either an include of a marked section or a fence the docs check against the file.
 
 ## Continue reading
 
-- [The one-definition promise](the-one-definition-promise.md) one field, six surfaces, plus the migration and the wiring.
-- [The type-safety promise](the-type-safety-promise.md) no strings, no `dynamic`, sealed all the way down.
-- [Defining a resource](../models/defining-models.md) put these ideas to work in a real schema class.
-- [Tutorial: First Flight](../tutorial/index.md) build the coffee roastery from scratch.
+- [Tutorial](../tutorial/index.md) build a small panel step by step and meet these ideas in use.
+- [Models](../models/index.md) the guides behind the schema, field and relationship pages.
+- [Architecture](../architecture/index.md) the same layers in contributor detail.
+- [Examples](../examples/index.md) the maintained projects, from the quickstart to the full shop.

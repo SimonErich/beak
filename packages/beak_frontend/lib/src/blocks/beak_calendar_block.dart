@@ -14,15 +14,16 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakCalendarBlock(
 ///   model: const EventModel(),
-///   titleField: EventColumns.title,
-///   startField: EventColumns.startsAt,
-///   endField: EventColumns.endsAt,
-///   categoryField: EventColumns.status,
-///   onEventTap: (record) => print(record[EventColumns.title.key]?.raw),
+///   titleField: EventModel.title.column,
+///   startField: EventModel.startsAt.column,
+///   endField: EventModel.endsAt.column,
+///   categoryField: EventModel.status.column,
+///   onEventTap: (record) => selected.value = EventModel.id.readFrom(record),
 /// );
 /// ```
 final class BeakCalendarBlock extends BeakBlock {
   /// Creates a calendar block over [model].
+  // --8<-- [start:BeakCalendarBlockConstructor]
   const BeakCalendarBlock({
     required this.model,
     required this.titleField,
@@ -34,8 +35,10 @@ final class BeakCalendarBlock extends BeakBlock {
     this.label = 'Calendar',
     this.onEventTap,
     this.onEventMove,
+    this.filter,
     super.span,
   });
+  // --8<-- [end:BeakCalendarBlockConstructor]
 
   /// The model whose records become events.
   final BeakModel model;
@@ -62,11 +65,17 @@ final class BeakCalendarBlock extends BeakBlock {
   /// Accessibility label for the calendar.
   final String label;
 
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
+
   /// Invoked with the tapped event's record.
   final void Function(BeakRecord record)? onEventTap;
 
   /// Invoked after an event is dragged to a new range; the block first
-  /// persists the move through the data source.
+  /// persists the move through the data source. [start] and [end] are the
+  /// instants that were written, not the wall-clock time the calendar showed.
   final void Function(BeakRecord record, DateTime start, DateTime end)?
   onEventMove;
 }

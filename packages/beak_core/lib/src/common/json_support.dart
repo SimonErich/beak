@@ -79,27 +79,13 @@ Map<String, Object?> requireJsonMap(
   ),
 };
 
-/// Returns the JSON object stored under [key] in [json], throwing when the
-/// key is absent or holds neither a JSON object nor `null`.
-Map<String, Object?>? requireJsonMapOrNull(
-  Map<String, Object?> json,
-  String key,
-  String context,
-) => switch (requireJsonKey(json, key, context)) {
-  null => null,
-  final Map<String, Object?> value => value,
-  final Object other => throw BeakConfigurationException(
-    '$context JSON key "$key" must be a JSON object or null, got $other.',
-  ),
-};
-
 /// Returns the JSON object stored under [key] in [json], or `null` when the
 /// key is absent or holds `null`. Throws when it holds anything else.
 ///
-/// The optional-on-read counterpart of [requireJsonMapOrNull], for keys where
-/// "absent" and "null" mean the same thing. Encoders still write every key,
-/// so the wire format is unchanged; decoders merely stop demanding that a
-/// hand-written request spell out the parts it does not care about.
+/// For keys where "absent" and "null" mean the same thing. Encoders still
+/// write every key, so the wire format is unchanged; decoders merely stop
+/// demanding that a hand-written request spell out the parts it does not
+/// care about.
 Map<String, Object?>? optionalJsonMap(
   Map<String, Object?> json,
   String key,
@@ -124,6 +110,21 @@ bool optionalJsonBool(
   final bool value => value,
   final Object other => throw BeakConfigurationException(
     '$context JSON key "$key" must be a boolean, got $other.',
+  ),
+};
+
+/// Returns the integer stored under [key] in [json], or [orElse] when the key
+/// is absent or holds `null`. Throws when it holds anything else.
+int optionalJsonInt(
+  Map<String, Object?> json,
+  String key,
+  String context, {
+  required int orElse,
+}) => switch (json[key]) {
+  null => orElse,
+  final int value => value,
+  final Object other => throw BeakConfigurationException(
+    '$context JSON key "$key" must be an integer, got $other.',
   ),
 };
 

@@ -1,9 +1,12 @@
 import 'package:meta/meta.dart';
 
 import '../storage/file_rules/beak_file_type.dart';
+import '../columns/beak_semantic_values.dart';
+import '../columns/beak_json.dart';
 
 part 'beak_allowed_file_types.dart';
 part 'beak_email.dart';
+part 'beak_future_date.dart';
 part 'beak_in_list.dart';
 part 'beak_max.dart';
 part 'beak_max_file_size.dart';
@@ -23,8 +26,8 @@ part 'beak_url.dart';
 /// it as valid, so rules compose freely and presence stays [BeakRequired]'s
 /// job alone.
 ///
-/// Attach rules to a column's `rules` list; they run in order and the first
-/// non-null message wins:
+/// Attach rules to a column's `rules` list; they all run, in order, and every
+/// failing rule contributes its message:
 ///
 /// ```dart
 /// static const email = BeakStringColumn(
@@ -53,3 +56,20 @@ sealed class BeakRule {
 }
 
 // --8<-- [end:BeakRule]
+
+// Compare a fixed decimal and a numeric rule bound without rounding either.
+int _compareDecimalBound(BeakDecimal value, num bound) {
+  if (!bound.isFinite) return bound.isNegative ? 1 : -1;
+  final parts = RegExp(
+    r'^(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$',
+  ).firstMatch(bound.toString())!;
+  final fraction = parts.group(3) ?? '';
+  final exponent = int.parse(parts.group(4) ?? '0');
+  final boundScale = fraction.length - exponent;
+  final scale = [value.scale, boundScale, 0].reduce((a, b) => a > b ? a : b);
+  final coefficient = BigInt.parse(
+    '${parts.group(1)}${parts.group(2)}$fraction',
+  );
+  return (BigInt.from(value.units) * BigInt.from(10).pow(scale - value.scale))
+      .compareTo(coefficient * BigInt.from(10).pow(scale - boundScale));
+}

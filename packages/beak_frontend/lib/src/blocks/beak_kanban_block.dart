@@ -12,14 +12,15 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakKanbanBlock(
 ///   model: const TaskModel(),
-///   groupField: TaskColumns.status, // a BeakEnumColumn
-///   titleField: TaskColumns.title,
-///   subtitleField: TaskColumns.assignee,
-///   onCardMove: (record) => print('moved ${record[TaskColumns.id.key]?.raw}'),
+///   groupField: TaskModel.status,
+///   titleField: TaskModel.title.column,
+///   subtitleField: TaskModel.assignee.column,
+///   onCardMove: (record) => lastMoved.value = TaskModel.id.readFrom(record),
 /// );
 /// ```
 final class BeakKanbanBlock extends BeakBlock {
   /// Creates a Kanban block over [model], grouped by [groupField].
+  // --8<-- [start:BeakKanbanBlockConstructor]
   const BeakKanbanBlock({
     required this.model,
     required this.groupField,
@@ -29,14 +30,30 @@ final class BeakKanbanBlock extends BeakBlock {
     this.sortDescending = false,
     this.label = 'Board',
     this.onCardMove,
+    this.filter,
     super.span,
   });
+  // --8<-- [end:BeakKanbanBlockConstructor]
 
   /// The model whose records become cards.
   final BeakModel model;
 
-  /// The enum column whose values define the board's columns.
-  final BeakEnumColumn<Enum> groupField;
+  /// The enum field whose values define the board's columns.
+  final BeakScalarField<Enum> groupField;
+
+  /// The enum column behind [groupField].
+  ///
+  /// Throws a [BeakConfigurationException] when [groupField] is not an enum
+  /// column of [model] itself.
+  BeakEnumColumn<Enum> get groupColumn => switch (groupField.column) {
+    final BeakEnumColumn<Enum> column
+        when groupField.path.isEmpty && groupField.model.table == model.table =>
+      column,
+    _ => throw BeakConfigurationException(
+      'Kanban group field "${groupField.qualifiedKey}" must be an enum field '
+      'of ${model.table}.',
+    ),
+  };
 
   /// Column supplying each card's title.
   final BeakColumn titleField;
@@ -53,6 +70,11 @@ final class BeakKanbanBlock extends BeakBlock {
 
   /// Accessibility label for the board.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Invoked with a card's record after it is dropped in a new column; the
   /// block first persists the new group through the data source.

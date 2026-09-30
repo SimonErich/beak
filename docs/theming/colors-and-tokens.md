@@ -1,159 +1,146 @@
 ---
 title: Colors and tokens
-description: The BeakColor semantic role enum, badge colors on enum columns, hex color columns, and how obers_ui tokens resolve per theme.
+description: How the seven BeakColor names resolve to theme colors on badges, buttons, boards and charts, and how to build a full palette from a design system.
+type: guide
+audience: [expert]
+status: stable
 ---
 
 # Colors and tokens
 
-After this page you can color a status badge by meaning rather than by hex,
-understand why those colors change with the theme, and know when to reach for a
-literal color instead.
+Beak has two color vocabularies. Your schema and your blocks speak in seven semantic names, `BeakColor`. The theme speaks in tokens: swatches, surfaces, text and border colors. This page shows how a name becomes a token on each surface, so a badge does not come out the wrong color in a theme you built by hand, and how Foodio builds a complete palette from a design system's tokens.
 
-Beak has two very different notions of "color", and keeping them straight saves
-confusion. One is a **semantic role** (this badge means success). The other is a
-**literal value** stored on a record (this event is `#663399`). Roles resolve
-against the theme; literals are plain data.
-
-## Semantic colors: `BeakColor`
-
-`beak_core` is pure Dart. It never imports `dart:ui`, so it cannot name an actual
-color. Instead it names roles, and `beak_frontend` resolves each role against the
-active obers_ui theme. The full set is small on purpose:
+## At a glance
 
 ```dart title="packages/beak_core/lib/src/common/beak_color.dart"
 --8<-- "packages/beak_core/lib/src/common/beak_color.dart:BeakColor"
 ```
 
-Seven roles cover the states an admin panel actually shows. Because a column
-names the role and the frontend resolves it, the same status badge reads
-correctly in light mode, in dark mode, and under a branded theme, with no
-per-column color work. A `BeakColor` is declared once and re-resolved everywhere
-the value appears.
+`beak_core` never imports `dart:ui`, so a column or an action names a role and never a color value. `beak_frontend` resolves the role against the active theme, in three places that agree on the mapping:
 
-| Role | Typical use |
+| `BeakColor` | Badge (`OiBadgeColor`) | Direct color (`context.colors`) | Action button |
+| --- | --- | --- | --- |
+| `primary` | `primary` | `primary.base` | primary button |
+| `secondary` | `accent` | `accent.base` | secondary button |
+| `success` | `success` | `success.base` | secondary button |
+| `warning` | `warning` | `warning.base` | secondary button |
+| `error` | `error` | `error.base` | destructive button |
+| `info` | `info` | `info.base` | secondary button |
+| `muted` | `neutral` | `textMuted` | secondary button |
+
+`secondary` is the one name that differs: it means the theme's `accent` swatch. The badge column is this function, and the direct column is the function under it:
+
+```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
+--8<-- "packages/beak_frontend/lib/src/table/column_cell_renderer.dart:oiBadgeColorFor"
+```
+
+```dart title="packages/beak_frontend/lib/src/blocks/views/beak_record_readers.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/views/beak_record_readers.dart:resolveBeakColor"
+```
+
+Action buttons only distinguish `primary` and `error`. An action declared with `BeakColor.success` renders as a secondary button, not a green one.
+
+## Where a color name comes from
+
+An enum field gets its badge colors from the schema, once, and every surface that shows the field agrees: the table cell, the detail value, a kanban column, a calendar event:
+
+```dart title="examples/showcase/lib/resources/tasks/models/task.dart"
+--8<-- "examples/showcase/lib/resources/tasks/models/task.dart:taskStatusBadges"
+```
+
+A value with no entry gets `neutral`. The board and the calendar reuse the same mapping for column and event colors, which is why the Aviary's Planner needs no color argument at all. Blocks take a `BeakColor` where they need one directly: `BeakBadgeBlock(color:)`, `BeakSummaryValue(iconColor:)`, and the `color` of an action. The Aviary's content page renders every value in a loop, which is the quickest look at what your theme does to all seven:
+
+```dart title="examples/showcase/lib/pages/content_blocks.dart"
+--8<-- "examples/showcase/lib/pages/content_blocks.dart:badges"
+```
+
+## What a swatch holds
+
+`OiColorScheme` has six swatches (`primary`, `accent`, `success`, `warning`, `error`, `info`), and each is an `OiColorSwatch` with five slots: `base`, `light`, `dark`, `muted` and `foreground`. Around them sit the surfaces (`background`, `surface`, `surfaceSubtle`, `surfaceHover`, `surfaceActive`, `overlay`), the text colors (`text`, `textSubtle`, `textMuted`, `textInverse`, `textOnPrimary`), the borders (`border`, `borderSubtle`, `borderFocus`, `borderError`) and `chart`, a list of series colors.
+
+Which slot a widget reads matters when you build a swatch by hand. The soft badge, the one Beak uses for every enum value, has two recipes:
+
+| `OiBadgeThemeData.useSwatchColors` | Background | Text |
+| --- | --- | --- |
+| `false` (default) | `base` at 20% opacity | `dark` |
+| `true` | `muted` (neutral: `surfaceSubtle`) | `dark` (neutral: `textMuted`) |
+
+So a status badge is drawn in `dark` on either a tinted `base` or `muted`. A swatch whose `dark` is too light to read on its `muted` produces an unreadable badge, and `OiColorSwatch.from(base)` derives `dark` by lowering the lightness of `base` by 20 points. A hand-built swatch has to keep that contrast itself, because Beak does not check it.
+
+## A full palette from a design system
+
+Foodio's theme comes from a design file whose tokens have names like `canvas`, `sheet`, `ink` and `primary-soft`. The tokens live in two classes of named constants, one for light and one for dark:
+
+```dart title="examples/foodio-adminpanel/lib/theme/gabel_tokens.dart"
+/// Exact light semantic colors from the supplied prototype.
+abstract final class GabelLight {
+  /// Prototype `canvas` token.
+  static const canvas = Color(0xFFF3F3F7);
+
+  /// Prototype `sheet` token.
+  static const sheet = Color(0xFFFEFEFF);
+  // ...
+}
+```
+
+`gabelTheme({bool dark})` picks one class by brightness and maps its tokens onto the obers_ui slots. First a helper that turns a design's three colors into a swatch, with `dark` deliberately set to the ink color so soft badges read well:
+
+```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
+--8<-- "examples/foodio-adminpanel/lib/theme/gabel_theme.dart:gabelSwatch"
+```
+
+Then the whole `OiColorScheme`, copied from the stock theme and overridden slot by slot:
+
+```dart title="examples/foodio-adminpanel/lib/theme/gabel_theme.dart"
+--8<-- "examples/foodio-adminpanel/lib/theme/gabel_theme.dart:gabelColors"
+```
+
+Read the mapping as a table of your own: the design's `canvas` is `background`, `sheet` is `surface`, `well` is `surfaceSubtle`, `fill-hover` and `fill-press` are `surfaceHover` and `surfaceActive`, `scrim` is `overlay`, `ink` is `text`, `line` is `borderSubtle`, and each status swatch takes the color's `-ink` token as `base` and `dark`, and its `-soft` token as `light` and `muted`. The six `chart` colors are a list in series order. Everything the design does not name (`glassBackground`, `glassBorder`) keeps the stock value, because the code starts from `base.colors.copyWith(...)`.
+
+The panel receives the result as `theme: gabelTheme()` and `darkTheme: gabelTheme(dark: true)`:
+
+```dart title="examples/foodio-adminpanel/lib/main.dart"
+--8<-- "examples/foodio-adminpanel/lib/main.dart:foodioThemes"
+```
+
+## Rules and limits
+
+- Names are fixed. `BeakColor` has seven values and you cannot add one. A hue the theme lacks, such as purple, is a theme decision: pick the closest role and put the hue in that swatch.
+- Only `BeakColor` follows the mode. `BeakSummaryValue.color` and `BeakSummaryGroupStyle.color` take a plain `Color`, so they keep their value in dark mode. Foodio passes its `GabelLight` chart tokens there and accepts that.
+- Charts have their own palette. `BeakChartBlock` series come from the theme's `chart` list. Summary bars and donuts cycle `primary`, `warning`, `info`, `success` and `error` unless you give a color ([Charts](../blocks/charts.md), [Population summaries](../blocks/summaries.md)).
+- Status is not only color. Give every state a label, as badges do, and use the non-color cues Beak already has: a metric's change carries a sign and an arrow, and summary bars and legends take `hatched` for forecast values.
+- Contrast is yours. Beak resolves names to tokens and never measures contrast. Check swatches in both modes.
+- Formatting is separate. A number, date or currency looks the same in every theme. That is set by [BeakFormatting](formatting-and-localization.md).
+
+## Verify it
+
+Open the Aviary's Content blocks page, look at the Badges card, and press the theme toggle. All seven badges should change with the mode. The mapping itself has a unit test:
+
+```console
+$ cd packages/beak_frontend
+$ flutter test --no-pub test/src/table/column_cell_renderer_test.dart --plain-name "BeakColor"
+enum badges use the configured BeakColor and label
+every BeakColor maps onto an obers badge color
+All tests passed!
+```
+
+Nothing tests Foodio's dark palette. Run Foodio, switch to dark, and look at a status badge and a chart.
+
+## Reference
+
+| Symbol | Notes |
 | --- | --- |
-| `primary` | Brand accent, primary actions. |
-| `secondary` | Secondary accent. |
-| `success` | Published, paid, active, in stock. |
-| `warning` | Pending, low stock, needs attention. |
-| `error` | Rejected, failed, out of stock. |
-| `info` | Neutral informational states. |
-| `muted` | Draft, disabled, de-emphasized. |
-
-## Badge colors on enum columns
-
-The place you set roles most often is an enum field. `@Badges` pairs each enum
-value with a `BeakColor`, and the generated `BeakEnumColumn<T>` renders as a
-colored badge in tables and a select control in forms. Here is the products
-model from the tutorial store:
-
-```dart title="examples/store/lib/models/product.dart"
-/// Lifecycle states of a product.
-enum ProductStatus {
-  /// Being drafted, not on sale.
-  draft,
-
-  /// Live in the catalog.
-  published,
-
-  /// Withdrawn from the catalog.
-  archived,
-}
-
-// ...
-
-/// Lifecycle state, rendered as a coloured badge.
-@Column(filterable: true)
-@Badges({
-  ProductStatus.draft: BeakColor.muted,
-  ProductStatus.published: BeakColor.success,
-  ProductStatus.archived: BeakColor.warning,
-})
-late final ProductStatus status;
-```
-
-The generic parameter on the generated column keeps the whole thing type-safe.
-`values`, `defaultValue`, `badgeColors`, and the optional `labelOf` all speak in
-`ProductStatus`, so there is no stringly-typed state anywhere. The column exposes
-typed lookups over the map:
-
-```dart title="packages/beak_core/lib/src/columns/beak_enum_column.dart"
-/// The badge color configured for [value], or `null` when unmapped.
-BeakColor? badgeColorFor(T value) => badgeColors[value];
-
-/// The display label of [value]: [labelOf] when set, else `value.name`.
-String labelFor(T value) => labelOf?.call(value) ?? value.name;
-```
-
-Any value you leave out of `badgeColors` falls back to the theme default, so you
-only map the states you want to stand out.
-
-!!! note "What just happened"
-    One `const` column declaration gave the products table a colored status
-    badge, gave the form a select control over the same three values, and made
-    the column filterable. No color was hardcoded; `muted`, `success`, and
-    `warning` all resolve against whichever theme is active.
-
-## Literal colors: `BeakColorColumn`
-
-Sometimes the color is the data. A calendar event stores its own color; a brand
-row stores a swatch. Declare the field as `BeakHexColor` and you get a
-`BeakColorColumn`, which holds a hex string and renders as a swatch with a color
-picker in forms:
-
-```dart title="packages/beak_core/lib/src/columns/beak_color_column.dart"
-/// A color column holding hex strings (e.g. `#663399`), rendered as a
-/// swatch with a color picker in forms.
-final class BeakColorColumn extends BeakColumn with BeakTypedColumn<String> {
-  /// Creates a color column.
-  const BeakColorColumn({
-    required super.key,
-    required super.label,
-    super.visibleOn,
-    super.sortable,
-    super.searchable,
-    super.filterable,
-    super.indexed,
-    super.unique,
-    super.rules,
-  });
-
-  @override
-  BeakRenderConfig get renderConfig =>
-      const BeakRenderConfig.uniform(BeakRenderIntent.color);
-
-  /// Reads [value] as a string value.
-  @override
-  String? readValue(BeakValue? value) => _readText(value);
-}
-```
-
-The superdashboard's calendar events use one so an organizer can override a
-category's color per event:
-
-```dart title="examples/superdashboard/lib/models/calendar/calendar_event.dart"
-/// Event color (overrides the category color when set).
-@Column(visibleOn: {BeakContext.form, BeakContext.detail})
-late final BeakHexColor? color;
-```
-
-The difference is worth holding onto. A `BeakColor` role does not change when the
-data changes; it changes when the theme changes. A `BeakColorColumn` value does
-not change when the theme changes; it changes when a user edits the record.
-
-## obers_ui design tokens
-
-Underneath the roles sits the theme's full token set. `OiThemeData` aggregates
-colors, typography, spacing, radii, shadows, animations, and effects into one
-immutable object, and every obers_ui widget reads from it. When `beak_frontend`
-resolves a `BeakColor`, it is reading `context.colors` off that theme, which is
-why the same role looks right under `OiThemeData.light()`, `OiThemeData.dark()`,
-and a branded `OiThemeData.fromBrand(...)`. You set the theme once
-([Theming basics](theming-basics.md)); the tokens do the rest.
+| `BeakColor` | `primary`, `secondary`, `success`, `warning`, `error`, `info`, `muted`. |
+| `Badges<T>` | Schema annotation: `Map<T, BeakColor>` for an enum field. |
+| `oiBadgeColorFor(BeakColor)` | The badge mapping, exported by `beak_frontend`. |
+| `OiColorSwatch` | `base`, `light`, `dark`, `muted`, `foreground`; `OiColorSwatch.from(base)` derives the rest. |
+| `OiColorScheme.copyWith` | Every slot listed above, plus `chart`. |
+| `OiBadgeThemeData(useSwatchColors:)` | Chooses the soft-badge recipe. |
+| `OiChartThemeData` | `components.chart`: palette, axis, grid, legend, density. |
 
 ## Continue reading
 
-- [Column types](../models/column-types.md) the enum and color columns among all thirteen.
-- [Typography and icons](typography-and-icons.md) the other half of the visual vocabulary.
-- [Rendering per surface](../concepts/rendering-per-surface.md) how one column renders as a badge here and a select there.
-- [Theming basics](theming-basics.md) the theme these tokens resolve against.
+- [Typography and icons](typography-and-icons.md) the type ramp and the icon set, themed the same way.
+- [Theming basics](theming-basics.md) where the theme goes and how the toggle works.
+- [Charts](../blocks/charts.md) the chart palette in use.
+- [Semantic fields](../models/semantic-fields.md) money, percentages and units, which format independently of color.

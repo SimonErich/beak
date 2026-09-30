@@ -1,106 +1,37 @@
 ---
-title: Schema
-description: How a Beak resource is declared in one annotated class, and what beak prepare derives from it.
+title: Models
+description: Define shared data, constraints and behavior once.
+type: index
+audience: [beginner, expert]
+status: stable
 ---
 
-# Schema
+# Models
 
-A resource is one class. Its fields are its columns and its relationships, and
-everything else follows from them: the table, the list page, the form, the
-detail page, the REST validation and the CSV export. This section covers how to
-write that class and every knob it exposes.
+A schema class describes one table: its fields, its links to other tables and the rules and behavior that go with them. `beak prepare` turns it into the typed model the backend and the panel both read. Start with Defining models, then read the pages below in the order the table lists them.
 
-## What a schema class is
+The shop's `Product` is a typical schema:
 
-A schema class is a description, never an instance. You write the fields you
-care about, annotate what the type cannot say, and `beak prepare` derives the
-rest.
-
-```dart title="examples/store/lib/models/category.dart"
---8<-- "examples/store/lib/models/category.dart"
+```dart title="examples/clean_beak_config/lib/resources/products/models/product.dart"
+--8<-- "examples/clean_beak_config/lib/resources/products/models/product.dart"
 ```
 
-Three facts drive everything below:
+## Which page to read
 
-- **The type picks the column kind.** `String` is single-line text, `BeakText`
-  is multi-line, `DateTime` is an instant, an enum is an enum column with its
-  values.
-- **Nullability picks required-ness.** `String name` is required and
-  `BeakText? blurb` is not, and that one fact reaches the form validator, the
-  API's validation and the column's `NOT NULL` together.
-- **`@Column` carries what the type cannot.** Whether it sorts, whether search
-  includes it, what the migration indexes, which rules run on input.
-
-## What Beak derives from it
-
-`beak prepare` writes `category.beak.dart` beside that file: the typed column
-constants, the relationship constants (both sides), the `BeakModel`, and a
-typed record view. It writes the table's migration once, and registers nothing,
-because a file under `lib/models/` is a resource.
-
-```dart title="examples/store/lib/models/category.beak.dart"
-/// Typed column constants of the categories resource.
-abstract final class CategoryColumns {
-  /// Primary key.
-  static const BeakStringColumn id = BeakStringColumn(
-    key: 'id',
-    label: 'Id',
-    visibleOn: {BeakContext.detail},
-  );
-
-  /// What the category is called.
-  static const BeakStringColumn name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    rules: [BeakRequired(), BeakMaxLength(120)],
-    searchable: true,
-    sortable: true,
-  );
-  // ...
-}
-```
-
-Those names are what the rest of your app points at: `CategoryColumns.name` in
-a filter or a chart mapper, `CategoryRelations.products` in a relation block,
-`const CategoryModel()` in a test. You never write the constants, and you never
-write a string field reference either.
-
-!!! note "The one-definition promise"
-    A column is declared once and then feeds six mouths: the table cell, the
-    form field, the detail row, the filter control, the REST validator, and the
-    CSV export column. You never touch `dynamic`. See
-    [The one-definition promise](../concepts/the-one-definition-promise.md) for
-    the why.
-
-## Where each decision lives
-
-| Decision | Where it goes |
-| --- | --- |
-| Columns, relationships, table name, soft deletes, timestamps | the `@Resource` class in `lib/models/<name>.dart` |
-| Panel title, API origin, server port | `beak.yaml` |
-| A resource's icon, label, section, or hiding it | `beak.yaml` under `resources.<table>` |
-| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart`, in `BeakResource beakResource(BeakResource generated) => generated.copyWith(...)` |
-| Theme, auth, the `/` screen, the server | `lib/theme.dart`, `lib/auth.dart`, `lib/dashboard.dart`, `lib/server.dart` |
-| Everything else | generated into `lib/models/*.beak.dart` and `lib/beak/*.g.dart`, committed, never edited |
-
-## In this section
-
-| Page | What it covers |
-| --- | --- |
-| [Defining a resource](defining-models.md) | The `@Resource` class end to end, and what each annotation decides. |
-| [Generated code](generated-code.md) | What `beak prepare` writes, where it goes, and what you commit. |
-| [Column basics](column-basics.md) | The `@Column` options every kind shares: `visibleOn`, `sortable`, `searchable`, `filterable`, `indexed`, `unique`, `rules`. |
-| [Column types](column-types.md) | All thirteen column kinds and the field type that picks each one. |
-| [Validation rules](validation-rules.md) | The eleven rules a field carries, ten of them listed in `rules:`, enforced in the form and in the API. |
-| [Relationships](relationships.md) | The four relationship kinds, and the keys, pivots and inverses Beak derives. |
-| [Files and storage columns](files-and-storage-columns.md) | `@Image` and `@FileField`, upload rules, transforms, and where the bytes land. |
-| [Escape hatches](escape-hatches.md) | Taking over from the generator, from one resource to the whole panel. |
-| [The model registry](the-registry.md) | The generated index both the server and the panel resolve tables through. |
+| You want to… | Read | For |
+| --- | --- | --- |
+| Describe data once and generate typed model, field and record APIs | [Defining models](defining-models.md) | Guide for beginners |
+| Read the files `beak prepare` writes, pick the right symbol and know which files are yours | [Generated code](generated-code.md) | Guide for beginners, experts and agents |
+| Choose storage kinds and semantic values for generated controls | [Fields](fields.md) | Guide for beginners |
+| Define a field's meaning once for typed generation, inputs, validation, storage, filtering and display | [Semantic fields](semantic-fields.md) | Guide for experts |
+| Share scalar, record and relationship constraints between client and server | [Validation](validation.md) | Guide for beginners and experts |
+| Declare typed connections and ownership for pickers and nested editing | [Relationships](relationships.md) | Guide for beginners and experts |
+| Declare value lifecycles, shared guards and named business actions on the schema | [Model behavior](behavior.md) | Guide for experts |
+| Declare managed upload fields and ordered media collections | [Files and storage columns](files-and-storage-columns.md) | Guide for beginners and experts |
+| Share attribute metadata between editors and validation, then preview and stage variant combinations | [Dynamic attributes and variants](dynamic-attributes-and-variants.md) | Guide for experts |
 
 ## Continue reading
 
-- [Defining a resource](defining-models.md) writes your first schema class from
-  scratch.
-- [Generated code](generated-code.md) reads the part file it produces.
-- [The one-definition promise](../concepts/the-one-definition-promise.md) is the
-  idea this whole section is built on.
+- [Defining models](defining-models.md): Describe data once and generate typed model, field and record APIs.
+- [Generated code](generated-code.md): Read the files `beak prepare` writes, pick the right symbol and know which files are yours.
+- [Fields](fields.md): Choose storage kinds and semantic values for generated controls.

@@ -1,11 +1,11 @@
 # Build context lives at the repo root (Beak uses path dependencies, so the
-# Docker build needs the whole packages/ + apps/ tree). This trims the heavy,
+# Docker build needs the whole packages/ + examples/ tree). This trims the heavy,
 # regenerable, or irrelevant parts. Source is kept; artifacts are dropped.
 #
 # Note: pubspec_overrides.yaml files are melos-managed and gitignored. Dropping
 # them here makes the image resolve from each package's committed pubspec.yaml
-# (which already carries the path deps and the xml override), so the build is
-# reproducible without a melos bootstrap.
+# (which already carries the path deps), so the build is reproducible without a
+# melos bootstrap.
 
 .git/
 .github/
@@ -26,3 +26,10 @@ _site/
 *.log
 .env
 **/.env
+
+# Local databases, uploads and analysis indexes never belong in an image.
+.codegraph/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/uploads/

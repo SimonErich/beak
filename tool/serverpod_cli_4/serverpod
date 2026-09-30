@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Serverpod 4.0.3 CLI, pinned. Runs in the CURRENT directory, e.g.
+#   (cd examples/serverpod/bookshop_server && ../../../tool/serverpod_cli_4/serverpod generate)
+# Never touches a globally activated `serverpod`, which may be another release.
+# Resolve once with: (cd tool/serverpod_cli_4 && dart pub get)
+set -euo pipefail
+TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG="$TOOL/.dart_tool/package_config.json"
+if [[ ! -f "$CONFIG" ]]; then
+  echo "serverpod_cli_4: run 'dart pub get' in $TOOL first" >&2
+  exit 64
+fi
+ROOT="$(python3 -c 'import json,sys,urllib.parse
+c=json.load(open(sys.argv[1]))
+p=[x for x in c["packages"] if x["name"]=="serverpod_cli"][0]
+print(urllib.parse.urlparse(p["rootUri"]).path)' "$CONFIG")"
+exec dart --packages="$CONFIG" "$ROOT/bin/serverpod_cli.dart" "$@"

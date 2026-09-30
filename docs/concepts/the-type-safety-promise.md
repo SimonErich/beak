@@ -1,233 +1,205 @@
 ---
 title: The type-safety promise
-description: Why Beak has no string field references and no dynamic: generated column and relationship consts, sealed families that force exhaustive handling, and BeakValue as a lossless wire type.
+description: You never write a string field reference or touch dynamic. Generated typed fields, sealed families and BeakValue carry types from schema to wire.
+type: concept
+audience: [beginner, expert, agent]
+status: stable
 ---
 
 # The type-safety promise
 
-After this page you will understand the second half of Beak's contract: you never
-write a string field reference, and you never touch `dynamic`. Columns and
-relationships arrive as generated typed constants, the sealed families make the
-compiler check your work, and filter operands cross the wire as a typed
-`BeakValue` that does not lose what it was.
+You never write a string field reference, and you never touch `dynamic`. The Dart type of a schema field flows into every query, form input, table column and record read, and the compiler checks each step. Strings still exist on the wire and in a few configuration corners. This page lists every one of them.
 
-## You hold a column, not a string
+## The idea in one picture
 
-You declare a field. `beak prepare` writes the constant. From then on you pass
-the constant itself, never its key.
-
-```dart title="examples/store/lib/models/category.dart"
-/// What the category is called.
-@Display()
-@Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
-late final String name;
+```mermaid
+flowchart LR
+  dart["Dart type of the field<br/>String, int, BookFormat"] --> ref["BookModel.priceInCents<br/>a BeakScalarField of int"]
+  ref --> filter["ref.lte(2000)<br/>a BeakFilter"]
+  ref --> input["ref.inputNumber()<br/>a form input"]
+  ref --> read["ref.require(record)<br/>an int"]
+  filter --> wire["JSON: column key + BeakValue"]
+  wire --> server["Server: decode, authorize, translate"]
 ```
 
-becomes, in the part file beside it:
+Strings appear only at the wire node and after it. You never type them, because the reference produces them.
 
-```dart title="examples/store/lib/models/category.beak.dart"
-/// What the category is called.
-static const BeakStringColumn name = BeakStringColumn(
-  key: 'name',
-  label: 'Name',
-  rules: [BeakRequired(), BeakMaxLength(120)],
-  searchable: true,
-  sortable: true,
-);
-```
+## How it works
 
-The key exists, and the database needs it, but it is an artifact of generation
-rather than something you type. `CategoryColumns.name` is a `BeakStringColumn`.
-The analyzer knows its type, your IDE autocompletes it, and a typo is a compile
-error instead of an empty column at runtime. There is no `columns['naem']` to
-get wrong, and no second place the string `'name'` is written down.
+### A field type becomes a reference
 
-Relationships work the same way. You name the other class:
+You declare `late final String title;`. `beak prepare` writes a typed reference for it, and the model exposes that reference as a static.
 
-```dart title="examples/store/lib/models/product.dart"
-/// The category this product is filed under.
-@BelongsTo(onDelete: BeakOnDelete.setNull)
-late final Category? category;
-```
-
-and get a typed constant with the foreign key, the related table and the display
-column filled in:
-
-```dart title="examples/store/lib/models/product.beak.dart"
-/// The category this product is filed under.
-static const BeakBelongsTo category = BeakBelongsTo(
-  key: 'category',
-  label: 'Category',
-  relatedTable: 'categories',
-  displayColumnKey: 'name',
-  foreignKey: 'category_id',
-  searchColumnKeys: ['name'],
-  onDelete: BeakOnDelete.setNull,
-);
-```
-
-`BeakBelongsTo`, `BeakHasOne`, `BeakHasMany`, and `BeakBelongsToMany` are members
-of one sealed `BeakRelationship` family. You point a `BeakBelongsToField` at
-`ProductRelations.category` and the panel knows the cardinality, the related
-table, and which column to show, all from the type. The matching
-`CategoryRelations.products` is generated on the other side from the same
-annotation, so the pair cannot drift.
-
-## The one key a schema names is checked
-
-There is exactly one place a schema class refers to another table's column by
-key: `searchOn:`, which widens what a relationship picker looks through. The
-store has no need for it, so this one comes from `examples/superdashboard`,
-where an order's customer is looked up by name or by email:
-
-```dart title="examples/superdashboard/lib/models/commerce/order.dart"
-/// The customer who placed the order.
-@BelongsTo(label: 'Customer', searchOn: ['name', 'email'])
-late final User? user;
-```
-
-Because it is a string, it is checked. `beak prepare` reads the related schema,
-collects its column keys, and refuses to generate when one does not match:
-
-```dart title="packages/beak_cli/lib/src/schema/beak_schema_reader.dart"
-// `searchOn` is the one place a schema class names a column of
-// another table by key. Checking it here is what keeps that from
-// being a string that can be quietly wrong.
-final Set<String> keys = {
-  for (final column in related.columns) column.columnKey,
-};
-for (final key in relation.searchOn) {
-  if (keys.contains(key)) {
-    continue;
-  }
-  issues.add(
-    BeakDiscoveryIssue(
-      path: 'lib/${schema.libraryPath}',
-      message:
-          '${schema.className}.${relation.fieldName} searches '
-          '"$key", which ${related.className} has no column for. '
-          'Its columns are: ${(keys.toList()..sort()).join(', ')}.',
-    ),
+```dart title="examples/quickstart/lib/resources/notes/models/note.beak.dart"
+  BeakScalarField<String> get title => BeakScalarField<String>(
+    model: _model,
+    column: NoteColumns.title,
+    path: _path,
+    isRequired: true,
   );
+```
+
+```dart title="examples/quickstart/lib/resources/notes/models/note.beak.dart"
+  /// Typed reference to [title] in this model.
+  static final title = fields.title;
+```
+
+`NoteModel.title` is a `BeakScalarField<String>`. It carries the value type `T`, the root model, a path of relationships (empty for a field of the model itself) and whether the schema requires it.
+
+```dart title="packages/beak_core/lib/src/model/beak_field_ref.dart"
+class BeakScalarField<T extends Object> extends BeakFieldRef<T> {
+  const BeakScalarField({
+    required super.model,
+    required this.column,
+    super.path,
+    super.isRequired,
+  });
+```
+
+A relationship gets a reference too. `BookModel.author` is a to-one reference, and `BookModel.author.name` is the author's `name` field reached through it. The path keeps both ends, so a filter on `BookModel.author.name` knows it starts at a book and goes through `author`.
+
+### The type limits what you can say
+
+Everything that takes a reference inherits its `T`. This snippet is illustrative and does not compile; the class and field names are the bookshop example's real ones.
+
+```dart
+final cheap = BookModel.priceInCents.lte(2000);          // fine
+final wrongValue = BookModel.priceInCents.eq('2000');    // String for an int
+final wrongOp = BookModel.stock.contains('3');           // text match on a number
+final typo = BookModel.titel;                            // no such field
+```
+
+The analyzer reports the last three, each at the line you wrote (file and position trimmed here):
+
+```console
+$ dart analyze
+  error - The argument type 'String' can't be assigned to the parameter type 'int?'.  - argument_type_not_assignable
+  error - The method 'contains' isn't defined for the type 'BeakScalarField'.  - undefined_method
+  error - The getter 'titel' isn't defined for the type 'BookModel'.  - undefined_getter
+```
+
+The predicates hang off the value type, which is why `contains` only exists on text and `lte` only on numbers. Dates, exact decimals and other `Comparable` types get their own ordered comparisons.
+
+```dart title="packages/beak_core/lib/src/model/beak_field_ref.dart"
+--8<-- "packages/beak_core/lib/src/model/beak_field_ref.dart:BeakNumericFieldPredicates"
+```
+
+```dart title="packages/beak_core/lib/src/model/beak_field_ref.dart"
+--8<-- "packages/beak_core/lib/src/model/beak_field_ref.dart:BeakTextFieldPredicates"
+```
+
+The same references configure the UI. In the bookshop resource, `BookModel.title.textFilter()`, `BookModel.title.inputText()` and `BookModel.priceInCents.numberRangeFilter()` are extension methods on typed fields, so a text input can't be attached to a number.
+
+Some mistakes need the running program. A field reached through a relationship can be filtered but not sorted, and that is checked when the spec is built, not when it compiles:
+
+```console
+BeakConfigurationException(configuration): Field "author.name" is reached through a relationship; only a field of books itself can be used here.
+```
+
+### Reading a row keeps the declared type
+
+A record is a bag of `BeakValue`s keyed by column. In your code you rarely see the bag. `beak prepare` also writes an extension type per resource, so a read comes back as the type you declared.
+
+```dart title="examples/quickstart/lib/resources/notes/models/note.beak.dart"
+  String get title => NoteColumns.title.require(record);
+  String? get body => NoteColumns.body.readFrom(record);
+  bool get pinned => NoteColumns.pinned.require(record);
+```
+
+`title` is a `String` because the schema field isn't nullable, `body` is a `String?` because it is. `record.asNote.title` needs no cast and no null check the schema didn't ask for. A required value that is missing from a record throws a `BeakRecordShapeException` that names the column, instead of yielding `null` three layers away. The form has the mirror image: `draft.asNote.title` is a `String?`, because a draft can be incomplete.
+
+### Values cross the wire as BeakValue
+
+A filter operand, a stored cell and a form value all travel as a `BeakValue`, a sealed family with one variant per JSON shape. The constructor `BeakValue.of` picks the variant and refuses anything it can't represent:
+
+```dart title="packages/beak_core/lib/src/query/beak_value.dart"
+--8<-- "packages/beak_core/lib/src/query/beak_value.dart:of"
+```
+
+The default arm throws a `BeakConfigurationException`. A value of an unexpected type is a loud, named failure and never a quiet `null`.
+
+This is the body the panel posts for `NoteModel.pinned.eq(true)` ordered by title, ten per page. The strings are there, generated from the reference:
+
+```json
+{
+  "table": "notes",
+  "filter": { "type": "field", "column": "pinned", "operator": "eq", "value": true },
+  "sorts": [{ "column": "title", "descending": false }],
+  "search": null,
+  "relations": [],
+  "pagination": { "page": 1, "perPage": 10 },
+  "withTrashed": false
 }
 ```
 
-Write `searchOn: ['naem']` and `beak prepare` refuses to generate anything. It
-prints a `Cannot generate` header and one line per problem, naming the field,
-the bad key, and every key the other schema does have. A misspelled key is a
-build failure, not a picker that silently finds nothing.
+A `DateTime` is the one value that isn't a bare JSON primitive: it travels as `{"type": "dateTime", "value": "<ISO-8601>"}`, so the other side rebuilds a timestamp and not a string that looks like one.
 
-## Sealed families force exhaustive handling
+### Sealed families close the set
 
-The most-used vocabulary in Beak is sealed: `BeakColumn`, `BeakValue`,
-`BeakFilter`, `BeakResult`, and `BeakException` all have a fixed, closed set of
-subtypes. Sealed types are worth the ceremony because Dart's `switch` becomes
-exhaustive over them: add a variant and every unhandled `switch` stops compiling
-until you deal with the new case. The compiler keeps the audit for you.
+The vocabulary that carries meaning is sealed, so a `switch` over it must be exhaustive. Adding a variant is a compile error in every place that hasn't decided what to do with it.
 
-You can see the pattern in `BeakValue.of`, which turns plain Dart into a typed
-operand by matching on the runtime value and never falling back to `dynamic`:
+| Family | What the closed set gives you |
+| --- | --- |
+| `BeakColumn` | `beakDefaultFiltersOf` has no default arm: a new column kind must say what filtering it means |
+| `BeakValue` | one codec for the wire; an unknown shape can't slip through |
+| `BeakRule` | the form maps every rule to a client validator, exhaustively |
+| `BeakFilter` | the server's translator walks the tree without a fallback |
+| `BeakException` | the error-mapping middleware maps each one to a status |
+| `BeakResult` | a caller has to handle `BeakOk` and `BeakErr` |
+| `BeakBlock` | the block host renders each block type, or the build fails |
+| `BeakAccess` | access rules compose from a fixed set of building blocks |
 
-```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-static BeakValue of(Object? raw) => switch (raw) {
-  null => const BeakNullValue(),
-  final BeakValue value => value,
-  final bool value => BeakBoolValue(value),
-  final int value => BeakIntValue(value),
-  final double value => BeakDoubleValue(value),
-  final String value => BeakStringValue(value),
-  final DateTime value => BeakDateTimeValue(value),
-  final List<Object?> values => BeakListValue([
-    for (final value in values) BeakValue.of(value),
-  ]),
-  _ => throw BeakConfigurationException(
-    'BeakValue does not support ${raw.runtimeType} values (got $raw).',
-  ),
-};
+Two families are open on purpose, and they are the honest exceptions to the table: `BeakRecordRule` (you write your own cross-field rules) and `BeakFormNode` (the form host ignores a node type it doesn't know, where the block host would not compile). [The block system](the-block-system.md) explains the second.
+
+### Where a string still exists
+
+Every string below is a storage name, a wire key or an escape hatch. None of them is a field reference you type in application code.
+
+| Where | What it is | Why it stays |
+| --- | --- | --- |
+| `@Resource(table:)`, `@Column(columnName:)`, `@BelongsTo(foreignKey:)` | the database name of a table, column or key | an annotation can't refer to the field it sits on; `beak prepare` reads it once |
+| `@Custom(tag)` | a tag the client's cell-renderer registry is keyed by | the renderer is registered in Flutter code, the schema is pure Dart |
+| `beak.yaml` `resources:` | table names as YAML keys | it is a config file |
+| the JSON wire | `BeakQuerySpec.table`, filter and sort column keys, `fieldErrors` keys, `Map<String, Object?>` in every `toJson` and `fromJson` | JSON has no types; the strings come from references, and the containers never leave the transport code |
+| `BeakModelAction.name` | the command's identity on the wire | your code holds the `BeakModelAction` object and never writes the name |
+| `BeakRecord['title']` | the core-level lookup by key | it is what generated readers are built on |
+| a hand-written `BeakModel` | `BeakStringColumn(key: 'title')` | an adapter for a table Beak doesn't generate has to name its columns once |
+| `BeakClient` | table names in `query('products', spec)` | the documented raw REST client |
+| `BeakRule.validate(Object? value)`, `BeakScalarField<Object>` | an erased type | generic code (a form over any column) can't know `T`; a rule ignores a value of a type it doesn't apply to |
+| `BeakWidgetBlock`, `BeakFormWidget`, `BeakCustomColumn` | your own Flutter code | escape hatches; the type guarantees stop at their edge |
+
+The rest is checkable. At the time of writing, this prints nothing:
+
+```console
+$ grep -rnw dynamic packages/beak_core/lib packages/beak_backend/lib packages/beak_frontend/lib | grep -v ':[0-9]*: *///'
 ```
 
-An unsupported type does not slip through as `dynamic`. It hits the `_` arm and
-throws a typed `BeakConfigurationException`, so the failure is loud and specific
-instead of a silent `null` three layers later.
+There is no `dynamic` in the code of the three runtime packages, only in doc comments that say so. A search for the `as` keyword finds English inside string literals ("Save as draft"), import aliases and no cast.
 
-## BeakValue is a lossless wire type
+## Why it is shaped this way
 
-A filter's operand has to travel from the panel to the server as JSON and come
-back meaning the same thing. Plain JSON cannot tell a timestamp from a string:
-both are text. `BeakValue` solves this by being the single type every operand
-wears on the wire, with one tagged encoding for the case JSON would otherwise
-mangle.
+A rename should break the build, not the panel. With string references, as in most query builders, `where('price', ...)` compiles, ships, and fails when the server answers. The real server does catch it, after a round trip: an unknown sort column comes back as `{"code":"validation","message":"Unknown field \"nope\"."}` with a 422. With a generated reference the same mistake is a red line in the editor. The price is a generated part file next to every schema class and a `beak prepare` after each edit.
 
-```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-/// A typed wrapper around a filter comparison operand, so query specs
-/// serialize losslessly without ever exposing `dynamic`.
-///
-/// Wire encoding: [BeakNullValue], [BeakBoolValue], [BeakIntValue],
-/// [BeakDoubleValue], and [BeakStringValue] serialize as the raw JSON
-/// primitive; [BeakListValue] as a JSON array; [BeakDateTimeValue] as a
-/// tagged object `{"type": "dateTime", "value": <ISO-8601>}` so decoding
-/// never confuses timestamps with plain strings.
-@immutable
-sealed class BeakValue {
-  const BeakValue();
-```
+Generics carry the type, and the cost is verbose signatures. `BeakScalarField<int>` reads worse than a string. What you get is completion that offers only the operations that make sense, and refactors that follow the field.
 
-Primitives ride as themselves. A `DateTime` rides tagged, so the decoder can
-reconstruct a real `DateTime` and not a lookalike string:
+The wire is untyped on purpose. JSON can't carry a Dart type, so Beak keeps the untyped part small and sealed: `BeakValue` for values, `BeakFilter` for predicates, `BeakQuerySpec` for the whole read. Decoding is strict and throws a `BeakConfigurationException` on a malformed body.
 
-```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-@override
-Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
-```
+## What it means for you
 
-The result is that `BeakValue.of(x).toJson()` and `BeakValue.fromJson(...)`
-round-trip a filter operand across HTTP without a single `as` cast or a stray
-`Map<String, dynamic>` at either end.
+| Do | Never |
+| --- | --- |
+| Reference fields as `Model.field` (`BookModel.priceInCents`) | Write a column key as a string in a filter, sort, input or action |
+| Read records with `record.asBook.title` | Read `record['title']` in application code, or cast a value |
+| Hold a `BeakModelAction` object and pass it around | Compare or pass an action name |
+| Keep a raw table or column string inside one adapter or hand-written model | Spread strings through screens and services |
+| Use `Object?` only inside a generic helper that truly can't know `T` | Reach for `dynamic` or `Map<String, dynamic>` as a domain or API type |
+| Run `beak prepare` after a schema edit, then fix the compile errors it exposes | Silence an analyzer error with a cast |
 
-!!! note "Where the operands live"
-    `BeakValue` is the leaf of the query wire format. Filters, sorts, search, and
-    pagination all sit in a `BeakQuerySpec` that serializes the same way. See
-    [How data flows](how-data-flows.md) for the whole spec.
-
-## Reading a row keeps its types too
-
-`beak prepare` also writes an extension type per resource, so reading a record
-gives you the Dart type you declared rather than an `Object?` to pattern-match:
-
-```dart title="examples/store/lib/models/category.beak.dart"
-/// What the category is called.
-String get name => CategoryColumns.name.require(record);
-
-/// The one-line blurb shown above the product list.
-String? get blurb => CategoryColumns.blurb.readFrom(record);
-```
-
-A required field reads as `String`, a nullable one as `String?`, and the
-nullability matches the schema class because both came from it. Reach for a row
-with `record.asCategory` and the getters are there.
-
-## What this buys you
-
-Put together, the promise is a short list of things you will not find in Beak
-code, and a shorter list of what you use instead:
-
-| You will not write | You write instead |
-| ------------------ | ----------------- |
-| `record['price']` | `ProductColumns.price`, or `record.asProduct.price` |
-| `dynamic value` | a typed `BeakValue` or the column's value type |
-| `value as int` | a `switch` over the sealed family |
-| `Map<String, dynamic>` as an API type | a `BeakRecord` or a typed DTO |
-| a stringly-typed status | an enum field, which becomes a `BeakEnumColumn<ProductStatus>` |
-| `'price'` in a migration, a form and a table | one field on the schema class |
-
-The payoff is that renaming a field, adding an enum case, or introducing a new
-column variant surfaces as a compile error at the exact call site that needs
-attention, not as a runtime `null` a user reports next week.
+If an API you are about to add would force a caller to write a field name as a string, design it to take the reference instead.
 
 ## Continue reading
 
-- [The one-definition promise](the-one-definition-promise.md) the same declaration, feeding six surfaces plus the migration.
-- [Results and errors](results-and-errors.md) the sealed `BeakResult` and `BeakException` families.
-- [How data flows](how-data-flows.md) `BeakValue` inside the serializable query spec.
-- [Relationships](../models/relationships.md) the four kinds, and the constants they generate.
-- [Generated code](../models/generated-code.md) every symbol `beak prepare` writes.
+- [Generated code](../models/generated-code.md) every type `beak prepare` writes next to a schema class.
+- [Queries](../reference/queries.md) the query spec, its copy-builders and the typed predicates.
+- [Custom data sources](../extending/custom-data-sources.md) implementing the typed boundary for your own backend.
+- [How data flows](how-data-flows.md) the spec and the save plan, end to end.

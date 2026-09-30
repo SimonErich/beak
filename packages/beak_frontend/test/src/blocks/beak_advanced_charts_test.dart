@@ -28,6 +28,11 @@ final class _PointModel extends BeakModel {
 void main() {
   BeakRecord row(Map<String, Object?> values) => BeakRecord.fromRow(values);
 
+  double number(BeakRecord record, String key) => switch (record[key]?.raw) {
+    final num value => value.toDouble(),
+    final Object? other => fail('"$key" is not numeric: $other'),
+  };
+
   setUp(() {
     final dataSource = FakeDataSource(
       records: {
@@ -101,9 +106,9 @@ void main() {
         map: (records) => [
           for (final r in records)
             BeakBubblePoint(
-              x: (r['x']?.raw as num).toDouble(),
-              y: (r['y']?.raw as num).toDouble(),
-              size: (r['size']?.raw as num).toDouble(),
+              x: number(r, 'x'),
+              y: number(r, 'y'),
+              size: number(r, 'size'),
               label: r['label']?.raw?.toString(),
             ),
         ],
@@ -127,10 +132,10 @@ void main() {
           for (final (i, r) in records.indexed)
             BeakCandle(
               x: i.toDouble(),
-              open: (r['open']?.raw as num).toDouble(),
-              high: (r['high']?.raw as num).toDouble(),
-              low: (r['low']?.raw as num).toDouble(),
-              close: (r['close']?.raw as num).toDouble(),
+              open: number(r, 'open'),
+              high: number(r, 'high'),
+              low: number(r, 'low'),
+              close: number(r, 'close'),
             ),
         ],
       ),
@@ -156,7 +161,7 @@ void main() {
             BeakMatrixCell(
               row: r['day']?.raw?.toString() ?? '',
               column: r['week']?.raw?.toString() ?? '',
-              value: (r['v']?.raw as num).toDouble(),
+              value: number(r, 'v'),
             ),
         ],
       ),

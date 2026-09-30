@@ -1,4 +1,7 @@
 import 'package:flutter/widgets.dart';
+import 'package:beak_core/beak_core.dart';
+import '../presentation/beak_action_presentation.dart';
+import '../presentation/beak_record_template.dart';
 
 /// A typed row or bulk action surfaced on a [BeakDataTable] — the table
 /// widget's raw hook. The resource-level action system (`BeakAction` and
@@ -32,6 +35,12 @@ final class BeakTableAction {
     required this.onRun,
     this.icon,
     this.destructive = false,
+    this.visibleWhen,
+    this.placement = BeakActionPlacement.icon,
+    this.semanticLabel,
+    this.labelValue,
+    this.selectionLabel,
+    this.group,
   });
 
   /// Stable identifier (test hooks, telemetry).
@@ -40,11 +49,29 @@ final class BeakTableAction {
   /// The button label.
   final String label;
 
+  /// Optional record-aware label; dependencies are loaded with table rows.
+  final BeakValueBinding<String>? labelValue;
+
+  /// Optional count-aware label for selection actions.
+  final String Function(int count)? selectionLabel;
+
+  /// Semantic grouping in an overflow menu.
+  final String? group;
+
+  /// Full action name retained when the visible label is shortened.
+  final String? semanticLabel;
+
   /// The icon shown on row-action buttons.
   final IconData? icon;
 
   /// Whether the action destroys data (rendered destructively).
   final bool destructive;
+
+  /// Optional row-level availability, reevaluated when the record refreshes.
+  final bool Function(BeakRecord record)? visibleWhen;
+
+  /// Placement when composed in a row.
+  final BeakActionPlacement placement;
 
   /// Runs the action over the target records' raw primary keys (row and
   /// bulk invocations both deliver the typed key values, never

@@ -10,6 +10,7 @@ export 'configuration_exception.dart';
 export 'connection_exception.dart';
 export 'connection_timeout_exception.dart';
 export 'dangerous_query_exception.dart';
+export 'data_exception.dart';
 export 'factory_exception.dart';
 export 'foreign_key_exception.dart';
 export 'full_table_scan_exception.dart';

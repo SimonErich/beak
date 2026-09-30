@@ -4,7 +4,7 @@ library;
 
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 import 'package:worm_postgres/worm_postgres.dart';
@@ -12,9 +12,10 @@ import 'package:worm_postgres/worm_postgres.dart';
 /// The round trip: a database Beak did not create, read back out of it, and
 /// rebuilt somewhere else.
 ///
-/// `beak introspect` writes schema classes from a live schema, `beak prepare`
-/// derives migrations from those classes, and applying them to an empty
-/// database must produce the schema we started from. Every step in that chain
+/// `beak introspect` writes schema classes from a live schema and the baseline
+/// migration that adopts it, `beak prepare` derives the rest from those
+/// classes, and applying the baseline to an empty database must produce the
+/// schema we started from. Every step in that chain
 /// is lossy if any one of them drops something, and the loss is invisible
 /// until a query fails months later: a `VARCHAR(120)` that came back as
 /// `VARCHAR(255)`, an index that was never created, a foreign key that lost
@@ -23,11 +24,12 @@ import 'package:worm_postgres/worm_postgres.dart';
 /// So this asserts the two schemas column for column, index for index, and
 /// constraint for constraint. It is tagged `e2e` because it needs a real
 /// Postgres: no other database has enough of a catalog to compare against.
-void main() {
+Future<void> main() async {
   final Uri base = Uri.parse(
     Platform.environment['DATABASE_URL'] ??
         'postgres://beak:beak@localhost:25432/beak',
   );
+  final bool reachable = await _reachable(base);
 
   /// Two dedicated databases: the original, and the one rebuilt from what was
   /// read out of it. Derived, never taken from the environment, so this
@@ -39,10 +41,8 @@ void main() {
   late DatabaseAdapter rebuilt;
 
   setUpAll(() async {
-    if (!await _reachable(base)) {
-      throw StateError(
-        'Postgres is unreachable — start it with `melos run up`.',
-      );
+    if (!reachable) {
+      return;
     }
     for (final suffix in const ['origin', 'rebuilt']) {
       await _createDatabase(base, databaseFor(suffix).pathSegments.first);
@@ -55,6 +55,9 @@ void main() {
   });
 
   tearDownAll(() async {
+    if (!reachable) {
+      return;
+    }
     await origin.disconnect();
     await rebuilt.disconnect();
   });
@@ -92,22 +95,35 @@ dependencies:
         environment,
       ).run(['introspect', databaseFor('origin').toString()]);
       expect(introspected, 0);
-      expect(
-        Directory(
-          '${project.path}/lib/models',
-        ).listSync().map((entity) => entity.uri.pathSegments.last),
-        containsAll(<String>['category.dart', 'product.dart']),
-      );
+      // The feature-folder layout `beak make:resource` writes.
+      for (final path in const [
+        'lib/resources/categories/models/category.dart',
+        'lib/resources/products/models/product.dart',
+      ]) {
+        expect(
+          File('${project.path}/$path').existsSync(),
+          isTrue,
+          reason: path,
+        );
+      }
 
-      // 2. Derive everything else from what was written, migrations included.
+      // 2. Derive everything else from what was written. Introspection adopts
+      // the schema by default, so the tables are covered by the baseline it
+      // wrote and there is no create migration for prepare to add.
       final BeakPrepareResult prepared = runPrepare(environment);
       expect(
         prepared.isSuccess,
         isTrue,
         reason: '${prepared.discovery.issues}',
       );
+      expect(
+        Directory(
+          '${project.path}/lib/migrations',
+        ).listSync().map((entity) => entity.uri.pathSegments.last).toList(),
+        ['adopt_existing_schema.dart'],
+      );
 
-      // 3. Apply them to a database that has nothing.
+      // 3. Apply the baseline to a database that has nothing.
       final ProcessResult pubGet = await Process.run('flutter', [
         'pub',
         'get',
@@ -138,6 +154,9 @@ dependencies:
       );
     },
     timeout: const Timeout(Duration(minutes: 6)),
+    skip: reachable
+        ? null
+        : 'Postgres is unreachable: start it with `melos run up`.',
   );
 }
 

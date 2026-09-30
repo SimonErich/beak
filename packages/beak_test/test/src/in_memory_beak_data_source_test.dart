@@ -1,5 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_test/beak_test.dart';
+import 'package:beak_test/src/data_source_relation_contract.dart';
 import 'package:test/test.dart';
 
 import '../support/contract_models.dart';
@@ -14,6 +15,24 @@ InMemoryBeakDataSource sourceWith({DateTime Function()? now}) =>
       now: now ?? () => DateTime.utc(2026, 7, 26, 12),
       generateId: () => 'generated-id',
     );
+
+final class _IdOnlyModel extends BeakModel {
+  const _IdOnlyModel();
+
+  @override
+  String get table => 'id_only';
+
+  @override
+  String get displayColumnKey => 'id';
+
+  @override
+  List<BeakColumn> get columns => const [ProductColumns.id];
+}
+
+InMemoryBeakDataSource _inMemory(BeakDataSource source) => switch (source) {
+  final InMemoryBeakDataSource inMemory => inMemory,
+  _ => throw StateError('Expected an InMemoryBeakDataSource, got $source.'),
+};
 
 BeakRecord product(
   String id, {
@@ -35,6 +54,91 @@ BeakRecord product(
 );
 
 void main() {
+  test('creating a second row under a taken key is a conflict, as in a real '
+      'source, and leaves the first row alone', () async {
+    final source = sourceWith()..seed(_product, [product('p1', name: 'First')]);
+    await expectLater(
+      () => source.create('products', product('p1', name: 'Second')),
+      throwsA(isA<BeakConflictException>()),
+    );
+    final stored = await source.getOne('products', 'p1');
+    expect(stored?['name']?.raw, 'First');
+  });
+
+  test(
+    'relation search and grouped filters use matching related rows',
+    () async {
+      final source = sourceWith()
+        ..seed(_category, [
+          BeakRecord.fromRow({'id': 'c1', 'name': 'Coffee'}),
+        ])
+        ..seed(_product, [
+          product('p1', name: 'Beans', categoryId: 'c1'),
+          product('p2', name: 'Tea'),
+        ]);
+      final result = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          search: BeakSearch('coffee', ['category.name']),
+        ),
+      );
+      expect(result.items.map((row) => row['name']?.raw), ['Beans']);
+      final grouped = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          filter: BeakRelationFilter(
+            'category',
+            BeakFieldFilter.forKey(
+              'name',
+              BeakOperator.eq,
+              BeakStringValue('Coffee'),
+            ),
+          ),
+        ),
+      );
+      expect(grouped.total, 1);
+    },
+  );
+  test(
+    'automatic text search uses SQL wildcard semantics in the test source',
+    () async {
+      final source = sourceWith()
+        ..seed(_product, [
+          product('1', name: 'News'),
+          product('2', name: 'Other'),
+        ]);
+      final results = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          search: BeakSearch('new', ['name']),
+        ),
+      );
+      expect(results.items.map((row) => row['id']?.raw), ['1']);
+      final wildcard = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          filter: BeakFieldFilter.forKey(
+            'name',
+            BeakOperator.ilike,
+            BeakStringValue('n_w%'),
+          ),
+        ),
+      );
+      expect(wildcard.items.map((row) => row['id']?.raw), ['1']);
+      final anchored = await source.query(
+        const BeakQuerySpec(
+          table: 'products',
+          filter: BeakFieldFilter.forKey(
+            'name',
+            BeakOperator.ilike,
+            BeakStringValue('ew'),
+          ),
+        ),
+      );
+      expect(anchored.items, isEmpty);
+    },
+  );
+  // --8<-- [start:contract]
   // The full interface contract, run against the reference implementation.
   runBeakDataSourceContract(
     'InMemoryBeakDataSource',
@@ -42,10 +146,53 @@ void main() {
     model: _product,
     create: () async => sourceWith(),
     seed: (source, model, records) async =>
-        (source as InMemoryBeakDataSource).seed(model, records),
+        _inMemory(source).seed(model, records),
     sortableTextColumn: ProductColumns.name,
     numericColumn: ProductColumns.price,
+    relationModels: const [_product],
+    seedLinks: (source, relation, ownerId, relatedIds) async =>
+        _inMemory(source).seedPivot(relation, ownerId, relatedIds),
   );
+  // --8<-- [end:contract]
+  // A hard-deleting model that discovers its own columns, whose relation
+  // groups link through `attach` because no link seeder is given.
+  runBeakDataSourceContract(
+    'InMemoryBeakDataSource (hard-deleting model)',
+    registry: buildContractRegistry(),
+    model: _category,
+    create: () async => sourceWith(),
+    seed: (source, model, records) async =>
+        _inMemory(source).seed(model, records),
+    relationModels: const [_category],
+  );
+
+  test('the relation contract needs a relationship to run', () {
+    expect(
+      () => defineBeakRelationContract(
+        'InMemoryBeakDataSource',
+        registry: buildContractRegistry(),
+        owners: const [_tag],
+        create: () async => sourceWith(),
+        seed: (source, model, records) async =>
+            _inMemory(source).seed(model, records),
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('the contract needs a string column to sort and search', () {
+    expect(
+      () => runBeakDataSourceContract(
+        'no string column',
+        registry: buildContractRegistry(),
+        model: const _IdOnlyModel(),
+        create: () async => sourceWith(),
+        seed: (source, model, records) async =>
+            _inMemory(source).seed(model, records),
+      ),
+      throwsArgumentError,
+    );
+  });
 
   group('operators', () {
     late InMemoryBeakDataSource source;
@@ -168,6 +315,76 @@ void main() {
         ]),
       ]);
       expect(await matching(filter), ['1', '3']);
+    });
+  });
+
+  group('LIKE wildcards', () {
+    late InMemoryBeakDataSource source;
+
+    setUp(() {
+      source = sourceWith()
+        ..seed(_product, [
+          product('1', name: '50% off'),
+          product('2', name: '50 off'),
+          product('3', name: 'a_b'),
+          product('4', name: 'axb'),
+          product('5', name: r'back\slash'),
+          product('6', name: 'Straße'),
+        ]);
+    });
+
+    Future<List<String>> matching(BeakFilter filter) async {
+      final page = await source.query(_product.query(filter: filter));
+      return [for (final record in page.items) '${record['id']?.raw}'];
+    }
+
+    BeakFilter on(BeakOperator operator, String value) => BeakFieldFilter(
+      column: ProductColumns.name,
+      operator: operator,
+      value: BeakValue.of(value),
+    );
+
+    test('% and _ in a contains term match themselves', () async {
+      expect(await matching(on(BeakOperator.contains, '50%')), ['1']);
+      expect(await matching(on(BeakOperator.contains, 'a_b')), ['3']);
+    });
+
+    test('a backslash in a contains term matches itself', () async {
+      expect(await matching(on(BeakOperator.contains, r'\')), ['5']);
+    });
+
+    test('startsWith and endsWith take the term literally', () async {
+      expect(await matching(on(BeakOperator.startsWith, '50%')), ['1']);
+      expect(await matching(on(BeakOperator.endsWith, 'a_b')), ['3']);
+    });
+
+    test(
+      'a like pattern keeps its wildcards and honours a backslash',
+      () async {
+        expect(await matching(on(BeakOperator.like, '50%')), ['1', '2']);
+        expect(await matching(on(BeakOperator.like, r'50\%%')), ['1']);
+        expect(await matching(on(BeakOperator.like, 'a_b')), ['3', '4']);
+        expect(await matching(on(BeakOperator.like, r'a\_b')), ['3']);
+        expect(await matching(on(BeakOperator.like, r'back\\slash')), ['5']);
+      },
+    );
+
+    test('ilike ignores case and honours the same escapes', () async {
+      expect(await matching(on(BeakOperator.ilike, r'50\% OFF')), ['1']);
+      expect(await matching(on(BeakOperator.ilike, 'A_B')), ['3', '4']);
+    });
+
+    test('a search term is matched as text, not as a pattern', () async {
+      Future<List<String>> found(String term) async {
+        final page = await source.query(
+          _product.query(search: BeakSearch(term, const ['name'])),
+        );
+        return [for (final record in page.items) '${record['id']?.raw}'];
+      }
+
+      expect(await found('50%'), ['1']);
+      expect(await found('a_b'), ['3']);
+      expect(await found(r'\'), ['5']);
     });
   });
 
@@ -349,6 +566,30 @@ void main() {
     test('detaching from an untouched pivot is a no-op', () async {
       await source.detach('products', '1', 'tags', ['t1']);
       expect(await tagCount(), 0);
+    });
+
+    test('has-many links change only the requested owner membership', () async {
+      source
+        ..seed(_category, [
+          BeakRecord.fromRow({'id': 'c1', 'name': 'Coffee'}),
+          BeakRecord.fromRow({'id': 'c2', 'name': 'Tea'}),
+        ])
+        ..seed(_product, [
+          product('1', categoryId: 'c1'),
+          product('2', categoryId: 'c2'),
+        ]);
+      await source.detach('categories', 'c1', 'products', [
+        '1',
+        '2',
+        'missing',
+      ]);
+      expect(
+        (await source.getOne('products', '1'))?['category_id']?.raw,
+        isNull,
+      );
+      expect((await source.getOne('products', '2'))?['category_id']?.raw, 'c2');
+      await source.attach('categories', 'c1', 'products', ['2']);
+      expect((await source.getOne('products', '2'))?['category_id']?.raw, 'c1');
     });
 
     test('a non-pivot relation cannot be attached', () {

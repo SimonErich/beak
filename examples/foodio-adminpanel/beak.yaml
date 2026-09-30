@@ -1,0 +1,16 @@
+name: Gabel
+api:
+  baseUrl: http://localhost:8081
+server:
+  port: 8081
+resources:
+  order_items:
+    hidden: true
+  order_item_options:
+    hidden: true
+  order_activities:
+    hidden: true
+  order_notes:
+    hidden: true
+  menu_plan_items:
+    hidden: true

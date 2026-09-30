@@ -54,6 +54,22 @@ C="unbalanced'
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+
+    test('names the line of a malformed entry and never repeats its value', () {
+      // A .env line often holds a secret, and the message ends up in logs.
+      for (final content in ['# keys\nMY-KEY=hunter2', '# keys\nhunter2']) {
+        expect(
+          () => BeakEnv.parse(content),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('line 2'), isNot(contains('hunter2'))),
+            ),
+          ),
+        );
+      }
+    });
   });
 
   group('loadFile', () {

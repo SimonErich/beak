@@ -89,7 +89,11 @@ Future<void> main(List<String> arguments) async {
   exit(1);
 }
 
-/// Every directory under `examples/` that is a package.
+/// Every directory under `examples/` that is a Beak project.
+///
+/// A pub workspace root (a `workspace:` list, e.g. `examples/serverpod`) is
+/// skipped: it is a Serverpod project with its own CI job, and `beak doctor`
+/// does not run at a workspace root.
 List<Directory> examplesIn(Directory root) {
   final directory = Directory('${root.path}/$examplesDir');
   if (!directory.existsSync()) {
@@ -98,12 +102,19 @@ List<Directory> examplesIn(Directory root) {
   final found = <Directory>[
     for (final entity in directory.listSync())
       if (entity is Directory &&
-          File('${entity.path}/pubspec.yaml').existsSync())
+          File('${entity.path}/pubspec.yaml').existsSync() &&
+          !isWorkspaceRoot(
+            File('${entity.path}/pubspec.yaml').readAsStringSync(),
+          ))
         entity,
   ];
   found.sort((a, b) => a.path.compareTo(b.path));
   return found;
 }
+
+/// Whether [pubspecSource] is a pub workspace root.
+bool isWorkspaceRoot(String pubspecSource) =>
+    RegExp(r'^workspace:', multiLine: true).hasMatch(pubspecSource);
 
 /// Runs `beak doctor --json` in [example] and reads its verdict.
 Future<ExampleHealth> healthOf(
@@ -132,7 +143,8 @@ Future<ExampleHealth> healthOf(
 
   final failures = <String>[];
   final warnings = <String>[];
-  for (final check in report['checks'] as List<Object?>? ?? const []) {
+  final Object? checks = report['checks'];
+  for (final check in checks is List<Object?> ? checks : const <Object?>[]) {
     if (check case {
       'status': final String status,
       'label': final String label,

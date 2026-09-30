@@ -18,6 +18,7 @@ graph TD
   AE --> UCE[UniqueConstraintException]
   AE --> FKE[ForeignKeyException]
   AE --> CCE[CheckConstraintException]
+  AE --> DE[DataException]
   AE --> TE[TransactionException]
   AE --> MGE[MigrationException]
   AE --> AME[AdapterMismatchException]
@@ -89,7 +90,8 @@ Never thrown directly. Subclasses override `context` to expose their typed field
 | `SyntaxException` | `QueryException` | plus `position: int?` (byte offset in `query`) | The driver reports a syntax error. Catchable as a `QueryException`. |
 | `UniqueConstraintException` | `AdapterException` | `table: String`, `column: String` | A UNIQUE constraint is violated. Convert to a user-facing shape via `ValidationException.fromUniqueConstraint`. |
 | `ForeignKeyException` | `AdapterException` | `table: String`, `column: String` | A foreign key constraint is violated. |
-| `CheckConstraintException` | `AdapterException` | `table: String`, `column: String?`, `constraintName: String?` | A CHECK constraint is violated. |
+| `CheckConstraintException` | `AdapterException` | `table: String`, `column: String?`, `constraintName: String?` | A CHECK or NOT NULL constraint is violated. |
+| `DataException` | `AdapterException` | `table: String`, `column: String?` | The database refuses a value for its size, range or format: a string longer than its column, a number outside its type's range, text that is not a valid value of the type. `column` is set when the driver names it. |
 | `TransactionException` | `AdapterException` | `savepointName: String?` | A transaction or savepoint fails. The MongoDB adapter's `transaction()` throws it by design: multi-document transactions are unsupported with the current driver. |
 | `MigrationException` | `AdapterException` | `migration: String` | A migration fails to apply. |
 | `AdapterMismatchException` | `AdapterException` | `expectedAdapter: String`, `actualAdapter: String` | `QueryBuilder.sql(...)` runs against a non-SQL adapter, or `.mongo(...)` against a non-Mongo adapter. |

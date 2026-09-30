@@ -25,10 +25,14 @@ final class BeakHasOne extends BeakRelationship {
     required super.displayColumnKey,
     required this.foreignKey,
     super.searchColumnKeys,
+    this.owned = false,
   });
 
   /// The column on the related table pointing back at this model's id.
   final String foreignKey;
+
+  /// Whether the related record belongs exclusively to this parent.
+  final bool owned;
 
   @override
   BeakRenderConfig get renderConfig =>

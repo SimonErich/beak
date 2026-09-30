@@ -12,14 +12,21 @@ body:
     attributes:
       label: Affected package
       options:
+        - beak (umbrella package)
         - beak_core
-        - beak_backend
         - beak_frontend
+        - beak_backend
         - beak_cli
+        - beak_test
         - beak_image
         - beak_storage_s3
         - beak_storage_ftp
-        - reference_admin (apps)
+        - beak_serverpod
+        - beak_serverpod_flutter
+        - beak_serverpod_generator
+        - examples/quickstart
+        - examples/clean_beak_config
+        - examples/foodio-adminpanel
         - not sure / multiple
     validations:
       required: true

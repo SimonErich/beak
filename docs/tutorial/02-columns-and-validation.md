@@ -1,384 +1,229 @@
 ---
 title: Columns and validation
-description: Build the roastery's Product schema one column kind at a time, attach rules that hold in the form and in the API, and let beak prepare derive the table from the class.
+description: Add a Product with exact money and a rule, then watch the form and the server refuse the same bad value with the same message.
+type: tutorial
+audience: [beginner]
+status: stable
 ---
 
 # Columns and validation
 
-Categories are a shelf. Products are what sits on it: prices, stock, a photo, a
-spec sheet, a lifecycle state. After this chapter your panel has a Products page
-built from one Dart class, with every column kind Beak has and validation that
-holds whether the caller is the form or `curl`.
+Categories were two text fields. Products bring money, a yes/no flag and a rule that must hold, so this chapter is about where each of those is written and who enforces it. The answer to the second part is short: the form checks, and then the server checks again, using the same Dart.
 
-Chapter 1 left you with a `Category` resource, a running API and a panel. Keep
-them; nothing here replaces them.
+## What you'll build
 
-## Start the file
+- a `Product` schema with five fields, one of them exact money,
+- a `ProductResource` that puts Products above Categories in the Catalog group,
+- a `products` table, created by a migration you can read,
+- a rule (`price` cannot be negative) that you watch refuse a value twice, once in the form and once at the API.
 
-A file under `lib/models/` is a resource. Create `lib/models/product.dart`:
+## Before you start
 
-```dart
+You need chapter 1 finished: a `shop` project with Categories migrated and `beak doctor` green. If `beak dev` is still running from last time, leave it. It does not watch files, so you restart it after the migration below.
+
+## Declare the schema
+
+A product has a name, a price, an optional SKU and description, and an on/off switch. Create `lib/resources/products/models/product.dart`:
+
+```dart title="lib/resources/products/models/product.dart"
 import 'package:beak/beak.dart';
 import 'package:beak/schema.dart';
 
 part 'product.beak.dart';
 
-/// A product in the catalog.
-@Resource(softDeletes: true, timestamps: true)
-final class Product extends BeakSchema {}
-```
-
-The two flags are covered at the end. Everything else you add is a field, and
-two things decide what a field becomes: its **type** picks the column kind, its
-**nullability** decides required-ness in the form validator, the API and the
-database at once. `@Column` carries what the type cannot.
-
-The fences below quote `examples/store/lib/models/product.dart`, the finished
-file in the Beak repo. Add each group to your own class body in order.
-
-## Text: three kinds, three inputs
-
-```dart title="examples/store/lib/models/product.dart"
-  /// What the product is called.
-  ///
-  /// Non-nullable, so it is required — the form validator, the API's
-  /// validation and the column's `NOT NULL` all follow from the type.
-  @Display()
-  @Column(
-    searchable: true,
-    sortable: true,
-    indexed: true,
-    rules: [BeakMaxLength(255)],
-  )
-  late final String name;
-
-  /// The stock-keeping unit, unique across the catalog.
-  @Column(
-    label: 'SKU',
-    searchable: true,
-    unique: true,
-    rules: [BeakMaxLength(40)],
-  )
-  late final String sku;
-
-  /// The short description shown in listings.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakText? summary;
-
-  /// The long description, edited as rich text.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakRichText? description;
-```
-
-`String` is one line, `BeakText` a textarea, `BeakRichText` a rich-text editor.
-Dart has no separate type for "long text", so Beak supplies one.
-
-- `@Display()` marks the field that stands for the record everywhere else: page
-  titles, links, pickers, and the label a related record shows. One per schema.
-- `label: 'SKU'` because the derived label would be "Sku".
-- `searchable` joins the list search and global search. `sortable` gives the
-  header a sort. `indexed` and `unique` are read by the migration.
-- `visibleOn` keeps the long fields off the table. Omit it and a column appears
-  on all three surfaces: table, form, detail.
-
-## Numbers and booleans
-
-```dart title="examples/store/lib/models/product.dart"
-  /// Sale price in euros.
-  @Column(prefix: '€', sortable: true, filterable: true, rules: [BeakMin(0)])
-  late final double price;
-
-  /// Units in stock.
-  @Column(suffix: ' pcs', min: 0, sortable: true)
-  late final int stock;
-
-  /// Whether the product is featured on the storefront.
-  @Column(filterable: true)
-  late final bool featured;
-```
-
-`prefix` and `suffix` travel with the value, so the cell reads `€18.50` and the
-detail row `250 pcs` with no formatter anywhere. A decimal shows two fraction
-digits unless `precision` says otherwise; an integer shows none. `min: 0` bounds
-the number input on
-`stock`; `price` cannot use it, because `min` and `max` belong to `int` fields
-and a decimal states its floor as a rule. Getting that wrong is not a runtime
-surprise:
-
-```console
-$ beak prepare
-Cannot generate — fix these first:
-  lib/models/product.dart: Product.price is a decimal column, which has no "min". Bounds belong on an `int` field; use rules otherwise.
-```
-
-## An enum, rendered as badges
-
-```dart title="examples/store/lib/models/product.dart"
-/// Lifecycle states of a product.
-enum ProductStatus {
-  /// Being drafted, not on sale.
-  draft,
-
-  /// Live in the catalog.
-  published,
-
-  /// Withdrawn from the catalog.
-  archived,
+/// Product schema; all metadata and typed helpers are generated.
+@Resource()
+final class Product extends BeakSchema {
+  --8<-- "examples/clean_beak_config/lib/resources/products/models/product.dart:ProductFields"
 }
 ```
 
-Declare it above the class, then use it as a field type:
+The Dart type still picks the column, and nullability still decides what is required. The new parts are the price, the default and the rule:
 
-```dart title="examples/store/lib/models/product.dart"
-  /// Lifecycle state, rendered as a coloured badge.
-  @Column(filterable: true)
-  @Badges({
-    ProductStatus.draft: BeakColor.muted,
-    ProductStatus.published: BeakColor.success,
-    ProductStatus.archived: BeakColor.warning,
-  })
-  late final ProductStatus status;
-```
+| Field | Column | Required | What else it says |
+| --- | --- | --- | --- |
+| `name` | single-line text | yes | Searchable and sortable, and `@Display` makes it the product's label in pickers and page titles. |
+| `price` | integer, holding money | yes | `BeakSemantic.money(currency: 'EUR')` says the value is an amount of euros, `BeakMin(0)` says it cannot be negative. |
+| `sku` | single-line text | no | Searchable. |
+| `description` | single-line text | no | No annotation at all, which is valid. Declare it `BeakText?` instead of `String?` for a paragraph input. |
+| `active` | on/off switch | yes | `defaultValue: true`, so a new product starts on sale. |
 
-The enum's values become the form's select options and the API's accepted
-values. The generated column is a `BeakEnumColumn<ProductStatus>`, so a badge
-key that is not a `ProductStatus` does not compile.
+### Why the price is not a double
 
-`filterable: true` puts a control in the filter bar when a resource declares no
-filters of its own: an enum becomes a select, a bool a switch, a string a
-contains-search, a date a range. Numbers have no derived control yet, so
-`price`'s flag waits for a filter you write in
-[chapter 5](05-shaping-the-panel.md).
+A `double` cannot hold 0.10 exactly, and an order total that is off by a cent is a bug report you do not want. `BeakDecimal` is an integer count of units at a scale: `BeakDecimal(1290, scale: 2)` is 12.90, and every operation is integer arithmetic. The money semantic adds the currency, so the form shows `EUR`, and the database stores the integer.
 
-## Dates, colours and JSON
+Beak writes the column for you. This is what `price` became in the generated part file:
 
-```dart title="examples/store/lib/models/product.dart"
-  /// When the product went on sale.
-  @Column(sortable: true, format: BeakDateFormat.relative)
-  late final DateTime? publishedAt;
-
-  /// The swatch shown beside the name.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakHexColor? swatch;
-
-  /// Storefront metadata the catalog importer round-trips untouched.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakJson? metadata;
-```
-
-`BeakDateFormat.relative` renders "3d ago" instead of a timestamp, and falls
-back to the plain date once the record is a month old. `BeakHexColor` gets a
-swatch and a picker. `BeakJson` gets a multi-line editor and a `json` database
-column: use it for the payload you carry but do not query. Beak keeps the
-document as text and never hands you a `Map<String, dynamic>`;
-`BeakJson.decode` turns it into a typed tree you can pattern-match. All three
-are nullable, because a draft product has none of them.
-
-## Uploads
-
-```dart title="examples/store/lib/models/product.dart"
-  /// The product photo.
-  ///
-  /// The rules are enforced twice from this one declaration: in the browser
-  /// before the upload starts, and again in the API — a client that skips the
-  /// panel does not skip the check.
-  @Image(
-    storagePath: 'products',
-    maxSizeInBytes: 5 * 1024 * 1024,
-    allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
-    thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-    transforms: [
-      BeakThumbnailTransform(
-        size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-      ),
-      BeakFormatTransform.webp(),
-    ],
-  )
-  late final BeakImageRef? image;
-
-  /// The spec sheet customers download.
-  @FileField(
-    storagePath: 'products/specs',
-    maxSizeInBytes: 10 * 1024 * 1024,
-    allowedTypes: [BeakFileType.pdf],
-  )
-  late final BeakFileRef? specSheet;
-```
-
-`@Image` adds the image-only parts: a thumbnail rendition for the table and
-transforms the server runs on the way in. `@FileField` is the same declaration
-without them. Each column gets its own endpoint,
-`POST /api/products/<column>/upload`.
-
-The bytes need somewhere to land, and Beak takes a default rather than asking:
-`storage/uploads` beside your `pubspec.yaml`, served by the same server at
-`/uploads`. Development needs no S3, no MinIO and no reverse proxy, and
-`beak create` git-ignores `storage/` for you.
-
-Point it elsewhere with a `.env` beside your `pubspec.yaml`:
-
-```bash title=".env"
-BEAK_STORAGE_DRIVER=local
-BEAK_LOCAL_ROOT_DIR=var/uploads
-BEAK_LOCAL_PUBLIC_BASE_URL=http://localhost:8080/uploads
-```
-
-`s3`, `ftp` and `memory` are the other drivers, each with its own `BEAK_*`
-settings. `BEAK_STORAGE_DRIVER=none` turns the upload endpoints off outright,
-which is what a project with no file columns wants. `.env` is git-ignored too.
-
-## The escape hatch
-
-```dart title="examples/store/lib/models/product.dart"
-  /// The stock indicator, drawn by the panel's registered renderer.
-  @Custom('stock_bar')
-  @Column(visibleOn: {BeakContext.table})
-  late final Object? stockLevel;
-```
-
-`@Custom` declares a column Beak stores and ships but does not draw. The panel
-looks up a renderer registered under the tag `stock_bar`; until you register one
-the cell reads `No renderer for "stock_bar"`, and forms skip custom columns
-entirely. [Custom columns](../extending/custom-columns.md) covers the builder.
-
-## Options a kind does and does not have
-
-| Option | Kind | What it does |
-| --- | --- | --- |
-| `prefix`, `suffix` | `int`, `double` | Unit or currency, carried into every rendering |
-| `precision` | `double` | Decimal places |
-| `min`, `max` | `int` | Number-input bounds |
-| `maxLength`, `placeholder` | `String` | Stored length, input hint |
-| `format` | `DateTime` | `BeakDateFormat.relative` renders "3d ago" |
-| `trueLabel`, `falseLabel` | `bool` | State labels |
-| `defaultValue` | an enum | What a new record starts with |
-
-Everything else (`label`, `columnName`, `visibleOn`, `searchable`, `sortable`,
-`filterable`, `indexed`, `unique`, `rules`) applies to every kind, and
-[Annotations](../reference/annotations.md) lists them in one table. An option on
-the wrong kind is the `beak prepare` error above, reported at the field that
-asked for it.
-
-## Rules run twice
-
-`rules:` takes `const` rules. There are eleven: `BeakRequired`, `BeakMinLength`,
-`BeakMaxLength`, `BeakMin`, `BeakMax`, `BeakEmail`, `BeakUrl`, `BeakPattern` (a
-regex plus your own message), `BeakInList`, `BeakAllowedFileTypes` and
-`BeakMaxFileSize`.
-
-You never write `BeakRequired()` yourself. A non-nullable field gets it from its
-type, which is why `name` declares one rule and its generated column carries
-two:
-
-```dart title="examples/store/lib/models/product.beak.dart"
-  static const BeakStringColumn name = BeakStringColumn(
-    key: 'name',
-    label: 'Name',
-    rules: [BeakRequired(), BeakMaxLength(255)],
-    searchable: true,
+```dart title="examples/clean_beak_config/lib/resources/products/models/product.beak.dart"
+  static const BeakIntColumn price = BeakIntColumn(
+    key: 'price',
+    label: 'Net price',
+    rules: [BeakRequired(), BeakMin(0)],
+    semantic: BeakSemantic.money(currency: 'EUR'),
     sortable: true,
-    indexed: true,
   );
 ```
 
-That list is read by the form, which blocks the save and marks the field, and by
-the API, which answers `422` with the offending column keys:
+`BeakRequired()` came from the non-nullable type, `BeakMin(0)` is your rule, and both sit in one list that the form and the server read. That list is the whole trick behind "validated twice".
 
-```json
-{
-  "code": "validation",
-  "message": "Validation failed for \"products\".",
-  "fieldErrors": { "sku": ["Must be at most 40 characters."] }
+### Rules that look at more than one field
+
+`BeakMin(0)` sees one value. A rule that compares fields, such as "a promotion cannot end before it starts", is a record rule and lives in a static getter on the class instead. Products do not need one, but the shop's fulfillment policy has two, and they are worth reading once:
+
+```dart
+--8<-- "examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart:FulfillmentRules"
+```
+
+Every field reference in there is a generated `FulfillmentPolicyModel.field`, so a misspelled field is a compile error and not a rule that silently never fires. [Validation](../models/validation.md) covers the whole family, including the ones that ask the database.
+
+## Add the resource
+
+The resource is the same five lines as last time, with a different model, title and icon. Create `lib/resources/products/product_resource.dart`:
+
+```dart title="lib/resources/products/product_resource.dart"
+import 'package:beak/panel.dart';
+import 'package:beak/ui.dart';
+import 'models/product.dart';
+
+/// Catalog management.
+final class ProductResource extends BeakResource {
+  /// Creates the products section.
+  ProductResource()
+    : super(
+        --8<-- "examples/clean_beak_config/lib/resources/products/product_resource.dart:ProductResourceIdentity"
+      );
 }
 ```
 
-Same rule, same message, two enforcement points, one declaration.
+Both resources share `navigationGroup: 'Catalog'`. The lower `navigationRank` sorts first, so Products (3) sits above Categories (5).
 
-## What the class annotation turns on
+Register it in `lib/main.dart`, next to the category:
 
-`softDeletes: true` adds a `deleted_at` marker. A `DELETE` writes the marker
-instead of removing the row, list queries hide marked rows, and
-`POST /api/products/<id>/restore` brings one back.
+```dart title="lib/main.dart"
+import 'package:beak/panel.dart';
+import 'package:flutter/widgets.dart';
 
-`timestamps: true` adds `created_at` and `updated_at`, stamped by the API on
-every write. `updated_at` also lets a caller make an edit conditional: send the
-`updated_at` you read back as an `If-Unmodified-Since` header and a row that
-moved on in the meantime answers `409` instead of being quietly overwritten. A
-request without the header still writes unconditionally, which is what a script
-wants.
+import 'resources/categories/category_resource.dart';
+import 'resources/products/product_resource.dart';
 
-Both are per resource. `Category` declares neither and pays for neither.
+/// Boots the panel.
+void main() => runApp(buildPanel());
 
-## Generate and migrate
+/// The panel, and every resource it shows.
+///
+/// This file is yours: `beak prepare` never rewrites it, so add each
+/// resource class you write to `resources`.
+///
+/// [dataSource] replaces the HTTP-backed source, so a widget test
+/// can pump this exact panel against an in-memory one.
+BeakPanel buildPanel({BeakDataSource? dataSource}) => BeakPanel(
+  title: 'Shop',
+  resources: [ProductResource(), CategoryResource()],
+  dataSource: dataSource,
+);
+```
+
+## Run it
+
+`beak migrate` runs `beak prepare` first, so it writes the part file and the migration and then applies it:
+
+```bash
+beak migrate
+```
 
 ```console
-$ beak prepare
-  2 models · 0 screens · 0 overrides
-  generated  5 of 9 files
+$ beak migrate
+  2 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  4 of 8 files
+migrated  20260929_174339_create_products_table
 ```
 
-Five files: the typed columns and record view in `lib/models/product.beak.dart`,
-a migration under `lib/migrations/`, and the three wiring files that now know
-about a second resource. Open the migration:
+Only the products migration ran. The categories one is already in the ledger, and `beak migrate status` would show all four as applied. Start the API again (stop the old one first if it is still running), and the panel in a second terminal:
 
-```dart title="examples/store/lib/migrations/create_products_table.dart"
-  @override
-  Future<void> upSchema(Schema schema) async {
-    // Read from the model, so the table and the resource cannot drift:
-    // adding a column to the schema class changes the DDL with no second
-    // edit here.
-    await schema.create('products', (table) {
-      BeakBlueprint.defineColumns(table, const ProductModel());
-      BeakBlueprint.defineForeignKeys(table, const ProductModel());
-    });
-  }
+```bash
+beak dev
 ```
 
-There is no column list in it. `BeakBlueprint` reads the same model the API and
-the panel read and derives the DDL: a type per column kind, `NOT NULL` for every
-non-nullable field, the indexes and unique indexes you asked for, and
-`deleted_at` because the resource soft-deletes. The table cannot drift from the
-class, because it is not a second statement of it.
-
-Run it. Your migration's timestamp is the moment `prepare` wrote it:
-
-```console
-$ dart run bin/migrate.dart migrate
-migrated  20260727_152057_create_products_table
+```bash
+flutter run -d chrome
 ```
 
-Restart `beak dev`, then hot restart the panel with `R` in the `flutter run`
-terminal. Products is in the sidebar, the form has an input per field in
-declaration order (the custom column excepted), and the table shows the columns
-that opted in.
+The sidebar shows Products above Categories. Open Products and press Create. The form has a Name, a Net price with `EUR` at its right edge, a Sku, a Description and an Active switch that starts on. Type `-5` into the price and press Save.
+
+Nothing leaves the browser. The form marks Name with `This field is required.` and the price with `Must be at least 0.`, both from the rule list above.
+
+Now go around the form. A browser is not a security boundary, and anyone with `curl` walks around it:
+
+```bash
+curl -s -i -X POST localhost:8080/api/products \
+  -H 'content-type: application/json' \
+  -d '{"price":-1290}'
+```
+
+```text
+HTTP/1.1 422 Status 422
+{"code":"validation","message":"Validation failed for \"products\".","fieldErrors":{"name":["This field is required."],"price":["Must be at least 0."]},"requestId":"56a7c19dabe43000"}
+```
+
+The server refused it with the same two messages, keyed by the column name on the wire (`name`, `price`). (`-i` also prints the response headers. The blocks on these pages keep the status line and the body.) Try a price that looks reasonable to a human:
+
+```bash
+curl -s -X POST localhost:8080/api/products \
+  -H 'content-type: application/json' \
+  -d '{"name":"Espresso Beans","price":12.9}'
+```
+
+```json
+{"code":"validation","message":"Validation failed for \"products\".","fieldErrors":{"price":["Invalid money value."]},"requestId":"d02d82338207395e"}
+```
+
+Here is the price of exactness, and Beak does not hide it: over the wire a money amount is the stored integer, so 12.90 euros is `1290`. The panel converts for you. A script has to do it itself.
+
+```bash
+curl -s -i -X POST localhost:8080/api/products \
+  -H 'content-type: application/json' \
+  -d '{"name":"Espresso Beans","price":1290,"sku":"ESP-001"}'
+```
+
+```text
+HTTP/1.1 201 Created
+{"values":{"id":"ab8bf8c4-7c0e-4310-bc3d-1b484dc18859","name":"Espresso Beans","price":1290,"sku":"ESP-001","description":null,"active":true},"relations":{}}
+```
+
+`active` is `true` because you left it out and the default filled it in. The id differs on your machine. Reload Products in the panel and the row is there, with the price shown as `€12.90` and Active as a Yes badge.
 
 !!! note "What just happened"
-    - One class became a typed column set, a model, a record view, a migration
-      and a page. You wrote no SQL and registered nothing.
-    - Non-nullable fields became required in the form, in the API, and
-      `NOT NULL` in the database.
-    - `beak prepare` writes a migration only for a resource that has none, and
-      never rewrites one. The file is yours from here.
+    - You wrote one rule list and got two enforcers. The form runs it before sending and the server runs it again on arrival, from the same Dart, so a rule cannot be right in one place and missing in the other.
+    - The server is the door and the form is a courtesy. That is why the `curl` call was refused with the form nowhere in sight.
+    - `Product` needed no code for a money input, a currency label or an amount in the table. The semantic on the field chose all three.
 
 !!! question "What this skipped"
-    - Presentation. Products has a default icon and sits outside the **Catalog**
-      section, because `beak.yaml` has no entry for it yet:
-      [chapter 5](05-shaping-the-panel.md).
-    - Changing a column later. `prepare` will not touch the create-table
-      migration, so you write an alter migration:
-      [Migrations](../backend/migrations.md).
-    - Where uploaded files go in production:
-      [Files and storage columns](../models/files-and-storage-columns.md).
+    - Every column type and what `@Column` accepts: [Fields](../models/fields.md).
+    - Money, percentages, dates and durations, and what each stores: [Semantic fields](../models/semantic-fields.md).
+    - Uniqueness, existence checks and record rules, with the errors they return: [Validation](../models/validation.md). The shop's product variants use `unique: true` on their SKU; the products here do not.
 
-A product with no category is a product nobody can find. Next: relationships.
+## Checkpoint
+
+```bash
+beak doctor
+```
+
+```console
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 2 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  OK   lib/main.dart lists every resource class
+  OK   generated files up to date
+  OK   every model has a migration
+  ...
+All checks passed.
+```
+
+You added two files and a line in `main.dart`, and the project gained a table, a form that says no, and an API that says no as well. The next chapter connects the two resources: a product belongs to a category, and a category owns a list of attribute definitions.
 
 ## Continue reading
 
-- [3. Relationships](03-relationships.md) connect Product to categories, tags
-  and order lines, and get both sides from one declaration.
-- [1. Your first resource](01-your-first-resource.md) the chapter this one builds
-  on.
-- [Column types](../models/column-types.md) every column kind and its options.
-- [Validation rules](../models/validation-rules.md) the eleven rules in full,
-  with the exact message each one produces.
-- [Annotations](../reference/annotations.md) the complete annotation reference.
+- [Related records](03-relationships.md): link products to categories and edit a category's attributes in its own form.
+- [Validation](../models/validation.md): the three layers a rule can live in, and the errors each one returns.
+- [Semantic fields](../models/semantic-fields.md): exact money, percentages, dates and lists.

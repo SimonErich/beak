@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-import 'package:beak_cli/beak_cli.dart';
+import '../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -13,6 +13,9 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('beak_cli_test');
     addTearDown(() => root.deleteSync(recursive: true));
+    File(
+      '${root.path}/pubspec.yaml',
+    ).writeAsStringSync('name: shop\ndependencies:\n  beak: any\n');
     out = StringBuffer();
     reachable = {};
     runner = createBeakRunner(
@@ -43,6 +46,29 @@ void main() {
         BeakFieldKind.dateTime,
       ]);
       expect(specs.last.camelName, 'releasedAt');
+    });
+
+    test('accepts double for the floating-point number and float as its '
+        'alias', () {
+      expect(BeakFieldKind.parse('double'), BeakFieldKind.floating);
+      expect(BeakFieldKind.parse('float'), BeakFieldKind.floating);
+      expect(BeakFieldKind.parse('decimal'), BeakFieldKind.decimal);
+    });
+
+    test('names every kind in the message for an unknown one', () {
+      expect(
+        () => BeakFieldSpec.parse('name:blob'),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('string, text, int, decimal, double, bool, datetime'),
+              isNot(contains('\u2014')),
+            ),
+          ),
+        ),
+      );
     });
 
     test('rejects malformed tokens with a pointed message', () {
@@ -80,13 +106,60 @@ void main() {
       ]);
 
       expect(code, 0);
-      final String source = read('lib/models/widget.dart');
+      final String source = read('lib/resources/widgets/models/widget.dart');
       expect(source, contains('@Resource(timestamps: true)'));
       expect(source, contains('final class Widget extends BeakSchema'));
       expect(source, contains("part 'widget.beak.dart';"));
       expect(source, contains('late final String name;'));
-      expect(source, contains('late final double price;'));
+      expect(source, contains('late final BeakDecimal price;'));
       expect(source, contains('late final bool? active;'));
+    });
+
+    test('refuses a name the generated code needs for something else, and '
+        'writes nothing', () async {
+      // `beak make:resource List` wrote a class that made every file around it
+      // fail to compile, and then said prepare had run.
+      for (final name in [
+        'List',
+        'Resource',
+        'Schema',
+        'Migration',
+        'String',
+      ]) {
+        await expectLater(
+          runner.run(['make:resource', name]),
+          throwsA(
+            isA<UsageException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('"$name"'), contains('generated')),
+            ),
+          ),
+          reason: name,
+        );
+      }
+      expect(Directory('${root.path}/lib').existsSync(), isFalse);
+    });
+
+    test('decimal is exact, and double is the floating-point number', () async {
+      // `price:decimal` used to write a `double`, which cannot add up a
+      // ledger; the docs told everyone to change it afterwards.
+      await runner.run([
+        'make:resource',
+        'Gauge',
+        '--fields',
+        'name:string!,reading:double,cost:decimal!',
+      ]);
+
+      final String source = read('lib/resources/gauges/models/gauge.dart');
+      expect(source, contains('late final double? reading;'));
+      expect(source, contains('late final BeakDecimal cost;'));
+      final (schemas, issues) = BeakSchemaReader(root).read();
+      expect(issues, isEmpty);
+      final BeakColumnIr cost = schemas.single.columns.firstWhere(
+        (column) => column.fieldName == 'cost',
+      );
+      expect(cost.declaredValueType, 'BeakDecimal');
     });
 
     test('the scaffold is what the schema reader reads', () async {
@@ -109,7 +182,9 @@ void main() {
       await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
 
       expect(
-        File('${root.path}/lib/models/widget.beak.dart').existsSync(),
+        File(
+          '${root.path}/lib/resources/widgets/models/widget.beak.dart',
+        ).existsSync(),
         isTrue,
       );
       expect(
@@ -131,9 +206,72 @@ void main() {
     test('with no fields it scaffolds a display column to edit', () async {
       await runner.run(['make:resource', 'Widget']);
 
-      final String source = read('lib/models/widget.dart');
+      final String source = read('lib/resources/widgets/models/widget.dart');
       expect(source, contains('@Display()'));
       expect(source, contains('late final String name;'));
+    });
+
+    test('writes a resource class beside the schema folder', () async {
+      await runner.run([
+        'make:resource',
+        'OrderItem',
+        '--fields',
+        'sku:string!',
+      ]);
+
+      final String source = read(
+        'lib/resources/order_items/order_item_resource.dart',
+      );
+      expect(
+        source,
+        contains('final class OrderItemResource extends BeakResource'),
+      );
+      expect(source, contains("import 'models/order_item.dart';"));
+      expect(source, contains('model: const OrderItemModel()'));
+      expect(source, contains('`beak prepare` finds this class'));
+    });
+
+    test('prepare picks the class up for the generated panel', () async {
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      expect(read('lib/beak/panel.g.dart'), contains('WidgetResource()'));
+      expect(out.toString(), contains('1 resource class'));
+    });
+
+    test('in an authored project, prints the line to register it', () async {
+      File('${root.path}/lib/main.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('void main() {}\n');
+
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      final String printed = out.toString();
+      expect(printed, contains('lib/main.dart'));
+      expect(
+        printed,
+        contains("import 'resources/widgets/widget_resource.dart';"),
+      );
+      expect(printed, contains('WidgetResource(),'));
+      final String source = read('lib/resources/widgets/widget_resource.dart');
+      expect(source, contains('`resources: [...]` list in `lib/main.dart`'));
+      expect(source, isNot(contains('`beak prepare` finds this class')));
+    });
+
+    test('a generated entrypoint needs no registration hint', () async {
+      await runner.run(['make:resource', 'Widget', '--fields', 'name:string!']);
+
+      expect(out.toString(), isNot(contains('BeakPanel(resources:')));
+    });
+
+    test('refuses to overwrite a schema that already exists', () async {
+      File('${root.path}/lib/resources/widgets/models/widget.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('// mine\n');
+
+      expect(await runner.run(['make:resource', 'Widget']), 1);
+      expect(read('lib/resources/widgets/models/widget.dart'), '// mine\n');
+      expect(out.toString(), contains('error: lib/resources/widgets'));
+      expect(out.toString(), contains('already exists'));
     });
   });
 
@@ -151,6 +289,39 @@ void main() {
       );
       expect(source, contains('Future<void> upSchema(Schema schema)'));
       expect(source, contains('Future<void> downSchema(Schema schema)'));
+    });
+
+    test('refuses to overwrite a migration of the same name', () async {
+      // A migration is edited by hand as soon as it is written, so a second
+      // run of the same command used to throw that work away.
+      File('${root.path}/lib/migrations/add_status.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('// mine, and already edited\n');
+
+      expect(await runner.run(['make:migration', 'AddStatus']), 1);
+
+      expect(
+        read('lib/migrations/add_status.dart'),
+        '// mine, and already edited\n',
+      );
+      expect(
+        out.toString(),
+        contains('error: lib/migrations/add_status.dart already exists'),
+      );
+      expect(out.toString(), contains('--force'));
+    });
+
+    test('replaces it with --force', () async {
+      File('${root.path}/lib/migrations/add_status.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('// mine\n');
+
+      expect(await runner.run(['make:migration', 'AddStatus', '--force']), 0);
+
+      expect(
+        read('lib/migrations/add_status.dart'),
+        contains('class AddStatus extends Migration'),
+      );
     });
 
     test('rejects a name that is not UpperCamelCase', () {
@@ -263,6 +434,8 @@ void main() {
 
   group('doctor', () {
     test('a directory that is not a Dart project fails with the fix', () async {
+      File('${root.path}/pubspec.yaml').deleteSync();
+
       expect(await runner.run(['doctor']), 1);
       expect(out.toString(), contains('not a Dart project'));
       expect(out.toString(), contains('beak create'));

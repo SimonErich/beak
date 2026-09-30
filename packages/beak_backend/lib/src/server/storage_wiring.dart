@@ -6,9 +6,9 @@ import 'package:beak_core/io.dart';
 /// registered here because it needs `dart:io`).
 ///
 /// Driver *packages* are deliberately not wired in. Depending on
-/// `beak_storage_s3` from here would put `minio` — and its `xml ^6` pin — in
-/// the dependency graph of every Beak backend, whether or not it uploads
-/// anything. Add the driver you actually use at app init instead:
+/// `beak_storage_s3` from here would ship the S3 driver and its HTTP and
+/// signing code with every Beak backend, whether or not it uploads anything.
+/// Add the driver you actually use at app init instead:
 ///
 /// ```dart
 /// import 'package:beak_storage_s3/beak_storage_s3.dart';

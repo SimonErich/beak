@@ -16,11 +16,14 @@ abstract final class BeakEnv {
   /// Supports comments (`#`), blank lines, an optional `export ` prefix,
   /// whitespace around the `=` separator, and matching surrounding quotes.
   /// Splits on the first `=` only. Throws a [BeakConfigurationException] on
-  /// a line without a separator or with an invalid key.
+  /// a line without a separator or with an invalid key; the message names the
+  /// line number and never repeats a value, since a `.env` line is often a
+  /// secret.
   static Map<String, String> parse(String content) {
     final entries = <String, String>{};
-    for (final rawLine in content.split('\n')) {
-      final line = rawLine.trim();
+    final lines = content.split('\n');
+    for (var index = 0; index < lines.length; index++) {
+      final line = lines[index].trim();
       if (line.isEmpty || line.startsWith('#')) {
         continue;
       }
@@ -30,13 +33,14 @@ abstract final class BeakEnv {
       final separatorIndex = unexported.indexOf('=');
       if (separatorIndex < 0) {
         throw BeakConfigurationException(
-          'Malformed dotenv line (no "=" separator): "$rawLine".',
+          'Malformed dotenv line ${index + 1}: no "=" separator.',
         );
       }
       final key = unexported.substring(0, separatorIndex).trim();
       if (!_keyPattern.hasMatch(key)) {
         throw BeakConfigurationException(
-          'Malformed dotenv key "$key" in line "$rawLine".',
+          'Malformed dotenv line ${index + 1}: "$key" is not a valid '
+          'variable name.',
         );
       }
       entries[key] = _unquote(unexported.substring(separatorIndex + 1).trim());

@@ -2,18 +2,32 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
 
+import '../agents/beak_agent_files.dart';
+import '../agents/beak_claude_md.dart';
+import '../agents/beak_docs_bundle.dart';
+import '../agents/beak_package_config.dart';
+import '../agents/beak_project_kind.dart';
+import '../agents/beak_skill_installer.dart';
+import '../agents/beak_workspace.dart';
 import '../cli_runner.dart';
 import '../introspect/beak_live_schema.dart';
 import '../introspect/beak_schema_introspection.dart';
+import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
 import '../project/beak_emitters.dart';
 import '../project/beak_project_config.dart';
+import '../schema/beak_drift_migration_emitter.dart';
 import '../schema/beak_migration_emitter.dart';
+import '../schema/beak_migration_order.dart';
 import '../schema/beak_schema_drift.dart';
 import '../schema/beak_schema_emitter.dart';
 import '../schema/beak_schema_ir.dart';
 import '../schema/beak_schema_reader.dart';
+import '../version.dart';
+import 'prepare_command.dart';
 
 /// How a single check came out.
 enum BeakCheckStatus {
@@ -30,7 +44,12 @@ enum BeakCheckStatus {
 /// One diagnostic, with the fix when there is one.
 final class BeakCheck {
   /// Creates a check result.
-  const BeakCheck({required this.status, required this.label, this.remedy});
+  const BeakCheck({
+    required this.status,
+    required this.label,
+    this.remedy,
+    this.group,
+  });
 
   /// Whether it passed.
   final BeakCheckStatus status;
@@ -41,11 +60,16 @@ final class BeakCheck {
   /// The command or edit that fixes it, when a fix exists.
   final String? remedy;
 
+  /// The family of checks this belongs to, such as `agents`, or `null` for
+  /// the project checks.
+  final String? group;
+
   /// This check as JSON, for `beak doctor --json`.
   Map<String, Object?> toJson() => {
     'status': status.name,
     'label': label,
     if (remedy case final String remedy) 'remedy': remedy,
+    if (group case final String group) 'group': group,
   };
 }
 
@@ -131,10 +155,14 @@ Future<List<BeakCheck>> diagnose(
     return [
       const BeakCheck(
         status: BeakCheckStatus.fail,
-        label: 'no pubspec.yaml — this is not a Dart project',
+        label: 'no pubspec.yaml: this is not a Dart project',
         remedy: 'run `beak create <name>` to scaffold one',
       ),
     ];
+  }
+
+  if (BeakProjectKind.isModelsOnly(root)) {
+    return _diagnoseModelsOnly(root);
   }
 
   final String pubspecSource = pubspec.readAsStringSync();
@@ -196,40 +224,59 @@ Future<List<BeakCheck>> diagnose(
           ? BeakCheckStatus.warn
           : BeakCheckStatus.ok,
       label: discovery.models.isEmpty
-          ? 'no models found under lib/models/'
-          : 'discovered ${discovery.summary}',
+          ? 'no models found under lib/'
+          : 'discovered ${beakDiscoverySummary(discovery, root, config)}',
       remedy: discovery.models.isEmpty
-          ? 'add a BeakModel subclass under lib/models/'
+          ? 'run `beak make:resource <Name>`, which writes a schema class '
+                'under lib/resources/<plural>/models/'
           : null,
     ),
   );
 
+  checks.addAll(_authoredResourceChecks(root, discovery, config));
+
   // Read once: the staleness check, the migration check and the drift check
   // all ask the same question of the same files, and parsing them three
   // times is parsing them three times.
-  final (schemas, schemaIssues) = BeakSchemaReader(root).read();
+  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
+  // `prepare` refuses to generate on these, so a project that has one is not
+  // healthy, and a doctor that stayed quiet about it said "All checks passed"
+  // to a project that could not be generated.
+  final reported = {for (final check in checks) check.label};
+  for (final issue in schemaIssues) {
+    final String label = '${issue.path}: ${issue.message}';
+    if (reported.add(label)) {
+      checks.add(BeakCheck(status: BeakCheckStatus.fail, label: label));
+    }
+  }
+  checks.addAll(_migrationImportChecks(root, packageName));
 
   // Stale generated files are the one failure mode the hidden-entrypoint
   // design introduces, so name it explicitly rather than letting it surface
   // as a confusing compile error.
-  final stale = <String>[];
-  final missing = <String>[];
-  void compare(String path, String expected) {
-    final file = File('${root.path}/$path');
-    if (!file.existsSync()) {
-      missing.add(path);
-    } else if (file.readAsStringSync() != expected) {
-      stale.add(path);
-    }
-  }
-
+  final expected = <String, String>{};
   if (discovery.issues.isEmpty) {
-    for (final generated in BeakEmitters.all(
+    // The host registers migrations in the order `prepare` gave them, which
+    // is not always the order of their names.
+    final BeakDiscovery ordered = schemaIssues.isEmpty
+        ? BeakMigrationOrder.orderedIn(
+            discovery,
+            tablesReferencedBy: BeakSchemaEmitter.foreignKeyTargets(schemas),
+          )
+        : discovery;
+    for (final generated in beakGeneratedFiles(
+      root: root,
       packageName: packageName,
       config: config,
-      discovery: discovery,
+      discovery: ordered,
     )) {
-      compare(generated.path, generated.contents);
+      final file = File('${root.path}/${generated.path}');
+      if (!generated.isCommitted &&
+          file.existsSync() &&
+          !file.readAsStringSync().startsWith('// GENERATED BY')) {
+        continue;
+      }
+      expected[generated.path] = generated.contents;
     }
     // The part files too. They are not in `BeakEmitters.all` — the schema
     // emitter writes them a step earlier, before discovery can see the
@@ -238,39 +285,268 @@ Future<List<BeakCheck>> diagnose(
     // emitter while reporting "generated files up to date".
     if (schemaIssues.isEmpty) {
       for (final schema in schemas) {
-        compare(
-          BeakSchemaEmitter.partPathOf(schema),
-          BeakSchemaEmitter.emit(schema, schemas),
+        expected[BeakSchemaEmitter.partPathOf(schema)] = BeakSchemaEmitter.emit(
+          schema,
+          schemas,
         );
       }
     }
   }
-  if (missing.isNotEmpty || stale.isNotEmpty) {
-    checks.add(
+  checks.add(_generatedFilesCheck(root, expected));
+  checks.addAll(_leftoverWiringChecks(root, config));
+
+  checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));
+  checks.add(_webScaffoldCheck(root));
+  checks.addAll(
+    serverImportChecks(
+      root,
+      packageName: packageName,
+      entrypoint: config.panel.entrypoint,
+    ),
+  );
+  checks.addAll(
+    await _databaseChecks(
+      environment,
+      root,
+      readSchema,
+      schemas,
+      schemaIssues,
+      createdTables: discovery.migratedTables,
+    ),
+  );
+  checks.addAll(agentChecks(root, config: config));
+  return checks;
+}
+
+/// Whether every file in [expected], project-relative path to text, exists
+/// under [root] with exactly that text.
+BeakCheck _generatedFilesCheck(Directory root, Map<String, String> expected) {
+  var missing = 0;
+  var stale = 0;
+  for (final MapEntry(key: path, value: contents) in expected.entries) {
+    final file = File('${root.path}/$path');
+    if (!file.existsSync()) {
+      missing++;
+    } else if (file.readAsStringSync() != contents) {
+      stale++;
+    }
+  }
+  if (missing == 0 && stale == 0) {
+    return const BeakCheck(
+      status: BeakCheckStatus.ok,
+      label: 'generated files up to date',
+    );
+  }
+  return BeakCheck(
+    status: BeakCheckStatus.fail,
+    label: 'generated files out of date ($missing missing, $stale stale)',
+    remedy: 'beak prepare',
+  );
+}
+
+/// A warning for panel wiring that an earlier generated entrypoint left behind.
+///
+/// Once the entrypoint is the project's own, `beak prepare` stops writing the
+/// panel config and the app widget, and would delete the ones on disk. Until
+/// it runs they are files nobody imports that still have to compile.
+List<BeakCheck> _leftoverWiringChecks(
+  Directory root,
+  BeakProjectConfig config,
+) {
+  if (beakPanelWiringIsUsed(root, config)) {
+    return const [];
+  }
+  final List<String> leftover = beakLeftoverPanelWiring(root);
+  if (leftover.isEmpty) {
+    return const [];
+  }
+  return [
+    BeakCheck(
+      status: BeakCheckStatus.warn,
+      label:
+          '${leftover.join(', ')} ${leftover.length == 1 ? 'is' : 'are'} '
+          'left over from a generated entrypoint, and nothing imports '
+          '${leftover.length == 1 ? 'it' : 'them'}',
+      remedy: 'beak prepare',
+    ),
+  ];
+}
+
+/// The diagnosis of a package that only holds schema classes.
+///
+/// It asks what applies there and nothing else: the schema classes read
+/// cleanly, the generated parts and registry are current, and no file reaches
+/// the server, the panel or Flutter, because the package is shared by a
+/// server and an admin. There is no panel, entrypoint, `beak.yaml`, migration,
+/// database or agent file to be missing.
+List<BeakCheck> _diagnoseModelsOnly(Directory root) {
+  final (schemas, schemaIssues) = BeakSchemaReader(root).readChecked();
+  final BeakDiscovery discovery = BeakProjectScanner(root).scanModels(
+    tablesByModelClass: {
+      for (final schema in schemas) schema.modelClass: schema.table,
+    },
+  );
+  final issues = <BeakDiscoveryIssue>[...schemaIssues, ...discovery.issues];
+  final checks = <BeakCheck>[
+    const BeakCheck(
+      status: BeakCheckStatus.ok,
+      label: 'models-only package: depends on beak_core, no app',
+    ),
+    BeakCheck(
+      status: discovery.models.isEmpty
+          ? BeakCheckStatus.warn
+          : BeakCheckStatus.ok,
+      label: discovery.models.isEmpty
+          ? 'no models found under lib/'
+          : 'discovered ${discovery.models.length} '
+                '${discovery.models.length == 1 ? 'model' : 'models'}',
+      remedy: discovery.models.isEmpty
+          ? 'write a schema class annotated with @Resource under lib/'
+          : null,
+    ),
+    for (final issue in issues)
       BeakCheck(
         status: BeakCheckStatus.fail,
-        label:
-            'generated files out of date '
-            '(${missing.length} missing, ${stale.length} stale)',
-        remedy: 'beak prepare',
+        label: '${issue.path}: ${issue.message}',
       ),
-    );
+  ];
+  if (issues.isEmpty) {
+    checks
+      ..add(
+        const BeakCheck(
+          status: BeakCheckStatus.ok,
+          label: 'schema classes read cleanly',
+        ),
+      )
+      ..add(
+        _generatedFilesCheck(root, {
+          for (final generated in BeakEmitters.modelsOnly(discovery))
+            generated.path: generated.contents,
+          for (final schema in schemas)
+            BeakSchemaEmitter.partPathOf(schema): BeakSchemaEmitter.emit(
+              schema,
+              schemas,
+            ),
+        }),
+      );
   } else {
     checks.add(
       const BeakCheck(
         status: BeakCheckStatus.ok,
-        label: 'generated files up to date',
+        label: 'generated files not checked: fix the schema issues first',
       ),
     );
   }
-
-  checks.add(_migrationCoverageCheck(discovery, schemas, schemaIssues));
-  checks.add(_webScaffoldCheck(root));
-  checks.addAll(serverImportChecks(root, packageName: packageName));
-  checks.addAll(
-    await _databaseChecks(environment, root, readSchema, schemas, schemaIssues),
-  );
+  checks.addAll(_modelsOnlyImportChecks(root));
   return checks;
+}
+
+/// Prefixes of the libraries a package of schema classes must not import: the
+/// app, the server, the panel and Flutter, none of which its consumers all
+/// share.
+const List<String> _appLibraryPrefixes = [
+  'package:beak/',
+  'package:beak_frontend/',
+  'package:beak_backend/',
+  'package:flutter/',
+];
+
+/// A check for each import in a models-only package that reaches the app.
+///
+/// The package is pure Dart, shared by a server and a web admin, so an import
+/// of the panel, the server, Flutter or `dart:io` breaks one of them:
+/// `dart:io` compiles on the web and only fails when it runs.
+List<BeakCheck> _modelsOnlyImportChecks(Directory root) {
+  final lib = Directory('${root.path}/lib');
+  final offenders = <(String, String)>[];
+  if (lib.existsSync()) {
+    for (final entity in lib.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) {
+        continue;
+      }
+      final String relative = p.posix.joinAll(
+        p.split(p.relative(entity.path, from: root.path)),
+      );
+      for (final uri in _referencedUrisIn(entity.readAsStringSync())) {
+        if (uri == 'dart:io' ||
+            _appLibraryPrefixes.any((prefix) => uri.startsWith(prefix))) {
+          offenders.add((relative, uri));
+        }
+      }
+    }
+  }
+  if (offenders.isEmpty) {
+    return const [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label: 'no file imports the server, the panel or Flutter',
+      ),
+    ];
+  }
+  offenders.sort(
+    (a, b) => a.$1 == b.$1 ? a.$2.compareTo(b.$2) : a.$1.compareTo(b.$1),
+  );
+  return [
+    for (final (path, uri) in offenders)
+      BeakCheck(
+        status: BeakCheckStatus.fail,
+        label:
+            '$path imports $uri, which a models-only package shared by a '
+            'server and an admin must not reach',
+        remedy: 'move that code to the app that uses these models',
+      ),
+  ];
+}
+
+/// A warning for each resource class the authored entrypoint does not list.
+///
+/// The entrypoint is `lib/main.dart`, or the file `panel.entrypoint` names in
+/// an app that embeds the panel. `beak prepare` never rewrites an entrypoint
+/// the project owns, so a new `BeakResource` subclass reaches the panel only
+/// once someone adds it to the `resources: [...]` list there, and forgetting
+/// is silent: the class compiles, the resource simply never appears. A
+/// generated entrypoint is wired by `beak prepare`, and one whose list cannot
+/// be read statically (a variable, a spread of one) is not second-guessed.
+List<BeakCheck> _authoredResourceChecks(
+  Directory root,
+  BeakDiscovery discovery,
+  BeakProjectConfig config,
+) {
+  final String entrypoint = config.panel.entrypointPath;
+  final file = File('${root.path}/$entrypoint');
+  final String? source = file.existsSync() ? file.readAsStringSync() : null;
+  final Set<String>? listed =
+      source == null || source.startsWith(BeakAuthoredMain.generatedMarker)
+      ? null
+      : BeakAuthoredMain.parse(source).listedResources;
+  if (listed == null || discovery.resources.isEmpty) {
+    return const [];
+  }
+  final unlisted = [
+    for (final resource in discovery.resources)
+      if (!listed.contains(resource.className)) resource,
+  ];
+  if (unlisted.isEmpty) {
+    return [
+      BeakCheck(
+        status: BeakCheckStatus.ok,
+        label: '$entrypoint lists every resource class',
+      ),
+    ];
+  }
+  return [
+    for (final resource in unlisted)
+      BeakCheck(
+        status: BeakCheckStatus.warn,
+        label:
+            '${resource.className} (lib/${resource.importPath}) is not listed '
+            "in $entrypoint's resources: [...], so the panel never shows it",
+        remedy:
+            'add ${resource.className}() to the resources list in '
+            '$entrypoint; `beak prepare` never rewrites an authored '
+            'entrypoint',
+      ),
+  ];
 }
 
 /// Whether every model Beak owns has a migration that creates its table.
@@ -289,7 +565,7 @@ BeakCheck _migrationCoverageCheck(
     // A schema that does not parse is already a failure of its own.
     return const BeakCheck(
       status: BeakCheckStatus.ok,
-      label: 'migration coverage not checked — fix the schema issues first',
+      label: 'migration coverage not checked: fix the schema issues first',
     );
   }
   final missing = BeakMigrationEmitter.missing(
@@ -343,15 +619,16 @@ const Set<String> _serverLibraries = {
 ///
 /// Only files the panel actually reaches are checked. Membership is the
 /// import graph, not the path: a project may keep server-side code anywhere
-/// under `lib/` — `examples/embedded` has a `lib/legacy_system.dart` that
-/// migrates the host system's own table and is imported by `bin/host.dart`
+/// under `lib/` — an authored `lib/database_setup.dart` may
+/// migrate the host system's own table and is imported by `bin/host.dart`
 /// alone — and a path allowlist called that a failure while missing the real
 /// one, a server import in a file the panel does import.
 List<BeakCheck> serverImportChecks(
   Directory root, {
   required String packageName,
+  String? entrypoint,
 }) {
-  final Set<String>? reachable = _panelGraphOf(root, packageName);
+  final Set<String>? reachable = _panelGraphOf(root, packageName, entrypoint);
   if (reachable == null) {
     // No panel entrypoint to protect. `beak prepare` writes one; until then
     // there is nothing to say.
@@ -400,10 +677,21 @@ List<BeakCheck> serverImportChecks(
 /// `null` when the project has no panel entrypoint at all. Walks this
 /// package's own sources only: what `package:beak` does internally is the
 /// framework's problem, and `melos run guard-web` covers it there.
-Set<String>? _panelGraphOf(Directory root, String packageName) {
+///
+/// The roots are the [entrypoint] `beak.yaml` names, or `lib/main.dart`, and
+/// the generated app widget. In an app that embeds the panel `lib/main.dart`
+/// is the app's own and is not part of the panel, so it is not a root.
+Set<String>? _panelGraphOf(
+  Directory root,
+  String packageName,
+  String? entrypoint,
+) {
   // `lib/main.dart` is generated and often git-ignored, so fall back to the
   // root widget it is one line of.
-  const roots = ['lib/main.dart', 'lib/beak/app.g.dart'];
+  final roots = [
+    entrypoint ?? BeakPanelSettings.defaultEntrypoint,
+    'lib/beak/app.g.dart',
+  ];
   final queue = <String>[
     for (final path in roots)
       if (File('${root.path}/$path').existsSync()) path,
@@ -506,14 +794,19 @@ Future<List<BeakCheck>> _databaseChecks(
   Directory root,
   BeakLiveSchemaReader readSchema,
   List<BeakSchemaIr> schemas,
-  List<BeakDiscoveryIssue> schemaIssues,
-) async {
+  List<BeakDiscoveryIssue> schemaIssues, {
+  required Set<String> createdTables,
+}) async {
   // No DATABASE_URL is the supported zero-setup default rather than a
   // misconfiguration, so it resolves to the same file the server would use
   // and is checked like any other database. Telling someone their working
   // project is wrong trains them to ignore this output.
-  final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
-  final bool isDefault = beakDatabaseUrlOf(root) == null;
+  final Uri? configuredUrl = beakDatabaseUrlOf(
+    root,
+    processEnvironment: environment.processEnvironment,
+  );
+  final Uri url = configuredUrl ?? Uri.parse(defaultSqliteUrl);
+  final bool isDefault = configuredUrl == null;
   final bool canDrift = schemaIssues.isEmpty && schemas.isNotEmpty;
 
   if (beakIsSqliteUrl(url)) {
@@ -535,7 +828,7 @@ Future<List<BeakCheck>> _databaseChecks(
         BeakCheck(
           status: BeakCheckStatus.ok,
           label: isDefault
-              ? 'no DATABASE_URL — the default SQLite file is not created yet'
+              ? 'no DATABASE_URL: the default SQLite file is not created yet'
               : 'database is SQLite ($file), not created yet',
           remedy: 'beak migrate',
         ),
@@ -545,22 +838,21 @@ Future<List<BeakCheck>> _databaseChecks(
       BeakCheck(
         status: BeakCheckStatus.ok,
         label: isDefault
-            ? 'no DATABASE_URL — using the default SQLite file ($file)'
+            ? 'no DATABASE_URL: using the default SQLite file ($file)'
             : 'database is SQLite ($file)',
       ),
-      if (canDrift) ...await _driftChecks(url, readSchema, schemas, root),
+      if (canDrift)
+        ...await _driftChecks(url, readSchema, schemas, root, createdTables),
     ];
   }
 
-  final bool reachable = await environment.probe(
-    url.host,
-    url.hasPort ? url.port : 5432,
-  );
+  final int port = url.hasPort ? url.port : 5432;
+  final bool reachable = await environment.probe(url.host, port);
   if (!reachable) {
     return [
       BeakCheck(
         status: BeakCheckStatus.warn,
-        label: 'database unreachable at ${url.host}:${url.port}',
+        label: 'database unreachable at ${url.host}:$port',
         remedy: 'start it, or correct DATABASE_URL in .env',
       ),
     ];
@@ -568,10 +860,10 @@ Future<List<BeakCheck>> _databaseChecks(
   return [
     BeakCheck(
       status: BeakCheckStatus.ok,
-      label: 'database reachable at ${url.host}:${url.port}',
+      label: 'database reachable at ${url.host}:$port',
     ),
     if (canDrift && beakCanReadSchema(url))
-      ...await _driftChecks(url, readSchema, schemas, root),
+      ...await _driftChecks(url, readSchema, schemas, root, createdTables),
   ];
 }
 
@@ -586,6 +878,7 @@ Future<List<BeakCheck>> _driftChecks(
   BeakLiveSchemaReader readSchema,
   List<BeakSchemaIr> schemas,
   Directory root,
+  Set<String> createdTables,
 ) async {
   final List<IntrospectedTable> tables;
   try {
@@ -619,7 +912,396 @@ Future<List<BeakCheck>> _driftChecks(
       BeakCheck(
         status: BeakCheckStatus.warn,
         label: problem.message,
-        remedy: 'write a migration with `beak make:migration`, then `migrate`',
+        remedy: _remedyFor(
+          problem,
+          createdTables,
+          isSqlite: beakIsSqliteUrl(url),
+        ),
       ),
   ];
+}
+
+/// What to do about [problem], which depends on why the database differs.
+///
+/// A table that is missing while a migration creates it is a migration that
+/// has not run yet, and `beak migrate` is the fix. A column missing from a
+/// table that exists is drift: the create migration already ran without it,
+/// and `--from-drift` writes the `alter`. Everything else is a decision no
+/// command can make.
+String _remedyFor(
+  BeakDrift problem,
+  Set<String> createdTables, {
+  required bool isSqlite,
+}) => switch (problem) {
+  BeakMissingTable(:final table) =>
+    createdTables.contains(table)
+        ? 'beak migrate'
+        : 'beak prepare, which writes the migration, then beak migrate',
+  BeakMissingPivot(:final table, :final schema, :final relation) =>
+    createdTables.contains(table) ||
+            createdTables.contains(
+              '${schema.relationsClass}.${relation.fieldName}',
+            )
+        ? 'beak migrate'
+        : 'beak prepare, which writes the migration, then beak migrate',
+  BeakMissingColumn(
+    cause: BeakMissingColumnCause.declared || BeakMissingColumnCause.foreignKey,
+    :final columnKey,
+    :final table,
+  ) =>
+    _unaddableRemedy(problem, isSqlite: isSqlite) ??
+        'beak make:migration Add${_pascalOf(columnKey)}To${_pascalOf(table)} '
+            '--from-drift, then beak migrate',
+  BeakMissingColumn() =>
+    'beak make:migration <Name> and add the column yourself (--from-drift '
+        'adds only the columns a field declares), then beak migrate',
+  BeakUndeclaredColumn(:final schema) =>
+    'declare the field on ${schema.className}, or drop the column with '
+        'beak make:migration <Name>, then beak migrate',
+};
+
+/// The remedy for a column `--from-drift` would refuse, or `null` when it
+/// would write the `alter`.
+///
+/// A unique column is already nullable, so it gets the advice
+/// `make:migration --from-drift` prints for it: leave `unique: true` off,
+/// backfill, then add the index in a migration of its own. A required column
+/// is asked for a default or a nullable type.
+String? _unaddableRemedy(BeakDrift problem, {required bool isSqlite}) {
+  if (problem is! BeakMissingColumn) {
+    return null;
+  }
+  final String? reason = BeakDriftMigrationEmitter.unaddable([
+    problem,
+  ], isSqlite: isSqlite)[problem];
+  if (reason == null) {
+    return null;
+  }
+  final String migrate =
+      'beak make:migration Add${_pascalOf(problem.columnKey)}'
+      'To${_pascalOf(problem.table)} --from-drift';
+  return switch (problem.column) {
+    BeakColumnIr(isUnique: true) =>
+      '$reason; `$migrate` adds the column while it is not unique, then '
+          'beak migrate',
+    _ =>
+      'give the field `@Column(defaultValue: ...)` or make it nullable, so '
+          'that `$migrate` can add it, or write the migration yourself, then '
+          'beak migrate',
+  };
+}
+
+/// `stock_level` -> `StockLevel`.
+String _pascalOf(String snake) => snake
+    .split('_')
+    .where((word) => word.isNotEmpty)
+    .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+    .join();
+
+/// A failure for each import of a migration that names a file which is gone.
+///
+/// A create-table migration imports the schema file its model lives in, by a
+/// relative path, so moving that file breaks the migration and with it the
+/// whole project. The analyzer says so too, but doctor is the command that
+/// answers "is this project all right", and a project that does not compile
+/// is not.
+List<BeakCheck> _migrationImportChecks(Directory root, String packageName) {
+  final directory = Directory(p.join(root.path, 'lib', 'migrations'));
+  if (!directory.existsSync()) {
+    return const [];
+  }
+  final broken = <BeakCheck>[];
+  final files =
+      directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  for (final file in files) {
+    final String from = p.posix.joinAll(
+      p.split(p.relative(file.path, from: root.path)),
+    );
+    for (final uri in _referencedUrisIn(file.readAsStringSync())) {
+      final String? target = _resolveWithinProject(
+        uri,
+        from: from,
+        packageName: packageName,
+      );
+      if (target != null && !File(p.join(root.path, target)).existsSync()) {
+        broken.add(
+          BeakCheck(
+            status: BeakCheckStatus.fail,
+            label: '$from imports $uri, which does not exist',
+            remedy:
+                'point the import at the file, which may have moved; the '
+                'migration does not compile until it does',
+          ),
+        );
+      }
+    }
+  }
+  return broken.isEmpty
+      ? const [
+          BeakCheck(
+            status: BeakCheckStatus.ok,
+            label: 'migrations import files that exist',
+          ),
+        ]
+      : broken;
+}
+
+/// What a coding agent needs in the project, one check each.
+///
+/// The `agents` group: the managed block in `AGENTS.md` (present, current,
+/// not damaged), the `CLAUDE.md` that makes Claude Code read it, the size
+/// Codex will read of it, the docs bundle copied for the resolved Beak, the
+/// skills installed, and whether this CLI is the one the project's Beak was
+/// released with. All warnings: none of it stops the project from building.
+/// Empty for a project that does not depend on Beak.
+List<BeakCheck> agentChecks(
+  Directory root, {
+  required BeakProjectConfig config,
+}) {
+  final BeakProjectKind? kind = BeakProjectKind.detect(root, config: config);
+  if (kind == null) {
+    return const [];
+  }
+  final BeakAgentReport? report = syncAgentFiles(
+    root,
+    options: const BeakAgentOptions(check: true, installSkills: false),
+  );
+  if (report == null) {
+    return const [];
+  }
+  final workspace = BeakWorkspace.locate(root);
+  final BeakPackageConfig? packages = BeakPackageConfig.read(
+    workspace.packageConfigFile,
+  );
+  BeakCheck check(BeakCheckStatus status, String label, {String? remedy}) =>
+      BeakCheck(status: status, label: label, remedy: remedy, group: 'agents');
+  final checks = <BeakCheck>[];
+
+  if (config.agents.instructions == BeakAgentInstructions.none) {
+    checks.add(
+      check(BeakCheckStatus.ok, 'agent instructions are disabled in beak.yaml'),
+    );
+  } else {
+    for (final change in report.files.where((change) => !change.isClaude)) {
+      checks.add(switch (change.action) {
+        BeakFileAction.unchanged => check(
+          BeakCheckStatus.ok,
+          '${change.label} has the Beak ${report.version} block',
+        ),
+        BeakFileAction.updated => check(
+          BeakCheckStatus.warn,
+          '${change.label} has an out-of-date Beak block',
+          remedy: 'beak prepare',
+        ),
+        _ => check(
+          BeakCheckStatus.warn,
+          '${change.label} has no Beak block',
+          remedy: 'beak agents',
+        ),
+      });
+    }
+    for (final problem in report.problems) {
+      checks.add(
+        check(
+          BeakCheckStatus.warn,
+          problem,
+          remedy: 'fix or delete the markers, then run `beak agents`',
+        ),
+      );
+    }
+  }
+
+  final agentsMd = File(p.join(root.path, 'AGENTS.md'));
+  if (agentsMd.existsSync()) {
+    if (config.agents.instructions != BeakAgentInstructions.none) {
+      checks.add(switch (BeakClaudeMd.pairing(root)) {
+        BeakClaudePairing.paired => check(
+          BeakCheckStatus.ok,
+          'CLAUDE.md reads AGENTS.md',
+        ),
+        BeakClaudePairing.unread => check(
+          BeakCheckStatus.warn,
+          'AGENTS.md exists but no CLAUDE.md reads it, and Claude Code reads '
+          'CLAUDE.md, not AGENTS.md',
+          remedy: 'beak agents',
+        ),
+        BeakClaudePairing.brokenDotClaudeImport => check(
+          BeakCheckStatus.warn,
+          '.claude/CLAUDE.md imports `@AGENTS.md`, which resolves next to '
+          'that file',
+          remedy: 'use `@../AGENTS.md`',
+        ),
+      });
+    }
+    final int kib = (agentsMd.lengthSync() / 1024).ceil();
+    checks.add(
+      kib <= 32
+          ? check(BeakCheckStatus.ok, 'AGENTS.md is $kib KiB')
+          : check(
+              BeakCheckStatus.warn,
+              'AGENTS.md is $kib KiB, and Codex reads only the first 32 KiB',
+              remedy: 'move the detail into files AGENTS.md points to',
+            ),
+    );
+  }
+
+  checks.add(_docsCheck(config, report, workspace, check));
+
+  final List<BeakInstalledSkill> skills = installedSkills(workspace, packages);
+  final outdated = <String>{
+    for (final skill in skills)
+      if (skill.status == BeakInstalledSkillStatus.outdated ||
+          skill.status == BeakInstalledSkillStatus.orphaned)
+        skill.name,
+  };
+  final edited = <String>{
+    for (final skill in skills)
+      if (skill.status == BeakInstalledSkillStatus.modified) skill.name,
+  };
+  if (outdated.isNotEmpty) {
+    checks.add(
+      check(
+        BeakCheckStatus.warn,
+        'Beak skills out of date: ${(outdated.toList()..sort()).join(', ')}',
+        remedy: 'beak agents',
+      ),
+    );
+  } else if (skills.isEmpty) {
+    checks.add(
+      check(
+        BeakCheckStatus.ok,
+        'no Beak skills installed',
+        remedy: 'optional: `beak agents` installs them',
+      ),
+    );
+  } else {
+    final int count = {for (final skill in skills) skill.name}.length;
+    checks.add(
+      check(
+        BeakCheckStatus.ok,
+        '$count Beak skill${count == 1 ? '' : 's'} installed, all current',
+      ),
+    );
+  }
+  if (edited.isNotEmpty) {
+    checks.add(
+      check(
+        BeakCheckStatus.ok,
+        'Beak skills edited locally, kept as they are: '
+        '${(edited.toList()..sort()).join(', ')}',
+      ),
+    );
+  }
+
+  final String? projectVersion =
+      packages?.umbrella?.version ?? packages?.core?.version;
+  if (projectVersion != null) {
+    checks.add(_skewCheck(projectVersion, check));
+  }
+  return checks;
+}
+
+/// Whether the docs bundle in the workspace is the one the project resolved.
+BeakCheck _docsCheck(
+  BeakProjectConfig config,
+  BeakAgentReport report,
+  BeakWorkspace workspace,
+  BeakCheck Function(BeakCheckStatus, String, {String? remedy}) check,
+) {
+  if (!config.agents.docs) {
+    return check(BeakCheckStatus.ok, 'docs bundle is disabled in beak.yaml');
+  }
+  return switch (report.docs) {
+    BeakDocsReady(:final status, :final version) => switch (status) {
+      BeakDocsStatus.pending => _staleDocs(workspace, version, check),
+      _ => check(
+        BeakCheckStatus.ok,
+        'docs bundle for Beak $version is in ${BeakWorkspace.docsPath}',
+      ),
+    },
+    BeakDocsUnavailable(:final reason) => check(
+      BeakCheckStatus.warn,
+      'docs bundle unavailable: $reason',
+      remedy: 'flutter pub get',
+    ),
+    null => check(BeakCheckStatus.ok, 'docs bundle not checked'),
+  };
+}
+
+/// The check for a docs copy that is missing or of another version.
+BeakCheck _staleDocs(
+  BeakWorkspace workspace,
+  String resolvedVersion,
+  BeakCheck Function(BeakCheckStatus, String, {String? remedy}) check,
+) {
+  final manifest = File(p.join(workspace.docsDirectory.path, 'manifest.json'));
+  String? copied;
+  if (manifest.existsSync()) {
+    try {
+      if (jsonDecode(manifest.readAsStringSync()) case {
+        'beak': final String version,
+      }) {
+        copied = version;
+      }
+    } on FormatException {
+      copied = null;
+    }
+  }
+  return copied == null
+      ? check(
+          BeakCheckStatus.warn,
+          'docs bundle not materialized in ${BeakWorkspace.docsPath}',
+          remedy: 'beak docs',
+        )
+      : copied == resolvedVersion
+      ? check(
+          BeakCheckStatus.warn,
+          'docs bundle for Beak $copied is out of date: beak_core ships other '
+          'pages under the same version',
+          remedy: 'beak prepare',
+        )
+      : check(
+          BeakCheckStatus.warn,
+          'docs bundle is Beak $copied but the project resolved Beak '
+          '$resolvedVersion',
+          remedy: 'beak prepare',
+        );
+}
+
+/// Whether this CLI shares a minor version with the project's Beak.
+BeakCheck _skewCheck(
+  String projectVersion,
+  BeakCheck Function(BeakCheckStatus, String, {String? remedy}) check,
+) {
+  final Version? project = _parse(projectVersion);
+  final Version? cli = _parse(beakCliVersion);
+  if (project == null ||
+      cli == null ||
+      (project.major == cli.major && project.minor == cli.minor)) {
+    return check(
+      BeakCheckStatus.ok,
+      'CLI $beakCliVersion matches project Beak $projectVersion',
+    );
+  }
+  return check(
+    BeakCheckStatus.warn,
+    'CLI $beakCliVersion, project Beak $projectVersion',
+    remedy:
+        'reactivate the CLI with `dart pub global activate --source git '
+        'https://github.com/SimonErich/beak.git --git-path packages/beak_cli '
+        '--git-ref v$projectVersion`',
+  );
+}
+
+Version? _parse(String version) {
+  try {
+    return Version.parse(version);
+  } on FormatException {
+    return null;
+  }
 }

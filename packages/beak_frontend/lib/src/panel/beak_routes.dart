@@ -9,8 +9,12 @@ abstract final class BeakRoutes {
   static String create(String table) => '/$table/create';
 
   /// The show page of record [id] of [table].
-  static String show(String table, Object id) => '/$table/$id';
+  ///
+  /// The id is one path segment: a `/`, `?` or `#` in it is escaped, so a
+  /// record keyed by a slug or a code opens the page it names and no other.
+  static String show(String table, Object id) =>
+      '/$table/${Uri.encodeComponent(id.toString())}';
 
   /// The edit page of record [id] of [table].
-  static String edit(String table, Object id) => '/$table/$id/edit';
+  static String edit(String table, Object id) => '${show(table, id)}/edit';
 }

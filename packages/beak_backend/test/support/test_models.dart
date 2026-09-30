@@ -59,6 +59,58 @@ final class ProductModel extends BeakModel {
   /// Creates the products model.
   const ProductModel();
 
+  /// Typed reference to the primary key.
+  static const id = BeakScalarField<int>(
+    model: ProductModel(),
+    column: ProductColumns.id,
+  );
+
+  /// Typed reference to the display name.
+  static const name = BeakScalarField<String>(
+    model: ProductModel(),
+    column: ProductColumns.name,
+  );
+
+  /// The belongs-to relationship to the owning category.
+  static const BeakBelongsTo categoryRelation = BeakBelongsTo(
+    key: 'category',
+    label: 'Category',
+    relatedTable: 'categories',
+    displayColumnKey: 'name',
+    foreignKey: 'category_id',
+  );
+
+  /// Typed reference to the owning category.
+  static const category = BeakToOneField(
+    model: ProductModel(),
+    relation: categoryRelation,
+    target: CategoryModel(),
+  );
+
+  /// Typed reference to the price.
+  static const price = BeakScalarField<double>(
+    model: ProductModel(),
+    column: ProductColumns.price,
+  );
+
+  /// Typed reference to the on-sale flag.
+  static const active = BeakScalarField<bool>(
+    model: ProductModel(),
+    column: ProductColumns.active,
+  );
+
+  /// Typed reference to the creation timestamp.
+  static const createdAt = BeakScalarField<DateTime>(
+    model: ProductModel(),
+    column: ProductColumns.createdAt,
+  );
+
+  /// Typed reference to the owning category's foreign key.
+  static const categoryId = BeakScalarField<int>(
+    model: ProductModel(),
+    column: ProductColumns.categoryId,
+  );
+
   @override
   String get table => 'products';
 
@@ -73,13 +125,7 @@ final class ProductModel extends BeakModel {
 
   @override
   List<BeakRelationship> get relationships => const [
-    BeakBelongsTo(
-      key: 'category',
-      label: 'Category',
-      relatedTable: 'categories',
-      displayColumnKey: 'name',
-      foreignKey: 'category_id',
-    ),
+    categoryRelation,
     BeakHasMany(
       key: 'reviews',
       label: 'Reviews',
@@ -105,6 +151,11 @@ final class CategoryModel extends BeakModel {
   /// Creates the categories model.
   const CategoryModel();
 
+  /// Typed reference to the primary key.
+  static const id = BeakScalarField<int>(model: CategoryModel(), column: _id);
+
+  static const BeakColumn _id = BeakIntColumn(key: 'id', label: 'Id');
+
   @override
   String get table => 'categories';
 
@@ -113,7 +164,7 @@ final class CategoryModel extends BeakModel {
 
   @override
   List<BeakColumn> get columns => const [
-    BeakIntColumn(key: 'id', label: 'Id'),
+    _id,
     BeakStringColumn(key: 'name', label: 'Name', searchable: true),
   ];
 
@@ -152,6 +203,37 @@ final class ReviewModel extends BeakModel {
   /// Creates the reviews model.
   const ReviewModel();
 
+  /// Typed reference to the owning product's key.
+  static const productId = BeakScalarField<int>(
+    model: ReviewModel(),
+    column: _productId,
+  );
+
+  /// Typed reference to the star rating.
+  static const rating = BeakScalarField<int>(
+    model: ReviewModel(),
+    column: _rating,
+  );
+
+  /// Typed reference to the review text.
+  static const body = BeakScalarField<String>(
+    model: ReviewModel(),
+    column: _body,
+  );
+
+  static const BeakColumn _productId = BeakIntColumn(
+    key: 'product_id',
+    label: 'Product id',
+  );
+
+  static const BeakColumn _rating = BeakIntColumn(
+    key: 'rating',
+    label: 'Rating',
+    sortable: true,
+  );
+
+  static const BeakColumn _body = BeakTextColumn(key: 'body', label: 'Body');
+
   @override
   String get table => 'reviews';
 
@@ -161,9 +243,9 @@ final class ReviewModel extends BeakModel {
   @override
   List<BeakColumn> get columns => const [
     BeakIntColumn(key: 'id', label: 'Id'),
-    BeakIntColumn(key: 'product_id', label: 'Product id'),
-    BeakIntColumn(key: 'rating', label: 'Rating', sortable: true),
-    BeakTextColumn(key: 'body', label: 'Body'),
+    _productId,
+    _rating,
+    _body,
   ];
 }
 

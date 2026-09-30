@@ -1,342 +1,167 @@
 ---
 title: The four layers
-description: The two four-layer flows a request runs through, backend and frontend, and the single catch boundary on each side.
+description: The two layered flows a request runs through, on the server and in the panel, where each one catches errors, and where a transport plugs in.
+type: concept
+audience: [expert]
+status: stable
 ---
 
 # The four layers
 
-After this page you can name every layer a request passes through, on the
-server and in the panel, say what each layer may and may not do, and point at
-the one place errors are caught on each side.
+A request in Beak passes through the same few layers on both sides. On the server it is `Handler -> Service -> DataSource`. In the panel it is `Widget -> ViewModel -> Repository -> DataSource`. This page names what each layer may and may not do, says where errors are caught, and lists the seams where you swap a transport.
 
-Beak has two flows, and they rhyme. A write on the server travels
-`Handler -> Service -> DataSource`. A tap in the panel travels
-`Widget -> ViewModel -> Repository -> DataSource`. Each flow has a single catch
-boundary: on the server it is the error-mapping middleware, in the panel it is
-the Repository. Learn the shape once and you know where any new code belongs.
+There is no `UseCase` layer, on either side. If you feel one is missing, the code you have in mind belongs in a `Service` on the server or in the `ViewModel` and `Repository` in the panel. Four layers on the panel side, three on the server, none between. The title counts the panel's.
 
-!!! warning "There is no UseCase layer"
-
-    Some architectures slot a UseCase (or Interactor) between the ViewModel and
-    the Repository. Beak does not. The ViewModel turns intent into a
-    `BeakQuerySpec` and calls the Repository directly. If you find yourself
-    reaching for a UseCase, you are looking for the Repository or the
-    ViewModel. Four layers, no fifth.
-
-## The backend flow: Handler, Service, DataSource
+## The idea in one picture
 
 ```mermaid
-flowchart TD
-  req[HTTP request] --> mw[Error-mapping middleware: the catch boundary]
-  mw --> handler[Handler: BeakCrudHandlers. parse, authorize, route]
-  handler --> service[Service: BeakResourceService. logic, validation, defaults]
-  service --> ds[DataSource: WormDataSource. raw I/O]
-  ds --> db[(worm to SQLite, Postgres, or in-memory)]
-  handler -. throws BeakException .-> mw
-  service -. throws BeakException .-> mw
+flowchart LR
+  subgraph panel["Panel"]
+    W["Widget<br/>renders signals"] --> VM["ViewModel<br/>owns the spec"]
+    VM --> R["Repository<br/>catches, returns BeakResult"]
+    R --> PD["DataSource<br/>ModelBeakDataSource, HttpBeakDataSource"]
+  end
+  PD -->|"REST, or a Serverpod tunnel"| M
+  subgraph server["Server"]
+    M["Error-mapping middleware<br/>catches, returns status + JSON"] --> H["Handler<br/>parse, authorize, route"]
+    H --> S["Service<br/>logic, validation, defaults"]
+    S --> SD["DataSource<br/>WormDataSource"]
+  end
+  SD --> DB[("database")]
 ```
 
-The whole REST surface is generated from a `BeakModelRegistry`, and the registry
-is generated too: `beak prepare` collects every `@Resource` class under
-`lib/models/` into `buildBeakRegistry()` in `lib/beak/registry.g.dart`.
-`beakApiRouter` mounts one resource router per model under `/api/{table}`, and
-every route ends in these same three layers. No endpoint is hand-written and no
-model is hand-registered.
+The two flows rhyme on purpose. Learn one and you know where code belongs in the other.
 
-### The Handler parses, authorizes, and routes
+## How it works
 
-A handler consults the policy, decodes the request body into a typed spec or
-record, calls the service, and encodes the typed result. That is all it does.
-No business logic lives here.
+### The server: Handler, Service, DataSource
+
+`beakApiRouter` mounts one router per registered model under `/api/{table}`, and every route ends in the same three layers. No endpoint is hand-written.
+
+The Handler parses the request, asks the policy, calls the service and encodes the result. It holds no business logic.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-Future<Response> query(Request request) async {
-  _requireView(request);
-  final spec = readBeakSpec(
-    await readJsonObject(request),
-    BeakQuerySpec.fromJson,
-  );
-  final page = await service.query(spec, scope: _scope(request));
-  return _json(200, page.toJson((record) => record.toJson()));
-}
+--8<-- "packages/beak_backend/lib/src/endpoints/crud_handlers.dart:query"
 ```
 
-`_scope` is the policy's row scope for this request's principal: a `BeakFilter?`
-the handler reads once and hands down. It is applied in the service, not here,
-so a handler that forgot to pass it could not open a hole quietly. See
-[Auth and policies](../backend/auth-and-policies.md).
-
-Malformed input is a user error, so the handler raises a
-`BeakValidationException` (which the boundary maps to `422`), never a `500`:
-
-```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
-try {
-  return BeakRecord(
-    values: {
-      for (final MapEntry(:key, :value) in body.entries)
-        key: BeakValue.fromJson(value),
-    },
-  );
-} on BeakConfigurationException catch (exception) {
-  throw BeakValidationException(
-    'Malformed record body: ${exception.message}',
-  );
-}
-```
-
-### The Service holds the logic
-
-The service is the per-model logic layer: validation, create-time defaults
-(minted uuid ids, stamped timestamps), and relation-kind gating. It throws
-typed `BeakException`s and never touches a Shelf type.
+The Service owns the logic: validation, defaults (a minted uuid for a string key, `created_at` and `updated_at` stamps), relation gating. It throws typed exceptions and never touches a Shelf type. Graph writes have their own service, `BeakGraphCommitService`.
 
 ```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-/// Validates and stores [input], minting a uuid primary key (for
-/// string-keyed models) and stamping `created_at`/`updated_at` when the
-/// model declares them and the caller did not.
-Future<BeakRecord> create(BeakRecord input) {
-  final prepared = _withCreateDefaults(input);
-  validation.validate(model, prepared, isCreate: true);
-  return dataSource.create(model.table, prepared);
-}
+--8<-- "packages/beak_backend/lib/src/service/beak_resource_service.dart:serviceQuery"
 ```
 
-When the logic rejects something, the service throws. Here it refuses a spec
-aimed at the wrong table:
+The DataSource does raw I/O and lets exceptions propagate. It is an interface from `beak_core`, and `WormDataSource` implements it over the worm ORM. Because the service depends on the interface, worm types never leave `beak_backend`.
 
-```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
-void _requireSpecTargets(String table, String specKind) {
-  if (table != model.table) {
-    throw BeakValidationException(
-      '$specKind spec targets "$table" but this endpoint serves '
-      '"${model.table}".',
-    );
-  }
-}
+```dart title="packages/beak_core/lib/src/data/beak_data_source.dart"
+--8<-- "packages/beak_core/lib/src/data/beak_data_source.dart:BeakDataSource"
 ```
 
-### The DataSource does raw I/O
-
-The service talks to a `BeakDataSource`, an interface from beak_core. On the
-server the implementation is `WormDataSource`, which turns the spec into a worm
-query and lets any I/O exception propagate up. Because the service depends on
-the interface and not the implementation, worm never leaks past
-beak_backend. See [The data source seam](../backend/the-data-source-seam.md)
-for how the same interface serves the panel over HTTP.
-
-### The catch boundary: error-mapping middleware
-
-Every request runs inside one middleware whose only job is to turn thrown
-exceptions into responses. A `BeakException` becomes its typed status and JSON
-body; anything else becomes an opaque `500` so internals never reach a client.
+Around all three sits the catch boundary. `beakErrorMappingMiddleware` is the only code on the server that turns an exception into a response. A `BeakException` becomes its status and a JSON body, and anything else becomes an opaque 500 that reports to `onUnexpectedError` and tells the client nothing:
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-Middleware beakErrorMappingMiddleware({
-  BeakUnexpectedErrorListener? onUnexpectedError,
-}) =>
-    (Handler inner) => (Request request) async {
-      try {
-        return await inner(request);
-      } on BeakException catch (exception) {
-        return _exceptionResponse(exception, request);
-      } catch (error, stackTrace) {
-        onUnexpectedError?.call(error, stackTrace);
-        return _jsonResponse(500, {
-          'code': 'internal',
-          'message': 'Internal server error.',
-          ..._requestIdEntry(request),
-        });
-      }
-    };
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:beakErrorMappingMiddleware"
 ```
 
-The `BeakException` family is sealed, so the status mapping is an exhaustive
-switch. Add an exception type and the compiler makes you handle it here:
+The status mapping is a `switch` over a sealed family, so a new exception type doesn't compile until it has a status:
 
 ```dart title="packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart"
-final int statusCode = switch (exception) {
-  BeakValidationException() => 422,
-  BeakNotFoundException() => 404,
-  BeakAuthenticationException() => 401,
-  BeakAuthorizationException() => 403,
-  BeakConflictException() => 409,
-  BeakConfigurationException() => 500,
-  BeakStorageException() => 500,
-};
+--8<-- "packages/beak_backend/lib/src/server/middleware/error_mapping_middleware.dart:exceptionStatus"
 ```
 
-!!! note "Why one boundary and not try/catch everywhere"
+The middleware sits in a fixed stack: request log, CORS, JSON, error mapping, auth, your own middleware, then the router. Auth and your own middleware sit inside the error mapping, so anything they throw becomes JSON too.
 
-    Handlers and services throw freely and stay short. The middleware is the
-    only code that knows about HTTP status codes, so error shaping lives in
-    exactly one file. A `BeakValidationException` thrown three layers down still
-    lands as a clean `422` with a `{code, message, fieldErrors, requestId}`
-    body.
+### The panel: Widget, ViewModel, Repository, DataSource
 
-## The frontend flow: Widget, ViewModel, Repository, DataSource
+The Widget is a `HookWidget`. It reads `ReadonlySignal`s, forwards user intent and holds no data. `BeakDataTable` asks its view model to refresh and watches the page signal:
 
-```mermaid
-flowchart TD
-  widget[Widget: HookWidget. renders signals, forwards intent] --> vm[ViewModel. owns the spec, exposes ReadonlySignals]
-  vm --> repo[Repository: BeakResourceRepository. the catch boundary]
-  repo --> ds[DataSource: HttpBeakDataSource]
-  ds --> client[BeakClient over REST]
-  repo -. BeakResult .-> vm
+```dart title="packages/beak_frontend/lib/src/table/beak_data_table.dart"
+--8<-- "packages/beak_frontend/lib/src/table/beak_data_table.dart:viewModelLifecycle"
 ```
 
-The panel mirrors the server. Data flows down through four layers, and the
-Repository catches on the way back up so failures return as values, not
-thrown exceptions.
-
-### The Widget renders signals and forwards intent
-
-Widgets are `HookWidget`s (never `StatefulWidget`). A widget watches a
-`ReadonlySignal` and rebuilds when it changes, and it forwards user intent (a
-sort, a page change) to its ViewModel. It holds no data and catches no errors.
-
-### The ViewModel owns state and never uses try/catch
-
-A ViewModel owns its `Signal`s, exposes them upward as `ReadonlySignal`s, and
-translates intent into `BeakQuerySpec` changes. It calls the Repository and
-switches on the result. It never writes `try/catch`.
-
-```dart title="packages/beak_frontend/lib/src/table/table_view_model.dart"
-Future<void> refresh() async {
-  final int requestId = ++_latestRequestId;
-  _loading.value = true;
-  _error.value = null;
-  final result = await _repository.query(_spec.value);
-  if (requestId != _latestRequestId) {
-    return;
-  }
-  switch (result) {
-    case BeakOk(:final value):
-      _page.value = value;
-    case BeakErr(:final error):
-      _error.value = error;
-  }
-  _loading.value = false;
-}
+```dart title="packages/beak_frontend/lib/src/table/beak_data_table.dart"
+--8<-- "packages/beak_frontend/lib/src/table/beak_data_table.dart:watchPage"
 ```
 
-The base class enforces the discipline: state is created with `ownedSignal`
-and exposed as a `ReadonlySignal`, and disposed together.
+The ViewModel owns state as signals and exposes them read-only. It turns intent (a sort, a page change, a search) into a new `BeakQuerySpec`, calls the repository and switches on the result. It never catches a data-source failure itself.
 
 ```dart title="packages/beak_frontend/lib/src/state/beak_view_model.dart"
-abstract base class BeakViewModel {
-  final List<void Function()> _cleanups = [];
-  // ...
-  @protected
-  Signal<T> ownedSignal<T>(T value) {
-    final owned = signal<T>(value);
-    _cleanups.add(owned.dispose);
-    return owned;
-  }
-
-  /// Releases every owned signal; further use is a programming error.
-  @mustCallSuper
-  void dispose() {
-    for (final cleanup in _cleanups) {
-      cleanup();
-    }
-    _cleanups.clear();
-    _isDisposed = true;
-  }
-}
+--8<-- "packages/beak_frontend/lib/src/state/beak_view_model.dart:BeakViewModel"
 ```
 
-### The Repository is the catch boundary
+```dart title="packages/beak_frontend/lib/src/table/beak_table_view_model.dart"
+--8<-- "packages/beak_frontend/lib/src/table/beak_table_view_model.dart:refresh"
+```
 
-The Repository wraps each data-source call so a thrown `BeakException` becomes
-a `BeakErr` and success becomes a `BeakOk`. By the time a result reaches a
-ViewModel, failure is a value it can pattern-match on.
+The Repository is the catch boundary. Each method wraps a data-source call in `beakRun`, so a thrown `BeakException` comes back as a `BeakErr` and success as a `BeakOk`:
+
+```dart title="packages/beak_frontend/lib/src/data/beak_run.dart"
+--8<-- "packages/beak_frontend/lib/src/data/beak_run.dart:beakRun"
+```
 
 ```dart title="packages/beak_frontend/lib/src/data/beak_resource_repository.dart"
-/// Runs a query, capturing failures as [BeakErr].
-Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
-    _guard(() => dataSource.query(spec));
-
-// ... aggregate, getOne, batchGet, create, update, delete, each the same shape ...
-
-Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
-  try {
-    return BeakOk(await run());
-  } on BeakException catch (exception) {
-    return BeakErr(exception);
-  }
-}
+--8<-- "packages/beak_frontend/lib/src/data/beak_resource_repository.dart:getOne"
 ```
 
-`BeakResult<T>` is the frontend counterpart of the server's error-mapping
-middleware: one place that turns exceptions into a shape the layers above can
-handle without catching. See [Results and errors](results-and-errors.md) for
-the full type.
+Anything that is not a `BeakException` and that no mapper claims is rethrown. A programming error should crash loudly, not turn into a red banner.
 
-### The DataSource speaks HTTP
-
-The panel's `BeakDataSource` is `HttpBeakDataSource`, which delegates every
-operation to a typed `BeakClient` pointed at `apiBaseUrl`. Widgets and
-ViewModels stay transport-blind, and the interface is identical to the
-backend's worm-backed one.
-
-```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
-@override
-Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
-    client.query(spec.table, spec);
-```
-
-You do not wire that up. `registerBeakDependencies`, which `BeakPanel` calls at
-startup, builds the client from the panel config and registers the source
-behind the interface:
+The DataSource in the panel is a `ModelBeakDataSource`. It routes each model to its own transport if the model binds one, and to the HTTP source otherwise. The panel registers it once, next to a `BeakClient` and a session store, so widgets and view models never see a URL:
 
 ```dart title="packages/beak_frontend/lib/src/di/beak_locator.dart"
-final client = BeakClient(
-  baseUrl: config.apiBaseUrl,
-  httpClient: httpClient,
-  tokenProvider: tokenProvider ?? () => sessions.token,
-);
-sessions = BeakSessionStore(client);
-final source = dataSource ?? HttpBeakDataSource(client);
+--8<-- "packages/beak_frontend/lib/src/di/beak_locator.dart:registerDataLayer"
 ```
 
-`config.apiBaseUrl` comes from `api.baseUrl` in
-[`beak.yaml`](../reference/beak-yaml.md), by way of the generated panel:
+### Where errors are caught
 
-```dart title="examples/store/lib/beak/panel.g.dart"
-apiBaseUrl: const String.fromEnvironment(
-  'BEAK_API_BASE_URL',
-  defaultValue: 'http://localhost:8080',
-),
-```
+"One catch boundary per side" is the rule, and it has a few honest footnotes. Each catch has one job.
 
-Because the seam is the same `BeakDataSource` interface, a test passes
-`dataSource:` a fake and the ViewModel never notices.
-
-## The two catch boundaries side by side
-
-Each flow catches once. Everything between the boundary and the point of
-failure throws freely and stays readable.
-
-| | Backend | Frontend |
+| Where | Catches | Does |
 | --- | --- | --- |
-| Layers | Handler, Service, DataSource | Widget, ViewModel, Repository, DataSource |
-| Catch boundary | `beakErrorMappingMiddleware` | `BeakResourceRepository` |
-| Failure becomes | HTTP status + JSON body | `BeakResult<T>` (`BeakOk` / `BeakErr`) |
-| What throws | Handlers and Services throw `BeakException` | `DataSource` throws; nobody above catches |
-| Never catches | Handlers, Services | Widgets, ViewModels |
+| `beakErrorMappingMiddleware` (server) | everything | `BeakException` to status and JSON, the rest to an opaque 500 |
+| `BeakGraphCommitService` (server) | `BeakException` inside the transaction | rolls back and answers with an `unapplied` receipt, not an HTTP error |
+| `BeakClient` (core) | HTTP error bodies | decodes `code` back into the matching `BeakException` |
+| `ModelBeakDataSource` (panel) | host exceptions | maps them with `mapException` into a `BeakException` (a dropped connection or timeout becomes a `BeakTransportException`) and rethrows; it doesn't return results |
+| `beakRun` in `BeakResourceRepository` (panel) | `BeakException` | returns `BeakErr`; other exceptions go to `mapException` or are rethrown |
+| `BeakFormCommitRepository` (panel) | any `Exception` from a commit | returns an `unapplied` receipt for a typed refusal (422, 413, 401, 403, 404, 409) and an `unknown` one for anything that can't prove the server wrote nothing |
 
-Both boundaries lean on the same sealed `BeakException` family, so the codes
-line up end to end: a `BeakValidationException` in the service becomes a `422`
-on the wire, and the client re-hydrates it into a `BeakErr` holding the same
-typed exception.
+Actions go through the same repository: `executeBeakAction` wraps a row, bulk or global action in `BeakResourceRepository.run` and reports a `BeakErr` to the host. [Results and errors](results-and-errors.md) follows a failure across all of these.
+
+### Where a transport plugs in
+
+Every seam is an interface, so you replace one layer and leave the rest alone.
+
+| Seam | Interface | Swap it for |
+| --- | --- | --- |
+| Panel to server | the `http.Client` under `BeakClient`, via `BeakPanel(httpClient:)` | a Serverpod tunnel (`ServerpodBeakHttpClient`) or a test client |
+| Panel data source | `BeakDataSource`, via `BeakPanel(dataSource:)` or `BeakModel.dataSource` per model | a fake in a widget test, or typed RPC (`ServerpodDataSource`) |
+| Server data source | `BeakDataSource`, `WormDataSource` by default | your own, via `defaults.build(dataSource:)`; graph commits are atomic only over a `WormDataSource` on a transactional adapter, and staged over anything else |
+| Server database | worm's `DatabaseAdapter` | `ServerpodSessionAdapter`, so Beak runs on Serverpod's database |
+| Server pipeline | `BeakServer(middleware:, routes:, router:)` | extra endpoints and middleware in front of the generated API |
+
+The Serverpod admin app is the proof that the layers hold. The panel side is the unchanged `HttpBeakDataSource` over a tunnelling `http.Client`, and the server side is the unchanged Shelf pipeline, run in memory inside one endpoint method:
+
+```dart title="packages/beak_serverpod_flutter/lib/src/serverpod_beak_data_source.dart"
+--8<-- "packages/beak_serverpod_flutter/lib/src/serverpod_beak_data_source.dart:serverpodBeakDataSource"
+```
+
+## Why it is shaped this way
+
+Throw freely below, catch once above. Handlers, services and data sources throw and stay short. The middleware is the only server code that knows about status codes, so error shaping lives in one file. On the panel the repository plays the same role, which is why a `ViewModel` can be read top to bottom without a `try`.
+
+A layer you can replace is a layer with one dependency. The service knows `BeakDataSource`, not worm. The view model knows the repository, not HTTP. That is what lets a Serverpod session, a fake or a custom backend take a layer's place, and it is why `beak_core` has no Flutter and `beak_backend` exposes no worm types.
+
+No fifth layer. A use-case class between view model and repository would hold no state and no I/O, only the sequence a view model already runs. Beak keeps that sequence in the view model, where the signals are.
+
+## What it means for you
+
+- Put validation, defaults and rules that must hold for every caller in a service or on the model, and let them throw a `BeakException`. Don't catch in a handler.
+- Put anything a widget needs to show in a `ViewModel` signal, and switch on `BeakOk` and `BeakErr` from the repository. Don't write `try/catch` around a data-source call in a widget.
+- Implement `BeakDataSource` for a new backend or test double, and hand it to `BeakPanel(dataSource:)`. Nothing above the interface changes.
+- Don't add an endpoint that bypasses the middleware. If you embed `beakApiRouter` in your own Shelf app, wrap it in `beakJsonMiddleware` and `beakErrorMappingMiddleware` so typed exceptions still become JSON.
 
 ## Continue reading
 
-- [How data flows](how-data-flows.md) the `BeakQuerySpec` these layers pass
-  between them, and how it round-trips.
-- [Results and errors](results-and-errors.md) the `BeakResult` and
-  `BeakException` types both catch boundaries speak.
-- [Middleware](../backend/middleware.md) the full server pipeline the
-  error-mapping boundary sits in.
-- [The data source seam](../backend/the-data-source-seam.md) the interface
-  that keeps worm on the server and REST in the panel.
+- [How data flows](how-data-flows.md) the spec and the save plan these layers pass between them.
+- [Results and errors](results-and-errors.md) the `BeakResult` and `BeakException` types both catch boundaries speak.
+- [Backend flow](../architecture/backend-flow.md) the server side in contributor detail.
+- [Frontend flow](../architecture/frontend-flow.md) the panel side in contributor detail.
+- [Custom data sources](../extending/custom-data-sources.md) implementing `BeakDataSource` for your own backend.

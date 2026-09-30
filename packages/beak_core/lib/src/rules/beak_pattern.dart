@@ -21,6 +21,7 @@ part of 'beak_rule.dart';
 final class BeakPattern extends BeakRule {
   /// Creates a rule matching strings against [regex]; [message] overrides
   /// the default error text.
+  // --8<-- [start:BeakPattern]
   const BeakPattern(this.regex, {this.message});
 
   /// Regular-expression source the value must match.
@@ -28,6 +29,7 @@ final class BeakPattern extends BeakRule {
 
   /// Custom error message, if any.
   final String? message;
+  // --8<-- [end:BeakPattern]
 
   @override
   String get id => 'pattern';

@@ -1,32 +1,110 @@
 ---
-title: Split a long form into steps
-description: Turn a wall of inputs into a sequence that validates as it goes.
+title: A multi-step form
+description: Declare a form as named sections once, project them into a validated wizard for create and edit, and reuse the same sections as tabs on the show page.
+type: recipe
+audience: [beginner, expert, agent]
+status: stable
 ---
 
-# Split a long form into steps
+# A multi-step form
 
-A create form with nine inputs is a wall. Give the resource `formSteps` and each
-step validates before the next one opens:
+You want an order form that walks people through four steps, blocks Continue while a step is invalid, and lets them resume tomorrow. You also want the finished order to read as tabs on its show page without writing the fields twice.
 
-```dart title="examples/store/lib/resources/orders.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  formSteps: const [
-    BeakFormStep(
-      title: 'Customer',
-      subtitle: 'Who is buying',
-      icon: OiIcons.user,
-      description:
-          'Pick the customer this order belongs to. Their past orders appear '
-          'on their own page once this one is saved.',
-      columns: [OrderColumns.customerId],
-    ),
-    // ...'Order', 'Money' and 'Delivery', covering every remaining column.
-  ],
-);
+## Recipe
+
+Describe the form as `BeakSection`s inside one `BeakFormSections`. A section is a title, a description and the same form nodes you would put in any layout. The shop's order has four; this is how they open, with the inputs left out:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
+BeakFormSections orderSections() => BeakFormSections(
+  sections: [
+    BeakSection(
+      title: 'Select a customer',
+      description: 'Identify the order and its customer.',
+      children: [
+// ...
+    BeakSection(
+      title: 'Profile and delivery',
+      description: 'Choose an address belonging to the selected customer.',
+      children: [
+// ...
+    BeakSection(
+      title: 'Order items',
+      description: 'Add catalog items, variants or custom services.',
+      children: [
+// ...
 ```
 
-Every form column must appear in exactly one step.
+`BeakFormSections` knows three projections. Nothing else about a section changes between them:
+
+```dart title="packages/beak_frontend/lib/src/form/beak_form_layout.dart"
+--8<-- "packages/beak_frontend/lib/src/form/beak_form_layout.dart:BeakFormSections"
+```
+
+Turn the sections into a wizard screen. The screen needs the steps, an optional draft store, and whether to show a review before sending:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart"
+--8<-- "examples/clean_beak_config/lib/resources/orders/screens/order_form_wizard_screen.dart:orderWizardScreen"
+```
+
+Register it in the resource's `screens:`, and give the read role its own screen built from the tabs of the same sections:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/order_resource.dart"
+OrderFormWizardScreen(),
+BeakFormScreen(
+  roles: const {BeakScreenRole.read},
+  layout: BeakFormLayout(children: [orderSections().tabs]),
+),
+```
+
+That is all. Create and edit now open the wizard, and the show page shows tabs.
+
+## How it works
+
+- A `BeakWizardScreen` serves `create` and `edit` unless you give `roles`. The same wizard edits an existing order, with its lines and picks loaded.
+- Continue validates the current step and every step before it. Errors in later steps stay hidden until you reach them. Back never validates, and the values, staged rows and errors are kept.
+- The first Continue of the shop's order is blocked until a customer is chosen, because `OrderModel.customer` is non-nullable and so required. Nothing in the section says so. The rule comes from the schema, and the server runs it again when the wizard saves.
+- Finish validates all steps, saves the whole draft as one graph commit, and opens the first step with an error if one fails. Nothing is saved between steps.
+- `reviewBeforeSave: true` shows the `Review changes` dialog first, and `drafts:` stores the unsaved form so leaving and coming back resumes it. The shop keeps drafts in memory on desktop and in the browser on the web:
+
+```dart title="examples/clean_beak_config/lib/shop_drafts.dart"
+--8<-- "examples/clean_beak_config/lib/shop_drafts.dart"
+```
+
+- `context` must name the signed-in user and tenant (the shop is single-user, so it uses a fixed demo string). `schemaVersion` is the migration boundary: bump it when the layout changes, so an old draft is not restored into fields that moved. Drafts older than `retention`, seven days by default, are discarded.
+
+## Variations
+
+| You want | Do this |
+| --- | --- |
+| A step rail with summaries instead of Previous and Next | `navigation: BeakWizardNavigation.rail`, see [Multi-step forms](../forms/multi-step-forms.md#compact-or-rail). |
+| A summary of the answers as the last step | `BeakReviewSection`, whose Edit link calls `goToStep`. |
+| The wizard on the whole screen, sending through a named command | `fullScreen: true` and `submitAction:`. Foodio's order wizard does. |
+| Fields that appear only for some answers | `visibleIf` on the input or the card. On a whole section it hides the content but leaves an empty step in the navigation. |
+| A plain stacked form from the same sections | `orderSections().form`. |
+| One of the `BeakFormScreen` options the wizard lacks (`layout`, `recordHeader`, `editingLabel`) | Write `BeakFormScreen(steps: [...])` directly. `BeakWizardScreen` forwards 26 of its 29 parameters. |
+
+A wizard has no generated page frame, so record actions such as a print button do not appear on it. If the model has commands, place them with `BeakFormActions` inside a step.
+
+## Verify
+
+The wizard's package tests check that a step with an empty required field blocks advancing, and that the next step opens once it is valid:
+
+```console
+$ cd packages/beak_frontend
+$ flutter test test/src/form/beak_wizard_form_test.dart --plain-name 'blocks advancing'
+All tests passed!
+$ flutter test test/src/form/beak_wizard_form_test.dart --plain-name 'advances to the next step'
+All tests passed!
+```
+
+The shop's test drives its real order sections through `validateStep`, then saves through an in-process API:
+
+```dart title="examples/clean_beak_config/test/order_form_test.dart"
+--8<-- "examples/clean_beak_config/test/order_form_test.dart:formSaveThroughApiTest"
+```
 
 ## Continue reading
 
-- [Multi-step forms](../panel/multi-step-forms.md)
+- [A kanban view](a-kanban-view.md) shows the same records as cards on a board.
+- [Multi-step forms](../forms/multi-step-forms.md) covers step options, the rail layout and review sections.
+- [Drafts, review and conflicts](../forms/drafts-and-review.md) explains resuming and recovering an interrupted save.

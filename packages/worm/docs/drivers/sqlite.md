@@ -83,6 +83,7 @@ The adapter declares this `AdapterCapabilities` profile (shared with its transac
 | `2067` | UNIQUE constraint | `UniqueConstraintException` |
 | `1555` | PRIMARY KEY constraint | `UniqueConstraintException` |
 | `787` | FOREIGN KEY constraint | `ForeignKeyException` |
+| `275`, `1299` | CHECK, NOT NULL constraint | `CheckConstraintException` (a NOT NULL failure names its column) |
 | any other `SqliteException` | | `QueryException` |
 | any other thrown object | | `QueryException` |
 

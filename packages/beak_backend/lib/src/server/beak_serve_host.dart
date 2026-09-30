@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_core/io.dart';
+import 'package:shelf/shelf.dart';
 import 'package:worm/worm.dart';
 
 import '../auth/auth_router.dart';
@@ -11,6 +13,8 @@ import '../config/beak_backend_config.dart';
 import '../config/env_loader.dart';
 import '../data/worm/worm_bootstrap.dart';
 import '../data/worm/worm_data_source.dart';
+import '../service/beak_graph_commit_service.dart';
+import '../service/beak_outbox.dart';
 import 'beak_server.dart';
 import 'beak_storage_settings.dart';
 import 'middleware/error_mapping_middleware.dart';
@@ -27,12 +31,15 @@ typedef BeakServerCustomizer = BeakServer Function(BeakServerDefaults defaults);
 /// [BeakServer] yourself.
 final class BeakServerDefaults {
   /// Creates the resolved defaults.
+  ///
+  /// [now] is the host's clock, which [build] hands to every write path.
   const BeakServerDefaults({
     required this.config,
     required this.registry,
     required this.dataSource,
     required this.environment,
     this.storage,
+    this.now,
   });
 
   /// Host, port and database URL, resolved from the environment.
@@ -42,7 +49,14 @@ final class BeakServerDefaults {
   final BeakModelRegistry registry;
 
   /// The data source the server reads and writes through.
-  final BeakDataSource dataSource;
+  ///
+  /// Its [WormDataSource.adapter] is the database connection itself, which an
+  /// outbox provider writing its own receipts needs:
+  ///
+  /// ```dart
+  /// outbox: MailEffects().schedule(defaults.dataSource.adapter),
+  /// ```
+  final WormDataSource dataSource;
 
   /// The resolved upload driver, or `null` when uploads are disabled.
   final BeakStorageDriver? storage;
@@ -58,53 +72,100 @@ final class BeakServerDefaults {
   /// ```
   final Map<String, String> environment;
 
+  /// The host's clock, or `null` for [DateTime.now].
+  final DateTime Function()? now;
+
   /// The server Beak would have built.
   ///
   /// Pass the arguments you want to change; everything else comes from the
-  /// resolved defaults.
+  /// resolved defaults. Each one is documented on [BeakServer.new]:
+  /// [middleware] and [routes] extend the generated API, [corsOrigin] names
+  /// the origin browsers may call from, [preparePlan] adds transactional
+  /// business rules and [graphOnly] closes the per-record routes that could
+  /// bypass them, [outbox] schedules effect delivery while the host serves,
+  /// and [generateId] and [transformRunner] replace the id mint and the image
+  /// pipeline.
+  ///
+  /// [storage] serves uploads from a driver you built instead of the one the
+  /// environment selected, and [dataSource] serves the API from a source
+  /// other than the worm-backed default (graph commits over it are staged,
+  /// see `BeakServer`). Left out, both keep what the host resolved.
+  /// [signedUrlLifetime] is how long the links the upload endpoint resolves
+  /// stay valid on drivers that sign them (default: one hour), and
+  /// [maxPerPage] the largest page a query is served (default 200; a larger
+  /// request is answered at that size).
+  // --8<-- [start:BeakServerDefaultsBuild]
   BeakServer build({
+    BeakStorageDriver? storage,
+    BeakDataSource? dataSource,
+    Duration? signedUrlLifetime,
+    int maxPerPage = BeakPagination.maxPerPage,
     BeakPolicy policy = const BeakAllowAllPolicy(),
     BeakAuthSessions? authSessions,
     BeakAuthGuard? authGuard,
+    List<Middleware> middleware = const [],
+    Handler? routes,
+    String corsOrigin = '*',
     BeakRequestLogger? onRequest,
     BeakUnexpectedErrorListener? onUnexpectedError,
+    BeakBootWarningListener? onWarning,
+    BeakSavePlanPreparer? preparePlan,
+    BeakSavePlanFinalizer? finalizePlan,
+    List<BeakModel> graphOnly = const [],
+    BeakOutboxSchedule? outbox,
+    String Function()? generateId,
+    BeakTransformRunner? transformRunner,
   }) => BeakServer(
     config: config,
     registry: registry,
-    dataSource: dataSource,
-    storage: storage,
+    dataSource: dataSource ?? this.dataSource,
+    storage: storage ?? this.storage,
+    signedUrlLifetime: signedUrlLifetime,
+    maxPerPage: maxPerPage,
     policy: policy,
     authSessions: authSessions,
     authGuard: authGuard,
+    middleware: middleware,
+    routes: routes,
+    corsOrigin: corsOrigin,
     onRequest: onRequest,
     onUnexpectedError: onUnexpectedError,
+    onWarning: onWarning,
+    preparePlan: preparePlan,
+    finalizePlan: finalizePlan,
+    graphOnly: graphOnly,
+    outbox: outbox,
+    now: now,
+    generateId: generateId,
+    transformRunner: transformRunner,
   );
+  // --8<-- [end:BeakServerDefaultsBuild]
 }
 
 /// Owns a Beak backend's whole lifecycle: environment to typed config to
 /// database adapter to registry to running server — plus the migration and
 /// seeding CLI over the same wiring.
 ///
-/// This exists because every Beak project used to hand-write the same ~180
-/// lines: a storage-driver switch, a `buildXServer` function, a
-/// `bin/server.dart`, and a `bin/worm.dart`. Both demo apps' copies differed
-/// only in identifiers. Declare the parts that are actually yours — the
-/// models, the migrations, the seeders — and Beak does the rest:
+/// A project does not write one: `beak prepare` emits `beakHost()` into
+/// `lib/beak/server.g.dart` with every discovered model, migration and
+/// seeder, and the generated `bin/serve.dart` and `bin/migrate.dart` call it.
+/// The project's own part is `lib/server.dart`, which the host hands its
+/// resolved [BeakServerDefaults]:
 ///
 /// ```dart
-/// // bin/server.dart
-/// Future<void> main() => acmeHost().serve();
+/// // lib/server.dart
+/// import 'package:beak/server.dart';
 ///
-/// // bin/migrate.dart
-/// Future<void> main(List<String> args) async =>
-///     exit(await acmeHost().runCli(args));
-///
-/// BeakServeHost acmeHost() => BeakServeHost(
-///   registry: buildAcmeRegistry(),
-///   migrations: acmeMigrations,
-///   seeders: const [AcmeSeeder()],
-///   storageRegistry: () => createDefaultStorageRegistry()..registerS3(),
+/// BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+///   policy: const ShopPolicy(),
+///   middleware: [rateLimit()],
 /// );
+///
+/// // bin/serve.dart (generated)
+/// Future<void> main() async {
+///   final HttpServer server = await beakHost().serve();
+///   stderr.writeln('listening on http://${server.address.host}:${server.port}');
+/// }
 /// ```
 final class BeakServeHost {
   /// Creates a host over [registry], with optional [migrations], [seeders],
@@ -127,16 +188,27 @@ final class BeakServeHost {
   /// Every model this backend serves.
   final BeakModelRegistry registry;
 
-  /// Migrations the CLI applies, in order.
+  /// Migrations the CLI applies, in order, and [serve] applies itself to an
+  /// in-memory database.
   final List<Migration> migrations;
 
-  /// Seeders the CLI can run.
+  /// Seeders the CLI can run, and [serve] runs itself on an in-memory
+  /// database.
   final List<Seeder> seeders;
 
   /// Builds the storage registry, for projects using a plug-in driver.
   ///
   /// `beak_backend` depends on no driver package, so an app uploading to S3
-  /// supplies `() => createDefaultStorageRegistry()..registerS3Storage(...)`.
+  /// registers the driver on the default registry itself:
+  ///
+  /// ```dart
+  /// storageRegistry: () {
+  ///   final registry = createDefaultStorageRegistry();
+  ///   registerS3Storage(registry);
+  ///   return registry;
+  /// },
+  /// ```
+  ///
   /// Defaults to the in-box `memory` and `local` drivers.
   final BeakStorageRegistry Function()? storageRegistry;
 
@@ -178,6 +250,7 @@ final class BeakServeHost {
   ///
   /// Throws a [BeakConfigurationException] when a driver is selected but not
   /// registered — a missing `registerS3Storage` fails at boot, by name.
+  // --8<-- [start:resolveStorageDriver]
   BeakStorageDriver? resolveStorageDriver() {
     final BeakStorageConfig? storageConfig = BeakStorageSettings.fromEnv(
       _environment,
@@ -197,6 +270,7 @@ final class BeakServeHost {
       registry: storageRegistry?.call() ?? createDefaultStorageRegistry(),
     );
   }
+  // --8<-- [end:resolveStorageDriver]
 
   /// Builds the server over [adapter] without binding a port — the test seam.
   ///
@@ -214,35 +288,94 @@ final class BeakServeHost {
       dataSource: WormDataSource(registry, adapter: adapter, now: _now),
       environment: _environment,
       storage: storage,
+      now: _now,
     );
     return configure?.call(defaults) ?? defaults.build();
   }
 
-  /// Connects worm, builds the server, and binds the HTTP listener.
+  /// Connects the database, builds the server, and binds the HTTP listener.
+  ///
+  /// An in-memory database (`sqlite::memory:`) lives and dies with this
+  /// process, so `beak migrate` — another process — cannot prepare it. For
+  /// one, [serve] applies [migrations] and runs [seeders] itself before it
+  /// listens. Every other database is migrated explicitly and never on boot.
+  ///
+  /// When the configured server carries a [BeakServer.outbox] schedule, it is
+  /// validated before the socket is bound, so a misconfigured one fails the
+  /// boot without serving a request. Its drain loop starts once the socket is
+  /// bound and stops when the returned server is closed, after the drain in
+  /// flight finishes. Drain failures go to [BeakServer.onUnexpectedError].
   ///
   /// Returns the bound [HttpServer] so a caller can log its address or close
   /// it; the process keeps serving until it does.
+  // --8<-- [start:BeakServeHostServe]
   Future<HttpServer> serve() async {
-    await initializeWormPostgres(config);
+    await initializeBeakDatabase(config);
+    final DatabaseAdapter adapter = Worm.adapter();
+    if (isSqliteUrl(config.databaseUrl) &&
+        sqliteFilePathOf(config.databaseUrl) == null) {
+      await MigrationRunner(adapter: adapter, migrations: migrations).migrate();
+      await SeederRunner(
+        adapter: adapter,
+        seeders: seeders,
+        environment: Worm.environment,
+      ).run();
+    }
     final server = buildServer(
-      adapter: Worm.adapter(),
+      adapter: adapter,
       storage: resolveStorageDriver(),
     );
-    return server.start();
+    final BeakOutboxSchedule? outbox = server.outbox?..validate();
+    final HttpServer http = await server.start();
+    if (outbox == null) {
+      return http;
+    }
+    return _OutboxServingHttpServer(
+      http,
+      outbox.start(adapter, onError: server.onUnexpectedError, now: _now),
+    );
   }
+  // --8<-- [end:BeakServeHostServe]
+
+  /// The exit code a process ends with when it could not start because of a
+  /// setting the operator can fix (`EX_CONFIG` in `sysexits.h`); the
+  /// generated `bin/serve.dart` exits with the same one.
+  static const int configurationExitCode = 78;
 
   /// Runs the worm CLI (`migrate`, `db:seed`, `migrate:fresh`, …) against this
   /// host's [migrations] and [seeders], returning the process exit code.
   ///
-  /// Replaces the hand-written `bin/worm.dart` every project used to carry.
+  /// A configuration failure (a bad `DATABASE_URL`, say) prints one line to
+  /// [err] and returns [configurationExitCode]. A failure inside worm (a
+  /// migration that fails or cannot be rolled back, a database that is not
+  /// there) prints one line and returns `1`.
+  ///
+  /// The generated `bin/migrate.dart` is a one-line call to this.
   Future<int> runCli(
     List<String> args, {
     StringSink? out,
     StringSink? err,
   }) async {
+    final StringSink errors = err ?? stderr;
+    try {
+      return await _runCli(args, out: out ?? stdout, err: errors);
+    } on BeakConfigurationException catch (error) {
+      errors.writeln('error: ${error.message}');
+      return configurationExitCode;
+    } on WormException catch (error) {
+      errors.writeln('error: ${error.message}');
+      return 1;
+    }
+  }
+
+  Future<int> _runCli(
+    List<String> args, {
+    required StringSink out,
+    required StringSink err,
+  }) async {
     final context = CliContext(
-      out: out ?? stdout,
-      err: err ?? stderr,
+      out: out,
+      err: err,
       projectRoot: Directory.current,
       environment: Worm.environment,
       now: _now,
@@ -256,4 +389,54 @@ final class BeakServeHost {
     );
     return await WormCommandRunner(context).run(args) ?? 0;
   }
+}
+
+/// The listener [BeakServeHost.serve] returns while an outbox schedule runs:
+/// the bound server itself, except that closing it also stops the schedule.
+final class _OutboxServingHttpServer extends StreamView<HttpRequest>
+    implements HttpServer {
+  _OutboxServingHttpServer(this._server, this._outbox) : super(_server);
+
+  final HttpServer _server;
+  final BeakOutboxLoop _outbox;
+
+  @override
+  Future<void> close({bool force = false}) async {
+    await _server.close(force: force);
+    await _outbox.stop();
+  }
+
+  @override
+  InternetAddress get address => _server.address;
+
+  @override
+  int get port => _server.port;
+
+  @override
+  bool get autoCompress => _server.autoCompress;
+
+  @override
+  set autoCompress(bool value) => _server.autoCompress = value;
+
+  @override
+  Duration? get idleTimeout => _server.idleTimeout;
+
+  @override
+  set idleTimeout(Duration? value) => _server.idleTimeout = value;
+
+  @override
+  String? get serverHeader => _server.serverHeader;
+
+  @override
+  set serverHeader(String? value) => _server.serverHeader = value;
+
+  @override
+  set sessionTimeout(int timeoutInSeconds) =>
+      _server.sessionTimeout = timeoutInSeconds;
+
+  @override
+  HttpHeaders get defaultResponseHeaders => _server.defaultResponseHeaders;
+
+  @override
+  HttpConnectionsInfo connectionsInfo() => _server.connectionsInfo();
 }

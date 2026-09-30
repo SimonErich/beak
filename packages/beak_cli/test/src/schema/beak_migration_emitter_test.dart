@@ -1,4 +1,4 @@
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A schema over [table] with one string column, plus any [relations].
@@ -58,6 +58,18 @@ List<BeakMigrationFile> missingFor({
 );
 
 void main() {
+  test('the header comment of a create migration is honest about what a '
+      'database that already ran it gets', () {
+    // "No second edit here" was true only for a database that had not run the
+    // migration yet; one that had needs a migration of its own.
+    final file = missingFor(schemas: [schemaFor('Product', 'products')]).single;
+
+    expect(file.contents, isNot(contains('second edit')));
+    expect(file.contents, contains('a database that has not run it'));
+    expect(file.contents, contains('--from-drift'));
+    expect(file.contents, isNot(contains('\u2014')));
+  });
+
   group('what is missing', () {
     test('a table with no migration gets one', () {
       final files = missingFor(schemas: [schemaFor('Product', 'products')]);

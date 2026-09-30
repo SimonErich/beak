@@ -1,331 +1,235 @@
 ---
 title: Relationships
-description: Declare a relationship by naming the related schema class, and let Beak derive the foreign key, the pivot table and the other side.
+description: Declare belongs-to, has-many, has-one and many-to-many links between schemas, and see what each key, delete rule, inverse and ownership flag does.
+type: guide
+audience: [beginner, expert]
+status: stable
 ---
 
 # Relationships
 
-After this page you can link two resources in any of the four shapes, know which
-names Beak derives and which ones you can override, choose what a delete does to
-dependent rows, and pull related records back with the query spec.
+Two schemas point at each other, and you want the table to show the name instead of an id, the form to offer a picker, and the database to refuse a dangling row. After this page you can pick the annotation for each kind of link, tell which side owns the key, and know what `onDelete`, `inverse`, `owned` and `searchOn` change.
 
-You declare a relationship by giving a field the type of the *related schema
-class*. There is no foreign key to name, no pivot table to invent, and no second
-declaration on the far side.
+You write a field whose type is another schema class. Beak works out the foreign key, the pivot table, the index and the other side of the link, so no column name and no join appears in your code.
 
-## The four kinds
+## At a glance
 
-They split along two axes: which side owns the key, and whether the link resolves
-to one record or many.
+| Kind | Annotate | Field type | The key lives in | In the examples |
+| --- | --- | --- | --- | --- |
+| Belongs to | `@BelongsTo` | `Category?` or `Category` | This table, as `category_id` | `Product.category` |
+| Has many | `@HasMany` | `List<ProductVariant>` | The other table, as `product_id` | `Product.variants` |
+| Has one | `@HasOne` | `KeeperProfile?` | The other table | `Keeper.profile` (showcase) |
+| Belongs to many | `@BelongsToMany` | `List<Habitat>` | A pivot table | `Keeper.habitats` (showcase) |
 
-| Annotation | Field type | Cardinality | Where the key lives |
-| --- | --- | --- | --- |
-| `@BelongsTo` | `Other?` or `Other` | one | this table |
-| `@HasOne` | `Other?` | one | the other table |
-| `@HasMany` | `List<Other>` | many | the other table |
-| `@BelongsToMany` | `List<Other>` | many | a pivot table |
+A link has two ends, and the shop declares both ends of every owned one. A product owns its variants, and a variant belongs to its product:
 
-The store's product carries all four:
-
-```dart title="examples/store/lib/models/product.dart"
-/// The category this product is filed under.
-@BelongsTo(onDelete: BeakOnDelete.setNull)
-late final Category? category;
-
-/// The roast profile for this product, if it is coffee.
-@HasOne()
-late final RoastProfile? roastProfile;
-
-/// The tags attached to this product.
-@BelongsToMany(allowCreate: true)
-late final List<Tag> tags;
-
-/// The order lines that sold this product.
-@HasMany(onDelete: BeakOnDelete.restrict)
-late final List<OrderItem> orderItems;
+```dart title="examples/clean_beak_config/lib/resources/products/models/product.dart"
+/// Sellable variants with separate prices and stock.
+@HasMany(owned: true, onDelete: BeakOnDelete.cascade)
+late final List<ProductVariant> variants;
 ```
 
-## What Beak derives
-
-Everything a hand-written relationship used to spell out comes from the field's
-name and the two classes involved:
-
-| Derived | From | Example |
-| --- | --- | --- |
-| Foreign key (belongs-to) | the field name, plus `_id` | `category` becomes `category_id` |
-| Foreign key (has-one, has-many) | this class's name, plus `_id` | `Product` becomes `product_id` |
-| Pivot table | both singular table names, sorted, joined by `_` | `products` + `tags` becomes `product_tag` |
-| Pivot columns | each singular table name, plus `_id` | `product_id` and `tag_id` |
-| Related table | the related class's table | `Category` becomes `categories` |
-| Display column | the related class's `@Display()` field | a category's `name` |
-| Search columns | the display column, unless `searchOn` says otherwise | `['name']` |
-| Label | the title-cased field name, unless `label` says otherwise | `roastProfile` becomes "Roast Profile" |
-| The other side | this declaration | `CategoryRelations.products` |
-
-Here is what the first and the third of those became:
-
-```dart title="examples/store/lib/models/product.beak.dart"
-/// The category this product is filed under.
-static const BeakBelongsTo category = BeakBelongsTo(
-  key: 'category',
-  label: 'Category',
-  relatedTable: 'categories',
-  displayColumnKey: 'name',
-  foreignKey: 'category_id',
-  searchColumnKeys: ['name'],
-  onDelete: BeakOnDelete.setNull,
-);
-
-// ... the has-one ...
-
-/// The tags attached to this product.
-static const BeakBelongsToMany tags = BeakBelongsToMany(
-  key: 'tags',
-  label: 'Tags',
-  relatedTable: 'tags',
-  displayColumnKey: 'name',
-  pivotTable: 'product_tag',
-  foreignPivotKey: 'product_id',
-  relatedPivotKey: 'tag_id',
-  searchColumnKeys: ['name'],
-  allowCreate: true,
-);
-```
-
-Every derived name has an override on the annotation, for the schema you
-inherited rather than designed: `foreignKey`, `pivotTable`, `foreignPivotKey`,
-`relatedPivotKey`, `label`, `searchOn`. Reach for them when a name has to match
-something that already exists.
-
-## belongs-to: the child points up
-
-`@BelongsTo` is the common case. This table holds a foreign key naming one record
-in the other table. A product belongs to one category through
-`products.category_id`.
-
-The key column is generated with the relationship, so the two cannot disagree:
-
-```dart title="examples/store/lib/models/product.beak.dart"
-/// Foreign key backing [category].
-static const BeakStringColumn categoryId = BeakStringColumn(
-  key: 'category_id',
-  label: 'Category',
-  visibleOn: {BeakContext.form},
-);
-```
-
-It is form-only on purpose. In a form the panel turns it into a searchable
-single-select that queries `categories` by `name`. In a list or a detail view the
-*relationship* is shown instead, because a uuid tells the reader nothing.
-
-`searchOn` widens what that picker searches, for a record people look up by more
-than its name:
-
-```dart title="examples/superdashboard/lib/models/email/email.dart"
-/// The sender user, when internal.
-@BelongsTo(searchOn: ['name', 'email'])
-late final User? sender;
-```
-
-Each key is checked against the related schema, so a typo is an error naming the
-field rather than a picker that quietly finds nothing.
-
-## has-many: the parent owns a list
-
-`@HasMany` is the mirror image: records in the other table each carry a key
-pointing back here. An order has many lines, each line row carrying
-`order_items.order_id`.
-
-```dart title="examples/store/lib/models/order.dart"
-/// The lines on the order.
-@HasMany(onDelete: BeakOnDelete.cascade)
-late final List<OrderItem> items;
-```
-
-The key name comes from *this* class (`Order` becomes `order_id`), not from the
-field name. When the far side's belongs-to field is named after something else,
-the two derivations differ and you say so once:
-
-```dart
-/// The orders this customer placed. `Order.customer` holds `customer_id`,
-/// which is not what `User` alone would derive.
-@HasMany(foreignKey: 'customer_id')
-late final List<Order> orders;
-```
-
-A has-many renders as a tab on the show page with a relation manager inside it,
-where you attach, detach and open the child rows.
-
-## belongs-to-many: joined through a pivot
-
-`@BelongsToMany` is a many-to-many routed through a join table. Each pivot row
-pairs one of this table's ids with one related id. Products and tags meet in
-`product_tag`, which Beak names, keys and migrates:
-
-```dart title="examples/store/lib/migrations/create_product_tag_table.dart"
-@override
-Future<void> upSchema(Schema schema) => BeakBlueprint.createPivot(
-  schema,
-  ProductRelations.tags,
-  ownerTable: 'products',
-);
-```
-
-Two knobs shape the picker. `allowCreate` (default `false`) lets the relation
-manager create a related record inline, and `maxAllowed` caps how many may be
-attached. In a form it becomes a searchable multi-select.
-
-## has-one: a single owned row
-
-`@HasOne` is the one-record cousin of `@HasMany`: exactly one record in the other
-table holds the key back to this one. The store's coffee products have at most one
-roast profile, and the key lives on `roast_profiles`:
-
-```dart title="examples/store/lib/models/roast_profile.dart"
-/// The product this profile roasts.
-@BelongsTo(onDelete: BeakOnDelete.cascade, inverse: false)
+```dart title="examples/clean_beak_config/lib/resources/products/models/product_variant.dart"
+/// Catalog product this variant belongs to.
+@BelongsTo(onDelete: BeakOnDelete.cascade)
 late final Product product;
 ```
 
-`Product` declares the parent side with `@HasOne()`, so `RoastProfile` says
-`inverse: false` to stop Beak generating a second one. Only the belongs-to side
-carries `onDelete`, because only that side owns the constraint.
+The related class has to be a `@Resource` under `lib/`. A schema that points at anything else is an error from `beak prepare`, at the field.
 
-## Both sides, one declaration
+## Belongs to: the side with the key
 
-Declare the side you think about. Beak writes the other into the far schema's
-part file:
+`@BelongsTo` is the one that adds a column. `late final Author author;` on `Book` adds `author_id` to `books`, indexes it, and adds the foreign-key constraint. You never declare that column. The field's nullability is the requirement: `Author author` is required, `Author? author` is optional.
 
-```dart title="examples/store/lib/models/category.beak.dart"
-/// Typed relationship constants of the categories resource.
-abstract final class CategoryRelations {
-  /// The products on the other side of [ProductRelations.category].
-  static const BeakHasMany products = BeakHasMany(
-    key: 'products',
-    label: 'Products',
-    relatedTable: 'products',
-    displayColumnKey: 'name',
-    foreignKey: 'category_id',
-    searchColumnKeys: ['name'],
-    onDelete: BeakOnDelete.setNull,
-  );
-}
+This is the table a `Book` with a required author, a tag link and a cover gets, read from SQLite in a scratch project:
+
+```text
+CREATE TABLE IF NOT EXISTS "books" ("id" TEXT PRIMARY KEY, "title" TEXT NOT NULL, "author_id" TEXT, FOREIGN KEY ("author_id") REFERENCES "authors" ("id") ON DELETE CASCADE);
+CREATE INDEX "books_author_id_idx" ON "books" ("author_id");
 ```
 
-`Category` never mentions products, and it gets a products tab, a relation
-manager and an eager-loadable relation anyway. Two rules govern this:
+The column is nullable even though the field is not. Required means the form and the API refuse a book without an author. The constraint keeps the reference honest, and `NOT NULL` is not part of it:
 
-- **An explicit declaration always wins.** Declare the far side yourself and
-  Beak emits no second constant for it.
-- **`inverse: false` turns generation off.** Use it on `@BelongsTo` and
-  `@BelongsToMany` for a lookup table that should not gain a back-reference to
-  everything pointing at it.
-
-## Foreign keys are real columns
-
-A relationship never invents storage. The belongs-to key is a real column (the
-generated `categoryId` above), the pivot is a real table, and the migration
-writes the constraint from the relationship:
-
-```dart title="examples/store/lib/migrations/create_products_table.dart"
-await schema.create('products', (table) {
-  BeakBlueprint.defineColumns(table, const ProductModel());
-  BeakBlueprint.defineForeignKeys(table, const ProductModel());
-});
+```json
+{"code":"validation","message":"Validation failed for \"books\".","fieldErrors":{"author_id":["This field is required."]},"requestId":"245f73bc78350fa5"}
 ```
 
-`defineForeignKeys` reads each belongs-to and constrains its key against the
-related table's `id`, with that relationship's `onDelete`. Every belongs-to key
-is indexed without being asked, since the panel joins on it to draw a list page.
+Errors on a to-one link are keyed by the foreign key (`author_id`), because that is the column that failed.
 
-## What a delete does: BeakOnDelete
+## Has many and has one: the side without
 
-`onDelete` decides what happens to dependent rows when a record goes away. The
-enum mirrors worm's `OnDelete` one to one, so the backend translates it
-mechanically.
+`@HasMany` and `@HasOne` add nothing to their own table. They describe the key that lives in the other table, so that table has to have it, which means the child declares its own `@BelongsTo`. The shop does this for every owned collection.
 
-```dart title="packages/beak_core/lib/src/relations/beak_on_delete.dart"
-enum BeakOnDelete {
-  cascade,
-  ormCascade,
-  restrict,
-  setNull,
-  setDefault,
-  noAction,
-}
+Two defaults matter here. The foreign key of a has-many is the owner's class name in snake case plus `_id` (`Product` gives `product_id`). It has to equal the column the child's `@BelongsTo` produces, and that column is named after the child's field. When the two names differ you say so on the has-many:
+
+```dart title="examples/clean_beak_config/lib/resources/products/models/product_variant.dart"
+/// Values distinguishing this choice from the parent product.
+@HasMany(
+  foreignKey: 'variant_id',
+  owned: true,
+  onDelete: BeakOnDelete.cascade,
+)
+late final List<VariantAttribute> attributes;
 ```
 
-The defaults are the safe reading of each shape:
+`VariantAttribute` calls its field `variant`, so its column is `variant_id`, and the owner class would have suggested `product_variant_id`.
 
-| Annotation | Default | Why |
-| --- | --- | --- |
-| `@BelongsTo` | `setNull` | matches the nullable key column the migration writes |
-| `@HasMany` | `restrict` | child rows are real data, so a parent with children refuses to go |
-| `@BelongsToMany` | `cascade` | pivot rows are join bookkeeping and leave with their owner |
-| `@HasOne` | none | the key lives on the other side, so that side's belongs-to decides |
+`@HasOne` is a has-many that reads the first row. The database does not enforce "only one": the showcase's `KeeperProfile` has a plain `keeper_id`. Add `BeakUnique(KeeperProfileModel.keeperId)` to the child's `validationRules` when the guarantee matters, see [Validation](validation.md).
 
-Set it explicitly when a resource wants something else, as the store's order does
-for its lines (`cascade`: deleting the order deletes what was on it).
+## Belongs to many: a pivot table
 
-## Where relationships show up
+`@BelongsToMany` links two schemas through a table of pairs. Neither side gets a column. The pivot is named after both singular table names, sorted (`book_tag`), with one column per side (`book_id`, `tag_id`):
 
-One declaration, four surfaces, none of which you wire:
-
-- **The list page** renders a column per to-one relationship showing the related
-  record's display value rather than its foreign key, loaded with the page in one
-  query rather than one per row.
-- **The show page** puts a tab per to-many relationship in a "Related" card, each
-  holding a relation manager.
-- **A form** turns the belongs-to key into a searchable single-select, and offers
-  the to-many managers once the record exists.
-- **The typed record view** gives you the loaded rows as records, not maps:
-
-```dart title="examples/store/lib/models/product.beak.dart"
-/// The eager-loaded category, or null when unloaded or unset.
-CategoryRecord? get category => switch (record.relations['category']) {
-  [final BeakRecord first, ...] => CategoryRecord.of(first),
-  _ => null,
-};
+```text
+CREATE TABLE IF NOT EXISTS "book_tag" ("book_id" TEXT NOT NULL, "tag_id" TEXT NOT NULL, CONSTRAINT "book_tag_book_id_tag_id_idx" UNIQUE ("book_id", "tag_id"), FOREIGN KEY ("book_id") REFERENCES "books" ("id") ON DELETE CASCADE, FOREIGN KEY ("tag_id") REFERENCES "tags" ("id") ON DELETE CASCADE);
+CREATE INDEX "book_tag_tag_id_idx" ON "book_tag" ("tag_id");
 ```
 
-## Eager loading: no lazy reads
+The pair is unique, both lookups have an index, and both keys cascade. `beak prepare` writes a `create_book_tag_table.dart` migration for it once, like any other table. The showcase links keepers and habitats this way, and declares both ends so each side can say how it looks. The keeper side also shows a has-one, its `KeeperProfile`:
 
-Beak does not lazy-load. A relation is present on a record only if it was asked
-for, and reading one that was not loaded gives you nothing rather than a silent
-extra query. The panel asks for every to-one relationship when it loads a list
-page, and for the relations a show page renders. Compose a spec yourself and you
-ask with `withRelation`, which takes the typed relationship constant, never a
-string:
+```dart title="examples/showcase/lib/resources/keepers/models/keeper.dart"
+/// The keeper's certification details (has-one relationship).
+@HasOne(owned: true)
+late final KeeperProfile? profile;
+
+/// The habitats the keeper looks after (many-to-many, through a pivot table).
+@BelongsToMany(pivotTable: 'habitat_keeper', searchOn: [#name])
+late final List<Habitat> habitats;
+```
+
+```dart title="examples/showcase/lib/resources/habitats/models/habitat.dart"
+/// The keepers who look after it (many-to-many, through a pivot table).
+@BelongsToMany(pivotTable: 'habitat_keeper', inverse: false)
+late final List<Keeper> keepers;
+```
+
+`searchOn` names the fields of the related schema that the picker searches, as symbols (`[#name]`), and `beak prepare` checks them against that schema. The pivot has no columns of its own. A link that carries data (a quantity per line, a note per customer and profile) is not a pivot: give it a schema with two `@BelongsTo`, like the shop's `UserProfileConnection`.
+
+## The other side, for free
+
+Declare the side you think about and Beak generates the other. The rules:
+
+- A `@BelongsTo` on `Book` gives `Author` a has-many named after the plural table of the class that declared it (`Author.books`).
+- A `@HasMany` or `@HasOne` on `Author` gives `Book` a belongs-to named after the singular table of the declaring class (`Book.author`), as a relationship constant only. It carries no column, so it does not replace the child's own `@BelongsTo`.
+- A `@BelongsToMany` is mirrored on the other class.
+- Nothing is generated when the far class already declares any relationship to the owner, or when the annotation says `inverse: false`.
+
+The generated side is a constant like any other. This is what `beak prepare` wrote for `Tag`, after `Book` declared `tags` and `Tag` declared nothing:
 
 ```dart
-final spec = const BeakQuerySpec(table: 'posts')
-    .withRelation(author)
-    .withFilter(BeakFieldFilter(
-      column: status,
-      operator: BeakOperator.eq,
-      value: BeakValue.of('published'),
-    ))
-    .orderBy(createdAt, descending: true)
-    .paginate(page: 2, perPage: 50);
+/// The books on the other side of [BookRelations.tags].
+static const BeakBelongsToMany books = BeakBelongsToMany(
+  key: 'books',
+  label: 'Books',
+  relatedTable: 'books',
+  displayColumnKey: 'title',
+  pivotTable: 'book_tag',
+  foreignPivotKey: 'tag_id',
+  relatedPivotKey: 'book_id',
+  searchColumnKeys: ['title'],
+);
 ```
 
-`withRelation` appends a `BeakRelationLoad` to the spec's `relationLoads`, and it
-takes a `constraint` filter when you want to narrow which related rows come back.
-The backend reads `relationLoads` and eager-loads exactly those relations by
-their `key`.
+Turn the inverse off for a lookup table that should not know everything pointing at it. The shop does so on its lookups: a product's `taxRate` is `@BelongsTo(inverse: false, ...)`, and `TaxRate` never lists its products.
 
-!!! note "What just happened"
-    - `withRelation(author)` takes a `BeakRelationship` constant, so a typo is a
-      compile error, not a runtime miss.
-    - The spec is JSON-serializable end to end: the panel ships it, the backend
-      rebuilds it with `fromJson`, no string field references anywhere.
+## What happens on delete
+
+`onDelete` is the foreign-key rule, and it belongs to the belongs-to side because that is where the constraint lives.
+
+| Value | The database does |
+| --- | --- |
+| `BeakOnDelete.cascade` | Deletes the child rows with the parent |
+| `BeakOnDelete.restrict` | Refuses to delete a parent that still has children |
+| `BeakOnDelete.setNull` | Keeps the children and clears their key |
+| `ormCascade`, `setDefault`, `noAction` | Passed to the migration builder as worm defines them |
+
+Left out, it is `restrict` for a non-nullable field and `setNull` for a nullable one. The shop states it on both ends of a link (`cascade` on the has-many and on the belongs-to) so either class reads the same. Only the belongs-to is executed. `onDelete` on `@HasMany` and `@BelongsToMany` is stored on the relationship constant and read by nothing, and a pivot always cascades.
+
+A `restrict` refusal is enforced by the database, and Beak reports it as a conflict. Nothing is deleted. A direct `DELETE` answers `409` with `This "shelves" record is still referenced by other records.`, and a delete inside a graph commit comes back as an `unapplied` outcome with the reason `rejected` and the same `conflict` error, so the form stays editable. SQLite, PostgreSQL and MySQL all map to this. Use `restrict` where a hard stop is worth a refusal message, `cascade` for owned children and `setNull` for optional links.
+
+## Owned or shared
+
+`owned: true` says the children belong to this parent alone: a variant means nothing without its product, and an order line means nothing without its order. It is a promise about how the record is edited, and it changes four things:
+
+- The form may delete an owned child when its row is removed (`removeBehavior: BeakRemoveBehavior.deleteOwned`). For a shared relationship removing a row only detaches it, and asking for `deleteOwned` there throws a `BeakConfigurationException` naming the relationship as soon as the form is built.
+- `galleryForm` needs an owned has-many, see [Files and storage columns](files-and-storage-columns.md).
+- Duplicating a record copies its owned collections and keeps shared links as they are.
+- When the owner declares `editableWhen`, its owned children are written only through a save of the owner, so the guard cannot be bypassed by editing a child by itself. The shop's `invoice_vouchers` answers a direct `POST` with `422 This resource must be saved through a graph commit.`, and `product_images` accepts it.
+
+`owned` does not delete anything by itself. What the database does when the parent goes is the belongs-to's `onDelete`, which is why owned collections in the shop come with `cascade` on both ends. A shared collection (an order's customer, a product's tax rate) has no `owned` and no cascade.
+
+## Which records may be linked
+
+By default a picker offers every record of the related table, searched by its display column. Two things narrow that.
+
+`searchOn` widens what the picker searches. A person looks a customer up by email as readily as by name:
+
+```dart title="examples/clean_beak_config/lib/resources/orders/models/order.dart"
+/// The customer placing the order.
+@BelongsTo(
+  searchOn: [#email, #firstName, #lastName],
+  inverse: false,
+  onDelete: BeakOnDelete.restrict,
+)
+late final User customer;
+```
+
+Eligibility narrows which records qualify. A record rule says the profile of an order has to belong to the order's customer:
+
+```dart
+--8<-- "examples/clean_beak_config/lib/resources/orders/models/order.dart:OrderValidationRules"
+```
+
+The picker reads `BeakExists` rules on its foreign key. It filters its options by each `matching:` pair, stays closed until the field the pair reads is filled in, and copies the matching values into a record created inline. The server evaluates the same rule on the graph it is about to save, so a script cannot link a profile of another customer. The mechanics are on [Validation](validation.md), the picker side on [Related records in forms](../forms/related-records.md).
+
+## Reading related records
+
+Beak never lazy-loads. A relationship you did not load reads as `null` (to-one) or an empty list (to-many) and never fetches. Tables and forms load what their fields name, so `OrderModel.customer.email` in a table brings the customer along. In your own queries you ask with `relationLoads`, see [Generated code](generated-code.md#productdraft-and-productrecord-typed-reads).
+
+## Rules and limits
+
+- Declare the child's `@BelongsTo` for every has-many and has-one. The parent side alone generates a relationship constant without a column. `beak prepare` and `dart analyze` accept it, and `beak migrate` fails with `unknown column "team_id" in foreign key definition`.
+- A has-many key defaults to the owner class name, not to the column the child's field produces. Set `foreignKey:` when they differ.
+- A has-one is not unique unless you make it so.
+- Only `@BelongsTo(onDelete:)` is executed. The other two are stored and unread, and a pivot always cascades.
+- `restrict` and `cascade` are database rules. The engine applies them, so they hold for a script and for the panel alike.
+- A pivot has no columns of its own. Data on a link means a schema with two belongs-to.
+- `deleteOwned` needs an owned has-many. It is checked when the form is built, so a misconfigured table fails on first open and not when someone removes a row.
+- `searchOn` takes symbols. Strings are an error that prints the symbols to write instead.
+- Relations come from the schema, not from the query. An unloaded relation is empty, so an "empty" collection can also mean "not asked for".
+
+## Verify it
+
+```bash
+beak prepare
+beak doctor
+```
+
+`beak prepare` stops on a link it cannot resolve, listing every problem at the declaration:
+
+```text
+  lib/models/product.dart: Product.category searches #nme, which is not a field of Category. Its fields are: id, name.
+```
+
+`beak doctor` compares the schema to the database and reports a missing table or column. To see what a link really did, read the table: `sqlite3 beak.db ".schema books"` shows the key, the index and the delete rule, and `dart analyze` confirms the generated constants compile.
+
+## Reference
+
+| Symbol | Kind | Purpose |
+| --- | --- | --- |
+| `@BelongsTo` | annotation | `label`, `foreignKey`, `searchOn`, `onDelete`, `inverse` |
+| `@HasMany` | annotation | `label`, `foreignKey`, `onDelete`, `owned` |
+| `@HasOne` | annotation | `label`, `foreignKey`, `owned` |
+| `@BelongsToMany` | annotation | `label`, `pivotTable`, `foreignPivotKey`, `relatedPivotKey`, `searchOn`, `allowCreate`, `maxAllowed`, `onDelete`, `inverse` |
+| `BeakBelongsTo`, `BeakHasMany`, `BeakHasOne`, `BeakBelongsToMany` | `beak_core` | The generated constants in `XRelations` |
+| `BeakOnDelete` | enum | `cascade`, `ormCascade`, `restrict`, `setNull`, `setDefault`, `noAction` |
+| `BeakToOneField`, `BeakToManyField` | `beak_core` | The typed references in `XFields` |
+| `tableForm`, `inputCombobox`, `galleryForm` | `beak_frontend` | Editing a link in a configured form |
+
+Every parameter with its default is on [Annotations](../reference/annotations.md#relationships), and the generated constants on [Generated files and symbols](../reference/generated-files.md).
 
 ## Continue reading
 
-- [Defining a resource](defining-models.md) the class these fields live on.
-- [Generated code](generated-code.md) the relationship constants in the part file.
-- [Detail views and dual-mode blocks](../panel/detail-and-dual-mode.md) the
-  relation manager that renders a to-many link.
-- [Migrations](../backend/migrations.md) the constraints and pivots on disk.
-- [The data source seam](../backend/the-data-source-seam.md) how the backend
-  translates a relation load into an ORM join.
+- [Related records in forms](../forms/related-records.md) pickers, inline creation and owned rows in one save.
+- [Validation](validation.md) eligibility, uniqueness and collection rules across a link.
+- [Model behavior](behavior.md) guards on an owner and the children they protect.

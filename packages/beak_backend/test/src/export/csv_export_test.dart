@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/export/csv_export_service.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -88,6 +88,126 @@ void main() {
     return rows;
   }
 
+  test(
+    'ordered export projection preserves permissions and ignores pagination',
+    () async {
+      final csv = await CsvExportService(registry, dataSource).exportCsv(
+        'notes',
+        const BeakQuerySpec(
+          table: 'notes',
+          pagination: BeakPagination(page: 3, perPage: 1),
+        ),
+        columns: ['title', 'id'],
+        canRead: (column) => column.key != 'id',
+      );
+      final rows = parseCsv(await utf8.decoder.bind(csv).join());
+      expect(rows.first, ['Title']);
+      expect(rows, hasLength(4));
+      expect(rows[1], ['Alpha, with comma']);
+    },
+  );
+
+  test(
+    'export route validates and preserves the explicit scalar projection',
+    () async {
+      for (final columns in <Object>[
+        [],
+        ['title', 'title'],
+        ['unknown'],
+        [12],
+      ]) {
+        final response = await handler(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/notes/export'),
+            body: jsonEncode({'table': 'notes', 'columns': columns}),
+          ),
+        );
+        expect(response.statusCode, 422);
+      }
+      final response = await handler(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/notes/export'),
+          body: jsonEncode({
+            'table': 'notes',
+            'columns': ['title'],
+          }),
+        ),
+      );
+      expect(response.statusCode, 200);
+      expect(parseCsv(await response.readAsString()).first, ['Title']);
+    },
+  );
+
+  test(
+    'formatted integer units retain their declared scale in authorized exports',
+    () async {
+      final response = await handler(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/notes/export'),
+          body: jsonEncode({
+            'table': 'notes',
+            'columns': ['rating'],
+            'formatting': const BeakFormatPolicy(
+              locale: 'en_US',
+              currency: 'EUR',
+            ).toJson(),
+            'formats': {
+              'rating': const BeakExportFormat(
+                BeakValueFormat.currency,
+                minorUnits: true,
+              ).toJson(),
+            },
+          }),
+        ),
+      );
+      expect(response.statusCode, 200);
+      expect(parseCsv(await response.readAsString())[1], ['€0.05']);
+      for (final formats in <Object>[
+        'bad',
+        {'rating': 'bad'},
+        {
+          'rating': {'format': 'unknown'},
+        },
+        {
+          'title': {'format': 'text'},
+        },
+      ]) {
+        final invalid = await handler(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/notes/export'),
+            body: jsonEncode({
+              'table': 'notes',
+              'columns': ['rating'],
+              'formats': formats,
+            }),
+          ),
+        );
+        expect(invalid.statusCode, 422);
+      }
+      final raw = await handler(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/notes/export'),
+          body: jsonEncode({
+            'table': 'notes',
+            'columns': ['rating'],
+            'raw': true,
+            'formats': {
+              'rating': const BeakExportFormat(
+                BeakValueFormat.currency,
+              ).toJson(),
+            },
+          }),
+        ),
+      );
+      expect(raw.statusCode, 422);
+    },
+  );
+
   test('streams a well-formed CSV with the table-context header', () async {
     final response = await handler(
       Request(
@@ -121,6 +241,195 @@ void main() {
     expect(rows[1][createdIndex], createdAt.toIso8601String());
   });
 
+  test('formatted exports accept explicit portable display policy', () async {
+    const formatting = BeakFormatPolicy(
+      locale: 'de_AT',
+      useLocalTime: false,
+      timeZoneOffsetMinutes: 120,
+      dateTimePattern: 'dd.MM.yyyy HH:mm',
+    );
+    final response = await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/api/notes/export'),
+        body: jsonEncode({
+          ...const BeakQuerySpec(table: 'notes').toJson(),
+          'formatting': formatting.toJson(),
+        }),
+      ),
+    );
+    expect(response.statusCode, 200);
+    final rows = parseCsv(await response.readAsString());
+    final dateIndex = rows.first.indexOf('Created at');
+    expect(rows[1][dateIndex], '01.07.2026 10:30');
+  });
+
+  Future<List<List<String>>> exportAfterAdding(
+    List<Map<String, Object?>> notes, {
+    List<String> columns = const ['title'],
+    Map<String, Object?> options = const {},
+  }) async {
+    for (final (index, note) in notes.indexed) {
+      await dataSource.create(
+        'notes',
+        BeakRecord.fromRow({'id': 'zz$index', ...note}),
+      );
+    }
+    final response = await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/api/notes/export'),
+        body: jsonEncode({
+          ...const BeakQuerySpec(table: 'notes').toJson(),
+          'columns': columns,
+          ...options,
+        }),
+      ),
+    );
+    // The header and the three notes every test starts with come first.
+    return parseCsv(await response.readAsString()).skip(4).toList();
+  }
+
+  group('cells a spreadsheet would run', () {
+    test('a formula is exported as text, with a leading quote', () async {
+      final rows = await exportAfterAdding([
+        {'title': '=1+1'},
+        {'title': '+SUM(A1:A9)'},
+        {'title': '@HYPERLINK("http://x")'},
+        {'title': '-2+3'},
+        {'title': '\t=cmd'},
+      ]);
+
+      expect(rows.map((row) => row.single), [
+        "'=1+1",
+        "'+SUM(A1:A9)",
+        "'@HYPERLINK(\"http://x\")",
+        "'-2+3",
+        "'\t=cmd",
+      ]);
+    });
+
+    test('plain text and numbers are left alone', () async {
+      final rows = await exportAfterAdding([
+        {'title': '-5'},
+        {'title': '+7'},
+        {'title': '3.5'},
+        {'title': 'Sum = 1'},
+        {'title': 'a-b'},
+      ]);
+
+      expect(rows.map((row) => row.single), [
+        '-5',
+        '+7',
+        '3.5',
+        'Sum = 1',
+        'a-b',
+      ]);
+    });
+
+    test('the same guard applies to a formatted export', () async {
+      final rows = await exportAfterAdding(
+        [
+          {'title': '=1+1'},
+        ],
+        options: {'formatting': const BeakFormatPolicy().toJson()},
+      );
+
+      expect(rows.single.single, "'=1+1");
+    });
+  });
+
+  test('an empty value exports as an empty cell, formatted or not', () async {
+    final plain = await exportAfterAdding(
+      [
+        {'title': 'No rating'},
+      ],
+      columns: ['title', 'rating'],
+    );
+    expect(plain.single, ['No rating', '']);
+
+    final formatted = await exportAfterAdding(
+      [
+        {'title': 'Also none'},
+      ],
+      columns: ['title', 'rating'],
+      options: {'formatting': const BeakFormatPolicy().toJson()},
+    );
+    expect(formatted.last, ['Also none', ''], reason: 'no em dash in a file');
+
+    final custom = await exportAfterAdding(
+      [
+        {'title': 'Third'},
+      ],
+      columns: ['title', 'rating'],
+      options: {
+        'formatting': const BeakFormatPolicy(emptyValue: 'n/a').toJson(),
+      },
+    );
+    expect(custom.last, ['Third', '']);
+  });
+
+  test('malformed export display options return a validation error', () async {
+    for (final options in <Map<String, Object?>>[
+      {'formatting': 4},
+      {
+        'formatting': {'numberPrecision': -1},
+      },
+      {
+        'formatting': {'locale': 'not_a_real_locale'},
+      },
+      {'raw': 'yes'},
+      {'raw': true, 'formatting': const BeakFormatPolicy().toJson()},
+    ]) {
+      final response = await handler(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/notes/export'),
+          body: jsonEncode({
+            ...const BeakQuerySpec(table: 'notes').toJson(),
+            ...options,
+          }),
+        ),
+      );
+      expect(response.statusCode, 422, reason: '$options');
+    }
+  });
+
+  test('semantic CSV preserves exact amounts and offers raw stored units', () {
+    const amount = BeakIntColumn(
+      key: 'amount',
+      label: 'Amount',
+      semantic: BeakSemantic.money(scale: 3, currency: 'EUR'),
+    );
+    const secret = BeakStringColumn(
+      key: 'secret',
+      label: 'Secret',
+      semantic: BeakSemantic.password(),
+    );
+    const value = BeakIntValue(9007199254740991);
+    expect(CsvExportService.renderCell(amount, value), '9007199254740.991');
+    expect(
+      CsvExportService.renderCell(amount, value, raw: true),
+      '9007199254740991',
+    );
+    expect(
+      CsvExportService.renderCell(
+        amount,
+        value,
+        formatting: const BeakFormatPolicy(locale: 'en_US'),
+      ),
+      '€9,007,199,254,740.991',
+    );
+    expect(
+      CsvExportService.renderCell(
+        secret,
+        const BeakStringValue('private'),
+        raw: true,
+      ),
+      '••••••••',
+    );
+  });
+
   test('honors the posted spec filter and sort', () async {
     final spec = const BeakQuerySpec(table: 'notes')
         .withFilter(
@@ -130,7 +439,7 @@ void main() {
             value: BeakIntValue(3),
           ),
         )
-        .orderBy(NoteColumns.rating);
+        .orderBy(NoteModel.rating);
     final response = await handler(
       Request(
         'POST',

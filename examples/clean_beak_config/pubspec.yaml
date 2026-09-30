@@ -1,0 +1,19 @@
+name: clean_beak_config
+description: A shop configured with typed Beak resources and shared form layouts.
+publish_to: none
+version: 0.1.0
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+dependencies:
+  beak:
+    path: ../../packages/beak
+  flutter:
+    sdk: flutter
+  flutter_hooks: ^0.21.3
+  go_router: ^17.3.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  test: ^1.26.0
+  lints: ^6.0.0

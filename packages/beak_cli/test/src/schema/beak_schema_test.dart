@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A project with [files] under `lib/models/`.
@@ -68,6 +68,217 @@ BeakSchemaIr schemaNamed(List<BeakSchemaIr> schemas, String name) =>
     schemas.firstWhere((schema) => schema.className == name);
 
 void main() {
+  test('the fields class initializes its private fields without a named '
+      'parameter that repeats their name', () {
+    // At Dart 3.12 `{BeakModel model}` feeding `_model` is a
+    // `prefer_initializing_formals` finding (a private named parameter could
+    // say it), while `this._model` as a named parameter does not exist before
+    // 3.12. A positional one is legal in both and no lint asks for more.
+    final (schemas, issues) = readSchemas({
+      'category.dart': categorySchema,
+      'product.dart': productSchema,
+    });
+    expect(issues, isEmpty);
+
+    final source = BeakSchemaEmitter.emit(
+      schemaNamed(schemas, 'Product'),
+      schemas,
+    );
+
+    expect(source, contains('const ProductFields()'));
+    expect(source, contains('_model = const ProductModel()'));
+    expect(source, contains('_path = const []'));
+    expect(
+      source,
+      contains('const ProductFields.via(this._model, this._path);'),
+    );
+    expect(source, isNot(contains('_model = model')));
+    expect(source, isNot(contains('_path = path')));
+    expect(source, contains('ProductFields.via(model, [...path, relation])'));
+  });
+
+  test('typed enum labels and badge mappings survive schema generation', () {
+    final (schemas, issues) = readSchemas({
+      'ticket.dart': """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+enum TicketStatus { open, inProgress }
+@Resource()
+final class Ticket extends BeakSchema {
+  @Display()
+  late final String name;
+  @EnumLabels<TicketStatus>({TicketStatus.inProgress: 'In progress'})
+  @Badges<TicketStatus>({TicketStatus.open: BeakColor.info})
+  late final TicketStatus status;
+}
+""",
+    });
+    expect(issues, isEmpty);
+    final column = schemas.single.columns.firstWhere(
+      (column) => column.fieldName == 'status',
+    );
+    expect(
+      column.arguments['labels']?.replaceAll(' :', ':'),
+      "{TicketStatus.inProgress: 'In progress'}",
+    );
+    expect(
+      column.arguments['badgeColors']?.replaceAll(' :', ':'),
+      '{TicketStatus.open: BeakColor.info}',
+    );
+    final source = BeakSchemaEmitter.emit(schemas.single, schemas);
+    expect(
+      source,
+      contains("labels: {TicketStatus.inProgress: 'In progress'}"),
+    );
+  });
+
+  test('shared behavior is forwarded and its name remains a typed field', () {
+    final (schemas, issues) = readSchemas({
+      'category.dart': categorySchema.replaceFirst(
+        'late final String name;',
+        '''late final String name;
+  late final String? behavior;
+  static BeakModelBehavior get behaviorConfig => const BeakModelBehavior();''',
+      ),
+      'product.dart': productSchema.replaceFirst(
+        'late final String name;',
+        '''late final String name;
+  static BeakModelBehavior get behavior => const BeakModelBehavior();''',
+      ),
+    });
+    expect(issues, isEmpty);
+    final product = schemaNamed(schemas, 'Product');
+    final category = schemaNamed(schemas, 'Category');
+    expect(product.hasBehavior, isTrue);
+    expect(category.hasBehavior, isFalse);
+    expect(
+      BeakSchemaEmitter.emit(product, schemas),
+      contains('BeakModelBehavior get behavior => Product.behavior;'),
+    );
+    final categorySource = BeakSchemaEmitter.emit(category, schemas);
+    expect(categorySource, contains('BeakScalarField<String> get behavior'));
+    expect(categorySource, isNot(contains('static final behavior =')));
+  });
+
+  test('permissions and capabilities declared on the schema are forwarded', () {
+    // They were reserved names the emitter never forwarded, so a schema class
+    // had no way to state who may do what with its own records.
+    final (schemas, issues) = readSchemas({
+      'category.dart': categorySchema,
+      'product.dart': productSchema.replaceFirst(
+        'late final String name;',
+        '''late final String name;
+  static BeakPermissions get permissions => const BeakPermissions.allowAll();
+  static Set<BeakOperation> get capabilities => const {BeakOperation.read};''',
+      ),
+    });
+    expect(issues, isEmpty);
+    final product = schemaNamed(schemas, 'Product');
+    final category = schemaNamed(schemas, 'Category');
+    expect(product.hasPermissions, isTrue);
+    expect(product.hasCapabilities, isTrue);
+    expect(category.hasPermissions, isFalse);
+    expect(category.hasCapabilities, isFalse);
+
+    final productSource = BeakSchemaEmitter.emit(product, schemas);
+    expect(
+      productSource,
+      contains('BeakPermissions get permissions => Product.permissions;'),
+    );
+    expect(
+      productSource,
+      contains('Set<BeakOperation> get capabilities => Product.capabilities;'),
+    );
+    final categorySource = BeakSchemaEmitter.emit(category, schemas);
+    expect(categorySource, isNot(contains('get permissions')));
+    expect(categorySource, isNot(contains('get capabilities')));
+  });
+
+  test(
+    'required relationships default to restrict without overriding intent',
+    () {
+      final (schemas, issues) = readSchemas({
+        'category.dart': categorySchema,
+        'product.dart': productSchema.replaceFirst(
+          'late final Category? category;',
+          '''late final Category category;
+  @BelongsTo(onDelete: OnDelete.cascade)
+  late final Category alternate;
+  @BelongsTo()
+  late final Category? optional;''',
+        ),
+      });
+      expect(issues, isEmpty);
+      final product = schemaNamed(schemas, 'Product');
+      expect(
+        product.relations[0].arguments['onDelete'],
+        'BeakOnDelete.restrict',
+      );
+      expect(product.relations[1].arguments['onDelete'], 'OnDelete.cascade');
+      expect(product.relations[2].arguments['onDelete'], isNull);
+    },
+  );
+  test('explicit integer identity drives the related foreign-key type', () {
+    final (schemas, issues) = readSchemas({
+      'customer.dart': '''
+@Resource()
+final class Customer extends BeakSchema {
+  late final int? id;
+  late final String name;
+}
+''',
+      'order.dart': '''
+@Resource()
+final class Order extends BeakSchema {
+  late final String label;
+  @BelongsTo()
+  late final Customer customer;
+}
+''',
+    });
+    expect(issues, isEmpty);
+    expect(
+      schemaNamed(
+        schemas,
+        'Customer',
+      ).columns.where((column) => column.columnKey == 'id'),
+      hasLength(1),
+    );
+    final foreignKey = schemaNamed(
+      schemas,
+      'Order',
+    ).columns.singleWhere((column) => column.columnKey == 'customer_id');
+    expect(foreignKey.valueType, 'int');
+    expect(foreignKey.isRequired, isTrue);
+  });
+  test('discovers resource-local models and preserves required relations', () {
+    final root = modelsWith({
+      '../resources/customers/models/customer.dart': categorySchema.replaceAll(
+        'Category',
+        'Customer',
+      ),
+      '../resources/orders/models/order.dart': productSchema
+          .replaceAll('Product', 'Order')
+          .replaceAll('Category?', 'Customer')
+          .replaceAll('category', 'customer'),
+      '../resources/orders/models/order.g.dart': productSchema,
+    });
+    final (schemas, issues) = BeakSchemaReader(root).read();
+    expect(issues, isEmpty);
+    expect(schemas.map((schema) => schema.className), ['Customer', 'Order']);
+    final order = schemaNamed(schemas, 'Order');
+    expect(order.relations.single.isRequired, isTrue);
+    expect(
+      order.columns
+          .singleWhere((column) => column.fieldName == 'customerId')
+          .isRequired,
+      isTrue,
+    );
+    final source = BeakSchemaEmitter.emit(order, schemas);
+    expect(source, contains('static const OrderFields fields'));
+    expect(source, contains('CustomerToOneField get customer'));
+    expect(source, contains('extension OrderDraftAccess on BeakDraftReader'));
+  });
   group('reading', () {
     late List<BeakSchemaIr> schemas;
     late List<BeakDiscoveryIssue> issues;
@@ -520,6 +731,160 @@ final class Thing extends BeakSchema {
     });
   });
 
+  group('a number or text option on a field of another type', () {
+    const imports = """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+""";
+
+    List<String> issuesFor(String field) {
+      final (_, issues) = readSchemas({
+        'thing.dart':
+            '''
+$imports
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  late final String name;
+
+  $field
+}
+''',
+      });
+      return [for (final issue in issues) issue.message];
+    }
+
+    test('prefix on a Duration is a prepare issue', () {
+      expect(issuesFor("@Column(prefix: 'h')\n  late final Duration length;"), [
+        allOf(contains('Thing.length'), contains('"prefix"')),
+      ]);
+    });
+
+    test('suffix on a Duration is a prepare issue', () {
+      expect(
+        issuesFor("@Column(suffix: 'min')\n  late final Duration length;"),
+        [allOf(contains('Thing.length'), contains('"suffix"'))],
+      );
+    });
+
+    test('placeholder on a BeakDate or a BeakTime is a prepare issue', () {
+      expect(
+        issuesFor("@Column(placeholder: 'day')\n  late final BeakDate day;"),
+        [allOf(contains('Thing.day'), contains('"placeholder"'))],
+      );
+      expect(
+        issuesFor("@Column(placeholder: 'at')\n  late final BeakTime at;"),
+        [allOf(contains('Thing.at'), contains('"placeholder"'))],
+      );
+    });
+
+    test('prefix and suffix stay valid on int, double and BeakDecimal', () {
+      for (final type in ['int', 'double', 'BeakDecimal']) {
+        expect(
+          issuesFor("@Column(prefix: '€', suffix: 'x')\n  late final $type n;"),
+          isEmpty,
+          reason: type,
+        );
+      }
+    });
+  });
+
+  group('rules size the column', () {
+    const thing = """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  @Column(rules: [BeakMaxLength(120)])
+  late final String name;
+
+  @Column(rules: [BeakMin(1), BeakMax(99)])
+  late final int quantity;
+
+  @Column(rules: [BeakMin(0)])
+  late final double price;
+
+  @Column(rules: [BeakMaxLength(40), BeakMaxLength(12)])
+  late final String? code;
+}
+""";
+
+    late String emitted;
+
+    setUp(() {
+      final (schemas, issues) = readSchemas({'thing.dart': thing});
+      expect(issues, isEmpty);
+      emitted = BeakSchemaEmitter.emit(schemaNamed(schemas, 'Thing'), schemas);
+    });
+
+    String constantOf(String field) => emitted
+        .split('static const ')
+        .firstWhere((chunk) => chunk.contains(' $field = '));
+
+    test('BeakMaxLength validates and sets the stored length', () {
+      // `@Column(maxLength:)` sized the VARCHAR without validating, and the
+      // rule validated without sizing it. One declaration now does both.
+      expect(constantOf('name'), contains('BeakMaxLength(120)'));
+      expect(constantOf('name'), contains('maxLength: 120'));
+    });
+
+    test('BeakMin and BeakMax bound an int column', () {
+      expect(constantOf('quantity'), contains('min: 1'));
+      expect(constantOf('quantity'), contains('max: 99'));
+    });
+
+    test('a bound on a double validates but sizes nothing', () {
+      // A decimal column has no stepper bounds to lift into.
+      expect(constantOf('price'), contains('BeakMin(0)'));
+      expect(constantOf('price'), isNot(contains('min: 0')));
+    });
+
+    test('the tightest of several lengths wins', () {
+      expect(constantOf('code'), contains('maxLength: 12'));
+    });
+  });
+
+  group('removed @Column options', () {
+    for (final (option, rule) in [
+      ('maxLength: 5', 'BeakMaxLength(5)'),
+      ('min: 0', 'BeakMin(0)'),
+      ('max: 9', 'BeakMax(9)'),
+    ]) {
+      test('$option names the rule that replaces it', () {
+        final (_, issues) = readSchemas({
+          'thing.dart':
+              """
+import 'package:beak_core/beak_core.dart';
+import 'package:beak_core/schema.dart';
+
+part 'thing.beak.dart';
+
+@Resource()
+final class Thing extends BeakSchema {
+  @Display()
+  late final String name;
+
+  @Column($option)
+  late final int count;
+}
+""",
+        });
+
+        expect(issues, hasLength(1));
+        expect(
+          issues.single.message,
+          allOf(contains('Thing.count'), contains('rules: [$rule]')),
+        );
+      });
+    }
+  });
+
   group('relationship labels and picker search', () {
     const files = {
       'user.dart': """
@@ -535,6 +900,8 @@ final class User extends BeakSchema {
 
   @Column(searchable: true)
   late final String email;
+
+  late final String? firstName;
 }
 """,
       'order.dart': """
@@ -550,7 +917,7 @@ final class Order extends BeakSchema {
   @Display()
   late final String reference;
 
-  @BelongsTo(label: 'Customer', searchOn: ['name', 'email'])
+  @BelongsTo(label: 'Customer', searchOn: [#name, #email, #firstName])
   late final User? user;
 }
 """,
@@ -581,14 +948,19 @@ final class Order extends BeakSchema {
         schemas,
       );
 
-      expect(emitted, contains("searchColumnKeys: ['name', 'email']"));
+      // Field symbols, resolved to the columns they name: `#firstName` is
+      // stored as `first_name`, which the author never had to spell.
+      expect(
+        emitted,
+        contains("searchColumnKeys: ['name', 'email', 'first_name']"),
+      );
     });
 
     test('searchOn defaults to the related display column', () {
       final (schemas, _) = readSchemas({
         ...files,
         'order.dart': files['order.dart']!.replaceAll(
-          "@BelongsTo(label: 'Customer', searchOn: ['name', 'email'])",
+          "@BelongsTo(label: 'Customer', searchOn: [#name, #email, #firstName])",
           '@BelongsTo()',
         ),
       });
@@ -600,25 +972,45 @@ final class Order extends BeakSchema {
       expect(emitted, contains("searchColumnKeys: ['name']"));
     });
 
-    test('a searchOn key the other table has not is named, with the list', () {
-      // The one place a schema class names another table's column by key, so
-      // it is the one place that has to be checked.
+    test(
+      'a searchOn field the other schema has not is named, with the list',
+      () {
+        // The one place a schema class names another schema's field, so it is
+        // the one place that has to be checked: a typo is an error at the
+        // declaration, not a picker that quietly finds nothing.
+        final (_, issues) = readSchemas({
+          ...files,
+          'order.dart': files['order.dart']!.replaceAll(
+            'searchOn: [#name, #email, #firstName]',
+            'searchOn: [#naem]',
+          ),
+        });
+
+        expect(issues, hasLength(1));
+        expect(
+          issues.single.message,
+          allOf(
+            contains('Order.user'),
+            contains('#naem'),
+            contains('email, firstName, id, name'),
+          ),
+        );
+      },
+    );
+
+    test('a searchOn written as strings says what it takes now', () {
       final (_, issues) = readSchemas({
         ...files,
         'order.dart': files['order.dart']!.replaceAll(
-          "searchOn: ['name', 'email']",
-          "searchOn: ['naem']",
+          'searchOn: [#name, #email, #firstName]',
+          "searchOn: ['email']",
         ),
       });
 
       expect(issues, hasLength(1));
       expect(
         issues.single.message,
-        allOf(
-          contains('Order.user'),
-          contains('"naem"'),
-          contains('email, id, name'),
-        ),
+        allOf(contains('Order.user'), contains('#email')),
       );
     });
   });

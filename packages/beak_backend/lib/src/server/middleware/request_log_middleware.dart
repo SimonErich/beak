@@ -59,7 +59,8 @@ final class BeakRequestLogEntry {
 /// [BeakRequestLogEntry.toJson] exists:
 ///
 /// ```dart
-/// BeakServeHost(registry: registry, onRequest: beakJsonRequestLogger());
+/// BeakServer beakServer(BeakServerDefaults defaults) =>
+///     defaults.build(onRequest: beakJsonRequestLogger());
 /// ```
 BeakRequestLogger beakJsonRequestLogger({StringSink? sink}) {
   final StringSink target = sink ?? stdout;
@@ -80,9 +81,14 @@ String? beakRequestId(Request request) =>
       _ => null,
     };
 
-/// Tags every request with an id (reusing an incoming `x-request-id`),
+/// Tags every request with an id (reusing an incoming `x-request-id` that is
+/// 1 to 128 letters, digits and `. _ : / -`, and minting one for any other),
 /// echoes it as a response header, and reports the served request to
 /// [onRequest].
+///
+/// The id goes back out as a response header and into log lines, so a client
+/// does not get to choose bytes a header cannot carry (the server would never
+/// answer that request) or a value long enough to fill a log line.
 // --8<-- [start:beakRequestLogMiddleware]
 Middleware beakRequestLogMiddleware({
   required BeakRequestLogger onRequest,
@@ -92,7 +98,11 @@ Middleware beakRequestLogMiddleware({
       requestIdFactory ?? _randomRequestId;
   return (Handler inner) => (Request request) async {
     final stopwatch = Stopwatch()..start();
-    final String requestId = request.headers['x-request-id'] ?? nextRequestId();
+    final String? incoming = request.headers['x-request-id'];
+    final String requestId =
+        incoming != null && _plainRequestId.hasMatch(incoming)
+        ? incoming
+        : nextRequestId();
     final Response response = await inner(
       request.change(context: {_requestIdContextKey: requestId}),
     );
@@ -110,6 +120,8 @@ Middleware beakRequestLogMiddleware({
   };
 }
 // --8<-- [end:beakRequestLogMiddleware]
+
+final RegExp _plainRequestId = RegExp(r'^[A-Za-z0-9._:/-]{1,128}$');
 
 final Random _random = Random();
 

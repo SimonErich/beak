@@ -1,60 +1,60 @@
 ---
-title: Architecture deep dive
-description: How Beak is built inside, for readers who want the principles behind the config, one page per seam.
+title: Architecture
+description: "How Beak is built inside: the principles, the package graph, the two flows and the seams between them."
+type: index
+audience: [contributor, expert]
+status: stable
 ---
 
-# Architecture deep dive
+# Architecture
 
-This section is for the reader who wants to know why Beak is shaped the way it is: where a change belongs, which package owns which idea, and how a request travels from a table cell to the database and back. If you only want to ship a panel, the [Core concepts](../concepts/index.md) section is enough. Stay here if you want to extend Beak, review it, or trust it.
+This section is for the reader who wants to know why Beak is shaped the way it is: where a change belongs, which package owns which idea, and how a request travels from a table cell to the database and back. If you only want to ship a panel, the [Core concepts](../concepts/index.md) section is enough. Stay here to extend Beak, review it, or decide whether to trust it.
 
-Beak turns one annotated schema class into a running admin panel. `beak prepare` reads the class and writes the typed columns, the model, both sides of every relationship, the registry, the panel config and the server host. From there the same typed columns drive the table cell, the form input (with client-side validation that mirrors the server), the detail row, the filter, the REST validation, and the CSV export column. Everything below is in service of that one promise, and of keeping the seams clean enough that a second data backend could slot in without a rewrite.
+Beak turns one annotated schema class into a running admin panel. `beak prepare` reads the class and writes the typed columns, the model, both sides of every relationship, the registry, the panel config and the server host. The same typed columns then drive the table cell, the form input with client validation that mirrors the server, the detail row, the filter, the REST validation, the migration and the CSV column. Everything below serves that one promise, and keeps the seams clean enough that a different data backend can plug in without a rewrite.
 
-## Read it in order, or jump
-
-The pages build on each other, but each stands alone.
-
-### The ideas
-
-- [Principles](principles.md) the invariants every part of Beak obeys: define-once, no `dynamic`, source-agnostic data, no Material, exactly four layers per side, no lazy loading, and where the escape hatches live.
-- [Package graph](package-graph.md) who depends on whom. You depend on one package, `beak`, and behind it sit the small ones: `beak_core` at the base as pure Dart, `beak_backend` as the only package that imports the worm ORM, and a guard in CI keeping the Flutter half walled off from the server half.
-
-### The two flows
-
-- [Backend flow](backend-flow.md) the `Handler -> Service -> DataSource` path, the error-mapping middleware that is the single catch boundary, and how the whole REST surface is generated from a registry.
-- [Frontend flow](frontend-flow.md) the `Widget -> ViewModel -> Repository -> DataSource` path, why view models expose Signals and never `try/catch`, and how the repository turns thrown exceptions into `BeakResult` values.
-
-### The seams
-
-- [The query contract](query-contract.md) `BeakQuerySpec`, the serializable description of a query that the panel builds and the server executes.
-- [The data source seam](data-source-seam.md) the `BeakDataSource` interface both sides implement, and why a future `beak_serverpod` can plug in without touching `beak_core`.
-- [Block system internals](block-system-internals.md) how one block tree renders read-only in a record scope and editable in a form scope.
-- [Storage internals](storage-internals.md) the pluggable driver registry, the shared upload validator, and the image transform pipeline.
+The pages are internals, so they are exact and a little dry, and each one stands alone. They do build on each other in the order below.
 
 ## The shape in one picture
 
-A Beak project is **one package with two entrypoints**. `lib/main.dart` boots the panel, `bin/serve.dart` boots the server, and both reach the same `lib/models/`. The two halves never share a process. They share the model definitions and a serializable vocabulary in between.
+A Beak project is one package with two entrypoints. `lib/main.dart` boots the panel, `bin/serve.dart` boots the server, and both reach the same models. The two halves never share a process. They share the model definitions and a serializable vocabulary in between.
 
 ```mermaid
 flowchart LR
-  subgraph Client
-    W[Widget] --> VM[ViewModel] --> R[Repository] --> FDS[HttpBeakDataSource]
+  subgraph Panel [Flutter panel]
+    W[Widget] --> VM[ViewModel] --> R[Repository] --> DS[ModelBeakDataSource]
+    DS --> HTTP[HttpBeakDataSource]
   end
-  subgraph Wire
-    Spec[BeakQuerySpec / BeakRecord]
+  subgraph Wire [The wire]
+    SPEC["BeakQuerySpec, BeakRecord,<br/>BeakSavePlan"]
   end
-  subgraph Server
-    H[Handler] --> S[Service] --> BDS[WormDataSource] --> DB[(SQLite or Postgres)]
+  subgraph Server [Dart server]
+    H[Handler] --> S[Service] --> WDS[WormDataSource] --> DB[(SQLite or Postgres)]
   end
-  FDS -->|REST| Spec
-  Spec -->|REST| H
+  HTTP -->|REST| SPEC
+  SPEC -->|REST| H
 ```
 
-The client half never imports Shelf or worm. The server half never imports obers_ui or Flutter. The box in the middle, the serializable spec, is the only thing that crosses the wire, and it is pure `beak_core`, which you import as `package:beak/beak.dart`.
+The panel never imports Shelf or worm. The server never imports obers_ui or Flutter. What crosses the wire is a serializable spec and record, and both are pure `beak_core`, which you reach through `package:beak/beak.dart`.
 
-That split is why the libraries are split. A model file imports `beak.dart` and `schema.dart` and nothing else, because `bin/serve.dart` reaches it through the generated registry, and a `dart:ui` import anywhere on that path would stop the server compiling ahead of time. See [Libraries](../reference/libraries.md) for the eight import points and what each one is allowed to reach.
+That split is the reason the umbrella package has eight libraries. A model file imports `beak.dart` and `schema.dart` and nothing else, because `bin/serve.dart` reaches it through the generated registry, and a `dart:ui` import anywhere on that path would stop the server compiling. See [Libraries](../reference/libraries.md) for the eight import points.
+
+## Which page to read
+
+| You want to... | Read | For that |
+| --- | --- | --- |
+| Read the eight rules every part of Beak obeys, and what enforces each | [Principles](principles.md) | Concept for contributors and experts |
+| See which package depends on which, and where worm, obers_ui and `dart:io` may appear | [Package graph](package-graph.md) | Concept for contributors and experts |
+| Follow a request through Handler, Service and DataSource, and find the single error catch boundary | [Backend flow](backend-flow.md) | Concept for contributors and experts |
+| Follow the Widget, ViewModel, Repository and DataSource path, and see where state lives | [Frontend flow](frontend-flow.md) | Concept for contributors and experts |
+| See how a query spec is built, serialized, authorized and turned into a worm query | [The query contract](query-contract.md) | Concept for contributors and experts |
+| See how a form save is planned, committed in one transaction and receipted, and how effects leave through the outbox | [Graph commits](graph-commits.md) | Concept for contributors and experts |
+| See how `BeakDataSource` lets the panel, the server, tests and both Serverpod paths run the same operations | [The data source seam](data-source-seam.md) | Concept for contributors and experts |
+| See how `beak prepare` reads schemas and writes parts, wiring and migrations, and which files stay yours | [Code generation](code-generation.md) | Concept for contributors |
+| See how one sealed block union and one host render screens, list headers and overlays | [Block system internals](block-system-internals.md) | Concept for contributors and experts |
+| See how a storage config resolves to a driver and how an upload is validated, transformed and stored | [Storage internals](storage-internals.md) | Concept for contributors and experts |
 
 ## Continue reading
 
-- [Principles](principles.md) start with the invariants; everything else is a consequence of them.
-- [The four layers](../concepts/the-four-layers.md) the same layering, told as a concept rather than an internals tour.
-- [Libraries](../reference/libraries.md) the eight libraries of `package:beak`, and which one a file is allowed to import.
+- [Principles](principles.md) start with the rules. The other pages are consequences of them.
+- [The four layers](../concepts/the-four-layers.md) the same layering, told as a concept and not as an internals tour.
+- [Code guardrails](../contributing/code-guardrails.md) the checks that hold these rules in CI.

@@ -178,6 +178,57 @@ void main() {
       },
     );
 
+    test(
+      'a key with spaces, accents and reserved characters round-trips',
+      () async {
+        if (!guarded()) {
+          return;
+        }
+        final upload = BeakUpload(
+          filename: 'ä b+(1)!.png',
+          mimeType: 'image/png',
+          bytes: bytes,
+        );
+        final stored = await driver.put(upload, path: '$path/odd keys');
+        addTearDown(() => driver.delete(stored.key));
+        expect(await driver.exists(stored.key), isTrue);
+        expect(await driver.get(stored.key), bytes);
+        final url = await driver.url(
+          stored.key,
+          expiresIn: const Duration(minutes: 5),
+        );
+        final (status, body, _) = await httpGet(url);
+        expect(status, 200);
+        expect(body, bytes);
+      },
+    );
+
+    test('a missing bucket is an error, not a missing file', () async {
+      if (!guarded()) {
+        return;
+      }
+      final elsewhere = S3StorageDriver(
+        BeakS3Config(
+          endpoint: endpoint,
+          bucket: 'beak-no-such-bucket',
+          accessKey: config.accessKey,
+          secretKey: config.secretKey,
+          region: config.region,
+          usePathStyle: true,
+        ),
+      );
+      await expectLater(
+        elsewhere.get('$path/photo.png'),
+        throwsA(
+          isA<BeakStorageException>().having(
+            (e) => e.message,
+            'message',
+            contains('NoSuchBucket'),
+          ),
+        ),
+      );
+    });
+
     test('bad credentials surface as BeakStorageException', () async {
       if (!guarded()) {
         return;

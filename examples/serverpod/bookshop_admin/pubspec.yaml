@@ -1,0 +1,40 @@
+name: bookshop_admin
+description: Beak admin panel for the bookshop (Flutter web).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '^3.12.2'
+  flutter: '^3.44.4'
+
+resolution: workspace
+
+dependencies:
+  beak:
+    path: ../../../packages/beak
+  beak_serverpod_flutter:
+    path: ../../../packages/beak_serverpod_flutter
+  bookshop_beak:
+    path: ../bookshop_beak
+  bookshop_client:
+    path: ../bookshop_client
+  flutter:
+    sdk: flutter
+  serverpod_auth_core_flutter: 4.0.3
+  serverpod_flutter: 4.0.3
+
+dev_dependencies:
+  beak_backend:
+    path: ../../../packages/beak_backend
+  beak_core:
+    path: ../../../packages/beak_core
+  flutter_test:
+    sdk: flutter
+  http: ^1.6.0
+  lints: '>=3.0.0 <7.0.0'
+  postgres: ^3.5.16
+  serverpod_auth_core_client: 4.0.3
+  shelf: ^1.4.2
+  signals: ^6.3.0
+  worm:
+    path: ../../../packages/worm

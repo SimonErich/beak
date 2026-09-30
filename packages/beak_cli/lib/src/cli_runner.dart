@@ -1,22 +1,30 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
+import 'commands/agents_command.dart';
 import 'commands/create_command.dart';
 import 'commands/dev_command.dart';
-import 'commands/eject_command.dart';
+import 'commands/docs_command.dart';
 import 'commands/doctor_command.dart';
+import 'commands/eject_command.dart';
+import 'commands/init_command.dart';
 import 'commands/introspect_command.dart';
 import 'commands/prepare_command.dart';
 import 'field_spec.dart';
 import 'introspect/beak_live_schema.dart';
 import 'introspect/beak_schema_introspection.dart';
+import 'project/beak_authored_main.dart';
 import 'project/beak_emitters.dart';
+import 'project/beak_project_config.dart';
 import 'schema/beak_drift_migration_emitter.dart';
+import 'schema/beak_reserved_names.dart';
 import 'schema/beak_schema_drift.dart';
 import 'schema/beak_schema_reader.dart';
 import 'templates.dart';
+import 'version.dart';
 
 /// A TCP reachability probe over a host and port.
 ///
@@ -64,7 +72,10 @@ final class BeakCliEnvironment {
     required this.now,
     required this.probe,
     BeakProcessRunner? runProcess,
-  }) : runProcess = runProcess ?? _neverRunsProcesses;
+    BeakProcessRunner? runInteractive,
+    this.processEnvironment = const {},
+  }) : runProcess = runProcess ?? _neverRunsProcesses,
+       runInteractive = runInteractive ?? runProcess ?? _neverRunsProcesses;
 
   /// The sink command progress and generated-file logs are written to.
   final StringSink out;
@@ -85,6 +96,23 @@ final class BeakCliEnvironment {
   /// accident.
   final BeakProcessRunner runProcess;
 
+  /// Spawns an external command that talks to the person at the terminal.
+  ///
+  /// Its output goes straight to the terminal, as does its input, so the
+  /// migrations report what they applied, the dev server logs its requests and
+  /// `flutter pub get` shows its progress. [runProcess] is for commands whose
+  /// output is noise. Falls back to [runProcess] when not given, so a test
+  /// that records one runner sees every command.
+  final BeakProcessRunner runInteractive;
+
+  /// The variables the process was started with.
+  ///
+  /// Empty unless given, so a test never reads the machine's own environment;
+  /// [BeakCliEnvironment.production] passes the real one. Settings are read
+  /// through `BeakDotenv`, the way the server reads them: the project's `.env`
+  /// under these, which win.
+  final Map<String, String> processEnvironment;
+
   /// The default runner: reports the command it declined to run.
   static Future<int> _neverRunsProcesses(
     String executable,
@@ -104,6 +132,7 @@ final class BeakCliEnvironment {
     out: stdout,
     rootDirectory: Directory.current,
     now: DateTime.now,
+    processEnvironment: Platform.environment,
     runProcess: (executable, arguments, {workingDirectory}) async {
       final result = await Process.run(
         executable,
@@ -112,6 +141,16 @@ final class BeakCliEnvironment {
         runInShell: true,
       );
       return result.exitCode;
+    },
+    runInteractive: (executable, arguments, {workingDirectory}) async {
+      final process = await Process.start(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        runInShell: true,
+        mode: ProcessStartMode.inheritStdio,
+      );
+      return process.exitCode;
     },
     probe: (host, port) async {
       try {
@@ -151,8 +190,9 @@ final class BeakCliEnvironment {
 }
 
 /// Builds the `beak` [CommandRunner] with every command registered against
-/// [environment]: `create`, `prepare`, `dev`, `introspect`, `eject`,
-/// `migrate`, `seed`, `make:resource`, `make:migration` and `doctor`.
+/// [environment]: `create`, `init`, `prepare`, `dev`, `introspect`, `eject`,
+/// `docs`, `agents`, `migrate`, `seed`, `make:resource`, `make:migration`
+/// and `doctor`.
 ///
 /// The returned runner's `run` completes with the process exit code (or
 /// `null` for `--help`); it throws [UsageException] on bad input, which the
@@ -168,20 +208,66 @@ final class BeakCliEnvironment {
 /// ]) ?? 0;
 /// ```
 CommandRunner<int> createBeakRunner(BeakCliEnvironment environment) =>
-    CommandRunner<int>(
-        'beak',
-        'Beak — scaffold, generate, and diagnose admin panels.',
-      )
+    _BeakCommandRunner(environment)
       ..addCommand(CreateCommand(environment))
       ..addCommand(PrepareCommand(environment))
       ..addCommand(DevCommand(environment))
       ..addCommand(IntrospectCommand(environment))
+      ..addCommand(
+        InitCommand(
+          environment,
+          refreshAgentFiles: (env) async =>
+              refreshAgentFiles(env, installSkills: true),
+        ),
+      )
+      ..addCommand(DocsCommand(environment))
+      ..addCommand(AgentsCommand(environment))
       ..addCommand(EjectCommand(environment))
       ..addCommand(MigrateCommand(environment))
       ..addCommand(SeedCommand(environment))
       ..addCommand(MakeResourceCommand(environment))
       ..addCommand(MakeMigrationCommand(environment))
       ..addCommand(DoctorCommand(environment));
+
+/// The `beak` runner: the commands, plus the top-level `--version` flag.
+final class _BeakCommandRunner extends CommandRunner<int> {
+  _BeakCommandRunner(this.environment)
+    : super('beak', 'Beak: scaffold, generate, and diagnose admin panels.') {
+    argParser.addFlag(
+      'version',
+      help: 'Print the beak version and exit.',
+      negatable: false,
+    );
+  }
+
+  /// Where `--version` prints.
+  final BeakCliEnvironment environment;
+
+  @override
+  Future<int?> runCommand(ArgResults topLevelResults) async {
+    if (topLevelResults.flag('version')) {
+      environment.out.writeln('beak $beakCliVersion');
+      return 0;
+    }
+    try {
+      return await super.runCommand(topLevelResults);
+    } on BeakProjectConfigException catch (exception) {
+      // A `beak.yaml` the commands cannot read is the project's mistake, not
+      // the tool's: say which key or line, rather than a stack trace.
+      environment.out.writeln(exception);
+      return 1;
+    } on FileSystemException catch (exception) {
+      // A folder that cannot be written to, or a file that cannot be read, is
+      // the machine's answer, and `EX_IOERR` says so.
+      final String? path = exception.path;
+      environment.out.writeln(
+        'error: ${exception.message}${path == null || path.isEmpty ? '' : ': $path'}'
+        '${exception.osError == null ? '' : ' (${exception.osError!.message})'}',
+      );
+      return 74;
+    }
+  }
+}
 
 /// Shared argument handling of the `make:*` commands.
 abstract base class _MakeCommand extends Command<int> {
@@ -190,7 +276,7 @@ abstract base class _MakeCommand extends Command<int> {
       'fields',
       help:
           'Comma-separated name:kind pairs '
-          '(string|text|int|decimal|bool|datetime).',
+          '(string|text|int|decimal|double|bool|datetime).',
       defaultsTo: '',
     );
   }
@@ -205,6 +291,14 @@ abstract base class _MakeCommand extends Command<int> {
         !RegExp(r'^[A-Z][A-Za-z0-9]*$').hasMatch(rest.single)) {
       throw UsageException(
         'Expected exactly one UpperCamelCase resource name.',
+        usage,
+      );
+    }
+    if (BeakReservedNames.generatedCodeTypes.contains(rest.single)) {
+      throw UsageException(
+        '"${rest.single}" cannot be the name of a resource: the code '
+        'generated for it uses that name for something else. Try '
+        '"${rest.single}Entry".',
         usage,
       );
     }
@@ -226,13 +320,17 @@ abstract base class _MakeCommand extends Command<int> {
 
 /// The `beak make:resource Name --fields ...` command.
 ///
-/// Writes one file under [BeakCliEnvironment.rootDirectory] — the annotated
-/// schema class at `lib/models/<snake>.dart` — and then runs `beak prepare`,
-/// which derives the columns, the model, both sides of every relationship,
-/// the panel wiring and the create-table migration from it. `--fields` is
-/// written once, so there is no second place for the field list to drift out
-/// of step. Registered on the runner by [createBeakRunner]; run it rather
-/// than constructing it directly.
+/// Writes two files under [BeakCliEnvironment.rootDirectory], in the feature
+/// folder of the resource's table: the annotated schema class at
+/// `lib/resources/<plural>/models/<snake>.dart`, and the `BeakResource` class
+/// presenting it at `lib/resources/<plural>/<snake>_resource.dart`. Then it
+/// runs `beak prepare`, which derives the columns, the model, both sides of
+/// every relationship, the panel wiring and the create-table migration from
+/// the schema. `--fields` is written once, so there is no second place for
+/// the field list to drift out of step. In a project whose `lib/main.dart`
+/// is authored, it prints the line that registers the new class there.
+/// Registered on the runner by [createBeakRunner]; run it rather than
+/// constructing it directly.
 ///
 /// ```console
 /// $ beak make:resource Product \
@@ -246,19 +344,83 @@ final class MakeResourceCommand extends _MakeCommand {
   String get name => 'make:resource';
 
   @override
-  String get description => 'Scaffold a resource: one annotated schema class.';
+  String get description =>
+      'Scaffold a resource: its schema class and its resource class.';
 
   @override
   Future<int> run() async {
     final String resource = resourceName();
-    // One file, and `--fields` written once. `prepare` derives the columns,
-    // the model, both sides of every relationship and the migration from it —
-    // so there is no second place for the field list to drift out of step.
-    environment.writeFile(
-      'lib/models/${snakeCaseOf(resource)}.dart',
-      generateSchemaClass(resource, fields()),
+    final String snake = snakeCaseOf(resource);
+    final String table = tableNameOf(resource);
+    final String folder = 'lib/resources/$table';
+    final String schemaPath = '$folder/models/$snake.dart';
+    final String resourcePath = '$folder/${snake}_resource.dart';
+    final BeakProjectConfig config = BeakProjectConfig.load(
+      environment.rootDirectory,
+      packageName: BeakProjectConfig.packageNameOf(environment.rootDirectory),
     );
-    return runPrepare(environment).exitCode;
+    // Before anything is written: a resource scaffolded into a directory that
+    // is not a Beak project has nothing to generate it and nowhere to run.
+    if (beakNotAProject(environment.rootDirectory, config)
+        case final String reason) {
+      environment.out.writeln('  $reason');
+      return 1;
+    }
+    final String entrypoint = config.panel.entrypointPath;
+    final File entrypointFile = File(
+      p.join(environment.rootDirectory.path, entrypoint),
+    );
+    // The panel's entrypoint is `lib/main.dart`, or the file `beak.yaml` names
+    // in an app that embeds the panel; either is the project's own once Beak
+    // did not write it.
+    final String? entrypointSource = entrypointFile.existsSync()
+        ? entrypointFile.readAsStringSync()
+        : null;
+    final bool authored =
+        entrypointSource != null &&
+        !entrypointSource.startsWith(BeakAuthoredMain.generatedMarker);
+    for (final path in [schemaPath, resourcePath]) {
+      if (File(p.join(environment.rootDirectory.path, path)).existsSync()) {
+        environment.out.writeln(
+          'error: $path already exists: pick another name, or edit it',
+        );
+        return 1;
+      }
+    }
+    environment
+      ..writeFile(schemaPath, generateSchemaClass(resource, fields()))
+      ..writeFile(
+        resourcePath,
+        generateResourceClass(
+          className: '${resource}Resource',
+          modelClass: '${resource}Model',
+          modelImport: 'models/$snake.dart',
+          table: table,
+          authored: authored,
+        ),
+      );
+    final int exitCode = runPrepare(environment).exitCode;
+    if (authored) {
+      // `prepare` never touches an authored entrypoint, so the class is not
+      // in the panel until someone adds it. Inside a `const` list a second
+      // `const` is a lint, so the line matches where it will be pasted.
+      final bool isConstantList = BeakAuthoredMain.parse(
+        entrypointSource,
+      ).resourcesAreConstant;
+      final String importPath = p.posix.relative(
+        resourcePath,
+        from: p.posix.dirname(entrypoint),
+      );
+      environment.out
+        ..writeln()
+        ..writeln('  $entrypoint is yours; register the resource there:')
+        ..writeln("    import '$importPath';")
+        ..writeln(
+          '    ${isConstantList ? '' : 'const '}${resource}Resource(),'
+          '  // in resources: [...]',
+        );
+    }
+    return exitCode;
   }
 }
 
@@ -282,13 +444,19 @@ final class MakeMigrationCommand extends Command<int> {
   /// their own so the command runs without a database.
   MakeMigrationCommand(this.environment, {BeakLiveSchemaReader? readSchema})
     : _readSchema = readSchema ?? beakReadLiveSchema {
-    argParser.addFlag(
-      'from-drift',
-      help:
-          'Fill the migration in from the difference between the schema '
-          'classes and the database.',
-      negatable: false,
-    );
+    argParser
+      ..addFlag(
+        'from-drift',
+        help:
+            'Fill the migration in from the difference between the schema '
+            'classes and the database.',
+        negatable: false,
+      )
+      ..addFlag(
+        'force',
+        help: 'Replace the file if a migration of this name already exists.',
+        negatable: false,
+      );
   }
 
   /// The seams this command runs against.
@@ -304,7 +472,8 @@ final class MakeMigrationCommand extends Command<int> {
   String get description => 'Scaffold an empty, correctly-named migration.';
 
   @override
-  String get invocation => 'beak make:migration <Name> [--from-drift]';
+  String get invocation =>
+      'beak make:migration <Name> [--from-drift] [--force]';
 
   @override
   Future<int> run() async {
@@ -319,6 +488,15 @@ final class MakeMigrationCommand extends Command<int> {
     final String className = rest.single;
     final String snake = snakeCaseOf(className);
     final String stamp = _timestampOf(environment.now());
+    // Before anything is written: a migration outside a Beak project has
+    // nothing to run it.
+    if (beakNotAProjectAt(environment.rootDirectory) case final String reason) {
+      environment.out.writeln('  $reason');
+      return 1;
+    }
+    if (_refusesToReplace('lib/migrations/$snake.dart')) {
+      return 1;
+    }
     if (argResults?['from-drift'] == true) {
       return _writeFromDrift(className: className, snake: snake, stamp: stamp);
     }
@@ -349,6 +527,23 @@ final class $className extends Migration {
     return 0;
   }
 
+  /// Whether [path] holds a migration already and `--force` did not say to
+  /// replace it, having said so.
+  ///
+  /// A migration is the project's the moment it is written, and often edited
+  /// before it has run; scaffolding over it once more would lose that work.
+  bool _refusesToReplace(String path) {
+    final file = File(p.join(environment.rootDirectory.path, path));
+    if (file.existsSync() && argResults?['force'] != true) {
+      environment.out.writeln(
+        'error: $path already exists: pick another name, or pass --force to '
+        'replace it',
+      );
+      return true;
+    }
+    return false;
+  }
+
   /// Writes the migration the live database needs to match the models.
   ///
   /// The columns come from drift rather than from reading the migrations,
@@ -370,7 +565,12 @@ final class $className extends Migration {
       return 1;
     }
 
-    final Uri url = beakDatabaseUrlOf(root) ?? Uri.parse(defaultSqliteUrl);
+    final Uri url =
+        beakDatabaseUrlOf(
+          root,
+          processEnvironment: environment.processEnvironment,
+        ) ??
+        Uri.parse(defaultSqliteUrl);
     if (!beakCanReadSchema(url)) {
       // Without this, `sqlite::memory:` fell through to the Postgres reader
       // and surfaced as a socket error on port 0.
@@ -416,7 +616,10 @@ final class $className extends Migration {
     // "no drift" and "drift no migration can express" are different answers,
     // and conflating them tells someone their schema is applied when it is
     // not.
-    final refusals = BeakDriftMigrationEmitter.unaddable(drift);
+    final refusals = BeakDriftMigrationEmitter.unaddable(
+      drift,
+      isSqlite: beakIsSqliteUrl(url),
+    );
     for (final MapEntry(key: problem, value: why) in refusals.entries) {
       environment.out.writeln(
         '  ! ${problem.table}.${problem.columnKey}: $why',
@@ -425,9 +628,9 @@ final class $className extends Migration {
     if (contents == null) {
       environment.out.writeln(
         refusals.isEmpty
-            ? '  nothing to add — the database already has every column the '
+            ? '  nothing to add: the database already has every column the '
                   'schema classes declare'
-            : '  nothing written — every missing column needs a decision '
+            : '  nothing written: every missing column needs a decision '
                   'first',
       );
       return refusals.isEmpty ? 0 : 1;

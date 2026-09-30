@@ -3,6 +3,8 @@ import 'package:worm/src/adapter/in_memory_adapter.dart';
 import 'package:worm/src/query/field.dart';
 import 'package:worm/src/query/field_operators.dart';
 import 'package:worm/src/query/insert_descriptor.dart';
+import 'package:worm/src/query/operator.dart';
+import 'package:worm/src/query/predicate.dart';
 import 'package:worm/src/query/predicate_tree.dart';
 import 'package:worm/src/query/query_descriptor.dart';
 import 'package:worm/src/query/schema_descriptor.dart';
@@ -119,6 +121,116 @@ void main() {
       final adapter = await _adapter();
       final rows = await _where(adapter, _name.notLike('A%'));
       expect(_names(rows), <String>{'Bob', 'Carol', 'Dave', 'alice'});
+    });
+  });
+
+  group('patterns over text with line breaks', () {
+    test('a % spans a line break and a _ stands for one, as in SQL', () async {
+      final adapter = InMemoryAdapter();
+      await adapter.connect();
+      await adapter.executeSchema(
+        const SchemaDescriptor.createTable(table: 'people'),
+      );
+      await adapter.insertMany(
+        const InsertManyDescriptor(
+          table: 'people',
+          rows: <Map<String, Object?>>[
+            <String, Object?>{'id': 1, 'name': 'first\nsecond'},
+            <String, Object?>{'id': 2, 'name': 'first second'},
+            <String, Object?>{'id': 3, 'name': 'other'},
+          ],
+        ),
+      );
+      expect(_names(await _where(adapter, _name.like('%second'))), <String>{
+        'first\nsecond',
+        'first second',
+      });
+      expect(
+        _names(await _where(adapter, _name.like('first_second'))),
+        <String>{'first\nsecond', 'first second'},
+      );
+    });
+  });
+
+  group('escaped patterns', () {
+    const escapeCharacter = r'\';
+
+    Future<InMemoryAdapter> patternsAdapter() async {
+      final adapter = InMemoryAdapter();
+      await adapter.connect();
+      await adapter.executeSchema(
+        const SchemaDescriptor.createTable(table: 'people'),
+      );
+      await adapter.insertMany(
+        const InsertManyDescriptor(
+          table: 'people',
+          rows: <Map<String, Object?>>[
+            <String, Object?>{'id': 1, 'name': 'a%b'},
+            <String, Object?>{'id': 2, 'name': 'axb'},
+            <String, Object?>{'id': 3, 'name': 'a_b'},
+            <String, Object?>{'id': 4, 'name': r'a\b'},
+            <String, Object?>{'id': 5, 'name': 'A%B'},
+            <String, Object?>{'id': 6, 'name': r'ab\'},
+          ],
+        ),
+      );
+      return adapter;
+    }
+
+    PredicateTree leaf(Operator operator, String pattern, {String? escape}) =>
+        LeafNode(
+          Predicate(
+            fieldName: 'name',
+            operator: operator,
+            value: pattern,
+            escape: escape,
+          ),
+        );
+
+    test('an escaped wildcard matches only itself', () async {
+      final adapter = await patternsAdapter();
+      Future<Set<Object?>> match(Operator operator, String pattern) async =>
+          _names(
+            await _where(
+              adapter,
+              leaf(operator, pattern, escape: escapeCharacter),
+            ),
+          );
+      expect(await match(Operator.like, r'a\%b'), <String>{'a%b'});
+      expect(await match(Operator.like, r'a\_b'), <String>{'a_b'});
+      expect(await match(Operator.like, r'a\\b'), <String>{r'a\b'});
+      expect(await match(Operator.ilike, r'a\%b'), <String>{'a%b', 'A%B'});
+      expect(await match(Operator.notLike, r'a\%b'), <String>{
+        'axb',
+        'a_b',
+        r'a\b',
+        'A%B',
+        r'ab\',
+      });
+    });
+
+    test('an unescaped wildcard still matches anything', () async {
+      final adapter = await patternsAdapter();
+      final rows = await _where(
+        adapter,
+        leaf(Operator.like, 'a%b', escape: escapeCharacter),
+      );
+      expect(_names(rows), <String>{'a%b', 'axb', 'a_b', r'a\b'});
+    });
+
+    test('a trailing escape character stands for itself', () async {
+      final adapter = await patternsAdapter();
+      final rows = await _where(
+        adapter,
+        leaf(Operator.like, r'a\b\', escape: escapeCharacter),
+      );
+      expect(_names(rows), <String>{r'ab\'});
+    });
+
+    test('without an escape character a backslash is ordinary', () async {
+      final adapter = await patternsAdapter();
+      final rows = await _where(adapter, leaf(Operator.like, r'a\b'));
+      expect(_names(rows), <String>{r'a\b'});
     });
   });
 

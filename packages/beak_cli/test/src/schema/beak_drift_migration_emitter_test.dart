@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A schema over [table] declaring [fields].
@@ -188,6 +188,39 @@ void main() {
       expect(source, contains("import '../models/product.dart'"));
     });
 
+    test('imports a schema that lives in a resource folder', () {
+      // It stripped a leading `models/` and prefixed `../models/` again, so a
+      // schema under lib/resources/<feature>/models/ became
+      // `../models/resources/products/models/product.dart`, which is no file.
+      final BeakSchemaIr product = schemaWith('Product', 'products', [
+        'name',
+        'stock',
+      ]);
+      final source = emitFor(
+        schemas: [
+          BeakSchemaIr(
+            className: product.className,
+            table: product.table,
+            libraryPath: 'resources/products/models/product.dart',
+            columns: product.columns,
+            relations: product.relations,
+            displayColumnKey: product.displayColumnKey,
+            softDeletes: false,
+            timestamps: false,
+            managesSchema: true,
+          ),
+        ],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      );
+
+      expect(
+        source,
+        contains("import '../resources/products/models/product.dart'"),
+      );
+    });
+
     test('is nothing at all when there is nothing to add', () {
       expect(
         emitFor(
@@ -216,6 +249,213 @@ void main() {
     });
   });
 
+  group('the guard on the live schema', () {
+    // A fresh database gets every column from the create-table migration,
+    // which reads the model as it is now. Replaying an alter over it used to
+    // fail with `duplicate column name`, so every alteration asks first.
+    String emitted() => emitFor(
+      schemas: [
+        schemaWith('Product', 'products', ['name', 'stock', 'weight']),
+      ],
+      tables: [
+        tableWith('products', ['id', 'name']),
+      ],
+    )!;
+
+    test('up reads the live schema before altering anything', () {
+      final source = emitted();
+
+      expect(source, contains('await schema.adapter.introspectSchema()'));
+      expect(
+        source.indexOf('introspectSchema()'),
+        lessThan(source.indexOf("schema.alter('products'")),
+      );
+    });
+
+    test('adds a column only when the table does not have it', () {
+      final source = emitted();
+
+      expect(source, contains("if (!_has(live, 'products', 'stock'))"));
+      expect(source, contains("if (!_has(live, 'products', 'weight'))"));
+      expect(
+        source.indexOf("if (!_has(live, 'products', 'stock'))"),
+        lessThan(source.indexOf('ProductColumns.stock')),
+      );
+    });
+
+    test('guards each column alone, so a half-applied table finishes', () {
+      // One alter for both would add `stock` a second time when only
+      // `weight` was missing, and an alter with nothing to add is an error.
+      final source = emitted();
+
+      expect("schema.alter('products'".allMatches(source), hasLength(4));
+      expect('await schema.alter'.allMatches(source), hasLength(4));
+    });
+
+    test('rolls back a column only when the table has it', () {
+      final source = emitted();
+      final String down = source.substring(source.indexOf('downSchema'));
+
+      expect(down, contains('introspectSchema()'));
+      expect(down, contains("if (_has(live, 'products', 'stock'))"));
+      expect(down, contains("table.dropColumn('stock')"));
+    });
+
+    test('answers from the columns the adapter reports', () {
+      final source = emitted();
+
+      expect(source, contains('static bool _has('));
+      expect(source, contains('live[table]?.contains(column) ?? false'));
+    });
+
+    test('is valid Dart', () {
+      // The syntax check `dart format` runs: it throws on a parse error.
+      expect(() => BeakEmitters.format(emitted()), returnsNormally);
+    });
+  });
+
+  group('a belongs-to column', () {
+    BeakSchemaIr productBelongingToCategory({bool required = false}) {
+      final BeakSchemaIr base = schemaWith('Product', 'products', ['name']);
+      return BeakSchemaIr(
+        className: base.className,
+        table: base.table,
+        libraryPath: base.libraryPath,
+        columns: [
+          ...base.columns,
+          BeakColumnIr(
+            fieldName: 'categoryId',
+            columnKey: 'category_id',
+            label: 'Category',
+            kind: BeakColumnKind.string,
+            isRequired: required,
+          ),
+        ],
+        relations: [
+          const BeakRelationIr(
+            fieldName: 'category',
+            key: 'category',
+            label: 'Category',
+            kind: BeakRelationKind.belongsTo,
+            relatedSchema: 'Category',
+            foreignKey: 'category_id',
+          ),
+        ],
+        displayColumnKey: 'name',
+        softDeletes: false,
+        timestamps: false,
+        managesSchema: true,
+      );
+    }
+
+    String? emitBelongsTo() => emitFor(
+      schemas: [productBelongingToCategory()],
+      tables: [
+        tableWith('products', ['id', 'name']),
+      ],
+    );
+
+    test('is added as the key a create would make, not as a string', () {
+      // The schema lists the key as a `String` field, so mapping it like any
+      // other column produced a varchar where the create made a uuid.
+      expect(
+        emitBelongsTo(),
+        matches(
+          RegExp(
+            r'defineColumn\(\s*table,\s*ProductColumns\.categoryId,\s*'
+            r'isForeignKey: true',
+          ),
+        ),
+      );
+    });
+
+    test('is indexed, as every belongs-to key is on create', () {
+      expect(emitBelongsTo(), contains('table.index([relation.foreignKey])'));
+    });
+
+    test('carries its constraint, as the create does', () {
+      final source = emitBelongsTo()!;
+
+      expect(source, contains('table.foreign('));
+      expect(
+        source,
+        contains('final relation = ProductRelations.category;'),
+        reason: 'the constraint is read from the relationship, not restated',
+      );
+      expect(source, contains('onTable: relation.relatedTable'));
+      expect(source, contains('onDelete: wormOnDelete(relation.onDelete)'));
+    });
+
+    test('is dropped with its index first', () {
+      final source = emitBelongsTo()!;
+      final String down = source.substring(source.indexOf('downSchema'));
+
+      expect(down, contains("table.dropIndex('products_category_id_idx')"));
+      expect(
+        down.indexOf('dropIndex'),
+        lessThan(down.indexOf("dropColumn('category_id')")),
+      );
+    });
+
+    test('is guarded like any other column', () {
+      expect(
+        emitBelongsTo(),
+        contains("if (!_has(live, 'products', 'category_id'))"),
+      );
+    });
+
+    test('an ordinary column beside it is left alone', () {
+      final source = emitFor(
+        schemas: [
+          BeakSchemaIr(
+            className: 'Product',
+            table: 'products',
+            libraryPath: 'models/product.dart',
+            columns: [
+              ...productBelongingToCategory().columns,
+              const BeakColumnIr(
+                fieldName: 'stock',
+                columnKey: 'stock',
+                label: 'Stock',
+                kind: BeakColumnKind.integer,
+                isRequired: false,
+              ),
+            ],
+            relations: productBelongingToCategory().relations,
+            displayColumnKey: 'name',
+            softDeletes: false,
+            timestamps: false,
+            managesSchema: true,
+          ),
+        ],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      )!;
+
+      expect(
+        source,
+        contains('BeakBlueprint.defineColumn(table, ProductColumns.stock);'),
+      );
+      expect('isForeignKey: true'.allMatches(source), hasLength(1));
+    });
+
+    test('a required one is refused, as any required column is', () {
+      final drift = beakSchemaDrift(
+        schemas: [productBelongingToCategory(required: true)],
+        tables: [
+          tableWith('products', ['id', 'name']),
+        ],
+      );
+
+      expect(BeakDriftMigrationEmitter.addable(drift), isEmpty);
+      expect(
+        BeakDriftMigrationEmitter.unaddable(drift).keys.map((p) => p.columnKey),
+        ['category_id'],
+      );
+    });
+  });
+
   group('a column a live table cannot gain', () {
     List<BeakDrift> driftFor(BeakSchemaIr schema) => beakSchemaDrift(
       schemas: [schema],
@@ -241,10 +481,7 @@ void main() {
     });
 
     test('a required bool is written, because it defaults to false', () {
-      // Not because the field declared a default: `@Column(defaultValue:)` is
-      // enum-only. `BeakBlueprint.defineColumn` gives every boolean `false`,
-      // since a nullable boolean is three-valued and no Beak form can express
-      // that, so the column arrives with a value the existing rows can take.
+      // Required boolean columns retain the conventional false default.
       final drift = driftFor(
         schemaWith(
           'Product',
@@ -291,16 +528,39 @@ void main() {
       );
     });
 
-    test('the refusal for other kinds does not name an option they lack', () {
-      // `@Column(defaultValue:)` is rejected on anything but an enum, so
-      // telling someone to add one would send them after an error.
-      final why = BeakDriftMigrationEmitter.unaddable(
-        driftFor(schemaWith('Product', 'products', ['stock'], required: true)),
-      ).values.single;
-
-      expect(why, isNot(contains('defaultValue')));
-      expect(why, contains('only an enum can declare one'));
-    });
+    test(
+      'required scalar defaults allow safe backfilling of existing rows',
+      () {
+        final withoutDefault = driftFor(
+          schemaWith('Product', 'products', ['stock'], required: true),
+        );
+        expect(
+          BeakDriftMigrationEmitter.unaddable(withoutDefault).values.single,
+          contains('@Column(defaultValue:'),
+        );
+        final withDefault = driftFor(
+          schemaWith(
+            'Product',
+            'products',
+            ['stock'],
+            required: true,
+            options: const {'defaultValue': '0'},
+          ),
+        );
+        expect(BeakDriftMigrationEmitter.addable(withDefault), hasLength(1));
+        final nullableBool = driftFor(
+          schemaWith(
+            'Product',
+            'products',
+            ['active'],
+            required: true,
+            kind: BeakColumnKind.boolean,
+            options: const {'tristate': 'true'},
+          ),
+        );
+        expect(BeakDriftMigrationEmitter.addable(nullableBool), isEmpty);
+      },
+    );
 
     test('a unique column is refused, with the three-step way round', () {
       final drift = driftFor(
@@ -322,6 +582,30 @@ void main() {
       expect(why, contains('without `unique: true`'));
     });
 
+    test('a unique column blames SQLite only when the database is SQLite', () {
+      final drift = driftFor(
+        schemaWith(
+          'Product',
+          'products',
+          ['sku'],
+          options: const {'unique': 'true'},
+        ),
+      );
+
+      final String onSqlite = BeakDriftMigrationEmitter.unaddable(
+        drift,
+      ).values.single;
+      final String elsewhere = BeakDriftMigrationEmitter.unaddable(
+        drift,
+        isSqlite: false,
+      ).values.single;
+
+      expect(onSqlite, contains('SQLite cannot add a unique column'));
+      expect(elsewhere, isNot(contains('SQLite')));
+      expect(elsewhere, contains('without `unique: true`'));
+      expect(elsewhere, contains('backfill'));
+    });
+
     test('nothing addable means no migration at all', () {
       expect(
         BeakDriftMigrationEmitter.emit(
@@ -340,9 +624,7 @@ void main() {
   group('against a schema class the reader really parsed', () {
     /// The IR `BeakSchemaReader` produces for a `Product` declaring [fields].
     ///
-    /// Hand-built IR is how the emitter's own tests got this wrong once: the
-    /// fixture set `defaultValue` on an integer column, a state the reader
-    /// rejects outright, so the test proved a path no project can reach.
+    /// Uses the same schema reader as production generation.
     BeakSchemaIr parsedProduct(String fields) {
       final root = Directory.systemTemp.createTempSync('beak_ir_');
       addTearDown(() => root.deleteSync(recursive: true));

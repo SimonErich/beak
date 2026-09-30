@@ -1,8 +1,8 @@
 import 'package:meta/meta.dart';
 
-import '../columns/beak_column.dart';
 import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
+import '../model/beak_field_ref.dart';
 import '../relations/beak_relationship.dart';
 import 'beak_filter.dart';
 import 'beak_pagination.dart';
@@ -13,44 +13,37 @@ import '../common/json_support.dart';
 /// Beak's wire contract: a typed, losslessly JSON-serializable description
 /// of a query.
 ///
-/// The frontend composes a spec through the immutable copy-builders
-/// ([withFilter], [orderBy], [withRelation], [searching], [paginate]) using
-/// typed column and relationship constants — never key strings — and ships
-/// it as JSON; the backend decodes it with [fromJson] and translates it to
-/// the ORM's query builder. The spec references column and relation *keys*
-/// only, keeping it ORM-neutral.
+/// Application code starts a spec from its model — `const PostModel().query()`
+/// — and refines it through the immutable copy-builders ([withFilter],
+/// [orderBy], [withRelation], [searching], [paginate]) with the model's
+/// generated field references, never key strings. The frontend ships it as
+/// JSON; the backend decodes it with [fromJson] and translates it to the
+/// ORM's query builder. The spec references column and relation *keys* only,
+/// keeping it ORM-neutral.
 ///
 /// Each copy-builder returns a new spec, so they chain fluently and the
 /// original is never mutated:
 ///
 /// ```dart
-/// const status = BeakStringColumn(key: 'status', label: 'Status');
-/// const createdAt =
-///     BeakDateTimeColumn(key: 'created_at', label: 'Created at');
-/// const author = BeakBelongsTo(
-///   key: 'author',
-///   label: 'Author',
-///   relatedTable: 'users',
-///   displayColumnKey: 'name',
-///   foreignKey: 'author_id',
-/// );
-///
-/// final spec = const BeakQuerySpec(table: 'posts')
-///     .withRelation(author)
-///     .withFilter(BeakFieldFilter(
-///       column: status,
-///       operator: BeakOperator.eq,
-///       value: BeakValue.of('published'),
-///     ))
-///     .orderBy(createdAt, descending: true)
+/// final spec = const PostModel()
+///     .query(filter: PostModel.status.eq('published'))
+///     .withRelation(PostModel.author.relation)
+///     .orderBy(PostModel.createdAt, descending: true)
 ///     .paginate(page: 2, perPage: 50);
 ///
 /// // Ship it across the wire, then rebuild it losslessly on the backend.
 /// final BeakQuerySpec decoded = BeakQuerySpec.fromJson(spec.toJson());
 /// ```
+///
+/// The constructor, which takes the table's stored name, is the wire-level
+/// path for decoders and data-source adapters.
 @immutable
 final class BeakQuerySpec {
-  /// Creates a query over [table].
+  // --8<-- [start:BeakQuerySpec]
+  /// Creates a query over the table stored as [table].
+  ///
+  /// The wire-level constructor; application code calls `model.query()`,
+  /// which fills [table] in from the model.
   const BeakQuerySpec({
     required this.table,
     this.filter,
@@ -60,6 +53,7 @@ final class BeakQuerySpec {
     this.pagination = const BeakPagination(),
     this.withTrashed = false,
   });
+  // --8<-- [end:BeakQuerySpec]
 
   /// Decodes [json] (produced by [toJson]).
   ///
@@ -151,6 +145,7 @@ final class BeakQuerySpec {
     'withTrashed': withTrashed,
   };
 
+  // --8<-- [start:withFilter]
   /// Returns a copy with [filter] AND-merged into the existing predicate:
   /// the first filter is taken as-is, later ones join an ever-growing
   /// conjunction.
@@ -164,13 +159,17 @@ final class BeakQuerySpec {
       final BeakFilter existing => BeakAndFilter([existing, filter]),
     },
   );
+  // --8<-- [end:withFilter]
 
-  /// Returns a copy additionally ordered by [column].
-  BeakQuerySpec orderBy(BeakColumn column, {bool descending = false}) => _copy(
-    sorts: [
-      ...sorts,
-      BeakSort(column.key, descending: descending),
-    ],
+  /// Returns a copy additionally ordered by [field].
+  ///
+  /// Throws a [BeakConfigurationException] for a field reached through a
+  /// relationship: results are ordered by their own columns only.
+  BeakQuerySpec orderBy(
+    BeakScalarField<Object> field, {
+    bool descending = false,
+  }) => _copy(
+    sorts: [...sorts, descending ? field.descending() : field.ascending()],
   );
 
   /// Returns a copy additionally eager-loading [relation], optionally
@@ -185,10 +184,14 @@ final class BeakQuerySpec {
     ],
   );
 
-  /// Returns a copy searching for [term] across [columns].
-  BeakQuerySpec searching(String term, List<BeakColumn> columns) => _copy(
-    search: BeakSearch(term, [for (final column in columns) column.key]),
-  );
+  /// Returns a copy searching for [term] across [fields], which may reach
+  /// through a relationship.
+  BeakQuerySpec searching(String term, List<BeakScalarField<Object>> fields) =>
+      _copy(
+        search: BeakSearch(term, [
+          for (final field in fields) field.qualifiedKey,
+        ]),
+      );
 
   /// Returns a copy with an updated paging window; either half keeps its
   /// current value when omitted.
@@ -248,13 +251,16 @@ final class BeakQuerySpec {
 /// by [columnKeys].
 ///
 /// User code obtains searches through the spec's typed `searching` builder,
-/// which reads the keys from column constants.
+/// which reads the keys from typed fields.
 @immutable
 final class BeakSearch {
   /// Creates a search for [term] across [columnKeys].
   const BeakSearch(this.term, this.columnKeys);
 
   /// Decodes [json] (produced by [toJson]).
+  ///
+  /// Both `term` and `columns` are required: a search without either has
+  /// nothing to look for or nowhere to look.
   ///
   /// Throws a [BeakConfigurationException] on malformed input.
   static BeakSearch fromJson(Map<String, Object?> json) {

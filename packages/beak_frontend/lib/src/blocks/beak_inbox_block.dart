@@ -18,13 +18,13 @@ part of 'beak_block.dart';
 /// ```dart
 /// BeakInboxBlock(
 ///   model: const MailModel(),
-///   senderField: MailColumns.sender,
-///   subjectField: MailColumns.subject,
-///   previewField: MailColumns.preview,
-///   timeField: MailColumns.receivedAt,
-///   readField: MailColumns.isRead,
-///   folderRelation: MailRelationships.folder,
-///   folderLabelField: FolderColumns.label,
+///   senderField: MailModel.sender.column,
+///   subjectField: MailModel.subject.column,
+///   previewField: MailModel.preview.column,
+///   timeField: MailModel.receivedAt.column,
+///   readField: MailModel.isRead.column,
+///   folderRelation: MailModel.folder,
+///   folderLabelField: FolderModel.label.column,
 /// );
 /// ```
 final class BeakInboxBlock extends BeakBlock {
@@ -43,6 +43,7 @@ final class BeakInboxBlock extends BeakBlock {
     this.label = 'Inbox',
     this.leftWidthInPixels = 220,
     this.rightWidthInPixels = 360,
+    this.filter,
     super.span,
   }) : assert(
          unreadField == null || readField == null,
@@ -72,9 +73,9 @@ final class BeakInboxBlock extends BeakBlock {
   /// convention of [unreadField], for models that store `is_read`.
   final BeakColumn? readField;
 
-  /// The belongs-to relation from a message to its folder; when bound (with
+  /// The to-one field from a message to its folder; when bound (with
   /// [folderLabelField]) the rail is data-driven and filters the list.
-  final BeakBelongsTo? folderRelation;
+  final BeakToOneField? folderRelation;
 
   /// The related folder model's label column backing the rail entries.
   final BeakColumn? folderLabelField;
@@ -86,6 +87,11 @@ final class BeakInboxBlock extends BeakBlock {
 
   /// Accessibility label for the layout.
   final String label;
+
+  /// Narrows the rows the block lists. A block reads one page of at most
+  /// [BeakPagination.maxPerPage] rows, and says so beneath itself when the
+  /// query matches more.
+  final BeakFilter? filter;
 
   /// Initial width of the folder rail.
   final double leftWidthInPixels;

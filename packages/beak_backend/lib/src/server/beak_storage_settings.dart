@@ -2,10 +2,9 @@ import 'package:beak_core/beak_core.dart';
 
 /// Reads the storage driver selection out of the environment.
 ///
-/// Every Beak backend needs the same `BEAK_STORAGE_DRIVER` switch, and both
-/// demo apps had written it out by hand — identically, down to the error
-/// strings. It lives here now so a project declares which drivers it supports
-/// and gets the parsing for free.
+/// Every Beak backend needs the same `BEAK_STORAGE_DRIVER` switch, so it
+/// lives here: a project declares which drivers it supports and gets the
+/// parsing, and the error wording, for free.
 ///
 /// ```dart
 /// final registry = createDefaultStorageRegistry();
@@ -57,15 +56,39 @@ abstract final class BeakStorageSettings {
       return value;
     }
 
+    Uri requireUri(String key) {
+      final String value = require(key);
+      return Uri.tryParse(value) ??
+          (throw BeakConfigurationException('$key is not a valid URL: $value'));
+    }
+
+    int port(String key, {required int fallback}) {
+      final String? value = environment[key];
+      if (value == null || value.isEmpty) {
+        return fallback;
+      }
+      final int? parsed = int.tryParse(value);
+      if (parsed == null || parsed < 1 || parsed > 65535) {
+        throw BeakConfigurationException(
+          '$key must be a port from 1 to 65535, got "$value".',
+        );
+      }
+      return parsed;
+    }
+
     switch (environment[driverKey]) {
       case 's3':
         return BeakS3Config(
-          endpoint: Uri.parse(require('BEAK_S3_ENDPOINT')),
+          endpoint: requireUri('BEAK_S3_ENDPOINT'),
           bucket: require('BEAK_S3_BUCKET'),
           accessKey: require('BEAK_S3_ACCESS_KEY'),
           secretKey: require('BEAK_S3_SECRET_KEY'),
           region: require('BEAK_S3_REGION'),
           usePathStyle: environment['BEAK_S3_USE_PATH_STYLE'] == 'true',
+          publicBaseUrl: switch (environment['BEAK_S3_PUBLIC_BASE_URL']) {
+            null || '' => null,
+            _ => requireUri('BEAK_S3_PUBLIC_BASE_URL'),
+          },
         );
       case 'ftp':
         return BeakFtpConfig(
@@ -73,13 +96,13 @@ abstract final class BeakStorageSettings {
           user: require('BEAK_FTP_USER'),
           password: require('BEAK_FTP_PASSWORD'),
           baseDir: require('BEAK_FTP_BASE_DIR'),
-          publicBaseUrl: Uri.parse(require('BEAK_FTP_PUBLIC_BASE_URL')),
-          port: int.tryParse(environment['BEAK_FTP_PORT'] ?? '') ?? 21,
+          publicBaseUrl: requireUri('BEAK_FTP_PUBLIC_BASE_URL'),
+          port: port('BEAK_FTP_PORT', fallback: 21),
         );
       case 'local':
         return BeakLocalDiskStorageConfig(
           rootDir: require('BEAK_LOCAL_ROOT_DIR'),
-          publicBaseUrl: Uri.parse(require('BEAK_LOCAL_PUBLIC_BASE_URL')),
+          publicBaseUrl: requireUri('BEAK_LOCAL_PUBLIC_BASE_URL'),
         );
       case 'memory':
         return const BeakMemoryStorageConfig();
@@ -87,7 +110,7 @@ abstract final class BeakStorageSettings {
         return null;
       case final String other:
         throw BeakConfigurationException(
-          'Unsupported $driverKey "$other" — use one of '
+          'Unsupported $driverKey "$other": use one of '
           '${supportedDrivers.join(', ')}.',
         );
     }

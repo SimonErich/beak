@@ -18,7 +18,11 @@ final class Predicate {
     required this.operator,
     this.tableName,
     this.value,
-  });
+    this.escape,
+  }) : assert(
+         escape == null || escape.length == 1,
+         'escape must be a single character',
+       );
 
   /// The column being compared.
   final String fieldName;
@@ -36,6 +40,14 @@ final class Predicate {
   /// For `isNull`/`isNotNull` this is `null`.
   final Object? value;
 
+  /// The character that escapes `%`, `_` and itself in a `like`, `notLike`
+  /// or `ilike` pattern, or `null` when the pattern has no escape character.
+  ///
+  /// With `\` as the escape character, `a\%b` matches the text `a%b` and
+  /// nothing else. Adapters state it in the SQL (`ESCAPE '\'`) so the
+  /// meaning does not depend on a database's default, which differs.
+  final String? escape;
+
   /// Fully qualified field name.
   String get qualifiedName =>
       tableName != null ? '$tableName.$fieldName' : fieldName;
@@ -47,6 +59,7 @@ final class Predicate {
     'operator': operator.name,
     if (operator != Operator.isNull && operator != Operator.isNotNull)
       'value': _encodeValue(value),
+    if (escape != null) 'escape': escape,
   };
 
   Object? _encodeValue(Object? raw) {

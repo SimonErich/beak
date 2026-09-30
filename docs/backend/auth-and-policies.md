@@ -1,377 +1,289 @@
 ---
 title: Auth and policies
-description: Wire login sessions and per-resource authorization onto the generated API with BeakAuthSessions, a BeakAuthGuard, and a BeakPolicy.
+description: Identify the caller, then decide what they may read, write, delete and run, with sessions, deny-by-default rules, row scopes, field rules and actions.
+type: guide
+audience: [expert]
+status: stable
 ---
 
 # Auth and policies
 
-By the end of this page you can put a login endpoint in front of the generated
-API, resolve the caller's identity on every request, and gate each model by
-role. Auth in Beak comes in two halves that you wire independently:
-**authentication** (who is this request) and **authorization** (may they do
-this).
+Hiding a button in the panel protects nothing. Every rule on this page runs in the backend, on every route, for every client. After it you can close a Beak server: name who is calling, list what each role may do to each model, narrow which rows and fields they see, and prove that a request the panel would never send is refused.
 
-Beak ships open. With nothing configured, every request is anonymous and the
-default [`BeakAllowAllPolicy`](#the-default-allow-everything) waves it through.
-That is fine behind your own gateway or for a local demo. When you want Beak to
-do the gating, you turn on the two halves below.
+The default is open. A `BeakServer` built without a `policy` allows everything to everyone, anonymous callers included. Bound beyond loopback it prints one `warning:` line at boot, and that is all it does. That is right for the first hour and wrong for the second, so the first thing to do with `lib/server.dart` is give it a `BeakPolicies`.
 
-## The shape of it
+## At a glance
 
-Every request flows through the auth middleware first. The middleware asks a
-`BeakAuthGuard` for the identity behind the request, stashes the resolved
-`BeakPrincipal` in the request context, and then the handler consults a
-`BeakPolicy` before it touches the data source.
+A request is judged in this order. The first check that fails ends it.
 
-```mermaid
-flowchart LR
-  R[Request] --> G[BeakAuthGuard.authenticate]
-  G -->|BeakPrincipal or null| H[Handler]
-  H --> P[BeakPolicy.canView / canCreate / ...]
-  P -->|allowed| DS[DataSource]
-  P -->|denied| E[401 or 403]
-```
-
-The guard and the policy are separate seams on purpose. A guard that returns a
-principal has said nothing about what that principal may do. That is the
-policy's job.
-
-## Authentication: the `/api/auth` surface
-
-`BeakAuthSessions` describes a login surface: where sessions live, which
-accounts may log in, and the secret their passwords were hashed under. Pass one
-to `BeakServer`'s `authSessions` parameter and the generated API mounts
-`POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me`.
-
-```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
---8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:BeakAuthSessions"
-```
-
-Each account is a `BeakUserAccount`: a username, the hash of its password, and
-the `BeakPrincipal` a successful login mints sessions for. Beak never stores a
-plaintext password. You hash it once with `hashBeakPassword`, which is HMAC-SHA256
-under your secret:
-
-```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
---8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:hashBeakPassword"
-```
-
-The same `secret` you gave `BeakAuthSessions` must have hashed every account's
-password, because login recomputes the hash and compares. Keep it out of source
-and load it from the environment. Putting the pieces together:
+| Step | Question | Owner | Refusal |
+| --- | --- | --- | --- |
+| 1. Guard | Who is this? | `BeakAuthGuard`, fed by `authSessions` or your own | `401` when credentials are present and wrong |
+| 2. Policy | May this principal do this to this model? | `BeakPolicy`, usually `BeakPolicies` | `401` anonymous, `403` signed in |
+| 3. Fields | May they read or supply each field the request names? | `BeakFieldPolicy`, `hiddenFields`, `readOnlyFields` | `401` or `403`, or `422` for a read-only field |
+| 4. Rows | Which rows may they touch? | `rowScope` of a `BeakModelRules` | The row is absent: `404` for one row, a smaller page for a query |
+| 5. Action | May they run this named command? | `BeakModelRules.actions`, `BeakActionPolicy` | A rejected receipt |
 
 ```dart
-final auth = BeakAuthSessions(
-  store: InMemoryTokenSessionStore(),
-  secret: authSecret,
-  users: [
-    BeakUserAccount(
-      username: 'admin',
-      passwordHash: hashBeakPassword('s3cret', secret: authSecret),
-      principal: const BeakPrincipal(id: 'admin', roles: {'admin'}),
+// Illustrative: lib/server.dart of a scratch project. Every name is real, and the file was run.
+BeakServer beakServer(BeakServerDefaults defaults) {
+  final String secret = defaults.environment['AUTH_SECRET'] ?? 'dev-secret';
+  final staff = BeakAccess.role('staff');
+  return defaults.build(
+    authSessions: BeakAuthSessions(
+      store: InMemoryTokenSessionStore(),
+      secret: secret,
+      users: [
+        BeakUserAccount(
+          username: 'sam',
+          passwordHash: hashBeakPassword('s3cret', secret: secret),
+          principal: const BeakPrincipal(id: 'sam', roles: {'staff'}),
+        ),
+      ],
     ),
-  ],
-);
+    policy: BeakPolicies(
+      rules: [
+        BeakModelRules(
+          const ProductModel(),
+          read: BeakAccess.authenticated,
+          write: staff,
+          delete: BeakAccess.role('manager'),
+          readOnlyFields: {ProductModel.price},
+        ),
+      ],
+    ),
+  );
+}
 ```
 
-!!! note "What just happened"
-    - `authSecret` came from the environment, never the codebase.
-    - The account stores an HMAC hash, so a database leak never yields the
-      password.
-    - The `principal` (id `admin`, role `admin`) is what a successful login
-      hands back and what policies later decide on.
+That is the whole shape. The next sections take the two halves apart. Panel permissions (`canEdit`, `canDelete`, hidden resources) only decide what to draw. The panel asks the server what it may show through `GET /api/{table}/capabilities`, and the server then judges every request again.
 
-### The three routes
+## Who is calling
 
-`login` verifies the credentials, mints an opaque token into the store, and
-returns the token plus the principal. `logout` revokes the presented Bearer
-token. `me` echoes the authenticated principal, or 401 when the request is
-anonymous.
+Authentication is one interface, called by the auth middleware on every request:
 
-```dart title="packages/beak_backend/lib/src/auth/auth_router.dart"
---8<-- "packages/beak_backend/lib/src/auth/auth_router.dart:beakAuthRouter"
+```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
+--8<-- "packages/beak_backend/lib/src/auth/beak_auth_guard.dart:BeakAuthGuard"
 ```
 
-| Method and path | Body | Success | Does |
-| --- | --- | --- | --- |
-| `POST /api/auth/login` | `{"username": ..., "password": ...}` | `200 {"token", "principal"}` | mints a session token |
-| `POST /api/auth/logout` | (`Authorization: Bearer <token>`) | `204` | revokes the presented token |
-| `GET /api/auth/me` | (`Authorization: Bearer <token>`) | `200` principal | the authenticated principal |
+`null` means anonymous. Credentials that are present and wrong must throw a `BeakAuthenticationException`, never return `null`, so a forged token is a `401` and never quietly becomes an anonymous request. A `BeakPrincipal` is an `id` and a set of `roles`, which are plain strings.
 
-A round trip against the reference store on port 8080, whose `lib/server.dart`
-declares two accounts of its own:
+### Built-in sessions
 
-```bash
-curl -sX POST http://localhost:8080/api/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"username":"ada@example.com","password":"espresso"}'
-# {"token":"a1b2...","principal":{"id":"0000...0301","roles":["staff"]}}
+`authSessions:` on `defaults.build` mounts `POST /api/auth/login`, `POST /api/auth/logout` and `GET /api/auth/me`, and installs a `TokenSessionAuthGuard` over the same store, so the tokens it issues are the tokens it checks. Pass `authGuard:` only to identify callers another way (a JWT, a gateway header); an explicit guard takes over.
+
+`BeakAuthSessions` takes a `TokenSessionStore`, a list of `BeakUserAccount`s and a `secret`. Each account stores `hashBeakPassword(password, secret: secret)`, an HMAC-SHA256 under that secret, and never the password. Beak has no environment variable for the secret. Read yours through `defaults.environment`, so a test that injects an environment injects it here too. An empty secret, or two accounts with one username, fails at startup with a `BeakConfigurationException`, so one account can never silently replace another.
+
+```console
+$ curl -s -X POST localhost:8392/api/auth/login -H 'content-type: application/json' \
+    -d '{"username":"sam","password":"s3cret"}'
+{"token":"5dbf942e08efb21ac9a2ee7ab1b97b0e80e1c7552edf99738713af4b8323f635","principal":{"id":"sam","roles":["staff"]}}
+$ curl -s -w ' [%{http_code}]\n' localhost:8392/api/auth/me -H "authorization: Bearer $TOKEN"
+{"id":"admin","roles":["manager","staff"]} [200]
+$ curl -s -w ' [%{http_code}]\n' localhost:8392/api/auth/me
+{"code":"authentication","message":"Sign in to continue.","requestId":"b9d739c328070019"} [401]
 ```
 
-The panel drives exactly these routes from its login screen. See
-[Auth and idle-lock](../panel/auth-and-idle-lock.md) for the frontend half.
+The default `InMemoryTokenSessionStore` gives every session 12 hours from login (`sessionTtl`, fixed and not extended by use), keeps them in process memory, and loses them on restart. Logout revokes only the token it presents. This is a login for building a panel, not an account system:
 
-## Sessions: the token store
+| Property | What it is |
+| --- | --- |
+| Accounts | A list built at boot: no user table, no password change, no disabling one without a deploy |
+| Password hash | One shared secret, no per-user salt, no work factor. Compared in constant time, for an unknown username too |
+| Login attempts | Not counted, throttled or locked out |
+| Sessions | Per process, so a second instance does not know the first one's tokens |
 
-A login mints an opaque token into a `TokenSessionStore` and the guard reads it
-back on every later request. The interface is three methods:
+For production, put identity somewhere that does this well. Implement `BeakAuthGuard` over your provider or gateway, or implement `TokenSessionStore` over shared storage if you keep Beak's sessions:
 
 ```dart title="packages/beak_backend/lib/src/auth/token_session_store.dart"
 --8<-- "packages/beak_backend/lib/src/auth/token_session_store.dart:TokenSessionStore"
 ```
 
-The default `InMemoryTokenSessionStore` keeps sessions in process memory with a
-fixed time-to-live (12 hours by default). Each token is 256 bits of secure
-randomness, and an expired session is evicted the next time it is looked up.
+[Security](../shipping/security.md) has the full hardening list, and [Auth and idle lock](../panel/auth-and-idle-lock.md) is the panel side of the same routes.
 
-```dart
-final store = InMemoryTokenSessionStore(sessionTtl: Duration(hours: 8));
+## What may they do
+
+`BeakPolicies` is the shape to use on a server that faces anyone. It holds one `BeakModelRules` per model and denies whatever it does not list. Each rule states who may read, write and delete, and every part left out is denied:
+
+```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
+--8<-- "packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart:policyRules"
 ```
 
-!!! warning "In-memory means single-process"
-    In-memory sessions vanish on restart and are not shared across instances.
-    Fine for local development and tests. A production deployment behind more
-    than one instance wants a shared, persistent `TokenSessionStore` (a table,
-    Redis, whatever you already run). Implement the three-method interface and
-    hand it to `BeakAuthSessions`.
-
-## Resolving identity: the guard
-
-A `BeakAuthGuard` turns a raw request into a `BeakPrincipal` (or `null`). Beak's
-default guard is `TokenSessionAuthGuard`, which reads a `Bearer` token and looks
-it up in the same store your sessions live in.
-
-```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
-@override
-Future<BeakPrincipal?> authenticate(Request request) async {
-  final String? header = request.headers['authorization'];
-  if (header == null) {
-    return null;
-  }
-  if (!header.startsWith(_bearerPrefix)) {
-    throw const BeakAuthenticationException(
-      'The authorization header must carry a Bearer token.',
-    );
-  }
-  final principal = await store.sessionFor(
-    header.substring(_bearerPrefix.length),
-  );
-  return principal ??
-      (throw const BeakAuthenticationException(
-        'The session token is invalid or expired.',
-      ));
-}
-```
-
-Notice the three outcomes. No header at all is anonymous (`null`). A malformed
-header, or a token the store does not recognise, throws
-`BeakAuthenticationException`. A forged or expired token never demotes quietly to
-anonymous, it becomes a 401. That distinction is the whole point of the guard.
-
-The guard runs inside `beakAuthMiddleware`, which the server installs for you.
-Handlers and policies read the resolved principal back with `beakPrincipal`:
-
-```dart title="packages/beak_backend/lib/src/server/middleware/auth_middleware.dart"
---8<-- "packages/beak_backend/lib/src/server/middleware/auth_middleware.dart:beakAuthMiddleware"
-```
-
-With no guard installed, every request stays anonymous. To plug in a different
-scheme (a JWT, an API-gateway header), implement `BeakAuthGuard` yourself and
-pass it to `BeakServer`'s `authGuard` parameter.
-
-### The principal
-
-`BeakPrincipal` is a stable id and a set of roles. It is the only thing a policy
-sees.
-
-```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
-const BeakPrincipal({required this.id, this.roles = const {}});
-```
-
-```dart title="packages/beak_backend/lib/src/auth/beak_auth_guard.dart"
-/// Whether the principal carries [role].
-bool hasRole(String role) => roles.contains(role);
-```
-
-## Authorization: the policy
-
-A `BeakPolicy` answers five yes-or-no questions, one per kind of action. Every
-generated handler asks the relevant one before it acts, passing the resolved
-principal (which may be `null`) and the target table.
-
-```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-abstract interface class BeakPolicy {
-  /// Whether [principal] may read records of [table].
-  bool canView(BeakPrincipal? principal, String table);
-
-  /// Whether [principal] may create records of [table].
-  bool canCreate(BeakPrincipal? principal, String table);
-
-  /// Whether [principal] may update the record of [table] with [id].
-  bool canUpdate(BeakPrincipal? principal, String table, Object id);
-
-  /// Whether [principal] may delete the record of [table] with [id].
-  bool canDelete(BeakPrincipal? principal, String table, Object id);
-
-  /// Whether [principal] may delete the stored upload under [storageKey]
-  /// held by [table]'s file column [columnKey].
-  bool canDeleteUpload(
-    BeakPrincipal? principal,
-    String table,
-    String columnKey,
-    String storageKey,
-  );
-}
-```
-
-| Method | Fires on |
+| Rule part | Covers |
 | --- | --- |
-| `canView` | `POST /query`, `GET /<id>`, `GET /api/search`, `POST /export` |
-| `canCreate` | `POST /` (create), `POST /<columnKey>/upload` |
-| `canUpdate` | `PATCH /<id>`, relation `attach` and `detach` |
-| `canDelete` | `DELETE /<id>` |
-| `canDeleteUpload` | `DELETE /<columnKey>/upload` |
+| `read` | Query, aggregate, summary, batch, get one, capabilities, export, upload URL lookups, and reading the model through a relationship |
+| `write` | Create, update, restore, attach and detach, and uploading a file |
+| `delete` | Delete, and removing an uploaded file |
+| `rowScope` | Which rows all of the above may touch, see below |
+| `readOnlyFields` | Fields the server owns, see below |
+| `hiddenFields` | Fields hidden from the principals an access value names, see below |
+| `actions` | Who may run each named command of the model |
 
-`canDeleteUpload` is its own hook for a reason: an upload is identified by its
-storage key, not by a record id, so it must never flow through `canDelete`'s
-record-id parameter. Deleting a file and deleting a row are different questions.
+A part is a `BeakAccess`: `BeakAccess.role('staff')`, `BeakAccess.authenticated`, `BeakAccess.anyone`, and `any`, `all` and `not` to combine them. An empty `any` or `all` grants nothing, so a list that lost its entries never opens a resource.
 
-### The default: allow everything
+A model with no rule is invisible. Its routes answer `401` to an anonymous request and `403` to anyone else, and no other model's relationship exposes it. A model you add next month stays closed until someone opens it. The test that pins this walks six routes:
 
-Until you configure a real policy, Beak uses `BeakAllowAllPolicy`. Every method
-returns `true`. It is a `base class`, not a `final` one, so your own policy can
-extend it and override only the methods it restricts.
-
-```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-base class BeakAllowAllPolicy implements BeakPolicy {
-  /// Creates the permissive default policy.
-  const BeakAllowAllPolicy();
-
-  @override
-  bool canView(BeakPrincipal? principal, String table) => true;
-
-  @override
-  bool canCreate(BeakPrincipal? principal, String table) => true;
-  // ... canUpdate, canDelete, canDeleteUpload all return true
-}
+```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
+--8<-- "packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart:unlistedModelTests"
 ```
 
-### Writing your own
+`BeakModelRules` throws a `BeakConfigurationException` at startup for a `readOnlyFields` or `hiddenFields` entry that is not a field of the model, an `actions` key the model does not declare, and a second rule for the same model. A rule that could never apply is a mistake worth failing on.
 
-Implement the interface and lean on `principal.hasRole`. This one lets anyone
-signed in read, and reserves writes for admins:
+### What a refusal looks like
+
+| Decision | Response |
+| --- | --- |
+| Anonymous, denied | `401` `authentication`: `Sign in to view "products".` |
+| Signed in, denied | `403` `authorization`: `Principal "sam" is not allowed to delete "products".` |
+| Row outside the caller's scope | `404`, as if it did not exist |
+| A create or update that would leave the row outside the scope | `403` `authorization`: `The record would be outside your permitted scope of "notes".` |
+| A read-only field in a body | `422` with a `fieldErrors` entry |
+| A denied operation in `POST /api/commits` | `200` with an `unapplied` outcome, `reason: rejected` and `error.code` `authorization` or `authentication` |
+
+The last row is easy to miss. A graph save is a transaction, and a refusal inside it is a rejected receipt, so the form can show it next to the field and not treat it as a broken request. The messages there are generic on purpose:
+
+```console
+$ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/commits ... # sam deletes a product
+{"saveId":"del1","mode":"atomic","outcomes":[{"id":"d","status":"unapplied","error":{"code":"authorization","message":"This operation is not permitted.","fieldErrors":{}},"reason":"rejected"}]} [200]
+```
+
+A save the policy refused as a whole reached no data and is not stored: the same `saveId` is decided again, `GET /api/commits/<saveId>` answers `404`, and a caller who may not write cannot grow the receipt table by trying. A rejection for validation, a conflict or a stale version is stored and belongs to its `saveId` and principal. Sending the same plan again with the same id returns the same rejection, even if the rules changed in between, so a client that wants a fresh decision on those needs a fresh `saveId`.
+
+## Which rows
+
+`read: authenticated` answers "may this caller read orders". It does not answer "may this caller read these orders". Without a row scope, a rule meant as "customers see only their own orders" is bypassed by any query with a filter the caller writes, because the filter comes from the client.
+
+A `rowScope` is a typed filter built for the signed-in principal, and it is intersected with every read and write of the model: query, aggregate, summary, batch, get, update, delete, restore, attach, detach, export, upload lookups and graph commits. A write is judged twice: the row must be inside the scope before the write, and the row a create inserts or an update leaves behind must be inside it too, so a caller cannot plant a record in someone else's slice or hand one of theirs away. A write that breaks that is a `403`. Relation loads and filters that reach a related model apply that model's scope too, so loading a record through another resource grants nothing.
 
 ```dart
-final class AdminOnlyWrites implements BeakPolicy {
-  const AdminOnlyWrites();
-
-  bool _isAdmin(BeakPrincipal? p) => p?.hasRole('admin') ?? false;
-
-  @override
-  bool canView(BeakPrincipal? principal, String table) => principal != null;
-
-  @override
-  bool canCreate(BeakPrincipal? principal, String table) =>
-      _isAdmin(principal);
-
-  @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) =>
-      _isAdmin(principal);
-
-  @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
-      _isAdmin(principal);
-
-  @override
-  bool canDeleteUpload(
-    BeakPrincipal? principal,
-    String table,
-    String columnKey,
-    String storageKey,
-  ) => _isAdmin(principal);
-}
+  rowScope: (principal) => NoteModel.authorId.eq(principal.id),
 ```
 
-Because you get the `table` on every call, one policy can encode rules that
-differ per model: pattern-match on `table` and return different answers for
-`orders` than for `products`.
+The filter is built from the model's fields, so renaming one is a compile error and not a rule that silently matches nothing. The server decides it against the values a write leaves behind, which it can do for equality, inequality, ordering, list membership, `isNull`, `and` and `or`. A scope that goes through a relationship or a text match cannot be decided before the row exists, so a create is refused with a `422`, and so is an update that changes a field the scope reads. An anonymous request has no principal to build it for, and under `BeakPolicies` it sees no rows.
 
-### Which rows, not just which tables
+A scope narrows, it does not refuse. `read` false is a `403` with no data. A scope is a successful request with fewer rows:
 
-`canView` answers "may this principal read orders at all". It cannot answer "may
-this principal read *these* orders", and a policy that means "a customer sees
-only their own" is bypassed by `POST /api/orders/query` with any filter the
-caller likes, because the filter comes from the client. `BeakRowPolicy` is the
-answer: one extra method returning a filter.
+```dart title="packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart"
+--8<-- "packages/beak_backend/test/src/auth/beak_policies_handlers_test.dart:rowScopedQueryTests"
+```
+
+Use the refusal when the table is none of their business and the scope when some of it is. To implement the scope by hand, `BeakRowPolicy` adds one method, and `null` from it means every row:
 
 ```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
-abstract interface class BeakRowPolicy implements BeakPolicy {
-  /// The filter every read and write of [table] is additionally constrained
-  /// by, or `null` when [principal] may touch every row.
-  BeakFilter? scopeFor(BeakPrincipal? principal, String table);
-}
+--8<-- "packages/beak_backend/lib/src/auth/beak_policy.dart:BeakRowPolicy"
 ```
 
-Implement it instead of `BeakPolicy` and every read and write of that table is
-intersected with `scopeFor`: query, aggregate, get-one, update, delete, export
-and global search alike, so there is no endpoint left to forget. Returning a
-filter that matches nothing is how a policy says "no rows": the request succeeds
-with an empty page, which is a different answer from `canView` returning false,
-which is a 403. The worked example is in [Security](../guides/security.md).
+Scopes may depend on fields the caller cannot read, because they are trusted server code. Two scopes that reach each other through relationships are reported as `Cyclic relationship row policies.`, a `500` at request time.
 
-### From decision to HTTP status
+## Which fields
 
-A policy returns a `bool`. `enforcePolicyDecision` turns a denial into the
-correct typed exception, which the error-mapping middleware maps to a status.
+With `BeakPolicies`, field access follows the model: a caller who may read the model may read every field of it, and a caller who may write it may supply every field. `hiddenFields` and `readOnlyFields` are the field-level tools. `readOnlyFields` names values the server owns, such as a calculated total or a number minted at creation, and a request that supplies one is rejected before anything else happens:
 
-```dart title="packages/beak_backend/lib/src/auth/beak_policy.dart"
---8<-- "packages/beak_backend/lib/src/auth/beak_policy.dart:enforcePolicyDecision"
+```console
+$ curl -s -w ' [%{http_code}]\n' -X PATCH localhost:8392/api/products/$ID \
+    -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"price":9}'
+{"code":"validation","message":"Read-only fields cannot be written.","fieldErrors":{"price":["This field is read-only."]},"requestId":"442aa717300a9e46"} [422]
+$ curl -s "localhost:8392/api/products/capabilities?id=$ID" -H "authorization: Bearer $TOKEN"
+{"readableFields":["id","name","price","active","created_at","updated_at"],"writableFields":["id","name","active","created_at","updated_at"],"executableActions":[],"canCreate":true,"canDelete":false}
 ```
 
-The split matters: a denied **anonymous** request is a
-`BeakAuthenticationException` (401, "you need to sign in"), while a denied
-**authenticated** request is a `BeakAuthorizationException` (403, "you are
-signed in, but not allowed"). A client can tell "log in" from "you cannot do
-this" without guessing. See [Results and errors](../concepts/results-and-errors.md)
-for the exception family and [Middleware](middleware.md) for the status mapping.
+Values the server derives itself are unaffected, and the capabilities response leaves a read-only field out of `writableFields`, so a configured form never offers it. The same response carries `canCreate` and `canDelete`, taken from the policy, so a table can leave out the delete action for a role that would be refused. A name that is not a field of the model is a `422` too, so there is no mass-assignment path to a column the model does not declare.
 
-## Wiring it all together
-
-Everything above meets at the `BeakServer` constructor. Hand it your sessions
-config, your guard, and your policy:
+To hide one field from some callers, name it in `hiddenFields` with the access value it is hidden from. `BeakAccess.not(manager)` hides it from everyone but managers, and `staff` hides it from staff:
 
 ```dart
-final store = InMemoryTokenSessionStore();
-final server = BeakServer(
-  config: config,
-  registry: registry,
-  dataSource: WormDataSource(registry, adapter: adapter),
-  authSessions: BeakAuthSessions(store: store, secret: authSecret, users: users),
-  authGuard: TokenSessionAuthGuard(store),
-  policy: const AdminOnlyWrites(),
-);
+BeakModelRules(
+  const ProductModel(),
+  read: staff,
+  write: staff,
+  hiddenFields: {ProductModel.supplierCostInCents: BeakAccess.not(manager)},
+)
 ```
 
-The one thing to line up by hand: the `TokenSessionAuthGuard` and the
-`BeakAuthSessions` must share the *same* `store`, because login mints into it
-and the guard reads out of it.
+A hidden field is neither readable nor writable for those callers, and it only narrows: it never grants what `read` and `write` withhold. For anything the map cannot say, implement `BeakFieldPolicy` next to the resource policy. `canReadField` and `canWriteField` receive the principal, the model and the typed field, and `isSameFieldAs` compares fields (a generated reference is a new object on every access, so `==` does not work):
 
-Auth is something you opt into, and the two demo apps show both sides of that.
-`examples/superdashboard` wires none of it and runs open on
-`BeakAllowAllPolicy`. `examples/store` wires all of it in `lib/server.dart`: two
-accounts hashed under `AUTH_SECRET`, a `TokenSessionAuthGuard` over the same
-store, and a `StorePolicy` that is a row policy. See
-[Running the server](running-the-server.md) for that file in full.
+```dart title="packages/beak_backend/test/src/auth/field_authorization_test.dart"
+--8<-- "packages/beak_backend/test/src/auth/field_authorization_test.dart:fieldPolicyFixture"
+```
+
+What a `false` from `canReadField` does, everywhere:
+
+- The value is removed from responses and from eager-loaded relationships.
+- A filter, sort, search or aggregate that names the field is refused with `401` or `403`. It is not ignored, because an ignored filter would still tell the caller something.
+- The column is left out of CSV exports, header included.
+- A relationship and its linking foreign key share one boundary. Reading, filtering or loading through a relationship needs both, and a belongs-to write needs the alias and the key even when the client sends only the key.
+
+What `canWriteField` does: the fields the client supplied are checked before behavior or graph preparation runs. That lets a trusted calculation fill a column the caller may not write.
+
+`BeakPolicies` is a `final` class, so it cannot be extended, and a hand-written policy replaces it. Prefer `hiddenFields` and `readOnlyFields` while they say what you mean. Extend `BeakAllowAllPolicy` (declared `base` for this) and restrict what you need, or delegate to a `BeakPolicies` from your own class. Either way, deny-by-default is now your code's job.
+
+## Which commands
+
+A model's named commands (its `BeakModelAction`s, declared in its behavior) are authorized separately from general update permission. List them per rule; a declared command that no rule lists cannot be run by anyone:
+
+```dart
+  actions: {OrderModel.ship: staff},
+```
+
+The check runs inside the graph commit, before the command's own availability test. Capabilities offer a command only when the caller may write the model (create, or update for an existing record), the command's `BeakActionPolicy` decision is yes, and, on create, the command has `allowOnCreate`. The capabilities do not evaluate the command's workflow state: whether it is available for this record right now is a separate predicate. Do not use that predicate or an `editableWhen` guard as a replacement for authorization. They protect the workflow from a valid user, not the data from an invalid one. [Behavior and actions](../reference/behavior-and-actions.md) describes the model side.
+
+## Uploads
+
+Uploading a file needs `canCreate` and write access to the column. Removing one needs `canDeleteUpload`, which under `BeakPolicies` is the `delete` part. Resolving a stored key's URL needs `canView`, read access to the column, and, when the model has a row scope, a visible record that references the key. `BeakUploadReadPolicy.canViewUpload` adds a key-aware check on top, for a hand-written policy.
+
+A URL, once handed out, is only as private as the storage behind it. The local driver and a public bucket serve it to anyone who holds it. [Uploads and storage wiring](uploads-and-storage-wiring.md) has the details.
+
+## Graph commits
+
+`POST /api/commits` applies the same rules per operation. The table-level decision (`canCreate`, `canUpdate`, `canDelete`, plus `canUpdate` on an owner for its children) is taken before any behavior or `preparePlan` hook runs, so application code never executes for a write the principal may not make. Field write access is checked for the operations the client sent. Operations a `preparePlan` adds skip only that check, because a derived column is often one the client may not write, and every other check still applies to them. Receipts are redacted again under the current policy when they are read back.
+
+One gap deserves care. A `preparePlan` you write reads through the transaction-bound data source, which applies no row scopes on purpose: a capacity rule has to count rows the caller cannot see. `BeakCandidateGraph.open` accepts an `authorizeRead` callback for the records the plan names, the built-in behavior pass passes one, and the transaction source hands the same callback to your preparer as `transaction.authorizeRead`. Pass it when the preparer loads a graph; filter any other read yourself. [Transactional business rules](graph-business-rules.md) shows the preparer.
+
+## Rules and limits
+
+| Rule | Consequence |
+| --- | --- |
+| No `policy` means `BeakAllowAllPolicy` | Every route answers every caller, and the server binds `0.0.0.0` by default. A server bound beyond loopback prints one `warning:` line at boot (through `onWarning`); nothing else stops it |
+| Only `BeakPolicies` denies by default | A hand-written `BeakPolicy` is exactly as open as its methods |
+| `BeakPolicies` field access is per model, plus `hiddenFields` | A field is hidden from the principals its access value names, and from nobody else. A rule that depends on the value of the field, or on the record, needs a hand-written `BeakFieldPolicy`, which replaces `BeakPolicies` |
+| Roles are strings on the principal | There is no hierarchy. `manager` does not imply `staff`; give the principal both, or list both in `BeakAccess.any` |
+| An excluded row is a `404` | The response never confirms that a row you may not see exists |
+| Denials on `/api/commits` are answered as receipts, and not stored | `200` with `unapplied` outcomes and generic messages. Nothing is kept, so the same `saveId` is decided again |
+| A preparer's reads are not scoped | Pass `authorizeRead: transaction.authorizeRead` to `BeakCandidateGraph.open` so the records the plan names stay within the caller's scope |
+| Sessions are per process and last 12 hours from login | A restart or a second instance signs users out. Implement `TokenSessionStore` over shared storage |
+| The probes and the login skip the guard and the policy | `/healthz` and `/readyz` need no rule, and the guard never looks at them, so an `Authorization` header a load balancer adds cannot fail a probe. `POST /api/auth/login` is skipped too, so a token left over from an expired session does not answer 401 to the sign-in that replaces it |
+
+## Verify it
+
+Check a policy the way an attacker would: with requests the panel never sends. Anonymous first, then each role, then the edge of each rule. `$TOKEN` is the token from `POST /api/auth/login` and `$ID` the id of a product.
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8392/api/products/query \
+    -H 'content-type: application/json' -d '{"table":"products"}'
+401
+$ curl -s -w ' [%{http_code}]\n' -X DELETE localhost:8392/api/products/$ID -H "authorization: Bearer $TOKEN"
+{"code":"authorization","message":"Principal \"sam\" is not allowed to delete \"products\".","requestId":"012398d50a21f700"} [403]
+$ curl -s -w ' [%{http_code}]\n' localhost:8392/healthz -H 'authorization: Bearer nope'
+{"status":"ok"} [200]
+$ curl -s -w ' [%{http_code}]\n' localhost:8392/api/products/capabilities -H 'authorization: Bearer nope'
+{"code":"authentication","message":"The session token is invalid or expired.","requestId":"c72e4b0f5f0981e1"} [401]
+```
+
+In code, the two fixtures quoted above are the pattern: build the real router with `beakApiRouter`, a `BeakPolicies` and an `InMemoryTokenSessionStore`, mint a token per role, and assert the status of every route for every role. A model with rules and a model without them belong in the same test. `beak doctor` does not audit policies, so this test is the audit.
+
+## Reference
+
+- `packages/beak_backend/lib/src/auth/beak_policies.dart`: `BeakPolicies`, `BeakModelRules`.
+- `packages/beak_backend/lib/src/auth/beak_access.dart`: `BeakAccess`.
+- `packages/beak_backend/lib/src/auth/beak_policy.dart`: `BeakPolicy`, `BeakRowPolicy`, `BeakAllowAllPolicy`, `BeakUploadReadPolicy`, `enforcePolicyDecision`.
+- `packages/beak_backend/lib/src/auth/beak_field_policy.dart`: `BeakFieldPolicy`, `BeakReadOnlyFieldPolicy`, `BeakFieldAccess`.
+- `packages/beak_backend/lib/src/auth/beak_action_policy.dart`: `BeakActionPolicy`.
+- `packages/beak_backend/lib/src/auth/beak_query_authorizer.dart`: how filters, sorts, searches and loads are authorized.
+- `packages/beak_backend/lib/src/auth/auth_router.dart` and `packages/beak_backend/lib/src/auth/token_session_store.dart`: the sessions.
 
 ## Continue reading
 
-- [The generated API](the-generated-api.md) the routes every policy method
-  guards.
-- [Middleware](middleware.md) where the auth guard runs and how typed
-  exceptions become HTTP statuses.
-- [Running the server](running-the-server.md) the `BeakServer` constructor and
-  how it composes the pipeline.
-- [Security](../guides/security.md) the wider threat model: storage keys, upload
-  validation, and secrets.
-- [Auth and idle-lock](../panel/auth-and-idle-lock.md) the panel side of the
-  login flow.
+- [Security](../shipping/security.md) the whole hardening list around these hooks: CORS, TLS, uploads, known gaps.
+- [Transactional business rules](graph-business-rules.md) where server-side logic runs after these checks pass.
+- [Middleware](middleware.md) the pipeline that puts the principal in front of the policy.
+- [Where authority lives](../concepts/where-authority-lives.md) why the panel never decides.

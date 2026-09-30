@@ -170,6 +170,49 @@ void main() {
     });
   });
 
+  group('withRelation with a constraint on a belongs-to', () {
+    const author = RelationField<TPost, TUser>('author', foreignKey: 'user_id');
+
+    QueryContext<TPost> postContext() => QueryContext<TPost>(
+      adapter: adapter,
+      table: 'posts',
+      hydrate: TPost.fromRow,
+      relations: <String, Relation<Model, Model>>{
+        'author': const BelongsToRelation<Model, Model>(
+          name: 'author',
+          parentTable: 'users',
+          foreignKey: 'user_id',
+          hydrateParent: TUser.fromRow,
+        ),
+      },
+    );
+
+    test('a parent the constraint rejects is not attached', () async {
+      final posts = await QueryBuilder<TPost>.from(
+        postContext(),
+      ).withRelation(author, const Field<String>('name').eq('Alice')).get();
+
+      Object? authorOf(int postId) => posts
+          .firstWhere((TPost post) => post.postId == postId)
+          .relations['author'];
+
+      expect(authorOf(10), isA<TUser>().having((u) => u.name, 'name', 'Alice'));
+      expect(authorOf(11), isA<TUser>().having((u) => u.name, 'name', 'Alice'));
+      expect(authorOf(12), isNull, reason: 'Bob does not satisfy the filter');
+    });
+
+    test('without a constraint every parent is attached', () async {
+      final posts = await QueryBuilder<TPost>.from(
+        postContext(),
+      ).withRelation(author).get();
+
+      expect(
+        posts.map((TPost post) => post.relations['author']),
+        everyElement(isA<TUser>()),
+      );
+    });
+  });
+
   group('withNested: typed nested eager-load', () {
     test(
       'withNested(User\$.posts.include([Post\$.comments])) yields the '

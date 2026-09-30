@@ -4,12 +4,14 @@ part of 'beak_block.dart';
 /// `OiTimeline`.
 final class BeakTimelineBlock extends BeakBlock {
   /// Creates a timeline over [query].
+  // --8<-- [start:BeakTimelineBlockConstructor]
   const BeakTimelineBlock({
     required this.query,
     required this.titleField,
     required this.timeField,
     super.span,
   });
+  // --8<-- [end:BeakTimelineBlockConstructor]
 
   /// The query producing one row per event.
   final BeakQuerySpec query;

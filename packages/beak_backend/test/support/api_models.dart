@@ -118,6 +118,53 @@ final class NoteModel extends BeakModel {
   /// Creates the notes model.
   const NoteModel();
 
+  /// Typed reference to the title.
+  static const title = BeakScalarField<String>(
+    model: NoteModel(),
+    column: NoteColumns.title,
+    isRequired: true,
+  );
+
+  /// Typed reference to the body.
+  static const body = BeakScalarField<String>(
+    model: NoteModel(),
+    column: NoteColumns.body,
+  );
+
+  /// Typed reference to the star rating.
+  static const rating = BeakScalarField<int>(
+    model: NoteModel(),
+    column: NoteColumns.rating,
+  );
+
+  /// Typed reference to the publication flag.
+  static const published = BeakScalarField<bool>(
+    model: NoteModel(),
+    column: NoteColumns.published,
+  );
+
+  /// Typed reference to the owning author's key.
+  static const authorId = BeakScalarField<String>(
+    model: NoteModel(),
+    column: NoteColumns.authorId,
+  );
+
+  /// The has-many relationship to the note's comments.
+  static const BeakHasMany commentsRelation = BeakHasMany(
+    key: 'comments',
+    label: 'Comments',
+    relatedTable: 'comments',
+    displayColumnKey: 'message',
+    foreignKey: 'note_id',
+  );
+
+  /// Typed reference to the note's comments.
+  static const comments = BeakToManyField(
+    model: NoteModel(),
+    relation: commentsRelation,
+    target: CommentModel(),
+  );
+
   @override
   String get table => 'notes';
 
@@ -139,13 +186,7 @@ final class NoteModel extends BeakModel {
       displayColumnKey: 'name',
       foreignKey: 'author_id',
     ),
-    BeakHasMany(
-      key: 'comments',
-      label: 'Comments',
-      relatedTable: 'comments',
-      displayColumnKey: 'message',
-      foreignKey: 'note_id',
-    ),
+    commentsRelation,
     BeakBelongsToMany(
       key: 'labels',
       label: 'Labels',
@@ -164,6 +205,19 @@ final class LabelModel extends BeakModel {
   /// Creates the labels model.
   const LabelModel();
 
+  /// Typed reference to the label name.
+  static const name = BeakScalarField<String>(
+    model: LabelModel(),
+    column: _name,
+  );
+
+  static const BeakColumn _name = BeakStringColumn(
+    key: 'name',
+    label: 'Name',
+    searchable: true,
+    rules: [BeakRequired()],
+  );
+
   @override
   String get table => 'labels';
 
@@ -173,12 +227,7 @@ final class LabelModel extends BeakModel {
   @override
   List<BeakColumn> get columns => const [
     BeakStringColumn(key: 'id', label: 'Id'),
-    BeakStringColumn(
-      key: 'name',
-      label: 'Name',
-      searchable: true,
-      rules: [BeakRequired()],
-    ),
+    _name,
   ];
 }
 
@@ -186,6 +235,17 @@ final class LabelModel extends BeakModel {
 final class CommentModel extends BeakModel {
   /// Creates the comments model.
   const CommentModel();
+
+  /// Typed reference to the comment text.
+  static const message = BeakScalarField<String>(
+    model: CommentModel(),
+    column: _message,
+  );
+
+  static const BeakColumn _message = BeakTextColumn(
+    key: 'message',
+    label: 'Message',
+  );
 
   @override
   String get table => 'comments';
@@ -197,7 +257,7 @@ final class CommentModel extends BeakModel {
   List<BeakColumn> get columns => const [
     BeakStringColumn(key: 'id', label: 'Id'),
     BeakStringColumn(key: 'note_id', label: 'Note id'),
-    BeakTextColumn(key: 'message', label: 'Message'),
+    _message,
   ];
 }
 

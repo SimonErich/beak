@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// Writes [files] (path relative to the project root) into a temp project.
@@ -31,7 +31,326 @@ final class $name extends BeakModel {
 }
 ''';
 
+/// A resource class for [modelClass], with a zero-argument constructor.
+String resource(String name, String modelClass, {bool isConst = false}) =>
+    '''
+import 'package:beak/panel.dart';
+
+final class $name extends BeakResource {
+  ${isConst ? 'const ' : ''}$name() : super(model: const $modelClass());
+}
+''';
+
 void main() {
+  test('resource-local models and their resource classes are both found', () {
+    final discovery = BeakProjectScanner(
+      projectWith({
+        'lib/resources/orders/models/order.dart': model('OrderModel', 'orders'),
+        'lib/resources/orders/order_resource.dart': resource(
+          'OrderResource',
+          'OrderModel',
+        ),
+        'lib/resources/orders/screens/order_form.dart': 'class OrderForm {}',
+      }),
+    ).scan();
+    expect(discovery.issues, isEmpty);
+    expect(discovery.models.single.name, 'OrderModel');
+    expect(discovery.resources.single.className, 'OrderResource');
+    expect(
+      discovery.resources.single.importPath,
+      'resources/orders/order_resource.dart',
+    );
+  });
+
+  group('resource classes', () {
+    test('are found anywhere under lib/, with the model they configure', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/models/product.dart': model('ProductModel', 'products'),
+          'lib/panel/catalog.dart': resource('CatalogResource', 'ProductModel'),
+        }),
+      ).scan();
+
+      expect(discovery.issues, isEmpty);
+      final BeakDiscoveredResource found = discovery.resources.single;
+      expect(found.className, 'CatalogResource');
+      expect(found.importPath, 'panel/catalog.dart');
+      expect(found.modelClass, 'ProductModel');
+      expect(found.isConst, isFalse);
+      expect(found.expression, 'CatalogResource()');
+    });
+
+    test('a const constructor is constructed const', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/products/product_resource.dart': resource(
+            'ProductResource',
+            'ProductModel',
+            isConst: true,
+          ),
+        }),
+      ).scan();
+
+      expect(discovery.resources.single.isConst, isTrue);
+      expect(discovery.resources.single.expression, 'const ProductResource()');
+    });
+
+    test('are found one hop from a shared local base, which is skipped', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/base.dart': """
+import 'package:beak/panel.dart';
+
+abstract base class ShopResource extends BeakResource {
+  ShopResource({required super.model});
+}
+""",
+          'lib/resources/products/product_resource.dart': """
+import '../base.dart';
+
+final class ProductResource extends ShopResource {
+  ProductResource() : super(model: const ProductModel());
+}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.issues, isEmpty);
+      expect(discovery.resources.map((found) => found.className), [
+        'ProductResource',
+      ]);
+      expect(discovery.resources.single.modelClass, 'ProductModel');
+    });
+
+    test('one that needs constructor arguments is left to its author', () {
+      // A parameterised resource is composed by hand; the generated panel
+      // cannot know what to pass, so it keeps the default instead.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/orders/order_resource.dart': """
+import 'package:beak/panel.dart';
+
+final class OrderResource extends BeakResource {
+  OrderResource(String title) : super(model: const OrderModel(), title: title);
+}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.issues, isEmpty);
+      expect(discovery.resources, isEmpty);
+    });
+
+    test('one declaring only named constructors is left to its author', () {
+      // `OrderResource()` would not compile: declaring any constructor
+      // removes the implicit unnamed one.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/orders/order_resource.dart': """
+import 'package:beak/panel.dart';
+
+final class OrderResource extends BeakResource {
+  const OrderResource.compact() : super(model: const OrderModel());
+}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.issues, isEmpty);
+      expect(discovery.resources, isEmpty);
+    });
+
+    test('one declaring no constructor is built by its implicit one', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/base.dart': """
+import 'package:beak/panel.dart';
+
+abstract base class OrdersResource extends BeakResource {
+  OrdersResource() : super(model: const OrderModel());
+}
+""",
+          'lib/resources/orders/order_resource.dart': """
+import '../base.dart';
+
+final class OrderResource extends OrdersResource {}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.issues, isEmpty);
+      final BeakDiscoveredResource found = discovery.resources.single;
+      expect(found.className, 'OrderResource');
+      expect(found.expression, 'OrderResource()');
+      expect(found.modelClass, isNull);
+    });
+
+    test('a model the constructor does not name literally is unknown', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/orders/order_resource.dart': """
+import 'package:beak/panel.dart';
+
+const orders = OrderModel();
+
+final class OrderResource extends BeakResource {
+  OrderResource() : super(model: orders);
+}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.resources.single.modelClass, isNull);
+    });
+
+    test('a private class is not one the generated panel can import', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/orders/order_resource.dart': resource(
+            '_OrderResource',
+            'OrderModel',
+          ),
+        }),
+      ).scan();
+
+      expect(discovery.issues, isEmpty);
+      expect(discovery.resources, isEmpty);
+    });
+
+    test('a model passed without const is read too', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/orders/order_resource.dart': """
+import 'package:beak/panel.dart';
+
+final class OrderResource extends BeakResource {
+  OrderResource() : super(model: OrderModel());
+}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.resources.single.modelClass, 'OrderModel');
+    });
+
+    test('a super.model parameter default names the model', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/resources/orders/order_resource.dart': """
+import 'package:beak/panel.dart';
+
+final class OrderResource extends BeakResource {
+  const OrderResource({super.model = const OrderModel()});
+}
+""",
+        }),
+      ).scan();
+
+      expect(discovery.resources.single.modelClass, 'OrderModel');
+      expect(discovery.resources.single.isConst, isTrue);
+    });
+
+    test('configure a model by name, or by convention when unnamed', () {
+      const named = BeakDiscoveredResource(
+        className: 'CatalogResource',
+        importPath: 'panel/catalog.dart',
+        isConst: false,
+        modelClass: 'ProductModel',
+      );
+      const unnamed = BeakDiscoveredResource(
+        className: 'OrderResource',
+        importPath: 'resources/orders/order_resource.dart',
+        isConst: false,
+      );
+
+      expect(named.configures('ProductModel'), isTrue);
+      expect(named.configures('CatalogModel'), isFalse);
+      // The source did not name its model, so the scaffold's naming
+      // convention is the best evidence there is.
+      expect(unnamed.configures('OrderModel'), isTrue);
+      expect(unnamed.configures('ProductModel'), isFalse);
+      expect(
+        BeakDiscoveredResource.conventionalNameFor('OrderItemModel'),
+        'OrderItemResource',
+      );
+      expect(
+        BeakDiscoveredResource.conventionalNameFor('Audit'),
+        'AuditResource',
+      );
+      expect(named.toString(), 'CatalogResource (panel/catalog.dart)');
+    });
+
+    test('reject two with the same class name', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/a/product_resource.dart': resource(
+            'ProductResource',
+            'ProductModel',
+          ),
+          'lib/b/product_resource.dart': resource(
+            'ProductResource',
+            'ProductModel',
+          ),
+        }),
+      ).scan();
+
+      expect(discovery.issues.single.path, 'lib/b/product_resource.dart');
+      expect(discovery.issues.single.message, contains('ProductResource'));
+    });
+  });
+
+  group('removed override files', () {
+    test('a per-table resource override names the class replacing it', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/models/product.dart': model('ProductModel', 'products'),
+          'lib/resources/products.dart':
+              "import 'package:beak/panel.dart';\n"
+              'BeakResource beakResource(BeakResource generated) => generated;',
+        }),
+      ).scan();
+
+      expect(discovery.issues.single.path, 'lib/resources/products.dart');
+      expect(
+        discovery.issues.single.message,
+        allOf(
+          contains('BeakResource subclass'),
+          contains('beak eject resource products'),
+        ),
+      );
+    });
+
+    test('a dashboard override names the screen replacing it', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/dashboard.dart':
+              "import 'package:beak/panel.dart';\n"
+              'BeakScreen beakDashboard() => throw UnimplementedError();',
+        }),
+      ).scan();
+
+      expect(discovery.issues.single.path, 'lib/dashboard.dart');
+      expect(
+        discovery.issues.single.message,
+        allOf(contains('BeakScreen'), contains("path: '/'")),
+      );
+    });
+
+    test(
+      'a file under lib/resources/ that overrides nothing is left alone',
+      () {
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/resources/products.dart': 'const String catalog = "x";',
+            'lib/dashboard.dart': 'const String dashboard = "x";',
+          }),
+        ).scan();
+
+        expect(discovery.issues, isEmpty);
+      },
+    );
+  });
+
   group('models', () {
     test('are found by their supertype, in path order', () {
       final discovery = BeakProjectScanner(
@@ -120,6 +439,82 @@ final class ProductModel extends BeakModel {
       expect(discovery.models.map((model) => model.name), ['ProductModel']);
     });
 
+    group('command models', () {
+      String readModel(String name, {String commandCreate = ''}) =>
+          '''
+import 'package:beak_core/beak_core.dart';
+
+final class $name extends BeakModel {
+  const $name();
+  @override
+  String get table => 'users';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [];
+  $commandCreate
+}
+''';
+
+      test('a private class is never listed, its subclasses still are', () {
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/models/user.dart': readModel(
+              'UserModel',
+              commandCreate:
+                  '@override BeakModel? get editModel => const _UserEdit();',
+            ),
+            'lib/models/private.dart': '''
+import 'package:beak_core/beak_core.dart';
+
+abstract base class _Base extends BeakModel {
+  const _Base();
+}
+
+final class _UserEdit extends _Base {
+  const _UserEdit();
+}
+
+final class Tagged extends _Base {
+  const Tagged();
+  @override
+  String get table => 'tags';
+}
+''',
+          }),
+        ).scan();
+
+        expect(discovery.issues, isEmpty);
+        expect(discovery.models.map((model) => model.name), [
+          'Tagged',
+          'UserModel',
+        ]);
+      });
+
+      test('a public class a model returns as createModel or editModel is '
+          'skipped', () {
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/models/user.dart': readModel(
+              'UserModel',
+              commandCreate:
+                  '@override\n'
+                  '  BeakModel? get createModel => const UserCreate();\n'
+                  '  @override\n'
+                  '  BeakModel? get editModel {\n'
+                  '    return UserEdit();\n'
+                  '  }',
+            ),
+            'lib/models/user_create.dart': readModel('UserCreate'),
+            'lib/models/user_edit.dart': readModel('UserEdit'),
+          }),
+        ).scan();
+
+        expect(discovery.issues, isEmpty);
+        expect(discovery.models.map((model) => model.name), ['UserModel']);
+      });
+    });
+
     test('a project with no models directory scans cleanly', () {
       final discovery = BeakProjectScanner(projectWith({})).scan();
       expect(discovery.models, isEmpty);
@@ -146,6 +541,64 @@ BeakScreen buildAuditScreen() => BeakScreen();
       ]);
       expect(discovery.screens.first.expression, 'buildAuditScreen()');
     });
+
+    test('only a const variable is a constant expression', () {
+      // An authored entrypoint writes `const BeakPanelConfig(...)` exactly
+      // when everything in it is constant, so it has to know.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/screens/reports.dart': '''
+import 'package:beak_frontend/beak_frontend.dart';
+
+const BeakScreen auditScreen = BeakScreen();
+final BeakScreen reportsScreen = BeakScreen();
+BeakScreen buildStockScreen() => BeakScreen();
+''',
+        }),
+      ).scan();
+
+      expect(
+        {
+          for (final screen in discovery.screens)
+            screen.name: screen.isConstVariable,
+        },
+        {
+          'auditScreen': true,
+          'buildStockScreen()': false,
+          'reportsScreen': false,
+        },
+      );
+    });
+
+    test(
+      'a variable without a type annotation is found by its initializer',
+      () {
+        // `final aScreen = BeakScreen(...)` used to be skipped without a word,
+        // and the page it declared was simply missing from the panel.
+        final discovery = BeakProjectScanner(
+          projectWith({
+            'lib/screens/reports.dart': '''
+import 'package:beak_frontend/beak_frontend.dart';
+
+final reportsScreen = BeakScreen();
+const auditScreen = BeakScreen();
+var stockScreen = BeakScreen();
+final title = 'Reports';
+final count = compute();
+''',
+          }),
+        ).scan();
+
+        expect(
+          {
+            for (final screen in discovery.screens)
+              screen.name: screen.isConstVariable,
+          },
+          {'auditScreen': true, 'reportsScreen': false, 'stockScreen': false},
+        );
+        expect(discovery.issues, isEmpty);
+      },
+    );
 
     test('a builder taking required arguments is reported', () {
       final discovery = BeakProjectScanner(
@@ -197,6 +650,43 @@ int add(int a, int b) => a + b;
     test('an absent file is simply not an override', () {
       final discovery = BeakProjectScanner(projectWith({})).scan();
       expect(discovery.overrides, isEmpty);
+      expect(discovery.storageRegistry, isNull);
+    });
+
+    test('a storage registry is found without a server override', () {
+      // It used to count only as an extra of `beakServer`, so a project that
+      // registered a driver and was otherwise happy with the default server
+      // silently kept the local disk.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/server.dart': """
+import 'package:beak/server.dart';
+
+BeakStorageRegistry beakStorageRegistry() => BeakStorageRegistry();
+""",
+        }),
+      ).scan();
+
+      expect(discovery.overrides, isEmpty);
+      expect(discovery.storageRegistry?.name, 'beakStorageRegistry');
+      expect(discovery.storageRegistry?.importPath, 'server.dart');
+    });
+
+    test('a server override and a storage registry are found together', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/server.dart': """
+import 'package:beak/server.dart';
+
+BeakServer beakServer(BeakServerDefaults defaults) => defaults.build();
+
+BeakStorageRegistry beakStorageRegistry() => BeakStorageRegistry();
+""",
+        }),
+      ).scan();
+
+      expect(discovery.overrides.keys, [BeakOverrideKind.server]);
+      expect(discovery.storageRegistry, isNotNull);
     });
   });
 
@@ -320,6 +810,87 @@ final class AddStock extends Migration {
       );
     });
 
+    test('records which migration creates which table, and only creates', () {
+      // Migrations are registered in this order, and a foreign key needs its
+      // target created first, so the order has to know who creates what. An
+      // `alter` does not create a table.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_commerce_tables.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateCommerceTables extends Migration {
+  @override
+  String get name => '20260101_000000_create_commerce_tables';
+  @override
+  Future<void> upSchema(Schema schema) async {
+    await schema.create('orders', (t) => t.idUuid());
+    await schema.create('order_items', (t) => t.idUuid());
+  }
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+          'lib/migrations/add_stock.dart': '''
+import 'package:beak/migrations.dart';
+
+final class AddStock extends Migration {
+  @override
+  String get name => '20260101_000001_add_stock';
+  @override
+  Future<void> upSchema(Schema schema) =>
+      schema.alter('orders', (t) => t.integer('stock').makeNullable());
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+        }),
+      ).scan();
+
+      expect(discovery.tablesCreatedByMigration, {
+        'CreateCommerceTables': {'orders', 'order_items'},
+      });
+    });
+
+    test('records which migrations take their foreign keys from the model', () {
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/create_orders_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateOrdersTable extends Migration {
+  @override
+  String get name => '20260101_000000_create_orders_table';
+  @override
+  Future<void> upSchema(Schema schema) => schema.create('orders', (t) {
+    BeakBlueprint.defineColumns(t, const OrderModel());
+    BeakBlueprint.defineForeignKeys(t, const OrderModel());
+  });
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+          'lib/migrations/create_products_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateProductsTable extends Migration {
+  @override
+  String get name => '20260101_000001_create_products_table';
+  @override
+  Future<void> upSchema(Schema schema) => schema.create('products', (t) {
+    t.idUuid();
+    BeakBlueprint.defineColumn(t, ProductColumns.name);
+  });
+  @override
+  Future<void> downSchema(Schema schema) async {}
+}
+''',
+        }),
+      ).scan();
+
+      expect(discovery.migrationsDeclaringKeys, {'CreateOrdersTable'});
+    });
+
     test('a pivot counts through the relation constant it names', () {
       final discovery = BeakProjectScanner(
         projectWith({
@@ -378,6 +949,168 @@ final class CreateProductTagTable extends Migration {
     });
   });
 
+  group('a baseline migration', () {
+    String baseline({
+      String models = 'const [CategoryModel(), ProductModel()]',
+      String pivots = 'const [ProductRelations.tags]',
+      String superclass = 'BeakBaselineMigration',
+      String name = '20260928_101500_adopt_existing_schema',
+    }) =>
+        '''
+import 'package:beak/migrations.dart';
+
+final class AdoptExistingSchema extends $superclass {
+  const AdoptExistingSchema();
+  @override
+  String get name => '$name';
+  @override
+  List<BeakModel> get models => $models;
+  @override
+  List<BeakBelongsToMany> get pivots => $pivots;
+}
+''';
+
+    BeakDiscovery scan(Map<String, String> files) => BeakProjectScanner(
+      projectWith({
+        'lib/models/category.dart': model('CategoryModel', 'categories'),
+        'lib/models/product.dart': model('ProductModel', 'products'),
+        ...files,
+      }),
+    ).scan();
+
+    test('is discovered as a migration, like any other', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(),
+      });
+
+      expect(discovery.issues, isEmpty);
+      expect(discovery.migrations.map((m) => m.name), ['AdoptExistingSchema']);
+    });
+
+    test('covers the tables of the models it lists', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(),
+      });
+
+      expect(
+        discovery.migratedTables,
+        containsAll(<String>['categories', 'products']),
+      );
+    });
+
+    test('covers a pivot through the relation constant it lists', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(),
+      });
+
+      expect(discovery.migratedTables, contains('ProductRelations.tags'));
+    });
+
+    test('covers only the models it lists', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          models: 'const [CategoryModel()]',
+          pivots: 'const []',
+        ),
+      });
+
+      expect(discovery.migratedTables, contains('categories'));
+      expect(discovery.migratedTables, isNot(contains('products')));
+      expect(
+        discovery.migratedTables,
+        isNot(contains('ProductRelations.tags')),
+      );
+    });
+
+    test('reads a model listed without const, as a list literal allows', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          models: '[CategoryModel(), ProductModel()]',
+        ),
+      });
+
+      expect(
+        discovery.migratedTables,
+        containsAll(<String>['categories', 'products']),
+      );
+    });
+
+    test('resolves a model to the table its schema class declares', () {
+      // The prepare run knows tables by schema class, and the baseline names
+      // the generated model class; the two meet in the table map.
+      final discovery = BeakProjectScanner(
+        projectWith({
+          'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+            models: 'const [PersonModel()]',
+            pivots: 'const []',
+          ),
+          'lib/models/person.dart': model('PersonModel', 'ignored'),
+        }),
+      ).scan(tablesByModelClass: const {'PersonModel': 'people'});
+
+      expect(discovery.migratedTables, contains('people'));
+    });
+
+    test('a model it names that nobody declares covers nothing', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          models: 'const [GhostModel()]',
+          pivots: 'const []',
+        ),
+      });
+
+      expect(discovery.migratedTables, isEmpty);
+    });
+
+    test('is ordered among the migrations by its declared name', () {
+      final discovery = scan({
+        'lib/migrations/create_widgets_table.dart': '''
+import 'package:beak/migrations.dart';
+
+final class CreateWidgetsTable extends Migration {
+  const CreateWidgetsTable();
+  @override
+  String get name => '20260929_000000_create_widgets_table';
+  @override
+  Future<void> upSchema(Schema schema) =>
+      schema.create('widgets', (t) => t.idUuid());
+  @override
+  Future<void> downSchema(Schema schema) => schema.drop('widgets');
+}
+''',
+        'lib/migrations/a_adopt.dart': baseline(),
+      });
+
+      expect(discovery.migrations.map((m) => m.name), [
+        'AdoptExistingSchema',
+        'CreateWidgetsTable',
+      ]);
+    });
+
+    test('an ordinary migration listing models covers nothing extra', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline(
+          superclass: 'Migration',
+        ),
+      });
+
+      expect(discovery.migratedTables, isEmpty);
+    });
+
+    test('without the const constructor is reported like any migration', () {
+      final discovery = scan({
+        'lib/migrations/20260928_adopt_existing_schema.dart': baseline()
+            .replaceFirst('const AdoptExistingSchema();', ''),
+      });
+
+      expect(discovery.issues.single.message, contains('AdoptExistingSchema'));
+      expect(
+        discovery.issues.single.message,
+        contains('BeakBaselineMigration'),
+      );
+    });
+  });
+
   group('summary', () {
     test('reports what was found, so a miss is visible', () {
       final discovery = BeakProjectScanner(
@@ -387,7 +1120,10 @@ final class CreateProductTagTable extends Migration {
         }),
       ).scan();
 
-      expect(discovery.summary, '1 model · 0 screens · 1 override');
+      expect(
+        discovery.summary,
+        '1 model · 0 resource classes · 0 screens · 1 override',
+      );
     });
 
     test('pluralises correctly', () {
@@ -398,24 +1134,30 @@ final class CreateProductTagTable extends Migration {
         }),
       ).scan();
 
-      expect(discovery.summary, '2 models · 0 screens · 0 overrides');
+      expect(
+        discovery.summary,
+        '2 models · 0 resource classes · 0 screens · 0 overrides',
+      );
     });
 
-    test('counts a per-resource override too', () {
-      // `beak eject resource products` writes one of these, and the summary
-      // printed "0 overrides" straight afterwards — which reads as "your file
-      // was not picked up" to the one person guaranteed to be looking.
+    test('counts resource classes too', () {
+      // `beak eject resource products` writes one of these, and a summary
+      // that did not count it would read as "your file was not picked up" to
+      // the one person guaranteed to be looking.
       final discovery = BeakProjectScanner(
         projectWith({
           'lib/models/product.dart': model('ProductModel', 'products'),
-          'lib/resources/products.dart':
-              'import \'package:beak/panel.dart\';\n'
-              'BeakResource beakResource(BeakResource generated) => generated;',
+          'lib/resources/products/product_resource.dart': resource(
+            'ProductResource',
+            'ProductModel',
+          ),
         }),
       ).scan();
 
-      expect(discovery.resourceOverrides.keys, <String>['products']);
-      expect(discovery.summary, '1 model · 0 screens · 1 override');
+      expect(
+        discovery.summary,
+        '1 model · 1 resource class · 0 screens · 0 overrides',
+      );
     });
   });
 }

@@ -1,4 +1,7 @@
 import '../common/beak_exception.dart';
+import '../columns/beak_semantic.dart';
+import '../query/beak_record.dart';
+import '../validation/beak_validation.dart';
 import 'beak_model.dart';
 
 /// The app-level index of every registered [BeakModel], keyed by table name.
@@ -30,6 +33,27 @@ final class BeakModelRegistry {
       throw BeakConfigurationException(
         'A model for table "${model.table}" is already registered.',
       );
+    }
+    if (model.columnByKey(model.displayColumnKey)?.semantic.kind ==
+        BeakSemanticKind.password) {
+      throw BeakConfigurationException(
+        'Model "${model.table}" cannot use a password as its display column.',
+      );
+    }
+    model.behavior.validate(model);
+    const validation = BeakValidation();
+    final defaults = validation.applyDefaults(
+      model,
+      const BeakRecord(values: {}),
+    );
+    for (final column in model.columns) {
+      if (column.defaultValue == null) continue;
+      final errors = validation.columnErrors(column, defaults[column.key]?.raw);
+      if (errors.isNotEmpty) {
+        throw BeakConfigurationException(
+          'Invalid default for ${model.table}.${column.key}: ${errors.join(' ')}',
+        );
+      }
     }
     _modelsByTable[model.table] = model;
   }

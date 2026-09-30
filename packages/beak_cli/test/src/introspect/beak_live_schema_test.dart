@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -156,6 +156,54 @@ void main() {
       expect(beakIsAbsolutePath('C:/data/beak.db'), isTrue);
       expect(beakIsAbsolutePath('/var/db/beak.db'), isTrue);
       expect(beakIsAbsolutePath('beak.db'), isFalse);
+    });
+  });
+
+  group('beakParseDatabaseUrl', () {
+    // `Uri.parse('sqlite:../legacy.db')` is `sqlite:legacy.db`, and
+    // `sqlite:./a/../b.db` is `sqlite:/b.db`: a Uri removes dot segments, and
+    // with them the one thing that said where a relative file is.
+    late Directory root;
+
+    setUp(() {
+      root = Directory('/tmp/beak_project');
+    });
+
+    test('keeps a path that climbs out of the project', () {
+      final Uri? url = beakParseDatabaseUrl('sqlite:../legacy.db', root);
+
+      expect(beakSqliteFileOf(url!), '/tmp/legacy.db');
+    });
+
+    test('keeps a path that goes down and back up', () {
+      final Uri? url = beakParseDatabaseUrl('sqlite:./a/../b.db', root);
+
+      expect(beakSqliteFileOf(url!), '/tmp/beak_project/b.db');
+    });
+
+    test('leaves every other database URL as Uri.parse reads it', () {
+      for (final text in const [
+        'sqlite:beak.db',
+        'sqlite::memory:',
+        'sqlite:///tmp/x.db',
+        'postgres://u:p@localhost:5432/beak',
+        'mysql://localhost/beak',
+      ]) {
+        expect(beakParseDatabaseUrl(text, root), Uri.parse(text), reason: text);
+      }
+    });
+
+    test('is null for text that is not a URL', () {
+      expect(beakParseDatabaseUrl('postgres://host:port/x', root), isNull);
+    });
+
+    test('is what a DATABASE_URL in the environment is read through', () {
+      final url = beakDatabaseUrlOf(
+        root,
+        processEnvironment: {'DATABASE_URL': 'sqlite:../legacy.db'},
+      );
+
+      expect(beakSqliteFileOf(url!), '/tmp/legacy.db');
     });
   });
 

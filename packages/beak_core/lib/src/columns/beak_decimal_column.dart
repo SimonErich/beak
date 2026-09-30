@@ -36,6 +36,8 @@ final class BeakDecimalColumn extends BeakColumn with BeakTypedColumn<double> {
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
     this.precision = 2,
     this.totalDigits = 10,
     this.prefix,

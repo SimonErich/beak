@@ -24,6 +24,46 @@ void main() {
       }
     });
 
+    test('reads the public base URL a CDN or proxy serves files from', () {
+      final config = BeakStorageSettings.fromEnv(const {
+        'BEAK_STORAGE_DRIVER': 's3',
+        'BEAK_S3_ENDPOINT': 'http://minio:9000',
+        'BEAK_S3_BUCKET': 'b',
+        'BEAK_S3_ACCESS_KEY': 'k',
+        'BEAK_S3_SECRET_KEY': 's',
+        'BEAK_S3_REGION': 'eu-central-1',
+        'BEAK_S3_PUBLIC_BASE_URL': 'https://cdn.example.com/uploads',
+      });
+
+      expect(
+        (config! as BeakS3Config).publicBaseUrl,
+        Uri.parse('https://cdn.example.com/uploads'),
+      );
+    });
+
+    test('has no public base URL unless one is set', () {
+      final unset = BeakStorageSettings.fromEnv(const {
+        'BEAK_STORAGE_DRIVER': 's3',
+        'BEAK_S3_ENDPOINT': 'http://minio:9000',
+        'BEAK_S3_BUCKET': 'b',
+        'BEAK_S3_ACCESS_KEY': 'k',
+        'BEAK_S3_SECRET_KEY': 's',
+        'BEAK_S3_REGION': 'eu-central-1',
+      });
+      final empty = BeakStorageSettings.fromEnv(const {
+        'BEAK_STORAGE_DRIVER': 's3',
+        'BEAK_S3_ENDPOINT': 'http://minio:9000',
+        'BEAK_S3_BUCKET': 'b',
+        'BEAK_S3_ACCESS_KEY': 'k',
+        'BEAK_S3_SECRET_KEY': 's',
+        'BEAK_S3_REGION': 'eu-central-1',
+        'BEAK_S3_PUBLIC_BASE_URL': '',
+      });
+
+      expect((unset! as BeakS3Config).publicBaseUrl, isNull);
+      expect((empty! as BeakS3Config).publicBaseUrl, isNull);
+    });
+
     test('treats a non-"true" path-style value as false', () {
       final config = BeakStorageSettings.fromEnv(const {
         'BEAK_STORAGE_DRIVER': 's3',
@@ -124,6 +164,61 @@ void main() {
             (e) => e.message,
             'message',
             contains('BEAK_LOCAL_ROOT_DIR'),
+          ),
+        ),
+      );
+    });
+
+    test('an ftp port that is not a port stops the boot, it is not 21', () {
+      for (final port in ['abc', '0', '70000', '-1', '21.5']) {
+        expect(
+          () => BeakStorageSettings.fromEnv({
+            'BEAK_STORAGE_DRIVER': 'ftp',
+            'BEAK_FTP_HOST': 'ftp.example.com',
+            'BEAK_FTP_USER': 'beak',
+            'BEAK_FTP_PASSWORD': 'secret',
+            'BEAK_FTP_BASE_DIR': '/uploads',
+            'BEAK_FTP_PUBLIC_BASE_URL': 'https://cdn.example.com',
+            'BEAK_FTP_PORT': port,
+          }),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (e) => e.message,
+              'message',
+              contains('BEAK_FTP_PORT'),
+            ),
+          ),
+          reason: port,
+        );
+      }
+    });
+
+    test('a URL that does not parse names its variable', () {
+      expect(
+        () => BeakStorageSettings.fromEnv(const {
+          'BEAK_STORAGE_DRIVER': 'local',
+          'BEAK_LOCAL_ROOT_DIR': 'var/uploads',
+          'BEAK_LOCAL_PUBLIC_BASE_URL': 'http://[broken',
+        }),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            contains('BEAK_LOCAL_PUBLIC_BASE_URL'),
+          ),
+        ),
+      );
+    });
+
+    test('the unknown-driver message is one plain sentence', () {
+      expect(
+        () => BeakStorageSettings.fromEnv(const {'BEAK_STORAGE_DRIVER': 'x'}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            'Unsupported BEAK_STORAGE_DRIVER "x": use one of '
+                's3, ftp, memory, local, none.',
           ),
         ),
       );

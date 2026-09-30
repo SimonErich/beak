@@ -12,6 +12,38 @@ void main() {
 
   final note = BeakRecord.fromRow(const {'id': 'n1', 'title': 'One'});
 
+  test('a record action defaults to pages that have a record', () {
+    final action = BeakRecordAction(
+      key: 'x',
+      label: 'X',
+      onExecute: (_, _) async {},
+    );
+
+    // A create page has no saved record yet, so nothing could run there.
+    expect(action.roles, {
+      BeakScreenRole.list,
+      BeakScreenRole.read,
+      BeakScreenRole.edit,
+    });
+    expect(action.roles, isNot(contains(BeakScreenRole.create)));
+    expect(
+      BeakRecordAction.document(
+        key: 'doc',
+        label: 'Print',
+        document: BeakRecordDocument(
+          title: BeakValueBinding<Object>.field(
+            const BeakScalarField<Object>(
+              model: NoteModel(),
+              column: BeakStringColumn(key: 'title', label: 'Title'),
+            ),
+          ),
+          sections: const [],
+        ),
+      ).roles,
+      action.roles,
+    );
+  });
+
   setUp(() {
     dataSource = FakeDataSource(
       records: {
@@ -86,6 +118,55 @@ void main() {
   }
 
   group('execution', () {
+    testWidgets(
+      'failed custom actions report a safe error and can be retried',
+      (tester) async {
+        var calls = 0;
+        await pumpHost(tester, [
+          BeakRecordAction(
+            key: 'fail',
+            label: 'Try operation',
+            onExecute: (_, _) async {
+              calls++;
+              throw const BeakValidationException('Cannot change this record.');
+            },
+          ),
+        ], record: note);
+        await tester.tap(find.text('Try operation'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Cannot change this record.'), findsOneWidget);
+        await tester.tap(find.text('Try operation'));
+        await tester.pumpAndSettle();
+        expect(calls, 2);
+        await tester.pump(const Duration(seconds: 10));
+        await tester.pumpAndSettle();
+      },
+    );
+    testWidgets('an infrastructure failure never shows its message', (
+      tester,
+    ) async {
+      await pumpHost(tester, [
+        BeakRecordAction(
+          key: 'fail',
+          label: 'Try operation',
+          onExecute: (_, _) async =>
+              throw const BeakStorageException('bucket beak-prod is full'),
+        ),
+      ], record: note);
+
+      await tester.tap(find.text('Try operation'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('beak-prod'), findsNothing);
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('a record action receives its record', (tester) async {
       BeakRecord? executed;
       await pumpHost(tester, [

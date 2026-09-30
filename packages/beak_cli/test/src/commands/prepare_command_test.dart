@@ -1,13 +1,16 @@
 import 'dart:io';
 
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:test/test.dart';
 
 /// A project directory seeded with [files], plus a pubspec naming it.
 Directory projectWith(Map<String, String> files, {String name = 'acme_admin'}) {
   final root = Directory.systemTemp.createTempSync('beak_prepare_');
   addTearDown(() => root.deleteSync(recursive: true));
-  final all = {'pubspec.yaml': 'name: $name\n', ...files};
+  final all = {
+    'pubspec.yaml': 'name: $name\ndependencies:\n  beak: any\n',
+    ...files,
+  };
   for (final MapEntry(key: path, value: contents) in all.entries) {
     final file = File('${root.path}/$path');
     file.parent.createSync(recursive: true);
@@ -75,6 +78,13 @@ void main() {
       expect(registry, contains("import '../models/note.dart';"));
     });
 
+    test('registers commit receipts as an explicit backend migration', () {
+      expect(
+        read(root, 'lib/beak/server.g.dart'),
+        contains('BeakCommitReceiptsMigration()'),
+      );
+    });
+
     test('surface every model as a resource in the panel', () {
       // Assert on the pieces, not the layout: the emitter formats its output,
       // so line breaks are the formatter's business, not this test's.
@@ -115,6 +125,16 @@ void main() {
   });
 
   group('idempotence', () {
+    test('preserves a developer-owned direct panel entrypoint', () {
+      const main = 'void main() { /* BeakPanel(resources: ...) */ }\n';
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/main.dart': main,
+      });
+      final result = runPrepare(environmentFor(root));
+      expect(result.isSuccess, isTrue);
+      expect(read(root, 'lib/main.dart'), main);
+    });
     test('a second run rewrites nothing', () {
       final root = projectWith({'lib/models/note.dart': noteModel});
       runPrepare(environmentFor(root));
@@ -262,7 +282,9 @@ final class Product extends BeakSchema {
 
     test('a many-to-many gets its pivot, once', () {
       final root = projectWith({
-        'lib/models/tag.dart': category.replaceAll('Category', 'Tag'),
+        'lib/models/tag.dart': category
+            .replaceAll('Category', 'Tag')
+            .replaceAll('category.beak', 'tag.beak'),
         'lib/models/product.dart': """
 import 'package:beak/beak.dart';
 import 'package:beak/schema.dart';
@@ -448,7 +470,7 @@ resources:
       expect(result.isSuccess, isTrue);
       final panel = read(root, 'lib/beak/panel.g.dart');
       expect(panel, contains('OiIcons.users'));
-      expect(panel, contains("section: 'People'"));
+      expect(panel, contains("navigationGroup: 'People'"));
     });
 
     test('a key naming no table fails, and suggests the near miss', () {
@@ -468,7 +490,13 @@ resources:
       expect(result.isSuccess, isFalse);
       expect(
         result.discovery.issues.single.message,
-        allOf(contains('resources.note'), contains('did you mean notes?')),
+        allOf(
+          contains(
+            'resources.note names no discovered table, did you mean notes?',
+          ),
+          isNot(contains('?.')),
+          isNot(contains('\u2014')),
+        ),
       );
     });
 
@@ -478,6 +506,62 @@ resources:
       final discovery = BeakProjectScanner(root).scan();
 
       expect(discovery.models.single.table, 'notes');
+    });
+  });
+
+  group('hand-written command models', () {
+    const String userModel = '''
+import 'package:beak_core/beak_core.dart';
+
+import '_user_edit.dart';
+import 'user_create.dart';
+
+final class UserModel extends BeakModel {
+  const UserModel();
+  @override
+  String get table => 'users';
+  @override
+  String get displayColumnKey => 'name';
+  @override
+  List<BeakColumn> get columns => const [];
+  @override
+  BeakModel? get createModel => const UserCreate();
+  @override
+  BeakModel? get editModel => const UserEdit();
+}
+''';
+    String command(String name) => noteModel
+        .replaceAll('NoteModel', name)
+        .replaceAll("'notes'", "'users'");
+
+    test('a private and a public one stay out of registry and migrations', () {
+      final root = projectWith({
+        'lib/models/user.dart': userModel,
+        'lib/models/_user_edit.dart': command('UserEdit'),
+        'lib/models/user_create.dart': command('UserCreate'),
+        'lib/models/private.dart': '''
+import 'package:beak_core/beak_core.dart';
+
+final class _Hidden extends BeakModel {
+  const _Hidden();
+}
+''',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isTrue);
+      final registry = read(root, 'lib/beak/registry.g.dart');
+      expect(registry, contains('UserModel()'));
+      expect(registry, isNot(contains('UserEdit')));
+      expect(registry, isNot(contains('UserCreate')));
+      expect(registry, isNot(contains('_Hidden')));
+      expect(
+        Directory(
+          '${root.path}/lib/migrations',
+        ).listSync().map((entity) => entity.path.split('/').last).toList(),
+        ['create_users_table.dart'],
+      );
     });
   });
 
@@ -498,7 +582,25 @@ resources:
       final panel = read(root, 'lib/beak/panel.g.dart');
       expect(panel, contains("title: 'Notebook'"));
       expect(panel, contains('OiIcons.fileText'));
-      expect(panel, contains("section: 'Content'"));
+      expect(panel, contains("navigationGroup: 'Content'"));
+    });
+
+    test('a label becomes the resource title, never the legacy label', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'beak.yaml': '''
+resources:
+  notes:
+    label: Journal
+    section: Content
+''',
+      });
+      runPrepare(environmentFor(root));
+
+      final panel = read(root, 'lib/beak/panel.g.dart');
+      expect(panel, contains("title: 'Journal'"));
+      expect(panel, isNot(contains('label:')));
+      expect(panel, isNot(contains('section:')));
     });
 
     test('an absent file still generates, using defaults', () {
@@ -577,52 +679,41 @@ BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
       expect(panel, contains('return panel.beakPanel(config);'));
     });
 
-    test('a resource override wraps just its own resource', () {
+    test('a legacy per-table override stops generation, naming its '
+        'replacement', () {
       final root = projectWith({
         'lib/models/note.dart': noteModel,
-        'lib/resources/notes.dart': EjectCommand.resourceSource('notes'),
-      });
+        'lib/resources/notes.dart': '''
+import 'package:beak/panel.dart';
 
-      final result = runPrepare(environmentFor(root));
-
-      expect(result.isSuccess, isTrue);
-      expect(
-        read(root, 'lib/beak/panel.g.dart'),
-        allOf(
-          contains("import '../resources/notes.dart' as resource_notes;"),
-          contains('resource_notes.beakResource('),
-        ),
-      );
-    });
-
-    test('a resource override naming no table fails, with the near miss', () {
-      final root = projectWith({
-        'lib/models/note.dart': noteModel,
-        'lib/resources/note.dart': EjectCommand.resourceSource('note'),
-      });
-
-      final result = runPrepare(environmentFor(root));
-
-      expect(result.isSuccess, isFalse);
-      expect(
-        result.discovery.issues.single.message,
-        allOf(
-          contains('No model declares the table "note"'),
-          contains('notes'),
-        ),
-      );
-    });
-
-    test('a resource override missing its function fails, naming the file', () {
-      final root = projectWith({
-        'lib/models/note.dart': noteModel,
-        'lib/resources/notes.dart': '// nothing here yet\n',
+BeakResource beakResource(BeakResource generated) => generated;
+''',
       });
 
       final result = runPrepare(environmentFor(root));
 
       expect(result.isSuccess, isFalse);
       expect(result.discovery.issues.single.path, 'lib/resources/notes.dart');
+      expect(
+        result.discovery.issues.single.message,
+        contains('beak eject resource notes'),
+      );
+    });
+
+    test('a legacy dashboard override stops generation too', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/dashboard.dart': '''
+import 'package:beak/panel.dart';
+
+BeakScreen beakDashboard() => throw UnimplementedError();
+''',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isFalse);
+      expect(result.discovery.issues.single.path, 'lib/dashboard.dart');
     });
 
     test('a server override is threaded into the host', () {
@@ -640,6 +731,222 @@ BeakServer beakServer(BeakServerDefaults defaults) => defaults.build();
         read(root, 'lib/beak/server.g.dart'),
         contains('configure: server.beakServer'),
       );
+    });
+
+    test('a storage registry is threaded in without a server override', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/server.dart': '''
+import 'package:beak/server.dart';
+
+BeakStorageRegistry beakStorageRegistry() => createDefaultStorageRegistry();
+''',
+      });
+      runPrepare(environmentFor(root));
+
+      final host = read(root, 'lib/beak/server.g.dart');
+      expect(host, contains("import '../server.dart' as server;"));
+      expect(host, contains('storageRegistry: server.beakStorageRegistry'));
+      expect(host, isNot(contains('configure:')));
+    });
+  });
+
+  group('resource classes', () {
+    const noteResource = '''
+import 'package:beak/panel.dart';
+
+import '../../models/note.dart';
+
+final class NoteResource extends BeakResource {
+  NoteResource() : super(model: const NoteModel(), title: 'Journal');
+}
+''';
+
+    test('replace the default resource of the model they configure', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/resources/notes/note_resource.dart': noteResource,
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isTrue, reason: '${result.discovery.issues}');
+      final panel = read(root, 'lib/beak/panel.g.dart');
+      expect(
+        panel,
+        contains("import '../resources/notes/note_resource.dart';"),
+      );
+      expect(panel, contains('NoteResource()'));
+      // Matched by table when the panel starts, which is what the class
+      // itself declares; the scan never has to evaluate its constructor.
+      expect(panel, contains('resource.model.table: resource'));
+      expect(panel, contains('authored.remove(resource.model.table)'));
+      expect(panel, contains('...authored.values'));
+    });
+
+    test('one with only named constructors leaves the default in place', () {
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/resources/notes/note_resource.dart': '''
+import 'package:beak/panel.dart';
+
+import '../../models/note.dart';
+
+final class NoteResource extends BeakResource {
+  const NoteResource.compact() : super(model: const NoteModel());
+}
+''',
+      });
+
+      final result = runPrepare(environmentFor(root));
+
+      expect(result.isSuccess, isTrue, reason: '${result.discovery.issues}');
+      final panel = read(root, 'lib/beak/panel.g.dart');
+      expect(panel, isNot(contains('NoteResource')));
+      expect(panel, contains('model: const NoteModel()'));
+    });
+
+    test('a project without one keeps the plain resource list', () {
+      final root = projectWith({'lib/models/note.dart': noteModel});
+      runPrepare(environmentFor(root));
+
+      expect(read(root, 'lib/beak/panel.g.dart'), isNot(contains('authored')));
+    });
+
+    test('are counted in the summary', () {
+      final out = StringBuffer();
+      final root = projectWith({
+        'lib/models/note.dart': noteModel,
+        'lib/resources/notes/note_resource.dart': noteResource,
+      });
+
+      runPrepare(environmentFor(root, out: out));
+
+      expect(out.toString(), contains('1 resource class'));
+    });
+  });
+
+  group('agent files', () {
+    late StringBuffer out;
+
+    Future<int> prepare(Directory root) async {
+      out = StringBuffer();
+      return await createBeakRunner(
+            environmentFor(root, out: out),
+          ).run(['prepare']) ??
+          0;
+    }
+
+    Directory beakProject({Map<String, String> files = const {}}) =>
+        projectWith({
+          'pubspec.yaml': 'name: acme_admin\ndependencies:\n  beak: any\n',
+          'lib/models/note.dart': noteModel,
+          ...files,
+        });
+
+    test(
+      'follow a successful prepare: one line, AGENTS.md and CLAUDE.md',
+      () async {
+        final root = beakProject();
+
+        expect(await prepare(root), 0);
+
+        expect(
+          out.toString(),
+          contains('  agents     AGENTS.md created · CLAUDE.md created'),
+        );
+        expect(read(root, 'CLAUDE.md'), '@AGENTS.md\n');
+        expect(read(root, 'AGENTS.md'), contains('BEGIN:beak-agent-rules'));
+        expect(
+          read(root, 'AGENTS.md'),
+          contains('`lib/resources/*/models/*.dart`'),
+        );
+      },
+    );
+
+    test('a second prepare finds them up to date', () async {
+      final root = beakProject();
+      await prepare(root);
+      final agents = File('${root.path}/AGENTS.md')
+        ..setLastModifiedSync(DateTime(2020));
+
+      expect(await prepare(root), 0);
+
+      expect(out.toString(), contains('  agents     up to date'));
+      expect(agents.lastModifiedSync(), DateTime(2020));
+    });
+
+    test('say the docs wait for pub get instead of failing prepare', () async {
+      final root = beakProject();
+
+      expect(await prepare(root), 0);
+
+      expect(out.toString(), contains('docs not materialized: '));
+      expect(out.toString(), contains('flutter pub get'));
+    });
+
+    test('instructions: none in beak.yaml leaves AGENTS.md alone', () async {
+      final root = beakProject(
+        files: {'beak.yaml': 'agents:\n  instructions: none\n'},
+      );
+
+      expect(await prepare(root), 0);
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(File('${root.path}/CLAUDE.md').existsSync(), isFalse);
+    });
+
+    test('a damaged marker is a printed line, not a failed prepare', () async {
+      final root = beakProject(
+        files: {'AGENTS.md': '<!-- BEGIN:beak-agent-rules -->\n'},
+      );
+
+      expect(await prepare(root), 0);
+
+      expect(out.toString(), contains('  !          AGENTS.md: '));
+      expect(read(root, 'AGENTS.md'), '<!-- BEGIN:beak-agent-rules -->\n');
+    });
+
+    test('are not written when generation fails', () async {
+      final root = beakProject(
+        files: {
+          'lib/models/broken.dart': '''
+import 'package:beak_core/beak_core.dart';
+
+final class BrokenModel extends BeakModel {
+  BrokenModel(this.table);
+  @override
+  final String table;
+}
+''',
+        },
+      );
+
+      expect(await prepare(root), 1);
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(out.toString(), isNot(contains('agents     ')));
+    });
+
+    test('are not written for a project without a Beak dependency', () async {
+      final root = projectWith({
+        'pubspec.yaml': 'name: acme_admin\n',
+        'lib/models/note.dart': noteModel,
+      });
+
+      expect(await prepare(root), 1);
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(out.toString(), isNot(contains('agents     ')));
+    });
+
+    test('are not touched by the other commands that prepare', () async {
+      final root = beakProject();
+      out = StringBuffer();
+
+      runPrepare(environmentFor(root, out: out));
+
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
     });
   });
 }

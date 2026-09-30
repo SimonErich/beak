@@ -1,14 +1,17 @@
+import '../inflection.dart';
 import '../project/beak_emitters.dart';
+import 'beak_reserved_names.dart';
 import 'beak_schema_ir.dart';
 import 'beak_schema_reader.dart';
 
 /// Emits the Dart a schema class stands for.
 ///
-/// One declaration becomes five artefacts, each of which was previously
+/// One declaration becomes six artefacts, each of which was previously
 /// hand-written and had to be kept in step by hand: the typed column
 /// constants and their `values` list, the relationship constants on *both*
-/// sides, the `BeakModel`, and a typed record view so reading a field no
-/// longer means `record[key]?.raw` and a switch.
+/// sides, the typed field references, the `BeakModel`, a live draft view of a
+/// form in progress, and a typed record view so reading a field no longer
+/// means `record[key]?.raw` and a switch.
 ///
 /// The output is deliberately dull — declarations and one-line delegations
 /// into `beak_core`, never logic. That is what lets it pass `--fatal-infos`
@@ -28,13 +31,40 @@ abstract final class BeakSchemaEmitter {
       ..writeln("part of '${_fileNameOf(schema.libraryPath)}';")
       ..writeln();
 
+    // --8<-- [start:emitSchemaPart]
     _writeColumns(buffer, schema);
     _writeRelations(buffer, schema, byClass, all);
+    _writeFields(buffer, schema, byClass);
     _writeModel(buffer, schema, all);
+    _writeDraft(buffer, schema, byClass);
     _writeRecord(buffer, schema, byClass);
     // Formatted here rather than by the caller, so any consumer of the
     // emitter gets source that `dart format --set-exit-if-changed` accepts.
     return BeakEmitters.format(buffer.toString());
+    // --8<-- [end:emitSchemaPart]
+  }
+
+  /// The tables each table has a foreign key to, by table.
+  ///
+  /// One per belongs-to relationship of the generated model, which is what
+  /// `BeakBlueprint.defineForeignKeys` turns into a constraint: the ones the
+  /// schema declares, and the ones synthesized from a has-one or has-many on
+  /// the far side. Read by [BeakMigrationOrder], because a table has to be
+  /// created after every table it points at.
+  static Map<String, Set<String>> foreignKeyTargets(List<BeakSchemaIr> all) {
+    final byClass = {for (final schema in all) schema.className: schema};
+    return {
+      for (final schema in all)
+        schema.table: {
+          for (final relation in schema.relations)
+            if (relation.kind == BeakRelationKind.belongsTo)
+              if (byClass[relation.relatedSchema] case final BeakSchemaIr far)
+                far.table,
+          for (final (owner, relation) in _emittedInverses(schema, all))
+            if (_inverseKindOf(relation.kind) == BeakRelationKind.belongsTo)
+              owner.table,
+        },
+    };
   }
 
   /// The `part` file name for a schema declared in [libraryPath].
@@ -198,6 +228,28 @@ abstract final class BeakSchemaEmitter {
       ..writeln('  /// Creates the ${schema.table} model.')
       ..writeln('  const ${schema.modelClass}();')
       ..writeln()
+      ..writeln(
+        '  /// Typed field and relation references, including reserved names.',
+      )
+      ..writeln(
+        '  static const ${schema.className}Fields fields = ${schema.className}Fields();',
+      );
+    for (final field in _fieldNames(schema)) {
+      if (BeakReservedNames.model.contains(field)) continue;
+      buffer
+        ..writeln('  /// Typed reference to [$field] in this model.')
+        ..writeln('  static final $field = fields.$field;');
+    }
+    buffer
+      ..writeln('  /// Declarative source for record choices.')
+      ..writeln(
+        '  static BeakOptionQuery options({BeakFilter? filter}) => BeakOptionQuery(model: const ${schema.modelClass}(), query: const ${schema.modelClass}().query(filter: filter));',
+      )
+      ..writeln('  /// Searches the model display and searchable columns.')
+      ..writeln(
+        '  static BeakOptionQuery search(String term, {BeakFilter? filter}) => BeakOptionQuery(model: const ${schema.modelClass}(), query: const ${schema.modelClass}().query(filter: filter, search: BeakSearch(term, const [${_modelSearchKeys(schema)}])));',
+      )
+      ..writeln()
       ..writeln('  @override')
       ..writeln("  String get table => '${schema.table}';")
       ..writeln()
@@ -210,6 +262,41 @@ abstract final class BeakSchemaEmitter {
       ..writeln(
         '  List<BeakColumn> get columns => ${schema.columnsClass}.values;',
       );
+    if (schema.hasValidationRules) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  List<BeakRecordRule> get validationRules => ${schema.className}.validationRules;',
+        );
+    }
+    if (schema.hasBehavior) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  BeakModelBehavior get behavior => ${schema.className}.behavior;',
+        );
+    }
+    if (schema.hasPermissions) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  BeakPermissions get permissions => ${schema.className}.permissions;',
+        );
+    }
+    if (schema.hasCapabilities) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  Set<BeakOperation> get capabilities => ${schema.className}.capabilities;',
+        );
+    }
+    if (schema.relations.isNotEmpty) {
+      buffer
+        ..writeln('  @override')
+        ..writeln(
+          '  List<BeakModel> get relatedModels => const [${schema.relations.map((r) => '${r.relatedSchema}Model()').toSet().join(', ')}];',
+        );
+    }
     // Both the declared relationships and the synthesized inverses: a
     // constant the relations class emits and the model does not register is
     // dead code the panel can never reach.
@@ -242,6 +329,156 @@ abstract final class BeakSchemaEmitter {
       ..writeln('}')
       ..writeln();
     _writeFormSlots(buffer, schema);
+  }
+
+  static Iterable<String> _fieldNames(BeakSchemaIr schema) sync* {
+    yield* schema.columns.map((column) => column.fieldName);
+    yield* schema.relations.map((relation) => relation.fieldName);
+  }
+
+  static String _modelSearchKeys(BeakSchemaIr schema) => {
+    schema.displayColumnKey,
+    for (final column in schema.columns)
+      if (column.arguments['searchable'] == 'true' &&
+          !(column.arguments['semantic']?.contains('BeakSemantic.password(') ??
+              false))
+        column.columnKey,
+  }.map((key) => "'$key'").join(', ');
+
+  static bool _isMany(BeakRelationIr relation) =>
+      relation.kind == BeakRelationKind.hasMany ||
+      relation.kind == BeakRelationKind.belongsToMany;
+
+  static String _relationFieldType(BeakRelationIr relation) => _isMany(relation)
+      ? 'BeakToManyField'
+      : '${relation.relatedSchema}ToOneField';
+
+  static void _writeFields(
+    StringBuffer buffer,
+    BeakSchemaIr schema,
+    Map<String, BeakSchemaIr> byClass,
+  ) {
+    buffer
+      ..writeln('/// Typed configuration references for ${schema.className}.')
+      ..writeln('final class ${schema.className}Fields {')
+      ..writeln(
+        '  /// Creates the fields of ${schema.className}, rooted at its own '
+        'model.',
+      )
+      // The second constructor takes its two values positionally on purpose:
+      // a named `model` feeding `_model` is what `prefer_initializing_formals`
+      // reports from Dart 3.12, yet `this._model` as a named parameter is a
+      // syntax error before it, and generated code has to be clean in both.
+      ..writeln(
+        '  const ${schema.className}Fields() : '
+        '_model = const ${schema.modelClass}(), _path = const [];',
+      )
+      ..writeln(
+        '  /// Creates fields rooted at [model] and reached through [path].',
+      )
+      ..writeln(
+        '  const ${schema.className}Fields.via(this._model, this._path);',
+      )
+      ..writeln('  final BeakModel _model;')
+      ..writeln('  final List<BeakRelationship> _path;');
+    for (final column in schema.columns) {
+      buffer
+        ..writeln('  /// ${column.label}.')
+        ..writeln(
+          '  BeakScalarField<${column.valueType}> get ${column.fieldName} => BeakScalarField<${column.valueType}>(model: _model, column: ${schema.columnsClass}.${column.fieldName}, path: _path, isRequired: ${column.isRequired});',
+        );
+    }
+    for (final relation in schema.relations) {
+      final related = byClass[relation.relatedSchema];
+      if (related == null) continue;
+      buffer
+        ..writeln('  /// ${relation.label}.')
+        ..writeln(
+          '  ${_relationFieldType(relation)} get ${relation.fieldName} => ${_relationFieldType(relation)}(model: _model, relation: ${schema.relationsClass}.${relation.fieldName}, ${_isMany(relation) ? 'target: const ${related.modelClass}(),' : ''} path: _path, isRequired: ${relation.isRequired});',
+        );
+    }
+    buffer
+      ..writeln('}')
+      ..writeln(
+        '/// A to-one path to ${schema.className}, retaining its root owner.',
+      )
+      ..writeln(
+        'final class ${schema.className}ToOneField extends BeakToOneField {',
+      )
+      ..writeln('  /// Creates a typed relationship path.')
+      ..writeln(
+        '  const ${schema.className}ToOneField({required super.model, required super.relation, super.path, super.isRequired}) : super(target: const ${schema.modelClass}());',
+      )
+      ..writeln(
+        '  /// Every target field, including names reserved by the path API.',
+      )
+      ..writeln(
+        '  ${schema.className}Fields get fields => ${schema.className}Fields.via(model, [...path, relation]);',
+      );
+    for (final column in schema.columns) {
+      if (BeakReservedNames.relation.contains(column.fieldName)) continue;
+      buffer
+        ..writeln('  /// ${column.label}.')
+        ..writeln(
+          '  BeakScalarField<${column.valueType}> get ${column.fieldName} => fields.${column.fieldName};',
+        );
+    }
+    for (final relation in schema.relations) {
+      if (BeakReservedNames.relation.contains(relation.fieldName)) continue;
+      buffer
+        ..writeln('  /// ${relation.label}.')
+        ..writeln(
+          '  ${_relationFieldType(relation)} get ${relation.fieldName} => fields.${relation.fieldName};',
+        );
+    }
+    buffer.writeln('}');
+  }
+
+  static void _writeDraft(
+    StringBuffer buffer,
+    BeakSchemaIr schema,
+    Map<String, BeakSchemaIr> byClass,
+  ) {
+    buffer
+      ..writeln(
+        '/// A live, nullable view of an incomplete ${schema.className} draft.',
+      )
+      ..writeln('final class ${schema.className}Draft {')
+      ..writeln(
+        '  /// Reads values through the session so dependencies stay observable.',
+      )
+      ..writeln('  const ${schema.className}Draft(this._reader);')
+      ..writeln('  final BeakDraftReader _reader;');
+    for (final column in schema.columns) {
+      buffer
+        ..writeln('  /// ${column.label}, or null while incomplete.')
+        ..writeln(
+          '  ${column.valueType}? get ${column.fieldName} => _reader.read(${schema.modelClass}.fields.${column.fieldName});',
+        );
+    }
+    for (final relation in schema.relations) {
+      final related = byClass[relation.relatedSchema];
+      if (related == null) continue;
+      buffer.writeln('  /// The selected ${relation.label.toLowerCase()}.');
+      if (_isMany(relation)) {
+        buffer.writeln(
+          '  List<${related.recordClass}> get ${relation.fieldName} => [for (final row in _reader.read(${schema.modelClass}.fields.${relation.fieldName}) ?? const <BeakRecord>[]) ${related.recordClass}.of(row)];',
+        );
+      } else {
+        buffer.writeln(
+          '  ${related.recordClass}? get ${relation.fieldName} => switch (_reader.read(${schema.modelClass}.fields.${relation.fieldName})) { final BeakRecord record => ${related.recordClass}.of(record), null => null };',
+        );
+      }
+    }
+    buffer
+      ..writeln('}')
+      ..writeln('/// Typed access to live ${schema.className} form values.')
+      ..writeln('extension ${schema.className}DraftAccess on BeakDraftReader {')
+      ..writeln('  /// Nullable values backed by this tracked reader.')
+      ..writeln(
+        '  ${schema.className}Draft get as${schema.className} => ${schema.className}Draft(this);',
+      )
+      ..writeln('}');
   }
 
   /// The private enum a model's forms claim field slots from.
@@ -304,7 +541,7 @@ abstract final class BeakSchemaEmitter {
       buffer
         ..writeln('  $type${required ? '' : '?'} get ${column.fieldName} =>')
         ..writeln(
-          '      ${schema.columnsClass}.${column.fieldName}'
+          '      ${column.declaredValueType == null ? schema.columnsClass : '${schema.modelClass}.fields'}.${column.fieldName}'
           '.${required ? 'require' : 'readFrom'}(record);',
         )
         ..writeln();
@@ -380,15 +617,29 @@ abstract final class BeakSchemaEmitter {
     BeakSchemaIr schema,
   ) {
     final declared = <String, String>{...column.arguments};
-    // An upload column must say where its files go. `@Image()` on its own is
-    // the common case, and the conventional answer — one folder per table —
-    // is one the generator can give without the user writing it.
+    // An upload column must say where its files go. A `BeakImageRef` or
+    // `BeakFileRef` field with no annotation is the common case, and the
+    // conventional answer, one folder per table, is one the generator can give
+    // without the user writing it. An annotation states its own `storagePath`:
+    // its constructor requires one, and the reader reports a bare `@Image()`.
     if (_isUploadKind(column.kind)) {
       declared.putIfAbsent('storagePath', () => "'${schema.table}'");
     }
+    final currencyFrom = declared.remove('currencyFrom');
+    if (currencyFrom != null) {
+      final semantic = declared['semantic']!;
+      final prefix = semantic.substring(0, semantic.lastIndexOf(')'));
+      declared['semantic'] =
+          '$prefix${prefix.endsWith('(') || prefix.trimRight().endsWith(',') ? '' : ','} currencyColumn: ${schema.columnsClass}.${currencyFrom.substring(1)})';
+    }
     final String? rules = declared.remove('rules');
     // Non-nullable means required; the rule is derived, never written twice.
-    final String required = column.isRequired ? 'BeakRequired()' : '';
+    final allowsEmpty =
+        column.valueType.startsWith('List<') ||
+        column.valueType == 'BeakJsonObject';
+    final String required = column.isRequired
+        ? (allowsEmpty ? 'BeakRequired(allowEmpty: true)' : 'BeakRequired()')
+        : '';
     final String combined = switch ((column.isRequired, rules)) {
       (false, null) => '',
       (false, final String declaredRules) => declaredRules,
@@ -409,9 +660,9 @@ abstract final class BeakSchemaEmitter {
     if (relation.kind == BeakRelationKind.belongsToMany) ...{
       'pivotTable': "'${relation.pivotTable ?? pivotTableFor(owner, related)}'",
       'foreignPivotKey':
-          "'${relation.foreignPivotKey ?? '${_singular(owner.table)}_id'}'",
+          "'${relation.foreignPivotKey ?? '${singularOf(owner.table)}_id'}'",
       'relatedPivotKey':
-          "'${relation.relatedPivotKey ?? '${_singular(related.table)}_id'}'",
+          "'${relation.relatedPivotKey ?? '${singularOf(related.table)}_id'}'",
     } else
       'foreignKey': "'${relation.foreignKey}'",
     'searchColumnKeys': _searchKeysOf(relation, related),
@@ -422,10 +673,20 @@ abstract final class BeakSchemaEmitter {
   ///
   /// The related model's display column, unless the relationship named
   /// others: a person looks a customer up by email as readily as by name.
+  ///
+  /// `searchOn` names fields; the stored key each one resolves to is the
+  /// related schema's business, so `#firstName` becomes `first_name` here
+  /// without the author ever spelling it.
   static String _searchKeysOf(BeakRelationIr relation, BeakSchemaIr related) {
+    final keyOf = {
+      for (final column in related.columns) column.fieldName: column.columnKey,
+    };
     final List<String> keys = relation.searchOn.isEmpty
         ? [related.displayColumnKey]
-        : relation.searchOn;
+        : [
+            for (final field in relation.searchOn)
+              if (keyOf[field] case final String key) key,
+          ];
     return '[${keys.map((key) => "'$key'").join(', ')}]';
   }
 
@@ -444,9 +705,9 @@ abstract final class BeakSchemaEmitter {
     BeakRelationKind.belongsToMany => {
       'pivotTable': "'${relation.pivotTable ?? pivotTableFor(owner, self)}'",
       'foreignPivotKey':
-          "'${relation.relatedPivotKey ?? '${_singular(self.table)}_id'}'",
+          "'${relation.relatedPivotKey ?? '${singularOf(self.table)}_id'}'",
       'relatedPivotKey':
-          "'${relation.foreignPivotKey ?? '${_singular(owner.table)}_id'}'",
+          "'${relation.foreignPivotKey ?? '${singularOf(owner.table)}_id'}'",
       'searchColumnKeys': "['${owner.displayColumnKey}']",
     },
     BeakRelationKind.hasOne || BeakRelationKind.hasMany => {
@@ -481,27 +742,15 @@ abstract final class BeakSchemaEmitter {
   static String _inverseNameOf(BeakSchemaIr owner, BeakRelationIr relation) =>
       switch (_inverseKindOf(relation.kind)) {
         BeakRelationKind.belongsTo ||
-        BeakRelationKind.hasOne => _camel(_singular(owner.table)),
+        BeakRelationKind.hasOne => _camel(singularOf(owner.table)),
         _ => _camel(owner.table),
       };
 
   /// The conventional pivot table joining two schemas: both singular table
   /// names, sorted, joined by an underscore.
   static String pivotTableFor(BeakSchemaIr left, BeakSchemaIr right) {
-    final names = [_singular(left.table), _singular(right.table)]..sort();
+    final names = [singularOf(left.table), singularOf(right.table)]..sort();
     return names.join('_');
-  }
-
-  static String _singular(String table) {
-    if (table.endsWith('ies')) {
-      return '${table.substring(0, table.length - 3)}y';
-    }
-    if (table.endsWith('ses') ||
-        table.endsWith('xes') ||
-        table.endsWith('ches')) {
-      return table.substring(0, table.length - 2);
-    }
-    return table.endsWith('s') ? table.substring(0, table.length - 1) : table;
   }
 
   static String _camel(String snake) {

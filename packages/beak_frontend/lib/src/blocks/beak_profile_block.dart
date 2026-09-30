@@ -11,11 +11,11 @@ part of 'beak_block.dart';
 /// BeakProfileBlock(
 ///   model: const UserModel(),
 ///   recordId: 'u-1',
-///   nameField: UserColumns.name,
-///   roleField: UserColumns.role,
-///   avatarField: UserColumns.avatarUrl,
-///   emailField: UserColumns.email,
-///   bioField: UserColumns.bio,
+///   nameField: UserModel.name.column,
+///   roleField: UserModel.role.column,
+///   avatarField: UserModel.avatarUrl.column,
+///   emailField: UserModel.email.column,
+///   bioField: UserModel.bio.column,
 /// );
 /// ```
 final class BeakProfileBlock extends BeakBlock {

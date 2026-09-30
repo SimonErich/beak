@@ -8,33 +8,90 @@ import 'package:obers_ui_autoforms/obers_ui_autoforms.dart';
 import '../../support/panel_fixtures.dart';
 
 void main() {
+  test('inputCombobox takes the same live options as the other lookups', () {
+    const category = BeakToOneField(
+      model: ArticleModel(),
+      relation: ArticleRelations.category,
+      target: LabelModel(),
+    );
+    String? guidance(BeakFormReader state) => 'Pick one';
+    String? refuse(BeakRecord option, BeakFormReader state) => 'Taken';
+
+    final input = category.inputCombobox(
+      dependencies: const [category],
+      descriptionBuilder: guidance,
+      disabledReason: refuse,
+    );
+
+    expect(input.dependencies, const [category]);
+    expect(input.descriptionBuilder, same(guidance));
+    expect(input.disabledReason, same(refuse));
+  });
+
+  test('the tabs projection keeps a section\'s trailing and spacing', () {
+    final trailing = BeakValueBinding<Object>.field(
+      const BeakScalarField<String>(
+        model: ArticleModel(),
+        column: ArticleColumns.title,
+      ),
+    );
+    final sections = BeakFormSections(
+      sections: [
+        BeakSection(
+          title: 'Basics',
+          trailing: trailing,
+          divider: true,
+          dividerAfterSpacingInPixels: 12,
+          children: const [],
+        ),
+      ],
+    );
+
+    expect(
+      sections.tabs.tabs.single.children.single,
+      isA<BeakSection>()
+          .having((section) => section.trailing, 'trailing', same(trailing))
+          .having((section) => section.divider, 'divider', isTrue)
+          .having(
+            (section) => section.dividerAfterSpacingInPixels,
+            'dividerAfterSpacingInPixels',
+            12,
+          ),
+    );
+  });
+
   // A structured layout: a Basics card plus a Pricing card, exactly the shape
   // a detail screen would use — reused here to drive the form.
-  const layout = BeakColumnBlock(
+  final layout = BeakFormLayout(
     children: [
-      BeakCardBlock(
+      BeakCard(
         title: 'Basics',
-        child: BeakColumnBlock(
-          children: [
-            BeakFieldBlock(ArticleColumns.title),
-            BeakFieldBlock(ArticleColumns.summary),
-          ],
-        ),
+        children: [
+          const BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.title,
+          ).input(),
+          const BeakScalarField<String>(
+            model: ArticleModel(),
+            column: ArticleColumns.summary,
+          ).input(),
+        ],
       ),
-      BeakCardBlock(
+      BeakCard(
         title: 'Pricing',
-        child: BeakFieldGroupBlock([
-          ArticleColumns.price,
-          ArticleColumns.stock,
-        ]),
+        children: [
+          const BeakScalarField<double>(
+            model: ArticleModel(),
+            column: ArticleColumns.price,
+          ).input(),
+          const BeakScalarField<int>(
+            model: ArticleModel(),
+            column: ArticleColumns.stock,
+          ).input(),
+        ],
       ),
     ],
   );
-
-  test('beakFormColumnsOf collects the layout fields in order', () {
-    final keys = [for (final c in beakFormColumnsOf(layout)) c.key];
-    expect(keys, ['title', 'summary', 'price', 'stock']);
-  });
 
   testWidgets('a layout form renders inputs inside the structured cards', (
     tester,
@@ -46,7 +103,7 @@ void main() {
     await tester.pumpWidget(
       OiApp(
         theme: OiThemeData.light(),
-        home: BeakDataForm(
+        home: BeakConfiguredForm(
           model: const ArticleModel(),
           dataSource: dataSource,
           layout: layout,
@@ -62,7 +119,7 @@ void main() {
     // …and the field blocks rendered *inputs*, not read-only values.
     expect(find.byType(OiAfTextInput<Enum>), findsWidgets);
     expect(find.byType(OiAfNumberInput<Enum>), findsNWidgets(2));
-    expect(find.byType(OiAfSubmitButton<Enum, BeakRecord>), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
     // A column absent from the layout registered no field, so no select shows.
     expect(find.byType(OiAfSelect<Enum, Enum>), findsNothing);
   });

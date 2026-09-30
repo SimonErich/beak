@@ -1,8 +1,11 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+import 'package:worm/worm.dart';
+import 'package:worm_postgres/worm_postgres.dart';
 import 'package:worm_sqlite/worm_sqlite.dart';
 
-import '../commands/introspect_command.dart';
+import '../project/beak_dotenv.dart';
 import 'beak_schema_introspection.dart';
 import 'postgres_introspector.dart';
 import 'sqlite_introspector.dart';
@@ -25,7 +28,7 @@ bool beakIsSqliteUrl(Uri url) => url.scheme == 'sqlite' || url.scheme == 'file';
 
 /// Whether Beak can read the schema of the database [url] names.
 bool beakCanReadSchema(Uri url) =>
-    isIntrospectableUrl(url) || beakSqliteFileOf(url) != null;
+    _isPostgresUrl(url) || beakSqliteFileOf(url) != null;
 
 /// The file a SQLite [url] names, or `null` when it names something else.
 ///
@@ -93,9 +96,9 @@ Future<List<IntrospectedTable>> beakReadLiveSchema(
     }
   }
   final (BeakSqlReader query, Future<void> Function() close) =
-      await openPostgresConnection(url);
+      await _openPostgres(url);
   try {
-    return await PostgresIntrospector(query).read();
+    return await PostgresIntrospector(query, schema: schema).read();
   } finally {
     await close();
   }
@@ -121,19 +124,50 @@ bool beakSqliteFileExists(Uri url, Directory root) {
 /// configured.
 const String defaultSqliteUrl = 'sqlite:beak.db';
 
-/// The `DATABASE_URL` from the project's `.env`, when it declares one.
-Uri? beakDatabaseUrlOf(Directory root) {
-  final env = File('${root.path}/.env');
-  if (!env.existsSync()) {
-    return null;
+/// [text] read as a database URL, or `null` when it is not one.
+///
+/// [Uri.parse] removes the dot segments of a path, so `sqlite:../legacy.db`
+/// arrives as `sqlite:legacy.db` and `sqlite:./a/../b.db` as `sqlite:/b.db`:
+/// the file is somewhere else than the URL says. A relative SQLite path with a
+/// dot segment in it is therefore resolved against [root] here, before it
+/// becomes a [Uri], and comes out absolute, which has none left to lose.
+Uri? beakParseDatabaseUrl(String text, Directory root) {
+  final String trimmed = text.trim();
+  final RegExpMatch? sqlite = RegExp(
+    r'^(?:sqlite|file):(?!//)(.*)$',
+  ).firstMatch(trimmed);
+  final String? path = sqlite?.group(1);
+  if (path != null &&
+      path.isNotEmpty &&
+      !path.contains(':memory:') &&
+      !beakIsAbsolutePath(path) &&
+      path.split('/').any((segment) => segment == '.' || segment == '..')) {
+    final String resolved = p.normalize(
+      p.join(root.absolute.path, Uri.decodeFull(path)),
+    );
+    // As in [beakResolvedDatabaseUrl]: `%` is escaped so that decoding gives
+    // the path back.
+    return Uri(scheme: 'sqlite', path: resolved.replaceAll('%', '%25'));
   }
-  for (final line in env.readAsLinesSync()) {
-    final match = RegExp(r'^\s*DATABASE_URL\s*=\s*(\S+)\s*$').firstMatch(line);
-    if (match != null) {
-      return Uri.tryParse(match.group(1)!);
-    }
-  }
-  return null;
+  return Uri.tryParse(trimmed);
+}
+
+/// The `DATABASE_URL` the project's server would use, when one is set.
+///
+/// From the process environment, or failing that the project's `.env`: the
+/// order the server reads them in. `null` means neither sets it, and the
+/// default SQLite file applies.
+Uri? beakDatabaseUrlOf(
+  Directory root, {
+  required Map<String, String> processEnvironment,
+}) {
+  final String? value = BeakDotenv.resolve(
+    root,
+    processEnvironment: processEnvironment,
+  )['DATABASE_URL'];
+  return value == null || value.isEmpty
+      ? null
+      : beakParseDatabaseUrl(value, root);
 }
 
 /// [url] with a relative SQLite path made absolute against [root].
@@ -153,4 +187,38 @@ Uri beakResolvedDatabaseUrl(Uri url, Directory root) {
   // [Uri.decodeFull] the exact inverse.
   final String escaped = '${root.path}/$file'.replaceAll('%', '%25');
   return Uri(scheme: 'sqlite', path: escaped);
+}
+
+/// Whether [url] names a Postgres server.
+bool _isPostgresUrl(Uri url) =>
+    const {'postgres', 'postgresql'}.contains(url.scheme);
+
+/// Connects to the Postgres server [url] names, returning a reader over the
+/// connection and the function that closes it.
+Future<(BeakSqlReader, Future<void> Function())> _openPostgres(Uri url) async {
+  final String? userInfo = url.userInfo.isEmpty ? null : url.userInfo;
+  final int separator = userInfo?.indexOf(':') ?? -1;
+  final adapter = PostgresAdapter(
+    pool: PostgresConnectionPool.fromConfig(
+      ConnectionConfig(
+        driver: 'postgres',
+        host: url.host,
+        port: url.hasPort ? url.port : 5432,
+        database: url.pathSegments.isEmpty
+            ? 'postgres'
+            : url.pathSegments.first,
+        username: userInfo == null
+            ? null
+            : Uri.decodeComponent(
+                separator < 0 ? userInfo : userInfo.substring(0, separator),
+              ),
+        password: userInfo == null || separator < 0
+            ? null
+            : Uri.decodeComponent(userInfo.substring(separator + 1)),
+        useSsl: url.queryParameters['sslmode'] == 'require',
+      ),
+    ),
+  );
+  await adapter.connect();
+  return ((String sql) => adapter.rawQuery(sql, const []), adapter.disconnect);
 }

@@ -1,6 +1,40 @@
+import 'package:path/path.dart' as p;
+
 import '../field_spec.dart';
+import '../inflection.dart';
 import '../project/beak_emitters.dart';
+import '../schema/beak_reserved_names.dart';
 import 'beak_schema_introspection.dart';
+
+/// Where introspected schema files are laid out.
+///
+/// Both are relative to whichever directory the command writes into.
+enum BeakIntrospectionLayout {
+  /// One folder per table, the layout `beak make:resource` writes:
+  /// `<table>/models/<name>.dart`, relative to `lib/resources`.
+  ///
+  /// A database enum sits in the folder of the first table (by name) that
+  /// uses it, and the other tables import it from there.
+  featureFolders,
+
+  /// Every file side by side in one directory: `<name>.dart`.
+  flat,
+}
+
+/// Who owns the schema of the database `beak introspect` reads.
+///
+/// The answer decides whether `beak prepare` and `beak migrate` may ever touch
+/// it, so it is a choice the user makes rather than something guessed.
+enum BeakIntrospectionOwnership {
+  /// Beak takes the schema over. The classes own their tables, and a
+  /// baseline migration records that they already exist: on this database it
+  /// changes nothing, and on an empty one it builds them.
+  adopt,
+
+  /// Another system keeps the schema. The classes are marked
+  /// `managesSchema: false`, and Beak writes no migration for them.
+  external,
+}
 
 /// One generated model file, and anything worth telling the user about it.
 final class IntrospectedSchemaFile {
@@ -13,7 +47,8 @@ final class IntrospectedSchemaFile {
     this.notes = const [],
   });
 
-  /// Path relative to the output directory.
+  /// Path relative to the output directory, in the chosen
+  /// [BeakIntrospectionLayout].
   final String path;
 
   /// The Dart source.
@@ -41,23 +76,159 @@ abstract final class BeakIntrospectionEmitter {
   /// Pivot tables are folded into the relationships they represent rather
   /// than becoming resources of their own, and each database enum becomes one
   /// Dart enum file the resources that use it import.
-  static List<IntrospectedSchemaFile> emitAll(List<IntrospectedTable> tables) {
-    final resources = [
-      for (final table in tables)
-        if (!table.isPivot && !introspectionSkipTables.contains(table.name))
-          table,
-    ];
-    final pivots = [
-      for (final table in tables)
-        if (table.isPivot) table,
-    ];
+  ///
+  /// [layout] decides where each file goes, and so how the files import one
+  /// another. The default is the feature-folder layout every scaffolded
+  /// project uses.
+  static List<IntrospectedSchemaFile> emitAll(
+    List<IntrospectedTable> tables, {
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+    BeakIntrospectionOwnership ownership = BeakIntrospectionOwnership.adopt,
+  }) {
+    final resources = _resourcesOf(tables);
+    final pivots = _pivotsIn(tables);
     final byTable = {for (final table in resources) table.name: table};
 
     return [
-      ...emitEnums(resources),
+      ...emitEnums(resources, layout: layout),
       for (final table in resources)
-        emit(table, byTable: byTable, pivots: pivots),
+        emit(
+          table,
+          byTable: byTable,
+          pivots: pivots,
+          layout: layout,
+          ownership: ownership,
+        ),
     ];
+  }
+
+  /// The tables of [tables] that become resources: not a join table, and not
+  /// migration bookkeeping.
+  static List<IntrospectedTable> _resourcesOf(List<IntrospectedTable> tables) =>
+      [
+        for (final table in tables)
+          if (!table.isPivot && !introspectionSkipTables.contains(table.name))
+            table,
+      ];
+
+  /// The join tables of [tables], which become relationships.
+  static List<IntrospectedTable> _pivotsIn(List<IntrospectedTable> tables) => [
+    for (final table in tables)
+      if (table.isPivot) table,
+  ];
+
+  /// The source of the migration that adopts the database [tables] describe.
+  ///
+  /// A `BeakBaselineMigration` listing every resource model in foreign-key
+  /// order and every many-to-many pivot, so that on the database the classes
+  /// were read from it changes nothing and is recorded as applied, and on an
+  /// empty database it builds all of it.
+  ///
+  /// [migrationName] is the migration's `name`, and [schemaRoot] the
+  /// directory the schema files were written to, relative to
+  /// `lib/migrations/`, which is where the migration itself is written.
+  static String emitBaseline(
+    List<IntrospectedTable> tables, {
+    required String migrationName,
+    required String schemaRoot,
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+  }) {
+    final resources = _inForeignKeyOrder(_resourcesOf(tables));
+    final pivots = _pivotsIn(tables);
+    final byTable = {for (final table in resources) table.name: table};
+
+    final declaredPivots = <String>[];
+    final seenPivotTables = <String>{};
+    for (final table in resources) {
+      for (final pivot in _pivotsFor(table, pivots)) {
+        final String? other = _otherSideOf(pivot, table);
+        if (other == null ||
+            !byTable.containsKey(other) ||
+            !seenPivotTables.add(pivot.name)) {
+          continue;
+        }
+        declaredPivots.add(
+          '${classNameOf(table.name)}Relations.${camelCaseOf(other)}',
+        );
+      }
+    }
+
+    final imports = [
+      for (final table in resources)
+        "import '$schemaRoot/${_tablePath(table.name, layout)}';",
+    ]..sort();
+    final buffer = StringBuffer()
+      ..writeln("import 'package:beak/migrations.dart';")
+      ..writeln();
+    imports.forEach(buffer.writeln);
+    buffer
+      ..writeln()
+      ..writeln('/// Brings the tables `beak introspect` read under Beak.')
+      ..writeln('///')
+      ..writeln(
+        '/// Where the tables already exist this changes nothing and is',
+      )
+      ..writeln('/// recorded as applied; on an empty database it creates them')
+      ..writeln('/// from the models. It never alters a table that is there.')
+      ..writeln(
+        'final class AdoptExistingSchema extends BeakBaselineMigration {',
+      )
+      ..writeln('  /// Creates the migration.')
+      ..writeln('  const AdoptExistingSchema();')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln("  String get name => '$migrationName';")
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  List<BeakModel> get models => const [');
+    for (final table in resources) {
+      buffer.writeln('    ${classNameOf(table.name)}Model(),');
+    }
+    buffer.writeln('  ];');
+    if (declaredPivots.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('  @override')
+        ..writeln(
+          '  List<BeakBelongsToMany> get pivots => const '
+          '[${declaredPivots.join(', ')}];',
+        );
+    }
+    buffer.writeln('}');
+    return BeakEmitters.format(buffer.toString());
+  }
+
+  /// [resources] ordered so a table follows every table it references.
+  ///
+  /// A stable walk. Tables that reference each other cannot both follow the
+  /// other, so the walk lists the one it reaches second first, and the
+  /// migration leaves out the foreign key that would point forward.
+  static List<IntrospectedTable> _inForeignKeyOrder(
+    List<IntrospectedTable> resources,
+  ) {
+    final byName = {for (final table in resources) table.name: table};
+    final ordered = <IntrospectedTable>[];
+    final placed = <String>{};
+
+    void visit(IntrospectedTable table, Set<String> visiting) {
+      if (placed.contains(table.name) || !visiting.add(table.name)) {
+        return;
+      }
+      for (final fk in table.foreignKeys) {
+        if (byName[fk.referencedTable] case final IntrospectedTable target) {
+          visit(target, visiting);
+        }
+      }
+      visiting.remove(table.name);
+      if (placed.add(table.name)) {
+        ordered.add(table);
+      }
+    }
+
+    for (final table in resources) {
+      visit(table, <String>{});
+    }
+    return ordered;
   }
 
   /// One Dart enum file per database enum the [resources] actually use.
@@ -66,8 +237,9 @@ abstract final class BeakIntrospectionEmitter {
   /// generated project has a single source of truth for the labels — the same
   /// thing a human would have written.
   static List<IntrospectedSchemaFile> emitEnums(
-    List<IntrospectedTable> resources,
-  ) {
+    List<IntrospectedTable> resources, {
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+  }) {
     final byType = <String, List<String>>{};
     for (final table in resources) {
       for (final column in table.columns) {
@@ -77,20 +249,66 @@ abstract final class BeakIntrospectionEmitter {
         }
       }
     }
+    final owners = _enumOwners(resources);
     return [
       for (final entry
           in byType.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-        _emitEnum(entry.key, entry.value),
+        _emitEnum(
+          entry.key,
+          entry.value,
+          path: _enumPath(entry.key, owners[entry.key], layout),
+        ),
     ];
   }
 
-  static IntrospectedSchemaFile _emitEnum(String type, List<String> values) {
+  /// The first table, by name, that uses each enum type.
+  ///
+  /// Two tables sharing `order_status` share the one declaration, and it has
+  /// to live in one feature folder. Choosing by name keeps the choice the
+  /// same however the database happens to order its tables.
+  static Map<String, String> _enumOwners(Iterable<IntrospectedTable> tables) {
+    final owners = <String, String>{};
+    for (final table in [...tables]..sort((a, b) => a.name.compareTo(b.name))) {
+      for (final column in table.columns) {
+        if (column.enumTypeName case final String type
+            when column.enumValues.isNotEmpty && _isRepresentable(column)) {
+          owners.putIfAbsent(type, () => table.name);
+        }
+      }
+    }
+    return owners;
+  }
+
+  /// Where the schema class of the table [table] is written.
+  static String _tablePath(String table, BeakIntrospectionLayout layout) =>
+      switch (layout) {
+        BeakIntrospectionLayout.featureFolders =>
+          '$table/models/${fileNameOf(table)}.dart',
+        BeakIntrospectionLayout.flat => '${fileNameOf(table)}.dart',
+      };
+
+  /// Where the enum [type], first used by [owner], is written.
+  static String _enumPath(
+    String type,
+    String? owner,
+    BeakIntrospectionLayout layout,
+  ) => switch (layout) {
+    BeakIntrospectionLayout.featureFolders when owner != null =>
+      '$owner/models/${_snake(type)}.dart',
+    _ => '${_snake(type)}.dart',
+  };
+
+  static IntrospectedSchemaFile _emitEnum(
+    String type,
+    List<String> values, {
+    required String path,
+  }) {
     final String className = pascalCaseOf(type);
     final buffer = StringBuffer()
       ..writeln('/// The values the `$type` database enum defines.')
       ..writeln('///')
       ..writeln('/// Stored by name, so renaming a value here renames it in')
-      ..writeln('/// every row — change the database with a migration first.')
+      ..writeln('/// every row, so change the database with a migration first.')
       ..writeln('enum $className {');
     for (final value in values) {
       buffer
@@ -100,21 +318,29 @@ abstract final class BeakIntrospectionEmitter {
     }
     buffer.writeln('}');
     return IntrospectedSchemaFile(
-      path: '${_snake(type)}.dart',
+      path: path,
       contents: BeakEmitters.format(buffer.toString()),
       className: className,
       table: type,
     );
   }
 
-  /// The schema file for one [table].
+  /// The schema file for one [table], laid out and importing its neighbours
+  /// as [layout] says.
   static IntrospectedSchemaFile emit(
     IntrospectedTable table, {
     required Map<String, IntrospectedTable> byTable,
     required List<IntrospectedTable> pivots,
+    BeakIntrospectionLayout layout = BeakIntrospectionLayout.featureFolders,
+    BeakIntrospectionOwnership ownership = BeakIntrospectionOwnership.adopt,
   }) {
     final notes = <String>[];
     final String className = classNameOf(table.name);
+    final String ownPath = _tablePath(table.name, layout);
+    final owners = _enumOwners(byTable.values);
+    // What this file imports, as a path relative to the file itself.
+    String importOf(String path) =>
+        p.posix.relative(path, from: p.posix.dirname(ownPath));
     final buffer = StringBuffer()
       ..writeln("import 'package:beak/beak.dart';")
       ..writeln("import 'package:beak/schema.dart';");
@@ -122,15 +348,15 @@ abstract final class BeakIntrospectionEmitter {
     final relatedImports = <String>{
       for (final fk in table.foreignKeys)
         if (byTable.containsKey(fk.referencedTable))
-          '${fileNameOf(fk.referencedTable)}.dart',
+          _tablePath(fk.referencedTable, layout),
       for (final pivot in _pivotsFor(table, pivots))
         if (_otherSideOf(pivot, table) case final String other)
-          if (byTable.containsKey(other)) '${fileNameOf(other)}.dart',
+          if (byTable.containsKey(other)) _tablePath(other, layout),
       for (final column in table.columns)
         if (column.enumTypeName case final String type
             when _isRepresentable(column))
-          '${_snake(type)}.dart',
-    }..remove('${fileNameOf(table.name)}.dart');
+          _enumPath(type, owners[type], layout),
+    }.map(importOf).toSet()..remove(importOf(ownPath));
     if (relatedImports.isNotEmpty) {
       buffer.writeln();
       for (final import in relatedImports.toList()..sort()) {
@@ -144,6 +370,11 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln()
       ..writeln('/// The ${table.name} resource, read from the database.')
       ..writeln('@Resource(');
+    // Something else created the table and keeps it. Owning its schema would
+    // have `beak prepare` write a create migration for a table that exists.
+    if (ownership == BeakIntrospectionOwnership.external) {
+      buffer.writeln('  managesSchema: false,');
+    }
     if (table.name != tableNameOf(className)) {
       buffer.writeln("  table: '${table.name}',");
     }
@@ -158,18 +389,63 @@ abstract final class BeakIntrospectionEmitter {
       ..writeln('final class $className extends BeakSchema {');
 
     final foreignKeyColumns = {for (final fk in table.foreignKeys) fk.column};
-    var wroteDisplay = false;
+    final String? displayColumn = _displayColumnOf(table, foreignKeyColumns);
+    // A serial key is declared as the integer it is. The server mints a string
+    // id only for a string key and leaves an integer one to the database, and
+    // every foreign key that points here takes the key's type.
+    if (_hasIntegerKey(table)) {
+      buffer
+        ..writeln('  /// The primary key.')
+        ..writeln('  late final int? id;')
+        ..writeln();
+    }
+    // Field names claimed so far. Two columns can spell one field (`firstName`
+    // and `first_name`), and a column can spell the field a relationship
+    // takes, so the relationships claim theirs first and a later column that
+    // wants a taken name gets a number.
+    final used = <String>{if (_hasIntegerKey(table)) 'id'};
+    String claim(String wanted) {
+      var name = wanted;
+      for (var number = 2; !used.add(name); number++) {
+        name = '$wanted$number';
+      }
+      return name;
+    }
+
+    final relationFields = <String, String>{
+      for (final fk in table.foreignKeys)
+        if (byTable.containsKey(fk.referencedTable))
+          fk.column: claim(
+            _fieldNameOf(
+              fk.column.endsWith('_id')
+                  ? fk.column.substring(0, fk.column.length - 3)
+                  : fk.column,
+            ),
+          ),
+    };
+    final pivotFields = <String, String>{
+      for (final pivot in _pivotsFor(table, pivots))
+        if (_otherSideOf(pivot, table) case final String other)
+          if (byTable.containsKey(other)) pivot.name: claim(camelCaseOf(other)),
+    };
+    if (_columnNamed(table, 'id') == null) {
+      notes.add(
+        '${table.name} has no `id` column${_keyClauseOf(table)}, but Beak '
+        'keys a record by `id`: the table cannot be read or written until it '
+        'has one',
+      );
+    }
     for (final column in table.columns) {
       if (column.name == table.primaryKey ||
           foreignKeyColumns.contains(column.name) ||
-          const {
-            'created_at',
-            'updated_at',
-            'deleted_at',
-          }.contains(column.name)) {
+          // The annotation adds them, so only when it does: a table with a
+          // `created_at` and no `updated_at` keeps the column it has.
+          (table.timestamps &&
+              const {'created_at', 'updated_at'}.contains(column.name)) ||
+          (table.softDeletes && column.name == 'deleted_at')) {
         continue;
       }
-      if (introspectionSecretColumns.contains(column.name)) {
+      if (isSecretColumnName(column.name)) {
         notes.add(
           '${table.name}.${column.name} looks like a secret and was omitted; '
           'add it deliberately if the panel really should show it',
@@ -192,20 +468,25 @@ abstract final class BeakIntrospectionEmitter {
           'cannot be a Dart enum value; it was read as text',
         );
       }
-      final bool isDisplay = !wroteDisplay && _isDisplayCandidate(column);
-      wroteDisplay = wroteDisplay || isDisplay;
-
+      if (_isNumeric(column)) {
+        notes.add(
+          '${table.name}.${column.name} is ${_numericTypeOf(column)}, read as '
+          'a double, which can round. An exact amount is a BeakDecimal, which '
+          'Beak stores as integer units, so switching means converting the '
+          'column in a migration',
+        );
+      }
       buffer.writeln('  /// ${_labelOf(column.name)}.');
-      if (isDisplay) {
+      if (column.name == displayColumn) {
         buffer.writeln('  @Display()');
       }
-      buffer.writeln('  @Column(${_columnOptionsOf(column).join(', ')})');
+      final String field = claim(_fieldNameOf(column.name));
+      buffer.writeln(
+        '  @Column(${_columnOptionsOf(column, field: field).join(', ')})',
+      );
       final bool nullable = column.isNullable || column.hasDefault;
       buffer
-        ..writeln(
-          '  late final $type${nullable ? '?' : ''} '
-          '${camelCaseOf(column.name)};',
-        )
+        ..writeln('  late final $type${nullable ? '?' : ''} $field;')
         ..writeln();
     }
 
@@ -218,17 +499,16 @@ abstract final class BeakIntrospectionEmitter {
         );
         continue;
       }
-      final String field = camelCaseOf(
-        fk.column.endsWith('_id')
-            ? fk.column.substring(0, fk.column.length - 3)
-            : fk.column,
-      );
+      final String field = relationFields[fk.column]!;
       final IntrospectedColumn? column = _columnNamed(table, fk.column);
       buffer
-        ..writeln('  /// The ${_labelOf(fk.referencedTable)} this belongs to.')
+        ..writeln(
+          '  /// The ${_labelOf(singularOf(fk.referencedTable))} this belongs '
+          'to.',
+        )
         ..writeln(
           '  @BelongsTo('
-          "${fk.column == '${_snake(field)}_id' ? '' : "foreignKey: '${fk.column}'"}"
+          "${fk.column == '${snakeCaseOf(field)}_id' ? '' : "foreignKey: '${fk.column}'"}"
           ')',
         )
         ..writeln(
@@ -244,7 +524,7 @@ abstract final class BeakIntrospectionEmitter {
       if (related == null) {
         continue;
       }
-      final String field = camelCaseOf(related.name);
+      final String field = pivotFields[pivot.name]!;
       buffer
         ..writeln('  /// The ${_labelOf(related.name)} linked to this record.')
         ..writeln("  @BelongsToMany(pivotTable: '${pivot.name}')")
@@ -255,7 +535,7 @@ abstract final class BeakIntrospectionEmitter {
     buffer.writeln('}');
 
     return IntrospectedSchemaFile(
-      path: '${fileNameOf(table.name)}.dart',
+      path: ownPath,
       contents: BeakEmitters.format(buffer.toString()),
       className: className,
       table: table.name,
@@ -270,7 +550,13 @@ abstract final class BeakIntrospectionEmitter {
   /// is queried, and dropping it on the way through would hand back a schema
   /// that looks right and runs slowly. Foreign keys never reach here — the
   /// relationship declares them, and Beak indexes every one unasked.
-  static List<String> _columnOptionsOf(IntrospectedColumn column) => [
+  static List<String> _columnOptionsOf(
+    IntrospectedColumn column, {
+    required String field,
+  }) => [
+    // The reader gives a field the column its name snake-cases to, so a column
+    // the database spells otherwise has to be named.
+    if (snakeCaseOf(field) != column.name) "columnName: '${column.name}'",
     if (_isDisplayCandidate(column) || column.dataType == 'text')
       'searchable: true',
     if (_isSortable(column)) 'sortable: true',
@@ -278,7 +564,6 @@ abstract final class BeakIntrospectionEmitter {
       'filterable: true',
     if (column.isIndexed && !column.isUnique) 'indexed: true',
     if (column.isUnique) 'unique: true',
-    if (_lengthOf(column) case final int length) 'maxLength: $length',
     ..._numericWidthOf(column),
     if (_extraRulesOf(column) case final String rules) 'rules: [$rules]',
   ];
@@ -351,14 +636,16 @@ abstract final class BeakIntrospectionEmitter {
       RegExp(r'^[a-z_][A-Za-z0-9_]*$').hasMatch(value) &&
       !_dartReservedWords.contains(value);
 
-  /// The reserved words that cannot be an enum constant name.
+  /// The words that cannot be an enum constant name: the ones Dart reserves,
+  /// and the members every enum already declares.
   static const Set<String> _dartReservedWords = {
-    'assert', 'break', 'case', 'catch', 'class', 'const', 'continue',
-    'default', 'do', 'else', 'enum', 'extends', 'false', 'final', 'finally',
-    'for', 'if', 'in', 'is', 'new', 'null', 'rethrow', 'return', 'super',
-    'switch', 'this', 'throw', 'true', 'try', 'var', 'void', 'while', 'with',
-    // Not reserved, but every enum already declares them.
-    'index', 'values', 'hashCode', 'runtimeType', 'toString', 'noSuchMethod',
+    ...BeakReservedNames.dartKeywords,
+    'index',
+    'values',
+    'hashCode',
+    'runtimeType',
+    'toString',
+    'noSuchMethod',
   };
 
   /// Whether [dataType] is a string column, and so could be a storage key.
@@ -370,15 +657,53 @@ abstract final class BeakIntrospectionEmitter {
     'citext',
   }.contains(dataType);
 
+  /// The columns that name a record, best first.
+  ///
+  /// A picker or a relation shows this column in place of an id, so the
+  /// convention is worth guessing: `name` says what a thing is called more
+  /// often than `title` does, and a person's `email` says more than a `code`.
+  static const List<String> _displayNames = [
+    'name',
+    'title',
+    'label',
+    'email',
+    'code',
+    'subject',
+  ];
+
+  /// Whether [column] holds text a person could recognise a record by.
+  ///
+  /// Text is `String` for a `varchar` and `BeakText` for a `text`, and SQLite
+  /// declares nearly every string as `TEXT`, so requiring `String` left the
+  /// zero-setup default without a single display column.
   static bool _isDisplayCandidate(IntrospectedColumn column) =>
-      const {
-        'name',
-        'title',
-        'label',
-        'email',
-        'subject',
-      }.contains(column.name) &&
-      _dartTypeOf(column) == 'String';
+      _displayNames.contains(column.name) &&
+      const {'String', 'BeakText'}.contains(_dartTypeOf(column));
+
+  /// The column of [table] the schema class marks `@Display()`, or `null`
+  /// when none of its columns is a candidate.
+  ///
+  /// The best-named candidate wins wherever it sits in the table. Declaration
+  /// order alone would pick the `code` that happens to come first over the
+  /// `name` beside it.
+  static String? _displayColumnOf(
+    IntrospectedTable table,
+    Set<String> foreignKeyColumns,
+  ) {
+    final Set<String> candidates = {
+      for (final column in table.columns)
+        if (column.name != table.primaryKey &&
+            !foreignKeyColumns.contains(column.name) &&
+            _isDisplayCandidate(column))
+          column.name,
+    };
+    for (final name in _displayNames) {
+      if (candidates.contains(name)) {
+        return name;
+      }
+    }
+    return null;
+  }
 
   static bool _isSortable(IntrospectedColumn column) => const {
     'integer',
@@ -437,6 +762,28 @@ abstract final class BeakIntrospectionEmitter {
     };
   }
 
+  /// Whether [table]'s primary key is a serial `id` column.
+  static bool _hasIntegerKey(IntrospectedTable table) {
+    final IntrospectedColumn? key = _columnNamed(table, table.primaryKey);
+    return key != null &&
+        key.name == 'id' &&
+        const {'integer', 'bigint', 'smallint'}.contains(key.dataType);
+  }
+
+  /// Whether [column] is a fixed-point `numeric` or `decimal`.
+  static bool _isNumeric(IntrospectedColumn column) =>
+      const {'numeric', 'decimal'}.contains(column.dataType);
+
+  /// `numeric(12,2)`, or `numeric` when the database declares no width.
+  static String _numericTypeOf(IntrospectedColumn column) {
+    final int? precision = column.numericPrecision;
+    final int? scale = column.numericScale;
+    if (precision == null) {
+      return column.dataType;
+    }
+    return '${column.dataType}($precision${scale == null ? '' : ',$scale'})';
+  }
+
   static IntrospectedColumn? _columnNamed(
     IntrospectedTable table,
     String name,
@@ -472,6 +819,56 @@ abstract final class BeakIntrospectionEmitter {
     return null;
   }
 
+  /// The Dart field a column is declared as: `lowerCamelCase`, and a name the
+  /// language can spell.
+  ///
+  /// A column another tool named `class`, `2fa` or `Email` still gets a field,
+  /// with its stored name kept by `columnName`; `record` is the name the typed
+  /// record view reserves.
+  static String _fieldNameOf(String column) {
+    final words = [
+      for (final word in column.split(RegExp('[^A-Za-z0-9]+')))
+        if (word.isNotEmpty) word,
+    ];
+    if (words.isEmpty) {
+      return 'field';
+    }
+    String lowered(String word) =>
+        word == word.toUpperCase() ? word.toLowerCase() : word;
+    String capitalised(String word) {
+      final String text = lowered(word);
+      return '${text[0].toUpperCase()}${text.substring(1)}';
+    }
+
+    final String first = lowered(words.first);
+    final String name = [
+      '${first[0].toLowerCase()}${first.substring(1)}',
+      for (final word in words.skip(1)) capitalised(word),
+    ].join();
+    if (RegExp('^[0-9]').hasMatch(name)) {
+      return 'field${name[0].toUpperCase()}${name.substring(1)}';
+    }
+    return BeakReservedNames.dartKeywords.contains(name) ||
+            BeakReservedNames.recordView.contains(name) ||
+            _objectMembers.contains(name)
+        ? '${name}Value'
+        : name;
+  }
+
+  /// The members every object has, which a field cannot take the name of.
+  static const Set<String> _objectMembers = {
+    'hashCode',
+    'runtimeType',
+    'toString',
+    'noSuchMethod',
+  };
+
+  /// `" (its primary key is `sku`)"`, or nothing when [table] has none.
+  static String _keyClauseOf(IntrospectedTable table) =>
+      _columnNamed(table, table.primaryKey) == null
+      ? ''
+      : ' (its primary key is `${table.primaryKey}`)';
+
   static String _labelOf(String name) {
     final words = name.split('_').where((word) => word.isNotEmpty);
     return words
@@ -488,7 +885,16 @@ abstract final class BeakIntrospectionEmitter {
 }
 
 /// `order_items` -> `OrderItem`, the conventional schema class name.
-String classNameOf(String table) => pascalCaseOf(_singularOf(table));
+///
+/// A table whose class name the generated code needs for something else
+/// (`lists`, `strings`, `resources`, `columns`, `schemas`) gets `Entry` after
+/// it, and `@Resource(table:)` says which table it is.
+String classNameOf(String table) {
+  final String name = pascalCaseOf(singularOf(table));
+  return BeakReservedNames.generatedCodeTypes.contains(name)
+      ? '${name}Entry'
+      : name;
+}
 
 /// `product_status` -> `ProductStatus`, without singularizing.
 ///
@@ -502,7 +908,7 @@ String pascalCaseOf(String snake) => snake
     .join();
 
 /// `order_items` -> `order_item`, the conventional file name.
-String fileNameOf(String table) => _singularOf(table);
+String fileNameOf(String table) => singularOf(table);
 
 /// `created_at` -> `createdAt`.
 String camelCaseOf(String snake) {
@@ -515,22 +921,4 @@ String camelCaseOf(String snake) {
           .skip(1)
           .map((part) => part[0].toUpperCase() + part.substring(1))
           .join();
-}
-
-String _singularOf(String table) {
-  if (table.endsWith('ies')) {
-    return '${table.substring(0, table.length - 3)}y';
-  }
-  if (table.endsWith('ses') ||
-      table.endsWith('xes') ||
-      table.endsWith('ches') ||
-      table.endsWith('shes')) {
-    return table.substring(0, table.length - 2);
-  }
-  // `status`, `address`, `class` and friends end in `s` but are already
-  // singular — stripping it produces `statu`, which no user would ever type.
-  if (table.endsWith('ss') || table.endsWith('us') || table.endsWith('is')) {
-    return table;
-  }
-  return table.endsWith('s') ? table.substring(0, table.length - 1) : table;
 }

@@ -47,19 +47,36 @@ void main() {
   });
 
   group('fromJson', () {
-    test('rejects JSON missing a key', () {
+    test('rejects JSON without the relation', () {
       expect(
         () => BeakRelationLoad.fromJson(const {'filter': null, 'nested': []}),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"relation"'),
+          ),
+        ),
+      );
+    });
+
+    test('loads the bare relation when filter and nested are omitted', () {
+      expect(
+        BeakRelationLoad.fromJson(const {'relation': 'a'}),
+        const BeakRelationLoad('a'),
       );
       expect(
-        () => BeakRelationLoad.fromJson(const {'relation': 'a', 'nested': []}),
-        throwsA(isA<BeakConfigurationException>()),
+        BeakRelationLoad.fromJson(const {'relation': 'a', 'nested': []}),
+        const BeakRelationLoad('a'),
       );
       expect(
-        () =>
-            BeakRelationLoad.fromJson(const {'relation': 'a', 'filter': null}),
-        throwsA(isA<BeakConfigurationException>()),
+        BeakRelationLoad.fromJson(const {
+          'relation': 'a',
+          'nested': [
+            {'relation': 'b'},
+          ],
+        }),
+        const BeakRelationLoad('a', nested: [BeakRelationLoad('b')]),
       );
     });
 
@@ -108,6 +125,29 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+
+    test(
+      'refuses loads nested too deeply instead of overflowing the stack',
+      () {
+        var load = <String, Object?>{'relation': 'a'};
+        for (var level = 0; level < 100000; level++) {
+          load = {
+            'relation': 'a',
+            'nested': [load],
+          };
+        }
+        expect(
+          () => BeakRelationLoad.fromJson(load),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (e) => e.message,
+              'message',
+              contains('nested'),
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('equality', () {

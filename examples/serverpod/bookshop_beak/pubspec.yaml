@@ -1,0 +1,17 @@
+name: bookshop_beak
+description: >-
+  Beak models for the bookshop (pure Dart, web-safe). Shared by
+  bookshop_server and bookshop_admin; depends on beak_core only.
+publish_to: none
+
+environment:
+  sdk: '^3.12.2'
+
+resolution: workspace
+
+dependencies:
+  beak_core:
+    path: ../../../packages/beak_core
+
+dev_dependencies:
+  lints: '>=3.0.0 <7.0.0'

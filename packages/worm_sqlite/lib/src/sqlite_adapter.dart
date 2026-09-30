@@ -20,7 +20,8 @@ import 'sqlite_transaction_adapter.dart';
 /// overlapping queries — eager loading already serialises inside a
 /// transaction. Outside one, the in-process engine has no network
 /// latency to hide, so concurrent loading is a no-op win here.
-final class SqliteAdapter extends DatabaseAdapter with ExplainCapable {
+final class SqliteAdapter extends DatabaseAdapter
+    with ExplainCapable, SchemaResetCapable {
   /// Creates an adapter over an already-open [database].
   ///
   /// [libraryVersion] overrides the version the linked library reports, which
@@ -112,6 +113,15 @@ final class SqliteAdapter extends DatabaseAdapter with ExplainCapable {
   @override
   Future<T> transaction<T>(Future<T> Function(DatabaseAdapter tx) action) =>
       _runner.runInTransaction(() => action(SqliteTransactionAdapter(_runner)));
+
+  /// Rebuilds cyclic schemas without disabling foreign-key enforcement.
+  /// SQLite resets this deferred-check pragma at commit or rollback.
+  @override
+  Future<T> resetSchema<T>(Future<T> Function(DatabaseAdapter) rebuild) =>
+      transaction((tx) async {
+        await tx.rawExecute('PRAGMA defer_foreign_keys = ON', const []);
+        return rebuild(tx);
+      });
 
   @override
   Future<void> executeSchema(SchemaDescriptor d) => _runner.executeSchema(d);

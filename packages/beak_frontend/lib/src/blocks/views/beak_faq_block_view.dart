@@ -10,47 +10,37 @@ class _BeakFaqBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
-    final records = useState(const <BeakRecord>[]);
+    final dataSource = beakDependencies(context)<BeakDataSource>();
+    final rows = _useModuleRows(
+      dataSource,
+      BeakQuerySpec(
+        table: block.model.table,
+        filter: block.filter,
+        sorts: [
+          if (block.sortField case final BeakColumn column)
+            BeakSort(column.key),
+        ],
+        pagination: _modulePage,
+      ),
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: block.model.table,
-            sorts: [
-              if (block.sortField case final BeakColumn column)
-                BeakSort(column.key),
-            ],
-            pagination: _modulePage,
-          ),
-        );
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
-    return OiHelpCenter(
-      label: block.label,
-      showContact: false,
-      showKnowledgeBase: false,
-      showFeedback: false,
-      faq: [
-        for (final record in records.value)
-          OiFaqItem(
-            question: _readString(record, block.questionField) ?? '',
-            answer: _readString(record, block.answerField) ?? '',
-            category: _readString(record, block.categoryField),
-          ),
-      ],
+    return _withTruncationNote(
+      context,
+      rows.value,
+      OiHelpCenter(
+        label: block.label,
+        showContact: false,
+        showKnowledgeBase: false,
+        showFeedback: false,
+        faq: [
+          for (final record in rows.value.records)
+            OiFaqItem(
+              question: _readString(record, block.questionField) ?? '',
+              answer: _readString(record, block.answerField) ?? '',
+              category: _readString(record, block.categoryField),
+            ),
+        ],
+      ),
     );
   }
 }

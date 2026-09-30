@@ -3,6 +3,6 @@ import 'package:test/test.dart';
 
 void main() {
   test('exposes the package version constant', () {
-    expect(beakBackendVersion, '0.0.1');
+    expect(beakBackendVersion, '0.9.0');
   });
 }

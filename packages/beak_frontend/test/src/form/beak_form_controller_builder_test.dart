@@ -1,5 +1,5 @@
 import 'package:beak_core/beak_core.dart';
-import 'package:beak_frontend/beak_frontend.dart';
+import 'package:beak_frontend/src/form/beak_form_controller_builder.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +14,59 @@ void main() {
     addTearDown(built.dispose);
     return built;
   }
+
+  test(
+    'prefill distinguishes absent defaults from explicit nullable values',
+    () {
+      final form = controller(const ArticleModel());
+      form.prefill(BeakRecord.fromRow({'status': null, 'title': 'First'}));
+      expect(form.valueOf<Object>(ArticleColumns.status), isNull);
+      form.setValue(ArticleColumns.title, 'Unsent title');
+      form.prefill(const BeakRecord(values: {}));
+      expect(form.valueOf<Object>(ArticleColumns.status), ArticleStatus.draft);
+      expect(form.valueOf<Object>(ArticleColumns.title), isNull);
+      expect(form.isDirty, isFalse);
+    },
+  );
+
+  group('a stored value the form cannot represent', () {
+    test('is not written back as null when it is left alone', () {
+      final form = controller(const ArticleModel())
+        ..prefill(
+          BeakRecord.fromRow({
+            'title': 'Kept',
+            // A member the enum no longer has, and a timestamp that is not one.
+            'status': 'archived',
+            'published_at': 'not a date',
+          }),
+        );
+      expect(form.valueOf<Object>(ArticleColumns.status), isNull);
+
+      form.setValue(ArticleColumns.title, 'Renamed');
+      final patch = form.buildData();
+
+      expect(patch['title'], const BeakStringValue('Renamed'));
+      expect(patch['status'], isNull);
+      expect(patch['published_at'], isNull);
+    });
+
+    test('is replaced once the user picks a value', () {
+      final form = controller(const ArticleModel())
+        ..prefill(BeakRecord.fromRow({'title': 'Kept', 'status': 'archived'}));
+
+      form.setValue(ArticleColumns.status, ArticleStatus.published);
+
+      expect(form.buildData()['status'], const BeakStringValue('published'));
+    });
+
+    test('is not remembered after the next prefill', () {
+      final form = controller(const ArticleModel())
+        ..prefill(BeakRecord.fromRow({'status': 'archived'}))
+        ..prefill(BeakRecord.fromRow({'status': null}));
+
+      expect(form.buildData()['status'], const BeakNullValue());
+    });
+  });
 
   group('field registration', () {
     test('registers a typed field per form column', () {
@@ -130,6 +183,35 @@ void main() {
   });
 
   group('buildData', () {
+    test('complete command mode includes untouched nulls', () {
+      final form = BeakFormController(
+        model: const ArticleModel(),
+        valueMode: BeakFormValueMode.complete,
+      );
+      addTearDown(form.dispose);
+      expect(form.buildData()['summary'], const BeakNullValue());
+    });
+
+    test('patch mode sends only changed fields including clears', () {
+      final form = BeakFormController(
+        model: const ArticleModel(),
+        valueMode: BeakFormValueMode.changes,
+      )..prefill(BeakRecord.fromRow({'title': 'Same', 'summary': 'Old'}));
+      addTearDown(form.dispose);
+      expect(form.buildData().values, isEmpty);
+      form.setValue<String>(ArticleColumns.summary, null);
+      expect(form.buildData().values, {'summary': const BeakNullValue()});
+    });
+    test('preserves cleared values and explicit nullable booleans', () {
+      final form = controller(const ArticleModel())
+        ..prefill(BeakRecord.fromRow({'summary': 'Old', 'active': null}))
+        ..setValue<String>(ArticleColumns.summary, null);
+
+      expect(form.buildData()['summary'], const BeakNullValue());
+      expect(form.buildData()['active'], const BeakNullValue());
+      expect(form.buildData()['body'], isNull);
+    });
+
     test('yields a typed record and omits unset values', () {
       final form = controller(const ArticleModel())
         ..setValue(ArticleColumns.title, 'Hello')

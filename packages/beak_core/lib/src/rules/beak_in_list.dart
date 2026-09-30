@@ -15,10 +15,12 @@ part of 'beak_rule.dart';
 /// ```
 final class BeakInList<T> extends BeakRule {
   /// Creates a rule accepting only values from [allowed].
+  // --8<-- [start:BeakInList]
   const BeakInList(this.allowed);
 
   /// The accepted values.
   final List<T> allowed;
+  // --8<-- [end:BeakInList]
 
   @override
   String get id => 'in_list';

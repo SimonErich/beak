@@ -113,6 +113,8 @@ MySQL has no partial (filtered) indexes and no `RETURNING` clause.
 | --- | --- | --- |
 | `1062`, `1169` | duplicate entry | `UniqueConstraintException` |
 | `1451`, `1452`, `1216`, `1217` | foreign-key violation | `ForeignKeyException` |
+| `1406`, `1264`, `1265`, `1292`, `1366` | data too long, out of range, truncated or incorrect value | `DataException` |
+| `1048`, `3819`, `4025` | column cannot be null, check constraint violated | `CheckConstraintException` |
 | `1205` | lock wait timeout | `TransactionException` |
 | `1213` | deadlock | `TransactionException` |
 | `1042`, `1043`, `1045`, `2002`, `2003`, `2006`, `2013` | connection failures | `ConnectionException` |

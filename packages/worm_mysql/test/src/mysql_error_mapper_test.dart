@@ -36,6 +36,26 @@ void main() {
       }
     });
 
+    test('a value too long, out of range or malformed → DataException', () {
+      for (final code in const <int>[1406, 1264, 1265, 1292, 1366]) {
+        expect(
+          MysqlErrorMapper.fromCode(code, message: 'bad value', column: 'name'),
+          isA<DataException>(),
+          reason: 'code $code',
+        );
+      }
+    });
+
+    test('NOT NULL and CHECK violations → CheckConstraintException', () {
+      for (final code in const <int>[1048, 3819, 4025]) {
+        expect(
+          MysqlErrorMapper.fromCode(code, message: 'rule', column: 'price'),
+          isA<CheckConstraintException>(),
+          reason: 'code $code',
+        );
+      }
+    });
+
     test('1213 deadlock and 1205 lock-wait map to TransactionException', () {
       expect(
         MysqlErrorMapper.fromCode(1213, message: 'deadlock'),

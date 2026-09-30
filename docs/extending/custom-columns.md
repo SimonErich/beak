@@ -1,211 +1,211 @@
 ---
 title: Custom columns
-description: Render a table or detail cell with any obers_ui widget by pairing a @Custom field with a registered renderer.
+description: Draw a table or detail cell with any obers_ui widget by marking a schema field with @Custom and registering a builder under its tag.
+type: guide
+audience: [expert]
+status: stable
 ---
 
 # Custom columns
 
-After this page you can render a cell that no built-in column covers (a
-sparkline, a bespoke status pill, a tiny inline chart) by putting `@Custom` on a
-field of your schema class and registering a builder for its tag in the panel.
+After this page you can render a cell that no built-in column covers (a leg band, a sparkline, a stock bar) and you know what such a column does not do.
 
-Twelve of Beak's [thirteen column types](../models/column-types.md) are picked
-by a field's Dart type: `String`, `int`, `DateTime`, an enum, a `BeakImageRef`.
-The thirteenth is the escape hatch. `@Custom` names a tag instead of a type, and
-hands the drawing to a builder you write.
+Twelve of Beak's thirteen column kinds follow from a field's Dart type: a `String` field becomes a string column, an enum field an enum column, a `BeakImageRef` an image column. The thirteenth, `BeakCustomColumn`, is the one you name yourself, because Beak cannot guess what a leg band looks like. `@Custom` carries a tag instead of a type, and the panel draws the cell with a builder you register under that tag.
+
+## At a glance
+
+A custom column is two edits, one on each side of the wire. The schema class declares the field, the panel registers the widget builder.
+
+```dart title="examples/showcase/lib/resources/specimens/models/specimen.dart"
+--8<-- "examples/showcase/lib/resources/specimens/models/specimen.dart:SpecimenBandCode"
+```
+
+```dart title="examples/showcase/lib/widgets/band_code_cell.dart"
+--8<-- "examples/showcase/lib/widgets/band_code_cell.dart:registerAviaryRenderers"
+```
+
+`SpecimenColumns.bandCode.tag` is the tag the generator wrote from `@Custom('band-code')`. You spell the string once, in the schema class, and everything else reads it from the generated column.
+
+| You write | Where | What Beak does with it |
+| --- | --- | --- |
+| `@Custom('tag')` on an `Object?` field | The schema class | `beak prepare` emits a `BeakCustomColumn` with that tag, a `text` column in the migration, and a typed field reference. |
+| `@Column(...)` beside it (optional) | The schema class | Sets `label`, `visibleOn`, `sortable` and the other options every column shares. |
+| `BeakCustomRenderers.register(tag, builder)` | Startup code of the panel | Table cells and detail fields call your builder for that column. |
 
 ## When to reach for it
 
-Reach for a custom column when the *display* of a value is bespoke, not when the
-value is unusual. A price is a `double` with `@Column(prefix: '€')`; a status is
-an enum with `@Badges`. But a 30-day trend drawn as a sparkline, or a stock
-level drawn as a bar rather than a number, has no typed column, and that is what
-this is for.
+A custom column is for values whose display is bespoke. It is not for values that are merely unusual.
 
-Two things to know before you start:
-
-- **It is display-only.** Auto-forms skip custom columns, and no filter control
-  is derived for one, so the column never becomes an editable form field. Keep
-  the writable value in a normal typed field and use the custom column purely to
-  render.
-- **It renders wherever it is visible.** The same registered builder backs the
-  column in the table and in the detail view. One registration, both surfaces.
+| The value is | Use instead | Because |
+| --- | --- | --- |
+| An enum shown as a coloured pill | `@Badges` on the enum field | The enum column already draws badges. |
+| Money or a percentage | A `BeakDecimal` field with a `BeakSemantic` | Exact arithmetic and formatting come with the type. |
+| A picture | A `BeakImageRef` field | Upload rules, transforms and thumbnails come with it. |
+| A 30-day trend, a stock bar, a status the panel has no widget for | `@Custom` | No typed column draws it. |
 
 ## The two halves
 
-A custom column is split across the wire, and that split is the point. The
-*schema class* declares the field, in a file that never imports Flutter. The
-*panel* registers the widget builder. A `BeakColumnTag` is the value that links
-them.
+The schema class stays free of Flutter, because `bin/serve.dart` compiles it too. The builder lives on the panel side, where `Oi*` widgets are allowed. A `BeakColumnTag` is the value that links the two.
 
 ```mermaid
 flowchart LR
-  A["@Custom('stock_bar')<br/>(lib/models/product.dart)"] -- "beak prepare" --> B["BeakCustomColumn<br/>tag: BeakColumnTag('stock_bar')"]
-  B -- "same value" --> C["BeakCustomRenderers.register<br/>(lib/panel.dart)"]
+  A["@Custom('band-code')<br/>schema class"] -- "beak prepare" --> B["BeakCustomColumn<br/>tag: BeakColumnTag('band-code')"]
+  B -- "SpecimenColumns.bandCode.tag" --> C["BeakCustomRenderers.register"]
   C --> D["your Oi* widget"]
 ```
 
-### The field
+`beak prepare` writes the column into the `.beak.dart` part beside the schema class:
 
-`@Custom` takes the tag, as a string. Apply it to an `Object?` field, and add a
-`@Column` beside it for anything the field shares with every other column
-(`label`, `visibleOn`, and the rest).
-
-```dart title="examples/store/lib/models/product.dart"
-  /// The stock indicator, drawn by the panel's registered renderer.
-  @Custom('stock_bar')
-  @Column(visibleOn: {BeakContext.table})
-  late final Object? stockLevel;
-```
-
-`beak prepare` turns that into a `BeakCustomColumn` constant in the part file
-beside your model, named after the field:
-
-```dart title="examples/store/lib/models/product.beak.dart"
-  /// The stock indicator, drawn by the panel's registered renderer.
-  static const BeakCustomColumn stockLevel = BeakCustomColumn(
-    key: 'stock_level',
-    label: 'Stock Level',
-    visibleOn: {BeakContext.table},
-    tag: BeakColumnTag('stock_bar'),
+```dart title="examples/showcase/lib/resources/specimens/models/specimen.beak.dart"
+  /// The leg band, drawn by a renderer the app registers (custom column).
+  static const BeakCustomColumn bandCode = BeakCustomColumn(
+    key: 'band_code',
+    label: 'Band Code',
+    tag: BeakColumnTag('band-code'),
   );
 ```
 
-!!! note "What just happened"
-    - The column resolves to `BeakRenderIntent.custom` on every surface. That is
-      the one render intent Beak does not draw itself.
-    - It is a real column, so it appears in `ProductColumns`, it can be named in
-      a detail or form layout, and the generated migration gives it a `text`
-      column in the table. Store something in it, or leave it null and read the
-      siblings instead.
-    - Nothing about it is stringly-typed on your side: you write the tag once in
-      the annotation, and reference the column as `ProductColumns.stockLevel`.
+`BeakColumnTag` is a value-equal wrapper around a string, so two tags with the same text are the same tag. The generated column also gives you `SpecimenModel.bandCode`, a `BeakScalarField<Object>`, for queries and seeders.
 
-### The tag
+### Declare the field
 
-`BeakColumnTag` is an opaque, value-equal identifier. The annotation's string
-becomes one; you write the same value again when you register the builder.
+Declare it as `Object?`. The generator does not check the type (any field carrying `@Custom` becomes a custom column), but `Object?` is what `readFrom` returns and what the API stores, so anything narrower promises a guarantee nobody enforces.
 
-```dart title="packages/beak_core/lib/src/columns/beak_custom_column.dart"
-@immutable
-final class BeakColumnTag {
-  /// Creates a tag identified by [value].
-  const BeakColumnTag(this.value);
+A `@Column` beside `@Custom` is optional and sets the options every column shares. This block is illustrative (it is not a repository file), and `beak prepare` accepts it as written, carrying the label and `visibleOn` into the generated column:
 
-  /// Unique identity of the custom renderer.
-  final String value;
-  // ...`==`, `hashCode` and `toString`, all over [value]...
-}
+```dart
+@Custom('stock_bar')
+@Column(label: 'Stock', visibleOn: {BeakContext.table})
+late final Object? stockLevel;
 ```
 
-## The custom render intent
+## Register the renderer
 
-Every column resolves to a `BeakRenderIntent`, an ORM- and UI-neutral hint for
-*what* to draw. The panel maps each intent to an `obers_ui` widget. There is
-exactly one intent Beak leaves for you:
-
-```dart title="packages/beak_core/lib/src/context/beak_render_intent.dart"
-  /// A user-provided custom renderer (the escape hatch).
-  custom,
-```
-
-When the cell renderer meets `BeakRenderIntent.custom`, it looks up your builder
-by tag and calls it. A missing builder is a visible placeholder, never a crash:
-
-```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
---8<-- "packages/beak_frontend/lib/src/table/column_cell_renderer.dart:custom"
-```
-
-If you ever see `No renderer for "stock_bar"` in a cell, the schema shipped a
-tag the panel never registered. That is the message telling you which half is
-missing.
-
-## Registering the renderer
-
-A renderer is a `BeakCustomCellBuilder`: a function from the build context, the
-column, and the record to a widget.
+A renderer is a `BeakCustomCellBuilder`: a function from the build context, the column and the whole record to a widget.
 
 ```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
 --8<-- "packages/beak_frontend/lib/src/table/column_cell_renderer.dart:BeakCustomCellBuilder"
 ```
 
-Register it against the tag on the static `BeakCustomRenderers` registry:
+The showcase's builder draws the band code as a badge, and a caption when the value is null:
 
-```dart title="packages/beak_frontend/lib/src/table/column_cell_renderer.dart"
-  /// Registers [builder] for [tag], replacing any previous one.
-  static void register(BeakColumnTag tag, BeakCustomCellBuilder builder) {
-    _buildersByTag[tag] = builder;
-  }
+```dart title="examples/showcase/lib/widgets/band_code_cell.dart"
+--8<-- "examples/showcase/lib/widgets/band_code_cell.dart:bandCodeCell"
 ```
 
-Registration has to happen once, before the panel builds a table.
-`lib/panel.dart` is the file for it: the generated `buildBeakPanel()` calls your
-`beakPanel` function as its last step, once, at startup. Run `beak eject panel`
-to get the starter, then register there and return the defaults untouched:
+Read the value with `record[column.key]?.raw`, or through the generated column (`SpecimenColumns.bandCode.readFrom(record)`). Because the builder receives the whole `BeakRecord`, it can read sibling columns (tint the badge by a status field) and, when the query loaded any, the record's `relations`.
+
+### Where the registration goes
+
+`BeakCustomRenderers` is a static registry, so register before the first table builds. Which file that is depends on how the panel boots. [Two ways to boot a panel](../start-here/generated-or-authored.md) explains the choice, and this page assumes both.
+
+=== "Authored panel"
+
+    The showcase calls its registration function first thing in `main()`, in the `lib/main.dart` you own:
+
+    ```dart title="examples/showcase/lib/main.dart"
+    --8<-- "examples/showcase/lib/main.dart:main"
+    ```
+
+=== "Generated panel"
+
+    `lib/main.dart` is generated, so the hook is `lib/panel.dart`. `beak eject panel` writes the starter, and the generated `buildBeakPanel()` passes the panel configuration through its `beakPanel` function once, at startup:
+
+    ```console
+    $ beak eject panel
+      created lib/panel.dart
+
+      run `beak prepare` to wire it up
+    ```
+
+    Register there and hand the defaults back untouched:
+
+    ```dart title="lib/panel.dart"
+    import 'package:beak/panel.dart';
+    import 'package:beak/ui.dart';
+    import 'package:flutter/widgets.dart';
+
+    import 'resources/notes/models/note.dart';
+
+    BeakPanelConfig beakPanel(BeakPanelConfig defaults) {
+      BeakCustomRenderers.register(NoteColumns.stockLevel.tag, stockBarCell);
+      return defaults;
+    }
+
+    Widget stockBarCell(
+      BuildContext context,
+      BeakColumn column,
+      BeakRecord record,
+    ) => switch (NoteColumns.stockLevel.readFrom(record)) {
+      final int stock when stock > 0 => OiBadge.soft(
+        label: '$stock in stock',
+        color: OiBadgeColor.success,
+      ),
+      _ => const OiBadge.soft(label: 'Sold out', color: OiBadgeColor.error),
+    };
+    ```
+
+    This file is not in the repository. It compiles against a fresh `beak create` project with one `@Custom` field named `stockLevel` added to `Note`.
+
+## Rules and limits
+
+| Rule | Enforced where | What it means |
+| --- | --- | --- |
+| Custom columns are display-only in forms | Client: the form controller and the input mapper both skip a `BeakCustomColumn` | No input is generated. Values arrive through the API or a seeder. |
+| No filter control | Client: `filterFor` returns null for it | The filter bar derives nothing. `filterable: true` has no effect. |
+| `searchable: true` breaks search | Server: the search filter throws | Typing a search term is refused with a `422` (`BeakValidationException`) saying the column "does not support automatic search". Leave `searchable` off. |
+| Cannot be a summary group | Server: `WormDataSource` | A summary grouped by a custom column throws `Summary groups must be scalar columns.` |
+| No validation of the payload | Server: the type check returns null for the kind | Nothing checks the shape of the value. Add a `BeakRule` or a record rule if the shape matters. |
+| Stored as `text` | Migration: `BeakBlueprint.defineColumns` | A `BeakCustomColumn` and a `BeakTextColumn` get the same DDL. |
+| A missing builder draws `Unavailable` | Client | The cell shows a caption ("Nicht verfügbar" in a German locale) instead of crashing. If a whole column says it, the tag was never registered. |
+| The registry is process-wide | Client | Tests must call `BeakCustomRenderers.reset()` or one test's builders leak into the next. |
+| No Material | You | Return `Oi*` widgets. Beak's Material guard reads Beak's own source and cannot see inside your closure. |
+
+`beak_serverpod_generator` uses the same hatch for `List` and `Set` fields of a Serverpod entity: it emits a custom column tagged `serverpod.collection`. Beak registers no renderer for that tag, so register one, or the column reads `Unavailable`.
+
+## Verify it
+
+Test the builder in the same place Beak tests its own: pump a cell with a registered tag, and one without.
+
+```dart title="packages/beak_frontend/test/src/table/column_cell_renderer_test.dart"
+--8<-- "packages/beak_frontend/test/src/table/column_cell_renderer_test.dart:customCellTests"
+```
+
+Reset the registry after every test:
 
 ```dart
-import 'package:beak/panel.dart';
-import 'package:beak/ui.dart';
-
-import 'models/product.dart';
-
-/// The last word on this panel's configuration.
-BeakPanelConfig beakPanel(BeakPanelConfig defaults) {
-  BeakCustomRenderers.register(const BeakColumnTag('stock_bar'), (
-    context,
-    column,
-    record,
-  ) {
-    final int stock = ProductColumns.stock.readFrom(record) ?? 0;
-    return OiBadge.soft(
-      label: '$stock in stock',
-      color: stock == 0 ? OiBadgeColor.error : OiBadgeColor.success,
-    );
-  });
-  return defaults;
-}
+tearDown(BeakCustomRenderers.reset);
 ```
 
-Read the record's value through the column constant. `readFrom` gives you the
-typed value (`Object?` for a custom column, a real `int?` for the
-`ProductColumns.stock` beside it), and `record[column.key]` gives you the raw
-`BeakValue?` when you want it. Because the builder receives the whole
-`BeakRecord`, a cell can read sibling columns: draw the bar, tint it by the
-status field next to it.
+Run Beak's own copy of these tests from the package directory:
 
-!!! warning "Stay in obers_ui"
-    Whatever your builder returns renders straight into the panel. Return `Oi*`
-    widgets from `package:beak/ui.dart`, never `package:flutter/material.dart`.
-    Beak's Material guard checks Beak's own source; it cannot see inside your
-    closure, so the no-Material rule here is yours to keep.
+```console
+$ cd packages/beak_frontend
+$ flutter test test/src/table/column_cell_renderer_test.dart --plain-name custom
+custom cells delegate to the registered builder
+an unregistered custom tag renders a visible placeholder
+custom cells can render eager relations without a scalar value
+All tests passed!
+```
 
-!!! tip "Test isolation"
-    `BeakCustomRenderers` is a process-wide registry.
-    `BeakCustomRenderers.reset()` clears every registered builder, which is what
-    you call in a widget test's `setUp`/`tearDown` so one test's renderers do
-    not leak into the next.
+The showcase pumps its whole panel with the renderer registered in `setUp`, in `examples/showcase/test/aviary_pages_test.dart`.
 
-## Reference: the annotations
+## Reference
 
-`@Custom` carries one thing, the tag. Everything else comes from the `@Column`
-beside it.
+| Symbol | Library | Role |
+| --- | --- | --- |
+| `Custom` | `package:beak/schema.dart` | The annotation. One positional `String tag`. |
+| `BeakCustomColumn` | `package:beak/beak.dart` | The generated column. `key`, `label` and `tag` are required. `visibleOn`, `sortable`, `searchable`, `filterable`, `indexed`, `unique`, `rules`, `semantic` and `defaultValue` are the options every column has. |
+| `BeakColumnTag` | `package:beak/beak.dart` | Value-equal identifier, `const BeakColumnTag(String value)`. |
+| `BeakRenderIntent.custom` | `package:beak/beak.dart` | The one render intent Beak does not draw itself. Every surface resolves a custom column to it. |
+| `BeakCustomCellBuilder` | `package:beak/panel.dart` | `Widget Function(BuildContext context, BeakColumn column, BeakRecord record)`. |
+| `BeakCustomRenderers` | `package:beak/panel.dart` | `register(tag, builder)` replaces any earlier builder. `builderFor(tag)` returns it or null. `reset()` clears all. |
 
-| Annotation | Parameter | Type | Notes |
-| --- | --- | --- | --- |
-| `@Custom` | `tag` | `String` | Becomes the `BeakColumnTag` the renderer is registered under. |
-| `@Column` | `columnName` | `String?` | Storage column name; defaults to the snake-cased field name. |
-| `@Column` | `label` | `String?` | Header and detail-row label; defaults to the title-cased field name. |
-| `@Column` | `visibleOn` | `Set<BeakContext>?` | Surfaces the column shows on; defaults to table, form and detail. |
-| `@Column` | `sortable` / `searchable` / `filterable` | `bool` | Shared column flags. Filtering derives no control for a custom column. |
-| `@Column` | `rules` | `List<BeakRule>` | Shared validation rules. |
-
-The generated `BeakCustomColumn` takes the same options plus `tag`, so a
-hand-written `BeakModel` can declare one directly. See
-[Escape hatches](../models/escape-hatches.md) for when that is the right move.
+Sources: `packages/beak_core/lib/src/columns/beak_custom_column.dart`, `packages/beak_core/lib/src/schema/beak_schema_annotations.dart`, `packages/beak_frontend/lib/src/table/column_cell_renderer.dart`.
 
 ## Continue reading
 
-- [Column types](../models/column-types.md) the twelve typed columns to try before reaching for a custom one.
-- [Annotations](../reference/annotations.md) every annotation a schema class can carry, in full.
-- [Rendering per surface](../concepts/rendering-per-surface.md) how a column becomes a render intent and then a widget.
-- [Custom blocks and widgets](custom-blocks-and-widgets.md) the same escape-hatch idea, one level up, for whole subtrees.
+- [Fields](../models/fields.md) the typed column kinds to try before reaching for a custom one.
+- [Annotations](../reference/annotations.md) every annotation a schema class can carry.
+- [Custom blocks and widgets](custom-blocks-and-widgets.md) the same escape hatch one level up, for whole subtrees and form content.
+- [Two ways to boot a panel](../start-here/generated-or-authored.md) where startup code lives in each.

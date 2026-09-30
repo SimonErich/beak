@@ -99,6 +99,15 @@ void main() {
       });
     });
 
+    test('serializes a local DateTime as the UTC instant it names', () {
+      final local = DateTime(2026, 3, 14, 9, 26, 53);
+      expect(BeakDateTimeValue(local).toJson(), {
+        'type': 'dateTime',
+        'value': local.toUtc().toIso8601String(),
+      });
+      expect(local.toUtc().toIso8601String(), endsWith('Z'));
+    });
+
     test('serializes lists element-wise', () {
       expect(
         const BeakListValue([BeakIntValue(1), BeakStringValue('two')]).toJson(),
@@ -187,6 +196,89 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+
+    test(
+      'reads a timestamp with no offset as UTC, never in the local zone',
+      () {
+        // A server reading "2026-06-01T12:30:45" in its own zone would compare
+        // a different instant than the client meant, and two servers in
+        // different zones would disagree about the same request.
+        for (final iso in [
+          '2026-06-01T12:30:45',
+          '2026-06-01 12:30:45',
+          '2026-06-01T12:30:45.123',
+        ]) {
+          final decoded = BeakValue.fromJson(<String, Object?>{
+            'type': 'dateTime',
+            'value': iso,
+          });
+          final instant = switch (decoded) {
+            final BeakDateTimeValue value => value.value,
+            _ => fail('expected a BeakDateTimeValue, got $decoded'),
+          };
+          expect(instant.isUtc, isTrue, reason: iso);
+          expect(instant.hour, 12, reason: iso);
+          expect(instant.minute, 30, reason: iso);
+        }
+      },
+    );
+
+    test('reads a date with no time as UTC midnight', () {
+      final decoded = BeakValue.fromJson(const <String, Object?>{
+        'type': 'dateTime',
+        'value': '2026-06-01',
+      });
+      expect(decoded, BeakDateTimeValue(DateTime.utc(2026, 6, 1)));
+    });
+
+    test('converts an explicit offset to the UTC instant it names', () {
+      final decoded = BeakValue.fromJson(const <String, Object?>{
+        'type': 'dateTime',
+        'value': '2026-06-01T14:30:45+02:00',
+      });
+      expect(decoded, BeakDateTimeValue(DateTime.utc(2026, 6, 1, 12, 30, 45)));
+    });
+
+    test('keeps microseconds of an offset-less timestamp', () {
+      final decoded = BeakValue.fromJson(const <String, Object?>{
+        'type': 'dateTime',
+        'value': '2026-06-01T12:30:45.123456',
+      });
+      expect(
+        decoded,
+        BeakDateTimeValue(DateTime.utc(2026, 6, 1, 12, 30, 45, 123, 456)),
+      );
+    });
+
+    test('refuses nesting no query needs instead of overflowing the stack', () {
+      Object? nested = 1;
+      for (var level = 0; level < 100000; level++) {
+        nested = [nested];
+      }
+      expect(
+        () => BeakValue.fromJson(nested),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            contains('nested'),
+          ),
+        ),
+      );
+    });
+
+    test('accepts the nesting a real operand has', () {
+      expect(
+        BeakValue.fromJson([
+          [1],
+          [2, 3],
+        ]),
+        const BeakListValue([
+          BeakListValue([BeakIntValue(1)]),
+          BeakListValue([BeakIntValue(2), BeakIntValue(3)]),
+        ]),
+      );
+    });
   });
 
   group('round-trips', () {
@@ -209,12 +301,20 @@ void main() {
       }
     });
 
-    test('local DateTimes survive a full JSON string cycle', () {
+    test('local DateTimes survive a full JSON string cycle as UTC', () {
       final local = BeakDateTimeValue(DateTime(2026, 3, 14, 9, 26, 53));
       final decoded = BeakValue.fromJson(
         jsonDecode(jsonEncode(local.toJson())),
       );
       expect(decoded, local);
+      expect(
+        decoded,
+        isA<BeakDateTimeValue>().having(
+          (value) => value.value.isUtc,
+          'isUtc',
+          isTrue,
+        ),
+      );
     });
   });
 
@@ -251,6 +351,15 @@ void main() {
       );
       expect(
         BeakDateTimeValue(runtimeValue(utcInstant)).hashCode,
+        BeakDateTimeValue(utcInstant).hashCode,
+      );
+      expect(
+        BeakDateTimeValue(utcInstant.toLocal()),
+        BeakDateTimeValue(utcInstant),
+        reason: 'one instant is one value, whichever zone spells it',
+      );
+      expect(
+        BeakDateTimeValue(utcInstant.toLocal()).hashCode,
         BeakDateTimeValue(utcInstant).hashCode,
       );
       expect(

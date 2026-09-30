@@ -1,25 +1,41 @@
 name: Documentation
 
-# Builds the MkDocs site from docs/ and publishes it to GitHub Pages.
-# Mirrors the obers_ui docs workflow. The Dartdoc API reference is built per
-# package and mounted under /api/.
+# Checks the docs, builds the MkDocs site from docs/ and publishes it to
+# GitHub Pages. Pull requests build to prove the site still builds; only main
+# publishes.
 
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "CHANGELOG.md"
+      - "examples/**"
+      - "packages/**"
+      - "tool/**"
+      - "test/check_docs_test.dart"
+      - "test/build_agent_docs_test.dart"
+      - "test/dart_declarations_test.dart"
       - ".github/workflows/docs.yml"
-  # The build is the docs' only structural gate — broken links, missing nav
-  # entries, snippet targets that moved. Running it after merge means main
-  # breaks first and someone finds out later.
+    # A tag push has no paths filter and always runs, because a release is
+    # where the completeness ratchet below has to pass.
+    tags: ["v*"]
+  # The build is the docs' structural gate: broken links, missing nav entries,
+  # snippet targets that moved. Running it on the pull request means main does
+  # not break first and someone finds out later. Pages quote example and
+  # package source, so those paths trigger it too.
   pull_request:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "CHANGELOG.md"
       - "examples/**"
       - "packages/**"
+      - "tool/**"
+      - "test/check_docs_test.dart"
+      - "test/build_agent_docs_test.dart"
+      - "test/dart_declarations_test.dart"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -28,37 +44,81 @@ permissions:
   pages: write
   id-token: write
 
+# One group per ref. A single shared group would let any pull request's build
+# cancel the run that is deploying main, so only a superseded run of the same
+# branch or pull request is cancelled, and main always finishes.
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # Material and the MkDocs fork print a banner about MkDocs 2.0 on every run.
+  NO_MKDOCS_2_WARNING: "true"
+  DISABLE_MKDOCS_2_WARNING: "true"
 
 jobs:
   build:
     name: Build documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install MkDocs and plugins
-        run: pip install mkdocs-material mkdocs-minify-plugin mkdocs-redirects
+      - uses: actions/checkout@v7
 
       - uses: dart-lang/setup-dart@v1
 
-      # `dart run` fetches on its own, but the checker reads the tree rather
-      # than the packages, so a bare resolve is all it needs.
-      - name: Check the docs
-        run: dart pub get && dart run tool/check_docs.dart
+      # The checker reads the tree rather than the packages, so resolving the
+      # workspace root (for package:yaml) is all it needs.
+      - name: Get the checker's dependencies
+        run: dart pub get
 
-      # --strict fails the build on any broken internal link or page missing
-      # from the nav. This is the docs' structural gate.
+      - name: Test the docs checker and the agent docs builder
+        run: >-
+          dart test test/check_docs_test.dart test/build_agent_docs_test.dart
+          test/dart_declarations_test.dart
+
+      - name: Check the docs
+        run: dart run tool/check_docs.dart
+
+      # The committed agent docs bundle (packages/beak_core/doc/agent-docs) is
+      # built from docs/, mkdocs.yml, CHANGELOG.md and the version, so a change
+      # to any of them leaves it stale. This also checks the corrections table
+      # on docs/ai/index.md against packages/*/lib. Fix with
+      # `melos run agent-docs`.
+      - name: Check the agent docs bundle
+        run: dart run tool/build_agent_docs.dart --check
+
+      # A release branch must ship finished docs: this fails while any page is
+      # still `status: draft`.
+      - name: Check the docs are complete
+        if: startsWith(github.ref, 'refs/heads/release/')
+        run: dart run tool/check_docs.dart --release
+
+      # The same ratchet for the tag itself, which can be pushed without a
+      # release branch.
+      - name: Check the docs are complete (tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: dart run tool/check_docs.dart --release
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      # docs/requirements.txt pins every plugin, so a local build and this one
+      # resolve the same versions.
+      - name: Install MkDocs and plugins
+        run: pip install -r docs/requirements.txt
+
+      # --strict fails the build on any broken internal link or anchor, on a
+      # page missing from the nav, and on a snippet whose file moved.
       - name: Build MkDocs
         run: mkdocs build --strict --site-dir _site
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Configure Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -73,4 +133,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

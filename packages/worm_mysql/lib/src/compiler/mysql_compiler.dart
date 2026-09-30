@@ -47,6 +47,9 @@ final class MysqlCompiler {
       ..write(_projection(descriptor.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(descriptor.table));
+    if (descriptor.tableAlias case final alias?) {
+      sql.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendJoins(sql, descriptor.joins);
     _appendWhere(sql, descriptor.where, params);
     _appendGroupBy(sql, descriptor.groupBy);
@@ -54,6 +57,16 @@ final class MysqlCompiler {
     _appendOrderBy(sql, descriptor.orderBy);
     _appendLimitOffset(sql, descriptor.limit, descriptor.offset);
     return _result(sql, params);
+  }
+
+  /// Compiles a current single-row read, bypassing an InnoDB snapshot and
+  /// retaining update locks until the current transaction completes.
+  MysqlCompileResult compileCurrentSelect(QueryDescriptor descriptor) {
+    final compiled = compileSelect(descriptor.copyWith(limit: 1));
+    return MysqlCompileResult(
+      sql: '${compiled.sql} FOR UPDATE',
+      parameters: compiled.parameters,
+    );
   }
 
   void _appendJoins(StringBuffer sql, List<JoinClause> joins) {
@@ -593,6 +606,9 @@ final class MysqlCompiler {
       ..write(_projection(node.subquery.columns))
       ..write(' FROM ')
       ..write(_quoteIdent(node.subquery.table));
+    if (node.subquery.tableAlias case final alias?) {
+      sub.write(' AS ${_quoteIdent(alias)}');
+    }
     _appendWhere(sub, node.subquery.where, params);
     _appendOrderBy(sub, node.subquery.orderBy);
     _appendLimitOffset(sub, node.subquery.limit, node.subquery.offset);
@@ -630,6 +646,16 @@ final class MysqlCompiler {
     return node.sql;
   }
 
+  /// The `ESCAPE` clause for [predicate]'s pattern, or nothing when the
+  /// pattern keeps MySQL's default escape character. MySQL reads a backslash
+  /// in a string literal as its own escape, so it is doubled.
+  String _escapeClause(Predicate predicate) {
+    final escape = predicate.escape;
+    if (escape == null) return '';
+    final quoted = escape.replaceAll(r'\', r'\\').replaceAll("'", "''");
+    return " ESCAPE '$quoted'";
+  }
+
   String _compilePredicate(Predicate predicate, List<Object?> params) {
     final column = _qualified(predicate.tableName, predicate.fieldName);
     return switch (predicate.operator) {
@@ -639,11 +665,15 @@ final class MysqlCompiler {
       Operator.gte => '$column >= ${_placeholder(params, predicate.value)}',
       Operator.lt => '$column < ${_placeholder(params, predicate.value)}',
       Operator.lte => '$column <= ${_placeholder(params, predicate.value)}',
-      Operator.like => '$column LIKE ${_placeholder(params, predicate.value)}',
+      Operator.like =>
+        '$column LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.notLike =>
-        '$column NOT LIKE ${_placeholder(params, predicate.value)}',
+        '$column NOT LIKE ${_placeholder(params, predicate.value)}'
+            '${_escapeClause(predicate)}',
       Operator.ilike =>
-        'LOWER($column) LIKE LOWER(${_placeholder(params, predicate.value)})',
+        'LOWER($column) LIKE LOWER(${_placeholder(params, predicate.value)})'
+            '${_escapeClause(predicate)}',
       Operator.isNull => '$column IS NULL',
       Operator.isNotNull => '$column IS NOT NULL',
       Operator.inList => _compileInList(

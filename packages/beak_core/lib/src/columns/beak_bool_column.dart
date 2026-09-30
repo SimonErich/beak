@@ -26,10 +26,16 @@ final class BeakBoolColumn extends BeakColumn with BeakTypedColumn<bool> {
     super.indexed,
     super.unique,
     super.rules,
+    super.semantic,
+    super.defaultValue,
+    this.tristate = false,
     this.trueLabel,
     this.falseLabel,
   });
   // --8<-- [end:BeakBoolColumn]
+
+  /// Whether null is a distinct selectable state rather than false.
+  final bool tristate;
 
   /// Display label of the `true` state, if customized.
   final String? trueLabel;

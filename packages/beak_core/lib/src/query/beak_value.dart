@@ -30,6 +30,7 @@ sealed class BeakValue {
   /// BeakValue.of([1, 2, 3]);         // BeakListValue of BeakIntValues
   /// BeakValue.of(DateTime.utc(2026)); // BeakDateTimeValue
   /// ```
+  // --8<-- [start:of]
   static BeakValue of(Object? raw) => switch (raw) {
     null => const BeakNullValue(),
     final BeakValue value => value,
@@ -45,31 +46,60 @@ sealed class BeakValue {
       'BeakValue does not support ${raw.runtimeType} values (got $raw).',
     ),
   };
+  // --8<-- [end:of]
 
   /// Decodes [json] (produced by [toJson]) back into a typed value.
   ///
-  /// Throws a [BeakConfigurationException] on malformed input.
-  static BeakValue fromJson(Object? json) => switch (json) {
+  /// A timestamp always decodes to a UTC instant: a value with an offset is
+  /// converted, and one with no offset (`2026-06-01T12:30:45`, a bare date) is
+  /// read as UTC rather than in the time zone of whichever machine decodes it.
+  ///
+  /// Throws a [BeakConfigurationException] on malformed input, including a
+  /// list nested more than 16 levels deep.
+  static BeakValue fromJson(Object? json) => _decode(json, 0);
+
+  static const int _maxListNesting = 16;
+
+  // --8<-- [start:fromJson]
+  static BeakValue _decode(Object? json, int depth) => switch (json) {
     null => const BeakNullValue(),
     final bool value => BeakBoolValue(value),
     final int value => BeakIntValue(value),
     final double value => BeakDoubleValue(value),
     final String value => BeakStringValue(value),
+    final List<Object?> _ when depth >= _maxListNesting =>
+      throw const BeakConfigurationException(
+        'BeakValue JSON is nested more than $_maxListNesting lists deep.',
+      ),
     final List<Object?> values => BeakListValue([
-      for (final value in values) BeakValue.fromJson(value),
+      for (final value in values) _decode(value, depth + 1),
     ]),
     {'type': 'dateTime', 'value': final String iso} => BeakDateTimeValue(
       _parseInstant(iso),
     ),
     _ => throw BeakConfigurationException('Malformed BeakValue JSON: $json.'),
   };
+  // --8<-- [end:fromJson]
 
   static DateTime _parseInstant(String iso) {
     final DateTime? parsed = DateTime.tryParse(iso);
     if (parsed == null) {
       throw BeakConfigurationException('"$iso" is not an ISO-8601 timestamp.');
     }
-    return parsed;
+    // `DateTime.parse` yields a local time only when the text carried no
+    // offset; read those digits as UTC instead of in the machine's zone.
+    return parsed.isUtc
+        ? parsed
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
   }
 
   /// This value as plain Dart (the inverse of [BeakValue.of]) — unlike
@@ -182,6 +212,11 @@ final class BeakBoolValue extends BeakValue {
 }
 
 /// A timestamp comparison operand, encoded as a tagged ISO-8601 object.
+///
+/// The wire form is always the UTC instant (`2026-06-01T12:30:45.123Z`): a
+/// local [DateTime] would otherwise travel as an offset-less string that the
+/// server reads in its own time zone. Two values are equal when they name the
+/// same instant, so a local timestamp equals its UTC decoding.
 final class BeakDateTimeValue extends BeakValue {
   /// Creates a timestamp operand holding [value].
   const BeakDateTimeValue(this.value);
@@ -193,14 +228,17 @@ final class BeakDateTimeValue extends BeakValue {
   Object? get raw => value;
 
   @override
-  Object? toJson() => {'type': 'dateTime', 'value': value.toIso8601String()};
+  Object? toJson() => {
+    'type': 'dateTime',
+    'value': value.toUtc().toIso8601String(),
+  };
 
   @override
   bool operator ==(Object other) =>
-      other is BeakDateTimeValue && other.value == value;
+      other is BeakDateTimeValue && other.value.isAtSameMomentAs(value);
 
   @override
-  int get hashCode => value.hashCode;
+  int get hashCode => value.microsecondsSinceEpoch.hashCode;
 
   @override
   String toString() => 'BeakDateTimeValue($value)';

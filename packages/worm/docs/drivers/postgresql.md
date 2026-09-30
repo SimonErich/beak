@@ -103,6 +103,8 @@ This is the only driver with real `RETURNING` and partial (filtered) index suppo
 | --- | --- | --- |
 | `23505` | unique_violation | `UniqueConstraintException` |
 | `23503` | foreign_key_violation | `ForeignKeyException` |
+| `23514`, `23502` | check_violation, not_null_violation | `CheckConstraintException` |
+| any code of class `22` (`22001` value too long, `22003` out of range, `22P02` malformed text) | data_exception | `DataException` |
 | `40001` | serialization_failure | `TransactionException` |
 | `40P01` | deadlock_detected | `TransactionException` |
 | `08000`, `08001`, `08003`, `08004`, `08006`, `08P01` | connection failures | `ConnectionException` |

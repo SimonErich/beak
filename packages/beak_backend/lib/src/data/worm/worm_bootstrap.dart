@@ -1,4 +1,5 @@
 import 'package:beak_core/beak_core.dart';
+import 'package:meta/meta.dart';
 import 'package:worm/worm.dart';
 import 'package:worm_postgres/worm_postgres.dart';
 import 'package:worm_sqlite/worm_sqlite.dart';
@@ -10,6 +11,10 @@ import '../../config/beak_backend_config.dart';
 /// Accepts `postgres://` / `postgresql://` URLs with a host and database
 /// name; the port defaults to 5432 and `?sslmode=require` enables TLS.
 /// Throws a [BeakConfigurationException] for anything else.
+///
+/// Internal to `beak_backend`, and kept out of its public library: a project
+/// names its database with [adapterFromUrl] or [initializeBeakDatabase].
+@internal
 ConnectionConfig postgresConnectionConfig(
   Uri databaseUrl, {
   int poolSize = 10,
@@ -58,29 +63,19 @@ ConnectionConfig postgresConnectionConfig(
 ///
 /// The one place that maps a URL scheme to a driver, so `beak dev`, the
 /// migration CLI and a hand-built server cannot disagree about what
-/// `DATABASE_URL` means.
+/// `DATABASE_URL` means. A Postgres adapter connects lazily, opening a pool
+/// of at most [poolSize] connections on first use.
 // --8<-- [start:adapterFromUrl]
 DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
   if (isSqliteUrl(databaseUrl)) {
     final String? path = sqliteFilePathOf(databaseUrl);
     return path == null ? SqliteAdapter.memory() : SqliteAdapter.open(path);
   }
-  return postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
+  return _postgresAdapterFromUrl(databaseUrl, poolSize: poolSize);
 }
 // --8<-- [end:adapterFromUrl]
 
-/// Builds a lazily connecting Postgres adapter from a `DATABASE_URL`.
-///
-/// The returned [PostgresAdapter] opens a pool of at most [poolSize]
-/// connections on first use; hand it straight to a [WormDataSource].
-///
-/// ```dart
-/// final adapter = postgresAdapterFromUrl(
-///   Uri.parse('postgres://user:pass@localhost:5432/beak'),
-/// );
-/// final dataSource = WormDataSource(registry, adapter: adapter);
-/// ```
-PostgresAdapter postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
+PostgresAdapter _postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
     PostgresAdapter(
       pool: PostgresConnectionPool.fromConfig(
         postgresConnectionConfig(databaseUrl, poolSize: poolSize),
@@ -93,17 +88,18 @@ PostgresAdapter postgresAdapterFromUrl(Uri databaseUrl, {int poolSize = 10}) =>
 /// Registers a single `'default'` adapter chosen by the URL scheme — SQLite
 /// for `sqlite:`, Postgres otherwise. Call once before serving requests;
 /// calling it twice without a [Worm.reset] in between throws.
+/// `BeakServeHost.serve` calls it for you.
 ///
 /// ```dart
-/// await initializeWormPostgres(config);
+/// await initializeBeakDatabase(config);
 /// try {
 ///   await serve(handler, config.host, config.port);
 /// } finally {
 ///   await Worm.reset();
 /// }
 /// ```
-// --8<-- [start:initializeWormPostgres]
-Future<void> initializeWormPostgres(BeakBackendConfig config) =>
+// --8<-- [start:initializeBeakDatabase]
+Future<void> initializeBeakDatabase(BeakBackendConfig config) =>
     Worm.initialize(
       config: const WormConfig(),
       adapters: <String, DatabaseAdapter>{
@@ -111,4 +107,4 @@ Future<void> initializeWormPostgres(BeakBackendConfig config) =>
       },
     );
 
-// --8<-- [end:initializeWormPostgres]
+// --8<-- [end:initializeBeakDatabase]

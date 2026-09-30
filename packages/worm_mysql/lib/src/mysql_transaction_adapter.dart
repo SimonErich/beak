@@ -21,7 +21,7 @@ import 'mysql_error_mapper.dart';
 /// when the nested callback throws. A per-instance counter produces
 /// unique savepoint names so nested callbacks may themselves nest.
 final class MysqlTransactionAdapter extends DatabaseAdapter
-    with ExplainCapable {
+    with ExplainCapable, CurrentReadCapable {
   /// Creates a transactional adapter using [connection] for every call.
   MysqlTransactionAdapter({
     required MySQLConnection connection,
@@ -61,6 +61,16 @@ final class MysqlTransactionAdapter extends DatabaseAdapter
   @override
   Future<Map<String, Object?>?> selectOne(QueryDescriptor d) async {
     final rows = await select(d.copyWith(limit: 1));
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  @override
+  Future<Map<String, Object?>?> selectOneCurrent(QueryDescriptor d) async {
+    final compiled = _compiler.compileCurrentSelect(d);
+    final rows = await MysqlErrorMapper.wrap(
+      () => runSelectRows(_connection, compiled.sql, compiled.parameters),
+      query: compiled.sql,
+    );
     return rows.isEmpty ? null : rows.first;
   }
 

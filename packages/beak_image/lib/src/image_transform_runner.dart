@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:beak_core/beak_core.dart';
 import 'package:image/image.dart' as img;
 
+import 'image_header.dart';
+
 /// The raster formats the runner can decode *and* re-encode — exactly the
 /// image types Beak's file rules admit into image columns
 /// ([BeakFileType.images]).
@@ -65,11 +67,18 @@ enum _RunnerFormat {
 /// concrete [BeakTransformRunner] the upload endpoint registers.
 ///
 /// Sources must be one of the raster formats image columns accept (PNG,
-/// JPEG, WebP, GIF); anything else throws a [BeakValidationException].
+/// JPEG, WebP, GIF); anything else, and any damaged file, throws a
+/// [BeakValidationException]. An animated GIF is read for its first frame.
 /// Thumbnails are cover-cropped to their exact configured size and encoded
 /// with the format state at their point in the pipeline. WebP output uses
 /// `package:image`'s lossless encoder, so a format step's quality applies to
 /// JPEG only.
+///
+/// A file can be a few dozen bytes and still declare a bitmap of gigabytes,
+/// and a decoder allocates the declared bitmap first. So [inspect] reads the
+/// size from the header alone (the upload endpoint checks the column's
+/// dimension rules against it), and [run] refuses anything above
+/// [maxPixelCount] before it decodes.
 ///
 /// It is stateless and `const`-constructible; register one instance with the
 /// backend and reuse it for every upload:
@@ -88,11 +97,34 @@ enum _RunnerFormat {
 /// print(result.dimensions); // 800x800
 /// ```
 final class ImageTransformRunner implements BeakTransformRunner {
-  /// Creates a transform runner.
-  const ImageTransformRunner();
+  /// Creates a transform runner that decodes images of up to [maxPixelCount]
+  /// pixels.
+  const ImageTransformRunner({this.maxPixelCount = defaultMaxPixelCount})
+    : assert(maxPixelCount > 0, 'maxPixelCount must be positive');
 
   /// JPEG quality (0–100) applied when the pipeline includes no format step.
   static const int defaultQualityPercent = 80;
+
+  /// The default [maxPixelCount]: 50 megapixels, above any phone or DSLR
+  /// photo and about 200 MB decoded.
+  static const int defaultMaxPixelCount = 50 * 1000 * 1000;
+
+  /// The most pixels (width times height) [run] decodes; a larger declared
+  /// bitmap is refused with a [BeakValidationException] before any pixel is
+  /// allocated.
+  final int maxPixelCount;
+
+  /// Reads the size [source] declares from its header, decoding nothing.
+  ///
+  /// Throws a [BeakValidationException] when [source] is not a readable
+  /// PNG, JPEG, WebP or GIF.
+  @override
+  Future<BeakDimensions> inspect(Uint8List source) async =>
+      readImageHeaderDimensions(source) ??
+      (throw const BeakValidationException(
+        'The uploaded file is not a supported raster image '
+        '(PNG, JPEG, WebP or GIF).',
+      ));
 
   /// Runs [pipeline] over the encoded [source] image in declaration order.
   ///
@@ -119,6 +151,8 @@ final class ImageTransformRunner implements BeakTransformRunner {
     Uint8List source,
     List<BeakImageTransform> pipeline,
   ) async {
+    final BeakDimensions declared = await inspect(source);
+    _requireWithinCeiling(declared);
     final _RunnerFormat? sourceFormat = _RunnerFormat.forSource(source);
     if (sourceFormat == null) {
       throw const BeakValidationException(
@@ -126,12 +160,7 @@ final class ImageTransformRunner implements BeakTransformRunner {
         '(PNG, JPEG, WebP or GIF).',
       );
     }
-    final img.Image? decoded = img.decodeImage(source);
-    if (decoded == null) {
-      throw const BeakValidationException(
-        'The uploaded file could not be decoded as an image.',
-      );
-    }
+    final img.Image decoded = _decodeFirstFrame(source);
     if (pipeline.isEmpty) {
       return BeakTransformedImage(
         bytes: source,
@@ -176,6 +205,46 @@ final class ImageTransformRunner implements BeakTransformRunner {
       dimensions: _dimensionsOf(image),
       variants: variants,
     );
+  }
+
+  /// Decodes [source], its first frame only: every frame of a decoded
+  /// animation is a full bitmap in memory, so the pixel ceiling would count
+  /// one frame of many.
+  ///
+  /// A damaged file makes the codec throw whatever it tripped over (a
+  /// `RangeError`, an `ImageException`); that is the uploader's mistake, so it
+  /// leaves as a [BeakValidationException] like any other undecodable file. So
+  /// does a stream that decodes to an empty bitmap.
+  static img.Image _decodeFirstFrame(Uint8List source) {
+    final img.Image? decoded;
+    try {
+      decoded = img.decodeImage(source, frame: 0);
+    } on Object {
+      throw const BeakValidationException(
+        'The uploaded file could not be decoded as an image.',
+      );
+    }
+    // A damaged stream can decode to an empty bitmap.
+    if (decoded == null || decoded.width < 1 || decoded.height < 1) {
+      throw const BeakValidationException(
+        'The uploaded file could not be decoded as an image.',
+      );
+    }
+    return decoded;
+  }
+
+  void _requireWithinCeiling(BeakDimensions declared) {
+    final int width = declared.widthInPixels;
+    final int height = declared.heightInPixels;
+    // Each side is checked first so the product cannot overflow.
+    if (width > maxPixelCount ||
+        height > maxPixelCount ||
+        width * height > maxPixelCount) {
+      throw BeakValidationException(
+        'The image is $width x $height pixels; at most $maxPixelCount '
+        'pixels are accepted.',
+      );
+    }
   }
 
   static BeakDimensions _dimensionsOf(img.Image image) =>

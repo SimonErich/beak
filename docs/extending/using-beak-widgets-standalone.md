@@ -1,201 +1,231 @@
 ---
 title: Using Beak widgets standalone
-description: Render a BeakBlockHost inside a normal Flutter app and mount BeakServer.handler inside an existing Shelf pipeline, without adopting the panel.
+description: Add the panel to an existing Flutter app with beak init, mount its routes in your own router, or drop a Beak form, table or block into a screen of yours.
+type: guide
+audience: [expert]
+status: stable
 ---
 
 # Using Beak widgets standalone
 
-After this page you can drop Beak's block renderer into a Flutter app that is
-not a Beak panel, and mount Beak's API inside a server you already have. You
-give up the generated shell and get a declarative content tree you render
-yourself, backed by the same models. This page draws the line between the two.
+After this page you can put Beak in an app that already exists: as a second entrypoint that boots the panel, as routes inside your own router, or as a single form, table or block on a screen you wrote.
 
-`BeakPanel` is the whole bird: routing, the nav shell, generated resource pages,
-theming, auth, and the data layer in GetIt. `BeakServer` is the whole API. But
-the piece that turns a declarative tree into obers_ui widgets, `BeakBlockHost`,
-is a plain widget, and `BeakServer.handler` is a plain Shelf handler. Either can
-be used alone.
+The panel is Beak's default host, not its only one. Every piece it is made of (a configured form, a data table, a block tree) is a public widget that takes a model and a data source. The cost of using one alone is that you provide what the panel would have provided, and this page lists what that is.
 
-!!! example "The worked example"
-    [`examples/embedded`](https://github.com/SimonErich/beak/tree/main/examples/embedded)
-    is an application that already exists (its own server, its own Flutter app,
-    its own auth) adopting Beak for part of its admin surface. Everything on
-    this page is running code in it.
+## At a glance
 
-## Half one: Beak's API inside your server
+| Level | You get | You provide | Section |
+| --- | --- | --- | --- |
+| A second entrypoint | The whole panel, booted from a file next to your `main.dart` | `beak init`, then a `flutter run -t` | [Add the panel](#add-the-panel-as-a-second-entrypoint) |
+| Panel routes in your router | The same pages under your `GoRouter`, your sign-in, your app widget | `registerBeakDependencies`, `beakPanelRoutes(config)`, `OiApp.router` | [Mount the routes](#mount-the-panel-in-your-router) |
+| One widget | A form, table or block on a screen of yours | An `OiApp` root, a model and a data source | [Use one widget](#use-one-widget-on-its-own) |
 
-`BeakServer.handler` is the full request pipeline (request log, CORS, JSON,
-error mapping, auth) as one Shelf `Handler`. Mount it wherever you like in a
-router of your own, behind whatever middleware you already run.
+Beak's widgets are `Oi*` widgets, so they read the obers_ui theme, overlay and density scopes that `OiApp` (or `OiApp.router`) injects. A host on `MaterialApp` needs an `OiApp` at or above the point where a Beak widget appears. Beak's own tests always pump them inside `OiApp`. Import `package:beak/panel.dart` for Beak and `package:beak/ui.dart` for the `Oi*` controls.
 
-```dart title="examples/embedded/bin/host.dart"
-  final router = Router()
-    ..get('/', (Request request) => Response.ok('the host application'))
-    ..mount('/admin', beak.handler);
+## Add the panel as a second entrypoint
 
-  final handler = const Pipeline()
-      .addMiddleware(_requireApiKey)
-      .addHandler(router.call);
-
-  final server = await shelf_io.serve(handler, '127.0.0.1', 8080);
-```
-
-The host keeps its own routes and its own gate. A request it rejects never
-reaches Beak, and Beak's own auth and policy stay available for the requests
-that do get through.
+An app that exists cannot give up `lib/main.dart`, so `beak init` puts the panel next to it. It adds the `beak` dependency, writes a `beak.yaml` that records where the panel boots from, writes an authored entrypoint, and adds a block to `.gitignore` for what Beak generates. Your own files are never rewritten. Run it in the root of the Flutter app:
 
 ```console
-dart run bin/host.dart
-curl -H 'x-api-key: let-me-in' -X POST localhost:8080/admin/api/tickets/query \
-  -H 'content-type: application/json' -d '{"table":"tickets"}'
+$ beak init --example
+  updated pubspec.yaml (added the beak dependency)
+  created beak.yaml
+  created lib/admin_main.dart
+  created lib/resources/notes/models/note.dart
+  created lib/resources/notes/note_resource.dart
+  updated .gitignore
+  1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
+  generated  6 of 6 files
+  agents     AGENTS.md created · CLAUDE.md created · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
+
+  next:
+    beak migrate
+    beak dev
+    flutter run -d chrome -t lib/admin_main.dart
 ```
 
-## Half two: Beak blocks inside your app
+`--example` also writes a first `Note` schema class and resource. The default entrypoint is `lib/main.dart` when the app has none of its own and `lib/admin_main.dart` otherwise. `--entrypoint <path>` picks another file, which must sit directly under `lib/`.
 
-The Flutter side is one widget. `BeakBlockHost` takes a `BeakBlock` tree and
-renders it exhaustively onto obers_ui:
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-class BeakBlockHost extends StatelessWidget {
-  /// Creates a host rendering [block].
-  const BeakBlockHost({required this.block, super.key});
-
-  /// The block tree to render.
-  final BeakBlock block;
-```
-
-Two things have to be true around it: an `OiApp` ancestor, and a registered data
-source if any of your blocks read records. The embedded example does both in one
-small class.
-
-```dart title="examples/embedded/lib/host_app.dart"
---8<-- "examples/embedded/lib/host_app.dart:HostApp"
-```
-
-The screen under it is an ordinary widget with an ordinary layout. One child
-happens to be a Beak block tree, reading the same models and the same API the
-admin panel reads:
-
-```dart title="examples/embedded/lib/host_app.dart"
-  @override
-  Widget build(BuildContext context) => OiColumn(
-    breakpoint: context.breakpoint,
-    children: const [
-      OiPageHeader(title: 'Support'),
-      Expanded(
-        child: BeakBlockHost(
-          block: BeakTableBlock(
-            model: TicketModel(),
-            columns: [TicketColumns.subject, TicketColumns.status],
-          ),
-        ),
-      ),
-    ],
-  );
-```
-
-!!! note "What just happened"
-    - `OiApp` replaces `MaterialApp` and `CupertinoApp` as the root. Every
-      `Oi*` widget, `BeakBlockHost` included, resolves its theme and its
-      breakpoint from that scope.
-    - `registerBeakDependencies` is the whole of the wiring. It populates the
-      package-scoped locator with the model registry, the `BeakClient`, the
-      `BeakDataSource` and the reference cache, which is what a data-bound
-      block reaches for.
-    - `buildBeakPanel()` is the generated config. You are not rendering the
-      panel, but the config is where the API base URL and the model registry
-      come from, so it is still what you hand over.
-
-## The one requirement: an OiApp ancestor
-
-If you take nothing else from this page, take this. `BeakBlockHost`'s layout
-blocks resolve the active breakpoint from context, and every obers_ui widget
-reads its theme from there. Without an `OiApp` above them, they have nothing to
-read.
-
-If you want none of Beak's abstraction at all, reach past it: `OiCard`,
-`OiColumn`, `OiRow`, `OiGrid`, `OiTable`, `OiLabel`, `OiBadge` and the rest of
-the catalogue come from `package:beak/ui.dart` and are yours to compose by hand.
-That is not really "using Beak"; it is using the design system Beak is built on.
-
-## What you keep
-
-- **The declarative block tree.** Const config, one exhaustive renderer. A block
-  type the host does not handle is a compile error, not a runtime surprise.
-- **The layout, display, and UI-kit blocks.** Everything presentational renders
-  from the `OiApp` scope alone: columns, rows, grids, cards, sections, tabs,
-  accordions, text, images, markdown, alerts, badges, progress, ratings,
-  dividers, wizards. See [The block system](../concepts/the-block-system.md).
-- **The data-bound blocks**, once a source is registered: tables, KPIs, metrics,
-  charts, calendars, kanban boards.
-- **The escape hatch.** `BeakWidgetBlock` embeds any Flutter widget subtree where
-  no block fits, so a block tree can host your own widgets mid-stream. See
-  [The widget escape hatch](../blocks/the-widget-escape-hatch.md).
-- **The models.** The schema classes, the generated columns and the migrations
-  work the same whether or not a panel ever renders.
-
-## What you give up
-
-The panel earns its keep by wiring things a bare `BeakBlockHost` does not have.
-
-**Data-bound blocks need the data layer in GetIt.** A `BeakTableBlock`,
-`BeakKpiBlock`, or `BeakMetricBlock` resolves `beakLocator<BeakDataSource>()` to
-fetch its rows. Inside a panel, `registerBeakDependencies` populated that
-locator. Standalone, it is empty until you call the same function, which is
-exactly why `HostApp` does so in its constructor.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-    return BeakRelationManager(
-      parentModel: scope.model,
-      parentId: id,
-      relationship: block.relationship,
-      dataSource: beakLocator<BeakDataSource>(),
-```
-
-**Record blocks need a scope.** `BeakFieldBlock` and `BeakRelationBlock` are
-dual-mode: they render read-only inside a `BeakRecordScope` (a detail view) and
-editable inside a `BeakFormScope` (a form). Outside both, they render nothing:
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
-  Widget _field(BuildContext context, BeakFieldBlock block) {
-    final form = BeakFormScope.of(context);
-    if (form != null) {
-      return _fieldInput(form, block.column);
-    }
-    final scope = BeakRecordScope.of(context);
-    if (scope == null) {
-      return const SizedBox.shrink();
-    }
-```
-
-So a record block dropped into a bare screen is a blank space by design. The
-panel supplies the scope; standalone, you would too, which is most of what
-[Detail views and dual-mode blocks](../panel/detail-and-dual-mode.md) is about.
-
-**Everything the panel adds around the content.** Routing (go_router), the
-navigation shell, generated list/detail/form pages, the command bar, auth and
-idle-lock, theming controls, maintenance mode, and notifications all live in
-`BeakPanel`. Standalone, you own navigation and app structure; Beak renders only
-the blocks you place.
-
-## When to use which
-
-| You want | Reach for |
+| File | What it holds |
 | --- | --- |
-| A full admin panel from your schema classes | `BeakApp`, which `beak prepare` generates |
-| A block tree on your own screen | `BeakBlockHost` under an `OiApp` |
-| Data-bound blocks off-panel | `registerBeakDependencies` first, then `BeakBlockHost` |
-| Beak's API inside a server you already run | `BeakServer.handler`, mounted in your router |
-| One-off UI, no model in sight | plain `Oi*` widgets from `package:beak/ui.dart` |
+| `beak.yaml` | A `panel.entrypoint` key naming the file. While it is set, `beak prepare` does not write or compare your `lib/main.dart`. |
+| `lib/admin_main.dart` | An authored `BeakPanel(resources: [...])`. It is yours, and `beak prepare` never rewrites it. |
+| `.gitignore` | A `# BEGIN beak` block for the generated `bin/` entrypoints, the local database, uploads and `.env`. |
 
-Standalone use is testable the same way a panel is: pass an
-`InMemoryBeakDataSource` where the real one would go and pump the widget.
-`examples/embedded/test/embedded_test.dart` does exactly that.
+```yaml title="beak.yaml"
+# Beak project configuration. Every key is optional: delete this file and
+# Beak still boots, titling the panel after the package.
+name: Host App
+
+api:
+  # The origin the panel calls. Use `auto` to call the origin the panel was
+  # served from, which is what a single-host deployment wants.
+  baseUrl: http://localhost:8080
+
+panel:
+  # This app keeps its own lib/main.dart, so `beak prepare` never writes it.
+  # The panel boots from this file instead: flutter run -t lib/admin_main.dart
+  entrypoint: lib/admin_main.dart
+```
+
+```dart title="lib/admin_main.dart"
+import 'package:beak/panel.dart';
+import 'package:flutter/widgets.dart';
+
+import 'resources/notes/note_resource.dart';
+
+/// Boots the panel.
+void main() => runApp(buildPanel());
+
+/// The panel, and every resource it shows.
+///
+/// This file is yours: `beak prepare` never rewrites it, so add each
+/// resource class you write to `resources`.
+///
+/// [dataSource] replaces the HTTP-backed source, so a widget test
+/// can pump this exact panel against an in-memory one.
+BeakPanel buildPanel({BeakDataSource? dataSource}) => BeakPanel(
+  title: 'Host App',
+  resources: [const NoteResource()],
+  dataSource: dataSource,
+);
+```
+
+Add each new resource to the `resources` list yourself: `beak make:resource` prints a reminder that the file is yours. `beak init` is safe to run twice. It repairs what is missing and writes nothing else.
+
+`beak init` refuses two projects. A pubspec without `flutter: sdk: flutter` is not a Flutter app, and a project inside a Serverpod workspace belongs to the admin app path instead, described under [Serverpod](../serverpod/choosing-an-integration.md).
+
+## Mount the panel in your router
+
+The second level is for an app that wants the panel's pages inside its own navigation: same `GoRouter`, same sign-in, same `OiApp`. You register Beak's dependencies once, then hand the router the panel's routes.
+
+```dart title="packages/beak_frontend/test/src/panel/beak_panel_test.dart"
+--8<-- "packages/beak_frontend/test/src/panel/beak_panel_test.dart:hostRouter"
+```
+
+`config` is a `BeakPanelConfig`, the same object `BeakPanel` builds from its arguments. In this test the host router redirects everything under the shell to `/sign-in`, so the panel's pages never render for a guest. That is the point: the host owns authentication and the app root, and no second router or auth route is created.
+
+| Piece | Owner | Detail |
+| --- | --- | --- |
+| `registerBeakDependencies(config: ...)` | You, once, before the router | Registers the model registry, the data source, the client and the session store into the global `beakLocator`. Pass `locator:` for a container of your own, and mount `BeakDependencyScope(container: ...)` above the routes. |
+| `beakPanelRoutes(config)` | You, inside your router | A shell route with the panel chrome and the list, create, show and edit routes of every resource, plus your `pages`. |
+| Sign-in | You | The routes include no login page. Guard the shell with your own `redirect`, as above. |
+| Session | You | Pass `externalAuthentication: true`, or set `BeakPanelConfig.auth` to a `BeakAuthConfig(adapter: ...)`, and Beak creates no HTTP client or session store. Then every model needs a bound `dataSource`, or you pass one to `registerBeakDependencies`. |
+
+Panel routes are absolute paths (`/notes`, `/notes/create`, `/notes/:id`, `/notes/:id/edit`), and there is no path prefix option. They take the top level of your router, so a resource named like one of your own routes collides with it.
+
+## Use one widget on its own
+
+A single widget needs the least. Three of them cover most embedding.
+
+### A form
+
+`BeakConfiguredForm` accepts a model, a data source and, optionally, a registry, a record id, a presentation mode and a layout or wizard steps. It owns fetching, the local graph, validation, save, cancel and receipt recovery.
+
+```dart title="examples/clean_beak_config/test/shop_widget_test.dart"
+--8<-- "examples/clean_beak_config/test/shop_widget_test.dart:standaloneForm"
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `model`, `dataSource` | Required. The metadata and the transport. |
+| `registry` | The generated `buildBeakRegistry()`. Pass it whenever the model has relationships, so related drafts and references resolve. |
+| `mode` | `BeakFormMode.read`, `create` or `edit`. Defaults to `edit`, so pass `create` for a new record. |
+| `recordId` | The record to load for `read` and `edit`. |
+| `layout`, `steps` | A `BeakFormLayout`, or `BeakWizardStep`s for a wizard. Empty means the model's default layout. |
+| `onSaved`, `onClose` | Called after every operation is confirmed applied, and to leave. |
+| `onSession` | Hands you the `BeakFormSession`, for tests and for reading the draft. |
+| `valueMode` | `populated` (default), `complete` or `changes`. See [Model-owned transports](model-transports.md). |
+
+The `BeakFormattingScope` around it in the example makes an embedded form and the panel's own widgets show money, dates and numbers the same way.
+
+### A table
+
+`BeakDataTable` lists a model's table-context columns with server-side sort, filter and pagination, per-row and bulk actions, and the same cell renderers as the panel (custom columns included):
+
+```dart
+BeakDataTable(
+  model: const ProductModel(),
+  dataSource: dataSource,
+  onRowTap: (record) => context.go('/products/${record['id']?.raw}'),
+)
+```
+
+That block is illustrative, adapted from the class documentation of `BeakDataTable` in `packages/beak_frontend/lib/src/table/beak_data_table.dart`, and `ProductModel` stands for one of your generated models. The table takes its source as a parameter, like the form.
+
+### A block
+
+Blocks are different: `BeakBlockHost` renders a `BeakBlock` tree, and the data blocks (metrics, tables, summaries) resolve their source through the dependency container, not a parameter. So a block needs `registerBeakDependencies` first:
+
+```dart title="packages/beak_frontend/test/src/blocks/beak_metric_block_test.dart"
+--8<-- "packages/beak_frontend/test/src/blocks/beak_metric_block_test.dart:standaloneBlock"
+```
+
+```dart title="packages/beak_frontend/test/src/blocks/beak_metric_block_test.dart"
+--8<-- "packages/beak_frontend/test/src/blocks/beak_metric_block_test.dart:standaloneBlockHost"
+```
+
+In production, leave out `dataSource:` and the registration builds the HTTP-backed source for `config.apiBaseUrl`. The test passes a fake so no request is made.
+
+## Rules and limits
+
+| Rule | Enforced where | What it means |
+| --- | --- | --- |
+| An obers_ui root is required | Client | `Oi*` widgets assert on a missing `OiTheme`. Use `OiApp` or `OiApp.router` as the root. |
+| Blocks need the container, forms and tables do not | Client | `BeakBlockHost` and custom widgets read `beakDependencies(context)`, which falls back to the global `beakLocator`. If nothing registered it, the lookup throws. |
+| Refresh after a write needs the panel's source | Client | `useBeakDataRevision` reacts only to a source that implements `BeakMutationSource`, and only the panel's routing source does. A source you construct and pass straight to a form or table saves fine, but sibling widgets do not refresh. Resolve it with `beakDependencies(context)<BeakDataSource>()` when they should. |
+| Server rules need a server | Server | Model behavior and record rules run in the form, and the server re-runs them when the save arrives through the commit route. A source without `BeakCommitDataSource`, such as `InMemoryBeakDataSource`, saves through the staged fallback: no server to re-run the rules, no atomic graph. |
+| Routes are absolute | Client | `beakPanelRoutes` cannot be nested under a path prefix. |
+| Do not build a second client | You | A second `BeakClient` has its own identity and cache lifetime. Resolve the panel's source instead. |
+| Localization falls back safely | Client | Without a `BeakLocalizations.delegate` the widgets follow the ambient locale, English and German only. Install the delegate for a host that lists its own. |
+
+## Verify it
+
+Pump the widget the way Beak does: inside `OiApp`, over `InMemoryBeakDataSource` for presentation, filtering and draft tests (`package:beak/testing.dart`). When the test must see the server's lifecycle (behavior, actions, receipts), run the form through `HttpBeakDataSource` into the real API, as the shop's `test/order_form_test.dart` does with a SQLite-backed server.
+
+```console
+$ cd packages/beak_frontend
+$ flutter test test/src/panel/beak_panel_test.dart --plain-name "host router owns authentication"
+generated routes host router owns authentication and the app root
+All tests passed!
+$ flutter test test/src/blocks/beak_metric_block_test.dart
+All tests passed!
+```
+
+For the second-entrypoint route, `beak doctor` checks that the entrypoint lists every resource class and that the generated files are current:
+
+```console
+$ beak doctor
+  OK   project depends on Beak
+  OK   beak.yaml parses
+  OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
+  OK   lib/admin_main.dart lists every resource class
+  OK   migrations import files that exist
+  OK   generated files up to date
+  ...
+All checks passed.
+```
+
+Then `flutter run -d chrome -t lib/admin_main.dart` boots the panel.
+
+## Reference
+
+| Symbol | Library | Role |
+| --- | --- | --- |
+| `BeakConfiguredForm` | `package:beak/panel.dart` | Form, detail view and wizard host with loading, validation and saving. |
+| `BeakDataTable` | `package:beak/panel.dart` | The generated list view. |
+| `BeakBlockHost` | `package:beak/panel.dart` | Renders a `BeakBlock` tree onto obers_ui widgets. |
+| `BeakFormattingScope`, `BeakFormatting` | `package:beak/panel.dart` | Shared display policy. |
+| `registerBeakDependencies`, `beakLocator`, `beakDependencies`, `BeakDependencyScope` | `package:beak/panel.dart` | The dependency container and its lookup. |
+| `beakPanelRoutes(config)` | `package:beak/panel.dart` | The panel's routes for a host router. |
+| `BeakPanelConfig`, `BeakAuthConfig` | `package:beak/panel.dart` | The panel's configuration and its auth options. |
+| `beak init` | `beak_cli` | `[--entrypoint <path>] [--beak-ref <ref> \| --beak-path <dir>] [--example] [--[no-]pub] [--dry-run]`. |
+
+Sources: `packages/beak_frontend/lib/src/panel/beak_router.dart`, `packages/beak_frontend/lib/src/di/beak_locator.dart`, `packages/beak_frontend/lib/src/form/beak_configured_form.dart`, `packages/beak_cli/lib/src/commands/init_command.dart`.
 
 ## Continue reading
 
-- [The block system](../concepts/the-block-system.md) the sealed `BeakBlock` union and the one renderer behind it.
-- [Custom screens](../panel/custom-screens.md) the same block tree as a first-class page inside a panel.
-- [The widget escape hatch](../blocks/the-widget-escape-hatch.md) `BeakWidgetBlock`, for dropping raw Flutter into a block tree.
-- [Escape hatches](../models/escape-hatches.md) the rest of the ways out, including a table another system owns.
-- [Custom data sources](custom-data-sources.md) how to feed data-bound blocks a source of your own.
+- [An existing Flutter app](../start-here/paths/existing-flutter-app.md) the whole path: sharing the session and running the API.
+- [Custom blocks and widgets](custom-blocks-and-widgets.md) widgets that read the panel's dependencies from inside it.
+- [Testing](../shipping/testing.md) the in-memory source, the recording decorator and the widget test setup.
+- [Two ways to boot a panel](../start-here/generated-or-authored.md) the authored entrypoint `beak init` writes, and its generated twin.

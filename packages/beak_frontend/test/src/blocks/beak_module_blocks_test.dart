@@ -241,6 +241,52 @@ void main() {
       expect(byTitle['Standup']!.color, isNotNull);
     });
 
+    testWidgets('a row without a start is left out, not given today', (
+      tester,
+    ) async {
+      dataSource = FakeDataSource(
+        models: const [MeetingModel()],
+        records: {
+          'meetings': {
+            'm1': BeakRecord.fromRow({
+              'id': 'm1',
+              'title': 'Standup',
+              'starts_at': day,
+            }),
+            'm2': BeakRecord.fromRow(const {
+              'id': 'm2',
+              'title': 'Someday',
+              'starts_at': null,
+            }),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: MeetingModel(),
+              icon: BeakIconToken(OiIcons.calendar),
+            ),
+          ],
+        ),
+        dataSource: dataSource,
+      );
+      await pump(
+        tester,
+        const BeakCalendarBlock(
+          model: MeetingModel(),
+          titleField: MeetingColumns.title,
+          startField: MeetingColumns.startsAt,
+        ),
+      );
+
+      final calendar = tester.widget<OiCalendar>(find.byType(OiCalendar));
+      expect(calendar.events.map((event) => event.title), ['Standup']);
+    });
+
     testWidgets('a tap resolves back to the record; a drag persists', (
       tester,
     ) async {
@@ -269,7 +315,172 @@ void main() {
       final (table, id, data) = dataSource.updateCalls.single;
       expect(table, 'meetings');
       expect(id, 'm1');
-      expect(data[MeetingColumns.startsAt.key]?.raw, moved);
+      expect(switch (data[MeetingColumns.startsAt.key]?.raw) {
+        final DateTime stored => stored.isAtSameMomentAs(moved),
+        _ => false,
+      }, isTrue);
+    });
+  });
+
+  group('BeakCalendarBlock time zone', () {
+    // A panel pinned to UTC+2: the wall clock on screen is two hours ahead of
+    // the stored instant, whatever zone the machine running the test is in.
+    const formatting = BeakFormatting(timeZoneOffsetMinutes: 120);
+
+    testWidgets('shows an event at the panel zone and moves it by wall clock', (
+      tester,
+    ) async {
+      final source = FakeDataSource(
+        models: const [MeetingModel()],
+        records: {
+          'meetings': {
+            'm1': BeakRecord.fromRow({
+              'id': 'm1',
+              'title': 'Standup',
+              'starts_at': DateTime.utc(2026, 7, 6, 7),
+              'ends_at': DateTime.utc(2026, 7, 6, 7, 30),
+              'all_day': false,
+              'status': 'doing',
+            }),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: MeetingModel(),
+              icon: BeakIconToken(OiIcons.calendar),
+            ),
+          ],
+        ),
+        dataSource: source,
+      );
+      await tester.binding.setSurfaceSize(const Size(1400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        BeakFormattingScope(
+          formatting: formatting,
+          child: OiApp(
+            theme: OiThemeData.light(),
+            home: const BeakBlockHost(
+              block: BeakCalendarBlock(
+                model: MeetingModel(),
+                titleField: MeetingColumns.title,
+                startField: MeetingColumns.startsAt,
+                endField: MeetingColumns.endsAt,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final calendar = tester.widget<OiCalendar>(find.byType(OiCalendar));
+      final event = calendar.events.single;
+      expect(event.start.hour, 9, reason: '07:00Z is 09:00 in UTC+2');
+      expect(event.end.minute, 30);
+
+      // The calendar reports the new wall clock as a local DateTime.
+      calendar.onEventMove!(
+        event,
+        DateTime(2026, 7, 8, 9),
+        DateTime(2026, 7, 8, 9, 30),
+      );
+      await tester.pumpAndSettle();
+
+      final (_, _, data) = source.updateCalls.single;
+      final start = switch (data[MeetingColumns.startsAt.key]?.raw) {
+        final DateTime value => value,
+        _ => null,
+      };
+      final end = switch (data[MeetingColumns.endsAt.key]?.raw) {
+        final DateTime value => value,
+        _ => null,
+      };
+      expect(
+        start?.isAtSameMomentAs(DateTime.utc(2026, 7, 8, 7)),
+        isTrue,
+        reason: 'the stored instant keeps the 09:00 wall clock of UTC+2',
+      );
+      expect(end?.isAtSameMomentAs(DateTime.utc(2026, 7, 8, 7, 30)), isTrue);
+    });
+  });
+
+  group('read-only time blocks use the panel zone', () {
+    const formatting = BeakFormatting(timeZoneOffsetMinutes: 120);
+
+    Future<void> pumpZoned(WidgetTester tester, BeakBlock block) async {
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: MessageModel(),
+              icon: BeakIconToken(OiIcons.messageSquare),
+            ),
+          ],
+        ),
+        dataSource: FakeDataSource(
+          models: const [MessageModel()],
+          records: {
+            'messages': {
+              'g1': BeakRecord.fromRow({
+                'id': 'g1',
+                'author': 'Ada',
+                'body': 'Hello there',
+                'sent_at': DateTime.utc(2026, 7, 6, 7),
+                'from_me': false,
+              }),
+            },
+          },
+        ),
+      );
+      await tester.binding.setSurfaceSize(const Size(1400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        BeakFormattingScope(
+          formatting: formatting,
+          child: OiApp(
+            theme: OiThemeData.light(),
+            home: BeakBlockHost(block: block),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a chat message is stamped in the panel zone', (tester) async {
+      await pumpZoned(
+        tester,
+        const BeakChatBlock(
+          model: MessageModel(),
+          authorField: MessageColumns.author,
+          bodyField: MessageColumns.body,
+          timeField: MessageColumns.sentAt,
+          isMineField: MessageColumns.fromMe,
+        ),
+      );
+
+      final chat = tester.widget<OiChat>(find.byType(OiChat));
+      expect(chat.messages.single.timestamp.hour, 9);
+    });
+
+    testWidgets('a timeline event sits at the panel zone', (tester) async {
+      await pumpZoned(
+        tester,
+        const BeakTimelineBlock(
+          query: BeakQuerySpec(table: 'messages'),
+          titleField: MessageColumns.body,
+          timeField: MessageColumns.sentAt,
+        ),
+      );
+
+      final timeline = tester.widget<OiTimeline>(find.byType(OiTimeline));
+      expect(timeline.events.single.timestamp.hour, 9);
     });
   });
 
@@ -279,7 +490,7 @@ void main() {
         tester,
         const BeakKanbanBlock(
           model: TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
           subtitleField: TaskColumns.assignee,
         ),
@@ -298,13 +509,45 @@ void main() {
       expect(find.text('Write docs'), findsWidgets);
     });
 
+    test('the group field must be an enum field of the block model', () {
+      BeakKanbanBlock boardGroupedBy(BeakScalarField<Enum> field) =>
+          BeakKanbanBlock(
+            model: const TaskModel(),
+            groupField: field,
+            titleField: TaskColumns.title,
+          );
+      expect(
+        boardGroupedBy(TaskModel.status).groupColumn,
+        same(TaskColumns.status),
+      );
+      const notAnEnum = BeakScalarField<Enum>(
+        model: TaskModel(),
+        column: TaskColumns.title,
+      );
+      const elsewhere = BeakScalarField<Enum>(
+        model: MeetingModel(),
+        column: TaskColumns.status,
+      );
+      const related = BeakScalarField<Enum>(
+        model: TaskModel(),
+        column: TaskColumns.status,
+        path: [MailRelations.folder],
+      );
+      for (final field in [notAnEnum, elsewhere, related]) {
+        expect(
+          () => boardGroupedBy(field).groupColumn,
+          throwsA(isA<BeakConfigurationException>()),
+        );
+      }
+    });
+
     testWidgets('dropping a card persists its new group', (tester) async {
       BeakRecord? moved;
       await pump(
         tester,
         BeakKanbanBlock(
           model: const TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
           onCardMove: (record) => moved = record,
         ),
@@ -432,6 +675,42 @@ void main() {
     });
   });
 
+  group('BeakInvoiceBlock line items', () {
+    testWidgets('offer no delete on a document line', (tester) async {
+      await pump(
+        tester,
+        const BeakInvoiceBlock(
+          model: InvoiceModel(),
+          recordId: 'inv1',
+          fromFields: [InvoiceColumns.fromName],
+          toFields: [InvoiceColumns.toName],
+          lineItemsModel: InvoiceLineModel(),
+          lineItemsForeignKey: InvoiceLineColumns.invoiceId,
+          totalField: InvoiceColumns.total,
+        ),
+      );
+
+      final table = tester.widget<BeakDataTable>(find.byType(BeakDataTable));
+      expect(table.enableDelete, isFalse);
+    });
+  });
+
+  group('BeakFileManagerBlock', () {
+    testWidgets('reads a full page, not the default of 25', (tester) async {
+      await pump(
+        tester,
+        const BeakFileManagerBlock(
+          model: AssetModel(),
+          nameField: AssetColumns.name,
+          isFolderField: AssetColumns.isFolder,
+        ),
+      );
+
+      final spec = dataSource.queryCalls.single;
+      expect(spec.pagination.perPage, BeakPagination.maxPerPage);
+    });
+  });
+
   group('BeakProfileBlock', () {
     testWidgets('renders one record on OiProfilePage', (tester) async {
       await pump(
@@ -508,14 +787,14 @@ void main() {
         tester,
         const BeakKanbanBlock(
           model: TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
           sortField: TaskColumns.title,
         ),
       );
 
       final spec = dataSource.queryCalls.single;
-      expect(spec.pagination.perPage, 500);
+      expect(spec.pagination.perPage, BeakPagination.maxPerPage);
       expect(spec.sorts.single.columnKey, TaskColumns.title.key);
     });
 
@@ -526,7 +805,7 @@ void main() {
         tester,
         const BeakKanbanBlock(
           model: TaskModel(),
-          groupField: TaskColumns.status,
+          groupField: TaskModel.status,
           titleField: TaskColumns.title,
         ),
       );
@@ -571,7 +850,7 @@ void main() {
       final spec = dataSource.queryCalls.single;
       expect(spec.relationLoads.single.relationKey, PlanRelations.features.key);
       expect(spec.sorts.single.columnKey, PlanColumns.monthlyPrice.key);
-      expect(spec.pagination.perPage, 500);
+      expect(spec.pagination.perPage, BeakPagination.maxPerPage);
     });
 
     testWidgets('chat is a read-only transcript without composeRecord', (
@@ -625,7 +904,6 @@ void main() {
     testWidgets('inbox filters by the selected data-driven folder', (
       tester,
     ) async {
-      const folderRelation = MailRelations.folder;
       const folderLabel = BeakStringColumn(key: 'label', label: 'Folder');
       BeakRecord mail(
         String id,
@@ -675,7 +953,7 @@ void main() {
           senderField: MailColumns.sender,
           subjectField: MailColumns.subject,
           unreadField: MailColumns.unread,
-          folderRelation: folderRelation,
+          folderRelation: MailModel.folder,
           folderLabelField: folderLabel,
         ),
       );
@@ -816,9 +1094,620 @@ void main() {
 
       final spec = dataSource.queryCalls.single;
       expect(spec.sorts.single.columnKey, FaqColumns.question.key);
-      expect(spec.pagination.perPage, 500);
+      expect(spec.pagination.perPage, BeakPagination.maxPerPage);
     });
   });
+
+  group('writes from module blocks', () {
+    /// Registers a panel over [source] and mounts [block] on it.
+    Future<void> pumpOver(
+      WidgetTester tester,
+      FakeDataSource source,
+      BeakBlock block,
+    ) async {
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: MeetingModel(),
+              icon: BeakIconToken(OiIcons.calendar),
+            ),
+            BeakResource(
+              model: TaskModel(),
+              icon: BeakIconToken(OiIcons.columns),
+            ),
+            BeakResource(
+              model: MessageModel(),
+              icon: BeakIconToken(OiIcons.messageSquare),
+            ),
+          ],
+        ),
+        dataSource: source,
+      );
+      dataSource = source;
+      await pump(tester, block);
+    }
+
+    FakeDataSource refusing() => _RefusingSource(
+      models: const [MeetingModel(), TaskModel(), MessageModel()],
+      records: {
+        'tasks': {
+          't1': BeakRecord.fromRow(const {
+            'id': 't1',
+            'title': 'Write docs',
+            'status': 'todo',
+          }),
+        },
+        'meetings': {
+          'm1': BeakRecord.fromRow({
+            'id': 'm1',
+            'title': 'Standup',
+            'starts_at': day,
+            'ends_at': day.add(const Duration(minutes: 30)),
+            'all_day': false,
+            'status': 'doing',
+          }),
+        },
+      },
+    );
+
+    testWidgets('a refused card move says so and does not report a move', (
+      tester,
+    ) async {
+      BeakRecord? moved;
+      await pumpOver(
+        tester,
+        refusing(),
+        BeakKanbanBlock(
+          model: const TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+          onCardMove: (record) => moved = record,
+        ),
+      );
+
+      final board = tester.widget<OiKanban<BeakRecord>>(
+        find.byType(OiKanban<BeakRecord>),
+      );
+      final card = board.columns
+          .firstWhere((c) => c.key == 'todo')
+          .items
+          .single;
+      board.onCardMove!(card, 'todo', 'done', 0);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Read only.', findRichText: true), findsOneWidget);
+      expect(moved, isNull);
+      final rebuilt = tester.widget<OiKanban<BeakRecord>>(
+        find.byType(OiKanban<BeakRecord>),
+      );
+      expect(
+        rebuilt.columns.firstWhere((c) => c.key == 'todo').items,
+        hasLength(1),
+      );
+      await _letToastExpire(tester);
+    });
+
+    testWidgets('a confirmed card move reports the move once', (tester) async {
+      var moves = 0;
+      await pumpOver(
+        tester,
+        FakeDataSource(
+          models: const [TaskModel()],
+          records: {
+            'tasks': {
+              't1': BeakRecord.fromRow(const {
+                'id': 't1',
+                'title': 'Write docs',
+                'status': 'todo',
+              }),
+            },
+          },
+        ),
+        BeakKanbanBlock(
+          model: const TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+          onCardMove: (_) => moves++,
+        ),
+      );
+
+      final board = tester.widget<OiKanban<BeakRecord>>(
+        find.byType(OiKanban<BeakRecord>),
+      );
+      board.onCardMove!(
+        board.columns.firstWhere((c) => c.key == 'todo').items.single,
+        'todo',
+        'done',
+        0,
+      );
+      await tester.pumpAndSettle();
+
+      expect(moves, 1);
+    });
+
+    testWidgets('a card dropped in its own column writes and reports nothing', (
+      tester,
+    ) async {
+      var moves = 0;
+      final source = FakeDataSource(
+        models: const [TaskModel()],
+        records: {
+          'tasks': {
+            't1': BeakRecord.fromRow(const {
+              'id': 't1',
+              'title': 'Write docs',
+              'status': 'todo',
+            }),
+          },
+        },
+      );
+      await pumpOver(
+        tester,
+        source,
+        BeakKanbanBlock(
+          model: const TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+          onCardMove: (_) => moves++,
+        ),
+      );
+
+      final board = tester.widget<OiKanban<BeakRecord>>(
+        find.byType(OiKanban<BeakRecord>),
+      );
+      board.onCardMove!(
+        board.columns.firstWhere((c) => c.key == 'todo').items.single,
+        'todo',
+        'todo',
+        0,
+      );
+      await tester.pumpAndSettle();
+
+      expect(moves, 0);
+      expect(source.updateCalls, isEmpty);
+    });
+
+    testWidgets('a refused event move says so and does not report a move', (
+      tester,
+    ) async {
+      var moves = 0;
+      await pumpOver(
+        tester,
+        refusing(),
+        BeakCalendarBlock(
+          model: const MeetingModel(),
+          titleField: MeetingColumns.title,
+          startField: MeetingColumns.startsAt,
+          endField: MeetingColumns.endsAt,
+          onEventMove: (_, _, _) => moves++,
+        ),
+      );
+
+      final calendar = tester.widget<OiCalendar>(find.byType(OiCalendar));
+      final event = calendar.events.single;
+      final later = day.add(const Duration(days: 1));
+      calendar.onEventMove!(event, later, later.add(const Duration(hours: 1)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Read only.', findRichText: true), findsOneWidget);
+      expect(moves, 0);
+      await _letToastExpire(tester);
+    });
+
+    testWidgets('a refused message says so and is not appended', (
+      tester,
+    ) async {
+      await pumpOver(
+        tester,
+        refusing(),
+        BeakChatBlock(
+          model: const MessageModel(),
+          authorField: MessageColumns.author,
+          bodyField: MessageColumns.body,
+          timeField: MessageColumns.sentAt,
+          composeRecord: (body) => BeakRecord.fromRow({
+            'author': 'Me',
+            'body': body,
+            'sent_at': day,
+            'from_me': true,
+          }),
+        ),
+      );
+
+      final chat = tester.widget<OiChat>(find.byType(OiChat));
+      chat.onSend!('Hello');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Read only.', findRichText: true), findsOneWidget);
+      expect(tester.widget<OiChat>(find.byType(OiChat)).messages, isEmpty);
+      await _letToastExpire(tester);
+    });
+  });
+
+  group('module blocks read a filtered, bounded page', () {
+    testWidgets('kanban, calendar and chat send their filter', (tester) async {
+      const status = TaskModel.status;
+      final filter = status.eq(TaskStatus.todo);
+      await pump(
+        tester,
+        BeakKanbanBlock(
+          model: const TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+          filter: filter,
+        ),
+      );
+      expect(dataSource.queryCalls.last.filter, filter);
+
+      dataSource.clearRecordedCalls();
+      const title = BeakScalarField<String>(
+        model: MeetingModel(),
+        column: MeetingColumns.title,
+      );
+      final meetings = title.contains('Stand');
+      await pump(
+        tester,
+        BeakCalendarBlock(
+          model: const MeetingModel(),
+          titleField: MeetingColumns.title,
+          startField: MeetingColumns.startsAt,
+          filter: meetings,
+        ),
+      );
+      expect(dataSource.queryCalls.last.filter, meetings);
+
+      dataSource.clearRecordedCalls();
+      const author = BeakScalarField<String>(
+        model: MessageModel(),
+        column: MessageColumns.author,
+      );
+      final mine = author.eq('Me');
+      await pump(
+        tester,
+        BeakChatBlock(
+          model: const MessageModel(),
+          authorField: MessageColumns.author,
+          bodyField: MessageColumns.body,
+          timeField: MessageColumns.sentAt,
+          filter: mine,
+        ),
+      );
+      expect(dataSource.queryCalls.last.filter, mine);
+    });
+
+    testWidgets('a result larger than the page says how much is shown', (
+      tester,
+    ) async {
+      final wide = _TruncatedSource(
+        models: const [TaskModel()],
+        records: {
+          'tasks': {
+            't1': BeakRecord.fromRow(const {
+              'id': 't1',
+              'title': 'Write docs',
+              'status': 'todo',
+            }),
+          },
+        },
+        total: 340,
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: TaskModel(),
+              icon: BeakIconToken(OiIcons.columns),
+            ),
+          ],
+        ),
+        dataSource: wide,
+      );
+      await pump(
+        tester,
+        const BeakKanbanBlock(
+          model: TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+        ),
+      );
+
+      expect(find.text('Showing the first 1 of 340.'), findsOneWidget);
+    });
+  });
+
+  group('a module block whose read fails', () {
+    testWidgets('says so, keeps nothing invented, and a retry reads again', (
+      tester,
+    ) async {
+      final flaky = _UnreadableSource(
+        models: const [TaskModel()],
+        records: {
+          'tasks': {
+            't1': BeakRecord.fromRow(const {
+              'id': 't1',
+              'title': 'Write docs',
+              'status': 'todo',
+            }),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: TaskModel(),
+              icon: BeakIconToken(OiIcons.columns),
+            ),
+          ],
+        ),
+        dataSource: flaky,
+      );
+      await pump(
+        tester,
+        const BeakKanbanBlock(
+          model: TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+        ),
+      );
+
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('disk detail'), findsNothing);
+      expect(find.text('Write docs'), findsNothing);
+
+      flaky.failing = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Write docs'), findsOneWidget);
+    });
+  });
+
+  group('a record block whose read fails', () {
+    Future<_UnreadableSource> mount(
+      WidgetTester tester,
+      BeakBlock block,
+    ) async {
+      final flaky = _UnreadableSource(
+        models: const [ProfileModel(), InvoiceModel(), InvoiceLineModel()],
+        records: {
+          'profiles': {
+            'p1': BeakRecord.fromRow(const {
+              'id': 'p1',
+              'name': 'Grace Hopper',
+              'email': 'grace@navy.test',
+            }),
+          },
+          'invoices': {
+            'inv1': BeakRecord.fromRow(const {
+              'id': 'inv1',
+              'from_name': 'Acme Inc',
+              'total': '119.00',
+            }),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: ProfileModel(),
+              icon: BeakIconToken(OiIcons.user),
+            ),
+            BeakResource(
+              model: InvoiceModel(),
+              icon: BeakIconToken(OiIcons.file),
+            ),
+          ],
+        ),
+        dataSource: flaky,
+      );
+      await pump(tester, block);
+      return flaky;
+    }
+
+    testWidgets('a profile says so instead of loading for ever', (
+      tester,
+    ) async {
+      final flaky = await mount(
+        tester,
+        const BeakProfileBlock(
+          model: ProfileModel(),
+          recordId: 'p1',
+          nameField: ProfileColumns.name,
+          emailField: ProfileColumns.email,
+        ),
+      );
+
+      expect(find.text('Loading…'), findsNothing);
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+
+      flaky.failing = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OiProfilePage), findsOneWidget);
+    });
+
+    testWidgets('an invoice says so instead of loading for ever', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        const BeakInvoiceBlock(
+          model: InvoiceModel(),
+          recordId: 'inv1',
+          fromFields: [InvoiceColumns.fromName],
+          lineItemsModel: InvoiceLineModel(),
+          totalField: InvoiceColumns.total,
+        ),
+      );
+
+      expect(find.text('Loading…'), findsNothing);
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+    });
+  });
+
+  group('data blocks refetch after a confirmed write', () {
+    testWidgets('a chart, a board and a calendar query again', (tester) async {
+      final source = FakeDataSource(
+        models: const [MeetingModel(), TaskModel()],
+        records: {
+          'tasks': {
+            't1': BeakRecord.fromRow(const {
+              'id': 't1',
+              'title': 'Write docs',
+              'status': 'todo',
+            }),
+          },
+          'meetings': {
+            'm1': BeakRecord.fromRow({
+              'id': 'm1',
+              'title': 'Standup',
+              'starts_at': day,
+              'ends_at': day.add(const Duration(minutes: 30)),
+              'status': 'doing',
+            }),
+          },
+        },
+      );
+      registerBeakDependencies(
+        config: const BeakPanelConfig(
+          title: 'Modules',
+          apiBaseUrl: 'http://localhost',
+          resources: [
+            BeakResource(
+              model: MeetingModel(),
+              icon: BeakIconToken(OiIcons.calendar),
+            ),
+            BeakResource(
+              model: TaskModel(),
+              icon: BeakIconToken(OiIcons.columns),
+            ),
+          ],
+        ),
+        dataSource: source,
+      );
+      dataSource = source;
+      final blocks = <BeakBlock>[
+        BeakChartBlock(
+          title: 'Tasks',
+          type: BeakChartType.bar,
+          query: const TaskModel().query(),
+          map: (records) => [
+            for (final record in records)
+              BeakChartPoint(label: '${record['title']?.raw}', value: 1),
+          ],
+        ),
+        const BeakKanbanBlock(
+          model: TaskModel(),
+          groupField: TaskModel.status,
+          titleField: TaskColumns.title,
+        ),
+        const BeakCalendarBlock(
+          model: MeetingModel(),
+          titleField: MeetingColumns.title,
+          startField: MeetingColumns.startsAt,
+        ),
+      ];
+      final tables = ['tasks', 'tasks', 'meetings'];
+      for (final (index, block) in blocks.indexed) {
+        source.clearRecordedCalls();
+        await pump(tester, block);
+        final before = source.queryCalls.length;
+        expect(before, 1, reason: '${block.runtimeType} loads once');
+
+        await beakLocator<BeakDataSource>().update(
+          tables[index],
+          index < 2 ? 't1' : 'm1',
+          BeakRecord.fromRow({'title': 'Renamed $index'}),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          source.queryCalls.length,
+          before + 1,
+          reason: '${block.runtimeType} refetches after a write',
+        );
+      }
+    });
+  });
+}
+
+/// Lets a shown toast run out, so the next test starts without one.
+Future<void> _letToastExpire(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 10));
+  await tester.pumpAndSettle();
+}
+
+/// A source whose writes are refused, as a read-only account's would be.
+final class _RefusingSource extends FakeDataSource {
+  _RefusingSource({super.records, super.models});
+
+  @override
+  Future<BeakRecord> update(String table, Object id, BeakRecord data) =>
+      Future.error(const BeakAuthorizationException('Read only.'));
+
+  @override
+  Future<BeakRecord> create(String table, BeakRecord data) =>
+      Future.error(const BeakAuthorizationException('Read only.'));
+}
+
+/// A source whose reads fail until [failing] is cleared.
+final class _UnreadableSource extends FakeDataSource {
+  _UnreadableSource({super.records, super.models});
+
+  bool failing = true;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    if (failing) throw const BeakStorageException('disk detail');
+    return super.query(spec);
+  }
+
+  @override
+  Future<BeakRecord?> getOne(String table, Object id) async {
+    if (failing) throw const BeakStorageException('disk detail');
+    return super.getOne(table, id);
+  }
+}
+
+/// A source that reports more matching rows than it returns.
+final class _TruncatedSource extends FakeDataSource {
+  _TruncatedSource({super.records, super.models, required this.total});
+
+  final int total;
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    final page = await super.query(spec);
+    return BeakPage(
+      items: page.items,
+      total: total,
+      page: page.page,
+      perPage: page.perPage,
+    );
+  }
 }
 
 /// Board / meeting status with badge colors, exercising the enum-driven
@@ -916,6 +1805,12 @@ final class TaskModel extends BeakModel {
   /// Creates the model.
   const TaskModel();
 
+  /// Typed reference to the grouping status.
+  static const status = BeakScalarField<TaskStatus>(
+    model: TaskModel(),
+    column: TaskColumns.status,
+  );
+
   @override
   String get table => 'tasks';
 
@@ -1001,6 +1896,13 @@ final class MailModel extends BeakModel {
   /// Creates the model.
   const MailModel();
 
+  /// Typed reference to the folder a message sits in.
+  static const folder = BeakToOneField(
+    model: MailModel(),
+    relation: MailRelations.folder,
+    target: MailFolderModel(),
+  );
+
   @override
   String get table => 'mail';
 
@@ -1012,6 +1914,24 @@ final class MailModel extends BeakModel {
 
   @override
   List<BeakRelationship> get relationships => const [MailRelations.folder];
+}
+
+/// The folders a [MailModel] message can sit in.
+final class MailFolderModel extends BeakModel {
+  /// Creates the model.
+  const MailFolderModel();
+
+  @override
+  String get table => 'mail_folders';
+
+  @override
+  String get displayColumnKey => 'label';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'id', label: 'Id'),
+    BeakStringColumn(key: 'label', label: 'Folder'),
+  ];
 }
 
 /// Typed relations of the [MailModel] fixture.

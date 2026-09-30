@@ -5,14 +5,26 @@
 /// together want the opposite: their working copy, hot-reloadable.
 ///
 /// This writes path `dependency_overrides` into the `pubspec_overrides.yaml`
-/// of the packages that actually depend on obers_ui. Melos owns the entries
+/// of the packages that actually depend on obers_ui, and into the root of a pub
+/// workspace (`examples/serverpod`) when one of its members does. Melos owns the entries
 /// listed in each file's `# melos_managed_dependency_overrides:` header and
 /// leaves everything else alone, so these survive `melos bootstrap`.
 ///
 /// ```bash
-/// melos run link-obers-ui              # use ../obers_ui
-/// melos run link-obers-ui -- --unlink  # back to the pinned commits
+/// melos run link-obers-ui     # use ../obers_ui
+/// melos run unlink-obers-ui   # back to the pinned commits
 /// ```
+///
+/// Each script runs this tool and then `melos bootstrap`, so the new overrides
+/// take effect. Without melos, `dart run tool/link_obers_ui.dart --unlink &&
+/// melos bootstrap` does the same as `unlink-obers-ui`. The unlink is a script
+/// of its own because melos 6.3.3 appends anything written after `--` to the
+/// end of the whole script, so `melos run link-obers-ui -- --unlink` would run
+/// `melos bootstrap --unlink` and never reach this tool's flag.
+///
+/// Unlink before committing. `pub get` writes what it resolved into the
+/// tracked `pubspec.lock` of the examples, and a lockfile recorded while linked
+/// holds a path into a sibling checkout.
 library;
 
 import 'dart:io';
@@ -35,21 +47,105 @@ const String blockMarker = '# beak: linked obers_ui checkout';
 
 /// Returns the obers_ui package names [pubspecSource] declares as
 /// dependencies, in the order [obersUiPackagePaths] lists them.
-List<String> obersUiDependenciesOf(String pubspecSource) => [
-  for (final package in obersUiPackagePaths.keys)
-    if (RegExp('^  $package:\$', multiLine: true).hasMatch(pubspecSource))
-      package,
-];
+List<String> obersUiDependenciesOf(String pubspecSource) {
+  final String declared = _declaredDependenciesOf(pubspecSource);
+  return [
+    for (final package in obersUiPackagePaths.keys)
+      if (RegExp('^  $package:\$', multiLine: true).hasMatch(declared)) package,
+  ];
+}
+
+/// The lines under `dependencies:` and `dev_dependencies:` of
+/// [pubspecSource], so a key elsewhere (an `executables:` entry named
+/// `beak`, say) is never mistaken for a dependency.
+String _declaredDependenciesOf(String pubspecSource) {
+  final buffer = StringBuffer();
+  var inside = false;
+  for (final line in pubspecSource.split('\n')) {
+    final bool topLevel =
+        line.isNotEmpty && !line.startsWith(RegExp(r'[ \t#]'));
+    if (topLevel) {
+      inside =
+          line.trimRight() == 'dependencies:' ||
+          line.trimRight() == 'dev_dependencies:';
+      continue;
+    }
+    if (inside) {
+      buffer.writeln(line);
+    }
+  }
+  return buffer.toString();
+}
+
+/// Coordinated overrides needed at an executable's own dependency root.
+///
+/// Pub deliberately does not inherit a dependency's overrides. A panel which
+/// depends on `beak` therefore needs the same overrides as `beak_frontend`.
+/// Pure Dart packages remain untouched so linking does not introduce Flutter.
+List<String> obersUiOverridesFor(String pubspecSource) {
+  final usesPanel = RegExp(
+    r'^  (beak|beak_frontend|beak_serverpod_flutter):',
+    multiLine: true,
+  ).hasMatch(_declaredDependenciesOf(pubspecSource));
+  return usesPanel || obersUiDependenciesOf(pubspecSource).isNotEmpty
+      ? obersUiPackagePaths.keys.toList()
+      : const [];
+}
+
+/// The member directories a pub workspace root lists under `workspace:`, or
+/// an empty list when [pubspecSource] is not a workspace root.
+List<String> workspaceMembersOf(String pubspecSource) {
+  final List<String> lines = pubspecSource.split('\n');
+  final int start = lines.indexWhere(
+    (line) => line.trimRight() == 'workspace:',
+  );
+  if (start < 0) {
+    return const [];
+  }
+  final member = RegExp(r'^\s+-\s+([^\s#]+)\s*(#.*)?$');
+  final members = <String>[];
+  for (final line in lines.skip(start + 1)) {
+    if (line.trim().isEmpty || line.trimLeft().startsWith('#')) {
+      continue;
+    }
+    final RegExpMatch? match = member.firstMatch(line);
+    if (match == null) {
+      break;
+    }
+    members.add(match.group(1)!);
+  }
+  return members;
+}
+
+/// Overrides needed at the root of a pub workspace, given the pubspecs of its
+/// members.
+///
+/// Pub applies only the workspace root's `pubspec_overrides.yaml` to every
+/// member, so the root carries them when any member is a panel.
+List<String> obersUiOverridesForWorkspace(
+  Iterable<String> memberPubspecSources,
+) =>
+    memberPubspecSources.any((source) => obersUiOverridesFor(source).isNotEmpty)
+    ? obersUiPackagePaths.keys.toList()
+    : const [];
 
 /// Returns [overridesSource] with this tool's block removed.
 ///
-/// An absent block is not an error — unlinking twice is a no-op.
+/// An absent block is not an error — unlinking twice is a no-op. When the block
+/// was the only entry, the `dependency_overrides:` header it hung under goes
+/// too, so an emptied file can be deleted instead of left with a bare header.
 String withoutObersUiBlock(String overridesSource) {
   final int start = overridesSource.indexOf(blockMarker);
   if (start < 0) {
     return overridesSource;
   }
-  return '${overridesSource.substring(0, start).trimRight()}\n';
+  final String kept = overridesSource.substring(0, start).trimRight();
+  final List<String> lines = kept.split('\n');
+  if (lines.isNotEmpty && lines.last.trimRight() == 'dependency_overrides:') {
+    lines.removeLast();
+  }
+  final String rest = lines.join('\n').trimRight();
+  return rest.isEmpty ? '' : '$rest\n';
 }
 
 /// Returns [overridesSource] with path overrides for [packages] appended,
@@ -113,9 +209,17 @@ void main(List<String> args) {
       if (!pubspec.existsSync()) {
         continue;
       }
-      final List<String> packages = obersUiDependenciesOf(
-        pubspec.readAsStringSync(),
-      );
+      final String source = pubspec.readAsStringSync();
+      final List<String> members = workspaceMembersOf(source);
+      final List<String> packages = members.isEmpty
+          ? obersUiOverridesFor(source)
+          : obersUiOverridesForWorkspace([
+              for (final member in members)
+                if (File('${entity.path}/$member/pubspec.yaml')
+                    case final File memberPubspec
+                    when memberPubspec.existsSync())
+                  memberPubspec.readAsStringSync(),
+            ]);
       if (packages.isEmpty) {
         continue;
       }

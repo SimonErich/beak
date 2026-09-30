@@ -5,7 +5,7 @@
 /// fixture is the difference between one schema to keep honest and three.
 library;
 
-import 'package:beak_cli/beak_cli.dart';
+import 'beak_cli_internals.dart';
 
 /// Canned `information_schema` rows, so introspection is tested without a
 /// server. The shapes match what Postgres actually returns.
@@ -31,10 +31,10 @@ final class FakeDatabase {
     if (sql.contains('pg_index')) {
       return indexes;
     }
-    if (sql.contains("'FOREIGN KEY'")) {
+    if (sql.contains("contype = 'f'")) {
       return foreignKeys;
     }
-    if (sql.contains("'PRIMARY KEY'")) {
+    if (sql.contains("contype = 'p'")) {
       return primaryKeys;
     }
     return columns;

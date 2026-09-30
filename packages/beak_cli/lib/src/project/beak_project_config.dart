@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:yaml/yaml.dart';
 
+import '../agents/beak_skill_installer.dart';
 import 'beak_discovery.dart';
+import 'beak_emitters.dart' show BeakEmitters;
 
 /// Thrown when `beak.yaml` cannot be understood.
 ///
@@ -22,7 +24,7 @@ final class BeakProjectConfigException implements Exception {
 /// Where the panel points its API calls.
 final class BeakApiSettings {
   /// Creates API settings.
-  const BeakApiSettings({this.baseUrl = 'http://localhost:8080'});
+  const BeakApiSettings({this.baseUrl = defaultBaseUrl});
 
   /// Origin the panel calls, compiled in.
   ///
@@ -33,11 +35,18 @@ final class BeakApiSettings {
   /// Whether [baseUrl] resolves at runtime rather than being a fixed origin.
   bool get isAuto => baseUrl == 'auto';
 
+  /// Whether [baseUrl] is the origin `BeakPanel` already defaults to, so an
+  /// authored entrypoint need not say it.
+  bool get isDefault => baseUrl == defaultBaseUrl;
+
+  /// Where the panel calls when nothing says otherwise.
+  static const String defaultBaseUrl = 'http://localhost:8080';
+
   /// A Dart expression evaluating to the base URL.
   String get expression => isAuto
       ? "kIsWeb ? Uri.base.origin : 'http://localhost:8080'"
       : "const String.fromEnvironment('BEAK_API_BASE_URL', "
-            "defaultValue: '$baseUrl')";
+            "defaultValue: '${BeakEmitters.escape(baseUrl)}')";
 }
 
 /// Where the server listens, when the project wants something other than
@@ -65,6 +74,67 @@ final class BeakServerSettings {
   };
 }
 
+/// Where the panel's entrypoint lives, when the app is not Beak's alone.
+///
+/// A Beak project owns `lib/main.dart`, so `beak prepare` writes it. An
+/// existing Flutter app cannot give that file up: `beak init` embeds the
+/// panel next to the app, boots it from a file of its own, and records the
+/// path here so `beak prepare` leaves `lib/main.dart` alone and `beak dev` and
+/// `beak doctor` know which file starts the panel.
+final class BeakPanelSettings {
+  /// Creates panel settings.
+  const BeakPanelSettings({this.entrypoint});
+
+  /// The Dart file, relative to the project root, that boots the panel, or
+  /// null for a project whose `lib/main.dart` is Beak's.
+  final String? entrypoint;
+
+  /// The file that boots the panel: [entrypoint], else `lib/main.dart`.
+  String get entrypointPath => entrypoint ?? defaultEntrypoint;
+
+  /// The entrypoint of a project that sets none.
+  static const String defaultEntrypoint = 'lib/main.dart';
+}
+
+/// Which `AGENTS.md` files `beak prepare` and `beak agents` may write.
+enum BeakAgentInstructions {
+  // --8<-- [start:BeakAgentInstructions]
+  /// The project's own, and the workspace root's when it is a member of one.
+  all,
+
+  /// The project's own only; a workspace root is left alone.
+  package,
+
+  /// None: Beak never touches `AGENTS.md` or `CLAUDE.md`.
+  none,
+  // --8<-- [end:BeakAgentInstructions]
+}
+
+/// What Beak writes for coding agents, and where.
+///
+/// Every default is on. A project that would rather keep agent files out of
+/// its tree says so here and Beak stops, rather than writing and hoping
+/// nobody minds.
+final class BeakAgentSettings {
+  /// Creates agent settings.
+  const BeakAgentSettings({
+    this.instructions = BeakAgentInstructions.all,
+    this.docs = true,
+    this.skills,
+  });
+
+  /// Which `AGENTS.md` files Beak keeps its block in.
+  final BeakAgentInstructions instructions;
+
+  /// Whether `beak prepare` copies the version-matched docs into
+  /// `.dart_tool/beak/docs`.
+  final bool docs;
+
+  /// The folders `beak agents` installs skills into, or `null` to use the
+  /// agent folders the workspace already has. An empty list installs none.
+  final List<BeakSkillTarget>? skills;
+}
+
 /// Per-resource presentation the panel reads before falling back to defaults.
 final class BeakResourceOverride {
   /// Creates an override for one table.
@@ -84,14 +154,14 @@ final class BeakResourceOverride {
   /// Navigation group this resource belongs to.
   final String? section;
 
-  /// Whether to keep this resource out of the navigation.
+  /// Whether the model gets no default resource.
   ///
   /// The model is still registered, still has an API, and is still reachable
-  /// as the far side of a relationship — it simply does not earn a sidebar
-  /// entry. A real application has plenty of those: line items, pivots,
-  /// lookup tables, anything only ever opened from its parent.
-  ///
-  /// Navigability is presentation, which is what this file already decides.
+  /// as the far side of a relationship, so other resources show and pick its
+  /// records. It has no pages of its own: no sidebar entry, and its list,
+  /// detail and form routes answer 404. A real application has plenty of
+  /// those: line items, pivots, lookup tables, anything only ever opened from
+  /// its parent.
   final bool hidden;
 }
 
@@ -106,6 +176,8 @@ final class BeakProjectConfig {
     required this.name,
     this.api = const BeakApiSettings(),
     this.server = const BeakServerSettings(),
+    this.panel = const BeakPanelSettings(),
+    this.agents = const BeakAgentSettings(),
     this.resources = const {},
     this.sidebarCollapsible = true,
     this.sidebarStartCollapsed = false,
@@ -121,20 +193,24 @@ final class BeakProjectConfig {
   /// Parses [yamlSource].
   ///
   /// Throws a [BeakProjectConfigException] naming the offending key on
-  /// anything it does not recognise.
+  /// anything it does not recognise, and the line and column of anything that
+  /// is not YAML at all.
   factory BeakProjectConfig.parse(
     String yamlSource, {
     required String packageName,
   }) {
-    final Object? document = loadYaml(yamlSource);
+    final Object? document = _loadDocument(yamlSource);
     if (document == null) {
       return BeakProjectConfig.defaults(packageName: packageName);
     }
     final YamlMap root = _requireMap(document, 'the document root');
+    // --8<-- [start:beakYamlKeys]
     _rejectUnknownKeys(root, const {
       'name',
       'api',
       'server',
+      'panel',
+      'agents',
       'theme',
       'resources',
     }, '');
@@ -147,6 +223,18 @@ final class BeakProjectConfig {
     if (server != null) {
       _rejectUnknownKeys(server, const {'port', 'host'}, 'server.');
     }
+    final YamlMap? panel = _optionalMap(root['panel'], 'panel');
+    if (panel != null) {
+      _rejectUnknownKeys(panel, const {'entrypoint'}, 'panel.');
+    }
+    final YamlMap? agents = _optionalMap(root['agents'], 'agents');
+    if (agents != null) {
+      _rejectUnknownKeys(agents, const {
+        'instructions',
+        'docs',
+        'skills',
+      }, 'agents.');
+    }
     final YamlMap? theme = _optionalMap(root['theme'], 'theme');
     if (theme != null) {
       _rejectUnknownKeys(theme, const {'sidebar'}, 'theme.');
@@ -158,6 +246,7 @@ final class BeakProjectConfig {
         'startCollapsed',
       }, 'theme.sidebar.');
     }
+    // --8<-- [end:beakYamlKeys]
 
     final resources = <String, BeakResourceOverride>{};
     final YamlMap? declared = _optionalMap(root['resources'], 'resources');
@@ -196,11 +285,22 @@ final class BeakProjectConfig {
       api: BeakApiSettings(
         baseUrl:
             _optionalString(api?['baseUrl'], 'api.baseUrl') ??
-            'http://localhost:8080',
+            BeakApiSettings.defaultBaseUrl,
       ),
       server: BeakServerSettings(
         port: _optionalPort(server?['port'], 'server.port'),
         host: _optionalString(server?['host'], 'server.host'),
+      ),
+      panel: BeakPanelSettings(
+        entrypoint: _optionalEntrypoint(
+          panel?['entrypoint'],
+          'panel.entrypoint',
+        ),
+      ),
+      agents: BeakAgentSettings(
+        instructions: _instructionsOf(agents?['instructions']),
+        docs: _optionalBool(agents?['docs'], 'agents.docs') ?? true,
+        skills: _skillTargetsOf(agents?['skills']),
       ),
       resources: resources,
       sidebarCollapsible:
@@ -239,6 +339,12 @@ final class BeakProjectConfig {
   /// Where the server binds, when the project asks for something specific.
   final BeakServerSettings server;
 
+  /// Where the panel is booted from.
+  final BeakPanelSettings panel;
+
+  /// What Beak writes for coding agents.
+  final BeakAgentSettings agents;
+
   /// Per-table presentation overrides, keyed by table name.
   final Map<String, BeakResourceOverride> resources;
 
@@ -247,6 +353,24 @@ final class BeakProjectConfig {
 
   /// Whether the sidebar starts collapsed.
   final bool sidebarStartCollapsed;
+
+  /// [yamlSource] as a YAML document.
+  ///
+  /// The scanner's exception carries a position but no idea which file it was
+  /// reading, and `beak prepare`, `eject` and `doctor` all end up here, so it
+  /// is translated once: 1-based, as an editor counts.
+  static Object? _loadDocument(String yamlSource) {
+    try {
+      return loadYaml(yamlSource);
+    } on YamlException catch (error) {
+      throw BeakProjectConfigException(switch (error.span) {
+        null => error.message,
+        final span =>
+          'line ${span.start.line + 1}, column ${span.start.column + 1}: '
+              '${error.message}',
+      });
+    }
+  }
 
   static YamlMap _requireMap(Object? value, String context) {
     if (value is YamlMap) {
@@ -286,6 +410,30 @@ final class BeakProjectConfig {
     throw BeakProjectConfigException('$key must be a string (got $raw).');
   }
 
+  /// A Dart file path relative to the project root.
+  ///
+  /// Checked here because the path is used in three places that would each
+  /// fail differently on a bad one: `flutter run -t`, the doctor's import
+  /// walk, and the entrypoint `beak init` writes.
+  static String? _optionalEntrypoint(Object? value, String key) {
+    final String? path = _optionalString(value, key);
+    if (path == null) {
+      return null;
+    }
+    final bool isSafe =
+        path.endsWith('.dart') &&
+        !path.startsWith('/') &&
+        !path.contains(r'\') &&
+        !path.split('/').contains('..');
+    if (!isSafe) {
+      throw BeakProjectConfigException(
+        '$key must be a Dart file path relative to the project, such as '
+        '"lib/admin_main.dart" (got "$path").',
+      );
+    }
+    return path;
+  }
+
   /// An `OiIcons` identifier, checked as far as this package can check it.
   ///
   /// The value is spliced straight into `OiIcons.<name>` in generated Dart,
@@ -304,6 +452,51 @@ final class BeakProjectConfig {
       );
     }
     return name;
+  }
+
+  /// The `agents.instructions` choice; `all` when it is not written.
+  static BeakAgentInstructions _instructionsOf(Object? value) {
+    final Object? raw = value is YamlNode ? value.value : value;
+    if (raw == null) {
+      return BeakAgentInstructions.all;
+    }
+    for (final choice in BeakAgentInstructions.values) {
+      if (raw == choice.name) {
+        return choice;
+      }
+    }
+    throw BeakProjectConfigException(
+      'agents.instructions must be one of: '
+      '${BeakAgentInstructions.values.map((choice) => choice.name).join(', ')} '
+      '(got "$raw").',
+    );
+  }
+
+  /// The `agents.skills` targets, or `null` when the key is not written.
+  static List<BeakSkillTarget>? _skillTargetsOf(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is! YamlList) {
+      throw const BeakProjectConfigException(
+        'agents.skills must be a list, such as [claude, agents].',
+      );
+    }
+    final targets = <BeakSkillTarget>[];
+    for (final entry in value) {
+      final BeakSkillTarget? target = entry is String
+          ? BeakSkillTarget.parse(entry)
+          : null;
+      if (target == null) {
+        throw BeakProjectConfigException(
+          'agents.skills has "$entry"; expected claude, agents or cursor.',
+        );
+      }
+      if (!targets.contains(target)) {
+        targets.add(target);
+      }
+    }
+    return targets;
   }
 
   static bool? _optionalBool(Object? value, String key) {
@@ -394,13 +587,15 @@ List<BeakDiscoveryIssue> beakConfigIssues(
           path: 'beak.yaml',
           message:
               'resources.$key names no discovered table'
-              '${_didYouMean(key, tables)}.',
+              '${beakDidYouMean(key, tables)}',
         ),
   ];
 }
 
-/// A `did you mean` hint naming the closest table, when one is close enough.
-String _didYouMean(String key, Set<String> tables) {
+/// The end of a sentence about the table [key], which no table is called:
+/// `, did you mean orders?` naming the table in [tables] closest to it, when
+/// one is close enough to be worth suggesting, and otherwise a full stop.
+String beakDidYouMean(String key, Set<String> tables) {
   var best = '';
   var bestDistance = 1 << 30;
   for (final table in tables) {
@@ -411,7 +606,7 @@ String _didYouMean(String key, Set<String> tables) {
     }
   }
   // Beyond a third of the word the suggestion is noise, not help.
-  return bestDistance <= key.length ~/ 3 + 1 ? ' — did you mean $best?' : '';
+  return bestDistance <= key.length ~/ 3 + 1 ? ', did you mean $best?' : '.';
 }
 
 /// Levenshtein distance between [a] and [b].

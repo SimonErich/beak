@@ -3,17 +3,44 @@
 /// MkDocs' `--strict` catches broken links and pages missing from the nav.
 /// It cannot catch the things this file checks: a code fence claiming to
 /// quote a file that no longer exists, a page with no front matter, a snippet
-/// include pointing at a moved file or a deleted section marker, or a banned
+/// include pointing at a moved file or a deleted section marker, an include by
+/// line range (which the agent docs bundle cannot expand), a section marker
+/// written on a page (mkdocs deletes the line without a word), or a banned
 /// phrase from the style guide.
 ///
 /// The style guide's "Banned" section is enforced from [enforcedBans]. A ban
 /// that a page must be able to break, because naming the thing is that page's
 /// subject, lists it in [BannedPhrase.exceptPaths].
 ///
+/// The information architecture is enforced too: every page declares a `type`,
+/// an `audience` and a `status`, a nav label equals its page title, every nav
+/// section opens on an index page that links all of its children under
+/// "Which page to read", and every path the site has ever served is still a
+/// page or a redirect. A page marked `status: stable` must also carry the
+/// headings its `type` promises.
+///
+/// `--release` adds the completeness ratchet: it fails while any page is still
+/// `status: draft`. The release workflow runs it; day-to-day runs do not.
+///
 /// Run from the repo root. Exits non-zero with one line per problem.
 library;
 
 import 'dart:io';
+
+import 'package:yaml/yaml.dart';
+
+import 'src/docs_markdown.dart';
+import 'src/docs_snippets.dart';
+
+export 'src/docs_markdown.dart' show fencedLineIndices;
+export 'src/docs_snippets.dart'
+    show
+        isLineRange,
+        pageSnippetMarker,
+        renderedPageLine,
+        sectionOf,
+        snippetInclude,
+        snippetMarker;
 
 /// Fence languages whose body is a transcript rather than a quotation.
 ///
@@ -29,21 +56,6 @@ const Set<String> transcriptLanguages = {
   'output',
   'diff',
 };
-
-/// A `--8<-- "path"` line: mkdocs reads that file in at build time.
-///
-/// The quoted form is the only one the docs use, so the pattern insists on
-/// it rather than also matching the multi-line block form.
-final RegExp snippetInclude = RegExp(r'^\s*--8<--\s+"([^"]+)"\s*$');
-
-/// A `--8<-- [start:name]` or `[end:name]` marker in a quoted source file.
-///
-/// mkdocs strips these when it reads a section in, so they are build
-/// metadata rather than code, and neither the reader nor a quotation of the
-/// surrounding lines ever sees them.
-final RegExp snippetMarker = RegExp(
-  r'--8<--\s*\[\s*(start|end)\s*:\s*([\w-]+)\s*\]',
-);
 
 /// A line that says "and some more of the file here".
 ///
@@ -211,7 +223,10 @@ final List<BannedPhrase> enforcedBans = [
 ];
 
 /// Directories under `docs/` that are not published and are not checked.
-const Set<String> unpublishedDirs = {'_internal', 'assets'};
+///
+/// `_agents` holds templates that ship with the agent docs bundle rather than
+/// on the site, and mkdocs excludes it too.
+const Set<String> unpublishedDirs = {'_internal', '_agents', 'assets'};
 
 /// One problem found in one file.
 final class DocProblem {
@@ -240,17 +255,31 @@ String? readRepoFile(String path) {
   return file.existsSync() ? file.readAsStringSync() : null;
 }
 
-void main() {
+void main(List<String> args) {
   final docs = Directory('docs');
   if (!docs.existsSync()) {
     stderr.writeln('No docs/ directory — run this from the repo root.');
     exit(2);
   }
 
+  final contents = <String, String>{
+    for (final file in _publishedPages(docs))
+      file.path: file.readAsStringSync(),
+  };
   final problems = <DocProblem>[];
-  for (final file in _publishedPages(docs)) {
-    problems.addAll(checkPage(file.path, file.readAsStringSync()));
+  for (final entry in contents.entries) {
+    problems
+      ..addAll(checkPage(entry.key, entry.value))
+      ..addAll(checkPageMetadata(entry.key, entry.value));
   }
+  problems.addAll(
+    checkSite(
+      pages: contents,
+      mkdocsYaml: readRepoFile('mkdocs.yml'),
+      manifest: readRepoFile(urlManifestPath),
+      release: args.contains('--release'),
+    ),
+  );
 
   if (problems.isEmpty) {
     stdout.writeln('Docs check passed.');
@@ -355,10 +384,31 @@ List<DocProblem> checkPage(
     }
   }
 
-  problems.addAll(checkBannedPhrases(path, lines, bans: enforcedBans));
-  problems.addAll(checkQuotations(path, lines, readFile: readFile));
+  problems
+    ..addAll(checkPageMarkers(path, lines))
+    ..addAll(checkBannedPhrases(path, lines, bans: enforcedBans))
+    ..addAll(checkQuotations(path, lines, readFile: readFile));
   return problems;
 }
+
+/// The lines of [lines] on [path] that mkdocs would silently delete.
+///
+/// pymdownx removes every page line holding a `--8<-- [start:x]` or
+/// `[end:x]` section marker, in a fence or in inline code as much as in prose,
+/// and reports nothing. A page that teaches the markers therefore publishes
+/// with the line missing. Writing `;` directly before the marker escapes it.
+List<DocProblem> checkPageMarkers(String path, List<String> lines) => [
+  for (var index = 0; index < lines.length; index += 1)
+    if (renderedPageLine(lines[index]) == null)
+      DocProblem(
+        path,
+        'this line holds a snippet section marker, and mkdocs deletes any '
+        'page line that does. Put a semicolon right before the marker '
+        '(";--8<-- [start:x]", which renders without it), or describe the '
+        'marker in words.',
+        line: index + 1,
+      ),
+];
 
 /// The problems in the snippet include of [reference], on line [line] of
 /// [path].
@@ -386,6 +436,18 @@ List<DocProblem> checkInclude(
     ];
   }
   final String? section = sectionOf(reference);
+  if (isLineRange(reference)) {
+    return [
+      DocProblem(
+        path,
+        'snippet includes "$reference" by line range, which the agent docs '
+        'bundle cannot expand and a rename silently moves. Wrap the lines in '
+        '"--8<-- [start:name]" and "--8<-- [end:name]" markers in "$target" '
+        'and include the named section: "$target:name".',
+        line: line,
+      ),
+    ];
+  }
   if (section == null) {
     return const [];
   }
@@ -430,22 +492,6 @@ List<DocProblem> checkInclude(
     ];
   }
   return const [];
-}
-
-/// The section [reference] names, or `null` when it reads a whole file.
-///
-/// pymdownx also accepts a line range (`file.dart:12:20`), which has no
-/// marker to look for, so a tail that is not a section name is not one.
-String? sectionOf(String reference) {
-  final int separator = reference.indexOf(':');
-  if (separator == -1) {
-    return null;
-  }
-  final String tail = reference.substring(separator + 1);
-  // A leading underscore is allowed: mkdocs does not care, and misreading
-  // `file.dart:_helper` as a whole-file include would skip the marker check
-  // on exactly the sections nothing else is watching.
-  return RegExp(r'^[A-Za-z_][\w-]*$').hasMatch(tail) ? tail : null;
 }
 
 /// Root-level files this repository owns and pages quote verbatim.
@@ -497,37 +543,6 @@ List<DocProblem> checkBannedPhrases(
     }
   }
   return problems;
-}
-
-/// The 0-based indices of [lines] that sit inside a fenced code block.
-///
-/// The fence markers themselves are left out: an opener carries the
-/// `title="..."` other checks read. A closing fence has to be at least as long
-/// as the one it closes and carry no language, which is what keeps a
-/// ````` ```` ````` block quoting a fenced example from ending early.
-Set<int> fencedLineIndices(List<String> lines) {
-  final fenced = <int>{};
-  final marker = RegExp(r'^\s*(`{3,})(.*)$');
-  String? open;
-  for (var index = 0; index < lines.length; index += 1) {
-    final RegExpMatch? match = marker.firstMatch(lines[index]);
-    if (open == null) {
-      if (match != null) {
-        open = match.group(1);
-      }
-      continue;
-    }
-    final bool closes =
-        match != null &&
-        match.group(1)!.length >= open.length &&
-        match.group(2)!.trim().isEmpty;
-    if (closes) {
-      open = null;
-      continue;
-    }
-    fenced.add(index);
-  }
-  return fenced;
 }
 
 /// [line] reduced to the prose the writer chose.
@@ -756,3 +771,836 @@ bool containsRun(List<String> source, List<String> run) {
   }
   return false;
 }
+
+/// Where the URL manifest lives: every path the site has ever served.
+const String urlManifestPath = 'docs/_internal/url-manifest.txt';
+
+/// The values a page's `type` may take.
+const Set<String> pageTypes = {
+  'index',
+  'tutorial',
+  'guide',
+  'concept',
+  'reference',
+  'recipe',
+  'example',
+  'ai',
+};
+
+/// The values an entry of a page's `audience` may take.
+const Set<String> pageAudiences = {
+  'beginner',
+  'expert',
+  'agent',
+  'contributor',
+};
+
+/// The values a page's `status` may take.
+///
+/// A `draft` page is a stub or awaits its rewrite, `preview` documents
+/// something that has not shipped, and only `stable` promises the headings of
+/// its `type`.
+const Set<String> pageStatuses = {'stable', 'draft', 'preview'};
+
+/// The status `--release` refuses.
+const String draftStatus = 'draft';
+
+/// The longest description a search result can show.
+const int maxDescriptionLengthInCharacters = 160;
+
+/// The heading every section index carries above its routing table.
+const String routingHeading = '## Which page to read';
+
+/// The headings a `status: stable` page of each `type` must carry.
+///
+/// The page templates in the docs style guide are the source: an opener, then
+/// these sections, then "Continue reading" (which every page needs already).
+const Map<String, List<String>> requiredHeadings = {
+  'index': [routingHeading],
+  'tutorial': [
+    "## What you'll build",
+    '## Before you start',
+    '## Run it',
+    '## Checkpoint',
+  ],
+  'guide': [
+    '## At a glance',
+    '## Rules and limits',
+    '## Verify it',
+    '## Reference',
+  ],
+  'concept': [
+    '## The idea in one picture',
+    '## How it works',
+    '## Why it is shaped this way',
+    '## What it means for you',
+  ],
+  'reference': ['## Import', '## Summary', '## Source'],
+  'recipe': ['## Recipe', '## How it works', '## Variations', '## Verify'],
+  'example': [
+    '## At a glance',
+    '## Run it',
+    '## Tour',
+    '## Where things are',
+    '## Features shown',
+    '## Tests',
+    '## Limits',
+  ],
+  'ai': ['## Rules', '## Machine-readable twin'],
+};
+
+/// A page's front matter, as far as the site checks read it.
+final class FrontMatter {
+  /// Front matter with the fields YAML gave, or with [error] when it did not
+  /// parse.
+  const FrontMatter({
+    this.title,
+    this.description,
+    this.type,
+    this.audience = const [],
+    this.status,
+    this.error,
+  });
+
+  /// The `title`, or `null` when absent or not a string.
+  final String? title;
+
+  /// The `description`, or `null` when absent or not a string.
+  final String? description;
+
+  /// The `type`, or `null` when absent or not a string.
+  final String? type;
+
+  /// The `audience` entries; empty when absent or not a list of strings.
+  final List<String> audience;
+
+  /// The `status`, or `null` when absent or not a string.
+  final String? status;
+
+  /// Why YAML rejected the block, or `null` when it parsed.
+  final String? error;
+}
+
+/// The front matter of [content], or `null` when the page has none.
+FrontMatter? parseFrontMatter(String content) {
+  if (!content.startsWith('---\n')) {
+    return null;
+  }
+  final List<String> lines = content.split('\n');
+  final int end = lines.indexOf('---', 1);
+  if (end == -1) {
+    return const FrontMatter(error: 'the block is never closed');
+  }
+  final Object? node;
+  try {
+    node = loadYaml(lines.sublist(1, end).join('\n'));
+  } on YamlException catch (exception) {
+    return FrontMatter(error: exception.message);
+  }
+  if (node is! YamlMap) {
+    return const FrontMatter(error: 'the block is not a mapping');
+  }
+  final Object? audience = node['audience'];
+  return FrontMatter(
+    title: _stringOf(node['title']),
+    description: _stringOf(node['description']),
+    type: _stringOf(node['type']),
+    audience: audience is YamlList
+        ? [for (final Object? entry in audience) ?_stringOf(entry)]
+        : const [],
+    status: _stringOf(node['status']),
+  );
+}
+
+/// [value] when it is a string.
+String? _stringOf(Object? value) => value is String ? value : null;
+
+/// Whether the repository has a file or directory at [path].
+bool repoPathExists(String path) =>
+    File(path).existsSync() || Directory(path).existsSync();
+
+/// A backticked repository path in prose: `packages/...`, `examples/...`,
+/// `tool/...` or `deploy/...`, and nothing else inside the backticks.
+final RegExp _repoPathSpan = RegExp(
+  r'`((?:packages|examples|tool|deploy)/[A-Za-z0-9_./-]+)`',
+);
+
+/// The problems in the metadata of the page at [path] with [content].
+///
+/// Checks the fields the information architecture depends on (`type`,
+/// `audience`, `status`), that the H1 matches the title, that a `stable` page
+/// carries the headings its type promises, and that every repository path the
+/// prose names in backticks exists. A page with no front matter is left to
+/// [checkPage], which reports it.
+List<DocProblem> checkPageMetadata(
+  String path,
+  String content, {
+  bool Function(String path) pathExists = repoPathExists,
+}) {
+  final FrontMatter? front = parseFrontMatter(content);
+  if (front == null) {
+    return const [];
+  }
+  final String? error = front.error;
+  if (error != null) {
+    return [DocProblem(path, 'front matter is not valid YAML: $error')];
+  }
+
+  final problems = <DocProblem>[];
+  final String? type = front.type;
+  if (type == null) {
+    problems.add(
+      DocProblem(path, 'front matter has no "type:" (${pageTypes.join('|')})'),
+    );
+  } else if (!pageTypes.contains(type)) {
+    problems.add(
+      DocProblem(
+        path,
+        'front matter type "$type" is not one of ${pageTypes.join('|')}',
+      ),
+    );
+  }
+  if (front.audience.isEmpty) {
+    problems.add(
+      DocProblem(
+        path,
+        'front matter has no "audience:" list '
+        '(${pageAudiences.join('|')})',
+      ),
+    );
+  }
+  for (final audience in front.audience) {
+    if (!pageAudiences.contains(audience)) {
+      problems.add(
+        DocProblem(
+          path,
+          'front matter audience "$audience" is not one of '
+          '${pageAudiences.join('|')}',
+        ),
+      );
+    }
+  }
+  final String? status = front.status;
+  if (status == null) {
+    problems.add(
+      DocProblem(
+        path,
+        'front matter has no "status:" (${pageStatuses.join('|')})',
+      ),
+    );
+  } else if (!pageStatuses.contains(status)) {
+    problems.add(
+      DocProblem(
+        path,
+        'front matter status "$status" is not one of '
+        '${pageStatuses.join('|')}',
+      ),
+    );
+  }
+  final String? description = front.description;
+  if (description != null &&
+      description.length > maxDescriptionLengthInCharacters) {
+    problems.add(
+      DocProblem(
+        path,
+        'description is ${description.length} characters; a search result '
+        'shows $maxDescriptionLengthInCharacters',
+      ),
+    );
+  }
+
+  final List<String> lines = content.split('\n');
+  final Set<int> fenced = fencedLineIndices(lines);
+  final int bodyStart = lines.indexOf('---', 1) + 1;
+  final String? title = front.title;
+  for (var index = bodyStart; index < lines.length; index += 1) {
+    if (fenced.contains(index) || !lines[index].startsWith('# ')) {
+      continue;
+    }
+    final String heading = lines[index].substring(2).trim();
+    if (title != null && heading != title) {
+      problems.add(
+        DocProblem(
+          path,
+          'the H1 "$heading" differs from the title "$title"',
+          line: index + 1,
+        ),
+      );
+    }
+    break;
+  }
+
+  if (status == 'stable' && type != null && requiredHeadings[type] != null) {
+    final Set<String> headings = {
+      for (var index = bodyStart; index < lines.length; index += 1)
+        if (!fenced.contains(index)) lines[index].trimRight(),
+    };
+    for (final heading in requiredHeadings[type]!) {
+      if (!headings.contains(heading)) {
+        problems.add(
+          DocProblem(
+            path,
+            'status is stable, but a page of type "$type" needs the heading '
+            '"$heading". Add it, or mark the page "status: draft"',
+          ),
+        );
+      }
+    }
+  }
+
+  for (var index = bodyStart; index < lines.length; index += 1) {
+    if (fenced.contains(index)) {
+      continue;
+    }
+    for (final match in _repoPathSpan.allMatches(lines[index])) {
+      final String named = match.group(1)!;
+      final String target = named.endsWith('/')
+          ? named.substring(0, named.length - 1)
+          : named;
+      if (!target.contains('..') && !pathExists(target)) {
+        problems.add(
+          DocProblem(
+            path,
+            'names `$named`, which does not exist',
+            line: index + 1,
+          ),
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+/// A published page as the site-level checks read it.
+final class SitePage {
+  /// The page at repository [path] (`docs/...`) holding [content].
+  SitePage(this.path, this.content)
+    : docPath = path.startsWith('docs/') ? path.substring(5) : path,
+      front = parseFrontMatter(content);
+
+  /// The repository path, `docs/...`.
+  final String path;
+
+  /// The path relative to `docs/`, the form the nav and redirects use.
+  final String docPath;
+
+  /// The page's Markdown, front matter included.
+  final String content;
+
+  /// The parsed front matter, or `null` when the page has none.
+  final FrontMatter? front;
+
+  /// The page title, or `null` when the front matter has none.
+  String? get title => front?.title;
+}
+
+/// One entry of the `nav:` tree.
+sealed class NavNode {
+  /// An entry with the label the reader sees, or `null` for a bare path,
+  /// whose label mkdocs takes from the page title.
+  const NavNode(this.label);
+
+  /// The label written in `mkdocs.yml`, if any.
+  final String? label;
+}
+
+/// A nav entry that is a page.
+final class NavPage extends NavNode {
+  /// A page at [path] (relative to `docs/`).
+  const NavPage(super.label, this.path);
+
+  /// The page path relative to `docs/`.
+  final String path;
+}
+
+/// A nav entry that groups other entries.
+final class NavSection extends NavNode {
+  /// A section named [label] holding [children].
+  const NavSection(String super.label, this.children);
+
+  /// The section's entries, in order.
+  final List<NavNode> children;
+}
+
+/// The text of the top-level [key] block of [yaml], or `null` when it has none.
+///
+/// `mkdocs.yml` carries `!!python/name` tags that only Python can construct, so
+/// the file as a whole cannot be parsed here. The `nav:` and `plugins:` blocks
+/// carry none, and this cuts them out by their indentation.
+String? topLevelBlock(String yaml, String key) {
+  final List<String> lines = yaml.split('\n');
+  final int start = lines.indexWhere((line) => line.startsWith('$key:'));
+  if (start == -1) {
+    return null;
+  }
+  var end = start + 1;
+  while (end < lines.length) {
+    final String line = lines[end];
+    final bool continues =
+        line.isEmpty ||
+        line.startsWith(' ') ||
+        line.startsWith('#') ||
+        line.startsWith('-');
+    if (!continues) {
+      break;
+    }
+    end += 1;
+  }
+  return lines.sublist(start, end).join('\n');
+}
+
+/// The nav tree in the `nav:` [block] of `mkdocs.yml`.
+List<NavNode> parseNav(String block) {
+  final Object? root = loadYaml(block);
+  if (root is YamlMap) {
+    return _navEntries(root['nav']);
+  }
+  return const [];
+}
+
+List<NavNode> _navEntries(Object? node) {
+  if (node is! YamlList) {
+    return const [];
+  }
+  final entries = <NavNode>[];
+  for (final Object? item in node) {
+    if (item is String) {
+      entries.add(NavPage(null, item));
+    } else if (item is YamlMap && item.length == 1) {
+      final entry = item.entries.single;
+      final String label = '${entry.key}';
+      final Object? value = entry.value;
+      if (value is String) {
+        entries.add(NavPage(label, value));
+      } else if (value is YamlList) {
+        entries.add(NavSection(label, _navEntries(value)));
+      }
+    }
+  }
+  return entries;
+}
+
+/// The path segments of [target] resolved against the page at [fromDocPath].
+String _resolveLink(String fromDocPath, String target) {
+  final segments = <String>[
+    ...fromDocPath.split('/').reversed.skip(1).toList().reversed,
+  ];
+  for (final segment in target.split('/')) {
+    if (segment.isEmpty || segment == '.') {
+      continue;
+    }
+    if (segment == '..') {
+      if (segments.isNotEmpty) {
+        segments.removeLast();
+      }
+      continue;
+    }
+    segments.add(segment);
+  }
+  return segments.join('/');
+}
+
+/// The pages [page] links to under [routingHeading], as paths relative to
+/// `docs/`.
+///
+/// The routing section runs from its heading to the next heading of level one
+/// or two, so `###` groupings inside it count. A link in the intro, in
+/// "Continue reading" or in a fence is not routing: the reader who scans the
+/// table never meets it.
+Set<String> routedPages(SitePage page) {
+  final List<String> lines = page.content.split('\n');
+  final Set<int> fenced = fencedLineIndices(lines);
+  final linked = <String>{};
+  var routing = false;
+  for (var index = 0; index < lines.length; index += 1) {
+    if (fenced.contains(index)) {
+      continue;
+    }
+    final String line = lines[index].trimRight();
+    if (RegExp(r'^#{1,2}\s').hasMatch(line)) {
+      routing = line == routingHeading;
+      continue;
+    }
+    if (!routing) {
+      continue;
+    }
+    for (final match in RegExp(r'\]\(([^)\s]+)').allMatches(line)) {
+      final String written = match.group(1)!;
+      final int hash = written.indexOf('#');
+      final String target = hash == -1 ? written : written.substring(0, hash);
+      if (target.isEmpty || target.contains(':') || target.startsWith('/')) {
+        continue;
+      }
+      linked.add(_resolveLink(page.docPath, target));
+    }
+  }
+  return linked;
+}
+
+/// The problems in the nav tree [nav] over the published [pages].
+///
+/// [pages] is keyed by path relative to `docs/`. A nav label must equal the
+/// page title (the home page, which serves as the Start tab's index, is
+/// exempt), and titles are unique across the site. Every section opens on an
+/// `index.md` that carries [routingHeading] and links every other child; a
+/// child section is linked through its own index. A published page missing
+/// from the nav is reported too, before mkdocs would.
+List<DocProblem> checkNavigation({
+  required List<NavNode> nav,
+  required Map<String, SitePage> pages,
+}) {
+  final problems = <DocProblem>[];
+  final navPaths = <String>{};
+  final titleOwners = <String, List<String>>{};
+
+  void visit(List<NavNode> nodes) {
+    for (final node in nodes) {
+      switch (node) {
+        case NavPage(:final label, :final path):
+          navPaths.add(path);
+          final SitePage? page = pages[path];
+          if (page == null) {
+            problems.add(
+              DocProblem(
+                'mkdocs.yml',
+                'the nav lists "$path", which is not a page',
+              ),
+            );
+            break;
+          }
+          final String? title = page.title;
+          if (title != null) {
+            titleOwners.putIfAbsent(title, () => []).add(path);
+          }
+          if (label != null && title != null && label != title) {
+            problems.add(
+              DocProblem(
+                'mkdocs.yml',
+                'the nav label "$label" differs from the title "$title" of '
+                    '"$path"',
+              ),
+            );
+          }
+        case NavSection(:final children):
+          problems.addAll(_checkSection(node, pages));
+          visit(children);
+      }
+    }
+  }
+
+  visit(nav);
+
+  for (final owners in titleOwners.entries) {
+    if (owners.value.length > 1) {
+      problems.add(
+        DocProblem(
+          'mkdocs.yml',
+          'the title "${owners.key}" belongs to ${owners.value.join(' and ')}; '
+              'titles are unique across the site',
+        ),
+      );
+    }
+  }
+  for (final page in pages.values) {
+    if (!navPaths.contains(page.docPath)) {
+      problems.add(DocProblem(page.path, 'is not in the nav'));
+    }
+  }
+  return problems;
+}
+
+/// Whether [path] is an `index.md` page.
+bool _isIndexPath(String path) => path.split('/').last == 'index.md';
+
+/// The problems in one nav [section]: its index page and the routing table.
+List<DocProblem> _checkSection(
+  NavSection section,
+  Map<String, SitePage> pages,
+) {
+  final String label = section.label!;
+  final NavNode? first = section.children.isEmpty
+      ? null
+      : section.children.first;
+  if (first is! NavPage || !_isIndexPath(first.path)) {
+    return [
+      DocProblem(
+        'mkdocs.yml',
+        'the section "$label" does not open on an index.md page',
+      ),
+    ];
+  }
+  final SitePage? index = pages[first.path];
+  if (index == null) {
+    return const [];
+  }
+  final problems = <DocProblem>[];
+  final String? title = index.title;
+  if (first.path != 'index.md' && title != null && title != label) {
+    problems.add(
+      DocProblem(
+        'mkdocs.yml',
+        'the section label "$label" differs from the title "$title" of its '
+            'index "${first.path}"',
+      ),
+    );
+  }
+  final List<String> lines = index.content.split('\n');
+  final Set<int> fenced = fencedLineIndices(lines);
+  final bool hasRouting = [
+    for (var i = 0; i < lines.length; i += 1)
+      if (!fenced.contains(i)) lines[i].trimRight(),
+  ].contains(routingHeading);
+  if (!hasRouting) {
+    problems.add(
+      DocProblem(
+        index.path,
+        'the index of "$label" has no "$routingHeading" section',
+      ),
+    );
+    // Every child would be reported as unrouted too, which says nothing new.
+    return problems;
+  }
+  final Set<String> linked = routedPages(index);
+  for (final child in section.children.skip(1)) {
+    final String? target = switch (child) {
+      NavPage(:final path) => path,
+      NavSection(children: [NavPage(:final path), ...])
+          when _isIndexPath(path) =>
+        path,
+      NavSection() => null,
+    };
+    if (target != null && !linked.contains(target)) {
+      problems.add(
+        DocProblem(
+          index.path,
+          'the index of "$label" does not link "$target" under '
+          '"$routingHeading"',
+        ),
+      );
+    }
+  }
+  return problems;
+}
+
+/// The `redirect_maps` of the `redirects` plugin in a `plugins:` [block].
+Map<String, String> parseRedirects(String block) {
+  final redirects = <String, String>{};
+  final Object? root = loadYaml(block);
+  final Object? plugins = root is YamlMap ? root['plugins'] : null;
+  if (plugins is! YamlList) {
+    return redirects;
+  }
+  for (final Object? plugin in plugins) {
+    if (plugin is! YamlMap) {
+      continue;
+    }
+    final Object? config = plugin['redirects'];
+    final Object? maps = config is YamlMap ? config['redirect_maps'] : null;
+    if (maps is YamlMap) {
+      for (final entry in maps.entries) {
+        redirects['${entry.key}'] = '${entry.value}';
+      }
+    }
+  }
+  return redirects;
+}
+
+/// The path globs the `llmstxt` plugin lists in a `plugins:` [block], or
+/// `null` when the plugin is not configured.
+List<String>? parseLlmsGlobs(String block) {
+  final Object? root = loadYaml(block);
+  final Object? plugins = root is YamlMap ? root['plugins'] : null;
+  if (plugins is! YamlList) {
+    return null;
+  }
+  for (final Object? plugin in plugins) {
+    if (plugin is! YamlMap || !plugin.containsKey('llmstxt')) {
+      continue;
+    }
+    final Object? config = plugin['llmstxt'];
+    final Object? sections = config is YamlMap ? config['sections'] : null;
+    final globs = <String>[];
+    if (sections is YamlMap) {
+      for (final Object? entries in sections.values) {
+        if (entries is! YamlList) {
+          continue;
+        }
+        for (final Object? entry in entries) {
+          if (entry is String) {
+            globs.add(entry);
+          } else if (entry is YamlMap && entry.length == 1) {
+            globs.add('${entry.keys.single}');
+          }
+        }
+      }
+    }
+    return globs;
+  }
+  return null;
+}
+
+/// The problems between the URL [manifest] entries, the published [pagePaths]
+/// and the [redirects].
+///
+/// Every path the site has ever served has to be a page or a redirect key, or
+/// a bookmark to it breaks. Every redirect has to land on a page, and a
+/// redirect key that is also a page is shadowed by the page.
+List<DocProblem> checkManifest({
+  required List<String> manifest,
+  required Set<String> pagePaths,
+  required Map<String, String> redirects,
+}) {
+  final problems = <DocProblem>[];
+  for (final entry in manifest) {
+    if (!pagePaths.contains(entry) && !redirects.containsKey(entry)) {
+      problems.add(
+        DocProblem(
+          urlManifestPath,
+          '"$entry" was published, but is neither a page nor a redirect. Add '
+          'a redirect_maps entry for it in mkdocs.yml',
+        ),
+      );
+    }
+  }
+  for (final redirect in redirects.entries) {
+    final String target = redirect.value.split('#').first;
+    if (!pagePaths.contains(target)) {
+      problems.add(
+        DocProblem(
+          'mkdocs.yml',
+          'the redirect "${redirect.key}" points at "$target", which is not a '
+              'page',
+        ),
+      );
+    }
+    if (pagePaths.contains(redirect.key)) {
+      problems.add(
+        DocProblem(
+          'mkdocs.yml',
+          'the redirect "${redirect.key}" is also a page, so the page shadows '
+              'it',
+        ),
+      );
+    }
+  }
+  return problems;
+}
+
+/// The problems between the `llmstxt` [globs] and the published [pagePaths].
+///
+/// The plugin lists pages by glob, and `*` there crosses directories. A page
+/// no glob matches is missing from `/llms.txt`, and a glob that matches no
+/// page is a typo.
+List<DocProblem> checkLlmsGlobs({
+  required List<String> globs,
+  required Set<String> pagePaths,
+}) {
+  final problems = <DocProblem>[];
+  final matchers = <String, RegExp>{
+    for (final glob in globs)
+      glob: RegExp('^${glob.split('*').map(RegExp.escape).join('.*')}\$'),
+  };
+  for (final matcher in matchers.entries) {
+    if (!pagePaths.any(matcher.value.hasMatch)) {
+      problems.add(
+        DocProblem(
+          'mkdocs.yml',
+          'the llmstxt glob "${matcher.key}" matches no page',
+        ),
+      );
+    }
+  }
+  for (final page in pagePaths) {
+    if (!matchers.values.any((matcher) => matcher.hasMatch(page))) {
+      problems.add(
+        DocProblem(
+          'docs/$page',
+          'is in no llmstxt section of mkdocs.yml, so /llms.txt omits it',
+        ),
+      );
+    }
+  }
+  return problems;
+}
+
+/// The problems that need the whole site rather than one page.
+///
+/// [pages] maps a repository path (`docs/...`) to the page's Markdown.
+/// [mkdocsYaml] is `mkdocs.yml` and [manifest] the URL manifest, each `null`
+/// when the file is missing. With [release], a page that is still
+/// `status: draft` is a problem: that is the completeness ratchet.
+List<DocProblem> checkSite({
+  required Map<String, String> pages,
+  required String? mkdocsYaml,
+  required String? manifest,
+  bool release = false,
+}) {
+  final problems = <DocProblem>[];
+  final byDocPath = <String, SitePage>{
+    for (final entry in pages.entries)
+      SitePage(entry.key, entry.value).docPath: SitePage(
+        entry.key,
+        entry.value,
+      ),
+  };
+
+  if (release) {
+    for (final page in byDocPath.values) {
+      if (page.front?.status == draftStatus) {
+        problems.add(
+          DocProblem(
+            page.path,
+            'status is draft. A release needs every page stable or preview',
+          ),
+        );
+      }
+    }
+  }
+
+  if (mkdocsYaml == null) {
+    return [...problems, const DocProblem('mkdocs.yml', 'is missing')];
+  }
+  final String? navBlock = topLevelBlock(mkdocsYaml, 'nav');
+  final String? pluginsBlock = topLevelBlock(mkdocsYaml, 'plugins');
+  if (navBlock == null || pluginsBlock == null) {
+    return [
+      ...problems,
+      const DocProblem('mkdocs.yml', 'needs both a nav: and a plugins: block'),
+    ];
+  }
+  try {
+    problems.addAll(checkNavigation(nav: parseNav(navBlock), pages: byDocPath));
+    final Map<String, String> redirects = parseRedirects(pluginsBlock);
+    problems.addAll(
+      checkManifest(
+        manifest: manifest == null ? const [] : manifestEntries(manifest),
+        pagePaths: byDocPath.keys.toSet(),
+        redirects: redirects,
+      ),
+    );
+    final List<String>? globs = parseLlmsGlobs(pluginsBlock);
+    if (globs != null) {
+      problems.addAll(
+        checkLlmsGlobs(globs: globs, pagePaths: byDocPath.keys.toSet()),
+      );
+    }
+  } on YamlException catch (exception) {
+    problems.add(
+      DocProblem(
+        'mkdocs.yml',
+        'nav or plugins is not valid YAML: '
+            '${exception.message}',
+      ),
+    );
+  }
+  if (manifest == null) {
+    problems.add(const DocProblem(urlManifestPath, 'is missing'));
+  }
+  return problems;
+}
+
+/// The path entries of a URL [manifest]: one per line, `#` lines ignored.
+List<String> manifestEntries(String manifest) => [
+  for (final line in manifest.split('\n'))
+    if (line.trim().isNotEmpty && !line.trimLeft().startsWith('#')) line.trim(),
+];

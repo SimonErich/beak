@@ -20,7 +20,7 @@ void main() {
       ..execute('CREATE TABLE products (id TEXT PRIMARY KEY, status TEXT)');
   });
 
-  tearDown(() => database.dispose());
+  tearDown(() => database.close());
 
   // Through the public adapter, which is what a project holds: the version
   // seam exists so a caller running against an embedded old SQLite can pin

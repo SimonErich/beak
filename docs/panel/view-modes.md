@@ -1,193 +1,181 @@
 ---
 title: View modes
-description: Give a resource's list page a calendar or a board alongside the table with BeakResourceView, declared in lib/resources/<table>.dart, and see how view modes differ from the placeable data blocks.
+description: Look at one model as a table, a kanban board, a calendar or a timeline, with the resource list plus data blocks on a BeakScreen.
+type: guide
+audience: [beginner, expert]
+status: stable
 ---
 
 # View modes
 
-After this page you can add extra presentations (a calendar, a Kanban board) to a
-resource's list page from typed configuration, and you will know how these list
-view-modes differ from the same-named blocks you can drop anywhere.
+A model is a set of records, and a view mode is one way to look at them. The table is the resource's list. The board, the calendar and the timeline are data blocks that you put on a `BeakScreen`. There is no switcher on the list page. If you want one, a tab block over the blocks does it, and the showcase planner below is exactly that.
 
-## One list, several presentations
+## At a glance
 
-Every resource starts with a table view. Declare more than one `BeakResourceView`
-and Beak puts an `OiSegmentedControl` above the list so the user switches between
-them. A view mode is a sealed type that builds a `BeakBlock` from the resource's
-model, so it is pure typed configuration, not a hand-written widget.
+| Mode | Built with |
+| --- | --- |
+| Table | `BeakTableScreen` on the resource, plain or [composed](composed-lists.md) |
+| Table on a page | `BeakTableBlock` on a `BeakScreen` |
+| Board | `BeakKanbanBlock`, one column per value of an enum field |
+| Calendar | `BeakCalendarBlock`, events placed by a start and an end column |
+| Timeline | `BeakTimelineBlock`, fed by its own `BeakQuerySpec` |
+| A switch between them | `BeakTabsBlock`, on a `BeakScreen` with `framed: false` |
 
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_view.dart"
---8<-- "packages/beak_frontend/lib/src/panel/beak_resource_view.dart:BeakResourceView"
+The board and the calendar write back: a dropped card and a dragged event save the record through the panel's data source, the way a form saves, see [Writing from a view](#writing-from-a-view).
+
+## One model, three looks
+
+The showcase's `Task` is a chore on the aviary's board. Its resource is an ordinary table:
+
+```dart title="examples/showcase/lib/resources/tasks/task_resource.dart"
+--8<-- "examples/showcase/lib/resources/tasks/task_resource.dart"
 ```
 
-There are three subclasses.
+The board takes its columns from the status enum, so each value already has a label and a badge color:
 
-### BeakTableView
-
-The default, and the one you already get. It renders the resource's records in the
-data table. It optionally seeds the first query and carries a base scope:
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_view.dart"
-const BeakTableView({this.initialSpec, this.baseFilter});
+```dart title="examples/showcase/lib/resources/tasks/models/task.dart"
+--8<-- "examples/showcase/lib/resources/tasks/models/task.dart:taskStatusBadges"
 ```
 
-`initialSpec` seeds sort order and page size on first load; `baseFilter` is a
-predicate AND-merged into every query. Both are passed to the `BeakTableBlock`
-this view builds. A resource's list page renders its own table rather than that
-block, seeded from the filter bar, so on a list page `const BeakTableView()` is
-all you write. See [Tables and filters](tables-and-filters.md).
+The planner page puts the same model on a board and a calendar behind two tabs:
 
-### BeakCalendarView
-
-Lays the records out as scheduled events, bound to your date and title columns:
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_view.dart"
-const BeakCalendarView({
-  required this.titleField,
-  required this.startField,
-  this.endField,
-  this.allDayField,
-  this.categoryField,
-  this.mode = OiCalendarMode.month,
-  this.label = 'Calendar',
-});
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:plannerPage"
 ```
 
-| Field | Type | What it supplies |
+`framed: false` drops the page header, the gutters and the scrolling that a `BeakScreen` normally adds, which is what a board or a calendar wants. `BeakTabsBlock` builds only the selected tab's block, so switching a tab mounts the other block and loads its records. Register the screen in `pages:` and it gets a route and a sidebar entry, see [Custom screens](custom-screens.md).
+
+A `BeakTableBlock` puts the table itself on a screen, beside a board if you like. It takes `fields`, `initialSpec` and `baseFilter`, and [Dashboards](dashboards.md) shows it at work.
+
+## The board
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:board"
+```
+
+`groupField` must be an enum field of the block's own model. A relation path or a non-enum field throws `Kanban group field "x" must be an enum field of tasks.` when the board renders. The board has one column for every enum value, in declaration order, even an empty one. A record whose group value is empty or unknown appears in no column.
+
+Cards show `titleField` and, when set, `subtitleField`. Both are plain columns of the model (`TaskModel.title.column`) and their text is the stored value. An enum subtitle therefore reads `feeding`, not the label you gave it. `sortField` orders the cards inside a column, and without it the order is whatever the data source returns.
+
+Dropping a card writes the new enum name into `groupField`. It does not renumber `position`, so an order inside a column is not saved.
+
+## The calendar
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:calendar"
+```
+
+Every record becomes one event. `titleField` labels it, `startField` places it and `endField` closes it. Without an end the event ends where it starts, and a record with no start is left out, because it has no place on a calendar. `allDayField` is a boolean column, and a `categoryField` that is an enum column tints each event with the badge color of its value. `mode` (`OiCalendarMode.day`, `week` or `month`) is the view it opens in, `month` by default.
+
+Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`. Events are drawn in the panel's `formatting` zone, and a drag is stored as the instant that wall-clock time names in that zone, so moving an event to another day keeps its hour.
+
+## The timeline
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:taskTimeline"
+```
+
+The timeline takes a whole `BeakQuerySpec`, so it is the one block here where you choose the filter, the sort and the page size yourself. The query's own sort decides which rows are read when there are more than one page of them. The block then lists what it got newest first by `timeField`, and a record with no time is left out. It is read-only.
+
+## Writing from a view
+
+A dropped card or a dragged event is saved as a single-operation graph commit on that record, through `POST /api/commits`. The server validates the changed value with the column's rules, applies the account's row and field policies, and runs the model's behavior and rules, so a `graphOnly` model or one with `behavior` accepts the move. When the save succeeds, the block mirrors it, so the card stays in its new column, and `onCardMove` or `onEventMove` runs. When it fails, the card snaps back, a toast gives the reason (the server's message for a validation or permission failure, a generic line for an infrastructure one), and the callback does not run. Treat the callbacks as "the write worked".
+
+A transition that needs input, or a guard that has a name, still belongs in a model action on a table. The action runs through the graph commit, gets its rules checked and leaves a receipt, see [Actions](actions.md). A drop can only write the value the column takes.
+
+!!! note "Coming from viewModes"
+    Earlier drafts declared table, calendar and kanban views on the resource (`viewModes`) with a switcher on the list page. That API is gone, and so are its view classes. A resource has its `screens`, and a board or a calendar is a block on a `BeakScreen`. The mapping is in [Upgrading](../start-here/upgrading.md).
+
+## Rules and limits
+
+| Rule | What happens |
+| --- | --- |
+| A board or a calendar loads up to 200 records of its model | Pass `filter:` to narrow them. When more match, a line beneath the block says how many are shown. Row policies on the server narrow what arrives too |
+| Blocks load again after a write to their table | A board or a calendar queries again when a form, an action or another block writes its table. Only a colleague's write in another browser needs a `refreshPolicy` |
+| The group field belongs to the block's model | Related fields throw when the board renders |
+| Card and event text is the stored value | Enum columns show the enum name |
+| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback. A card dropped in its own column writes nothing |
+| A failed read shows an error line | The block keeps what it drew before, shows the panel's error message above it and offers Retry. An infrastructure failure reads as the panel's generic sentence |
+| The timeline is read-only | Change the records in the table or the form |
+
+## Verify it
+
+The block tests build each block against a fake source, drop a card and drag an event. From `packages/beak_frontend`:
+
+```console
+$ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|BeakCalendarBlock|kanban' --reporter expanded
+BeakCalendarBlock maps records onto OiCalendar events
+BeakCalendarBlock a row without a start is left out, not given today
+BeakCalendarBlock a tap resolves back to the record; a drag persists
+BeakCalendarBlock time zone shows an event at the panel zone and moves it by wall clock
+BeakKanbanBlock one column per enum value, records grouped
+BeakKanbanBlock the group field must be an enum field of the block model
+BeakKanbanBlock dropping a card persists its new group
+module hardening (audit regressions) kanban fetches one full sorted page
+module hardening (audit regressions) a dropped kanban card stays in its new column
+module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+All tests passed!
+```
+
+And the planner page renders in the showcase panel, from `examples/showcase`:
+
+```console
+$ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
+Planner renders
+All tests passed!
+```
+
+## Reference
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart:BeakKanbanBlockConstructor"
+```
+
+| Parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `model` | `BeakModel` | required | The model whose records become cards |
+| `groupField` | `BeakScalarField<Enum>` | required | Enum field of `model` that defines the columns |
+| `titleField` | `BeakColumn` | required | Card title |
+| `subtitleField` | `BeakColumn?` | `null` | Card subtitle |
+| `sortField` | `BeakColumn?` | `null` | Orders cards inside a column |
+| `sortDescending` | `bool` | `false` | Direction of `sortField` |
+| `label` | `String` | `Board` | Accessibility label |
+| `onCardMove` | `void Function(BeakRecord)?` | `null` | Called after a drop the server accepted; a refused drop does not call it |
+| `filter` | `BeakFilter?` | `null` | Narrows the records the board lists. It reads at most 200, and a note says when more match |
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart:BeakCalendarBlockConstructor"
+```
+
+| Parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `model` | `BeakModel` | required | The model whose records become events |
+| `titleField` | `BeakColumn` | required | Event title |
+| `startField` | `BeakColumn` | required | Event start |
+| `endField` | `BeakColumn?` | `null` | Event end. Falls back to the start |
+| `allDayField` | `BeakColumn?` | `null` | Boolean column marking all-day events |
+| `categoryField` | `BeakColumn?` | `null` | An enum column tints events with its badge colors |
+| `mode` | `OiCalendarMode` | `month` | Opening view: `day`, `week` or `month` |
+| `label` | `String` | `Calendar` | Accessibility label |
+| `onEventTap` | `void Function(BeakRecord)?` | `null` | Called with the tapped event's record |
+| `onEventMove` | `void Function(BeakRecord, DateTime, DateTime)?` | `null` | Called after a drag the server accepted; a refused drag does not call it |
+| `filter` | `BeakFilter?` | `null` | Narrows the records the calendar lists. It reads at most 200, and a note says when more match |
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_timeline_block.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_timeline_block.dart:BeakTimelineBlockConstructor"
+```
+
+| Parameter | Type | Meaning |
 | --- | --- | --- |
-| `titleField` | `BeakColumn` | Each event's title. |
-| `startField` | `BeakColumn` | Each event's start instant. |
-| `endField` | `BeakColumn?` | Each event's end instant, when bound. |
-| `allDayField` | `BeakColumn?` | A boolean flag for all-day events. |
-| `categoryField` | `BeakColumn?` | Categorizes and colors events. |
-| `mode` | `OiCalendarMode` | The initial calendar mode (`month` by default). |
-| `label` | `String` | The segmented-control label (`'Calendar'` by default). |
+| `query` | `BeakQuerySpec` | Produces one row per event |
+| `titleField` | `BeakColumn` | Event title |
+| `timeField` | `BeakColumn` | Event time. A record without one is left out |
 
-### BeakKanbanView
-
-Groups the records into board columns by an enum field:
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_view.dart"
-const BeakKanbanView({
-  required this.groupField,
-  required this.titleField,
-  this.subtitleField,
-  this.sortField,
-  this.sortDescending = false,
-  this.label = 'Board',
-});
-```
-
-`groupField` is typed as `BeakEnumColumn<Enum>`, not any column: the board's
-columns are exactly the enum's values, so the framework knows every lane up front
-and you cannot point it at something that has no fixed set of buckets. `titleField`
-labels each card; `subtitleField` and `sortField` are optional.
-
-## Declaring the switcher
-
-View modes are one of the things a schema class cannot decide for you, so they go
-in `lib/resources/<table>.dart`, the per-resource file that takes the generated
-resource and returns an adjusted copy. The store gives products a table and a
-board grouped by status:
-
-```dart title="examples/store/lib/resources/products.dart"
-BeakResource beakResource(BeakResource generated) => generated.copyWith(
-  detail: productLayout,
-  formLayout: productLayout,
-  // ... record and bulk actions ...
-  viewModes: const [
-    BeakTableView(),
-    BeakKanbanView(
-      groupField: ProductColumns.status,
-      titleField: ProductColumns.name,
-      subtitleField: ProductColumns.sku,
-    ),
-  ],
-);
-```
-
-The superdashboard gives orders the same treatment, sorted newest first, beside
-its declared filters:
-
-```dart title="examples/superdashboard/lib/resources/orders.dart"
---8<-- "examples/superdashboard/lib/resources/orders.dart:beakResource"
-```
-
-and gives calendar events a month calendar:
-
-```dart title="examples/superdashboard/lib/resources/calendar_events.dart"
---8<-- "examples/superdashboard/lib/resources/calendar_events.dart:beakResource"
-```
-
-Nothing in those files names the model, the icon, the label, or the section. Those
-still come from the schema class and `beak.yaml`, and `beak prepare` wraps the
-generated resource in your function. Run `beak eject resource <table>` to start
-one; it returns `generated` unchanged until your first edit. See
-[Resources](resources.md).
-
-Once declared, the list page reads `viewModes.length`: one mode renders the table
-bare, more than one renders an `OiSegmentedControl` whose segments come from each
-mode's `label` and `icon`, with the selected mode's block beneath it.
-
-```dart title="packages/beak_frontend/lib/src/pages/beak_resource_pages.dart"
-Expanded(
-  child: switch (current) {
-    BeakTableView() => table,
-    _ => BeakBlockHost(block: current.build(model)),
-  },
-),
-```
-
-## View modes are not the same as blocks
-
-This is the one thing to keep straight. A `BeakCalendarView` builds a
-`BeakCalendarBlock`, and a `BeakKanbanView` builds a `BeakKanbanBlock` (you can
-see it in each view's `build`). But the view and the block are not
-interchangeable, and they live in different places.
-
-!!! warning "Two calendars, two Kanbans"
-    - **View modes** (`BeakCalendarView`, `BeakKanbanView`) are list-page
-      presentations. They belong on a resource's `viewModes`, they take a
-      segmented-control segment, and they render *that resource's* records. You
-      cannot place a view mode anywhere else.
-    - **Blocks** (`BeakCalendarBlock`, `BeakKanbanBlock`) are placeable anywhere
-      a block tree goes: a dashboard, a custom screen, a card in a detail layout.
-      They bind to any model you name, independent of any resource's list page.
-
-    The view modes wrap the blocks so a resource can offer a calendar without you
-    composing a block tree. When you want that calendar or board *off* the list
-    page, reach for the block directly. See
-    [Data blocks](../blocks/data-blocks.md).
-
-```dart title="packages/beak_frontend/lib/src/panel/beak_resource_view.dart"
-@override
-BeakBlock build(BeakModel model) => BeakCalendarBlock(
-  model: model,
-  titleField: titleField,
-  startField: startField,
-  endField: endField,
-  allDayField: allDayField,
-  categoryField: categoryField,
-  mode: mode,
-  label: label,
-);
-```
-
-!!! note "What just happened"
-    - A `lib/resources/<table>.dart` returned `generated.copyWith(viewModes: …)`,
-      and the list grew a segmented switcher.
-    - Each non-table mode built a data block from the model and handed it to
-      `BeakBlockHost` to render.
-    - The block did the drawing; the view mode was the typed configuration that
-      chose the block and its fields.
+Every block also takes `span`, its width in a grid. The remaining blocks are on [Data blocks](../blocks/data-blocks.md).
 
 ## Continue reading
 
-- [Tables and filters](tables-and-filters.md) the default view mode and the query
-  spec every mode shares.
-- [Data blocks](../blocks/data-blocks.md) the placeable `BeakCalendarBlock` and
-  `BeakKanbanBlock` behind these view modes.
-- [Resources](resources.md) the file `viewModes` is declared in, and what else it
-  can change.
-- [beak.yaml](../reference/beak-yaml.md) the icon, label, and section a resource
-  keeps taking from the project file.
+- [Data blocks](../blocks/data-blocks.md): every block that reads a model, with the parameters of each.
+- [A kanban view](../recipes/a-kanban-view.md): the board as a step-by-step recipe.
+- [Custom screens](custom-screens.md): register a `BeakScreen` and get a route and a sidebar entry.
+- [Actions](actions.md): model transitions with rules and receipts, for models a board cannot write to.

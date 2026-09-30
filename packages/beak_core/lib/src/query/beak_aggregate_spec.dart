@@ -23,27 +23,24 @@ enum BeakAggregateFunction {
 /// A typed, losslessly JSON-serializable description of a single aggregate
 /// (for dashboard stats and friends).
 ///
-/// User code builds specs through the typed constructors ([BeakAggregateSpec.count],
-/// [BeakAggregateSpec.sum], [BeakAggregateSpec.avg]) using column constants —
-/// never key strings; the backend decodes them with [fromJson] and translates
-/// them to the ORM.
+/// Application code asks the model for one — `count`, `sum` and `avg` on a
+/// generated `XModel` — so the table comes from the model and the filter from
+/// its field references, never key strings. The backend decodes the spec with
+/// [fromJson] and translates it to the ORM.
 ///
 /// ```dart
-/// const price = BeakDecimalColumn(key: 'price', label: 'Price');
+/// const products = ProductModel();
 ///
-/// // "How many products are in stock?"
-/// final activeCount = BeakAggregateSpec.count(
-///   table: 'products',
-///   filter: BeakFieldFilter(
-///     column: const BeakBoolColumn(key: 'in_stock', label: 'In stock'),
-///     operator: BeakOperator.eq,
-///     value: BeakValue.of(true),
-///   ),
-/// );
+/// // "How many products can be sold?"
+/// final sellable = products.count(filter: ProductModel.active.eq(true));
 ///
 /// // "What is the average product price?"
-/// final avgPrice = BeakAggregateSpec.avg(table: 'products', column: price);
+/// final averagePrice = products.avg(ProductModel.price);
 /// ```
+///
+/// The named constructors are what those methods call, and
+/// [BeakAggregateSpec.forKey] is the wire-level path for decoders and
+/// data-source adapters.
 @immutable
 final class BeakAggregateSpec {
   /// Counts the rows of [table] matching [filter].

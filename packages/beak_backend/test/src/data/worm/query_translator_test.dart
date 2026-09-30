@@ -1,4 +1,5 @@
-import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/data/worm/query_translator.dart';
+import 'package:beak_backend/src/data/worm/worm_record_model.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
@@ -46,15 +47,15 @@ void main() {
               value: BeakBoolValue(true),
             ),
           )
-          .orderBy(ProductColumns.price, descending: true)
-          .searching('laser', [ProductColumns.name])
+          .orderBy(ProductModel.price, descending: true)
+          .searching('laser', [ProductModel.name])
           .paginate(page: 2, perPage: 5);
 
       expect(
         build(spec).toSql(),
-        'SELECT * FROM products WHERE (price >= 10.0 AND active = TRUE) '
-        "AND (name ILIKE '%laser%') AND deleted_at IS NULL "
-        'ORDER BY price DESC LIMIT 5 OFFSET 5',
+        'SELECT id, name, price, active, created_at, category_id FROM products WHERE (price >= 10.0 AND active = TRUE) '
+        r"AND (name ILIKE '%laser%' ESCAPE '\') AND deleted_at IS NULL "
+        'ORDER BY price DESC, id ASC LIMIT 5 OFFSET 5',
       );
     });
   });
@@ -115,23 +116,23 @@ void main() {
         ),
         BeakOperator.like: (
           nameFilter(BeakOperator.like, const BeakStringValue('La%')),
-          "name LIKE 'La%'",
+          r"name LIKE 'La%' ESCAPE '\'",
         ),
         BeakOperator.ilike: (
           nameFilter(BeakOperator.ilike, const BeakStringValue('la%')),
-          "name ILIKE 'la%'",
+          r"name ILIKE 'la%' ESCAPE '\'",
         ),
         BeakOperator.contains: (
           nameFilter(BeakOperator.contains, const BeakStringValue('ase')),
-          "name ILIKE '%ase%'",
+          r"name ILIKE '%ase%' ESCAPE '\'",
         ),
         BeakOperator.startsWith: (
           nameFilter(BeakOperator.startsWith, const BeakStringValue('La')),
-          "name ILIKE 'La%'",
+          r"name ILIKE 'La%' ESCAPE '\'",
         ),
         BeakOperator.endsWith: (
           nameFilter(BeakOperator.endsWith, const BeakStringValue('er')),
-          "name ILIKE '%er'",
+          r"name ILIKE '%er' ESCAPE '\'",
         ),
         BeakOperator.isNull: (
           nameFilter(BeakOperator.isNull, const BeakNullValue()),
@@ -179,6 +180,34 @@ void main() {
       }
     });
 
+    test('wildcards in a substring operand are escaped, not obeyed', () {
+      expect(
+        whereFor(
+          nameFilter(BeakOperator.contains, const BeakStringValue(r'50%_\')),
+        ),
+        r"name ILIKE '%50\%\_\\%' ESCAPE '\'",
+      );
+      expect(
+        whereFor(
+          nameFilter(BeakOperator.startsWith, const BeakStringValue('a_b')),
+        ),
+        r"name ILIKE 'a\_b%' ESCAPE '\'",
+      );
+      expect(
+        whereFor(nameFilter(BeakOperator.endsWith, const BeakStringValue('%'))),
+        r"name ILIKE '%\%' ESCAPE '\'",
+      );
+    });
+
+    test('a like operand is a pattern: its wildcards and escapes are kept', () {
+      expect(
+        whereFor(
+          nameFilter(BeakOperator.like, const BeakStringValue(r'50\% _')),
+        ),
+        r"name LIKE '50\% _' ESCAPE '\'",
+      );
+    });
+
     test('rejects a between filter without exactly two bounds', () {
       expect(
         () => build(
@@ -190,7 +219,7 @@ void main() {
             ),
           ),
         ).toSql(),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(isA<BeakValidationException>()),
       );
     });
 
@@ -202,7 +231,7 @@ void main() {
             filter: priceFilter(BeakOperator.inList, const BeakDoubleValue(1)),
           ),
         ).toSql(),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(isA<BeakValidationException>()),
       );
     });
   });
@@ -234,7 +263,7 @@ void main() {
       );
       expect(
         _withoutPaging(build(spec).toSql()),
-        "SELECT * FROM products WHERE (name = 'Laser' OR "
+        "SELECT id, name, price, active, created_at, category_id FROM products WHERE (name = 'Laser' OR "
         '(active = TRUE AND price < 100.0))',
       );
     });
@@ -245,7 +274,10 @@ void main() {
         withTrashed: true,
         filter: BeakAndFilter([]),
       );
-      expect(_withoutPaging(build(spec).toSql()), 'SELECT * FROM products');
+      expect(
+        _withoutPaging(build(spec).toSql()),
+        'SELECT id, name, price, active, created_at, category_id FROM products',
+      );
     });
 
     test('rejects a filter referencing an unknown column', () {
@@ -257,7 +289,7 @@ void main() {
           ),
         ),
         throwsA(
-          isA<BeakConfigurationException>().having(
+          isA<BeakValidationException>().having(
             (e) => e.message,
             'message',
             contains('bogus'),
@@ -295,8 +327,8 @@ void main() {
   group('sorts and search', () {
     test('multiple sorts apply in order', () {
       final spec = const BeakQuerySpec(table: 'products', withTrashed: true)
-          .orderBy(ProductColumns.name)
-          .orderBy(ProductColumns.price, descending: true);
+          .orderBy(ProductModel.name)
+          .orderBy(ProductModel.price, descending: true);
       expect(build(spec).toSql(), contains('ORDER BY name ASC, price DESC'));
     });
 
@@ -305,18 +337,26 @@ void main() {
         () => build(
           const BeakQuerySpec(table: 'products', sorts: [BeakSort('bogus')]),
         ),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(isA<BeakValidationException>()),
       );
     });
 
-    test('search ORs a case-insensitive contains over every column', () {
+    test('search uses text contains and typed numeric equality', () {
       final spec = const BeakQuerySpec(
         table: 'products',
         withTrashed: true,
-      ).searching('beam', [ProductColumns.name, ProductColumns.price]);
+      ).searching('beam', [ProductModel.name, ProductModel.price]);
       expect(
         build(spec).toSql(),
-        contains("(name ILIKE '%beam%' OR price ILIKE '%beam%')"),
+        contains(r"(name ILIKE '%beam%' ESCAPE '\')"),
+      );
+      final numeric = const BeakQuerySpec(
+        table: 'products',
+        withTrashed: true,
+      ).searching('4.5', [ProductModel.name, ProductModel.price]);
+      expect(
+        build(numeric).toSql(),
+        contains(r"(name ILIKE '%4.5%' ESCAPE '\' OR price = 4.5)"),
       );
     });
 
@@ -324,8 +364,11 @@ void main() {
       final spec = const BeakQuerySpec(
         table: 'products',
         withTrashed: true,
-      ).searching('   ', [ProductColumns.name]);
-      expect(_withoutPaging(build(spec).toSql()), 'SELECT * FROM products');
+      ).searching('   ', [ProductModel.name]);
+      expect(
+        _withoutPaging(build(spec).toSql()),
+        'SELECT id, name, price, active, created_at, category_id FROM products',
+      );
     });
   });
 
@@ -355,7 +398,7 @@ void main() {
             relationLoads: [BeakRelationLoad('bogus')],
           ),
         ),
-        throwsA(isA<BeakConfigurationException>()),
+        throwsA(isA<BeakValidationException>()),
       );
     });
   });

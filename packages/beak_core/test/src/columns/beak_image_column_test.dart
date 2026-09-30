@@ -29,7 +29,6 @@ void main() {
     expect(column.maxSizeInBytes, isNull);
     expect(column.maxDimensions, isNull);
     expect(column.aspectRatio, isNull);
-    expect(column.thumbnail, isNull);
   });
 
   test('stores the full upload configuration', () {
@@ -41,7 +40,6 @@ void main() {
       allowedTypes: [BeakFileType.png, BeakFileType.webp],
       maxDimensions: BeakDimensions(widthInPixels: 4096, heightInPixels: 4096),
       aspectRatio: 16 / 9,
-      thumbnail: BeakDimensions.square(128),
       transforms: [
         BeakImageTransform.resize(widthInPixels: 1600),
         BeakImageTransform.webp(quality: 85),
@@ -57,7 +55,6 @@ void main() {
       const BeakDimensions(widthInPixels: 4096, heightInPixels: 4096),
     );
     expect(configured.aspectRatio, closeTo(16 / 9, 1e-9));
-    expect(configured.thumbnail, const BeakDimensions.square(128));
     expect(configured.transforms, hasLength(2));
   });
 }

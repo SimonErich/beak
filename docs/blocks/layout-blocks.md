@@ -1,415 +1,175 @@
 ---
 title: Layout blocks
-description: The structural block family: columns, rows, grids with spans, cards, sections, tabs, accordions, breadcrumbs, masonry, three-pane, carousel, dividers, spacers, and timelines.
+description: Arrange a custom screen with columns, rows, grids, cards, tabs and accordions, and learn when a row or grid stacks on a narrow page.
+type: guide
+audience: [beginner]
+status: stable
 ---
 
 # Layout blocks
 
-After this page you can arrange any screen: stack content in columns, place cards
-on a responsive grid, split a page into tabs or a three-pane app shell, and space
-it out with dividers and gaps. These are the structural blocks. They hold other
-blocks and decide where things sit.
+Layout blocks hold other blocks and show nothing themselves. After this page you can build the frame of a custom screen, predict when a row or a grid folds into one column, and reach for a plain widget when no block fits.
 
-Every block here is `const` configuration that renders onto an obers_ui layout
-widget. Nothing below hard-codes a widget or a callback.
+You have a `BeakScreen` and an empty `body`. The body takes exactly one block, so make it a `BeakColumnBlock` and put everything else inside it. The Aviary example does the same on every page:
 
-The tree you build lands in one of three files: `lib/screens/<name>.dart` for a
-page of your own, `lib/dashboard.dart` for the screen at `/`, or
-`lib/resources/<table>.dart` for a resource's `detail` and `formLayout`.
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:layoutBlocksPage"
+```
 
-## The family at a glance
+`navigationGroup` files the screen under a sidebar heading. `framed` (default `true`) gives the screen the standard header, gutters and scrolling. Set `framed: false` for full-bleed content such as a kanban board, which brings its own height.
 
-| Block | Renders onto | Key parameters |
+## At a glance
+
+| Block | Renders onto | Use it for |
 | --- | --- | --- |
-| `BeakColumnBlock` | `OiColumn` | `children`, `gapInPixels` |
-| `BeakRowBlock` | `OiRow` | `children`, `gapInPixels` |
-| `BeakGridBlock` | `OiGrid` + `OiSpan` | `children`, `columns` or `minColumnWidthInPixels`, `gapInPixels` |
-| `BeakCardBlock` | `OiCard` | `child`, `title`, `subtitle`, `footer` |
-| `BeakSectionBlock` | `OiSection` | `title`, `child`, `description` |
-| `BeakTabsBlock` | `OiTabs` | `tabs`, `initialIndex` |
-| `BeakAccordionBlock` | `OiAccordion` | `items`, `allowMultiple` |
-| `BeakBreadcrumbsBlock` | `OiBreadcrumbs` | `items` |
-| `BeakMasonryBlock` | `OiMasonry` | `children`, `columns`, `gapInPixels` |
-| `BeakThreePaneBlock` | `OiThreeColumnLayout` | `label`, `left`, `middle`, `right` |
-| `BeakCarouselBlock` | `OiCarousel` | `query`, `imageUrlField`, `captionField` |
-| `BeakDividerBlock` | `OiDivider` | `label` |
-| `BeakSpacerBlock` | fixed whitespace | `heightInPixels` |
-| `BeakTimelineBlock` | `OiTimeline` | `query`, `titleField`, `timeField` |
+| `BeakColumnBlock` | `OiColumn` | Children stacked top to bottom, stretched to the full width. |
+| `BeakRowBlock` | `OiRow` | Children side by side. `expand: true` shares the width by span weights. |
+| `BeakGridBlock` | `OiGrid` | Children on tracks: a fixed column count, or as many columns as fit. |
+| `BeakCardBlock` | `OiCard` | A surface with an optional title, subtitle and footer. |
+| `BeakSectionBlock` | `OiSection` | A heading and a description over one child. |
+| `BeakTabsBlock` | `OiTabs` | One panel at a time. |
+| `BeakAccordionBlock` | `OiAccordion` | Expandable panels. |
+| `BeakMasonryBlock` | `OiMasonry` | Cards of different heights packed into columns. |
+| `BeakDividerBlock` | `OiDivider` | A rule, optionally with a centered label. |
+| `BeakSpacerBlock` | `SizedBox` | A fixed vertical gap. |
+| `BeakWidgetBlock` | your builder | Any Flutter widget, for what no block expresses. |
 
-## Stacks: column and row
+Every block also carries an optional `span`, and that is what the next section is about.
 
-`BeakColumnBlock` stacks its children vertically with a uniform gap, stretching
-each to the full width. It is the default shape for page content.
+## Spans: one field, two meanings
 
-```dart title="packages/beak_frontend/lib/src/blocks/beak_column_block.dart"
-const BeakColumnBlock({
-  required this.children,
-  this.gapInPixels = 16,
-  super.span,
-});
+`BeakSpan(columns: 1, rows: 1)` sits on the base class, because it means something to the parent and the parent can be one of two. In a `BeakGridBlock` it is the number of tracks the child covers. In a `BeakRowBlock` with `expand: true` its `columns` is a relative weight. Anywhere else it is ignored, so a card can declare `span: BeakSpan(columns: 8)` and lay out correctly whether or not it currently sits in a grid.
+
+### Grid tracks
+
+A card spans as many of twelve tracks as its span asks for:
+
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:gridSection"
 ```
 
-Here it holds a stack of text blocks inside a card, straight from the showcase's
-typography page:
+Give a grid either `columns` (fixed tracks) or `minColumnWidthInPixels` (as many tracks as fit), never both, because the constructor asserts. With neither, you get one column. The dashboards use the second form: `BeakGridBlock(minColumnWidthInPixels: 220, children: [...])` puts as many metric cards on a line as the width allows and needs no spans at all.
 
-```dart title="examples/superdashboard/lib/screens/typography_screen.dart"
-body: BeakCardBlock(
-  title: 'Type scale',
-  child: BeakColumnBlock(
-    gapInPixels: 12,
-    children: [
-      BeakTextBlock('Display', variant: BeakTextVariant.display),
-      BeakTextBlock('Heading 1', variant: BeakTextVariant.h1),
-      BeakTextBlock('Heading 2', variant: BeakTextVariant.h2),
-      BeakTextBlock('Heading 3', variant: BeakTextVariant.h3),
-      BeakTextBlock('Heading 4', variant: BeakTextVariant.h4),
-      // ... the body, small, and caption variants.
-    ],
-  ),
-),
+A fixed grid protects itself on a narrow page. It measures every child at its declared span, and when any child would come out narrower than `minChildWidthInPixels` (240 by default) the whole grid becomes one column, in reading order. The arithmetic is in `BeakBlockHost`:
+
+```dart title="packages/beak_frontend/lib/src/blocks/beak_block_host.dart"
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_block_host.dart:gridStacking"
 ```
 
-`BeakRowBlock` is the horizontal twin. It renders onto `OiRow`, which collapses
-into a column on narrow breakpoints so rows stay readable on small screens.
+Two consequences. The measurement uses the grid's own width, not the window's, so the same grid folds sooner inside a narrow region than in a full page. And the smallest span decides: the 8 and 4 grid above has 16 pixel gaps, so its 4-track card is 240 pixels wide at a grid width of 752 and folds below that. Set `minChildWidthInPixels: 0` to keep the tracks at every width.
+
+### Row weights
+
+A natural row keeps each child's own width. An expanded row shares the width by weight and folds the same way a grid does:
+
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:rowSection"
+```
+
+The card with `BeakSpan(columns: 2)` gets two shares, the other one share. A child without a span has weight 1. Each child's width is `(width - gap * (children - 1)) * weight / total weight`, and the row folds into a column when any share falls under `minChildWidthInPixels`. With weights 5, 3 and 4 and the default 16 pixel gap:
+
+| Row width | Widths of the three children | Result |
+| --- | --- | --- |
+| 1200 px | 486.7, 292.0, 389.3 | side by side |
+| 1000 px | 403.3, 242.0, 322.7 | side by side |
+| 992 px | 400.0, 240.0, 320.0 | side by side, the middle one exactly at the minimum |
+| 991 px | 991.0 each | one column |
+
+A row inside an unbounded width (a horizontal scroller, say) keeps intrinsic widths instead, because weights need a width to divide.
+
+## Cards, sections and dividers
+
+`BeakCardBlock` is the surface. It draws its own background, which is why a framed screen adds none: the frame gives you header, gutters and scrolling, and the cards give you the surfaces. Wrap the whole body in one card only when you want one shared surface.
+
+`BeakSectionBlock` is a heading without a surface. `BeakDividerBlock` and `BeakSpacerBlock` are the small parts, both visible in the row example above (a labelled divider and a 12 pixel spacer).
+
+## Tabs and accordions
+
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:tabsSection"
+```
+
+The selected tab is state, and a block is a `const` description, so the host owns it (a small `HookWidget` per `BeakTabsBlock`). Only the selected tab's content is built. A data block in a hidden tab does not fetch until you open it, and it fetches again when you come back.
+
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:accordionSection"
+```
+
+An accordion opens one panel at a time unless you pass `allowMultiple: true`. `initiallyExpanded` opens a panel on first build.
+
+## Masonry
+
+`BeakMasonryBlock` distributes its children across `columns` (default 3) and packs each column from the top, so cards of different heights leave no holes:
+
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:masonrySection"
+```
+
+## The escape hatch
+
+`BeakWidgetBlock` takes a `WidgetBuilder`. It is the one block that holds code, and it is here for what no block expresses yet:
+
+```dart title="examples/showcase/lib/pages/layout_blocks.dart"
+--8<-- "examples/showcase/lib/pages/layout_blocks.dart:escapeHatchSection"
+```
+
+Use it last. The builder runs under the panel's scopes, so `beakDependencies(context)` works inside it, but nothing checks what it builds and a test that walks the block tree cannot see into it. [Custom blocks and widgets](../extending/custom-blocks-and-widgets.md) covers what to do with it.
+
+## Rules and limits
+
+- A screen's `body` is one block. Compose with a column, row or grid.
+- Layout blocks do not bound height. Blocks that draw need a height and take one (`heightInPixels` on charts, maps, tables, summaries). A card around them takes its natural height, and cards in a row or grid are not stretched to match each other.
+- `BeakTabsBlock` with no tabs renders nothing, and an `initialIndex` past the last tab selects the last one. Neither is asserted.
+- `BeakMasonryBlock` asserts `columns >= 1`, a `BeakSpan` asserts `columns >= 1` and `rows >= 1`, and a `BeakRowBlock` or `BeakGridBlock` asserts non-negative `minChildWidthInPixels`.
+- `BeakSectionBlock` puts an 8 pixel gap between its heading and its child. There is no parameter for it.
+- Forms are not made of these blocks. A form layout has its own `BeakCard`, `BeakColumns`, `BeakTabs` and `BeakWizardStep` nodes, which stay connected to the draft. See [The block system](../concepts/the-block-system.md) for why there are two families.
+- `BeakThreePaneBlock` is a layout too, but it hosts data blocks in every example, so it lives on [Module blocks](module-blocks.md).
+
+## Verify it
+
+The Aviary pumps every page against a fixture source and fails on any exception:
+
+```console
+$ cd examples/showcase
+$ flutter test --no-pub test/aviary_pages_test.dart test/block_type_matrix_test.dart
+All tests passed!
+```
+
+To watch a fold happen, run the panel (see the [Showcase](../examples/showcase.md) page) and drag the browser window narrower on the Layout blocks page. The Grid section folds when its own width drops under 752 pixels, the Row and column section under 736 (weights 2 and 1, so the lighter card gets a third of what is left after the gap). The sidebar and the page gutters come off the window width first.
+
+## Reference
+
+Required parameters are marked with a star. Every block also takes `span`.
+
+| Block | Parameters (default) |
+| --- | --- |
+| `BeakColumnBlock` | `children`*, `gapInPixels` (16) |
+| `BeakRowBlock` | `children`*, `gapInPixels` (16), `expand` (false), `minChildWidthInPixels` (240) |
+| `BeakGridBlock` | `children`*, `columns`, `minColumnWidthInPixels`, `minChildWidthInPixels` (240), `gapInPixels` (16) |
+| `BeakCardBlock` | `child`*, `title`, `subtitle`, `headerGapInPixels` (16), `footer` |
+| `BeakSectionBlock` | `title`*, `child`*, `description` |
+| `BeakTabsBlock` | `tabs`*, `initialIndex` (0); each `BeakTabBlockItem` takes `label`*, `content`*, `icon` |
+| `BeakAccordionBlock` | `items`*, `allowMultiple` (false); each `BeakAccordionBlockItem` takes `title`*, `content`*, `initiallyExpanded` (false) |
+| `BeakMasonryBlock` | `children`*, `columns` (3), `gapInPixels` (16) |
+| `BeakDividerBlock` | `label` |
+| `BeakSpacerBlock` | `heightInPixels` (16) |
+| `BeakWidgetBlock` | `builder`* (positional) |
+
+The two constructors with layout logic, verbatim:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_row_block.dart"
-const BeakRowBlock({
-  required this.children,
-  this.gapInPixels = 16,
-  super.span,
-});
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_row_block.dart:BeakRowBlock"
 ```
-
-```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-child: BeakRowBlock(
-  gapInPixels: 8,
-  children: [
-    for (final color in BeakColor.values)
-      BeakBadgeBlock(color.name, color: color),
-  ],
-),
-```
-
-## Grids and spans
-
-`BeakGridBlock` places its children on a column grid. Give it either a fixed
-`columns` count or a `minColumnWidthInPixels` for an auto-fitting grid, never
-both (an assert enforces it).
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_grid_block.dart"
-const BeakGridBlock({
-  required this.children,
-  this.columns,
-  this.minColumnWidthInPixels,
-  this.gapInPixels = 16,
-  super.span,
-}) : assert(
-       columns == null || minColumnWidthInPixels == null,
-       'Provide either columns or minColumnWidthInPixels, not both.',
-     );
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_grid_block.dart:BeakGridBlock"
 ```
 
-Each child's `span` decides how many tracks it covers. A child with no span
-occupies one track. This two-up grid of cards comes from the UI-kit page:
-
-```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-BeakBlock _widgets() => BeakGridBlock(
-  columns: 2,
-  gapInPixels: 20,
-  children: [
-    BeakCardBlock(
-      title: 'Badges',
-      child: BeakRowBlock(
-        gapInPixels: 8,
-        children: [
-          for (final color in BeakColor.values)
-            BeakBadgeBlock(color.name, color: color),
-        ],
-      ),
-    ),
-    const BeakCardBlock(title: 'Rating', child: BeakRatingBlock(value: 3.5)),
-    // ... the Progress and Round slider cards.
-  ],
-);
-```
-
-For finer control, set a wider grid and span individual children. On a
-twelve-track grid, `BeakSpan(columns: 6)` is a half-width child. A layout of
-your own might say:
-
-```dart
-BeakGridBlock(
-  columns: 12,
-  children: [
-    BeakCardBlock(
-      span: BeakSpan(columns: 6),
-      child: BeakTextBlock('Half width'),
-    ),
-    BeakCardBlock(
-      span: BeakSpan(columns: 6),
-      child: BeakTextBlock('Other half'),
-    ),
-  ],
-),
-```
-
-!!! note "What just happened"
-    - `span` is only read for direct children of a `BeakGridBlock`. On a child
-      of a column or row it is ignored.
-    - `BeakSpan` also takes `rows` for a child that should be taller than one
-      track.
-    - Spans resolve responsively, because the host maps them to obers_ui's
-      `OiSpan` placement.
-
-## Surfaces: card and section
-
-`BeakCardBlock` wraps content in an elevated card with an optional header
-(`title`, `subtitle`) and `footer`.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_card_block.dart"
-const BeakCardBlock({
-  required this.child,
-  this.title,
-  this.subtitle,
-  this.footer,
-  super.span,
-});
-```
-
-`BeakSectionBlock` is lighter: a heading, an optional description, and a body.
-Use it to label a run of content without the card chrome.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_section_block.dart"
-const BeakSectionBlock({
-  required this.title,
-  required this.child,
-  this.description,
-  super.span,
-});
-```
-
-```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-const BeakSectionBlock(
-  title: 'Settings',
-  description: 'Tune the panel',
-  child: BeakTextBlock('content'),
-),
-```
-
-## Navigation: tabs, accordion, breadcrumbs
-
-`BeakTabsBlock` shows a tab bar and renders the selected tab's content below it.
-Each tab is a `BeakTabBlockItem` (a label, an optional icon, and its content).
-The selected index is the only piece of state, and the host owns it.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_tabs_block.dart"
-const BeakTabsBlock({required this.tabs, this.initialIndex = 0, super.span});
-```
-
-```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-const BeakTabsBlock(
-  tabs: [
-    BeakTabBlockItem(label: 'One', content: BeakTextBlock('first')),
-    BeakTabBlockItem(label: 'Two', content: BeakTextBlock('second')),
-  ],
-),
-```
-
-`BeakAccordionBlock` stacks expandable sections (FAQ-style). Set
-`allowMultiple: true` to let several open at once; each item can start expanded.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_accordion_block.dart"
-const BeakAccordionBlock({
-  required this.items,
-  this.allowMultiple = false,
-  super.span,
-});
-```
-
-```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-child: BeakAccordionBlock(
-  items: [
-    BeakAccordionBlockItem(
-      title: 'What is a block?',
-      initiallyExpanded: true,
-      content: BeakTextBlock('A declarative, optionally data-bound node.'),
-    ),
-    BeakAccordionBlockItem(
-      title: 'How does it render?',
-      content: BeakTextBlock('Through one exhaustive host switch.'),
-    ),
-  ],
-),
-```
-
-`BeakBreadcrumbsBlock` renders a trail of crumbs. A crumb with a `route`
-navigates through the panel's go_router on tap; the current page's crumb usually
-has none.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_breadcrumbs_block.dart"
-const BeakBreadcrumbsBlock({required this.items, super.span});
-```
-
-```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-block: BeakBreadcrumbsBlock(
-  items: [
-    BeakBreadcrumbBlockItem(label: 'Home', route: '/target'),
-    BeakBreadcrumbBlockItem(label: 'Here'),
-  ],
-),
-```
-
-## App layouts: masonry, three-pane, carousel, timeline
-
-`BeakMasonryBlock` distributes children across vertical columns, each column
-packing items top-down (Pinterest-style). It defaults to three columns.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_masonry_block.dart"
-const BeakMasonryBlock({
-  required this.children,
-  this.columns = 3,
-  this.gapInPixels = 16,
-  super.span,
-}) : assert(columns >= 1, 'columns must be >= 1');
-```
-
-```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-const BeakMasonryBlock(
-  columns: 2,
-  children: [BeakTextBlock('a'), BeakTextBlock('b')],
-),
-```
-
-`BeakThreePaneBlock` is the backbone of email, chat, and file-manager screens: a
-narrow start pane, a main middle pane, and an optional end pane. The showcase's
-file manager builds all three panes from tables.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_three_pane_block.dart"
-const BeakThreePaneBlock({
-  required this.label,
-  required this.left,
-  required this.middle,
-  this.right,
-  this.leftWidthInPixels = 260,
-  this.rightWidthInPixels = 320,
-  super.span,
-});
-```
-
-```dart title="examples/superdashboard/lib/screens/files_screen.dart"
-body: BeakThreePaneBlock(
-  label: 'File manager',
-  leftWidthInPixels: 260,
-  rightWidthInPixels: 320,
-  left: BeakTableBlock(
-    title: 'Folders',
-    model: FileFolderModel(),
-    heightInPixels: 640,
-  ),
-  middle: BeakFileManagerBlock(
-    label: 'Files',
-    model: ManagedFileModel(),
-    nameField: ManagedFileColumns.name,
-    sizeField: ManagedFileColumns.size,
-    modifiedField: ManagedFileColumns.modifiedAt,
-  ),
-  right: BeakTableBlock(
-    title: 'Storage',
-    model: StorageAccountModel(),
-    heightInPixels: 640,
-  ),
-),
-```
-
-`BeakCarouselBlock` is data-bound: each row of its `query` becomes a slide.
-`imageUrlField` supplies the image and `captionField` an optional caption. Slide
-content comes from seeded data, never a hard-coded list.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_carousel_block.dart"
-const BeakCarouselBlock({
-  required this.query,
-  required this.imageUrlField,
-  this.captionField,
-  this.heightInPixels = 320,
-  this.autoplay = true,
-  super.span,
-});
-```
-
-```dart title="examples/superdashboard/lib/screens/gallery_screen.dart"
-child: BeakCarouselBlock(
-  query: BeakQuerySpec(
-    table: 'media_assets',
-    filter: _inCollection(MediaCollection.carousel),
-    sorts: const [BeakSort('sort_index')],
-  ),
-  imageUrlField: MediaAssetColumns.url,
-  captionField: MediaAssetColumns.caption,
-),
-```
-
-`BeakTimelineBlock` is also data-bound: each row becomes a dated event.
-`titleField` is the event label and `timeField` its timestamp.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_timeline_block.dart"
-const BeakTimelineBlock({
-  required this.query,
-  required this.titleField,
-  required this.timeField,
-  super.span,
-});
-```
-
-```dart title="examples/superdashboard/lib/screens/ui_kit_screen.dart"
-child: BeakTimelineBlock(
-  query: BeakQuerySpec(
-    table: 'activities',
-    sorts: [BeakSort('created_at', descending: true)],
-    pagination: BeakPagination(perPage: 12),
-  ),
-  titleField: ActivityColumns.body,
-  timeField: SharedColumns.createdAt,
-),
-```
-
-!!! tip "Query-backed layout blocks"
-    Carousel and timeline take a [`BeakQuerySpec`](../concepts/how-data-flows.md),
-    so they read live rows instead of static content. You point them at typed
-    columns (`MediaAssetColumns.url`, `ActivityColumns.body`), never string keys.
-
-## Spacing: divider and spacer
-
-`BeakDividerBlock` draws a horizontal rule, with a centred label when you give it
-one.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_divider_block.dart"
-const BeakDividerBlock({this.label, super.span});
-```
-
-`BeakSpacerBlock` is fixed vertical whitespace between blocks.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_spacer_block.dart"
-const BeakSpacerBlock({this.heightInPixels = 16, super.span});
-```
-
-Both, side by side:
-
-```dart title="packages/beak_frontend/test/src/blocks/beak_block_host_test.dart"
-const BeakColumnBlock(
-  children: [
-    BeakMarkdownBlock('# Heading\n\nBody copy.'),
-    BeakDividerBlock(label: 'or'),
-    BeakDividerBlock(),
-    BeakSpacerBlock(heightInPixels: 32),
-  ],
-),
-```
+Every block class with its constructor is on [Blocks](../reference/blocks.md). The exhaustive host that renders them is explained in [Block system internals](../architecture/block-system-internals.md).
 
 ## Continue reading
 
-- [Display blocks](display-blocks.md) text, markdown, images, video, and icon
-  galleries to fill these layouts.
-- [Data blocks](data-blocks.md) KPIs, charts, and tables for a dashboard grid.
-- [Custom screens](../panel/custom-screens.md) where a layout tree becomes a
-  page in the nav.
-- [Blocks overview](index.md) the sealed family, the host, and grid spans.
+- [Content blocks](content-blocks.md) text, images, alerts and the other blocks that show what you typed.
+- [Data blocks](data-blocks.md) metrics, tables and boards that fetch for themselves.
+- [Custom screens](../panel/custom-screens.md) how a `BeakScreen` becomes a route.
+- [Blocks](../reference/blocks.md) every block class and its parameters.

@@ -116,12 +116,12 @@ void main() {
 
     test('names the apps/ to examples/ move rather than the missing file', () {
       final problems = problemsIn(
-        '```dart title="apps/reference_admin/lib/main.dart"\n'
+        '```dart title="apps/retired_example/lib/main.dart"\n'
         'void main() {}\n'
         '```',
       );
       expect(messagesOf(problems), [
-        'fence titled "apps/reference_admin/lib/main.dart" — apps/ is now '
+        'fence titled "apps/retired_example/lib/main.dart" — apps/ is now '
             'examples/',
       ]);
     });
@@ -146,13 +146,29 @@ void main() {
       expect(problemsIn('--8<-- "$sourcePath:BeakColumn"'), isEmpty);
     });
 
-    test(
-      'accepts a whole-file include and a line range, which mark nothing',
-      () {
-        expect(problemsIn('--8<-- "$sourcePath"'), isEmpty);
-        expect(problemsIn('--8<-- "$sourcePath:3:8"'), isEmpty);
-      },
-    );
+    test('accepts a whole-file include, which marks nothing', () {
+      expect(problemsIn('--8<-- "$sourcePath"'), isEmpty);
+    });
+
+    test('rejects a line range, which the agent docs build cannot expand', () {
+      // mkdocs reads `file.dart:3:8`, and the bundle build refuses it because
+      // a range has no marker to watch. The site would stay green while the
+      // bundle went red, so the page check refuses it first.
+      for (final range in const ['3:8', '3', ':8', '3:', '3:8,12:14']) {
+        final problems = problemsIn('--8<-- "$sourcePath:$range"');
+        expect(problems, hasLength(1), reason: range);
+        expect(
+          problems.single.message,
+          allOf(
+            contains('line range'),
+            contains('named section'),
+            contains('[start:'),
+          ),
+          reason: range,
+        );
+        expect(problems.single.line, 8, reason: range);
+      }
+    });
 
     test('reports an include naming a section the file no longer marks', () {
       // How an include rots: the symbol is renamed or deleted and its markers
@@ -666,6 +682,67 @@ void main() {
     });
   });
 
+  group('a snippet marker written on a page', () {
+    // pymdownx deletes every page line holding `--8<-- [start:x]` or
+    // `[end:x]` before Markdown sees it, in a fence or in inline code alike,
+    // so the reader gets a page with a line missing and no build error.
+    test('is reported in a fence', () {
+      final problems = problemsIn(
+        '```dart\n'
+        '// --8<-- [start:Thing]\n'
+        'class Thing {}\n'
+        '// --8<-- [end:Thing]\n'
+        '```',
+      );
+      expect(problems, hasLength(2));
+      expect(problems.map((problem) => problem.line), [9, 11]);
+      expect(
+        problems.first.message,
+        allOf(contains('deletes'), contains('section marker'), contains(';')),
+      );
+    });
+
+    test('is reported in inline code and in plain prose', () {
+      expect(
+        problemsIn('Wrap it in `--8<-- [start:Thing]` markers.'),
+        hasLength(1),
+      );
+      expect(
+        problemsIn('The line --8<-- [end:Thing] closes it.'),
+        hasLength(1),
+      );
+    });
+
+    test('is reported however mkdocs spells it', () {
+      // pymdownx is case-insensitive, takes extra dashes, tabs and spaces
+      // inside the brackets.
+      for (final marker in const [
+        '--8<-- [START:Thing]',
+        '---8<--- [start : Thing]',
+        '-8<-\t[ end:Thing ]',
+        '<!-- --8<-- [start:a-b_c1] -->',
+      ]) {
+        expect(problemsIn(marker), hasLength(1), reason: marker);
+      }
+    });
+
+    test('is accepted with the escape semicolon mkdocs removes', () {
+      // `;--8<-- [start:x]` renders as `--8<-- [start:x]`: the way to show
+      // one to the reader.
+      expect(problemsIn('Write `;--8<-- [start:Thing]` above it.'), isEmpty);
+      expect(problemsIn('// ;--8<-- [end:Thing]'), isEmpty);
+    });
+
+    test('is not confused with an include directive or a marker lookalike', () {
+      expect(problemsIn('--8<-- "$sourcePath:BeakColumn"'), isEmpty);
+      // Not pymdownx's grammar: no whitespace before the bracket, a name that
+      // starts with a digit, an unknown kind.
+      expect(problemsIn('--8<--[start:Thing]'), isEmpty);
+      expect(problemsIn('--8<-- [start:1Thing]'), isEmpty);
+      expect(problemsIn('--8<-- [middle:Thing]'), isEmpty);
+    });
+  });
+
   group('which titles are checked as repo quotations', () {
     /// A fence titled [title], quoting a line no file contains.
     List<DocProblem> problemsForTitle(String title) => checkPage(
@@ -707,4 +784,579 @@ void main() {
       expect(problemsForTitle('.env'), isEmpty);
     });
   });
+
+  group('page metadata', () {
+    test('a page with complete metadata is clean', () {
+      expect(metadataProblems(guide()), isEmpty);
+    });
+
+    test('leaves a page with no front matter to checkPage', () {
+      expect(metadataProblems('# A test page\n\nProse.\n'), isEmpty);
+    });
+
+    test('reports a missing type, audience and status', () {
+      final problems = metadataProblems(
+        '---\ntitle: A test page\ndescription: Short.\n---\n\n# A test page\n',
+      );
+      expect(messagesOf(problems), [
+        contains('no "type:"'),
+        contains('no "audience:"'),
+        contains('no "status:"'),
+      ]);
+    });
+
+    test('reports values outside the allowed sets', () {
+      final problems = metadataProblems(
+        guide(type: 'essay', audience: '[reader]', status: 'final'),
+      );
+      expect(messagesOf(problems), [
+        contains('type "essay" is not one of'),
+        contains('audience "reader" is not one of'),
+        contains('status "final" is not one of'),
+      ]);
+    });
+
+    test('reports front matter that is not valid YAML', () {
+      final problems = metadataProblems(
+        '---\ntitle: A test page\ndescription: Two: colons\n---\n',
+      );
+      expect(messagesOf(problems), [contains('not valid YAML')]);
+    });
+
+    test('reports a description longer than a search result shows', () {
+      final problems = metadataProblems(guide(description: 'x' * 161));
+      expect(messagesOf(problems), [contains('161 characters')]);
+      expect(metadataProblems(guide(description: 'x' * 160)), isEmpty);
+    });
+
+    test('reports an H1 that differs from the title', () {
+      final problems = metadataProblems(guide(heading: 'Another title'));
+      expect(messagesOf(problems), [
+        'the H1 "Another title" differs from the title "A test page"',
+      ]);
+    });
+
+    test('reads the H1 past a comment in a fence and ignores later H1s', () {
+      final content = guide(
+        body: '```bash\n# not a heading\n```\n\n# A second H1\n',
+      );
+      expect(metadataProblems(content), isEmpty);
+    });
+  });
+
+  group('the headings a stable page needs', () {
+    test('cover exactly the allowed types', () {
+      expect(requiredHeadings.keys.toSet(), pageTypes);
+    });
+
+    for (final entry in requiredHeadings.entries) {
+      test('a stable ${entry.key} page reports each one it lacks', () {
+        final problems = metadataProblems(
+          guide(type: entry.key, status: 'stable'),
+        );
+        expect(problems, hasLength(entry.value.length));
+        for (final heading in entry.value) {
+          expect(
+            messagesOf(problems),
+            contains(contains('needs the heading "$heading"')),
+          );
+        }
+      });
+
+      test('a stable ${entry.key} page with them is clean', () {
+        final body = entry.value
+            .map((heading) => '$heading\n\nText.\n')
+            .join('\n');
+        expect(
+          metadataProblems(
+            guide(type: entry.key, status: 'stable', body: body),
+          ),
+          isEmpty,
+        );
+      });
+    }
+
+    test('are not asked of a draft or preview page', () {
+      expect(metadataProblems(guide(status: 'draft')), isEmpty);
+      expect(metadataProblems(guide(status: 'preview')), isEmpty);
+    });
+
+    test('do not count when they sit inside a fence', () {
+      final body = requiredHeadings['guide']!
+          .map((heading) => '```markdown\n$heading\n```\n')
+          .join('\n');
+      final problems = metadataProblems(guide(status: 'stable', body: body));
+      expect(problems, hasLength(requiredHeadings['guide']!.length));
+    });
+  });
+
+  group('repository paths named in prose', () {
+    bool onlyKnown(String path) => path == 'packages/beak_core/pubspec.yaml';
+
+    List<DocProblem> proseProblems(String body) => checkPageMetadata(
+      'docs/test/page.md',
+      guide(body: body),
+      pathExists: onlyKnown,
+    );
+
+    test('accepts a path the repository has', () {
+      expect(proseProblems('Open `packages/beak_core/pubspec.yaml`.'), isEmpty);
+    });
+
+    test('reports a path it does not have, on its line', () {
+      final problems = proseProblems('Open `examples/store/README.md`.');
+      expect(problems.single.message, contains('`examples/store/README.md`'));
+      expect(problems.single.message, contains('does not exist'));
+      // guide() puts the H1 on page line 9 and the body from line 11.
+      expect(problems.single.line, 11);
+    });
+
+    test('checks all four roots, and a directory written with a slash', () {
+      for (final path in const [
+        'packages/gone/',
+        'examples/gone',
+        'tool/gone.dart',
+        'deploy/gone.yaml',
+      ]) {
+        expect(proseProblems('See `$path`.'), hasLength(1), reason: path);
+      }
+    });
+
+    test('leaves fences, placeholders and other roots alone', () {
+      const untouched = [
+        '```bash\ncat packages/gone/file.dart\n```',
+        'Use `examples/serverpod_<domain>/` as a name.',
+        'Pass `packages/*/pubspec.yaml` to the glob.',
+        'Your own `lib/models/note.dart` is not the repository.',
+        'A path with words, `packages/gone and more`, is prose.',
+      ];
+      for (final body in untouched) {
+        expect(proseProblems(body), isEmpty, reason: body);
+      }
+    });
+  });
+
+  group('the nav', () {
+    test('is cut out of a file whose other blocks carry python tags', () {
+      final block = topLevelBlock(mkdocs(), 'nav')!;
+      expect(block, startsWith('nav:'));
+      expect(block, isNot(contains('python/name')));
+      final nav = parseNav(block);
+      expect(nav.map((node) => node.label), ['Start', 'Guides']);
+      expect(topLevelBlock('site_name: A\n', 'nav'), isNull);
+    });
+
+    test('a consistent site is clean', () {
+      expect(siteProblems(), isEmpty);
+    });
+
+    test('reports a label that differs from the page title', () {
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst(
+          '"Quickstart": start-here/quickstart.md',
+          '"Start quickly": start-here/quickstart.md',
+        ),
+      );
+      expect(messagesOf(problems), [
+        'the nav label "Start quickly" differs from the title "Quickstart" of '
+            '"start-here/quickstart.md"',
+      ]);
+    });
+
+    test('lets the home page serve a tab called something else', () {
+      // "Start" is the tab and "Beak" is the title of docs/index.md.
+      expect(siteProblems(), isEmpty);
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst('- Guides:', '- Manuals:'),
+      );
+      expect(messagesOf(problems), [
+        'the section label "Manuals" differs from the title "Guides" of its '
+            'index "guides/index.md"',
+      ]);
+    });
+
+    test('reports a title two pages share', () {
+      final problems = siteProblems(
+        pages: {
+          ...sitePages(),
+          'docs/start-here/quickstart.md': guide(title: 'Fields'),
+        },
+        yaml: mkdocs().replaceFirst(
+          '"Quickstart": start-here/quickstart.md',
+          '"Fields": start-here/quickstart.md',
+        ),
+      );
+      expect(messagesOf(problems), [contains('the title "Fields" belongs to')]);
+    });
+
+    test('reports a section that does not open on an index page', () {
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst(
+          '          - models/index.md\n          - "Fields": models/fields.md',
+          '          - "Fields": models/fields.md\n          - models/index.md',
+        ),
+      );
+      expect(messagesOf(problems), [
+        contains('"Models" does not open on an index.md page'),
+      ]);
+    });
+
+    test('reports an index with no routing table', () {
+      final problems = siteProblems(
+        pages: {
+          ...sitePages(),
+          'docs/models/index.md': indexPage('Models', [
+            'fields.md',
+          ]).replaceFirst('## Which page to read', '## Contents'),
+        },
+      );
+      expect(messagesOf(problems), [
+        contains('index of "Models" has no "## Which page to read"'),
+      ]);
+    });
+
+    test('reports an index that leaves out a child', () {
+      final problems = siteProblems(
+        pages: {...sitePages(), 'docs/index.md': indexPage('Beak', const [])},
+      );
+      expect(messagesOf(problems), [
+        contains('does not link "start-here/quickstart.md"'),
+      ]);
+    });
+
+    test('reports a child linked outside the routing section', () {
+      // A link in the intro or under "Continue reading" is not routing: the
+      // reader who scans "Which page to read" never sees it.
+      final page = guide(
+        title: 'Models',
+        type: 'index',
+        status: 'stable',
+        body:
+            'Start with [Fields](fields.md) if you are in a hurry.\n\n'
+            '## Which page to read\n\n'
+            'Nothing here yet.\n\n'
+            '## More\n\n'
+            '- [Fields](fields.md)',
+      );
+      final problems = siteProblems(
+        pages: {...sitePages(), 'docs/models/index.md': page},
+      );
+      expect(messagesOf(problems), [
+        'the index of "Models" does not link "models/fields.md" under '
+            '"## Which page to read"',
+      ]);
+    });
+
+    test('counts every link up to the next heading, subheadings included', () {
+      final page = guide(
+        title: 'Models',
+        type: 'index',
+        status: 'stable',
+        body:
+            '## Which page to read\n\n'
+            '### Basics\n\n'
+            '- [Fields](fields.md)\n\n'
+            '## Another section\n',
+      );
+      expect(
+        siteProblems(pages: {...sitePages(), 'docs/models/index.md': page}),
+        isEmpty,
+      );
+    });
+
+    test('ignores a routing heading that sits inside a fence', () {
+      final page = guide(
+        title: 'Models',
+        type: 'index',
+        status: 'stable',
+        body:
+            '```markdown\n## Which page to read\n\n- [Fields](fields.md)\n```',
+      );
+      final problems = siteProblems(
+        pages: {...sitePages(), 'docs/models/index.md': page},
+      );
+      // One report: with no routing section, listing every child as unrouted
+      // would say nothing new.
+      expect(messagesOf(problems), [
+        contains('has no "## Which page to read"'),
+      ]);
+    });
+
+    test('links a child section through its own index, however written', () {
+      // guides/index.md links models/index.md; a differently written link to
+      // the same page counts, and a link to the wrong page does not.
+      expect(
+        siteProblems(
+          pages: {
+            ...sitePages(),
+            'docs/guides/index.md': indexPage('Guides', [
+              '../guides/../models/index.md#top',
+            ]),
+          },
+        ),
+        isEmpty,
+      );
+      expect(
+        siteProblems(
+          pages: {
+            ...sitePages(),
+            'docs/guides/index.md': indexPage('Guides', [
+              '../models/fields.md',
+            ]),
+          },
+        ),
+        isNotEmpty,
+      );
+    });
+
+    test('reports a page the nav leaves out, and a nav entry with no page', () {
+      final problems = siteProblems(
+        pages: {
+          ...sitePages(),
+          'docs/models/orphan.md': guide(title: 'Orphan'),
+        },
+        yaml: mkdocs().replaceFirst(
+          '          - "Fields": models/fields.md\n',
+          '          - "Fields": models/fields.md\n'
+              '          - "Ghost": models/ghost.md\n',
+        ),
+      );
+      expect(messagesOf(problems), [
+        contains('does not link "models/ghost.md"'),
+        'the nav lists "models/ghost.md", which is not a page',
+        'is not in the nav',
+      ]);
+    });
+  });
+
+  group('the URL manifest', () {
+    test('is read one entry per line, skipping comments and blanks', () {
+      expect(manifestEntries('# note\n\na.md\n  b.md  \n# more\n'), [
+        'a.md',
+        'b.md',
+      ]);
+    });
+
+    test('accepts a page and a redirect key', () {
+      expect(
+        siteProblems(manifest: 'models/fields.md\nold/fields.md\n'),
+        isEmpty,
+      );
+    });
+
+    test('reports a published path that is neither', () {
+      final problems = siteProblems(
+        manifest: 'models/fields.md\nlost/page.md\n',
+      );
+      expect(problems, hasLength(1));
+      expect(problems.single.path, urlManifestPath);
+      expect(problems.single.message, contains('"lost/page.md"'));
+    });
+
+    test('reports a missing manifest', () {
+      final problems = checkSite(
+        pages: sitePages(),
+        mkdocsYaml: mkdocs(),
+        manifest: null,
+      );
+      expect(messagesOf(problems), ['is missing']);
+    });
+
+    test('reports a redirect to a page that does not exist', () {
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst(
+          'old/fields.md: models/fields.md',
+          'old/fields.md: models/gone.md',
+        ),
+      );
+      expect(messagesOf(problems), [
+        'the redirect "old/fields.md" points at "models/gone.md", which is not '
+            'a page',
+      ]);
+    });
+
+    test('ignores the fragment when it checks a redirect target', () {
+      expect(
+        siteProblems(
+          yaml: mkdocs().replaceFirst(
+            'old/fields.md: models/fields.md',
+            'old/fields.md: models/fields.md#types',
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('reports a redirect key that is also a page', () {
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst(
+          'old/fields.md: models/fields.md',
+          'models/fields.md: index.md',
+        ),
+        manifest: 'models/fields.md\n',
+      );
+      expect(messagesOf(problems), [
+        contains('"models/fields.md" is also a page'),
+      ]);
+    });
+  });
+
+  group('the llmstxt sections', () {
+    test('are read from the plugin, and null when it is absent', () {
+      final plugins = topLevelBlock(mkdocs(), 'plugins')!;
+      expect(parseLlmsGlobs(plugins), [
+        'index.md',
+        'start-here/*.md',
+        'guides/index.md',
+        'models/*.md',
+      ]);
+      expect(parseLlmsGlobs('plugins:\n  - search\n'), isNull);
+    });
+
+    test('report a page no section lists', () {
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst('          - models/*.md\n', ''),
+      );
+      // models/index.md and models/fields.md, and the glob is gone.
+      expect(messagesOf(problems), [
+        'is in no llmstxt section of mkdocs.yml, so /llms.txt omits it',
+        'is in no llmstxt section of mkdocs.yml, so /llms.txt omits it',
+      ]);
+    });
+
+    test('report a glob that matches nothing', () {
+      final problems = siteProblems(
+        yaml: mkdocs().replaceFirst('models/*.md', 'modles/*.md'),
+      );
+      expect(
+        messagesOf(problems),
+        contains('the llmstxt glob "modles/*.md" matches no page'),
+      );
+    });
+  });
+
+  group('the release ratchet', () {
+    final drafts = {
+      ...sitePages(),
+      'docs/models/fields.md': guide(title: 'Fields'),
+    };
+
+    test('lets a draft page through on an ordinary run', () {
+      expect(siteProblems(pages: drafts), isEmpty);
+    });
+
+    test('fails on a draft page with --release', () {
+      final problems = siteProblems(pages: drafts, release: true);
+      expect(problems, hasLength(1));
+      expect(problems.single.path, 'docs/models/fields.md');
+      expect(problems.single.message, contains('status is draft'));
+    });
+
+    test('passes stable and preview pages with --release', () {
+      final previews = {
+        ...sitePages(),
+        'docs/models/fields.md': guide(title: 'Fields', status: 'preview'),
+      };
+      expect(siteProblems(pages: previews, release: true), isEmpty);
+      expect(siteProblems(release: true), isEmpty);
+    });
+  });
 }
+
+/// A guide page whose front matter and body are set by the parameters.
+///
+/// The H1 defaults to [title] and sits on page line 9, so a body starts on
+/// page line 11.
+String guide({
+  String title = 'A test page',
+  String? heading,
+  String type = 'guide',
+  String audience = '[beginner]',
+  String status = 'draft',
+  String description = 'One sentence a search result can show.',
+  String body = 'Plain prose.',
+}) =>
+    '---\n'
+    'title: $title\n'
+    'description: $description\n'
+    'type: $type\n'
+    'audience: $audience\n'
+    'status: $status\n'
+    '---\n'
+    '\n'
+    '# ${heading ?? title}\n'
+    '\n'
+    '$body\n'
+    '\n'
+    '## Continue reading\n'
+    '\n'
+    '- [Column types](column-types.md) every built-in column.\n';
+
+/// The problems [checkPageMetadata] finds in [content].
+List<DocProblem> metadataProblems(String content) =>
+    checkPageMetadata('docs/test/page.md', content, pathExists: (_) => true);
+
+/// A stable section index called [title] that links every path in [links].
+String indexPage(String title, List<String> links) => guide(
+  title: title,
+  type: 'index',
+  status: 'stable',
+  body:
+      '## Which page to read\n\n'
+      '${links.map((link) => '- [Page]($link)').join('\n')}',
+);
+
+/// The pages of a two-tab site, keyed by repository path.
+Map<String, String> sitePages() => {
+  'docs/index.md': indexPage('Beak', ['start-here/quickstart.md']),
+  'docs/start-here/quickstart.md': guide(title: 'Quickstart', status: 'stable'),
+  'docs/guides/index.md': indexPage('Guides', ['../models/index.md']),
+  'docs/models/index.md': indexPage('Models', ['fields.md']),
+  'docs/models/fields.md': guide(title: 'Fields', status: 'stable'),
+};
+
+/// A `mkdocs.yml` for [sitePages], with a python tag outside the two blocks
+/// the checks read, the way the real file has.
+String mkdocs() => '''
+site_name: Test
+markdown_extensions:
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+plugins:
+  - search
+  - llmstxt:
+      sections:
+        Start:
+          - index.md
+          - start-here/*.md
+        Guides:
+          - guides/index.md
+          - models/*.md
+  - redirects:
+      redirect_maps:
+        old/fields.md: models/fields.md
+extra:
+  social: []
+nav:
+  - Start:
+      - index.md
+      - "Quickstart": start-here/quickstart.md
+  - Guides:
+      - guides/index.md
+      - Models:
+          - models/index.md
+          - "Fields": models/fields.md
+''';
+
+/// The site-level problems in [pages] under [yaml] and [manifest].
+List<DocProblem> siteProblems({
+  Map<String, String>? pages,
+  String? yaml,
+  String manifest = 'index.md\nmodels/fields.md\nold/fields.md\n',
+  bool release = false,
+}) => checkSite(
+  pages: pages ?? sitePages(),
+  mkdocsYaml: yaml ?? mkdocs(),
+  manifest: manifest,
+  release: release,
+);

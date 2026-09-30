@@ -1,302 +1,163 @@
 ---
 title: Data blocks
-description: KPI tiles, metric cards, data tables, calendars, and kanban boards that resolve a BeakDataSource and fetch their own rows.
+description: Show live numbers, tables, timelines, boards and calendars on a custom screen, and learn what each block fetches, when it refreshes and where it stops.
+type: guide
+audience: [beginner, expert]
+status: stable
 ---
 
 # Data blocks
 
-After this page you can drop a live KPI tile, a metric card, a data table, a
-calendar, or a kanban board onto any block surface. Each one names a model or an
-aggregate and fetches its own rows at render time, so nothing on the page is
-hardcoded.
+A data block goes and fetches its own rows through the panel's data source, so a dashboard needs no view model and no repository code. After this page you can put a metric, a table, a timeline, a board or a calendar on a custom screen, and you know which of them refresh by themselves and where each stops.
 
-## What makes a block "data-bound"
+## At a glance
 
-A layout or display block is inert configuration: it draws whatever you hand it.
-A data block is different. It carries a model (or a `BeakAggregateSpec`) and,
-when the host renders it, it resolves the panel's data source and asks for the
-numbers itself:
+| Block | Reads | Loading and error UI | Refreshes after a write |
+| --- | --- | --- | --- |
+| `BeakMetricBlock` | one aggregate (count, sum or average), plus one for `previous` | progress bar, error text with a retry button | yes |
+| `BeakSummaryBlock` | one grouped summary ([Population summaries](summaries.md)) | spinner, error card with a retry button | yes |
+| `BeakTableBlock` | pages of a model, server-side sort, filter and paging | as a resource list: a retryable error state | yes |
+| `BeakTimelineBlock` | the query you pass | an error line with a retry button | yes |
+| `BeakKanbanBlock` | the first 200 rows of a model, or of its `filter` | an error line with a retry button, and a toast when a move is refused | yes |
+| `BeakCalendarBlock` | the first 200 rows of a model, or of its `filter` | an error line with a retry button, and a toast when a move is refused | yes |
 
-```dart title="packages/beak_frontend/lib/src/blocks/views/beak_kpi_block_view.dart"
-final dataSource = beakLocator<BeakDataSource>();
-// ...
-final loaded = await dataSource.aggregate(block.value);
+"A write" means a confirmed save, delete or row action that went through the panel's data source. Every block above listens for it and fetches again. With a `refreshPolicy` on the panel, the same signal also fires on an interval and when the app returns to the foreground, so they refresh on a timer too.
+
+Everything a data block asks for passes the same server checks as a list page: view permission, field access and row policy. A metric counts the rows that user may read, not the rows that exist. Soft-deleted rows are left out unless the spec says `withTrashed: true`.
+
+## Metrics
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:metrics"
 ```
 
-That `beakLocator<BeakDataSource>()` is the package-scoped GetIt lookup Beak
-wires when the panel boots. In the running app it resolves to
-`HttpBeakDataSource` over REST; in a test it resolves to whatever fake you
-registered (`InMemoryBeakDataSource` from `package:beak/testing.dart`). Either
-way the block is the same `const` descriptor. The five blocks below are the
-data-bound ones you place by hand; the [chart](../charts/chart-basics.md) and
-[map](../charts/maps.md) blocks work the same way.
+The aggregate comes from the model: `const SpecimenModel().count()`, `.sum(field)` or `.avg(field)`, each with an optional `filter:`. Field and filter are generated references (`SpecimenModel.endangered.eq(true)`), so no column name is a string anywhere.
 
-You place them wherever a block tree goes: `lib/dashboard.dart` for the home
-screen, `lib/screens/<name>.dart` for a page of your own, or a card inside
-either.
+- `target` draws a progress track under the value and labels it `value / target`. The Aviary has to reach 60 specimens.
+- `previous` takes a second aggregate, usually the same sum over the earlier period, and shows the change as a signed percentage next to a trend arrow: `(value - previous) / |previous|`. Nothing shows while `previous` is 0. The color follows the sign, the theme's success color for up and its error color for down, so a falling error count is drawn as bad news.
+- `unit` follows the value and the target with a space: `'g'` renders `880.86 g` under the Aviary's formatting. `format` is `number` (the default), `currency` or `percent`, and nothing else is accepted. Numbers go through the panel's [formatting policy](../theming/formatting-and-localization.md), so the same block prints `1.234,50` under `de_DE` and `1,234.50` under `en_US`.
+- `minorUnits: true` turns stored integer cents into major units before display (`scale`, default 2, says how many places). An aggregate always returns storage units, so a sum over an integer cents column needs it.
 
-| Block | Binds to | Fetches |
-| --- | --- | --- |
-| `BeakKpiBlock` | one (or two) `BeakAggregateSpec` | a headline number and a delta |
-| `BeakMetricBlock` | one `BeakAggregateSpec` | a single count or sum |
-| `BeakTableBlock` | a `BeakModel` | a paged, sortable, filterable list |
-| `BeakCalendarBlock` | a `BeakModel` + field bindings | records as scheduled events |
-| `BeakKanbanBlock` | a `BeakModel` grouped by an enum column | records as draggable cards |
+Money is where the typed helpers stop. `sum` and `avg` take numeric fields of the model itself, `int` or `double`. An exact `BeakDecimal` field has an imperative `field.sum(source)` that returns a `BeakDecimal`, but nothing that builds an aggregate spec for a block. For a metric over money, keep the amount as integer minor units (Foodio's `grossCents`), which sum exactly. A `double` decimal column also works (the Aviary's invoice `total`), with a double's rounding.
 
-## KPI tiles
+## Tables
 
-`BeakKpiBlock` is a headline aggregate with an optional prior-period aggregate
-that drives an up/down delta badge, plus an optional target track.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_kpi_block.dart"
-const BeakKpiBlock({
-  required this.title,
-  required this.value,
-  this.previous,
-  this.target,
-  this.format = BeakKpiFormat.number,
-  this.currencySymbol = r'$',
-  this.decimals = 0,
-  super.span,
-});
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:upcomingTasks"
 ```
 
-The showcase dashboard opens with four of them: an earnings sum and three counts.
+`BeakTableBlock` is the resource list's table in a box: the same `BeakDataTable`, the same server-side sorting, filtering and paging, the same cell rendering, so a badge or a date looks exactly as it does on the list page. What you decide:
 
-```dart title="examples/superdashboard/lib/dashboard.dart"
---8<-- "examples/superdashboard/lib/dashboard.dart:kpis"
+- `fields` lists the columns as generated field references, in order. It takes precedence over `columns` (a list of `BeakColumn`) and switches off the automatic relationship columns. Without either, you get the model's table columns.
+- `initialSpec` seeds the first sort order and page size. Here: soonest first, five rows.
+- `baseFilter` is merged into every query the table runs. The reader can still sort, filter and page inside your scope, but never out of it.
+- `enableDelete` defaults to `true` and adds a delete action with undo to every row. On a dashboard, that is rarely what you want. Set it to `false` for read-only listings.
+- `actions` adds row actions, `onRowTap` receives the tapped `BeakRecord`. A tap does nothing unless you pass `onRowTap`, and a block with a callback cannot be `const`.
+- `heightInPixels` (360) bounds the table. Layout blocks do not, and a table needs a height.
+- `title` wraps the table in a card with that heading. The example uses a `BeakCardBlock` instead, so the title sits with the other cards.
+
+## Timelines
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:taskTimeline"
 ```
 
-!!! note "What just happened"
-    - `count`, `sum` and `avg` are all `const` constructors, so the whole grid
-      is one `const` expression. The API computes every figure; the browser
-      receives a number, not a table to count.
-    - `OrderColumns.total` is generated from the `total` field of the `Order`
-      schema class. Rename the field and this file stops compiling, which is
-      the point.
-    - `format: BeakKpiFormat.currency` turns the raw number into `$34,123` using
-      `currencySymbol`. The two other formats are below.
+Each row becomes an event, titled by `titleField` and placed by `timeField`. A row with no readable time has no place on a timeline and is left out. The block sorts newest first itself, whatever order the query used, so the query's `sorts` only decides which rows make the cut when there are more than `perPage`. That is the timeline's one lever: it shows exactly the rows your query returns, eight here.
 
-`format` picks how the value and delta read:
+## Boards and calendars
 
-| `BeakKpiFormat` | Renders |
+The Aviary shows the same chores twice, as a board and as a calendar. Both blocks take a `model` instead of a query and read its rows, up to 200 (`BeakPagination.maxPerPage`), or the rows of a `filter:` you pass:
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:plannerPage"
+```
+
+`framed: false` is deliberate. A board and a calendar fill the height the panel gives them, so they skip the standard page frame and its scrolling.
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:board"
+```
+
+The board makes one column per value of `groupField`, which must be an enum field of the model itself (anything else throws a `BeakConfigurationException` when the board builds). Columns come in the enum's declaration order, with each value's label and badge color. `titleField`, `subtitleField` and `sortField` are columns (`TaskModel.title.column`), and `sortField` orders the cards inside each column.
+
+```dart title="examples/showcase/lib/pages/data_blocks.dart"
+--8<-- "examples/showcase/lib/pages/data_blocks.dart:calendar"
+```
+
+The calendar places each row by `startField` and `endField` (an event without an end lasts as long as its start), flags all-day rows with `allDayField`, and tints an event with the badge color of `categoryField` when that column is an enum. `mode` picks the first view, `OiCalendarMode.month` by default.
+
+A calendar row with no readable start has no place on the calendar and is left out.
+
+Both blocks write. Drop a card in another column and the block saves the new value of `groupField`. Drag an event and it saves the new start, and the new end when `endField` is bound. Each is one update through the panel's data source, which sends it as a graph commit, so a model that only accepts graph commits (`graphOnly`) can be moved too. The card or event stays where you dropped it once the save succeeds. Three things to know before you rely on it:
+
+- A refused move shows the reason in a toast (the server's message for a validation or permission failure, a generic line for an infrastructure one) and the item snaps back.
+- `onCardMove` and `onEventMove` are called once per confirmed move, with the record as it was before the move (and, for an event, the start and end that were written). A refused move does not call them. A card dropped in its own column writes nothing and calls nothing.
+- `filter:` narrows what the block lists. A model with more matching rows than the page holds shows only the first 200, and a line beneath the block says so (`Showing the first 200 of 340.`). A chat, inbox, pricing, FAQ or file manager block takes the same `filter:` and gives the same notice.
+
+## Rules and limits
+
+- Fetching blocks need the panel. They read `beakDependencies(context)<BeakDataSource>()`. Outside a `BeakPanel`, provide that scope yourself ([Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)).
+- 200 rows, no more. Kanban, calendar, chat, inbox, pricing, FAQ and the file manager read one page of at most 200 (`BeakPagination.maxPerPage`, what the server answers with). More matching rows are not there, and a line beneath the block says how many are shown. The default page of a plain query is 25, which is why the Aviary's chart queries ask for the largest page themselves ([Charts](charts.md)).
+- A failed read is shown. The metric replaces its number with the error text and a Retry button, the summary with an error card, the table with its error state. The timeline, the board and the calendar keep what they drew before, put the panel's error line above it and offer Retry. None of them draws an empty block as if the data were empty. A block that has not loaded anything yet stays empty under the error line.
+- Undated rows are left out. A timeline row without a readable time and a calendar row without a readable start are not drawn. No date is invented for them.
+- Times follow the panel's zone. The calendar and the timeline show a stored instant in the panel's `formatting` zone (device time by default, or `timeZoneOffsetMinutes`), and a dragged event is written back as the instant that wall-clock time names in that zone, so a drag never shifts the hour.
+- Aggregates are storage units. `avg` comes back with its fraction (880.857... above) and rounding is the display's job.
+- Metrics are separate requests. A metric with `previous` sends two. A page with twelve metrics sends twelve, each on its own, and refreshes each after a write to its table.
+- Sort and page inside `initialSpec` are a start. The reader can change both in a table block. Put permanent scoping in `baseFilter`.
+
+## Verify it
+
+Run the Aviary's page tests, which build every data block against a fixture source:
+
+```console
+$ cd examples/showcase
+$ flutter test --no-pub test/aviary_pages_test.dart
+...
+Data blocks renders
+...
+All tests passed!
+```
+
+The fixture source cannot answer aggregates, so this proves the page builds and not that the numbers are right. For the numbers, start the Aviary API as its README describes (`dart run bin/serve.dart`, port 8082) and ask it what a metric asks:
+
+```console
+$ curl -s -X POST localhost:8082/api/tasks/aggregate \
+    -H 'content-type: application/json' -d '{"table":"tasks","function":"count"}'
+{"value":12}
+$ curl -s -X POST localhost:8082/api/specimens/aggregate \
+    -H 'content-type: application/json' -d '{"table":"specimens","function":"avg","column":"weight_in_grams"}'
+{"value":880.8571428571429}
+```
+
+The second is the "Average weight" metric before formatting. The panel shows it as `880.86 g`.
+
+## Reference
+
+Required parameters are marked with a star. Every block also takes `span`.
+
+| Block | Parameters (default) |
 | --- | --- |
-| `number` | a grouped integer (`34,123`) |
-| `currency` | the same, prefixed with `currencySymbol` (`$34,123`) |
-| `percent` | the value times 100 with a `%` suffix |
+| `BeakMetricBlock` | `label`*, `aggregate`*, `icon`, `format` (`BeakValueFormat.number`), `minorUnits` (false), `scale` (2), `unit`, `previous`, `target` |
+| `BeakTableBlock` | `model`*, `title`, `columns`, `fields`, `enableDelete` (true), `initialSpec`, `baseFilter`, `actions` (empty), `onRowTap`, `heightInPixels` (360) |
+| `BeakTimelineBlock` | `query`*, `titleField`*, `timeField`* |
+| `BeakKanbanBlock` | `model`*, `groupField`*, `titleField`*, `subtitleField`, `sortField`, `sortDescending` (false), `label` (`'Board'`), `onCardMove`, `filter` |
+| `BeakCalendarBlock` | `model`*, `titleField`*, `startField`*, `endField`, `allDayField`, `categoryField`, `mode` (`OiCalendarMode.month`), `label` (`'Calendar'`), `onEventTap`, `onEventMove`, `filter` |
 
-## Metric cards
-
-`BeakMetricBlock` is the compact single-number cousin: the composable form of a
-dashboard stat, no delta badge. Use it when you want one count or sum in a card,
-optionally wrapped in a prefix or suffix.
+The two fetching constructors with the most parameters, verbatim:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_metric_block.dart"
-const BeakMetricBlock({
-  required this.label,
-  required this.aggregate,
-  this.icon,
-  this.prefix = '',
-  this.suffix = '',
-  super.span,
-});
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_metric_block.dart:BeakMetricBlock"
 ```
-
-The block's own dartdoc shows the shape a call takes:
-
-```dart
-BeakMetricBlock(
-  label: 'Products',
-  aggregate: BeakAggregateSpec.count(table: 'products'),
-  icon: OiIcons.package,
-);
-```
-
-## Data tables
-
-`BeakTableBlock` embeds the full `BeakDataTable` (the same widget a resource list
-page uses) inside a page or a card. You get server-side sort, filter, and
-pagination for free; `initialSpec` seeds the ordering and page size,
-`baseFilter` scopes the rows, and `columns` narrows what is shown.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_table_block.dart"
-const BeakTableBlock({
-  required this.model,
-  this.title,
-  this.columns,
-  this.initialSpec,
-  this.baseFilter,
-  this.actions = const [],
-  this.onRowTap,
-  this.heightInPixels = 360,
-  super.span,
-});
+--8<-- "packages/beak_frontend/lib/src/blocks/beak_table_block.dart:BeakTableBlock"
 ```
 
-The dashboard's three listings are all the same block over different models:
-
-```dart title="examples/superdashboard/lib/dashboard.dart"
-BeakBlock _tables() => const BeakGridBlock(
-  columns: 12,
-  children: [
-    BeakTableBlock(
-      span: BeakSpan(columns: 6),
-      title: 'Latest orders',
-      model: OrderModel(),
-      initialSpec: BeakQuerySpec(
-        table: 'orders',
-        sorts: [BeakSort('placed_at', descending: true)],
-        pagination: BeakPagination(perPage: 6),
-      ),
-    ),
-    // ... Top customers (UserModel) and Latest transactions (TransactionModel).
-  ],
-);
-```
-
-### Narrowing the columns
-
-Leave `columns` unset and the table shows the model's table-context columns,
-which is what a list page wants and what a dashboard card cannot fit. Pass a
-list of generated column constants and the card shows those, in that order. The
-store's dashboard does exactly this for its two lists:
-
-```dart title="examples/store/lib/dashboard.dart"
-BeakCardBlock(
-  span: BeakSpan(columns: 6),
-  title: 'Latest orders',
-  child: BeakTableBlock(
-    model: OrderModel(),
-    columns: [
-      OrderColumns.reference,
-      OrderColumns.status,
-      OrderColumns.total,
-    ],
-    initialSpec: BeakQuerySpec(
-      table: 'orders',
-      sorts: [BeakSort('placed_at', descending: true)],
-      pagination: BeakPagination(perPage: 5),
-    ),
-  ),
-),
-```
-
-!!! note "What just happened"
-    - Three columns read at a glance where seventeen do not fit at all. The
-      resource's own list page still shows everything.
-    - `columns` takes `BeakColumn` constants generated from the `Order` schema
-      class, never key strings.
-    - `baseFilter` is the other narrowing knob: the store's second card scopes
-      products to `featured == true` with a `BeakFieldFilter` while leaving the
-      user's own sorting and paging alone.
-
-!!! tip "heightInPixels earns its keep"
-    A table needs a vertical bound to lay out, and a grid cell or card gives it
-    none. `heightInPixels` (default `360`) is that bound. If a table block
-    renders blank inside a card, this is usually why.
-
-!!! note "One column per to-one relationship, free"
-    A list table already renders a column for each to-one relationship, showing
-    the related record's name rather than its foreign key, loaded with the page
-    in a single query. You do not add it and you do not pay an extra request
-    for it.
-
-## Calendars and kanban boards
-
-`BeakCalendarBlock` renders a model's records as events on an `OiCalendar`, and
-`BeakKanbanBlock` renders them as cards on an `OiKanban`, one column per enum
-value. Both bind fields by typed `BeakColumn`, not by string, and both persist
-drags back through `dataSource.update`.
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_calendar_block.dart"
-const BeakCalendarBlock({
-  required this.model,
-  required this.titleField,
-  required this.startField,
-  this.endField,
-  this.allDayField,
-  this.categoryField,
-  this.mode = OiCalendarMode.month,
-  this.label = 'Calendar',
-  this.onEventTap,
-  this.onEventMove,
-  super.span,
-});
-```
-
-A calendar over an events model reads like this:
-
-```dart
-BeakCalendarBlock(
-  model: const EventModel(),
-  titleField: EventColumns.title,
-  startField: EventColumns.startsAt,
-  endField: EventColumns.endsAt,
-  categoryField: EventColumns.status,
-  onEventTap: (record) => print(record[EventColumns.title.key]?.raw),
-);
-```
-
-The kanban board takes its columns straight from an enum column's declared
-values, so the swimlanes are never stringly-typed. Note that `groupField` is a
-`BeakEnumColumn`, not a plain `BeakColumn`:
-
-```dart title="packages/beak_frontend/lib/src/blocks/beak_kanban_block.dart"
-const BeakKanbanBlock({
-  required this.model,
-  required this.groupField,
-  required this.titleField,
-  this.subtitleField,
-  this.sortField,
-  this.sortDescending = false,
-  this.label = 'Board',
-  this.onCardMove,
-  super.span,
-});
-```
-
-And a board over a tasks model:
-
-```dart
-BeakKanbanBlock(
-  model: const TaskModel(),
-  groupField: TaskColumns.status, // a BeakEnumColumn
-  titleField: TaskColumns.title,
-  subtitleField: TaskColumns.assignee,
-  onCardMove: (record) => print('moved ${record[TaskColumns.id.key]?.raw}'),
-);
-```
-
-!!! warning "Blocks, not view modes"
-    `BeakCalendarBlock` and `BeakKanbanBlock` are blocks you place anywhere a
-    block tree goes: a custom screen, a card, an overlay. They are a different
-    thing from `BeakCalendarView` and `BeakKanbanView`, which are alternate
-    **view modes** you attach to a resource so its list page can toggle between
-    a table, a calendar, and a board. View modes are set on the resource, in
-    `lib/resources/<table>.dart`:
-
-    ```dart title="examples/superdashboard/lib/resources/orders.dart"
-    BeakResource beakResource(BeakResource generated) => generated.copyWith(
-      // ... detail, formLayout and filters, then:
-      viewModes: [
-        const BeakTableView(),
-        const BeakKanbanView(
-          groupField: OrderColumns.status,
-          titleField: OrderColumns.reference,
-          subtitleField: OrderColumns.total,
-          sortField: OrderColumns.placedAt,
-          sortDescending: true,
-        ),
-      ],
-    );
-    ```
-
-    Same obers_ui widget underneath, two ways to reach it. See
-    [View modes](../panel/view-modes.md) for the resource-level pair.
+Every block class with its constructor is on [Blocks](../reference/blocks.md). The metric's state handling is walked through in [Block system internals](../architecture/block-system-internals.md).
 
 ## Continue reading
 
-- [Dashboards](../panel/dashboards.md) how the config-driven dashboard composes KPI, chart, and table blocks.
-- [View modes](../panel/view-modes.md) the resource-level `BeakCalendarView` and `BeakKanbanView` these blocks mirror.
-- [Chart basics](../charts/chart-basics.md) the other data-bound block: `BeakChartBlock` and its mappers.
-- [Record blocks](record-blocks.md) the dual-mode blocks that bind to a single record instead of a query.
+- [Population summaries](summaries.md) grouped totals, donuts, bars and capacity tracks over the full population.
+- [Charts](charts.md) draw your own query as a line, bar, pie or heat map.
+- [Dashboards](../panel/dashboards.md) how these blocks add up to an overview page.
+- [Module blocks](module-blocks.md) chat, inbox, files, invoices and the other data-bound views.

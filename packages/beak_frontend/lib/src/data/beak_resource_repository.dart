@@ -1,12 +1,12 @@
 import 'package:beak_core/beak_core.dart';
 
-import 'reference_cache.dart';
+import 'beak_run.dart';
 
 /// The frontend's catch boundary: every data-source call is wrapped into a
 /// typed [BeakResult], so view models switch on outcomes and never
 /// `try/catch` themselves.
 ///
-/// A thin, stateless wrapper over a [BeakDataSource]: each method mirrors a
+/// A thin wrapper over a [BeakDataSource]: each method mirrors a
 /// source operation but returns `BeakResult<T>` instead of throwing, so a
 /// thrown [BeakException] surfaces as [BeakErr] and any other error still
 /// propagates.
@@ -24,69 +24,84 @@ import 'reference_cache.dart';
 /// }
 /// ```
 final class BeakResourceRepository {
-  /// Creates a repository over [dataSource], optionally resolving references
-  /// through [referenceCache].
-  const BeakResourceRepository(this.dataSource, {this.referenceCache});
+  /// Creates a repository over [dataSource].
+  const BeakResourceRepository(this.dataSource) : _queries = null;
+
+  /// Shares identical pending queries within one owner. Completed reads are
+  /// never cached; call [invalidateQueries] when its data or actor changes.
+  BeakResourceRepository.coalescing(this.dataSource) : _queries = {};
+
+  final Map<BeakQuerySpec, Future<BeakResult<BeakPage<BeakRecord>>>>? _queries;
+
+  /// Prevents a new read from joining a request started before invalidation.
+  /// Existing callers retain their response and apply their own version guard.
+  void invalidateQueries() => _queries?.clear();
 
   /// The source calls run against.
   final BeakDataSource dataSource;
 
-  /// Coalesces and caches [resolveReference] lookups; when null each one is
-  /// its own `getOne`.
-  final ReferenceCache? referenceCache;
+  /// Runs an injected typed operation through the same error boundary.
+  Future<BeakResult<T>> run<T>(Future<T> Function() operation) =>
+      beakRun(operation);
 
   /// Runs a query, capturing failures as [BeakErr].
-  Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) =>
-      _guard(() => dataSource.query(spec));
+  // --8<-- [start:query]
+  Future<BeakResult<BeakPage<BeakRecord>>> query(BeakQuerySpec spec) {
+    final queries = _queries;
+    if (queries == null) return beakRun(() => dataSource.query(spec));
+    return queries.putIfAbsent(spec, () {
+      late final Future<BeakResult<BeakPage<BeakRecord>>> request;
+      request = (() async {
+        try {
+          return await beakRun(() => dataSource.query(spec));
+        } finally {
+          queries.removeWhere(
+            (key, pending) => key == spec && identical(pending, request),
+          );
+        }
+      })();
+      return request;
+    });
+  }
+  // --8<-- [end:query]
 
   /// Computes an aggregate, capturing failures as [BeakErr].
   Future<BeakResult<num>> aggregate(BeakAggregateSpec spec) =>
-      _guard(() => dataSource.aggregate(spec));
+      beakRun(() => dataSource.aggregate(spec));
 
+  // --8<-- [start:getOne]
   /// Fetches one record; a missing id is a [BeakErr] with a not-found.
-  Future<BeakResult<BeakRecord>> getOne(String table, Object id) => _guard(
+  Future<BeakResult<BeakRecord>> getOne(String table, Object id) => beakRun(
     () async =>
         await dataSource.getOne(table, id) ??
         (throw BeakNotFoundException('No record of "$table" with id "$id".')),
   );
-
-  /// Fetches one record *by reference* — a foreign key being turned into
-  /// something a person can read.
-  ///
-  /// Unlike [getOne] this may be served from [referenceCache], so every
-  /// picker on a form resolving its prefilled key in the same frame costs one
-  /// `batchGet` between them. Use it where a stale label is harmless and a
-  /// round trip per widget is not; use [getOne] to load a record for editing.
-  Future<BeakResult<BeakRecord>> resolveReference(String table, Object id) =>
-      switch (referenceCache) {
-        null => getOne(table, id),
-        final ReferenceCache cache => _guard(() => cache.resolve(table, id)),
-      };
+  // --8<-- [end:getOne]
 
   /// Fetches many records by id in one round trip, capturing failures as
   /// [BeakErr]. Missing ids are simply absent from the result.
   Future<BeakResult<List<BeakRecord>>> batchGet(
     String table,
     List<Object> ids,
-  ) => _guard(() => dataSource.batchGet(table, ids));
+  ) => beakRun(() => dataSource.batchGet(table, ids));
 
   /// Creates a record, capturing failures as [BeakErr].
   Future<BeakResult<BeakRecord>> create(String table, BeakRecord data) =>
-      _guard(() => dataSource.create(table, data));
+      beakRun(() => dataSource.create(table, data));
 
   /// Updates a record, capturing failures as [BeakErr].
   Future<BeakResult<BeakRecord>> update(
     String table,
     Object id,
     BeakRecord data,
-  ) => _guard(() => dataSource.update(table, id, data));
+  ) => beakRun(() => dataSource.update(table, id, data));
 
   /// Deletes a record, capturing failures as [BeakErr].
   Future<BeakResult<void>> delete(
     String table,
     Object id, {
     bool force = false,
-  }) => _guard(() => dataSource.delete(table, id, force: force));
+  }) => beakRun(() => dataSource.delete(table, id, force: force));
 
   /// Links related ids, capturing failures as [BeakErr].
   Future<BeakResult<void>> attach(
@@ -94,7 +109,7 @@ final class BeakResourceRepository {
     Object id,
     String relationKey,
     List<Object> relatedIds,
-  ) => _guard(() => dataSource.attach(table, id, relationKey, relatedIds));
+  ) => beakRun(() => dataSource.attach(table, id, relationKey, relatedIds));
 
   /// Unlinks related ids, capturing failures as [BeakErr].
   Future<BeakResult<void>> detach(
@@ -102,13 +117,5 @@ final class BeakResourceRepository {
     Object id,
     String relationKey,
     List<Object> relatedIds,
-  ) => _guard(() => dataSource.detach(table, id, relationKey, relatedIds));
-
-  Future<BeakResult<T>> _guard<T>(Future<T> Function() run) async {
-    try {
-      return BeakOk(await run());
-    } on BeakException catch (exception) {
-      return BeakErr(exception);
-    }
-  }
+  ) => beakRun(() => dataSource.detach(table, id, relationKey, relatedIds));
 }

@@ -13,34 +13,20 @@ class _BeakChatBlockView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataSource = beakLocator<BeakDataSource>();
-    final records = useState(const <BeakRecord>[]);
+    final dataSource = beakDependencies(context)<BeakDataSource>();
+    // Fetch newest-first so that if the transcript ever exceeds the page, it
+    // is the oldest messages that fall off — never the latest.
+    final rows = _useModuleRows(
+      dataSource,
+      BeakQuerySpec(
+        table: block.model.table,
+        filter: block.filter,
+        sorts: [BeakSort(block.timeField.key, descending: true)],
+        pagination: _modulePage,
+      ),
+    );
 
-    useEffect(() {
-      var cancelled = false;
-      Future<void> load() async {
-        // Fetch newest-first so that if the transcript ever exceeds the page,
-        // it is the oldest messages that fall off — never the latest.
-        final result = await BeakResourceRepository(dataSource).query(
-          BeakQuerySpec(
-            table: block.model.table,
-            sorts: [BeakSort(block.timeField.key, descending: true)],
-            pagination: _modulePage,
-          ),
-        );
-        if (cancelled) {
-          return;
-        }
-        if (result case BeakOk(:final value)) {
-          records.value = value.items;
-        }
-      }
-
-      load();
-      return () => cancelled = true;
-    }, [dataSource, block]);
-
-    final ordered = [...records.value]
+    final ordered = [...rows.value.records]
       ..sort((a, b) {
         final DateTime? left = _readDateTime(a, block.timeField);
         final DateTime? right = _readDateTime(b, block.timeField);
@@ -50,31 +36,46 @@ class _BeakChatBlockView extends HookWidget {
         return left.compareTo(right);
       });
 
-    return OiChat(
-      label: block.label,
-      currentUserId: _kBeakChatCurrentUser,
-      messages: [
-        for (final (index, record) in ordered.indexed)
-          _messageOf(index, record),
-      ],
-      onSend: block.composeRecord == null
-          ? null
-          : (text) async {
-              final body = text.trim();
-              if (body.isEmpty) {
-                return;
-              }
-              final result = await BeakResourceRepository(
-                dataSource,
-              ).create(block.model.table, block.composeRecord!(body));
-              if (result case BeakOk(:final value)) {
-                records.value = [...records.value, value];
-              }
-            },
+    final formatting = BeakFormatting.of(context);
+    return _withTruncationNote(
+      context,
+      rows.value,
+      OiChat(
+        label: block.label,
+        currentUserId: _kBeakChatCurrentUser,
+        messages: [
+          for (final (index, record) in ordered.indexed)
+            _messageOf(formatting, index, record),
+        ],
+        onSend: block.composeRecord == null
+            ? null
+            : (text) async {
+                final body = text.trim();
+                if (body.isEmpty) {
+                  return;
+                }
+                final result = await BeakResourceRepository(
+                  dataSource,
+                ).create(block.model.table, block.composeRecord!(body));
+                switch (result) {
+                  case BeakOk(:final value):
+                    rows.value = _ModuleRows([
+                      ...rows.value.records,
+                      value,
+                    ], rows.value.total + 1);
+                  case BeakErr(:final error):
+                    if (context.mounted) _reportWriteFailure(context, error);
+                }
+              },
+      ),
     );
   }
 
-  OiChatMessage _messageOf(int index, BeakRecord record) {
+  OiChatMessage _messageOf(
+    BeakFormatting formatting,
+    int index,
+    BeakRecord record,
+  ) {
     final bool mine = _readBool(record, block.isMineField);
     final String author = _readString(record, block.authorField) ?? '';
     return OiChatMessage(
@@ -82,7 +83,9 @@ class _BeakChatBlockView extends HookWidget {
       senderId: mine ? _kBeakChatCurrentUser : author,
       senderName: author,
       content: _readString(record, block.bodyField) ?? '',
-      timestamp: _readDateTime(record, block.timeField) ?? DateTime.now(),
+      timestamp: formatting.toEditorDateTime(
+        _readDateTime(record, block.timeField) ?? DateTime.now(),
+      ),
     );
   }
 }

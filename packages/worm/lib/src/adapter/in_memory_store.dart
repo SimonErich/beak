@@ -165,8 +165,19 @@ final class InMemoryStore {
 
   /// Apply a [QueryDescriptor]: filter, sort, project,
   /// optionally deduplicate, then paginate.
-  List<Map<String, Object?>> query(QueryDescriptor descriptor) {
-    final filtered = _filter(_requireTable(descriptor.table), descriptor.where);
+  List<Map<String, Object?>> query(QueryDescriptor descriptor) =>
+      _query(descriptor, const {});
+
+  List<Map<String, Object?>> _query(
+    QueryDescriptor descriptor,
+    Map<String, Object?> outer,
+  ) {
+    final filtered = _filter(
+      _requireTable(descriptor.table),
+      descriptor.where,
+      table: descriptor.tableAlias ?? descriptor.table,
+      outer: outer,
+    );
     _sortRows(filtered, descriptor.orderBy);
     final columns = descriptor.columns.isEmpty ? null : descriptor.columns;
     final projected = _project(filtered, columns);
@@ -188,15 +199,37 @@ final class InMemoryStore {
 
   /// Rows matching an [AggregateDescriptor].
   List<Map<String, Object?>> rowsForAggregate(AggregateDescriptor d) =>
-      _filter(_requireTable(d.table), d.where);
+      _filter(_requireTable(d.table), d.where, table: d.table);
 
   List<Map<String, Object?>> _filter(
     List<Map<String, Object?>> rows,
-    PredicateTree? where,
-  ) => <Map<String, Object?>>[
+    PredicateTree? where, {
+    String? table,
+    Map<String, Object?> outer = const {},
+  }) => <Map<String, Object?>>[
     for (final row in rows)
-      if (_evaluator.matches(row, where, existsResolver: _resolveExists)) row,
+      if (_matchesScoped(row, where, table, outer)) row,
   ];
+
+  bool _matchesScoped(
+    Map<String, Object?> row,
+    PredicateTree? where,
+    String? table,
+    Map<String, Object?> outer,
+  ) {
+    final scoped = <String, Object?>{
+      ...outer,
+      ...row,
+      if (table != null)
+        for (final entry in row.entries) '$table.${entry.key}': entry.value,
+    };
+    return _evaluator.matches(
+      scoped,
+      where,
+      existsResolver: (node) =>
+          _query(node.subquery.copyWith(limit: 1), scoped).isNotEmpty,
+    );
+  }
 
   List<Map<String, Object?>> _project(
     List<Map<String, Object?>> rows,

@@ -23,14 +23,19 @@ COPY . .
 # Flutter refuses to touch a repo it does not "own" (root user in CI images).
 RUN git config --global --add safe.directory '*'
 
-WORKDIR /app/examples/store
+WORKDIR /app/packages/beak_cli
+RUN dart pub get
+
+WORKDIR /app/examples/clean_beak_config
 RUN flutter pub get
-RUN flutter build web --release
+RUN dart run ../../packages/beak_cli/bin/beak.dart prepare
+ARG BEAK_API_BASE_URL=http://localhost:8080
+RUN flutter build web --release --dart-define=BEAK_API_BASE_URL=${BEAK_API_BASE_URL}
 
 # --- Runtime image: static files served by nginx ---
 FROM nginx:alpine AS runtime
 
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/examples/store/build/web /usr/share/nginx/html
+COPY --from=build /app/examples/clean_beak_config/build/web /usr/share/nginx/html
 
 EXPOSE 80

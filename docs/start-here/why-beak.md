@@ -1,187 +1,68 @@
 ---
 title: Why Beak?
-description: The case for one declaration over three hand-written layers, the UX you get for free, and the honest tradeoffs of the approach.
+description: When declaring an admin panel beats hand-writing one, what it costs, and the cases where a hand-built admin or another tool is the better choice.
+type: concept
+audience: [beginner, expert]
+status: stable
 ---
 
 # Why Beak?
 
-After this page you will understand the bet Beak makes, what you gain by taking
-it, and where it stops being the right tool. It is a short argument in four
-parts, followed by the tradeoffs, so you can decide with open eyes.
+Beak is worth using when you have many resources of the same shape and a team that writes Dart, and not worth using for one screen or a public UI. This page gives the mechanism behind that sentence, so you can decide for your project and not for ours.
 
-The admin panel is the part of an app that is most similar between projects and
-least fun to build twice. Beak's bet is that you should declare it, not
-hand-write it, and still be holding a normal Flutter app at the end.
+## The idea in one picture
 
-## Config over code
-
-An admin resource is a database table, a REST surface for it, and a set of
-screens over that surface. Written by hand, those three drift: a field gets a
-new validation rule in the API but not the form, a column is renamed in the
-table but not the export. Beak collapses the three into one declaration and
-reads it from every side.
-
-Adding a resource is one file:
-
-```dart title="examples/store/lib/models/category.dart"
-@Resource()
-final class Category extends BeakSchema {
-  /// What the category is called.
-  @Display()
-  @Column(searchable: true, sortable: true, rules: [BeakMaxLength(120)])
-  late final String name;
-
-  /// The one-line blurb shown above the product list.
-  @Column(visibleOn: {BeakContext.form, BeakContext.detail})
-  late final BeakText? blurb;
-}
+```mermaid
+flowchart LR
+  a["Hand-built admin<br/>table + endpoints + screens<br/>per resource"] -->|"cost per resource stays flat"| c["Resource 1, 2, 3 ... N"]
+  b["Beak<br/>one declaration<br/>per resource"] -->|"cost per resource falls"| c
 ```
 
-Then three commands, none of which you edit a list for:
+A hand-built admin costs about the same for the tenth resource as for the second, because each one repeats field binding, validation, loading, query controls, relationship editing and save handling. With Beak the first resource pays for learning the vocabulary and the later ones are mostly a schema class. The crossover depends on your team and your resources, so treat it as a shape and not a number.
 
-```bash
-beak prepare   # columns, model, relationships, record view, migration, wiring
-beak migrate   # create the table
-beak dev       # serve the API, print the panel's run line
-```
+## How it works
 
-There is no step where you wire the pieces together, and nothing to keep a
-register of: a file under `lib/models/` is a resource. The wiring is what Beak
-does. What is left is the set of decisions a person actually makes, and each
-one has a home.
+The saving comes from two places.
 
-| Decision | Where it lives |
-| --- | --- |
-| Columns, relationships, table name, soft deletes, timestamps | The `@Resource` class in `lib/models/<name>.dart`. |
-| Panel title, API origin, server port | `beak.yaml`. |
-| A resource's icon, label, section, or hiding it | `beak.yaml`, under `resources.<table>`. |
-| A resource's filters, actions, view modes, detail layout, form steps | `lib/resources/<table>.dart`: a `BeakResource beakResource(BeakResource generated)` returning `generated.copyWith(…)`, scaffolded by `beak eject resource <table>`. |
-| Theme, auth, the `/` screen, the server | `lib/theme.dart`, `lib/auth.dart`, `lib/dashboard.dart`, `lib/server.dart`, each written for you by `beak eject`. |
-| Everything else | Generated into `lib/beak/*.g.dart` and `lib/models/*.beak.dart`. Committed, never edited. |
+**One declaration, read from every side.** The quickstart's `Note` is 28 lines, doc comments included. `beak prepare` writes about 430 lines from it in six files: typed field references, the model, a typed record view, the migration and the wiring. The table cell, the form input, the read view, the filter, the API's validation, the CSV column and the migration all read the same field, so a rule tightened in one place changes in all seven. [The one-definition promise](../concepts/the-one-definition-promise.md) walks through it.
 
-Every one of those files is presence-based. Create it and Beak uses it; delete
-it and the default comes back.
+**A shared runtime for the hard parts.** Loading, drafts, nested relationship editing, review before save, conflict detection and recovery from a lost response are written once and shared by every form. A save is a graph commit: one request with a receipt, atomic, replayable by its id and re-checked on the server. Writing that by hand for one resource is a project. Writing it for twelve is the reason admin panels rot.
 
-## Optimized UX out of the box
+What stays yours is what differs. A form laid out in steps, a calculation that spans records, an operational page: each has a named extension point (screens, blocks, `preparePlan`, custom widgets), and a screen can be plain Flutter when nothing else fits. The shop example has invoices with taxes and vouchers, variants, imports and a custom operations page, all inside those points.
 
-Because Beak generates the UI, it generates a *good* UI, once, and every
-resource inherits it. Server-side sort, filter, and pagination in tables. Forms
-with client-side validation that mirrors the server rule for rule. Detail
-views, relation managers, global search, CSV export, and dashboards. You do not
-opt into these per resource; they come with the model.
+## Why it is shaped this way
 
-Three defaults are worth naming, because they are the ones you would otherwise
-hand-write for every resource:
+Beak chose Dart classes as the declaration, which has a price. Someone has to learn the vocabulary (annotations, semantic fields, resources, screens, blocks), and that is real work before the first useful screen. In return the compiler checks the declaration, your review process sees it, and a coding agent can edit it. The choice against a YAML file or a UI builder is deliberate: those cannot hold a business rule, and the rule always ends up somewhere.
 
-- **Filters you never listed.** A resource that declares no filters gets one
-  control per `@Column(filterable: true)` column.
-- **A show page that follows the model.** With no `detail` layout, the page is
-  a headline card of the first few fields, the rest below it, and a tab per
-  to-many relationship. Add a column to the class and the page changes, with
-  nothing to regenerate.
-- **Relationships instead of foreign keys.** A list table renders a column per
-  to-one relationship showing the related record's name rather than its id,
-  loaded with the page in one query.
+The panel is built on obers_ui, not Material. That keeps the admin one consistent system with its own theme, density and overlay scopes, and it means Beak widgets need an `OiApp` above them when you mix them into a Material app. It also means you cannot restyle the panel by swapping a Material theme.
 
-File handling is a fair example of the same idea. You describe the rules on the
-field and Beak enforces them in the browser (for fast feedback) and again in
-the API (because the server never trusts the client), then runs your transform
-pipeline and returns a typed result with its variants:
+The backend is a default and not a requirement. The panel talks to a `BeakDataSource`, an interface, so a Shelf server over the worm ORM is one implementation and your own REST API or a Serverpod client is another. Tools tied to one backend can go deeper on that backend. Beak trades that depth for portability, and says where the trade shows: the [Serverpod comparison](../serverpod/choosing-an-integration.md) lists the features each path gives up.
 
-```dart title="examples/store/lib/models/product.dart"
-  @Image(
-    storagePath: 'products',
-    maxSizeInBytes: 5 * 1024 * 1024,
-    allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
-    thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-    transforms: [
-      BeakThumbnailTransform(
-        size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
-      ),
-      BeakFormatTransform.webp(),
-    ],
-  )
-  late final BeakImageRef? image;
-```
+## What it means for you
 
-You wrote a description. You received size limits, type checks, a thumbnail, a
-webp rendition, and an upload endpoint that validates before it stores.
+| Your situation | Use Beak? | Because |
+| --- | --- | --- |
+| Ten or more tables staff maintain, with the same kind of screens | Yes | The per-resource cost falls, and the rules stay in one place |
+| Recurring workflows with approvals, invoices, fulfilment | Yes | Graph commits and model behavior are built for them |
+| A Dart or Flutter team that owns the backend or can change it | Yes | You get the API, the validation and the panel from one class |
+| A Serverpod project that needs an admin | Yes, with a path to choose | [An existing Serverpod project](paths/existing-serverpod-project.md) |
+| One or two admin screens | No | A hand-built page is cheaper than learning the vocabulary |
+| A customer-facing or heavily branded UI | No | Beak's panel is an admin. Use Flutter directly |
+| A team with no Dart | No | The declaration is Dart |
+| A backend you cannot touch, where you need server-side validation from Beak | Partly | The panel can talk to it, but Beak's validation and atomic saves run on Beak's server only ([An existing backend](paths/existing-backend.md)) |
+| You need a frozen API today | Not yet | Beak is pre-1.0, `0.9.0` is not tagged, and breaking changes are listed in [Upgrading](upgrading.md) |
 
-## Consistent, and hard to get wrong
+Three costs to weigh honestly:
 
-The type system does the enforcing, so a whole category of admin bugs cannot
-compile. Field references are generated constants, so a typo in a column name
-is a missing symbol rather than a runtime surprise. You never touch `dynamic`.
-Filter operands travel as a typed `BeakValue`, results come back as a sealed
-`BeakResult`, and errors are a sealed `BeakException` family the server maps to
-stable HTTP status codes. Every resource in your panel behaves the same way
-because they are all rendered by the same code from the same shape of
-declaration.
+- **Pre-1.0.** Breaking changes are normal until `1.0.0`. The changelog says so at the top, and this release removed and renamed a lot.
+- **A rough start today.** A plain `beak create` cannot resolve until the tag exists, and the panel needs a working obers_ui checkout until the pinned commit catches up. [Installation](installation.md) has the workaround. Both go away at release.
+- **Known gaps.** The changelog carries a known-issues list. [An existing database](paths/existing-database.md) adds what to expect from a legacy Postgres schema: a `numeric` column arrives as a `double` until you convert it.
 
-The nullability rule is the sharpest version of this. `String name` is required
-and `BeakText? blurb` is not, and that single fact produces the form validator,
-the API's validation and the column's `NOT NULL` together. There is no third
-place to forget.
-
-This is also why Beak reads well to an AI agent. A resource is a schema an
-agent can generate correctly, because there is one right way to describe it and
-the compiler checks the result. A generated project even ships an `AGENTS.md`
-saying where things go.
-
-## Still a normal Flutter app, so never locked in
-
-The tradeoff people fear with a framework like this is the ceiling: the day the
-generated thing is not what you need. Beak is designed so that day is a small
-step down, not a wall.
-
-- **Adjust one resource.** `lib/resources/<table>.dart` receives the generated
-  `BeakResource` and returns a `copyWith`, so you change the one thing you care
-  about and keep the rest.
-- **Drop to a custom widget.** Any block tree can host a plain `HookWidget`
-  through the widget escape hatch, so a bespoke chart or a one-off control lives
-  right next to generated blocks.
-- **Add a custom screen or page.** A `BeakScreen` is any block tree (or any
-  widget) mounted in the panel shell with its own route and nav entry, next to
-  your generated resources.
-- **Take a default over.** `beak eject theme`, `auth`, `dashboard`, `server` or
-  `panel` writes the Beak default out as a file you own, pre-filled so it
-  compiles and changes nothing until your first edit.
-- **Use the widgets standalone.** obers_ui is a normal widget library. You can
-  render a single `Oi*` widget, or Beak's `BeakBlockHost`, inside an ordinary
-  Flutter screen with no panel at all.
-- **Swap the data source.** `BeakDataSource` is an interface. worm is today's
-  implementation, not a marriage; a future `beak_serverpod` can supply a
-  `ServerpodDataSource` without your models or Beak's server half changing.
-
-You are always one step away from ordinary Flutter code, because that is all
-Beak ever was.
-
-## The honest tradeoffs
-
-No approach is free. Here is where the bet costs you something.
-
-| Tradeoff | What it means |
-| --- | --- |
-| A learning curve up front | You trade writing familiar hand code for learning Beak's vocabulary (annotations, columns, blocks, the generate step). The payoff arrives on the second resource, not the first line. |
-| A generate step | `beak prepare` runs before anything else, and the files it writes are committed. `beak doctor` fails when they are stale, so the cost is a command, not a mystery. |
-| Convention over total control | Generated pages follow Beak's layout choices. Deep bespoke layouts mean reaching for custom blocks and screens, which is supported but is more code than a config line. |
-| The obers_ui and worm dependency | Beak commits you to obers_ui for UI and (today) worm for data. Both come in with the `beak` package; the data side is behind an interface, the UI side is not. |
-| Pre-1.0 | Beak is pre-1.0. The design is settled and tested end to end, but the surface can still move before 1.0. |
-| Admin-shaped, not everything-shaped | Beak is sharp for internal tools and dashboards. It is the wrong tool for a consumer-facing app, where you want full control of every pixel. |
-
-If those tradeoffs read as acceptable for the back office you are about to
-build, Beak will save you the three-times-over work. If you need total layout
-control over a public app, use Flutter directly.
+The cheapest test is small: create the quickstart project, add the one table you care about most, and see whether the default screens are close enough to shape.
 
 ## Continue reading
 
-- [What is Beak?](what-is-beak.md) the definition, the name, and the eight
-  libraries.
-- [The one-definition promise](../concepts/the-one-definition-promise.md) the
-  mechanism that makes config-over-code hold together.
-- [Project structure](project-structure.md) every optional file that overrides a
-  default, and what it receives.
-- [Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)
-  the escape hatch to plain Flutter.
-- [Custom screens and pages](../extending/custom-screens-and-pages.md) mount your
-  own screens in the panel shell.
+- [What is Beak?](what-is-beak.md): the four things you write and everything Beak writes.
+- [Quickstart](quickstart.md): run the smallest project in ten minutes.
+- [Examples](../examples/index.md): the shop, the food-ordering admin and the showcase at full size.
+- [Choose your path](paths/index.md): start from what you already have.

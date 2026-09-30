@@ -11,6 +11,24 @@ PredicateTree _leaf({
 void main() {
   const compiler = MysqlCompiler();
 
+  test(
+    'current single-row read preserves bound predicates and update locks',
+    () {
+      final result = compiler.compileCurrentSelect(
+        QueryDescriptor(
+          table: 'notes',
+          where: const Field<String>('id').eq('one'),
+          limit: 20,
+        ),
+      );
+      expect(
+        result.sql,
+        'SELECT * FROM `notes` WHERE `id` = ? LIMIT 1 FOR UPDATE',
+      );
+      expect(result.parameters, ['one']);
+    },
+  );
+
   group('MysqlCompiler — predicates', () {
     test('eq emits = with positional ? placeholder', () {
       final result = compiler.compileSelect(
@@ -85,6 +103,32 @@ void main() {
       );
       expect(result.sql, contains('LOWER(`name`) LIKE LOWER(?)'));
       expect(result.parameters, <Object?>['a%']);
+    });
+
+    test('an escape character is stated with the backslash doubled', () {
+      const escapeClause = r"ESCAPE '\\'";
+      final cases = <(Operator, String)>[
+        (Operator.like, '`name` LIKE ? $escapeClause'),
+        (Operator.notLike, '`name` NOT LIKE ? $escapeClause'),
+        (Operator.ilike, 'LOWER(`name`) LIKE LOWER(?) $escapeClause'),
+      ];
+      for (final (op, expected) in cases) {
+        final result = compiler.compileSelect(
+          QueryDescriptor(
+            table: 'users',
+            where: LeafNode(
+              Predicate(
+                fieldName: 'name',
+                operator: op,
+                value: r'a\%',
+                escape: r'\',
+              ),
+            ),
+          ),
+        );
+        expect(result.sql, contains(expected), reason: '$op');
+        expect(result.parameters, <Object?>[r'a\%']);
+      }
     });
 
     test('isNull emits IS NULL without consuming parameters', () {

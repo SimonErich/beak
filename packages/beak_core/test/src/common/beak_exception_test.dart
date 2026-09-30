@@ -11,6 +11,9 @@ String expectedCodeOf(BeakException exception) => switch (exception) {
   BeakConfigurationException() => 'configuration',
   BeakStorageException() => 'storage',
   BeakConflictException() => 'conflict',
+  BeakInternalException() => 'internal',
+  BeakPayloadTooLargeException() => 'payload_too_large',
+  BeakTransportException() => 'transport',
 };
 
 void main() {
@@ -34,6 +37,15 @@ void main() {
       'Upload of avatar.png failed.',
     ),
     (BeakConflictException('SKU is already taken.'), 'SKU is already taken.'),
+    (BeakInternalException('Internal server error.'), 'Internal server error.'),
+    (
+      BeakPayloadTooLargeException('The upload is larger than 5 MB.'),
+      'The upload is larger than 5 MB.',
+    ),
+    (
+      BeakTransportException('The gateway did not answer.'),
+      'The gateway did not answer.',
+    ),
   ];
 
   test('each exception carries its stable code and the given message', () {

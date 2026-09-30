@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:flutter/widgets.dart';
@@ -15,20 +17,28 @@ void main() {
 
   Future<void> pumpTable(
     WidgetTester tester, {
+    Locale locale = const Locale('en'),
+    bool enableDelete = true,
     List<BeakTableAction> actions = const [],
     List<BeakTableAction> bulkActions = const [],
+    List<BeakTableColumn>? presentations,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       OiApp(
+        locale: locale,
+        supportedLocales: BeakLocalizations.supportedLocales,
+        localizationsDelegates: const [BeakLocalizations.delegate],
         theme: OiThemeData.light(),
         home: BeakDataTable(
           model: const NoteModel(),
           dataSource: dataSource,
           controller: controller,
           actions: actions,
+          enableDelete: enableDelete,
           bulkActions: bulkActions,
+          presentations: presentations,
         ),
       ),
     );
@@ -46,7 +56,214 @@ void main() {
     controller = OiTableController(serverSidePagination: true);
   });
 
+  testWidgets('initial query sorting is reflected by its presentation header', (
+    tester,
+  ) async {
+    const field = BeakScalarField<String>(
+      model: NoteModel(),
+      column: BeakStringColumn(key: 'title', label: 'Title', sortable: true),
+    );
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakDataTable(
+          model: const NoteModel(),
+          dataSource: dataSource,
+          controller: controller,
+          initialSpec: const NoteModel().query().orderBy(
+            field,
+            descending: true,
+          ),
+          presentations: [
+            BeakTableColumn(
+              key: 'identity',
+              label: 'Identity',
+              sortBy: field,
+              template: BeakRecordTemplate.fields(title: field),
+            ),
+          ],
+          enableDelete: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.sortColumnId, 'identity');
+    expect(controller.sortAscending, isFalse);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('oi_table_header')),
+        matching: find.byIcon(OiIcons.arrowDown),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'typed table fields preserve declared order and load related paths',
+    (tester) async {
+      const related = ArticleRelations.category;
+      const name = BeakStringColumn(key: 'name', label: 'Category name');
+      dataSource = FakeDataSource(
+        records: {
+          'articles': {
+            'a1': BeakRecord.fromRow({
+              'id': 'a1',
+              'title': 'Main',
+              'category_id': 'c1',
+            }),
+          },
+          'categories': {
+            'c1': BeakRecord.fromRow({'id': 'c1', 'name': 'Related title'}),
+          },
+        },
+      );
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakDataTable(
+            model: const ArticleModel(),
+            dataSource: dataSource,
+            enableDelete: false,
+            fields: const [
+              BeakScalarField<String>(
+                model: ArticleModel(),
+                column: name,
+                path: [related],
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Related title'), findsOneWidget);
+      expect(find.text('Main'), findsNothing);
+      final table = tester.widget<OiTable<BeakRecord>>(
+        find.byType(OiTable<BeakRecord>),
+      );
+      expect(table.columns.map((column) => column.id), ['category.name']);
+      expect(
+        dataSource.queryCalls.last.relationLoads.single.relationKey,
+        'category',
+      );
+    },
+  );
+
   group('rendering', () {
+    testWidgets('presentation columns forward header and cell alignment', (
+      tester,
+    ) async {
+      await pumpTable(
+        tester,
+        enableDelete: false,
+        presentations: [
+          BeakTableColumn.field(
+            const BeakScalarField<String>(
+              model: NoteModel(),
+              column: BeakStringColumn(key: 'title', label: 'Title'),
+            ),
+            textAlign: TextAlign.end,
+            cellPadding: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+        ],
+      );
+      final table = tester.widget<OiTable<BeakRecord>>(
+        find.byType(OiTable<BeakRecord>),
+      );
+      expect(table.columns.single.textAlign, TextAlign.end);
+      expect(
+        table.columns.single.cellPadding,
+        const EdgeInsets.symmetric(horizontal: 4),
+      );
+      expect(
+        tester.getTopRight(find.text('Title')).dx,
+        closeTo(tester.getTopRight(find.text('Note 1')).dx, 1),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('narrow tables scroll without squeezing readable columns', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(390, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakDataTable(
+            model: const ArticleModel(),
+            dataSource: FakeDataSource(
+              records: {
+                'articles': {
+                  'a1': BeakRecord.fromRow({'id': 'a1', 'title': 'Cold brew'}),
+                },
+              },
+            ),
+            actions: [
+              BeakTableAction(id: 'view', label: 'View', onRun: (_) async {}),
+              BeakTableAction(id: 'edit', label: 'Edit', onRun: (_) async {}),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final table = tester.widget<OiTable<BeakRecord>>(
+        find.byType(OiTable<BeakRecord>),
+      );
+      expect(
+        table.columns.where((column) => column.id != '_actions'),
+        everyElement(
+          predicate<OiTableColumn<BeakRecord>>(
+            (column) => column.minWidth >= 160,
+          ),
+        ),
+      );
+      final horizontal = find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      );
+      expect(horizontal, findsOneWidget);
+      final scroll = tester.widget<SingleChildScrollView>(horizontal);
+      expect(scroll.controller!.position.maxScrollExtent, greaterThan(0));
+      await tester.drag(horizontal, const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(scroll.controller!.offset, greaterThan(0));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('German table chrome follows the ambient locale', (
+      tester,
+    ) async {
+      await pumpTable(tester, locale: const Locale('de'));
+      expect(find.text('Einträge pro Seite'), findsOneWidget);
+      expect(find.text('1–3 von 3 Einträgen'), findsOneWidget);
+      expect(find.text('3 Einträge'), findsOneWidget);
+      final table = tester.widget<OiTable<BeakRecord>>(
+        find.byType(OiTable<BeakRecord>),
+      );
+      expect(table.labels.columns, 'Spalten');
+      expect(table.labels.manageColumns, 'Sichtbare Spalten verwalten');
+      expect(find.text('Rows per page'), findsNothing);
+      final pagination = tester.widget<OiPagination>(find.byType(OiPagination));
+      expect(pagination.labels.navigation, 'Seitennavigation');
+      expect(pagination.labels.firstPage, 'Erste Seite');
+      expect(pagination.labels.previousPage, 'Vorherige Seite');
+      expect(pagination.labels.nextPage, 'Nächste Seite');
+      expect(pagination.labels.lastPage, 'Letzte Seite');
+      expect(pagination.labels.page?.call(2), 'Seite 2');
+    });
+
+    testWidgets('English table chrome keeps its default labels', (
+      tester,
+    ) async {
+      await pumpTable(tester);
+      expect(find.text('Rows per page'), findsOneWidget);
+      expect(find.text('Showing 1–3 of 3'), findsOneWidget);
+      expect(find.text('3 rows'), findsOneWidget);
+    });
+
     testWidgets('renders one column per table-visible column plus rows', (
       tester,
     ) async {
@@ -111,7 +328,7 @@ void main() {
       await pumpTable(tester);
 
       expect(find.byType(OiEmptyState), findsOneWidget);
-      expect(find.text('No notes yet'), findsOneWidget);
+      expect(find.text('No records yet'), findsOneWidget);
     });
 
     testWidgets('a fetch failure renders the error state with retry', (
@@ -121,7 +338,11 @@ void main() {
       await pumpTable(tester);
 
       expect(find.text('Retry'), findsOneWidget);
-      expect(find.textContaining('backend unreachable'), findsOneWidget);
+      expect(
+        find.text('The operation could not be completed.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('backend unreachable'), findsNothing);
     });
 
     testWidgets('renders no Material widgets', (tester) async {
@@ -136,6 +357,55 @@ void main() {
       );
       expect(offenders, isEmpty);
     });
+  });
+
+  group('cells are read only', () {
+    testWidgets('a double tap on a cell opens no editor that could blank it', (
+      tester,
+    ) async {
+      await pumpTable(tester, enableDelete: false);
+
+      final display = find.byKey(const Key('cell_display'));
+      expect(display, findsNothing, reason: 'no cell offers to be edited');
+      await tester.tap(find.text('Note 1'));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(find.text('Note 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('\u2713'), findsNothing);
+      expect(dataSource.updateCalls, isEmpty);
+      expect(find.text('Note 1'), findsOneWidget);
+    });
+  });
+
+  testWidgets('a table can be named for screen readers', (tester) async {
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        home: BeakDataTable(
+          model: const NoteModel(),
+          dataSource: dataSource,
+          label: 'Latest notes',
+          enableDelete: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<OiTable<BeakRecord>>(find.byType(OiTable<BeakRecord>))
+          .label,
+      'Latest notes',
+    );
+
+    await pumpTable(tester, enableDelete: false);
+    expect(
+      tester
+          .widget<OiTable<BeakRecord>>(find.byType(OiTable<BeakRecord>))
+          .label,
+      'Records',
+      reason: 'without a name the generic label stays',
+    );
   });
 
   group('server-side operations', () {
@@ -189,6 +459,122 @@ void main() {
   });
 
   group('actions', () {
+    testWidgets('typed action columns reuse permission and pending execution', (
+      tester,
+    ) async {
+      final selected = <Object>[];
+      final pending = Completer<void>();
+      const title = BeakScalarField<String>(
+        model: NoteModel(),
+        column: BeakStringColumn(key: 'title', label: 'Title'),
+      );
+      await pumpTable(
+        tester,
+        enableDelete: false,
+        presentations: [
+          BeakTableColumn.action(
+            key: 'next',
+            label: 'Next step',
+            widthInPixels: 180,
+            selector: BeakValueBinding.field(title),
+            choices: const {
+              'Note 1': BeakActionPresentation(
+                key: 'resolve',
+                label: 'Resolve now',
+              ),
+              'Note 2': BeakActionPresentation(
+                key: 'resolve',
+                label: 'Unavailable',
+              ),
+            },
+            fallback: const BeakActionPresentation(
+              key: 'view',
+              label: 'View details',
+            ),
+          ),
+        ],
+        actions: [
+          BeakTableAction(
+            id: 'resolve',
+            label: 'Resolve',
+            placement: BeakActionPlacement.column,
+            visibleWhen: (record) => record['id']?.raw != 'n2',
+            onRun: (ids) async {
+              selected.addAll(ids);
+              await pending.future;
+            },
+          ),
+          BeakTableAction(
+            id: 'view',
+            label: 'View',
+            placement: BeakActionPlacement.column,
+            onRun: (ids) async => selected.addAll(ids),
+          ),
+        ],
+      );
+      expect(find.text('Resolve now'), findsOneWidget);
+      expect(find.text('Unavailable'), findsNothing);
+      expect(find.text('View details'), findsOneWidget);
+      expect(find.bySemanticsLabel('More actions'), findsNothing);
+      final resolveButton = tester.widget<OiButton>(
+        find.byWidgetPredicate(
+          (widget) => widget is OiButton && widget.label == 'Resolve now',
+        ),
+      );
+      expect(resolveButton.semanticLabel, 'Resolve');
+      expect(resolveButton.tooltip, 'Resolve');
+      await tester.tap(find.text('Resolve now'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(selected, ['n1']);
+      final waitingButton = tester.widget<OiButton>(
+        find.byWidgetPredicate(
+          (widget) => widget is OiButton && widget.label == 'Resolve now',
+        ),
+      );
+      expect(waitingButton.onTap, isNull);
+      expect(waitingButton.loading, isTrue);
+      expect(selected, ['n1']);
+      pending.complete();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('View details'));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(selected, ['n1', 'n3']);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'overflow-only actions stay compact and invoke the selected record',
+      (tester) async {
+        final selected = <Object>[];
+        await pumpTable(
+          tester,
+          enableDelete: false,
+          actions: [
+            BeakTableAction(
+              id: 'inspect',
+              label: 'Inspect record',
+              placement: BeakActionPlacement.overflow,
+              onRun: (ids) async => selected.addAll(ids),
+            ),
+          ],
+        );
+        expect(find.bySemanticsLabel('More actions'), findsNWidgets(3));
+        final table = tester.widget<OiTable<BeakRecord>>(
+          find.byType(OiTable<BeakRecord>),
+        );
+        expect(table.columns.last.width, lessThanOrEqualTo(80));
+        await tester.tap(find.bySemanticsLabel('More actions').first);
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        expect(find.text('Inspect record'), findsOneWidget);
+        await tester.tap(find.text('Inspect record'));
+        await tester.pumpAndSettle();
+        expect(selected, ['n1']);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('a bulk action receives every selected id', (tester) async {
       final received = <List<Object>>[];
       await pumpTable(
@@ -216,6 +602,57 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(received.single, unorderedEquals(['n1', 'n3']));
+    });
+
+    testWidgets('a selection does not follow the person to another page', (
+      tester,
+    ) async {
+      dataSource = FakeDataSource(
+        records: {
+          'notes': {
+            for (var index = 1; index <= 60; index += 1) 'n$index': note(index),
+          },
+        },
+      );
+      final selections = <BeakTableSelection>[];
+      await tester.binding.setSurfaceSize(const Size(1400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        OiApp(
+          theme: OiThemeData.light(),
+          home: BeakDataTable(
+            model: const NoteModel(),
+            dataSource: dataSource,
+            controller: controller,
+            enableDelete: false,
+            bulkActions: [
+              BeakTableAction(
+                id: 'archive',
+                label: 'Archive',
+                onRun: (_) async {},
+              ),
+            ],
+            onSelectionChanged: selections.add,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      controller.selectRow('n1');
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsOneWidget);
+
+      final table = tester.widget<OiTable<BeakRecord>>(
+        find.byType(OiTable<BeakRecord>),
+      );
+      table.onPageChange!(1, 25);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Note 26'), findsOneWidget);
+      expect(controller.selectedRows, isEmpty);
+      expect(find.text('0 selected'), findsNothing);
+      expect(find.text('Archive'), findsNothing);
+      expect(selections.last.ids, isEmpty);
     });
 
     testWidgets('a row action receives that row id', (tester) async {
@@ -262,6 +699,23 @@ void main() {
       expect(dataSource.deleteCalls, isEmpty);
     });
 
+    testWidgets('a refused delete restores the row and says why', (
+      tester,
+    ) async {
+      dataSource = _RefusingDeleteSource();
+      await pumpTable(tester);
+
+      _tapButton(tester, _deleteButton());
+      await tester.pumpAndSettle();
+      expect(find.text('Note 1'), findsNothing, reason: 'optimistic removal');
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Note 1'), findsOneWidget, reason: 'rolled back');
+      expect(find.text('You may not delete notes.'), findsOneWidget);
+      expect(find.text('Action failed'), findsNothing);
+    });
+
     testWidgets('delete commits to the data source after the undo window', (
       tester,
     ) async {
@@ -287,6 +741,27 @@ final class _FailingSource extends FakeDataSource {
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     throw const BeakStorageException('backend unreachable');
+  }
+}
+
+/// A data source that refuses every delete with a domain message.
+final class _RefusingDeleteSource extends FakeDataSource {
+  _RefusingDeleteSource()
+    : super(
+        records: {
+          'notes': {
+            for (var index = 1; index <= 3; index += 1)
+              'n$index': BeakRecord.fromRow({
+                'id': 'n$index',
+                'title': 'Note $index',
+              }),
+          },
+        },
+      );
+
+  @override
+  Future<void> delete(String table, Object id, {bool force = false}) async {
+    throw const BeakAuthorizationException('You may not delete notes.');
   }
 }
 

@@ -1,9 +1,17 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 
 import '../cli_runner.dart';
+import '../field_spec.dart';
+import '../project/beak_authored_main.dart';
 import '../project/beak_discovery.dart';
+import '../project/beak_emitters.dart';
+import '../project/beak_project_config.dart';
+import '../schema/beak_schema_reader.dart';
+import '../templates.dart';
+import 'prepare_command.dart';
 
 /// Something a project can take ownership of.
 ///
@@ -11,14 +19,19 @@ import '../project/beak_discovery.dart';
 /// in the way. Ejecting writes the default out as a file the project owns, so
 /// the first edit is a diff rather than a rewrite from the documentation.
 enum BeakEjectTarget {
-  /// Commit the generated entrypoints instead of ignoring them.
-  main('main', 'lib/main.dart, bin/serve.dart and bin/migrate.dart'),
+  // --8<-- [start:BeakEjectTarget]
+  /// `lib/main.dart` — an authored `BeakPanel(resources: [...])` in place of
+  /// the generated entrypoint.
+  main('main', 'lib/main.dart, composed by you instead of generated'),
 
   /// `lib/panel.dart` — the last word on the whole panel config.
   panel('panel', 'lib/panel.dart'),
 
-  /// `lib/resources/<table>.dart` — one resource, without the whole panel.
-  resource('resource', 'lib/resources/<table>.dart (takes a table name)'),
+  /// A `BeakResource` class for one model, without taking the whole panel.
+  resource(
+    'resource',
+    'lib/resources/<table>/<name>_resource.dart (takes a table name)',
+  ),
 
   /// `lib/theme.dart` — the light and dark themes.
   theme('theme', 'lib/theme.dart'),
@@ -26,11 +39,11 @@ enum BeakEjectTarget {
   /// `lib/auth.dart` — which auth routes exist and what they call.
   auth('auth', 'lib/auth.dart'),
 
-  /// `lib/dashboard.dart` — the screen mounted at `/`.
-  dashboard('dashboard', 'lib/dashboard.dart'),
-
-  /// `lib/server.dart` — middleware, extra routes, policy.
+  /// `lib/server.dart` — policy, sessions, middleware, extra routes, graph
+  /// rules and the outbox schedule.
   server('server', 'lib/server.dart');
+
+  // --8<-- [end:BeakEjectTarget]
 
   const BeakEjectTarget(this.name, this.describes);
 
@@ -46,7 +59,6 @@ enum BeakEjectTarget {
     panel => BeakOverrideKind.panel,
     theme => BeakOverrideKind.theme,
     auth => BeakOverrideKind.auth,
-    dashboard => BeakOverrideKind.dashboard,
     server => BeakOverrideKind.server,
   };
 
@@ -68,12 +80,19 @@ enum BeakEjectTarget {
 ///   created lib/theme.dart
 ///   run `beak prepare` to wire it up
 /// ```
+///
+/// `beak eject resource <table>` writes a `BeakResource` class for one model,
+/// which the generated panel then uses in place of that model's default.
+/// `beak eject main` switches the project from the generated entrypoint to
+/// an authored `BeakPanel(resources: [...])`.
 final class EjectCommand extends Command<int> {
   /// Creates the command against [environment].
   EjectCommand(this.environment) {
     argParser.addFlag(
       'force',
-      help: 'Overwrite the file if it already exists.',
+      help:
+          'Overwrite the file if it already exists, `lib/main.dart` of '
+          '`eject main` included.',
       negatable: false,
     );
   }
@@ -117,10 +136,7 @@ final class EjectCommand extends Command<int> {
           invocation,
         );
       }
-      return _write(
-        'lib/${BeakProjectScanner.resourcesDir}/${rest.last}.dart',
-        resourceSource(rest.last),
-      );
+      return _ejectResource(rest.last);
     }
     // Only `resource` takes an argument; a stray second word is a typo
     // worth naming rather than ignoring.
@@ -132,20 +148,20 @@ final class EjectCommand extends Command<int> {
     }
 
     if (target == BeakEjectTarget.main) {
-      return _ejectEntrypoints();
+      return _ejectMain();
     }
 
+    if (beakNotAProjectAt(environment.rootDirectory) case final String reason) {
+      environment.out.writeln('  $reason');
+      return 1;
+    }
     final BeakOverrideKind kind = target.override!;
     return _write('lib/${kind.path}', ejectedSource(kind));
   }
 
   /// Writes [source] to [path] unless it exists, and says what to do next.
   int _write(String path, String source) {
-    final file = File('${environment.rootDirectory.path}/$path');
-    if (file.existsSync() && argResults?['force'] != true) {
-      environment.out.writeln(
-        '  $path already exists — edit it, or pass --force to replace it',
-      );
+    if (_refusesToReplace(path)) {
       return 1;
     }
     environment.writeFile(path, source);
@@ -155,71 +171,240 @@ final class EjectCommand extends Command<int> {
     return 0;
   }
 
-  /// The starter override for the resource of [table].
-  static String resourceSource(String table) =>
-      '''
-import 'package:beak/panel.dart';
-
-/// Adjusts the generated resource for the `$table` table.
-///
-/// [generated] is what Beak derived from the model and `beak.yaml`. Return it
-/// unchanged to change nothing, or `copyWith` the parts you want different —
-/// filters, actions, view modes, the detail layout. Every other resource in
-/// the panel stays generated.
-BeakResource beakResource(BeakResource generated) => generated;
-''';
-
-  /// Un-ignores the generated entrypoints so the project commits them.
-  int _ejectEntrypoints() {
-    final gitignore = File('${environment.rootDirectory.path}/.gitignore');
-    if (!gitignore.existsSync()) {
+  /// Whether [path] exists and `--force` did not say to replace it, having
+  /// said so.
+  bool _refusesToReplace(String path) {
+    final file = File('${environment.rootDirectory.path}/$path');
+    if (file.existsSync() && argResults?['force'] != true) {
       environment.out.writeln(
-        '  no .gitignore — the entrypoints are already committed',
+        '  $path already exists: edit it, or pass --force to replace it',
       );
-      return 0;
+      return true;
     }
-    final String source = gitignore.readAsStringSync();
-    final String rewritten = withoutEntrypointRules(source);
-    if (rewritten == source) {
-      environment.out.writeln('  the entrypoints are already committed');
-      return 0;
+    return false;
+  }
+
+  /// Writes a `BeakResource` class for the model backing [table].
+  ///
+  /// The models come from the schema classes as well as from the scan, so a
+  /// schema whose part file `beak prepare` has not written yet still counts.
+  /// Nothing else about the project has to be healthy: this is the command
+  /// the upgrade message for a removed `lib/resources/<table>.dart` override
+  /// points at, and that override stops `beak prepare`.
+  int _ejectResource(String table) {
+    final Directory root = environment.rootDirectory;
+    final (schemas, _) = BeakSchemaReader(root).read();
+    final BeakDiscovery discovery = BeakProjectScanner(root).scan(
+      tablesByModelClass: {
+        for (final schema in schemas) schema.modelClass: schema.table,
+      },
+    );
+    final models = <String, (String, String)>{
+      for (final model in discovery.models)
+        if (model.table case final String modelTable)
+          modelTable: (model.name, model.importPath),
+      for (final schema in schemas)
+        schema.table: (schema.modelClass, schema.libraryPath),
+    };
+    final (String, String)? model = models[table];
+    if (model == null) {
+      environment.out.writeln(
+        '  No model declares the table "$table"'
+        '${beakDidYouMean(table, models.keys.toSet())}',
+      );
+      return 1;
     }
-    gitignore.writeAsStringSync(rewritten);
+    final (String modelClass, String modelPath) = model;
+    for (final resource in discovery.resources) {
+      if (resource.configures(modelClass)) {
+        environment.out.writeln(
+          '  $modelClass already has a resource class: '
+          '${resource.className} in lib/${resource.importPath}. Edit that one.',
+        );
+        return 1;
+      }
+    }
+
+    final BeakProjectConfig config = BeakProjectConfig.load(
+      root,
+      packageName: BeakProjectConfig.packageNameOf(root),
+    );
+    final BeakResourceOverride? presentation = config.resources[table];
+    // The generated panel shows every resource class it finds, so taking
+    // over a hidden one would put it in the sidebar, which is not the
+    // no-visible-change this command promises.
+    if (presentation?.hidden ?? false) {
+      environment.out.writeln(
+        '  "$table" has `hidden: true` under resources.$table in beak.yaml, '
+        'so the panel does not show it, and a resource class is always '
+        'shown. Remove `hidden: true` first to present it.',
+      );
+      return 1;
+    }
+
+    final String className = BeakDiscoveredResource.conventionalNameFor(
+      modelClass,
+    );
+    final String stem = className.substring(
+      0,
+      className.length - 'Resource'.length,
+    );
+    final String folder = '${BeakProjectScanner.resourcesDir}/$table';
+    final String path = 'lib/$folder/${snakeCaseOf(stem)}_resource.dart';
+    if (_refusesToReplace(path)) {
+      return 1;
+    }
+    final bool authored = isAuthoredEntrypoint(root);
+    environment.writeFile(
+      path,
+      generateResourceClass(
+        className: className,
+        modelClass: modelClass,
+        modelImport: p.posix.relative(modelPath, from: folder),
+        table: table,
+        icon: presentation?.icon,
+        title: presentation?.label,
+        navigationGroup: presentation?.section,
+        authored: authored,
+      ),
+    );
     environment.out
-      ..writeln('  updated .gitignore')
       ..writeln()
-      ..writeln(
-        '  lib/main.dart, bin/serve.dart and bin/migrate.dart are yours now. '
-        '`beak prepare` still rewrites them, so edit them only if you mean to '
-        'stop running it.',
+      ..writeln('  run `beak prepare` to wire it up');
+    if (authored) {
+      environment.out.writeln(
+        '  lib/main.dart is yours, so add $className() to its '
+        '`resources: [...]`',
       );
+    }
     return 0;
   }
 
-  /// [source] with the generated-entrypoint block removed.
+  /// Switches the project to an authored `lib/main.dart`.
   ///
-  /// Removes the paths and the comment that explains them, since the comment
-  /// tells the reader to run this very command.
-  static String withoutEntrypointRules(String source) {
-    const ignored = {'/lib/main.dart', '/bin/serve.dart', '/bin/migrate.dart'};
+  /// Regenerates first, so the entrypoint lists what discovery sees now,
+  /// then writes the `BeakPanel` the generated panel amounts to (see
+  /// [BeakEmitters.authoredMain]) and un-ignores the file. An entrypoint the
+  /// project already owns is only rewritten when `--force` says so.
+  int _ejectMain() {
+    final Directory root = environment.rootDirectory;
+    final BeakProjectConfig configured = BeakProjectConfig.load(
+      root,
+      packageName: BeakProjectConfig.packageNameOf(root),
+    );
+    // An app that boots the panel from a file of its own keeps `lib/main.dart`
+    // for itself, and `--force` would replace the app with the panel.
+    if (configured.panel.entrypoint case final String entrypoint) {
+      environment.out.writeln(
+        '  beak.yaml sets panel.entrypoint to $entrypoint, so the panel is '
+        "already booted from a file that is yours, and lib/main.dart is the "
+        "app's own. `beak eject main` is for a project whose lib/main.dart "
+        'Beak generates.',
+      );
+      return 1;
+    }
+    if (isAuthoredEntrypoint(root) && argResults?['force'] != true) {
+      environment.out.writeln(
+        '  lib/main.dart is already yours; pass --force to write it again '
+        'from what the generated panel would show',
+      );
+      _unignoreMain();
+      return 0;
+    }
+    final BeakPrepareResult prepared = runPrepare(environment);
+    if (!prepared.isSuccess) {
+      environment.out.writeln('  lib/main.dart was left as it was');
+      return prepared.exitCode;
+    }
+    final BeakDiscovery discovery = prepared.discovery;
+    final BeakProjectConfig config = BeakProjectConfig.load(
+      root,
+      packageName: BeakProjectConfig.packageNameOf(root),
+    );
+    environment.writeFile(
+      'lib/main.dart',
+      BeakEmitters.authoredMain(config: config, discovery: discovery),
+    );
+    _unignoreMain();
+    environment.out
+      ..writeln()
+      ..writeln('  lib/main.dart is yours now: `beak prepare` leaves it alone.')
+      ..writeln('  It lists every resource the generated panel showed, with')
+      ..writeln('  the beak.yaml presentation written in. Add each resource')
+      ..writeln('  class you write to its `resources: [...]`.');
+    if (beakLeftoverPanelWiring(root).isNotEmpty &&
+        !beakPanelWiringIsUsed(root, config)) {
+      environment.out.writeln(
+        '  The next `beak prepare` deletes lib/beak/panel.g.dart and '
+        'app.g.dart: nothing imports them now.',
+      );
+    }
+    _warnUnmatched(discovery);
+    return 0;
+  }
+
+  /// Names each resource class whose model neither its source nor its name
+  /// reveals.
+  ///
+  /// The generated panel matches a class to a model by the table it reports
+  /// at runtime. The authored entrypoint is written once, from the source,
+  /// so such a class is listed beside every default, and if it presents one
+  /// of those models the panel would show that model twice.
+  void _warnUnmatched(BeakDiscovery discovery) {
+    for (final resource in discovery.resources) {
+      if (resource.modelClass != null ||
+          discovery.models.any((model) => resource.configures(model.name))) {
+        continue;
+      }
+      environment.out
+        ..writeln()
+        ..writeln(
+          '  Could not tell which model ${resource.className} '
+          '(lib/${resource.importPath}) presents. If lib/main.dart also',
+        )
+        ..writeln(
+          '  lists a default BeakResource for that model, delete the '
+          'default, or the panel shows the model twice.',
+        );
+    }
+  }
+
+  /// Stops `.gitignore` ignoring `lib/main.dart`, saying so when it did.
+  void _unignoreMain() {
+    final gitignore = File('${environment.rootDirectory.path}/.gitignore');
+    if (!gitignore.existsSync()) {
+      return;
+    }
+    final String source = gitignore.readAsStringSync();
+    final String rewritten = withoutMainIgnore(source);
+    if (rewritten != source) {
+      gitignore.writeAsStringSync(rewritten);
+      environment.out.writeln('  updated .gitignore');
+    }
+  }
+
+  /// Whether [root] has a `lib/main.dart` that Beak did not generate.
+  ///
+  /// The same test `beak prepare` makes before rewriting an entrypoint: the
+  /// generated one starts with the generated-by header.
+  static bool isAuthoredEntrypoint(Directory root) =>
+      BeakAuthoredMain.isAuthored(root);
+
+  /// [source] without the rule ignoring `lib/main.dart`.
+  ///
+  /// Drops the comment line pointing at `beak eject main` too, since it tells
+  /// the reader to run this very command. The generated `bin/` entrypoints
+  /// stay ignored: `beak prepare` still writes them.
+  static String withoutMainIgnore(String source) {
     final kept = <String>[];
-    var inBeakComment = false;
     for (final line in source.split('\n')) {
       final String trimmed = line.trim();
-      if (ignored.contains(trimmed)) {
-        inBeakComment = false;
+      if (trimmed == '/lib/main.dart' ||
+          (trimmed.startsWith('#') && trimmed.contains('beak eject main'))) {
         continue;
       }
-      if (trimmed.startsWith('# Beak generates these')) {
-        inBeakComment = true;
-        continue;
-      }
-      if (inBeakComment && trimmed.startsWith('#')) {
-        continue;
-      }
-      inBeakComment = false;
-      // Removing a block leaves the blank lines that framed it; collapsing
-      // them keeps the file looking hand-written, which it now is.
+      // Removing a line can leave the blank lines around it adjacent;
+      // collapsing them keeps the file looking hand-written.
       if (trimmed.isEmpty && kept.isNotEmpty && kept.last.trim().isEmpty) {
         continue;
       }
@@ -237,7 +422,6 @@ BeakResource beakResource(BeakResource generated) => generated;
     BeakOverrideKind.panel => _panel,
     BeakOverrideKind.theme => _theme,
     BeakOverrideKind.auth => _auth,
-    BeakOverrideKind.dashboard => _dashboard,
     BeakOverrideKind.server => _server,
   };
 
@@ -246,9 +430,9 @@ import 'package:beak/panel.dart';
 
 /// The last word on this panel's configuration.
 ///
-/// [defaults] is everything `beak.yaml`, `lib/models/` and `lib/screens/`
-/// produced. Return it to change nothing, or `copyWith` the parts you want
-/// different — the resources list, the dashboard, the notification source.
+/// [defaults] is everything `beak.yaml`, the models, the resource classes and
+/// `lib/screens/` produced. Return it to change nothing, or `copyWith` the
+/// parts you want different: the resources list, the notification source.
 BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
 ''';
 
@@ -267,27 +451,10 @@ import 'package:beak/panel.dart';
 
 /// Which auth routes the panel mounts, and what they call.
 ///
-/// With no `onLogin`, the panel signs in against the generated
-/// `/api/auth/login` and remembers the session, so a project whose
-/// `lib/server.dart` configures auth needs nothing here. Supply one to
-/// authenticate somewhere else.
+/// The default adapter uses the server's generated `/api/auth/login`.
+/// Supply a BeakAuthAdapter for another backend. Registration and password
+/// recovery stay disabled unless both configured and supported by the adapter.
 BeakAuthConfig beakAuth() => const BeakAuthConfig();
-''';
-
-  static const String _dashboard = '''
-import 'package:beak/panel.dart';
-import 'package:beak/ui.dart';
-
-/// The screen mounted at `/`, replacing the generated dashboard.
-///
-/// The body is a [BeakBlock] tree, not widgets: blocks compose the same way
-/// the generated pages do, so a stat row or a chart drops straight in.
-BeakScreen beakDashboard() => const BeakScreen(
-  path: '/',
-  title: 'Dashboard',
-  icon: BeakIconToken(OiIcons.layoutDashboard),
-  body: BeakCardBlock(child: BeakTextBlock('Your dashboard')),
-);
 ''';
 
   static const String _server = '''
@@ -295,9 +462,45 @@ import 'package:beak/server.dart';
 
 /// Builds the server from everything `BeakServeHost` resolved.
 ///
-/// [defaults] carries the data source, the registry and the storage. Call
-/// `build` for the standard server, passing a [BeakPolicy], extra middleware
-/// or additional routes.
+/// [defaults] carries the config, the registry, the data source, the storage,
+/// the environment and the clock. `build` returns the standard server, so this
+/// file changes nothing until you pass it something. Pass only what you want
+/// different; every argument is optional:
+///
+/// ```dart
+/// BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+///   // Who may do what. Anything the rules do not list is denied.
+///   policy: BeakPolicies(
+///     rules: [
+///       BeakModelRules(const OrderModel(), read: BeakAccess.role('staff')),
+///     ],
+///   ),
+///   // Mounts POST /api/auth/login and /logout and GET /api/auth/me. The
+///   // request guard follows the sessions' store, so `authGuard` is only for
+///   // identifying callers some other way.
+///   authSessions: shopSessions(defaults.environment),
+///   // Shelf middleware: after authentication, inside the error mapping.
+///   middleware: [rateLimit()],
+///   // Extra endpoints, tried before the generated API.
+///   routes: healthRoutes(),
+///   // The origin browsers may call from (default: any).
+///   corsOrigin: 'https://admin.example.com',
+///   // Transactional business rules for a graph commit.
+///   preparePlan: OrderRules(defaults.registry).prepare,
+///   finalizePlan: const OrderEffects().finalize,
+///   // Models whose writes must go through those commits: their per-record
+///   // routes are closed.
+///   graphOnly: const [OrderModel(), OrderItemModel()],
+///   // Delivers the effects finalizePlan enqueued, while the host serves.
+///   outbox: BeakOutboxSchedule(
+///     interval: const Duration(seconds: 5),
+///     handlers: {'receipt': sendReceipt},
+///   ),
+/// );
+/// ```
+///
+/// `onRequest`, `onUnexpectedError`, `generateId` and `transformRunner` are
+/// accepted too; each is documented on `BeakServer.new`.
 BeakServer beakServer(BeakServerDefaults defaults) => defaults.build();
 ''';
 }

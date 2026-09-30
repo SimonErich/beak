@@ -78,20 +78,19 @@ end_of_record
     }
   });
 
-  test('beak_backend gates at the phase-07 threshold', () {
+  test('beak_backend gates at its raised threshold', () {
     expect(thresholdFor('beak_backend'), 90);
   });
 
-  test('beak_frontend gates at the phase-11 threshold', () {
+  test('beak_frontend gates at the default threshold', () {
     expect(thresholdFor('beak_frontend'), 85);
   });
 
-  test('the reference packages gate at the default threshold', () {
+  test('the CLI and the examples gate at the default threshold', () {
     for (final package in const [
       'beak_cli',
-      'reference_admin',
-      'reference_admin_server',
-      'reference_admin_models',
+      'clean_beak_config',
+      'foodio-adminpanel',
     ]) {
       expect(thresholdFor(package), 85, reason: package);
     }

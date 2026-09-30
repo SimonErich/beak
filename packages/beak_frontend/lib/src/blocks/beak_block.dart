@@ -2,7 +2,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:obers_ui/obers_ui.dart';
 
-import '../dashboard/beak_chart.dart';
+import 'beak_chart_data.dart';
 import '../panel/beak_panel_config.dart';
 import '../table/beak_table_action.dart';
 
@@ -30,10 +30,10 @@ part 'beak_image_block.dart';
 part 'beak_inbox_block.dart';
 part 'beak_invoice_block.dart';
 part 'beak_kanban_block.dart';
-part 'beak_kpi_block.dart';
 part 'beak_markdown_block.dart';
 part 'beak_masonry_block.dart';
 part 'beak_metric_block.dart';
+part 'beak_summary_block.dart';
 part 'beak_pricing_block.dart';
 part 'beak_profile_block.dart';
 part 'beak_progress_block.dart';
@@ -53,16 +53,14 @@ part 'beak_map_block.dart';
 part 'beak_radial_slider_block.dart';
 part 'beak_three_pane_block.dart';
 part 'beak_widget_block.dart';
-part 'beak_wizard_block.dart';
 
 /// A declarative, composable content node — the building block of every
 /// non-CRUD Beak surface.
 ///
-/// One sealed union drives three consumers with the same descriptors: a
-/// custom page's body, a resource's alternate view mode, and an overlay's
-/// content. `BeakBlockHost` renders the union exhaustively onto obers_ui
-/// widgets, so a new block type is a compile error until every renderer
-/// handles it.
+/// One sealed union drives two consumers with the same descriptors: a custom
+/// page's body and an overlay's content. `BeakBlockHost` renders the union
+/// exhaustively onto obers_ui widgets, so a new block type is a compile error
+/// until every renderer handles it.
 ///
 /// Blocks are pure `const` configuration — no widget code, no callbacks
 /// except where an interaction is the feature (and [BeakWidgetBlock], the
@@ -94,13 +92,13 @@ sealed class BeakBlock {
   /// Creates a block, optionally sized by [span] inside grid parents.
   const BeakBlock({this.span});
 
-  /// How many grid tracks this block occupies when it is a direct child
-  /// of a [BeakGridBlock]; ignored elsewhere.
+  /// Grid tracks occupied inside a [BeakGridBlock]. An expanded [BeakRowBlock]
+  /// uses its columns as relative width weights instead; ignored elsewhere.
   final BeakSpan? span;
 }
 // --8<-- [end:BeakBlock]
 
-/// Grid placement of a block inside a [BeakGridBlock].
+/// Grid placement or relative width in an expanded [BeakRowBlock].
 @immutable
 final class BeakSpan {
   /// Creates a span covering [columns] × [rows] grid tracks.

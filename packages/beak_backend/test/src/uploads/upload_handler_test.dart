@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_backend/src/uploads/upload_service.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_image/beak_image.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -39,6 +39,31 @@ Request multipartRequest(
   );
 }
 
+base class _OwnedMedia extends BeakAllowAllPolicy implements BeakRowPolicy {
+  const _OwnedMedia();
+  @override
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is NoteModel ? NoteModel.authorId.eq(principal?.id) : null;
+}
+
+final class _BlockedMedia extends _OwnedMedia implements BeakUploadReadPolicy {
+  const _BlockedMedia();
+  @override
+  bool canViewUpload(
+    BeakPrincipal? principal,
+    BeakModel model,
+    BeakUploadColumn column,
+    String storageKey,
+  ) => false;
+}
+
+final class _TenantGuard implements BeakAuthGuard {
+  const _TenantGuard();
+  @override
+  Future<BeakPrincipal?> authenticate(Request request) async =>
+      BeakPrincipal(id: request.headers['tenant'] ?? 'one');
+}
+
 void main() {
   late Handler handler;
   late BeakStorageDriver storage;
@@ -54,12 +79,13 @@ void main() {
       const BeakMemoryStorageConfig(),
     );
     var mintedKeys = 0;
+    String mint() => 'minted-${++mintedKeys}';
     dataSource = WormDataSource(registry, adapter: adapter);
     uploads = UploadService(
       registry: registry,
       storage: storage,
       transformRunner: const ImageTransformRunner(),
-      generateKeyId: () => 'minted-${++mintedKeys}',
+      generateKeyId: mint,
     );
     handler = const Pipeline()
         .addMiddleware(beakJsonMiddleware())
@@ -68,7 +94,8 @@ void main() {
           beakApiRouter(
             registry: registry,
             dataSource: dataSource,
-            uploads: uploads,
+            storage: storage,
+            generateId: mint,
           ),
         );
   });
@@ -79,6 +106,114 @@ void main() {
     final Map<String, Object?> map => map,
     final Object? other => throw StateError('expected JSON object: $other'),
   };
+
+  test(
+    'GET upload URL resolves the persisted key and rejects traversal',
+    () async {
+      final saved = await uploads.handle(
+        table: 'notes',
+        columnKey: 'avatar',
+        upload: BeakUpload(
+          filename: 'picture.png',
+          mimeType: 'image/png',
+          bytes: pngBytes(width: 4, height: 4),
+        ),
+      );
+      final response = await handler(
+        Request(
+          'GET',
+          Uri.http('localhost', '/api/notes/avatar/upload', {'key': saved.key}),
+        ),
+      );
+      expect(response.statusCode, 200);
+      expect(
+        decodeObject(await response.readAsString())['url'],
+        saved.url.toString(),
+      );
+      final invalid = await handler(
+        Request(
+          'GET',
+          Uri.http('localhost', '/api/notes/avatar/upload', {
+            'key': 'avatars/../secret.png',
+          }),
+        ),
+      );
+      expect(invalid.statusCode, 422);
+    },
+  );
+
+  test(
+    'scoped upload URLs require a visible owning row and honor key-aware policy',
+    () async {
+      final files = <BeakStoredFile>[];
+      for (var i = 0; i < 3; i++) {
+        files.add(
+          await uploads.handle(
+            table: 'notes',
+            columnKey: 'avatar',
+            upload: BeakUpload(
+              filename: 'picture.png',
+              mimeType: 'image/png',
+              bytes: pngBytes(width: 4, height: 4),
+            ),
+          ),
+        );
+      }
+      await dataSource.create(
+        'notes',
+        BeakRecord.fromRow({
+          'id': 'first',
+          'title': 'First',
+          'author_id': 'one',
+          'avatar': files[0].key,
+        }),
+      );
+      await dataSource.create(
+        'notes',
+        BeakRecord.fromRow({
+          'id': 'second',
+          'title': 'Second',
+          'author_id': 'two',
+          'avatar': files[1].key,
+        }),
+      );
+      Handler scoped(BeakPolicy policy) => const Pipeline()
+          .addMiddleware(beakErrorMappingMiddleware())
+          .addMiddleware(beakAuthMiddleware(guard: const _TenantGuard()))
+          .addHandler(
+            beakApiRouter(
+              registry: registry,
+              dataSource: dataSource,
+              storage: storage,
+              policy: policy,
+            ),
+          );
+      final handler = scoped(const _OwnedMedia());
+      Future<Response> read(String key, {String tenant = 'one'}) async =>
+          handler(
+            Request(
+              'GET',
+              Uri.http('localhost', '/api/notes/avatar/upload', {'key': key}),
+              headers: {'tenant': tenant},
+            ),
+          );
+      expect((await read(files[0].key)).statusCode, 200);
+      expect((await read(files[1].key)).statusCode, 404);
+      expect((await read(files[1].key, tenant: 'two')).statusCode, 200);
+      expect((await read(files[2].key)).statusCode, 404);
+      expect(
+        (await scoped(const _BlockedMedia())(
+          Request(
+            'GET',
+            Uri.http('localhost', '/api/notes/avatar/upload', {
+              'key': files[0].key,
+            }),
+          ),
+        )).statusCode,
+        403,
+      );
+    },
+  );
 
   group('POST /api/{table}/{columnKey}/upload', () {
     test('stores a valid image and returns the typed 201 body', () async {
@@ -220,7 +355,7 @@ void main() {
             beakApiRouter(
               registry: registry,
               dataSource: dataSource,
-              uploads: uploads,
+              storage: storage,
               policy: policy,
             ),
           );
@@ -233,7 +368,9 @@ void main() {
       );
 
       expect(response.statusCode, 204);
-      expect(policy.uploadDeleteChecks, [('notes', 'avatar', stored.key)]);
+      expect(policy.uploadDeleteChecks, [
+        (const NoteModel(), NoteColumns.avatar, stored.key),
+      ]);
     });
   });
 
@@ -296,30 +433,30 @@ void main() {
 final class _RecordingUploadPolicy implements BeakPolicy {
   _RecordingUploadPolicy();
 
-  /// Every `(table, columnKey, storageKey)` triple `canDeleteUpload` saw.
-  final List<(String, String, String)> uploadDeleteChecks = [];
+  /// Every `(model, column, storageKey)` triple `canDeleteUpload` saw.
+  final List<(BeakModel, BeakUploadColumn, String)> uploadDeleteChecks = [];
 
   @override
-  bool canView(BeakPrincipal? principal, String table) => true;
+  bool canView(BeakPrincipal? principal, BeakModel model) => true;
 
   @override
-  bool canCreate(BeakPrincipal? principal, String table) => true;
+  bool canCreate(BeakPrincipal? principal, BeakModel model) => true;
 
   @override
-  bool canUpdate(BeakPrincipal? principal, String table, Object id) => true;
+  bool canUpdate(BeakPrincipal? principal, BeakModel model, Object id) => true;
 
   @override
-  bool canDelete(BeakPrincipal? principal, String table, Object id) =>
+  bool canDelete(BeakPrincipal? principal, BeakModel model, Object id) =>
       throw StateError('Upload removal must consult canDeleteUpload.');
 
   @override
   bool canDeleteUpload(
     BeakPrincipal? principal,
-    String table,
-    String columnKey,
+    BeakModel model,
+    BeakUploadColumn column,
     String storageKey,
   ) {
-    uploadDeleteChecks.add((table, columnKey, storageKey));
+    uploadDeleteChecks.add((model, column, storageKey));
     return true;
   }
 }

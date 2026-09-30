@@ -20,6 +20,9 @@ import 'package:meta/meta.dart';
 ///   BeakConflictException() => 409,
 ///   BeakConfigurationException() => 500,
 ///   BeakStorageException() => 500,
+///   BeakInternalException() => 500,
+///   BeakPayloadTooLargeException() => 413,
+///   BeakTransportException() => 502,
 /// };
 /// ```
 // --8<-- [start:BeakException]
@@ -39,6 +42,7 @@ sealed class BeakException implements Exception {
 }
 // --8<-- [end:BeakException]
 
+// --8<-- [start:BeakValidationException]
 /// Raised when user-supplied data violates one or more column rules.
 ///
 /// [fieldErrors] maps a column key to its messages, so a form can highlight
@@ -67,7 +71,9 @@ final class BeakValidationException extends BeakException {
       ? super.toString()
       : '${super.toString()} $fieldErrors';
 }
+// --8<-- [end:BeakValidationException]
 
+// --8<-- [start:BeakOtherExceptions]
 /// Raised when a requested record or resource does not exist.
 final class BeakNotFoundException extends BeakException {
   /// Creates a not-found failure described by [message].
@@ -112,6 +118,35 @@ final class BeakConflictException extends BeakException {
   const BeakConflictException(String message)
     : super(code: 'conflict', message: message);
 }
+
+/// Raised when the server failed in a way it does not describe: an unexpected
+/// error behind an opaque `500`, or a gateway's `5xx` with no Beak body.
+///
+/// This is the server's fault, never the caller's configuration. The message
+/// is safe to show: the server keeps the real cause to itself.
+final class BeakInternalException extends BeakException {
+  /// Creates an internal failure described by [message].
+  const BeakInternalException(String message)
+    : super(code: 'internal', message: message);
+}
+
+/// Raised when a request body is larger than the server accepts (HTTP 413),
+/// for example an upload above the size cap of a proxy or of the host.
+final class BeakPayloadTooLargeException extends BeakException {
+  /// Creates a size-limit failure described by [message].
+  const BeakPayloadTooLargeException(String message)
+    : super(code: 'payload_too_large', message: message);
+}
+
+/// Raised when a response never reached Beak's own error format and no more
+/// specific type fits: an unexpected status, or a tunnel that failed on the
+/// way (for example a Serverpod gate answering before Beak's API ran).
+final class BeakTransportException extends BeakException {
+  /// Creates a transport failure described by [message].
+  const BeakTransportException(String message)
+    : super(code: 'transport', message: message);
+}
+// --8<-- [end:BeakOtherExceptions]
 
 /// Raised when a record does not carry the value a column requires — the
 /// column is absent, null, or holds a shape the column cannot read.

@@ -18,7 +18,7 @@ final class BeakMigrationFile {
   /// The Dart source.
   final String contents;
 
-  /// The table it creates — a real table, or a pivot.
+  /// The table it creates: a real table, or a pivot.
   final String table;
 }
 
@@ -228,7 +228,7 @@ import '../$importPath';
 /// Creates the $table table.
 ///
 /// Derived from $modelClass the first time `beak prepare` ran, and yours from
-/// then on — Beak never rewrites a migration it has written.
+/// then on: Beak never rewrites a migration it has written.
 final class $className extends Migration {
   /// Creates the migration.
   const $className();
@@ -238,9 +238,10 @@ final class $className extends Migration {
 
   @override
   Future<void> upSchema(Schema schema) async {
-    // Read from the model, so the table and the resource cannot drift:
-    // adding a column to the schema class changes the DDL with no second
-    // edit here.
+    // Read from the model when this runs, so a database that has not run it
+    // yet gets the table the model describes today. One that already has does
+    // not change: a field added later reaches it with a migration of its own,
+    // `beak make:migration <Name> --from-drift`.
     await schema.create('$table', (table) {
       BeakBlueprint.defineColumns(table, const $modelClass());
       BeakBlueprint.defineForeignKeys(table, const $modelClass());

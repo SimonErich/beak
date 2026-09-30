@@ -79,6 +79,31 @@ void main() {
         throwsA(isA<BeakStorageException>()),
       );
     });
+
+    test(
+      'rejects control characters, which would split a protocol command',
+      () {
+        for (final String key in [
+          'a/b\r\nDELE x',
+          'a/b\nc',
+          'a/b\rc',
+          'a/b\u0000c',
+          'a/b\tc',
+          'a/\u007fb',
+          'a/b\u001bc',
+        ]) {
+          expect(
+            () => BeakStorageKeys.validate(key),
+            throwsA(isA<BeakStorageException>()),
+            reason: key.codeUnits.toString(),
+          );
+        }
+      },
+    );
+
+    test('accepts spaces and non-ASCII letters', () {
+      expect(() => BeakStorageKeys.validate('a b/é ü.png'), returnsNormally);
+    });
   });
 
   group('appendToBaseUrl', () {

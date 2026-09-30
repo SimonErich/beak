@@ -7,9 +7,9 @@ import 'package:beak_core/beak_core.dart';
 ///
 /// This is the production source [registerBeakDependencies] wires up over a
 /// [BeakClient] pointed at `apiBaseUrl`; tests inject a fake
-/// [BeakDataSource] instead. Because it is source-agnostic, a future
-/// transport (e.g. Serverpod) can replace it without touching the rest of
-/// the frontend.
+/// [BeakDataSource] instead. Because the frontend only depends on the
+/// [BeakDataSource] interface, any other implementation can take its place
+/// without touching the rest of the frontend.
 ///
 /// ```dart
 /// final source = HttpBeakDataSource(
@@ -17,12 +17,50 @@ import 'package:beak_core/beak_core.dart';
 /// );
 /// final page = await source.query(const BeakQuerySpec(table: 'products'));
 /// ```
-final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
+// --8<-- [start:HttpBeakDataSource]
+final class HttpBeakDataSource
+    implements
+        BeakDataSource,
+        BeakCapabilityDataSource,
+        BeakSummaryDataSource,
+        BeakExportDataSource,
+        BeakValidationDataSource,
+        BeakManagedUploadClient,
+        BeakUploadUrlClient,
+        BeakCommitDataSource {
+  // --8<-- [end:HttpBeakDataSource]
   /// Creates a data source over [client].
   const HttpBeakDataSource(this.client);
 
   /// The transport the source delegates to.
   final BeakClient client;
+
+  @override
+  Future<BeakAccessCapabilities> capabilities(String table, {Object? id}) =>
+      client.capabilities(table, id: id);
+
+  @override
+  Future<BeakValidationReport> validateRecord(BeakValidationRequest request) =>
+      client.validateRecord(request);
+
+  // --8<-- [start:httpCommit]
+  /// Claims durable receipts only: a missing receipt then proves the server
+  /// never got the plan, so a form may save again after a reload. Whether the
+  /// graph rolls back depends on the data source behind the server, which the
+  /// client cannot see, so `atomicGraph` stays false and a recovered receipt
+  /// carries the real save mode. Over a server whose receipts live in memory,
+  /// the claim fails only when that server restarted between the send and the
+  /// recovery.
+  @override
+  BeakCommitCapabilities get commitCapabilities =>
+      const BeakCommitCapabilities(durableReceipts: true);
+
+  @override
+  Future<BeakSaveResult> commit(BeakSavePlan plan) => client.commit(plan);
+
+  @override
+  Future<BeakSaveResult> recover(String saveId) => client.recoverCommit(saveId);
+  // --8<-- [end:httpCommit]
 
   @override
   Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) =>
@@ -74,6 +112,37 @@ final class HttpBeakDataSource implements BeakDataSource, BeakUploadClient {
     String columnKey,
     BeakUpload file,
   ) => client.upload(table, columnKey, file);
+
+  @override
+  Future<void> discardUpload(
+    String table,
+    String columnKey,
+    BeakStoredFile file,
+  ) => client.discardUpload(table, columnKey, file);
+
+  @override
+  Future<Uri> uploadUrl(String table, String columnKey, String key) =>
+      client.uploadUrl(table, columnKey, key);
+
+  @override
+  Future<BeakSummaryResult> summary(BeakSummarySpec spec) =>
+      client.summary(spec);
+
+  @override
+  Future<String> export(
+    BeakQuerySpec spec, {
+    List<BeakColumn>? columns,
+    Map<String, BeakExportFormat> formats = const {},
+    BeakFormatPolicy? formatting,
+    bool raw = false,
+  }) => client.export(
+    spec.table,
+    spec,
+    columns: columns?.map((column) => column.key).toList(),
+    formats: formats,
+    formatting: formatting,
+    raw: raw,
+  );
 
   @override
   Future<num> aggregate(BeakAggregateSpec spec) =>

@@ -1,0 +1,16 @@
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+.env
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# The default local SQLite database and its journals.
+*.db*
+
+# Uploads land here until BEAK_STORAGE_DRIVER points somewhere else.
+/storage/
+
+# Screenshots and reports written by the browser checks in tool/.
+.artifacts/

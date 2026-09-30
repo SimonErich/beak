@@ -33,6 +33,7 @@ final class FtpStorageDriver implements BeakStorageDriver {
     : _config = config,
       _transport = transport ?? SocketFtpTransport(config);
 
+  // --8<-- [start:ftpDriverFromConfig]
   /// Creates the driver from its [BeakFtpConfig].
   ///
   /// Throws a [BeakConfigurationException] for any other config type; the
@@ -46,10 +47,12 @@ final class FtpStorageDriver implements BeakStorageDriver {
           'got ${config.runtimeType}.',
         ),
       };
+  // --8<-- [end:ftpDriverFromConfig]
 
   final BeakFtpConfig _config;
   final FtpTransport _transport;
 
+  // --8<-- [start:ftpDriverPut]
   @override
   String get id => 'ftp';
 
@@ -67,6 +70,7 @@ final class FtpStorageDriver implements BeakStorageDriver {
       mimeType: upload.mimeType,
     );
   }
+  // --8<-- [end:ftpDriverPut]
 
   /// Downloads the bytes stored under [key].
   ///
@@ -116,6 +120,7 @@ final class FtpStorageDriver implements BeakStorageDriver {
   /// transport exception crosses the driver boundary. With
   /// [missingFileReplies], a `550` reply means the file does not exist —
   /// only set for operations on files that should already be stored.
+  // --8<-- [start:ftpDriverGuard]
   Future<T> _guard<T>(
     String operationName,
     String key,
@@ -140,6 +145,7 @@ final class FtpStorageDriver implements BeakStorageDriver {
       );
     }
   }
+  // --8<-- [end:ftpDriverGuard]
 
   Uri _urlFor(String key) =>
       BeakStorageKeys.appendToBaseUrl(_config.publicBaseUrl, key);

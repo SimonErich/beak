@@ -4,6 +4,7 @@ import 'package:beak_core/beak_core.dart';
 import 'package:beak_storage_ftp/beak_storage_ftp.dart';
 import 'package:test/test.dart';
 
+// --8<-- [start:FakeFtpTransport]
 /// In-memory [FtpTransport] recording every call, with failure knobs.
 final class FakeFtpTransport implements FtpTransport {
   final Map<String, Uint8List> files = {};
@@ -50,6 +51,7 @@ final class FakeFtpTransport implements FtpTransport {
     return files.containsKey(key);
   }
 }
+// --8<-- [end:FakeFtpTransport]
 
 void main() {
   final config = BeakFtpConfig(
@@ -137,6 +139,7 @@ void main() {
         expect(await driver.get('products/photo.png'), upload.bytes);
       });
 
+      // --8<-- [start:ftpDriverGetTests]
       test('maps a 550 reply to not-found', () async {
         await expectLater(
           driver.get('products/missing.png'),
@@ -157,6 +160,7 @@ void main() {
         );
         expect(transport.calls, isEmpty);
       });
+      // --8<-- [end:ftpDriverGetTests]
 
       test('maps non-FTP transport failures to BeakStorageException', () async {
         transport.failure = StateError('connection reset');

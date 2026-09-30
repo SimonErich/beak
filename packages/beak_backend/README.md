@@ -1,77 +1,228 @@
 # beak_backend
 
-The Shelf server for Beak: generated CRUD/query/batch/relations/aggregate
-endpoints, validated uploads, auth, search, and CSV export — all from a
-`BeakModelRegistry` over the worm ORM.
+The Shelf server of Beak. From a registry of models it builds a REST API with
+query, batch, relation, aggregate and summary endpoints, atomic graph commits
+with a durable outbox, validated uploads, auth, health probes and CSV export,
+all executed by the worm ORM.
 
-Part of [**Beak**](https://github.com/SimonErich/beak), a low-code,
-configuration-driven admin-panel framework for Dart/Flutter. See the
-[architecture guide](../../docs/architecture.md) for how the packages fit
-together.
+Part of [Beak](https://github.com/SimonErich/beak), a configuration-driven
+admin-panel framework for Dart and Flutter. You write no endpoint per table.
 
-## What it is
+## When you depend on it
 
-The server layer of the Beak stack. It turns a `BeakModelRegistry` into a
-complete REST surface — one resource router per registered model mounted under
-`/api/{table}` — wrapped in Beak's middleware stack (request log → CORS → JSON
-→ error mapping → auth). It is the **only** package that imports `worm`: the
-default `WormDataSource` translates every `BeakQuerySpec` to worm against an
-injected `DatabaseAdapter`, keeping `beak_core` source-agnostic. The primary
-entry points are `BeakServer`, `beakApiRouter`, and `WormDataSource`.
+An app does not. It imports `package:beak/server.dart` from the
+[`beak`](https://github.com/SimonErich/beak/tree/main/packages/beak) umbrella,
+and `beak prepare` writes the host that starts the server. Depend on
+`beak_backend` directly to mount the generated API inside a Shelf app you
+already run (see [Embedding](#embedding-in-your-own-shelf-app)) or to write a
+server-side adapter.
 
-## Usage
+## What the API covers
+
+Every registered model gets a router under `/api/<table>`. The rest is mounted
+once per server.
+
+| Route | What it does |
+| --- | --- |
+| `POST /query`, `/aggregate`, `/summary`, `/batch` | A `BeakQuerySpec` in; a page, a number, grouped rows or several records out. |
+| `POST /validate` | Checks unique and existence constraints without writing. |
+| `GET /capabilities` | What the current principal may do with this model, or with one record given `?id=`. |
+| `POST /`, `GET /<id>`, `PATCH /<id>`, `DELETE /<id>`, `POST /<id>/restore` | Per-record reads and writes. Writes are closed for graph-only models and for models whose behavior or shared rules span a relationship. |
+| `POST /<id>/relations/<key>/attach`, `/detach` | Many-to-many links. |
+| `POST /export` | CSV export of a query. |
+| `POST`, `GET`, `DELETE /<columnKey>/upload` | Validated uploads, when a storage driver is configured. Images run through `beak_image`. |
+| `POST /api/commits`, `GET /api/commits/<saveId>` | Graph commits: a form save as one transaction, with a receipt that makes a retry idempotent. |
+| `POST /api/auth/login`, `/logout`, `GET /me` | Token sessions, when `authSessions` is set. |
+| `GET /healthz`, `/readyz` | Liveness, and readiness with a generic detail. Outside `/api` and open to anonymous callers; a request that sends an invalid token still gets a `401`. |
+
+The middleware stack around the router is request log, CORS, JSON, error
+mapping, auth, then your own. The error mapping is the single catch boundary: it
+turns the sealed `BeakException` family into HTTP status and JSON.
+
+## Customize the server you get
+
+`beak prepare` writes `lib/beak/server.g.dart` (a `BeakServeHost` holding every
+model, migration and seeder) and the `bin/serve.dart` and `bin/migrate.dart`
+entrypoints that call it. The part that is yours is `lib/server.dart`: the host
+hands it the resolved `BeakServerDefaults`, and `defaults.build(...)` takes
+whatever you want to change.
+
+```dart title="examples/clean_beak_config/lib/server.dart"
+/// Adds the example's transactional shop invariants to the generated host.
+BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+  preparePlan: ShopGraphPreparer(defaults.registry).prepare,
+  graphOnly: const [
+    OrderModel(),
+    OrderItemModel(),
+    InvoiceModel(),
+    InvoiceItemModel(),
+    InvoiceVoucherModel(),
+    ProductModel(),
+    ProductVariantModel(),
+    VariantAttributeModel(),
+    ProductAttributeModel(),
+    CategoryAttributeModel(),
+    VoucherModel(),
+    TaxRateModel(),
+  ],
+);
+```
+
+`preparePlan` runs the business rules of a graph commit inside its transaction,
+and `graphOnly` closes the per-record routes of the models those rules govern,
+so no request can skip them. `beak eject server` writes a starter
+`lib/server.dart` that lists every hook.
+
+| `build(...)` argument | What it does |
+| --- | --- |
+| `policy` | Who may do what. The default allows everything (see Limits). |
+| `authSessions`, `authGuard` | Token sessions and the code that turns a request into a principal. |
+| `preparePlan`, `finalizePlan` | Transactional rules before and after a graph commit. |
+| `graphOnly` | Models that can only be written through graph commits. Needs no `preparePlan`. |
+| `outbox` | A `BeakOutboxSchedule`: effects the finalizer enqueued, delivered while the host serves. |
+| `middleware`, `routes` | Middleware after auth, and endpoints tried before the generated API. |
+| `corsOrigin`, `onRequest`, `onUnexpectedError`, `onWarning` | The allowed origin, the request log, where unexpected failures go, and where the boot warning goes. |
+| `generateId`, `transformRunner` | The id mint and the image pipeline. |
+| `storage`, `dataSource` | Replace the upload driver or the worm data source the host resolved. |
+| `signedUrlLifetime`, `maxPerPage` | How long signed upload links live (one hour) and the largest page served (200). |
+
+The outbox, extra routes and middleware together (`sendReceipt`, `stats` and
+`rateLimit` are yours):
 
 ```dart
-import 'package:beak_backend/beak_backend.dart';
-import 'package:worm/worm.dart';
+BeakServer beakServer(BeakServerDefaults defaults) => defaults.build(
+  outbox: BeakOutboxSchedule(
+    interval: const Duration(seconds: 5),
+    handlers: {'receipt': sendReceipt},
+  ),
+  routes: (Router()..get('/api/stats', stats)).call,
+  middleware: [rateLimit()],
+  corsOrigin: 'https://admin.example.com',
+);
+```
 
-final BeakModelRegistry registry = buildReferenceRegistry();
+`BeakServeHost.serve()` validates the outbox schedule before it binds the port,
+starts the schedule once the socket is bound, and stops it when the returned
+server closes. With `DATABASE_URL=sqlite::memory:` it also applies the
+migrations and runs the seeders in the serving process, because that database
+exists nowhere else.
 
-final server = BeakServer(
-  config: BeakBackendConfig.fromEnv(environment: BeakEnv.resolve()),
-  registry: registry,
-  dataSource: WormDataSource(registry, adapter: Worm.adapter()),
-  storage: resolveStorage(const BeakMemoryStorageConfig()),
-  policy: const BeakAllowAllPolicy(),
+## Who may do what
+
+`BeakPolicies` is a typed rule set that denies everything it does not list. A
+model with no rule is invisible, and holding a role opens only what a rule
+names. The Serverpod example's policy, in full:
+
+```dart title="examples/serverpod/bookshop_server/lib/src/beak/bookshop_policy.dart"
+/// Who may do what in the bookshop admin.
+///
+/// Deny by default: holding `beak.admin` opens the tunnel and grants nothing.
+/// Staff (the `bookshop.staff` scope) read and write authors and books.
+/// Nobody may delete: a rule that is not written is a rule that is closed, so
+/// removing an author (and, by cascade, their books) needs a deliberate rule.
+final BeakPolicies bookshopPolicy = BeakPolicies(
+  rules: [
+    BeakModelRules(const AuthorModel(), read: _staff, write: _staff),
+    BeakModelRules(const BookModel(), read: _staff, write: _staff),
+  ],
 );
 
-final http = await server.start();
-// POST /api/products/query, GET /api/products/<id>, ... are now live.
+final BeakAccess _staff = BeakAccess.role(BookshopScopes.staff.name!);
 ```
 
-Compose the generated API by hand — e.g. to mount it inside a larger Shelf app:
+`BeakModelRules` also takes `delete`, a `rowScope` (a typed filter built for the
+signed-in principal), `readOnlyFields` the server owns, and per-action access.
+`BeakAccess` has `role`, `authenticated`, `anyone`, `any`, `all` and `not`.
+Pass the policy as `policy:` to `defaults.build`, together with an
+`authSessions` or `authGuard` that produces principals. Without one every
+request is anonymous, and a role rule never matches an anonymous request.
+
+The lower-level `BeakPolicy`, `BeakRowPolicy`, `BeakFieldPolicy` and
+`BeakActionPolicy` interfaces stay available for rules that do not fit the
+DSL. Panel permissions only hide controls; this is where access is decided.
+
+## Adopting a database you did not create
+
+`BeakBaselineMigration` is the migration `beak introspect` writes for a
+database that already exists. On that database it changes nothing and is
+recorded as applied. On an empty one it builds every listed table from the
+models. It never alters a table that is already there.
+
+## Embedding in your own Shelf app
+
+`BeakServer` is the whole stack as one Shelf `Handler`:
 
 ```dart
-final handler = const Pipeline()
-    .addMiddleware(beakJsonMiddleware())
-    .addMiddleware(beakErrorMappingMiddleware())
-    .addHandler(
-      beakApiRouter(
-        registry: registry,
-        dataSource: WormDataSource(registry, adapter: adapter),
-      ),
-    );
+final config = BeakBackendConfig.fromEnv();
+final registry = buildBeakRegistry();
+final server = BeakServer(
+  config: config,
+  registry: registry,
+  dataSource: WormDataSource(
+    registry,
+    adapter: adapterFromUrl(config.databaseUrl),
+  ),
+);
+final http = await server.start();
 ```
 
-## Key types
+`buildBeakRegistry()` is the generated one from `lib/beak/registry.g.dart`. Use
+`server.handler` instead of `server.start()` to mount it under a router you own.
+`BeakBackendConfig.fromEnv()` reads `DATABASE_URL` (default `sqlite:beak.db`),
+`PORT` (default 8080) and `HOST` (default `0.0.0.0`). Migrations and seeders
+still run through `BeakServeHost.runCli`, which the generated
+`bin/migrate.dart` calls.
 
-- `BeakServer` — composes the middleware stack around the router; `start()`
-  binds the socket, `handler` exposes the raw `Handler`.
-- `beakApiRouter` — builds the full generated API `Handler` from a registry
-  and data source (uploads, auth, search, and export included).
-- `WormDataSource` — the default `BeakDataSource`, executing every operation
-  on an injected worm `DatabaseAdapter`.
-- `BeakBackendConfig` — validated host/port/runtime config, `fromEnv(...)`.
-- `UploadService` — validated per-column file uploads through a storage driver.
-- `CsvExportService` / `GlobalSearchService` — CSV export and cross-model search.
-- `BeakPolicy` / `BeakAuthGuard` — per-operation authorization and auth guarding.
+## Main types
+
+| Type | What it is |
+| --- | --- |
+| `BeakServeHost` | Environment, database, storage and serving, plus the migration and seeding CLI (`runCli`). |
+| `BeakServerDefaults` | What the host resolved. `build(...)` returns the standard server with your changes. |
+| `BeakServer` | The middleware stack around the API. `handler` is the Shelf handler, `start()` binds the socket. |
+| `beakApiRouter` | The generated API as one `Handler`, for a stack you assemble yourself. |
+| `WormDataSource` | The default `BeakDataSource`, executing every operation on a worm `DatabaseAdapter`. |
+| `BeakSavePlanPreparer`, `BeakSavePlanFinalizer` | The typedefs of the transactional hooks behind `/api/commits`. |
+| `BeakOutbox`, `BeakOutboxSchedule`, `BeakOutboxWorker` | Effects enqueued inside a commit and delivered after it, with leases and bounded retries. |
+| `BeakPolicies`, `BeakModelRules`, `BeakAccess` | The typed, deny-by-default rule set. |
+| `BeakAuthGuard`, `BeakAuthSessions`, `TokenSessionAuthGuard` | Turning a request into a principal. |
+| `BeakBackendConfig` | Validated database URL, host and port. |
+| `adapterFromUrl`, `initializeBeakDatabase` | Open the database a `DATABASE_URL` names. |
+
+## Limits
+
+- **Open by default.** `BeakServer` and `defaults.build` use
+  `BeakAllowAllPolicy`, answer CORS with `*` and bind `0.0.0.0`. Bound beyond
+  loopback, the server prints one `warning:` line at boot and serves anyway. Set
+  a policy and `corsOrigin`, and `HOST=127.0.0.1` for local work, before a
+  server is reachable from anywhere you do not control.
+- **Atomic graph commits need worm.** `POST /api/commits` is mounted for every
+  data source, but only a `WormDataSource` on a transactional adapter saves
+  atomically with durable receipts. Any other source is written one operation at
+  a time with no rollback and receipts in memory, and `preparePlan`,
+  `finalizePlan` and model behavior throw at startup with it.
+- **The page-size ceiling is 200 unless you set `maxPerPage`.** A request for
+  more rows is served at the ceiling and the page envelope says so.
+- **Upload links are signed for an hour.** `GET .../upload` asks the driver for
+  a link that expires after `signedUrlLifetime`, so a private S3 bucket serves
+  through it. Drivers with public links ignore the expiry.
+- **Unexpected failures are opaque.** Anything that is not a `BeakException`
+  becomes a 500 with code `internal` and a fixed message. The raw error goes to
+  `onUnexpectedError`, not to the client, and `BeakClient` reads that code as a
+  `BeakInternalException`.
+
+## Continue reading
+
+- [The backend](https://simonerich.github.io/beak/backend/): running the server, databases, migrations and seeding.
+- [Auth and policies](https://simonerich.github.io/beak/backend/auth-and-policies/): principals, roles and the rule set in depth.
+- [Transactional business rules](https://simonerich.github.io/beak/backend/graph-business-rules/): `preparePlan`, `finalizePlan` and `graphOnly`.
+- [REST API](https://simonerich.github.io/beak/reference/rest-api/): every route and its payloads.
+- [Backend flow](https://simonerich.github.io/beak/architecture/backend-flow/): Handler, Service, DataSource.
 
 ## Status
 
-Pre-1.0, part of the Beak monorepo. Consumed by the
-[reference admin](../../apps/reference_admin). Contributions welcome — see
-[CONTRIBUTING](../../CONTRIBUTING.md) at the repo root.
+Pre-1.0 and versioned in lockstep with the other `beak_*` packages (0.9.0). Not on pub.dev yet: depend on it from git with `ref: v0.9.0` once that tag exists, or from a checkout with `path:`. What changed: the [root changelog](https://github.com/SimonErich/beak/blob/main/CHANGELOG.md). Contributing: [CONTRIBUTING.md](https://github.com/SimonErich/beak/blob/main/CONTRIBUTING.md).
 
 ## License
 
-Apache-2.0 © Marqably GmbH. See [LICENSE](LICENSE).
+Apache-2.0 © Marqably GmbH. See [LICENSE](https://github.com/SimonErich/beak/blob/main/LICENSE).

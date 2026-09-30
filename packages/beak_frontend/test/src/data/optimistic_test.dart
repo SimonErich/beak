@@ -53,6 +53,37 @@ void main() {
     await drainPending(tester);
   });
 
+  testWidgets('the undo affordance follows the panel language', (tester) async {
+    await tester.pumpWidget(
+      OiApp(
+        theme: OiThemeData.light(),
+        locale: const Locale('de'),
+        supportedLocales: BeakLocalizations.supportedLocales,
+        localizationsDelegates: const [BeakLocalizations.delegate],
+        home: Builder(
+          builder: (context) => OiButton.primary(
+            label: 'Löschen',
+            onTap: () => BeakOptimistic.mutate(
+              context,
+              apply: () {},
+              rollback: () {},
+              commit: () async {},
+              message: 'Notiz gelöscht',
+              undoDuration: const Duration(seconds: 2),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Löschen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rückgängig'), findsOneWidget);
+    expect(find.text('Undo'), findsNothing);
+
+    await drainPending(tester);
+  });
+
   testWidgets('commits after the undo window passes', (tester) async {
     await tester.pumpWidget(host(commit: () async {}));
     await tester.tap(find.text('Delete note'));

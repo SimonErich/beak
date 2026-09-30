@@ -6,7 +6,6 @@ import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
-import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -129,6 +128,57 @@ void main() {
     expect(second.statusCode, 409);
     expect(await currentTitle(), 'first');
   });
+
+  test('two edits in flight at once cannot both win', () async {
+    // The check and the write must not have another edit between them:
+    // requests that arrive together used to pass the check together.
+    final DateTime read = await currentUpdatedAt();
+    Future<Response> edit(String title) => patch(
+      {'title': title},
+      headers: {'if-unmodified-since': read.toIso8601String()},
+    );
+
+    final responses = await Future.wait([
+      edit('first'),
+      edit('second'),
+      edit('third'),
+    ]);
+
+    final statuses = [for (final response in responses) response.statusCode];
+    expect(statuses.where((status) => status == 200), hasLength(1));
+    expect(statuses.where((status) => status == 409), hasLength(2));
+    expect(await currentTitle(), 'first');
+  });
+
+  test(
+    'an edit in flight does not hold up an edit of another record',
+    () async {
+      final source = WormDataSource(registry, adapter: adapter);
+      await source.create(
+        'notes',
+        BeakRecord(
+          values: {'id': BeakValue.of('n2'), 'title': BeakValue.of('other')},
+        ),
+      );
+      final responses = await Future.wait([
+        patch({'title': 'one'}),
+        Future.value(
+          handler(
+            Request(
+              'PATCH',
+              Uri.parse('http://localhost/api/notes/n2'),
+              body: jsonEncode({'title': 'two'}),
+            ),
+          ),
+        ),
+      ]);
+
+      expect(
+        [for (final response in responses) response.statusCode],
+        [200, 200],
+      );
+    },
+  );
 
   test('an unparseable header is a 422, not a silent unconditional write', () {
     expect(

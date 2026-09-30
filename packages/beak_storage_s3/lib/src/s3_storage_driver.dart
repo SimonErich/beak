@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
 
+import 'http_s3_object_client.dart';
 import 's3_object_client.dart';
+import 'sigv4_signer.dart';
 
 /// Stores files in an S3-compatible bucket (AWS S3, MinIO, ...) configured
 /// by a [BeakS3Config] — Beak's production storage driver.
@@ -32,10 +34,11 @@ import 's3_object_client.dart';
 /// ```
 final class S3StorageDriver implements BeakStorageDriver {
   /// Creates a driver for [config]; [client] overrides the wire client for
-  /// tests (default: a [MinioS3ObjectClient] built from [config]).
+  /// tests (default: a [HttpS3ObjectClient] built from [config]).
+  // --8<-- [start:constructors]
   S3StorageDriver(BeakS3Config config, {S3ObjectClient? client})
     : _config = config,
-      _client = client ?? MinioS3ObjectClient(config);
+      _client = client ?? HttpS3ObjectClient(config);
 
   /// Creates the driver from its [BeakS3Config].
   ///
@@ -50,6 +53,7 @@ final class S3StorageDriver implements BeakStorageDriver {
           'got ${config.runtimeType}.',
         ),
       };
+  // --8<-- [end:constructors]
 
   final BeakS3Config _config;
   final S3ObjectClient _client;
@@ -116,17 +120,25 @@ final class S3StorageDriver implements BeakStorageDriver {
   }
 
   /// A presigned GET URL when [expiresIn] is given, else the public URL.
+  ///
+  /// S3 accepts a lifetime from one second to seven days, so [expiresIn] is
+  /// held to that range rather than failing every request.
+  ///
+  /// A configured [BeakS3Config.publicBaseUrl] always wins: it names the
+  /// address browsers read from (a CDN or proxy), while a presigned link
+  /// would point at the bucket endpoint, which is often reachable from the
+  /// server only.
   @override
   Future<Uri> url(String key, {Duration? expiresIn}) async {
     BeakStorageKeys.validate(key);
-    if (expiresIn == null) {
+    if (expiresIn == null || _config.publicBaseUrl != null) {
       return _publicUrlFor(key);
     }
     return _guard('presign', key, () {
       return _client.presignedGetUrl(
         bucket: _config.bucket,
         key: key,
-        expiresIn: expiresIn,
+        expiresIn: _withinS3Limits(expiresIn),
       );
     });
   }
@@ -142,6 +154,7 @@ final class S3StorageDriver implements BeakStorageDriver {
   /// Runs [operation], rethrowing Beak's own exceptions untouched and
   /// wrapping every client/transport error in a [BeakStorageException] so no
   /// raw client exception crosses the driver boundary.
+  // --8<-- [start:guard]
   Future<T> _guard<T>(
     String operationName,
     String key,
@@ -154,6 +167,18 @@ final class S3StorageDriver implements BeakStorageDriver {
     } on Object catch (error) {
       throw BeakStorageException('S3 $operationName failed for "$key": $error');
     }
+  }
+  // --8<-- [end:guard]
+
+  static Duration _withinS3Limits(Duration expiresIn) {
+    const Duration shortest = Duration(seconds: 1);
+    const Duration longest = Duration(
+      seconds: SigV4Signer.maxPresignLifetimeInSeconds,
+    );
+    if (expiresIn < shortest) {
+      return shortest;
+    }
+    return expiresIn > longest ? longest : expiresIn;
   }
 
   Uri _publicUrlFor(String key) {

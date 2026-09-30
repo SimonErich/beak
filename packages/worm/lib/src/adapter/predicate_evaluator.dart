@@ -64,8 +64,16 @@ final class PredicateEvaluator {
   };
 
   bool _evaluateColumn(Map<String, Object?> row, ColumnNode node) {
-    final left = row[node.leftField];
-    final right = row[node.rightField];
+    final leftKey = node.leftTable == null
+        ? node.leftField
+        : '${node.leftTable}.${node.leftField}';
+    final rightKey = node.rightTable == null
+        ? node.rightField
+        : '${node.rightTable}.${node.rightField}';
+    final left = row.containsKey(leftKey) ? row[leftKey] : row[node.leftField];
+    final right = row.containsKey(rightKey)
+        ? row[rightKey]
+        : row[node.rightField];
     return switch (node.operator) {
       Operator.eq => left == right,
       Operator.neq => left != right,
@@ -109,7 +117,9 @@ final class PredicateEvaluator {
   }
 
   bool _evaluateLeaf(Map<String, Object?> row, Predicate predicate) {
-    final field = row[predicate.fieldName];
+    final field = row.containsKey(predicate.qualifiedName)
+        ? row[predicate.qualifiedName]
+        : row[predicate.fieldName];
     return switch (predicate.operator) {
       Operator.eq => field == predicate.value,
       Operator.neq => field != predicate.value,
@@ -117,15 +127,22 @@ final class PredicateEvaluator {
       Operator.gte => compareValues(field, predicate.value) >= 0,
       Operator.lt => compareValues(field, predicate.value) < 0,
       Operator.lte => compareValues(field, predicate.value) <= 0,
-      Operator.like => _matchLike(field, predicate.value, caseSensitive: true),
+      Operator.like => _matchLike(
+        field,
+        predicate.value,
+        escape: predicate.escape,
+        caseSensitive: true,
+      ),
       Operator.notLike => !_matchLike(
         field,
         predicate.value,
+        escape: predicate.escape,
         caseSensitive: true,
       ),
       Operator.ilike => _matchLike(
         field,
         predicate.value,
+        escape: predicate.escape,
         caseSensitive: false,
       ),
       Operator.isNull => field == null,
@@ -171,15 +188,40 @@ final class PredicateEvaluator {
   bool _matchLike(
     Object? field,
     Object? pattern, {
+    required String? escape,
     required bool caseSensitive,
   }) {
     if (field is! String || pattern is! String) return false;
-    final regexSource = RegExp.escape(
-      pattern,
-    ).replaceAll(r'%', '.*').replaceAll(r'_', '.');
     return RegExp(
-      '^$regexSource\$',
+      '^${_likeToRegexSource(pattern, escape)}\$',
       caseSensitive: caseSensitive,
+      // `%` and `_` match a line break too, as they do in SQL.
+      dotAll: true,
     ).hasMatch(field);
+  }
+
+  /// The regular expression source for a SQL `LIKE` [pattern]: `%` is any run
+  /// of characters, `_` is one character, and, when [escape] is set, the
+  /// character after an [escape] stands for itself (a trailing [escape] stands
+  /// for itself too).
+  static String _likeToRegexSource(String pattern, String? escape) {
+    final buffer = StringBuffer();
+    final characters = pattern.split('');
+    for (var index = 0; index < characters.length; index++) {
+      final character = characters[index];
+      if (character == escape) {
+        final literal = index + 1 < characters.length
+            ? characters[++index]
+            : character;
+        buffer.write(RegExp.escape(literal));
+      } else if (character == '%') {
+        buffer.write('.*');
+      } else if (character == '_') {
+        buffer.write('.');
+      } else {
+        buffer.write(RegExp.escape(character));
+      }
+    }
+    return buffer.toString();
   }
 }

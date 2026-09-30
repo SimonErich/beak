@@ -1,4 +1,4 @@
-import 'package:beak_cli/beak_cli.dart';
+import '../../support/beak_cli_internals.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
@@ -26,7 +26,7 @@ void main() {
     database = sqlite3.openInMemory();
   });
 
-  tearDown(() => database.dispose());
+  tearDown(() => database.close());
 
   group('tables', () {
     test('are read, and SQLite\'s own bookkeeping is not', () {

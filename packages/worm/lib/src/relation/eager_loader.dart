@@ -100,7 +100,11 @@ abstract final class EagerLoader {
       final tail = load.tail;
       if (load.constrain != null) {
         groups.add(
-          _HeadLoad(head: load.head, constrain: load.constrain, tails: [?tail]),
+          _HeadLoad(
+            head: load.head,
+            constrain: load.constrain,
+            tails: [if (tail != null) EagerLoad(tail), ...load.nested],
+          ),
         );
         continue;
       }
@@ -109,7 +113,8 @@ abstract final class EagerLoader {
         groups.add(created);
         return created;
       });
-      if (tail != null) group.tails.add(tail);
+      if (tail != null) group.tails.add(EagerLoad(tail));
+      group.tails.addAll(load.nested);
     }
     return groups;
   }
@@ -211,9 +216,7 @@ abstract final class EagerLoader {
     // head-load just installed, so every nested relation survives. The next
     // level resolves against the loaded side's table so same-named
     // relations on different tables cannot cross-wire.
-    for (final nested in _groupByHead([
-      for (final tail in load.tails) EagerLoad(tail),
-    ])) {
+    for (final nested in _groupByHead(load.tails)) {
       queries += await _loadGroup(
         adapter: adapter,
         relations: relations,
@@ -335,7 +338,7 @@ final class _HeadLoad {
   _HeadLoad({required this.head, required this.tails, this.constrain});
   final String head;
   final PredicateTree? constrain;
-  final List<String> tails;
+  final List<EagerLoad> tails;
 }
 
 final class _AggregateRelationSpec {

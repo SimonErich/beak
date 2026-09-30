@@ -1,6 +1,6 @@
 name: beak_storage_ftp
 description: FTP storage driver for Beak's storage abstraction.
-version: 0.0.1
+version: 0.9.0
 publish_to: none
 repository: https://github.com/SimonErich/beak/tree/main/packages/beak_storage_ftp
 homepage: https://github.com/SimonErich/beak
