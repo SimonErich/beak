@@ -112,7 +112,7 @@ A resource that nobody registers is a class in a folder. How it gets into the pa
     To change something about the whole panel that no resource owns, run `beak eject panel`. It writes `lib/panel.dart`, and its `beakPanel` function receives the finished config:
 
     ```console
-    $ cat lib/panel.dart
+    $ tail -n 1 lib/panel.dart
     BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults;
     ```
 
@@ -139,7 +139,7 @@ The shop registers 11 resources for 20 models. Related models register themselve
 
 ## The panel around your resources
 
-`BeakPanel(...)` takes the everyday options directly. A complete `BeakPanelConfig` takes all of them, and `BeakPanel(config: ...)` hands it over. You cannot pass both: `config:` together with `resources:` fails an assertion, and `config:` together with any other everyday option (`title`, `theme` and the rest) throws a `BeakConfigurationException` when the panel builds, because the configuration would silently win. Set such an option on the config, or use `copyWith`.
+`BeakPanel(...)` takes the everyday options directly. A complete `BeakPanelConfig` takes all of them, and `BeakPanel(config: ...)` hands it over. You cannot pass both: `config:` together with `resources:` fails an assertion in debug builds, and `config:` together with any everyday option (`resources`, `title`, `theme` and the rest) throws a `BeakConfigurationException` when the panel builds, because the configuration would silently win. Set such an option on the config, or use `copyWith`.
 
 | Option | `BeakPanel(...)` | `BeakPanelConfig` |
 | --- | --- | --- |
@@ -238,7 +238,7 @@ The server keeps answering anyone who calls the API directly. The real rule belo
 | `canDelete: false` hides the button | Only the model's `deletableWhen` (or a server policy) stops the API. The shop's invoice sets both, its order sets the switch alone |
 | `copyWith` cannot clear a value | Passing `null` keeps the current one |
 
-The first eight fail when the panel first builds, not at the first click. That is the point of writing resources as typed objects.
+The first eight fail when the panel first builds, not at the first click.
 
 ## Verify it
 

@@ -117,7 +117,7 @@ static Future<bool> mutate(
 }) => OiOptimisticAction.execute(
 ```
 
-It resolves `true` when the commit succeeded, and `false` when the user undid it or the commit failed. On failure it calls `rollback` and shows an error toast. Starting a second optimistic action commits the pending one at once. The built-in `BeakDeleteAction` and the data table's own delete button use it; see [Actions](actions.md).
+It resolves `true` when the commit succeeded, and `false` when the user undid it or the commit failed. On failure it calls `rollback` and shows an error toast. Starting a second optimistic action commits the pending one at once. The built-in `BeakDeleteAction` and the data table's own delete button use it, and both catch a `BeakException` themselves, so a refusal restores the row and the toast says why, instead of the generic "Action failed". See [Actions](actions.md).
 
 ## Rules and limits
 

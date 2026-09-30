@@ -95,7 +95,7 @@ Counts load for the items of the active section only. They show a dash while loa
 
 ### The current record
 
-Open `/orders/1042` and, with a `BeakNavigation` set, the shell fetches that record and does two things. It adds a child under that resource's item, labelled with the record's display column, and from 600 logical pixels of width up it takes over the breadcrumbs: the resource name, then the record. `showCurrentRecord` (default `true`) turns the child off, and `currentRecordBranch: true` draws it as a branch without a repeated icon.
+Open `/orders/1042` and, with a `BeakNavigation` set, the shell fetches that record and does two things. It adds a child under that resource's item (the one without a `preset`), labelled with the record's display column, and from 600 logical pixels of width up it takes over the breadcrumbs: the resource name, then the record. `showCurrentRecord` (default `true`) turns the child off, and `currentRecordBranch: true` draws it as a branch without a repeated icon.
 
 Opening a record from a list adds a `returnTo` parameter, so Back and the first breadcrumb return to the list with its preset, filters and page intact. Only local paths are accepted as `returnTo`; a value with a scheme, an authority or a leading `//` is ignored.
 
@@ -147,7 +147,7 @@ Give `BeakPanelConfig.notifications` a `BeakNotificationSource` and the top bar 
 | --- | --- | --- |
 | `titleField` | `BeakScalarField<String>` | Required. Names the model |
 | `bodyField` | `BeakScalarField<String>?` | Secondary text |
-| `timeField` | `BeakScalarField<DateTime>?` | Newest first. Without it the order is whatever the source returns |
+| `timeField` | `BeakScalarField<DateTime>?` | Newest first. A row with an empty time is not listed. Without the field the order is whatever the source returns |
 | `readField` | `BeakScalarField<bool>?` | Enables mark as read and mark all as read. Without it every row counts as unread |
 | `categoryField` | `BeakScalarField<Object>?` | Groups rows in the sheet |
 
@@ -217,7 +217,7 @@ The command bar and the notification bell have their own suites:
 
 ```console
 $ flutter test test/src/panel/beak_command_bar_test.dart test/src/panel/beak_notifications_test.dart
-00:01 +13: All tests passed!
+00:01 +17: All tests passed!
 ```
 
 The `/` fallback order, including navigation sections, is covered by `beak_home_route_test.dart` (17 tests).

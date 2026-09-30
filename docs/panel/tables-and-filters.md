@@ -26,7 +26,7 @@ A resource with no screens already lists its model as a table. This page covers 
 
 `BeakResource(model: const NoteModel())` lists the columns the model shows in the table context (`@Column(visibleOn: ...)`, default: table, form and detail). Every to-one relation is loaded with the page, in the same query, and shown by its display label instead of its foreign key, so you read `Beverages` where a raw column would say `a3f9c1e2-…`. The label links to the related record.
 
-A click on a row opens the show page. A header sorts only if the column says `@Column(sortable: true)`. The table asks for 25 rows at a time and offers 10, 25, 50 and 100 per page. A failed load renders an error state with a Retry button, and an empty result renders an empty state.
+A click on a row opens the show page. Cells are read-only, so a change is made on the edit form. A header sorts only if the column says `@Column(sortable: true)`. The table asks for 25 rows at a time and offers 10, 25, 50 and 100 per page. A failed load renders an error state with a Retry button, and an empty result renders an empty state.
 
 One thing it does not have: a search field. The plain list filters, it does not search. Search lives elsewhere, see [Search](#search).
 
@@ -103,7 +103,7 @@ The row menu holds View, Edit and Delete (each only while the resource and the m
 
 ## Staying current
 
-The table watches its data source. A confirmed write to its table, or to a table that has a relationship to it, reloads the current page. Responses resolve latest-wins, so a slow answer never overwrites a newer one. Changes made by other people arrive only when the panel has a `BeakRefreshPolicy`, see [Composed lists and query state](composed-lists.md#refresh).
+The table watches its data source. A confirmed write to its table, or to a table that has a relationship to it, reloads the current page. Responses resolve latest-wins, so a slow answer never overwrites a newer one. When a delete empties the last page, the table steps back to the last page that still exists instead of showing a blank one. Changes made by other people arrive only when the panel has a `BeakRefreshPolicy`, see [Composed lists and query state](composed-lists.md#refresh).
 
 ## Rules and limits
 
@@ -130,12 +130,12 @@ The table, its filter bar and the shop's product list have tests that run withou
 
 ```console
 $ flutter test test/src/table/beak_data_table_test.dart test/src/table/resource_filters_test.dart test/src/table/beak_table_view_model_test.dart --reporter expanded
-00:01 +13: test/src/table/resource_filters_test.dart: derived enum filters have one typed control on a resource
-00:02 +20: test/src/table/beak_data_table_test.dart: rendering a foreign key renders the related record, in one query
-00:03 +24: test/src/table/beak_data_table_test.dart: server-side operations tapping a sortable header emits a replaced BeakSort
-00:03 +25: test/src/table/beak_data_table_test.dart: server-side operations pagination emits the requested BeakPagination
-00:04 +26: test/src/table/beak_data_table_test.dart: server-side operations changing the page size refetches from page one
-00:05 +33: All tests passed!
+00:00 +0: test/src/table/resource_filters_test.dart: derived enum filters have one typed control on a resource
+00:01 +27: test/src/table/beak_data_table_test.dart: cells are read only a double tap on a cell opens no editor that could blank it
+00:01 +29: test/src/table/beak_data_table_test.dart: server-side operations tapping a sortable header emits a replaced BeakSort
+00:01 +30: test/src/table/beak_data_table_test.dart: server-side operations pagination emits the requested BeakPagination
+00:01 +31: test/src/table/beak_data_table_test.dart: server-side operations changing the page size refetches from page one
+00:03 +40: All tests passed!
 ```
 
 And the shop's product list against an in-memory source, from `examples/clean_beak_config`:
@@ -143,7 +143,7 @@ And the shop's product list against an in-memory source, from `examples/clean_be
 ```console
 $ flutter test test/shop_widget_test.dart --reporter expanded
 00:01 +1: the product list shows exact euro prices
-00:03 +6: All tests passed!
+00:03 +7: All tests passed!
 ```
 
 ## Reference
