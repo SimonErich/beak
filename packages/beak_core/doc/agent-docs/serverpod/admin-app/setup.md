@@ -31,6 +31,8 @@ Serverpod stays the owner of the tables, the migrations and the sign-in. You wil
       path: packages/beak_backend
   ```
 
+  `v0.9.0` is not tagged yet, so that `ref` does not resolve today: use a branch name or a commit until the release. The panel also needs a working obers_ui checkout until Beak's pinned commit catches up. [Installation](../../start-here/installation.md#link-obers_ui-until-the-pin-moves) has both workarounds.
+
 - Two tables to show. The example has `author` and `book` (see `examples/serverpod/bookshop_server/lib/src/catalog/`). A workspace with Serverpod's template greeting only has no table to mirror yet.
 
 ## Build it
@@ -549,7 +551,9 @@ cd bookshop_server && dart run bin/main.dart --apply-migrations
 cd bookshop_admin && flutter run -d chrome --web-port 8095
 ```
 
-In the admin, choose "Create account". In development the server log doubles as the mail server: it prints the verification code (`Registration code for you@example.com: <code>`), so paste it from there. The new account can sign in and still cannot open the panel. Let it in from a third terminal, then sign in again:
+Step 2 is for a checkout of the example. A workspace made by `serverpod create` already has its own `config/passwords.yaml`.
+
+In the admin, choose "Create account". In development the server log doubles as the mail server: it prints the verification code between angle brackets (`Registration code for you@example.com: <a1b2c3d4>`), so paste it from there. The new account can sign in and still cannot open the panel. Let it in from a third terminal, then sign in again:
 
 ```console
 cd bookshop_server && dart run bin/beak_admin.dart grant you@example.com

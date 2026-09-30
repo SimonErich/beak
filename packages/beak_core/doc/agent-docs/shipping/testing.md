@@ -53,7 +53,7 @@ The generated `BeakApp` takes an optional `dataSource`. An authored panel takes 
 
 ## The panel over an in-memory data source
 
-`InMemoryBeakDataSource` is a complete `BeakDataSource` over maps. It honors every operator, nested and/or filters, sorts, search, paging, eager relation loads, soft deletes and aggregates, so a passing widget test says something about filtering. A fake that returns every row whatever the spec asks for cannot say that.
+`InMemoryBeakDataSource` is a complete `BeakDataSource` over maps. It honors every operator, nested and/or filters, sorts, search, paging, eager relation loads, soft deletes and aggregates, so a passing widget test says something about filtering. A fake that returns every row whatever the spec asks for cannot say that. It also refuses what the real store refuses: a second row under a taken key is a `BeakConflictException`, attaching to an owner that does not exist is a `BeakNotFoundException`, and `contains`, `startsWith` and `endsWith` ignore case.
 
 Seed it with typed records. `seed` replaces a model's rows and returns the source, `seedPivot` links a many-to-many, and `rowsOf` reads back what a write stored, soft-deleted rows included.
 
@@ -450,7 +450,7 @@ Two things belong in a test: that an upgrade preserves the data already in the d
 
 The shop answers the first by migrating only the early part of its migration list, inserting legacy rows, running the rest and asserting the rows survived. Its `shop_migration_test.dart` also asserts the foreign keys a fresh database declares.
 
-For the second, `expectSchemaParity` checks that every model has a table with the columns it declares (including the foreign key a belongs-to implies and `deleted_at` on soft-deleting models), and `expectNoOrphanTables` checks the reverse. The worm adapter can list what it built. This is illustrative code, compiled and run against the shop:
+For the second, `expectSchemaParity` checks that every model has a table with the columns it declares (including the foreign key a belongs-to implies and `deleted_at` on soft-deleting models), and `expectNoOrphanTables` checks the reverse. The worm adapter can list what it built. This block is illustrative (it is not a repository file). It compiled and passed against a fresh `beak create` project after `MigrationRunner.migrate()`:
 
 ```dart
 final live = await adapter.introspectSchema();
@@ -540,17 +540,17 @@ Run the shop's two suites as a check that your environment builds and runs them:
 $ cd examples/clean_beak_config
 $ flutter test test/custom_shop_test.dart test/shop_api_test.dart
 ...
-00:04 +21: All tests passed!
+All tests passed!
 ```
 
-Between those two files, 21 tests pass in a few seconds of test time. In your own project the same command shape is `flutter test`, and API tests carry `@TestOn('vm')`. To check that the models and the migrations still agree from the command line, `beak doctor` reports drift against the database `DATABASE_URL` names, and exits non-zero on a failed check (a WARN does not fail the run):
+Both files pass in a few seconds of test time. In your own project the same command shape is `flutter test`, and API tests carry `@TestOn('vm')`. To check that the models and the migrations still agree from the command line, `beak doctor` reports drift against the database `DATABASE_URL` names, and exits non-zero on a failed check (a WARN does not fail the run):
 
 ```console
 $ beak doctor
   OK   generated files up to date
   OK   every model has a migration
   WARN invoices.subtotal is declared by Invoice.subtotal but missing from the database
-       → write a migration with `beak make:migration`, then `migrate`
+       → beak make:migration AddSubtotalToInvoices --from-drift, then beak migrate
 ```
 
 ## Reference

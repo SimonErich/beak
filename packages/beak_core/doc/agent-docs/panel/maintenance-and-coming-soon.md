@@ -137,7 +137,7 @@ Neither page has a retry button or a status link. `OiMaintenancePage` supports b
 The pages are a sign on the door, not the lock. `redirectTo` puts every visitor in front of one of them:
 
 ```dart
-const BeakMaintenanceConfig(
+BeakMaintenanceConfig(
   maintenanceDescription: 'We are upgrading the database.',
   estimatedReturn: DateTime.utc(2026, 10, 3, 6),
   redirectTo: BeakMaintenancePage.maintenance,
@@ -176,21 +176,21 @@ The package tests mount both routes, read their titles and check both redirects.
 
 ```console
 $ flutter test test/src/panel/beak_screen_routing_test.dart --plain-name maintenance
-00:00 +0: error + maintenance routes 403 and 500 render typed error pages
-00:00 +1: error + maintenance routes maintenance + coming-soon mount when configured
-00:00 +2: error + maintenance routes redirectTo sends every other route to the chosen page
-00:00 +3: error + maintenance routes a coming-soon redirect wins over the sign-in wall
-00:00 +4: All tests passed!
+error + maintenance routes 403 and 500 render typed error pages
+error + maintenance routes maintenance + coming-soon mount when configured
+error + maintenance routes redirectTo sends every other route to the chosen page
+error + maintenance routes a coming-soon redirect wins over the sign-in wall
+All tests passed!
 ```
 
 The generated path, in a scratch project made with `beak create demo --no-pub --beak-path <repo>` after `beak eject panel`, the edit above and `beak prepare`:
 
 ```console
 $ beak prepare
-1 model · 0 resource classes · 0 screens · 2 overrides
+1 model · 0 resource classes · 0 screens · 1 override
 $ grep -n "as panel\|beakPanel" lib/beak/panel.g.dart
 8:import '../panel.dart' as panel;
-33:  return panel.beakPanel(config);
+31:  return panel.beakPanel(config);
 $ flutter analyze lib
 No issues found!
 ```

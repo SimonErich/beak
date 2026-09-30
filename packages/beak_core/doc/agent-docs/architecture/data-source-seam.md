@@ -116,14 +116,16 @@ Implementations throw the typed `BeakException` family and never leak ORM types.
 | --- | --- |
 | `query` | Returns an accurate `total`, resolves every relation load in the spec, and treats a page past the end as an empty page. |
 | `getOne` | Returns `null` for a missing id. It never throws. |
-| `update` | Applies a partial patch and leaves other fields alone. A missing id is a `BeakNotFoundException`. |
+| `update` | Applies a partial patch and leaves other fields alone. A patch with nothing in it answers the record as it is. A missing id is a `BeakNotFoundException`. |
 | `delete` | Soft when the model soft-deletes, unless `force`. A missing id is a `BeakNotFoundException`. |
 | `restore` | Reaches past the soft-delete scope, because the row it wants is outside it. A model that never soft-deletes gets a `BeakValidationException`, since reporting success for a hard-deleted row would be a lie. |
-| `batchGet` | One query. Unknown ids are absent from the result and an empty list returns nothing. |
+| `batchGet` | One query. Unknown ids are absent from the result, a record is returned once however often its id is listed, and an empty list returns nothing. |
 | `aggregate` | Returns `0` over an empty set, never `null`. |
 | an unknown table | A `BeakConfigurationException`. |
 
-The contract does not cover `attach`, `detach` or relation loads. An implementation of those is on its own.
+Two more edges hold for a source that writes. A value the store refuses is the caller's mistake, so `WormDataSource` answers a foreign key, a CHECK or NOT NULL rule and a value too long or out of range for its column with a `BeakValidationException` (with a field error when the driver names the column), and a row that other records still reference with a `BeakConflictException` on a force delete. The text operators `contains`, `startsWith` and `endsWith` ignore case, as the `ILIKE` they become does.
+
+The relation groups of the contract cover `attach`, `detach` and relation loads for the models you name in `relationModels`, including that attaching to an owner that does not exist is a `BeakNotFoundException`.
 
 ### Optional capabilities
 
@@ -147,7 +149,7 @@ Read that column as the panel's view of a server. On the server the same capabil
 `WormDataSource` is the default implementation. It translates every operation to worm against an injected `DatabaseAdapter` and honours model metadata (primary keys, soft deletes, relationships) with no per-model code. One instance serves every registered model, because the registry resolves each table name to its `BeakModel`.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) => _read(() async {
   final BeakModel beakModel = registry.byTableOrThrow(spec.table);
   final builder = _translator.builderFor(spec, _adapter);
   final int total = await builder.count();
@@ -165,7 +167,7 @@ Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     page: spec.pagination.page,
     perPage: spec.pagination.perPage,
   );
-}
+});
 ```
 
 `query` is the shape of the whole class: hand the spec to the translator, run the builder, wrap the rows back into `BeakRecord`s. A worm `WormRecordModel` appears inside the method and is gone when it returns. [The query contract](query-contract.md) has the translator.
@@ -378,7 +380,7 @@ const BeakFrameworkTables beakServerpodFrameworkTables = BeakFrameworkTables(
 
 Serverpod's database exceptions become worm exceptions per statement and around the whole transaction, keyed on the SQLSTATE, so a unique violation reads as a `UniqueConstraintException` whether it happens mid-transaction or at `COMMIT`. Every instant is sent as UTC, because Postgres drops the offset of an untyped timestamp parameter and Serverpod stores UTC.
 
-Because the tunnel carries text bodies and the engine mounts no storage, the admin app has no uploads. `BeakFrameworkTables` maps only the receipts, so `BeakOutbox` (durable effects) is not available either. [Limits and next steps](../serverpod/admin-app/limits-and-next-steps.md) keeps the current list.
+Because the tunnel carries text bodies and the engine mounts no storage, the admin app has no uploads. The engine has no `outbox` parameter and starts no delivery loop, so durable effects are not delivered on this path, although `beakServerpodFrameworkTables.outbox` maps the table for a host that composes its own. [Limits and next steps](../serverpod/admin-app/limits-and-next-steps.md) keeps the current list.
 
 ### Serverpod, path two: the frontend-only bridge
 

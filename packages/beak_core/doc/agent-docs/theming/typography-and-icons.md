@@ -151,16 +151,16 @@ Foodio keeps a test for exactly this. It rasterizes the body style at four weigh
 ```console
 $ cd examples/foodio-adminpanel
 $ flutter test --no-pub test/gabel_typography_test.dart
-00:00 +0: native hundred weights rasterize exactly as their variable font axes
+native hundred weights rasterize exactly as their variable font axes
 ...
-00:00 +5: All tests passed!
+All tests passed!
 ```
 
 The same test file pins tabular figures. Money that changes digits should not jitter, so Foodio's numeric styles switch on `FontFeature.tabularFigures()`.
 
 ## Icons
 
-Icons are `IconData` tokens from `OiIcons`, the Lucide set that ships inside obers_ui: over 1,950 glyphs, named in camelCase (`OiIcons.layoutDashboard`, `OiIcons.receiptText`). A typo is a compile error. Beak asks for an icon in two spellings:
+Icons are `IconData` tokens from `OiIcons`, the Lucide set that ships inside obers_ui: about 1,950 glyphs, named in camelCase (`OiIcons.layoutDashboard`, `OiIcons.receiptText`). A typo is a compile error. Beak asks for an icon in two spellings:
 
 - Navigation destinations take a `BeakIconToken`, a zero-cost wrapper: `BeakResource(icon: BeakIconToken(OiIcons.users))` and `BeakScreen(icon: ...)`.
 - Blocks, actions and summary values take a plain `IconData`: `BeakMetricBlock(icon: OiIcons.bird)`, `BeakAction(icon:)`, `BeakSummaryValue(icon:)`.
@@ -214,13 +214,13 @@ The `stroke="currentColor"` in the markup is what makes it themable: the icon ta
 
 ## Rules and limits
 
-- **Nine of 14 text variants in blocks.** The rest exist in the theme and are reachable through `OiLabel`.
-- **Declare fonts as assets.** A family that is not in `pubspec.yaml` falls back to the platform font without a warning, and web builds also need the font files served.
-- **Keep the `wght` variation off hundred weights.** See the trap above.
-- **Text is `OiLabel`, not `Text`.** A raw `Text` ignores the ramp and the mode's text color.
-- **Icons are tokens.** Swapping the set needs no screen change, and adding a new token to the design needs a `sources` entry only if the design draws it.
-- **Two spellings, one token.** `BeakIconToken(x)` and `x` are the same `IconData`. There is no conversion; use whichever the parameter's type asks for.
-- **Formatting is separate.** Number and date style comes from `BeakFormatting`, not from the type ramp ([Formatting and localization](formatting-and-localization.md)).
+- Nine of 14 text variants in blocks. The rest exist in the theme and are reachable through `OiLabel`.
+- Declare fonts as assets. A family that is not in `pubspec.yaml` falls back to the platform font without a warning, and web builds also need the font files served.
+- Keep the `wght` variation off hundred weights. See the trap above.
+- Text is `OiLabel`, not `Text`. A raw `Text` ignores the ramp and the mode's text color.
+- Icons are tokens. Swapping the set needs no screen change, and adding a new token to the design needs a `sources` entry only if the design draws it.
+- Two spellings, one token. `BeakIconToken(x)` and `x` are the same `IconData`. There is no conversion; use whichever the parameter's type asks for.
+- Formatting is separate. Number and date style comes from `BeakFormatting`, not from the type ramp ([Formatting and localization](formatting-and-localization.md)).
 
 ## Verify it
 

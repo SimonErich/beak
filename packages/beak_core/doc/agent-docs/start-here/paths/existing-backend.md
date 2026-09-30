@@ -44,7 +44,7 @@ final class _BoundModel extends BeakModel {
 }
 ```
 
-A `BeakModel` is metadata plus five optional hooks, and the two that matter first are these:
+A `BeakModel` is metadata plus five optional hooks (`dataSource`, `capabilities`, `permissions`, `createModel`, `editModel`). These are the ones to know first:
 
 | Hook | Default | What the panel does with it |
 | --- | --- | --- |
@@ -115,13 +115,13 @@ Every panel call passes through one wrapper. A `BeakException` goes through unto
 
 ## Rules and limits
 
-- **The panel checks are presentation.** `capabilities` and `permissions` hide controls. Your backend has to authorize every call again.
-- **No Beak validation on your server.** Beak's rules run in the panel's forms. Your API stays the authority on what is valid, and the panel shows whatever error you map.
-- **A custom source on Beak's own server saves staged, not atomic.** `POST /api/commits` is mounted for every source, and the panel's HTTP source always saves through it. Over a source that is not a `WormDataSource` on a transactional adapter, the route authorizes every operation first, then writes them through your `create`, `update`, `delete`, `attach` and `detach` in dependency order. There is no rollback, and the receipts live in the server's memory (the newest 1024), so a restart forgets them. Prefer the transport route above, where the panel calls your API directly.
-- **Serving a custom source takes one argument.** `defaults.build(dataSource: MyDataSource())` in `lib/server.dart` replaces the worm source (and `storage:` replaces the resolved storage driver). See [Custom data sources](../../extending/custom-data-sources.md).
-- **Filters you cannot honour are errors.** A bridge-style source that supports only equality filters must throw on the rest; the query spec is Beak's full vocabulary.
-- **A staged save is not atomic.** It stops at the first failed or uncertain write, and the operations before it stay written. A save that touches models bound to different sources is staged too, even when each source could commit on its own.
-- **The Serverpod bridge is this pattern, generated.** `ServerpodResource` is a `BeakModel` that sets all five hooks from a Serverpod client. If your backend is Serverpod, start at [An existing Serverpod project](existing-serverpod-project.md).
+- The panel checks are presentation. `capabilities` and `permissions` hide controls. Your backend has to authorize every call again.
+- No Beak validation on your server. Beak's rules run in the panel's forms. Your API stays the authority on what is valid, and the panel shows whatever error you map.
+- A custom source on Beak's own server saves staged, not atomic. `POST /api/commits` is mounted for every source, and the panel's HTTP source always saves through it. Over a source that is not a `WormDataSource` on a transactional adapter, the route authorizes every operation first, then writes them through your `create`, `update`, `delete`, `attach` and `detach` in dependency order. There is no rollback, and the receipts live in the server's memory (the newest 1024), so a restart forgets them. Prefer the transport route above, where the panel calls your API directly.
+- Serving a custom source takes one argument. `defaults.build(dataSource: MyDataSource())` in `lib/server.dart` replaces the worm source (and `storage:` replaces the resolved storage driver). See [Custom data sources](../../extending/custom-data-sources.md).
+- Filters you cannot honour are errors. A bridge-style source that supports only equality filters must throw on the rest; the query spec is Beak's full vocabulary.
+- A staged save is not atomic. It stops at the first failed or uncertain write, and the operations before it stay written. A save that touches models bound to different sources is staged too, even when each source could commit on its own.
+- The Serverpod bridge is this pattern, generated. `ServerpodResource` is a `BeakModel` that sets all five hooks from a Serverpod client. If your backend is Serverpod, start at [An existing Serverpod project](existing-serverpod-project.md).
 
 ## Verify it
 
@@ -129,8 +129,8 @@ Run the contract suite against your source, then boot the panel against it in a 
 
 ```console
 $ dart test test/my_data_source_contract_test.dart
-00:00 +29: MyDataSource satisfies the BeakDataSource contract ...
-00:00 +30: All tests passed!
+MyDataSource satisfies the BeakDataSource contract ...
+All tests passed!
 ```
 
 The test count depends on the columns you pass: without a numeric column the sum and average tests are skipped. Then `flutter test`, with your model and a fake transport behind a `BeakPanel`, checks the wiring end to end. [Testing](../../shipping/testing.md) has the harness.

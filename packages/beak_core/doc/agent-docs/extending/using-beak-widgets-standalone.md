@@ -27,13 +27,13 @@ $ beak init --example
   created lib/admin_main.dart
   created lib/resources/notes/models/note.dart
   created lib/resources/notes/note_resource.dart
-  created .gitignore
+  updated .gitignore
   1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
   generated  6 of 6 files
   agents     AGENTS.md created · CLAUDE.md created · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 
   next:
-    beak make:resource Product --fields name:string!
+    beak migrate
     beak dev
     flutter run -d chrome -t lib/admin_main.dart
 ```
@@ -229,10 +229,10 @@ Pump the widget the way Beak does: inside `OiApp`, over `InMemoryBeakDataSource`
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/panel/beak_panel_test.dart --plain-name "host router owns authentication"
-00:00 +0: generated routes host router owns authentication and the app root
-00:00 +1: All tests passed!
+generated routes host router owns authentication and the app root
+All tests passed!
 $ flutter test test/src/blocks/beak_metric_block_test.dart
-00:00 +23: All tests passed!
+All tests passed!
 ```
 
 For the second-entrypoint route, `beak doctor` checks that the entrypoint lists every resource class and that the generated files are current:
@@ -243,6 +243,7 @@ $ beak doctor
   OK   beak.yaml parses
   OK   discovered 1 model · 1 resource class · screens and overrides not applicable (lib/admin_main.dart is authored)
   OK   lib/admin_main.dart lists every resource class
+  OK   migrations import files that exist
   OK   generated files up to date
   ...
 All checks passed.

@@ -8,7 +8,7 @@ You write no controllers, no route table and no request parsing. `beak prepare` 
 
 ## The one rule
 
-Registering a model is all it takes to get its API. In a project that means a schema class and a `beak prepare`, and there is no second step where you declare routes. `beakApiRouter` walks the registry and mounts one resource router per model under `/api/{table}`, so the surface is a pure function of what you registered:
+Registering a model is all it takes to get its API. In a project that means a schema class and a `beak prepare`, and there is no second step where you declare routes. `beakApiRouter` walks the registry and mounts one `beakResourceRouter` (below) per model under `/api/{table}`, so the surface is a pure function of what you registered:
 
 ```dart title="packages/beak_backend/lib/src/endpoints/beak_resource_router.dart"
 Router beakResourceRouter(
@@ -24,15 +24,16 @@ Router beakResourceRouter(
     registry: registry,
     maxPerPage: maxPerPage,
   );
-  Response requireGraph(Request request) => throw const BeakValidationException(
-    'This resource must be saved through a graph commit.',
-  );
-  Response requireGraphId(Request request, String id) => requireGraph(request);
-  Response requireGraphRelation(
-    Request request,
-    String id,
-    String relationKey,
-  ) => requireGraph(request);
+  Response closedCreate(Request request) =>
+      handlers.requireGraph(request, BeakDirectWrite.create);
+  Response closedUpdate(Request request, String id) =>
+      handlers.requireGraph(request, BeakDirectWrite.update, id);
+  Response closedDelete(Request request, String id) =>
+      handlers.requireGraph(request, BeakDirectWrite.delete, id);
+  Response closedRestore(Request request, String id) =>
+      handlers.requireGraph(request, BeakDirectWrite.restore, id);
+  Response closedRelation(Request request, String id, String relationKey) =>
+      handlers.requireGraph(request, BeakDirectWrite.update, id);
   return Router()
     ..get('/capabilities', handlers.capabilities)
     ..post('/query', handlers.query)
@@ -40,18 +41,18 @@ Router beakResourceRouter(
     ..post('/aggregate', handlers.aggregate)
     ..post('/summary', handlers.summary)
     ..post('/batch', handlers.batch)
-    ..post('/', graphOnly ? requireGraph : handlers.create)
+    ..post('/', graphOnly ? closedCreate : handlers.create)
     ..get('/<id>', handlers.getOne)
-    ..patch('/<id>', graphOnly ? requireGraphId : handlers.update)
-    ..delete('/<id>', graphOnly ? requireGraphId : handlers.delete)
-    ..post('/<id>/restore', graphOnly ? requireGraphId : handlers.restore)
+    ..patch('/<id>', graphOnly ? closedUpdate : handlers.update)
+    ..delete('/<id>', graphOnly ? closedDelete : handlers.delete)
+    ..post('/<id>/restore', graphOnly ? closedRestore : handlers.restore)
     ..post(
       '/<id>/relations/<relationKey>/attach',
-      graphOnly ? requireGraphRelation : handlers.attach,
+      graphOnly ? closedRelation : handlers.attach,
     )
     ..post(
       '/<id>/relations/<relationKey>/detach',
-      graphOnly ? requireGraphRelation : handlers.detach,
+      graphOnly ? closedRelation : handlers.detach,
     );
 }
 ```

@@ -140,7 +140,7 @@ Three details are worth knowing before you run it.
 - **The `insert` helper.** It looks the id up and returns when the row exists. Run the seeder again and it fills in what is missing and leaves everything else alone, including an edit a teammate made in the panel.
 - **`_stored`.** A seeder writes below the panel: nothing validates the row, nothing fills a default, nothing converts money. The price column stores integer units, so `_stored(ProductModel.price, '12.50')` encodes the amount the way the API would and writes `1250`.
 
-The seeder lives in `lib/seeders/`, which is how `beak prepare` finds it and registers it in the generated server wiring. That is the `1 of 7 files` in the next output. There is nothing for you to register.
+The seeder lives in `lib/seeders/`, which is how `beak prepare` finds it and registers it in the generated server wiring. That is the `1 of 8 files` in the next output. There is nothing for you to register.
 
 ## Rebuild the database
 

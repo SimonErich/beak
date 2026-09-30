@@ -108,7 +108,7 @@ Stored values are the Dart names, so renaming an enum value is a data migration.
 
 | You want | Do this |
 | --- | --- |
-| The state changes only through business commands | Declare a `BeakModelAction` per transition and leave the field out of the form. The server refuses a direct write with `This field is controlled by the record workflow.` See [A row action](a-row-action.md). |
+| The state changes only through business commands | Declare a `BeakModelAction` per transition whose `values` set the field. The server then refuses a direct edit of it with `This field is controlled by the record workflow.` See [A row action](a-row-action.md). |
 | One list tab per state | Give the list a `BeakQueryPreset` per value, see [Composed lists](../panel/composed-lists.md). |
 | A board with one column per state | [A kanban view](a-kanban-view.md) reads the same enum, in declaration order, with the same labels and colours. |
 | A stepper of the states in the form | `BeakFormProgress` over the enum field, see [Screens and form layouts](../reference/screens-and-layouts.md). |
@@ -122,9 +122,9 @@ Both halves are covered by package tests: the column (labels, colours, default, 
 
 ```console
 $ cd packages/beak_core && dart test test/src/columns/beak_enum_column_test.dart
-00:00 +11: All tests passed!
+All tests passed!
 $ cd packages/beak_frontend && flutter test test/src/table/column_cell_renderer_test.dart --plain-name 'enum badges'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 In your own project, `beak prepare` followed by a look at the generated `*.beak.dart` shows whether the labels and colours arrived. A missing one means the annotation is on the wrong field or its map keys belong to a different enum.

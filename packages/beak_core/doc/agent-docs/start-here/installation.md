@@ -81,7 +81,7 @@ The files are written, so nothing is lost, but the project is not resolved. Tell
 | `--beak-path <repo root>` | Writes a `path:` dependency on `<repo root>/packages/beak`. | You have a checkout, which is the case after the clone above. |
 | `--beak-ref <ref>` | Keeps the git dependency, pinned to a branch, tag or commit. | The ref exists on `github.com/SimonErich/beak`. |
 
-The argument of `--beak-path` is the root of the checkout. The CLI appends `/packages/beak` itself, so pointing it at `beak/packages/beak` writes a path that does not exist and `flutter pub get` fails. It also writes the path exactly as you typed it, and pub reads a relative one relative to the new project, so pass an absolute path:
+The argument of `--beak-path` is the root of the checkout. The CLI appends `/packages/beak` itself, so pointing it at `beak/packages/beak` is refused with a usage error (exit `64`) that names the `packages/beak` it expected. `beak create` and `beak init` resolve the argument against the directory you run them in and write the normalised absolute result, so a relative path works too:
 
 ```bash
 beak create acme_admin --beak-path "$PWD/beak"
@@ -98,7 +98,7 @@ Beak's panel is built on obers_ui, and `beak` pins it by git commit, not by vers
 
 ```console
 $ flutter test
-.../beak_frontend/lib/src/blocks/beak_block_host.dart:241:5: Error: No named parameter with the name 'headerGap'.
+.../beak_frontend/lib/src/blocks/beak_block_host.dart:242:5: Error: No named parameter with the name 'headerGap'.
 .../beak_frontend/lib/src/blocks/views/beak_summary_block_view.dart:226:38: Error: Member not found: 'OiIcon.raw'.
 ```
 
@@ -165,12 +165,12 @@ A schema class imports `beak.dart` and `schema.dart` and nothing else. `beak.dar
 
 ## Rules and limits
 
-- **No database step.** With no `DATABASE_URL`, the database is `beak.db` beside the project, and `beak doctor` counts that as a pass. Put `DATABASE_URL=postgres://...` in a `.env` when you want Postgres. [Databases](../backend/databases.md) covers it.
-- **Beak never changes a database on boot.** `beak migrate` applies migrations, and you run it on purpose, once per schema change.
-- **`beak create` refuses a directory that already has files.** It exits `1` and writes nothing; an empty directory is fine. To add Beak to a Flutter app you already have, use [`beak init`](paths/existing-flutter-app.md) instead.
-- **`beak prepare`, `dev` and `migrate` run from the project root.** Elsewhere they stop with `no Beak dependency here; run beak init` and write nothing.
-- **A `--beak-path` dependency is local.** The scaffold records the checkout's path, so it is a convenience for your machine and not something to commit for a team.
-- **The panel does not compile against the pinned obers_ui yet.** See [Link obers_ui](#link-obers_ui-until-the-pin-moves) above; the API and the migrations are unaffected.
+- No database step. With no `DATABASE_URL`, the database is `beak.db` beside the project, and `beak doctor` counts that as a pass. Put `DATABASE_URL=postgres://...` in a `.env` when you want Postgres. [Databases](../backend/databases.md) covers it.
+- Beak never changes a database on boot. `beak migrate` applies migrations, and you run it on purpose, once per schema change.
+- `beak create` refuses a directory that already has files. It exits `1` and writes nothing; an empty directory is fine. To add Beak to a Flutter app you already have, use [`beak init`](paths/existing-flutter-app.md) instead.
+- `beak prepare`, `dev` and `migrate` run from the project root. In a directory with a `pubspec.yaml` that does not depend on Beak they stop with `no Beak dependency here; run beak init`, and in one without a pubspec with a message that starts `no pubspec.yaml here`. Both exit `1` and write nothing.
+- A `--beak-path` dependency is local. The scaffold records the checkout's path, so it is a convenience for your machine and not something to commit for a team.
+- The panel does not compile against the pinned obers_ui yet. See [Link obers_ui](#link-obers_ui-until-the-pin-moves) above; the API and the migrations are unaffected.
 
 ## Verify it
 
@@ -182,6 +182,7 @@ $ beak doctor
   OK   project depends on Beak
   OK   beak.yaml parses
   OK   discovered 1 model · 0 resource classes · 0 screens · 0 overrides
+  OK   migrations import files that exist
   OK   generated files up to date
   OK   every model has a migration
   OK   web/ scaffold present

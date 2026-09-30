@@ -23,7 +23,7 @@ $ dart run beak_serverpod_generator:generate --config beak_serverpod.yaml
 
 | Rule | Detail |
 | --- | --- |
-| Client class | Exported by the configured `library`, named `Client` |
+| Client class | Exported by the configured `library`, named `Client` unless the config's `client:` (or `--client`) says otherwise |
 | List endpoint | One field of `Client` whose type has a method named `list` returning `Future<Page>` |
 | Page DTO | Exactly one field of type `List<Model>` (the read model) and an integer `totalCount`. Fields `page` and `pageSize` are used when present, otherwise the requested window is kept |
 | Query DTO | The `list` parameter whose type has a `pageSize` field. It has an integer `page`, and its unnamed constructor has no required named parameter (`page` and `pageSize` carry defaults) |
@@ -64,7 +64,7 @@ Parameters may be named or positional. A `locale: String` parameter on any metho
 | `String`, `int`, `double`, `bool`, `DateTime`, `Uri`, `UuidValue` | `Map` of any kind |
 | Dart enums, resolved through their declared type | Nullable elements in an object list |
 | Nullable versions of all of these | Duplicate class names in the selected graph |
-| `List` and `Set` of a scalar | Constructors that are private, or take positional parameters |
+| `List` and `Set` of a scalar | Models without a public unnamed constructor, or whose constructor takes positional parameters |
 | Nested objects, and lists of non-nullable objects | |
 
 Flattened descriptors name nested paths: `entry.title` becomes `entryTitle`, and a path that collides with an existing property uses `__` separators. Flattening stops at a recursive type.
@@ -77,7 +77,7 @@ Each is a `FormatException`. The command prints it as `Companion generation fail
 | --- | --- |
 | `Cannot resolve library <uri> from <root>.` | The `library` does not resolve in the consumer package. Run `dart pub get` and check the URI |
 | `<uri> does not export a model named <name>.` | A name in `models` or `types` is not exported by the client library |
-| `<uri> does not export client Client.` | The library does not export a `Client` class |
+| `<uri> does not export client <name>.` | The library does not export the client class (`Client` unless configured) |
 | `<Model> needs one unambiguous Client endpoint with list(query) returning a typed page; found <n>.` | No `list`, or several, that return a page of the model |
 | `<Model> requires query page/pageSize defaults and page totalCount.` | The query DTO has a required named parameter, no `page`, or the page DTO has no integer `totalCount` |
 | `<Model> needs a typed get/getById method.` | No read method returning the model |
@@ -89,6 +89,7 @@ Each is a `FormatException`. The command prints it as `Companion generation fail
 | `Unsupported Serverpod property <path>: <type>.` | A field is a `Map` or another unsupported type |
 | `Two distinct model types are named <name>.` | Two classes with one name in the selected graph |
 | `Unsupported nested shape <type>.` | A nullable element in an object list |
+| `<Model>.<name> is not a readable field.` | A constructor parameter of a model has no public field of the same name |
 
 ## Source
 

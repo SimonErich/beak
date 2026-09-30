@@ -158,14 +158,14 @@ Renaming an enum value renames what is stored. A row written under the old name 
 
 ## Rules and limits
 
-- **The type is the discriminator.** There is no `kind:` option on `@Column`. A `BeakText` is a text area because of its type.
-- **Enums must be declared under `lib/`.** `beak prepare` collects enum declarations from your source, and an enum imported from a package is reported as an unsupported type.
-- **`double` is a floating-point number.** Its default of `NUMERIC(10, 2)` leaves eight digits before the point, which suits a weight and not a ledger. Money that has to add up is a `BeakDecimal`.
-- **Lists hold primitives.** `List<String>`, `List<int>`, `List<double>` and `List<bool>` are stored as JSON text. A list of schema objects is a relationship, see [Relationships](relationships.md).
-- **`BeakDate`, `BeakTime`, `Duration` and `BeakDecimal` share a physical column.** Raw SQL sees the stored form, such as `2026-09-29` or a count of units, not the Dart type.
-- **A `@Column` option belongs to one kind.** `precision` on a `String` is an error, and so is a semantic on a type it does not accept.
-- **Renaming a field renames its column.** Pin the old name with `columnName:` when the table already exists.
-- **`@Custom` fields are skipped by generated forms.** A custom column needs a registered renderer, see [Custom columns](../extending/custom-columns.md).
+- The type is the discriminator. There is no `kind:` option on `@Column`. A `BeakText` is a text area because of its type.
+- Enums must be declared under `lib/`. `beak prepare` collects enum declarations from your source, and an enum imported from a package is reported as an unsupported type.
+- `double` is a floating-point number. Its default of `NUMERIC(10, 2)` leaves eight digits before the point, which suits a weight and not a ledger. Money that has to add up is a `BeakDecimal`.
+- Lists hold primitives. `List<String>`, `List<int>`, `List<double>` and `List<bool>` are stored as JSON text. A list of schema objects is a relationship, see [Relationships](relationships.md).
+- `BeakDate`, `BeakTime`, `Duration` and `BeakDecimal` share a physical column. Raw SQL sees the stored form, such as `2026-09-29` or a count of units, not the Dart type.
+- A `@Column` option belongs to one kind. `precision` on a `String` is an error, and so is a semantic on a type it does not accept.
+- Renaming a field renames its column. Pin the old name with `columnName:` when the table already exists.
+- `@Custom` fields are skipped by generated forms. A custom column needs a registered renderer, see [Custom columns](../extending/custom-columns.md).
 
 ## Verify it
 

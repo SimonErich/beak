@@ -66,7 +66,7 @@ The upload service is the only caller. It validates the upload, runs image trans
 
 Three consequences follow. The filename `put` receives is minted by Beak (a generated id plus an extension), not the client's name. `delete` and `url` are never called for an absent key by the upload service, though the interface still says what to do. And nothing in the generated API calls `get` today: it is on the interface for your own code and for tests.
 
-Keys are validated, relative paths. Use `BeakStorageKeys.join` (which validates), `BeakStorageKeys.validate` and `BeakStorageKeys.appendToBaseUrl`, and throw `BeakStorageException` for a malformed key or a missing file, so no raw protocol error escapes.
+Keys are validated, relative paths with no `..`, backslash or control character, so a key can be written into a protocol command as it is. Use `BeakStorageKeys.join` (which validates), `BeakStorageKeys.validate` and `BeakStorageKeys.appendToBaseUrl`, and throw `BeakStorageException` for a malformed key or a missing file, so no raw protocol error escapes. A transport that builds commands from a key, like the FTP one, validates it again before it opens a connection.
 
 ## The smallest driver
 
@@ -257,7 +257,7 @@ ftp
 | `none` | nothing: uploads are disabled |
 | `memory` | nothing |
 | `local` | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL` |
-| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION`, optional `BEAK_S3_USE_PATH_STYLE` |
+| `s3` | `BEAK_S3_ENDPOINT`, `BEAK_S3_BUCKET`, `BEAK_S3_ACCESS_KEY`, `BEAK_S3_SECRET_KEY`, `BEAK_S3_REGION`, optional `BEAK_S3_USE_PATH_STYLE` and `BEAK_S3_PUBLIC_BASE_URL` |
 | `ftp` | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL`, optional `BEAK_FTP_PORT` |
 
 ```dart title="packages/beak_backend/lib/src/server/beak_storage_settings.dart"
@@ -274,7 +274,7 @@ Both misconfigurations fail at boot, naming the problem, and not at the first up
 
 ```console
 No storage driver is registered for "s3". Registered drivers: memory, local, ftp.
-Unsupported BEAK_STORAGE_DRIVER "gcs" — use one of s3, ftp, memory, local, none.
+Unsupported BEAK_STORAGE_DRIVER "gcs": use one of s3, ftp, memory, local, none.
 ```
 
 > **Danger: Storage credentials are secrets**
@@ -420,8 +420,8 @@ Cover at least these cases for a new driver: a malformed key is rejected before 
 ```console
 $ cd packages/beak_storage_ftp
 $ dart test test/ftp_storage_driver_test.dart
-00:00 +16: registerFtpStorage the factory rejects foreign configs
-00:00 +17: All tests passed!
+registerFtpStorage the factory rejects foreign configs
+All tests passed!
 ```
 
 Then boot the real host with the environment set and check `resolveStorageDriver()`, as the probe above does. A driver that passes its unit tests and was never registered fails there.

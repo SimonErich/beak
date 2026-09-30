@@ -33,10 +33,10 @@ Anyone can send a request to the API with `curl`. So a check that lives only in 
 | Value validity | The form runs the column rules with `BeakValidation` as you type. | `ValidationService` runs the same rules before every write. A graph commit runs them again on the final state. |
 | Uniqueness, existence of a parent | An advisory preflight through `POST /api/{table}/validate`. | Checked again inside the commit. Under concurrency, the database index has the last word. |
 | Totals, statuses, snapshots | `behavior` previews suggestions and derived values while you type. | The commit recomputes derived values in the transaction. A value the client sent for a derived field is ignored. |
-| Changing a record in a given state | `editableWhen` and `availableWhen` hide inputs and buttons. | The same predicates run against the stored record. A locked record answers 422, "The record cannot be edited in this state." |
+| Changing a record in a given state | `editableWhen` and `availableWhen` hide inputs and buttons. | The same predicates run against the stored record. A locked record is refused as an `unapplied` outcome of the commit: "The record cannot be edited in this state." |
 | Use of a resource by an account | `canCreate`, `canEdit`, `canDelete` on the `BeakResource`, and `BeakModel.permissions`. | `BeakPolicies` with `BeakModelRules`: read, write and delete per model. |
 | Row visibility | Nothing. | `rowScope`, folded into the filter of every query, aggregate, update, delete, export and commit. |
-| Field reads and writes | `GET /api/{table}/capabilities` tells the form what to offer. | Responses are redacted per field. A write to a read-only field answers 422. |
+| Field reads and writes | `GET /api/{table}/capabilities` tells the form what to offer. | Fields in `hiddenFields` are left out of responses and refused in filters and sorts. A write to a `readOnlyFields` entry answers 422. |
 | Commands | Buttons appear when the capabilities list the command. | `BeakModelRules.actions` is checked before the command runs. |
 
 The left column is convenience. Nothing in it can grant anything the right column refuses.
@@ -182,7 +182,7 @@ final BeakPolicies bookshopPolicy = BeakPolicies(
 final BeakAccess _staff = BeakAccess.role(BookshopScopes.staff.name!);
 ```
 
-Nobody can delete, because nobody was given `delete`. `BeakModelRules` also takes `rowScope`, `readOnlyFields` and `actions`, each written with typed references, never a column name.
+Nobody can delete, because nobody was given `delete`. `BeakModelRules` also takes `rowScope`, `hiddenFields`, `readOnlyFields` and `actions`, each written with typed references, never a column name.
 
 A fresh scaffold has no policy, and that is worth knowing before you deploy. `BeakServer` defaults to `BeakAllowAllPolicy`, and a project starts with no auth guard. Here is the quickstart API, unmodified:
 
@@ -191,7 +191,7 @@ $ curl -s -o /dev/null -w 'DELETE -> HTTP %{http_code}\n' -XDELETE localhost:808
 DELETE -> HTTP 204
 ```
 
-Anonymous, no token, deleted. That is right for a first run and wrong for a server anyone can reach. Pass a `BeakPolicies` to `defaults.build(policy: ...)` in `lib/server.dart` before you expose it.
+Anonymous, no token, deleted. That is right for a first run and wrong for a server anyone can reach. The server prints a warning at boot when it listens beyond loopback with this policy. Pass a `BeakPolicies` to `defaults.build(policy: ...)` in `lib/server.dart` (`beak eject server` writes that file) before you expose it.
 
 ### Hiding is presentation
 
@@ -362,7 +362,7 @@ Some limits are deliberate, and worth stating. Database indexes give the final u
 | Ship a server with the default policy | Pass a policy to `defaults.build(policy: ...)` before anyone else can reach the port |
 | Put a rule every caller must obey in a `BeakInput` | Put it on the column, in `validationRules` or in `behavior` |
 | Let the panel compute a total the server will trust | Declare it `derived` in `behavior`, or compute it in a `BeakSavePlanPreparer` |
-| Assume a hidden column is private | Use a field policy, a `readOnlyFields` entry, or leave it out of the Beak model |
+| Assume a hidden column is private | Hide it with `hiddenFields` in the model's rules, or leave it out of the Beak model |
 
 To check a server, call it the way an attacker would: with `curl`, without the panel, without a token. If it answers, the policy has a hole.
 

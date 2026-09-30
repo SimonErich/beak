@@ -15,6 +15,10 @@ Beak's panel is built on obers_ui, and obers_ui is not on pub.dev: its own pubsp
 
 ## The pin
 
+> **Warning: The current pin is behind**
+>
+> The pinned commit lacks obers_ui APIs that `beak_frontend` calls (the root `CHANGELOG.md` lists them under Known issues). `melos bootstrap` resolves, and then `flutter analyze` and every panel build fail. Until the pin moves to a pushed commit that has them, run `melos run link-obers-ui` before you touch anything that compiles the panel. The header of `.github/workflows/ci.yaml` names the CI jobs that stay red for the same reason.
+
 Two pubspecs declare the dependency: `packages/beak_frontend`, which builds the panel on it, and `packages/beak`, whose `ui.dart` and `charts.dart` re-export it. No example declares it. A project reaches `OiIcons` and the rest of the widget set through `package:beak/ui.dart`, so it never adds an obers_ui dependency of its own.
 
 Each pubspec declares three packages from one repository. Only the `ref` lines are elided below:
@@ -121,10 +125,10 @@ If a Beak screen exposes a missing component behavior, fix it in obers_ui and ad
 
 ## Rules and limits
 
-- **The override files are git-ignored, the lockfiles are not.** `pubspec_overrides.yaml` never reaches a commit. The `pubspec.lock` of `examples/clean_beak_config`, `examples/foodio-adminpanel` and `examples/showcase` is tracked, and `pub get` writes the linked state into it while you are linked, so `path: "../../../obers_ui"` can ride along in a commit. Before you commit, run `melos run unlink-obers-ui` and then `git grep -ln 'path: "../../../obers_ui' -- '*pubspec.lock'`. It prints nothing when every tracked lockfile records the pin.
-- **A link is per checkout.** Unlink before you tag a release, and before you compare behavior against CI, which always uses the pin.
-- **`link-obers-ui` needs the sibling folder to be named `obers_ui`.** The path is `../obers_ui`, relative to the Beak root, and there is no option to change it.
-- **The Serverpod workspace has its own resolution.** `examples/serverpod` is outside melos, so `melos bootstrap` does not resolve it. The link tool still writes its root overrides, and its README asks you to link once before running `dart pub get` there.
+- The override files are git-ignored, the lockfiles are not. `pubspec_overrides.yaml` never reaches a commit. The `pubspec.lock` of `examples/clean_beak_config`, `examples/foodio-adminpanel` and `examples/showcase` is tracked, and `pub get` writes the linked state into it while you are linked, so `path: "../../../obers_ui"` can ride along in a commit. Before you commit, run `melos run unlink-obers-ui` and then `git grep -ln 'path: "../../../obers_ui' -- '*pubspec.lock'`. It prints nothing when every tracked lockfile records the pin.
+- A link is per checkout. Unlink before you tag a release, and before you compare behavior against CI, which always uses the pin.
+- `link-obers-ui` needs the sibling folder to be named `obers_ui`. The path is `../obers_ui`, relative to the Beak root, and there is no option to change it.
+- The Serverpod workspace has its own resolution. `examples/serverpod` is outside melos, so `melos bootstrap` does not resolve it. The link tool still writes its root overrides, and its README asks you to link once before running `dart pub get` there.
 
 ## Verify it
 
@@ -135,7 +139,7 @@ dart test test/obers_ui_pin_test.dart
 ```
 
 ```text
-00:00 +14: All tests passed!
+All tests passed!
 ```
 
 While linked, the overrides are in place and point at the checkout:

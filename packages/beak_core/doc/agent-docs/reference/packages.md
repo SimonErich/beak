@@ -101,7 +101,7 @@ The pinned Serverpod CLI is `tool/serverpod_cli_4`: a package that depends on `s
 
 ## Dependency graph
 
-Read from each `pubspec.yaml`'s `dependencies:` section. Third-party packages are left out. Dotted arrows are `dev_dependencies`.
+Read from each `pubspec.yaml`'s `dependencies:` section. Third-party packages are left out. Dotted arrows are `dev_dependencies`; only `beak_serverpod_generator` has any that matter here, and the test-only ones (`beak_test` in `beak_backend` and `beak_frontend`, `beak_storage_s3` in `beak_backend`) are omitted.
 
 ```mermaid
 flowchart TD

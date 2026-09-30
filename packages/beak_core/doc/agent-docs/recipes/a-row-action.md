@@ -183,7 +183,7 @@ test(
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/shop_api_test.dart --plain-name 'invoice named actions'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 The panel half, a presentation referring to its command by object and a form screen submitting with it, is in the frontend package:
@@ -191,7 +191,7 @@ The panel half, a presentation referring to its command by object and a form scr
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/pages/model_action_references_test.dart
-00:01 +4: All tests passed!
+All tests passed!
 ```
 
 ## Continue reading

@@ -90,7 +90,7 @@ Every block that shows data reads the panel's data source, so it works inside a 
 | field, field group | the nearest `BeakRecordScope` | not applicable |
 | `BeakRelationBlock` | the scope, then the relation's rows | yes |
 
-A panel's `refreshPolicy` makes the "yes" rows fetch on a timer as well. The "no" rows keep what they loaded until the screen is built again. Each page under this section says what its blocks do when a request fails, which for several of them is nothing at all.
+A panel's `refreshPolicy` makes the "yes" rows fetch on a timer as well. The "no" rows keep what they loaded until the screen is built again. Every block that fetches shows a failed request as an error with a Retry button, so an error is never passed off as an empty result. Each page under this section says what stays on screen while the error shows.
 
 ## Spans
 

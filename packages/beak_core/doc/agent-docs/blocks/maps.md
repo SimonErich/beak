@@ -68,12 +68,12 @@ The credit text is not a parameter of the block. It stays "© OpenStreetMap cont
 
 ## Rules and limits
 
-- **Same silence as charts.** Neither block has a loading or error state. Both refetch after a write, and a failed request leaves the map empty.
-- **The query decides the rows.** 25 by default, and there is no server-side aggregation. For a country total, aggregate first.
-- **The tile map needs the network** to get its tiles. The choropleth draws from bundled geometry and works offline.
-- **One value per pin.** Every pin has the same weight; the block does not size pins by a column. If you need bubbles, use a [bubble chart](charts.md) or a summary.
-- **Heights are fixed.** `heightInPixels` is 320 for the choropleth and 360 for the tile map, and both sit inside a card that carries `title`.
-- **Not a geocoder.** Rows need coordinates or a country code. Nothing converts addresses.
+- Same states as charts. Neither block has a loading state. A failed request keeps the last map on screen and shows an error line above it with a Retry button (the server's message for a domain failure, the panel's generic sentence for an infrastructure one). Both refetch after a write.
+- The query decides the rows. 25 by default, and there is no server-side aggregation. For a country total, aggregate first.
+- The tile map needs the network to get its tiles. The choropleth draws from bundled geometry and works offline.
+- One value per pin. Every pin has the same weight; the block does not size pins by a column. If you need bubbles, use a [bubble chart](charts.md) or a summary.
+- Heights are fixed. `heightInPixels` is 320 for the choropleth and 360 for the tile map, and both sit inside a card that carries `title`.
+- Not a geocoder. Rows need coordinates or a country code. Nothing converts addresses.
 
 ## Verify it
 
@@ -83,9 +83,9 @@ The Aviary builds both maps on its Maps page, with fixture rows:
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:04 +7: Maps renders
+Maps renders
 ...
-00:05 +12: All tests passed!
+All tests passed!
 ```
 
 The habitats it maps have six different countries, so each shades once:

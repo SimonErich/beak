@@ -240,10 +240,10 @@ A suite that needs Postgres or MinIO goes in `test/e2e/`, opens with `@Tags(['e2
 
 | Suite | Needs | With the service down |
 | --- | --- | --- |
-| `packages/beak_backend/test/e2e/postgres_integration_test.dart` | Postgres | skips with a message |
+| The `postgres_*_test.dart` files in `packages/beak_backend/test/e2e/` | Postgres | skip with a message |
 | `packages/beak_backend/test/e2e/upload_s3_integration_test.dart` | MinIO | skips with a message |
 | `packages/beak_storage_s3/test/e2e/s3_minio_integration_test.dart` | MinIO | skips with a message |
-| `packages/beak_cli/test/e2e/round_trip_test.dart` | Postgres | fails |
+| `packages/beak_cli/test/e2e/round_trip_test.dart`, `postgres_introspection_test.dart` | Postgres | skips with a message |
 | `packages/beak_cli/test/e2e/adopt_existing_schema_test.dart`, `evolvability_test.dart`, `init_embedded_test.dart` | Flutter tooling, SQLite | none needed, but slow |
 
 [Dev infrastructure](dev-infrastructure.md) starts the stack and explains the ports.
@@ -267,12 +267,12 @@ const Map<String, int> thresholdOverridesPct = {
 
 ## Rules and limits
 
-- **The gate reads what is on disk.** Pure Dart packages keep an old `lcov.info` and the check reuses it. Delete `packages/*/coverage` and `examples/*/coverage` before `melos run test` if you want fresh numbers.
-- **One fresh adapter per backend test.** Build the in-memory database in `setUp`, register the schema up front, call `tearDown(Worm.reset)`. Reach for `SqliteAdapter.memory()` only when a test needs raw SQL.
-- **Seed anything random.** `Worm.seedRandom(42)` and an injected `now` keep ids and timestamps stable.
-- **The umbrella reports no lines.** `packages/beak` re-exports and instruments nothing, so its floor passes on zero lines and its tests guard the export lists instead.
-- **`examples/serverpod` is outside melos.** Its tests run by hand from the workspace, as its README describes, and no CI job runs them.
-- **Fakes must stay honest.** A fake that returns what the test wants proves the test. Extend `InMemoryBeakDataSource` when a behavior is missing, and add it to the contract.
+- The gate reads what is on disk. Pure Dart packages keep an old `lcov.info` and the check reuses it. Delete `packages/*/coverage` and `examples/*/coverage` before `melos run test` if you want fresh numbers.
+- One fresh adapter per backend test. Build the in-memory database in `setUp`, register the schema up front, call `tearDown(Worm.reset)`. Reach for `SqliteAdapter.memory()` only when a test needs raw SQL.
+- Seed anything random. `Worm.seedRandom(42)` and an injected `now` keep ids and timestamps stable.
+- The umbrella reports no lines. `packages/beak` re-exports and instruments nothing, so its floor passes on zero lines and its tests guard the export lists instead.
+- `examples/serverpod` is outside melos. Its tests run from the workspace, as its README describes, and by the `serverpod-example` and `serverpod-admin` CI jobs, not by `melos run test`. The server's `test/integration` suites start an embedded Postgres, and they need `config/passwords.yaml` copied from the committed example first.
+- Fakes must stay honest. A fake that returns what the test wants proves the test. Extend `InMemoryBeakDataSource` when a behavior is missing, and add it to the contract.
 
 ## Verify it
 
@@ -284,7 +284,7 @@ dart test test/src/query/beak_query_spec_test.dart
 ```
 
 ```text
-00:00 +30: All tests passed!
+All tests passed!
 ```
 
 A Flutter package takes `flutter test` and the same path:
@@ -295,7 +295,7 @@ flutter test test/src/table/beak_data_table_test.dart
 ```
 
 ```text
-00:02 +20: All tests passed!
+All tests passed!
 ```
 
 Then check the floors. Delete stale reports, run the tests, run the gate:

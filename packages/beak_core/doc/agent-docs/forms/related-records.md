@@ -505,7 +505,7 @@ filters: [
 ],
 ```
 
-The first tab computes its scope from the draft (`filterBuilder`), so it lists the dishes on the selected profile's menu plan for the delivery day, and the last facet filters locally (`matches`, which needs `maxOptions`). The model's eligibility and the base `options` query stay authoritative: a filter can only narrow. Rows already staged survive paging, searching and filtering.
+The first tab computes its scope from the draft (`filterBuilder`), so it lists the dishes on the selected profile's menu plan for the delivery day, and the "Without allergen" facets filter locally (`matches`, which needs `maxOptions`). The model's eligibility and the base `options` query stay authoritative: a filter can only narrow. Rows already staged survive paging, searching and filtering.
 
 `presentation` is `cards` (rich descriptions), `rows` (compact, with variant, price and quantity controls) or `checkboxes` (a small list where each check stages or removes a row). Foodio also uses the checkbox form for a dish's extras.
 

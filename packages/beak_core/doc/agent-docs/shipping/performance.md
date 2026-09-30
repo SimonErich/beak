@@ -57,7 +57,7 @@ test(
 The data source that produces those statements does the count first and the page second:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) => _read(() async {
   final BeakModel beakModel = registry.byTableOrThrow(spec.table);
   final builder = _translator.builderFor(spec, _adapter);
   final int total = await builder.count();
@@ -75,7 +75,7 @@ Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     page: spec.pagination.page,
     perPage: spec.pagination.perPage,
   );
-}
+});
 ```
 
 The panel adds the to-one loads for you. This is the function that does it, and it leaves any load you supplied alone, because yours may carry a constraint it cannot know about:
@@ -121,7 +121,7 @@ Every list query carries a paging window, whether you set one or not. The defaul
 
 Three properties follow from the design, and each has a consequence:
 
-- The server serves at most 200 rows a page (`BeakPagination.maxPerPage`). A request for 100,000 rows gets `LIMIT 200` and an envelope whose `perPage` says 200, while `total` still counts the whole filtered set. The panel's query controller still accepts up to 1,000, so a list that asks for more than 200 receives 200. Ask a summary or an aggregate for totals instead of fetching rows to add up. [Security](security.md) lists it with the other limits.
+- The server serves at most 200 rows a page (`BeakPagination.maxPerPage`). A request for 100,000 rows gets `LIMIT 200` and an envelope whose `perPage` says 200, while `total` still counts the whole filtered set. The panel's list state holds the same ceiling and refuses a larger page size, so a generated list never asks for more. Ask a summary or an aggregate for totals instead of fetching rows to add up. [Security](security.md) lists it with the other limits.
 - Paging is offset paging. Page 400 at 25 rows asks the database to skip 9,975 rows first. Deep pages get slower with depth, and Beak has no keyset (cursor) option. For an export or a scan, use the export route, which pages internally, and not a loop over deep pages.
 - Every page runs a `COUNT` over the whole filtered set. The `total` beside the pager is exact, and an exact count on a large table is work the database repeats for each page turn and each keystroke in a search box. Keep filters selective and indexed. There is no switch to turn the count off.
 
@@ -150,6 +150,14 @@ Substring search is the one place an index cannot help. `contains` and every `se
 BeakOperator.contains => pattern(
   Operator.ilike,
   '%${beakEscapeLike(_stringOperand(filter))}%',
+),
+BeakOperator.startsWith => pattern(
+  Operator.ilike,
+  '${beakEscapeLike(_stringOperand(filter))}%',
+),
+BeakOperator.endsWith => pattern(
+  Operator.ilike,
+  '%${beakEscapeLike(_stringOperand(filter))}',
 ),
 ```
 
@@ -230,7 +238,7 @@ The server compressed neither the JSON page nor the streamed CSV export that wer
 | Limit | Where it is enforced | What to do |
 | --- | --- | --- |
 | `perPage` is capped at 200 | `BeakQueryAuthorizer`, on `POST /query` | Nothing; for a lower ceiling pass `maxPerPage` to `defaults.build` |
-| Request body size is unbounded for JSON | Nowhere in Beak | Set `client_max_body_size` (nginx) or the equivalent at the proxy |
+| A JSON request body is read up to 16 MiB | `readJsonObject`, which answers a larger body with 413 | Set `client_max_body_size` (nginx) or the equivalent at the proxy, well under 16 MiB; a body under the cap is still read into memory whole |
 | Upload size is bounded only when the column sets `maxSizeInBytes` | The upload handler, before it buffers the part | Set it on every `@Image` and `@FileField` |
 | Relation filters nest at most 16 levels, summaries carry 1 - 8 measures | The translator and `BeakSummarySpec` | Nothing to do, these are guards |
 | Exact `total` on every list page | `WormDataSource.query` | Selective, indexed filters; keep tables you page deeply narrow |

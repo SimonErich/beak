@@ -74,6 +74,7 @@ Resolving dependencies...
 ...
 Changed 142 dependencies!
   0 models · 0 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  no models yet: add a @Resource class under lib/, or run `beak make:resource Product`, then `beak prepare` again
   generated  4 of 5 files
   agents     AGENTS.md updated · docs Beak 0.9.0, .dart_tool/beak/docs/ai-index.md
 
@@ -278,8 +279,11 @@ $ beak dev
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
+warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, so every route answers every caller and CORS admits any origin. Pass a BeakPolicy to defaults.build(policy: ...), or set HOST=127.0.0.1 to keep it on this machine.
 listening on http://0.0.0.0:8080
 ```
+
+The `warning` is expected: no policy restricts the API yet. Chapter 6 adds one.
 
 `beak dev` regenerates the wiring, serves the API and prints the line that starts the panel. It does not start the panel itself, because a dev server that proxies `flutter run`'s console is one more thing to break. It also does not watch for changes: after you edit a schema, stop it, run `beak migrate` and start it again.
 

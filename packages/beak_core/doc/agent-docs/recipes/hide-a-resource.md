@@ -96,7 +96,7 @@ The generator side has a test: with `hidden: true` the panel config lists no res
 ```console
 $ cd packages/beak_cli
 $ dart test test/src/commands/prepare_command_test.dart --plain-name 'a hidden resource'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 The panel side is easy to check by hand. Run the shop and open `/order_items`: the page is not found. Open a new order, and the `Products and services` table adds and edits its lines all the same. To see a hidden page's route, leave the resource in, drop it from the navigation, and open its URL: the list appears without a sidebar entry.

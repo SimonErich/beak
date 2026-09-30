@@ -42,7 +42,7 @@ A row that breaks a rule is marked and blocks the button. With a missing name in
 ## How it works
 
 - Headers default to each field's label (`Name`, `Description`). Rename one with `headers: {CategoryModel.name: 'Category'}`. Headers must match the declared ones and be unique, or the preview stops with `CSV headers must be unique declared import fields.` A column you leave out of the CSV takes the model's default.
-- Each cell is parsed with the type of its column. An empty cell is an explicit null. Numbers follow the panel's locale, so under `de_AT` money is `12,50`, and `12.50` is rejected. Enum cells hold the value's name, booleans `true` or `false`, dates ISO 8601.
+- Each cell is parsed with the type of its column. An empty cell is an explicit null. Numbers follow the panel's locale, so under `de_AT` money is `12,50` and `12.50` is rejected. The comma is also the CSV separator, so quote the cell: `"12,50"`. Enum cells hold the value's name, booleans `true` or `false`, dates ISO 8601.
 - Then the row goes through the same rules as a form: the column rules, the model's `validationRules` and its behavior. That is the code the server runs, so a row that passes here can still be refused there by a policy, and the review does not pretend otherwise.
 - `Import N records` sends one graph commit per row, each with its own `saveId` (`<batch>-<row number>`) and its own receipt. It is not one transaction: a rejected row stops the run and the earlier rows stay saved. A lost connection blocks the run until `Check interrupted save` reads the receipt, and nothing is sent twice.
 - Before the preview, the widget asks the server whether the account may write the fields. If not, it says `Some import fields are not writable by your account.` and the import button stays off.
@@ -68,7 +68,7 @@ The parser and the review have package tests: quotes, newlines, typed cells, inv
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/form/beak_import_view_test.dart
-00:00 +11: All tests passed!
+All tests passed!
 ```
 
 For the import on your own page, mount it in a widget test with an in-memory source and paste a CSV. The shop's operations screen was driven this way with the CSV above: the two rows were previewed, imported, and read back from the source as `Beans` and `Filters`. To try it by hand, run the shop (API on port 8080), open Operations, and paste the CSV into the category import.

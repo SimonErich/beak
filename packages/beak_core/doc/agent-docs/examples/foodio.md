@@ -12,7 +12,7 @@ Read this page after the shop. It is a tour of where the parts are and why they 
 | --- | --- |
 | Domain | Food ordering for companies: customers, organizations, delivery profiles and slots, dishes and menus, orders, invoices, budgets, complaints |
 | Models | 26 schema classes in `lib/models/` |
-| Resources | 14, split by team area in `lib/resources/`, plus 2 custom pages |
+| Resources | 15, split by team area in `lib/resources/`, plus 2 custom pages |
 | Panel bootstrap | Authored: `BeakPanel(config: foodioPanel())` |
 | API port | 8081, on `127.0.0.1` |
 | Auth | None. A local demo with a fixed demo user and clock |
@@ -580,7 +580,7 @@ The fonts (Mona Sans and JetBrains Mono, both under the SIL Open Font License) a
 | Path | Role |
 | --- | --- |
 | `lib/main.dart` | Panel configuration: theme, formatting, navigation, notifications, refresh |
-| `lib/foodio_resources.dart` | Registration and ordering of the 14 resources |
+| `lib/foodio_resources.dart` | Registration and ordering of the 15 resources |
 | `lib/navigation.dart` | The rail, the sections, the account menu, the shell actions |
 | `lib/models/` | The 26 schema classes, with enum labels, badges and record rules |
 | `lib/resources/orders/list/` | Filters, presets, table columns, the composed list |
@@ -626,7 +626,7 @@ dart test test/foodio_money_test.dart test/foodio_behavior_test.dart test/foodio
 flutter test --concurrency=1
 ```
 
-The first command ran 43 tests, the second 101 across 16 files (2026-09-29). Both passed. The tests use isolated in-memory SQLite and never touch `foodio.sqlite`.
+Both commands pass. The tests use isolated in-memory SQLite and never touch `foodio.sqlite`.
 
 | Test file | What it proves |
 | --- | --- |

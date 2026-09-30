@@ -87,7 +87,7 @@ Future<void> executeBeakAction({
 
 In words: check permission, ask for confirmation when `requiresConfirmation` is set, run the callback, and hand a `BeakException` it throws to `onActionError` (or to an error toast when the resource has none). Any other exception propagates unchanged, because that is a bug and not a failure. The permission check runs a second time after the dialog closes, so a session that lost access while the dialog was open does not run the action. `BeakActionButton` ignores taps while its action is running, so a double click runs it once.
 
-A record action on a list row does not receive the row as the table loaded it. Beak fetches the current record first (one `getOne` for a record, one batch read for several) and hands you that, so a callback never acts on a stale copy.
+A custom record action on a list row does not receive the row as the table loaded it. Beak fetches the current record first (one `getOne` for a record, one batch read for several) and hands you that, so a callback never acts on a stale copy. The built-in view, edit, delete and archive act by id and skip the fetch.
 
 ### Two factories for common jobs
 
@@ -311,8 +311,8 @@ Nothing is saved. The Duplicate action opens the create form prefilled with the 
 
 | Value | Behavior |
 | --- | --- |
-| `BeakDeleteAction()` (default) | The row disappears at once and an undo snackbar reading `Record deleted` stays for 5 seconds. The delete reaches the data source when the window passes, then the router returns to the list. A delete the server refuses, or cannot confirm, puts the row back and shows the server's message in an error toast |
-| `BeakDeleteAction.confirmed()` | Asks first, waits for the server, then refreshes and returns to the list. No undo. A refusal keeps you on the record |
+| `BeakDeleteAction()` (default) | The row disappears at once and an undo snackbar reading `Record deleted.` (in the panel language) stays for 5 seconds. The delete reaches the data source when the window passes. Deleted from a record page, the router then returns to the list that page was opened from, with its search, filters, sort and page; deleted from a list row, the list stays where it is. A delete the server refuses, or cannot confirm, puts the row back and shows the server's message in an error toast |
+| `BeakDeleteAction.confirmed()` | Asks first, waits for the server, then refreshes and leaves the way the default delete does. No undo. A refusal keeps you on the record |
 | `BeakArchiveAction()` | The confirmed delete under the key `archive` and the label Archive. It calls the data source's delete, so what archiving means (soft delete, a status change) is the backend's decision. No restore is implied |
 
 Pick the confirmed form whenever the server owns cleanup you cannot take back, or refuses deletes in some states. Starting a second undoable delete commits the first one immediately, so the undo window is per action, not a queue.
@@ -346,24 +346,24 @@ Callbacks, confirmations, the built-in delete and the row actions of a list are 
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/actions test/src/pages/resource_actions_test.dart
-00:03 +28: All tests passed!
+All tests passed!
 ```
 
 The runner tests are the ones that pin the "never submitted twice" promise:
 
 ```console
 $ flutter test test/src/actions/beak_model_action_runner_test.dart
-00:00 +0: unknown commands recover the same save without another confirmation or dispatch
-00:00 +1: concurrent invocations coalesce and another principal cannot reuse the pending record
-00:00 +2: All tests passed!
+unknown commands recover the same save without another confirmation or dispatch
+concurrent invocations coalesce and another principal cannot reuse the pending record
+All tests passed!
 ```
 
 A resource with `canCreate`, `canEdit` and `canDelete` off loses the buttons and the write routes:
 
 ```console
 $ flutter test test/src/panel/beak_panel_test.dart --plain-name "read-only resources hide writes"
-00:00 +0: generated routes read-only resources hide writes and reject write routes
-00:01 +1: All tests passed!
+generated routes read-only resources hide writes and reject write routes
+All tests passed!
 ```
 
 The shop tests its duplication spec, including which selling identities it resets:
@@ -371,8 +371,8 @@ The shop tests its duplication spec, including which selling identities it reset
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/shop_resource_test.dart --plain-name "product duplication"
-00:00 +0: product duplication preserves catalog values and resets selling identities
-00:00 +1: All tests passed!
+product duplication preserves catalog values and resets selling identities
+All tests passed!
 ```
 
 ## Reference
@@ -448,12 +448,19 @@ final class BeakActionContext {
     return false;
   }
 
-  /// Reports a safe typed failure through the host or the default overlay.
+  /// Reports a typed failure through the host or the default overlay.
+  ///
+  /// The default overlay shows a domain failure's own message, and the
+  /// generic text for a failure that describes the deployment (see
+  /// [BeakLocalizations.errorMessage]).
   void reportError(BeakException error) {
     if (onError case final report?) {
       report(error);
     } else if (buildContext.mounted) {
-      overlays.toast(error.message, level: OiToastLevel.error);
+      overlays.toast(
+        BeakLocalizations.of(buildContext).errorMessage(error),
+        level: OiToastLevel.error,
+      );
     }
   }
 

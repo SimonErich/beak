@@ -50,7 +50,7 @@ Three costs to weigh honestly:
 
 - **Pre-1.0.** Breaking changes are normal until `1.0.0`. The changelog says so at the top, and this release removed and renamed a lot.
 - **A rough start today.** A plain `beak create` cannot resolve until the tag exists, and the panel needs a working obers_ui checkout until the pinned commit catches up. [Installation](installation.md) has the workaround. Both go away at release.
-- **Known gaps.** The changelog carries a known-issues list. [An existing database](paths/existing-database.md) adds what is untested against a legacy Postgres schema: creating rows on a serial integer key and writing a native enum column. Reads of both work, and a `numeric` column arrives as a `double` until you convert it.
+- **Known gaps.** The changelog carries a known-issues list. [An existing database](paths/existing-database.md) adds what to expect from a legacy Postgres schema: a `numeric` column arrives as a `double` until you convert it.
 
 The cheapest test is small: create the quickstart project, add the one table you care about most, and see whether the default screens are close enough to shape.
 

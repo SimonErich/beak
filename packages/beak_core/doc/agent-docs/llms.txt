@@ -89,7 +89,7 @@
 - [Data blocks](blocks/data-blocks.md): Show live numbers, tables, timelines, boards and calendars on a custom screen, and learn what each block fetches, when it refreshes and where it stops.
 - [Population summaries](blocks/summaries.md): Declare grouped, filtered totals that the server computes over the whole authorized population and show them as metrics, bars, donuts or capacity tracks.
 - [Record blocks](blocks/record-blocks.md): Show fields and related rows of one record with field, field group and relation blocks, and mount the BeakRecordScope they read from.
-- [Module blocks](blocks/module-blocks.md): Chat, inbox, file manager, media, profile, invoice, pricing and FAQ views bound to your models, and the row limits, silent failures and writes they come with.
+- [Module blocks](blocks/module-blocks.md): Chat, inbox, file manager, media, profile, invoice, pricing and FAQ views bound to your models, and the row limits, read failures and writes they come with.
 - [Charts](blocks/charts.md): Draw a query as a line, bar, pie, donut, area, radar or funnel chart, or as a bubble, candlestick or heat map, by mapping records to typed points.
 - [Maps](blocks/maps.md): Shade countries by a value with the vector map block, or pin rows by latitude and longitude on an OpenStreetMap tile map.
 - [Theming and formatting](theming/index.md): Style the panel with one theme, resolve semantic colors, set type and icons, and choose how numbers, money, dates and built-in text are written.

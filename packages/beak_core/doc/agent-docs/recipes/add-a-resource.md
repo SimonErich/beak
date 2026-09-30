@@ -6,14 +6,14 @@ You want one more section in the panel: a table, a form and a REST API for a new
 
 ## Recipe
 
-Run this in a project that `beak create` made. `--fields` takes `name:kind` pairs (`string`, `text`, `int`, `decimal`, `bool`, `datetime`), and a trailing `!` makes the field required:
+Run this in a project that `beak create` made (the outputs below come from one made with `--no-example`, so the product is its first model). `--fields` takes `name:kind` pairs (`string`, `text`, `int`, `decimal`, `double`, `bool`, `datetime`), and a trailing `!` makes the field required:
 
 ```console
 $ beak make:resource Product --fields name:string!,price:decimal!,active:bool
   created lib/resources/products/models/product.dart
   created lib/resources/products/product_resource.dart
   1 model · 1 resource class · 0 screens · 0 overrides
-  generated  8 of 9 files
+  generated  5 of 9 files
 ```
 
 The schema class is the only place the fields exist. This is what the command wrote (imports and the `part` line trimmed):
@@ -46,7 +46,7 @@ migrated  20260927_000000_beak_outbox
 migrated  20260929_121946_create_products_table
 ```
 
-The first two lines are Beak's own tables for graph-commit receipts and the effects outbox. They appear once per database.
+The first two lines are Beak's own tables for graph-commit receipts and the effects outbox. They appear once per database. A project made with the default `Note` example lists a `create_notes_table` line as well.
 
 Now the panel has to show the section. That depends on who owns `lib/main.dart`, see [Two ways to boot a panel](../start-here/generated-or-authored.md).
 
@@ -54,11 +54,11 @@ Now the panel has to show the section. That depends on who owns `lib/main.dart`,
 
 Nothing to register. `lib/main.dart` boots `BeakApp`, and `beak prepare` builds the panel from every model it finds. A `BeakResource` class replaces the default resource of the model it configures, so `ProductResource` is picked up by being there. Every other model keeps its generated default.
 
-To give a model that has only a default its own class later, `beak eject resource <table>` writes the same scaffold:
+To give a model that has only a default its own class later, `beak eject resource <table>` writes the same scaffold (here for the default project's `Note`; a model that already has a class is refused):
 
 ```console
-$ beak eject resource products
-  created lib/resources/products/product_resource.dart
+$ beak eject resource notes
+  created lib/resources/notes/note_resource.dart
 
   run `beak prepare` to wire it up
 ```
@@ -71,15 +71,15 @@ $ beak eject resource products
 $ beak make:resource Category --fields name:string!
   created lib/resources/categories/models/category.dart
   created lib/resources/categories/category_resource.dart
-  2 models · 2 resource classes · 0 screens · 0 overrides
-  generated  5 of 9 files
+  2 models · 2 resource classes · screens and overrides not applicable (lib/main.dart is authored)
+  generated  4 of 8 files
 
   lib/main.dart is yours; register the resource there:
     import 'resources/categories/category_resource.dart';
     const CategoryResource(),  // in resources: [...]
 ```
 
-Forget them and the section never appears. `beak doctor` is the safety net:
+Forget them and the section never appears. `beak doctor` is the safety net. It warns, and a warning does not fail the command:
 
 ```console
 $ beak doctor
@@ -165,6 +165,7 @@ $ beak dev
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
+warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, so every route answers every caller and CORS admits any origin. Pass a BeakPolicy to defaults.build(policy: ...), or set HOST=127.0.0.1 to keep it on this machine.
 listening on http://0.0.0.0:8080
 ```
 
@@ -201,6 +202,8 @@ $ curl -s -X POST localhost:8080/api/products/query -H 'content-type: applicatio
 The panel lists the section. This test ran in a scratch project (imports trimmed) against the authored `buildPanel` that `beak eject main` writes. A generated panel pumps `BeakApp(dataSource: source)` instead, as the scaffolded `test/widget_test.dart` does:
 
 ```dart
+// imports: package:beak/beak.dart (BeakDecimal), package:beak/testing.dart,
+// package:flutter_test, your buildPanel, buildBeakRegistry and ProductModel
 testWidgets('the products section lists a seeded product', (tester) async {
   final source = InMemoryBeakDataSource(registry: buildBeakRegistry())
     ..seed(const ProductModel(), [
@@ -218,10 +221,10 @@ testWidgets('the products section lists a seeded product', (tester) async {
 
 ```console
 $ flutter test
-00:01 +2: All tests passed!
+All tests passed!
 ```
 
-`beak doctor` ends with `All checks passed.` when the model, the migration and the registration agree.
+`beak doctor` prints no `WARN` line for the resource once the model, the migration and the registration agree. It ends with `All checks passed.` even when it warned, so read the lines above it.
 
 ## Continue reading
 

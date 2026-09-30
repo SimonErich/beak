@@ -44,9 +44,9 @@ Everything opt-in. Nothing in `melos run analyze`, `format-check`, `test` or `co
 
 | Suite or use | Needs | Runs with |
 | --- | --- | --- |
-| `packages/beak_backend/test/e2e/postgres_integration_test.dart` | Postgres | `melos run test-e2e` |
+| The `postgres_*_test.dart` files in `packages/beak_backend/test/e2e/` | Postgres | `melos run test-e2e` |
 | `packages/beak_backend/test/e2e/upload_s3_integration_test.dart`, `packages/beak_storage_s3/test/e2e/s3_minio_integration_test.dart` | MinIO | `melos run test-e2e` |
-| `packages/beak_cli/test/e2e/round_trip_test.dart` | Postgres | `melos run test-e2e` |
+| `packages/beak_cli/test/e2e/round_trip_test.dart`, `postgres_introspection_test.dart` | Postgres | `melos run test-e2e` |
 | The vendored `worm_postgres` contract suite | Postgres | `melos run test-worm`, or `melos run test-worm-postgres` alone |
 | Your own project on Postgres | Postgres | `DATABASE_URL` in the project's `.env` |
 | Reading the database in a browser | pgweb | open `http://localhost:28081` |
@@ -114,20 +114,22 @@ So copy `.env.example` into the directory you run the server from, and edit the 
 
 ## What the suites do to the database
 
-None of them migrate into the database `DATABASE_URL` names.
+None of them migrate your data, and none touch a table they did not create.
 
-- The backend Postgres suite connects and runs `SELECT 1`.
+- `postgres_integration_test.dart` connects and runs `SELECT 1`.
+- `postgres_commit_test.dart` and `postgres_outbox_test.dart` create a scratch database named `beak_commit_e2e_<microseconds>` or `beak_outbox_e2e_<microseconds>` and drop it afterwards.
+- `postgres_write_errors_test.dart` creates and drops tables prefixed `wr_`, and `postgres_legacy_schema_test.dart` a table and an enum type prefixed `e2e_`, in the database `DATABASE_URL` names.
 - The CLI round trip works in two databases of its own, `beak_round_trip_origin` and `beak_round_trip_rebuilt`, created next to `beak` on first use. It drops the `public` schema in those two at the start of each run and leaves the databases behind. It derives their names from `DATABASE_URL`, so a stray value cannot make it drop a database you care about.
 - The MinIO suites write to the bucket `beak-uploads`. The upload test deletes what it stored.
 
 ## Rules and limits
 
-- **Ports listen on the loopback interface only.** Compose publishes each on `127.0.0.1`, because the passwords are `beak` and `beaksecret`. Nothing on your network can reach the stack, and neither can a container on another machine or a phone testing the panel over Wi-Fi. To reach it from elsewhere, drop the `127.0.0.1:` prefix from that mapping and change the passwords first.
-- **`up` alone leaves no bucket.** Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
-- **Three images are unpinned.** MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
-- **One suite fails instead of skipping.** The other service suites print a message and skip when nothing is listening. `round_trip_test.dart` throws, so `melos run test-e2e` without the stack fails in `beak_cli`.
-- **`e2e` also means slow.** Three CLI suites run on SQLite and need no container. They carry the tag because a real `flutter pub get` is too slow for the main gate.
-- **Project name follows the directory.** The compose project is named `beak` because the checkout folder is. A checkout in another folder gets other container and volume names.
+- Ports listen on the loopback interface only. Compose publishes each on `127.0.0.1`, because the passwords are `beak` and `beaksecret`. Nothing on your network can reach the stack, and neither can a container on another machine or a phone testing the panel over Wi-Fi. To reach it from elsewhere, drop the `127.0.0.1:` prefix from that mapping and change the passwords first.
+- `up` alone leaves no bucket. Only `createbuckets` makes `beak-uploads`. Use the `melos run up` script, not a bare `docker compose up`.
+- Three images are unpinned. MinIO, `mc` and pgweb are `latest`, so a fresh pull can change behavior under you. Postgres is pinned to major version 16.
+- `e2e` also means slow. Three CLI suites run on SQLite and need no container. They carry the tag because a real `flutter pub get` is too slow for the main gate.
+- Run `dart run packages/beak_cli/bin/beak.dart` one at a time. From a checkout, two of them started together can both build the native-assets hook and one fails with `PathNotFoundException ... .dart_tool/lib/libsqlite3.so`. It comes from `dart run` building in the shared checkout: six parallel runs of a `dart pub global activate --source path` executable all succeeded, so an installed `beak` is not affected.
+- Project name follows the directory. The compose project is named `beak` because the checkout folder is. A checkout in another folder gets other container and volume names.
 
 ## Verify it
 
@@ -146,10 +148,10 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:28081/
 melos run test-e2e
 ```
 
-With the stack up, each suite ends in a pass. Before, the backend and storage suites read `All tests skipped.` and the CLI round trip failed:
+With the stack up, each suite ends in a pass. Without it, each one skips itself with an `is unreachable` message and ends in `All tests skipped.`.
 
 ```text
-00:00 +2: All tests passed!
+All tests passed!
 ```
 
 The count differs per suite. `round_trip_test.dart` takes about 40 seconds on its own, because it introspects a schema, generates code and runs the migrations.

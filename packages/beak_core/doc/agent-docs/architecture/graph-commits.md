@@ -240,7 +240,7 @@ return await worm.adapter.transaction((adapter) async {
 });
 ```
 
-If anything before the last line fails, the transaction rolls back, pending receipt included. The service then writes a second receipt outside the transaction, with every operation `unapplied`, `reason` set to `rejected` for the operation that carried the error and `rolledBack` for the rest:
+If anything before the last line fails, the transaction rolls back, pending receipt included. The service then writes a second receipt outside the transaction (none when the policy refused the save, see below), with every operation `unapplied`, `reason` set to `rejected` for the operation that carried the error and `rolledBack` for the rest:
 
 ```dart title="packages/beak_backend/lib/src/service/beak_graph_commit_service.dart"
 final rolledBack = BeakSaveResult(
@@ -257,11 +257,21 @@ final rolledBack = BeakSaveResult(
       ),
   ],
 );
-await _insertReceipt(worm.adapter, key, encoded, hash, rolledBack);
+if (!_refusedByPolicy(rolledBack)) {
+  try {
+    await _insertReceipt(worm.adapter, key, encoded, hash, rolledBack);
+  } on UniqueConstraintException {
+    // A competing process rejected, or saved, this same request while
+    // ours ran: its verdict is the one on record.
+    final winner = await _winnerOf(worm, key, hash, principal);
+    if (winner == null) rethrow;
+    return winner;
+  }
+}
 return rolledBack;
 ```
 
-Two smaller pieces of machinery sit around that. Calls on one adapter are serialized through an in-process queue, because snapshot-based transactions would otherwise interleave. Across processes the receipt's primary key does the same job.
+Two smaller pieces of machinery sit around that. Calls on one adapter are serialized through an in-process queue, because snapshot-based transactions would otherwise interleave. Across processes the receipt's primary key does the same job, including for a rejected save: when two processes reject the same request, the receipt one of them stored stands and the other returns it.
 
 ### Preparing the graph on the server
 
@@ -513,7 +523,7 @@ if (existing != null) {
 | Same key, different content | `BeakConflictException`, HTTP `409`. |
 | Another principal, same `saveId` | A different key, so a fresh save. |
 
-A rejected atomic save is final for its `saveId`: replaying it returns the same rejection. The panel handles that by minting a new `saveId` per attempt, and a caller that scripts the route has to do the same.
+A rejected atomic save is final for its `saveId`: replaying it returns the same rejection. The panel handles that by minting a new `saveId` per attempt, and a caller that scripts the route has to do the same. A save the policy refused as a whole (every error is `authentication` or `authorization`) is the exception. It reached no data, so no receipt is stored, the same id is decided again, and `GET /api/commits/<saveId>` answers `404`. Storing one per attempt would let anyone who can reach the route fill the receipt table, and push the receipts of real saves out of a staged service's bounded store.
 
 `GET /api/commits/<saveId>` is `recover`. It reads the stored receipt and repeats nothing. It answers `404` for an id the principal never used. Replays and recoveries both re-check access: the caller needs `canView` on every table in the plan, applied records must still be inside the caller's row scope, and the receipt goes through field redaction before it is sent.
 
@@ -543,15 +553,26 @@ void registerBeakCommitRoutes(Router router, BeakGraphCommitService service) {
   });
   router.get('/api/commits/<saveId>', (Request request, String saveId) async {
     final result = await service.recover(
-      saveId,
+      _decodeSaveId(saveId),
       principal: beakPrincipal(request),
     );
     return Response.ok(jsonEncode(result.toJson()));
   });
 }
+
+/// [segment] as the client wrote it: the router hands a path segment over
+/// still percent-encoded, and a save id is any string the client minted. One
+/// that is not valid percent-encoding names no receipt.
+String _decodeSaveId(String segment) {
+  try {
+    return Uri.decodeComponent(segment);
+  } on ArgumentError {
+    throw BeakNotFoundException('No receipt for save "$segment".');
+  }
+}
 ```
 
-On the panel, a thrown transport error that cannot prove the server wrote nothing (a dropped connection, a timeout, a 5xx) becomes a receipt with every operation `unknown` and reason `responseUnavailable`, while a typed refusal (422, 413, 401, 403, 404, 409) becomes `unapplied` with the reason `rejected`, and a receipt lookup that answers 404 resolves an unknown save to `unapplied` with the reason `notReceived`. `BeakFormSession.save` then returns that receipt instead of submitting again, until `recover()` has resolved the save. When drafts are configured, the session also stores a recovery snapshot of the pending plan, so a reload knows a save was in flight. The snapshot is metadata (arguments are left out, values are reduced to a safe draft record), not a request the session can replay.
+On the panel, a thrown transport error that cannot prove the server wrote nothing (a dropped connection, a timeout, a 5xx) becomes a receipt with every operation `unknown` and reason `responseUnavailable`, while a typed refusal (422, 413, 401, 403, 404, 409) becomes `unapplied` with the reason `rejected`, and a receipt lookup that answers 404 resolves an unknown save to `unapplied` with the reason `notReceived`, unless the source keeps receipts in memory only and the page was reloaded since the save: that 404 proves nothing, so the save stays `unknown` with the reason `receiptLost`. `BeakFormSession.save` then returns that receipt instead of submitting again, until `recover()` has resolved the save. When drafts are configured, the session also stores a recovery snapshot of the pending plan, so a reload knows a save was in flight. The snapshot is metadata (arguments are left out, values are reduced to a safe draft record), not a request the session can replay.
 
 Nothing deletes receipts or outbox rows on its own. `BeakGraphCommitService` says so in its own documentation: an old idempotency key never becomes a new write. `BeakOutbox.prune` and `BeakGraphCommitService.pruneReceipts` are the two calls that delete them, and both are yours to schedule.
 
@@ -599,7 +620,7 @@ for (final op in ordered) {
 
 If the process dies between the two receipts, the operation stays `unknown` and nothing replays it. The checkpoint write is a compare-and-set on the previous result, so two processes resuming the same save collide with `This save is already being resumed elsewhere.`
 
-The price is everything that needs a transaction. A staged service refuses a plan with an `action`, any model with behavior, any validation rule that loads relations, and any `preparePlan` or `finalizePlan`, with `Graph preparation requires a transactional data source.`
+The price is everything that needs a transaction. A staged service answers a plan with an `action` with a `422`, because only a caller asks for one, and refuses any model with behavior, any validation rule that loads relations, and any `preparePlan` or `finalizePlan`, with `Graph preparation requires a transactional data source.`
 
 ### The client-side fallback
 
@@ -684,7 +705,7 @@ final claimed = await adapter.update(
 if (claimed != 1) continue;
 ```
 
-The claim sets `available_at` to now plus `leaseDuration`. A worker that dies mid-delivery leaves a `running` row that becomes eligible again when the lease runs out. A provider error puts the row back to `pending` with a longer delay, or to `failed` on the last attempt:
+The claim sets `available_at` to now plus `leaseDuration`. A worker that dies mid-delivery leaves a `running` row that becomes eligible again when the lease runs out, unless every attempt is already used, in which case the next drain marks it `failed` with `leaseExpired`. A handler that has not answered when the lease ends is treated as a failure (`timeout`). A provider error puts the row back to `pending` with a longer delay, or to `failed` on the last attempt:
 
 ```dart title="packages/beak_backend/lib/src/service/beak_outbox.dart"
 // Persist a safe category, never arbitrary provider messages/secrets.
@@ -699,9 +720,11 @@ await adapter.update(
       table.availableAtColumn:
           _now().millisecondsSinceEpoch +
           retryDelay.inMilliseconds * attempt,
-      table.lastErrorColumn: error is BeakException
-          ? error.code
-          : 'providerFailure',
+      table.lastErrorColumn: switch (error) {
+        BeakException() => error.code,
+        TimeoutException() => 'timeout',
+        _ => 'providerFailure',
+      },
     },
   ),
 );
@@ -751,7 +774,7 @@ A preparer can read and write anything the transaction can see, which is what bu
 | `WormDataSource` on an adapter without transactions | `staged` | Durable | Refused per commit |
 | Any other `BeakDataSource` | `staged` | In the service's memory, the newest 1024 | Refused when the router is built |
 
-A staged save authorizes every operation before the first write, so a refusal in operation four writes nothing. It then performs the writes through the source's ordinary CRUD calls in dependency order and stops at the first one that does not apply. There is no rollback, which is why the result says `staged`, and a rule failure in the second operation leaves the first one written. The in-memory receipts serve replay and `GET /api/commits/{saveId}` until the process restarts; after a restart the same `saveId` is a new save. A non-worm backend that wants the atomic path supplies a `DatabaseAdapter` instead (the Serverpod session adapter does, and gets the real service with real transactions).
+A staged save authorizes every operation before the first write (field and table rules, and a read of every existing record the plan names, through the caller's row scope), so a refusal in operation four writes nothing. That is the first attempt: a resumed save keeps the writes it already made and authorizes each operation still to run as it is dispatched. It then performs the writes through the source's ordinary CRUD calls in dependency order and stops at the first one that does not apply. There is no rollback, which is why the result says `staged`, and a rule failure in the second operation leaves the first one written. A write the server refused (a rule, a lookup, a constraint the database enforces, a stale version, a row scope) is `unapplied`, so the save can be sent again. Only a failure that says nothing about whether the write happened, a dropped connection for one, leaves the operation `unknown`. The in-memory receipts serve replay and `GET /api/commits/{saveId}` until the process restarts; after a restart the same `saveId` is a new save. A non-worm backend that wants the atomic path supplies a `DatabaseAdapter` instead (the Serverpod session adapter does, and gets the real service with real transactions).
 
 ## What it means for you
 
@@ -773,6 +796,8 @@ A staged save authorizes every operation before the first write, so a refusal in
 - Plan size. `saveId` up to 200 characters, up to 1000 operations, a candidate graph of up to 10,000 nodes.
 - Preparation needs a transaction. Behavior, actions, `preparePlan` and `finalizePlan` are refused on a non-transactional adapter, and `preparePlan`, `finalizePlan` and closed tables need a `WormDataSource`.
 - Field policy and derived operations. Field write access is checked for client-sent operations only.
+- Row scope on writes. A create is judged on the record it inserts and an update on the stored row with its changes applied, so an operation cannot plant a row in another owner's slice or hand one away. An update that touches no column the scope reads is not judged again. A scope the server cannot decide before writing (a relationship, a text pattern) refuses the write.
+- Dependents are judged whole. A record that only depends on one the plan changed (a rule of its own reads from it) is validated against the stored data, not through the caller's row scope, so editing a shared record does not fail because someone else's dependent is out of view. The asynchronous checks of the records the plan names ask about uniqueness over the whole table and about existence through the caller's read policy.
 - Version conflicts are receipts. They arrive as a `200` with `error.code == 'conflict'`. `409` means the `saveId` was reused with other content, or a staged save is being resumed elsewhere.
 - Malformed plans. A plan the JSON decoder rejects is a `422`, and so is one that decodes but fails `orderedOperations` (unknown field or table, duplicate id, cycle).
 - Retention. Nothing schedules a prune. `BeakOutbox.prune(adapter, olderThan:)` deletes delivered outbox rows (and failed ones with `includeFailed`). `pruneReceipts(olderThan:)` deletes receipts, but only from a table that names a `createdAtColumn`: Beak's own `_beak_commit_receipts` keeps no timestamp, so it throws for it. A pruned key is a new save or a new effect.

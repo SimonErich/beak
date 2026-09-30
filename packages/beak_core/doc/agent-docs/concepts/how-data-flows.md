@@ -114,7 +114,7 @@ A default list adds one thing you did not ask for. `beakWithToOneLoads` asks for
 The panel's spec is input, not instruction. The handler decodes it and hands it to the authorizer, which adds the row scope and checks every path against the field policy (see [Where authority lives](where-authority-lives.md)). Only then does the service see it. `WormDataSource` runs it, and this is the one spot where the beak meets the worm:
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) => _read(() async {
   final BeakModel beakModel = registry.byTableOrThrow(spec.table);
   final builder = _translator.builderFor(spec, _adapter);
   final int total = await builder.count();
@@ -132,7 +132,7 @@ Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     page: spec.pagination.page,
     perPage: spec.pagination.perPage,
   );
-}
+});
 ```
 
 `builderFor` turns each part of the spec into a call on worm's query builder, in a fixed order. The translator works from `BeakModel` metadata and the registry, so one code path serves every model:
@@ -161,6 +161,12 @@ QueryBuilder<WormRecordModel> builderFor(
       descending: sort.descending,
     );
   }
+  // Rows that tie on the sort key have no order of their own, so two pages
+  // of one query could each hold a row, or neither: the key breaks the tie.
+  if (spec.sorts.isNotEmpty &&
+      !spec.sorts.any((sort) => sort.columnKey == model.primaryKey.key)) {
+    builder = builder.orderBy(wormFieldForColumn(model.primaryKey));
+  }
   builder = _applyRelationLoads(builder, model, spec.relationLoads);
   builder = builder.limit(spec.pagination.perPage);
   final int offsetRows = (spec.pagination.page - 1) * spec.pagination.perPage;
@@ -177,6 +183,14 @@ The operators are Beak's own set, serialized by name, and the translator maps th
 BeakOperator.contains => pattern(
   Operator.ilike,
   '%${beakEscapeLike(_stringOperand(filter))}%',
+),
+BeakOperator.startsWith => pattern(
+  Operator.ilike,
+  '${beakEscapeLike(_stringOperand(filter))}%',
+),
+BeakOperator.endsWith => pattern(
+  Operator.ilike,
+  '%${beakEscapeLike(_stringOperand(filter))}',
 ),
 ```
 
@@ -286,7 +300,10 @@ Future<BeakSaveResult> commit(BeakSavePlan plan) => _run(() async {
   _savePlans[plan.saveId] = plan;
   _commitDepth++;
   try {
-    final result = await selected.commit(plan);
+    final result = await runZoned(
+      () => selected.commit(plan),
+      zoneValues: {_commitZoneKey: true},
+    );
     _committed(plan, result);
     return result;
   } finally {
@@ -316,7 +333,7 @@ void registerBeakCommitRoutes(Router router, BeakGraphCommitService service) {
   });
   router.get('/api/commits/<saveId>', (Request request, String saveId) async {
     final result = await service.recover(
-      saveId,
+      _decodeSaveId(saveId),
       principal: beakPrincipal(request),
     );
     return Response.ok(jsonEncode(result.toJson()));
@@ -431,6 +448,7 @@ abstract interface class BeakCommitDataSource {
 | --- | --- | --- | --- | --- |
 | Beak backend over a transactional adapter (SQLite, Postgres, MySQL, Serverpod's database) | `atomic` | yes | yes | yes |
 | Beak backend over an adapter without transactions (MongoDB) | `staged` | no | yes | no |
+| Beak backend over a `BeakDataSource` that isn't worm's | `staged` | no | no, held in server memory | no |
 | Any other `BeakDataSource`, staged by the panel (`BeakStagedCommitDataSource`) | `staged` | no | no, per session | no |
 
 ### The panel refreshes itself
@@ -540,7 +558,7 @@ Refresh is by table, not by row. It costs an extra query where a row-level patch
 ## What it means for you
 
 - Start every query from the model: `const BookModel().query(...)`, then the copy-builders with typed references. You never write a table or column string.
-- Anything with `behavior`, or whose rules read related rows, is saved through a commit only. The per-record routes answer "This resource must be saved through a graph commit." The panel's own single-record writes (a dragged board card, an inline edit, a chat message) therefore travel as one-operation commits, so they work on those models too.
+- Anything with `behavior`, or whose rules read related rows, is saved through a commit only. The per-record routes answer "This resource must be saved through a graph commit." The panel's own single-record writes (a dragged board card, a chat message) therefore travel as one-operation commits, so they work on those models too.
 - A page of results is 25 rows unless the spec says otherwise, the server always applies the limit, and it serves at most 200 rows a page. A data block over a table that can grow past that needs an explicit `perPage` of 200 or less and a sort.
 - If you write a `BeakDataSource`, implement `BeakCommitDataSource` too, or accept staged saves. The receipt's `mode` says which one you got.
 - A widget that reads data itself should call `useBeakDataRevision`, or it will show stale numbers after a save.

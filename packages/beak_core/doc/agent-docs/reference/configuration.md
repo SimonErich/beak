@@ -31,7 +31,7 @@ All variables at a glance:
 | `HOST` | `0.0.0.0` | `BeakBackendConfig.fromEnv` |
 | `WORM_ENV` | `development` | worm: migrations, seeders and the `--force` guard |
 | `BEAK_STORAGE_DRIVER` | local disk under `storage/uploads` | `BeakStorageSettings.fromEnv` |
-| `BEAK_S3_*` (6) | none | `BeakStorageSettings.fromEnv`, with `s3` |
+| `BEAK_S3_*` (7) | none | `BeakStorageSettings.fromEnv`, with `s3` |
 | `BEAK_FTP_*` (6) | none, port `21` | `BeakStorageSettings.fromEnv`, with `ftp` |
 | `BEAK_LOCAL_*` (2) | none | `BeakStorageSettings.fromEnv`, with `local` |
 | `BEAK_API_BASE_URL` | `http://localhost:8080` | the panel, as a compile-time define, not an environment variable |
@@ -53,12 +53,12 @@ The server reads its environment once, at startup, through `BeakEnv.resolve()`. 
 
 | URL | Database |
 | --- | --- |
-| `sqlite:beak.db`, `file:beak.db` | A SQLite file beside the process. The default, so a new project needs no Docker and no credentials |
+| `sqlite:beak.db`, `file:beak.db` | A SQLite file beside the process. The default, so a new project needs no Docker and no credentials. A relative path is read as written; one with a `..` (`sqlite:../legacy.db`) is resolved against the working directory |
 | `sqlite:///abs/path/beak.db` | A SQLite file at an absolute path |
 | `sqlite::memory:` | In-memory SQLite. Vanishes with the process. `serve()` applies the migrations and seeders itself, because `beak migrate` is another process |
 | `postgres://user:pass@host:5432/db`, `postgresql://...` | Postgres. The port defaults to 5432, `?sslmode=require` turns TLS on, credentials are URL-decoded, the pool holds up to 10 connections |
 
-Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm, though `beak migrate fresh` and `refresh` read it there for their `--force` guard.
+Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the process environment only. A `WORM_ENV` line in `.env` does not reach worm, though `beak migrate fresh`, `beak migrate refresh` and `beak seed` read it there, for the `--force` guard and the seeder filter.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_bootstrap.dart"
 DatabaseAdapter adapterFromUrl(Uri databaseUrl, {int poolSize = 10}) {
@@ -99,7 +99,7 @@ static const Set<String> supportedDrivers = {
 | `BEAK_FTP_PASSWORD` | `ftp` | yes | none | Login password. A secret |
 | `BEAK_FTP_BASE_DIR` | `ftp` | yes | none | The remote directory uploads are stored under |
 | `BEAK_FTP_PUBLIC_BASE_URL` | `ftp` | yes | none | The base URL stored files are served from |
-| `BEAK_FTP_PORT` | `ftp` | no | `21` | The FTP port. A value that is not an integer is `21` |
+| `BEAK_FTP_PORT` | `ftp` | no | `21` | The FTP port, 1 to 65535. Any other value stops the boot |
 | `BEAK_LOCAL_ROOT_DIR` | `local` | yes | none | The directory files are written under |
 | `BEAK_LOCAL_PUBLIC_BASE_URL` | `local` | yes | none | The URL prefix files are served from. Beak mounts a read-only route at its path, see [REST API](rest-api.md#local-files) |
 
@@ -206,8 +206,11 @@ The argument of `beakServer`: everything `BeakServeHost` resolved.
 | `middleware` | `List<Middleware>` | `[]` | Shelf middleware, after authentication and inside the error mapping |
 | `routes` | `Handler?` | `null` | Extra endpoints, tried before the generated API |
 | `corsOrigin` | `String` | `*` | The origin browsers may call from |
+| `signedUrlLifetime` | `Duration?` | one hour | How long the links the upload endpoint resolves stay valid, on drivers that sign them |
+| `maxPerPage` | `int` | `200` | The largest page a query is served; a larger request is answered at that size |
 | `onRequest` | `BeakRequestLogger?` | one line per request to stderr | Request log |
 | `onUnexpectedError` | `BeakUnexpectedErrorListener?` | error and stack to stderr | Every failure no typed exception describes |
+| `onWarning` | `BeakBootWarningListener?` | one line to stderr | The single line emitted when the server listens beyond loopback with the allow-all policy |
 | `preparePlan` | `BeakSavePlanPreparer?` | `null` | Transactional business rules for a graph commit |
 | `finalizePlan` | `BeakSavePlanFinalizer?` | `null` | Enqueues durable effects in the commit's transaction |
 | `graphOnly` | `List<BeakModel>` | `[]` | Models whose per-record write routes are closed |
@@ -399,7 +402,7 @@ Holds uploads in memory and takes no fields. For tests: `BEAK_STORAGE_DRIVER=mem
 - Configuration errors are `BeakConfigurationException` (HTTP `500`, code `configuration`) and stop the boot; see [Exceptions](exceptions.md).
 - `BeakBackendConfig.toString` and the storage configs redact secrets.
 - The Postgres pool size (10) is not configurable from the environment.
-- `WORM_ENV` comes from the process environment. `.env` does not set it.
+- `WORM_ENV` comes from the process environment for the server and for worm run directly. `beak migrate fresh`, `refresh` and `beak seed` also read it from `.env`.
 - Configuration is read once at boot. Changing a variable needs a restart.
 
 ## Source

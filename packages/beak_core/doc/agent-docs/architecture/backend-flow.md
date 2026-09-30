@@ -138,6 +138,14 @@ Middleware beakErrorMappingMiddleware({
             ..._requestIdEntry(request),
           });
         }
+        if (exception is BeakInternalException) {
+          onUnexpectedError?.call(exception, stackTrace);
+          return _jsonResponse(500, {
+            'code': exception.code,
+            'message': 'Internal server error.',
+            ..._requestIdEntry(request),
+          });
+        }
         return _exceptionResponse(exception, request);
       } catch (error, stackTrace) {
         onUnexpectedError?.call(error, stackTrace);
@@ -177,14 +185,17 @@ The body is `{code, message, fieldErrors?, requestId?}`. Validation failures car
 | `BeakAuthorizationException` | 403 | signed in, not permitted |
 | `BeakConflictException` | 409 | a stale revision, a reused save id, a uniqueness clash |
 | `BeakConfigurationException` | 500 | the server or a request is misconfigured, with its message |
-| `BeakStorageException` | 500 | a storage driver failed, with its message |
+| `BeakStorageException` | 500 | a storage driver failed; the caller gets `File storage failed.` |
+| `BeakInternalException` | 500 | a broken invariant; the caller gets `Internal server error.` and `onUnexpectedError` gets the original |
+| `BeakPayloadTooLargeException` | 413 | a JSON request body is larger than 16 MiB (`beakMaxJsonBodyInBytes`) |
+| `BeakTransportException` | 502 | an unexpected response or a failed tunnel; mainly raised on the client, but the switch is exhaustive |
 | anything else | 500 | opaque, sent to `onUnexpectedError` |
 
-Untyped failures are opaque, and so is a `BeakStorageException`, whose message quotes the system behind the driver: the caller gets `File storage failed.` and `onUnexpectedError` gets the original. The message of the other typed `500`s goes to the client as written, which is convenient for a `BeakConfigurationException`. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
+Untyped failures are opaque, and so are a `BeakStorageException`, whose message quotes the system behind the driver (the caller gets `File storage failed.`), and a `BeakInternalException` (the caller gets `Internal server error.`). `onUnexpectedError` gets the original in each case. A `BeakConfigurationException` is the one typed `500` whose message goes to the client as written, which is convenient when a request is misconfigured. [Exceptions](../reference/exceptions.md) has the full family, and [Results and errors](../concepts/results-and-errors.md) shows how the client turns the envelope back into a typed exception.
 
 ### The Handler: authorize, parse, delegate
 
-`BeakCrudHandlers` are the authorization layer, not just a router. For each request a handler consults the `BeakPolicy`, the field policy and the row scope, decodes the body into typed `beak_core` values, calls the service, and encodes the result with the fields the principal may read.
+`BeakCrudHandlers` are the authorization layer as well as the router. For each request a handler consults the `BeakPolicy`, the field policy and the row scope, decodes the body into typed `beak_core` values, calls the service, and encodes the result with the fields the principal may read.
 
 ```dart title="packages/beak_backend/lib/src/endpoints/crud_handlers.dart"
 Future<Response> create(Request request) async {
@@ -198,8 +209,8 @@ Future<Response> create(Request request) async {
   await _requireForeignReferences(request, record);
   final created = await service.create(
     record,
-    validationQuery: (spec) =>
-        service.dataSource.query(_authorizer(request).authorizeQuery(spec)),
+    scope: _scope(request),
+    validationQuery: _validationQuery(request),
   );
   return _json(201, _recordJson(request, created));
 }
@@ -207,7 +218,7 @@ Future<Response> create(Request request) async {
 
 Read the order. The policy check comes first, then the body is parsed into a `BeakRecord` (a malformed value is a `BeakValidationException`, so a `422` and never a `500`), then the write is checked against the field policy, then every foreign key is checked for visibility to this principal, and only then does the service run. The response goes through `redact` on the way out.
 
-The row scope is worth its own sentence. `_scope(request)` reads the scope once per handler and hands it to the service, which enforces it. A handler cannot forget to apply it, because no handler decides whether to. A record outside the scope answers `404`, not `403`: telling an unauthorized caller that a row exists is itself a leak.
+The row scope is worth its own sentence. `_scope(request)` reads the scope once per handler and hands it to the service, which enforces it. A handler cannot forget to apply it, because no handler decides whether to. A record outside the scope answers `404`, not `403`: telling an unauthorized caller that a row exists is itself a leak. A write is also judged on the row it leaves behind (`beakScopeAdmits` in `beak_scope_match.dart`), so a create or an update that would put a record outside the scope is a `403`: the caller already knows the values they sent, so nothing is revealed.
 
 ### The Service: validate, default, throw
 
@@ -216,9 +227,11 @@ The row scope is worth its own sentence. `_scope(request)` reads the scope once 
 ```dart title="packages/beak_backend/lib/src/service/beak_resource_service.dart"
 Future<BeakRecord> create(
   BeakRecord input, {
+  BeakFilter? scope,
   BeakValidationQuery? validationQuery,
 }) async {
   final prepared = prepareCreate(input);
+  _requireWithinScope(prepared, scope);
   await validateCandidate(prepared, validationQuery: validationQuery);
   return dataSource.create(model.table, prepared);
 }
@@ -254,15 +267,16 @@ Router beakResourceRouter(
     registry: registry,
     maxPerPage: maxPerPage,
   );
-  Response requireGraph(Request request) => throw const BeakValidationException(
-    'This resource must be saved through a graph commit.',
-  );
-  Response requireGraphId(Request request, String id) => requireGraph(request);
-  Response requireGraphRelation(
-    Request request,
-    String id,
-    String relationKey,
-  ) => requireGraph(request);
+  Response closedCreate(Request request) =>
+      handlers.requireGraph(request, BeakDirectWrite.create);
+  Response closedUpdate(Request request, String id) =>
+      handlers.requireGraph(request, BeakDirectWrite.update, id);
+  Response closedDelete(Request request, String id) =>
+      handlers.requireGraph(request, BeakDirectWrite.delete, id);
+  Response closedRestore(Request request, String id) =>
+      handlers.requireGraph(request, BeakDirectWrite.restore, id);
+  Response closedRelation(Request request, String id, String relationKey) =>
+      handlers.requireGraph(request, BeakDirectWrite.update, id);
   return Router()
     ..get('/capabilities', handlers.capabilities)
     ..post('/query', handlers.query)
@@ -270,18 +284,18 @@ Router beakResourceRouter(
     ..post('/aggregate', handlers.aggregate)
     ..post('/summary', handlers.summary)
     ..post('/batch', handlers.batch)
-    ..post('/', graphOnly ? requireGraph : handlers.create)
+    ..post('/', graphOnly ? closedCreate : handlers.create)
     ..get('/<id>', handlers.getOne)
-    ..patch('/<id>', graphOnly ? requireGraphId : handlers.update)
-    ..delete('/<id>', graphOnly ? requireGraphId : handlers.delete)
-    ..post('/<id>/restore', graphOnly ? requireGraphId : handlers.restore)
+    ..patch('/<id>', graphOnly ? closedUpdate : handlers.update)
+    ..delete('/<id>', graphOnly ? closedDelete : handlers.delete)
+    ..post('/<id>/restore', graphOnly ? closedRestore : handlers.restore)
     ..post(
       '/<id>/relations/<relationKey>/attach',
-      graphOnly ? requireGraphRelation : handlers.attach,
+      graphOnly ? closedRelation : handlers.attach,
     )
     ..post(
       '/<id>/relations/<relationKey>/detach',
-      graphOnly ? requireGraphRelation : handlers.detach,
+      graphOnly ? closedRelation : handlers.detach,
     );
 }
 ```

@@ -157,6 +157,14 @@ Middleware beakErrorMappingMiddleware({
             ..._requestIdEntry(request),
           });
         }
+        if (exception is BeakInternalException) {
+          onUnexpectedError?.call(exception, stackTrace);
+          return _jsonResponse(500, {
+            'code': exception.code,
+            'message': 'Internal server error.',
+            ..._requestIdEntry(request),
+          });
+        }
         return _exceptionResponse(exception, request);
       } catch (error, stackTrace) {
         onUnexpectedError?.call(error, stackTrace);
@@ -253,6 +261,16 @@ Future<void> refresh() async {
   }
   switch (result) {
     case BeakOk(:final value):
+      final int lastPage = math.max(
+        1,
+        (value.total + value.perPage - 1) ~/ value.perPage,
+      );
+      if (value.items.isEmpty && lastPage < _spec.value.pagination.page) {
+        // Rows were deleted from under this page (here or elsewhere), so the
+        // page no longer exists: show the last one that does, not a blank.
+        goToPage(lastPage);
+        return;
+      }
       _page.value = value;
     case BeakErr(:final error):
       _error.value = error;
@@ -327,7 +345,7 @@ container
 | `beakErrorMappingMiddleware` (server) | everything | `BeakException` to status and JSON, the rest to an opaque 500 |
 | `BeakGraphCommitService` (server) | `BeakException` inside the transaction | rolls back and answers with an `unapplied` receipt, not an HTTP error |
 | `BeakClient` (core) | HTTP error bodies | decodes `code` back into the matching `BeakException` |
-| `ModelBeakDataSource` (panel) | host exceptions | maps them with `mapException` into a `BeakException` and rethrows; it doesn't return results |
+| `ModelBeakDataSource` (panel) | host exceptions | maps them with `mapException` into a `BeakException` (a dropped connection or timeout becomes a `BeakTransportException`) and rethrows; it doesn't return results |
 | `beakRun` in `BeakResourceRepository` (panel) | `BeakException` | returns `BeakErr`; other exceptions go to `mapException` or are rethrown |
 | `BeakFormCommitRepository` (panel) | any `Exception` from a commit | returns an `unapplied` receipt for a typed refusal (422, 413, 401, 403, 404, 409) and an `unknown` one for anything that can't prove the server wrote nothing |
 

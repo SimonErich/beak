@@ -225,15 +225,15 @@ A package that only holds schema classes, and depends on `beak_core` alone, gets
 
 ## Rules and limits
 
-- **Never edit a generated file.** The header says so, `beak doctor` fails on drift, and the next `prepare` overwrites your change.
-- **Commit them.** A fresh clone compiles before any `beak` command runs, a schema change shows up in review as the diff it caused, and CI needs no Beak CLI to build the app. The three entrypoints are the exception, they are git-ignored on purpose.
-- **Reference fields through the model.** `ProductModel.price`, not `'price'`. Nothing in an application spells a column key.
-- **Some names have no shortcut.** A field named `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `sumDecimal`, `avgDecimal`, `summary`, `record`, `primaryKeyOf`, `columnsFor`, `columnByKey` or `relationshipByKey` collides with a member of `BeakModel`, so `ProductModel.count` is not emitted. Use `ProductModel.fields.count`, which always exists. A test in `beak_cli` reads `BeakModel` and fails when it gains a member this list misses.
-- **One name is refused.** A field named `record` is a `beak prepare` issue: the typed record view wraps the underlying `BeakRecord` as `record`, so a getter of that name would redeclare it. Rename the field, and pin the existing column with `@Column(columnName: 'record')` when the table already has it.
-- **Draft getters are all nullable, record getters are not.** A record getter is non-null exactly when the schema field is non-nullable. Do not paper over the difference with `!`.
-- **An unloaded relation reads as empty.** It does not throw and it does not fetch. Load it explicitly.
-- **Identifiers follow the class.** `Product` yields `ProductColumns`, `ProductModel`, `ProductRecord`. A hand-written class with one of those names will clash.
-- **One schema class per file.** Two schemas in one file share one part, and the second overwrites the first, see [Defining models](defining-models.md#where-the-file-goes).
+- Never edit a generated file. The header says so, `beak doctor` fails on drift, and the next `prepare` overwrites your change.
+- Commit them. A fresh clone compiles before any `beak` command runs, a schema change shows up in review as the diff it caused, and CI needs no Beak CLI to build the app. The three entrypoints are the exception, they are git-ignored on purpose.
+- Reference fields through the model. `ProductModel.price`, not `'price'`. Nothing in an application spells a column key.
+- Some names have no shortcut. A field named `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `sumDecimal`, `avgDecimal`, `summary`, `record`, `primaryKeyOf`, `columnsFor`, `columnByKey` or `relationshipByKey` collides with a member of `BeakModel`, so `ProductModel.count` is not emitted. Use `ProductModel.fields.count`, which always exists. A test in `beak_cli` reads `BeakModel` and fails when it gains a member this list misses.
+- One name is refused. A field named `record` is a `beak prepare` issue: the typed record view wraps the underlying `BeakRecord` as `record`, so a getter of that name would redeclare it. Rename the field, and pin the existing column with `@Column(columnName: 'record')` when the table already has it.
+- Draft getters are all nullable, record getters are not. A record getter is non-null exactly when the schema field is non-nullable. Do not paper over the difference with `!`.
+- An unloaded relation reads as empty. It does not throw and it does not fetch. Load it explicitly.
+- Identifiers follow the class. `Product` yields `ProductColumns`, `ProductModel`, `ProductRecord`. A hand-written class with one of those names will clash.
+- One schema class per file. Two schemas in one file share one part, and the second overwrites the first, see [Defining models](defining-models.md#where-the-file-goes).
 
 For an agent: after any change to a schema, resource class, screen or `beak.yaml`, run `beak prepare` and then `dart analyze`. Read `*.beak.dart` to learn a name, never to change one.
 

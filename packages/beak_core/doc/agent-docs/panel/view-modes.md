@@ -129,7 +129,7 @@ BeakBlock _calendar() => BeakCalendarBlock(
 
 Every record becomes one event. `titleField` labels it, `startField` places it and `endField` closes it. Without an end the event ends where it starts, and a record with no start is left out, because it has no place on a calendar. `allDayField` is a boolean column, and a `categoryField` that is an enum column tints each event with the badge color of its value. `mode` (`OiCalendarMode.day`, `week` or `month`) is the view it opens in, `month` by default.
 
-Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`.
+Tapping an event calls `onEventTap` with the record. Dragging one writes the new start, and the new end when `endField` is set, and then calls `onEventMove`. Events are drawn in the panel's `formatting` zone, and a drag is stored as the instant that wall-clock time names in that zone, so moving an event to another day keeps its hour.
 
 ## The timeline
 
@@ -147,7 +147,7 @@ BeakBlock _taskTimeline() => BeakCardBlock(
 );
 ```
 
-The timeline takes a whole `BeakQuerySpec`, so it is the one block here where you choose the filter, the sort and the page size yourself. Events are sorted newest first by `timeField`, and a record with no time is left out. It is read-only.
+The timeline takes a whole `BeakQuerySpec`, so it is the one block here where you choose the filter, the sort and the page size yourself. The query's own sort decides which rows are read when there are more than one page of them. The block then lists what it got newest first by `timeField`, and a record with no time is left out. It is read-only.
 
 ## Writing from a view
 
@@ -167,7 +167,8 @@ A transition that needs input, or a guard that has a name, still belongs in a mo
 | Blocks load again after a write to their table | A board or a calendar queries again when a form, an action or another block writes its table. Only a colleague's write in another browser needs a `refreshPolicy` |
 | The group field belongs to the block's model | Related fields throw when the board renders |
 | Card and event text is the stored value | Enum columns show the enum name |
-| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback |
+| A drop or a drag is one graph commit | The model's behavior and rules run. A refusal puts the card or event back, shows a toast and skips the callback. A card dropped in its own column writes nothing |
+| A failed read shows an error line | The block keeps what it drew before, shows the panel's error message above it and offers Retry. An infrastructure failure reads as the panel's generic sentence |
 | The timeline is read-only | Change the records in the table or the form |
 
 ## Verify it
@@ -176,24 +177,25 @@ The block tests build each block against a fake source, drop a card and drag an 
 
 ```console
 $ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|BeakCalendarBlock|kanban' --reporter expanded
-00:00 +0: BeakCalendarBlock maps records onto OiCalendar events
-00:00 +1: BeakCalendarBlock a row without a start is left out, not given today
-00:00 +2: BeakCalendarBlock a tap resolves back to the record; a drag persists
-00:00 +3: BeakKanbanBlock one column per enum value, records grouped
-00:00 +4: BeakKanbanBlock the group field must be an enum field of the block model
-00:00 +5: BeakKanbanBlock dropping a card persists its new group
-00:00 +6: module hardening (audit regressions) kanban fetches one full sorted page
-00:00 +7: module hardening (audit regressions) a dropped kanban card stays in its new column
-00:00 +8: module blocks read a filtered, bounded page kanban, calendar and chat send their filter
-00:00 +9: All tests passed!
+BeakCalendarBlock maps records onto OiCalendar events
+BeakCalendarBlock a row without a start is left out, not given today
+BeakCalendarBlock a tap resolves back to the record; a drag persists
+BeakCalendarBlock time zone shows an event at the panel zone and moves it by wall clock
+BeakKanbanBlock one column per enum value, records grouped
+BeakKanbanBlock the group field must be an enum field of the block model
+BeakKanbanBlock dropping a card persists its new group
+module hardening (audit regressions) kanban fetches one full sorted page
+module hardening (audit regressions) a dropped kanban card stays in its new column
+module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+All tests passed!
 ```
 
 And the planner page renders in the showcase panel, from `examples/showcase`:
 
 ```console
 $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
-00:00 +0: Planner renders
-00:01 +1: All tests passed!
+Planner renders
+All tests passed!
 ```
 
 ## Reference

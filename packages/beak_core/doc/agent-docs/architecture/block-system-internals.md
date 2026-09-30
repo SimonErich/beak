@@ -212,7 +212,7 @@ class BeakRecordScope extends InheritedWidget {
 
 #### The panel's data source
 
-Table, metric, chart, kanban, calendar and the other data blocks resolve `beakDependencies(context)<BeakDataSource>()` themselves and hold their loading and error state in hooks. The table refetches on its view model's change stream, and every other data block refetches when `useBeakDataRevision` reports a write to a table it reads. The board, calendar, chat, inbox, pricing, FAQ and file manager blocks share one hook, `_useModuleRows`, which also reports how many rows the query matched so the block can say it shows only the first page. This is the metric block's state:
+Table, metric, chart, kanban, calendar and the other data blocks resolve `beakDependencies(context)<BeakDataSource>()` themselves and hold their loading and error state in hooks. The table refetches on its view model's change stream, and every other data block refetches when `useBeakDataRevision` reports a write to a table it reads. The board, calendar, chat, inbox, pricing, FAQ and file manager blocks share one hook, `_useModuleRows`, which also reports how many rows the query matched so the block can say it shows only the first page. The chart, map, gallery, carousel, timeline and video blocks share `_useBlockRead`, which maps each answer once. Both keep the last good data when a read fails and hand the failure to `_withFailure`, which draws the generic error line and Retry above the block. This is the metric block's state:
 
 ```dart title="packages/beak_frontend/lib/src/blocks/views/beak_metric_block_view.dart"
 final dataSource = beakDependencies(context)<BeakDataSource>();
@@ -226,7 +226,7 @@ final revision = useBeakDataRevision(
 );
 ```
 
-Inside a composed list, `BeakSummaryBlock` can read the surrounding `BeakQueryScope`. Its `scope` picks the active query (the default, so totals follow the filters the reader applies), the list's base query, or none. Without a scope it runs its own summary spec.
+Inside a composed list, `BeakSummaryBlock` can read the surrounding `BeakQueryScope`. Its `scope` (`BeakSummaryScope`) picks the active query (`active`, the default, so totals follow the filters the reader applies), the list's base query (`base`), or the block's own summary spec (`standalone`). Outside a composed list it runs its own spec too.
 
 ### Where interaction state lives
 

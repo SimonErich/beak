@@ -155,7 +155,7 @@ A seeder runs in every environment unless it says otherwise, and that includes p
   Environment get environment => Environment.development;
 ```
 
-The active environment comes from `WORM_ENV`, read from the process environment only and defaulting to `development`. Here is what the flags do with two seeders, one restricted to development and one left at `all`:
+The active environment comes from `WORM_ENV`, defaulting to `development`. `beak seed` reads it from the shell over the project's `.env`, the way `beak migrate fresh` does, so a `WORM_ENV=production` line in `.env` filters the seeders too. Here is what the flags do with two seeders, one restricted to development and one left at `all`:
 
 ```console
 $ beak seed
@@ -219,7 +219,7 @@ Copy that shape for your own seeder: run it twice, change a seeded row between t
 | `beak seed` runs every eligible seeder on every call | Idempotence is your seeder's job. Nothing tracks what ran |
 | `seeded` means "ran", not "wrote" | A second run prints the same line and may add nothing |
 | Default environment is `Environment.all` | An unrestricted seeder runs in production too |
-| `WORM_ENV` is read from the process environment only | A `.env` value does not restrict a seeder. Set it where the command runs |
+| `beak seed` reads `WORM_ENV` from the shell over `.env` | It passes the value to worm as `--env`, so an explicit `--env` beats both. Running `dart run bin/migrate.dart db:seed` directly reads the shell only, and so does `beak migrate fresh --seed` |
 | `--force` ignores the environment filter | It also runs the demo seeders you restricted. Do not put it in a deploy script |
 | Seeders skip validation, defaults, ids, timestamps and behavior | Provide what a form and a service would have provided |
 | A seeder that throws stops the run | Seeders before it have already written. Wrap related rows in `adapter.transaction`, as Foodio does |

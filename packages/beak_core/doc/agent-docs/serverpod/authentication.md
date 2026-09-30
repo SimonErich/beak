@@ -196,6 +196,7 @@ await users.update(
 | --- | --- |
 | A grant takes effect on the next sign-in | Scopes are copied into a token when it is issued. The panel reads them from the token Serverpod issued at sign-in, so sign out and in again |
 | A revoke is bounded by the access-token lifetime | `revoke` revokes every token of the user, which ends the refresh tokens, so the client cannot renew. An access token issued before stays valid until it expires: 10 minutes by default (`JwtConfig.accessTokenLifetime`), 14 days for the refresh token. Shorten the access token with `JwtConfigFromPasswords(accessTokenLifetime: ...)` if that window is too long |
+| The engine repeats the gate | A session that is not signed in is a 401 and one without `beak.admin` is a 403 inside `BeakServerpodEngine` too, before any principal resolver or policy rule runs. An endpoint that forgot `with BeakAdminGate` does not open the tunnel. Keep the mixin anyway: Serverpod answers before the envelope is decoded |
 | The app-side check is convenience | `canAccessPanel` keeps a signed-in customer on the sign-in screen instead of in a shell of 403s. The gate and the policy decide every request |
 | Public registration never grants access | It is off unless `register: true`, and an account it creates holds no scope. The example turns it on so the first account can be created in the panel; a deployed admin usually leaves it off |
 | Only the email provider is tested | The adapter calls the generated email endpoint, and the script looks accounts up through `EmailIdp`. Another provider needs its own adapter |
@@ -205,7 +206,7 @@ await users.update(
 | Passwords and rate limits are Serverpod's | The panel shows `Too many sign-in attempts.` and `Invalid credentials.`; it stores no password policy of its own |
 | Keep the `serverpod*` pins identical | See [Version compatibility](versions.md) |
 
-Errors the adapter maps, as Beak's typed exceptions (the panel shows their messages, never the transport's):
+Errors the adapter maps, as Beak's typed exceptions. The panel shows the sign-in failures' own wording, and for a transport failure only the generic operation-failed text, never the transport's message:
 
 ```dart title="packages/beak_serverpod_flutter/lib/src/serverpod_auth_errors.dart"
 BeakException map(Object error, StackTrace stackTrace) => switch (error) {
@@ -233,6 +234,11 @@ BeakException map(Object error, StackTrace stackTrace) => switch (error) {
     ),
   ServerpodClientHttpException(statusCode: 403) =>
     const BeakAuthorizationException('Access denied.'),
+  ServerpodClientHttpException() ||
+  ServerpodClientNetworkException() ||
+  ServerpodClientUnknownException() => const BeakTransportException(
+    'Authentication transport failed.',
+  ),
   _ =>
     mapper?.call(error, stackTrace) ??
         const BeakConfigurationException('Authentication transport failed.'),
@@ -247,7 +253,7 @@ The adapter's tests inject generated endpoint and session fakes and cover the id
 
 ```console
 $ cd packages/beak_serverpod_flutter && flutter test
-00:00 +20: All tests passed!
+All tests passed!
 $ cd examples/serverpod/bookshop_server && dart test
 $ cd examples/serverpod/bookshop_admin && flutter test
 ```

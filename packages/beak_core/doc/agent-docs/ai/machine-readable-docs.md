@@ -8,7 +8,7 @@ For coding agents. Humans: see [Writing docs](../contributing/writing-docs.md). 
 
 - MUST prefer the bundle in `.dart_tool/beak/docs/` when it exists. It documents the Beak version the project resolved. The site documents the state of `main`, which may be newer or older than that.
 - MUST start at `ai-index.md` in the bundle, or at `/ai/index.md` on the site. Do not start from a search result.
-- NEVER load `llms-full.txt` into a context window. It is about 3.6 MB. Search it, or fetch the twin of one page.
+- NEVER load `llms-full.txt` into a context window. It is about 4 MB. Search it, or fetch the twin of one page.
 - MUST fetch a twin instead of scraping the HTML. A twin is the page as Markdown, with code included from the source files.
 - MUST read the version from `manifest.json` (`beak`) before you trust a signature, and MUST compare it with the version in `pubspec.lock`. `beak doctor` does the comparison.
 - NEVER edit anything under `.dart_tool/beak/docs/` or `packages/beak_core/doc/agent-docs/`. The first is overwritten by `beak docs`, the second by `melos run agent-docs`. Edit `docs/` and regenerate.
@@ -20,7 +20,7 @@ For coding agents. Humans: see [Writing docs](../contributing/writing-docs.md). 
 | --- | --- | --- | --- |
 | The bundle | `.dart_tool/beak/docs/` in the project, from `doc/agent-docs/` in `beak_core` | Every page as plain Markdown, plus `SUMMARY.md`, `llms.txt`, `changelog.md`, `ai-index.md` and `manifest.json` | The resolved Beak version |
 | `llms.txt` | `https://simonerich.github.io/beak/llms.txt` | The index: a title, a summary and one list of links per section | `main` at the last publish |
-| `llms-full.txt` | `https://simonerich.github.io/beak/llms-full.txt` | Every page in one file, about 3.6 MB | `main` at the last publish |
+| `llms-full.txt` | `https://simonerich.github.io/beak/llms-full.txt` | Every page in one file, about 4 MB | `main` at the last publish |
 | A Markdown twin | `https://simonerich.github.io/beak/<page path>/index.md` | One page as Markdown | `main` at the last publish |
 
 The pages themselves are `docs/**/*.md` in the repository. Those files hold `--8<--` includes that are not expanded, so read the twin or the bundle instead when you need the code.

@@ -87,10 +87,12 @@ Every rule fails as a `422` that names the rule, and the rest as the usual envel
 | Bigger than the column's `maxSizeInBytes` | `422` `Upload rejected.` with `fieldErrors.size`. The read stops as soon as the limit is passed, so the file is never buffered whole |
 | A MIME type the column does not allow | `422` `The upload "pic.png" failed validation.` with `fieldErrors.type`: `The MIME type "image/gif" is not allowed.` |
 | An image column and bytes that are not a raster image | `422` `The uploaded file is not a supported raster image (PNG, JPEG, WebP or GIF).` |
+| An image that has a valid header and damaged content (truncated, corrupt) | `422` `The uploaded file could not be decoded as an image.` |
 | Dimensions or aspect ratio outside the column's limits | `422` with `fieldErrors.dimensions` or `aspectRatio` |
-| Not `multipart/form-data`, or no `file` part | `422` `Upload requests must be multipart/form-data with a "file" field.` |
+| Not `multipart/form-data` | `422` `Upload requests must be multipart/form-data with a "file" field.` |
+| A multipart body with no `file` part | `422` `The multipart body has no "file" field.` |
 | A column that stores no file | `422` `Column "caption" of "photos" is a BeakStringColumn; uploads need a file or image column.` |
-| A key outside the column's `storagePath`, or with `..` in it | `422` `Key "other/x.png" does not belong to column "image" (expected the "photos/" prefix).` |
+| A key outside the column's `storagePath`, or with `..`, a backslash or a control character in it | `422` `Key "other/x.png" does not belong to column "image" (expected the "photos/" prefix).` |
 | A key with no stored file | `404` `No stored file "..."` |
 | The driver fails | `500` `storage` `File storage failed.` The driver's message goes to `onUnexpectedError`, not to the caller |
 
@@ -124,13 +126,13 @@ BeakStorageDriver? resolveStorageDriver() {
 }
 ```
 
-`BEAK_STORAGE_DRIVER` picks another one, and an incomplete or unknown value stops the boot with a message that names the fix:
+`BEAK_STORAGE_DRIVER` picks another one, and an incomplete or unknown value stops the boot with one line that names the fix (exit `78`, the same as any other configuration failure, see [Running the server](running-the-server.md#rules-and-limits)):
 
 ```console
 $ BEAK_STORAGE_DRIVER=s3 dart run bin/serve.dart
-BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
+error: BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
 $ BEAK_STORAGE_DRIVER=s4 dart run bin/serve.dart
-BeakConfigurationException(configuration): Unsupported BEAK_STORAGE_DRIVER "s4" — use one of s3, ftp, memory, local, none.
+error: Unsupported BEAK_STORAGE_DRIVER "s4": use one of s3, ftp, memory, local, none.
 ```
 
 The variables each driver reads:
@@ -199,7 +201,7 @@ $ curl -s -X POST localhost:8392/api/photos/image/upload -F "file=@pic.png;type=
 Without the registration, the boot fails by name:
 
 ```console
-BeakConfigurationException(configuration): No storage driver is registered for "s3". Registered drivers: memory, local.
+error: No storage driver is registered for "s3". Registered drivers: memory, local.
 ```
 
 The bucket must exist, and its policy decides whether the URL in the upload response opens. The upload returns the plain object URL. The reference stack creates its bucket with anonymous download, so those URLs open. A private bucket answers that URL with `403`. The resolve route (`GET .../upload?key=`) asks the driver for a link that expires after `signedUrlLifetime` and answers with a presigned one, so use it for a private bucket. With `BEAK_S3_PUBLIC_BASE_URL` set, for a CDN or proxy that authorizes reads, both routes answer with that public address instead.
@@ -217,10 +219,10 @@ The same shape with `beak_storage_ftp` and `registerFtpStorage(registry)`, and t
 | Rule | Consequence |
 | --- | --- |
 | The default driver is local disk with URLs built from the bind address | Fine on your machine, wrong behind a proxy. Choose the driver and its public URL explicitly |
-| Uploads are validated, not authorized by content | The MIME type and extension are what the client declared. A file column with no `allowedTypes` stores `evil.html` as `<uuid>.html`, and the local route serves it as HTML from your origin. List `allowedTypes`, and serve uploads from another origin |
-| `maxSizeInBytes` is optional | A column that sets none accepts any size. Set it on every upload column |
-| Images are decoded once, after the header checks | A small file can declare a very large bitmap, so `maxDimensions` is checked from the header, and `ImageTransformRunner` refuses anything above `maxPixelCount` (50 million pixels by default) before it allocates. The size limit counts compressed bytes |
-| The resolve route signs for one hour | On a driver that signs (S3), `GET .../upload?key=` answers with a presigned link that expires after `signedUrlLifetime` (default one hour, set with `defaults.build(signedUrlLifetime: ...)`). With `BEAK_S3_PUBLIC_BASE_URL` set, the public address is answered instead. Resolve a key again instead of storing the link. Drivers with public links (local, memory, FTP) answer with the same address every time |
+| Uploads are validated, not authorized by content | The MIME type and extension are what the client declared. A file column with no `allowedTypes` stores `evil.html` as `<uuid>.html`. The local route serves it as a download with `x-content-type-options: nosniff` and a sandboxing `content-security-policy`, so it does not run as a page, but the file is still yours to host: list `allowedTypes`, and serve uploads from another origin. Only a short plain extension (letters and digits) is kept from the client's filename; any other suffix is dropped |
+| `maxSizeInBytes` is optional, the default is 100 MiB | A column that sets none is held to 100 MiB, because the body is read into memory. Set the limit you mean on every upload column, and a larger one only where you need it |
+| Images are decoded once, after the header checks | A small file can declare a very large bitmap, so `maxDimensions` is checked from the header, and `ImageTransformRunner` refuses anything above `maxPixelCount` (50 million pixels by default) before it allocates. The size limit counts compressed bytes. Only the first frame of an animated GIF is decoded |
+| The resolve route signs for one hour | On a driver that signs (S3), `GET .../upload?key=` answers with a presigned link that expires after `signedUrlLifetime` (default one hour, set with `defaults.build(signedUrlLifetime: ...)`; S3 accepts one second to seven days, and a value outside that is held to it). With `BEAK_S3_PUBLIC_BASE_URL` set, the public address is answered instead. Resolve a key again instead of storing the link. Drivers with public links (local, memory, FTP) answer with the same address every time |
 | A storage failure is a `500` with a generic message | The caller sees `File storage failed.` and the driver's own message (which can include an endpoint or a bucket name) goes to `onUnexpectedError`. Watch that log |
 | Files outlive records | Deleting a record does not delete its files, and an abandoned upload stays. Clean up out of band |
 | An unregistered driver fails at boot | `s3` and `ftp` need a package and a `beakStorageRegistry()` before the variable can select them |

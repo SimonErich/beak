@@ -11,9 +11,9 @@ A data block goes and fetches its own rows through the panel's data source, so a
 | `BeakMetricBlock` | one aggregate (count, sum or average), plus one for `previous` | progress bar, error text with a retry button | yes |
 | `BeakSummaryBlock` | one grouped summary ([Population summaries](summaries.md)) | spinner, error card with a retry button | yes |
 | `BeakTableBlock` | pages of a model, server-side sort, filter and paging | as a resource list: a retryable error state | yes |
-| `BeakTimelineBlock` | the query you pass | none | yes |
-| `BeakKanbanBlock` | the first 200 rows of a model, or of its `filter` | a toast when a move is refused | yes |
-| `BeakCalendarBlock` | the first 200 rows of a model, or of its `filter` | a toast when a move is refused | yes |
+| `BeakTimelineBlock` | the query you pass | an error line with a retry button | yes |
+| `BeakKanbanBlock` | the first 200 rows of a model, or of its `filter` | an error line with a retry button, and a toast when a move is refused | yes |
+| `BeakCalendarBlock` | the first 200 rows of a model, or of its `filter` | an error line with a retry button, and a toast when a move is refused | yes |
 
 "A write" means a confirmed save, delete or row action that went through the panel's data source. Every block above listens for it and fetches again. With a `refreshPolicy` on the panel, the same signal also fires on an interval and when the app returns to the foreground, so they refresh on a timer too.
 
@@ -180,18 +180,19 @@ A calendar row with no readable start has no place on the calendar and is left o
 Both blocks write. Drop a card in another column and the block saves the new value of `groupField`. Drag an event and it saves the new start, and the new end when `endField` is bound. Each is one update through the panel's data source, which sends it as a graph commit, so a model that only accepts graph commits (`graphOnly`) can be moved too. The card or event stays where you dropped it once the save succeeds. Three things to know before you rely on it:
 
 - A refused move shows the reason in a toast (the server's message for a validation or permission failure, a generic line for an infrastructure one) and the item snaps back.
-- `onCardMove` and `onEventMove` are called once per confirmed move, with the record as it was before the move. A refused move does not call them.
+- `onCardMove` and `onEventMove` are called once per confirmed move, with the record as it was before the move (and, for an event, the start and end that were written). A refused move does not call them. A card dropped in its own column writes nothing and calls nothing.
 - `filter:` narrows what the block lists. A model with more matching rows than the page holds shows only the first 200, and a line beneath the block says so (`Showing the first 200 of 340.`). A chat, inbox, pricing, FAQ or file manager block takes the same `filter:` and gives the same notice.
 
 ## Rules and limits
 
-- **Fetching blocks need the panel.** They read `beakDependencies(context)<BeakDataSource>()`. Outside a `BeakPanel`, provide that scope yourself ([Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)).
-- **200 rows, no more.** Kanban, calendar, chat, inbox, pricing, FAQ and the file manager read one page of at most 200 (`BeakPagination.maxPerPage`, what the server answers with). More matching rows are not there, and a line beneath the block says how many are shown. The default page of a plain query is 25, which is why the Aviary's chart queries ask for the largest page themselves ([Charts](charts.md)).
-- **Silent load failures.** The timeline, kanban and calendar have no error state for a failed read. A failed request leaves them empty.
-- **Undated rows are left out.** A timeline row without a readable time and a calendar row without a readable start are not drawn. No date is invented for them.
-- **Aggregates are storage units.** `avg` comes back with its fraction (880.857... above) and rounding is the display's job.
-- **Metrics are separate requests.** A metric with `previous` sends two. A page with twelve metrics sends twelve, each on its own, and refreshes each after a write to its table.
-- **Sort and page inside `initialSpec` are a start.** The reader can change both in a table block. Put permanent scoping in `baseFilter`.
+- Fetching blocks need the panel. They read `beakDependencies(context)<BeakDataSource>()`. Outside a `BeakPanel`, provide that scope yourself ([Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md)).
+- 200 rows, no more. Kanban, calendar, chat, inbox, pricing, FAQ and the file manager read one page of at most 200 (`BeakPagination.maxPerPage`, what the server answers with). More matching rows are not there, and a line beneath the block says how many are shown. The default page of a plain query is 25, which is why the Aviary's chart queries ask for the largest page themselves ([Charts](charts.md)).
+- A failed read is shown. The metric replaces its number with the error text and a Retry button, the summary with an error card, the table with its error state. The timeline, the board and the calendar keep what they drew before, put the panel's error line above it and offer Retry. None of them draws an empty block as if the data were empty. A block that has not loaded anything yet stays empty under the error line.
+- Undated rows are left out. A timeline row without a readable time and a calendar row without a readable start are not drawn. No date is invented for them.
+- Times follow the panel's zone. The calendar and the timeline show a stored instant in the panel's `formatting` zone (device time by default, or `timeZoneOffsetMinutes`), and a dragged event is written back as the instant that wall-clock time names in that zone, so a drag never shifts the hour.
+- Aggregates are storage units. `avg` comes back with its fraction (880.857... above) and rounding is the display's job.
+- Metrics are separate requests. A metric with `previous` sends two. A page with twelve metrics sends twelve, each on its own, and refreshes each after a write to its table.
+- Sort and page inside `initialSpec` are a start. The reader can change both in a table block. Put permanent scoping in `baseFilter`.
 
 ## Verify it
 
@@ -201,9 +202,9 @@ Run the Aviary's page tests, which build every data block against a fixture sour
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart
 ...
-00:00 +2: Data blocks renders
+Data blocks renders
 ...
-00:05 +12: All tests passed!
+All tests passed!
 ```
 
 The fixture source cannot answer aggregates, so this proves the page builds and not that the numbers are right. For the numbers, start the Aviary API as its README describes (`dart run bin/serve.dart`, port 8082) and ask it what a metric asks:

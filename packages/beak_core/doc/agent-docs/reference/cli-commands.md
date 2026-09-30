@@ -71,9 +71,11 @@ Available commands:
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, `--help`, `--version`, a run that found nothing to do, or a `doctor` run with warnings only |
-| `1` | A generation error, a failed check, a file it refuses to replace, a `beak.yaml` it cannot read, a failed `flutter pub get`, or `agents --check` finding a change |
+| `1` | A generation error, a failed check, a file it refuses to replace, a `beak.yaml` it cannot read, a failed `flutter pub get`, `migrate fresh` or `refresh` refused in production, or `agents --check` finding a change |
 | `64` | Bad input: an unknown command, a bad option, a malformed argument. The usage text goes to stderr |
-| child's | `dev`, `migrate` and `seed` return the exit code of the process they start. Worm's own usage errors are `2` |
+| `74` | The disk refused: a folder it cannot write to, a file it cannot read. One `error:` line names the path |
+| `78` | The generated `bin/serve.dart` or `bin/migrate.dart` refused its configuration: a `PORT` that is not a number, an unusable `DATABASE_URL` or storage variable, a port already in use. One `error:` line on stderr |
+| child's | `dev`, `migrate` and `seed` return the exit code of the process they start, so `78` reaches you through them. Worm's own usage errors are `2` |
 
 The entry point maps usage errors to `64`:
 
@@ -90,7 +92,7 @@ Future<void> main(List<String> args) async {
 
 ```
 
-Errors other than usage errors, including a `beak.yaml` problem, print to stdout and exit `1`.
+A `beak.yaml` problem prints to stdout and exits `1`, and a file system error prints one `error:` line to stdout and exits `74`.
 
 ### Commands that run prepare first
 
@@ -114,7 +116,7 @@ beak create <name> [--authored] [--[no-]example] [--[no-]pub]
 | `--[no-]pub` | on | Run `flutter pub get`, then `prepare` and the agent files. `--no-pub` writes the files, prints what to run, and needs no network |
 | `--skills` | the agent folders the project has, then `claude` and `agents` | Where the workflow skills are installed: any of `claude`, `agents`, `cursor`, comma separated, or `none` |
 | `--beak-ref` | `v0.9.0` (the CLI's release tag) | The git ref the pubspec depends on |
-| `--beak-path` | none | Depend on a local checkout (`<path>/packages/beak`) instead of git. Cannot be combined with `--beak-ref` |
+| `--beak-path` | none | Depend on a local checkout (`<path>/packages/beak`) instead of git, written into the pubspec as a normalised absolute path. `<path>` is the repo root: without `packages/beak` under it the command stops. Cannot be combined with `--beak-ref` |
 
 ```console
 $ beak create shop_admin --no-example --skills claude
@@ -149,7 +151,7 @@ The sequence is fixed:
 
 The pubspec depends on one package, `beak`, by git at the release tag (or by path). The tag has to exist on the remote: while a release is untagged, `flutter pub get` fails with `Could not find git ref`, and `--beak-ref <branch>` or `--beak-path` is the way around it.
 
-Usage errors, all exit `64`: a name that is not lower_snake_case, both `--beak-ref` and `--beak-path`, an unknown `--skills` value.
+Usage errors, all exit `64`: a name that is not lower_snake_case, a name that is a Dart keyword or a package the project depends on (`beak`, `flutter`, `class`), both `--beak-ref` and `--beak-path`, a `--beak-path` with no `packages/beak` under it (for example `beak/packages/beak`, which names the package and not the repo root), an unknown `--skills` value, and any count of arguments other than one name.
 
 It refuses, with exit `1` and nothing written, when `<name>/` already exists and is not empty, or is a file. An empty directory is used. To add Beak to a project that is already there, use [`beak init`](#beak-init).
 
@@ -160,7 +162,7 @@ It refuses, with exit `1` and nothing written, when `<name>/` already exists and
 >
 > Usage: beak create <name> [--authored] [--[no-]example] [--[no-]pub] [--skills claude,agents,cursor|none] [--beak-ref <ref> | --beak-path <path>]
 > -h, --help                                  Print this usage information.
->     --beak-path=<path/to/beak>              Depend on a local Beak checkout at this path instead of git. Use it when developing Beak itself.
+>     --beak-path=<path/to/beak>              Depend on a local Beak checkout, the repo root that holds packages/beak, instead of git. Use it when developing Beak itself.
 >     --beak-ref=<ref>                        The git ref of Beak to depend on.
 >                                             (defaults to "v0.9.0")
 >     --authored                              Write a lib/main.dart the project owns, composing the panel from resource classes, instead of the generated one.
@@ -184,7 +186,7 @@ beak init [--entrypoint <path>] [--beak-ref <ref> | --beak-path <dir>]
 | --- | --- | --- |
 | `--entrypoint` | `lib/main.dart` when the app has none of its own, otherwise `lib/admin_main.dart` | The Dart file that boots the panel. Must sit directly under `lib/`. Refused when `beak.yaml` already sets a different `panel.entrypoint` |
 | `--beak-ref` | `v0.9.0` | Git ref of the dependency |
-| `--beak-path` | none | Local checkout instead of git |
+| `--beak-path` | none | Local checkout instead of git, the repo root that holds `packages/beak`. A relative path is relative to the app and is written normalised and absolute, as `beak create` does; a directory without `packages/beak` is a usage error (exit `64`) |
 | `--example` | off | Also write the `Note` schema class and `NoteResource` |
 | `--[no-]pub` | on | `flutter pub get`, `beak prepare`, the agent files |
 | `--dry-run` | off | Print what would be written |
@@ -212,7 +214,9 @@ What it writes, each step only when missing, so a second run repairs and changes
 | the entrypoint | An authored `BeakPanel(resources: [...])`. An existing file is left as it was |
 | `.gitignore` | A `# BEGIN beak` to `# END beak` block: `/bin/serve.dart`, `/bin/migrate.dart`, `/*.db*`, `/storage/`, `.env` |
 
-Then, unless `--no-pub` or `--dry-run`, it runs `flutter pub get`, `prepare` and the agent files, and prints the `flutter run -d chrome -t <entrypoint>` line. `panel.entrypoint` is what stops `prepare` from writing `lib/main.dart`, see [beak.yaml](beak-yaml.md#panel).
+Then, unless `--no-pub` or `--dry-run`, it runs `flutter pub get`, `prepare` and the agent files, and prints what to run next: `beak make:resource` unless `--example` wrote a `Note`, then `beak migrate`, `beak dev` and the `flutter run -d chrome -t <entrypoint>` line. `panel.entrypoint` is what stops `prepare` from writing `lib/main.dart`, see [beak.yaml](beak-yaml.md#panel).
+
+`beak init` takes no arguments (`64`), and `64` is also the exit for `--beak-ref` together with `--beak-path` and for an `--entrypoint` that is not a Dart file directly under `lib/`.
 
 It exits `1` for: no `pubspec.yaml`, a pubspec that is not valid YAML, a project without `flutter: sdk: flutter`, and any project that belongs to a Serverpod workspace. The message names both ways into one: [the admin app in your workspace](../serverpod/admin-app/index.md), and the [client bridge](../serverpod/bridge/index.md), which is wired by hand.
 
@@ -226,7 +230,7 @@ It exits `1` for: no `pubspec.yaml`, a pubspec that is not valid YAML, a project
 >     --entrypoint=<path>    The Dart file, directly under lib/, that boots the panel. Defaults to lib/main.dart when the app has none of its own, and lib/admin_main.dart otherwise.
 >     --beak-ref=<ref>       The git ref of Beak to depend on.
 >                            (defaults to "v0.9.0")
->     --beak-path=<dir>      Depend on a local Beak checkout at this path instead of git. Use it when developing Beak itself.
+>     --beak-path=<dir>      Depend on a local Beak checkout, the repo root that holds packages/beak, instead of git. Use it when developing Beak itself.
 >     --example              Also write a first schema class and resource, a Note.
 >     --[no-]pub             Run `flutter pub get` and `beak prepare` afterwards.
 >                            (defaults to on)
@@ -320,10 +324,11 @@ $ beak dev
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
+warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, so every route answers every caller and CORS admits any origin. Pass a BeakPolicy to defaults.build(policy: ...), or set HOST=127.0.0.1 to keep it on this machine.
 listening on http://0.0.0.0:8080
 ```
 
-The panel is not started by `beak dev`: proxying Flutter's interactive console is fragile, so you run the printed line in a second terminal. In an app with `panel.entrypoint` the line carries `-t lib/admin_main.dart`. The API is `dart run bin/serve.dart` with the terminal attached; its port comes from `PORT`, `.env` or `beak.yaml`, see [Configuration and environment](configuration.md#environment-variables). `beak dev` returns the server's exit code, and `Ctrl-C` shuts it down. A setting the host refuses (a `PORT` that is not a number, an unusable `DATABASE_URL`, a port that is already in use) ends the server with one `error:` line and exit `78`; the port message names `PORT` and `server.port`.
+The panel is not started by `beak dev`: proxying Flutter's interactive console is fragile, so you run the printed line in a second terminal. In an app with `panel.entrypoint` the line carries `-t lib/admin_main.dart`. The API is `dart run bin/serve.dart` with the terminal attached; its port comes from `PORT`, `.env` or `beak.yaml`, see [Configuration and environment](configuration.md#environment-variables). The first start in a new project compiles native code and can take about 30 seconds; when nothing listens on the port after 3 seconds, `beak dev` prints `api        still starting (the first run compiles native code, ~30 s)`. `beak dev` returns the server's exit code, and `Ctrl-C` shuts it down. A setting the host refuses (a `PORT` that is not a number, an unusable `DATABASE_URL`, a port that is already in use) ends the server with one `error:` line and exit `78`; the port message names `PORT` and `server.port`.
 
 > **Note: beak dev --help**
 >
@@ -384,7 +389,7 @@ refresh('migrate:refresh');
 | `--force` | `fresh`, `refresh` | Required when `WORM_ENV=production` |
 | `-- <args>` | any | Everything after `--` goes to worm untouched |
 
-A flag the verb does not take is a usage error (exit `64`) that names the verb it belongs to, so `beak migrate up --steps 2` says `--steps applies to `beak migrate down``, where it used to reach worm and end in worm's own usage with exit `2`.
+A flag the verb does not take is a usage error (exit `64`) that names the verb it belongs to, so `beak migrate up --steps 2` says ``--steps applies to `beak migrate down` ``, where it used to reach worm and end in worm's own usage with exit `2`.
 
 ```console
 $ beak migrate status
@@ -416,7 +421,7 @@ error: refusing to run destructive command in production without --force
 
 The first two migrations are Beak's own tables for graph-commit receipts and the outbox; they are always in the host. A batch is one `migrate` run, so `down --steps 1` above undid all three. Output from `dart run` may add a `Running build hooks...` line in front of the child's output.
 
-`WORM_ENV` selects `development` (the default), `staging`, `production` or `testing`. `beak migrate fresh` and `refresh` read it the way the server does, from the process environment over the project's `.env`, and refuse in production without `--force` with the message above. Worm's own gate, reached by running `dart run bin/migrate.dart` directly, reads the process environment only. The database comes from `DATABASE_URL`, see [Configuration and environment](configuration.md#the-server).
+`WORM_ENV` selects `development` (the default), `staging`, `production` or `testing`. `beak migrate fresh` and `refresh` read it the way the server does, from the process environment over the project's `.env`, and refuse in production without `--force` with the message above. `beak seed` resolves it the same way and hands it to worm as `--env`. Worm's own gate and seeder filter, reached by running `dart run bin/migrate.dart` directly, read the process environment only. The database comes from `DATABASE_URL`, see [Configuration and environment](configuration.md#the-server).
 
 Unknown verbs and more than one verb exit `64`. Known limit on SQLite: `migrate:refresh` cannot roll back a belongs-to column made by a create-table migration, because the foreign key is a table-level constraint. Postgres is fine.
 
@@ -445,7 +450,7 @@ beak seed [--class <SeederName>] [--env <name>] [--force] [-- <worm args>]
 | Flag | Meaning |
 | --- | --- |
 | `--class=<SeederName>` | Run only the seeder with this name |
-| `--env=<name>` | Filter seeders by this environment instead of `WORM_ENV` |
+| `--env=<name>` | Filter seeders by this environment instead of `WORM_ENV`, which `beak seed` reads from the shell over `.env` |
 | `--force` | Ignore the environment filter and run every seeder |
 
 ```console
@@ -477,7 +482,7 @@ Writes the schema class and the resource class of a new model, then runs `prepar
 beak make:resource <Name> [--fields name:kind[!],...]
 ```
 
-`Name` is `UpperCamelCase` (`^[A-Z][A-Za-z0-9]*$`).
+`Name` is `UpperCamelCase` (`^[A-Z][A-Za-z0-9]*$`), and not one the generated code needs for something else (`List`, `String`, `Resource`, `Schema`, `Migration` and the others in [Annotations](annotations.md#rules-and-limits)), which is a usage error (exit `64`).
 
 ```console
 $ beak make:resource Product --fields name:string!,price:decimal!,active:bool
@@ -496,7 +501,7 @@ It refuses, with exit `1`, when either file exists. If the panel entrypoint is a
 
 ### The `--fields` grammar
 
-A comma-separated list of `name:kind`, `name` in `lower_snake_case` (becomes a camelCase Dart identifier: `placed_at` is `placedAt`). A trailing `!` makes the field required, which is Dart's own non-nullable type; without it the type is nullable. Without `--fields` the class gets one required `name:string`.
+A comma-separated list of `name:kind`, `name` in `lower_snake_case` (becomes a camelCase Dart identifier: `placed_at` is `placedAt`). A trailing `!` makes the field required, which is Dart's own non-nullable type; without it the type is nullable. A name that is a Dart keyword (`class`, `default`) or one Beak adds itself (`id`, `created_at`, `updated_at`, `record`) is a usage error (exit `64`). Without `--fields` the class gets one required `name:string`.
 
 | Token (aliases) | Dart type | Options added |
 | --- | --- | --- |
@@ -622,8 +627,8 @@ beak introspect <database-url> [--out <dir>] [--schema <name>]
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `<database-url>` | required | `postgres://user:pass@host:5432/db` or `sqlite:path/to.db`. Other schemes exit `1` |
-| `--out` | `lib/resources/<table>/models/` per table | One flat directory instead. With `adopt` it must be under `lib/` |
+| `<database-url>` | required | `postgres://user:pass@host:5432/db` or `sqlite:path/to.db`. Other schemes exit `1`, and so does a SQLite file that is not there (it is never created) or a database that cannot be read |
+| `--out` | `lib/resources/<table>/models/` per table | One flat directory instead. It must be inside the project, and with `adopt` under `lib/` (exit `64` otherwise) |
 | `--schema` | `public` | The Postgres schema to read |
 | `--only`, `--except` | all tables | Table filters, comma separated or repeated |
 | `--ownership` | `adopt`, or `external` when another tool's migration history is present | Who owns the schema from here on |
@@ -636,7 +641,7 @@ $ beak introspect sqlite:legacy.db --save-url
   read 4 tables, 25 columns, 0 foreign keys
   created lib/resources/notes/models/note.dart
   created lib/resources/products/models/product.dart
-  created lib/migrations/20260929_122305_adopt_existing_schema.dart
+  created lib/migrations/adopt_existing_schema.dart
   skipped worm_migrations (migration bookkeeping)
   created .env
   adopting   the migration records these tables as Beak's. On this database it changes nothing;
@@ -647,16 +652,19 @@ $ beak introspect sqlite:legacy.db --save-url
 
 | Ownership | Classes | Migration |
 | --- | --- | --- |
-| `adopt` | Own their tables | A baseline `AdoptExistingSchema` at `lib/migrations/<stamp>_adopt_existing_schema.dart`: changes nothing on this database, creates the tables on an empty one. Written once; a project with a baseline keeps it |
+| `adopt` | Own their tables | A baseline `AdoptExistingSchema` at `lib/migrations/adopt_existing_schema.dart`, whose `name` carries the stamp: changes nothing on this database, creates the tables on an empty one. Written once; a project with a baseline keeps it |
 | `external` | `@Resource(managesSchema: false, ...)` | None. Run `beak migrate` once for Beak's own tables (`_beak_commit_receipts`, `_beak_outbox`, `worm_migrations`): saves fail without them, and it touches none of yours |
 
 What it decides for you, and says so:
 
 - Display column: The best-named of `name`, `title`, `label`, `email`, `code`, `subject` that the table has as a text column gets `@Display()`. `varchar` becomes `String`, `text` becomes `BeakText`.
+- Column names: A column whose name is not what its field name gives back (`firstName`, `address_line_1`, `Email`) keeps its stored name with `@Column(columnName:)`. A name Dart cannot spell as a field (`class`, `2fa`) gets a field name it can, such as `classValue`, under the same option.
+- Keys not called `id`: Beak keys a record by a column called `id`. A table without one gets a `!` note, because it cannot be read or written until it has one.
 - Integer keys: A table whose primary key is an integer `id` (a serial or an SQLite `INTEGER PRIMARY KEY`) is written with `late final int? id;`. The server mints a string id only for a string key and leaves an integer one to the database, and every foreign key that points at the table takes the key's type.
 - Numbers: A `numeric` or `decimal` column is read as a `double`, with a note that it can round. An exact `BeakDecimal` is stored as integer units, so switching a column means converting it in a migration.
 - Existing files: Running it again over a schema file that was edited refuses, names the file and writes nothing. `--force` replaces it, and `--only` or `--except` leaves the table out. A file that already holds exactly what would be written is reported as `unchanged`.
-- Secrets: Columns named like a secret (`password`, `password_hash`, `token`, `api_key`, and the like) are omitted with a `!` note.
+- Secrets: A column with the word `password`, `secret` or `token` in its name (`password_hash`, `card_token`, `passwordHash`), or an api, private, secret, access or signing key (`api_key`), is omitted with a `!` note.
+- Class names: A table whose singular is a name the generated code needs (`lists`, `strings`, `resources`, `columns`, `schemas`) gets a class called `ListEntry`, `StringEntry` and so on, with `@Resource(table: 'lists')` saying which table it is.
 - Pivots: A table that is only two foreign keys is a relationship, not a resource, and is skipped.
 - Bookkeeping: `migrations`, `worm_migrations`, Beak's own `_beak_commit_receipts` and `_beak_outbox`, other frameworks' migration tables (Prisma, Django, Flyway, Alembic, Knex, EF, `schema_migrations`) and `serverpod_migrations` are skipped. Another tool's table switches the default to `external`, with a note.
 - Serverpod: A database with `serverpod_*` tables is refused (exit `1`); its admin app belongs in the Serverpod workspace, see [Serverpod](../serverpod/index.md).
@@ -758,7 +766,7 @@ $ beak eject resource nope
   No model declares the table "nope", did you mean notes?
 ```
 
-An existing file is not replaced without `--force` (exit `1`). `eject resource` also refuses when the model already has a resource class, or when its table is `hidden: true` in `beak.yaml`, because a resource class is always shown. `eject main` on an authored `lib/main.dart` only un-ignores it and says `lib/main.dart is already yours`; with `--force` it writes the entrypoint again from what the generated panel would show, over the file. Which bootstrap suits you is on [Two ways to boot a panel](../start-here/generated-or-authored.md).
+An existing file is not replaced without `--force` (exit `1`). `eject resource` also refuses when the model already has a resource class, or when its table is `hidden: true` in `beak.yaml`, because a resource class is always shown. `eject main` on an authored `lib/main.dart` only un-ignores it and says `lib/main.dart is already yours`; with `--force` it writes the entrypoint again from what the generated panel would show, over the file. In an app whose `beak.yaml` sets `panel.entrypoint`, `lib/main.dart` is the app's own, and `eject main` refuses with exit `1`, `--force` or not. Which bootstrap suits you is on [Two ways to boot a panel](../start-here/generated-or-authored.md).
 
 > **Note: beak eject --help**
 >

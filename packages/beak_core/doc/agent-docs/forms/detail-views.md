@@ -135,7 +135,7 @@ BeakTab(
 ),
 ```
 
-The overview tab of the same page holds the editable lines, and this tab repeats them with `allowEditing: false`. Only one placement of a field may be editable, so the second one is read-only. [Related records in forms](related-records.md) explains why.
+The overview tab of the same page holds the editable lines, and this tab repeats them as a read-only `tableForm` (Foodio's `orderItems` helper maps its own `allowEditing: false` to `readOnly: true`). Only one placement of a field may be editable, so the second one has to be read-only. [Related records in forms](related-records.md) explains why.
 
 ## A page built from record blocks
 
@@ -214,7 +214,7 @@ final class KeeperResource extends BeakResource {
 
 Outside a scope, a record block renders nothing, and it does not throw. If a sheet comes up blank, look for the missing scope first.
 
-`BeakRelationBlock` deserves a warning. It is the relation manager, not a read-only list: each row of a has-many gets a Delete button, and each row of a many-to-many gets Detach and an attach picker. Those act immediately, through the resource routes, outside any form draft. Use it where that is the intent. For a read-only list of related rows, use the default show page or a `tableForm(readOnly: true)` in a form screen. The block system is described in [The block system](../concepts/the-block-system.md) and [Record blocks](../blocks/record-blocks.md).
+`BeakRelationBlock` deserves a warning. It is the relation manager, not a read-only list: each row of a has-many gets a Delete button, and each row of a many-to-many gets Detach and an attach picker. Those act immediately (a delete after a confirmation), through the resource routes, outside any form draft. Use it where that is the intent. For a read-only list of related rows, use the default show page or a `tableForm(readOnly: true)` in a form screen. The block system is described in [The block system](../concepts/the-block-system.md) and [Record blocks](../blocks/record-blocks.md).
 
 ## Rules and limits
 

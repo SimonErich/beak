@@ -92,7 +92,7 @@ That fence is illustrative and abridged. The real list is in `examples/foodio-ad
 - as a row action in the list, when `roles` contains `BeakScreenRole.list`,
 - in the header of the generated show page and of a form screen's page frame, for the roles it lists, once the record exists.
 
-Here it is limited to `list` and `read`. The default roles are all four, and on a create form a record action does not appear, because it needs a saved record.
+Here it is limited to `list` and `read`. The default roles are `list`, `read` and `edit`. On a create form a record action does not appear, because it needs a saved record.
 
 ## The definition
 

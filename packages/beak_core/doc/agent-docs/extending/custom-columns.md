@@ -220,10 +220,10 @@ Run Beak's own copy of these tests from the package directory:
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/table/column_cell_renderer_test.dart --plain-name custom
-00:00 +0: custom cells delegate to the registered builder
-00:00 +1: an unregistered custom tag renders a visible placeholder
-00:00 +2: custom cells can render eager relations without a scalar value
-00:00 +3: All tests passed!
+custom cells delegate to the registered builder
+an unregistered custom tag renders a visible placeholder
+custom cells can render eager relations without a scalar value
+All tests passed!
 ```
 
 The showcase pumps its whole panel with the renderer registered in `setUp`, in `examples/showcase/test/aviary_pages_test.dart`.

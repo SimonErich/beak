@@ -17,7 +17,7 @@ A small shop with a catalog, customers, orders and invoices, written the way a B
 | Database | SQLite file `beak.db` in the project folder |
 | Money | Exact `BeakDecimal`, EUR, two decimals, formatted as `de_AT` |
 | Seed | 3 products, 2 variants, 2 users, 1 order, 1 invoice, 2 vouchers, 3 tax rates |
-| Tests | 24 in the Dart VM (API, arithmetic, migrations) and 19 widget tests |
+| Tests | 24 in the Dart VM (API, arithmetic, migrations) and 20 widget tests |
 | Read it if | You finished the [quickstart](quickstart.md) and want to see a whole application |
 
 ## Run it
@@ -676,7 +676,7 @@ final format = BeakFormatting.of(context);
 
 Four smaller demonstrations, each in one file:
 
-- **Gallery.** A product owns an ordered list of pictures. `galleryForm` stages uploads until Save.
+- Gallery. A product owns an ordered list of pictures. `galleryForm` stages uploads until Save.
 
   ```dart title="examples/clean_beak_config/lib/resources/products/screens/product_form.dart"
   ProductModel.images.galleryForm(
@@ -687,9 +687,9 @@ Four smaller demonstrations, each in one file:
   ),
   ```
 
-- **Attributes.** A category defines attribute definitions, and a product's specifications can draw on the chosen category's definitions. `lib/domain/shop_attributes.dart` adapts the shop's storage to `BeakAttributeDefinition`, and the same adapter feeds the dynamic controls and the server validation.
-- **Variants.** `ShopVariantBuilder` in `lib/resources/products/screens/variant_builder.dart` previews the combinations of dimensions you enter, lets you pick some and stages them as ordinary rows in the relationship editor. The server rejects duplicates independently.
-- **Semantic fields.** `FulfillmentPolicy` carries an exact amount whose currency comes from another field of the same record, and further fields for percentages, weights, file sizes, dates, times, durations, tags and typed addresses.
+- Attributes. A category defines attribute definitions, and a product's specifications can draw on the chosen category's definitions. `lib/domain/shop_attributes.dart` adapts the shop's storage to `BeakAttributeDefinition`, and the same adapter feeds the dynamic controls and the server validation.
+- Variants. `ShopVariantBuilder` in `lib/resources/products/screens/variant_builder.dart` previews the combinations of dimensions you enter, lets you pick some and stages them as ordinary rows in the relationship editor. The server rejects duplicates independently.
+- Semantic fields. `FulfillmentPolicy` carries an exact amount whose currency comes from another field of the same record, and further fields for percentages, weights, file sizes, dates, times, durations, tags and typed addresses.
 
   ```dart title="examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart"
   /// ISO currency used by this policy, independent of the panel locale.
@@ -768,7 +768,7 @@ flutter test test/order_form_test.dart test/invoice_form_test.dart test/shop_res
   test/shop_widget_test.dart test/custom_shop_test.dart test/fulfillment_form_test.dart
 ```
 
-The first command ran 24 tests, the second 19 (the counts of the day this page was verified, 2026-09-29). Both passed.
+Both commands pass.
 
 | Test file | What it proves |
 | --- | --- |

@@ -185,7 +185,7 @@ test(
 ```console
 $ cd examples/clean_beak_config
 $ flutter test test/order_form_test.dart --plain-name 'the actual configured wizard'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 The `minRows` gate has a package test of its own, in a form with no shop around it:
@@ -193,7 +193,7 @@ The `minRows` gate has a package test of its own, in a form with no shop around 
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/form/beak_form_session_test.dart --plain-name 'minimum collection rows'
-00:00 +1: All tests passed!
+All tests passed!
 ```
 
 ## Continue reading

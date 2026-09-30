@@ -476,6 +476,8 @@ Accepts `label`, `description`, `validators`, `visibleIf` and `enabledIf`, plus:
 | `version` | `int? Function(BeakFormReader state)?` | none | Revision stored with the value when definition changes are tracked |
 | `options` | `BeakInputChoices?` | definition choices | Choices when no definition supplies them |
 
+`type` and `definition` are what switch the attribute editor on. Call `inputAttribute` with neither, and it does not use that editor at all: the field renders as `input` would, which for a plain string column is a plain text field. Passing only `options` does not switch it on either.
+
 The value is always persisted as a string. The form checks `Enter a valid number.` for `number` and `Choose Yes or No.` for `boolean`. See [Dynamic attributes and variants](../models/dynamic-attributes-and-variants.md).
 
 ### inputJson
@@ -635,9 +637,9 @@ const BeakRelationInput({
 | `field` | `BeakToOneField` | required | The generated relationship field | all (the receiver) |
 | `label` | `String?` | field label | Label overriding the model metadata | all |
 | `description` | `String?` | none | Guidance shown with the input | all |
-| `descriptionBuilder` | `String? Function(BeakFormReader)?` | none | Guidance computed from the draft | `inputCards`, `inputSearch`, `inputCode` |
+| `descriptionBuilder` | `String? Function(BeakFormReader)?` | none | Guidance computed from the draft | `inputCombobox`, `inputCards`, `inputSearch`, `inputCode` |
 | `descriptionInline` | `bool` | `false` | Places short guidance beside the heading | `inputCards` |
-| `dependencies` | `List<BeakFieldRef<Object>>` | `const []` | Fields read by live labels and guidance, loaded with the form | `inputCards`, `inputSearch` |
+| `dependencies` | `List<BeakFieldRef<Object>>` | `const []` | Fields read by live labels and guidance, loaded with the form | `inputCombobox`, `inputCards`, `inputSearch` |
 | `divider` | `bool` | `false` | Separates the group from preceding content | `inputCards` |
 | `validate` | `List<BeakRule>` | `const []` | Extra rules, run in the form only | all |
 | `options` | `BeakOptionQuery Function(BeakFormReader)?` | related model's default query | Lookup query, recomputed when its draft dependencies change; must query the related table | all |
@@ -651,7 +653,7 @@ const BeakRelationInput({
 | `presentation` | `BeakRelationPresentation` | `combobox` | The control: `combobox`, `search`, `cards` or `code` | set by the builder |
 | `template` | `BeakRecordTemplate?` | none | Identity, subtitle, avatar and badge of each option | all |
 | `selectionSummary` | `BeakCalculated?` | none | Owner-draft calculation beside an applied code | `inputCode` |
-| `disabledReason` | `BeakOptionDisabledReason?` | none | Why an option cannot be selected; enforced again at validation | `inputCards`, `inputSearch`, `inputCode` |
+| `disabledReason` | `BeakOptionDisabledReason?` | none | Why an option cannot be selected; enforced again at validation | `inputCombobox`, `inputCards`, `inputSearch`, `inputCode` |
 | `minCardWidthInPixels` | `double` | `260` | Width before cards wrap. Must be above 0 | `inputCards` |
 | `defaultOption` | `BeakToOneField?` | none | Related record on the owner draft marking the recommended card | `inputCards` |
 | `defaultOptionMatch` | `bool Function(BeakRecord option, BeakFormReader state)?` | none | Marks the recommended option by predicate; owner fields used must be in `dependencies` | `inputCards` |
@@ -664,6 +666,25 @@ const BeakRelationInput({
 | `placeholder` | `String?` | none | Hint for code entry | `inputCode` |
 | `visibleIf` | `BeakVisibility?` | always visible | Predicate over the live draft | all |
 | `enabledIf` | `BeakVisibility?` | always enabled | Predicate over the live draft | all |
+
+Which builder takes which parameter, for the ones that differ (a dash means the builder has no such parameter):
+
+| Parameter | `inputCombobox` | `inputCards` | `inputSearch` | `inputCode` |
+| --- | --- | --- | --- | --- |
+| `validate` | yes | yes | yes | yes |
+| `readOnly` | - | - | - | - |
+| `derive` | - | - | - | - |
+| `descriptionBuilder` | yes | yes | yes | yes |
+| `dependencies` | yes | yes | yes | - |
+| `disabledReason` | yes | yes | yes | yes |
+| `options` | yes | yes | yes | yes |
+| `template` | yes | yes | yes | yes |
+| `searchSources` | yes | yes | yes | - |
+| `exclusive`, `createForm` | yes | yes | yes | - |
+| `createLabel` | yes | yes | yes | - |
+| `visibleIf`, `enabledIf`, `label`, `description` | yes | yes | yes | yes |
+
+`readOnly` and `derive` exist on the scalar builders only. To lock a relationship input, use `enabledIf`.
 
 `BeakRelationPresentation` values:
 
@@ -1179,7 +1200,7 @@ With `presentation: automatic`, the editor comes from the column kind, and from 
 | Relation options | The `options` query must target the related table, and `searchSources` must be rooted at the related model; both throw a `BeakConfigurationException` otherwise |
 | `inputCode` | `codeField` is required and must be a string field of the related model with no path; otherwise a `BeakConfigurationException` |
 | Required relations | A non-nullable relationship, or a `BeakRequired` in `validate`, makes the input required and not clearable. The backing foreign key's column rules apply too |
-| Owned removal | `deleteOwned` requires an owned has-many; removing a row otherwise throws a `BeakConfigurationException` |
+| Owned removal | `deleteOwned` requires an owned has-many; otherwise the form throws a `BeakConfigurationException` when it is built |
 | Collection switches | `allowAdding`, `allowEdit` and `allowRemove` set to false make the operation throw if code still attempts it |
 | Catalog | The `checkboxes` presentation needs a finite `maxOptions`, no `quantity` and no `groupBy`; `pageSize` needs `maxOptions`. These are asserts, so they fail in debug builds |
 | Catalog | `selection` must belong to the row model, the query must target the model `selection` points at, and a `matches` facet needs `maxOptions`; otherwise a `BeakConfigurationException` when the catalog is queried |

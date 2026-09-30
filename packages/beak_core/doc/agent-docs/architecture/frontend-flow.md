@@ -158,7 +158,7 @@ return Watch.builder(
     final int total = page?.total ?? 0;
 ```
 
-`BeakDataTable` is the generated list view. It renders a model's table columns as an `OiTable` with server-side sort, filter and pagination, per-row and bulk actions, optimistic delete with undo and inline edit. Every sort, filter or page change goes to its view model as a method call. There is no business logic in the widget and no `try/catch` around a data call.
+`BeakDataTable` is the generated list view. It renders a model's table columns as an `OiTable` with server-side sort, filter and pagination, per-row and bulk actions and optimistic delete with undo. Cells are read only. Every sort, filter or page change goes to its view model as a method call. There is no business logic in the widget and no `try/catch` around a data call.
 
 ### The ViewModel: owns Signals, never catches
 
@@ -209,6 +209,16 @@ Future<void> refresh() async {
   }
   switch (result) {
     case BeakOk(:final value):
+      final int lastPage = math.max(
+        1,
+        (value.total + value.perPage - 1) ~/ value.perPage,
+      );
+      if (value.items.isEmpty && lastPage < _spec.value.pagination.page) {
+        // Rows were deleted from under this page (here or elsewhere), so the
+        // page no longer exists: show the last one that does, not a blank.
+        goToPage(lastPage);
+        return;
+      }
       _page.value = value;
     case BeakErr(:final error):
       _error.value = error;
@@ -299,7 +309,8 @@ Future<T> _run<T>(Future<T> Function() operation) async {
     _reportUnauthorized(error);
     rethrow;
   } on Exception catch (error, stack) {
-    final mapped = mapException?.call(error, stack);
+    final mapped =
+        mapException?.call(error, stack) ?? _transportFailure(error);
     if (mapped != null) {
       _reportUnauthorized(mapped);
       Error.throwWithStackTrace(mapped, stack);
@@ -307,6 +318,18 @@ Future<T> _run<T>(Future<T> Function() operation) async {
     rethrow;
   }
 }
+
+/// A failure to talk to the server at all, as a typed exception.
+///
+/// Without it a dropped connection would leave every list spinning and reach
+/// no error state. The message is generic on purpose: the host and port in
+/// the original exception describe the deployment, not the person's request.
+static BeakTransportException? _transportFailure(Exception error) =>
+    switch (error) {
+      http.ClientException() || TimeoutException() =>
+        const BeakTransportException('The server could not be reached.'),
+      _ => null,
+    };
 
 void _reportUnauthorized(BeakException error) {
   if (error is BeakAuthenticationException) onUnauthorized?.call();
@@ -349,7 +372,10 @@ Future<BeakSaveResult> commit(BeakSavePlan plan) => _run(() async {
   _savePlans[plan.saveId] = plan;
   _commitDepth++;
   try {
-    final result = await selected.commit(plan);
+    final result = await runZoned(
+      () => selected.commit(plan),
+      zoneValues: {_commitZoneKey: true},
+    );
     _committed(plan, result);
     return result;
   } finally {
@@ -363,7 +389,7 @@ The same save id with different content is a `BeakConflictException` before anyt
 
 #### Single-record writes through the same door
 
-A non-forced delete, and a create or an update made outside a form (a dragged board card, a chat message, an inline edit), against a commit-capable source is sent as a one-operation plan, so behavior, rules and `graphOnly` models apply to it. A repeated identical call recovers the pending receipt instead of submitting a second write, and a receipt that is not complete becomes the typed exception its error code names. A forced delete uses the transport's own operation.
+A non-forced delete, and a create or an update made outside a form (a dragged board card, a chat message), against a commit-capable source is sent as a one-operation plan, so behavior, rules and `graphOnly` models apply to it. A repeated identical call after an unknown outcome recovers the pending receipt instead of submitting a second write (and sends the plan again under the same save identity when the server has no receipt, because the request never arrived). Identical writes made while the first is still in flight are separate writes. A receipt that is not complete becomes the typed exception its error code names. A forced delete uses the transport's own operation.
 
 [Graph commits](graph-commits.md) covers what the server does with a plan.
 

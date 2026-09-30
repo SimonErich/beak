@@ -241,7 +241,7 @@ Guards apply outside commands too:
 | `The relationship is locked by its record workflow.` | Attaching or detaching a relation on a record whose `editableWhen` is false |
 | `The owning record is locked by its workflow.` | Changing a child whose owner's `editableWhen` is false |
 | `This record cannot be deleted in its current state.` | Deleting a record whose `deletableWhen` is false |
-| `This field is controlled by the record workflow.` | Editing a `derived` or `snapshot` field or an action-controlled field directly |
+| `This field is controlled by the record workflow.` | Changing a `snapshot` field or an action-controlled field directly. A submitted `derived` value is recomputed instead |
 
 A command's `inputModel` supports belongs-to relationship constraints only.
 
@@ -353,7 +353,7 @@ factory BeakRecordAction.document({
 
 ### BeakBulkAction
 
-An action over the current selection. `onExecute` receives every selected record at once.
+An action over the current selection. `onExecute` is a `Future<void> Function(List<BeakRecord>, BeakActionContext)` and receives every selected record at once.
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
 const BeakBulkAction({
@@ -381,7 +381,7 @@ factory BeakBulkAction.edit({
 
 ### BeakGlobalAction
 
-A page-level action independent of any record.
+A page-level action independent of any record. `onExecute` is a `Future<void> Function(BeakActionContext)`.
 
 ```dart title="packages/beak_frontend/lib/src/actions/beak_action.dart"
 const BeakGlobalAction({
@@ -401,11 +401,11 @@ const BeakGlobalAction({
 | `BeakViewAction` | `view` | View | record | Navigates to the read page |
 | `BeakEditAction` | `edit` | Edit | record | Navigates to the edit page |
 | `BeakCreateAction` | `create` | Create | global | Navigates to the create page. Colour `primary`. |
-| `BeakDeleteAction` | `delete` | Delete | record | Hides the record at once and offers an undo toast (`Record deleted`). The delete reaches the data source when the undo window passes, then returns to the list. Colour `error`. |
+| `BeakDeleteAction` | `delete` | Delete | record | Hides the record at once and offers an undo toast (`Record deleted.`). The delete reaches the data source when the undo window passes, then returns to the list. Colour `error`. |
 | `BeakDeleteAction.confirmed()` | `delete` | Delete | record | Asks first, waits for the server, then refreshes and returns to the list. No undo, and a refusal keeps you on the record. |
 | `BeakArchiveAction` | `archive` | Archive | record | The confirmed delete under another key and label, through the resource's configured deletion operation. No restore is implied. |
 
-`BeakResource.deleteAction` defaults to `const BeakDeleteAction()`. View, edit, delete and create are always present, and `recordActions`, `bulkActions` and `globalActions` on the resource add to them, see [Panel and resource options](panel-options.md).
+`BeakResource.deleteAction` defaults to `const BeakDeleteAction()`. View, edit, delete and create appear where the resource flags, the model permissions and the server capabilities allow them, and `recordActions`, `bulkActions` and `globalActions` on the resource add to them, see [Panel and resource options](panel-options.md).
 
 ### BeakActionContext
 
@@ -463,12 +463,19 @@ final class BeakActionContext {
     return false;
   }
 
-  /// Reports a safe typed failure through the host or the default overlay.
+  /// Reports a typed failure through the host or the default overlay.
+  ///
+  /// The default overlay shows a domain failure's own message, and the
+  /// generic text for a failure that describes the deployment (see
+  /// [BeakLocalizations.errorMessage]).
   void reportError(BeakException error) {
     if (onError case final report?) {
       report(error);
     } else if (buildContext.mounted) {
-      overlays.toast(error.message, level: OiToastLevel.error);
+      overlays.toast(
+        BeakLocalizations.of(buildContext).errorMessage(error),
+        level: OiToastLevel.error,
+      );
     }
   }
 
@@ -480,6 +487,10 @@ final class BeakActionContext {
 
 | Member | Meaning |
 | --- | --- |
+| `buildContext`, `model`, `dataSource`, `router` | The Flutter context overlays mount from, the resource's model, the source mutations run against and the panel's `GoRouter` |
+| `refresh` | `Future<void> Function()?`, reloads the surface the action ran from |
+| `stageRemoval` | Hides a list row at once and returns its rollback. Resource tables provide it, detail pages do not |
+| `onError`, `canExecute` | Host hooks for failures and live presentation authorization. Both are `null` when the host sets none |
 | `checkPermission(BeakAction action)` | Checks live presentation authorization and reports a denial without executing. Server authorization still applies. |
 | `reportError(BeakException error)` | Sends a typed failure to `onError`, or shows an error toast |
 | `overlays` | Confirmations, dialogs, sheets and toasts bound to `buildContext`, see [Overlays](../panel/overlays.md) |
@@ -551,7 +562,7 @@ A second invocation of a command whose outcome is unknown checks the original re
 
 - Behavior fields are root columns of the declaring model. A dependency may reach related data through a relationship path such as `OrderItemModel.variant.price`.
 - `resolve` and `availableWhen` run in the form and on the server, and the source requires them to be pure. Foodio's `initial` value reads a clock, which is only safe because `initial` runs once, on create.
-- `derived` and `snapshot` fields are read-only to editors. Submitting a value for them is harmless, since the server recomputes it.
+- `derived` and `snapshot` fields are read-only to editors. A submitted `derived` value is harmless, since the server recomputes it. A changed `snapshot` value is refused with `This field is controlled by the record workflow.`
 - Snapshot and derived fields are still ordinary columns, so they need `visibleOn` and validation like any other.
 - Custom graph preparation may add writes beside a command's `values`. Those keep ordinary per-record authorization, see [Transactional business rules](../backend/graph-business-rules.md).
 - Panel permissions hide buttons. The server enforces commands through `BeakActionPolicy`, see [Auth and policies](../backend/auth-and-policies.md).

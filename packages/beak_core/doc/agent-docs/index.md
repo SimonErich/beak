@@ -114,7 +114,7 @@ void main() => runApp(
 );
 ```
 
-The field's type picks the column, its nullability decides whether it is required, and `rules` add validation that runs in the form and again on the server. Change one line, run `beak prepare`, and the table, the form, the API and the migration follow. Nothing is copied, so nothing drifts.
+The field's type picks the column, its nullability decides whether it is required, and `rules` add validation that runs in the form and again on the server. Change one line, run `beak prepare`, and the table, the form and the API follow. The migration for a changed column is one `beak make:migration --from-drift` away, and you read it before you apply it. Nothing is copied, so nothing drifts.
 
 ```bash
 beak create acme_admin

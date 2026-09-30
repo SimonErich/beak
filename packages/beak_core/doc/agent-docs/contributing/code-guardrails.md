@@ -62,8 +62,10 @@ const List<String> webUnsafeSdkLibraries = [
 const List<String> webUnsafePackagePrefixes = [
   'package:beak_backend',
   'package:beak_image',
+  'package:beak_serverpod_server',
   'package:beak_storage_',
   'package:postgres',
+  'package:serverpod/',
   'package:shelf',
   'package:worm',
 ];
@@ -114,14 +116,14 @@ The third guard keeps widget state out of `State` objects. `tool/check_hook_widg
 | There is no UseCase layer in either flow | review | none |
 | Failures are the sealed `BeakException` family, never a bare `Exception` | review; sealed exhaustiveness | see [Conventions](conventions.md#typed-exceptions) |
 | `BeakDataSource` is the seam. worm types stay in the backend, the CLI and the migrations library; obers_ui types stay in the frontend and the umbrella UI libraries | `guard-web` for the panel graph, review elsewhere | `dart run tool/check_web_safe.dart` |
-| Generated files (`*.g.dart`, `*.beak.dart`) are regenerated, never edited | excluded from analysis and coverage; `check-examples` fails a stale one | `dart run tool/check_examples.dart` |
-| Pre-1.0, a superseded API is removed rather than deprecated, and the break is recorded in `CHANGELOG.md` under `[Unreleased]` | review | [Releasing](releasing.md) |
+| Generated files (`*.g.dart`, `*.beak.dart`) are regenerated, never edited | `*.g.dart` is excluded from analysis, both kinds from coverage; `check-examples` fails a stale one | `dart run tool/check_examples.dart` |
+| Pre-1.0, a superseded API is removed rather than deprecated, and the break is recorded in the open section of `CHANGELOG.md` | review | [Releasing](releasing.md) |
 
 Rules marked review have no tool behind them. A rule that only review holds is the one that slips: the widget rule did, until `guard-hooks` was added.
 
 ### Where the rules bend
 
-- **`// interop:`** marks the two places a `dynamic` value is accepted: the untyped cell value `OiTable` delivers in `packages/beak_frontend/lib/src/table/beak_data_table.dart`, and `ProcessResult.stderr` in `tool/check_coverage.dart`. A new one needs a reason on the same line.
+- **`// interop:`** marks the one place a `dynamic` value is accepted today: `ProcessResult.stderr`, which `dart:io` types as `dynamic`, in `tool/check_coverage.dart`. A new one needs a reason on the same line.
 - **worm is public API in one library.** `package:beak/migrations.dart` re-exports `package:worm/worm.dart`, because a migration is written against worm's `Migration` and `Schema`. `beak_cli` imports worm's adapters to introspect a live database. Neither reaches the panel graph.
 - **The vendored worm packages** under `packages/worm*` sit outside the melos scope, so `analyze`, `test` and `coverage` skip them. They are still edited in this repository when Beak needs a change, so `melos run test-worm` runs their suites and CI calls it. A pull request that touches them says why Beak needed the change.
 

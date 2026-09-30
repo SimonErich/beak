@@ -24,7 +24,7 @@ Two rules decide which column you get. The field's Dart type picks the kind, and
 | `String` | [`BeakStringColumn`](#beakstringcolumn) | `String` | text | `text` / `text` |
 | `BeakText` | [`BeakTextColumn`](#beaktextcolumn) | `String` | text | `text` / `text` |
 | `BeakRichText` | [`BeakRichTextColumn`](#beakrichtextcolumn) | `String` | markup source text | `richText` / `richText` |
-| `BeakHexColor` | [`BeakColorColumn`](#beakcolorcolumn) | `String` | `#rrggbb` text | `color` / `color` |
+| `BeakHexColor` | [`BeakColorColumn`](#beakcolorcolumn) | `String` | hex text such as `#rrggbb` | `color` / `color` |
 | `BeakJson` | [`BeakJsonColumn`](#beakjsoncolumn) | `BeakJson` | JSON text | `json` / `json` |
 | `int` | [`BeakIntColumn`](#beakintcolumn) | `int` | integer | `number` or `currency` |
 | `double` | [`BeakDecimalColumn`](#beakdecimalcolumn) | `double` | `NUMERIC(totalDigits, precision)` | `number` or `currency` |
@@ -490,7 +490,6 @@ const BeakImageColumn({
   super.allowedTypes = BeakFileType.images,
   this.maxDimensions,
   this.aspectRatio,
-  this.thumbnail,
   this.transforms = const [],
 });
 ```
@@ -500,8 +499,7 @@ const BeakImageColumn({
 | `allowedTypes` | `List<BeakFileType>` | `BeakFileType.images` | Overridden default: `jpeg`, `png`, `webp`, `gif`. `svg` is excluded on purpose. |
 | `maxDimensions` | `BeakDimensions?` | `null` | Largest accepted source size. |
 | `aspectRatio` | `double?` | `null` | Enforced width to height ratio. |
-| `thumbnail` | `BeakDimensions?` | `null` | Size of the generated thumbnail rendition. |
-| `transforms` | `List<BeakImageTransform>` | `const []` | Run on upload, in order. |
+| `transforms` | `List<BeakImageTransform>` | `const []` | Run on upload, in order. A thumbnail rendition exists only when a `BeakThumbnailTransform(size:, name:)` is one of them. |
 
 ### BeakFileColumn
 
@@ -615,7 +613,7 @@ const BeakSemantic.object(BeakObjectSchema schema)
 | `phone` | `String` | text | `+` optional, 5 to 25 characters of digits, spaces, `()` and `-`, at least 5 digits |
 | `slug` | `String` | text | lowercase letters and digits with single hyphens |
 | `uuid` | `String` | text | canonical hyphenated form |
-| `password` | `String` | text | nothing extra. Input is obscured, cells show bullets, it is form-only by default, and it cannot be searchable or `@Display` |
+| `password` | `String` | text | nothing extra. Input is obscured and form-only by default. The server never returns the stored value (reads, relations and write responses omit it, the CSV export writes bullets), and a filter, sort or aggregate over it is a `422`. It cannot be searchable or `@Display`. The value is stored as sent, so hash it in a preparer or an action |
 | `calendarDate` | `BeakDate` | `YYYY-MM-DD` text | a valid Gregorian date |
 | `time` | `BeakTime` | `HH:mm:ss[.ffffff]` text | a valid time of day |
 | `duration` | `Duration` | integer microseconds | an integer within ±(2^53-1) |

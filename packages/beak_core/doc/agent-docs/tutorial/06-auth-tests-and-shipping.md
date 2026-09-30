@@ -140,7 +140,7 @@ $ beak dev
 listening on http://0.0.0.0:8080
 ```
 
-The `1 override` is your `beakServer`. Ask for a product without signing in:
+The summary line doesn't count `beakServer`, but the regenerated `lib/beak/server.g.dart` now calls it. Ask for a product without signing in:
 
 ```bash
 curl -s -i -X POST localhost:8080/api/products/query \
@@ -477,7 +477,7 @@ $ flutter analyze
 Analyzing shop...
 No issues found! (ran in 2.6s)
 $ flutter test
-00:03 +4: All tests passed!
+All tests passed!
 ```
 
 The API tests log every request to stderr, so a real run is chattier than this. Each test gets its own database, and the run takes a few seconds.

@@ -86,7 +86,7 @@ BeakQuerySpec withFilter(BeakFilter filter) => _copy(
 );
 ```
 
-A status filter, a date filter and a search box therefore produce one `BeakAndFilter` with three children, not a right-leaning tower of them.
+A status filter, a date filter and a third condition therefore produce one `BeakAndFilter` with three children, not a right-leaning tower of them. A search is not a filter: it travels in its own `search` key.
 
 ### On the wire
 
@@ -204,14 +204,18 @@ static BeakValue of(Object? raw) => switch (raw) {
 Decoding reads the table backwards:
 
 ```dart title="packages/beak_core/lib/src/query/beak_value.dart"
-static BeakValue fromJson(Object? json) => switch (json) {
+static BeakValue _decode(Object? json, int depth) => switch (json) {
   null => const BeakNullValue(),
   final bool value => BeakBoolValue(value),
   final int value => BeakIntValue(value),
   final double value => BeakDoubleValue(value),
   final String value => BeakStringValue(value),
+  final List<Object?> _ when depth >= _maxListNesting =>
+    throw const BeakConfigurationException(
+      'BeakValue JSON is nested more than $_maxListNesting lists deep.',
+    ),
   final List<Object?> values => BeakListValue([
-    for (final value in values) BeakValue.fromJson(value),
+    for (final value in values) _decode(value, depth + 1),
   ]),
   {'type': 'dateTime', 'value': final String iso} => BeakDateTimeValue(
     _parseInstant(iso),
@@ -220,7 +224,7 @@ static BeakValue fromJson(Object? json) => switch (json) {
 };
 ```
 
-The `dateTime` tag is the only map-shaped value, so a string is never guessed to be a timestamp. `raw` unwraps a `BeakDateTimeValue` to a real `DateTime`, `toJson` produces the tagged object, and the translator reads `raw` while the wire carries `toJson`. The wire always carries the UTC instant, so a local `DateTime` gets its `Z` and names the same moment on the server, and two values are equal when they name the same instant.
+The `dateTime` tag is the only map-shaped value, so a string is never guessed to be a timestamp. `raw` unwraps a `BeakDateTimeValue` to a real `DateTime`, `toJson` produces the tagged object, and the translator reads `raw` while the wire carries `toJson`. The wire always carries the UTC instant, so a local `DateTime` gets its `Z` and names the same moment on the server, and two values are equal when they name the same instant. A hand-written timestamp with no offset (`2026-06-01T12:30:45`, or a bare date) is read as UTC, not in the zone of the machine that decodes it, and a list nested more than 16 levels deep is refused.
 
 Money, calendar dates and durations have no variant of their own. A field with a semantic codec encodes them into these same primitives before they reach a filter (exact decimals become integer units), so the contract does not grow when a column kind is added.
 
@@ -229,16 +233,32 @@ Money, calendar dates and durations have no variant of their own. A field with a
 Predicates form a sealed tree. Each node tags itself with a `type` on the wire and `fromJson` switches on it:
 
 ```dart title="packages/beak_core/lib/src/query/beak_filter.dart"
-static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
-  {'type': 'field'} => _fieldFromJson(json),
-  {'type': 'and'} => BeakAndFilter(_childrenFromJson(json, 'BeakAndFilter')),
-  {'type': 'or'} => BeakOrFilter(_childrenFromJson(json, 'BeakOrFilter')),
-  {'type': 'relation'} => BeakRelationFilter(
-    requireJsonString(json, 'relation', 'BeakRelationFilter'),
-    BeakFilter.fromJson(requireJsonMap(json, 'filter', 'BeakRelationFilter')),
-  ),
-  _ => throw BeakConfigurationException('Malformed BeakFilter JSON: $json.'),
-};
+static BeakFilter _decode(Map<String, Object?> json, int depth) {
+  if (depth >= _maxNesting) {
+    throw const BeakConfigurationException(
+      'BeakFilter JSON is nested more than $_maxNesting levels deep.',
+    );
+  }
+  return switch (json) {
+    {'type': 'field'} => _fieldFromJson(json),
+    {'type': 'and'} => BeakAndFilter(
+      _childrenFromJson(json, 'BeakAndFilter', depth),
+    ),
+    {'type': 'or'} => BeakOrFilter(
+      _childrenFromJson(json, 'BeakOrFilter', depth),
+    ),
+    {'type': 'relation'} => BeakRelationFilter(
+      requireJsonString(json, 'relation', 'BeakRelationFilter'),
+      _decode(
+        requireJsonMap(json, 'filter', 'BeakRelationFilter'),
+        depth + 1,
+      ),
+    ),
+    _ => throw BeakConfigurationException(
+      'Malformed BeakFilter JSON: $json.',
+    ),
+  };
+}
 ```
 
 | Node | `type` | Holds | Matches |
@@ -273,12 +293,20 @@ const BeakFieldFilter.forKey(
 
 ### Operators
 
-`BeakOperator` is Beak's own vocabulary and travels by `name`. Most operators map to the worm operator of the same name. The three substring operators have no worm counterpart and become `ilike` with a pattern built from the operand:
+`BeakOperator` is Beak's own vocabulary and travels by `name`. Most operators map to the worm operator of the same name. The three substring operators have no worm counterpart and become `ilike` with a pattern built from the operand (all three are shown, and they differ only in where the `%` goes):
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
 BeakOperator.contains => pattern(
   Operator.ilike,
   '%${beakEscapeLike(_stringOperand(filter))}%',
+),
+BeakOperator.startsWith => pattern(
+  Operator.ilike,
+  '${beakEscapeLike(_stringOperand(filter))}%',
+),
+BeakOperator.endsWith => pattern(
+  Operator.ilike,
+  '%${beakEscapeLike(_stringOperand(filter))}',
 ),
 ```
 
@@ -297,7 +325,7 @@ BeakOperator.contains => pattern(
 
 Two steps sit between the decoded spec and the database.
 
-The authorizer rewrites the spec before anything runs. It checks that the principal may view the table, that every sort, filter and search path names a real, readable field, and that every relationship it traverses is readable. It ANDs in the row scope of the model and of each related model, and it folds a search into the filter, so the spec the translator sees has no `search` left. A dotted key such as `customer.name` becomes a nested `BeakRelationFilter` with the related model's row scope inside it. An unknown table, field or relationship is a `BeakValidationException`, which is a 422, and so is a sort, aggregate or summary column reached through a relationship. The authorizer is also where the server's limits apply: a page size above 200 (`BeakPagination.maxPerPage`) is served as 200, and the envelope reports the size used.
+The authorizer rewrites the spec before anything runs. It checks that the principal may view the table, that every sort, filter and search path names a real, readable field, and that every relationship it traverses is readable. It ANDs in the row scope of the model and of each related model, and it folds a search into the filter, so the spec the translator sees has no `search` left. A dotted key such as `customer.name` becomes a nested `BeakRelationFilter` with the related model's row scope inside it. An unknown table, field or relationship is a `BeakValidationException`, which is a 422, and so is a sort, aggregate or summary column reached through a relationship. The authorizer is also where the server's limits apply: a page size above the ceiling (200 by default, `BeakPagination.maxPerPage`, set per server with `maxPerPage`) is served at the ceiling, and the envelope reports the size used.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
 QueryBuilder<WormRecordModel> builderFor(
@@ -322,6 +350,12 @@ QueryBuilder<WormRecordModel> builderFor(
       wormFieldForColumn(columnOrThrow(model, sort.columnKey)),
       descending: sort.descending,
     );
+  }
+  // Rows that tie on the sort key have no order of their own, so two pages
+  // of one query could each hold a row, or neither: the key breaks the tie.
+  if (spec.sorts.isNotEmpty &&
+      !spec.sorts.any((sort) => sort.columnKey == model.primaryKey.key)) {
+    builder = builder.orderBy(wormFieldForColumn(model.primaryKey));
   }
   builder = _applyRelationLoads(builder, model, spec.relationLoads);
   builder = builder.limit(spec.pagination.perPage);
@@ -371,7 +405,7 @@ PredicateTree? predicateFor(
 Predicates on related records become correlated `EXISTS` subqueries, not joins. That is why an order with three matching items counts once, and why the total and the page agree. Relation loads become batched eager loads. `WormDataSource.query` then runs `count()` for the total and `get()` for the page.
 
 ```dart title="packages/beak_backend/lib/src/data/worm/worm_data_source.dart"
-Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) => _read(() async {
   final BeakModel beakModel = registry.byTableOrThrow(spec.table);
   final builder = _translator.builderFor(spec, _adapter);
   final int total = await builder.count();
@@ -389,7 +423,7 @@ Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
     page: spec.pagination.page,
     perPage: spec.pagination.perPage,
   );
-}
+});
 ```
 
 Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. Numbers, booleans and timestamps match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
@@ -406,7 +440,9 @@ Search is typed by the field, not by the database. Text columns match with a cas
 - Build specs from the model and its generated fields. `BeakFieldFilter.forKey` is for decoders and adapters.
 - Load what you render. A relation you did not put in `relationLoads` is not on the record, and reading it gives `null`.
 - Sort on the model's own columns. `orderBy` throws for a field reached through a relationship, and a hand-written spec that sorts on a dotted key is refused by the authorizer with a 422.
-- Timestamps are safe to build in local time. `BeakDateTimeValue.toJson` writes the UTC instant, so the server never reads an offset-less value in its own zone.
+- Timestamps are safe to build in local time. `BeakDateTimeValue.toJson` writes the UTC instant, and the server reads a hand-written value with no offset as UTC, never in its own zone.
+- Match the operand to the column. `rating > 'abc'` is a `422` that names the field, on SQLite as on Postgres, because the translator checks an operand against what the column stores before the database sees it. A pattern operator (`contains`, `like`) applies to text columns only.
+- Sorting ends with the primary key. Rows that tie on the sort column keep one order across pages, so a row is never on two pages or on none.
 - Ask for at most 200 rows a page. The server serves 200 for a bigger request and says so in the envelope's `perPage`; page through the rest, or ask a summary for the totals.
 - A user who searches for `50%` finds the text `50%`. In a `like` or `ilike` operand, which is a pattern, `%` and `_` are still wildcards and a backslash escapes the next character.
 - Relationship filters stop at 16 levels in the translator and at 64 in the authorizer. Nothing in a real screen comes close.

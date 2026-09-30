@@ -6,7 +6,7 @@ After this page you can let an existing backend keep its models, authorization a
 
 A `BeakModel` is metadata plus five optional hooks. A `BeakResource` selects the model and adds presentation: labels, icons, layouts, actions. You register the resource once in the panel. The panel finds the model's transport by itself, so there is no second list mapping resources to sources.
 
-The hooks live on a hand-written `BeakModel`. A schema class with `@Resource` forwards only two of them from static getters (`permissions` and `capabilities`), and the names `dataSource`, `createModel` and `editModel` are reserved on it. `beak prepare` lists a hand-written model in the generated registry when it is a `const` class with a zero-argument constructor, anywhere under `lib/`. `ServerpodResource` is a `BeakModel` that sets all five hooks, built at runtime from a Serverpod client, and the Serverpod generator writes its subclasses for you.
+The hooks live on a hand-written `BeakModel`. A schema class with `@Resource` forwards only two of them from static getters (`permissions` and `capabilities`), and the names `dataSource`, `createModel` and `editModel` are reserved on it. `beak prepare` lists a hand-written model in the generated registry when it is a public, non-abstract `const` class with a zero-argument constructor, anywhere under `lib/`. `ServerpodResource` is a `BeakModel` that sets all five hooks, built at runtime from a Serverpod client, and the Serverpod generator writes its subclasses for you.
 
 ## At a glance
 
@@ -118,7 +118,8 @@ Future<T> _run<T>(Future<T> Function() operation) async {
     _reportUnauthorized(error);
     rethrow;
   } on Exception catch (error, stack) {
-    final mapped = mapException?.call(error, stack);
+    final mapped =
+        mapException?.call(error, stack) ?? _transportFailure(error);
     if (mapped != null) {
       _reportUnauthorized(mapped);
       Error.throwWithStackTrace(mapped, stack);
@@ -126,6 +127,18 @@ Future<T> _run<T>(Future<T> Function() operation) async {
     rethrow;
   }
 }
+
+/// A failure to talk to the server at all, as a typed exception.
+///
+/// Without it a dropped connection would leave every list spinning and reach
+/// no error state. The message is generic on purpose: the host and port in
+/// the original exception describe the deployment, not the person's request.
+static BeakTransportException? _transportFailure(Exception error) =>
+    switch (error) {
+      http.ClientException() || TimeoutException() =>
+        const BeakTransportException('The server could not be reached.'),
+      _ => null,
+    };
 
 void _reportUnauthorized(BeakException error) {
   if (error is BeakAuthenticationException) onUnauthorized?.call();
@@ -289,6 +302,108 @@ Three rules come with it:
 
 Field types and serialization belong to the command model. A `BeakFormScreen` in the resource's `screens` changes presentation only.
 
+### Hand-write the command models under lib/
+
+The command models are ordinary `BeakModel` classes, so they can live in your project next to the read model. `beak prepare` does not list them, because it skips a private class, an abstract one, and any class that a `createModel` or `editModel` getter names. Only `TicketModel` reaches the registry:
+
+```dart title="lib/tickets/ticket_model.dart"
+import 'package:beak/beak.dart';
+
+import 'ticket_commands.dart';
+
+/// The read shape of a ticket: what the desk's list endpoint returns.
+final class TicketModel extends BeakModel {
+  const TicketModel();
+
+  static const id = BeakStringColumn(
+    key: 'id',
+    label: 'ID',
+    visibleOn: {BeakContext.detail},
+  );
+  static const title = BeakStringColumn(
+    key: 'title',
+    label: 'Title',
+    sortable: true,
+    searchable: true,
+  );
+  static const assigneeName = BeakStringColumn(
+    key: 'assignee_name',
+    label: 'Assignee',
+  );
+
+  @override
+  String get table => 'tickets';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  BeakColumn get primaryKey => id;
+
+  @override
+  List<BeakColumn> get columns => const [id, title, assigneeName];
+
+  @override
+  BeakModel? get createModel => const TicketCreateModel();
+
+  @override
+  BeakModel? get editModel => const _TicketEditModel();
+}
+
+/// The fields the desk accepts when it edits one.
+final class _TicketEditModel extends BeakModel {
+  const _TicketEditModel();
+
+  @override
+  String get table => 'tickets';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'title', label: 'Title'),
+  ];
+}
+```
+
+The create model is public and lives in its own file. The edit model is private, in the file of the model that returns it (a private class cannot be named from another file):
+
+```dart title="lib/tickets/ticket_commands.dart"
+import 'package:beak/beak.dart';
+
+/// The fields the desk accepts when it opens a ticket.
+final class TicketCreateModel extends BeakModel {
+  const TicketCreateModel();
+
+  @override
+  String get table => 'tickets';
+
+  @override
+  String get displayColumnKey => 'title';
+
+  @override
+  List<BeakColumn> get columns => const [
+    BeakStringColumn(key: 'title', label: 'Title'),
+  ];
+}
+```
+
+Run `beak prepare` and look at what it wrote:
+
+```console
+$ beak prepare
+  1 model · 0 resource classes · 0 screens · 0 overrides
+$ grep -n "Model" lib/beak/registry.g.dart | head -1
+9:const List<BeakModel> beakModels = <BeakModel>[TicketModel()];
+$ ls lib/migrations
+create_tickets_table.dart
+```
+
+The registry lists `TicketModel` alone, and `TicketCreateModel` and `_TicketEditModel` appear in no generated file. The migration is the one for the read model. It is generated like any other, from the read model's columns (the joined `assignee_name` included), and `beak prepare` writes it again if you delete it. This was run in a project made with `beak create ticket_lab --no-example`, and the CLI's own test (`hand-written command models` in `packages/beak_cli/test/src/commands/prepare_command_test.dart`) asserts the same.
+
+The CLI finds a command model by the class name in the getter body, in any file under `lib/`. A command model that no getter names is listed like any other model, and the registry then refuses its second model for the shared `table`.
+
 ## Load detail records through query
 
 A record page loads its record with a single query on the primary key, and asks for the relations its layout uses in the same request:
@@ -375,6 +490,7 @@ Archiving and browsing archived rows are separate capabilities. A transport can 
 | An explicit `BeakPanel(dataSource:)` overrides bindings | Client | Useful for isolated widget tests, and wrong for a test that means to exercise the binding. |
 | Permissions and capabilities only hide UI | Client | The backend authorizes every call. `BeakPermissions` denies an operation with no rule. |
 | The command model shares the `table` | Client | `createModel` and `editModel` describe the write shape of the same table. |
+| Command models stay out of the registry | Generator | `beak prepare` does not list a private or abstract class, nor a class another model returns from its `createModel` or `editModel` getter, so a command model can live in the project's `lib/`. It finds the class by the name in the getter body. A command model no getter names is listed like any other model, and the registry then refuses its shared `table`. |
 | Unsupported operations fail loudly | You | Throw `BeakValidationException` or `BeakConfigurationException` for a filter, sort or operation the transport cannot serve. The Serverpod bridge does this per operation. |
 | Record pages depend on `query` by id | Client | See above. A transport that cannot filter by primary key cannot show record pages. |
 
@@ -387,9 +503,9 @@ Also cover a read-only account, a permission change during the session, a failed
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/panel/model_configuration_test.dart
-00:01 +6: edit projection and failures use the shared transport boundary
-00:01 +7: an explicit panel source overrides bound transports for tests
-00:01 +8: All tests passed!
+an explicit panel source overrides bound transports for tests
+fallback sources serve authorized dashboard-only tables
+All tests passed!
 ```
 
 ## Reference

@@ -89,7 +89,7 @@ A save is one `POST /api/commits` with a save id, and the server keeps the recei
 | --- | --- |
 | Complete | Applies the real ids, clears the snapshot and the draft |
 | Some operations unapplied | Keeps the unapplied edits as a correctable draft. The banner says how many changes were saved, and the button reads "Save remaining changes" |
-| Some operations unknown | Stays frozen: no edits, no discard, no new save, until the outcome is known |
+| Some operations unknown | Stays frozen: no edits, no discard, no new save, until the outcome is known. The one exception is `receiptLost`, see Rules and limits |
 
 The snapshot survives retention and a `schemaVersion` bump, because the original transaction still has to be checked. The receipt has to survive too. `HttpBeakDataSource` reads it from the server's receipt table, which is durable. A source that is not commit-capable falls back to receipts held in memory, and those are gone after a reload.
 
@@ -105,7 +105,7 @@ The dialog is built from three members of the session:
 | --- | --- |
 | `session.reviewChanges` | Every field and relationship change, as `BeakDraftChange` objects with a path, a label, a kind (`update`, `create`, `detach`, `delete`) and the before and after values |
 | `session.reviewChangeCount` | The number of operations, where a new row counts once |
-| `session.reviewChangeSummary` | The labels of those operations, joined with a dot |
+| `session.reviewChangeSummary` | One label per operation (the field label, or `Items added`, `Items deleted`, `Items removed` for rows), joined with a middle dot |
 
 The count and the summary come from the same list without the fields inside newly created rows. They feed the change bar (`showChangeBar`), which pins "N unsaved changes", "N fields need attention", Discard changes and Save. A ghost button "Review changes" opens the dialog on demand when neither the change bar nor the rail is in use.
 
@@ -115,9 +115,9 @@ The count and the summary come from the same list without the fields inside newl
 
 Two protections stack.
 
-The server is the authority. When an edit loads a record that has `updated_at`, the plan carries it as `expectedUpdatedAt`, and the write is conditional on it. If the stored stamp moved, the operation is refused with "The record changed since it was loaded." and the whole graph rolls back. [Graph commits](../architecture/graph-commits.md#conditional-writes) has the mechanics. The precondition needs the column: `@Resource(timestamps: true)` adds it. Foodio's order has it. The shop's models do not, so shop edits are last write wins.
+The server is the authority. When an edit loads a record that has `updated_at`, the plan carries it as `expectedUpdatedAt`, and the write is conditional on it. If the stored stamp moved, the operation is refused with "The record changed since it was loaded." and the whole graph rolls back. [Graph commits](../architecture/graph-commits.md#conditional-writes) has the mechanics. The precondition needs the column: `@Resource(timestamps: true)` adds it. Foodio's order has it, and so does the shop's invoice. The rest of the shop's models do not, so their edits are last write wins.
 
-The client merges. When a stored draft is resumed, or `session.refreshForConflicts()` is called, the session fetches the record again and lines up three versions: the baseline the draft started from, your value and the server's value. A field that only you changed keeps your value, a field that only the server changed takes the server's, and a field that both changed to different values turns into a card:
+The client merges. When a stored draft is resumed, when "Compare with latest version" is pressed after a refused save, or when `session.refreshForConflicts()` is called, the session fetches the record again and lines up three versions: the baseline the draft started from, your value and the server's value. A field that only you changed keeps your value, a field that only the server changed takes the server's, and a field that both changed to different values turns into a card:
 
 - "Your draft: ..." and "Latest version: ..." for the field,
 - Keep draft and Use latest.
@@ -134,12 +134,15 @@ Duplicating a record is a separate feature: the copy opens as an unsaved create 
 | Web storage | `BeakBrowserDraftStore` throws `UnsupportedError` off the web. Choose the store by platform, as `shopDrafts` does with `kIsWeb` |
 | What is excluded | Passwords and file bytes are never stored. A resumed upload needs picking again |
 | Retention | Applies to unsent drafts only. A pending save is kept until its receipt is known |
-| Recovery needs a durable receipt | The server's receipt table survives a restart. The in-memory fallback does not |
-| Which failures are unknown | A dropped connection, a timeout or an opaque 5xx is recorded as unknown with the reason `responseUnavailable`, because it cannot prove the server wrote nothing. A refusal the server states before it writes, an HTTP 401, 403, 404, 409, 413 or 422, is recorded as `unapplied` with the reason `rejected`, and the form stays editable. "Check save status" on an unknown save that the server never received (its receipt lookup answers 404) resolves to `unapplied` with the reason `notReceived`, so the form is free again |
-| Stale writes | A refused save arrives as an unapplied receipt, not as an error. The form shows the receipt banner with the server's message and keeps the draft. The "Compare with latest version" button belongs to the error banner, which a receipt does not raise, so the merge is reached through resume or `refreshForConflicts()` |
+| Recovery needs a durable receipt | The server's receipt table survives a restart. The in-memory fallback does not, and a reload against it leaves the save `receiptLost` instead of guessing |
+| Which failures are unknown | A dropped connection, a timeout or an opaque 5xx is recorded as unknown with the reason `responseUnavailable`, because it cannot prove the server wrote nothing. A refusal the server states before it writes, an HTTP 401, 403, 404, 409, 413 or 422, is recorded as `unapplied` with the reason `rejected`, and the form stays editable. "Check save status" on an unknown save that the server never received (its receipt lookup answers 404) resolves to `unapplied` with the reason `notReceived`, so the form is free again. That holds for a source with durable receipts and for a save the same page sent. After a reload against a source that keeps receipts in memory only, the 404 proves nothing: the save stays unknown with the reason `receiptLost`, the banner says so, and the form offers Discard changes once you have checked whether the record was saved |
+| Stale writes | A refused save arrives as an unapplied receipt, not as an error. The form shows the receipt banner with the server's message and keeps the draft. When a refusal carries the `conflict` code, the banner also offers "Compare with latest version", which calls `refreshForConflicts()`: the record is fetched again, your edits are merged onto it, the refusal is cleared and the next save carries the fresh version. Saving the same edits again without comparing would send the same stale version and be refused again |
 | Conflict detection needs `updated_at` | Models without it are last write wins |
-| Frozen forms | While a save is unknown, editing, discarding and a second save are refused |
+| Frozen forms | While a save is unknown, editing, discarding and a second save are refused. A `receiptLost` save allows Discard changes only |
+| A stored draft waiting | Save stays disabled until the stored draft is resumed or discarded, so a tap never does nothing silently |
+| Checking a settled save | `recover()` does nothing once every outcome is known. Asking for the receipt of a save that was applied would overwrite the edits made since with the values it saved |
 | Server rules | Validation and concurrency are enforced by the server. The draft is a convenience of the client |
+| Wording | The banner, button and dialog texts quoted here are the English ones. A German panel translates most of them, and some stay English, see [Formatting and localization](../theming/formatting-and-localization.md) |
 
 ## Verify it
 

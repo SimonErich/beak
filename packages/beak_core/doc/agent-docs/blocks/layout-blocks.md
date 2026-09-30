@@ -262,7 +262,7 @@ The Aviary pumps every page against a fixture source and fails on any exception:
 ```console
 $ cd examples/showcase
 $ flutter test --no-pub test/aviary_pages_test.dart test/block_type_matrix_test.dart
-00:07 +14: All tests passed!
+All tests passed!
 ```
 
 To watch a fold happen, run the panel (see the [Showcase](../examples/showcase.md) page) and drag the browser window narrower on the Layout blocks page. The Grid section folds when its own width drops under 752 pixels, the Row and column section under 736 (weights 2 and 1, so the lighter card gets a third of what is left after the gap). The sidebar and the page gutters come off the window width first.

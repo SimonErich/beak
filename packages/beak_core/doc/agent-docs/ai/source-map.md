@@ -6,7 +6,7 @@ For coding agents. Humans: see [Libraries](../reference/libraries.md). Use this 
 
 ## Rules
 
-- MUST import through the umbrella libraries in the second column. NEVER import `package:beak_core`, `package:beak_frontend` or `package:beak_backend` directly in an app, and NEVER add them to `pubspec.yaml`. The exceptions are the Serverpod and storage packages, whose libraries appear in full.
+- MUST import through the umbrella libraries in the second column. NEVER import `package:beak_core`, `package:beak_frontend` or `package:beak_backend` directly in an app, and NEVER add them to `pubspec.yaml`. The exceptions are the Serverpod and storage packages, whose libraries appear in full in their own sections below.
 - MUST open the source file before you copy a signature. Docs can lag the code, and the file is the truth.
 - MUST NOT import `package:beak/server.dart` or `package:beak/migrations.dart` from a file the panel reaches. `beak doctor` fails on it.
 - The test column names the test to read for behavior and edge cases. It is not a place to add yours: tests for your project go in your project's `test/`.
@@ -39,7 +39,8 @@ For coding agents. Humans: see [Libraries](../reference/libraries.md). Use this 
 | `BeakQuerySpec` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_query_spec.dart` | `packages/beak_core/test/src/query/beak_query_spec_test.dart` |
 | `BeakFilter`, `BeakOperator` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_filter.dart` | `packages/beak_core/test/src/query/beak_filter_test.dart` |
 | `BeakSort` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_sort.dart` | `packages/beak_core/test/src/query/beak_sort_test.dart` |
-| `BeakPagination`, `BeakPage` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_pagination.dart` | `packages/beak_core/test/src/query/beak_pagination_test.dart` |
+| `BeakPagination` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_pagination.dart` | `packages/beak_core/test/src/query/beak_pagination_test.dart` |
+| `BeakPage` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_page.dart` | `packages/beak_core/test/src/query/beak_page_test.dart` |
 | `BeakRelationLoad` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_relation_load.dart` | `packages/beak_core/test/src/query/beak_relation_load_test.dart` |
 | `BeakAggregateSpec` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_aggregate_spec.dart` | `packages/beak_core/test/src/query/beak_aggregate_spec_test.dart` |
 | `BeakSummarySpec`, `BeakSummaryMeasure`, `model.summary(...)` | `package:beak/beak.dart` | `packages/beak_core/lib/src/query/beak_summary_spec.dart` | `packages/beak_core/test/src/query/beak_summary_spec_test.dart` |
@@ -74,7 +75,8 @@ All of these import from `package:beak/panel.dart`. Add `package:beak/ui.dart` w
 | `BeakFormLayout`, `BeakFormSections`, `BeakDraftScope`, `X.name.inputText()` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_form_layout.dart` | `packages/beak_frontend/test/src/form/beak_form_layout_test.dart` |
 | `BeakConfiguredForm` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_configured_form.dart` | `packages/beak_frontend/test/src/form/beak_configured_form_test.dart` |
 | `BeakFormSession` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_form_session.dart` | `packages/beak_frontend/test/src/form/beak_form_session_test.dart` |
-| `BeakImportView`, `BeakImportDefinition` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_import_view.dart` | `packages/beak_frontend/test/src/form/beak_import_view_test.dart` |
+| `BeakImportView` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/form/beak_import_view.dart` | `packages/beak_frontend/test/src/form/beak_import_view_test.dart` |
+| `BeakImportDefinition` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/data/beak_record_batch.dart` | `packages/beak_frontend/test/src/data/beak_record_batch_test.dart` |
 | `BeakListDefinition` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/query/beak_list_definition.dart` | `packages/beak_frontend/test/src/panel/beak_composed_list_test.dart` |
 | `BeakQueryController`, `BeakQueryPreset` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/query/beak_query_controller.dart` | `packages/beak_frontend/test/src/table/beak_query_controller_test.dart` |
 | `BeakSavedViews`, `BeakSavedViewStore` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/query/beak_saved_views.dart` | `packages/beak_frontend/test/src/table/beak_saved_views_test.dart` |
@@ -91,18 +93,18 @@ All of these import from `package:beak/panel.dart`. Add `package:beak/ui.dart` w
 | `BeakRecordScope` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/detail/beak_record_scope.dart` | `packages/beak_frontend/test/src/blocks/beak_detail_blocks_test.dart` |
 | `HttpBeakDataSource` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/data/http_beak_data_source.dart` | `packages/beak_frontend/test/src/data/http_beak_data_source_test.dart` |
 | `BeakResourceRepository` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/data/beak_resource_repository.dart` | `packages/beak_frontend/test/src/data/beak_resource_repository_test.dart` |
-| `BeakOverlays` (toast, confirm, sheet) | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/overlays/beak_overlays.dart` | `packages/beak_frontend/test/src/overlays/beak_overlays_test.dart` |
+| `BeakOverlays` (`toast`, `confirm`, `ask`, `sheet`, `sheetWithResult`), `BeakConfirmResult` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/overlays/beak_overlays.dart` | `packages/beak_frontend/test/src/overlays/beak_overlays_test.dart` |
 | `BeakRecordDocument` | `package:beak/panel.dart` | `packages/beak_frontend/lib/src/documents/beak_record_document.dart` | `packages/beak_frontend/test/src/documents/beak_record_document_test.dart` |
 
 ## The server (`beak_backend`)
 
 | Symbol or area | Import | Source | Test |
 | --- | --- | --- | --- |
-| `BeakServer`, `BeakAllowAllPolicy` | `package:beak/server.dart` | `packages/beak_backend/lib/src/server/beak_server.dart` | `packages/beak_backend/test/src/server/beak_server_test.dart` |
+| `BeakServer` | `package:beak/server.dart` | `packages/beak_backend/lib/src/server/beak_server.dart` | `packages/beak_backend/test/src/server/beak_server_test.dart` |
 | `BeakServerDefaults`, `BeakServeHost`, `defaults.build(...)` | `package:beak/server.dart` | `packages/beak_backend/lib/src/server/beak_serve_host.dart` | `packages/beak_backend/test/src/server/beak_serve_host_test.dart` |
 | `BeakPolicies`, `BeakModelRules` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_policies.dart` | `packages/beak_backend/test/src/auth/beak_policies_test.dart` |
 | `BeakAccess` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_access.dart` | `packages/beak_backend/test/src/auth/beak_policies_test.dart` |
-| `BeakPolicy`, `BeakRowPolicy`, `BeakPrincipal` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_policy.dart` | `packages/beak_backend/test/src/auth/policy_test.dart` |
+| `BeakPolicy`, `BeakAllowAllPolicy`, `BeakRowPolicy`, `BeakPrincipal` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_policy.dart` | `packages/beak_backend/test/src/auth/policy_test.dart` |
 | `BeakFieldPolicy` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_field_policy.dart` | `packages/beak_backend/test/src/auth/field_authorization_test.dart` |
 | `BeakAuthSessions`, `BeakUserAccount`, `hashBeakPassword` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/auth_router.dart` | `packages/beak_backend/test/src/auth/auth_test.dart` |
 | `BeakAuthGuard`, `TokenSessionAuthGuard` | `package:beak/server.dart` | `packages/beak_backend/lib/src/auth/beak_auth_guard.dart` | `packages/beak_backend/test/src/auth/auth_test.dart` |
@@ -166,6 +168,16 @@ The CLI is an executable, so there is no import. Run it as `beak <command>`.
 | `serverpodBeakDataSource` | `package:beak_serverpod_flutter/beak_serverpod_flutter.dart` | `packages/beak_serverpod_flutter/lib/src/serverpod_beak_data_source.dart` | `packages/beak_serverpod_flutter/test/serverpod_beak_data_source_test.dart` |
 | `ServerpodAuthAdapter` | `package:beak_serverpod_flutter/beak_serverpod_flutter.dart` | `packages/beak_serverpod_flutter/lib/src/serverpod_auth_adapter.dart` | `packages/beak_serverpod_flutter/test/serverpod_auth_adapter_test.dart` |
 | `generateServerpodCompanions` | `package:beak_serverpod_generator/beak_serverpod_generator.dart` | `packages/beak_serverpod_generator/lib/src/generator.dart` | `packages/beak_serverpod_generator/test/src/generator_test.dart` |
+
+## Storage drivers
+
+A project adds these to its `pubspec.yaml` when it stores files outside the local disk. See [Uploads and storage wiring](../backend/uploads-and-storage-wiring.md).
+
+| Symbol or area | Import | Source | Test |
+| --- | --- | --- | --- |
+| `S3StorageDriver`, `S3ObjectClient` | `package:beak_storage_s3/beak_storage_s3.dart` | `packages/beak_storage_s3/lib/src/s3_storage_driver.dart` | `packages/beak_storage_s3/test/s3_storage_driver_test.dart` |
+| `HttpS3ObjectClient` | `package:beak_storage_s3/beak_storage_s3.dart` | `packages/beak_storage_s3/lib/src/http_s3_object_client.dart` | `packages/beak_storage_s3/test/http_s3_object_client_test.dart` |
+| `FtpStorageDriver`, `FtpTransport` | `package:beak_storage_ftp/beak_storage_ftp.dart` | `packages/beak_storage_ftp/lib/src/ftp_storage_driver.dart` | `packages/beak_storage_ftp/test/ftp_storage_driver_test.dart` |
 
 ## Repository tools
 

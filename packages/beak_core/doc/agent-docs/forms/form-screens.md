@@ -109,6 +109,10 @@ What happens after Save depends on where the form ran:
 
 Cancel and navigation both stop at a confirmation when the draft has unsaved changes.
 
+A failed Save moves the reader to what needs fixing: the first invalid field is scrolled into view and focused, where a screen reader announces its error. In a wizard, Finish opens the first invalid step first and then does the same.
+
+An input shows what the record holds. A stored value it cannot show, such as an enum name the model no longer has or text in a date column that is not a date, leaves the input empty, and the save leaves that field out until someone picks a value. Saving an untouched form therefore never overwrites such a value with null.
+
 The Edit button is offered only when the resource allows it (`canEdit` on the resource, plus the model's update permission) and the model's `editableWhen` accepts the loaded record. Those checks hide UI, they do not enforce anything. The server checks again on every write.
 
 ## The layout tree
@@ -403,6 +407,8 @@ await tester.pumpWidget(
 );
 ```
 
+Give the widget the same `layout` and `steps` objects on every build, from a constant, a field or `useMemoized`. A new instance, even one equal in content, starts a new form and drops what was typed. The pages of a panel already do this.
+
 `onSession` hands you the `BeakFormSession`, which is how a test reads the draft. A `BeakFormScreen` does not expose it. [Using Beak widgets standalone](../extending/using-beak-widgets-standalone.md) covers the rest of the embedding story.
 
 ## Rules and limits
@@ -418,6 +424,7 @@ await tester.pumpWidget(
 | Locked fields | A field the account cannot write, or that model behavior controls, is disabled and left out of the submitted record |
 | Calculated values | `BeakCalculated`, summaries, metrics and capacity bars display values. None of them is submitted or validated |
 | Presentation permissions | Hiding an Edit button or a field is a courtesy. The server enforces `BeakPolicies` on every write |
+| Back gesture | The system back gesture and the browser's back button ask "Leave this form?" on a form with unsaved changes, like Cancel does |
 | Wizard parameters | `BeakWizardScreen` forwards 26 of the 29 parameters of `BeakFormScreen`. It has no `layout`, `recordHeader` or `editingLabel`. Use `BeakFormScreen(steps: [...])` when you need one of them |
 
 ## Verify it
@@ -434,7 +441,7 @@ cd examples/clean_beak_config
 flutter test test/fulfillment_form_test.dart test/order_form_test.dart test/invoice_form_test.dart
 ```
 
-The second command runs six tests and ends with `All tests passed!`. To see a form rather than test one, run the shop (`examples/clean_beak_config`, API on port 8080) and open Customers, then a customer, then Edit.
+The second command ends with `All tests passed!`. To see a form rather than test one, run the shop (`examples/clean_beak_config`, API on port 8080) and open Customers, then a customer, then Edit.
 
 ## Reference
 

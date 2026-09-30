@@ -27,7 +27,7 @@ To run an example, follow its tour page or the run table on [Examples](index.md)
 
 ## Summary
 
-106 rows in eight groups. When several examples show a feature, the row names the smallest or clearest one. The shop is the default choice for anything a normal application does, the showcase for anything about column, relationship and block kinds, Foodio for lists, wizards, effects and theming at full size, and the Serverpod example for auth and policy.
+106 rows in nine groups. When several examples show a feature, the row names the smallest or clearest one. The shop is the default choice for anything a normal application does, the showcase for anything about column, relationship and block kinds, Foodio for lists, wizards, effects and theming at full size, and the Serverpod example for auth and policy.
 
 ### Project, generation and tooling
 
@@ -53,7 +53,7 @@ To run an example, follow its tour page or the run table on [Examples](index.md)
 | Exact money | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/resources/products/models/product.dart` | [Semantic fields](../models/semantic-fields.md), [A money field](../recipes/a-money-field.md) |
 | Money in the currency of another field | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart` | [Semantic fields](../models/semantic-fields.md) |
 | Percentage, quantity with unit, slug and typed object | [Shop](clean-shop.md) | `examples/clean_beak_config/lib/resources/fulfillment/models/fulfillment_policy.dart` | [Semantic fields](../models/semantic-fields.md) |
-| Phone, email, url and file size semantics | [Showcase](showcase.md) | `examples/showcase/lib/resources/keepers/models/keeper_profile.dart` | [Semantic fields](../models/semantic-fields.md) |
+| Phone, email, url and file size semantics | [Showcase](showcase.md) | `examples/showcase/lib/resources/keepers/models/keeper_profile.dart` (phone), `examples/showcase/lib/resources/specimens/models/specimen.dart` (email, url), `examples/showcase/lib/resources/assets/models/asset.dart` (file size) | [Semantic fields](../models/semantic-fields.md) |
 | Money stored as integer cents | [Foodio](foodio.md) | `examples/foodio-adminpanel/lib/resources/orders/list/order_list_screen.dart` | [Formatting and localization](../theming/formatting-and-localization.md) |
 | Soft deletes | [Showcase](showcase.md) | `examples/showcase/lib/resources/specimens/models/specimen.dart` | [Defining models](../models/defining-models.md) |
 | Image column with a thumbnail transform | [Showcase](showcase.md) | `examples/showcase/lib/resources/specimens/models/specimen.dart` | [Files and storage columns](../models/files-and-storage-columns.md) |

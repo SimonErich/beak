@@ -149,7 +149,7 @@ The ten methods are the floor. Panel features that need more ask the source for 
 | `BeakExportDataSource` | `export(spec, ...)` | CSV export throws `This data source does not support CSV exports.` |
 | `BeakUploadClient`, `BeakManagedUploadClient`, `BeakUploadUrlClient` | `upload`, `discardUpload`, `uploadUrl` | Upload columns throw `The data source for "<table>" does not support uploads.` |
 
-`HttpBeakDataSource` implements all of them by delegating to the typed REST client, which makes it the readable example. Its declaration lists the interfaces, and each method forwards to `client`:
+`HttpBeakDataSource` implements every one of them except `BeakEditDataSource` (a REST edit form prefills from `getOne`) by delegating to the typed REST client, which makes it the readable example. Its declaration lists the interfaces, and each method forwards to `client`:
 
 ```dart title="packages/beak_frontend/lib/src/data/http_beak_data_source.dart"
 final class HttpBeakDataSource
@@ -168,9 +168,214 @@ Your source swaps `client` for whatever answers your data: a SQL connection, a G
 
 A source used as a decorator is the smallest implementation of all. `BeakRecordingDataSource` (in `package:beak/testing.dart`) records each of the ten calls and forwards it to an inner source. Because it is a `base class`, a test overrides the single operation it wants to break, as the shop's `_FailingAggregate` does.
 
+## A source from scratch
+
+The smallest source that passes the suite keeps one map per table. It is about 170 lines, and most of them are the filter and sort code a database would do for you. It compiles against a fresh `beak create` project with `import 'package:beak/beak.dart';` in place of `package:beak_core/beak_core.dart`.
+
+```dart title="packages/beak_test/test/support/map_data_source.dart"
+/// A [BeakDataSource] over plain maps, one per table.
+///
+/// Not supported, and refused loudly: relations, soft deletes, range operators
+/// (`gt`, `between`, ...), `like`, and transactions of any kind.
+final class MapDataSource implements BeakDataSource {
+  MapDataSource(this.registry);
+
+  final BeakModelRegistry registry;
+  final Map<String, Map<Object, BeakRecord>> _tables = {};
+  static const _noRelations = BeakConfigurationException(
+    'MapDataSource has no relations.',
+  );
+
+  Map<Object, BeakRecord> _rows(String table) {
+    registry.byTableOrThrow(table);
+    return _tables.putIfAbsent(table, () => {});
+  }
+
+  Object _idOf(String table, BeakRecord record) =>
+      registry.byTableOrThrow(table).primaryKeyOf(record) ??
+      (throw const BeakValidationException('A record needs an id.'));
+
+  /// Puts [records] into [table]; the contract suite seeds through this.
+  void seed(String table, List<BeakRecord> records) {
+    for (final record in records) {
+      _rows(table)[_idOf(table, record)] = record;
+    }
+  }
+
+  @override
+  Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) async {
+    if (spec.relationLoads.isNotEmpty) {
+      throw _noRelations;
+    }
+    final rows = [
+      for (final row in _rows(spec.table).values)
+        if (_matches(spec.filter, row) && _searched(spec.search, row)) row,
+    ];
+    rows.sort((a, b) {
+      for (final sort in spec.sorts) {
+        final order = _compare(a[sort.columnKey]?.raw, b[sort.columnKey]?.raw);
+        if (order != 0) return sort.descending ? -order : order;
+      }
+      return 0;
+    });
+    final BeakPagination(:page, :perPage) = spec.pagination;
+    return BeakPage(
+      items: rows.skip((page - 1) * perPage).take(perPage).toList(),
+      total: rows.length,
+      page: page,
+      perPage: perPage,
+    );
+  }
+
+  @override
+  Future<BeakRecord?> getOne(String table, Object id) async => _rows(table)[id];
+
+  @override
+  Future<BeakRecord> create(String table, BeakRecord data) async {
+    final id = _idOf(table, data);
+    if (_rows(table).containsKey(id)) {
+      throw BeakConflictException('$table $id already exists.');
+    }
+    return _rows(table)[id] = data;
+  }
+
+  @override
+  Future<BeakRecord> update(String table, Object id, BeakRecord data) async {
+    final current = _rows(table)[id];
+    if (current == null) throw BeakNotFoundException('$table $id not found.');
+    final key = registry.byTableOrThrow(table).primaryKey.key;
+    return _rows(table)[id] = BeakRecord(
+      values: {...current.values, ...data.values, key: current.values[key]!},
+    );
+  }
+
+  @override
+  Future<void> delete(String table, Object id, {bool force = false}) async {
+    if (_rows(table).remove(id) == null) {
+      throw BeakNotFoundException('$table $id not found.');
+    }
+  }
+
+  @override
+  Future<BeakRecord> restore(String table, Object id) =>
+      throw BeakValidationException('$table does not soft-delete.');
+
+  @override
+  Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async => [
+    for (final id in ids.toSet()) ?_rows(table)[id],
+  ];
+
+  @override
+  Future<void> attach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) => throw _noRelations;
+
+  @override
+  Future<void> detach(
+    String table,
+    Object id,
+    String relationKey,
+    List<Object> relatedIds,
+  ) => throw _noRelations;
+
+  @override
+  Future<num> aggregate(BeakAggregateSpec spec) async {
+    final rows = [
+      for (final row in _rows(spec.table).values)
+        if (_matches(spec.filter, row)) row,
+    ];
+    final numbers = [
+      for (final row in rows)
+        if (row[spec.columnKey ?? '']?.raw case final num value) value,
+    ];
+    final sum = numbers.fold<num>(0, (total, value) => total + value);
+    return switch (spec.function) {
+      BeakAggregateFunction.count => rows.length,
+      BeakAggregateFunction.sum => sum,
+      BeakAggregateFunction.avg => numbers.isEmpty ? 0 : sum / numbers.length,
+    };
+  }
+
+  bool _matches(BeakFilter? filter, BeakRecord row) => switch (filter) {
+    null => true,
+    BeakAndFilter(:final filters) => filters.every((f) => _matches(f, row)),
+    BeakOrFilter(:final filters) => filters.any((f) => _matches(f, row)),
+    BeakFieldFilter(:final columnKey, :final operator, :final value) => _test(
+      row[columnKey]?.raw,
+      operator,
+      value.raw,
+    ),
+    BeakRelationFilter() => throw _noRelations,
+  };
+
+  bool _test(Object? actual, BeakOperator operator, Object? operand) {
+    final text = '$actual'.toLowerCase();
+    final needle = '$operand'.toLowerCase();
+    return switch (operator) {
+      BeakOperator.eq => actual == operand,
+      BeakOperator.neq => actual != operand,
+      BeakOperator.isNull => actual == null,
+      BeakOperator.isNotNull => actual != null,
+      BeakOperator.inList =>
+        operand is List<Object?> && operand.contains(actual),
+      BeakOperator.notInList =>
+        operand is List<Object?> && !operand.contains(actual),
+      BeakOperator.contains => text.contains(needle),
+      BeakOperator.startsWith => text.startsWith(needle),
+      BeakOperator.endsWith => text.endsWith(needle),
+      _ => throw BeakConfigurationException(
+        'MapDataSource does not support ${operator.name}.',
+      ),
+    };
+  }
+
+  bool _searched(BeakSearch? search, BeakRecord row) =>
+      search == null ||
+      search.columnKeys.any(
+        (key) => _test(row[key]?.raw, BeakOperator.contains, search.term),
+      );
+
+  int _compare(Object? a, Object? b) => switch ((a, b)) {
+    (null, null) => 0,
+    (null, _) => -1,
+    (_, null) => 1,
+    (final Comparable<Object> x, final Object y) => x.compareTo(y),
+    _ => 0,
+  };
+}
+```
+
+What it does not do, and says so:
+
+- No relations. `relationLoads`, `attach`, `detach` and a relation filter throw `BeakConfigurationException`, so the relation groups of the suite stay off.
+- No soft deletes. `restore` throws `BeakValidationException`, and `delete` removes the row for good.
+- No transactions and no persistence: a restart forgets everything, and two writes are two writes.
+- Filters cover `eq`, `neq`, `isNull`, `isNotNull`, `inList`, `notInList`, `contains`, `startsWith` and `endsWith`. Ranges, `between` and `like` throw. Sorting compares `Comparable` values and treats anything else as equal.
+- It mints no ids. `create` needs one in the record, which is what the suite expects.
+
+The test runs the suite against it. In a `beak create` project it sits in `test/`, and `NoteModel` and `buildBeakRegistry` are the generated ones (`beak prepare` writes the registry to `lib/beak/registry.g.dart`); the repository's copy carries hand-written stand-ins for both.
+
+```dart title="packages/beak_test/test/src/map_data_source_contract_test.dart"
+void main() {
+  runBeakDataSourceContract(
+    'MapDataSource',
+    registry: buildBeakRegistry(),
+    model: const NoteModel(),
+    create: () async => MapDataSource(buildBeakRegistry()),
+    seed: (source, model, records) async =>
+        (source as MapDataSource).seed(model.table, records),
+  );
+}
+```
+
+Run in a scratch project made with `beak create`, it ends with `All tests passed!` and one skipped group, the relation group, waiting for `relationModels`, which is the suite telling you what this source leaves out.
+
 ## Prove it with the contract suite
 
-"Implement ten methods" is not a specification. The interface has edges that only bite in production: `getOne` returning null instead of throwing, `update` throwing when the row is gone, `aggregate` returning 0 over nothing, soft deletes hiding from `query` but not from `withTrashed`. `runBeakDataSourceContract` is the executable version, and every source Beak ships runs it. This is `WormDataSource`:
+"Implement ten methods" is not a specification. The interface has edges that only bite in production: `getOne` returning null instead of throwing, `update` throwing when the row is gone, `aggregate` returning 0 over nothing, soft deletes hiding from `query` but not from `withTrashed`. `runBeakDataSourceContract` is the executable version, and every source Beak ships runs it. This is `WormDataSource`, which also opts into the relation groups:
 
 ```dart title="packages/beak_backend/test/src/data/worm/worm_data_source_contract_test.dart"
 runBeakDataSourceContract(
@@ -221,8 +426,8 @@ runBeakDataSourceContract(
 ```console
 $ cd packages/beak_backend
 $ dart test test/src/data/worm/worm_data_source_contract_test.dart
-00:00 +75: WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
-00:00 +76: All tests passed!
+WormDataSource satisfies the BeakDataSource relation contract authors relations notes then comments (nested load) a filter on the first level still loads the second
+All tests passed!
 ```
 
 A green run is your source saying it belongs. It does not say everything, because of the limits listed next.

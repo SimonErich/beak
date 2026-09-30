@@ -8,11 +8,11 @@ The `shop` is a slice of the maintained example in [`examples/clean_beak_config`
 
 ## What you will end up with
 
-- **Categories and products**, with exact money, rules that hold in the form and at the API, and links between them.
-- **A panel you shaped**: table columns, filters, search, an overview page, a brand colour and a money format.
-- **A seeded database** you can rebuild in seconds, and an API you have called by hand.
-- **Authorization on the server**, a sign-in in the panel, and tests for the panel, the API and the policy.
-- **A server bundle and a static panel**, built the way a host would run them.
+- Categories and products, with exact money, rules that hold in the form and at the API, and links between them.
+- A panel you shaped: table columns, filters, search, an overview page, a brand colour and a money format.
+- A seeded database you can rebuild in seconds, and an API you have called by hand.
+- Authorization on the server, a sign-in in the panel, and tests for the panel, the API and the policy.
+- A server bundle and a static panel, built the way a host would run them.
 
 ## How the chapters work
 
@@ -33,7 +33,7 @@ No database to install. A new project uses a SQLite file that Beak creates on th
 
 Two things are worth knowing before chapter 1:
 
-- The tutorial uses the **authored** panel: you own `lib/main.dart` and list your resources in it, which is what `beak create --authored` writes. The [quickstart](../start-here/quickstart.md) uses the generated one instead, and [Two ways to boot a panel](../start-here/generated-or-authored.md) compares them. The chapters say which form they assume.
+- The tutorial uses the authored panel: you own `lib/main.dart` and list your resources in it, which is what `beak create --authored` writes. The [quickstart](../start-here/quickstart.md) uses the generated one instead, and [Two ways to boot a panel](../start-here/generated-or-authored.md) compares them. The chapters say which form they assume.
 - Until a release exists, `beak create` needs a local checkout of Beak to point at. Chapter 1 shows the flag and what changes in `pubspec.yaml`.
 
 ## Which page to read

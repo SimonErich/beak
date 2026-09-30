@@ -88,7 +88,7 @@ In a generated panel, put the `BeakScreen` (a top-level variable with an explici
 
 ## How it works
 
-- The columns are the enum's values, in declaration order, with each value's label and badge colour. There are no free-text swimlanes to keep in step with the model. An empty status still gets a column.
+- The columns are the enum's values, in declaration order, with each value's label and badge colour. There are no free-text swimlanes to keep in step with the model. A value with no cards still gets its column.
 - A record whose status is empty or not one of the enum values appears in no column.
 - `groupField` must be an enum field of the block's own model. A relation path or a non-enum field throws `Kanban group field "x" must be an enum field of tasks.` when the board renders.
 - The block reads one page of at most 200 records, or of its `filter`, and reads again whenever the table is written, from this screen or another. When more records match, a line beneath the board says `Showing the first 200 of 340.`
@@ -116,13 +116,13 @@ The block tests build a board against a fake source, check the columns, drop a c
 ```console
 $ cd packages/beak_frontend
 $ flutter test test/src/blocks/beak_module_blocks_test.dart --name 'BeakKanbanBlock|kanban' --reporter expanded
-00:00 +0: BeakKanbanBlock one column per enum value, records grouped
-00:00 +1: BeakKanbanBlock the group field must be an enum field of the block model
-00:00 +2: BeakKanbanBlock dropping a card persists its new group
-00:00 +3: module hardening (audit regressions) kanban fetches one full sorted page
-00:00 +4: module hardening (audit regressions) a dropped kanban card stays in its new column
-00:00 +5: module blocks read a filtered, bounded page kanban, calendar and chat send their filter
-00:00 +6: All tests passed!
+BeakKanbanBlock one column per enum value, records grouped
+BeakKanbanBlock the group field must be an enum field of the block model
+BeakKanbanBlock dropping a card persists its new group
+module hardening (audit regressions) kanban fetches one full sorted page
+module hardening (audit regressions) a dropped kanban card stays in its new column
+module blocks read a filtered, bounded page kanban, calendar and chat send their filter
+All tests passed!
 ```
 
 The planner page renders in the showcase panel:
@@ -130,8 +130,8 @@ The planner page renders in the showcase panel:
 ```console
 $ cd examples/showcase
 $ flutter test test/aviary_pages_test.dart --name Planner --reporter expanded
-00:00 +0: Planner renders
-00:00 +1: All tests passed!
+Planner renders
+All tests passed!
 ```
 
 To see it, run the showcase API on port 8082 and the panel, open Planner and drag a chore from `todo` to `doing`.

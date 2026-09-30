@@ -27,11 +27,11 @@ Answer them in order and stop at the first row that applies.
 
 | Question | If yes | If no |
 | --- | --- | --- |
+| Do you need uploads on Serverpod-owned tables? | Neither yet: the tunnel mounts no upload routes and the bridge has no upload client | Continue |
+| Does the admin need data Serverpod should never see? | A separate Beak app on its own database, which is not a Serverpod integration | Continue |
 | Can you change and redeploy the Serverpod server? | Continue | The bridge: it needs no server change |
 | Do your endpoints hold rules the admin must not bypass (an audit row, a webhook, a refund check)? | The bridge: every write is one of your endpoint calls | Continue |
 | Do you need atomic multi-row form saves, relations loaded with the rows, summaries or CSV export? | The admin app: only Beak's API on a database session can do these | Either fits; try the bridge first, because backing out is deleting a package |
-| Do you need uploads on Serverpod-owned tables? | Neither yet: the tunnel mounts no upload routes and the bridge has no upload client | Continue |
-| Does the admin need data Serverpod should never see? | A separate Beak app on its own database, which is not a Serverpod integration | Take the path from the rows above |
 
 [Choosing an integration](../../serverpod/choosing-an-integration.md) has the full comparison matrix behind these five rows, and the reasoning for each.
 
@@ -72,12 +72,12 @@ Both paths share Beak's login, registration and recovery screens over Serverpod'
 
 ## Rules and limits
 
-- **One panel takes one path.** A `BeakPanel` given a `dataSource:` (the admin path) routes every resource to it. Bridge resources bring their own source. Use two panels or pick one.
-- **The admin app needs a policy.** There is no allow-all default on that path: the engine is built with a `BeakPolicies` you write, deny by default.
-- **Serverpod stays the schema owner.** Never run `beak migrate` against Serverpod's database from a Beak app of its own, and never give Beak the database URL of a Serverpod project.
-- **Versions do not float.** The admin app tests against Serverpod 4.0.3 only. The break between the 4.0 beta and 4.0.x is on [Version compatibility](../../serverpod/versions.md).
-- **Uploads are not available** on either path, so a file or image column on a Serverpod-owned table has nowhere to go.
-- **The bridge is the older and narrower path.** It is covered by unit tests and a generator run against fixtures, not by a running Serverpod server.
+- One panel takes one path. A `BeakPanel` given a `dataSource:` (the admin path) routes every resource to it. Bridge resources bring their own source. Use two panels or pick one.
+- The admin app needs a policy. There is no allow-all default on that path: the engine is built with a `BeakPolicies` you write, deny by default.
+- Serverpod stays the schema owner. Never run `beak migrate` against Serverpod's database from a Beak app of its own, and never give Beak the database URL of a Serverpod project.
+- Versions do not float. The admin app tests against Serverpod 4.0.3 only. The break between the 4.0 beta and 4.0.x is on [Version compatibility](../../serverpod/versions.md).
+- Uploads are not available on either path, so a file or image column on a Serverpod-owned table has nowhere to go.
+- The bridge is the older and narrower path. It is covered by unit tests and a generator run against fixtures, not by a running Serverpod server.
 
 ## Verify it
 

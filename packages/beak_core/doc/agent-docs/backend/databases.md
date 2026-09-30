@@ -22,7 +22,7 @@ Any other scheme is a boot error. [Environment and config](../shipping/environme
 
 ## SQLite, the default
 
-The file is created on first use, in the working directory of the process. `beak create` lists the database files in `.gitignore`, so they never reach a commit.
+The file is created on first use. A relative path is relative to the working directory of the process and is kept as written: `sqlite:../legacy.db` opens the file one level up, and a `..` segment is resolved against the working directory, never silently dropped. `beak create` lists the database files in `.gitignore`, so they never reach a commit.
 
 Beak opens it with three settings: write-ahead logging (`journal_mode = WAL`), foreign keys enforced, and `synchronous = NORMAL`. WAL is why `beak.db-wal` and `beak.db-shm` appear beside `beak.db`. The three files are one database. Copying `beak.db` alone while the server runs can miss the newest writes, so back up with `sqlite3 beak.db ".backup copy.db"` or copy all three with the server stopped.
 

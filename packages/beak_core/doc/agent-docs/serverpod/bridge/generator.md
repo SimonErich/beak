@@ -71,8 +71,9 @@ EntryViewResource(
 | --- | --- |
 | Generation is structural | It maps Dart types and RPC signatures. Table names, authorization, validation, transactions and cleanup stay in Serverpod |
 | It fails instead of guessing | An ambiguous or unsupported shape stops generation with a specific message, listed on [Endpoint conventions](endpoint-conventions.md) and [Troubleshooting](../troubleshooting.md) |
-| Only the configured output is written | An unchanged file is left untouched. The command prints the path on every run, changed or not |
-| The client class is `Client` | The command line has no option for another name |
+| Only the configured output is written | An unchanged file is left untouched. The command prints `Generated <path>` when it wrote the file and `Up to date <path>` when it did not |
+| The client class is `Client` unless you name another | Set `client:` in the config or pass `--client` |
+| The file imports models through your `library` | A type the configured library exports is imported from it, never from the client's `lib/src`, so the output passes `implementation_imports` |
 | List models by their read type | `models:` produces a `<Model>Resource`. `types:` adds descriptors and codecs without endpoint discovery. Command DTOs and nested types are collected on their own; do not list them again |
 | Command-only fields need labels | A create or edit form takes its fields from the command DTO. Labels come from a matching read column; give `createLabels` and `editLabels` for the rest |
 | Domain workflows stay yours | A create or update whose result is not the read model does not bind the generic form. Write a custom screen for it |
@@ -84,17 +85,19 @@ Run the generator twice; the second run must change nothing, and the output must
 
 ```console
 $ dart run beak_serverpod_generator:generate --config beak_serverpod.yaml
+Generated /home/me/consumer/lib/beak/entry_resources.g.dart
+$ dart run beak_serverpod_generator:generate --config beak_serverpod.yaml
+Up to date /home/me/consumer/lib/beak/entry_resources.g.dart
 $ dart analyze lib
 Analyzing lib...
 No issues found!
-$ git diff --exit-code lib/beak/entry_resources.g.dart
 ```
 
 The package tests resolve models with the analyzer, then compile and run the generated codecs and CRUD transport against fixtures:
 
 ```console
 $ cd packages/beak_serverpod_generator && dart test
-00:16 +6: All tests passed!
+All tests passed!
 ```
 
 ## Reference
@@ -105,13 +108,15 @@ $ cd packages/beak_serverpod_generator && dart test
 | `models` | List of String | Read models that get a `<Model>Resource` and endpoint discovery |
 | `types` | List of String | Types that get descriptors and codecs only |
 | `output` | String | The file to write, relative to the root |
+| `client` | String | The client class, `Client` unless set. `--client` overrides it |
 
-At least one of `models` and `types` is required. Otherwise the command stops with `Provide library, models or types (string lists), and output.`
+At least one of `models` and `types` is required. Otherwise the command stops with `Provide library, models or types (string lists), output, and optionally the client class name.`
 
 | Command-line option | Default | Meaning |
 | --- | --- | --- |
 | `--config` | `beak_serverpod.yaml` | The config file |
 | `--root` | The directory of the config file | The consumer package, when you run from elsewhere |
+| `--client` | `client:` from the config, else `Client` | The client class the library exports |
 
 Exit code 1 and a `Companion generation failed: ...` line on stderr mean the generation stopped.
 
@@ -127,7 +132,7 @@ Future<String> generateServerpodCompanions({
 }) async {
 ```
 
-Supported scalar types are strings, integers, doubles, booleans, `DateTime`, `Uri`, `UuidValue` and Dart enums, nullable or not, plus lists and sets of those. Nested objects and lists of non-nullable objects work. Arbitrary maps, nullable object-list elements, duplicate class names in the selected graph and constructors that are private, named or take positional parameters fail with an explicit message.
+Supported scalar types are strings, integers, doubles, booleans, `DateTime`, `Uri`, `UuidValue` and Dart enums, nullable or not, plus lists and sets of those. Nested objects and lists of non-nullable objects work. Arbitrary maps, nullable object-list elements, duplicate class names in the selected graph and models whose unnamed constructor is missing, private or takes positional parameters fail with an explicit message.
 
 ## Continue reading
 

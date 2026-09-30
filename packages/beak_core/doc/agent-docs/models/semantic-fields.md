@@ -102,7 +102,7 @@ The meanings, what they store and what the reader sees:
 | `BeakSemantic.phone()` | `String` | Text | As typed. Conservative syntax check |
 | `BeakSemantic.slug()` | `String` | Text | Lowercase letters, numbers and single hyphens |
 | `BeakSemantic.uuid()` | `String` | Text | Canonical hyphenated form |
-| `BeakSemantic.password()` | `String` | Text | Bullets. Form-only by default |
+| `BeakSemantic.password()` | `String` | Text | Obscured input, form-only by default. Never returned by the server |
 | `BeakDate` | `BeakDate` | `YYYY-MM-DD` text | Date pattern, no timezone shift |
 | `BeakTime` | `BeakTime` | `HH:mm:ss` text | Time pattern, no date, no timezone |
 | `Duration` | `Duration` | Integer microseconds | `hh:mm:ss`, may pass 24 hours |
@@ -125,7 +125,11 @@ Email, URL, phone, slug and UUID are strings that get a syntax check on the clie
 {"code":"validation","message":"Validation failed for \"fulfillment_policies\".","fieldErrors":{"code":["Use lowercase letters, numbers and single hyphens."],"support_email":["Must be a valid email address."],"support_phone":["Must be a valid phone number."],"tracking_url":["Must be a valid URL."], ...}}
 ```
 
-`password()` obscures the input, masks the value everywhere else (a table cell, a CSV export) and is visible on the form only unless you say otherwise. It cannot be `@Display` or `searchable`. It does not hash anything: Beak stores the text you give it, so the value has to be a hash your authentication code made. A password field is a way to keep a secret off the screen, not a way to keep it safe at rest.
+`password()` obscures the input and is visible on the form only unless you say otherwise. It cannot be `@Display` or `searchable`.
+
+The stored value never leaves the server. Single reads, queries, batch reads, relations included in a response and the response to a create or an update all omit the field, whatever the policy says. A filter, sort or aggregate over it is a `422` (a search over it is refused too), because a `startsWith` filter would reveal a hash one character at a time. The CSV export writes `••••••••` where a value exists and never the value. Capabilities still list the field as readable and writable, so a form keeps the input.
+
+It does not hash anything: Beak stores the text as sent. Hash it before it is stored, in a save-plan preparer (`preparePlan`) or in an action, or let your authentication code write the column. A password field keeps a secret off the screen and out of the API, not safe at rest.
 
 ## Exact amounts and percentages
 
@@ -165,7 +169,7 @@ Three types and an instant, each with one job:
 
 | Type | Means | Never does |
 | --- | --- | --- |
-| `DateTime` | An instant | Nothing to hide: it is shown in the panel's display timezone |
+| `DateTime` | An instant | Ignore the timezone: it is shown in the panel's display timezone |
 | `BeakDate` | A calendar day (a birthday, a due date) | Convert through a timezone |
 | `BeakTime` | A time of day (a cutoff) | Carry a date or a zone |
 | `Duration` | Elapsed time | Wrap at 24 hours |
@@ -292,14 +296,14 @@ The editor renders the child fields recursively, and the child rules run in the 
 
 ## Rules and limits
 
-- **The semantic must fit the type.** `email()` on an `int`, or `money()` on a `double`, is an error from `beak prepare` naming the field.
-- **Money is never a `double`.** A `double` with a `€` prefix is still a floating-point number. Use `BeakDecimal` with `money` for anything that has to add up.
-- **The wire carries the stored form.** Over the REST route a money amount is integer units (`490`, not `"4.90"`), a duration is microseconds, and a list or an object is JSON text. The panel does the conversion for you, a script has to do it itself.
-- **Defaults apply to omissions.** A default fills a value that is left out of a create, and the form starts on it. An explicit `null` stays `null`, and a required field then fails.
-- **Display never converts storage.** Formatting changes what is shown and typed. It does not touch the stored value, the query value or the export of raw units.
-- **Scale is 0 to 12.** `BeakSemantic` asserts it.
-- **`placement validate:` is not a server rule.** A `validate:` or `validators:` callback on a screen runs in the form only. Put constraints that every caller must obey on the field or in `validationRules`.
-- **`percentage` and `quantity` do not change the column.** They are labels on a number, so `BeakMin` and `BeakMax` still do the bounding.
+- The semantic must fit the type. `email()` on an `int`, or `money()` on a `double`, is an error from `beak prepare` naming the field.
+- Money is never a `double`. A `double` with a `€` prefix is still a floating-point number. Use `BeakDecimal` with `money` for anything that has to add up.
+- The wire carries the stored form. Over the REST route a money amount is integer units (`490`, not `"4.90"`), a duration is microseconds, and a list or an object is JSON text. The panel does the conversion for you, a script has to do it itself.
+- Defaults apply to omissions. A default fills a value that is left out of a create, and the form starts on it. An explicit `null` stays `null`, and a required field then fails.
+- Display never converts storage. Formatting changes what is shown and typed. It does not touch the stored value, the query value or the export of raw units.
+- Scale is 0 to 12. `BeakSemantic` asserts it.
+- `placement validate:` is not a server rule. A `validate:` or `validators:` callback on a screen runs in the form only. Put constraints that every caller must obey on the field or in `validationRules`.
+- `percentage` and `quantity` do not change the column. They are labels on a number, so `BeakMin` and `BeakMax` still do the bounding.
 
 ## Verify it
 

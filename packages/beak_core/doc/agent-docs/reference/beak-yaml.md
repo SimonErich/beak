@@ -78,7 +78,7 @@ if (sidebar != null) {
 | [`resources.<table>.icon`](#resources) | lowerCamelCase string | `table` | `OiIcons` name of the sidebar icon |
 | [`resources.<table>.label`](#resources) | string | the model's label | Page and navigation title |
 | [`resources.<table>.section`](#resources) | string | none | Sidebar group heading |
-| [`resources.<table>.hidden`](#resources) | bool | `false` | Keep the default resource out of the sidebar |
+| [`resources.<table>.hidden`](#resources) | bool | `false` | Give the model no default resource: no sidebar entry and no pages |
 
 The shop, in full:
 
@@ -148,7 +148,7 @@ server:
   port: 8081
 ```
 
-`port` (integer, 1 to 65535) and `host` (string) are defaults for the generated host, written into `lib/beak/server.g.dart` as `{'PORT': '8081', ...environment}`. A real `PORT` or `HOST` in the environment or `.env` still wins, because where a process binds is a deployment decision. Use it when a project has a fixed development port; two Beak apps in one repository cannot both take 8080.
+`port` (integer, 1 to 65535) and `host` (string) are defaults for the generated host, written into `lib/beak/server.g.dart` as `{'PORT': '8081', ...environment ?? BeakEnv.resolve()}`. A real `PORT` or `HOST` in the environment or `.env` still wins, because where a process binds is a deployment decision. Use it when a project has a fixed development port; two Beak apps in one repository cannot both take 8080.
 
 ## `panel`
 
@@ -237,7 +237,7 @@ Keyed by **table name**, which is what `@Resource(table:)` says, or what Beak de
 | `icon` | `BeakIconToken(OiIcons.<icon>)` | Must be lowerCamelCase (`^[a-z][A-Za-z0-9]*$`). Whether the name exists in `OiIcons` is checked by the compiler, on the generated file |
 | `label` | `title:` | Page title, and the sidebar title unless the resource sets `navigationTitle` |
 | `section` | `navigationGroup:` | Sidebar group heading |
-| `hidden` | the model gets no default resource | The model keeps its table, its API and its relationships. It only loses a sidebar entry |
+| `hidden` | the model gets no default resource | The model keeps its table, its API and its relationships, so other resources still show and pick its records. It has no pages of its own: no sidebar entry, and its list, detail and form routes answer 404 |
 
 A model with its own `BeakResource` class ignores all four: the class replaces the default, so set `icon`, `title` and `navigationGroup` there, see [Panel and resource options](panel-options.md). A resource class is always shown, so `beak eject resource <table>` refuses a table with `hidden: true`. The same applies to the authored entrypoint: the keys were applied once, when it was written.
 
@@ -258,6 +258,9 @@ Every problem names the key. Real messages:
 | `resources: {notes: {colour: red}}` | `beak.yaml: unknown key "resources.notes.colour". Expected one of: hidden, icon, label, section.` |
 | `resources: {notes: {icon: file-text}}` | `beak.yaml: resources.notes.icon must be a lowerCamelCase OiIcons name (got "file-text").` |
 | `theme: {sidebar: {collapsible: maybe}}` | `beak.yaml: theme.sidebar.collapsible must be true or false (got maybe).` |
+| `agents: {skills: claude}` | `beak.yaml: agents.skills must be a list, such as [claude, agents].` |
+| `resources: {notes: 5}` | `beak.yaml: resources.notes must be a mapping.` |
+| a list as the document root | `beak.yaml: the document root must be a mapping.` |
 | `resources: {notez: {icon: fileText}}` | `Cannot generate: fix these first:` then `beak.yaml: resources.notez names no discovered table, did you mean notes?` |
 | invalid YAML | `beak.yaml: line 2, column 1: While parsing a flow sequence, expected ',' or ']'.` (1-based) |
 

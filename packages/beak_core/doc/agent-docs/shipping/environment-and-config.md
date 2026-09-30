@@ -20,10 +20,10 @@ None of the variables is required. A project that sets nothing runs on a SQLite 
 | `BEAK_LOCAL_ROOT_DIR`, `BEAK_LOCAL_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `local` |
 | `BEAK_FTP_HOST`, `BEAK_FTP_USER`, `BEAK_FTP_PASSWORD`, `BEAK_FTP_BASE_DIR`, `BEAK_FTP_PUBLIC_BASE_URL` | `BeakStorageSettings.fromEnv` | none | Required when the driver is `ftp` |
 | `BEAK_FTP_PORT` | `BeakStorageSettings.fromEnv` | `21` | FTP port |
-| `WORM_ENV` | worm, from the process environment only | `development` | `development`, `staging`, `production`, `testing` (case-insensitive); see below |
+| `WORM_ENV` | worm, from the process environment; the CLI also reads `.env` | `development` | `development`, `staging`, `production`, `testing` (case-insensitive); see below |
 | `BEAK_API_BASE_URL` | the Flutter compiler, as `--dart-define` | `api.baseUrl` from `beak.yaml` | The origin the panel calls; compiled in, not read at runtime |
 
-That is the whole list. One name that looks like it belongs is read by nothing: `BEAK_AUTH_SECRET` in `deploy/.env.prod.example`. Beak has no built-in variable for an authentication secret; you choose a name and read it through `defaults.environment` in `lib/server.dart`. There is also no variable for an S3 public base URL.
+That is the whole list. Beak has no built-in variable for an authentication secret; you choose a name and read it through `defaults.environment` in `lib/server.dart`.
 
 The repository's own `.env.example` shows the shape, pointed at the dev services:
 
@@ -86,8 +86,8 @@ The backend listens on `0.0.0.0:8080` unless told otherwise. Binding every inter
 With `BEAK_STORAGE_DRIVER` unset, uploads go to `storage/uploads` relative to the working directory, and the server serves them itself at `/uploads`. `none` removes the upload endpoints entirely. A typo fails at boot with the supported names in the message. A driver chosen without its settings fails naming the first missing variable:
 
 ```console
-$ BEAK_STORAGE_DRIVER=s3 ./beak-server
-BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
+$ BEAK_STORAGE_DRIVER=s3 ./build/serve/bundle/bin/serve
+error: BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
 ```
 
 Two things need care on a real host.
@@ -112,13 +112,13 @@ The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for pat
 
 ## `WORM_ENV`
 
-`WORM_ENV` is worm's variable, not Beak's, and it matters in production. It is read from the real process environment only, never from `.env`, and it defaults to `development` when unset. The one exception is the guard on `beak migrate fresh` and `refresh`: the CLI reads `WORM_ENV` from `.env` too, so a production marker in the file arms the `--force` requirement.
+`WORM_ENV` is worm's variable, not Beak's, and it matters in production. It is read from the real process environment only, never from `.env`, and it defaults to `development` when unset. The exception is the CLI: `beak migrate fresh`, `refresh` and `beak seed` read `WORM_ENV` from `.env` too (the shell wins), so a production marker in the file arms the `--force` requirement and filters the seeders.
 
 - `migrate:fresh` and `migrate:refresh` refuse to run under `WORM_ENV=production` without `--force`. Under any other value, including unset, they run, and they roll every migration back first.
 - A seeder can declare the environment it belongs to, and `db:seed` skips seeders declared for another one. Seeders that declare nothing run everywhere, and `db:seed` runs every eligible seeder every time you call it, so write them to be repeatable.
 
 ```console
-$ WORM_ENV=production beak-migrate migrate:fresh
+$ WORM_ENV=production ./build/migrate/bundle/bin/migrate migrate:fresh
 error: refusing to run destructive command in production without --force
 ```
 
@@ -158,13 +158,13 @@ Keep secrets out of the repository. `.env` is git-ignored here and your project 
 
 ## Verify it
 
-Boot with a wrong value and read the message. Each of these fails before the server binds a port:
+Boot with a wrong value and read the message. Each of these fails before the server binds a port, prints one line and exits with code 78:
 
 ```console
-$ PORT=abc ./beak-server
-BeakConfigurationException(configuration): PORT must be an integer between 1 and 65535, got "abc".
-$ BEAK_STORAGE_DRIVER=local ./beak-server
-BeakConfigurationException(configuration): BEAK_LOCAL_ROOT_DIR is required when BEAK_STORAGE_DRIVER=local.
+$ PORT=abc ./build/serve/bundle/bin/serve
+error: PORT must be an integer between 1 and 65535, got "abc".
+$ BEAK_STORAGE_DRIVER=local ./build/serve/bundle/bin/serve
+error: BEAK_LOCAL_ROOT_DIR is required when BEAK_STORAGE_DRIVER=local.
 ```
 
 A driver name that does not exist fails the same way and lists the five that do.

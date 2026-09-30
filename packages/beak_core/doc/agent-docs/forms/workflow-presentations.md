@@ -431,7 +431,7 @@ The read and edit modes themselves belong to [Detail views](detail-views.md).
 | Inline commands | Each `BeakFormActionInput` needs a command with an input model, names must be unique in the form, and `submitWithForm` must share the argument model. A violation throws when the session is created |
 | Links | Only `http`, `https`, `mailto`, `tel` and `sms` open. Permissions are checked again when a link is activated, and a failure shows a toast |
 | Locks are UI | `BeakFormLock` disables a control. The server decides whether the action is allowed |
-| Root-only switch | `showChangeIndicators` is read from the root layout only |
+| Root-only switch | `BeakFormLayout(showChangeIndicators: true)` marks modified field headings and added rows while a saved record is edited. Only the root layout's value counts |
 | Escape hatch | `BeakFormWidget` receives the draft and a `BeakDraftScope`. Whatever it changes must go through the draft, or it is not saved. See [Form screens](form-screens.md#a-widget-of-your-own) |
 
 ## Verify it
@@ -448,7 +448,7 @@ cd examples/foodio-adminpanel
 flutter test test/order_presentation_test.dart
 ```
 
-Each ends with `All tests passed!`. To watch the nodes move, run Foodio (API on port 8081), open an order and change a quantity: the Total metric, the summary and the change bar all update before you press Save.
+Each ends with `All tests passed!`. To watch the nodes move, run Foodio (API on port 8081), open an order and change a quantity: the Total metric, the summary and the change bar (`showChangeBar`, see [Drafts, review and conflicts](drafts-and-review.md)) all update before you press Save.
 
 ## Reference
 

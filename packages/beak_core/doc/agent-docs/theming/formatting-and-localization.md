@@ -46,6 +46,9 @@ $ beak prepare
 After that, `lib/beak/panel.g.dart` returns `panel.beakPanel(config)`, so whatever you change on `defaults` is the panel's configuration. Illustrative, with real names:
 
 ```dart
+import 'package:beak/panel.dart';
+import 'package:flutter/widgets.dart';
+
 BeakPanelConfig beakPanel(BeakPanelConfig defaults) => defaults.copyWith(
   locale: const Locale('de'),
   formatting: const BeakFormatting(
@@ -123,7 +126,7 @@ Patterns are ICU `DateFormat` patterns. Which one applies depends on the value:
 | A calendar date (`BeakDate`) | `datePattern`, never zone-converted |
 | A wall-clock time (`BeakTime`) | `timePattern`, never zone-converted |
 
-The relative words come from `BeakLocalizations`, so they follow the panel's `Locale`, not `formatting.locale`.
+In table cells and detail values the relative words come from `BeakLocalizations`, so they follow the panel's `Locale`, not `formatting.locale`. The inbox and invoice blocks build their text without a widget context and always use the English words.
 
 Only an absolute timestamp has a time zone. There are three ways to show one. Take the Aviary's specimen with a `hatchedAt` of 11:00 UTC, opened on a machine set to Tokyo (UTC+9):
 
@@ -174,7 +177,7 @@ Exact values never pass through a `double`. A `BeakDecimal` is formatted by `exa
 | `quantity` | `number`, then the unit |
 | `calendarDate`, `time` | `datePattern`, `timePattern`, no zone |
 | `duration`, `fileSize` | `HH:MM:SS`, binary units |
-| `password` | eight bullets, on screen and in the export |
+| `password` | eight bullets in the export and wherever a value reaches the screen; the server does not send the stored value |
 
 [Semantic fields](../models/semantic-fields.md) explains what each semantic stores. A value that does not fit its format shows as its own text, not as an error.
 
@@ -280,25 +283,32 @@ test(
 );
 ```
 
-`useLocalTime` is always sent as `false`. The server has no business knowing where the browser is, so a policy on `useLocalTime: true` produces a screen in device time and a file in UTC. Set `timeZoneOffsetMinutes` when the two must match. The server rejects a policy with an unknown locale, a precision outside 0 to 12, or an offset beyond a day with `422` and `Malformed export formatting: ...`. [Export to CSV](../recipes/export-to-csv.md) walks through the button, and [Search and export](../backend/search-and-export.md) lists the route.
+`useLocalTime` is always sent as `false`. The server has no business knowing where the browser is, so a policy on `useLocalTime: true` produces a screen in device time and a file in UTC. Set `timeZoneOffsetMinutes` when the two must match. The server rejects a policy with an unknown locale, a precision outside 0 to 12, an offset beyond a day, or a date pattern that is longer than 64 characters or that `intl` cannot format, with `422` and `Malformed export formatting: ...`. [Export to CSV](../recipes/export-to-csv.md) walks through the button, and [Search and export](../backend/search-and-export.md) lists the route.
 
 ## The language of the controls
 
-`BeakLocalizations` holds 78 strings and messages, one member each, for the controls Beak draws. `BeakPanel` installs its delegate after yours, on every panel, and `supportedLocales` defaults to `[Locale('en'), Locale('de')]`. A device set to French gets English. So does an explicit `Locale('fr')`, because `BeakLocalizations` treats every language other than German as English.
+`BeakLocalizations` holds a string or a message per member (over 160), for the controls Beak draws. The German is written in the formal `Sie` register. `BeakPanel` installs its delegate after yours, on every panel, and `supportedLocales` defaults to `[Locale('en'), Locale('de')]`. A device set to French gets English. So does an explicit `Locale('fr')`, because `BeakLocalizations` treats every language other than German as English.
 
 ### What is translated
 
 Checked in a German panel (the Aviary with `locale: Locale('de')`): the Create, Edit and Delete buttons (`Erstellen`, `Bearbeiten`, `Löschen`), Save (`Speichern`), the table footer (`Einträge pro Seite`, `1–8 von 8 Einträgen`, `8 Einträge`), the column menu, the pagination labels, and `Nicht verfügbar` where a custom field has no renderer registered. Archive and its confirmation dialog are tested too.
 
-Wired to `BeakLocalizations` in the source: the sign-in, register and recovery screens and their errors, yes and no badges, relative timestamps, loading and retry states, the command bar, relation attach and detach, the not-found page, and a generic fallback for server failures of kind `configuration` and `storage`.
+Wired to `BeakLocalizations` in the source: the sign-in, register and recovery screens and their errors, yes and no badges, relative timestamps, loading and retry states, the command bar, the list toolbar, the filter sheet and the saved-views dialog, relation attach and detach, the `Back` button, the undo button and the delete toast, the notification bell and the pending-actions banner, the not-found page, a generic sentence in place of the message of a `configuration`, `storage`, `internal` or `transport` failure, and the controls of a form: the save status and compare buttons, the draft buttons and the `Draft saved` line, the `Inspect form` button, the review and leave dialogs, the wizard's step buttons, the upload field and the gallery (with a screen-reader name for each picture and each row button), and the import view's field label, buttons, hints and progress lines.
 
 ### What is not
 
-Checked in the same German panel: the `Back` button on create and show pages, `Choose file` on an upload field, and the validation message under an empty required field, which reads `This field is required.` `BeakLocalizations` has a German sentence for that rule, but the form calls the rule directly and never asks it.
+Everything in this table stays English in a German panel. It is what a sweep of the source found, so treat it as a list of the known gaps and not as a promise that nothing else is missing.
 
-In the source, hard-coded English: the composed list toolbar (`All filters`, `Columns`, `Clear all`, `Show charts`), saved views, the unsaved changes and review dialogs (`Leave this form?`, `Review changes`, `Form inspector`), the wizard's `Finish`, the import view, the gallery and upload buttons, and the notification bell's labels.
+| Area | Stays English |
+| --- | --- |
+| Messages a form session writes itself | `Add at least 1 row.`, `Complete the related rows.`, `Complete the new related record.`, `Enter a valid amount.`, `Enter a valid number.`, `Choose Yes or No.` and `Choose an available option.` on attribute inputs, the parse errors of a semantic input (`Use hours:minutes:seconds, for example 2:30:00.`, `Must be valid JSON.`), the notices about a draft or a recovery snapshot that could not be stored, and `The file exceeds the limit of N bytes.` in the upload field. |
+| Form controls | The option pickers' `Loading options`, `No matching options.`, `Retry options` and `Options` heading. The `Add`, `Edit`, `Remove` and `Apply` buttons of related-records tables, with their screen-reader names. `More actions`, `Pick a date`, and `From` and `To` on a date range. The `Edit` link of a form section, the default `Details` card title, `Create <label>` and `Create new` on a create-in-place picker, and `Select <field> first.`. `Not set` on a three-state boolean input, and its `Yes` and `No` unless the column sets `trueLabel` and `falseLabel`. The catalog input's `Variant` and `Catalog categories`, and its `Search catalog`, `Add` and `Default` defaults, which are parameters you can set. The form inspector behind the `Inspect form` button. |
+| Import view | The default `title` of `BeakImportView` and `BeakBulkEditView` (`Import records`, `Review changes`), and the error messages the import writes itself, for example `Some import fields are not writable by your account.` and `Row N has already been saved. ...`. |
+| Lists | The Export button (`BeakListExport.label` defaults to `Export`), the `All` option of a choice filter (`allLabel`), and the texts of an active filter chip (`From ...`, `Through ...`, `Active`). The semantic range control's `Custom` preset. |
+| Blocks | `Select a message` in the inbox, `Get Started` on a plan without a `ctaField`, the default `label` of each module block, the summary truncation line, and the text the obers_ui modules draw themselves ([Module blocks](../blocks/module-blocks.md)). |
+| Failures and words in code | The exception messages of domain failures (`errorMessage` shows those as written), the default titles of `BeakMaintenanceConfig`, the words `create` and `update` in the review dialog, and the model action runner's `This action is not permitted.` and `The outcome is not yet known...`. |
 
-Not Beak's to translate: your text, the messages the server sends (`errorMessage` shows them as written, except the two generic kinds), and the CSV header, which is your column labels. A boolean in a CSV reads `Yes` and `No` unless its column sets `trueLabel` and `falseLabel`.
+Not Beak's to translate: your text, the messages the server sends, and the CSV header, which is your column labels. A boolean in a CSV reads `Yes` and `No` unless its column sets `trueLabel` and `falseLabel`.
 
 ### Add a language
 
@@ -327,7 +337,7 @@ class _FrenchBeakDelegate extends LocalizationsDelegate<BeakLocalizations> {
 }
 ```
 
-Anything you do not override stays English, because the base class decides German by `locale.languageCode == 'de'` and treats every other language as English. All 78 members carry a doc comment; the class is the checklist. Then list the language on the panel:
+Anything you do not override stays English, because the base class decides German by `locale.languageCode == 'de'` and treats every other language as English. Every member carries a doc comment; the class is the checklist. Then list the language on the panel:
 
 ```dart title="packages/beak_frontend/test/src/panel/beak_panel_localization_test.dart"
 locale: const Locale('fr'),
@@ -335,7 +345,7 @@ supportedLocales: const [Locale('fr')],
 localizationsDelegates: const [_FrenchBeakDelegate()],
 ```
 
-`locale:` pins the language. Leave it out and the platform's locale is matched against `supportedLocales`. Your own delegates go in the same list, ahead of Beak's, so an application label class and the framework strings live side by side.
+`supportedLocales` replaces the default list, so this panel speaks only French: add `Locale('en')` and `Locale('de')` back when it should still speak them. `locale:` pins the language. Leave it out and the platform's locale is matched against `supportedLocales`. Your own delegates go in the same list, ahead of Beak's, so an application label class and the framework strings live side by side.
 
 ### Around the gaps
 
@@ -343,7 +353,7 @@ localizationsDelegates: const [_FrenchBeakDelegate()],
 | --- | --- |
 | Labels, titles and enum labels | Plain strings in the schema and the screens, compile-time constants for columns, so one build speaks one language. Write them in the panel's language. |
 | Rule messages | A form in a German panel words the built-in column rules in German (`BeakLocalizations.validate`), keeping a rule's own `message:` such as `BeakPattern`'s. Record rules and the messages of server-side validation keep the text they were written with ([Validation rules](../reference/validation-rules.md)). |
-| Hard-coded English in a composed list or a dialog | Nothing overrides it from outside. Accept English for that control, or build the screen from blocks. |
+| Hard-coded English in the import view, the form inspector or one of the form controls above | Nothing overrides it from outside. Accept English for that control, or build the screen from blocks. |
 | A live language switch | A new `locale` is a new configuration. The panel builds a new router and dependency scope and lands on `/`. |
 | Your own widgets | `BeakLocalizations.of(context)` and `BeakFormatting.of(context)`, as below. |
 
@@ -367,16 +377,16 @@ else if (snapshot.data case BeakErr<BeakDecimal>(:final error)) ...[
 
 ## Rules and limits
 
-- **Set `formatting:` explicitly.** Without it timestamps are UTC and plain numbers are unformatted, while semantic fields already use a default policy.
-- **Screen and file can disagree.** The policy never sends the device's zone, so a panel on device time exports UTC unless `timeZoneOffsetMinutes` is set.
-- **An offset is not a time zone.** There is no daylight saving and no IANA zone.
-- **The locale does not choose patterns.** Write `datePattern` yourself.
-- **`.formatted` on a semantic field formats the decoded value.** A `BeakDecimal` money field shown with `.formatted(BeakValueFormat.currency)` prints an amount of `1234.56`, not `123456`, in the currency its semantic names, exactly as it does without the override. A `number` format prints the decimal, not the integer units it is stored as. The shop's invoice list uses `.formatted(..., label: 'Amount due')` to relabel `total`. Use `.currency(minorUnits: true)` on a plain integer column that holds cents.
-- **One empty value for screen and export.** Changing it changes both.
-- **CSV cells are quoted, not neutralized.** The exporter quotes commas, quotes and line breaks and does nothing else. A value that starts with `=` opens as a formula in a spreadsheet.
-- **English and German only.** Every other language falls back to English until you supply a subclass.
-- **`Back`, `Choose file`, the list toolbar, the saved-views dialog, the import view and the form's own status texts stay English** in a German panel. Built-in rule messages are translated.
-- **No test covers right-to-left languages.**
+- Set `formatting:` explicitly. Without it timestamps are UTC and plain numbers are unformatted, while semantic fields already use a default policy.
+- Screen and file can disagree. The policy never sends the device's zone, so a panel on device time exports UTC unless `timeZoneOffsetMinutes` is set.
+- An offset is not a time zone. There is no daylight saving and no IANA zone.
+- The locale does not choose patterns. Write `datePattern` yourself.
+- `.formatted` on a semantic field formats the decoded value. A `BeakDecimal` money field shown with `.formatted(BeakValueFormat.currency)` prints an amount of `1234.56`, not `123456`, in the currency its semantic names, exactly as it does without the override. A `number` format prints the decimal, not the integer units it is stored as. The shop's invoice list uses `.formatted(..., label: 'Amount due')` to relabel `total`. Use `.currency(minorUnits: true)` on a plain integer column that holds cents.
+- One empty value for screen and export. Changing it changes both.
+- Formula-looking CSV cells change. The exporter quotes commas, quotes and line breaks, and puts a `'` in front of a cell that starts with `=`, `+`, `-` or `@` (also behind leading spaces), so a spreadsheet reads it as text instead of running it. A cell that is only a number, such as `-5`, is left alone. That cell differs from what the screen shows, by one character.
+- English and German only. Every other language falls back to English until you supply a subclass.
+- The messages a form session and the import view write themselves stay English in a German panel; the import view's labels, buttons and hints are translated. The list toolbar, the filter sheet, the saved-views dialog and the record actions menu are translated, and so are built-in rule messages.
+- No test covers right-to-left languages.
 
 ## Verify it
 
@@ -385,18 +395,18 @@ The policy, its JSON and the German table and delete flows have tests:
 ```console
 $ cd packages/beak_core
 $ dart test test/src/columns/beak_format_policy_test.dart test/src/columns/beak_format_policy_boundaries_test.dart
-00:00 +11: All tests passed!
+All tests passed!
 $ cd ../beak_frontend
 $ flutter test --no-pub test/src/localization/beak_localizations_test.dart test/src/panel/beak_panel_localization_test.dart test/src/form/date_input_format_test.dart test/src/form/declarative_layout_and_formatting_test.dart
-00:01 +22: All tests passed!
+All tests passed!
 $ flutter test --no-pub test/src/table/beak_data_table_test.dart --plain-name "table chrome"
-00:00 +2: All tests passed!
+All tests passed!
 $ cd ../../examples/clean_beak_config
 $ flutter test --no-pub test/shop_widget_test.dart --plain-name "exact euro prices"
-00:01 +1: All tests passed!
+All tests passed!
 ```
 
-To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button and the table footer are German, the column headers and the `Back` button on a form are not. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.
+To see the split yourself, change `locale: const Locale('en')` to `Locale('de')` in `examples/showcase/lib/main.dart`, restart, and open Specimens. The Create button, the table footer and the `Back` button on a form are German, the column headers are not, because they are your labels. Then set `useLocalTime: false` in the Aviary's `BeakFormatting`, open a specimen, and compare its `Hatched At` with the device-time value.
 
 ## Reference
 
@@ -408,7 +418,7 @@ To see the split yourself, change `locale: const Locale('en')` to `Locale('de')`
 | `BeakValueFormat` | `beak_core` | `text`, `number`, `currency`, `date`, `dateTime`, `time`, `percent`. |
 | `BeakFormattedField`, `.formatted`, `.currency` | `beak_frontend` | A display-only override on a typed field. |
 | `BeakExportFormat` | `beak_core` | A per-field format in an export request: `format`, `minorUnits`, `scale`. |
-| `BeakLocalizations` | `beak_frontend` | 78 strings, `of`, `delegate`, `supportedLocales`, `english`. |
+| `BeakLocalizations` | `beak_frontend` | Over 160 strings and messages, `of`, `delegate`, `supportedLocales`, `english`. |
 | `BeakPanelConfig.locale`, `.supportedLocales`, `.localizationsDelegates`, `.formatting` | `beak_frontend` | The panel's settings. All four are also on `copyWith`. |
 
 Every parameter and its default is in [Panel options](../reference/panel-options.md#beakformatting).

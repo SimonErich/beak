@@ -24,12 +24,12 @@ The family lives in `beak_core`, so server code, panel code and tests share the 
 | `BeakConfigurationException` | `configuration` | 500 | Beak is wired wrong: unregistered model, invalid environment value, unsupported data source | none |
 | `BeakStorageException` | `storage` | 500 | A storage driver failed, or a storage key is invalid | none |
 | `BeakInternalException` | `internal` | 500 | The server failed unexpectedly; also what the client reports for a 5xx it cannot type | none |
-| `BeakPayloadTooLargeException` | `payload_too_large` | 413 | A request body is larger than the server, proxy or tunnel accepts | none |
+| `BeakPayloadTooLargeException` | `payload_too_large` | 413 | A JSON body is over 16 MiB, or a request body is larger than the proxy or tunnel accepts | none |
 | `BeakTransportException` | `transport` | 502 | A response never reached Beak's error format and no other type fits | none |
 | `BeakRecordShapeException` | `configuration` | 500 | `require` on a column or typed field found no readable value | `columnKey`, `expectedType` |
 | any other `Object` thrown on the server | `internal` | 500 | A bug or an infrastructure failure | none (the body is fixed) |
 
-`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers ten direct variants; `BeakRecordShapeException` rides along with its parent. The server answers an untyped failure with the fixed `internal` body. `BeakInternalException` is the type a client rebuilds from that body, and what server code throws when it wants a 500 with a message of its own. `BeakTransportException` is a client-side type: the server never sends `transport`, but the Serverpod tunnel does.
+`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers ten direct variants; `BeakRecordShapeException` rides along with its parent. The server answers an untyped failure with the fixed `internal` body. `BeakInternalException` is the type a client rebuilds from that body, and what server code throws for a broken invariant: the caller still gets the fixed body, and `onUnexpectedError` gets the exception with its message. `BeakTransportException` is a client-side type: the server never sends `transport`, but the Serverpod tunnel does.
 
 ## The base type
 
@@ -191,7 +191,7 @@ Messages below were captured from a running quickstart server unless marked "sou
 | Cause | Message or field error |
 | --- | --- |
 | A column rule failed on create or update | `Validation failed for "notes".` with `fieldErrors: {"title": ["This field is required."]}` |
-| Body is not JSON, or not a JSON object | `Request body must be a JSON object, got [1].` |
+| Body is not UTF-8 or JSON, or not a JSON object | `Request body must be a JSON object, got [1].` |
 | A query, aggregate, summary, commit or validation body cannot be decoded | `Malformed spec body: BeakSavePlan JSON is missing the "root" key.` |
 | A spec names another table than the path | `Query spec targets "x" but this endpoint serves "notes".` (source) |
 | A direct write to a graph-only table | `This resource must be saved through a graph commit.` |
@@ -205,10 +205,13 @@ Messages below were captured from a running quickstart server unless marked "sou
 | A query names an unknown table, field or relationship | `Unknown table "ghosts".`, `Unknown field "nope" on "notes".`, `Unknown relationship "title".` |
 | A sort, aggregate column, summary group or summary measure reaches through a relationship | `Sort key "category.name" must be a column of "products" itself, not a field reached through a relationship.` |
 | An aggregate sums or averages a column that is not numeric | `Aggregate column "title" must be numeric.` |
-| A filter operand does not fit its operator | `Operator "contains" on "title" needs a string operand, got 5.`, `Operator "between" on "rating" needs exactly two bounds, ...` |
+| A filter operand does not fit its operator or its column | `Operator "contains" on "title" needs a string operand, got 5.`, `Operator "between" on "rating" needs exactly two bounds, ...`, `Operator "gt" on "rating" needs an integer operand, got "abc".`, `Operator "eq" on "title" needs a single value, got a list.`, `Operator "contains" on "rating" only applies to text fields.` |
+| The database refuses a value in a filter (an integer outside an `integer` column) | `A value in the request does not fit the field it is compared with.` |
+| A write breaks a foreign key, a CHECK or NOT NULL rule, or a column's size or range | `A record this one refers to does not exist.`, `A value is missing or not allowed.`, `A value is too long or out of range for its column.` (with a field error when the driver names the column) |
 | A search names a column or relationship that does not exist, or one that cannot be searched | `Model "notes" has no column "bogus".`, `Password column "secret" cannot be searched.` |
 | A relationship filter reaches more than 16 levels | `Relationship filter exceeds 16 levels.` |
 | A page whose offset no database can address | `Page 9007199254740992 is out of range for 200 records per page.` |
+| A plan names an `action` and the data source is not transactional | `This data source cannot run a named action: actions need a transactional data source.` |
 
 ### not_found (404)
 
@@ -242,7 +245,7 @@ An integer primary key with a non-integer path id is a 404, never a crash. A row
 | --- | --- |
 | A policy denied a signed-in principal | `Principal "admin" is not allowed to update "notes".` (source, the action varies) |
 | A graph operation was denied | `This operation is not permitted.` (inside a receipt) |
-| A create fell outside the row scope | `The new record is outside your permitted scope.` (source) |
+| A create or an update would leave the record outside the row scope | `The record would be outside your permitted scope of "notes".` (source) |
 | A field policy denied a field | `Principal "x" is not allowed to write field "y" of "notes".` (source) |
 
 `enforcePolicyDecision` picks between the two: a denied `null` principal raises `BeakAuthenticationException`, a denied principal raises `BeakAuthorizationException`.
@@ -252,6 +255,7 @@ An integer primary key with a non-integer path id is a 404, never a crash. A row
 | Cause | Message |
 | --- | --- |
 | A unique constraint fired on insert or update | `A value that must be unique is already in use.` |
+| A row other records still reference is force-deleted | `This "notes" record is still referenced by other records.` |
 | `If-Unmodified-Since` is older than the stored `updated_at` | `Record "<id>" of "notes" changed since it was read (expected <a>, found <b>).` |
 | `expectedUpdatedAt` in a graph operation is stale | `The record changed since it was loaded.` (inside a receipt) |
 | A `saveId` was reused with a different plan | `Save identity was reused with different content.` |
@@ -285,7 +289,7 @@ The S3 driver appends the driver's own error text to the message. The middleware
 | Cause | Type and message |
 | --- | --- |
 | Any exception that is not a `BeakException` reaches the middleware | `internal`, always `Internal server error.` |
-| Server code throws `BeakInternalException` | `internal`, the message it carries |
+| Server code throws `BeakInternalException` | `internal`, always `Internal server error.`; the message goes to `onUnexpectedError` |
 | The client reads a `5xx` with no Beak error code (a proxy's error page, an empty body) | `BeakInternalException`, message `HTTP 502.` |
 | The client reads a `413`, or the tunnel reports one (Serverpod's `maxRequestSize`) | `BeakPayloadTooLargeException` |
 | The client reads a status Beak does not use (a `400` or `3xx` with no Beak code), or the tunnel reports a fault it cannot name | `BeakTransportException` |
@@ -310,6 +314,14 @@ Middleware beakErrorMappingMiddleware({
           return _jsonResponse(500, {
             'code': exception.code,
             'message': 'File storage failed.',
+            ..._requestIdEntry(request),
+          });
+        }
+        if (exception is BeakInternalException) {
+          onUnexpectedError?.call(exception, stackTrace);
+          return _jsonResponse(500, {
+            'code': exception.code,
+            'message': 'Internal server error.',
             ..._requestIdEntry(request),
           });
         }
@@ -347,7 +359,7 @@ The body is JSON with `content-type: application/json; charset=utf-8`.
 | `code` | always | The variant's `code`, or `internal` |
 | `message` | always | The exception's message, or `Internal server error.` |
 | `fieldErrors` | only for `BeakValidationException` with at least one entry | `{ "<key>": ["<message>", ...] }` |
-| `requestId` | when the request-log middleware is installed (it is, in `BeakServer`) | The incoming `x-request-id`, or one minted per request. The same value is echoed as the `x-request-id` response header. |
+| `requestId` | when the request-log middleware is installed (it is, in `BeakServer`) | The incoming `x-request-id` when it is a plain token (at most 128 letters, digits and `. _ : / -`), or one minted per request. The same value is echoed as the `x-request-id` response header. |
 
 Real bodies:
 
@@ -461,7 +473,8 @@ A graph commit answers `200` even when the save failed. The failure travels insi
 | `unsupportedBehavior` | staged runner | `unapplied` | The plan needs model behavior and the data source cannot commit atomically |
 | `rejected` | `BeakFormCommitRepository` | `unapplied` | The commit call threw a typed refusal (422, 413, 401, 403, 404, 409), so the server ran no write. The error is in `error` |
 | `responseUnavailable` | `BeakFormCommitRepository` | `unknown` | The commit call threw something that cannot prove nothing was written (a dropped connection, a timeout, a 5xx), so nothing is known |
-| `notReceived` | `BeakFormCommitRepository` | `unapplied` | The receipt lookup answered 404, so the server never received the plan |
+| `notReceived` | `BeakFormCommitRepository` | `unapplied` | The receipt lookup answered 404 from a source that keeps receipts durably, or for a save this same page sent, so the plan never arrived |
+| `receiptLost` | `BeakFormCommitRepository` | `unknown` | A reload found a pending save and the source keeps receipts in memory only, so its 404 proves nothing. The form asks the user to check and discard |
 | `restoredPendingSave` | draft runtime | `unknown` | A reload found a stored snapshot of a save in flight |
 
 A `saveId` with an `unknown` outcome is never replayed. `GET /api/commits/{saveId}` resolves it. When a receipt has to become an exception again (a single-record delete through `ModelBeakDataSource`), the first outcome error is mapped back by `code`: `validation`, `authorization`, `authentication`, `not_found`, `configuration` and `storage` keep their type, and everything else becomes `BeakConflictException`.
@@ -532,14 +545,15 @@ These are not `BeakException`s, because nothing maps them to an HTTP response.
 | `BeakTemplateException` | `beak_cli` | A block template in the agent files failed to render. |
 | `FtpProtocolException` | `beak_storage_ftp` | Low-level FTP failure. The driver wraps it as `BeakStorageException`. |
 | `UniqueConstraintException` | `worm` | Caught by the data source and the graph service and rethrown as `BeakConflictException`. |
+| `ForeignKeyException`, `CheckConstraintException`, `DataException` | `worm` | Caught by the data source: a foreign key on delete is a `BeakConflictException`, the others a `BeakValidationException`. |
 
 ## Rules and limits
 
 - Switch on `code` or on the exception type. Never parse `message`.
 - Only `BeakValidationException` carries `fieldErrors`. A `BeakSaveError` also carries them, so a form can show receipt errors on the fields.
 - `code` values are strings, not an enum. `BeakSaveError.code` and `BeakOperationResult.reason` are plain strings on the wire, so a client matches them with a default branch.
-- Typed 500 messages, including `BeakInternalException`'s, are sent as written, except `BeakStorageException`, which is replaced by `File storage failed.` and reported to `onUnexpectedError`. Keep secrets out of the message of an exception you throw from a policy or preparer.
-- `BeakException` is not thrown for HTTP-level transport faults such as a refused connection. `BeakClient` lets the `http` package's `ClientException` propagate, and `beakRun` rethrows it unless `mapException` maps it.
+- Typed messages are sent as written, except two that the middleware replaces and reports to `onUnexpectedError`: `BeakStorageException` becomes `File storage failed.` and `BeakInternalException` becomes `Internal server error.`. Keep secrets out of the message of every other exception you throw from a policy or preparer, `BeakConfigurationException` included.
+- `BeakClient` lets the `http` package's `ClientException` (a refused connection) propagate, and `beakRun` rethrows it unless `mapException` maps it. The panel's data source does the mapping for you: a `ClientException` or a `TimeoutException` that your `mapException` does not claim becomes a `BeakTransportException` with a generic message, so a list shows its error state instead of loading for ever.
 
 ## Source
 

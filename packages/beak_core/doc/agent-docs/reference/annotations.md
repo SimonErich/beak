@@ -37,6 +37,7 @@ A field with no annotation is a valid column: its Dart type picks the column kin
 Every schema class is a `final class X extends BeakSchema`. The base class only marks the class as a description: its fields are `late final` and no constructor runs, so nothing ever instantiates one.
 
 ```dart title="packages/beak_core/lib/src/schema/beak_schema_annotations.dart"
+@immutable
 abstract base class BeakSchema {
   /// Enables `const` construction by subclasses. Never actually construct one.
   const BeakSchema();
@@ -69,7 +70,7 @@ const Resource({
 
 | Parameter | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `table` | `String?` | class name, snake-cased and pluralised | Physical table name. The pluraliser is small, see the rules below. |
+| `table` | `String?` | class name, snake-cased and pluralised | Physical table name: letters, digits and underscores, and one schema class per table (`beak prepare` refuses a dash, and two classes on one table). The pluraliser is small, see the rules below. |
 | `softDeletes` | `bool` | `false` | Adds a `deletedAt` column (`deleted_at`). Deletes write it instead of removing the row, and the model reports `softDeletes => true`. |
 | `timestamps` | `bool` | `false` | Adds `createdAt` and `updatedAt` (`created_at`, `updated_at`), stamped by the API. |
 | `managesSchema` | `bool` | `true` | `false` when another system migrates the table (a Serverpod model, a database Beak was pointed at). `beak prepare` writes no migration for it. |
@@ -89,7 +90,7 @@ final class Book extends BeakSchema {
 | `updatedAt` | `timestamps: true` | `BeakDateTimeColumn`, sortable, `BeakDateFormat.relative` | table, detail |
 | `deletedAt` | `softDeletes: true` | `BeakDateTimeColumn` | detail |
 
-A class that declares its own `id` (the Serverpod models declare `int? id`) keeps it, and `beak prepare` adds no `id` column.
+A class that declares its own `id` (the Serverpod models declare `int? id`) keeps it, and `beak prepare` adds no `id` column. Declaring `createdAt` or `updatedAt` next to `timestamps: true`, or `deletedAt` next to `softDeletes: true`, would declare the column twice, so `beak prepare` refuses it.
 
 ## Column
 
@@ -138,7 +139,7 @@ const Column({
 
 ### Parameters that belong to one kind
 
-`beak prepare` rejects one of these on a field of another kind, naming the field.
+`beak prepare` rejects one of these on a field of another kind or type, naming the field. A `Duration` is stored as an integer and a `BeakDate` or `BeakTime` as a string, but `prefix`, `suffix` and `placeholder` are refused on them too: the message reads `is a Duration field, which has no "prefix".`
 
 | Parameter | Type | Applies to | Effect |
 | --- | --- | --- | --- |
@@ -199,7 +200,6 @@ const Image({
   this.allowedTypes = const [],
   this.maxDimensions,
   this.aspectRatio,
-  this.thumbnail,
   this.transforms = const [],
 });
 ```
@@ -215,11 +215,10 @@ const FileField({
 | Parameter | Type | Default | On | Effect |
 | --- | --- | --- | --- | --- |
 | `storagePath` | `String` | required | both | Storage subfolder uploads land in. |
-| `maxSizeInBytes` | `int?` | `null` | both | Highest accepted upload size. |
+| `maxSizeInBytes` | `int?` | `null` | both | Highest accepted upload size. `null` means the server's 100 MiB ceiling. |
 | `allowedTypes` | `List<BeakFileType>` | `@Image`: `jpeg`, `png`, `webp`, `gif`. `@FileField`: `[]`, unrestricted | both | Accepted types: `jpeg`, `png`, `webp`, `gif`, `svg`, `pdf`, `csv`, `json`, `zip`, `mp4`, `mp3`. |
 | `maxDimensions` | `BeakDimensions?` | `null` | `@Image` | Largest accepted source size. |
 | `aspectRatio` | `double?` | `null` | `@Image` | Required width to height ratio. |
-| `thumbnail` | `BeakDimensions?` | `null` | `@Image` | Size of the thumbnail rendition shown in tables. |
 | `transforms` | `List<BeakImageTransform>` | `[]` | `@Image` | Transforms run on upload, in order: `BeakResizeTransform`, `BeakFormatTransform` (`.webp()`), `BeakThumbnailTransform`. |
 
 A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column, and its `storagePath` is the table name. The annotation constructors require `storagePath`, so `beak prepare` reports an `@Image()` or `@FileField()` that does not pass one. Uploads are covered on [Files and storage columns](../models/files-and-storage-columns.md).
@@ -419,8 +418,12 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 | `marks 2 fields @Display (name, sku). Exactly one field is the display column, so keep the annotation on one of them.` | `@Display` on more than one field of a class | Keep it on one |
 | `@Image needs a storagePath, the folder its uploads land in.` | `@Image()` or `@FileField()` without `storagePath` | Write `@Image(storagePath: 'covers')`, or drop the annotation to use the table name |
 | `cannot be generated: the typed record view wraps the underlying record as record` | A field named `record` | Rename the field; keep the column with `@Column(columnName: 'record')` |
-| `has no part directive. Add part 'x.beak.dart';` | The schema file lacks `part '<file>.beak.dart';` | Add it under the imports |
+| ``has no part directive. Add `part 'x.beak.dart';` under the imports`` | The schema file lacks `part '<file>.beak.dart';` | Add it under the imports |
 | `declares no fields, so it has nothing to display.` | An empty schema class | Add a field |
+| `names the table "bad-table", which is not a table name Beak can write a migration for.` | A `table:` with a dash, a space or a leading digit | Use letters, digits and underscores |
+| `declares the table "notes", which Note (lib/...) already uses. A table has exactly one schema class` | Two schema classes on one table. The issue is on the class that wrote `table:`, or on the later one when both did | Give one another table, or merge them |
+| `cannot be the name of a schema class: the code generated for it uses that name for something else` | A class named after a reserved type such as `List` | Rename the class and keep the table with `@Resource(table:)` |
+| `is the created_at column that timestamps: true already adds, so the class would declare it twice.` | A field for a column that `timestamps` or `softDeletes` adds | Drop the field, or drop the option |
 
 ## Rules and limits
 
@@ -428,6 +431,7 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 - A schema class has to be a `@Resource` under `lib/`. Files ending `.beak.dart`, `.g.dart` or `.freezed.dart`, and files whose name starts with `_`, are not scanned.
 - The pluraliser behind the default table name knows the regular rules and a short list of irregular words. It appends `es` after `s`, `x`, `z`, `ch` and `sh`, turns a consonant and `y` into `ies`, keeps the `y` after a vowel, and otherwise appends `s`. `Person` becomes `people`, `Day` and `Key` become `days` and `keys`, and `Staff` and `Media` stay as they are. Only the last word of a compound name changes, so `SalesPerson` becomes `sales_people`. Set `@Resource(table: 'analyses')` for a word it does not know, such as `Analysis`, which would otherwise become `analysises`.
 - Renaming a field renames its column key unless `columnName` pins it. Pin it when the table already exists.
+- A schema class cannot be called `List`, `String`, `Future`, `Function`, `Enum`, `DateTime`, `Schema`, `Migration`, `BeakSchema`, `Resource`, `Column`, `Display`, `BelongsTo`, `HasOne`, `HasMany` or `BelongsToMany`. The code generated for it, or its create-table migration, uses those names for something else, and the compile errors never mention the class. `beak prepare` refuses it, and `beak make:resource` and `beak introspect` name the class something else (`ListEntry`; keep the table with `@Resource(table: 'lists')`).
 - Annotations declare structure. Presentation lives in the resource, [form screens](screens-and-layouts.md) and `beak.yaml`, and behaviour in the `behavior` getter.
 
 ## Source

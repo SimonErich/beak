@@ -6,7 +6,7 @@ You have models and want the admin app around them. This section covers the pane
 
 ## What the panel does on first build
 
-`BeakPanel` is the root widget. Hand it resources (or one `BeakPanelConfig`) and it builds everything else once, memoized on the config, so a rebuild does not rebuild the router.
+`BeakPanel` is the root widget. Hand it resources (or one `BeakPanelConfig`) and it builds everything else once, memoized on the config, so a rebuild that passes the same config does not rebuild the router. The keys are identities: a parent that rebuilds `BeakPanel(resources: [...])` with new list or resource instances counts as a new configuration, and that starts a new router, a new container and a signed-out session. Keep the config (or the lists) in a field or a `const`, or call `runApp` with the panel once.
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_panel.dart"
 final routing = useMemoized(() {
@@ -142,6 +142,8 @@ void main() => runApp(
 ```
 
 The first is the whole generated boot, the second the shop's authored one. The shop passes `resources:` and `pages:` next to a theme and one formatting policy, and that is the complete panel setup.
+
+Pick one form per panel. `BeakPanel(config: ...)` together with an individual everyday argument (`title`, `theme`, `pages`, `auth`, `locale`, `navigation` and the rest) throws a `BeakConfigurationException` naming the ignored arguments when the panel builds, because the config would win silently. Passing `resources:` next to `config:` fails an assert in debug builds. Put the value on the `BeakPanelConfig` (`copyWith` works) or drop the config. `dataSource:` and `httpClient:` are the exceptions: they combine with `config:`, which is how the generated `BeakApp` injects a fake in a test. [Panel and resource options](../reference/panel-options.md) lists every option and which form takes it.
 
 ## Where each decision lives
 

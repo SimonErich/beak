@@ -51,6 +51,7 @@ $ beak dev
   panel      run this in another terminal:
                flutter run -d chrome
   api        starting…
+warning: Beak is listening on 0.0.0.0:8080 with BeakAllowAllPolicy, so every route answers every caller and CORS admits any origin. Pass a BeakPolicy to defaults.build(policy: ...), or set HOST=127.0.0.1 to keep it on this machine.
 listening on http://0.0.0.0:8080
 ```
 
@@ -77,7 +78,7 @@ The second call is the one to read twice. Nobody wrote a required rule for `titl
 
 > **Question: What this skipped**
 >
-> Starting a project of your own instead of reading this one: [Quickstart](../start-here/quickstart.md) runs `beak create`, and `beak create --help` lists the flags (`--authored`, `--no-example`, `--no-pub`, `--beak-ref`, `--beak-path`).
+> Starting a project of your own instead of reading this one: [Quickstart](../start-here/quickstart.md) runs `beak create`, and `beak create --help` lists the flags (`--authored`, `--no-example`, `--no-pub`, `--skills`, `--beak-ref`, `--beak-path`).
 
 ## Tour
 
@@ -345,7 +346,7 @@ $ beak doctor
 All checks passed.
 ```
 
-(The listing drops the lines about the database and the optional skills.)
+(The listing drops four lines: the migration imports, the database, the size of `AGENTS.md` and the optional skills.)
 
 ## Limits
 

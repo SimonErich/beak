@@ -23,7 +23,7 @@ dart pub global activate melos 6.3.3
 melos bootstrap
 ```
 
-`melos bootstrap` resolves every package under `packages/` and `examples/`. obers_ui comes from the commit the pubspecs pin, so nothing else has to sit next to the clone. Two trees are outside melos on purpose: the vendored `packages/worm*` packages and the Serverpod workspace in `examples/serverpod`.
+`melos bootstrap` resolves every package under `packages/` and `examples/`. obers_ui comes from the commit the pubspecs pin, so nothing else has to sit next to the clone. That commit is behind what `beak_frontend` calls, so the panel does not compile on the pin alone: run `melos run link-obers-ui` first, with a checkout at `../obers_ui`. [Working with obers_ui](working-with-obers-ui.md) has the details. Two trees are outside melos on purpose: the vendored `packages/worm*` packages and the Serverpod workspace in `examples/serverpod`. That workspace pins Serverpod 4, needs Dart 3.12.2 or newer, and is gated by its own two CI jobs.
 
 > **Warning: Melos 7 does not bootstrap this repo**
 >
@@ -109,12 +109,13 @@ The skills check also runs inside `melos run test`, through `test/published_skil
 
 | Workflow | Job | Runs |
 | --- | --- | --- |
-| `ci.yaml` | Analyze and format | `melos run analyze`, `melos run format-check` |
+| `ci.yaml` | Analyze & format | `melos run analyze`, `melos run format-check` |
 | `ci.yaml` | Web build | `flutter build web --release` for `examples/quickstart` and `examples/clean_beak_config` |
 | `ci.yaml` | Web build (showcase), Web build (foodio) | `flutter build web --release` for `examples/showcase` and `examples/foodio-adminpanel`, one job each |
 | `ci.yaml` | Install smoke | `dart pub global activate --source path packages/beak_cli`, `beak --version`, `beak create --beak-path` in a temporary directory, then `beak prepare` |
-| `ci.yaml` | Serverpod example | `flutter pub get` in `examples/serverpod`, then the bookshop server's tests without the `integration` tag |
-| `ci.yaml` | Test and coverage | `melos run test`, `melos run coverage`, then `melos run up`, `melos run test-e2e`, `melos run test-worm` |
+| `ci.yaml` | Serverpod example | `flutter pub get` in `examples/serverpod`, `dart analyze` of its server, schema and client packages and `flutter analyze` of the template app, then the bookshop server's tests: without the `integration` tag, and with it on the embedded Postgres (the gate, policy and adapter-contract proofs) |
+| `ci.yaml` | Serverpod admin app | `flutter analyze` and `flutter test` in `bookshop_admin`, which compiles the panel |
+| `ci.yaml` | Test & coverage | `melos run test`, `melos run coverage`, then `melos run up`, `melos run test-e2e`, `melos run test-worm` |
 | `docs.yml` | Build documentation | the docs checker and its tests, the agent docs bundle check, `mkdocs build --strict`, and on `release/**` branches and `v*` tags `check_docs.dart --release` |
 | `docs.yml` | Deploy to Pages | publishes the built site, on `main` only |
 

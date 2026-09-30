@@ -110,9 +110,9 @@ final BeakServerpodEngine bookshopBeak = BeakServerpodEngine(
 
 `policy:` is required. There is no allow-all default. Per request, `dispatch` does this:
 
-1. Decodes the envelope. A malformed one is a 400, and an unsupported version says which version the server speaks.
+1. Decodes the envelope. A malformed one is a 400 (including a method that is not an HTTP method name), and an unsupported version says which version the server speaks.
 2. Turns the path into an internal URL, or refuses with a 404. Only `/api/**` passes, and never `/api/auth/**`, because Serverpod owns sign-in. Percent-encoded dots, empty segments and separators are refused rather than resolved.
-3. Reads `session.authenticated`. No session is a 401 (the gate normally answers first). The principal resolver turns the user into a `BeakPrincipal`: by default the user id, with every scope name as a role.
+3. Reads `session.authenticated`. No session is a 401, and a session without the `beak.admin` scope is a 403 (the gate normally answers both first, and the engine repeats them, so an endpoint that forgot `BeakAdminGate` does not open the tunnel to every signed-in user). The principal resolver then turns the user into a `BeakPrincipal`: by default the user id, with every scope name as a role.
 4. Runs the pipeline inside `BeakServerpod.runInSession`, so every statement Beak issues uses this request's session.
 5. Logs `beak <method> /<path> -> <status>` to `session.log`, and unexpected errors as errors.
 
@@ -221,6 +221,45 @@ fields:
 ```
 
 The model is `serverOnly: true`, so it is not in the generated client. It is not in Beak's registry either, so `POST /api/beak_commit_receipt/query` answers 404, like any table Beak was not told about.
+
+### Durable effects and pruning
+
+`beakServerpodFrameworkTables` maps two Beak tables, not one: the receipts (`beak_commit_receipt`) and the effect outbox (`beak_outbox`). The example ships the receipts model only, because the example sends no mail. A project that delivers effects (a confirmation mail after a save, a payment request) adds a second `serverOnly` model next to the receipts one. This is the shape `beakServerpodFrameworkTables` expects:
+
+```yaml
+class: BeakOutboxEffect
+serverOnly: true
+table: beak_outbox
+fields:
+  effectKey: String, unique
+  effectKind: String
+  payloadJson: String
+  deliveryStatus: String
+  attemptCount: int
+  availableAt: int
+  leaseToken: String
+  lastError: String
+```
+
+Then pass `beakServerpodFrameworkTables.outbox` wherever Beak takes an outbox table: `BeakOutbox.enqueue(..., table:)` in a `finalizePlan`, the `table:` of `BeakOutboxWorker` or `BeakOutboxSchedule`, and `BeakOutbox.prune(..., table:)`. Without it Beak looks for its own `_beak_outbox`, which Serverpod's migrations never create. The [durable effects](../../backend/durable-effects.md) page has the enqueue, delivery and retry rules; they are the same here.
+
+What is not there:
+
+- `BeakServerpodEngine` has no `outbox` parameter and starts no delivery loop. The host schedules a `BeakOutboxWorker` (or `BeakOutboxSchedule.start`) itself, on a database adapter that finds a Serverpod session, and stops it on shutdown.
+- No test drives that loop end to end. `test/integration/beak/outbox_mapping_test.dart` in `examples/serverpod/bookshop_server` proves the table mapping on Serverpod's own database: an effect is enqueued once, delivered once, marked `delivered`, and a delivered row is pruned by age while a pending one stays.
+- `finalizePlan` is passed through to Beak's router. The example uses none and no test on this path exercises it.
+
+Nothing prunes either table. Receipts pile up one row per form save, and the engine keeps the commit service to itself, so `pruneReceipts` is out of reach. Age them out with the generated model, from a script or a future call, and keep the cutoff longer than any window in which the same save id could be retried. A pruned save id is a new save.
+
+```dart
+final cutoff = DateTime.now().toUtc().subtract(const Duration(days: 30));
+await BeakCommitReceipt.db.deleteWhere(
+  session,
+  where: (t) => t.createdAt < cutoff,
+);
+```
+
+`BeakOutbox.prune(adapter, olderThan: ..., table: beakServerpodFrameworkTables.outbox)` does the same for delivered effects, with the same rule about the cutoff: pruning ends the duplicate protection for the rows it removes.
 
 ### The server-only column
 
