@@ -17,7 +17,7 @@ The Aviary is a small admin for an aviary keeper. It exists to show, in real cod
 | Domain | Birds, habitats, keepers, chores, and the media, messages and prices that fill the demo pages |
 | Models | 14 schema classes in `lib/resources/*/models/` |
 | Resources | 4: Specimens, Habitats, Keepers, Tasks |
-| Pages | 12 custom pages, one per block category, in `lib/pages/` |
+| Pages | 12 custom pages, in seven files under `lib/pages/` |
 | Panel bootstrap | Authored: `buildPanel()` returns a `BeakPanel` |
 | API port | 8082 (`server.port` in `beak.yaml`), panel on web port 3003 |
 | Auth | None. The example has no auth, idle lock, host app or maintenance wiring |
@@ -163,7 +163,7 @@ $ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8082/api/specimens/
 
 ### 5. Every block type, one page per category
 
-`main.dart` lists the pages. The category is the file name:
+`main.dart` lists the twelve pages. Each file under `lib/pages/` holds a block category: `data_blocks.dart` also builds the planner and `module_blocks.dart` builds the six module pages.
 
 ```dart title="examples/showcase/lib/main.dart"
 --8<-- "examples/showcase/lib/main.dart:aviaryPages"

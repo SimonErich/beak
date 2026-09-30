@@ -23,7 +23,7 @@ A small shop with a catalog, customers, orders and invoices, written the way a B
 | Database | SQLite file `beak.db` in the project folder |
 | Money | Exact `BeakDecimal`, EUR, two decimals, formatted as `de_AT` |
 | Seed | 3 products, 2 variants, 2 users, 1 order, 1 invoice, 2 vouchers, 3 tax rates |
-| Tests | 24 in the Dart VM (API, arithmetic, migrations) and 19 widget tests |
+| Tests | 24 in the Dart VM (API, arithmetic, migrations) and 20 widget tests |
 | Read it if | You finished the [quickstart](quickstart.md) and want to see a whole application |
 
 ## Run it
@@ -313,7 +313,7 @@ flutter test test/order_form_test.dart test/invoice_form_test.dart test/shop_res
   test/shop_widget_test.dart test/custom_shop_test.dart test/fulfillment_form_test.dart
 ```
 
-The first command ran 24 tests, the second 19 (the counts of the day this page was verified, 2026-09-29). Both passed.
+The first command ran 24 tests, the second 20 (the counts of the day this page was re-verified, 2026-09-30). Both passed.
 
 | Test file | What it proves |
 | --- | --- |

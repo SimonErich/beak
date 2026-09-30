@@ -22,12 +22,14 @@ This is the short version. The bookshop example is a Serverpod 4 workspace whose
 | Auth | Serverpod's email login. The `beak.admin` scope opens the endpoint, and `bookshop.staff` grants reads and writes |
 | Database | Serverpod's Postgres, embedded in development, no Docker |
 | Panel bootstrap | Authored: `BeakPanel` over `serverpodBeakDataSource(dispatch)` |
-| Tests | 146 on the server, 6 on the admin |
+| Tests | 155 on the server (one contract group skips itself), 6 on the admin |
 | Read it if | You have a Serverpod project and want an admin without a second server |
 
 ## Run it
 
-You need Dart 3.12.2 or newer and Flutter 3.44.4 or newer. The full sequence is in the example's README:
+You need Dart 3.12.2 or newer and Flutter 3.44.4 or newer. The full sequence is in the example's README. It also asks for an `obers_ui` checkout next to this repository and a `melos run link-obers-ui` at the repo root while the pinned `obers_ui` commit is older than the APIs Beak's panel uses; without the link `dart pub get` resolves and the admin then fails to compile.
+
+The steps:
 
 ```console
 # in examples/serverpod: resolve the whole workspace
@@ -111,7 +113,7 @@ cd examples/serverpod/bookshop_server && dart test     # embedded Postgres, no D
 cd examples/serverpod/bookshop_admin && flutter test   # widget tests, fake dispatch
 ```
 
-The server suite ran 146 tests and the admin suite 6 (2026-09-29). All passed.
+The server suite ran 155 tests and the admin suite 6 (2026-09-30). All passed. One group in the server suite skips itself, the relation contract, because the example passes no `relationModels` to it.
 
 | Suite | What it proves |
 | --- | --- |

@@ -51,7 +51,7 @@ The backend adds `local`, which needs `dart:io`, on top:
 --8<-- "packages/beak_backend/lib/src/server/storage_wiring.dart:createDefaultStorageRegistry"
 ```
 
-Driver packages are deliberately absent. If `beak_backend` depended on `beak_storage_s3`, the S3 driver and its HTTP and signing code would ship with every Beak server, uploads or not. Your app adds the driver it uses in `lib/server.dart` by returning a registry from `beakStorageRegistry()`, which the generated host passes on as `storageRegistry`:
+Driver packages are deliberately absent. If `beak_backend` depended on `beak_storage_s3`, the S3 driver and its HTTP and signing code would ship with every Beak server, uploads or not. Your app adds the driver it uses in `lib/server.dart` by returning a registry from `beakStorageRegistry()`, which the generated host passes on as `storageRegistry`. The host uses the registry you return in place of the default one, so start it from `createDefaultStorageRegistry()` to keep `local`. The registration itself is one line per driver package:
 
 ```dart title="packages/beak_storage_s3/lib/src/s3_storage_driver.dart"
 void registerS3Storage(BeakStorageRegistry registry) {
@@ -113,7 +113,7 @@ The FTP driver mirrors this with a four-method `FtpTransport` (`SocketFtpTranspo
 
 ### Keys are validated, and never chosen by the client
 
-Storage keys are the security surface, so `BeakStorageKeys.validate` is strict. It rejects empty keys, backslashes, absolute paths, and any empty, `.` or `..` segment, which closes path traversal:
+Storage keys are the security surface, so `BeakStorageKeys.validate` is strict. It rejects empty keys, backslashes, control characters, absolute paths, and any empty, `.` or `..` segment, which closes path traversal (a line break in a key would end an FTP command early, and a NUL byte ends a file name at the operating system):
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_key.dart"
 --8<-- "packages/beak_core/lib/src/storage/beak_storage_key.dart:validate"
@@ -121,11 +121,11 @@ Storage keys are the security surface, so `BeakStorageKeys.validate` is strict. 
 
 Every driver calls it on every operation, and `BeakStorageKeys.join` and `appendToBaseUrl` are the one way a path, a filename and a base URL become a key and a public URL.
 
-The upload service never trusts the filename for the key. It mints a fresh uuid-based name and derives the extension from the MIME type it accepted, falling back to the extension of the uploaded name. A client cannot choose where its bytes land. The service also checks that a key it is asked to resolve or delete starts with the `storagePath` of the column named in the route, so a key from one column cannot be used against another.
+The upload service never trusts the filename for the key. It mints a fresh uuid-based name and derives the extension from the MIME type it accepted, falling back to the extension of the uploaded name when that is one to sixteen letters and digits. A client cannot choose where its bytes land. The service also checks that a key it is asked to resolve or delete starts with the `storagePath` of the column named in the route, so a key from one column cannot be used against another.
 
 ### The upload path
 
-An upload is a `POST` of `multipart/form-data` with one field named `file`. `BeakUploadHandlers` first runs the same gates as any write: the field policy for that column, the resource's `canCreate`, and the size limit while the body is still streaming. The handler stops reading as soon as the part passes `maxSizeInBytes` and answers `422` with a `size` field error, so an oversize file is never buffered whole.
+An upload is a `POST` of `multipart/form-data` with one field named `file`. `BeakUploadHandlers` first runs the same gates as any write: the field policy for that column, the resource's `canCreate`, and the size limit while the body is still streaming. The handler stops reading as soon as the part passes `maxSizeInBytes` (100 MiB when the column sets none) and answers `422` with a `size` field error, so an oversize file is never buffered whole.
 
 ```dart title="packages/beak_backend/lib/src/uploads/upload_handler.dart"
 --8<-- "packages/beak_backend/lib/src/uploads/upload_handler.dart:upload"
@@ -161,11 +161,11 @@ The pipeline is a sealed, JSON-serializable spec. Its execution is a separate in
 --8<-- "packages/beak_core/lib/src/storage/transforms/beak_transform_runner.dart:BeakTransformRunner"
 ```
 
-The concrete runner is `ImageTransformRunner` in `beak_image`, built on `package:image`. It accepts PNG, JPEG, WebP and GIF, runs the steps in declaration order, cover-crops thumbnails to their exact size, encodes each thumbnail in the format the pipeline has reached at that point, and rejects two thumbnails with the same name. WebP output uses the lossless encoder, so a quality setting applies to JPEG only. A GIF keeps its first frame.
+The concrete runner is `ImageTransformRunner` in `beak_image`, built on `package:image`. It accepts PNG, JPEG, WebP and GIF, runs the steps in declaration order, cover-crops thumbnails to their exact size, encodes each thumbnail in the format the pipeline has reached at that point, and rejects two thumbnails with the same name. WebP output uses the lossless encoder, so a quality setting applies to JPEG only. A GIF keeps its first frame, and only that frame is decoded, so a many-frame animation costs one bitmap. A damaged file is a `BeakValidationException`, never a raw codec error.
 
 ### Reading a file back
 
-`GET /api/{table}/{column}/upload?key=` resolves a stored key to a URL after the read policy, the field policy and, when the model has a row scope, a check that a record the principal can see references that key. `DELETE` on the same path removes a stored file, gated by `canDeleteUpload`. The local-disk driver's files are served by a public route with no policy, so their protection is that the names are unguessable.
+`GET /api/{table}/{column}/upload?key=` resolves a stored key to a URL after the read policy, the field policy and, when the model has a row scope, a check that a record the principal can see references that key. `DELETE` on the same path removes a stored file, gated by `canDeleteUpload`. The local-disk driver's files are served by a public, read-only route with no policy, so their protection is that the names are unguessable. The route sends `nosniff` and a sandboxing `content-security-policy`, and forces a download for types that can carry script (HTML, SVG, XML).
 
 ## Why it is shaped this way
 
@@ -182,7 +182,7 @@ The concrete runner is `ImageTransformRunner` in `beak_image`, built on `package
 - Put a real limit on image columns. The size limit counts compressed bytes, and the dimension limit is checked from the header, so a small file that declares a very large bitmap is refused before it is decoded. Without `maxDimensions` the runner's pixel ceiling is the only guard.
 - `UploadService.url` asks the driver for a link that expires after `signedUrlLifetime` (one hour by default), so `S3StorageDriver.url` returns a presigned URL and a private bucket is readable through `GET .../upload?key=`. Drivers with public links, and an S3 driver with a `publicBaseUrl`, ignore the expiry.
 - A test injects a fake `S3ObjectClient` or `FtpTransport`, or uses the `memory` driver, and needs no server.
-- A storage failure reaches the client as a `500` with the driver's message. Keep endpoints and credentials out of exceptions you raise from a custom driver.
+- A storage failure reaches the client as a `500` that says only `File storage failed.`; the driver's own message goes to the server's error listener. Keep endpoints and credentials out of exceptions you raise from a custom driver anyway, because that listener may log it.
 
 ## Continue reading
 

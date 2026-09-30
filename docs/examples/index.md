@@ -16,9 +16,9 @@ The repository ships five projects you can run. Every code snippet in this docum
 | --- | --- | --- | --- | --- | --- | --- |
 | [Quickstart scaffold](quickstart.md) | Notes | 1 | 8080, chosen by `flutter run` | None | The output of `beak create`, with generated wiring and a generated panel | `beak migrate`, `beak dev` |
 | [Clean shop](clean-shop.md) | Catalog, orders, invoices | 20 (11 resources) | 8080, 3000 | None | Exact money, named invoice actions, wizards from shared sections, a server-side preparer, custom pages | `beak migrate`, `beak seed`, `beak dev` |
-| [Foodio admin](foodio.md) | Company food ordering | 26 (14 resources) | 8081, 3002 | None | Composed lists, saved views, a five-step wizard, durable effects, a custom theme, 48,213 orders | `cp .env.example .env`, then as the shop |
+| [Foodio admin](foodio.md) | Company food ordering | 26 (15 resources) | 8081, 3002 | None | Composed lists, saved views, a five-step wizard, durable effects, a custom theme, 48,213 orders | `cp .env.example .env`, then as the shop |
 | [Showcase](showcase.md) | An aviary | 14 (4 resources, 12 pages) | 8082, 3003 | None | All 13 column kinds, all 4 relationship kinds, every block type, exhaustiveness tests | `beak migrate`, `beak seed`, `beak dev` |
-| [Serverpod admin](serverpod-admin.md) | A bookshop | 2 tables | 8080, 8095 | Serverpod email sign-in and scopes | An admin app inside a Serverpod 4 workspace, one gated endpoint, deny-by-default policy | The README's four steps |
+| [Serverpod admin](serverpod-admin.md) | A bookshop | 2 tables | 8080, 8095 | Serverpod email sign-in and scopes | An admin app inside a Serverpod 4 workspace, one gated endpoint, deny-by-default policy | The README's steps |
 
 Three of the five use API port 8080, so run one at a time or move one with the `PORT` environment variable (`PORT=8090 beak dev` overrides the port in `beak.yaml` too). The panel finds its API through `BEAK_API_BASE_URL`, a `--dart-define` at `flutter run`.
 
@@ -37,7 +37,7 @@ The four projects without Serverpod have no login on purpose. They are local dem
 
 ## Running any of them
 
-Every example is a Flutter package in `examples/`, and the steps are the same apart from the last one:
+The Serverpod example is a workspace with its own steps, in its README. The other four are Flutter packages in `examples/`, and their steps are the same apart from the last one:
 
 ```console
 cd examples/<folder>
@@ -51,7 +51,7 @@ beak dev          # regenerates the wiring and serves the API
 
 Each example has a `README.md` and an `AGENTS.md` next to its `pubspec.yaml`. The README is the author's own run and test notes, and the tour pages here quote it where it matters. The `AGENTS.md` is the block Beak keeps in step with your Beak version, plus the conventions of that project.
 
-Numbers on the tour pages (models, resources, tests) were counted against the working tree on 2026-09-29.
+Numbers on the tour pages (models, resources, tests) were counted against the working tree on 2026-09-30.
 
 ## Which page to read
 

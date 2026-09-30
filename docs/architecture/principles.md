@@ -86,7 +86,7 @@ App authors rarely touch any of this. They write a schema class and a `beak.yaml
 
 ```console
 $ dart run tool/check_no_material.dart
-Material-import guard passed (1186 Dart files scanned).
+Material-import guard passed (1250 Dart files scanned).
 $ dart run tool/check_hook_widgets.dart
 Hook-widget guard passed (no StatefulWidget or State).
 $ dart run tool/check_web_safe.dart
@@ -116,7 +116,7 @@ The same holds for logic. Model behavior and record rules run in the panel to gi
 
 Beak never fetches behind your back. A field reference reads what the record already carries, and a relation you did not load reads as `null`. What a surface needs is declared on the query spec (`relationLoads`), and the data source resolves every load before it returns. That keeps request counts predictable and stops a table render from becoming an N+1 storm.
 
-The generated pages do this on your behalf: a list table asks for the to-one relations of the columns it shows, in the same query as the page. One query for the page, not one per row. [The query contract](query-contract.md) covers the loads.
+The generated pages do this on your behalf: a list table asks for every to-one relation of the model, in the same query as the page. One query for the page, not one per row. [The query contract](query-contract.md) covers the loads.
 
 ### 8. Reuse first, and overrides are presence-based
 
