@@ -145,7 +145,7 @@ Turn the inverse off for a lookup table that should not know everything pointing
 
 Left out, it is `restrict` for a non-nullable field and `setNull` for a nullable one. The shop states it on both ends of a link (`cascade` on the has-many and on the belongs-to) so either class reads the same. Only the belongs-to is executed. `onDelete` on `@HasMany` and `@BelongsToMany` is stored on the relationship constant and read by nothing, and a pivot always cascades.
 
-A `restrict` refusal is enforced by the database, and Beak does not translate it yet. Nothing is deleted, but a direct `DELETE` answers `500` with `Internal server error.`, and a delete inside a graph commit comes back as an `unapplied` outcome with `The write outcome could not be confirmed.` Until that is mapped, use `restrict` where a hard stop is worth an unfriendly message, `cascade` for owned children and `setNull` for optional links.
+A `restrict` refusal is enforced by the database, and Beak reports it as a conflict. Nothing is deleted. A direct `DELETE` answers `409` with `This "shelves" record is still referenced by other records.`, and a delete inside a graph commit comes back as an `unapplied` outcome with the reason `rejected` and the same `conflict` error, so the form stays editable. SQLite, PostgreSQL and MySQL all map to this. Use `restrict` where a hard stop is worth a refusal message, `cascade` for owned children and `setNull` for optional links.
 
 ## Owned or shared
 

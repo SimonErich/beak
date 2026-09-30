@@ -270,7 +270,6 @@ final class WormQueryTranslator {
         Operator.ilike,
         '%${beakEscapeLike(_stringOperand(filter))}%',
       ),
-      // --8<-- [end:substringOperators]
       BeakOperator.startsWith => pattern(
         Operator.ilike,
         '${beakEscapeLike(_stringOperand(filter))}%',
@@ -279,6 +278,7 @@ final class WormQueryTranslator {
         Operator.ilike,
         '%${beakEscapeLike(_stringOperand(filter))}',
       ),
+      // --8<-- [end:substringOperators]
       BeakOperator.isNull => predicate(Operator.isNull, null),
       BeakOperator.isNotNull => predicate(Operator.isNotNull, null),
       BeakOperator.inList => predicate(Operator.inList, _listOperand(filter)),

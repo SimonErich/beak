@@ -14,10 +14,11 @@ typedef BeakUnexpectedErrorListener =
 /// status code and JSON body, and everything else to an opaque 500 (reported
 /// to [onUnexpectedError]) so internals never leak to clients.
 ///
-/// A [BeakStorageException] is the one typed failure that is also opaque: its
-/// message quotes the storage system behind the driver, so the caller gets
-/// `File storage failed.` and [onUnexpectedError] gets the exception with its
-/// detail.
+/// A [BeakStorageException] and a [BeakInternalException] are the typed
+/// failures that are also opaque. A storage message quotes the system behind
+/// the driver, so the caller gets `File storage failed.`; an internal message
+/// describes a broken invariant, so the caller gets `Internal server error.`.
+/// Either way [onUnexpectedError] gets the exception with its detail.
 // --8<-- [start:beakErrorMappingMiddleware]
 Middleware beakErrorMappingMiddleware({
   BeakUnexpectedErrorListener? onUnexpectedError,
@@ -34,6 +35,14 @@ Middleware beakErrorMappingMiddleware({
           return _jsonResponse(500, {
             'code': exception.code,
             'message': 'File storage failed.',
+            ..._requestIdEntry(request),
+          });
+        }
+        if (exception is BeakInternalException) {
+          onUnexpectedError?.call(exception, stackTrace);
+          return _jsonResponse(500, {
+            'code': exception.code,
+            'message': 'Internal server error.',
             ..._requestIdEntry(request),
           });
         }

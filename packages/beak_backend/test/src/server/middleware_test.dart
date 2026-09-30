@@ -409,7 +409,6 @@ void main() {
         (BeakAuthorizationException('forbidden'), 403),
         (BeakConflictException('duplicate'), 409),
         (BeakConfigurationException('broken setup'), 500),
-        (BeakInternalException('Internal server error.'), 500),
         (BeakPayloadTooLargeException('too big'), 413),
         (BeakTransportException('bad gateway'), 502),
       ];
@@ -421,6 +420,30 @@ void main() {
         expect(body['message'], exception.message, reason: exception.code);
         expect(body.containsKey('fieldErrors'), isFalse);
       }
+    });
+
+    test('answers a typed internal failure with the generic message and '
+        'reports its detail', () async {
+      final reported = <Object>[];
+      final handler = const Pipeline()
+          .addMiddleware(
+            beakErrorMappingMiddleware(
+              onUnexpectedError: (error, stackTrace) => reported.add(error),
+            ),
+          )
+          .addHandler(
+            (request) => throw const BeakInternalException(
+              'The updated record could not be read from db-7.internal.',
+            ),
+          );
+
+      final response = await handler(_get('products'));
+
+      expect(response.statusCode, 500);
+      final body = _bodyJson(await response.readAsString());
+      expect(body['code'], 'internal');
+      expect(body['message'], 'Internal server error.');
+      expect(reported.single, isA<BeakInternalException>());
     });
 
     test('includes the request id in error bodies when present', () async {

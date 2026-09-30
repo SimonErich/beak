@@ -36,7 +36,7 @@ The family lives in `beak_core`, so server code, panel code and tests share the 
 | `BeakRecordShapeException` | `configuration` | 500 | `require` on a column or typed field found no readable value | `columnKey`, `expectedType` |
 | any other `Object` thrown on the server | `internal` | 500 | A bug or an infrastructure failure | none (the body is fixed) |
 
-`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers ten direct variants; `BeakRecordShapeException` rides along with its parent. The server answers an untyped failure with the fixed `internal` body. `BeakInternalException` is the type a client rebuilds from that body, and what server code throws when it wants a 500 with a message of its own. `BeakTransportException` is a client-side type: the server never sends `transport`, but the Serverpod tunnel does.
+`BeakRecordShapeException` extends `BeakConfigurationException`, so it maps to the same status and code. The sealed switch in the middleware covers ten direct variants; `BeakRecordShapeException` rides along with its parent. The server answers an untyped failure with the fixed `internal` body. `BeakInternalException` is the type a client rebuilds from that body, and what server code throws for a broken invariant: the caller still gets the fixed body, and `onUnexpectedError` gets the exception with its message. `BeakTransportException` is a client-side type: the server never sends `transport`, but the Serverpod tunnel does.
 
 ## The base type
 
@@ -185,7 +185,7 @@ The S3 driver appends the driver's own error text to the message. The middleware
 | Cause | Type and message |
 | --- | --- |
 | Any exception that is not a `BeakException` reaches the middleware | `internal`, always `Internal server error.` |
-| Server code throws `BeakInternalException` | `internal`, the message it carries |
+| Server code throws `BeakInternalException` | `internal`, always `Internal server error.`; the message goes to `onUnexpectedError` |
 | The client reads a `5xx` with no Beak error code (a proxy's error page, an empty body) | `BeakInternalException`, message `HTTP 502.` |
 | The client reads a `413`, or the tunnel reports one (Serverpod's `maxRequestSize`) | `BeakPayloadTooLargeException` |
 | The client reads a status Beak does not use (a `400` or `3xx` with no Beak code), or the tunnel reports a fault it cannot name | `BeakTransportException` |

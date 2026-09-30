@@ -80,6 +80,52 @@ void main() {
     },
   );
 
+  test(
+    'an anonymous caller is refused before it learns the table is closed',
+    () async {
+      final registry = createApiRegistry();
+      final adapter = Worm.adapter();
+      final guarded = const Pipeline()
+          .addMiddleware(beakErrorMappingMiddleware())
+          .addHandler(
+            beakApiRouter(
+              registry: registry,
+              dataSource: WormDataSource(registry, adapter: adapter),
+              policy: BeakPolicies(
+                rules: [
+                  BeakModelRules(
+                    const NoteModel(),
+                    read: BeakAccess.authenticated,
+                    write: const BeakAccess.role('editor'),
+                    delete: const BeakAccess.role('editor'),
+                  ),
+                ],
+              ),
+              graphOnly: const [NoteModel()],
+            ),
+          );
+
+      for (final entry in <(String, String)>[
+        ('POST', '/api/notes/'),
+        ('PATCH', '/api/notes/note'),
+        ('DELETE', '/api/notes/note'),
+        ('POST', '/api/notes/note/restore'),
+        ('POST', '/api/notes/note/relations/comments/attach'),
+        ('POST', '/api/notes/note/relations/comments/detach'),
+      ]) {
+        final response = await guarded(
+          Request(
+            entry.$1,
+            Uri.parse('http://localhost${entry.$2}'),
+            body: '{}',
+          ),
+        );
+        expect(response.statusCode, 401, reason: entry.toString());
+        expect(await response.readAsString(), isNot(contains('graph commit')));
+      }
+    },
+  );
+
   group('without a preparer', () {
     late Handler bare;
     late DatabaseAdapter adapter;

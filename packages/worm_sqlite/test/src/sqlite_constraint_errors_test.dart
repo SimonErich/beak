@@ -58,4 +58,50 @@ void main() {
       throwsA(isA<UniqueConstraintException>()),
     );
   });
+
+  group('a foreign key', () {
+    setUp(() async {
+      await adapter.rawExecute(
+        'CREATE TABLE stock (id TEXT PRIMARY KEY, product_id TEXT NOT NULL '
+        'REFERENCES products (id) ON DELETE RESTRICT)',
+        const [],
+      );
+      await adapter.rawExecute(
+        "INSERT INTO products (id, name, price) VALUES ('p', 'x', 1)",
+        const [],
+      );
+      await adapter.rawExecute(
+        "INSERT INTO stock (id, product_id) VALUES ('s', 'p')",
+        const [],
+      );
+    });
+
+    test('that restricts a delete is a ForeignKeyException', () {
+      expect(
+        () => adapter.delete(const DeleteDescriptor(table: 'products')),
+        throwsA(isA<ForeignKeyException>()),
+      );
+    });
+
+    test('that restricts a delete inside a transaction is typed too', () {
+      expect(
+        () => adapter.transaction(
+          (tx) => tx.delete(const DeleteDescriptor(table: 'products')),
+        ),
+        throwsA(isA<ForeignKeyException>()),
+      );
+    });
+
+    test('that points at no row is a ForeignKeyException', () {
+      expect(
+        () => adapter.insert(
+          const InsertDescriptor(
+            table: 'stock',
+            values: {'id': 'x', 'product_id': 'nope'},
+          ),
+        ),
+        throwsA(isA<ForeignKeyException>()),
+      );
+    });
+  });
 }

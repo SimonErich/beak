@@ -65,4 +65,28 @@ void main() {
       expect(deleted.statusCode, 204);
     },
   );
+
+  test('capabilities reads the id query value once, not twice', () async {
+    for (final key in ['100%', '100%25', 'a%2Fb']) {
+      final created = await send('POST', '/api/labels', {
+        'id': key,
+        'name': 'x',
+      });
+      expect(created.statusCode, 201);
+    }
+
+    for (final key in ['100%', '100%25', 'a%2Fb']) {
+      final response = await send(
+        'GET',
+        '/api/labels/capabilities?id=${Uri.encodeQueryComponent(key)}',
+      );
+      expect(response.statusCode, 200, reason: 'id "$key"');
+    }
+
+    final missing = await send(
+      'GET',
+      '/api/labels/capabilities?id=${Uri.encodeQueryComponent('100%2F')}',
+    );
+    expect(missing.statusCode, 404);
+  });
 }

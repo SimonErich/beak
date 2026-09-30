@@ -230,7 +230,6 @@ final class Image {
     this.allowedTypes = const [],
     this.maxDimensions,
     this.aspectRatio,
-    this.thumbnail,
     this.transforms = const [],
   });
 
@@ -248,9 +247,6 @@ final class Image {
 
   /// Required width-to-height ratio.
   final double? aspectRatio;
-
-  /// Thumbnail size to render in tables.
-  final BeakDimensions? thumbnail;
 
   /// Transforms run on upload, in order.
   final List<BeakImageTransform> transforms;

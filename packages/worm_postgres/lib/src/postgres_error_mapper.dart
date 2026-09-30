@@ -17,7 +17,8 @@ import 'package:worm/worm.dart';
 /// from the client side) falls through to [QueryException]:
 ///
 /// - `23505` unique_violation            → [UniqueConstraintException]
-/// - `23503` foreign_key_violation       → [ForeignKeyException]
+/// - `23503` foreign_key_violation /
+///   `23001` restrict_violation          → [ForeignKeyException]
 /// - `23514` check_violation /
 ///   `23502` not_null_violation          → [CheckConstraintException]
 /// - every code of class `22` (data
@@ -86,7 +87,7 @@ final class PostgresErrorMapper {
         column: column,
         message: message,
       ),
-      '23503' => ForeignKeyException(
+      '23503' || '23001' => ForeignKeyException(
         table: label,
         column: column,
         message: message,

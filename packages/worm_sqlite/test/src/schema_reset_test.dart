@@ -124,7 +124,7 @@ void main() {
       await expectLater(
         tx.rawExecute('DELETE FROM parents', const []),
         throwsA(
-          isA<QueryException>().having(
+          isA<ForeignKeyException>().having(
             (error) => error.message,
             'message',
             contains('FOREIGN KEY'),

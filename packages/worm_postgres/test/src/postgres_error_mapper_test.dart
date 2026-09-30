@@ -60,6 +60,15 @@ void main() {
       expect(typed.column, 'customer_id');
     });
 
+    test('23001 restrict_violation → ForeignKeyException', () {
+      final mapped = PostgresErrorMapper.fromCode(
+        '23001',
+        message: 'update or delete on table "parents" violates RESTRICT',
+        table: 'children',
+      );
+      expect(mapped, isA<ForeignKeyException>());
+    });
+
     test('23514 → CheckConstraintException naming the constraint', () {
       final mapped = PostgresErrorMapper.fromCode(
         '23514',

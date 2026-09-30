@@ -90,7 +90,7 @@ The vocabulary, all typed, none of it takes a column name:
 
 | On | Method | Answers |
 | --- | --- | --- |
-| Graph | `nodes` | Every loaded record, deletions included. Copy with `.toList()` before you write while iterating |
+| Graph | `nodes` | Every loaded record, deletions included. It is a snapshot, so loading more records while you iterate is safe |
 | Graph | `load(ref)` | One record by stored or draft identity, loaded once |
 | Graph | `linked(node, field)` | The record a to-one field points at, drafts included |
 | Graph | `children(node, field, includeDeleted:)` | The final collection: additions in, removals out |
@@ -160,7 +160,7 @@ The write goes through the transaction-bound `source`, not through the graph, so
 
 ## Close the direct routes
 
-A rule in a preparer is worthless if `PATCH /api/orders/<id>` writes around it. `graphOnly` names the models whose create, update, delete, restore, attach and detach routes answer `422` and point at the commit endpoint. Reads, `validate`, `capabilities`, export and uploads stay open.
+A rule in a preparer is worthless if `PATCH /api/orders/<id>` writes around it. `graphOnly` names the models whose create, update, delete, restore, attach and detach routes answer `422` and point at the commit endpoint, once the policy has let the caller make that write: an anonymous request still gets its `401`. Reads, `validate`, `capabilities`, export and uploads stay open.
 
 ```console
 $ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/products -H 'content-type: application/json' -d '{"name":"x","price":1}'

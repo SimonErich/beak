@@ -118,8 +118,8 @@ With neither `formatting` nor `raw`, a cell is the canonical text: decimals at t
 ```console
 $ curl ... -d '{"table":"products","formatting":{"locale":"de_AT","currency":"EUR"}}'
 Name,Price,Active,Stock,Updated
-Espresso beans,"12,50",Yes,—,—
-Padded beans,"3,00",—,—,2026-09-29 14:53
+Espresso beans,"12,50",Yes,,
+Padded beans,"3,00",,,2026-09-29 14:53
 $ curl ... -d '{"table":"products","columns":["name","price"],"formatting":{"locale":"de_AT","currency":"EUR"},"formats":{"price":{"format":"currency","minorUnits":false,"scale":2}}}'
 Name,Price
 Espresso beans,"€ 12,50"

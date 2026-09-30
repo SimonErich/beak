@@ -128,7 +128,7 @@ Predicates form a sealed tree. Each node tags itself with a `type` on the wire a
 
 ### Operators
 
-`BeakOperator` is Beak's own vocabulary and travels by `name`. Most operators map to the worm operator of the same name. The three substring operators have no worm counterpart and become `ilike` with a pattern built from the operand (`contains` is shown, `startsWith` and `endsWith` differ only in where the `%` goes):
+`BeakOperator` is Beak's own vocabulary and travels by `name`. Most operators map to the worm operator of the same name. The three substring operators have no worm counterpart and become `ilike` with a pattern built from the operand (all three are shown, and they differ only in where the `%` goes):
 
 ```dart title="packages/beak_backend/lib/src/data/worm/query_translator.dart"
 --8<-- "packages/beak_backend/lib/src/data/worm/query_translator.dart:substringOperators"

@@ -13,6 +13,9 @@ import 'package:worm/worm.dart';
 ///
 /// - `2067` / `1555` UNIQUE / PRIMARY KEY → [UniqueConstraintException]
 /// - `787` FOREIGN KEY → [ForeignKeyException]
+/// - any other constraint failure (primary code `19`) whose message is
+///   `FOREIGN KEY constraint failed` → [ForeignKeyException]; SQLite reports
+///   an `ON DELETE RESTRICT` refusal as `1811`, not `787`
 /// - `275` CHECK / `1299` NOT NULL → [CheckConstraintException]
 /// - any other [SqliteException] → [QueryException]
 /// - any other thrown object → [QueryException] with `toString()`
@@ -36,6 +39,11 @@ final class SqliteErrorMapper {
   /// SQLite extended result code for a NOT NULL constraint violation.
   static const int constraintNotNull = 1299;
 
+  /// SQLite primary result code shared by every constraint failure.
+  static const int constraintPrimary = 19;
+
+  static const String _foreignKeyMessage = 'FOREIGN KEY constraint failed';
+
   static final RegExp _notNullPattern = RegExp(
     r'NOT NULL constraint failed: (\w+)\.(\w+)',
   );
@@ -56,7 +64,9 @@ final class SqliteErrorMapper {
           message: error.message,
         );
       }
-      if (code == constraintForeignKey) {
+      if (code == constraintForeignKey ||
+          (error.resultCode == constraintPrimary &&
+              error.message == _foreignKeyMessage)) {
         return ForeignKeyException(
           table: table,
           column: '',

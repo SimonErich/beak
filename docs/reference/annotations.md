@@ -206,7 +206,6 @@ const Image({
   this.allowedTypes = const [],
   this.maxDimensions,
   this.aspectRatio,
-  this.thumbnail,
   this.transforms = const [],
 });
 ```
@@ -226,7 +225,6 @@ const FileField({
 | `allowedTypes` | `List<BeakFileType>` | `@Image`: `jpeg`, `png`, `webp`, `gif`. `@FileField`: `[]`, unrestricted | both | Accepted types: `jpeg`, `png`, `webp`, `gif`, `svg`, `pdf`, `csv`, `json`, `zip`, `mp4`, `mp3`. |
 | `maxDimensions` | `BeakDimensions?` | `null` | `@Image` | Largest accepted source size. |
 | `aspectRatio` | `double?` | `null` | `@Image` | Required width to height ratio. |
-| `thumbnail` | `BeakDimensions?` | `null` | `@Image` | Size of the thumbnail rendition shown in tables. |
 | `transforms` | `List<BeakImageTransform>` | `[]` | `@Image` | Transforms run on upload, in order: `BeakResizeTransform`, `BeakFormatTransform` (`.webp()`), `BeakThumbnailTransform`. |
 
 A `BeakImageRef` or `BeakFileRef` field with no annotation is still an upload column, and its `storagePath` is the table name. The annotation constructors require `storagePath`, so `beak prepare` reports an `@Image()` or `@FileField()` that does not pass one. Uploads are covered on [Files and storage columns](../models/files-and-storage-columns.md).

@@ -5,8 +5,8 @@ part of 'beak_column.dart';
 ///
 /// Upload rules (size, types, dimensions) and the [transforms] pipeline are
 /// enforced server-side on upload (and mirrored client-side for fast
-/// feedback). [transforms] run in order; a [thumbnail] rendition is generated
-/// automatically when set.
+/// feedback). [transforms] run in order; a rendition such as a thumbnail
+/// exists only when a [BeakThumbnailTransform] is one of them.
 ///
 /// ```dart
 /// static const image = BeakImageColumn(
@@ -15,7 +15,6 @@ part of 'beak_column.dart';
 ///   storagePath: 'products',
 ///   maxSizeInBytes: 5 * 1024 * 1024,
 ///   allowedTypes: [BeakFileType.jpeg, BeakFileType.png, BeakFileType.webp],
-///   thumbnail: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
 ///   transforms: [
 ///     BeakThumbnailTransform(
 ///       size: BeakDimensions(widthInPixels: 160, heightInPixels: 160),
@@ -46,7 +45,6 @@ final class BeakImageColumn extends BeakUploadColumn
     super.allowedTypes = BeakFileType.images,
     this.maxDimensions,
     this.aspectRatio,
-    this.thumbnail,
     this.transforms = const [],
   });
   // --8<-- [end:BeakImageColumn]
@@ -56,9 +54,6 @@ final class BeakImageColumn extends BeakUploadColumn
 
   /// Enforced width/height ratio, if any.
   final double? aspectRatio;
-
-  /// Dimensions of the auto-generated thumbnail rendition, if any.
-  final BeakDimensions? thumbnail;
 
   /// Transform pipeline run on upload, in order.
   final List<BeakImageTransform> transforms;

@@ -66,7 +66,6 @@ This is the shop's gallery row:
 | `maxDimensions` | `@Image` | none | Largest accepted width and height in pixels. |
 | `aspectRatio` | `@Image` | none | Required width divided by height, within 0.01. |
 | `transforms` | `@Image` | none | Steps run on upload, in order. |
-| `thumbnail` | `@Image` | none | Accepted and ignored, see below. |
 
 The full list is on [Annotations](../reference/annotations.md). `BeakFileType` covers `jpeg`, `png`, `webp`, `gif`, `svg`, `pdf`, `csv`, `json`, `zip`, `mp4` and `mp3`. SVG is not in the image default because it can carry scripts, and an image column could not transform it anyway.
 
@@ -79,8 +78,8 @@ Cannot generate: fix these first:
 
 Write `@Image(storagePath: 'covers')`, or drop the annotation and take the table name.
 
-!!! warning "thumbnail: does nothing"
-    `@Image(thumbnail: BeakDimensions.square(64))` is accepted and stored on the column, and no code reads it. The upload comes back with `"variants": {}`. A rendition exists only when a `BeakThumbnailTransform` sits in `transforms`.
+!!! note "Renditions come from transforms"
+    There is no `thumbnail:` parameter. A rendition exists only when a `BeakThumbnailTransform` sits in `transforms`; without one the upload comes back with `"variants": {}`.
 
 ## What the rules do, and where
 

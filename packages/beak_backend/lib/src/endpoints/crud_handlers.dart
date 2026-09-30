@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../auth/beak_auth_guard.dart';
 import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';
@@ -10,6 +11,21 @@ import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
 import '../service/beak_resource_service.dart';
 import '../service/beak_validation_query.dart';
+
+/// A direct write route that a graph-only resource closes.
+enum BeakDirectWrite {
+  /// `POST /`.
+  create,
+
+  /// `PATCH /<id>` and the relation attach and detach routes.
+  update,
+
+  /// `DELETE /<id>`.
+  delete,
+
+  /// `POST /<id>/restore`.
+  restore,
+}
 
 /// The thin Shelf handlers behind one model's generated REST surface: they
 /// consult the [policy], parse requests into typed records/specs, call the
@@ -56,7 +72,7 @@ final class BeakCrudHandlers {
   Future<Response> capabilities(Request request) async {
     _requireView(request);
     final rawId = request.url.queryParameters['id'];
-    final id = rawId == null ? null : _coerceId(rawId);
+    final id = rawId == null ? null : _coerceDecodedId(rawId);
     if (id != null) await service.getOne(id, scope: _scope(request));
     return _json(
       200,
@@ -165,6 +181,33 @@ final class BeakCrudHandlers {
         BeakValidationReport(fieldErrors: error.fieldErrors).toJson(),
       );
     }
+  }
+
+  /// The answer to a direct write on a resource that must be saved through a
+  /// graph commit: a 422 pointing at the commit endpoint.
+  ///
+  /// The policy check of the open route runs first. A caller who may not make
+  /// the write is refused as usual, so an anonymous request cannot tell a
+  /// graph-only table from any other.
+  Response requireGraph(Request request, BeakDirectWrite write, [String? id]) {
+    final BeakPrincipal? principal = beakPrincipal(request);
+    final Object? recordId = id == null ? null : _coerceId(id);
+    _require(request, switch (write) {
+      BeakDirectWrite.create => policy.canCreate(principal, service.model),
+      BeakDirectWrite.update || BeakDirectWrite.restore => policy.canUpdate(
+        principal,
+        service.model,
+        recordId!,
+      ),
+      BeakDirectWrite.delete => policy.canDelete(
+        principal,
+        service.model,
+        recordId!,
+      ),
+    }, write.name);
+    throw const BeakValidationException(
+      'This resource must be saved through a graph commit.',
+    );
   }
 
   /// `GET /<id>` — fetches one record.
@@ -457,8 +500,12 @@ final class BeakCrudHandlers {
   }
 
   /// Coerces the path id segment to the model's primary-key type.
-  Object _coerceId(String segment) {
-    final String raw = _decodeSegment(segment);
+  Object _coerceId(String segment) => _coerceDecodedId(_decodeSegment(segment));
+
+  /// Coerces an id that is already decoded, such as a query parameter value,
+  /// to the model's primary-key type. Decoding it again would read a literal
+  /// `%` as the start of an escape.
+  Object _coerceDecodedId(String raw) {
     if (service.model.primaryKey is BeakIntColumn) {
       return int.tryParse(raw) ??
           (throw BeakNotFoundException(

@@ -241,7 +241,8 @@ final class BeakCandidateGraph {
   final Map<String, BeakSaveOperation> _replacements = {};
   final Map<BeakRecordRef, BeakSaveOperation> _additions = {};
 
-  /// Loaded nodes, including request deletions. Snapshot before mutating during iteration.
+  /// Loaded nodes, including request deletions, as an unmodifiable snapshot:
+  /// loading more nodes while iterating it is safe.
   Iterable<BeakCandidateNode> get nodes => List.unmodifiable(_nodes.values);
 
   /// Loads a stored or request-local identity exactly once.
