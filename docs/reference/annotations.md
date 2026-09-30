@@ -424,8 +424,12 @@ The plain Dart types `String`, `int`, `double`, `bool`, `DateTime`, any project 
 | `marks 2 fields @Display (name, sku). Exactly one field is the display column, so keep the annotation on one of them.` | `@Display` on more than one field of a class | Keep it on one |
 | `@Image needs a storagePath, the folder its uploads land in.` | `@Image()` or `@FileField()` without `storagePath` | Write `@Image(storagePath: 'covers')`, or drop the annotation to use the table name |
 | `cannot be generated: the typed record view wraps the underlying record as record` | A field named `record` | Rename the field; keep the column with `@Column(columnName: 'record')` |
-| `has no part directive. Add part 'x.beak.dart';` | The schema file lacks `part '<file>.beak.dart';` | Add it under the imports |
+| ``has no part directive. Add `part 'x.beak.dart';` under the imports`` | The schema file lacks `part '<file>.beak.dart';` | Add it under the imports |
 | `declares no fields, so it has nothing to display.` | An empty schema class | Add a field |
+| `names the table "bad-table", which is not a table name Beak can write a migration for.` | A `table:` with a dash, a space or a leading digit | Use letters, digits and underscores |
+| `declares the table "notes", which Note (lib/...) already uses. A table has exactly one schema class` | Two schema classes on one table | Give one another table, or merge them |
+| `cannot be the name of a schema class: the code generated for it uses that name for something else` | A class named after a reserved type such as `List` | Rename the class and keep the table with `@Resource(table:)` |
+| `is the created_at column that timestamps: true already adds, so the class would declare it twice.` | A field for a column that `timestamps` or `softDeletes` adds | Drop the field, or drop the option |
 
 ## Rules and limits
 

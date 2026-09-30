@@ -115,7 +115,7 @@ server:
   port: 8081
 ```
 
-`port` (integer, 1 to 65535) and `host` (string) are defaults for the generated host, written into `lib/beak/server.g.dart` as `{'PORT': '8081', ...environment}`. A real `PORT` or `HOST` in the environment or `.env` still wins, because where a process binds is a deployment decision. Use it when a project has a fixed development port; two Beak apps in one repository cannot both take 8080.
+`port` (integer, 1 to 65535) and `host` (string) are defaults for the generated host, written into `lib/beak/server.g.dart` as `{'PORT': '8081', ...environment ?? BeakEnv.resolve()}`. A real `PORT` or `HOST` in the environment or `.env` still wins, because where a process binds is a deployment decision. Use it when a project has a fixed development port; two Beak apps in one repository cannot both take 8080.
 
 ## `panel`
 
@@ -218,6 +218,9 @@ Every problem names the key. Real messages:
 | `resources: {notes: {colour: red}}` | `beak.yaml: unknown key "resources.notes.colour". Expected one of: hidden, icon, label, section.` |
 | `resources: {notes: {icon: file-text}}` | `beak.yaml: resources.notes.icon must be a lowerCamelCase OiIcons name (got "file-text").` |
 | `theme: {sidebar: {collapsible: maybe}}` | `beak.yaml: theme.sidebar.collapsible must be true or false (got maybe).` |
+| `agents: {skills: claude}` | `beak.yaml: agents.skills must be a list, such as [claude, agents].` |
+| `resources: {notes: 5}` | `beak.yaml: resources.notes must be a mapping.` |
+| a list as the document root | `beak.yaml: the document root must be a mapping.` |
 | `resources: {notez: {icon: fileText}}` | `Cannot generate: fix these first:` then `beak.yaml: resources.notez names no discovered table, did you mean notes?` |
 | invalid YAML | `beak.yaml: line 2, column 1: While parsing a flow sequence, expected ',' or ']'.` (1-based) |
 

@@ -609,7 +609,7 @@ const BeakTableBlock({
 | --- | --- | --- | --- |
 | `model` | `BeakModel` | required | The model whose rows the table lists. |
 | `title` | `String?` | `null` | Optional heading shown above the table. |
-| `columns` | `List<BeakColumn>?` | `null` | The columns to show, in order; defaults to the model's table-context columns. A card on a page is not a list page: three columns read at a glance where seventeen do not fit at all. |
+| `columns` | `List<BeakColumn>?` | `null` | The columns to show, in order; defaults to the model's table-context columns. |
 | `fields` | `List<BeakScalarField<Object>>?` | `null` | Exact ordered fields, including typed relationship paths and formatting. Takes precedence over `columns` and suppresses automatic relation columns. |
 | `enableDelete` | `bool` | `true` | Adds the built-in delete action. Disable for read-only embedded listings. Custom `actions` remain available independently. |
 | `initialSpec` | `BeakQuerySpec?` | `null` | Seeds sort order and page size on first load. |
@@ -1509,13 +1509,13 @@ A block that reads data resolves `BeakDataSource` from `beakDependencies(context
 | Rows fetched by a query block | Chart, map, gallery, carousel, video and timeline blocks run `query` as you wrote it. The default page is 25 rows, so set `pagination` on the spec for more. |
 | Refetch after a write | Every block that reads a table subscribes to the data source's change stream and queries again when that table is written: the table, metric, summary and relation blocks, the module blocks, and the chart, map, gallery, carousel, video and timeline blocks. `BeakInvoiceBlock` refetches its line items, and `BeakProfileBlock` shows its own edits. |
 | Writes by a block | Calendar drag, kanban drop and chat send go through `BeakResourceRepository` and the panel's data source, which saves through the graph commit route when the source can commit, so a model with behavior or a `graphOnly` model accepts them. A refused write is shown in a toast, the card, event or message stays as it was, and `onCardMove` and `onEventMove` are not called. Profile edits send an update. |
-| Failure | Metric and summary blocks show an error state with a retry. The other data blocks stay empty (or on `Loading…` for record-bound blocks) when the request fails or the server denies it. |
+| Failure | A block that reads for itself shows the panel's error message and a Retry button when the request fails or the server denies it. The metric and summary blocks replace their number, every other data, chart, map and module block puts the message above what it last read (nothing, on the first load), and the invoice and profile blocks do the same for their record. A profile block that has not loaded yet shows `Loading…` until the first answer. |
 
 ## Rules and limits
 
 - `BeakBlock` is sealed. A new block type needs a change in `beak_frontend`; application code extends the union through `BeakWidgetBlock` only.
 - Blocks are `const` configuration. Callbacks exist only where the interaction is the feature (row tap and row actions, event tap and move, card move, open, compose, the summary footer and group style) and in the builder of `BeakWidgetBlock`.
-- A block has no visibility rule and no permission of its own. Show or hide a block by building a different tree, and enforce access on the server with policies. A denied read leaves a module or chart block empty.
+- A block has no visibility rule and no permission of its own. Show or hide a block by building a different tree, and enforce access on the server with policies. A denied read shows the error message and a Retry button, and the block draws no rows.
 - `BeakTabsBlock` with no tabs renders nothing, and an `initialIndex` past the last tab selects the last one.
 - `BeakSummaryBlock` with `presentation: BeakSummaryPresentation.capacity` needs `capacity`. The constructor does not assert it; the block throws a `BeakConfigurationException` naming the summary when it builds.
 - Writes from calendar, kanban and chat blocks go through the panel's data source, which uses `POST /api/commits` when the source can commit, so the server's rules run. A refusal is shown in a toast and the block does not report the move.
