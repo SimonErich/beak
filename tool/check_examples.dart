@@ -143,7 +143,8 @@ Future<ExampleHealth> healthOf(
 
   final failures = <String>[];
   final warnings = <String>[];
-  for (final check in report['checks'] as List<Object?>? ?? const []) {
+  final Object? checks = report['checks'];
+  for (final check in checks is List<Object?> ? checks : const <Object?>[]) {
     if (check case {
       'status': final String status,
       'label': final String label,

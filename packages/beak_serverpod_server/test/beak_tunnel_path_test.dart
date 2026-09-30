@@ -58,6 +58,21 @@ void main() {
       }
     });
 
+    test('refuses a query whose percent escapes are not valid UTF-8', () {
+      for (final query in ['id=%E0%A4%A', 'id=%C0%AF', 'q=%ff']) {
+        expect(
+          beakTunnelUrl('/api/book/capabilities', query),
+          isNull,
+          reason: query,
+        );
+      }
+      expect(
+        beakTunnelUrl('/api/book/capabilities', 'id=%C3%A4')?.query,
+        'id=%C3%A4',
+        reason: 'valid escapes still pass',
+      );
+    });
+
     test('refuses oversized paths and queries', () {
       expect(beakTunnelUrl('/api/${'a' * 2100}', ''), isNull);
       expect(beakTunnelUrl('/api/book/query', 'q=${'a' * 9000}'), isNull);

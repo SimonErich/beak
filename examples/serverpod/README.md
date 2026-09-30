@@ -49,9 +49,12 @@ the access away again. A grant takes effect on the next sign-in, and a revoke
 ends the refresh tokens at once but leaves an already issued access token valid
 until it expires (10 minutes by default).
 
-The server listens on `:8080` (API), `:8081` and `:8082`, and the embedded
-Postgres on `:8090`, all set in `bookshop_server/config/development.yaml`. The
-admin's `--web-port` is any free port; 8095 only stays clear of those.
+The server listens on `:8080` (API), `:8081` and `:8082`, set in
+`bookshop_server/config/development.yaml`. The embedded Postgres takes no TCP
+port: it listens on a Unix socket under `bookshop_server/.serverpod/development/run`
+(the `database.port: 8090` in that file is where the Docker Postgres of
+`bookshop_server/docker-compose.yaml` publishes). The admin's `--web-port` is any
+free port; 8095 only stays clear of the server's.
 
 ## What it proves
 

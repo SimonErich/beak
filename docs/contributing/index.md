@@ -118,7 +118,8 @@ The skills check also runs inside `melos run test`, through `test/published_skil
 | `ci.yaml` | Web build | `flutter build web --release` for `examples/quickstart` and `examples/clean_beak_config` |
 | `ci.yaml` | Web build (showcase), Web build (foodio) | `flutter build web --release` for `examples/showcase` and `examples/foodio-adminpanel`, one job each |
 | `ci.yaml` | Install smoke | `dart pub global activate --source path packages/beak_cli`, `beak --version`, `beak create --beak-path` in a temporary directory, then `beak prepare` |
-| `ci.yaml` | Serverpod example | `flutter pub get` in `examples/serverpod`, then the bookshop server's tests without the `integration` tag |
+| `ci.yaml` | Serverpod example | `flutter pub get` in `examples/serverpod`, `dart analyze` of its server, schema and client packages and `flutter analyze` of the template app, then the bookshop server's tests: without the `integration` tag, and with it on the embedded Postgres (the gate, policy and adapter-contract proofs) |
+| `ci.yaml` | Serverpod admin app | `flutter analyze` and `flutter test` in `bookshop_admin`, which compiles the panel |
 | `ci.yaml` | Test and coverage | `melos run test`, `melos run coverage`, then `melos run up`, `melos run test-e2e`, `melos run test-worm` |
 | `docs.yml` | Build documentation | the docs checker and its tests, the agent docs bundle check, `mkdocs build --strict`, and on `release/**` branches and `v*` tags `check_docs.dart --release` |
 | `docs.yml` | Deploy to Pages | publishes the built site, on `main` only |

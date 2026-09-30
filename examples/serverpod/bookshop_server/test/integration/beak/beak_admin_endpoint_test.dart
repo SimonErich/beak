@@ -290,6 +290,45 @@ void main() {
         );
         expect(receipts, hasLength(1));
       });
+
+      test('receipts age out through the typed model, by createdAt', () async {
+        final plan = _createBookPlan(
+          'save-old',
+          authorId: catalog.tove.id!,
+        ).toJson();
+        await staff.call('POST', '/api/commits', json: plan);
+        final session = sessionBuilder.build();
+        final receipt = (await sp.BeakCommitReceipt.db.find(session)).single;
+        await sp.BeakCommitReceipt.db.updateRow(
+          session,
+          receipt.copyWith(
+            createdAt: DateTime.now().toUtc().subtract(
+              const Duration(days: 60),
+            ),
+          ),
+        );
+        await staff.call(
+          'POST',
+          '/api/commits',
+          json: _createBookPlan(
+            'save-new',
+            authorId: catalog.tove.id!,
+          ).toJson(),
+        );
+
+        final cutoff = DateTime.now().toUtc().subtract(
+          const Duration(days: 30),
+        );
+        final pruned = await sp.BeakCommitReceipt.db.deleteWhere(
+          session,
+          where: (t) => t.createdAt < cutoff,
+        );
+
+        expect(pruned.map((row) => row.id), [receipt.id]);
+        final kept = await sp.BeakCommitReceipt.db.find(session);
+        expect(kept, hasLength(1));
+        expect(kept.single.id, isNot(receipt.id));
+      });
     });
   });
 }

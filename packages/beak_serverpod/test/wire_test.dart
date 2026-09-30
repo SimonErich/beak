@@ -69,6 +69,34 @@ void main() {
         ),
       );
     });
+
+    test('rejects a method that is not an HTTP method name', () {
+      for (final method in ['', 'GET\n', 'GET /x', 'G\u0000T', '1', 'A' * 40]) {
+        expect(
+          () => BeakWireRequest.decode(
+            jsonEncode({
+              'v': 1,
+              'method': method,
+              'path': '/api/book',
+              'query': '',
+              'headers': <String, String>{},
+              'body': '',
+            }),
+          ),
+          throwsA(isA<BeakValidationException>()),
+          reason: 'method "$method"',
+        );
+      }
+    });
+
+    test('accepts the methods Beak routes, in any case', () {
+      for (final method in ['GET', 'post', 'Patch', 'DELETE', 'HEAD']) {
+        final decoded = BeakWireRequest.decode(
+          BeakWireRequest(method: method, path: '/api/book').encode(),
+        );
+        expect(decoded.method, method);
+      }
+    });
   });
 
   group('BeakWireResponse', () {

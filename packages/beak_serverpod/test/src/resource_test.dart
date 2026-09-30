@@ -225,6 +225,56 @@ void main() {
   );
 
   test(
+    'onChanged runs after every successful write, and after nothing else',
+    () async {
+      var changes = 0;
+      var failNext = false;
+      final user = _User(id, 'Ada');
+      Future<T> write<T>(T value) async {
+        if (failNext) throw StateError('write failed');
+        return value;
+      }
+
+      final source = ServerpodResource<_User, UuidValue, _User, _User>(
+        model: model,
+        codec: codec,
+        idCodec: ServerpodCodecs.uuid,
+        identify: (user) => user.id,
+        onChanged: () async => changes += 1,
+        query: (_) async =>
+            BeakPage(items: [user], total: 1, page: 1, perPage: 20),
+        get: (_) async => user,
+        createCodec: codec,
+        create: (input) => write(input),
+        updateCodec: codec,
+        update: (_, input) => write(input),
+        archive: (_) => write(null),
+        forceDelete: (_) => write(null),
+        restore: (_) => write(user),
+      ).dataSource;
+
+      await source.query(const BeakQuerySpec(table: 'users'));
+      await source.getOne('users', id);
+      expect(changes, 0, reason: 'reads change nothing');
+
+      await source.create('users', codec.encode(user));
+      await source.update('users', id, codec.encode(user));
+      await source.delete('users', id);
+      await source.delete('users', id, force: true);
+      await source.restore('users', id);
+      expect(changes, 5);
+
+      failNext = true;
+      await expectLater(
+        source.create('users', codec.encode(user)),
+        throwsA(isA<StateError>()),
+      );
+      await expectLater(source.delete('users', id), throwsA(isA<StateError>()));
+      expect(changes, 5, reason: 'a failed write is not a change');
+    },
+  );
+
+  test(
     'integer routes decode without truncating and unknown failures propagate',
     () async {
       final failure = Exception('unexpected');

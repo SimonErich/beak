@@ -31,7 +31,7 @@ $ dart run beak_serverpod_generator:generate --config beak_serverpod.yaml
 
 | Rule | Detail |
 | --- | --- |
-| Client class | Exported by the configured `library`, named `Client` |
+| Client class | Exported by the configured `library`, named `Client` unless the config's `client:` (or `--client`) says otherwise |
 | List endpoint | One field of `Client` whose type has a method named `list` returning `Future<Page>` |
 | Page DTO | Exactly one field of type `List<Model>` (the read model) and an integer `totalCount`. Fields `page` and `pageSize` are used when present, otherwise the requested window is kept |
 | Query DTO | The `list` parameter whose type has a `pageSize` field. It has an integer `page`, and its unnamed constructor has no required named parameter (`page` and `pageSize` carry defaults) |
@@ -85,7 +85,7 @@ Each is a `FormatException`. The command prints it as `Companion generation fail
 | --- | --- |
 | `Cannot resolve library <uri> from <root>.` | The `library` does not resolve in the consumer package. Run `dart pub get` and check the URI |
 | `<uri> does not export a model named <name>.` | A name in `models` or `types` is not exported by the client library |
-| `<uri> does not export client Client.` | The library does not export a `Client` class |
+| `<uri> does not export client <name>.` | The library does not export the client class (`Client` unless configured) |
 | `<Model> needs one unambiguous Client endpoint with list(query) returning a typed page; found <n>.` | No `list`, or several, that return a page of the model |
 | `<Model> requires query page/pageSize defaults and page totalCount.` | The query DTO has a required named parameter, no `page`, or the page DTO has no integer `totalCount` |
 | `<Model> needs a typed get/getById method.` | No read method returning the model |

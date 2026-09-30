@@ -36,11 +36,11 @@ import 'package:beak_serverpod_generator/beak_serverpod_generator.dart';
 | Granted, still refused | The token was issued before the grant, and scopes are copied in when a token is issued | Sign out and in |
 | Revoked, still works for a few minutes | An access token issued before the revoke stays valid until it expires, 10 minutes by default | Shorten `accessTokenLifetime`. See [Authentication and scopes](authentication.md) |
 | Every table answers 403 with code `authorization` | `beak.admin` opens the tunnel and grants nothing. The policy has no rule for the model, or the role does not match | Add a `BeakModelRules` for the model. `BeakAccess.role` takes the scope's name, for example `bookshop.staff` |
-| 404 `No handler for <METHOD> <path>.` | The path is outside `/api`, is under `/api/auth`, or names a table that is not in the registry. `beak_commit_receipt` and Serverpod's own tables are never there | Register the model in `<name>_beak`, run `beak prepare`, and pass `buildBeakRegistry()` to the engine |
-| 400 `Malformed Beak tunnel request.` | The string is not an envelope. Something other than the tunnel client called `dispatch` | Go through `serverpodBeakDataSource` or `ServerpodBeakHttpClient` |
+| 404 `No handler for <METHOD> <path>.` | The path is outside `/api`, is under `/api/auth`, has a query with an invalid percent escape, or names a table that is not in the registry. `beak_commit_receipt` and Serverpod's own tables are never there | Register the model in `<name>_beak`, run `beak prepare`, and pass `buildBeakRegistry()` to the engine |
+| 400 `Malformed Beak tunnel request.` | The string is not an envelope, or its method is empty or not an HTTP method name. Something other than the tunnel client called `dispatch` | Go through `serverpodBeakDataSource` or `ServerpodBeakHttpClient` |
 | 400 `Unsupported Beak tunnel version <n> (this server speaks 1).` | The admin app and the server run different Beak refs | Use one ref for every Beak package |
 | 401 `Sign in to use the Beak admin.` from the engine | The engine sits behind an endpoint without `BeakAdminGate` | Add `with BeakAdminGate` to the endpoint class |
-| 403 `Not allowed to use the Beak admin.` | Your `principal` resolver returned `null` | Return a `BeakPrincipal`, or throw `BeakAuthorizationException` with your own message |
+| 403 `Not allowed to use the Beak admin.` | The session does not hold `beak.admin` (the engine checks it too, so a missing `BeakAdminGate` does not open the tunnel), or your `principal` resolver returned `null` | Grant the scope and sign in again, or return a `BeakPrincipal` from the resolver, or throw `BeakAuthorizationException` with your own message |
 | 413 `The request is larger than the server accepts.` | The request body is above `maxRequestSize` (512 KiB in the template's config) | Send less, or raise `maxRequestSize` for the whole server |
 | 422 on a create, patch or commit | The request carries a column the Beak model does not declare, for example the server-only column | Expected. Do not model the column |
 | A timeout on CSV export, with the 20 second default | The export is one call and Serverpod's `connectionTimeout` defaults to 20 seconds | `Client(url, connectionTimeout: const Duration(seconds: 60))`, as `main` does |
@@ -74,7 +74,7 @@ import 'package:beak_serverpod_generator/beak_serverpod_generator.dart';
 | `The verification request or password was rejected.` | Wrong code, expired request, or a password Serverpod refuses | Start the flow again |
 | `The device session is no longer valid.` | Serverpod answered 401 to a call of the auth adapter | Sign in |
 | `Access denied.` | Serverpod answered 403 to a call of the auth adapter | The account lacks a scope |
-| `Authentication transport failed.` | An error nothing mapped. Pass an `exceptionMapper` for your own domain exceptions | Map it |
+| `Authentication transport failed.` | The server could not be reached, or answered a status the adapter does not classify (a `BeakTransportException`); or an error nothing mapped (a `BeakConfigurationException`). Pass an `exceptionMapper` for your own domain exceptions | Check the connection, or map it |
 | `Start a new email verification request.` | A registration or recovery step ran with no open request | Begin again from the email step |
 
 ### The bridge at runtime

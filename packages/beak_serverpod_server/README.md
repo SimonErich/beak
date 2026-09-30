@@ -84,17 +84,20 @@ The whole path, file by file, is
 
 `BeakServerpodEngine.dispatch(session, envelope)`:
 
-1. Decodes envelope v1. A malformed one is a 400, and an unsupported version says
-   which version the server speaks.
+1. Decodes envelope v1. A malformed one is a 400 (a method that is not an HTTP
+   method name included), and an unsupported version says which version the
+   server speaks.
 2. Turns the path into an internal URL with `beakTunnelUrl`, or answers 404. Only
    `/api/**` passes, never `/api/auth/**` (Serverpod owns sign-in), and
    percent-encoded dots, empty segments and separators are refused rather than
    resolved. Health probes and file routes are outside `/api` and refused too.
 3. Drops every header but `content-type`, `accept`, `if-unmodified-since` and
    `x-beak-request-id`.
-4. Resolves the principal from `session.authenticated` alone, and hands it to
-   Beak's auth middleware through a context value only this library can create,
-   so no header can forge an identity. The default resolver
+4. Refuses a session that is not signed in (401) or does not hold `beak.admin`
+   (403), even when the endpoint forgot `BeakAdminGate`. Then it resolves the
+   principal from `session.authenticated` alone, and hands it to Beak's auth
+   middleware through a context value only this library can create, so no
+   header can forge an identity. The default resolver
    (`BeakServerpodPrincipal.fromScopes`) uses the user id and turns every scope
    name into a role, which is why `BeakAccess.role('bookshop.staff')` takes the
    scope's name.
@@ -111,7 +114,7 @@ The whole path, file by file, is
 | `BeakServerpodEngine` | Beak's Shelf pipeline in memory. Takes `registry`, a required `policy`, and optional `principal`, `preparePlan`, `finalizePlan`, `graphOnly`, `statementTimeoutInSeconds` (30), `frameworkTables`, `now` and `adapter`. |
 | `BeakAdminGate` | The mixin that requires a login and `BeakScopes.admin`. |
 | `BeakScopes` | `BeakScopes.admin` is `Scope('beak.admin')`. It is deliberately not `Scope.admin`, so your own admins do not get the panel by accident. |
-| `BeakServerpodPrincipal`, `BeakServerpodPrincipalResolver` | Turn the signed-in user into the `BeakPrincipal` your policy decides on. Return `null` to refuse with 403. |
+| `BeakServerpodPrincipal`, `BeakServerpodPrincipalResolver` | Turn the signed-in user into the `BeakPrincipal` your policy decides on. Return `null` to refuse with 403. The engine calls it only for a user who holds `beak.admin`, and answers 403 itself for one who does not. |
 | `ServerpodSessionAdapter` | A worm `DatabaseAdapter` over `session.db.unsafeQuery` and `unsafeExecute`. A nested transaction is a savepoint, never flattened. |
 | `BeakServerpod` | The zone that carries the `Session` into Beak (`runInSession`), plus `sessionOf` and `transactionOf` to hand typed Serverpod ORM writes the same session and transaction. |
 | `beakServerpodFrameworkTables` | Maps Beak's graph-commit receipts onto the Serverpod model `beak_commit_receipt` and its effect outbox onto `beak_outbox`. |

@@ -3,10 +3,20 @@ name: ci
 # Every job that resolves packages fetches obers_ui, obers_ui_autoforms and
 # obers_ui_charts from github.com/SimonErich/obers_ui at the commit pinned in
 # the pubspecs. That commit has to be pushed there, or `pub get` fails in every
-# job below. It also has to be new enough for beak_frontend to compile: the jobs
-# that build the panel (web, showcase-web, foodio-web) fail on an older one.
-# Nothing here reads a sibling checkout, so `melos run link-obers-ui` is a
+# job below. It also has to be new enough for beak_frontend to compile, and the
+# pinned one (c956d25) is not: these jobs fail on it until the obers_ui changes
+# are pushed and the SHA is bumped in every pubspec (`test/obers_ui_pin_test.dart`
+# keeps the copies identical):
+#   - static (`flutter analyze` of beak_frontend, showcase, foodio-adminpanel)
+#   - test (beak_frontend and every Flutter example compile against it)
+#   - web, showcase-web, foodio-web (they build the panel)
+#   - serverpod-admin (the admin app compiles the panel)
+# The jobs that need no panel (install-smoke, serverpod-example) do not depend on
+# it. Nothing here reads a sibling checkout, so `melos run link-obers-ui` is a
 # local-only tool.
+
+permissions:
+  contents: read
 
 on:
   push:
@@ -227,16 +237,66 @@ jobs:
 
   # examples/serverpod is a pub workspace of its own with Serverpod 4's exact
   # pins, so melos neither bootstraps nor gates it (see `ignore:` in
-  # melos.yaml) and this is the only job that touches it. It needs Dart 3.12.2
-  # or newer, which the stable channel has. Only the suites that need no
-  # running server are run: `--exclude-tags integration` leaves out
-  # test/integration, whose `withServerpod` groups need the test Postgres. To
-  # run those locally: `docker compose up -d --wait postgres_test` in
-  # examples/serverpod/bookshop_server, then `dart test --tags integration`.
-  # bookshop_admin's widget tests compile the panel, so they wait for an
-  # obers_ui pin that beak_frontend compiles against.
+  # melos.yaml) and these two jobs are the only ones that touch it. It needs
+  # Dart 3.12.2 or newer, which the stable channel has.
+  #
+  # Serverpod reads config/passwords.yaml when a test file loads, and that file
+  # is git-ignored, so the job copies the committed example first. The
+  # integration suites run on the embedded Postgres Serverpod downloads from
+  # GitHub Releases on first use (no Docker, no service container): they are
+  # the proof that the tunnel gate refuses a caller without the beak.admin
+  # scope, that the policy denies what it does not allow, and that
+  # ServerpodSessionAdapter passes worm's adapter contract.
   serverpod-example:
     name: Serverpod example
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Cache pub-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      - name: Cache the embedded Postgres binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/serverpod/pg-binaries
+          key: ${{ runner.os }}-serverpod-pg-${{ hashFiles('examples/serverpod/bookshop_server/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-serverpod-pg-
+      - name: Resolve the workspace
+        run: flutter pub get
+        working-directory: examples/serverpod
+      # `melos run analyze` never reaches this workspace (see `ignore:` in
+      # melos.yaml), so its pure-Dart members and the template app are analyzed
+      # here. bookshop_admin is analyzed in `serverpod-admin`: it compiles the
+      # panel.
+      - name: Analyze the server, the Beak schema package and the client
+        run: dart analyze --fatal-infos --fatal-warnings bookshop_server bookshop_beak bookshop_client
+        working-directory: examples/serverpod
+      - name: Analyze the template app
+        run: flutter analyze --fatal-infos --fatal-warnings
+        working-directory: examples/serverpod/bookshop_flutter
+      - name: Local secrets (git-ignored in a real checkout)
+        run: cp config/passwords.example.yaml config/passwords.yaml
+        working-directory: examples/serverpod/bookshop_server
+      - name: Unit tests (no server, no database)
+        run: dart test --exclude-tags integration
+        working-directory: examples/serverpod/bookshop_server
+      - name: Integration tests (embedded Postgres)
+        run: dart test --tags integration
+        working-directory: examples/serverpod/bookshop_server
+
+  # bookshop_admin's widget tests compile the panel, so this job fails with the
+  # other panel jobs until the obers_ui pin has the APIs beak_frontend calls.
+  serverpod-admin:
+    name: Serverpod admin app
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -255,6 +315,9 @@ jobs:
       - name: Resolve the workspace
         run: flutter pub get
         working-directory: examples/serverpod
-      - name: Unit tests (no server, no database)
-        run: dart test --exclude-tags integration
-        working-directory: examples/serverpod/bookshop_server
+      - name: Analyze
+        run: flutter analyze --fatal-infos --fatal-warnings
+        working-directory: examples/serverpod/bookshop_admin
+      - name: Widget tests (a fake dispatch, no server)
+        run: flutter test
+        working-directory: examples/serverpod/bookshop_admin

@@ -44,9 +44,12 @@ permissions:
   pages: write
   id-token: write
 
+# One group per ref. A single shared group would let any pull request's build
+# cancel the run that is deploying main, so only a superseded run of the same
+# branch or pull request is cancelled, and main always finishes.
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   # Material and the MkDocs fork print a banner about MkDocs 2.0 on every run.

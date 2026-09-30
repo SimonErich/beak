@@ -5,7 +5,8 @@
 /// could steer the router somewhere else is refused rather than resolved:
 /// empty segments (`//`), dot segments (`.`, `..`, `%2e%2e`), and segments
 /// that decode to a separator or a control character. What is left must be
-/// under `/api/`, and never Beak's own login surface (`/api/auth/**`):
+/// under `/api/`, with a query whose escapes decode, and never Beak's own
+/// login surface (`/api/auth/**`):
 /// Serverpod owns sign-in. Health probes and file routes live outside `/api`
 /// and are refused as well.
 Uri? beakTunnelUrl(String path, String query) {
@@ -45,6 +46,10 @@ Uri? beakTunnelUrl(String path, String query) {
       pathSegments: segments,
       query: query.isEmpty ? null : query,
     );
+    // shelf decodes the query when it builds the request and throws on an
+    // escape that is not UTF-8; decode it here so that is a refusal, not a
+    // failure of the whole call.
+    url.queryParametersAll;
   } on FormatException {
     return null;
   }

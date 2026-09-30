@@ -37,11 +37,16 @@ const List<String> webUnsafeSdkLibraries = [
 ///
 /// Matched as prefixes so `package:worm_postgres/...` and
 /// `package:beak_storage_s3/...` are caught alongside their roots.
+/// `package:serverpod/` carries its slash because the client packages
+/// (`serverpod_client`, `serverpod_auth_idp_client`) are web-safe and share
+/// the stem.
 const List<String> webUnsafePackagePrefixes = [
   'package:beak_backend',
   'package:beak_image',
+  'package:beak_serverpod_server',
   'package:beak_storage_',
   'package:postgres',
+  'package:serverpod/',
   'package:shelf',
   'package:worm',
 ];

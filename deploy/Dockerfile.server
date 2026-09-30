@@ -1,12 +1,13 @@
-# syntax=docker/dockerfile:1
-
 # Beak backend server image.
 #
 # The backend is pure Dart: it depends on beak_backend/beak_core/worm and never
-# on Flutter libraries. Its shared pubspec requires a Flutter SDK to resolve;
-# the server then AOT-compiles to a single native executable and
-# runs from a slim Debian base. Build from the REPO ROOT as context (Beak uses
-# path dependencies, so the whole packages/ + examples/ tree must be present):
+# on Flutter libraries. Its shared pubspec requires a Flutter SDK to resolve.
+# The dependency graph has a build hook (sqlite3), which `dart compile exe`
+# refuses, so the server and the migrate CLI are built with `dart build cli`:
+# each is a bundle (`bin/<name>` next to `lib/libsqlite3.so`) that runs from a
+# slim Debian base and needs nothing installed beside it. Build from the REPO
+# ROOT as context (Beak uses path dependencies, so the whole packages/ +
+# examples/ tree must be present):
 #
 #   docker build -f deploy/Dockerfile.server -t beak-server .
 #
@@ -20,7 +21,7 @@ COPY . .
 RUN git config --global --add safe.directory '*'
 
 # Resolve and compile the example's server. Swap this path for your own
-# project when you deploy it — the entrypoints are the same two files in
+# project when you deploy it: the entrypoints are the same two files in
 # every Beak project, because `beak prepare` writes them.
 WORKDIR /app/packages/beak_cli
 RUN dart pub get
@@ -28,23 +29,25 @@ RUN dart pub get
 WORKDIR /app/examples/clean_beak_config
 RUN flutter pub get
 RUN dart run ../../packages/beak_cli/bin/beak.dart prepare
-RUN dart compile exe bin/serve.dart -o /app/beak-server
-# The worm CLI (migrate / db:seed) as a second executable, so schema and seed
+RUN dart build cli --target bin/serve.dart --output /app/out/serve
+# The worm CLI (migrate / db:seed) as a second bundle, so schema and seed
 # steps run from the same image (see the migrate service in the compose file).
-RUN dart compile exe bin/migrate.dart -o /app/beak-migrate
+RUN dart build cli --target bin/migrate.dart --output /app/out/migrate
 
-# --- Runtime image: just glibc + CA roots for HTTPS to Postgres/S3 ---
+# --- Runtime image: glibc + CA roots for TLS to Postgres. The SQLite library
+# travels inside each bundle, so nothing else is installed. ---
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates libsqlite3-0 \
+  && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/beak-server /usr/local/bin/beak-server
-COPY --from=build /app/beak-migrate /usr/local/bin/beak-migrate
+# Ship each bundle as a directory: `bin/` and `lib/` have to stay side by side.
+COPY --from=build /app/out/serve/bundle /opt/beak/server
+COPY --from=build /app/out/migrate/bundle /opt/beak/migrate
 
 # BeakBackendConfig defaults to host 0.0.0.0; PORT is read from the environment.
 ENV PORT=8080
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/beak-server"]
+ENTRYPOINT ["/opt/beak/server/bin/serve"]

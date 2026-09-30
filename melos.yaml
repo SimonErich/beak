@@ -15,9 +15,9 @@ ignore:
   - packages/worm_*
   - packages/worm_*/**
   # A real Serverpod 4 workspace (one pub resolution for all its members,
-  # Serverpod's exact pins, its own CI job: `serverpod-example` in
-  # .github/workflows/ci.yaml). Melos must neither bootstrap nor gate its
-  # members.
+  # Serverpod's exact pins, its own CI jobs: `serverpod-example` and
+  # `serverpod-admin` in .github/workflows/ci.yaml). Melos must neither
+  # bootstrap nor gate its members.
   - examples/serverpod
   - examples/serverpod/**
 

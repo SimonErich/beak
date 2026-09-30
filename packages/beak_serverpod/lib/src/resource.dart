@@ -290,7 +290,9 @@ base class ServerpodResource<T, Id extends Object, Create, Update>
     if (restore == null) {
       return unsupportedServerpodOperation(model.table, 'restore');
     }
-    return _encode(await restore(_id(id)));
+    final restored = await restore(_id(id));
+    await onChanged?.call();
+    return _encode(restored);
   }
 
   @override

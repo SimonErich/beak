@@ -5,6 +5,11 @@ import 'package:beak_core/beak_core.dart';
 /// The only envelope version this build speaks.
 const int beakWireVersion = 1;
 
+/// What an HTTP method name looks like: letters, and hyphens after the
+/// first. `shelf.Request` throws on an empty one, so the server refuses it
+/// with a 400 before it gets that far.
+final RegExp _methodName = RegExp(r'^[A-Za-z][A-Za-z-]{0,15}$');
+
 /// Request headers the tunnel carries. Everything else stays behind, so
 /// credentials (`authorization`, `cookie`) and proxy claims
 /// (`x-forwarded-*`) can never reach Beak through the envelope: the server
@@ -58,7 +63,8 @@ final class BeakWireRequest {
         'query': final String query,
         'headers': final Map<String, Object?> headers,
         'body': final String body,
-      } =>
+      }
+          when _methodName.hasMatch(method) =>
         BeakWireRequest(
           method: method,
           path: path,

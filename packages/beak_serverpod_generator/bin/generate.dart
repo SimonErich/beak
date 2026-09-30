@@ -9,7 +9,8 @@ import 'package:yaml/yaml.dart';
 Future<void> main(List<String> arguments) async {
   final parser = ArgParser()
     ..addOption('config', defaultsTo: 'beak_serverpod.yaml')
-    ..addOption('root');
+    ..addOption('root')
+    ..addOption('client');
   try {
     final options = parser.parse(arguments);
     final configPath = options.option('config')!;
@@ -22,15 +23,19 @@ Future<void> main(List<String> arguments) async {
     final Object? types = document['types'] ?? const <String>[];
     final Object? models = document['models'] ?? const <String>[];
     final Object? output = document['output'];
+    final Object? configuredClient = document['client'] ?? 'Client';
+    final String client = options.option('client') ?? '$configuredClient';
     if (library is! String ||
         types is! List ||
         models is! List ||
         output is! String ||
+        configuredClient is! String ||
         types.any((Object? value) => value is! String) ||
         models.any((Object? value) => value is! String) ||
         (types.isEmpty && models.isEmpty)) {
       throw const FormatException(
-        'Provide library, models or types (string lists), and output.',
+        'Provide library, models or types (string lists), output, and '
+        'optionally the client class name.',
       );
     }
     final root = p.absolute(
@@ -47,13 +52,16 @@ Future<void> main(List<String> arguments) async {
         for (final Object? name in types)
           if (name is String) name,
       ],
+      client: client,
     );
     final target = File(p.join(root, output));
-    if (!target.existsSync() || target.readAsStringSync() != contents) {
+    if (target.existsSync() && target.readAsStringSync() == contents) {
+      stdout.writeln('Up to date ${target.path}');
+    } else {
       target.parent.createSync(recursive: true);
       target.writeAsStringSync(contents);
+      stdout.writeln('Generated ${target.path}');
     }
-    stdout.writeln('Generated ${target.path}');
   } on Exception catch (error) {
     stderr.writeln('Companion generation failed: $error');
     exitCode = 1;

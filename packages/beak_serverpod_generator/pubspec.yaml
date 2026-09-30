@@ -2,6 +2,10 @@ name: beak_serverpod_generator
 description: Resolved Dart model companions for Serverpod-backed Beak resources.
 version: 0.9.0
 publish_to: none
+repository: https://github.com/SimonErich/beak/tree/main/packages/beak_serverpod_generator
+homepage: https://github.com/SimonErich/beak
+issue_tracker: https://github.com/SimonErich/beak/issues
+topics: [admin-panel, serverpod, codegen]
 
 environment:
   sdk: ^3.11.0

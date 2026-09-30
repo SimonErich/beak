@@ -69,8 +69,10 @@ const List<String> webUnsafeSdkLibraries = [
 const List<String> webUnsafePackagePrefixes = [
   'package:beak_backend',
   'package:beak_image',
+  'package:beak_serverpod_server',
   'package:beak_storage_',
   'package:postgres',
+  'package:serverpod/',
   'package:shelf',
   'package:worm',
 ];

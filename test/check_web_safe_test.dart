@@ -40,6 +40,21 @@ void main() {
       expect(webUnsafeReason('package:postgres/postgres.dart'), isNotNull);
     });
 
+    test('flags the Serverpod server half, but not its client', () {
+      expect(webUnsafeReason('package:serverpod/serverpod.dart'), isNotNull);
+      expect(
+        webUnsafeReason(
+          'package:beak_serverpod_server/beak_serverpod_server.dart',
+        ),
+        isNotNull,
+      );
+      expect(
+        webUnsafeReason('package:serverpod_client/serverpod_client.dart'),
+        isNull,
+      );
+      expect(webUnsafeReason('package:beak_serverpod/wire.dart'), isNull);
+    });
+
     test('accepts the panel stack', () {
       expect(webUnsafeReason('dart:async'), isNull);
       expect(webUnsafeReason('dart:typed_data'), isNull);

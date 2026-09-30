@@ -106,6 +106,9 @@ final class FakeTransaction implements Transaction {
 
 /// A [Database] that records statements and replays canned results.
 final class FakeDatabase implements Database {
+  /// Waits this long before answering a statement, so two requests overlap.
+  Duration latency = Duration.zero;
+
   /// Rows returned by the next `unsafeQuery` calls, one list per call.
   final List<List<Map<String, Object?>>> queryReplies = [];
 
@@ -132,6 +135,7 @@ final class FakeDatabase implements Database {
     QueryParameters? parameters,
   }) async {
     _record(query, timeoutInSeconds, transaction, parameters);
+    await Future<void>.delayed(latency);
     return _FakeResult(
       queryReplies.isEmpty ? const [] : queryReplies.removeAt(0),
     );

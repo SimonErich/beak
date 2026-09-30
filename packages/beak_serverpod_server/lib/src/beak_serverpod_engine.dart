@@ -9,6 +9,7 @@ import 'package:serverpod/serverpod.dart'
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:worm/worm.dart' show DatabaseAdapter;
 
+import 'beak_admin_gate.dart';
 import 'beak_serverpod.dart';
 import 'beak_serverpod_framework_tables.dart';
 import 'beak_tunnel_path.dart';
@@ -16,6 +17,8 @@ import 'serverpod_session_adapter.dart';
 
 /// Turns the signed-in Serverpod user into the principal Beak's policies
 /// decide on, or `null` to refuse the request (403).
+///
+/// It only runs for a user who holds [BeakScopes.admin].
 ///
 /// Throw a [BeakAuthenticationException] or [BeakAuthorizationException] to
 /// refuse with 401 or 403 and a message.
@@ -58,9 +61,12 @@ abstract final class BeakServerpodPrincipal {
 /// 1. decodes envelope v1 and refuses any path outside `/api/**` (see
 ///    [beakTunnelUrl]) with 404;
 /// 2. drops every header but [beakWireRequestHeaders];
-/// 3. resolves the principal from `session.authenticated` alone and hands it
-///    to Beak's auth middleware through a context value only this library
-///    can create, so no header can forge an identity;
+/// 3. refuses a session that is not signed in (401) or does not hold
+///    [BeakScopes.admin] (403), even when the endpoint forgot
+///    [BeakAdminGate], then resolves the principal from
+///    `session.authenticated` alone and hands it to Beak's auth middleware
+///    through a context value only this library can create, so no header
+///    can forge an identity;
 /// 4. runs the pipeline inside [BeakServerpod.runInSession], so every
 ///    statement Beak issues uses the request's Serverpod session, pool and
 ///    (in a graph commit) one Serverpod transaction;
@@ -177,6 +183,12 @@ final class BeakServerpodEngine {
         const BeakAuthenticationException('Sign in to use the Beak admin.'),
       );
     }
+    if (!auth.scopes.contains(BeakScopes.admin)) {
+      // The endpoint gate already refuses this; the engine repeats it so an
+      // endpoint that forgot BeakAdminGate cannot open the tunnel to every
+      // signed-in user whose roles a policy rule happens to accept.
+      return _error(403, const BeakAuthorizationException(_notAllowed));
+    }
     final BeakPrincipal? resolved;
     try {
       resolved = await principal(session, auth);
@@ -186,10 +198,7 @@ final class BeakServerpodEngine {
       return _error(403, error);
     }
     if (resolved == null) {
-      return _error(
-        403,
-        const BeakAuthorizationException('Not allowed to use the Beak admin.'),
-      );
+      return _error(403, const BeakAuthorizationException(_notAllowed));
     }
     final shelf.Response response = await _handler(
       shelf.Request(
@@ -212,6 +221,8 @@ final class BeakServerpodEngine {
       body: await response.readAsString(),
     );
   }
+
+  static const String _notAllowed = 'Not allowed to use the Beak admin.';
 
   static const Set<String> _hopByHop = {
     'content-length',

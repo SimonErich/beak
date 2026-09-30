@@ -250,7 +250,7 @@ const Map<String, int> thresholdOverridesPct = {
 - **One fresh adapter per backend test.** Build the in-memory database in `setUp`, register the schema up front, call `tearDown(Worm.reset)`. Reach for `SqliteAdapter.memory()` only when a test needs raw SQL.
 - **Seed anything random.** `Worm.seedRandom(42)` and an injected `now` keep ids and timestamps stable.
 - **The umbrella reports no lines.** `packages/beak` re-exports and instruments nothing, so its floor passes on zero lines and its tests guard the export lists instead.
-- **`examples/serverpod` is outside melos.** Its tests run by hand from the workspace, as its README describes, and no CI job runs them.
+- **`examples/serverpod` is outside melos.** Its tests run from the workspace, as its README describes, and by the `serverpod-example` and `serverpod-admin` CI jobs, not by `melos run test`. The server's `test/integration` suites start an embedded Postgres, and they need `config/passwords.yaml` copied from the committed example first.
 - **Fakes must stay honest.** A fake that returns what the test wants proves the test. Extend `InMemoryBeakDataSource` when a behavior is missing, and add it to the contract.
 
 ## Verify it

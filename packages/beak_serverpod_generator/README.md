@@ -49,12 +49,16 @@ $ dart run beak_serverpod_generator:generate --config beak_serverpod.yaml
 Generated /home/me/consumer/lib/beak/entry_resources.g.dart
 ```
 
+A second run over an unchanged client prints `Up to date` and the same path, and
+leaves the file alone.
+
 | Config key | Meaning |
 | --- | --- |
 | `library` | The library URI that exports `Client` and the models. |
 | `models` | Read models. Each gets a `<Model>Resource` and endpoint discovery. |
 | `types` | Types that get descriptors and codecs only, with no endpoint discovery. |
 | `output` | The file to write, relative to the root. |
+| `client` | The client class the library exports. Defaults to `Client`. |
 
 At least one of `models` and `types` is required. Command and nested DTO types
 are collected on their own, so do not list them again.
@@ -63,6 +67,7 @@ are collected on their own, so do not list them again.
 | --- | --- | --- |
 | `--config` | `beak_serverpod.yaml` | The config file. |
 | `--root` | The directory of the config file | The consumer package, when you run from elsewhere. |
+| `--client` | `client:` from the config, else `Client` | The client class, overriding the config. |
 
 Only the configured output is written, and an unchanged file is left untouched.
 Regenerate after every model or endpoint change, and never edit the file: it is a

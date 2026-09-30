@@ -80,9 +80,9 @@ The gate is getter-only on purpose. Serverpod's analyzer never turns mixin membe
 
 `policy:` is required. There is no allow-all default. Per request, `dispatch` does this:
 
-1. Decodes the envelope. A malformed one is a 400, and an unsupported version says which version the server speaks.
+1. Decodes the envelope. A malformed one is a 400 (including a method that is not an HTTP method name), and an unsupported version says which version the server speaks.
 2. Turns the path into an internal URL, or refuses with a 404. Only `/api/**` passes, and never `/api/auth/**`, because Serverpod owns sign-in. Percent-encoded dots, empty segments and separators are refused rather than resolved.
-3. Reads `session.authenticated`. No session is a 401 (the gate normally answers first). The principal resolver turns the user into a `BeakPrincipal`: by default the user id, with every scope name as a role.
+3. Reads `session.authenticated`. No session is a 401, and a session without the `beak.admin` scope is a 403 (the gate normally answers both first, and the engine repeats them, so an endpoint that forgot `BeakAdminGate` does not open the tunnel to every signed-in user). The principal resolver then turns the user into a `BeakPrincipal`: by default the user id, with every scope name as a role.
 4. Runs the pipeline inside `BeakServerpod.runInSession`, so every statement Beak issues uses this request's session.
 5. Logs `beak <method> /<path> -> <status>` to `session.log`, and unexpected errors as errors.
 

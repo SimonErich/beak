@@ -4,8 +4,8 @@
 #
 # Note: pubspec_overrides.yaml files are melos-managed and gitignored. Dropping
 # them here makes the image resolve from each package's committed pubspec.yaml
-# (which already carries the path deps and the xml override), so the build is
-# reproducible without a melos bootstrap.
+# (which already carries the path deps), so the build is reproducible without a
+# melos bootstrap.
 
 .git/
 .github/

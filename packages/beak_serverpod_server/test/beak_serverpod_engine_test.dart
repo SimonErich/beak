@@ -35,6 +35,19 @@ final class _Recording extends BeakAllowAllPolicy {
   }
 }
 
+/// Collects the id of every principal a request is decided for.
+final class _Collecting extends BeakAllowAllPolicy {
+  _Collecting(this.ids);
+
+  final List<String> ids;
+
+  @override
+  bool canView(BeakPrincipal? principal, BeakModel model) {
+    if (principal != null) ids.add(principal.id);
+    return true;
+  }
+}
+
 final class _Exploding extends BeakAllowAllPolicy {
   @override
   bool canView(BeakPrincipal? principal, BeakModel model) =>
@@ -195,7 +208,7 @@ void main() {
       expect(_json(forbidden)['message'], 'Suspended.');
 
       final other = FakeSession(
-        authenticated: signedIn({}, userIdentifier: 'u2'),
+        authenticated: signedIn({'beak.admin'}, userIdentifier: 'u2'),
       );
       final expired = _decode(
         await refusing.dispatch(other, _request('GET', '/api/book/b1')),
@@ -226,6 +239,41 @@ void main() {
       final outsider = FakeSession(authenticated: signedIn({'beak.admin'}));
       final response = await call('GET', '/api/book/b1', as: outsider);
       expect(response.status, 403);
+    });
+
+    test('a signed-in user without beak.admin is a 403 even when a policy '
+        'rule would let them in', () async {
+      final staffOnly = FakeSession(authenticated: signedIn({_staff}));
+      final response = await call('GET', '/api/book/b1', as: staffOnly);
+
+      expect(response.status, 403);
+      expect(_json(response)['code'], 'authorization');
+      expect(
+        staffOnly.fakeDatabase.statements,
+        isEmpty,
+        reason: 'refused before any statement ran',
+      );
+    });
+
+    test('the scope is checked before a custom resolver runs', () async {
+      var resolverCalls = 0;
+      final probe = BeakServerpodEngine(
+        registry: createBookshopRegistry(),
+        policy: _policy(),
+        adapter: adapter,
+        principal: (session, auth) {
+          resolverCalls += 1;
+          return const BeakPrincipal(id: 'x', roles: {_staff});
+        },
+      );
+      final staffOnly = FakeSession(authenticated: signedIn({_staff}));
+
+      final response = _decode(
+        await probe.dispatch(staffOnly, _request('GET', '/api/book/b1')),
+      );
+
+      expect(response.status, 403);
+      expect(resolverCalls, 0);
     });
 
     test('a model with no rule is closed, whoever asks', () async {
@@ -269,11 +317,48 @@ void main() {
       }
     });
 
+    test(
+      'a query that does not decode is a 404, never a thrown error',
+      () async {
+        final response = _decode(
+          await engine.dispatch(
+            staff,
+            _request('GET', '/api/book/capabilities', query: 'id=%E0%A4%A'),
+          ),
+        );
+
+        expect(response.status, 404);
+      },
+    );
+
     test('a malformed envelope is a 400', () async {
       final response = _decode(await engine.dispatch(staff, 'not an envelope'));
       expect(response.status, 400);
       expect(_json(response)['code'], 'validation');
     });
+
+    test(
+      'a method that is no HTTP method is a 400, never a thrown error',
+      () async {
+        for (final method in ['', 'GET\n', 'GET /x']) {
+          final response = _decode(
+            await engine.dispatch(
+              staff,
+              jsonEncode({
+                'v': 1,
+                'method': method,
+                'path': '/api/book',
+                'query': '',
+                'headers': <String, String>{},
+                'body': '',
+              }),
+            ),
+          );
+          expect(response.status, 400, reason: 'method "$method"');
+          expect(_json(response)['code'], 'validation');
+        }
+      },
+    );
 
     test('the request id header names the log line', () async {
       await call(
@@ -378,6 +463,73 @@ void main() {
 
       expect(direct.status, 422);
       expect(committed.status, 200);
+    });
+  });
+
+  group('one engine, many sessions', () {
+    Map<String, Object?> bookRow(String id, String title) => {
+      'id': id,
+      'title': title,
+      'priceInCents': 1,
+      'authorId': null,
+    };
+
+    test('overlapping requests each run on their own session', () async {
+      final seen = <String>[];
+      final shared = BeakServerpodEngine(
+        registry: createBookshopRegistry(),
+        policy: _Collecting(seen),
+      );
+      final slow = FakeSession(
+        authenticated: signedIn({'beak.admin'}, userIdentifier: 'alice'),
+      );
+      slow.fakeDatabase
+        ..latency = const Duration(milliseconds: 40)
+        ..queryReplies.add([bookRow('a1', 'Alice book')]);
+      final fast = FakeSession(
+        authenticated: signedIn({'beak.admin'}, userIdentifier: 'bob'),
+      );
+      fast.fakeDatabase.queryReplies.add([bookRow('b1', 'Bob book')]);
+
+      final replies = await Future.wait([
+        shared.dispatch(slow, _request('GET', '/api/book/a1')),
+        shared.dispatch(fast, _request('GET', '/api/book/b1')),
+      ]);
+
+      expect(
+        _decode(replies[0]).body,
+        allOf(contains('Alice book'), isNot(contains('Bob book'))),
+      );
+      expect(
+        _decode(replies[1]).body,
+        allOf(contains('Bob book'), isNot(contains('Alice book'))),
+      );
+      expect(slow.fakeDatabase.statements, hasLength(1));
+      expect(fast.fakeDatabase.statements, hasLength(1));
+      expect(seen.toSet(), {'alice', 'bob'});
+      expect(
+        slow.logs.map((log) => log.message).join(),
+        isNot(contains('b1')),
+        reason: 'each request logs on its own session',
+      );
+    });
+
+    test('a refused request leaves the next one untouched', () async {
+      final shared = BeakServerpodEngine(
+        registry: createBookshopRegistry(),
+        policy: _policy(),
+        adapter: adapter,
+      );
+      final outsider = FakeSession(authenticated: signedIn({'beak.admin'}));
+      final denied = _decode(
+        await shared.dispatch(outsider, _request('GET', '/api/book/b1')),
+      );
+      final allowed = _decode(
+        await shared.dispatch(staff, _request('GET', '/api/book/b1')),
+      );
+
+      expect(denied.status, 403);
+      expect(allowed.status, 404, reason: 'staff passes the policy; no row');
     });
   });
 
