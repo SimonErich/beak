@@ -50,6 +50,12 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
+      # melos bootstraps in parallel, and on a cold pub cache two `pub get`s
+      # check out the same obers_ui commit at once and collide on git's
+      # index.lock. Resolving one Flutter package first puts the checkout in
+      # the cache; the parallel bootstrap then only reads it.
+      - name: Warm the pub git cache
+        run: cd packages/beak_frontend && flutter pub get
       - name: Bootstrap
         run: melos bootstrap
       # No separate workspace-tooling `pub get`: `melos run analyze-root`
@@ -88,6 +94,12 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
+      # melos bootstraps in parallel, and on a cold pub cache two `pub get`s
+      # check out the same obers_ui commit at once and collide on git's
+      # index.lock. Resolving one Flutter package first puts the checkout in
+      # the cache; the parallel bootstrap then only reads it.
+      - name: Warm the pub git cache
+        run: cd packages/beak_frontend && flutter pub get
       - name: Bootstrap
         run: melos bootstrap
       - name: Build the quickstart panel for web
@@ -117,6 +129,12 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
+      # melos bootstraps in parallel, and on a cold pub cache two `pub get`s
+      # check out the same obers_ui commit at once and collide on git's
+      # index.lock. Resolving one Flutter package first puts the checkout in
+      # the cache; the parallel bootstrap then only reads it.
+      - name: Warm the pub git cache
+        run: cd packages/beak_frontend && flutter pub get
       - name: Bootstrap
         run: melos bootstrap
       - name: Test
@@ -204,6 +222,12 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
+      # melos bootstraps in parallel, and on a cold pub cache two `pub get`s
+      # check out the same obers_ui commit at once and collide on git's
+      # index.lock. Resolving one Flutter package first puts the checkout in
+      # the cache; the parallel bootstrap then only reads it.
+      - name: Warm the pub git cache
+        run: cd packages/beak_frontend && flutter pub get
       - name: Bootstrap
         run: melos bootstrap
       - name: Build the showcase panel for web
@@ -229,6 +253,12 @@ jobs:
           restore-keys: ${{ runner.os }}-pub-
       - name: Activate melos
         run: dart pub global activate melos 6.3.3
+      # melos bootstraps in parallel, and on a cold pub cache two `pub get`s
+      # check out the same obers_ui commit at once and collide on git's
+      # index.lock. Resolving one Flutter package first puts the checkout in
+      # the cache; the parallel bootstrap then only reads it.
+      - name: Warm the pub git cache
+        run: cd packages/beak_frontend && flutter pub get
       - name: Bootstrap
         run: melos bootstrap
       - name: Build the foodio admin panel for web
