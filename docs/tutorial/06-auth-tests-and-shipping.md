@@ -120,7 +120,7 @@ $ beak dev
 listening on http://0.0.0.0:8080
 ```
 
-The `1 override` is your `beakServer`. Ask for a product without signing in:
+The summary line doesn't count `beakServer`, but the regenerated `lib/beak/server.g.dart` now calls it. Ask for a product without signing in:
 
 ```bash
 curl -s -i -X POST localhost:8080/api/products/query \

@@ -24,7 +24,7 @@ flowchart LR
   column --> ddl["Migration"]
 ```
 
-One field, seven mouths. The arrow tail is the point: there is a single source of truth, and it is the line you wrote. Change a label or tighten a rule, run `beak prepare`, and every consumer picks it up. Nothing drifts, because nothing was copied.
+One field, seven mouths. There is a single source of truth, and it is the line you wrote. Change a label or tighten a rule, run `beak prepare`, and every consumer picks it up. Nothing drifts, because nothing was copied.
 
 ## How it works
 

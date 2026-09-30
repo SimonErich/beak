@@ -60,7 +60,7 @@ Blocks appear wherever content has no form to edit:
 
 Data blocks fetch for themselves. A metric or table block runs its own query through the panel's data source, shows a loading and an error state with a retry, and refetches when a write touches its table.
 
-Three interactive blocks write, and it helps to know how. The kanban board saves the new column of a dropped card, the calendar saves a rescheduled event, and the chat block creates the record its `composeRecord` builds. Each is a single request through the repository, like any per-record call. A model that has to be saved through a graph commit refuses those (see [How data flows](how-data-flows.md)), so a kanban over such a model can't move its cards.
+Three interactive blocks write, and it helps to know how. The kanban board saves the new column of a dropped card, the calendar saves a rescheduled event, and the chat block creates the record its `composeRecord` builds. Each goes through the repository as one write, sent as a one-operation graph commit, so it also works on a model that must be saved through a commit (see [How data flows](how-data-flows.md)).
 
 ### Record blocks read a scope
 
@@ -118,7 +118,7 @@ They carry different things. A block holds configuration only, so a block tree c
 
 The cost is a closed set on one side and an open one on the other. `BeakBlock` is sealed and the host is exhaustive. `BeakFormNode` is an ordinary abstract class, so you can write your own node, and the form host renders a node type it doesn't know as nothing (`_ => SizedBox.shrink()`). If you add a node type and it never shows, that is why. A sealed form family would catch it at compile time and forbid your own nodes; Beak chose the open one.
 
-Editing a record graph has one runtime. A form saves through the form session and becomes a `BeakSavePlan`, with drafts, validation, conflicts and a receipt. The three blocks above skip all of that on purpose: a card move is one field on one record. Anything bigger than that belongs in a form, and [Where authority lives](where-authority-lives.md) explains what the server does with either.
+Editing a record graph has one runtime. A form saves through the form session and becomes a `BeakSavePlan`, with drafts, validation, conflicts and a receipt. The three blocks above skip the session on purpose (no draft, no conflict check, no review step): a card move is one field on one record. The server still validates and authorizes it. Anything bigger than that belongs in a form, and [Where authority lives](where-authority-lives.md) explains what the server does with either.
 
 ## What it means for you
 

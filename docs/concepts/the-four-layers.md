@@ -119,7 +119,7 @@ The DataSource in the panel is a `ModelBeakDataSource`. It routes each model to 
 | `beakErrorMappingMiddleware` (server) | everything | `BeakException` to status and JSON, the rest to an opaque 500 |
 | `BeakGraphCommitService` (server) | `BeakException` inside the transaction | rolls back and answers with an `unapplied` receipt, not an HTTP error |
 | `BeakClient` (core) | HTTP error bodies | decodes `code` back into the matching `BeakException` |
-| `ModelBeakDataSource` (panel) | host exceptions | maps them with `mapException` into a `BeakException` and rethrows; it doesn't return results |
+| `ModelBeakDataSource` (panel) | host exceptions | maps them with `mapException` into a `BeakException` (a dropped connection or timeout becomes a `BeakTransportException`) and rethrows; it doesn't return results |
 | `beakRun` in `BeakResourceRepository` (panel) | `BeakException` | returns `BeakErr`; other exceptions go to `mapException` or are rethrown |
 | `BeakFormCommitRepository` (panel) | any `Exception` from a commit | returns an `unapplied` receipt for a typed refusal (422, 413, 401, 403, 404, 409) and an `unknown` one for anything that can't prove the server wrote nothing |
 

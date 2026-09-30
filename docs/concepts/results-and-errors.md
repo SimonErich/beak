@@ -42,7 +42,7 @@ Every failure Beak raises is a `BeakException`. The family is sealed, and each v
 | `BeakAuthorizationException` | `authorization` | 403 | the identity may not do this |
 | `BeakConflictException` | `conflict` | 409 | a concurrent change, or a save id reused with different content |
 | `BeakConfigurationException` | `configuration` | 500 | Beak is set up wrong; a developer error |
-| `BeakStorageException` | `storage` | 500 | a storage driver failed |
+| `BeakStorageException` | `storage` | 500 | a storage driver failed; the caller gets the fixed message "File storage failed." and the operator gets the real one |
 | `BeakInternalException` | `internal` | 500 | the server failed unexpectedly, or a proxy answered with a 5xx |
 | `BeakPayloadTooLargeException` | `payload_too_large` | 413 | a request body is larger than the host accepts |
 | `BeakTransportException` | `transport` | 502 | a fault outside Beak's API that no other type fits |

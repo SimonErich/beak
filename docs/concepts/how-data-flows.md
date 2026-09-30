@@ -215,6 +215,7 @@ What a source promises is a `BeakCommitCapabilities` value, and the receipt's `m
 | --- | --- | --- | --- | --- |
 | Beak backend over a transactional adapter (SQLite, Postgres, MySQL, Serverpod's database) | `atomic` | yes | yes | yes |
 | Beak backend over an adapter without transactions (MongoDB) | `staged` | no | yes | no |
+| Beak backend over a `BeakDataSource` that isn't worm's | `staged` | no | no, held in server memory | no |
 | Any other `BeakDataSource`, staged by the panel (`BeakStagedCommitDataSource`) | `staged` | no | no, per session | no |
 
 ### The panel refreshes itself
