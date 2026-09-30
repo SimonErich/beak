@@ -329,7 +329,7 @@ These are not `BeakException`s, because nothing maps them to an HTTP response.
 - Switch on `code` or on the exception type. Never parse `message`.
 - Only `BeakValidationException` carries `fieldErrors`. A `BeakSaveError` also carries them, so a form can show receipt errors on the fields.
 - `code` values are strings, not an enum. `BeakSaveError.code` and `BeakOperationResult.reason` are plain strings on the wire, so a client matches them with a default branch.
-- Typed 500 messages, including `BeakInternalException`'s, are sent as written, except `BeakStorageException`, which is replaced by `File storage failed.` and reported to `onUnexpectedError`. Keep secrets out of the message of an exception you throw from a policy or preparer.
+- Typed messages are sent as written, except two that the middleware replaces and reports to `onUnexpectedError`: `BeakStorageException` becomes `File storage failed.` and `BeakInternalException` becomes `Internal server error.`. Keep secrets out of the message of every other exception you throw from a policy or preparer, `BeakConfigurationException` included.
 - `BeakClient` lets the `http` package's `ClientException` (a refused connection) propagate, and `beakRun` rethrows it unless `mapException` maps it. The panel's data source does the mapping for you: a `ClientException` or a `TimeoutException` that your `mapException` does not claim becomes a `BeakTransportException` with a generic message, so a list shows its error state instead of loading for ever.
 
 ## Source

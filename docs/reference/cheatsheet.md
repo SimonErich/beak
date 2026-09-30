@@ -112,7 +112,7 @@ Add the resource to `resources: [...]` in an authored `lib/main.dart`; a generat
 | You want... | Declare | Page |
 | --- | --- | --- |
 | A list with chosen columns | `BeakTableScreen(fields: [X.a, X.b])` in `BeakResource.screens` | [Screens and form layouts](screens-and-layouts.md) |
-| A permanent scope on a list | `BeakTableScreen(query: X.query(filter: ...))` | [Queries](queries.md) |
+| A permanent scope on a list | `BeakTableScreen(query: const XModel().query(filter: ...))` | [Queries](queries.md) |
 | Filter controls | `BeakResource.filters: [X.name.textFilter(), X.status.selectFilter(), X.price.numberRangeFilter()]` | [Filter builders](filter-builders.md) |
 | Search across own and related fields | `BeakResource.globalSearchSources: [X.name, X.attributes.search(Y.name)]` | [Queries](queries.md#search) |
 | Named views with counts, quick filters, saved views | `BeakTableScreen(definition: BeakListDefinition(presets: [BeakQueryPreset(...)], savedViews: ...))` | [Composed lists](../panel/composed-lists.md) |

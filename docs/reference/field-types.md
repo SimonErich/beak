@@ -31,7 +31,7 @@ Two rules decide which column you get. The field's Dart type picks the kind, and
 | `String` | [`BeakStringColumn`](#beakstringcolumn) | `String` | text | `text` / `text` |
 | `BeakText` | [`BeakTextColumn`](#beaktextcolumn) | `String` | text | `text` / `text` |
 | `BeakRichText` | [`BeakRichTextColumn`](#beakrichtextcolumn) | `String` | markup source text | `richText` / `richText` |
-| `BeakHexColor` | [`BeakColorColumn`](#beakcolorcolumn) | `String` | `#rrggbb` text | `color` / `color` |
+| `BeakHexColor` | [`BeakColorColumn`](#beakcolorcolumn) | `String` | hex text such as `#rrggbb` | `color` / `color` |
 | `BeakJson` | [`BeakJsonColumn`](#beakjsoncolumn) | `BeakJson` | JSON text | `json` / `json` |
 | `int` | [`BeakIntColumn`](#beakintcolumn) | `int` | integer | `number` or `currency` |
 | `double` | [`BeakDecimalColumn`](#beakdecimalcolumn) | `double` | `NUMERIC(totalDigits, precision)` | `number` or `currency` |
@@ -286,8 +286,7 @@ A thumbnail in tables, a picker in forms, the full image in detail views. The ru
 | `allowedTypes` | `List<BeakFileType>` | `BeakFileType.images` | Overridden default: `jpeg`, `png`, `webp`, `gif`. `svg` is excluded on purpose. |
 | `maxDimensions` | `BeakDimensions?` | `null` | Largest accepted source size. |
 | `aspectRatio` | `double?` | `null` | Enforced width to height ratio. |
-| `thumbnail` | `BeakDimensions?` | `null` | Size of the generated thumbnail rendition. |
-| `transforms` | `List<BeakImageTransform>` | `const []` | Run on upload, in order. |
+| `transforms` | `List<BeakImageTransform>` | `const []` | Run on upload, in order. A thumbnail rendition exists only when a `BeakThumbnailTransform(size:, name:)` is one of them. |
 
 ### BeakFileColumn
 

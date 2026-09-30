@@ -78,10 +78,11 @@ Available commands:
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, `--help`, `--version`, a run that found nothing to do, or a `doctor` run with warnings only |
-| `1` | A generation error, a failed check, a file it refuses to replace, a `beak.yaml` it cannot read, a failed `flutter pub get`, or `agents --check` finding a change |
+| `1` | A generation error, a failed check, a file it refuses to replace, a `beak.yaml` it cannot read, a failed `flutter pub get`, `migrate fresh` or `refresh` refused in production, or `agents --check` finding a change |
 | `64` | Bad input: an unknown command, a bad option, a malformed argument. The usage text goes to stderr |
 | `74` | The disk refused: a folder it cannot write to, a file it cannot read. One `error:` line names the path |
-| child's | `dev`, `migrate` and `seed` return the exit code of the process they start. Worm's own usage errors are `2` |
+| `78` | The generated `bin/serve.dart` or `bin/migrate.dart` refused its configuration: a `PORT` that is not a number, an unusable `DATABASE_URL` or storage variable, a port already in use. One `error:` line on stderr |
+| child's | `dev`, `migrate` and `seed` return the exit code of the process they start, so `78` reaches you through them. Worm's own usage errors are `2` |
 
 The entry point maps usage errors to `64`:
 
@@ -148,7 +149,7 @@ The sequence is fixed:
 
 The pubspec depends on one package, `beak`, by git at the release tag (or by path). The tag has to exist on the remote: while a release is untagged, `flutter pub get` fails with `Could not find git ref`, and `--beak-ref <branch>` or `--beak-path` is the way around it.
 
-Usage errors, all exit `64`: a name that is not lower_snake_case, a name that is a Dart keyword or a package the project depends on (`beak`, `flutter`, `class`), both `--beak-ref` and `--beak-path`, a `--beak-path` with no `packages/beak` under it (for example `beak/packages/beak`, which names the package and not the repo root), an unknown `--skills` value.
+Usage errors, all exit `64`: a name that is not lower_snake_case, a name that is a Dart keyword or a package the project depends on (`beak`, `flutter`, `class`), both `--beak-ref` and `--beak-path`, a `--beak-path` with no `packages/beak` under it (for example `beak/packages/beak`, which names the package and not the repo root), an unknown `--skills` value, and any count of arguments other than one name.
 
 It refuses, with exit `1` and nothing written, when `<name>/` already exists and is not empty, or is a file. An empty directory is used. To add Beak to a project that is already there, use [`beak init`](#beak-init).
 
@@ -211,6 +212,8 @@ What it writes, each step only when missing, so a second run repairs and changes
 | `.gitignore` | A `# BEGIN beak` to `# END beak` block: `/bin/serve.dart`, `/bin/migrate.dart`, `/*.db*`, `/storage/`, `.env` |
 
 Then, unless `--no-pub` or `--dry-run`, it runs `flutter pub get`, `prepare` and the agent files, and prints what to run next: `beak make:resource` unless `--example` wrote a `Note`, then `beak migrate`, `beak dev` and the `flutter run -d chrome -t <entrypoint>` line. `panel.entrypoint` is what stops `prepare` from writing `lib/main.dart`, see [beak.yaml](beak-yaml.md#panel).
+
+`beak init` takes no arguments (`64`), and `64` is also the exit for `--beak-ref` together with `--beak-path` and for an `--entrypoint` that is not a Dart file directly under `lib/`.
 
 It exits `1` for: no `pubspec.yaml`, a pubspec that is not valid YAML, a project without `flutter: sdk: flutter`, and any project that belongs to a Serverpod workspace. The message names both ways into one: [the admin app in your workspace](../serverpod/admin-app/index.md), and the [client bridge](../serverpod/bridge/index.md), which is wired by hand.
 
@@ -366,7 +369,7 @@ The verbs, quoted from the source:
 | `--force` | `fresh`, `refresh` | Required when `WORM_ENV=production` |
 | `-- <args>` | any | Everything after `--` goes to worm untouched |
 
-A flag the verb does not take is a usage error (exit `64`) that names the verb it belongs to, so `beak migrate up --steps 2` says `--steps applies to `beak migrate down``, where it used to reach worm and end in worm's own usage with exit `2`.
+A flag the verb does not take is a usage error (exit `64`) that names the verb it belongs to, so `beak migrate up --steps 2` says ``--steps applies to `beak migrate down` ``, where it used to reach worm and end in worm's own usage with exit `2`.
 
 ```console
 $ beak migrate status

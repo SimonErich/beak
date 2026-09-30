@@ -38,7 +38,7 @@ All variables at a glance:
 | `HOST` | `0.0.0.0` | `BeakBackendConfig.fromEnv` |
 | `WORM_ENV` | `development` | worm: migrations, seeders and the `--force` guard |
 | `BEAK_STORAGE_DRIVER` | local disk under `storage/uploads` | `BeakStorageSettings.fromEnv` |
-| `BEAK_S3_*` (6) | none | `BeakStorageSettings.fromEnv`, with `s3` |
+| `BEAK_S3_*` (7) | none | `BeakStorageSettings.fromEnv`, with `s3` |
 | `BEAK_FTP_*` (6) | none, port `21` | `BeakStorageSettings.fromEnv`, with `ftp` |
 | `BEAK_LOCAL_*` (2) | none | `BeakStorageSettings.fromEnv`, with `local` |
 | `BEAK_API_BASE_URL` | `http://localhost:8080` | the panel, as a compile-time define, not an environment variable |
@@ -181,8 +181,11 @@ The argument of `beakServer`: everything `BeakServeHost` resolved.
 | `middleware` | `List<Middleware>` | `[]` | Shelf middleware, after authentication and inside the error mapping |
 | `routes` | `Handler?` | `null` | Extra endpoints, tried before the generated API |
 | `corsOrigin` | `String` | `*` | The origin browsers may call from |
+| `signedUrlLifetime` | `Duration?` | one hour | How long the links the upload endpoint resolves stay valid, on drivers that sign them |
+| `maxPerPage` | `int` | `200` | The largest page a query is served; a larger request is answered at that size |
 | `onRequest` | `BeakRequestLogger?` | one line per request to stderr | Request log |
 | `onUnexpectedError` | `BeakUnexpectedErrorListener?` | error and stack to stderr | Every failure no typed exception describes |
+| `onWarning` | `BeakBootWarningListener?` | one line to stderr | The single line emitted when the server listens beyond loopback with the allow-all policy |
 | `preparePlan` | `BeakSavePlanPreparer?` | `null` | Transactional business rules for a graph commit |
 | `finalizePlan` | `BeakSavePlanFinalizer?` | `null` | Enqueues durable effects in the commit's transaction |
 | `graphOnly` | `List<BeakModel>` | `[]` | Models whose per-record write routes are closed |
