@@ -244,26 +244,26 @@ These are the imports that do not go through `package:beak`. An app rarely needs
 
 ## Rules and limits
 
-- **Model files stay pure.** A schema class and everything the registry imports may use `beak.dart` and `schema.dart` only. `bin/serve.dart` imports `server.g.dart`, which imports `registry.g.dart`, which imports your models. One import of `panel.dart` on that path stops `dart compile exe`.
-- **`dart:io` compiles on the web and fails at run time.** dart2js and dartdevc ship a `dart:io` whose members throw, so a stray server import yields a green build and an `UnsupportedError` in the browser. Only an import-graph check catches it.
-- **`melos run guard-web`** runs `tool/check_web_safe.dart`. It walks the import graph from twelve panel entrypoints: `packages/beak/lib/beak.dart`, `panel.dart`, `ui.dart`, `charts.dart` and `schema.dart`, `packages/beak_core/lib/beak_core.dart` and `schema.dart`, `packages/beak_frontend/lib/beak_frontend.dart`, and the four Serverpod panel libraries. The libraries that reach the server on purpose (`server.dart`, `migrations.dart`, `testing.dart`, `io.dart`) are listed separately, and a test fails on a public library that is in neither list. Beak's own packages (`beak` and every `beak_*`) are walked; other packages are checked by URI only. A hit prints the URI, the reason and the chain of files that reached it, and the exit code is 1.
+- Model files stay pure. A schema class and everything the registry imports may use `beak.dart` and `schema.dart` only. `bin/serve.dart` imports `server.g.dart`, which imports `registry.g.dart`, which imports your models. One import of `panel.dart` on that path stops `dart compile exe`.
+- `dart:io` compiles on the web and fails at run time. dart2js and dartdevc ship a `dart:io` whose members throw, so a stray server import yields a green build and an `UnsupportedError` in the browser. Only an import-graph check catches it.
+- `melos run guard-web` runs `tool/check_web_safe.dart`. It walks the import graph from twelve panel entrypoints: `packages/beak/lib/beak.dart`, `panel.dart`, `ui.dart`, `charts.dart` and `schema.dart`, `packages/beak_core/lib/beak_core.dart` and `schema.dart`, `packages/beak_frontend/lib/beak_frontend.dart`, and the four Serverpod panel libraries. The libraries that reach the server on purpose (`server.dart`, `migrations.dart`, `testing.dart`, `io.dart`) are listed separately, and a test fails on a public library that is in neither list. Beak's own packages (`beak` and every `beak_*`) are walked; other packages are checked by URI only. A hit prints the URI, the reason and the chain of files that reached it, and the exit code is 1.
 
   | Blocked | Why |
   | --- | --- |
   | `dart:io`, `dart:ffi`, `dart:mirrors` | Do not work in a browser |
-  | `package:beak_backend`, `package:beak_image`, `package:beak_storage_*` | Server-side Beak packages |
-  | `package:postgres`, `package:shelf`, `package:worm` (and `worm_*`) | Server-side third-party packages |
+  | `package:beak_backend`, `package:beak_image`, `package:beak_serverpod_server`, `package:beak_storage_*` | Server-side Beak packages |
+  | `package:postgres`, `package:serverpod/`, `package:shelf`, `package:worm` (and `worm_*`) | Server-side third-party packages; the Serverpod client packages are web-safe and not blocked |
 
-- **`beak doctor` runs the same rule on your project.** It follows the imports from the panel entrypoint (`lib/main.dart`, or `panel.entrypoint` in `beak.yaml`) and from `lib/beak/app.g.dart`, and fails on any file it reaches that imports `package:beak/server.dart` or `package:beak/migrations.dart`:
+- `beak doctor` runs the same rule on your project. It follows the imports from the panel entrypoint (`lib/main.dart`, or `panel.entrypoint` in `beak.yaml`) and from `lib/beak/app.g.dart`, and fails on any file it reaches that imports `package:beak/server.dart` or `package:beak/migrations.dart`:
 
   ```console
   FAIL lib/resources/notes/note_resource.dart imports package:beak/server.dart, which cannot run on the web
        → move the server-side part to lib/server.dart, or import package:beak/beak.dart instead
   ```
 
-- **`melos run guard-material`** runs `tool/check_no_material.dart`, which fails on any `package:flutter/material.dart` or `package:flutter/cupertino.dart` import under `packages/` and `examples/`. Beak's UI is obers_ui only. The guard reports the file and the URI, for example `Material-import guard passed (1150 Dart files scanned).` when clean.
-- **`package:beak/testing.dart` is test code.** It depends on the `test` package. Import it from `test/` and from `lib/` of a test-support package, not from the app.
-- **The umbrella is checked by a test.** `packages/beak/test/beak_libraries_test.dart` asserts what each library carries, and that `beak.dart` never mentions `beak_frontend`, `beak_backend`, `obers_ui` or `worm`.
+- `melos run guard-material` runs `tool/check_no_material.dart`, which fails on any `package:flutter/material.dart` or `package:flutter/cupertino.dart` import under `packages/` and `examples/`. Beak's UI is obers_ui only. The guard reports the file and the URI, for example `Material-import guard passed (1150 Dart files scanned).` when clean.
+- `package:beak/testing.dart` is test code. It depends on the `test` package. Import it from `test/` and from `lib/` of a test-support package, not from the app.
+- The umbrella is checked by a test. `packages/beak/test/beak_libraries_test.dart` asserts what each library carries, and that `beak.dart` never mentions `beak_frontend`, `beak_backend`, `obers_ui` or `worm`.
 
 ## Source
 

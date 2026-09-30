@@ -222,7 +222,7 @@ The receipt key is the hash of the principal id and the `saveId`, so two users c
 | Plan decodes but is invalid (unknown field, unregistered table, duplicate operation id, cycle) | `422 validation`, for example `Invalid save plan: Unknown field "nope".` |
 | Token invalid or expired | `401` from the auth guard, before the plan is read. A denied operation is inside the receipt instead. |
 
-`GET /api/commits/{saveId}` reads the stored receipt and repeats nothing. It answers `404 No receipt for save "..."` for an id the principal never used. It needs `canView` on every table in the plan, checks that applied records are still inside the caller's row scope, and redacts fields the caller may not read. A rejected atomic save is final for its `saveId`; a script that retries must mint a new one. Receipts are never deleted.
+`GET /api/commits/{saveId}` reads the stored receipt and repeats nothing. It answers `404 No receipt for save "..."` for an id the principal never used. It needs `canView` on every table in the plan, checks that applied records are still inside the caller's row scope, and redacts fields the caller may not read. A save that failed validation is final for its `saveId`; a script that retries must mint a new one. A save refused as a whole because every failure is `authentication` or `authorization` earns no receipt, so the same `saveId` is decided afresh (and `GET` answers `404` for it). Receipts are never deleted.
 
 ### Closed direct routes
 
@@ -479,7 +479,7 @@ Two probes for container platforms, mounted before the API.
 | `GET /healthz` | `200` `{"status":"ok"}` while the process serves. Never touches the database. |
 | `GET /readyz` | `200` `{"status":"ok"}` when the data source answers a count on the first registered model. `200` with `"detail":"no models registered"` for an empty registry. `503` `{"status":"unavailable","detail":"the data source did not answer"}` otherwise. |
 
-The `503` body names no cause, because the probe is unauthenticated. The failure goes to `onUnexpectedError`. Neither probe needs a token. On a server with an auth guard, a probe that sends an invalid `Authorization` header is still a `401`, because authentication wraps the whole router; a platform probe sends none.
+The `503` body names no cause, because the probe is unauthenticated. The failure goes to `onUnexpectedError`. Neither probe needs a token. The auth middleware never asks the guard about `/healthz` and `/readyz`, so an `Authorization` header a load balancer adds cannot take a healthy server out of rotation.
 
 ## The error envelope
 

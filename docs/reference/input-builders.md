@@ -642,9 +642,9 @@ const BeakRelationInput({
 | `field` | `BeakToOneField` | required | The generated relationship field | all (the receiver) |
 | `label` | `String?` | field label | Label overriding the model metadata | all |
 | `description` | `String?` | none | Guidance shown with the input | all |
-| `descriptionBuilder` | `String? Function(BeakFormReader)?` | none | Guidance computed from the draft | `inputCards`, `inputSearch`, `inputCode` |
+| `descriptionBuilder` | `String? Function(BeakFormReader)?` | none | Guidance computed from the draft | `inputCombobox`, `inputCards`, `inputSearch`, `inputCode` |
 | `descriptionInline` | `bool` | `false` | Places short guidance beside the heading | `inputCards` |
-| `dependencies` | `List<BeakFieldRef<Object>>` | `const []` | Fields read by live labels and guidance, loaded with the form | `inputCards`, `inputSearch` |
+| `dependencies` | `List<BeakFieldRef<Object>>` | `const []` | Fields read by live labels and guidance, loaded with the form | `inputCombobox`, `inputCards`, `inputSearch` |
 | `divider` | `bool` | `false` | Separates the group from preceding content | `inputCards` |
 | `validate` | `List<BeakRule>` | `const []` | Extra rules, run in the form only | all |
 | `options` | `BeakOptionQuery Function(BeakFormReader)?` | related model's default query | Lookup query, recomputed when its draft dependencies change; must query the related table | all |
@@ -658,7 +658,7 @@ const BeakRelationInput({
 | `presentation` | `BeakRelationPresentation` | `combobox` | The control: `combobox`, `search`, `cards` or `code` | set by the builder |
 | `template` | `BeakRecordTemplate?` | none | Identity, subtitle, avatar and badge of each option | all |
 | `selectionSummary` | `BeakCalculated?` | none | Owner-draft calculation beside an applied code | `inputCode` |
-| `disabledReason` | `BeakOptionDisabledReason?` | none | Why an option cannot be selected; enforced again at validation | `inputCards`, `inputSearch`, `inputCode` |
+| `disabledReason` | `BeakOptionDisabledReason?` | none | Why an option cannot be selected; enforced again at validation | `inputCombobox`, `inputCards`, `inputSearch`, `inputCode` |
 | `minCardWidthInPixels` | `double` | `260` | Width before cards wrap. Must be above 0 | `inputCards` |
 | `defaultOption` | `BeakToOneField?` | none | Related record on the owner draft marking the recommended card | `inputCards` |
 | `defaultOptionMatch` | `bool Function(BeakRecord option, BeakFormReader state)?` | none | Marks the recommended option by predicate; owner fields used must be in `dependencies` | `inputCards` |
@@ -1186,7 +1186,7 @@ With `presentation: automatic`, the editor comes from the column kind, and from 
 | Relation options | The `options` query must target the related table, and `searchSources` must be rooted at the related model; both throw a `BeakConfigurationException` otherwise |
 | `inputCode` | `codeField` is required and must be a string field of the related model with no path; otherwise a `BeakConfigurationException` |
 | Required relations | A non-nullable relationship, or a `BeakRequired` in `validate`, makes the input required and not clearable. The backing foreign key's column rules apply too |
-| Owned removal | `deleteOwned` requires an owned has-many; removing a row otherwise throws a `BeakConfigurationException` |
+| Owned removal | `deleteOwned` requires an owned has-many; otherwise the form throws a `BeakConfigurationException` when it is built |
 | Collection switches | `allowAdding`, `allowEdit` and `allowRemove` set to false make the operation throw if code still attempts it |
 | Catalog | The `checkboxes` presentation needs a finite `maxOptions`, no `quantity` and no `groupBy`; `pageSize` needs `maxOptions`. These are asserts, so they fail in debug builds |
 | Catalog | `selection` must belong to the row model, the query must target the model `selection` points at, and a `matches` facet needs `maxOptions`; otherwise a `BeakConfigurationException` when the catalog is queried |

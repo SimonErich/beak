@@ -262,13 +262,13 @@ final choice = BeakChoiceFilter(
 
 | `BeakChoiceFilterPresentation` | Control | Selection |
 | --- | --- | --- |
-| `checkboxes` | Checkboxes, optionally in columns; the only one that shows counts | Several |
+| `checkboxes` | Checkboxes, optionally in columns; counts sit in a column beside each box | Several |
 | `chips` | Toggle chips for short labels | Several |
 | `combobox` | Searchable multi-select with removable chips | Several |
 | `radio` | Radio group with an explicit "all" option | One |
 | `select` | Dropdown with an explicit "all" option | One |
 
-Counts come from one `BeakSummarySpec` per group of eight choices, each choice a `BeakSummaryMeasure.count` with the choice's predicate, over the list's applied query (see [Queries](queries.md#summaries)). They appear only when the data source implements `BeakSummaryDataSource`; until a count loads the row shows a dash.
+Counts come from one `BeakSummarySpec` per group of eight choices, each choice a `BeakSummaryMeasure.count` with the choice's predicate, over the list's applied query (see [Queries](queries.md#summaries)). They appear only when the data source implements `BeakSummaryDataSource`; until a count loads, a checkbox row shows a dash and the other presentations show the plain label.
 
 ## Default filters
 
@@ -383,7 +383,7 @@ const BeakFilterBar({
 | `advancedDescription` | `String?` | `null` | Text beside the "More filters" heading |
 | `advancedColumns` | `int` | `1` | Columns of the expanded advanced group |
 
-In `chips` presentation an inactive filter is an outlined chip labelled with the filter's label, an active one shows a short summary of its value with a remove action, and a "Clear all" button appears while any filter is active. The summary text comes from `beakFilterSummary(context, definition, filter)`: the selected choice labels for a choice filter, `From x`, `Through x` or both bounds joined by an en dash for a range, the value for a single comparison and `Active` otherwise.
+In `chips` presentation an inactive filter is an outlined chip labelled with the filter's label, an active one shows a short summary of its value with a remove action, and a "Clear all" button appears while any filter is active. The summary text comes from `beakFilterSummary(context, definition, filter)`: the selected choice labels for a choice filter; `From x`, `Through x` or both bounds joined by an en dash for a date range; `x – y` (an open bound shows `…`) or the matching preset's label for a semantic range; the value alone for a single comparison, which includes a number range with one bound; and `Active` otherwise, which includes a number range with both bounds.
 
 ## From controls to a query
 
@@ -396,7 +396,7 @@ Each definition contributes at most one predicate under its `key`. The bar combi
 - A choice restored from a bookmark or saved view is matched by the JSON of its predicate, not by its `key`. Changing a choice's predicate makes saved views stop selecting it.
 - A relation filter offers the first page of the option query (25 records unless `options` sets another page size) and searches only the relationship's search columns.
 - Number ranges truncate to `int` on integer columns. Use `rangeFilter` for money, exact decimals, dates, times and durations; `numberRangeFilter` accepts `num` fields only.
-- Date-range bounds are built as local midnight `DateTime` values and travel as ISO strings without an offset (see [Queries](queries.md#values-on-the-wire)).
+- Date-range bounds are built as local midnight `DateTime` values and travel as UTC instants with a `Z` suffix, so the day boundaries follow the machine that picked them (see [Queries](queries.md#values-on-the-wire)).
 - `showCounts` needs a data source that implements `BeakSummaryDataSource`.
 - Filters narrow what the panel asks for. The server still applies row policies and field policies to every query, so a filter never reveals a record or a field the caller could not read.
 

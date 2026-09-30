@@ -294,10 +294,10 @@ A field named like a member of `BeakModel` gets no static shortcut on `XModel`, 
 
 | Class | Names with no shortcut |
 | --- | --- |
-| `XModel` | `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `primaryKeyOf`, `columnsFor`, `columnByKey`, `relationshipByKey`, `toString`, `noSuchMethod`, `hashCode`, `runtimeType` |
-| `XToOneField` | `fields`, `model`, `path`, `isRequired`, `key`, `label`, `qualifiedKey`, `readFrom`, `ownerRecord`, `relation`, `target`, `eq`, `equalsId`, `matches`, `options`, `hashCode`, `runtimeType`, `toString`, `noSuchMethod` |
+| `XModel` | `fields`, `options`, `search`, `table`, `displayColumnKey`, `columns`, `permissions`, `validationRules`, `behavior`, `capabilities`, `dataSource`, `createModel`, `editModel`, `relationships`, `relatedModels`, `softDeletes`, `formSlots`, `primaryKey`, `ref`, `query`, `count`, `sum`, `avg`, `sumDecimal`, `avgDecimal`, `summary`, `record`, `primaryKeyOf`, `columnsFor`, `columnByKey`, `relationshipByKey`, `toString`, `noSuchMethod`, `hashCode`, `runtimeType` |
+| `XToOneField` | `fields`, `model`, `path`, `isRequired`, `key`, `label`, `qualifiedKey`, `readFrom`, `ownerRecord`, `relation`, `target`, `relationLoad`, `linkTo`, `invalid`, `eq`, `equalsId`, `matches`, `options`, `hashCode`, `runtimeType`, `toString`, `noSuchMethod` |
 
-`BeakModel.summary` and `BeakModel.record` are not on the list. A schema field named `summary` or `record` generates a part file that does not compile (`conflicting_static_and_instance`). Rename the field, or pin the column with `@Column(columnName:)` and pick another Dart name.
+A field named `record` is the one name with no fallback: the typed record view wraps the underlying record as `record`, so `beak prepare` refuses it with `cannot be generated`. Rename the field and keep the stored name with `@Column(columnName:)`. A schema class cannot itself be named `List`, `String`, `Future`, `Function`, `Enum`, `DateTime`, `Schema`, `Migration`, `BeakSchema`, `Resource`, `Column`, `Display` or one of the relationship annotations, because the generated code uses those names.
 
 ## Wiring files
 

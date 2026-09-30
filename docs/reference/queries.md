@@ -602,11 +602,11 @@ return BeakQuerySpec(
 );
 ```
 
-When a list declares no search fields, the search runs over the model's `searchable` columns. `BeakQueryState` rejects a page below 1, a page size below 1 and a page size above 1000. See [Filter builders](filter-builders.md) for how filter controls produce the predicates in `effectiveFilters`.
+When a list declares no search fields, the search runs over the model's `searchable` columns. `BeakQueryState` rejects a page below 1, a page size below 1 and a page size above 200 (`BeakPagination.maxPerPage`). See [Filter builders](filter-builders.md) for how filter controls produce the predicates in `effectiveFilters`.
 
 ## Required keys
 
-When the API decodes a spec, absent keys fall back to the defaults the constructors declare, at the top level and in the objects nested inside a query. A key that is present must have the right type. Two things have no default: a sort without a column, a relation load without a relation, and a search without a term or columns are rejected with a message naming the missing key.
+When the API decodes a spec, absent keys fall back to the defaults the constructors declare, at the top level and in the objects nested inside a query. A key that is present must have the right type. Three things have no default and are rejected with a message naming the missing key: a sort without a column, a relation load without a relation, and a search without a term or columns.
 
 | Object | Required keys | Optional keys |
 | --- | --- | --- |

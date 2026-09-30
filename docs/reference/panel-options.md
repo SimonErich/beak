@@ -212,6 +212,10 @@ const BeakPanelConfig({
 | A `BeakTableScreen.query` targets another table | `Table screen query must target "...".` |
 | A `BeakFormScreen` serves the `list` role | `A form screen cannot serve the list route.` |
 | Two different model classes claim one related table | `Conflicting models for related table "...".` |
+| `BeakAuthConfig(register: true)` or `recover: true` without an `adapter` | ``BeakAuthConfig sets `register: true`, but the default session store has no register flow.`` (`recover` likewise) |
+| A `BeakNavigationItem.resource` names a model without a resource, or a `.screen` item a screen not in `pages` | `The "..." navigation section lists "...", but the panel declares no resource for it.` or `... lists the screen at "...", but it is not among the panel's pages.` |
+| Two `filters` on one field of a resource | `The "..." resource declares two filters on "...".` |
+| A composed list's `rowActions` or `bulkActions` names an action the resource does not offer | `The "..." list names the action "..." in rowActions, but the resource offers only ...` |
 | Registering one table twice | raised by `BeakModelRegistry` |
 
 ## BeakResource
@@ -471,9 +475,9 @@ const BeakAuthConfig({
 | `allowsRegistration` | `bool` | `register` is set and `adapter.registration` is not null |
 | `allowsRecovery` | `bool` | `recover` is set and `adapter.recovery` is not null |
 
-With `adapter: null` the panel uses the `BeakSessionStore` over its HTTP `BeakClient`, which has no registration or recovery flow, so `register` and `recover` have no effect there. They need a `BeakAuthAdapter` that returns a `BeakEmailVerificationFlow` from `registration` or `recovery`.
+With `adapter: null` the panel uses the `BeakSessionStore` over its HTTP `BeakClient`, which has no registration or recovery flow, so `register: true` or `recover: true` without an adapter throws a `BeakConfigurationException` when the panel builds. They need a `BeakAuthAdapter` that returns a `BeakEmailVerificationFlow` from `registration` or `recovery`.
 
-The idle lock is a client-side route. After `idleLockTimeout` without a pointer or key event inside the shell, the panel navigates to `/lock`. Unlocking runs `onUnlock(password)` and, on `true`, navigates to `/`. The lock does not sign out or revoke the session token, and an absent `onUnlock` never accepts a password. The guide is [Auth and idle-lock](../panel/auth-and-idle-lock.md); the adapter interface is in `packages/beak_frontend/lib/src/auth/beak_auth_adapter.dart`.
+The idle lock is a client-side route. After `idleLockTimeout` without a pointer or key event inside the shell, the panel navigates to `/lock`. Unlocking runs `onUnlock(password)` and, on `true`, navigates to `/`. While the lock holds, every route except `/lock` redirects back to it, so the browser's Back button does not leave it. The lock does not sign out or revoke the session token, and an absent `onUnlock` never accepts a password. The guide is [Auth and idle-lock](../panel/auth-and-idle-lock.md); the adapter interface is in `packages/beak_frontend/lib/src/auth/beak_auth_adapter.dart`.
 
 ## BeakMaintenanceConfig
 
@@ -532,7 +536,7 @@ Binds the rows of one model to a bell with an unread badge in the shell header. 
 | `readField` | `BeakScalarField<bool>?` | `null` | The boolean read flag; enables the unread badge and mark-as-read |
 | `categoryField` | `BeakScalarField<Object>?` | `null` | The field grouping notifications into categories |
 
-The bell loads the newest 30 rows and refetches after writes to the model. Without `readField` every loaded row counts as unread and mark-as-read does nothing. Marking a row read updates the row through the data source. The panel-level example:
+The bell loads 30 rows, newest first when `timeField` is set, and refetches after writes to the model. A row whose `timeField` value is empty is not listed. Without `readField` every loaded row counts as unread and mark-as-read does nothing. Marking a row read updates the row through the data source. The panel-level example:
 
 ```dart title="examples/foodio-adminpanel/lib/main.dart"
 --8<-- "examples/foodio-adminpanel/lib/main.dart:foodioPanelConfig"
@@ -595,11 +599,14 @@ One display policy for tables, forms, summaries and exports. It changes presenta
 | `BeakFormatting.maybeOf(context)` | The nearest policy, `null` when none is set (columns then keep their own formatting) |
 | `BeakFormattingScope(formatting:, child:)` | Overrides the policy for a subtree; `BeakPanel` mounts one when `formatting` is set |
 | `number`, `currency`, `percent`, `date`, `dateTime`, `time` | Format a value; inherited from `BeakFormatPolicy` in `beak_core` |
+| `format(value, BeakValueFormat)` | Formats any value by a `BeakValueFormat`; null shows `emptyValue`. Inherited |
+| `exactDecimal`, `exactCurrency`, `calendarDate`, `clockTime`, `duration`, `fileSize` | Format `BeakDecimal`, `BeakDate`, `BeakTime`, `Duration` and byte counts. Inherited |
+| `formatColumn`, `formatCell` | Text of one column value for tables and exports. Inherited |
 | `parseNumber(String)` | Parses a localised number, `null` on malformed grouping or separators |
 | `currencySymbol`, `moneyPrecision`, `decimalSeparator`, `groupingSeparator` | The parts monetary inputs need |
 | `toEditorDateTime`, `fromEditorDateTime` | Convert between an instant and the wall-clock components an editor shows in the panel's zone |
 
-`BeakValueFormat` (`text`, `number`, `currency`, `date`, `dateTime`, `time`, `percent`) selects a formatter for one field. Two extension methods on a scalar field set it without touching the stored value:
+`BeakValueFormat` (`text`, `number`, `currency`, `date`, `dateTime`, `time`, `percent`) selects a formatter for one field. Two extension methods on a scalar field set it without touching the stored value (`currency` needs a numeric field):
 
 ```dart title="packages/beak_frontend/lib/src/formatting/beak_field_format.dart"
   BeakFormattedField<T> currency({
@@ -641,7 +648,7 @@ The shell header also carries the command search (Ctrl or Cmd plus K), which lis
 
 - A `BeakException` passes through unchanged and the mapper is not called.
 - Any other `Exception` goes to the mapper. A non-null result is thrown in its place, with the original stack trace.
-- A null result rethrows the original exception. An `Error` is never caught.
+- A null result falls back to the built-in classification: an `http.ClientException` or a `TimeoutException` becomes a `BeakTransportException` (`The server could not be reached.`), and any other exception is rethrown unchanged. An `Error` is never caught.
 
 Use it to turn a host transport failure, such as a Serverpod client exception, into a typed `BeakException` the forms can show. The exception family is in [Exceptions](exceptions.md).
 
