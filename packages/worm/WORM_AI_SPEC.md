@@ -4887,6 +4887,7 @@ WormException (implements Exception)
 │  ├─ UniqueConstraintException
 │  ├─ ForeignKeyException
 │  ├─ CheckConstraintException
+│  ├─ DataException
 │  ├─ TransactionException
 │  ├─ MigrationException
 │  └─ AdapterMismatchException
@@ -4918,7 +4919,8 @@ WormException (implements Exception)
 | `SyntaxException` | `QueryException` | + `position: int?` (byte offset in `query`) | Driver reports a syntax error. Catchable as `QueryException`. |
 | `UniqueConstraintException` | `AdapterException` | `table: String`, `column: String` | A UNIQUE constraint is violated. Convert via `ValidationException.fromUniqueConstraint`. |
 | `ForeignKeyException` | `AdapterException` | `table: String`, `column: String` | A foreign key constraint is violated. |
-| `CheckConstraintException` | `AdapterException` | `table: String`, `column: String?`, `constraintName: String?` | A CHECK constraint is violated. |
+| `CheckConstraintException` | `AdapterException` | `table: String`, `column: String?`, `constraintName: String?` | A CHECK or NOT NULL constraint is violated. |
+| `DataException` | `AdapterException` | `table: String`, `column: String?` | The database refuses a value for its size, range or format (a string longer than its column, a number outside its type's range, text that is not a valid value of the type). |
 | `TransactionException` | `AdapterException` | `savepointName: String?` | A transaction or savepoint fails. MongoDB's `transaction()` throws it by design: multi-document transactions unsupported. |
 | `MigrationException` | `AdapterException` | `migration: String` | A migration fails to apply. |
 | `AdapterMismatchException` | `AdapterException` | `expectedAdapter: String`, `actualAdapter: String` | `QueryBuilder.sql(...)` runs on a non-SQL adapter, or `.mongo(...)` on a non-Mongo adapter. |

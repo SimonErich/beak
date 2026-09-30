@@ -27,7 +27,9 @@ final class FtpProtocolException implements Exception {
 /// so driver behavior is unit-testable against a fake.
 ///
 /// Keys are validated, `/`-separated storage keys; implementations resolve
-/// them under the configured base directory. Failures surface as
+/// them under the configured base directory and refuse a key that is not one
+/// (see `BeakStorageKeys.validate`), since a key is written into protocol
+/// commands. Failures surface as
 /// [FtpProtocolException]s (or raw socket errors); the driver maps them to
 /// [BeakStorageException]. The production implementation is
 /// [SocketFtpTransport]; a test supplies its own via the `FtpStorageDriver`
@@ -85,7 +87,8 @@ final class SocketFtpTransport implements FtpTransport {
   final String _baseDir;
 
   @override
-  Future<void> store(String key, Uint8List bytes) {
+  Future<void> store(String key, Uint8List bytes) async {
+    BeakStorageKeys.validate(key);
     return _withSession((session) async {
       await _ensureParentDirectories(session, key);
       final Socket data = await _openDataConnection(session);
@@ -105,7 +108,8 @@ final class SocketFtpTransport implements FtpTransport {
   }
 
   @override
-  Future<Uint8List> retrieve(String key) {
+  Future<Uint8List> retrieve(String key) async {
+    BeakStorageKeys.validate(key);
     return _withSession((session) async {
       final Socket data = await _openDataConnection(session);
       try {
@@ -124,7 +128,8 @@ final class SocketFtpTransport implements FtpTransport {
   }
 
   @override
-  Future<void> remove(String key) {
+  Future<void> remove(String key) async {
+    BeakStorageKeys.validate(key);
     return _withSession((session) async {
       await session.command(
         'DELE ${_remotePathFor(key)}',
@@ -134,7 +139,8 @@ final class SocketFtpTransport implements FtpTransport {
   }
 
   @override
-  Future<bool> exists(String key) {
+  Future<bool> exists(String key) async {
+    BeakStorageKeys.validate(key);
     return _withSession((session) async {
       try {
         await session.command(

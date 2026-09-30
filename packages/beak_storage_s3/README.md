@@ -113,7 +113,7 @@ final signed = await driver.url(stored.key, expiresIn: const Duration(hours: 1))
 | `get(key)` | Returns the bytes. A missing object is a `BeakStorageException`. |
 | `delete(key)` | Checks the object exists, then removes it. Deleting an absent file is an error, unlike S3's own idempotent delete. |
 | `url(key)` | The public URL: `BeakS3Config.publicBaseUrl` when set (a CDN, say), else `endpoint/bucket/key` with `usePathStyle`, else `bucket.host/key`. |
-| `url(key, expiresIn:)` | A presigned GET URL that expires, unless `publicBaseUrl` is set: that address wins, because a presigned link would name the bucket endpoint. |
+| `url(key, expiresIn:)` | A presigned GET URL that expires, unless `publicBaseUrl` is set: that address wins, because a presigned link would name the bucket endpoint. `expiresIn` is held to what S3 accepts, one second to seven days. |
 | `exists(key)` | Whether an object is stored under the key. |
 
 Every key is validated, and every client or transport failure is wrapped in a

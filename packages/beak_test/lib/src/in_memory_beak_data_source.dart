@@ -145,6 +145,14 @@ final class InMemoryBeakDataSource implements BeakDataSource {
         ? _generateId()
         : '$supplied';
 
+    final rows = _rows.putIfAbsent(table, () => {});
+    if (rows.containsKey(id)) {
+      // A real source refuses a second row under the same key rather than
+      // replacing the first.
+      throw const BeakConflictException(
+        'A value that must be unique is already in use.',
+      );
+    }
     final stored = BeakRecord(
       values: {
         ...data.values,
@@ -152,7 +160,7 @@ final class InMemoryBeakDataSource implements BeakDataSource {
         ..._timestamps(model, isCreate: true),
       },
     );
-    _rows.putIfAbsent(table, () => {})[id] = stored;
+    rows[id] = stored;
     return stored;
   }
 
@@ -220,8 +228,9 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     final BeakModel model = registry.byTableOrThrow(table);
     final rows = _rows[table] ?? const <String, BeakRecord>{};
     return [
-      for (final id in ids)
-        if (rows['$id'] case final BeakRecord record)
+      // A set: a record is returned once however often its id is listed.
+      for (final id in <String>{for (final id in ids) '$id'})
+        if (rows[id] case final BeakRecord record)
           if (!_isTrashed(model, record)) record,
     ];
   }
@@ -233,14 +242,15 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     String relationKey,
     List<Object> relatedIds,
   ) async {
-    final relationMetadata = registry
-        .byTableOrThrow(table)
-        .relationshipByKey(relationKey);
+    final BeakModel model = registry.byTableOrThrow(table);
+    final relationMetadata = model.relationshipByKey(relationKey);
     if (relationMetadata is BeakHasMany) {
+      _requireOwner(model, id);
       _linkChildren(relationMetadata, id, relatedIds, detach: false);
       return;
     }
     final relation = _pivotRelation(table, relationKey);
+    _requireOwner(model, id);
     final links = _pivots.putIfAbsent(relation.pivotTable, () => {});
     for (final relatedId in relatedIds) {
       links.add(('$id', '$relatedId'));
@@ -268,6 +278,15 @@ final class InMemoryBeakDataSource implements BeakDataSource {
     }
     for (final relatedId in relatedIds) {
       links.remove(('$id', '$relatedId'));
+    }
+  }
+
+  /// Throws a [BeakNotFoundException] unless the record [id] of [model]
+  /// exists (a trashed one does: it can be restored): a link to an owner that
+  /// is not there would point at nothing.
+  void _requireOwner(BeakModel model, Object id) {
+    if (_rows[model.table]?['$id'] == null) {
+      throw BeakNotFoundException('No ${model.table} record with id "$id".');
     }
   }
 
@@ -554,14 +573,17 @@ final class InMemoryBeakDataSource implements BeakDataSource {
         return operator == BeakOperator.between ? within : !within;
       case BeakOperator.like:
         return _like(left, right, caseSensitive: true);
+      // The substring operators ignore case, as a real source does (they are
+      // `ILIKE` patterns there), so a test against this source finds what the
+      // running panel finds.
       case BeakOperator.contains:
-        return _text(left).contains(_text(right));
+        return _text(left).toLowerCase().contains(_text(right).toLowerCase());
       case BeakOperator.ilike:
         return _like(left, right, caseSensitive: false);
       case BeakOperator.startsWith:
-        return _text(left).startsWith(_text(right));
+        return _text(left).toLowerCase().startsWith(_text(right).toLowerCase());
       case BeakOperator.endsWith:
-        return _text(left).endsWith(_text(right));
+        return _text(left).toLowerCase().endsWith(_text(right).toLowerCase());
     }
   }
 

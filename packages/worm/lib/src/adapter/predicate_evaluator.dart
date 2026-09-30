@@ -195,6 +195,8 @@ final class PredicateEvaluator {
     return RegExp(
       '^${_likeToRegexSource(pattern, escape)}\$',
       caseSensitive: caseSensitive,
+      // `%` and `_` match a line break too, as they do in SQL.
+      dotAll: true,
     ).hasMatch(field);
   }
 

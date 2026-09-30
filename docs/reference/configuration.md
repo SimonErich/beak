@@ -60,7 +60,7 @@ The server reads its environment once, at startup, through `BeakEnv.resolve()`. 
 
 | URL | Database |
 | --- | --- |
-| `sqlite:beak.db`, `file:beak.db` | A SQLite file beside the process. The default, so a new project needs no Docker and no credentials |
+| `sqlite:beak.db`, `file:beak.db` | A SQLite file beside the process. The default, so a new project needs no Docker and no credentials. A relative path is read as written; one with a `..` (`sqlite:../legacy.db`) is resolved against the working directory |
 | `sqlite:///abs/path/beak.db` | A SQLite file at an absolute path |
 | `sqlite::memory:` | In-memory SQLite. Vanishes with the process. `serve()` applies the migrations and seeders itself, because `beak migrate` is another process |
 | `postgres://user:pass@host:5432/db`, `postgresql://...` | Postgres. The port defaults to 5432, `?sslmode=require` turns TLS on, credentials are URL-decoded, the pool holds up to 10 connections |
@@ -94,7 +94,7 @@ Anything else is a `BeakConfigurationException`. `WORM_ENV` is read from the pro
 | `BEAK_FTP_PASSWORD` | `ftp` | yes | none | Login password. A secret |
 | `BEAK_FTP_BASE_DIR` | `ftp` | yes | none | The remote directory uploads are stored under |
 | `BEAK_FTP_PUBLIC_BASE_URL` | `ftp` | yes | none | The base URL stored files are served from |
-| `BEAK_FTP_PORT` | `ftp` | no | `21` | The FTP port. A value that is not an integer is `21` |
+| `BEAK_FTP_PORT` | `ftp` | no | `21` | The FTP port, 1 to 65535. Any other value stops the boot |
 | `BEAK_LOCAL_ROOT_DIR` | `local` | yes | none | The directory files are written under |
 | `BEAK_LOCAL_PUBLIC_BASE_URL` | `local` | yes | none | The URL prefix files are served from. Beak mounts a read-only route at its path, see [REST API](rest-api.md#local-files) |
 

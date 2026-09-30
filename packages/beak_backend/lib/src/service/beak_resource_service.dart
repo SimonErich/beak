@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:beak_core/beak_core.dart';
 
 import '../common/uuid_v4.dart';
 import 'beak_revision_timestamp.dart';
+import 'beak_scope_match.dart';
 import 'validation_service.dart';
 
 /// The per-model logic layer between the generated handlers and the data
@@ -235,12 +238,18 @@ final class BeakResourceService {
   /// Validates and stores [input], minting a uuid primary key (for
   /// string-keyed models) and stamping `created_at`/`updated_at` when the
   /// model declares them and the caller did not.
+  ///
+  /// A [scope] the new record does not satisfy is refused with a
+  /// [BeakAuthorizationException], before validation: a caller cannot plant a
+  /// row in a slice of the table it may not touch.
   // --8<-- [start:create]
   Future<BeakRecord> create(
     BeakRecord input, {
+    BeakFilter? scope,
     BeakValidationQuery? validationQuery,
   }) async {
     final prepared = prepareCreate(input);
+    _requireWithinScope(prepared, scope);
     await validateCandidate(prepared, validationQuery: validationQuery);
     return dataSource.create(model.table, prepared);
   }
@@ -248,17 +257,21 @@ final class BeakResourceService {
 
   /// Validates the provided fields of [input] (partial semantics), stamps
   /// `updated_at` when the model declares it, and applies the update.
+  ///
+  /// The record must be inside [scope] before the update and must still be
+  /// inside it after: a change that would move it out (to another owner, say)
+  /// is refused with a [BeakAuthorizationException].
   Future<BeakRecord> update(
     Object id,
     BeakRecord input, {
     BeakFilter? scope,
     DateTime? expectedUpdatedAt,
     BeakValidationQuery? validationQuery,
-  }) async {
+  }) => _serialized(id, () async {
     // Read first when scoped or when checking the version: an update whose
     // WHERE the client controls is the same hole as a query whose filter it
     // controls.
-    await _requireInScope(id, scope);
+    final stored = await _requireInScope(id, scope);
     final stampsRevision =
         model.columnByKey(updatedAtColumnKey) is BeakDateTimeColumn;
     final current = stampsRevision || expectedUpdatedAt != null
@@ -272,6 +285,13 @@ final class BeakResourceService {
       input,
       includeMissing: false,
     );
+    if (stored != null &&
+        prepared.values.keys.any(beakScopeColumnKeys(scope, model).contains)) {
+      _requireWithinScope(
+        BeakRecord(values: {...stored.values, ...prepared.values}),
+        scope,
+      );
+    }
     await validateCandidate(
       prepared,
       recordId: id,
@@ -294,7 +314,7 @@ final class BeakResourceService {
       };
     }
     return dataSource.update(model.table, id, BeakRecord(values: values));
-  }
+  });
 
   /// Throws a [BeakConflictException] when the stored `updated_at` has moved
   /// past [expected].
@@ -327,42 +347,81 @@ final class BeakResourceService {
 
   /// Deletes the record with primary key [id] — softly for soft-deleting
   /// models unless [force], and only if [scope] admits it.
-  Future<void> delete(
-    Object id, {
-    bool force = false,
-    BeakFilter? scope,
-  }) async {
-    // A force delete may target an already soft-deleted record — that is the
-    // whole point of emptying a trash — so the scope check reads through it.
-    await _requireInScope(id, scope, withTrashed: force);
-    return dataSource.delete(model.table, id, force: force);
-  }
+  Future<void> delete(Object id, {bool force = false, BeakFilter? scope}) =>
+      _serialized(id, () async {
+        // A force delete may target an already soft-deleted record — that is
+        // the whole point of emptying a trash — so the scope check reads
+        // through it.
+        await _requireInScope(id, scope, withTrashed: force);
+        return dataSource.delete(model.table, id, force: force);
+      });
 
   /// Clears the soft-delete marker on the record with primary key [id],
   /// if [scope] admits it.
   ///
   /// The scope check reads through the trash, since a scoped principal must
   /// still be able to restore their own deleted rows.
-  Future<BeakRecord> restore(Object id, {BeakFilter? scope}) async {
-    await _requireInScope(id, scope, withTrashed: true);
-    return dataSource.restore(model.table, id);
+  Future<BeakRecord> restore(Object id, {BeakFilter? scope}) =>
+      _serialized(id, () async {
+        await _requireInScope(id, scope, withTrashed: true);
+        return dataSource.restore(model.table, id);
+      });
+
+  // The writers of each record of a data source, so the version check of an
+  // update and the write that follows it are not interleaved with another
+  // edit of the same record. Keyed by data source: a graph commit's
+  // transaction has a source of its own and guards itself in SQL.
+  static final Expando<Map<String, Completer<void>>> _writers =
+      Expando<Map<String, Completer<void>>>();
+
+  /// Runs [write] once every earlier write of record [id] has finished.
+  ///
+  /// Serializes edits within this process. Across processes the only atomic
+  /// version check is a graph commit's `expectedUpdatedAt`, which is one SQL
+  /// statement.
+  Future<T> _serialized<T>(Object id, Future<T> Function() write) async {
+    final writers = _writers[dataSource] ??= {};
+    final String key = '${model.table}/$id';
+    final Completer<void>? earlier = writers[key];
+    final finished = Completer<void>();
+    writers[key] = finished;
+    try {
+      await earlier?.future;
+      return await write();
+    } finally {
+      finished.complete();
+      if (identical(writers[key], finished)) writers.remove(key);
+    }
   }
 
-  /// Throws a [BeakNotFoundException] when [scope] excludes the record with
-  /// primary key [id]. Does nothing when there is no scope.
+  /// Throws when [image], the record a write would leave behind, falls outside
+  /// [scope].
+  void _requireWithinScope(BeakRecord image, BeakFilter? scope) {
+    if (!beakScopeAdmits(scope, image)) {
+      throw BeakAuthorizationException(
+        'The record would be outside your permitted scope of '
+        '"${model.table}".',
+      );
+    }
+  }
+
+  /// The record with primary key [id] when [scope] admits it, and `null` when
+  /// there is no scope to ask.
+  ///
+  /// Throws a [BeakNotFoundException] when [scope] excludes the record.
   ///
   /// Deliberately a no-op rather than a read when unscoped: an unscoped write
   /// must not pay for a lookup, and — the reason this exists at all — must
   /// not inherit the soft-delete visibility rules of one. Force-deleting an
   /// already-trashed record is legitimate, and a `getOne` in the way of it is
   /// a 404 for something that plainly exists.
-  Future<void> _requireInScope(
+  Future<BeakRecord?> _requireInScope(
     Object id,
     BeakFilter? scope, {
     bool withTrashed = false,
   }) async {
     if (scope == null) {
-      return;
+      return null;
     }
     final page = await dataSource.query(
       BeakQuerySpec(
@@ -384,6 +443,7 @@ final class BeakResourceService {
         'No record of "${model.table}" with id "$id".',
       );
     }
+    return page.items.first;
   }
 
   /// The records whose primary keys appear in [ids], in one query, narrowed

@@ -23,7 +23,8 @@ sealed class BeakJson {
 
   /// Parses [source] (a JSON document) into a typed tree.
   ///
-  /// Throws a [FormatException] when [source] is not valid JSON.
+  /// Throws a [FormatException] when [source] is not valid JSON, or is nested
+  /// more than 64 levels deep.
   static BeakJson decode(String source) {
     final Object? raw = jsonDecode(source);
     return BeakJson.fromEncodable(raw);
@@ -32,18 +33,30 @@ sealed class BeakJson {
   /// Converts an already-decoded JSON structure (`null`, [bool], [num],
   /// [String], [List], or string-keyed [Map]) into a typed tree.
   ///
-  /// Throws an [ArgumentError] for values outside the JSON data model.
-  static BeakJson fromEncodable(Object? encodable) => switch (encodable) {
+  /// Throws an [ArgumentError] for values outside the JSON data model, and a
+  /// [FormatException] for a structure nested more than 64 levels deep: a
+  /// document is client input, and walking one of any depth would end in a
+  /// stack overflow.
+  static BeakJson fromEncodable(Object? encodable) => _convert(encodable, 0);
+
+  static const int _maxNesting = 64;
+
+  static BeakJson _convert(Object? encodable, int depth) => switch (encodable) {
     null => const BeakJsonNull(),
     final bool value => BeakJsonBool(value),
     final num value => BeakJsonNumber(value),
     final String value => BeakJsonString(value),
+    final List<Object?> _ || final Map<Object?, Object?> _
+        when depth >= _maxNesting =>
+      throw const FormatException(
+        'JSON is nested more than $_maxNesting levels deep.',
+      ),
     final List<Object?> items => BeakJsonArray([
-      for (final item in items) BeakJson.fromEncodable(item),
+      for (final item in items) _convert(item, depth + 1),
     ]),
     final Map<Object?, Object?> entries => BeakJsonObject({
       for (final entry in entries.entries)
-        _stringKey(entry.key): BeakJson.fromEncodable(entry.value),
+        _stringKey(entry.key): _convert(entry.value, depth + 1),
     }),
     _ => throw ArgumentError.value(
       encodable,

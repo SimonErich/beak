@@ -74,7 +74,7 @@ final class BeakClient {
     Object? id,
   }) async {
     final response = await _http.get(
-      _uri('/api/${Uri.encodeComponent(table)}/capabilities', {
+      _uri('/api/${_segment(table)}/capabilities', {
         if (id != null) 'id': id.toString(),
       }),
       headers: _headers(),
@@ -88,7 +88,7 @@ final class BeakClient {
     BeakValidationRequest request,
   ) async {
     final response = await _postJson(
-      '/api/${Uri.encodeComponent(request.table)}/validate',
+      '/api/${_segment(request.table)}/validate',
       request.toJson(),
     );
     return BeakValidationReport.fromJson(_decodeObject(response.body));
@@ -103,7 +103,7 @@ final class BeakClient {
   /// Resolves a lost response through the server's authoritative receipt.
   Future<BeakSaveResult> recoverCommit(String saveId) async {
     final response = await _http.get(
-      _uri('/api/commits/${Uri.encodeComponent(saveId)}'),
+      _uri('/api/commits/${_segment(saveId)}'),
       headers: _headers(),
     );
     _ensureSuccess(response);
@@ -145,7 +145,10 @@ final class BeakClient {
 
   /// Runs [spec] against `POST /api/{table}/query`.
   Future<BeakPage<BeakRecord>> query(String table, BeakQuerySpec spec) async {
-    final response = await _postJson('/api/$table/query', spec.toJson());
+    final response = await _postJson(
+      '/api/${_segment(table)}/query',
+      spec.toJson(),
+    );
     return BeakPage.fromJson(
       _decodeObject(response.body),
       (item) => BeakRecord.fromJson(_asObject(item)),
@@ -155,7 +158,7 @@ final class BeakClient {
   /// Fetches one record; `null` when the backend answers 404.
   Future<BeakRecord?> getOne(String table, Object id) async {
     final response = await _http.get(
-      _uri('/api/$table/$id'),
+      _uri('/api/${_segment(table)}/${_segment(id)}'),
       headers: _headers(),
     );
     if (response.statusCode == 404) {
@@ -167,7 +170,10 @@ final class BeakClient {
 
   /// Creates a record via `POST /api/{table}`.
   Future<BeakRecord> create(String table, BeakRecord data) async {
-    final response = await _postJson('/api/$table', _flatValues(data));
+    final response = await _postJson(
+      '/api/${_segment(table)}',
+      _flatValues(data),
+    );
     return BeakRecord.fromJson(_decodeObject(response.body));
   }
 
@@ -184,7 +190,7 @@ final class BeakClient {
     DateTime? ifUnmodifiedSince,
   }) async {
     final response = await _http.patch(
-      _uri('/api/$table/$id'),
+      _uri('/api/${_segment(table)}/${_segment(id)}'),
       headers: {
         ..._headers(json: true),
         if (ifUnmodifiedSince != null)
@@ -200,7 +206,9 @@ final class BeakClient {
   /// deletes).
   Future<void> delete(String table, Object id, {bool force = false}) async {
     final response = await _http.delete(
-      _uri('/api/$table/$id', {if (force) 'force': 'true'}),
+      _uri('/api/${_segment(table)}/${_segment(id)}', {
+        if (force) 'force': 'true',
+      }),
       headers: _headers(),
     );
     _ensureSuccess(response);
@@ -208,14 +216,20 @@ final class BeakClient {
 
   /// Restores a soft-deleted record via `POST /api/{table}/{id}/restore`.
   Future<BeakRecord> restore(String table, Object id) async {
-    final response = await _postJson('/api/$table/$id/restore', const {});
+    final response = await _postJson(
+      '/api/${_segment(table)}/${_segment(id)}/restore',
+      const {},
+    );
     _ensureSuccess(response);
     return BeakRecord.fromJson(_decodeObject(response.body));
   }
 
   /// Computes an aggregate via `POST /api/{table}/aggregate`.
   Future<num> aggregate(String table, BeakAggregateSpec spec) async {
-    final response = await _postJson('/api/$table/aggregate', spec.toJson());
+    final response = await _postJson(
+      '/api/${_segment(table)}/aggregate',
+      spec.toJson(),
+    );
     return switch (_decodeObject(response.body)['value']) {
       final num value => value,
       final Object? other => throw BeakConfigurationException(
@@ -227,7 +241,7 @@ final class BeakClient {
   /// Computes named server-side aggregates over a complete query population.
   Future<BeakSummaryResult> summary(BeakSummarySpec spec) async {
     final response = await _postJson(
-      '/api/${spec.table}/summary',
+      '/api/${_segment(spec.table)}/summary',
       spec.toJson(),
     );
     return BeakSummaryResult.fromJson(_decodeObject(response.body));
@@ -235,7 +249,9 @@ final class BeakClient {
 
   /// Fetches many records in one round trip via `POST /api/{table}/batch`.
   Future<List<BeakRecord>> batchGet(String table, List<Object> ids) async {
-    final response = await _postJson('/api/$table/batch', {'ids': ids});
+    final response = await _postJson('/api/${_segment(table)}/batch', {
+      'ids': ids,
+    });
     return [
       for (final item in _decodeList(response.body))
         BeakRecord.fromJson(_asObject(item)),
@@ -249,9 +265,11 @@ final class BeakClient {
     String relationKey,
     List<Object> relatedIds,
   ) async {
-    await _postJson('/api/$table/$id/relations/$relationKey/attach', {
-      'ids': relatedIds,
-    });
+    await _postJson(
+      '/api/${_segment(table)}/${_segment(id)}/relations/'
+      '${_segment(relationKey)}/attach',
+      {'ids': relatedIds},
+    );
   }
 
   /// Unlinks [relatedIds] from a to-many relation.
@@ -261,9 +279,11 @@ final class BeakClient {
     String relationKey,
     List<Object> relatedIds,
   ) async {
-    await _postJson('/api/$table/$id/relations/$relationKey/detach', {
-      'ids': relatedIds,
-    });
+    await _postJson(
+      '/api/${_segment(table)}/${_segment(id)}/relations/'
+      '${_segment(relationKey)}/detach',
+      {'ids': relatedIds},
+    );
   }
 
   /// Uploads [file] to a file/image column via multipart form data.
@@ -274,7 +294,7 @@ final class BeakClient {
   ) async {
     final request = http.MultipartRequest(
       'POST',
-      _uri('/api/$table/$columnKey/upload'),
+      _uri('/api/${_segment(table)}/${_segment(columnKey)}/upload'),
     );
     request.headers.addAll(_headers());
     request.files.add(
@@ -293,7 +313,9 @@ final class BeakClient {
   /// Resolves an existing upload without assuming a public storage origin.
   Future<Uri> uploadUrl(String table, String columnKey, String key) async {
     final response = await _http.get(
-      _uri('/api/$table/$columnKey/upload', {'key': key}),
+      _uri('/api/${_segment(table)}/${_segment(columnKey)}/upload', {
+        'key': key,
+      }),
       headers: _headers(),
     );
     _ensureSuccess(response);
@@ -314,7 +336,7 @@ final class BeakClient {
   ) async {
     for (final key in {...file.variants.values.map((v) => v.key), file.key}) {
       final response = await _http.delete(
-        _uri('/api/$table/$columnKey/upload'),
+        _uri('/api/${_segment(table)}/${_segment(columnKey)}/upload'),
         headers: _headers(json: true),
         body: jsonEncode({'key': key}),
       );
@@ -336,7 +358,7 @@ final class BeakClient {
         'Raw exports cannot also request display formatting.',
       );
     }
-    final response = await _postJson('/api/$table/export', {
+    final response = await _postJson('/api/${_segment(table)}/export', {
       ...spec.toJson(),
       'columns': ?columns,
       if (formats.isNotEmpty)
@@ -361,6 +383,10 @@ final class BeakClient {
     _ensureSuccess(response);
     return response;
   }
+
+  /// [value] as one path segment: a `/`, `?`, `#` or `%` in a key from an
+  /// adopted database must not change which route the request reaches.
+  String _segment(Object value) => Uri.encodeComponent('$value');
 
   Uri _uri(String path, [Map<String, String>? queryParameters]) =>
       Uri.parse('$_baseUrl$path').replace(queryParameters: queryParameters);

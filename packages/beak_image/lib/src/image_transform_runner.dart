@@ -67,7 +67,8 @@ enum _RunnerFormat {
 /// concrete [BeakTransformRunner] the upload endpoint registers.
 ///
 /// Sources must be one of the raster formats image columns accept (PNG,
-/// JPEG, WebP, GIF); anything else throws a [BeakValidationException].
+/// JPEG, WebP, GIF); anything else, and any damaged file, throws a
+/// [BeakValidationException]. An animated GIF is read for its first frame.
 /// Thumbnails are cover-cropped to their exact configured size and encoded
 /// with the format state at their point in the pipeline. WebP output uses
 /// `package:image`'s lossless encoder, so a format step's quality applies to
@@ -159,12 +160,7 @@ final class ImageTransformRunner implements BeakTransformRunner {
         '(PNG, JPEG, WebP or GIF).',
       );
     }
-    final img.Image? decoded = img.decodeImage(source);
-    if (decoded == null) {
-      throw const BeakValidationException(
-        'The uploaded file could not be decoded as an image.',
-      );
-    }
+    final img.Image decoded = _decodeFirstFrame(source);
     if (pipeline.isEmpty) {
       return BeakTransformedImage(
         bytes: source,
@@ -209,6 +205,32 @@ final class ImageTransformRunner implements BeakTransformRunner {
       dimensions: _dimensionsOf(image),
       variants: variants,
     );
+  }
+
+  /// Decodes [source], its first frame only: every frame of a decoded
+  /// animation is a full bitmap in memory, so the pixel ceiling would count
+  /// one frame of many.
+  ///
+  /// A damaged file makes the codec throw whatever it tripped over (a
+  /// `RangeError`, an `ImageException`); that is the uploader's mistake, so it
+  /// leaves as a [BeakValidationException] like any other undecodable file. So
+  /// does a stream that decodes to an empty bitmap.
+  static img.Image _decodeFirstFrame(Uint8List source) {
+    final img.Image? decoded;
+    try {
+      decoded = img.decodeImage(source, frame: 0);
+    } on Object {
+      throw const BeakValidationException(
+        'The uploaded file could not be decoded as an image.',
+      );
+    }
+    // A damaged stream can decode to an empty bitmap.
+    if (decoded == null || decoded.width < 1 || decoded.height < 1) {
+      throw const BeakValidationException(
+        'The uploaded file could not be decoded as an image.',
+      );
+    }
+    return decoded;
   }
 
   void _requireWithinCeiling(BeakDimensions declared) {

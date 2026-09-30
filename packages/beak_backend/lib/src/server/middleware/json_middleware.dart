@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:beak_core/beak_core.dart';
 import 'package:shelf/shelf.dart';
@@ -18,11 +19,19 @@ Middleware beakJsonMiddleware() =>
     };
 // --8<-- [end:beakJsonMiddleware]
 
+/// The largest JSON request body [readJsonObject] reads unless told otherwise:
+/// 16 MiB, room for a graph commit that saves thousands of rows and small
+/// enough that an anonymous caller cannot make the server buffer a gigabyte.
+const int beakMaxJsonBodyInBytes = 16 * 1024 * 1024;
+
 /// Reads and decodes [request]'s body as a JSON object.
 ///
-/// Throws a [BeakValidationException] when the body is not valid JSON or not
-/// a JSON object — the error-mapping middleware turns that into a 422. Use it
-/// as the first line of any handler that expects a JSON payload:
+/// Throws a [BeakValidationException] when the body is not UTF-8, not valid
+/// JSON or not a JSON object, and a [BeakPayloadTooLargeException] when it is
+/// longer than [maxBodyInBytes] (the declared length is checked first, and a
+/// body that lies about it is cut off while it streams). The error-mapping
+/// middleware turns those into a 422 and a 413. Use it as the first line of any
+/// handler that expects a JSON payload:
 ///
 /// ```dart
 /// Future<Response> create(Request request) async {
@@ -31,11 +40,24 @@ Middleware beakJsonMiddleware() =>
 ///   // ...
 /// }
 /// ```
-Future<Map<String, Object?>> readJsonObject(Request request) async {
-  final String body = await request.readAsString();
+Future<Map<String, Object?>> readJsonObject(
+  Request request, {
+  int maxBodyInBytes = beakMaxJsonBodyInBytes,
+}) async {
+  final int? declaredLength = request.contentLength;
+  if (declaredLength != null && declaredLength > maxBodyInBytes) {
+    throw _bodyTooLarge(maxBodyInBytes);
+  }
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in request.read()) {
+    bytes.add(chunk);
+    if (bytes.length > maxBodyInBytes) {
+      throw _bodyTooLarge(maxBodyInBytes);
+    }
+  }
   final Object? decoded;
   try {
-    decoded = jsonDecode(body);
+    decoded = jsonDecode(utf8.decode(bytes.takeBytes()));
   } on FormatException catch (error) {
     throw BeakValidationException(
       'Request body is not valid JSON: ${error.message}.',
@@ -48,6 +70,12 @@ Future<Map<String, Object?>> readJsonObject(Request request) async {
     ),
   };
 }
+
+BeakPayloadTooLargeException _bodyTooLarge(int maxBodyInBytes) =>
+    BeakPayloadTooLargeException(
+      'The request body is larger than the $maxBodyInBytes bytes this server '
+      'reads.',
+    );
 
 /// Decodes an already-read JSON [body] into a typed spec via [decode],
 /// turning the decoder's [BeakConfigurationException] into a

@@ -171,6 +171,8 @@ final class BeakDecimal implements Comparable<BeakDecimal> {
   /// Largest coefficient that every supported runtime represents exactly.
   static const int maxUnits = 9007199254740991;
 
+  static const int _maxDigits = 16;
+
   /// Signed integer coefficient in the smallest declared unit.
   final int units;
 
@@ -196,8 +198,17 @@ final class BeakDecimal implements Comparable<BeakDecimal> {
       }
       fraction = fraction.substring(0, scale);
     }
+    // Converting a long digit string is quadratic in its length, and a value
+    // of more digits than the largest coefficient cannot be one, so it is
+    // refused before it is converted.
+    final String wholeDigits = match[2]!.replaceFirst(RegExp('^0+(?=.)'), '');
+    if (wholeDigits.length + scale > _maxDigits) {
+      throw const FormatException(
+        'Exact decimal exceeds the safe integer range.',
+      );
+    }
     final coefficient =
-        BigInt.parse('${match[2]}${fraction.padRight(scale, '0')}') *
+        BigInt.parse('$wholeDigits${fraction.padRight(scale, '0')}') *
         (match[1] == '-' ? -BigInt.one : BigInt.one);
     return _checked(coefficient, scale);
   }

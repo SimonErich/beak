@@ -186,8 +186,7 @@ migration table at the end collects the common ones.
   draft. `/llms.txt`, `/llms-full.txt` and a Markdown twin of every page are
   generated. Docs tooling is pinned in `docs/requirements.txt`.
 - LICENSE and README for the `beak` umbrella package, README for `beak_test`,
-  LICENSE and CHANGELOG for `beak_serverpod`, CHANGELOG for
-  `beak_serverpod_flutter`, `beak_serverpod_server` and `beak_serverpod_generator`.
+  LICENSE and CHANGELOG for every `beak_serverpod*` package.
 - Per-package `README.md`s, workspace `LICENSE` (Apache-2.0), `NOTICE`,
   `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` and the architecture
   pages under `docs/architecture/`.
@@ -201,7 +200,8 @@ migration table at the end collects the common ones.
   `--release`. `tool/check_docs.dart` also checks snippet marker lines,
   line-range includes and routing scope, and the web guard walks both
   `schema.dart` libraries and the Serverpod libraries. CI gains the jobs
-  `install-smoke`, `showcase-web`, `foodio-web` and `serverpod-example`.
+  `install-smoke`, `showcase-web`, `foodio-web`, `serverpod-example` and
+  `serverpod-admin`.
 
 #### Examples
 
@@ -847,7 +847,7 @@ migration table at the end collects the common ones.
 - Server host: an invalid graph commit plan answered `500` at commit time and now
   answers `422`; health probes (`/healthz`, `/readyz`) failed on a bad
   `Authorization` header; a serial integer primary key could not be created or
-  edited (SQLite; see Known issues for Postgres); a native Postgres enum column
+  edited (SQLite and Postgres); a native Postgres enum column
   came back as raw bytes; a belongs-to eager load ignored its filter and a
   has-many load included a soft-deleted related row; an image that declared a
   huge bitmap was decoded before its size was checked; a port already in use
@@ -863,6 +863,49 @@ migration table at the end collects the common ones.
   rows without a date are left out instead of dated today. `showCounts` applies
   in every presentation, `BeakFormSections.tabs` spacing is right, and `/403`
   has a way out.
+- `beak_frontend`, forms: after a stale-write refusal (`expectedUpdatedAt`) the
+  form offered only to resend the same stale version, and now offers "Compare
+  with latest version". `recover()` on a save that had settled replaced later
+  edits with the saved value, and now does nothing unless an outcome is unknown.
+  A stored enum name the model no longer has, or a non-date in a date column,
+  was written back as null on an untouched save, and now stays out of the patch.
+  A failed Save focuses the first invalid field, the system and browser back
+  gesture asks before it leaves a dirty form, and Save waits while a stored draft
+  is undecided. After a reload against a data source that keeps receipts in
+  memory only, a pending save used to read as "never received" and could be saved
+  twice; it now stays unknown (`receiptLost`) until the edits are discarded.
+  Upload, gallery and related-table buttons have screen-reader names of their
+  own, and the form's own controls follow the panel language.
+- `beak_frontend`, panel: the idle lock could be left with the browser's Back
+  button or a typed address, and activity inside a dialog did not reset its
+  countdown. It now holds until `onUnlock` accepts and survives a failed refresh
+  (a host router passes `authRefresh:` to `beakPanelRoutes` and `beakAuthRoutes`).
+  A session that ended under a form with unsaved changes asked "Leave this
+  form?" and left a signed-out visitor on a protected page. A record id with `/`,
+  `?`, `#` or `%` built a link to another page or none. The command palette and
+  the action failure toast showed the message of an infrastructure failure, and
+  marking a notification read threw when the server refused it. Deleting from a
+  list, saving an edit and creating a record dropped the list's search, filters,
+  sort and page, and a built-in action in `recordActions` ignored permissions.
+  Serverpod sign-in reported a network failure as a configuration error, and
+  Enter in the registration and recovery forms did nothing. The delete toast, its
+  undo button, "Back", the notification bell, the pending-actions banner and
+  "Duplicate" follow the panel language.
+- `beak_frontend`, data and blocks: a refused connection or a timeout left every
+  list loading for ever (it is now a `BeakTransportException`), and a single
+  write whose request never arrived could not be repeated (it is sent again under
+  the same save identity). Two identical writes in flight were treated as one, and
+  the second skipped the graph route. A dragged calendar event moved by the
+  device's UTC offset, and the calendar, timeline and chat now use the panel's
+  zone. Table cells opened an editor on double tap and saved a blank edit (inline
+  edit is removed), a selection followed the person to the next page, and
+  deleting the last row of the last page left a blank page. A refused table
+  delete, related-record delete, detach or attach now says why, deleting a related
+  record asks first, and a failed read shows an error line with Retry instead of
+  an empty chart, board, map or "No ... yet". One unreadable saved view hid all
+  the others, a page size above 200 saved earlier now loads at 200, and a kanban
+  card dropped in its own column no longer writes. An export button with a field
+  that is not a direct scalar fails when it builds, not when it is clicked.
 - `beak_cli`: a field named like a member the generated model or its typed record
   view owns (`summary`, `record`), a non-unique `@Display`, a bare `@Image()` or
   `@FileField()` and an untyped `BeakScreen` produced generated code that did not
@@ -873,6 +916,133 @@ migration table at the end collects the common ones.
   `_beak_commit_receipts` and `_beak_outbox`, and warns once for each `numeric`
   column it reads as a `double`. `DATABASE_URL` from the shell now wins over
   `.env`, and `beak doctor` gives the right advice for a pending migration.
+- `beak_cli` review. `beak introspect`: `--schema` was ignored on Postgres (it
+  always read `public`); the foreign-key and primary-key queries joined on a
+  constraint name, which is only unique within a table, so two tables that name
+  a key alike were each given the other's columns; a SQLite path that did not
+  exist was created as an empty database, and a database it could not read ended
+  in a stack trace; a column named `firstName`, `address_line_1`, `Email`,
+  `class` or `2fa` produced a class that read the wrong column or did not parse
+  (it now keeps the stored name with `@Column(columnName:)` under a field name
+  Dart can spell), `card_token`, `password_reset_token` and `passwordHash` were
+  not taken for secrets (a word-based rule now is), a lone `created_at` was
+  dropped without a word, a table without an `id` column gets a note, and
+  `--out` may not leave the project. The baseline it writes is now
+  `lib/migrations/adopt_existing_schema.dart`: a file name that starts with
+  digits made the analyzer complain in every adopted project. `beak prepare`
+  refuses a table name that is not an identifier, two schema classes on one
+  table, and a field that repeats a column `timestamps: true` or
+  `softDeletes: true` adds; a quote or `$` in `beak.yaml` (`api.baseUrl`,
+  `server.host`) no longer breaks the generated files. `make:migration` and
+  `eject panel|theme|auth|server` refuse a directory that is not a Beak project.
+  `make:resource --fields` refuses a Dart keyword and the names Beak adds itself.
+  A schema class named `List`, `String`, `Future`, `Function`, `Enum`,
+  `DateTime`, `Schema`, `Migration`, `BeakSchema`, `Resource`, `Column` or
+  `Display` shadowed what the generated code uses and did not compile:
+  `beak prepare` and `make:resource` refuse it, and `beak introspect` calls the
+  class of a table such as `lists` or `resources` `ListEntry` or `ResourceEntry`.
+  A `sqlite:../legacy.db` URL lost its `..` (`Uri` removes dot segments), so
+  `introspect`, `doctor` and `make:migration --from-drift` looked for another
+  file. `beak doctor` sent a required column with no default to
+  `--from-drift`, which refuses it, and the unique-column refusal blamed SQLite
+  on Postgres.
+  `beak eject main` refused nothing in an app that boots the panel from another
+  file, and `--force` replaced the app's own `lib/main.dart`; it now refuses.
+  `beak doctor` said "Beak 0.9.0 but the project resolved Beak 0.9.0" for a docs
+  copy of the same version with other pages. The CLI round-trip suite skips, as
+  the other service suites do, when Postgres is down.
+  `beak create` refuses a name pub would refuse (`beak`, `flutter`, `class`) and
+  writes `--beak-path` absolute. A file system error ends in one `error:` line
+  and exit `74`. `beak doctor` named the port `0` for a Postgres URL without one.
+  The singulariser took `es` off `purchases`, `licenses`, `courses` and other
+  plurals of a word that ends in `se` (`Purchas`, `cours_id`); a short list of
+  those words now keeps the `e`.
+- Final review, authorization and writes (`beak_backend`): a row scope was not
+  applied to what a write leaves behind, so a caller could create a record in
+  another owner's rows, or edit one of their own into another owner's. A create
+  is now judged on the record it inserts and an update on the stored row with the
+  changes applied (`403`), on the per-record routes and in graph commits, and a
+  scope the server cannot decide before the row exists (a relationship, a text
+  match) refuses the write with a `422`. A scope with `neq` (the docs' own
+  `status.neq(draft)`) used to refuse every create in a graph commit. A save the
+  policy refuses as a whole stores no receipt, so anyone could fill
+  `_beak_commit_receipts` with fresh `saveId`s (and, on a staged source, push real
+  receipts out of the store); the same `saveId` is decided again and `recover`
+  answers `404`. A rule, a unique check or a scope hit inside a write was
+  reported as an unknown outcome and locked the form; it is now a rejection, as
+  is a foreign key, check or data error from the commit's own SQL. A version
+  precondition skipped record rules and unique checks on a source without
+  transactions. Editing a record shared with other records failed for a scoped
+  caller (`The record no longer exists.`), and a unique column hidden from the
+  caller made every write to the model fail with `403` (per-record routes and
+  commits both). Two connections racing over a rejected save ended in a `500`.
+- Final review, requests and sessions (`beak_backend`): two edits of one record
+  that carried the same `If-Unmodified-Since` could both succeed, so the optimistic
+  lock only held for requests that arrived one after the other; a process now
+  applies the edits, deletes and restores of one record one at a time.
+  `POST /api/auth/login` answered `401` to a request that still carried an
+  `Authorization` header from an expired session, and an account list with two
+  entries for one username, or an empty secret, was accepted silently. A JSON body
+  was read whole whatever its size (now at most 16 MiB, a `413` beyond it) and a
+  body that was not UTF-8 answered `500` (now `422`). A request with a non-ASCII
+  byte in its `x-request-id` was never answered, because the id is echoed as a
+  response header; an incoming id is now reused only when it is 1 to 128 letters,
+  digits and `. _ : / -`. A record key that needs percent-encoding (a space, a
+  slash, a `%`, as natural keys of adopted databases have) answered `404` on get,
+  update, delete, restore, attach and detach, and so did a receipt lookup for such
+  a `saveId`: the router hands a segment over encoded, and the routes now decode
+  it once. `batch`, `attach` and `detach` accept at most 1000 ids (`422`); a longer
+  list was one `IN` statement that Postgres refuses above 65535 parameters.
+- Final review, configuration and validation: `BeakEmail` used a pattern that
+  needed seconds for twenty thousand dots and hours for a megabyte on the
+  server's only isolate; it is now a linear check and refuses more than 254
+  characters. A rejected `DATABASE_URL` and a malformed `.env` line quoted the
+  password or the secret in the error the generated `bin/serve.dart` prints.
+- Final review, uploads and storage: the FTP driver wrote a storage key straight
+  into `STOR`, `RETR`, `DELE` and `SIZE`, and key validation let CR, LF and NUL
+  through, so a crafted file name could smuggle a command; keys with control
+  characters are now refused, the driver validates every key before it connects,
+  and the upload service keeps only a plain `[a-z0-9]{1,16}` extension (`x.a/b`
+  used to make a nested key). The local uploads router served HTML, SVG and XML
+  as pages in the origin that serves the API and followed a symlink out of its
+  root, and a key that needs percent-encoding answered `404`; it now sends
+  `nosniff` and a sandboxing `content-security-policy`, forces those types to
+  download, stays inside its root and decodes the key. A client-sent key with a
+  control character, `//` or a backslash was a `500` and is a `422`. Truncated or
+  corrupt PNG, JPEG, GIF and WebP data made the image decoder throw a `500`; it is
+  a `422`, and an animated GIF is decoded once, for its first frame. An upload to
+  a column without `maxSizeInBytes` was unbounded and buffered in memory; it is
+  capped at 100 MiB. A signed S3 link
+  requested for a lifetime outside 1 second to 7 days failed every request with a
+  `500`; it is clamped. `BEAK_FTP_PORT=abc` became port 21 silently and now stops
+  the boot, as does a port outside 1 to 65535.
+- Final review, secrets and parsing: a `BeakSemantic.password` column was
+  returned by every read and could be filtered on, so a `startsWith` filter read
+  a stored hash one character at a time; no response carries it now and a filter,
+  sort or aggregate over it is a `422` (the form is still offered the input). A
+  decimal of a million digits took thirty seconds to parse on the server's only
+  isolate, through a search term on a decimal column; a value with more digits
+  than a coefficient holds is refused before it is converted. `POST
+  /api/auth/login` compared hashes in a time that showed how many characters
+  matched, and answered an unknown username faster than a wrong password; it now
+  does the same work for both. A `DATABASE_URL` of `sqlite:../legacy.db` or
+  `sqlite:./data/../x.db` lost its `..` segments (`Uri` removes them) and opened a
+  new, empty file elsewhere, and `file:data/beak.db` became the absolute
+  `/data/beak.db`; a relative path is read as written, and one with a `..` is
+  resolved against the working directory.
+- Final review, export and outbox: an export had no defined page order, so a row
+  written mid-export could be skipped or repeated (it now tie-breaks on the
+  primary key); a leading-space formula such as ` =1+1` was not escaped; a date
+  pattern `intl` rejects failed after the `200` was sent and now fails up front
+  as a `422`, as does one longer than 64 characters. The outbox could not run on
+  Postgres: `available_at` held epoch milliseconds in a 32-bit column. It is a
+  `bigint` now (a development database that already has the table needs
+  `ALTER TABLE _beak_outbox ALTER COLUMN available_at TYPE bigint`), and three
+  competing workers were shown to never claim one row twice. A handler that never
+  answered stalled the outbox for good, and a message whose worker died was
+  claimed again forever; a handler now has `leaseDuration` to answer (then the
+  attempt is `timeout`), and a claim whose attempt never reported is set aside as
+  `leaseExpired`.
 
 ### Known issues
 
@@ -900,9 +1070,9 @@ These are open at 0.9.0. None is listed as fixed above.
   SHA in every pubspec that pins it.
 - **Release blocker: no `v0.9.0` tag.** A default `beak create` scaffold pins
   `ref: v0.9.0`, which does not exist until the release is tagged (use
-  `--beak-path` or `--beak-ref` until then). `beak create --beak-path` and
-  `beak init --beak-path` write the path into the pubspec as given, so a relative
-  path resolves from the new project.
+  `--beak-path` or `--beak-ref` until then). `beak create` and `beak init`
+  write `--beak-path` as a normalised absolute path and refuse a directory with
+  no `packages/beak` under it (exit `64`).
 - The tracked lockfiles of `clean_beak_config`, `foodio-adminpanel` and
   `showcase` record a linked obers_ui (`path: "../../../obers_ui"`) until they are
   re-resolved against the pin. Run `melos run unlink-obers-ui` before you tag.
@@ -917,16 +1087,32 @@ These are open at 0.9.0. None is listed as fixed above.
 - With a custom `auth.adapter` the panel registers no `BeakClient` and no
   `BeakSessionStore`, by design: every model then needs a data source of its own,
   or the panel a `dataSource:`.
-- Hard-coded English strings remain in the panel (the list toolbar, the
-  saved-views dialog, the review dialogs, the import view, the upload buttons);
-  they are not in `BeakLocalizations`. The gaps table in the theming docs lists
-  them.
+- Hard-coded English strings remain in the panel (the form inspector, the import
+  view, the buttons of related-records tables, the messages a form session writes
+  itself, the default titles of `BeakMaintenanceConfig`); they are not in
+  `BeakLocalizations`. The gaps table in the theming docs lists them.
+- `HttpBeakDataSource` claims durable receipts, which is true only when the
+  server keeps them (a worm-backed server does). Over a server whose receipts
+  live in memory, a save interrupted by a server restart reads as never received
+  and can be saved twice. A `BeakConfiguredForm` whose `layout` or `steps` is a
+  new instance on every build starts over each time and drops what was typed
+  (panel pages memoize theirs), and a parent that builds
+  `BeakPanel(resources: [...])` with new instances on every rebuild starts a new
+  router and a signed-out session: keep them in a field or a `const`.
+- `BeakPanelConfig.copyWith` cannot clear `maintenance` or `home` once set. The
+  default session store signs the user out before it revokes the token remotely,
+  so a failed revoke cannot be shown. The shop's `Product` is `@Resource()`
+  without `timestamps: true`, so its bulk edits run without the `updated_at`
+  conflict check.
+- List search sends one query per keystroke (there is no debounce); the latest
+  response wins, so the result is right. `OiChat` clears the typed message before
+  `onSend` finishes, so a refused send leaves only the toast. `BeakClient` sets no
+  request timeout of its own. An embedded `BeakDataTable` or `BeakTableBlock`
+  with `enableDelete: true` shows delete to a read-only account; the server
+  refuses it and the panel shows the reason.
 - SQLite: `migrate:refresh` cannot roll back a belongs-to column made by a
   create-table migration (a table-level foreign key). Postgres can. The order of
   create-table migrations was proven on SQLite only.
-- Not tested against a real Postgres: creating a row on a serial integer key,
-  which relies on `RETURNING`, and writing a label into a native enum column.
-  Reads of both work.
 - `BeakDecimal` cannot read an existing `NUMERIC` column, because it reads and
   writes integer units. `beak introspect` keeps `double` for such a column and
   warns; converting it takes a migration of your own. A bare `@Image()` or
@@ -936,13 +1122,44 @@ These are open at 0.9.0. None is listed as fixed above.
   forgets them), and an operation with a version precondition
   (`expectedUpdatedAt`) is refused. `canDelete` in
   `GET /api/{table}/capabilities` is approximate for a per-record policy when the
-  request has no `?id=`. The image pixel ceiling counts one frame of an animated
-  GIF.
+  request has no `?id=`. A principal who may write a table but not read it can
+  create through a commit, but replaying or recovering that receipt answers `403`
+  (a receipt needs `canView` on every table of the plan). Staged receipts share
+  one bounded store across principals, and graph commits with their receipts are
+  not verified on MySQL (the receipts table keeps its key and its 64 KB payload
+  columns in `TEXT`).
+- Beak keys a record by a column called `id`. A table whose key is called
+  otherwise (`sku`, `order_id`) cannot be read or written until it has an `id`
+  column; `beak introspect` notes it and goes on.
+- A Serverpod client-bridge app gets the standalone or embedded `AGENTS.md`
+  block, whose `beak migrate` and `beak dev` lines do not apply to it, because
+  there is no bridge block yet.
+- A caller who may read a model can list its soft-deleted rows with
+  `"withTrashed": true`; only `restore` asks for `canUpdate`. `DELETE /api/{table}/{column}/upload` does not
+  consult the row scope, because the storage key is the capability and an unsaved
+  upload has no row. An image column checks `allowedTypes` against the declared
+  type when its pipeline is empty, file columns are not sniffed for content, the
+  local uploads router has no `Range` support and `HttpS3ObjectClient` sets no
+  request timeout.
+- Edits of one record are ordered inside one server process. With several
+  instances behind a balancer, only a graph commit's `expectedUpdatedAt` (one SQL
+  statement) is an atomic version check.
+- `dart test --coverage` over the whole of `beak_backend` in one process
+  sometimes stalls for good after about 800 tests (the same runner stall
+  `beak_cli` shows); the suite is green without `--coverage` and file by file
+  with it. Run coverage per test file into one `coverage/` directory and let
+  `tool/check_coverage.dart` convert it (96.6% at the time of writing).
 - worm's production gate reads `WORM_ENV` from the shell, so a value in `.env`
   applies through `beak migrate` but not when `bin/migrate.dart` runs directly.
 - The Serverpod admin app path is a proof, not a product: it has no uploads, no
   drift check between `.spy.yaml` files and the Beak schema classes, and no tested
-  deployment.
+  deployment. Nothing prunes `beak_commit_receipt` there, and the engine does not
+  hand out the commit service, so old receipts are deleted with the generated
+  model (see Limits and next steps in the Serverpod docs).
+- `deploy/Dockerfile.web` cannot build until the obers_ui pin has the APIs the
+  panel uses. `deploy/Dockerfile.server` passes `docker build --check` and its
+  build commands ran on the host, but the image itself was not built in the
+  release review.
 
 ### Migrating
 

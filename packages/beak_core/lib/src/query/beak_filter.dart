@@ -59,18 +59,40 @@ sealed class BeakFilter {
 
   /// Decodes [json] (produced by [toJson]) back into a predicate tree.
   ///
-  /// Throws a [BeakConfigurationException] on malformed input.
+  /// Throws a [BeakConfigurationException] on malformed input, including a
+  /// tree nested more than 64 levels deep: a request can be megabytes of
+  /// brackets, and decoding it recursively would end in a stack overflow.
+  static BeakFilter fromJson(Map<String, Object?> json) => _decode(json, 0);
+
+  static const int _maxNesting = 64;
+
   // --8<-- [start:fromJson]
-  static BeakFilter fromJson(Map<String, Object?> json) => switch (json) {
-    {'type': 'field'} => _fieldFromJson(json),
-    {'type': 'and'} => BeakAndFilter(_childrenFromJson(json, 'BeakAndFilter')),
-    {'type': 'or'} => BeakOrFilter(_childrenFromJson(json, 'BeakOrFilter')),
-    {'type': 'relation'} => BeakRelationFilter(
-      requireJsonString(json, 'relation', 'BeakRelationFilter'),
-      BeakFilter.fromJson(requireJsonMap(json, 'filter', 'BeakRelationFilter')),
-    ),
-    _ => throw BeakConfigurationException('Malformed BeakFilter JSON: $json.'),
-  };
+  static BeakFilter _decode(Map<String, Object?> json, int depth) {
+    if (depth >= _maxNesting) {
+      throw const BeakConfigurationException(
+        'BeakFilter JSON is nested more than $_maxNesting levels deep.',
+      );
+    }
+    return switch (json) {
+      {'type': 'field'} => _fieldFromJson(json),
+      {'type': 'and'} => BeakAndFilter(
+        _childrenFromJson(json, 'BeakAndFilter', depth),
+      ),
+      {'type': 'or'} => BeakOrFilter(
+        _childrenFromJson(json, 'BeakOrFilter', depth),
+      ),
+      {'type': 'relation'} => BeakRelationFilter(
+        requireJsonString(json, 'relation', 'BeakRelationFilter'),
+        _decode(
+          requireJsonMap(json, 'filter', 'BeakRelationFilter'),
+          depth + 1,
+        ),
+      ),
+      _ => throw BeakConfigurationException(
+        'Malformed BeakFilter JSON: $json.',
+      ),
+    };
+  }
   // --8<-- [end:fromJson]
 
   static BeakFieldFilter _fieldFromJson(Map<String, Object?> json) =>
@@ -83,13 +105,14 @@ sealed class BeakFilter {
   static List<BeakFilter> _childrenFromJson(
     Map<String, Object?> json,
     String context,
+    int depth,
   ) => [
     for (final child in requireJsonMapList(
       requireJsonKey(json, 'filters', context),
       'filters',
       context,
     ))
-      BeakFilter.fromJson(child),
+      _decode(child, depth + 1),
   ];
 
   static BeakOperator _operatorByName(String name) {

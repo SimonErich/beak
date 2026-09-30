@@ -24,7 +24,9 @@ abstract final class BeakStorageKeys {
   }
 
   /// Validates [key]: non-empty, relative, `/`-separated, without empty,
-  /// `.` or `..` segments and without backslashes.
+  /// `.` or `..` segments, without backslashes and without control characters
+  /// (a line break in a key would end an FTP command early, and a NUL byte
+  /// ends a file path).
   ///
   /// Throws a [BeakStorageException] describing the first violation.
   // --8<-- [start:validate]
@@ -35,6 +37,11 @@ abstract final class BeakStorageKeys {
     if (key.contains(r'\')) {
       throw BeakStorageException(
         'Storage key "$key" must use "/" separators, not backslashes.',
+      );
+    }
+    if (key.runes.any((int rune) => rune < 0x20 || rune == 0x7F)) {
+      throw const BeakStorageException(
+        'Storage keys must not contain control characters.',
       );
     }
     if (key.startsWith('/')) {

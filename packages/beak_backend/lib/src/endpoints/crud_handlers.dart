@@ -9,6 +9,7 @@ import '../auth/beak_query_authorizer.dart';
 import '../server/middleware/auth_middleware.dart';
 import '../server/middleware/json_middleware.dart';
 import '../service/beak_resource_service.dart';
+import '../service/beak_validation_query.dart';
 
 /// The thin Shelf handlers behind one model's generated REST surface: they
 /// consult the [policy], parse requests into typed records/specs, call the
@@ -71,6 +72,13 @@ final class BeakCrudHandlers {
     policy: policy,
     principal: beakPrincipal(request),
     maxPerPage: maxPerPage,
+  );
+
+  /// The query behind the uniqueness and existence checks of a write.
+  BeakValidationQuery _validationQuery(Request request) => beakValidationQuery(
+    model: service.model,
+    data: service.dataSource,
+    authorizer: _authorizer(request),
   );
 
   /// The row scope [policy] applies to this model for [request]'s principal.
@@ -147,8 +155,7 @@ final class BeakCrudHandlers {
         candidate.record,
         recordId: id,
         scope: _scope(request),
-        validationQuery: (spec) =>
-            service.dataSource.query(_authorizer(request).authorizeQuery(spec)),
+        validationQuery: _validationQuery(request),
         asynchronousOnly: true,
       );
       return _json(200, const BeakValidationReport().toJson());
@@ -182,8 +189,8 @@ final class BeakCrudHandlers {
     await _requireForeignReferences(request, record);
     final created = await service.create(
       record,
-      validationQuery: (spec) =>
-          service.dataSource.query(_authorizer(request).authorizeQuery(spec)),
+      scope: _scope(request),
+      validationQuery: _validationQuery(request),
     );
     return _json(201, _recordJson(request, created));
   }
@@ -206,8 +213,7 @@ final class BeakCrudHandlers {
       record,
       scope: _scope(request),
       expectedUpdatedAt: _expectedUpdatedAt(request),
-      validationQuery: (spec) =>
-          service.dataSource.query(_authorizer(request).authorizeQuery(spec)),
+      validationQuery: _validationQuery(request),
     );
     return _json(200, _recordJson(request, updated));
   }
@@ -283,9 +289,10 @@ final class BeakCrudHandlers {
   Future<Response> attach(
     Request request,
     String id,
-    String relationKey,
+    String encodedRelationKey,
   ) async {
     final Object recordId = _coerceId(id);
+    final String relationKey = _decodeSegment(encodedRelationKey);
     _fields(request).requireWrite(service.model, [relationKey]);
     _require(
       request,
@@ -303,9 +310,10 @@ final class BeakCrudHandlers {
   Future<Response> detach(
     Request request,
     String id,
-    String relationKey,
+    String encodedRelationKey,
   ) async {
     final Object recordId = _coerceId(id);
+    final String relationKey = _decodeSegment(encodedRelationKey);
     _fields(request).requireWrite(service.model, [relationKey]);
     _require(
       request,
@@ -410,6 +418,10 @@ final class BeakCrudHandlers {
   Future<List<Object>> _readIds(Request request) async {
     final body = await readJsonObject(request);
     return switch (body['ids']) {
+      final List<Object?> raw when raw.length > _maxIdsPerRequest =>
+        throw BeakValidationException(
+          'A request names at most $_maxIdsPerRequest ids, got ${raw.length}.',
+        ),
       final List<Object?> raw => [
         for (final id in raw)
           switch (id) {
@@ -426,8 +438,27 @@ final class BeakCrudHandlers {
     };
   }
 
+  /// The most ids one request may name. A list this long is one `IN (...)`
+  /// statement, and Postgres refuses a statement with more than 65535
+  /// parameters.
+  static const int _maxIdsPerRequest = 1000;
+
+  /// [segment] as the client wrote it. The router hands a path segment over
+  /// still percent-encoded, and a key from an adopted database can hold a
+  /// space, a slash or a `%`.
+  String _decodeSegment(String segment) {
+    try {
+      return Uri.decodeComponent(segment);
+    } on ArgumentError {
+      throw BeakNotFoundException(
+        'No record of "${service.model.table}" with id "$segment".',
+      );
+    }
+  }
+
   /// Coerces the path id segment to the model's primary-key type.
-  Object _coerceId(String raw) {
+  Object _coerceId(String segment) {
+    final String raw = _decodeSegment(segment);
     if (service.model.primaryKey is BeakIntColumn) {
       return int.tryParse(raw) ??
           (throw BeakNotFoundException(

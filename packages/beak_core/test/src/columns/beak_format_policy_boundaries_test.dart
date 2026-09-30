@@ -221,6 +221,19 @@ void main() {
       }
     },
   );
+  test('a policy read from JSON accepts every pattern the panel offers', () {
+    final policy = BeakFormatPolicy.fromJson({
+      'locale': 'de_AT',
+      'datePattern': 'dd.MM.yyyy',
+      'dateTimePattern': 'dd.MM.yyyy HH:mm',
+      'timePattern': 'HH:mm',
+    });
+    expect(
+      policy.dateTime(DateTime.utc(2026, 7, 1, 8, 30)),
+      '01.07.2026 08:30',
+    );
+  });
+
   test('portable policy rejects malformed types and invalid bounds', () {
     final roundTrip = BeakFormatPolicy.fromJson(german.toJson());
     expect(roundTrip.currencyCode, 'EUR');
@@ -236,6 +249,11 @@ void main() {
       {'currencyPrecision': 13},
       {'timeZoneOffsetMinutes': 1441},
       {'useGrouping': 'yes'},
+      {'datePattern': 'EEEEEEE'},
+      {'dateInputPattern': 'EEEEEEE'},
+      {'dateTimePattern': 'yyyy EEEEEEE'},
+      {'timePattern': 'EEEEEEE'},
+      {'datePattern': 'y' * 65},
     ]) {
       expect(() => BeakFormatPolicy.fromJson(malformed), throwsFormatException);
     }

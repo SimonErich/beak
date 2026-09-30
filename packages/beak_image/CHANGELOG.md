@@ -9,7 +9,7 @@ them.
 
 Image decoding and transforms behind Beak's upload pipeline.
 
-No behavior change in 0.9.0; the version moves with the others.
+New in 0.9.0: a truncated or corrupt image is a `BeakValidationException` and never a raw codec error, and an animated GIF is decoded for its first frame only.
 
 Beak is pre-1.0: the API is not frozen, the wire format is. See
 [Upgrading](https://simonerich.github.io/beak/start-here/upgrading/) for how to

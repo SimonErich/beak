@@ -11,10 +11,13 @@ import '../auth/beak_policy.dart';
 import '../auth/beak_field_policy.dart';
 import '../auth/beak_query_authorizer.dart';
 import '../data/worm/worm_data_source.dart';
+import 'beak_adapter_errors.dart';
 import 'beak_commit_receipts_migration.dart';
 import 'beak_framework_tables.dart';
 import 'beak_resource_service.dart';
 import 'beak_revision_timestamp.dart';
+import 'beak_scope_match.dart';
+import 'beak_validation_query.dart';
 import 'validation_service.dart';
 
 // --8<-- [start:BeakSavePlanHooks]
@@ -201,6 +204,15 @@ final class BeakGraphCommitService {
     // --8<-- [end:commitReplay]
     if (!worm.adapter.capabilities.supportsTransactions) {
       _requireNoGraphPreparation(plan);
+      if (existing == null) {
+        final refused = await _refusalBeforeWrite(plan, principal);
+        if (refused != null) {
+          if (!_refusedByPolicy(refused)) {
+            await _insertReceipt(worm.adapter, key, encoded, hash, refused);
+          }
+          return refused;
+        }
+      }
       final previous = existing == null ? null : _decodeReceipt(existing);
       if (existing == null) {
         await _insertReceipt(worm.adapter, key, encoded, hash, _pending(plan));
@@ -324,26 +336,49 @@ final class BeakGraphCommitService {
             ),
         ],
       );
-      await _insertReceipt(worm.adapter, key, encoded, hash, rolledBack);
+      if (!_refusedByPolicy(rolledBack)) {
+        try {
+          await _insertReceipt(worm.adapter, key, encoded, hash, rolledBack);
+        } on UniqueConstraintException {
+          // A competing process rejected, or saved, this same request while
+          // ours ran: its verdict is the one on record.
+          final winner = await _winnerOf(worm, key, hash, principal);
+          if (winner == null) rethrow;
+          return winner;
+        }
+      }
       return rolledBack;
       // --8<-- [end:commitRollback]
     } on UniqueConstraintException {
       // A competing process committed this save while our insert waited.
-      final winner = await _receipt(worm.adapter, key);
+      final winner = await _winnerOf(worm, key, hash, principal);
       if (winner == null) rethrow;
-      if (winner[receipts.requestHashColumn] != hash) {
-        throw const BeakConflictException(
-          'Save identity was reused with different content.',
-        );
-      }
-      final result = _decodeReceipt(winner);
-      await _authorizeReceipt(
-        BeakSavePlan.fromJson(_decodeMap(winner[receipts.requestJsonColumn])),
-        principal,
-        result,
-      );
-      return result;
+      return winner;
     }
+  }
+
+  /// The receipt a competing process stored under [key], returned as ours, or
+  /// `null` when there is none.
+  Future<BeakSaveResult?> _winnerOf(
+    WormDataSource worm,
+    String key,
+    String hash,
+    BeakPrincipal? principal,
+  ) async {
+    final winner = await _receipt(worm.adapter, key);
+    if (winner == null) return null;
+    if (winner[receipts.requestHashColumn] != hash) {
+      throw const BeakConflictException(
+        'Save identity was reused with different content.',
+      );
+    }
+    final result = _decodeReceipt(winner);
+    await _authorizeReceipt(
+      BeakSavePlan.fromJson(_decodeMap(winner[receipts.requestJsonColumn])),
+      principal,
+      result,
+    );
+    return result;
   }
 
   // A plan that decodes but cannot be ordered (unknown field or table,
@@ -357,9 +392,16 @@ final class BeakGraphCommitService {
   }
 
   void _requireNoGraphPreparation(BeakSavePlan plan) {
+    // Only a caller can ask for an action a source cannot run: a server that
+    // could not run its own behaviors or hooks fails as configured, below.
+    if (plan.action != null) {
+      throw const BeakValidationException(
+        'This data source cannot run a named action: actions need a '
+        'transactional data source.',
+      );
+    }
     if (preparePlan != null ||
         finalizePlan != null ||
-        plan.action != null ||
         registry.all.any((model) => !model.behavior.isEmpty) ||
         registry.all.any(
           (model) => model.validationRules.any(
@@ -397,15 +439,15 @@ final class BeakGraphCommitService {
     _requireNoGraphPreparation(plan);
     void keep(BeakSaveResult result) =>
         _keepStaged(key, (hash: hash, plan: plan, result: result));
-    try {
-      for (final operation in plan.operations) {
-        _authorizeInput(operation, principal);
-        _authorizeTable(operation, principal);
+    if (existing == null) {
+      final BeakSaveResult? refused = await _refusalBeforeWrite(
+        plan,
+        principal,
+      );
+      if (refused != null) {
+        if (!_refusedByPolicy(refused)) keep(refused);
+        return _redact(refused, plan, principal);
       }
-    } on BeakException catch (error) {
-      final BeakSaveResult refused = _refused(plan, error, BeakSaveMode.staged);
-      keep(refused);
-      return _redact(refused, plan, principal);
     }
     final BeakSaveResult result = await executeBeakSavePlan(
       plan: plan,
@@ -417,12 +459,61 @@ final class BeakGraphCommitService {
     return _redact(result, plan, principal);
   }
 
+  // A save the policy refused as a whole reached no data, so it has nothing to
+  // replay and earns no receipt. Storing one per attempt would let anyone who
+  // can reach the endpoint grow the receipt table, or push the receipts of
+  // real saves out of a bounded store. The same save id is decided afresh.
+  bool _refusedByPolicy(BeakSaveResult result) {
+    final codes = [
+      for (final outcome in result.outcomes)
+        if (outcome.error case final BeakSaveError error) error.code,
+    ];
+    return codes.isNotEmpty &&
+        codes.every(
+          (code) => code == 'authentication' || code == 'authorization',
+        );
+  }
+
   void _keepStaged(String key, _StagedReceipt receipt) {
     _stagedReceipts
       ..remove(key)
       ..[key] = receipt;
     while (_stagedReceipts.length > maxStagedReceipts) {
       _stagedReceipts.remove(_stagedReceipts.keys.first);
+    }
+  }
+
+  // The refusal of a first attempt, decided before anything is written: every
+  // operation is authorized up front, so a refusal in the fourth leaves the
+  // first three unwritten. A resumed save skips it, because the writes it made
+  // stand and each remaining operation is authorized again as it is dispatched.
+  Future<BeakSaveResult?> _refusalBeforeWrite(
+    BeakSavePlan plan,
+    BeakPrincipal? principal,
+  ) async {
+    try {
+      for (final operation in plan.operations) {
+        if (operation.expectedUpdatedAt != null && source is! WormDataSource) {
+          throw const BeakConfigurationException(_noConditionalWrites);
+        }
+        _authorizeInput(operation, principal);
+        _authorizeTable(operation, principal);
+      }
+      // The records the plan names must be ones the caller may read, in scope
+      // and present: an operation that could only fail once earlier ones have
+      // written should fail now.
+      for (final operation in plan.operations) {
+        for (final ref in [
+          if (operation.kind != BeakSaveOperationKind.create) operation.target,
+          ?operation.owner,
+          ?operation.related,
+        ]) {
+          if (ref.id != null) await _read(ref, const {}, source, principal);
+        }
+      }
+      return null;
+    } on BeakException catch (error) {
+      return _refused(plan, error, BeakSaveMode.staged);
     }
   }
 
@@ -946,26 +1037,32 @@ final class BeakGraphCommitService {
     List<BeakRecordRef> previousParents,
   ) async {
     final refs = <(String, Object), BeakRecordRef>{};
-    void add(BeakRecordRef ref) {
+    // The records the plan names are the caller's own: they were read through
+    // the caller's row scope, and are judged through it. A record that only
+    // depends on one of them may belong to anyone, and its rules are invariants
+    // of the stored data, so it is judged whole.
+    final named = <(String, Object)>{};
+    void add(BeakRecordRef ref, {bool dependent = false}) {
       final id = ref.resolve(result.identities);
       refs[(ref.table, id)] = BeakRecordRef.existing(ref.table, id);
+      if (!dependent) named.add((ref.table, id));
     }
 
     add(plan.root);
-    for (final parent in previousParents) {
-      add(parent);
-    }
     for (final op in plan.operations) {
       if (op.kind != BeakSaveOperationKind.delete) add(op.target);
       if (op.owner case final BeakRecordRef owner) add(owner);
       if (op.related case final BeakRecordRef related) add(related);
+    }
+    for (final parent in previousParents) {
+      add(parent, dependent: true);
     }
     final affected = await _validationParents(
       refs.values.toList(growable: false),
       data,
     );
     for (final parent in affected) {
-      add(parent);
+      add(parent, dependent: true);
     }
     final authorizer = BeakQueryAuthorizer(
       registry: registry,
@@ -981,6 +1078,7 @@ final class BeakGraphCommitService {
       }
       final record = await data.getOne(ref.table, ref.id!);
       if (record == null) continue;
+      final bool own = named.contains((ref.table, ref.id!));
       try {
         await BeakResourceService(
           model,
@@ -991,9 +1089,14 @@ final class BeakGraphCommitService {
         ).validateCandidate(
           record,
           recordId: ref.id,
-          scope: authorizer.scopeFor(model),
-          validationQuery: (spec) =>
-              data.query(authorizer.authorizeQuery(spec)),
+          scope: own ? authorizer.scopeFor(model) : null,
+          validationQuery: own
+              ? beakValidationQuery(
+                  model: model,
+                  data: data,
+                  authorizer: authorizer,
+                )
+              : null,
         );
       } on BeakException catch (error) {
         final operation = plan.operations
@@ -1285,6 +1388,18 @@ final class BeakGraphCommitService {
           isCreate: op.kind == BeakSaveOperationKind.create,
           includeRecordRules: false,
         );
+        if (op.kind == BeakSaveOperationKind.update &&
+            op.expectedUpdatedAt != null) {
+          // The revision guard writes with SQL of its own, so `service.update`
+          // never sees this change. Over a source without a transaction there
+          // is no final pass either: the record rules and the asynchronous
+          // checks run here, before anything is written.
+          await service.validateCandidate(
+            values,
+            recordId: id,
+            scope: _scope(model.table, principal),
+          );
+        }
         for (final relation in model.relationships.whereType<BeakBelongsTo>()) {
           final foreign = values[relation.foreignKey]?.raw;
           if (foreign != null) {
@@ -1296,9 +1411,12 @@ final class BeakGraphCommitService {
             );
           }
         }
-        if (op.kind == BeakSaveOperationKind.create) {
-          _validateCreateScope(values, _scope(model.table, principal));
-        }
+        _requireWithinScope(
+          model,
+          existing,
+          values,
+          _scope(model.table, principal),
+        );
       }
       if (op.related case final BeakRecordRef related) {
         final child = await _read(related, identities, data, principal);
@@ -1412,21 +1530,37 @@ final class BeakGraphCommitService {
     } on Object catch (error) {
       final cause = switch (error) {
         _UnappliedWrite(:final error) => error,
-        UniqueConstraintException() => const BeakConflictException(
-          'A value that must be unique is already in use.',
-        ),
-        _ => error,
+        _ =>
+          beakRefusalOf(
+                error,
+                registry.byTable(op.target.table),
+                removing: op.kind == BeakSaveOperationKind.delete,
+              ) ??
+              error,
       };
+      // Past the dispatch only a refusal is certain: a rule, a lookup or the
+      // store said no, so nothing was written. Anything else may have left a
+      // write behind, and only a replay of the receipt can tell.
+      final bool refused = switch (cause) {
+        BeakValidationException() ||
+        BeakNotFoundException() ||
+        BeakConflictException() ||
+        BeakAuthenticationException() ||
+        BeakAuthorizationException() => true,
+        _ => false,
+      };
+      final bool certain = !dispatched || refused;
       return BeakOperationResult(
         id: op.id,
-        status: dispatched && error is! _UnappliedWrite
-            ? BeakWriteOutcome.unknown
-            : BeakWriteOutcome.unapplied,
-        reason: dispatched && error is! _UnappliedWrite ? null : 'rejected',
+        status: certain ? BeakWriteOutcome.unapplied : BeakWriteOutcome.unknown,
+        reason: certain ? 'rejected' : null,
         error: BeakSaveError.fromException(cause),
       );
     }
   }
+
+  static const String _noConditionalWrites =
+      'This provider does not support conditional graph writes.';
 
   // A version precondition is one SQL statement, so only a worm source can
   // keep it; anything else refuses the write before it is dispatched.
@@ -1434,9 +1568,7 @@ final class BeakGraphCommitService {
       switch (data) {
         final WormDataSource worm => worm,
         _ => throw const _UnappliedWrite(
-          BeakConfigurationException(
-            'This provider does not support conditional graph writes.',
-          ),
+          BeakConfigurationException(_noConditionalWrites),
         ),
       };
 
@@ -1550,7 +1682,7 @@ final class BeakGraphCommitService {
       );
     }
     return await data.getOne(model.table, id) ??
-        (throw const BeakNotFoundException(
+        (throw const BeakInternalException(
           'The updated record could not be read.',
         ));
   }
@@ -1596,28 +1728,30 @@ final class BeakGraphCommitService {
     }
   }
 
-  void _validateCreateScope(BeakRecord values, BeakFilter? scope) {
-    // Equality scopes cover owner/tenant constraints without issuing a write.
-    // More complex policies must expose an explicit canCreate policy instead.
-    bool matches(BeakFilter? filter) => switch (filter) {
-      null => true,
-      BeakAndFilter(:final filters) => filters.every(matches),
-      BeakOrFilter(:final filters) => filters.any(matches),
-      BeakFieldFilter(
-        :final columnKey,
-        operator: BeakOperator.eq,
-        :final value,
-      ) =>
-        values[columnKey]?.raw == value.raw,
-      BeakFieldFilter(:final columnKey, operator: BeakOperator.isNull) =>
-        values[columnKey]?.raw == null,
-      _ => throw const BeakValidationException(
-        'Create scope must be expressible as equality constraints.',
-      ),
-    };
-    if (!matches(scope)) {
-      throw const BeakAuthorizationException(
-        'The new record is outside your permitted scope.',
+  // A write is judged on the record it leaves behind, so an operation cannot
+  // plant a row in another owner's slice of the table, or hand one of the
+  // caller's own rows away. An update that touches no column the scope reads
+  // stays where it was, and is not judged again. Refused here, before the
+  // dispatch, the operation is a definite rejection and never an unknown one.
+  void _requireWithinScope(
+    BeakModel model,
+    BeakRecord? existing,
+    BeakRecord values,
+    BeakFilter? scope,
+  ) {
+    final BeakRecord image;
+    if (existing == null) {
+      image = values;
+    } else if (values.values.keys.any(
+      beakScopeColumnKeys(scope, model).contains,
+    )) {
+      image = BeakRecord(values: {...existing.values, ...values.values});
+    } else {
+      return;
+    }
+    if (!beakScopeAdmits(scope, image)) {
+      throw BeakAuthorizationException(
+        'The record would be outside your permitted scope of "${model.table}".',
       );
     }
   }

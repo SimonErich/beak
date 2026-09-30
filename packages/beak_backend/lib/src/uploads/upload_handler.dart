@@ -24,6 +24,7 @@ final class BeakUploadHandlers {
     required this.service,
     this.policy = const BeakAllowAllPolicy(),
     this.dataSource,
+    this.fallbackMaxSizeInBytes = defaultMaxSizeInBytes,
   });
 
   /// The model whose file columns these handlers serve.
@@ -37,6 +38,18 @@ final class BeakUploadHandlers {
 
   /// Source used to verify visible record ownership of stored keys.
   final BeakDataSource? dataSource;
+
+  /// The largest upload accepted for a column that sets no `maxSizeInBytes`
+  /// of its own: 100 MiB.
+  ///
+  /// The body is read into memory, so a column with no bound at all would let
+  /// one request take as much as the sender cares to send. A column that
+  /// needs more says so with its own `maxSizeInBytes`.
+  static const int defaultMaxSizeInBytes = 100 * 1024 * 1024;
+
+  /// The ceiling for a column without a `maxSizeInBytes` (default
+  /// [defaultMaxSizeInBytes]).
+  final int fallbackMaxSizeInBytes;
 
   /// The multipart field the file must arrive under.
   static const String fileFieldName = 'file';
@@ -53,7 +66,10 @@ final class BeakUploadHandlers {
       action: 'upload to',
       model: model,
     );
-    final upload = await _readUpload(request, column.maxSizeInBytes);
+    final upload = await _readUpload(
+      request,
+      column.maxSizeInBytes ?? fallbackMaxSizeInBytes,
+    );
     final stored = await service.handle(
       table: model.table,
       columnKey: column.key,
@@ -175,7 +191,7 @@ final class BeakUploadHandlers {
         ),
       };
 
-  Future<BeakUpload> _readUpload(Request request, int? maxSizeInBytes) async {
+  Future<BeakUpload> _readUpload(Request request, int maxSizeInBytes) async {
     final form = request.formData();
     if (form == null) {
       throw const BeakValidationException(
@@ -207,12 +223,12 @@ final class BeakUploadHandlers {
   /// oversize uploads never buffer fully.
   Future<Uint8List> _readBounded(
     Stream<List<int>> source,
-    int? maxSizeInBytes,
+    int maxSizeInBytes,
   ) async {
     final builder = BytesBuilder(copy: false);
     await for (final chunk in source) {
       builder.add(chunk);
-      if (maxSizeInBytes != null && builder.length > maxSizeInBytes) {
+      if (builder.length > maxSizeInBytes) {
         throw BeakValidationException(
           'Upload rejected.',
           fieldErrors: {

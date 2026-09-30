@@ -116,8 +116,11 @@ runner implements), `BeakImageTransform` (`resize`, `format`, `webp` and
   Choose `jpg` when you want to trade fidelity for size.
 - **The whole image is decoded.** Memory grows with the decoded size, not the
   file size, up to `maxPixelCount`. Bound uploads with `maxSizeInBytes` and
-  `maxDimensions` on the column. The ceiling counts the pixels of one frame, so
-  an animated GIF with many frames costs more than it says.
+  `maxDimensions` on the column. Only the first frame of an animated GIF is
+  decoded, so the ceiling counts what is held in memory.
+- **A damaged file is a validation error.** A truncated or corrupt image, or
+  one that decodes to nothing, throws a `BeakValidationException` and never a
+  raw codec error.
 
 ## Continue reading
 

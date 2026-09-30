@@ -50,16 +50,29 @@ sealed class BeakValue {
 
   /// Decodes [json] (produced by [toJson]) back into a typed value.
   ///
-  /// Throws a [BeakConfigurationException] on malformed input.
+  /// A timestamp always decodes to a UTC instant: a value with an offset is
+  /// converted, and one with no offset (`2026-06-01T12:30:45`, a bare date) is
+  /// read as UTC rather than in the time zone of whichever machine decodes it.
+  ///
+  /// Throws a [BeakConfigurationException] on malformed input, including a
+  /// list nested more than 16 levels deep.
+  static BeakValue fromJson(Object? json) => _decode(json, 0);
+
+  static const int _maxListNesting = 16;
+
   // --8<-- [start:fromJson]
-  static BeakValue fromJson(Object? json) => switch (json) {
+  static BeakValue _decode(Object? json, int depth) => switch (json) {
     null => const BeakNullValue(),
     final bool value => BeakBoolValue(value),
     final int value => BeakIntValue(value),
     final double value => BeakDoubleValue(value),
     final String value => BeakStringValue(value),
+    final List<Object?> _ when depth >= _maxListNesting =>
+      throw const BeakConfigurationException(
+        'BeakValue JSON is nested more than $_maxListNesting lists deep.',
+      ),
     final List<Object?> values => BeakListValue([
-      for (final value in values) BeakValue.fromJson(value),
+      for (final value in values) _decode(value, depth + 1),
     ]),
     {'type': 'dateTime', 'value': final String iso} => BeakDateTimeValue(
       _parseInstant(iso),
@@ -73,7 +86,20 @@ sealed class BeakValue {
     if (parsed == null) {
       throw BeakConfigurationException('"$iso" is not an ISO-8601 timestamp.');
     }
-    return parsed;
+    // `DateTime.parse` yields a local time only when the text carried no
+    // offset; read those digits as UTC instead of in the machine's zone.
+    return parsed.isUtc
+        ? parsed
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
   }
 
   /// This value as plain Dart (the inverse of [BeakValue.of]) — unlike

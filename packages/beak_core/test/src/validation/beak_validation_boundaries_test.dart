@@ -159,6 +159,19 @@ void main() {
       expect(validator.columnErrors(list, [1, 2]), [
         'Must contain at most 1 items.',
       ]);
+      // An object column holds JSON text, and a client can send it as deep as
+      // a request body allows: that is a validation error, not a crash.
+      const document = BeakJsonColumn(
+        key: 'document',
+        label: 'Document',
+        semantic: BeakSemantic.object(
+          BeakObjectSchema(columns: [], allowUnknown: true),
+        ),
+      );
+      expect(
+        validator.columnErrors(document, '${'{"k":' * 100000}1${'}' * 100000}'),
+        isNotEmpty,
+      );
       const enumeration = BeakEnumColumn<_Status>(
         key: 'status',
         label: 'Status',

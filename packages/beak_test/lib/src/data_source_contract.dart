@@ -223,6 +223,32 @@ void runBeakDataSourceContract(
         );
       });
 
+      test('contains, startsWith and endsWith ignore case', () async {
+        final BeakRecord target = seeded.first;
+        final String text = '${target[textColumn.key]?.raw}';
+        final needles = <BeakOperator, String>{
+          BeakOperator.contains: text.substring(1, text.length - 1),
+          BeakOperator.startsWith: text.substring(0, text.length - 1),
+          BeakOperator.endsWith: text.substring(1),
+        };
+        for (final MapEntry(key: operator, value: needle) in needles.entries) {
+          final page = await source.query(
+            model.query(
+              filter: BeakFieldFilter(
+                column: textColumn,
+                operator: operator,
+                value: BeakStringValue(needle.toUpperCase()),
+              ),
+            ),
+          );
+          expect(
+            page.items.map(idOf),
+            contains(idOf(target)),
+            reason: '${operator.name} "${needle.toUpperCase()}" on "$text"',
+          );
+        }
+      });
+
       test('an empty search term matches everything', () async {
         final page = await source.query(
           model.query(search: BeakSearch('', [textColumn.key])),
@@ -291,6 +317,21 @@ void runBeakDataSourceContract(
         );
         expect(patched[textColumn.key]?.raw, 'patched');
         expect(model.primaryKeyOf(patched), id, reason: 'id is not patchable');
+      });
+
+      test('a patch with nothing in it answers the record as it is', () async {
+        final BeakRecord target = seeded.first;
+        final updated = await source.update(
+          model.table,
+          idOf(target),
+          const BeakRecord(values: {}),
+        );
+        expect(model.primaryKeyOf(updated), idOf(target));
+        expect(
+          updated[textColumn.key]?.raw,
+          target[textColumn.key]?.raw,
+          reason: 'nothing was asked to change',
+        );
       });
 
       test('throws BeakNotFoundException for a missing id', () async {
@@ -407,6 +448,15 @@ void runBeakDataSourceContract(
 
       test('an empty id list returns nothing', () async {
         expect(await source.batchGet(model.table, const []), isEmpty);
+      });
+
+      test('returns a record once however often its id is listed', () async {
+        final records = await source.batchGet(model.table, [
+          idOf(seeded[0]),
+          idOf(seeded[0]),
+          idOf(seeded[1]),
+        ]);
+        expect(records, hasLength(2));
       });
     });
 

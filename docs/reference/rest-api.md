@@ -36,9 +36,9 @@ import 'package:beak/server.dart'; // beakApiRouter, BeakServer, BeakServeHost, 
 | `POST` | `/api/{table}/aggregate` | One `count`, `sum` or `avg` | as `query` | `200` value | always |
 | `POST` | `/api/{table}/summary` | Grouped `count` and `sum` measures | as `query` | `200` rows | always |
 | `POST` | `/api/{table}/batch` | Fetch records by id | as `query` | `200` array | always |
-| `POST` | `/api/{table}` | Create a record | `canCreate`, field write access | `201` record | always, closed for graph-only tables |
+| `POST` | `/api/{table}` | Create a record | `canCreate`, field write access, row scope of the new record | `201` record | always, closed for graph-only tables |
 | `GET` | `/api/{table}/{id}` | Fetch one record | `canView`, row scope, field read access | `200` record | always |
-| `PATCH` | `/api/{table}/{id}` | Update columns | `canUpdate`, field write access, row scope | `200` record | closed for graph-only tables |
+| `PATCH` | `/api/{table}/{id}` | Update columns | `canUpdate`, field write access, row scope before and after | `200` record | closed for graph-only tables |
 | `DELETE` | `/api/{table}/{id}` | Soft or hard delete | `canDelete`, row scope | `204` | closed for graph-only tables |
 | `POST` | `/api/{table}/{id}/restore` | Clear the soft-delete marker | `canUpdate`, row scope | `200` record | closed for graph-only tables |
 | `POST` | `/api/{table}/{id}/relations/{relationKey}/attach` | Link related ids | `canUpdate` on the owner, `canView` on the related table | `204` | closed for graph-only tables |
@@ -65,13 +65,14 @@ The route table itself is short. Everything under `/api/{table}` except `export`
 | Convention | Detail |
 | --- | --- |
 | Base path | `/api/{table}` for resources, `/api/commits`, `/api/auth`. The probes and the local file route sit outside `/api`. |
-| Request bodies | JSON objects. Invalid JSON, or JSON that is not an object, is a `422`. |
+| Request bodies | JSON objects, UTF-8, at most 16 MiB (`beakMaxJsonBodyInBytes`). Invalid JSON, invalid UTF-8, or JSON that is not an object is a `422`; a longer body is a `413`. |
 | Spec bodies | A `BeakQuerySpec` needs only `table`; missing keys take their defaults, so `{"table":"notes"}` is a valid query. Nested objects take their defaults too: a sort needs its `column`, a relation load its `relation`, a search its `term` and `columns`, and pagination can be empty. See [Queries](queries.md#required-keys). A spec that cannot be decoded is a `422 Malformed spec body: ...`. |
 | Spec table | The `table` of a query, aggregate, summary or export body must equal the `{table}` of the path, or the request is a `422`. That includes a spec `table` that nobody registered (`Unknown table "ghosts".`). A path `{table}` nobody registered is a `404`. |
 | Response bodies | JSON with `content-type: application/json; charset=utf-8`. Export answers CSV, the local file route answers the file's MIME type. |
-| Ids in paths | The `{id}` segment is coerced to the primary-key type. For an integer key a non-integer id is a `404`. |
-| Auth header | `Authorization: Bearer <token>`. No header means anonymous. When the server has an auth guard (any `BeakAuthSessions`, or an `authGuard`), a header that is not `Bearer`, or a token the store does not know, is a `401` on every route, including the probes. Without a guard the header is ignored. |
-| Request id | Every response carries `x-request-id`. An incoming value is reused, otherwise the server mints one. Error bodies repeat it as `requestId`. |
+| Ids in paths | The `{id}` segment is percent-decoded once (a key from an adopted database can hold a space or a slash, and the client encodes every segment), then coerced to the primary-key type. For an integer key a non-integer id is a `404`, and so is an id that is not valid percent-encoding. The `{saveId}` of a receipt lookup and the `{relationKey}` of attach and detach are decoded the same way. |
+| Id lists | `batch`, `attach` and `detach` take at most 1000 ids per request, or a `422`. |
+| Auth header | `Authorization: Bearer <token>`. No header means anonymous. When the server has an auth guard (any `BeakAuthSessions`, or an `authGuard`), a header that is not `Bearer`, or a token the store does not know, is a `401` on every route except the probes and `POST /api/auth/login`, which never ask the guard. Without a guard the header is ignored. |
+| Request id | Every response carries `x-request-id`. An incoming value is reused when it is 1 to 128 letters, digits and `. _ : / -`, otherwise the server mints one. Error bodies repeat it as `requestId`. |
 | CORS | `access-control-allow-origin` is `*` unless `corsOrigin` is set. `OPTIONS` answers `204`. Allowed request headers: `authorization`, `content-type`, `if-unmodified-since`, `x-request-id`. |
 | Errors | One JSON envelope for every failure, see [The error envelope](#the-error-envelope). |
 
@@ -352,6 +353,8 @@ curl -s -X PATCH localhost:8080/api/notes/f7fd8ba6-6d50-4609-8903-5b2929c88736 \
 
 The model needs a `BeakDateTimeColumn` keyed `updated_at` (`@Resource(timestamps: true)`), otherwise the conditional update is a `422`. Timestamps are compared at millisecond precision.
 
+The server applies the edits, deletes and restores of one record one at a time, so two requests that carry the same `If-Unmodified-Since` cannot both win: the second one reads the new `updated_at` and answers `409`. That order is kept inside one server process. With several instances behind a balancer, the version check that holds is a graph commit's `expectedUpdatedAt`, which is one SQL statement.
+
 ### Delete and restore
 
 `DELETE /api/{table}/{id}` answers `204`. On a model with `@Resource(softDeletes: true)` it sets `deleted_at`; `?force=true` deletes the row for real (and may target an already soft-deleted row). A missing row is a `404`.
@@ -396,7 +399,7 @@ The routes are mounted when the server has a storage driver. `beak create` proje
 
 ### Store
 
-`POST /api/{table}/{columnKey}/upload` takes `multipart/form-data` with the file in a part named `file`. The read is bounded by the column's `maxSizeInBytes` while streaming. The stored key is minted by the server; the client filename is never used. Image columns are decoded, checked against `allowedTypes`, dimensions and aspect ratio, and run through their transforms.
+`POST /api/{table}/{columnKey}/upload` takes `multipart/form-data` with the file in a part named `file`. The read is bounded by the column's `maxSizeInBytes` while streaming, or by 100 MiB when the column sets none. The stored key is minted by the server; only a short plain extension (letters and digits) of the client filename is kept. Image columns are decoded, checked against `allowedTypes`, dimensions and aspect ratio, and run through their transforms.
 
 ```bash
 curl -s -X POST localhost:8080/api/product_images/image/upload -F "file=@pic.png;type=image/png"
@@ -443,7 +446,7 @@ The URL comes from `storage.url(key, expiresIn: signedUrlLifetime)`. A driver th
 
 ### Local files
 
-With the local-disk driver, `GET {publicBaseUrl path}/{key}` (default `/uploads/{key}`) serves the stored file with its MIME type and `content-length`. It is read-only, has no auth, and answers `404` for a missing file or a key that climbs out of the root. Set `BEAK_LOCAL_PUBLIC_BASE_URL` to a CDN and the route is no longer used.
+With the local-disk driver, `GET {publicBaseUrl path}/{key}` (default `/uploads/{key}`) serves the stored file with its MIME type and `content-length`, plus `x-content-type-options: nosniff` and a sandboxing `content-security-policy` (HTML, SVG and XML also get `content-disposition: attachment`). It is read-only, has no auth, and answers `404` for a missing file or a key that climbs out of the root, by `..` or by a symbolic link. Set `BEAK_LOCAL_PUBLIC_BASE_URL` to a CDN and the route is no longer used.
 
 ## Auth routes
 

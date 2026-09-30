@@ -261,6 +261,133 @@ void main() {
       expect(response.statusCode, 403);
     });
 
+    test('is refused in every channel that could reveal it', () async {
+      final channels = <(String, String, String, Object?)>[
+        (
+          'filter',
+          'POST',
+          '/api/notes/query',
+          BeakQuerySpec(
+            table: 'notes',
+            filter: NoteModel.rating.gt(0),
+          ).toJson(),
+        ),
+        (
+          'search',
+          'POST',
+          '/api/notes/query',
+          const BeakQuerySpec(
+            table: 'notes',
+            search: BeakSearch('4', ['rating']),
+          ).toJson(),
+        ),
+        (
+          'aggregate',
+          'POST',
+          '/api/notes/aggregate',
+          BeakAggregateSpec.forKey(
+            table: 'notes',
+            function: BeakAggregateFunction.sum,
+            columnKey: 'rating',
+          ).toJson(),
+        ),
+        (
+          'summary group',
+          'POST',
+          '/api/notes/summary',
+          BeakSummarySpec.forKeys(
+            table: 'notes',
+            groupByKey: 'rating',
+            measures: const [BeakSummaryMeasure.count('count')],
+          ).toJson(),
+        ),
+        (
+          'summary measure',
+          'POST',
+          '/api/notes/summary',
+          BeakSummarySpec.forKeys(
+            table: 'notes',
+            measures: const [
+              BeakSummaryMeasure.forKey('total', columnKey: 'rating'),
+            ],
+          ).toJson(),
+        ),
+        (
+          'summary measure filter',
+          'POST',
+          '/api/notes/summary',
+          BeakSummarySpec.forKeys(
+            table: 'notes',
+            measures: [
+              BeakSummaryMeasure.forKey('high', filter: NoteModel.rating.gt(3)),
+            ],
+          ).toJson(),
+        ),
+        (
+          'validate',
+          'POST',
+          '/api/notes/validate',
+          {
+            'table': 'notes',
+            'recordId': 'n1',
+            'record': BeakRecord.fromRow({'rating': 4}).toJson(),
+          },
+        ),
+        ('create', 'POST', '/api/notes', {'title': 'x', 'rating': 4}),
+      ];
+      for (final (name, method, path, body) in channels) {
+        final response = await call(
+          method,
+          path,
+          body: body,
+          token: editorToken,
+          on: hiding,
+        );
+        expect(response.statusCode, 403, reason: name);
+      }
+    });
+
+    test(
+      'is not offered by the capabilities of who it is hidden from',
+      () async {
+        final capabilities = await objectOf(
+          await call(
+            'GET',
+            '/api/notes/capabilities',
+            token: editorToken,
+            on: hiding,
+          ),
+        );
+        expect(capabilities['readableFields'], isNot(contains('rating')));
+        expect(capabilities['writableFields'], isNot(contains('rating')));
+        expect(capabilities['readableFields'], contains('title'));
+      },
+    );
+
+    test('is refused in a graph commit and leaves nothing behind', () async {
+      final operation = BeakSaveOperation(
+        id: 'u',
+        kind: BeakSaveOperationKind.update,
+        target: const BeakRecordRef.existing('notes', 'n1'),
+        values: BeakRecord.fromRow({'rating': 5}),
+      );
+      final response = await call(
+        'POST',
+        '/api/commits',
+        body: BeakSavePlan(
+          saveId: 'hidden-1',
+          root: operation.target,
+          operations: [operation],
+        ).toJson(),
+        token: editorToken,
+        on: hiding,
+      );
+      final result = BeakSaveResult.fromJson(await objectOf(response));
+
+      expect(result.complete, isFalse);
+      expect((await source.getOne('notes', 'n1'))?['rating']?.raw, isNull);
+    });
+
     test('is refused on write for who it is hidden from', () async {
       final response = await call(
         'PATCH',

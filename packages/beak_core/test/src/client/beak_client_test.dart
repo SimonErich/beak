@@ -61,6 +61,69 @@ void main() {
     'relations': const <String, Object?>{},
   };
 
+  group('an id is one path segment', () {
+    // A key from an adopted database can hold any character: "a/b" must not
+    // become two segments, and "?" or "#" must not end the path.
+    const id = 'a/b?c#d%e f';
+    const encoded = 'a%2Fb%3Fc%23d%25e%20f';
+
+    test('getOne', () async {
+      final api = client(recordJson({'id': 'x'}));
+      await api.getOne('notes', id);
+      expect(
+        requests.single.url.toString(),
+        'http://api.test/api/notes/$encoded',
+      );
+    });
+
+    test('update', () async {
+      final api = client(recordJson({'id': 'x'}));
+      await api.update('notes', id, BeakRecord.fromRow(const {'title': 't'}));
+      expect(requests.single.method, 'PATCH');
+      expect(
+        requests.single.url.toString(),
+        'http://api.test/api/notes/$encoded',
+      );
+    });
+
+    test(
+      'delete keeps its force flag as a query, not as part of the id',
+      () async {
+        final api = client(null, statusCode: 204);
+        await api.delete('notes', id, force: true);
+        expect(
+          requests.single.url.toString(),
+          'http://api.test/api/notes/$encoded?force=true',
+        );
+      },
+    );
+
+    test('restore', () async {
+      final api = client(recordJson({'id': 'x'}));
+      await api.restore('notes', id);
+      expect(
+        requests.single.url.toString(),
+        'http://api.test/api/notes/$encoded/restore',
+      );
+    });
+
+    test('attach and detach encode the id and the relation key', () async {
+      final api = client(null, statusCode: 204);
+      await api.attach('notes', id, 'la/bels', const ['l1']);
+      await api.detach('notes', id, 'la/bels', const ['l1']);
+      expect(requests.map((request) => request.url.toString()), [
+        'http://api.test/api/notes/$encoded/relations/la%2Fbels/attach',
+        'http://api.test/api/notes/$encoded/relations/la%2Fbels/detach',
+      ]);
+    });
+
+    test('an integer id is written as it is', () async {
+      final api = client(recordJson({'id': 7}));
+      await api.getOne('notes', 7);
+      expect(requests.single.url.path, '/api/notes/7');
+    });
+  });
+
   group('request shapes', () {
     test('summary transports typed population and bounded results', () async {
       final response = BeakSummaryResult(

@@ -29,7 +29,7 @@ None of the variables is required. A project that sets nothing runs on a SQLite 
 | `WORM_ENV` | worm, from the process environment only | `development` | `development`, `staging`, `production`, `testing` (case-insensitive); see below |
 | `BEAK_API_BASE_URL` | the Flutter compiler, as `--dart-define` | `api.baseUrl` from `beak.yaml` | The origin the panel calls; compiled in, not read at runtime |
 
-That is the whole list. One name that looks like it belongs is read by nothing: `BEAK_AUTH_SECRET` in `deploy/.env.prod.example`. Beak has no built-in variable for an authentication secret; you choose a name and read it through `defaults.environment` in `lib/server.dart`. There is also no variable for an S3 public base URL.
+That is the whole list. Beak has no built-in variable for an authentication secret; you choose a name and read it through `defaults.environment` in `lib/server.dart`.
 
 The repository's own `.env.example` shows the shape, pointed at the dev services:
 
@@ -89,7 +89,7 @@ The backend listens on `0.0.0.0:8080` unless told otherwise. Binding every inter
 With `BEAK_STORAGE_DRIVER` unset, uploads go to `storage/uploads` relative to the working directory, and the server serves them itself at `/uploads`. `none` removes the upload endpoints entirely. A typo fails at boot with the supported names in the message. A driver chosen without its settings fails naming the first missing variable:
 
 ```console
-$ BEAK_STORAGE_DRIVER=s3 ./beak-server
+$ BEAK_STORAGE_DRIVER=s3 ./build/serve/bundle/bin/serve
 BeakConfigurationException(configuration): BEAK_S3_ENDPOINT is required when BEAK_STORAGE_DRIVER=s3.
 ```
 
@@ -121,7 +121,7 @@ The S3 driver builds file URLs from `BEAK_S3_ENDPOINT` (with the bucket, for pat
 - A seeder can declare the environment it belongs to, and `db:seed` skips seeders declared for another one. Seeders that declare nothing run everywhere, and `db:seed` runs every eligible seeder every time you call it, so write them to be repeatable.
 
 ```console
-$ WORM_ENV=production beak-migrate migrate:fresh
+$ WORM_ENV=production ./build/migrate/bundle/bin/migrate migrate:fresh
 error: refusing to run destructive command in production without --force
 ```
 
@@ -164,9 +164,9 @@ Keep secrets out of the repository. `.env` is git-ignored here and your project 
 Boot with a wrong value and read the message. Each of these fails before the server binds a port:
 
 ```console
-$ PORT=abc ./beak-server
+$ PORT=abc ./build/serve/bundle/bin/serve
 BeakConfigurationException(configuration): PORT must be an integer between 1 and 65535, got "abc".
-$ BEAK_STORAGE_DRIVER=local ./beak-server
+$ BEAK_STORAGE_DRIVER=local ./build/serve/bundle/bin/serve
 BeakConfigurationException(configuration): BEAK_LOCAL_ROOT_DIR is required when BEAK_STORAGE_DRIVER=local.
 ```
 

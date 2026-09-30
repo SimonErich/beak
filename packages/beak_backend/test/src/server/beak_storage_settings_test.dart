@@ -169,6 +169,61 @@ void main() {
       );
     });
 
+    test('an ftp port that is not a port stops the boot, it is not 21', () {
+      for (final port in ['abc', '0', '70000', '-1', '21.5']) {
+        expect(
+          () => BeakStorageSettings.fromEnv({
+            'BEAK_STORAGE_DRIVER': 'ftp',
+            'BEAK_FTP_HOST': 'ftp.example.com',
+            'BEAK_FTP_USER': 'beak',
+            'BEAK_FTP_PASSWORD': 'secret',
+            'BEAK_FTP_BASE_DIR': '/uploads',
+            'BEAK_FTP_PUBLIC_BASE_URL': 'https://cdn.example.com',
+            'BEAK_FTP_PORT': port,
+          }),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (e) => e.message,
+              'message',
+              contains('BEAK_FTP_PORT'),
+            ),
+          ),
+          reason: port,
+        );
+      }
+    });
+
+    test('a URL that does not parse names its variable', () {
+      expect(
+        () => BeakStorageSettings.fromEnv(const {
+          'BEAK_STORAGE_DRIVER': 'local',
+          'BEAK_LOCAL_ROOT_DIR': 'var/uploads',
+          'BEAK_LOCAL_PUBLIC_BASE_URL': 'http://[broken',
+        }),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            contains('BEAK_LOCAL_PUBLIC_BASE_URL'),
+          ),
+        ),
+      );
+    });
+
+    test('the unknown-driver message is one plain sentence', () {
+      expect(
+        () => BeakStorageSettings.fromEnv(const {'BEAK_STORAGE_DRIVER': 'x'}),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            'Unsupported BEAK_STORAGE_DRIVER "x": use one of '
+                's3, ftp, memory, local, none.',
+          ),
+        ),
+      );
+    });
+
     test('lists the supported drivers when the name is unknown', () {
       expect(
         () => BeakStorageSettings.fromEnv(const {

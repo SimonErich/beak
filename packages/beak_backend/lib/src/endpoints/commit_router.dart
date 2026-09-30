@@ -24,10 +24,21 @@ void registerBeakCommitRoutes(Router router, BeakGraphCommitService service) {
   });
   router.get('/api/commits/<saveId>', (Request request, String saveId) async {
     final result = await service.recover(
-      saveId,
+      _decodeSaveId(saveId),
       principal: beakPrincipal(request),
     );
     return Response.ok(jsonEncode(result.toJson()));
   });
 }
 // --8<-- [end:registerBeakCommitRoutes]
+
+/// [segment] as the client wrote it: the router hands a path segment over
+/// still percent-encoded, and a save id is any string the client minted. One
+/// that is not valid percent-encoding names no receipt.
+String _decodeSaveId(String segment) {
+  try {
+    return Uri.decodeComponent(segment);
+  } on ArgumentError {
+    throw BeakNotFoundException('No receipt for save "$segment".');
+  }
+}

@@ -56,10 +56,30 @@ abstract final class BeakStorageSettings {
       return value;
     }
 
+    Uri requireUri(String key) {
+      final String value = require(key);
+      return Uri.tryParse(value) ??
+          (throw BeakConfigurationException('$key is not a valid URL: $value'));
+    }
+
+    int port(String key, {required int fallback}) {
+      final String? value = environment[key];
+      if (value == null || value.isEmpty) {
+        return fallback;
+      }
+      final int? parsed = int.tryParse(value);
+      if (parsed == null || parsed < 1 || parsed > 65535) {
+        throw BeakConfigurationException(
+          '$key must be a port from 1 to 65535, got "$value".',
+        );
+      }
+      return parsed;
+    }
+
     switch (environment[driverKey]) {
       case 's3':
         return BeakS3Config(
-          endpoint: Uri.parse(require('BEAK_S3_ENDPOINT')),
+          endpoint: requireUri('BEAK_S3_ENDPOINT'),
           bucket: require('BEAK_S3_BUCKET'),
           accessKey: require('BEAK_S3_ACCESS_KEY'),
           secretKey: require('BEAK_S3_SECRET_KEY'),
@@ -67,7 +87,7 @@ abstract final class BeakStorageSettings {
           usePathStyle: environment['BEAK_S3_USE_PATH_STYLE'] == 'true',
           publicBaseUrl: switch (environment['BEAK_S3_PUBLIC_BASE_URL']) {
             null || '' => null,
-            final String url => Uri.parse(url),
+            _ => requireUri('BEAK_S3_PUBLIC_BASE_URL'),
           },
         );
       case 'ftp':
@@ -76,13 +96,13 @@ abstract final class BeakStorageSettings {
           user: require('BEAK_FTP_USER'),
           password: require('BEAK_FTP_PASSWORD'),
           baseDir: require('BEAK_FTP_BASE_DIR'),
-          publicBaseUrl: Uri.parse(require('BEAK_FTP_PUBLIC_BASE_URL')),
-          port: int.tryParse(environment['BEAK_FTP_PORT'] ?? '') ?? 21,
+          publicBaseUrl: requireUri('BEAK_FTP_PUBLIC_BASE_URL'),
+          port: port('BEAK_FTP_PORT', fallback: 21),
         );
       case 'local':
         return BeakLocalDiskStorageConfig(
           rootDir: require('BEAK_LOCAL_ROOT_DIR'),
-          publicBaseUrl: Uri.parse(require('BEAK_LOCAL_PUBLIC_BASE_URL')),
+          publicBaseUrl: requireUri('BEAK_LOCAL_PUBLIC_BASE_URL'),
         );
       case 'memory':
         return const BeakMemoryStorageConfig();
@@ -90,7 +110,7 @@ abstract final class BeakStorageSettings {
         return null;
       case final String other:
         throw BeakConfigurationException(
-          'Unsupported $driverKey "$other" — use one of '
+          'Unsupported $driverKey "$other": use one of '
           '${supportedDrivers.join(', ')}.',
         );
     }

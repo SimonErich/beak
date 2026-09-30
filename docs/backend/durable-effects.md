@@ -62,11 +62,11 @@ A replay of a completed save returns its receipt and does not call the finalizer
 | --- | --- | --- |
 | `interval` | 1 second | Pause between the start of one drain and the next |
 | `drainLimit` | 100 (1 to 1000) | Most effects one drain attempts |
-| `leaseDuration` | 2 minutes | How long a claimed row is off limits before another worker may take it |
+| `leaseDuration` | 2 minutes | How long a claimed row is off limits before another worker may take it, and how long a handler has to answer |
 | `retryDelay` | 10 seconds | Base delay after a failure, multiplied by the attempt number |
 | `maxAttempts` | 8 | Failures before the row is marked `failed` |
 
-Set these to the provider's real latency. A payment call that takes 30 seconds and a lease of 2 minutes is fine, one that can take 5 minutes is not.
+Set these to the provider's real latency. A payment call that takes 30 seconds and a lease of 2 minutes is fine, one that can take 5 minutes is not: a handler still running when the lease ends counts as failed (`last_error` is `timeout`) and the effect is retried, so one hung provider call never holds the worker. The call is not cancelled, which is one more reason the provider must deduplicate by `effect.key`.
 
 A run against a scratch server with one healthy and one failing handler (`maxAttempts: 3`, `retryDelay: 2s`) shows the states a row passes through:
 
@@ -87,9 +87,10 @@ stateDiagram-v2
   running --> pending: handler threw, attempts left
   running --> failed: handler threw, attempts used up
   running --> running: lease expired, claimed again
+  running --> failed: lease expired after the last attempt
 ```
 
-The claim is a compare-and-set on the row, so two workers, or two server processes, never hold the same effect at once. The worker does not keep a database transaction open during the remote call. The stored error is a category and never the provider's message: `BeakException.code` for a typed exception, `providerFailure` for anything else, so a provider that puts a token in its error text does not put it in your table.
+The claim is a compare-and-set on the row, so two workers, or two server processes, never hold the same effect at once. The worker does not keep a database transaction open during the remote call. The stored error is a category and never the provider's message: `BeakException.code` for a typed exception, `providerFailure` for anything else, so a provider that puts a token in its error text does not put it in your table. A handler that outlives its lease is stored as `timeout`, and a claim that never reported after the last attempt (the process died inside it) is marked `failed` with `leaseExpired` instead of being run again.
 
 ## Write a handler that survives a second delivery
 

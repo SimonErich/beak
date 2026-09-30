@@ -189,13 +189,18 @@ class BeakFormatPolicy {
 
   static bool _dateSymbolsReady = false;
 
-  String _date(DateTime value, String pattern) {
-    // intl installs its bundled locale data synchronously before returning the
-    // already-completed Future; no request or widget-side async state is needed.
+  /// Installs intl's bundled date data once. It does so synchronously before
+  /// returning the already-completed Future, so no request or widget-side
+  /// async state is needed.
+  void _ensureDateSymbols() {
     if (!_dateSymbolsReady) {
       unawaited(initializeDateFormatting(locale));
       _dateSymbolsReady = true;
     }
+  }
+
+  String _date(DateTime value, String pattern) {
+    _ensureDateSymbols();
     return DateFormat(pattern, locale).format(switch (timeZoneOffsetMinutes) {
       final int offset => value.toUtc().add(Duration(minutes: offset)),
       null => useLocalTime ? value.toLocal() : value.toUtc(),
@@ -302,10 +307,7 @@ class BeakFormatPolicy {
   );
 
   String _calendar(DateTime value, String pattern) {
-    if (!_dateSymbolsReady) {
-      unawaited(initializeDateFormatting(locale));
-      _dateSymbolsReady = true;
-    }
+    _ensureDateSymbols();
     return DateFormat(pattern, locale).format(value);
   }
 
@@ -455,7 +457,7 @@ class BeakFormatPolicy {
         'Formatting precision or UTC offset is out of range.',
       );
     }
-    return BeakFormatPolicy(
+    final policy = BeakFormatPolicy(
       locale: locale,
       currency: option('currency', 'USD'),
       datePattern: option('datePattern', 'yyyy-MM-dd'),
@@ -472,5 +474,39 @@ class BeakFormatPolicy {
       timeZoneOffsetMinutes: offset,
       emptyValue: option('emptyValue', '—'),
     );
+    policy._requireFormattablePatterns();
+    return policy;
+  }
+
+  /// The longest date or time pattern a portable policy accepts: real ones
+  /// are a few letters, and a longer one only multiplies the size of every
+  /// formatted cell.
+  static const int _maxPatternLengthInCharacters = 64;
+
+  /// Formats a sample instant with every date pattern, so a pattern intl
+  /// cannot format (it throws `UnsupportedError`) is refused when the policy is read, not when the first
+  /// value is formatted (which, in an export, is after the file has started).
+  void _requireFormattablePatterns() {
+    final patterns = [
+      datePattern,
+      dateInputPattern,
+      dateTimePattern,
+      timePattern,
+    ];
+    if (patterns.any(
+      (pattern) => pattern.length > _maxPatternLengthInCharacters,
+    )) {
+      throw const FormatException(
+        'A date or time pattern is longer than $_maxPatternLengthInCharacters characters.',
+      );
+    }
+    final sample = DateTime.utc(2000);
+    try {
+      for (final pattern in patterns) {
+        date(sample, pattern: pattern);
+      }
+    } on UnsupportedError catch (error) {
+      throw FormatException('Invalid date or time pattern: ${error.message}');
+    }
   }
 }

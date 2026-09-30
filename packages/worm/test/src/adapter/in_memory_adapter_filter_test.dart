@@ -124,6 +124,34 @@ void main() {
     });
   });
 
+  group('patterns over text with line breaks', () {
+    test('a % spans a line break and a _ stands for one, as in SQL', () async {
+      final adapter = InMemoryAdapter();
+      await adapter.connect();
+      await adapter.executeSchema(
+        const SchemaDescriptor.createTable(table: 'people'),
+      );
+      await adapter.insertMany(
+        const InsertManyDescriptor(
+          table: 'people',
+          rows: <Map<String, Object?>>[
+            <String, Object?>{'id': 1, 'name': 'first\nsecond'},
+            <String, Object?>{'id': 2, 'name': 'first second'},
+            <String, Object?>{'id': 3, 'name': 'other'},
+          ],
+        ),
+      );
+      expect(_names(await _where(adapter, _name.like('%second'))), <String>{
+        'first\nsecond',
+        'first second',
+      });
+      expect(
+        _names(await _where(adapter, _name.like('first_second'))),
+        <String>{'first\nsecond', 'first second'},
+      );
+    });
+  });
+
   group('escaped patterns', () {
     const escapeCharacter = r'\';
 

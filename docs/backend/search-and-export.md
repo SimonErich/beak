@@ -96,13 +96,13 @@ The response is `text/csv; charset=utf-8` with `content-disposition: attachment;
 
 What the file contains:
 
-- Every row that matches the spec's `filter`, `search` and `sorts`. The spec's `pagination` is ignored: the service reads the table 500 rows at a time and streams them, so memory stays flat and the browser downloads everything.
+- Every row that matches the spec's `filter`, `search` and `sorts`. The spec's `pagination` is ignored: the service reads the table 500 rows at a time and streams them, so memory stays flat and the browser downloads everything. Your sorts come first and the primary key breaks their ties (it is added when you sent none), so a row written while the file is being made is not skipped or written twice at a page boundary.
 - The header is the labels of the columns the model shows in a table, in order, unless `columns` names others. Those are the columns whose `visibleOn` includes the table context.
 - Only columns the caller may read. An unreadable column is dropped from the header and from every row.
 - Password columns as `••••••••`, in every mode.
 - Row scopes and soft deletes as in `query`. Send `"withTrashed": true` to include deleted rows.
 
-The first page is queried before the response starts, so a bad spec, an unknown column or a policy refusal arrives as an ordinary error envelope. A failure on a later page cannot: the status line is already sent, so the stream ends short and the download is a truncated file with a `200`.
+The first page is queried before the response starts, so a bad spec, an unknown column, a policy refusal or a display pattern intl cannot format (a `formatting` date pattern such as `EEEEEEE`, or one longer than 64 characters) arrives as an ordinary error envelope. A failure on a later page cannot: the status line is already sent, so the stream ends short and the download is a truncated file with a `200`.
 
 ### Choosing the cell text
 
@@ -154,7 +154,7 @@ From Dart, `BeakClient.export(table, spec, formatting:, columns:, formats:, raw:
 | A search over an unreadable column is refused | Do not put a field in `globalSearchSources` that some roles cannot read, or their search fails as a whole |
 | An export has no row limit | Every matching row is streamed. Filter it, and put a proxy timeout in front of a very large table |
 | A failure after the first page truncates the file | The response is already `200`. Compare the row count with `total` from a query if the file matters |
-| A cell that would run as a formula gets a leading quote | A value that begins with `=`, `+`, `-` or `@` (or a tab or carriage return) is written with a `'` in front, so `=1+1` arrives as text: `'=1+1`. A cell that is only a number, such as `-5`, is left alone. The quote is part of the cell, so a job that reads the file back strips it |
+| A cell that would run as a formula gets a leading quote | A value that begins with `=`, `+`, `-` or `@` (after any spaces, or with a tab or carriage return in front) is written with a `'` in front, so `=1+1` arrives as text: `'=1+1`. A cell that is only a number, such as `-5`, is left alone. The quote is part of the cell, so a job that reads the file back strips it |
 | No byte order mark | Excel may need the import dialog with UTF-8 selected to show `Ä` correctly |
 | Sort order comes from the database | Byte order on SQLite, the collation on Postgres. `Ä` sorts after `p` on SQLite |
 | Formatted times are UTC or a fixed offset | Send `timeZoneOffsetMinutes`. Device-local conversion is never applied on the server |

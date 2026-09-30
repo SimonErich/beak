@@ -92,19 +92,35 @@ final class BeakFieldAccess {
   /// Current authenticated identity.
   final BeakPrincipal? principal;
 
-  /// Whether [column] of [model] may be returned or used in a user-controlled
-  /// query.
+  /// Whether the policy lets [column] of [model] be shown to the caller.
+  ///
+  /// This is what forms are told through the capabilities. A password column
+  /// passes it, so a form still offers the input; its stored value is never
+  /// returned, see [redact].
   bool canReadColumn(BeakModel model, BeakColumn column) =>
       _canRead(model, BeakScalarField<Object>(model: model, column: column));
 
   /// Rejects queries that could reveal a protected field indirectly.
-  void requireReadColumn(BeakModel model, BeakColumn column) =>
-      enforcePolicyDecision(
-        allowed: canReadColumn(model, column),
-        principal: principal,
-        action: 'read field "${column.key}" of',
-        model: model,
+  ///
+  /// A password column is always refused: a `startsWith` filter or a sort over
+  /// a stored hash would reveal it one character at a time.
+  void requireReadColumn(BeakModel model, BeakColumn column) {
+    if (_isSecret(column)) {
+      throw BeakValidationException(
+        'Password column "${column.key}" cannot be filtered, sorted or '
+        'aggregated.',
       );
+    }
+    enforcePolicyDecision(
+      allowed: canReadColumn(model, column),
+      principal: principal,
+      action: 'read field "${column.key}" of',
+      model: model,
+    );
+  }
+
+  static bool _isSecret(BeakColumn column) =>
+      column.semantic.kind == BeakSemanticKind.password;
 
   /// Rejects protected input fields before validation or persistence.
   ///
@@ -135,12 +151,16 @@ final class BeakFieldAccess {
   }
 
   /// Removes protected fields from a record and all included relationships.
+  ///
+  /// The value of a password column is removed whatever the policy says.
   BeakRecord redact(BeakModel model, BeakRecord record) {
     if (!policy.canView(principal, model)) return const BeakRecord(values: {});
     return BeakRecord(
       values: {
         for (final entry in record.values.entries)
-          if (_columnPasses(model, entry.key, _canRead)) entry.key: entry.value,
+          if (_columnPasses(model, entry.key, _canRead) &&
+              !_isSecretKey(model, entry.key))
+            entry.key: entry.value,
       },
       relations: {
         for (final entry in record.relations.entries)
@@ -233,6 +253,12 @@ final class BeakFieldAccess {
       },
     );
   }
+
+  bool _isSecretKey(BeakModel model, String key) =>
+      switch (model.columnByKey(key)) {
+        final BeakColumn column => _isSecret(column),
+        null => false,
+      };
 
   bool _canRead(BeakModel model, BeakFieldRef<Object> field) =>
       switch (policy) {

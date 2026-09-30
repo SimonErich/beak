@@ -16,10 +16,10 @@ A Beak project compiles to two programs, a server and a panel, and both have to 
 
 | File | What it does |
 | --- | --- |
-| `deploy/Dockerfile.server` | Resolves the project, runs `beak prepare`, compiles the server and the migrate CLI, and copies them into a `debian:bookworm-slim` image |
+| `deploy/Dockerfile.server` | Resolves the project, runs `beak prepare`, builds the server and the migrate CLI with `dart build cli`, and copies the two bundles into a `debian:bookworm-slim` image |
 | `deploy/Dockerfile.web` | Builds the panel with `flutter build web --release` and serves the static files with nginx |
 | `deploy/nginx.conf` | Serves the panel, falls back to `index.html` so client-side routes survive a refresh, and caches `/assets/` |
-| `deploy/docker-compose.prod.yml` | Postgres, MinIO, a one-shot bucket step, a one-shot migrate step, the server and the panel |
+| `deploy/docker-compose.prod.yml` | Postgres, a one-shot migrate step, the server (uploads on a volume) and the panel |
 | `deploy/.env.prod.example` | The server's variables, to copy to a git-ignored `.env.prod` beside it |
 | `.dockerignore` (repository root) | Keeps `.git`, build output, local databases and `.env` out of the build context |
 
@@ -32,16 +32,12 @@ flowchart LR
   migrate["migrate (one-shot)"] --> postgres
 ```
 
-The split follows a real boundary. The server is pure Dart and never imports Flutter or obers_ui, so it compiles to one executable and needs no Flutter in its runtime image. Only the panel needs a Flutter toolchain, and only at build time. `beak doctor` fails when a panel file imports server code, which matters because `dart:io` compiles for the web and only breaks when it runs.
+The split follows a real boundary. The server is pure Dart and never imports Flutter or obers_ui, so it builds to a self-contained bundle and needs no Flutter in its runtime image. Only the panel needs a Flutter toolchain, and only at build time. `beak doctor` fails when a panel file imports server code, which matters because `dart:io` compiles for the web and only breaks when it runs.
 
-!!! warning "Three known failures in the deploy files"
-    These were found by running the steps for this page, and they are the first things to check on your copy.
+!!! warning "One known failure in the deploy files"
+    `Dockerfile.web` cannot build until the obers_ui pin moves. The pubspecs pin obers_ui by git commit, and at the commit pinned when this page was checked (`c956d25634c9`) the panel does not compile: resolving `beak_frontend` against it gives 175 analyzer errors, such as undefined `OiFieldLabel`, `OiBarPattern` and `headerGap`. The panel is written against a newer obers_ui than the one pinned. See [Working with obers_ui](../contributing/working-with-obers-ui.md) for the pin and how to move it.
 
-    - `Dockerfile.server` runs `dart compile exe`, which a current Dart SDK (3.13.2 here) refuses for this dependency graph: `'dart compile' does not support build hooks, use 'dart build' instead. Packages with build hooks: sqlite3.` The working command is `dart build cli`, shown below.
-    - `Dockerfile.web` cannot build until the obers_ui pin moves. The pubspecs pin obers_ui by git commit, and at the commit pinned when this page was checked (`c956d25634c9`) the panel does not compile: resolving `beak_frontend` against it gives 175 analyzer errors, such as undefined `OiFieldLabel`, `OiBarPattern` and `headerGap`. The panel is written against a newer obers_ui than the one pinned. See [Working with obers_ui](../contributing/working-with-obers-ui.md) for the pin and how to move it.
-    - The compose stack selects S3 storage, and the shop does not register the S3 driver. The server exits at boot with `No storage driver is registered for "s3". Registered drivers: memory, local.` Use `local` (below) or register the driver in your own project.
-
-    The server steps below were run on the host against Postgres 16. The two images were not built: the first would stop on the compile error above and the second on the pin, and both were reproduced on the host.
+    The server steps below were run on the host against Postgres 16, and the commands `Dockerfile.server` runs (`dart build cli` for the server and the migrate CLI) were run on the host as well. The server image itself was not built where this page was checked: `docker build --check` passes for both Dockerfiles, and building the web image would stop on the pin.
 
 ## Build the server
 
@@ -59,7 +55,7 @@ $ dart build cli --target bin/migrate.dart -o build/migrate
 
 `dart build cli` ships with recent Dart SDKs (these steps ran on 3.13.2). It writes a bundle, not a single file: `bundle/bin/<name>` is the executable and `bundle/lib/` holds the native SQLite library the build hook produced. Ship the whole `bundle/` directory, with `bin` and `lib` side by side. `bin/serve.dart` and `bin/migrate.dart` are the two entrypoints every Beak project has, because `beak prepare` writes them. They are generated, so build them after `prepare`.
 
-In `Dockerfile.server`, the two `dart compile exe` lines become `dart build cli` lines, and the runtime stage copies the bundle directories instead of two files. Build the image and start it once before you trust it.
+`Dockerfile.server` runs the same two commands, then copies both `bundle/` directories into the runtime image, as `/opt/beak/server` and `/opt/beak/migrate`. The SQLite library travels inside each bundle, so the runtime image installs nothing but CA certificates. Build the image and start it once before you trust it.
 
 ## Migrate, then seed if you must
 
@@ -206,16 +202,15 @@ Route `/uploads/` the same way if the local driver serves your files, and size `
 
 ## The compose stack
 
-`deploy/docker-compose.prod.yml` wires Postgres 16, MinIO, the server and the panel. It parses (`docker compose -f deploy/docker-compose.prod.yml config`). Its intended flow, from the repository root:
+`deploy/docker-compose.prod.yml` wires Postgres 16, the server and the panel. It parses (`docker compose -f deploy/docker-compose.prod.yml config`). Its intended flow, from the repository root:
 
 ```bash
 cp deploy/.env.prod.example deploy/.env.prod   # then edit the secrets
 
-# data services
-docker compose -f deploy/docker-compose.prod.yml up -d --build postgres minio
+# the database
+docker compose -f deploy/docker-compose.prod.yml up -d postgres
 
-# one-time setup (bucket, schema, seed)
-docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm createbuckets
+# one-time setup (schema, seed)
 docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm migrate
 docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm migrate db:seed
 
@@ -223,14 +218,12 @@ docker compose -f deploy/docker-compose.prod.yml --profile setup run --rm migrat
 docker compose -f deploy/docker-compose.prod.yml up -d --build server web
 ```
 
-The API is published on host port 8080 and the panel on 8090. Postgres and MinIO publish nothing, so only the two application containers are reachable from outside. `up` never migrates; the `migrate` service sits behind the `setup` profile and runs when you ask, so run it again after every schema change.
+The API is published on `127.0.0.1:8080` and the panel on `127.0.0.1:8090`, and Postgres publishes nothing. The shop's server has no policy and no login (next section), so the stack keeps both application ports on the loopback interface. Publish them on another interface only once that is fixed and TLS is in front. `up` never migrates; the `migrate` service sits behind the `setup` profile and runs when you ask, so run it again after every schema change.
 
 Read the file before you rely on it:
 
-- The credentials live in two places. The compose file sets `POSTGRES_PASSWORD: beak` and `MINIO_ROOT_PASSWORD: beaksecret`, and your `.env.prod` repeats them inside `DATABASE_URL` and `BEAK_S3_*`. Change both, or the server cannot log in. The `createbuckets` step hardcodes the MinIO login as well.
-- The bucket is public. `createbuckets` runs `mc anonymous set download`, so anyone with an object URL can read it. That matches how Beak treats uploads (see [Security](security.md)), and it is a choice you now know you made.
-- Storage is `s3` in `.env.prod.example`. Given the driver problem above, switch to `local` with a volume for `BEAK_LOCAL_ROOT_DIR`, or register the S3 driver in your project first. S3 file URLs are also built from `BEAK_S3_ENDPOINT`, which is `http://minio:9000` here and unreachable from a browser, so set `BEAK_S3_PUBLIC_BASE_URL` to an address it can reach.
-- `BEAK_AUTH_SECRET` does nothing. No Beak code reads it.
+- The credentials live in two places. The compose file sets `POSTGRES_PASSWORD: beak`, and your `.env.prod` repeats it inside `DATABASE_URL`. Change both, or the server cannot log in.
+- Uploads use the `local` driver, on the `uploads` volume the server mounts at `/data/uploads`. The public URL in `.env.prod` (`BEAK_LOCAL_PUBLIC_BASE_URL`) is what the browser is given, so set it to the address the API is reachable at. The shop registers no S3 driver, so `BEAK_STORAGE_DRIVER=s3` would stop the server at boot (see [Environment and config](environment-and-config.md#storage)).
 - The server has no auth or policy. The shop is a demonstration with no login. See the next section.
 
 ## What stays yours

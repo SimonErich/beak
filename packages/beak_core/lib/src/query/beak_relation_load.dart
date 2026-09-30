@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import '../common/beak_exception.dart';
 import '../common/list_equality.dart';
 import 'beak_filter.dart';
 import '../common/json_support.dart';
@@ -45,8 +46,19 @@ final class BeakRelationLoad {
   /// `null` they mean no constraint and no nested loads, so `{"relation":
   /// "author"}` loads the bare relation.
   ///
-  /// Throws a [BeakConfigurationException] on malformed input.
-  static BeakRelationLoad fromJson(Map<String, Object?> json) {
+  /// Throws a [BeakConfigurationException] on malformed input, including
+  /// loads nested more than 64 levels deep.
+  static BeakRelationLoad fromJson(Map<String, Object?> json) =>
+      _decode(json, 0);
+
+  static const int _maxNesting = 64;
+
+  static BeakRelationLoad _decode(Map<String, Object?> json, int depth) {
+    if (depth >= _maxNesting) {
+      throw const BeakConfigurationException(
+        'BeakRelationLoad JSON is nested more than $_maxNesting levels deep.',
+      );
+    }
     final Map<String, Object?>? filterJson = optionalJsonMap(
       json,
       'filter',
@@ -64,7 +76,7 @@ final class BeakRelationLoad {
           'nested',
           'BeakRelationLoad',
         ))
-          BeakRelationLoad.fromJson(child),
+          _decode(child, depth + 1),
       ],
     );
   }

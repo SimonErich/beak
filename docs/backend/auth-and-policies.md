@@ -72,7 +72,7 @@ Authentication is one interface, called by the auth middleware on every request:
 
 `authSessions:` on `defaults.build` mounts `POST /api/auth/login`, `POST /api/auth/logout` and `GET /api/auth/me`, and installs a `TokenSessionAuthGuard` over the same store, so the tokens it issues are the tokens it checks. Pass `authGuard:` only to identify callers another way (a JWT, a gateway header); an explicit guard takes over.
 
-`BeakAuthSessions` takes a `TokenSessionStore`, a list of `BeakUserAccount`s and a `secret`. Each account stores `hashBeakPassword(password, secret: secret)`, an HMAC-SHA256 under that secret, and never the password. Beak has no environment variable for the secret. Read yours through `defaults.environment`, so a test that injects an environment injects it here too.
+`BeakAuthSessions` takes a `TokenSessionStore`, a list of `BeakUserAccount`s and a `secret`. Each account stores `hashBeakPassword(password, secret: secret)`, an HMAC-SHA256 under that secret, and never the password. Beak has no environment variable for the secret. Read yours through `defaults.environment`, so a test that injects an environment injects it here too. An empty secret, or two accounts with one username, fails at startup with a `BeakConfigurationException`, so one account can never silently replace another.
 
 ```console
 $ curl -s -X POST localhost:8392/api/auth/login -H 'content-type: application/json' \
@@ -89,7 +89,7 @@ The default `InMemoryTokenSessionStore` gives every session 12 hours from login 
 | Property | What it is |
 | --- | --- |
 | Accounts | A list built at boot: no user table, no password change, no disabling one without a deploy |
-| Password hash | One shared secret, no per-user salt, no work factor. Compared as a plain string, not in constant time |
+| Password hash | One shared secret, no per-user salt, no work factor. Compared in constant time, for an unknown username too |
 | Login attempts | Not counted, throttled or locked out |
 | Sessions | Per process, so a second instance does not know the first one's tokens |
 
@@ -136,6 +136,7 @@ A model with no rule is invisible. Its routes answer `401` to an anonymous reque
 | Anonymous, denied | `401` `authentication`: `Sign in to view "products".` |
 | Signed in, denied | `403` `authorization`: `Principal "sam" is not allowed to delete "products".` |
 | Row outside the caller's scope | `404`, as if it did not exist |
+| A create or update that would leave the row outside the scope | `403` `authorization`: `The record would be outside your permitted scope of "notes".` |
 | A read-only field in a body | `422` with a `fieldErrors` entry |
 | A denied operation in `POST /api/commits` | `200` with an `unapplied` outcome, `reason: rejected` and `error.code` `authorization` or `authentication` |
 
@@ -146,19 +147,19 @@ $ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/commits ... # sam de
 {"saveId":"del1","mode":"atomic","outcomes":[{"id":"d","status":"unapplied","error":{"code":"authorization","message":"This operation is not permitted.","fieldErrors":{}},"reason":"rejected"}]} [200]
 ```
 
-A stored rejection belongs to its `saveId` and principal. Sending the same plan again with the same id returns the same rejection, even if the rules changed in between, so a client that wants a fresh decision needs a fresh `saveId`.
+A save the policy refused as a whole reached no data and is not stored: the same `saveId` is decided again, `GET /api/commits/<saveId>` answers `404`, and a caller who may not write cannot grow the receipt table by trying. A rejection for validation, a conflict or a stale version is stored and belongs to its `saveId` and principal. Sending the same plan again with the same id returns the same rejection, even if the rules changed in between, so a client that wants a fresh decision on those needs a fresh `saveId`.
 
 ## Which rows
 
 `read: authenticated` answers "may this caller read orders". It does not answer "may this caller read these orders". Without a row scope, a rule meant as "customers see only their own orders" is bypassed by any query with a filter the caller writes, because the filter comes from the client.
 
-A `rowScope` is a typed filter built for the signed-in principal, and it is intersected with every read and write of the model: query, aggregate, summary, batch, get, update, delete, restore, attach, detach, export, upload lookups and graph commits. Relation loads and filters that reach a related model apply that model's scope too, so loading a record through another resource grants nothing.
+A `rowScope` is a typed filter built for the signed-in principal, and it is intersected with every read and write of the model: query, aggregate, summary, batch, get, update, delete, restore, attach, detach, export, upload lookups and graph commits. A write is judged twice: the row must be inside the scope before the write, and the row a create inserts or an update leaves behind must be inside it too, so a caller cannot plant a record in someone else's slice or hand one of theirs away. A write that breaks that is a `403`. Relation loads and filters that reach a related model apply that model's scope too, so loading a record through another resource grants nothing.
 
 ```dart
   rowScope: (principal) => NoteModel.authorId.eq(principal.id),
 ```
 
-The filter is built from the model's fields, so renaming one is a compile error and not a rule that silently matches nothing. An anonymous request has no principal to build it for, and under `BeakPolicies` it sees no rows.
+The filter is built from the model's fields, so renaming one is a compile error and not a rule that silently matches nothing. The server decides it against the values a write leaves behind, which it can do for equality, inequality, ordering, list membership, `isNull`, `and` and `or`. A scope that goes through a relationship or a text match cannot be decided before the row exists, so a create is refused with a `422`, and so is an update that changes a field the scope reads. An anonymous request has no principal to build it for, and under `BeakPolicies` it sees no rows.
 
 A scope narrows, it does not refuse. `read` false is a `403` with no data. A scope is a successful request with fewer rows:
 
@@ -247,10 +248,10 @@ One gap deserves care. A `preparePlan` you write reads through the transaction-b
 | `BeakPolicies` field access is per model, plus `hiddenFields` | A field is hidden from the principals its access value names, and from nobody else. A rule that depends on the value of the field, or on the record, needs a hand-written `BeakFieldPolicy`, which replaces `BeakPolicies` |
 | Roles are strings on the principal | There is no hierarchy. `manager` does not imply `staff`; give the principal both, or list both in `BeakAccess.any` |
 | An excluded row is a `404` | The response never confirms that a row you may not see exists |
-| Denials on `/api/commits` are receipts | `200` with `unapplied` outcomes and generic messages. The same `saveId` replays the stored rejection |
+| Denials on `/api/commits` are answered as receipts, and not stored | `200` with `unapplied` outcomes and generic messages. Nothing is kept, so the same `saveId` is decided again |
 | A preparer's reads are not scoped | Pass `authorizeRead: transaction.authorizeRead` to `BeakCandidateGraph.open` so the records the plan names stay within the caller's scope |
 | Sessions are per process and last 12 hours from login | A restart or a second instance signs users out. Implement `TokenSessionStore` over shared storage |
-| The probes skip the guard and the policy | `/healthz` and `/readyz` need no rule, and the guard never looks at them, so an `Authorization` header a load balancer adds cannot fail a probe |
+| The probes and the login skip the guard and the policy | `/healthz` and `/readyz` need no rule, and the guard never looks at them, so an `Authorization` header a load balancer adds cannot fail a probe. `POST /api/auth/login` is skipped too, so a token left over from an expired session does not answer 401 to the sign-in that replaces it |
 
 ## Verify it
 

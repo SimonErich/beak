@@ -9,7 +9,7 @@ them.
 
 The FTP storage driver, and the worked example of writing one.
 
-New in 0.9.0: `MKD` directory creation shares the transfer path's rooting, so a relative `baseDir` works on servers that are not chrooted.
+New in 0.9.0: `MKD` directory creation shares the transfer path's rooting, so a relative `baseDir` works on servers that are not chrooted. `SocketFtpTransport` validates every key before it opens a connection, so a key can no longer carry a line break into a command.
 
 Beak is pre-1.0: the API is not frozen, the wire format is. See
 [Upgrading](https://simonerich.github.io/beak/start-here/upgrading/) for how to

@@ -125,6 +125,29 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+
+    test(
+      'refuses loads nested too deeply instead of overflowing the stack',
+      () {
+        var load = <String, Object?>{'relation': 'a'};
+        for (var level = 0; level < 100000; level++) {
+          load = {
+            'relation': 'a',
+            'nested': [load],
+          };
+        }
+        expect(
+          () => BeakRelationLoad.fromJson(load),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (e) => e.message,
+              'message',
+              contains('nested'),
+            ),
+          ),
+        );
+      },
+    );
   });
 
   group('equality', () {

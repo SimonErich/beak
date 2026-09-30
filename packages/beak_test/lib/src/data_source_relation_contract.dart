@@ -379,11 +379,25 @@ void _defineEdgeTests(_Harness harness, _Edge edge) {
     switch (edge.relation) {
       case BeakBelongsToMany():
         _definePivotTests(harness, edge);
+        _defineMissingOwnerTest(harness, edge);
       case BeakHasMany():
         _defineChildrenTests(harness, edge);
+        _defineMissingOwnerTest(harness, edge);
       case BeakBelongsTo() || BeakHasOne():
         _defineToOneTests(harness, edge);
     }
+  });
+}
+
+void _defineMissingOwnerTest(_Harness harness, _Edge edge) {
+  test('attaching to an owner that does not exist is not found', () async {
+    await harness.given(_Fixture([edge]));
+    expect(
+      () => harness.source.attach(edge.owner.table, 'no-such-owner', edge.key, [
+        edge.relatedId(0),
+      ]),
+      throwsA(isA<BeakNotFoundException>()),
+    );
   });
 }
 

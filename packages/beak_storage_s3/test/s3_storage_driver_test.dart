@@ -291,6 +291,21 @@ void main() {
         expect(url.queryParameters['expires'], '300');
       });
 
+      test('keeps a requested expiry inside what S3 accepts', () async {
+        // A lifetime outside 1 second to 7 days would otherwise fail on every
+        // request as an opaque storage error.
+        final long = await driver.url(
+          'products/photo.png',
+          expiresIn: const Duration(days: 30),
+        );
+        expect(long.queryParameters['expires'], '604800');
+        final short = await driver.url(
+          'products/photo.png',
+          expiresIn: const Duration(milliseconds: 500),
+        );
+        expect(short.queryParameters['expires'], '1');
+      });
+
       test('rejects malformed keys', () async {
         await expectLater(
           driver.url('a//b.png'),

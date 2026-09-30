@@ -116,9 +116,7 @@ final class UploadService {
         'uploads need a file or image column.',
       ),
     };
-    if (!key.startsWith('$storagePath/') ||
-        key.split('/').any((segment) => segment == '..' || segment == '.') ||
-        key.contains('\\')) {
+    if (!key.startsWith('$storagePath/') || !_isWellFormedKey(key)) {
       throw BeakValidationException(
         'Key "$key" does not belong to column "$columnKey" '
         '(expected the "$storagePath/" prefix).',
@@ -126,6 +124,18 @@ final class UploadService {
     }
     if (!await storage.exists(key)) {
       throw BeakNotFoundException('No stored file "$key".');
+    }
+  }
+
+  /// Whether [key] is a well-formed storage key. A key a client sends never
+  /// reaches a driver otherwise: a malformed one is the client's mistake (422),
+  /// not a storage failure.
+  static bool _isWellFormedKey(String key) {
+    try {
+      BeakStorageKeys.validate(key);
+      return true;
+    } on BeakStorageException {
+      return false;
     }
   }
 
@@ -252,9 +262,20 @@ final class UploadService {
     String mimeType, {
     required BeakUpload fallback,
   }) {
-    final String? extension = _extensionForMime(mimeType) ?? fallback.extension;
+    final String? extension =
+        _extensionForMime(mimeType) ?? _safeExtension(fallback.extension);
     return extension == null ? base : '$base.$extension';
   }
+
+  /// [extension] as the client declared it, when it is short and plain enough
+  /// to sit in a storage key: the filename is client input, and a key is a
+  /// path on disk, a URL and an FTP command, so anything else is dropped.
+  static String? _safeExtension(String? extension) =>
+      extension != null && _plainExtension.hasMatch(extension)
+      ? extension
+      : null;
+
+  static final RegExp _plainExtension = RegExp(r'^[a-z0-9]{1,16}$');
 
   String? _extensionForMime(String mimeType) {
     for (final type in BeakFileType.values) {

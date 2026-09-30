@@ -87,18 +87,42 @@ final class CsvExportService {
     final visibleColumns = selected
         .where((column) => canRead?.call(column) ?? true)
         .toList();
+    final BeakQuerySpec ordered = _orderedByKey(spec, model);
     final firstPage = await dataSource.query(
-      spec.paginate(page: 1, perPage: pageSizeInRows),
+      ordered.paginate(page: 1, perPage: pageSizeInRows),
     );
     return _stream(
       model,
-      spec,
+      ordered,
       firstPage,
       columns: visibleColumns,
       formats: formats,
       formatting: formatting,
       raw: raw,
       canRead: canRead,
+    );
+  }
+
+  /// [spec] with the primary key as its last sort.
+  ///
+  /// The export reads the table one page at a time, and a database gives no
+  /// order to `LIMIT`/`OFFSET` without an `ORDER BY`: a row written or moved
+  /// between two pages would then be skipped or exported twice. Sorting by
+  /// the key makes every page a stable slice, and the caller's own sorts still
+  /// come first.
+  static BeakQuerySpec _orderedByKey(BeakQuerySpec spec, BeakModel model) {
+    final String key = model.primaryKey.key;
+    if (spec.sorts.any((BeakSort sort) => sort.columnKey == key)) {
+      return spec;
+    }
+    return BeakQuerySpec(
+      table: spec.table,
+      filter: spec.filter,
+      sorts: [...spec.sorts, BeakSort(key)],
+      search: spec.search,
+      relationLoads: spec.relationLoads,
+      pagination: spec.pagination,
+      withTrashed: spec.withTrashed,
     );
   }
 
@@ -249,7 +273,7 @@ final class CsvExportService {
   /// Quotes [cell] for CSV, after making sure a spreadsheet will not run it.
   ///
   /// Excel, Numbers and Sheets evaluate a cell that starts with `=`, `+`, `-`
-  /// or `@` (or a tab or carriage return that hides one) as a formula, so
+  /// or `@` (or a tab, a carriage return or spaces that hide one) as a formula, so
   /// user-entered text such as `=HYPERLINK(...)` in an exported name would
   /// execute on the machine of whoever opens the file. A leading `'` makes it
   /// text. A cell that is only a number (`-5`) is left alone so amounts stay
@@ -263,6 +287,8 @@ final class CsvExportService {
 
   static bool _startsLikeFormula(String cell) =>
       cell.isNotEmpty &&
-      '=+-@\t\r'.contains(cell[0]) &&
+      ('\t\r'.contains(cell[0]) || _formulaLead.hasMatch(cell.trimLeft())) &&
       num.tryParse(cell) == null;
+
+  static final RegExp _formulaLead = RegExp(r'^[=+\-@]');
 }

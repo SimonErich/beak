@@ -221,25 +221,27 @@ That snippet is illustrative. `BookColumns.priceInCents` is the generated column
 
 | Operator | SQL meaning | Operand | Server translation |
 | --- | --- | --- | --- |
-| `eq` | `=` | Any scalar | `Operator.eq` |
-| `neq` | `!=` | Any scalar | `Operator.neq` |
-| `gt` | `>` | Any scalar | `Operator.gt` |
-| `gte` | `>=` | Any scalar | `Operator.gte` |
-| `lt` | `<` | Any scalar | `Operator.lt` |
-| `lte` | `<=` | Any scalar | `Operator.lte` |
-| `like` | `LIKE`, case-sensitive | String pattern | `Operator.like` |
-| `ilike` | `LIKE`, case-insensitive | String pattern | `Operator.ilike` |
-| `contains` | Substring | String | `Operator.ilike` with `%value%`, `value` escaped |
-| `startsWith` | Prefix | String | `Operator.ilike` with `value%`, `value` escaped |
-| `endsWith` | Suffix | String | `Operator.ilike` with `%value`, `value` escaped |
+| `eq` | `=` | One value that fits the column | `Operator.eq` |
+| `neq` | `!=` | One value that fits the column | `Operator.neq` |
+| `gt` | `>` | One value that fits the column | `Operator.gt` |
+| `gte` | `>=` | One value that fits the column | `Operator.gte` |
+| `lt` | `<` | One value that fits the column | `Operator.lt` |
+| `lte` | `<=` | One value that fits the column | `Operator.lte` |
+| `like` | `LIKE`, case-sensitive | String pattern, text column | `Operator.like` |
+| `ilike` | `LIKE`, case-insensitive | String pattern, text column | `Operator.ilike` |
+| `contains` | Substring, ignoring case | String, text column | `Operator.ilike` with `%value%`, `value` escaped |
+| `startsWith` | Prefix, ignoring case | String, text column | `Operator.ilike` with `value%`, `value` escaped |
+| `endsWith` | Suffix, ignoring case | String, text column | `Operator.ilike` with `%value`, `value` escaped |
 | `isNull` | `IS NULL` | None (`BeakNullValue`) | `Operator.isNull` |
 | `isNotNull` | `IS NOT NULL` | None (`BeakNullValue`) | `Operator.isNotNull` |
-| `inList` | `IN (...)` | `BeakListValue` | `Operator.inList` |
-| `notInList` | `NOT IN (...)` | `BeakListValue` | `Operator.notInList` |
-| `between` | `BETWEEN`, inclusive | `BeakListValue` of exactly two values | `Operator.between` |
-| `notBetween` | `NOT BETWEEN`, inclusive | `BeakListValue` of exactly two values | `Operator.notBetween` |
+| `inList` | `IN (...)` | `BeakListValue` of values that fit the column | `Operator.inList` |
+| `notInList` | `NOT IN (...)` | `BeakListValue` of values that fit the column | `Operator.notInList` |
+| `between` | `BETWEEN`, inclusive | `BeakListValue` of exactly two values that fit the column | `Operator.between` |
+| `notBetween` | `NOT BETWEEN`, inclusive | `BeakListValue` of exactly two values that fit the column | `Operator.notBetween` |
 
 `ilike` compiles to `ILIKE` on Postgres and to `LIKE` on SQLite (`packages/worm_postgres/lib/src/compiler/postgres_compiler.dart`, `packages/worm_sqlite/lib/src/compiler/sqlite_compiler.dart`). Every pattern the server builds states its escape character, a backslash, in the SQL (`ESCAPE '\'`), because SQLite has no default one and PostgreSQL and MySQL disagree on theirs. The operand of `contains`, `startsWith` and `endsWith` is escaped with `beakEscapeLike` (`packages/beak_core/lib/src/query/beak_like_pattern.dart`), so `50%` finds the text `50%` and not every row that contains `50`. The operand of `like` and `ilike` is a pattern: `%` and `_` are wildcards in it, and a backslash makes the next character literal, so `50\%` matches the text `50%`. An operand of the wrong shape for its operator (a number for `contains`, a scalar for `inList`, three values for `between`) is a `BeakValidationException` from the translator, which the API returns as a `422` (see [Rules and limits](#rules-and-limits)).
+
+An operand also has to fit the column it is compared with, and the translator checks that before any database sees it, so a mistake is the same `422` on every database. An integer column takes integers, a decimal column integers and finite fractions, a boolean column booleans, a timestamp column a `BeakDateTimeValue` and a text column (enums included) a string that holds no NUL character. A column whose semantic changes what is stored is checked by what it stores: a money, exact-decimal or duration column takes integer units, a calendar-date or time column takes ISO text. `null` always passes, `inList` and the range operators check every element, and the pattern operators (`like`, `ilike`, `contains`, `startsWith`, `endsWith`) apply to text columns only.
 
 ## Values on the wire
 
@@ -252,8 +254,8 @@ That snippet is illustrative. `BookColumns.priceInCents` is the generated column
 | `BeakIntValue` | `int` | `42` | |
 | `BeakDoubleValue` | `double` | `1.5` | A JSON number with a fraction decodes to this |
 | `BeakStringValue` | `String` | `"text"` | Also the wire form of an enum name and of a `BeakDate` |
-| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "2026-01-05T00:00:00.000Z"}` | Tagged so it never decodes as a plain string. The value is always the UTC instant, `toUtc().toIso8601String()`, so a local `DateTime` travels with a `Z` and names the same moment for the server. Two values are equal when they name the same instant |
-| `BeakListValue` | `List<BeakValue>` | `[1, 2, 3]` | Operand of `inList`, `notInList`, `between`, `notBetween` |
+| `BeakDateTimeValue` | `DateTime` | `{"type": "dateTime", "value": "2026-01-05T00:00:00.000Z"}` | Tagged so it never decodes as a plain string. The value is always the UTC instant, `toUtc().toIso8601String()`, so a local `DateTime` travels with a `Z` and names the same moment for the server. A hand-written value with no offset is read as UTC, never in the zone of the machine that decodes it. Two values are equal when they name the same instant |
+| `BeakListValue` | `List<BeakValue>` | `[1, 2, 3]` | Operand of `inList`, `notInList`, `between`, `notBetween`. Nesting past 16 lists is refused |
 
 Every variant exposes `raw` (plain Dart; a `BeakDateTimeValue` unwraps to a `DateTime`) and `toJson()`.
 
@@ -634,7 +636,8 @@ What the API rejects, and with which status. `422` carries a message safe to sho
 | Sort, filter or relation names a field or relationship the caller may not read | `401` when anonymous, `403` when signed in |
 | Filter or load nested deeper than 64 levels | `422` |
 | Relationship filter nested more than 16 levels deep | `422` |
-| Operand of the wrong shape for the operator | `422` |
+| Operand of the wrong shape for the operator, or of a type the column cannot compare with (text for an integer column, a pattern operator on a number, NUL in text) | `422` |
+| A value the database refuses in a comparison (an integer outside an `integer` column) | `422` |
 | Search over an unknown, password, JSON or custom column, or a search path over 17 segments | `422` |
 | Sort key, aggregate column, summary group or summary measure column with a dot | `422` (these work on the queried table's own columns) |
 | Aggregate `sum` or `avg` over a column that is not numeric | `422` |
@@ -646,10 +649,11 @@ What the API rejects, and with which status. `422` carries a message safe to sho
 Behaviors that follow from the contract:
 
 - Every read is intersected with the caller's row policy: the policy's scope is ANDed into the filter, into every relation filter and into every relation load. The filter a client sends cannot widen it.
+- A sort always ends with the primary key, so rows that tie on the sort column keep one order across pages and each shows on exactly one of them. A query with no sort is left in the order the database keeps.
 - Soft-deleting models hide deleted rows unless `withTrashed` is `true`. A relation filter always ignores soft-deleted related rows.
 - Search and filters combine with AND. A `BeakChoiceFilter` ORs its own choices before that.
 - `total` is a count of the filtered population, computed by a separate `COUNT` before the page is read.
-- A page size above 200 (`BeakPagination.maxPerPage`) is served as 200, and the envelope's `perPage` reports the size used. The panel's `BeakQueryState` accepts up to 1000, so a list that asks for more than 200 rows per page receives 200.
+- A page size above 200 (`BeakPagination.maxPerPage`) is served as 200, and the envelope's `perPage` reports the size used. The panel's `BeakQueryState` refuses a page size above 200 for the same reason, and a saved view or bookmark written with a larger size loads at 200.
 - A query costs one `COUNT`, one page `SELECT`, and one batched query per eager-loaded relation level.
 - `contains`, `startsWith`, `endsWith` and the search escape `%`, `_` and `\` in the term, so they match the text they were given.
 - Number operands are compared by the database. A JSON `2000` decodes to `BeakIntValue`, `2000.0` to `BeakDoubleValue`.

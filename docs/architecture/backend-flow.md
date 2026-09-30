@@ -148,7 +148,7 @@ Untyped failures are opaque, and so is a `BeakStorageException`, whose message q
 
 Read the order. The policy check comes first, then the body is parsed into a `BeakRecord` (a malformed value is a `BeakValidationException`, so a `422` and never a `500`), then the write is checked against the field policy, then every foreign key is checked for visibility to this principal, and only then does the service run. The response goes through `redact` on the way out.
 
-The row scope is worth its own sentence. `_scope(request)` reads the scope once per handler and hands it to the service, which enforces it. A handler cannot forget to apply it, because no handler decides whether to. A record outside the scope answers `404`, not `403`: telling an unauthorized caller that a row exists is itself a leak.
+The row scope is worth its own sentence. `_scope(request)` reads the scope once per handler and hands it to the service, which enforces it. A handler cannot forget to apply it, because no handler decides whether to. A record outside the scope answers `404`, not `403`: telling an unauthorized caller that a row exists is itself a leak. A write is also judged on the row it leaves behind (`beakScopeAdmits` in `beak_scope_match.dart`), so a create or an update that would put a record outside the scope is a `403`: the caller already knows the values they sent, so nothing is revealed.
 
 ### The Service: validate, default, throw
 

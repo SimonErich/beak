@@ -93,15 +93,39 @@ final class BeakAuthSessions {
 /// token, logout revokes it, and `me` echoes the authenticated principal.
 final class BeakAuthHandlers {
   /// Creates handlers over [sessions].
+  ///
+  /// Throws a [BeakConfigurationException] when two accounts share a username
+  /// or the secret is empty.
   BeakAuthHandlers(this.sessions)
-    : _accountsByUsername = {
-        for (final account in sessions.users) account.username: account,
-      };
+    : _accountsByUsername = _indexAccounts(sessions);
 
   /// The configured auth surface.
   final BeakAuthSessions sessions;
 
   final Map<String, BeakUserAccount> _accountsByUsername;
+
+  /// The accounts by username, refusing a setup that would let one account
+  /// silently replace another: two entries with one username, or no secret to
+  /// hash passwords under.
+  static Map<String, BeakUserAccount> _indexAccounts(
+    BeakAuthSessions sessions,
+  ) {
+    if (sessions.secret.isEmpty) {
+      throw const BeakConfigurationException(
+        'BeakAuthSessions needs a non-empty secret to hash passwords under.',
+      );
+    }
+    final accounts = <String, BeakUserAccount>{};
+    for (final account in sessions.users) {
+      if (accounts.containsKey(account.username)) {
+        throw BeakConfigurationException(
+          'Two accounts share the username "${account.username}".',
+        );
+      }
+      accounts[account.username] = account;
+    }
+    return accounts;
+  }
 
   /// `POST /login` — verifies credentials and returns a session token plus
   /// the principal.
@@ -110,15 +134,34 @@ final class BeakAuthHandlers {
     final String username = _requireString(body, 'username');
     final String password = _requireString(body, 'password');
     final account = _accountsByUsername[username];
-    if (account == null ||
-        account.passwordHash !=
-            hashBeakPassword(password, secret: sessions.secret)) {
+    // The hash is computed and compared in constant time whether or not the
+    // username exists, so neither the time a login takes nor where the
+    // comparison stops tells a caller which usernames are real.
+    final String presented = hashBeakPassword(
+      password,
+      secret: sessions.secret,
+    );
+    final bool matches = _sameText(account?.passwordHash ?? '', presented);
+    if (account == null || !matches) {
       throw const BeakAuthenticationException('Invalid username or password.');
     }
     final String token = await sessions.store.createSession(account.principal);
     return Response.ok(
       jsonEncode({'token': token, 'principal': account.principal.toJson()}),
     );
+  }
+
+  /// Whether [a] and [b] are equal, in time that depends on the longer length
+  /// only.
+  static bool _sameText(String a, String b) {
+    int difference = a.length ^ b.length;
+    final int length = a.length > b.length ? a.length : b.length;
+    for (var i = 0; i < length; i += 1) {
+      final int left = i < a.length ? a.codeUnitAt(i) : 0;
+      final int right = i < b.length ? b.codeUnitAt(i) : 0;
+      difference |= left ^ right;
+    }
+    return difference == 0;
   }
 
   /// `POST /logout` — revokes the presented Bearer token.

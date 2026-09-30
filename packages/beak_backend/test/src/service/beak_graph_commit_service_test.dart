@@ -12,6 +12,17 @@ final class _DenyComments extends BeakAllowAllPolicy {
       model is! CommentModel;
 }
 
+/// Admits a comment only when it reads "Visible": an operation the policy
+/// refuses at dispatch, after the note before it was written.
+final class _VisibleCommentsOnly extends BeakAllowAllPolicy
+    implements BeakRowPolicy {
+  const _VisibleCommentsOnly();
+
+  @override
+  BeakFilter? scopeFor(BeakPrincipal? principal, BeakModel model) =>
+      model is CommentModel ? CommentModel.message.eq('Visible') : null;
+}
+
 final class _HiddenCommentScope extends BeakAllowAllPolicy
     implements BeakRowPolicy {
   const _HiddenCommentScope();
@@ -353,7 +364,7 @@ void main() {
       final denied = BeakGraphCommitService(
         registry: createApiRegistry(),
         source: stagedSource,
-        policy: const _DenyComments(),
+        policy: const _VisibleCommentsOnly(),
       );
       final partial = await denied.commit(_plan());
       expect(partial.mode, BeakSaveMode.staged);

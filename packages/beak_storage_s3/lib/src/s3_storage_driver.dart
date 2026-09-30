@@ -4,6 +4,7 @@ import 'package:beak_core/beak_core.dart';
 
 import 'http_s3_object_client.dart';
 import 's3_object_client.dart';
+import 'sigv4_signer.dart';
 
 /// Stores files in an S3-compatible bucket (AWS S3, MinIO, ...) configured
 /// by a [BeakS3Config] — Beak's production storage driver.
@@ -120,6 +121,9 @@ final class S3StorageDriver implements BeakStorageDriver {
 
   /// A presigned GET URL when [expiresIn] is given, else the public URL.
   ///
+  /// S3 accepts a lifetime from one second to seven days, so [expiresIn] is
+  /// held to that range rather than failing every request.
+  ///
   /// A configured [BeakS3Config.publicBaseUrl] always wins: it names the
   /// address browsers read from (a CDN or proxy), while a presigned link
   /// would point at the bucket endpoint, which is often reachable from the
@@ -134,7 +138,7 @@ final class S3StorageDriver implements BeakStorageDriver {
       return _client.presignedGetUrl(
         bucket: _config.bucket,
         key: key,
-        expiresIn: expiresIn,
+        expiresIn: _withinS3Limits(expiresIn),
       );
     });
   }
@@ -165,6 +169,17 @@ final class S3StorageDriver implements BeakStorageDriver {
     }
   }
   // --8<-- [end:guard]
+
+  static Duration _withinS3Limits(Duration expiresIn) {
+    const Duration shortest = Duration(seconds: 1);
+    const Duration longest = Duration(
+      seconds: SigV4Signer.maxPresignLifetimeInSeconds,
+    );
+    if (expiresIn < shortest) {
+      return shortest;
+    }
+    return expiresIn > longest ? longest : expiresIn;
+  }
 
   Uri _publicUrlFor(String key) {
     final Uri? publicBaseUrl = _config.publicBaseUrl;

@@ -53,7 +53,7 @@ The outermost layer tags every request with an id, reusing an incoming `x-reques
 --8<-- "packages/beak_backend/lib/src/server/middleware/request_log_middleware.dart:beakRequestLogMiddleware"
 ```
 
-The id is stored in the request context (read it downstream with `beakRequestId(request)`), echoed as the `x-request-id` response header, and stamped into every error body as `requestId`. One string then finds the log line, the header and the JSON error a client reports. Because a client can send its own id, treat it as a label, not as proof of anything.
+The id is stored in the request context (read it downstream with `beakRequestId(request)`), echoed as the `x-request-id` response header, and stamped into every error body as `requestId`. One string then finds the log line, the header and the JSON error a client reports. Because a client can send its own id, treat it as a label, not as proof of anything. An incoming id is reused only when it is 1 to 128 letters, digits and `. _ : / -`; anything else (a non-ASCII byte, a space, a longer value) is replaced by a minted one, because the id goes back out as a header and a byte a header cannot carry would leave the request without an answer.
 
 The default `onRequest` writes one line per request to stderr. `beakJsonRequestLogger()` writes one JSON object per line, which is what a log aggregator can index:
 
@@ -92,7 +92,7 @@ The default origin is `*`. `corsOrigin: 'https://admin.example.com'` pins it, an
 
 The flip side applies to your own responses. Anything you return without a content type goes out labelled JSON, a plain-text `Response.ok('pong')` included. Set the content type yourself when the body is not JSON.
 
-The same file has the request-side helpers handlers use, `readJsonObject` and `readBeakSpec`. A body that is not valid JSON, or a spec that fails to decode, becomes a `BeakValidationException` right there, and the next layer maps it to a `422`. Use them in your own routes.
+The same file has the request-side helpers handlers use, `readJsonObject` and `readBeakSpec`. A body that is not valid UTF-8 or JSON, or a spec that fails to decode, becomes a `BeakValidationException` right there, and the next layer maps it to a `422`. A body longer than `beakMaxJsonBodyInBytes` (16 MiB, or the `maxBodyInBytes:` you pass) is a `BeakPayloadTooLargeException`, a `413`, and the read stops as soon as the limit is crossed, so an anonymous caller cannot make the server buffer a huge body. Use them in your own routes.
 
 ### Error mapping: the one catch boundary
 
@@ -238,7 +238,7 @@ The response still passes through your middleware, error mapping and CORS. `Rout
 | A response of yours with no content type is labelled JSON | Set `content-type` yourself when the body is plain text or a file |
 | Your middleware also sees `/healthz` and `/readyz` | Beak's own guard skips them, but a guard or a switch of yours can still take the probes down. Let them through |
 | `corsOrigin` is one origin | Several front ends need a proxy or a middleware that reflects an allowed origin |
-| A client-supplied `x-request-id` is reused | Fine for correlation, useless for trust |
+| A client-supplied `x-request-id` is reused when it is a plain token | Fine for correlation, useless for trust. A value with other characters, or over 128 of them, is replaced |
 | A `BeakConfigurationException` sends its message | The body is visible to the caller. A `BeakStorageException` does not: the caller gets `File storage failed.` |
 | The pipeline is built once, on first use | You cannot reorder the built-in layers, only add to them |
 | Unexpected errors go to stderr by default | Set `onUnexpectedError` in production, or an incident leaves a stack trace nowhere you look |

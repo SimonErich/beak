@@ -196,6 +196,89 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+
+    test(
+      'reads a timestamp with no offset as UTC, never in the local zone',
+      () {
+        // A server reading "2026-06-01T12:30:45" in its own zone would compare
+        // a different instant than the client meant, and two servers in
+        // different zones would disagree about the same request.
+        for (final iso in [
+          '2026-06-01T12:30:45',
+          '2026-06-01 12:30:45',
+          '2026-06-01T12:30:45.123',
+        ]) {
+          final decoded = BeakValue.fromJson(<String, Object?>{
+            'type': 'dateTime',
+            'value': iso,
+          });
+          final instant = switch (decoded) {
+            final BeakDateTimeValue value => value.value,
+            _ => fail('expected a BeakDateTimeValue, got $decoded'),
+          };
+          expect(instant.isUtc, isTrue, reason: iso);
+          expect(instant.hour, 12, reason: iso);
+          expect(instant.minute, 30, reason: iso);
+        }
+      },
+    );
+
+    test('reads a date with no time as UTC midnight', () {
+      final decoded = BeakValue.fromJson(const <String, Object?>{
+        'type': 'dateTime',
+        'value': '2026-06-01',
+      });
+      expect(decoded, BeakDateTimeValue(DateTime.utc(2026, 6, 1)));
+    });
+
+    test('converts an explicit offset to the UTC instant it names', () {
+      final decoded = BeakValue.fromJson(const <String, Object?>{
+        'type': 'dateTime',
+        'value': '2026-06-01T14:30:45+02:00',
+      });
+      expect(decoded, BeakDateTimeValue(DateTime.utc(2026, 6, 1, 12, 30, 45)));
+    });
+
+    test('keeps microseconds of an offset-less timestamp', () {
+      final decoded = BeakValue.fromJson(const <String, Object?>{
+        'type': 'dateTime',
+        'value': '2026-06-01T12:30:45.123456',
+      });
+      expect(
+        decoded,
+        BeakDateTimeValue(DateTime.utc(2026, 6, 1, 12, 30, 45, 123, 456)),
+      );
+    });
+
+    test('refuses nesting no query needs instead of overflowing the stack', () {
+      Object? nested = 1;
+      for (var level = 0; level < 100000; level++) {
+        nested = [nested];
+      }
+      expect(
+        () => BeakValue.fromJson(nested),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (e) => e.message,
+            'message',
+            contains('nested'),
+          ),
+        ),
+      );
+    });
+
+    test('accepts the nesting a real operand has', () {
+      expect(
+        BeakValue.fromJson([
+          [1],
+          [2, 3],
+        ]),
+        const BeakListValue([
+          BeakListValue([BeakIntValue(1)]),
+          BeakListValue([BeakIntValue(2), BeakIntValue(3)]),
+        ]),
+      );
+    });
   });
 
   group('round-trips', () {

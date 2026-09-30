@@ -49,7 +49,7 @@ The upload service is the only caller. It validates the upload, runs image trans
 
 Three consequences follow. The filename `put` receives is minted by Beak (a generated id plus an extension), not the client's name. `delete` and `url` are never called for an absent key by the upload service, though the interface still says what to do. And nothing in the generated API calls `get` today: it is on the interface for your own code and for tests.
 
-Keys are validated, relative paths. Use `BeakStorageKeys.join` (which validates), `BeakStorageKeys.validate` and `BeakStorageKeys.appendToBaseUrl`, and throw `BeakStorageException` for a malformed key or a missing file, so no raw protocol error escapes.
+Keys are validated, relative paths with no `..`, backslash or control character, so a key can be written into a protocol command as it is. Use `BeakStorageKeys.join` (which validates), `BeakStorageKeys.validate` and `BeakStorageKeys.appendToBaseUrl`, and throw `BeakStorageException` for a malformed key or a missing file, so no raw protocol error escapes. A transport that builds commands from a key, like the FTP one, validates it again before it opens a connection.
 
 ## The smallest driver
 
@@ -153,7 +153,7 @@ Both misconfigurations fail at boot, naming the problem, and not at the first up
 
 ```console
 No storage driver is registered for "s3". Registered drivers: memory, local, ftp.
-Unsupported BEAK_STORAGE_DRIVER "gcs" — use one of s3, ftp, memory, local, none.
+Unsupported BEAK_STORAGE_DRIVER "gcs": use one of s3, ftp, memory, local, none.
 ```
 
 !!! danger "Storage credentials are secrets"

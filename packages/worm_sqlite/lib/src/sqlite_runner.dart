@@ -407,14 +407,16 @@ final class SqliteRunner {
   }
 
   /// SQLite binds only int / double / String / Uint8List / null, so
-  /// normalise bools to 0/1 and DateTimes to ISO-8601 text.
+  /// normalise bools to 0/1 and DateTimes to ISO-8601 text, always of the UTC
+  /// instant: SQLite compares that text, and a local time written without its
+  /// offset would sort away from the UTC value naming the same moment.
   List<Object?> _bind(List<Object?> parameters) => <Object?>[
     for (final value in parameters) _bindValue(value),
   ];
 
   Object? _bindValue(Object? value) => switch (value) {
     final bool b => b ? 1 : 0,
-    final DateTime d => d.toIso8601String(),
+    final DateTime d => d.toUtc().toIso8601String(),
     _ => value,
   };
 

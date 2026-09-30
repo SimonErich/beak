@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:beak_backend/beak_backend.dart';
+import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
 import 'package:worm/worm.dart';
 
@@ -122,6 +123,33 @@ void main() {
       expect(response.statusCode, 401);
     });
 
+    test(
+      'a stale token in the header does not block signing in again',
+      () async {
+        final response = await call(
+          'POST',
+          '/api/auth/login',
+          body: {'username': 'admin', 'password': 'cat-tax'},
+          token: 'expired-or-forged',
+        );
+        expect(response.statusCode, 200);
+      },
+    );
+
+    test('a wrong password is still a 401 next to a stale token', () async {
+      final response = await call(
+        'POST',
+        '/api/auth/login',
+        body: {'username': 'admin', 'password': 'dog-tax'},
+        token: 'expired-or-forged',
+      );
+      expect(response.statusCode, 401);
+      expect(
+        decodeObject(await response.readAsString())['message'],
+        'Invalid username or password.',
+      );
+    });
+
     test('a malformed body is a 422', () async {
       final response = await call(
         'POST',
@@ -174,6 +202,41 @@ void main() {
     test('401s without a token', () async {
       final response = await call('POST', '/api/auth/logout');
       expect(response.statusCode, 401);
+    });
+  });
+
+  group('configuration', () {
+    test('two accounts with one username fail at startup', () {
+      final duplicate = BeakUserAccount(
+        username: 'admin',
+        passwordHash: hashBeakPassword('other', secret: secret),
+        principal: const BeakPrincipal(id: 'viewer', roles: {'viewer'}),
+      );
+      expect(
+        () => beakAuthRouter(
+          BeakAuthSessions(
+            store: store,
+            users: [adminAccount, duplicate],
+            secret: secret,
+          ),
+        ),
+        throwsA(
+          isA<BeakConfigurationException>().having(
+            (error) => error.message,
+            'message',
+            contains('"admin"'),
+          ),
+        ),
+      );
+    });
+
+    test('an empty secret fails at startup', () {
+      expect(
+        () => beakAuthRouter(
+          BeakAuthSessions(store: store, users: [adminAccount], secret: ''),
+        ),
+        throwsA(isA<BeakConfigurationException>()),
+      );
     });
   });
 

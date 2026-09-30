@@ -54,6 +54,17 @@ BeakRecord product(
 );
 
 void main() {
+  test('creating a second row under a taken key is a conflict, as in a real '
+      'source, and leaves the first row alone', () async {
+    final source = sourceWith()..seed(_product, [product('p1', name: 'First')]);
+    await expectLater(
+      () => source.create('products', product('p1', name: 'Second')),
+      throwsA(isA<BeakConflictException>()),
+    );
+    final stored = await source.getOne('products', 'p1');
+    expect(stored?['name']?.raw, 'First');
+  });
+
   test(
     'relation search and grouped filters use matching related rows',
     () async {
@@ -558,10 +569,15 @@ void main() {
     });
 
     test('has-many links change only the requested owner membership', () async {
-      source.seed(_product, [
-        product('1', categoryId: 'c1'),
-        product('2', categoryId: 'c2'),
-      ]);
+      source
+        ..seed(_category, [
+          BeakRecord.fromRow({'id': 'c1', 'name': 'Coffee'}),
+          BeakRecord.fromRow({'id': 'c2', 'name': 'Tea'}),
+        ])
+        ..seed(_product, [
+          product('1', categoryId: 'c1'),
+          product('2', categoryId: 'c2'),
+        ]);
       await source.detach('categories', 'c1', 'products', [
         '1',
         '2',

@@ -82,6 +82,41 @@ void main() {
       expect(server.files['/srv/uploads/a.bin'], bytes);
     });
 
+    test(
+      'a key that would split the command never reaches the server',
+      () async {
+        server.files['/srv/uploads/victim.bin'] = bytes;
+        for (final String key in [
+          'a.bin\r\nDELE /srv/uploads/victim.bin',
+          'a.bin\nDELE /srv/uploads/victim.bin',
+          'dir\r\nDELE /srv/uploads/victim.bin/a.bin',
+        ]) {
+          await expectLater(
+            transport.store(key, bytes),
+            throwsA(isA<BeakStorageException>()),
+            reason: key,
+          );
+          await expectLater(
+            transport.retrieve(key),
+            throwsA(isA<BeakStorageException>()),
+          );
+          await expectLater(
+            transport.remove(key),
+            throwsA(isA<BeakStorageException>()),
+          );
+          await expectLater(
+            transport.exists(key),
+            throwsA(isA<BeakStorageException>()),
+          );
+        }
+        expect(server.files.keys, ['/srv/uploads/victim.bin']);
+        expect(
+          server.commands.where((command) => command.startsWith('DELE')),
+          isEmpty,
+        );
+      },
+    );
+
     test('a refused upload surfaces the server reply code', () async {
       server.refuseStores = true;
       await expectLater(

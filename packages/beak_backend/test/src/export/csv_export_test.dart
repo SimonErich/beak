@@ -272,7 +272,7 @@ void main() {
     for (final (index, note) in notes.indexed) {
       await dataSource.create(
         'notes',
-        BeakRecord.fromRow({'id': 'added$index', ...note}),
+        BeakRecord.fromRow({'id': 'zz$index', ...note}),
       );
     }
     final response = await handler(

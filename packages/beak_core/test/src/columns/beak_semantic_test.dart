@@ -368,6 +368,15 @@ void main() {
     },
   );
 
+  test('a very long digit string is refused without being converted', () {
+    final stopwatch = Stopwatch()..start();
+    expect(BeakDecimal.tryParse('9' * 400000), isNull);
+    expect(BeakDecimal.tryParse('1${'0' * 400000}.5'), isNull);
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
+    expect(BeakDecimal.parse('${'0' * 400000}12.50'), const BeakDecimal(1250));
+    expect(BeakDecimal.parse('1.5${'0' * 400000}'), const BeakDecimal(150));
+  });
+
   test(
     'all primitive list codecs preserve their declared generic element types',
     () {

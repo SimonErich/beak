@@ -29,7 +29,8 @@ final class BeakOutboxMigration extends Migration {
         SchemaColumn(name: 'payload', type: ColumnType.text),
         SchemaColumn(name: 'status', type: ColumnType.text),
         SchemaColumn(name: 'attempt', type: ColumnType.integer),
-        SchemaColumn(name: 'available_at', type: ColumnType.integer),
+        // Milliseconds since the epoch: too big for a 32-bit integer.
+        SchemaColumn(name: 'available_at', type: ColumnType.bigInteger),
         SchemaColumn(name: 'lease', type: ColumnType.text),
         SchemaColumn(name: 'last_error', type: ColumnType.text),
       ],
@@ -89,7 +90,8 @@ final class BeakOutboxTable {
   final String attemptColumn;
 
   /// Integer column holding milliseconds since the epoch: when the row is
-  /// next due, or when its lease ends while it runs.
+  /// next due, or when its lease ends while it runs. It must be 64 bits wide:
+  /// today's timestamps do not fit a 32-bit integer.
   final String availableAtColumn;
 
   /// Text column holding the current claim, empty when unclaimed.
@@ -281,13 +283,19 @@ final class BeakOutboxWorker {
   /// Registered providers, keyed by effect kind.
   final Map<String, BeakEffectHandler> handlers;
 
-  /// Claim timeout. Providers must still deduplicate concurrent late attempts.
+  /// Claim timeout, and the time a handler is given to answer.
+  ///
+  /// A handler still running when it ends is treated as failed (`timeout`) and
+  /// retried; it is not cancelled, so providers must still deduplicate late
+  /// attempts by the effect key.
   final Duration leaseDuration;
 
   /// Base retry delay, multiplied by attempt number.
   final Duration retryDelay;
 
-  /// Failed deliveries stop retrying after this count.
+  /// Failed deliveries stop retrying after this count. A claim that never
+  /// reported after its last attempt is marked failed (`leaseExpired`) rather
+  /// than run again.
   final int maxAttempts;
 
   /// The outbox this worker drains.
@@ -336,6 +344,13 @@ final class BeakOutboxWorker {
           await _setAside(row);
           continue;
         }
+        if (pending.status == 'running' && pending.attempt >= maxAttempts) {
+          // The last attempt was claimed and never reported: the process died
+          // or hung inside it. Running it again would let a poison message
+          // take the worker down for ever.
+          await _abandon(pending);
+          continue;
+        }
         // --8<-- [start:outboxClaim]
         final lease = generateUuidV4();
         final attempt = pending.attempt + 1;
@@ -370,6 +385,10 @@ final class BeakOutboxWorker {
               (throw BeakConfigurationException(
                 'No outbox handler registered for "${pending.kind}".',
               ));
+          // A provider that has not answered when the lease ends is given up
+          // on, so one hung call cannot hold this worker (and stopping its
+          // loop) for ever. The call is not cancelled: a late success is why
+          // handlers must deduplicate by the effect key.
           await handler(
             BeakOutboxEffect(
               key: pending.key,
@@ -377,7 +396,7 @@ final class BeakOutboxWorker {
               attempt: attempt,
               payload: pending.decodePayload(),
             ),
-          );
+          ).timeout(leaseDuration);
           delivered += await adapter.update(
             UpdateDescriptor(
               table: table.table,
@@ -402,9 +421,11 @@ final class BeakOutboxWorker {
                 table.availableAtColumn:
                     _now().millisecondsSinceEpoch +
                     retryDelay.inMilliseconds * attempt,
-                table.lastErrorColumn: error is BeakException
-                    ? error.code
-                    : 'providerFailure',
+                table.lastErrorColumn: switch (error) {
+                  BeakException() => error.code,
+                  TimeoutException() => 'timeout',
+                  _ => 'providerFailure',
+                },
               },
             ),
           );
@@ -423,6 +444,22 @@ final class BeakOutboxWorker {
       _running = false;
     }
   }
+
+  /// Marks [pending], a claim that outlived its last attempt, failed. Compares
+  /// the claim it read, so a competing worker that already moved it on wins.
+  Future<void> _abandon(_PendingEffect pending) => adapter.update(
+    UpdateDescriptor(
+      table: table.table,
+      where: StringField(table.idColumn)
+          .eq(pending.key)
+          .and(StringField(table.statusColumn).eq('running'))
+          .and(StringField(table.leaseColumn).eq(pending.lease)),
+      values: {
+        table.statusColumn: 'failed',
+        table.lastErrorColumn: 'leaseExpired',
+      },
+    ),
+  );
 
   /// Marks malformed [row] failed so later drains skip it. A row whose id is
   /// not text cannot be addressed and is left as it is.

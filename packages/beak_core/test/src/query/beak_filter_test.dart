@@ -225,6 +225,58 @@ void main() {
         throwsA(isA<BeakConfigurationException>()),
       );
     });
+
+    Map<String, Object?> nestedAnd(int levels) {
+      var filter = <String, Object?>{
+        'type': 'field',
+        'column': 'a',
+        'operator': 'eq',
+        'value': 1,
+      };
+      for (var level = 0; level < levels; level++) {
+        filter = {
+          'type': 'and',
+          'filters': [filter],
+        };
+      }
+      return filter;
+    }
+
+    test(
+      'refuses a tree nested too deeply instead of overflowing the stack',
+      () {
+        expect(
+          () => BeakFilter.fromJson(nestedAnd(100000)),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (e) => e.message,
+              'message',
+              contains('nested'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('refuses a relation chain nested too deeply', () {
+      var filter = <String, Object?>{
+        'type': 'field',
+        'column': 'a',
+        'operator': 'eq',
+        'value': 1,
+      };
+      for (var level = 0; level < 100000; level++) {
+        filter = {'type': 'relation', 'relation': 'r', 'filter': filter};
+      }
+      expect(
+        () => BeakFilter.fromJson(filter),
+        throwsA(isA<BeakConfigurationException>()),
+      );
+    });
+
+    test('accepts the nesting of a realistic screen', () {
+      expect(() => BeakFilter.fromJson(nestedAnd(16)), returnsNormally);
+    });
   });
 
   group('equality', () {

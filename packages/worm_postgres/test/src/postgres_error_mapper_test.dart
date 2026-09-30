@@ -60,6 +60,53 @@ void main() {
       expect(typed.column, 'customer_id');
     });
 
+    test('23514 → CheckConstraintException naming the constraint', () {
+      final mapped = PostgresErrorMapper.fromCode(
+        '23514',
+        message: 'violates check constraint',
+        table: 'products',
+        column: 'price',
+        constraint: 'price_positive',
+      );
+      expect(mapped, isA<CheckConstraintException>());
+      final typed = mapped as CheckConstraintException;
+      expect(typed.table, 'products');
+      expect(typed.column, 'price');
+      expect(typed.constraintName, 'price_positive');
+    });
+
+    test('23502 → CheckConstraintException for a NOT NULL column', () {
+      final mapped = PostgresErrorMapper.fromCode(
+        '23502',
+        message: 'null value in column "name" violates not-null constraint',
+        table: 'products',
+        column: 'name',
+      );
+      expect(mapped, isA<CheckConstraintException>());
+      final typed = mapped as CheckConstraintException;
+      expect(typed.column, 'name');
+      expect(typed.constraintName, isNull);
+    });
+
+    test('every SQLSTATE of class 22 → DataException', () {
+      for (final code in const <String>['22001', '22003', '22P02', '22007']) {
+        final mapped = PostgresErrorMapper.fromCode(
+          code,
+          message: 'value too long for type character varying(255)',
+          table: 'products',
+          column: 'name',
+        );
+        expect(mapped, isA<DataException>(), reason: code);
+        expect((mapped as DataException).column, 'name');
+      }
+    });
+
+    test('a class 22 error with no table still names one', () {
+      final mapped = PostgresErrorMapper.fromCode('22001');
+      expect(mapped, isA<DataException>());
+      expect((mapped as DataException).table, isNotEmpty);
+    });
+
     test('40P01 → TransactionException', () {
       final mapped = PostgresErrorMapper.fromCode(
         '40P01',

@@ -3,6 +3,7 @@ import 'package:worm/worm.dart';
 
 import 'beak_record_keys.dart';
 import 'column_type_mapper.dart';
+import 'filter_operands.dart';
 import 'worm_record_model.dart';
 
 /// Translates Beak's serializable query language into worm query builders.
@@ -42,8 +43,9 @@ final class WormQueryTranslator {
   final BeakModelRegistry registry;
 
   /// Builds the worm query for [spec] against [adapter], including filter,
-  /// search, ordering, relation loads, soft-delete scoping, and the paging
-  /// window.
+  /// search, ordering (a sort always ends with the primary key, so paging
+  /// through ties is stable), relation loads, soft-delete scoping, and the
+  /// paging window.
   // --8<-- [start:builderFor]
   QueryBuilder<WormRecordModel> builderFor(
     BeakQuerySpec spec,
@@ -67,6 +69,12 @@ final class WormQueryTranslator {
         wormFieldForColumn(columnOrThrow(model, sort.columnKey)),
         descending: sort.descending,
       );
+    }
+    // Rows that tie on the sort key have no order of their own, so two pages
+    // of one query could each hold a row, or neither: the key breaks the tie.
+    if (spec.sorts.isNotEmpty &&
+        !spec.sorts.any((sort) => sort.columnKey == model.primaryKey.key)) {
+      builder = builder.orderBy(wormFieldForColumn(model.primaryKey));
     }
     builder = _applyRelationLoads(builder, model, spec.relationLoads);
     builder = builder.limit(spec.pagination.perPage);
@@ -138,8 +146,10 @@ final class WormQueryTranslator {
   /// for an absent/empty filter.
   ///
   /// Throws a [BeakValidationException] when the filter references an
-  /// unknown column or relation or carries an operand its operator cannot
-  /// use: those are mistakes in the spec, which a server answers with a 422.
+  /// unknown column or relation or carries an operand its operator or its
+  /// column cannot use (a list for an equality, text for an integer column, a
+  /// pattern operator on a number): those are mistakes in the spec, which a
+  /// server answers with a 422.
   // --8<-- [start:predicateFor]
   PredicateTree? predicateFor(
     BeakFilter? filter,
@@ -228,7 +238,9 @@ final class WormQueryTranslator {
         depth,
       );
     }
-    final String columnKey = columnOrThrow(model, filter.columnKey).key;
+    final BeakColumn column = columnOrThrow(model, filter.columnKey);
+    requireFittingOperand(column, filter);
+    final String columnKey = column.key;
     Predicate predicate(Operator operator, Object? value) => Predicate(
       fieldName: columnKey,
       tableName: qualifier,

@@ -24,7 +24,7 @@ Security for a generated backend lives in one file, `lib/server.dart`. `beak eje
 | What they may do | `BeakAllowAllPolicy`: everything | `BeakPolicies`: only what a rule lists |
 | Which rows | Every row | `rowScope` wherever "only their own" applies |
 | Which fields | Every field | `hiddenFields` to hide one, `readOnlyFields` for server-owned values |
-| Uploads | Validated against the column, unbounded if the column sets no limit | `maxSizeInBytes` and `allowedTypes` on every upload column |
+| Uploads | Validated against the column, held to 100 MiB if the column sets no limit | `maxSizeInBytes` and `allowedTypes` on every upload column |
 | CORS | `*` | `corsOrigin:` with the panel's origin, or one shared origin |
 | TLS | None, plain HTTP | Terminate at a proxy; keep the Beak port private |
 | Rate limits | None | A proxy rule or a Shelf middleware |
@@ -87,7 +87,7 @@ For production, put the identity somewhere that already does this well and let B
 
 Two things you do not have to do: write a password reset flow (the built-in surface has none, and an identity provider brings its own), and touch the panel. The panel's sign-in screen talks to whatever the backend's `/api/auth` answers, and its token lives in memory only, so a browser reload signs out. A Serverpod backend takes its authentication from Serverpod; see [Authentication](../serverpod/authentication.md).
 
-Put the secret you hash with in the resolved environment and read it through `defaults.environment`, so a test that injects an environment injects it here too. Beak has no environment variable of its own for it. The name is yours; `deploy/.env.prod.example` lists a `BEAK_AUTH_SECRET`, and nothing in Beak reads that.
+Put the secret you hash with in the resolved environment and read it through `defaults.environment`, so a test that injects an environment injects it here too. Beak has no environment variable of its own for it. The name is yours.
 
 ## Authorization: what may this request do
 
@@ -120,7 +120,7 @@ A model with no rule is invisible: its endpoints answer 401 to an anonymous requ
 
 ### Row scopes narrow, they do not refuse
 
-`read: authenticated` answers "may this caller read orders at all". It does not answer "may this caller read these orders". Without a row scope, a policy meant as "customers see only their own orders" is bypassed by a query with any filter the caller writes, because the filter comes from the client. A `rowScope` is intersected with every read and write of the model: query, aggregate, get-one, update, delete, graph commits and export. Relation loads and filters that reach a related model apply that model's scope as well.
+`read: authenticated` answers "may this caller read orders at all". It does not answer "may this caller read these orders". Without a row scope, a policy meant as "customers see only their own orders" is bypassed by a query with any filter the caller writes, because the filter comes from the client. A `rowScope` is intersected with every read and write of the model: query, aggregate, get-one, update, delete, graph commits and export. A create, and an update that changes a field the scope reads, is also judged on the row it leaves behind, so a caller cannot write a record into another owner's rows or hand one of their own away (`403`). Relation loads and filters that reach a related model apply that model's scope as well.
 
 The scope is a typed filter built from the model's fields (`NoteModel.authorId.eq(principal.id)`), so renaming the field is a compile error here and not a policy that silently matches nothing. An anonymous request has no principal to build a scope for and sees no rows.
 
@@ -144,20 +144,20 @@ An upload runs through the column's rules on the server before a byte is stored.
 
 What this does and does not check, verified against the running shop:
 
-- Size is checked while the part streams in, so an oversized file never buffers fully. That only happens when the column sets `maxSizeInBytes`. A column that sets none accepts any size.
+- Size is checked while the part streams in, so an oversized file never buffers fully. A column that sets no `maxSizeInBytes` is held to 100 MiB, because the body is read into memory. Set the limit you mean on every column.
 - Type is the MIME type the client declared plus the file extension. A GIF declared as `image/gif` on this column is a 422 (`The MIME type "image/gif" is not allowed`). An empty `allowedTypes` means unrestricted.
 - Content is checked only for image columns. They decode the bytes, so a text file named `x.png` is a 422 (`The uploaded file is not a supported raster image`). A file column does not look inside the file.
-- The key is minted on the server from a fresh uuid. The client's filename never reaches the key, so `../../other/logo.png` cannot choose where bytes land. The extension comes from the validated MIME type when Beak knows the type, and from the client's filename when it does not.
+- The key is minted on the server from a fresh uuid. The client's filename never reaches the key, so `../../other/logo.png` cannot choose where bytes land. The extension comes from the validated MIME type when Beak knows the type, and from the client's filename when it does not, and then only when it is one to sixteen letters and digits (`report.a/b` and `x.php\r\nDELE y` store with no extension).
 
-That last point has a consequence. A file column with no `allowedTypes` accepts a file named `evil.html` declared as `text/html`, and stores it as `<uuid>.html`. The local driver serves stored files with a content type taken from the extension, so that file is an HTML page on your API's origin. Always list `allowedTypes`. Do not allow `BeakFileType.svg` (it can carry script) unless you serve uploads from a separate origin, and prefer to serve uploads from a separate origin regardless.
+That last point has a consequence. A file column with no `allowedTypes` accepts a file named `evil.html` declared as `text/html`, and stores it as `<uuid>.html`. The local driver serves stored files with a content type taken from the extension, and adds `x-content-type-options: nosniff` and a sandboxing `content-security-policy`, and makes HTML, SVG and XML a download, so the file does not run as a page on your API's origin. It is still a file you host. Always list `allowedTypes`. Do not allow `BeakFileType.svg` (it can carry script) unless you serve uploads from a separate origin, and prefer to serve uploads from a separate origin regardless.
 
-Every driver shares one key validator, which rejects anything that could leave the storage root:
+Every driver shares one key validator, which rejects anything that could leave the storage root, and control characters, which would end an FTP command early:
 
 ```dart title="packages/beak_core/lib/src/storage/beak_storage_key.dart"
 --8<-- "packages/beak_core/lib/src/storage/beak_storage_key.dart:validate"
 ```
 
-Stored files are public by design. The local driver serves `/uploads/...` with no authentication, and the URL is the only secret. The read route, `GET /api/<table>/<column>/upload?key=`, does check the read policy and the row scope, but it hands back a URL that then works for anyone who holds it. A private S3 bucket does not fix that today, because the server asks the driver for the plain URL and does not sign it. Files that must stay private need a driver, or a proxy in front of one, that authorizes the read. The upload and delete routes follow the write and delete rules of `BeakPolicies`.
+Stored files are public by design. The local driver serves `/uploads/...` with no authentication, and the URL is the only secret. The read route, `GET /api/<table>/<column>/upload?key=`, does check the read policy and the row scope, but it hands back a URL that then works for anyone who holds it. On a private S3 bucket that URL is presigned and expires after `signedUrlLifetime` (default one hour); with `BEAK_S3_PUBLIC_BASE_URL` set, or on the local, FTP and memory drivers, it is the permanent public address. The URL in the upload response is always the plain one. Files that must stay private need a proxy in front of the driver that authorizes the read. The upload and delete routes follow the write and delete rules of `BeakPolicies`.
 
 ## CORS, TLS and headers
 
@@ -186,8 +186,10 @@ These are limits of the current implementation. Each is worth a decision before 
 | Gap | What happens | What to do |
 | --- | --- | --- |
 | The `perPage` ceiling is 200 unless you set `maxPerPage` | A request for 100,000 rows gets 200 and an envelope that says so | Nothing, unless 200 is too generous; `defaults.build(maxPerPage: 50)` lowers it for every model |
-| No request-size limit for JSON | Bodies are read whole | `client_max_body_size` at the proxy |
+| JSON bodies are capped at 16 MiB, uploads have their own limits | A larger JSON body is a `413` and the read stops when the cap is crossed; a body under the cap is still read whole | `client_max_body_size` at the proxy, well under 16 MiB |
+| A caller who may read a model can list its soft-deleted rows | `"withTrashed": true` in a query, aggregate, summary or export spec includes them, and only bringing one back (`restore`) asks for `canUpdate` | Do not soft-delete what a reader must never see again; use `force` deletes, or a `rowScope` that hides deleted states |
 | No rate limiting, on login or anywhere | Unlimited attempts | A proxy rule, or a Shelf middleware in `middleware:` |
+| A `BeakSemantic.password` column is write-only over HTTP | No response carries its stored value, and a filter, sort or aggregate over it is a `422`. The value you send on a create is stored as sent | Store a hash, never the password: hash it in your own preparer or action before it is written |
 | Unrestricted file columns keep the client's extension | See Uploads | Always set `allowedTypes` |
 | Image decoding happens on the request isolate | The header is checked first and `ImageTransformRunner` refuses more than 50 million pixels, but a large legal image still stalls the process for a moment | Set `maxSizeInBytes` and `maxDimensions`; see [Performance](performance.md) |
 | Draft persistence is plain JSON in browser storage | Anyone with the browser profile can read it | Use `BeakFormDrafts` only where that is acceptable; scope its `context` to the user and tenant, never to a token |

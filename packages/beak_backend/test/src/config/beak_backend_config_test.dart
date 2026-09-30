@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:beak_backend/beak_backend.dart';
 import 'package:beak_core/beak_core.dart';
 import 'package:test/test.dart';
@@ -52,6 +54,59 @@ void main() {
       expect(pathOf('sqlite::memory:'), isNull);
     });
 
+    group('the file a sqlite URL names', () {
+      String? fileOf(String url) => sqliteFilePathOf(
+        BeakBackendConfig.fromEnv(
+          environment: {'DATABASE_URL': url},
+        ).databaseUrl,
+      );
+      final String here = Directory.current.absolute.path;
+      final String parent = Directory.current.parent.absolute.path;
+
+      test('keeps a relative path as written', () {
+        expect(fileOf('sqlite:beak.db'), 'beak.db');
+        expect(fileOf('sqlite:./beak.db'), 'beak.db');
+        expect(fileOf('sqlite:data/beak.db'), 'data/beak.db');
+        expect(fileOf('file:data/beak.db'), 'data/beak.db');
+      });
+
+      test('reaches a file above the working directory', () {
+        // Uri.parse would drop the `..` and open a new, empty file here.
+        expect(fileOf('sqlite:../legacy.db'), '$parent/legacy.db');
+        expect(
+          fileOf('sqlite:../../legacy.db'),
+          '${Directory.current.parent.parent.absolute.path}/legacy.db',
+        );
+        expect(fileOf('file:../legacy.db'), '$parent/legacy.db');
+      });
+
+      test('resolves a dot segment against the working directory', () {
+        // Uri.parse would turn this into the absolute path `/x.db`.
+        expect(fileOf('sqlite:./data/../x.db'), '$here/x.db');
+        expect(fileOf('sqlite:a/b/../../c.db'), '$here/c.db');
+      });
+
+      test('cannot climb above the root', () {
+        expect(fileOf('sqlite:${'../' * 64}x.db'), '/x.db');
+      });
+
+      test('reads an absolute path, dots resolved', () {
+        expect(fileOf('sqlite:///tmp/beak.db'), '/tmp/beak.db');
+        expect(fileOf('sqlite:///tmp/a/../b.db'), '/tmp/b.db');
+      });
+
+      test('decodes what a path may hold', () {
+        expect(fileOf('sqlite:my data/beak.db'), 'my data/beak.db');
+        expect(fileOf('sqlite:my%20data/beak.db'), 'my data/beak.db');
+        expect(fileOf('sqlite:../my data/x.db'), '$parent/my data/x.db');
+        expect(fileOf('sqlite:../100%25/x.db'), '$parent/100%/x.db');
+      });
+
+      test('names no file for an in-memory database', () {
+        expect(fileOf('sqlite::memory:'), isNull);
+      });
+    });
+
     test('a sqlite URL needs no host, a postgres URL still does', () {
       expect(
         () => BeakBackendConfig.fromEnv(
@@ -74,6 +129,31 @@ void main() {
         ),
         throwsA(isA<BeakConfigurationException>()),
       );
+    });
+
+    test('a rejected DATABASE_URL never repeats its password', () {
+      // The message is printed by the generated bin/serve.dart.
+      for (final url in [
+        'postgres://beak:hunter2@db:notaport/beak',
+        'postgres://beak:hunter2@/beak',
+        'postgres://beak:hun@ter2@db:notaport/beak',
+      ]) {
+        expect(
+          () => BeakBackendConfig.fromEnv(environment: {'DATABASE_URL': url}),
+          throwsA(
+            isA<BeakConfigurationException>().having(
+              (error) => error.message,
+              'message',
+              allOf(
+                isNot(contains('hunter2')),
+                isNot(contains('hun@')),
+                contains('postgres://'),
+              ),
+            ),
+          ),
+          reason: url,
+        );
+      }
     });
 
     test('rejects a non-numeric PORT', () {

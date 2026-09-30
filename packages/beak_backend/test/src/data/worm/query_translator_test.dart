@@ -55,7 +55,7 @@ void main() {
         build(spec).toSql(),
         'SELECT id, name, price, active, created_at, category_id FROM products WHERE (price >= 10.0 AND active = TRUE) '
         r"AND (name ILIKE '%laser%' ESCAPE '\') AND deleted_at IS NULL "
-        'ORDER BY price DESC LIMIT 5 OFFSET 5',
+        'ORDER BY price DESC, id ASC LIMIT 5 OFFSET 5',
       );
     });
   });

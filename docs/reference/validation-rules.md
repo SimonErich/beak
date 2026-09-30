@@ -94,7 +94,7 @@ Constructors:
 | `BeakMaxLength` | `max_length` | `String` | `length > maxLength` | `Must be at most $maxLength characters.` |
 | `BeakMin` | `min` | `num`, `BeakDecimal` | the value is below `min`. A `BeakDecimal` is compared without rounding either side. | `Must be at least $min.` |
 | `BeakMax` | `max` | `num`, `BeakDecimal` | the value is above `max` | `Must be at most $max.` |
-| `BeakEmail` | `email` | `String` | no match for `^[^@\s]+@[^@\s]+\.[^@\s]+$` | `Must be a valid email address.` |
+| `BeakEmail` | `email` | `String` | not shaped `x@y.z`: exactly one `@` with text before it, a dot in the domain with a character on each side, no whitespace, at most 254 characters | `Must be a valid email address.` |
 | `BeakUrl` | `url` | `String` | not an absolute `http` or `https` URL with a host | `Must be a valid URL.` |
 | `BeakPattern` | `pattern` | `String` | the unanchored `regex` does not match. Add `^` and `$` to match the whole value. | `message`, else `Must match the expected format.` |
 | `BeakInList<T>` | `in_list` | any | a non-null value is not in `allowed`. `null` passes. | `Must be one of: a, b.` |
@@ -342,7 +342,8 @@ Real output, `BeakValidation().validate` on the quickstart `NoteModel` with an o
 
 - Record rules and column rules share one error map. A field can carry messages from both.
 - Record rules read the complete candidate: stored values, submitted values and staged related rows. A rule reads the declaring model's fields and, through relationship paths such as `OrderModel.items`, the rows related to it.
-- `BeakEmail` accepts anything shaped `x@y.z`. It filters typos and does not check that the address can receive mail.
+- `BeakEmail` accepts anything shaped `x@y.z`. It filters typos and does not check that the address can receive mail. It is not a regular expression on purpose: the server validates on its only isolate, and a backtracking pattern let one long value of dots occupy it for minutes.
+- `BeakPattern` compiles the `regex` you write, and the server runs it against whatever the caller sends. A pattern with nested quantifiers such as `^(a+)+$` can backtrack for minutes on a hostile value, so keep patterns flat. Every rule of a column runs, so a `BeakMaxLength` next to it does not stop the pattern from seeing a long value.
 - Messages are English strings in `beak_core`. `BeakPattern`, `BeakFutureDate`, `BeakRequiredIf`, `BeakSameAs`, `BeakBeforeField` and `BeakAfterField` take a `message:` to replace theirs.
 - Rules cannot read the request principal. Authorization is a policy on the server, see [Auth and policies](../backend/auth-and-policies.md).
 - The doc comment on `BeakRule` says the first non-null message wins. `BeakValidation.columnErrors` collects every failing message, so a field can show several.
