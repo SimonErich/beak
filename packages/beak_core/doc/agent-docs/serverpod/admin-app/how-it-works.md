@@ -112,9 +112,9 @@ final BeakServerpodEngine bookshopBeak = BeakServerpodEngine(
 
 1. Decodes the envelope. A malformed one is a 400 (including a method that is not an HTTP method name), and an unsupported version says which version the server speaks.
 2. Turns the path into an internal URL, or refuses with a 404. Only `/api/**` passes, and never `/api/auth/**`, because Serverpod owns sign-in. Percent-encoded dots, empty segments and separators are refused rather than resolved.
-3. Reads `session.authenticated`. No session is a 401, and a session without the `beak.admin` scope is a 403 (the gate normally answers both first, and the engine repeats them, so an endpoint that forgot `BeakAdminGate` does not open the tunnel to every signed-in user). The principal resolver then turns the user into a `BeakPrincipal`: by default the user id, with every scope name as a role.
+3. Reads `session.authenticated`. No session is a 401. The `admit` callback checks live admission and returns 403 when it refuses; its default requires the `beak.admin` scope even when the endpoint forgot `BeakAdminGate`. The principal resolver then turns the user into a `BeakPrincipal`: by default the user id, with every scope name as a role.
 4. Runs the pipeline inside `BeakServerpod.runInSession`, so every statement Beak issues uses this request's session.
-5. Logs `beak <method> /<path> -> <status>` to `session.log`, and unexpected errors as errors.
+5. Sends request entries to `onRequest` and opaque failures to `onUnexpectedError`. Both default to `session.log`.
 
 ```dart title="packages/beak_serverpod_server/lib/src/beak_tunnel_path.dart"
 if (segments.length < 2 || segments.first != 'api' || segments[1] == 'auth') {
@@ -136,6 +136,20 @@ final class _TrustedGuard implements BeakAuthGuard {
       };
 }
 ```
+
+### Existing authorization and domain writes
+
+An application with its own roles can pass `admit: (session, auth) => ...` to check current account status and permissions on every request. Keep `requireLogin => true` on its endpoint. Use `BeakAdminGate` only when that application also uses the stock `beak.admin` scope; a live admission callback cannot override a scope rejection Serverpod already made. The `principal` resolver supplies the roles used by `BeakPolicies`, independently of admission. Exceptions in admission or principal resolution return an opaque 500 and reach `onUnexpectedError`.
+
+Pass `generateId` when the existing tables require a particular string identity, such as UUID v7. The engine forwards it to both direct CRUD and graph commits. `onRequest` and `onUnexpectedError` accept the application's logger callbacks without changing the pipeline.
+
+`executeOperation` lets a graph operation call an existing use case inside the same Serverpod transaction as the graph and its receipt. Its `BeakSaveOperationContext` carries the prepared plan, target model, operation, resolved input values, existing record, resolved identity, principal and transaction-bound `WormDataSource`. Take the Session and optional transaction from `BeakServerpod.sessionOf(context.transaction.adapter)` and `BeakServerpod.transactionOf(context.transaction.adapter)` and pass both into the use case.
+
+Return `BeakSaveOperationWrite(record: persistedRecord)` for a handled create or update, or `const BeakSaveOperationWrite()` for a handled delete or link write. Return null to use Beak's ordinary persistence. A handled operation skips that SQL, so a submitted value cannot overwrite what the domain use case calculated. Creates may use the identity assigned by the use case; subsequent operations resolve draft references to that identity. Beak rereads the persisted record, applies final graph validation, stores the receipt and skips the callback on replay. Policy, field, scope, scalar and revision checks run before the callback. A conditional operation locks its revision until commit. External mail or payment effects still belong in an outbox.
+
+List domain-controlled models in `graphOnly` to close direct CRUD routes, which do not run this graph hook. Model `capabilities` describe the frontend transport; server policy must independently refuse unsupported create, update and delete operations.
+
+Existing Serverpod tables can configure `@Resource` with `createdAtColumnKey`, `updatedAtColumnKey`, `deletedAtColumnKey` and optional `isDeletedColumnKey`. `beak prepare` reuses declared columns at these keys and emits the metadata; it does not add snake_case copies. With a boolean flag, false means live and true means deleted. Delete and restore keep the flag and deletion timestamp together across reads, relations, aggregates and conditional graph writes.
 
 ### The policy
 
@@ -249,7 +263,7 @@ What is not there:
 - No test drives that loop end to end. `test/integration/beak/outbox_mapping_test.dart` in `examples/serverpod/bookshop_server` proves the table mapping on Serverpod's own database: an effect is enqueued once, delivered once, marked `delivered`, and a delivered row is pruned by age while a pending one stays.
 - `finalizePlan` is passed through to Beak's router. The example uses none and no test on this path exercises it.
 
-Nothing prunes either table. Receipts pile up one row per form save, and the engine keeps the commit service to itself, so `pruneReceipts` is out of reach. Age them out with the generated model, from a script or a future call, and keep the cutoff longer than any window in which the same save id could be retried. A pruned save id is a new save.
+Nothing prunes either table automatically. Schedule `engine.pruneReceipts(session, olderThan: cutoff)` from a host future call or script; it uses Beak's existing pruning implementation and the engine's receipt mapping. `cutoff` is a UTC `DateTime`, and only earlier receipts are deleted. Retain receipts longer than any supported retry window: a pruned save id is a new save.
 
 ```dart
 final cutoff = DateTime.now().toUtc().subtract(const Duration(days: 30));

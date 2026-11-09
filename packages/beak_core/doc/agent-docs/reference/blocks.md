@@ -117,6 +117,10 @@ Blocks carry no other shared parameter: no id, no visibility rule, no permission
 
 Layout blocks hold other blocks and read nothing. The guide is [Layout blocks](../blocks/layout-blocks.md).
 
+### BeakVisibilityBlock
+
+`BeakVisibilityBlock(visibleWhen: bool Function(), child: BeakBlock)` mounts its child only while the callback returns true. The callback runs whenever the host rebuilds. This lets a dashboard omit an area before its metrics or tables start requests. Server policies must independently enforce the same access rules. Its optional `span` applies when the wrapper is placed in a grid or row.
+
 ```dart title="examples/showcase/lib/pages/layout_blocks.dart"
 BeakBlock _gridSection() => const BeakSectionBlock(
   title: 'Grid',
@@ -676,7 +680,7 @@ BeakBlock _metrics() => BeakGridBlock(
 
 ### BeakTableBlock
 
-A full `BeakDataTable` on a page: server-side sort, filter and pagination, row actions and the built-in delete. `fields` picks exact fields, including typed relationship paths, and wins over `columns`. `initialSpec` seeds order and page size, `baseFilter` is AND-merged into every query. The table needs a bounded height, so it takes `heightInPixels`.
+A full `BeakDataTable` on a page: server-side sort, filter and pagination, row actions and the built-in delete. `tableColumns` reuses presentation definitions with localized labels and templates; `fields` picks exact fields, including typed relationship paths. `tableColumns` wins over `fields`, which wins over `columns`. `initialSpec` seeds order and page size, `baseFilter` is AND-merged into every query. The table needs a bounded height, so it takes `heightInPixels`.
 
 ```dart title="packages/beak_frontend/lib/src/blocks/beak_table_block.dart"
 const BeakTableBlock({
@@ -684,6 +688,7 @@ const BeakTableBlock({
   this.title,
   this.columns,
   this.fields,
+  this.tableColumns,
   this.enableDelete = true,
   this.initialSpec,
   this.baseFilter,
@@ -700,6 +705,7 @@ const BeakTableBlock({
 | `title` | `String?` | `null` | Optional heading shown above the table. |
 | `columns` | `List<BeakColumn>?` | `null` | The columns to show, in order; defaults to the model's table-context columns. |
 | `fields` | `List<BeakScalarField<Object>>?` | `null` | Exact ordered fields, including typed relationship paths and formatting. Takes precedence over `columns` and suppresses automatic relation columns. |
+| `tableColumns` | `List<BeakTableColumn>?` | `null` | Reusable presentation columns with labels, templates and inferred relationship loads. Takes precedence over `fields` and `columns`. |
 | `enableDelete` | `bool` | `true` | Adds the built-in delete action. Disable for read-only embedded listings. Custom `actions` remain available independently. |
 | `initialSpec` | `BeakQuerySpec?` | `null` | Seeds sort order and page size on first load. |
 | `baseFilter` | `BeakFilter?` | `null` | A filter AND-merged into every query (e.g. status scope). |

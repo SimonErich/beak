@@ -69,7 +69,7 @@ const BeakModelBehavior({
 | `isEmpty` | `bool` | No values, actions or guards. The server skips graph preparation for models with an empty behavior. |
 | `relationLoads` | `List<BeakRelationLoad>` | Related data the `derived` and `suggested` values depend on. Also identifies inverse records affected by a related edit. |
 | `action(String name)` | `BeakModelAction` | Resolves a command received over the wire. Throws `Unknown action "x".` for an undeclared name. Application code holds the action object and never calls this. |
-| `canEdit(String key, BeakRecord record)` | `bool` | Whether an ordinary editor may author the field: `editableWhen` allows it, no `derived` or `snapshot` value owns it, and no action's `values` own it |
+| `canEdit(String key, BeakRecord record, {bool isCreate = false})` | `bool` | Whether an ordinary editor may author the field: `editableWhen` allows it (or the record is being created), no `derived` or `snapshot` value owns it, and no action's `values` own it |
 | `initialize(BeakRecord)` | `BeakRecord` | Supplies only the `initial` values |
 | `apply(BeakRecord, {initial, overriddenFields, action, arguments})` | `BeakRecord` | Evaluates the dependency graph without mutating its input |
 | `validateEdits(BeakRecord, {initial, actionName, isCreate})` | `void` | Rejects direct edits to locked fields and action-controlled state |
@@ -197,6 +197,11 @@ const BeakModelAction({
 | `values` | `List<BeakValueBehavior<Object>>` | `[]` | Field changes applied before the model's calculations and snapshots |
 
 `isAvailable(BeakRecord record)` returns `availableWhen?.call(record) ?? true`.
+
+Form action surfaces preserve a configured action's `label` and `description`.
+They resolve its registered model command for capabilities, `availableWhen`,
+`allowOnCreate`, `inputModel` and dispatch. A presentation with a translated label
+cannot replace those rules or change the command's value behavior.
 
 ```dart title="examples/clean_beak_config/lib/resources/invoices/models/invoice.dart"
 abstract final class InvoiceActions {

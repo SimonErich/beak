@@ -65,6 +65,10 @@ const Resource({
   this.softDeletes = false,
   this.timestamps = false,
   this.managesSchema = true,
+  this.createdAtColumnKey = 'created_at',
+  this.updatedAtColumnKey = 'updated_at',
+  this.deletedAtColumnKey = 'deleted_at',
+  this.isDeletedColumnKey,
 });
 ```
 
@@ -74,6 +78,10 @@ const Resource({
 | `softDeletes` | `bool` | `false` | Adds a `deletedAt` column (`deleted_at`). Deletes write it instead of removing the row, and the model reports `softDeletes => true`. |
 | `timestamps` | `bool` | `false` | Adds `createdAt` and `updatedAt` (`created_at`, `updated_at`), stamped by the API. |
 | `managesSchema` | `bool` | `true` | `false` when another system migrates the table (a Serverpod model, a database Beak was pointed at). `beak prepare` writes no migration for it. |
+| `createdAtColumnKey` | `String` | `created_at` | Creation timestamp storage key; custom keys reuse declared fields. |
+| `updatedAtColumnKey` | `String` | `updated_at` | Revision timestamp storage key used by writes and form guards. |
+| `deletedAtColumnKey` | `String` | `deleted_at` | Nullable deletion timestamp storage key. |
+| `isDeletedColumnKey` | `String?` | `null` | Optional boolean visibility flag; false is live and true is deleted. Delete and restore also update the deletion timestamp. |
 
 ```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
 @Resource(table: 'book', managesSchema: false)
@@ -166,7 +174,7 @@ When a rule list repeats a bound, the tightest wins. A bound that is not an inte
 
 ### Rules added for you
 
-A non-nullable field gets `BeakRequired()` at the front of its `rules`. A `List` field and a `BeakJsonObject` field get `BeakRequired(allowEmpty: true)`, because an empty list is a value. A nullable `bool` becomes a tri-state column. A password field is visible on `{BeakContext.form}` only, unless you pass `visibleOn`.
+A non-nullable field gets `BeakRequired()` at the front of its `rules`. A `List` field, a `BeakJsonObject` field and a string field with an explicit empty-string default get `BeakRequired(allowEmpty: true)`, so the declared empty value remains valid while null is rejected. Additional declared rules still apply. A nullable `bool` becomes a tri-state column. A password field is visible on `{BeakContext.form}` only, unless you pass `visibleOn`.
 
 ```dart title="examples/serverpod/bookshop_beak/lib/models/book.dart"
   /// Shelf price in cents.

@@ -145,7 +145,7 @@ QueryBuilder<WormRecordModel> builderFor(
   final model = registry.byTableOrThrow(spec.table);
   var builder = projectedBuilder(model, adapter);
   if (spec.withTrashed) {
-    builder = builder.withTrashed();
+    builder = builder.withoutGlobalScope<BeakSoftDeleteScope>();
   }
   final PredicateTree? filter = predicateFor(spec.filter, model);
   if (filter != null) {

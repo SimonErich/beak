@@ -45,6 +45,68 @@ migration table at the end collects the common ones.
 
 #### Serverpod
 
+- Existing application integration: `BeakServerpodEngine` accepts live `admit`,
+  identity generation and request/error logging callbacks. The stock scope
+  check and Session logging remain the defaults.
+- `BeakServerpodEngine.pruneReceipts(session, olderThan: cutoff)` exposes the
+  existing graph receipt retention service to host maintenance jobs.
+- `BeakScreen.canAccess` guards custom page navigation, command search, routes
+  and rendering. `BeakVisibilityBlock` conditionally mounts dashboard subtrees.
+  Both rendering guards track signal reads for live access revocation.
+- `BeakTableBlock.tableColumns` reuses the resource table's presentation columns,
+  including localized headings, templates and automatic relationship loads.
+- Relation-only input schemas with `@BelongsTo` are accepted by schema discovery.
+- `executeOperation` delegates an authorized graph write to an existing domain
+  use case in the save transaction. Handled writes skip ordinary SQL while
+  preserving validation, scopes, revision locks, dependent identities and
+  replay receipts.
+- `BeakSaveOperationWrite.withValues` lets a trusted server hook derive registered
+  scalar values before stock persistence. Input authorization still runs first;
+  the result is checked for valid columns, values, scope and immutable identity.
+- Creation forms ignore `editableWhen` until a record is saved, while derived,
+  snapshot and action-controlled fields remain locked. Unchanged stored foreign
+  keys no longer require read access to unrelated resources during an edit.
+- Draft controllers retain hidden model-derived columns while command inputs
+  remain limited to editable fields. Derived previews do not mark a pristine or
+  successfully saved form dirty, so save navigation still completes when a
+  server-owned revision is recalculated after a receipt. User edits, editable
+  suggestions and invalid input still participate in unsaved-edit tracking.
+- Owned-row background validation waits for loaded field permissions and omits
+  server-owned values. Read-only fields do not trigger write validation.
+- Long translated model-action labels fit narrow
+  forms and confirmation dialogs without painting beyond their button.
+- Owned-row and related-record editors use the native scrollable form dialog,
+  keeping actions visible when fields exceed the viewport.
+- Closing owned-row, related-record and option dialogs after their parent form
+  unmounts cannot restore a disposed draft.
+- Ordinary form controls wrap on narrow headers, including localized save and
+  cancel labels; wizard rail controls retain their distributed footer layout.
+- Nested relation creation buttons fit narrow cards and use the panel language.
+- Form command buttons and input surfaces preserve configured action labels and
+  descriptions. Registered model actions retain authority over permissions,
+  eligibility, typed input and execution.
+- Native form dialogs, exact-code inputs and inspector controls translate their
+  Apply/Close labels and default action confirmation through panel localization.
+- Composed-list URL acknowledgments preserve newer search edits and caret state.
+  Frame updates write the latest query; external navigation still restores
+  bookmarked views and cancels obsolete pending writes.
+- PostgreSQL grouped summaries preserve numeric string results such as
+  `SUM(bigint)` instead of silently omitting their groups. Malformed numeric
+  results raise a query error.
+- Semantic UUID search uses validated full-identifier equality, including
+  relationship paths; mixed text searches retain escaped substring matching.
+  This avoids applying PostgreSQL `ILIKE` to native UUID columns.
+- Explicit empty-string schema defaults infer `BeakRequired(allowEmpty: true)`;
+  null remains invalid and additional field rules still apply.
+- `@Resource` and `BeakModel` support configurable creation, update and deletion
+  timestamp keys plus an optional boolean deletion flag. Generated metadata,
+  form revision guards, queries, relations, summaries, delete and restore use
+  the same keys. JSON columns normalize database objects and arrays to the
+  existing document-text wire representation.
+- Removed the fixed-key constants `WormDataSource.softDeleteColumnKey` and
+  `BeakResourceService.createdAtColumnKey` / `updatedAtColumnKey`; use the
+  corresponding model metadata getters.
+
 - **Admin app in a Serverpod 4 workspace.** `beak_serverpod_server` runs Beak's
   stock Shelf API inside the Serverpod server, behind one gated endpoint method,
   on Serverpod's own database session. `BeakServerpodEngine` runs the pipeline in

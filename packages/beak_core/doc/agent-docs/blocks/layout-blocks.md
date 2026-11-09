@@ -20,6 +20,7 @@ BeakScreen layoutBlocksPage() => BeakScreen(
       _tabsSection(),
       _accordionSection(),
       _masonrySection(),
+      _visibilitySection(),
       _escapeHatchSection(),
     ],
   ),

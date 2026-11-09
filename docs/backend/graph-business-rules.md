@@ -18,6 +18,7 @@ Form saves are graph commits: one `POST /api/commits` carries every record of th
 | --- | --- | --- |
 | Model `behavior` and `validationRules` | On the model, shared with the panel | Derived values, `editableWhen`, named actions, uniqueness. Runs on both sides automatically, see [Model behavior](../models/behavior.md) |
 | `preparePlan` | Your class, wired in `lib/server.dart` | Rules across records: totals, snapshots, reconciliation, guarded counters. Server only |
+| `executeOperation` | The same place | Existing domain use cases replace ordinary writes inside the save transaction |
 | `finalizePlan` | The same place | Queueing effects after validation, see [Durable effects](durable-effects.md) |
 | `graphOnly` | The same place | Closing the per-record routes so nothing writes around the rules |
 
@@ -169,7 +170,7 @@ $ curl -s -w ' [%{http_code}]\n' -X POST localhost:8392/api/products -H 'content
 
 The router also closes a table without being asked when its model declares `behavior`, when it is an owned child of a model with `editableWhen`, or when another model's shared rules load it. List every table your preparer reasons about, owned children included: the shop lists items, vouchers and attribute rows next to their parents, since a direct write to a child would bypass a rule on its parent.
 
-`graphOnly` needs no `preparePlan`: list a table to close its direct routes and every save of it goes through `POST /api/commits`, where the usual authorization and validation still run. Two checks protect the rest of the wiring. `preparePlan`, `finalizePlan` and tables closed by behavior or shared rules need a `WormDataSource`, which the router checks at build time, and a transactional adapter, which a commit checks when it runs.
+`graphOnly` needs no `preparePlan`: list a table to close its direct routes and every save of it goes through `POST /api/commits`, where the usual authorization and validation still run. Two checks protect the rest of the wiring. `preparePlan`, `executeOperation`, `finalizePlan` and tables closed by behavior or shared rules need a `WormDataSource`, which the router checks at build time, and a transactional adapter, which a commit checks when it runs.
 
 ## Revision guards and replay
 
@@ -209,7 +210,17 @@ Assert three things per rule: the accepted graph gets the derived values, the re
 | A plan that decodes but is invalid (unknown field, cycle, duplicate id) is a `422` | `Invalid save plan: ...` names the problem, before any hook runs. The panel always sends valid plans |
 | Plan size is bounded | `saveId` up to 200 characters, 1000 operations, 10,000 graph nodes |
 | A graph commit needs `BeakCommitReceiptsMigration` applied | Every generated host lists it. Run `beak migrate` before the first save |
-| Nothing prunes receipts | Old idempotency keys never become new writes, and the table grows |
+| Receipt retention is explicit | The service's `pruneReceipts` removes receipts strictly older than the configured cutoff. A host may schedule it; no pruning runs automatically. Replaying an expired identity can perform a new write |
+
+## Reuse an existing domain write
+
+`executeOperation` on `beakApiRouter` or `BeakGraphCommitService` runs after each operation's authorization, field and scalar validation, scope and revision checks. Its `BeakSaveOperationContext` holds the prepared plan, resolved values, existing record, identity, principal and transaction source. Return null to keep ordinary persistence, or `BeakSaveOperationWrite` to replace it. Creates and updates return their persisted record; delete and link operations need no record. Final graph validation and durable receipts still apply. A replay never calls the executor again.
+
+For trusted bookkeeping that belongs in ordinary persistence, return `BeakSaveOperationWrite.withValues(BeakRecord(...))`. The service merges these scalar values into the prepared create or update. Columns must be registered, scalar rules and row scope still apply, and the primary key cannot change. Relations require ordinary graph operations. Client-supplied read-only values are rejected before this hook runs, so an import lock or version field can be derived on the server without making it writable in the panel.
+
+Handled updates preserve the locked identity and re-read the persisted row. When a legacy use case leaves its timestamp unchanged, Beak advances only the configured update timestamp to protect the next editor's revision guard. Implicit foreign-key existence checks run for new or changed links; unchanged stored links do not require read access to their targets. Explicit record rules keep their declared query requirements.
+
+Put models controlled by the executor in `graphOnly`; direct CRUD routes do not invoke this transaction hook. The [Serverpod integration](../serverpod/admin-app/how-it-works.md#existing-authorization-and-domain-writes) explains handing the same transaction into typed ORM use cases.
 
 ## Verify it
 

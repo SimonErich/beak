@@ -168,6 +168,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 

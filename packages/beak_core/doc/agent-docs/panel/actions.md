@@ -182,6 +182,13 @@ static const addNote = BeakModelAction(
 
 `OrderNoteInputModel` (`examples/foodio-adminpanel/lib/domain/_order_note_input.dart`) is a small `BeakModel` with a `body` string column, required by default and capped at 2000 characters. The same rules run in the dialog and on the server. A command without an `inputModel` opens a confirmation instead, showing its `description`.
 
+`BeakFormActions` and `BeakFormActionInput` retain the configured action's `label`
+and `description`, so a localized presentation can refer to the registered command
+with the same identity. The model's registered action still supplies the input
+schema, allowed states, creation eligibility and value behavior. Permission checks
+and dispatch use that registered command. An inline input's explicit `description`
+or `editDescription` overrides the action description.
+
 ### What a click does
 
 1. The runner loads the record afresh and checks the command: the account's capabilities allow it, and `availableWhen` holds for the stored record.

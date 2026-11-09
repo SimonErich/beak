@@ -87,7 +87,7 @@ For example, `defaults.copyWith(initialThemeMode: OiThemeMode.dark)`, with `OiTh
 
 The panel builds one `OiApp` with both themes and a mode. `OiThemeMode.system` follows the operating system, `light` and `dark` pin it. The shell shows a toggle (`OiThemeToggle`) that changes the mode live, without rebuilding the router or losing the page you are on. Switch it off with `BeakNavigation.showThemeToggle: false` when the panel should not offer the choice.
 
-The chosen mode is not saved. A reload goes back to `initialThemeMode`, so set that if your users all want dark. Custom widgets can read and change the mode through the panel's `BeakThemeController`, a `ValueNotifier<OiThemeMode>`:
+The chosen mode is saved locally (browser `localStorage` / `SharedPreferences`) by `BeakThemeController`, so a reload keeps the user's preference. `initialThemeMode` is only the fallback when nothing has been saved yet. Custom widgets can read and change the mode through that same `ValueNotifier<OiThemeMode>`:
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_theme_controller.dart"
 --8<-- "packages/beak_frontend/lib/src/panel/beak_theme_controller.dart:BeakThemeController"

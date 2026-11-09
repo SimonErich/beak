@@ -282,6 +282,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 
@@ -294,6 +295,7 @@ const BeakScreen({
 | `navigationTitle` | `String?` | none | Sidebar title override; defaults to `title` |
 | `navigationGroup` | `String?` | none | Optional sidebar group heading this screen is filed under |
 | `showInNav` | `bool` | `true` | Whether the screen appears in the sidebar. Set false for detail pages reached only by navigation (e.g. an invoice document). |
+| `canAccess` | `bool Function()?` | none | Live access guard for navigation, routes, search and rendering; null allows access. Server policies still authorize data. |
 | `framed` | `bool` | `true` | Whether to provide the standard page header, gutters and scrolling. The frame does not add a card or background behind the body: card, chart and table blocks own their surfaces. Wrap the body in a `BeakCardBlock` to deliberately place it on one shared surface. Set false for full-bleed screens like a calendar or kanban board. |
 
 ## Layout containers

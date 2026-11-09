@@ -4,6 +4,8 @@
 
 A resource gives you four routes. Some pages belong to no resource (an overview, a work queue), and sometimes one route of a resource needs a page Beak cannot derive. There are two tools for that, and a third for the widget that fits neither.
 
+Use `BeakScreen.canAccess` for a live permission callback shared by navigation, command search, route redirects and body rendering. To show permitted areas of a dashboard independently, wrap their blocks in `BeakVisibilityBlock(visibleWhen: ..., child: ...)`; a denied subtree is not mounted and issues no data requests. Update the host's permission state and rebuild or refresh the router after identity changes. Server policies remain the authorization boundary.
+
 ## At a glance
 
 | You want | Use | Route | Sidebar entry |
@@ -292,6 +294,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 

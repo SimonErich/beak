@@ -204,7 +204,7 @@ flutter run -d chrome
 
 Open Products. The table has Name, Sku, Category, Net price and Active, and the net price now reads `€ 12,50`. Above the table sit three dashed chips, `Category`, `Available` and `Net price`. Press the last one and two inputs open, one for the lowest price and one for the highest, each with `EUR` on the right. Type `20` in the lower bound and the table narrows to the products at or above twenty euros.
 
-Press Ctrl-K, or Cmd-K on a Mac, or the magnifier in the top bar. A dialog called Go to opens. Type `coffee`. It lists the Ethiopia product, which contains no such word but sits in the `Specialty coffee` category, and both categories, one through its name and one through its description. That is `globalSearchSources` at work.
+Press Ctrl-K, or Cmd-K on a Mac, or the magnifier in the top bar. A command palette opens. Type `coffee`. It lists the Ethiopia product, which contains no such word but sits in the `Specialty coffee` category, and both categories, one through its name and one through its description. That is `globalSearchSources` at work.
 
 Open Shop overview, which lives at the panel's home route `/`. It shows a Products card with the current count. Create a product, come back, and the number has caught up. Blocks refetch after a write made through this panel; they cannot see a colleague's write in another browser.
 

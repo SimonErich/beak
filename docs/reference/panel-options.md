@@ -305,6 +305,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 
@@ -318,6 +319,7 @@ const BeakScreen({
 | `navigationGroup` | `String?` | `null` | Optional sidebar group heading this screen is filed under. |
 | `showInNav` | `bool` | `true` | Whether the screen appears in the sidebar. Set false for detail pages reached only by navigation (e.g. an invoice document). |
 | `framed` | `bool` | `true` | Whether to provide the standard page header, gutters and scrolling. The frame does not add a card or background behind the body: card, chart and table blocks own their surfaces. Wrap the body in a `BeakCardBlock` to deliberately place it on one shared surface. Set false for full-bleed screens like a calendar or kanban board. |
+| `canAccess` | `bool Function()?` | `null` (allowed) | Live presentation permission. Denied pages are removed from navigation and commands, redirect direct routes to `/403`, and do not mount their body. Re-evaluated on rebuild or router refresh. Server policies independently authorize data requests. |
 
 `effectiveNavigationTitle` is `navigationTitle ?? title`, and `location` is `path`. A screen at `/` becomes the landing page. The block reference is [Blocks](blocks.md).
 
@@ -631,7 +633,7 @@ One display policy for tables, forms, summaries and exports. It changes presenta
 | `supportedLocales` | Defaults to `BeakLocalizations.supportedLocales`, which is `en` and `de` |
 | `localizationsDelegates` | Application delegates installed first; Beak's own delegate is always appended, so a custom `BeakLocalizations` delegate can override framework text |
 | `theme`, `darkTheme` | `OiThemeData`; `OiThemeData.light()` and `OiThemeData.dark()` when null |
-| `initialThemeMode` | `OiThemeMode.system` by default; `light` and `dark` are the others. The shell's toggle changes it live through the registered `BeakThemeController`. |
+| `initialThemeMode` | Fallback when no preference is stored yet (`OiThemeMode.system` by default). The shell's toggle changes the live mode through `BeakThemeController`, which persists the choice locally across reloads. |
 | `sidebarCollapsible` | `true`: the sidebar collapses to an icon rail |
 | `sidebarDefaultCollapsed` | `false`: the sidebar starts expanded |
 | `shellActions` | `List<Widget> Function(BuildContext)`; extra controls in the shell header. When null and `auth` is set, the shell shows the sign-out button instead. |
@@ -688,7 +690,7 @@ Each `BeakPanel` owns one GetIt container, exposed to its subtree by `BeakDepend
 | Data source | `BeakDataSource` | A `ModelBeakDataSource` routing each table to its model's own source or the fallback |
 | Model registry | `BeakModelRegistry` | Every resource model and every model they relate to |
 | Panel config | `BeakPanelConfig` | The config in use |
-| Theme controller | `BeakThemeController` | Starts in `initialThemeMode` |
+| Theme controller | `BeakThemeController` | Starts from the saved preference, else `initialThemeMode` |
 | Action runner | `BeakModelActionRunner` | Runs model commands and keeps unresolved ones recoverable |
 
 ## Embedding

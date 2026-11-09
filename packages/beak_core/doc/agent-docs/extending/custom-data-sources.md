@@ -498,6 +498,7 @@ registerBeakCommitRoutes(
     policy: policy,
     preparePlan: preparePlan,
     finalizePlan: finalizePlan,
+    executeOperation: executeOperation,
     receipts: commitReceipts,
     maxStagedReceipts:
         maxStagedReceipts ?? BeakGraphCommitService.defaultMaxStagedReceipts,

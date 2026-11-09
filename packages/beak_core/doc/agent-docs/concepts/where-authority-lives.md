@@ -122,6 +122,74 @@ typedef BeakSavePlanFinalizer =
       WormDataSource transaction,
       BeakPrincipal? principal,
     );
+
+/// Delegates an authorized operation to an existing domain use case.
+///
+/// Runs only in the graph transaction, after policy, scope, field validation and
+/// revision checks. Return null to use ordinary persistence. A handled write
+/// skips ordinary SQL and remains subject to final graph validation and receipts.
+/// Network effects must be queued for after commit rather than performed here.
+typedef BeakSaveOperationExecutor =
+    Future<BeakSaveOperationWrite?> Function(BeakSaveOperationContext context);
+
+/// Context for one authorized, resolved operation inside its save transaction.
+final class BeakSaveOperationContext {
+  /// Supplies the operation and its resolved transaction-local data.
+  const BeakSaveOperationContext({
+    required this.plan,
+    required this.operation,
+    required this.model,
+    required this.values,
+    required this.existing,
+    required this.id,
+    required this.transaction,
+    required this.principal,
+  });
+
+  /// Prepared plan, including its named action when present.
+  final BeakSavePlan plan;
+
+  /// Operation being executed; use [values] for resolved foreign keys.
+  final BeakSaveOperation operation;
+
+  /// Authoritative metadata for the target model.
+  final BeakModel model;
+
+  /// Validated input with defaults, identities and references resolved.
+  final BeakRecord values;
+
+  /// Stored record before this operation, or null for a create.
+  final BeakRecord? existing;
+
+  /// Resolved target identity, or null for a create.
+  final Object? id;
+
+  /// Source bound to the same transaction as the graph and receipt.
+  final WormDataSource transaction;
+
+  /// Authenticated caller accepted by the server policy.
+  final BeakPrincipal? principal;
+}
+
+/// A completed domain write, or trusted scalar derivations for stock persistence.
+final class BeakSaveOperationWrite {
+  /// [record] is required for create/update and carries the persisted identity.
+  /// Deletes and link writes need no record.
+  const BeakSaveOperationWrite({this.record}) : values = null;
+
+  /// Merges trusted, registered scalar values into the authorized input before
+  /// ordinary persistence. Values are validated and cannot replace identity.
+  /// Use this for server-owned bookkeeping without duplicating stock writes.
+  const BeakSaveOperationWrite.withValues(BeakRecord values)
+    : values = values,
+      record = null;
+
+  /// Persisted record; the service rereads it before accepting the write.
+  final BeakRecord? record;
+
+  /// Server-derived fields, or null when the domain write already persisted.
+  final BeakRecord? values;
+}
 ```
 
 A model that declares behavior, or whose validation rules read related rows, is closed to the per-record routes. The plain `POST` and `PATCH` answer with "This resource must be saved through a graph commit." so there is no side door around the behavior:
@@ -130,7 +198,9 @@ A model that declares behavior, or whose validation rules read related rows, is 
 final graphOnlyTables = {
   for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
 };
-if ((preparePlan != null || finalizePlan != null) &&
+if ((preparePlan != null ||
+        finalizePlan != null ||
+        executeOperation != null) &&
     dataSource is! WormDataSource) {
   throw const BeakConfigurationException(
     'Graph preparation requires a Worm data source.',

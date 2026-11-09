@@ -122,7 +122,7 @@ final _publish = BeakModelAction(
 
 ## Guards
 
-`editableWhen` and `deletableWhen` take the stored record and answer yes or no. They describe the lifecycle of the record, which is a different thing from who may act, so they are separate from policies. The invoice is editable only as a draft and never deletable:
+`editableWhen` and `deletableWhen` take the stored record and answer yes or no. They describe the lifecycle of the record, which is a different thing from who may act, so they are separate from policies. Creation ignores the stored-record edit lock; derived, snapshot and action-controlled fields stay read-only. The invoice is editable only as a draft and never deletable:
 
 ```dart
 --8<-- "examples/clean_beak_config/lib/resources/invoices/models/invoice.dart:InvoiceBehavior"
@@ -204,6 +204,8 @@ The preview in the form and the authority on the server run the same function, `
 7. The operations are written, then the [validation rules](validation.md) run on the final graph. Any failure rolls the whole save back.
 
 The form is the mirror image. Editing an input marks a suggested field as overridden, and every change re-runs `apply` until nothing moves, up to 64 rounds before it reports `Cyclic derived field values in form.` Fields that a guard or a `derived` value owns are disabled and not sent. Related rows that suggested and derived values read are loaded with the record.
+
+Hidden model-derived fields remain readable in the draft. Their preview changes alone do not make the form dirty, including when a confirmed save recalculates a next-revision value. Editable suggestions, user edits and invalid input still count as unsaved changes.
 
 ## Sources that cannot do this
 

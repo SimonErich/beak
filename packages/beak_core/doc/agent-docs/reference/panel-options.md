@@ -372,6 +372,7 @@ const BeakScreen({
   this.navigationGroup,
   this.showInNav = true,
   this.framed = true,
+  this.canAccess,
 });
 ```
 
@@ -385,6 +386,7 @@ const BeakScreen({
 | `navigationGroup` | `String?` | `null` | Optional sidebar group heading this screen is filed under. |
 | `showInNav` | `bool` | `true` | Whether the screen appears in the sidebar. Set false for detail pages reached only by navigation (e.g. an invoice document). |
 | `framed` | `bool` | `true` | Whether to provide the standard page header, gutters and scrolling. The frame does not add a card or background behind the body: card, chart and table blocks own their surfaces. Wrap the body in a `BeakCardBlock` to deliberately place it on one shared surface. Set false for full-bleed screens like a calendar or kanban board. |
+| `canAccess` | `bool Function()?` | `null` (allowed) | Live presentation permission. Denied pages are removed from navigation and commands, redirect direct routes to `/403`, and do not mount their body. Re-evaluated on rebuild or router refresh. Server policies independently authorize data requests. |
 
 `effectiveNavigationTitle` is `navigationTitle ?? title`, and `location` is `path`. A screen at `/` becomes the landing page. The block reference is [Blocks](blocks.md).
 

@@ -335,7 +335,7 @@ QueryBuilder<WormRecordModel> builderFor(
   final model = registry.byTableOrThrow(spec.table);
   var builder = projectedBuilder(model, adapter);
   if (spec.withTrashed) {
-    builder = builder.withTrashed();
+    builder = builder.withoutGlobalScope<BeakSoftDeleteScope>();
   }
   final PredicateTree? filter = predicateFor(spec.filter, model);
   if (filter != null) {
@@ -426,7 +426,7 @@ Future<BeakPage<BeakRecord>> query(BeakQuerySpec spec) => _read(() async {
 });
 ```
 
-Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. Numbers, booleans and timestamps match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
+Search is typed by the field, not by the database. Text columns match with a case-insensitive contains, and `%`, `_` and a backslash in the term match themselves. UUID fields match complete canonical UUIDs by equality, normalized to lowercase; other terms skip those fields while retaining text matches. Numbers, booleans and timestamps also match by typed equality, so a term that is not a number cannot match a number column and a `SQLite` implicit cast cannot make it match. A term that fits none of the chosen columns matches no rows.
 
 ## Why it is shaped this way
 

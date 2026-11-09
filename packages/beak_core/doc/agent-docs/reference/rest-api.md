@@ -288,7 +288,9 @@ Writing around a graph rule with `PATCH` would defeat it, so `beakApiRouter` ans
 final graphOnlyTables = {
   for (final model in graphOnly) registry.byTableOrThrow(model.table).table,
 };
-if ((preparePlan != null || finalizePlan != null) &&
+if ((preparePlan != null ||
+        finalizePlan != null ||
+        executeOperation != null) &&
     dataSource is! WormDataSource) {
   throw const BeakConfigurationException(
     'Graph preparation requires a Worm data source.',
