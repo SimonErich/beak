@@ -87,6 +87,7 @@ final class BeakThemeController extends ValueNotifier<OiThemeMode> {
 final class _BeakThemeSettings with OiSettingsData {
   const _BeakThemeSettings(this.mode);
 
+  // interop: OiSettingsData's JSON codec is declared with `dynamic` values.
   factory _BeakThemeSettings.fromJson(Map<String, dynamic> json) {
     final name = json['mode'];
     if (name is! String) {
@@ -103,6 +104,7 @@ final class _BeakThemeSettings with OiSettingsData {
   @override
   int get schemaVersion => 1;
 
+  // interop: OiSettingsData's JSON codec is declared with `dynamic` values.
   @override
   Map<String, dynamic> toJson() => {
     'schemaVersion': schemaVersion,

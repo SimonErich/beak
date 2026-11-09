@@ -82,8 +82,9 @@ final class BeakAsyncValidation {
       if (value == null) continue;
       // Existing links were already validated when authored. Editing a record
       // must not require read access to every unchanged related resource.
-      if (initial != null && initial[relation.foreignKey]?.raw == value)
+      if (initial != null && initial[relation.foreignKey]?.raw == value) {
         continue;
+      }
       final target =
           registry?.byTable(relation.relatedTable) ??
           model.relatedModels

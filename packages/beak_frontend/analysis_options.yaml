@@ -1,12 +1,6 @@
 analyzer:
   exclude:
     - build/**
-    - android/**
-    - ios/**
-    - web/**
-    - windows/**
-    - macos/**
-    - linux/**
 include: ../../analysis_options.yaml
 
 # Layer the Flutter-specific rules on top of the shared root options. The
