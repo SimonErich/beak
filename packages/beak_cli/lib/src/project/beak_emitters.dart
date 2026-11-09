@@ -35,17 +35,21 @@ final class BeakGeneratedFile {
 /// lets generated code pass `--fatal-infos` on its own merits and what keeps
 /// the emitters testable as plain string comparisons.
 abstract final class BeakEmitters {
-  /// The language version emitted code is formatted for.
+  /// The language version emitted code is formatted for when a caller names
+  /// none.
   ///
   /// Pinned rather than inferred: a formatter disagreeing with the SDK's
   /// would produce a diff nobody wrote, which is the classic way generated
   /// code breaks a `format --set-exit-if-changed` gate.
   // --8<-- [start:beakEmitterFormat]
-  static final Version languageVersion = Version(3, 11, 0);
+  static final Version defaultLanguageVersion = Version(3, 13, 0);
 
-  /// Formats [source] the way `dart format` would.
-  static String format(String source) =>
-      DartFormatter(languageVersion: languageVersion).format(source);
+  /// Formats [source] the way `dart format` would at [languageVersion], which
+  /// is [defaultLanguageVersion] when omitted.
+  static String format(String source, {Version? languageVersion}) =>
+      DartFormatter(
+        languageVersion: languageVersion ?? defaultLanguageVersion,
+      ).format(source);
   // --8<-- [end:beakEmitterFormat]
 
   /// Header stamped on every generated file.

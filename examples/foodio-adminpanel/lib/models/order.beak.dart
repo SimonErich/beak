@@ -289,7 +289,8 @@ abstract final class OrderColumns {
       BeakPattern(
         r'^(?:|\+?[0-9][0-9 ()-]{9,20})$',
         message:
-            'Enter a complete phone number, including the country code for international numbers.',
+            'Enter a complete phone number, including the country code '
+            'for international numbers.',
       ),
     ],
     defaultValue: '',

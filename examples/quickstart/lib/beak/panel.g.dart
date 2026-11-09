@@ -4,6 +4,7 @@ library;
 
 import 'package:beak/panel.dart';
 import 'package:beak/ui.dart';
+
 import '../resources/notes/models/note.dart';
 
 /// The panel configuration for this project.

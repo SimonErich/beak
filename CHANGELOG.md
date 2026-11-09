@@ -750,6 +750,18 @@ migration table at the end collects the common ones.
 - **Serverpod 4.0.4.** `examples/serverpod` and the pinned CLI in
   `tool/serverpod_cli_4` move from 4.0.3 to 4.0.4, and the generated client and
   protocol are unchanged. The declared `>=4.0.3 <5.0.0` ranges stay.
+- **`analyzer >=13.1.0 <15.0.0` and `dart_style ^3.1.14` in `beak_cli` and
+  `beak_serverpod_generator`** (were `^8.4.0` and `^10.0.1`, and `^3.1.0`), the
+  range `analysis_server_plugin ^0.3.18` resolves to. Each package reads the
+  analyzer through one file (`lib/src/analyzer_syntax.dart` and
+  `lib/src/analyzer_shim.dart`), so the next major changes one file. Both
+  suites pass on analyzer 13.3.0 and 14.7.0.
+- **Generated code is formatted for Dart 3.13 unless told otherwise.**
+  `BeakEmitters.format` takes an optional `languageVersion` and
+  `BeakEmitters.defaultLanguageVersion` replaces `BeakEmitters.languageVersion`
+  (3.11). `generateServerpodCompanions` takes the same parameter, where it used
+  the installed `dart_style`'s newest version. The examples are regenerated:
+  a blank line now separates `package:` imports from relative ones.
 
 ### Removed
 

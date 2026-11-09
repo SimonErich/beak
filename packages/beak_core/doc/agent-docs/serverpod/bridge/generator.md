@@ -129,8 +129,11 @@ Future<String> generateServerpodCompanions({
   required List<String> types,
   List<String> models = const [],
   String client = 'Client',
-}) async {
+  Version? languageVersion,
+}) {
 ```
+
+`languageVersion` is the Dart language version the output is formatted for. It defaults to 3.13, so the same input gives the same file whichever `dart_style` a project resolves. From 3.13 the formatter separates `package:` imports from relative ones with a blank line and keeps a long string on its argument's line, so pass the language version of the package that holds the output when that package declares an older one.
 
 Supported scalar types are strings, integers, doubles, booleans, `DateTime`, `Uri`, `UuidValue` and Dart enums, nullable or not, plus lists and sets of those. Nested objects and lists of non-nullable objects work. Arbitrary maps, nullable object-list elements, duplicate class names in the selected graph and models whose unnamed constructor is missing, private or takes positional parameters fail with an explicit message.
 

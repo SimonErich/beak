@@ -3,6 +3,7 @@
 library;
 
 import 'package:beak/beak.dart';
+
 import '../resources/assets/models/asset.dart';
 import '../resources/candles/models/price_candle.dart';
 import '../resources/faqs/models/faq.dart';

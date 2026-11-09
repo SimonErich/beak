@@ -357,11 +357,14 @@ bool _writeIfChanged(File file, String contents) {
 That only works when the output is a pure function of the inputs. The lists are sorted (files by path, imports and symbols by path and name), the generated files carry no timestamp, and the formatter is pinned to a language version instead of the installed SDK's:
 
 ```dart title="packages/beak_cli/lib/src/project/beak_emitters.dart"
-static final Version languageVersion = Version(3, 11, 0);
+static final Version defaultLanguageVersion = Version(3, 13, 0);
 
-/// Formats [source] the way `dart format` would.
-static String format(String source) =>
-    DartFormatter(languageVersion: languageVersion).format(source);
+/// Formats [source] the way `dart format` would at [languageVersion], which
+/// is [defaultLanguageVersion] when omitted.
+static String format(String source, {Version? languageVersion}) =>
+    DartFormatter(
+      languageVersion: languageVersion ?? defaultLanguageVersion,
+    ).format(source);
 ```
 
 A formatter that disagreed with the SDK's would produce a diff nobody wrote, which is the classic way generated code breaks a `dart format --set-exit-if-changed` gate. The same run twice prints this:

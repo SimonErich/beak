@@ -3,6 +3,7 @@
 library;
 
 import 'package:beak/beak.dart';
+
 import '../resources/categories/models/category.dart';
 import '../resources/categories/models/category_attribute.dart';
 import '../resources/companies/models/company.dart';

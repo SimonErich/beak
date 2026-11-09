@@ -51,11 +51,11 @@ Two packages float free of the Beak edges. `beak_cli` and `beak_serverpod_genera
 | `beak_image` | pure Dart | `beak_core` | `image` |
 | `beak_storage_s3` | pure Dart | `beak_core` | `http`, `crypto` |
 | `beak_storage_ftp` | pure Dart | `beak_core` | none, plain sockets |
-| `beak_cli` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `yaml`, `yaml_edit`, `worm`, `worm_postgres`, `worm_sqlite` |
+| `beak_cli` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `pub_semver`, `yaml`, `yaml_edit`, `worm`, `worm_postgres`, `worm_sqlite` |
 | `beak_serverpod` | pure Dart | `beak_core` | `http`, `uuid` |
 | `beak_serverpod_flutter` | Flutter | `beak_core`, `beak_frontend`, `beak_serverpod` | `serverpod_client`, `serverpod_auth_core_flutter`, `serverpod_auth_idp_client` |
 | `beak_serverpod_server` | Dart VM (Serverpod 4) | `beak_backend`, `beak_core`, `beak_serverpod` | `serverpod`, `worm`, `worm_postgres` |
-| `beak_serverpod_generator` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `yaml` |
+| `beak_serverpod_generator` | Dart CLI | none | `analyzer`, `args`, `dart_style`, `path`, `pub_semver`, `yaml` |
 
 `worm`, its drivers, `worm_generator` and `worm_lints` are vendored under `packages/worm*`. They are consumed as path dependencies and stay out of the Melos gate, which only runs `melos run test-worm` over them.
 
