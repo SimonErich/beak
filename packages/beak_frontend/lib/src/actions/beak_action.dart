@@ -11,6 +11,7 @@ import '../data/beak_data_changes.dart';
 import '../overlays/beak_overlays.dart';
 import '../localization/beak_localizations.dart';
 import '../panel/beak_back_button.dart';
+import '../panel/beak_panel_access.dart';
 import '../panel/beak_routes.dart';
 import '../panel/beak_resource_screen.dart';
 import '../documents/beak_record_document.dart';
@@ -344,8 +345,45 @@ final class BeakGlobalAction extends BeakAction {
     super.icon,
     super.color,
     super.requiresConfirmation,
+    this.visibleWhen,
   });
+
+  /// Opens the list page of [model], the button for a resource that links to
+  /// its neighbours:
+  ///
+  /// ```dart
+  /// BeakResource(
+  ///   model: const ProductModel(),
+  ///   globalActions: [
+  ///     BeakGlobalAction.openList(
+  ///       const ProductCategoryModel(),
+  ///       label: 'Categories',
+  ///       icon: OiIcons.layers,
+  ///     ),
+  ///   ],
+  /// );
+  /// ```
+  ///
+  /// The button appears for accounts that may read [model] and is absent for
+  /// the rest. [icon] defaults to an external-link icon.
+  factory BeakGlobalAction.openList(
+    BeakModel model, {
+    required String label,
+    IconData? icon,
+  }) => BeakGlobalAction(
+    key: 'open-${model.table}',
+    label: label,
+    icon: icon ?? OiIcons.externalLink,
+    visibleWhen: (access) => access.canRead(model),
+    onExecute: (context) async =>
+        context.router.go(BeakRoutes.list(model.table)),
+  );
 
   /// Runs the action.
   final Future<void> Function(BeakActionContext context) onExecute;
+
+  /// Whether the action is offered to the account behind [access], on top of
+  /// the resource being readable; `null` offers it to everyone who can read
+  /// the resource.
+  final bool Function(BeakPanelAccess access)? visibleWhen;
 }

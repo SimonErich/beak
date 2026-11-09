@@ -18,6 +18,7 @@ import '../auth/beak_session_store.dart';
 import '../auth/beak_logout_button.dart';
 import '../localization/beak_localizations.dart';
 import '../di/beak_locator.dart';
+import 'beak_panel_access.dart';
 import '../pages/beak_resource_pages.dart';
 import '../form/beak_configured_form.dart';
 import 'beak_resource_screen.dart';
@@ -53,13 +54,14 @@ import 'beak_shell_page_scope.dart';
 GoRouter createBeakRouter(
   BeakPanelConfig config, {
   BeakAuthRouterRefresh? authRefresh,
+  BeakPanelAccess? access,
 }) => GoRouter(
   refreshListenable: authRefresh,
   redirect: (_, state) =>
       _maintenanceRedirect(config.maintenance, state.uri.path) ??
       authRefresh?.redirect(state.uri.path),
   routes: [
-    ...beakPanelRoutes(config, authRefresh: authRefresh),
+    ...beakPanelRoutes(config, authRefresh: authRefresh, access: access),
     ...beakAuthRoutes(config, authRefresh: authRefresh),
     ..._maintenanceRoutes(config.maintenance),
     ..._errorRoutes(config),
@@ -81,135 +83,151 @@ GoRouter createBeakRouter(
 /// Pass the [authRefresh] the router listens to, so the idle lock keeps the
 /// panel closed until it is unlocked. Without it the lock only navigates to
 /// `/lock`, and a later navigation, the browser's Back button for one, leaves it.
+///
+/// [access] is the account's [BeakPanelAccess] the route guards ask; it
+/// defaults to the one [registerBeakDependencies] registered in [beakLocator].
 List<RouteBase> beakPanelRoutes(
   BeakPanelConfig config, {
   BeakAuthRouterRefresh? authRefresh,
-}) => [
-  ShellRoute(
-    builder: (context, state, child) => _watchAuth(context, config, (context) {
-      final shell = _fullScreenRoute(config, state.uri.path)
-          ? child
-          : _BeakShell(
-              config: config,
-              currentPath: state.uri.path,
-              child: child,
+  BeakPanelAccess? access,
+}) {
+  BeakPanelAccess accessNow() => access ?? _registeredAccess();
+  return [
+    ShellRoute(
+      builder: (context, state, child) =>
+          _watchAuth(context, config, (context) {
+            final shell = _fullScreenRoute(config, state.uri.path)
+                ? child
+                : _BeakShell(
+                    config: config,
+                    currentPath: state.uri.path,
+                    child: child,
+                  );
+            final auth = config.auth;
+            if (auth == null) return shell;
+            return BeakAuthGate(
+              adapter:
+                  auth.adapter ?? beakDependencies(context)<BeakSessionStore>(),
+              child: switch (auth.idleLockTimeout) {
+                final Duration timeout => _BeakIdleLock(
+                  timeout: timeout,
+                  authRefresh: authRefresh,
+                  child: shell,
+                ),
+                null => shell,
+              },
             );
-      final auth = config.auth;
-      if (auth == null) return shell;
-      return BeakAuthGate(
-        adapter: auth.adapter ?? beakDependencies(context)<BeakSessionStore>(),
-        child: switch (auth.idleLockTimeout) {
-          final Duration timeout => _BeakIdleLock(
-            timeout: timeout,
-            authRefresh: authRefresh,
-            child: shell,
+          }),
+      routes: [
+        // `/` is claimed by a screen, or forwards to the panel's home; sign-in
+        // and the error pages' back actions rely on it landing somewhere real.
+        if (!_hasHomePage(config))
+          GoRoute(
+            path: '/',
+            redirect: (_, _) => _homeLocation(config, accessNow()) ?? '/403',
           ),
-          null => shell,
-        },
-      );
-    }),
-    routes: [
-      // `/` is claimed by a screen, or forwards to the panel's home; sign-in
-      // and the error pages' back actions rely on it landing somewhere real.
-      if (!_hasHomePage(config))
-        if (_homeLocation(config) case final String home)
-          GoRoute(path: '/', redirect: (_, _) => home),
-      // Flat routes on purpose: nested routes would keep the list page
-      // alive under create/show/edit, so returning to it would show
-      // stale data instead of re-querying.
-      for (final resource in config.resources) ...[
-        GoRoute(
-          path: resource.route,
-          onExit: (context, state) => _confirmExit(context, config),
-          redirect: (_, _) => resource.isVisible ? null : '/403',
-          builder: (context, state) => _watchAuth(
-            context,
-            config,
-            (context) =>
-                _customResourceScreen(
-                  resource.screenFor(BeakScreenRole.list),
-                  context,
-                  null,
-                ) ??
-                BeakResourceListPage(
-                  resource: resource,
-                  dataSource: beakDependencies(context)<BeakDataSource>(),
-                ),
+        // Flat routes on purpose: nested routes would keep the list page
+        // alive under create/show/edit, so returning to it would show
+        // stale data instead of re-querying.
+        for (final resource in config.resources) ...[
+          GoRoute(
+            path: resource.route,
+            onExit: (context, state) => _confirmExit(context, config),
+            redirect: (_, _) =>
+                resource.isVisibleTo(accessNow()) ? null : '/403',
+            builder: (context, state) => _watchAuth(
+              context,
+              config,
+              (context) =>
+                  _customResourceScreen(
+                    resource.screenFor(BeakScreenRole.list),
+                    context,
+                    null,
+                  ) ??
+                  BeakResourceListPage(
+                    resource: resource,
+                    dataSource: beakDependencies(context)<BeakDataSource>(),
+                  ),
+            ),
           ),
-        ),
-        GoRoute(
-          path: '${resource.route}/create',
-          onExit: (context, state) => _confirmExit(context, config),
-          redirect: (_, _) => resource.allowsCreate ? null : '/403',
-          builder: (context, state) => _watchAuth(
-            context,
-            config,
-            (context) =>
-                _customResourceScreen(
-                  resource.screenFor(BeakScreenRole.create),
-                  context,
-                  null,
-                ) ??
-                BeakResourceCreatePage(
-                  resource: resource,
-                  dataSource: beakDependencies(context)<BeakDataSource>(),
-                ),
+          GoRoute(
+            path: '${resource.route}/create',
+            onExit: (context, state) => _confirmExit(context, config),
+            redirect: (_, _) =>
+                resource.allowsCreateTo(accessNow()) ? null : '/403',
+            builder: (context, state) => _watchAuth(
+              context,
+              config,
+              (context) =>
+                  _customResourceScreen(
+                    resource.screenFor(BeakScreenRole.create),
+                    context,
+                    null,
+                  ) ??
+                  BeakResourceCreatePage(
+                    resource: resource,
+                    dataSource: beakDependencies(context)<BeakDataSource>(),
+                  ),
+            ),
           ),
-        ),
-        GoRoute(
-          path: '${resource.route}/:id/edit',
-          onExit: (context, state) => _confirmExit(context, config),
-          redirect: (_, _) => resource.allowsEdit ? null : '/403',
-          builder: (context, state) => _watchAuth(
-            context,
-            config,
-            (context) =>
-                _customResourceScreen(
-                  resource.screenFor(BeakScreenRole.edit),
-                  context,
-                  state.pathParameters['id'],
-                ) ??
-                BeakResourceEditPage(
-                  resource: resource,
-                  dataSource: beakDependencies(context)<BeakDataSource>(),
-                  recordId: state.pathParameters['id'] ?? '',
-                ),
+          GoRoute(
+            path: '${resource.route}/:id/edit',
+            onExit: (context, state) => _confirmExit(context, config),
+            redirect: (_, _) =>
+                resource.allowsEditTo(accessNow()) ? null : '/403',
+            builder: (context, state) => _watchAuth(
+              context,
+              config,
+              (context) =>
+                  _customResourceScreen(
+                    resource.screenFor(BeakScreenRole.edit),
+                    context,
+                    state.pathParameters['id'],
+                  ) ??
+                  BeakResourceEditPage(
+                    resource: resource,
+                    dataSource: beakDependencies(context)<BeakDataSource>(),
+                    recordId: state.pathParameters['id'] ?? '',
+                  ),
+            ),
           ),
-        ),
-        GoRoute(
-          path: '${resource.route}/:id',
-          onExit: (context, state) => _confirmExit(context, config),
-          redirect: (_, _) => resource.isVisible ? null : '/403',
-          builder: (context, state) => _watchAuth(
-            context,
-            config,
-            (context) =>
-                _customResourceScreen(
-                  resource.screenFor(BeakScreenRole.read),
-                  context,
-                  state.pathParameters['id'],
-                ) ??
-                BeakResourceShowPage(
-                  resource: resource,
-                  dataSource: beakDependencies(context)<BeakDataSource>(),
-                  recordId: state.pathParameters['id'] ?? '',
-                ),
+          GoRoute(
+            path: '${resource.route}/:id',
+            onExit: (context, state) => _confirmExit(context, config),
+            redirect: (_, _) =>
+                resource.isVisibleTo(accessNow()) ? null : '/403',
+            builder: (context, state) => _watchAuth(
+              context,
+              config,
+              (context) =>
+                  _customResourceScreen(
+                    resource.screenFor(BeakScreenRole.read),
+                    context,
+                    state.pathParameters['id'],
+                  ) ??
+                  BeakResourceShowPage(
+                    resource: resource,
+                    dataSource: beakDependencies(context)<BeakDataSource>(),
+                    recordId: state.pathParameters['id'] ?? '',
+                  ),
+            ),
           ),
-        ),
+        ],
+        for (final screen in config.pages)
+          GoRoute(
+            path: screen.path,
+            redirect: (_, _) =>
+                screen.isAccessibleTo(accessNow()) ? null : '/403',
+            builder: (context, state) => _watchAuth(
+              context,
+              config,
+              (context) => BeakScreenView(screen: screen),
+            ),
+          ),
       ],
-      for (final screen in config.pages)
-        GoRoute(
-          path: screen.path,
-          redirect: (_, _) => screen.isAccessible ? null : '/403',
-          builder: (context, state) => _watchAuth(
-            context,
-            config,
-            (context) => BeakScreenView(screen: screen),
-          ),
-        ),
-    ],
-  ),
-];
+    ),
+  ];
+}
 
 Widget? _customResourceScreen(
   BeakResourceScreen? screen,
@@ -229,17 +247,20 @@ Widget _watchAuth(
   BeakPanelConfig config,
   WidgetBuilder builder,
 ) {
-  final auth = config.auth;
-  if (auth == null) return Builder(builder: builder);
-  final adapter = auth.adapter ?? beakDependencies(context)<BeakSessionStore>();
+  if (config.auth == null) return Builder(builder: builder);
+  final access = BeakPanelAccess.of(context);
   return Watch((context) {
-    final identity = switch (adapter.state.value) {
-      BeakAuthAuthenticated(:final identity) => identity.id,
-      _ => null,
-    };
-    return KeyedSubtree(key: ValueKey(identity), child: builder(context));
+    final principal = access.principal;
+    return KeyedSubtree(key: ValueKey(principal), child: builder(context));
   });
 }
+
+/// The access [registerBeakDependencies] registered in [beakLocator], for a
+/// router built without an explicit one; anonymous when none is registered.
+BeakPanelAccess _registeredAccess() =>
+    beakLocator.isRegistered<BeakPanelAccess>()
+    ? beakLocator<BeakPanelAccess>()
+    : BeakPanelAccess.anonymous;
 
 /// Whether a custom page claims the home route `/`.
 bool _hasHomePage(BeakPanelConfig config) =>
@@ -248,19 +269,19 @@ bool _hasHomePage(BeakPanelConfig config) =>
 /// Where `/` forwards when no page claims it: [BeakPanelConfig.home] while it
 /// is visible, and otherwise the first visible navigation destination in the
 /// order the shell lists them. `null` when the panel has nothing to show.
-String? _homeLocation(BeakPanelConfig config) {
+String? _homeLocation(BeakPanelConfig config, BeakPanelAccess access) {
   final resources = {
     for (final resource in config.resources) resource.model.table: resource,
   };
   bool visible(BeakNavigationItem item) =>
-      (item.screen?.isAccessible ?? true) &&
+      (item.screen?.isAccessibleTo(access) ?? true) &&
       (item.model == null ||
-          (resources[item.model!.table]?.isVisible ?? false));
+          (resources[item.model!.table]?.isVisibleTo(access) ?? false));
   final home = config.home;
   if (home != null) {
     final reachable = switch (home) {
-      final BeakResource resource => resource.isVisible,
-      final BeakScreen screen => screen.isAccessible,
+      final BeakResource resource => resource.isVisibleTo(access),
+      final BeakScreen screen => screen.isAccessibleTo(access),
       _ => true,
     };
     if (reachable) return home.location;
@@ -275,10 +296,10 @@ String? _homeLocation(BeakPanelConfig config) {
     }
   }
   for (final resource in config.navigationResources) {
-    if (resource.isVisible) return resource.route;
+    if (resource.isVisibleTo(access)) return resource.route;
   }
   for (final screen in config.pages) {
-    if (screen.showInNav && screen.isAccessible) return screen.path;
+    if (screen.showInNav && screen.isAccessibleTo(access)) return screen.path;
   }
   return null;
 }
@@ -437,13 +458,14 @@ final class _BeakShell extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final access = BeakPanelAccess.of(context);
     final resources = {
       for (final resource in config.resources) resource.model.table: resource,
     };
     bool visible(BeakNavigationItem item) =>
-        (item.screen?.isAccessible ?? true) &&
+        (item.screen?.isAccessibleTo(access) ?? true) &&
         (item.model == null ||
-            (resources[item.model!.table]?.isVisible ?? false));
+            (resources[item.model!.table]?.isVisibleTo(access) ?? false));
     final sections =
         config.navigation?.sections
             .where((section) => section.items.any(visible))
@@ -586,7 +608,7 @@ final class _BeakShell extends HookWidget {
               .where((item) => item.model != null && visible(item))
               .map((item) => resources[item.model!.table])
               .whereType<BeakResource>()
-              .where((resource) => resource.allowsCreate)
+              .where((resource) => resource.allowsCreateTo(access))
               .firstOrNull
         : null;
     void openCommandBar() => openBeakCommandBar(context, config);
@@ -782,7 +804,7 @@ final class _BeakShell extends HookWidget {
                           ]
                         : [
                             for (final resource in config.navigationResources)
-                              if (resource.isVisible)
+                              if (resource.isVisibleTo(access))
                                 OiNavItem(
                                   label: resource.effectiveNavigationTitle,
                                   icon: resource.icon.icon,
@@ -790,7 +812,8 @@ final class _BeakShell extends HookWidget {
                                   section: resource.navigationGroup,
                                 ),
                             for (final screen in config.pages)
-                              if (screen.showInNav && screen.isAccessible)
+                              if (screen.showInNav &&
+                                  screen.isAccessibleTo(access))
                                 OiNavItem(
                                   label: screen.effectiveNavigationTitle,
                                   icon: screen.icon.icon,

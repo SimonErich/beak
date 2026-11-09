@@ -14,6 +14,7 @@ import '../data/beak_data_changes.dart';
 import '../query/beak_query_scope.dart';
 import '../localization/beak_localizations.dart';
 import '../overlays/beak_overlays.dart';
+import '../panel/beak_panel_access.dart';
 import '../detail/beak_record_scope.dart';
 import '../detail/relation_manager.dart';
 import '../di/beak_locator.dart';
@@ -72,11 +73,12 @@ class BeakBlockHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (block) {
-    final BeakVisibilityBlock visibility => Watch(
-      (_) => visibility.visibleWhen()
+    final BeakVisibilityBlock visibility => Watch((context) {
+      final access = BeakPanelAccess.of(context);
+      return visibility.visibleWhen(access)
           ? BeakBlockHost(block: visibility.child)
-          : const SizedBox.shrink(),
-    ),
+          : const SizedBox.shrink();
+    }),
     final BeakColumnBlock column => _column(context, column),
     final BeakRowBlock row => _row(context, row),
     final BeakGridBlock grid => _grid(context, grid),

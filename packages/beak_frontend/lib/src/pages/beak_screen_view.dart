@@ -4,6 +4,7 @@ import 'package:signals/signals_flutter.dart';
 
 import '../blocks/beak_block.dart';
 import '../blocks/beak_block_host.dart';
+import '../panel/beak_panel_access.dart';
 import '../panel/beak_screen.dart';
 
 /// Renders a [BeakScreen]: its declarative [BeakBlock] body, optionally
@@ -22,7 +23,9 @@ class BeakScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Watch((context) {
-    if (!screen.isAccessible) return OiErrorPage.forbidden();
+    if (!screen.isAccessibleTo(BeakPanelAccess.of(context))) {
+      return OiErrorPage.forbidden();
+    }
     final body = BeakBlockHost(block: screen.body);
     if (!screen.framed) {
       return body;

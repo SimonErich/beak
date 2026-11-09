@@ -29,6 +29,7 @@ import '../form/beak_configured_form.dart';
 import '../form/beak_form_controller_builder.dart' show BeakFormValueMode;
 import '../form/beak_form_layout.dart';
 import '../panel/beak_resource_screen.dart';
+import '../panel/beak_panel_access.dart';
 import '../panel/beak_panel_config.dart';
 import '../panel/beak_routes.dart';
 import '../table/beak_data_table.dart';
@@ -59,6 +60,7 @@ class BeakResourceListPage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final panelAccess = BeakPanelAccess.of(context);
     final filter = useState<BeakFilter?>(null);
     final generation = useState(0);
     final tableViewModel = useRef<BeakTableViewModel?>(null);
@@ -120,7 +122,7 @@ class BeakResourceListPage extends HookWidget {
         };
       },
       onError: resource.onActionError,
-      canExecute: resource.allowsAction,
+      canExecute: (action) => resource.allowsActionTo(panelAccess, action),
     );
 
     final repository = BeakResourceRepository(dataSource);
@@ -239,82 +241,83 @@ class BeakResourceListPage extends HookWidget {
         for (final action in resource.bulkActions) bulkAction(action),
         // A model command writes, so a resource that cannot be edited offers
         // none of them on a selection.
-        if (resource.allowsEdit)
+        if (resource.allowsEditTo(panelAccess))
           for (final commanded in {
             ...?definition?.bulkModelActions,
             for (final presentation
                 in definition?.bulkActions ?? const <BeakActionPresentation>[])
               ?presentation.modelAction,
           })
-            BeakTableAction(
-              id: BeakActionPresentation.keyOfModelAction(commanded),
-              label: model.behavior.action(commanded.name).label,
-              icon: OiIcons.play,
-              onRun: (ids) async {
-                final action = model.behavior.action(commanded.name);
-                final confirmed = await showOiDialog<bool>(
-                  context,
-                  builder: (context, close) => OiDialog.confirm(
-                    label: action.label,
-                    title: action.label,
-                    content: OiLabel.body(
-                      BeakLocalizations.of(
-                        context,
-                      ).applyToSelection(action.label, ids.length),
-                    ),
-                    actions: [
-                      OiButton.ghost(
-                        label: BeakLocalizations.of(context).cancel,
-                        onTap: () => close(false),
+            if (panelAccess.canAction(model, commanded))
+              BeakTableAction(
+                id: BeakActionPresentation.keyOfModelAction(commanded),
+                label: model.behavior.action(commanded.name).label,
+                icon: OiIcons.play,
+                onRun: (ids) async {
+                  final action = model.behavior.action(commanded.name);
+                  final confirmed = await showOiDialog<bool>(
+                    context,
+                    builder: (context, close) => OiDialog.confirm(
+                      label: action.label,
+                      title: action.label,
+                      content: OiLabel.body(
+                        BeakLocalizations.of(
+                          context,
+                        ).applyToSelection(action.label, ids.length),
                       ),
-                      OiButton.primary(
-                        label: action.label,
-                        onTap: () => close(true),
-                      ),
-                    ],
-                    onClose: () => close(false),
-                  ),
-                );
-                if (confirmed != true || !context.mounted) return;
-                BeakRecord? arguments = action.inputModel == null
-                    ? const BeakRecord(values: {})
-                    : null;
-                var cancelled = false;
-                var changed = false;
-                final failures = <String>[];
-                for (final id in ids) {
-                  if (!context.mounted || cancelled) break;
-                  await _executeModelAction(
-                    context: context,
-                    model: model,
-                    source: dataSource,
-                    recordId: id,
-                    action: action,
-                    onError: (error) => failures.add(
-                      '$id: ${BeakLocalizations.of(context).errorMessage(error)}',
+                      actions: [
+                        OiButton.ghost(
+                          label: BeakLocalizations.of(context).cancel,
+                          onTap: () => close(false),
+                        ),
+                        OiButton.primary(
+                          label: action.label,
+                          onTap: () => close(true),
+                        ),
+                      ],
+                      onClose: () => close(false),
                     ),
-                    onComplete: () => changed = true,
-                    prepare: (session) async {
-                      if (arguments != null) return arguments;
-                      arguments = await showBeakActionInput(
-                        context,
-                        session,
-                        action,
-                      );
-                      cancelled = arguments == null;
-                      return arguments;
-                    },
                   );
-                }
-                if (!context.mounted) return;
-                if (changed) generation.value++;
-                if (failures.isNotEmpty) {
-                  actionContext.reportError(
-                    BeakValidationException(failures.join('\n')),
-                  );
-                }
-              },
-            ),
+                  if (confirmed != true || !context.mounted) return;
+                  BeakRecord? arguments = action.inputModel == null
+                      ? const BeakRecord(values: {})
+                      : null;
+                  var cancelled = false;
+                  var changed = false;
+                  final failures = <String>[];
+                  for (final id in ids) {
+                    if (!context.mounted || cancelled) break;
+                    await _executeModelAction(
+                      context: context,
+                      model: model,
+                      source: dataSource,
+                      recordId: id,
+                      action: action,
+                      onError: (error) => failures.add(
+                        '$id: ${BeakLocalizations.of(context).errorMessage(error)}',
+                      ),
+                      onComplete: () => changed = true,
+                      prepare: (session) async {
+                        if (arguments != null) return arguments;
+                        arguments = await showBeakActionInput(
+                          context,
+                          session,
+                          action,
+                        );
+                        cancelled = arguments == null;
+                        return arguments;
+                      },
+                    );
+                  }
+                  if (!context.mounted) return;
+                  if (changed) generation.value++;
+                  if (failures.isNotEmpty) {
+                    actionContext.reportError(
+                      BeakValidationException(failures.join('\n')),
+                    );
+                  }
+                },
+              ),
       ];
       if (definition?.export case final export?) {
         availableBulkActions.add(
@@ -385,14 +388,15 @@ class BeakResourceListPage extends HookWidget {
         },
         actions: _presentActions(definition, [
           rowAction(const BeakViewAction()),
-          if (resource.allowsEdit) rowAction(const BeakEditAction()),
-          if (resource.allowsDelete && access.canDelete)
+          if (resource.allowsEditTo(panelAccess))
+            rowAction(const BeakEditAction()),
+          if (resource.allowsDeleteTo(panelAccess) && access.canDelete)
             rowAction(resource.deleteAction),
           for (final action in resource.recordActions)
             if (action.roles.contains(BeakScreenRole.list) &&
-                resource.allowsAction(action))
+                resource.allowsActionTo(panelAccess, action))
               rowAction(action),
-          if (resource.allowsCreate &&
+          if (resource.allowsCreateTo(panelAccess) &&
               access.canCreate &&
               resource.duplication != null)
             BeakTableAction(
@@ -437,28 +441,29 @@ class BeakResourceListPage extends HookWidget {
                 }
               },
             ),
-          if (resource.allowsEdit)
+          if (resource.allowsEditTo(panelAccess))
             for (final action in model.behavior.actions)
-              BeakTableAction(
-                id: BeakActionPresentation.keyOfModelAction(action),
-                label: action.label,
-                icon: OiIcons.play,
-                visibleWhen: action.isAvailable,
-                onRun: (ids) async {
-                  for (final id in ids) {
-                    if (!context.mounted) return;
-                    await _executeModelAction(
-                      context: context,
-                      model: model,
-                      source: dataSource,
-                      recordId: id,
-                      action: action,
-                      onError: actionContext.reportError,
-                      onComplete: () => generation.value++,
-                    );
-                  }
-                },
-              ),
+              if (panelAccess.canAction(model, action))
+                BeakTableAction(
+                  id: BeakActionPresentation.keyOfModelAction(action),
+                  label: action.label,
+                  icon: OiIcons.play,
+                  visibleWhen: action.isAvailable,
+                  onRun: (ids) async {
+                    for (final id in ids) {
+                      if (!context.mounted) return;
+                      await _executeModelAction(
+                        context: context,
+                        model: model,
+                        source: dataSource,
+                        recordId: id,
+                        action: action,
+                        onError: actionContext.reportError,
+                        onComplete: () => generation.value++,
+                      );
+                    }
+                  },
+                ),
         ]),
         showStatusBar: definition?.showTableStatusBar ?? true,
         pageSizeOptions: definition?.pageSizeOptions ?? const [10, 25, 50, 100],
@@ -483,7 +488,7 @@ class BeakResourceListPage extends HookWidget {
             actionContext: actionContext,
             compact: resource.globalActions.length > 3,
           ),
-        if (resource.allowsCreate && access.canCreate)
+        if (resource.allowsCreateTo(panelAccess) && access.canCreate)
           if (definition?.createLabel case final String label)
             OiButton.primary(
               label: label,
@@ -699,6 +704,7 @@ class BeakResourceShowPage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final panelAccess = BeakPanelAccess.of(context);
     final screen = resource.screenFor(BeakScreenRole.read);
     final registry = beakDependencies(context).isRegistered<BeakModelRegistry>()
         ? beakDependencies(context)<BeakModelRegistry>()
@@ -737,7 +743,7 @@ class BeakResourceShowPage extends HookWidget {
           dataSource: dataSource,
           recordId: recordId,
           mode: BeakFormMode.read,
-          canEdit: resource.allowsEdit,
+          canEdit: resource.allowsEditTo(panelAccess),
           submitAction: screen.submitAction,
           submitLabel: screen.submitLabel,
           submitIcon: screen.submitIcon,
@@ -786,6 +792,7 @@ class BeakResourceShowPage extends HookWidget {
 Widget Function(BuildContext, BeakFormSession, BeakFormMode, Widget, Widget)
 _defaultShowFrame(BeakResource resource, Object recordId) =>
     (context, session, _, _, child) {
+      final panelAccess = BeakPanelAccess.of(context);
       final BeakModel model = resource.model;
       final BeakRecord loaded = session.root.snapshot;
       final actionContext = BeakActionContext(
@@ -795,7 +802,7 @@ _defaultShowFrame(BeakResource resource, Object recordId) =>
         router: GoRouter.of(context),
         refresh: session.load,
         onError: resource.onActionError,
-        canExecute: resource.allowsAction,
+        canExecute: (action) => resource.allowsActionTo(panelAccess, action),
       );
       return BeakPageScaffold(
         resource: resource,
@@ -803,14 +810,14 @@ _defaultShowFrame(BeakResource resource, Object recordId) =>
         surface: false,
         title: '${resource.effectiveLabel} $recordId',
         actions: [
-          if (resource.allowsEdit &&
+          if (resource.allowsEditTo(panelAccess) &&
               (model.behavior.editableWhen?.call(loaded) ?? true))
             BeakActionButton(
               action: const BeakEditAction(),
               actionContext: actionContext,
               record: loaded,
             ),
-          if (resource.allowsDelete &&
+          if (resource.allowsDeleteTo(panelAccess) &&
               session.root.capabilities.canDelete &&
               (model.behavior.deletableWhen?.call(loaded) ?? true))
             BeakActionButton(
@@ -818,9 +825,10 @@ _defaultShowFrame(BeakResource resource, Object recordId) =>
               actionContext: actionContext,
               record: loaded,
             ),
-          if (resource.allowsEdit)
+          if (resource.allowsEditTo(panelAccess))
             for (final action in model.behavior.actions)
-              if (action.isAvailable(loaded))
+              if (action.isAvailable(loaded) &&
+                  panelAccess.canAction(model, action))
                 _ModelActionButton(
                   action: action,
                   onRun: () => _executeModelAction(
@@ -835,7 +843,7 @@ _defaultShowFrame(BeakResource resource, Object recordId) =>
                 ),
           for (final action in resource.recordActions)
             if (action.roles.contains(BeakScreenRole.read) &&
-                resource.allowsAction(action))
+                resource.allowsActionTo(panelAccess, action))
               BeakActionButton(
                 action: action,
                 actionContext: actionContext,
@@ -1131,62 +1139,66 @@ _pageFrame(
   if (form?.fullScreen == true || (form?.steps.isNotEmpty ?? false)) {
     return null;
   }
-  return (context, session, mode, actions, child) => BeakPageScaffold(
-    resource: resource,
-    variant: variant,
-    surface: false,
-    showBack: form?.showBack ?? true,
-    padding: form?.pagePadding,
-    gapInPixels: form?.pageGapInPixels,
-    title: variant == OiResourcePageVariant.create
-        ? BeakLocalizations.of(context).createTitle(resource.effectiveLabel)
-        : session.root.snapshot[resource.model.displayColumnKey]?.raw
-                  ?.toString() ??
-              resource.effectiveLabel,
-    actions: [
-      if (session.recordId != null)
-        for (final action in resource.recordActions)
-          if (resource.allowsAction(action) &&
-              action.roles.contains(switch (mode) {
-                BeakFormMode.read => BeakScreenRole.read,
-                BeakFormMode.create => BeakScreenRole.create,
-                BeakFormMode.edit => BeakScreenRole.edit,
-              }))
-            BeakActionButton(
-              action: action,
-              record: session.root.snapshot,
-              actionContext: BeakActionContext(
-                buildContext: context,
-                model: resource.model,
-                dataSource: session.repository.dataSource,
-                router: GoRouter.of(context),
-                refresh: session.load,
-                onError: resource.onActionError,
-                canExecute: resource.allowsAction,
+  return (context, session, mode, actions, child) {
+    final panelAccess = BeakPanelAccess.of(context);
+    return BeakPageScaffold(
+      resource: resource,
+      variant: variant,
+      surface: false,
+      showBack: form?.showBack ?? true,
+      padding: form?.pagePadding,
+      gapInPixels: form?.pageGapInPixels,
+      title: variant == OiResourcePageVariant.create
+          ? BeakLocalizations.of(context).createTitle(resource.effectiveLabel)
+          : session.root.snapshot[resource.model.displayColumnKey]?.raw
+                    ?.toString() ??
+                resource.effectiveLabel,
+      actions: [
+        if (session.recordId != null)
+          for (final action in resource.recordActions)
+            if (resource.allowsActionTo(panelAccess, action) &&
+                action.roles.contains(switch (mode) {
+                  BeakFormMode.read => BeakScreenRole.read,
+                  BeakFormMode.create => BeakScreenRole.create,
+                  BeakFormMode.edit => BeakScreenRole.edit,
+                }))
+              BeakActionButton(
+                action: action,
+                record: session.root.snapshot,
+                actionContext: BeakActionContext(
+                  buildContext: context,
+                  model: resource.model,
+                  dataSource: session.repository.dataSource,
+                  router: GoRouter.of(context),
+                  refresh: session.load,
+                  onError: resource.onActionError,
+                  canExecute: (action) =>
+                      resource.allowsActionTo(panelAccess, action),
+                ),
               ),
+        actions,
+      ],
+      heading: form?.recordHeader == null
+          ? null
+          : BeakRecordTemplateView(
+              template: form!.recordHeader!,
+              draft: session.root,
+              titleVariant: OiLabelVariant.h1,
+              subtitleVariant: OiLabelVariant.body,
+              inlineBadges: true,
+              inlineSubtitle: true,
+              titleTrailing:
+                  mode == BeakFormMode.edit && form.editingLabel != null
+                  ? OiBadge.soft(
+                      label: form.editingLabel!,
+                      icon: OiIcons.pencil,
+                      color: OiBadgeColor.neutral,
+                    )
+                  : null,
             ),
-      actions,
-    ],
-    heading: form?.recordHeader == null
-        ? null
-        : BeakRecordTemplateView(
-            template: form!.recordHeader!,
-            draft: session.root,
-            titleVariant: OiLabelVariant.h1,
-            subtitleVariant: OiLabelVariant.body,
-            inlineBadges: true,
-            inlineSubtitle: true,
-            titleTrailing:
-                mode == BeakFormMode.edit && form.editingLabel != null
-                ? OiBadge.soft(
-                    label: form.editingLabel!,
-                    icon: OiIcons.pencil,
-                    color: OiBadgeColor.neutral,
-                  )
-                : null,
-          ),
-    child: child,
-  );
+      child: child,
+    );
+  };
 }
 
 List<BeakTableAction> _presentActions(

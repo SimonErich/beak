@@ -12,6 +12,7 @@ import '../data/beak_resource_repository.dart';
 import '../data/beak_data_changes.dart';
 import 'beak_routes.dart';
 import '../localization/beak_localizations.dart';
+import 'beak_panel_access.dart';
 import 'beak_panel_config.dart';
 
 /// Opens the panel command bar — a fuzzy-searchable palette (Ctrl/⌘-K) that
@@ -47,11 +48,12 @@ void openBeakCommandBar(BuildContext context, BeakPanelConfig config) {
 List<OiCommand> beakNavigationCommands(
   BeakPanelConfig config,
   void Function(String route) go, {
+  required BeakPanelAccess access,
   BeakLocalizations localizations = BeakLocalizations.english,
 }) {
   return [
     for (final resource in config.navigationResources)
-      if (resource.isVisible)
+      if (resource.isVisibleTo(access))
         OiCommand(
           id: 'nav:${resource.route}',
           label: resource.effectiveNavigationTitle,
@@ -61,7 +63,7 @@ List<OiCommand> beakNavigationCommands(
           onExecute: () => go(resource.route),
         ),
     for (final page in config.pages)
-      if (page.showInNav && page.isAccessible)
+      if (page.showInNav && page.isAccessibleTo(access))
         OiCommand(
           id: 'nav:${page.path}',
           label: page.effectiveNavigationTitle,
@@ -98,13 +100,14 @@ final class BeakResourceSearchResult {
 Future<BeakResourceSearchResult> beakSearchResourcePage(
   BeakPanelConfig config,
   BeakDataSource dataSource,
-  String term,
-) async {
+  String term, {
+  required BeakPanelAccess access,
+}) async {
   final trimmed = term.trim();
   if (trimmed.isEmpty) return const BeakResourceSearchResult();
   final results = await Future.wait([
     for (final resource in config.navigationResources)
-      if (resource.isVisible)
+      if (resource.isVisibleTo(access))
         () async {
           final fields = resource.globalSearchSources.isEmpty
               ? [
@@ -258,8 +261,14 @@ Future<BeakResourceSearchResult> beakSearchResourcePage(
 Future<List<OiSearchResult>> beakSearchResources(
   BeakPanelConfig config,
   BeakDataSource dataSource,
-  String term,
-) async => (await beakSearchResourcePage(config, dataSource, term)).items;
+  String term, {
+  required BeakPanelAccess access,
+}) async => (await beakSearchResourcePage(
+  config,
+  dataSource,
+  term,
+  access: access,
+)).items;
 
 final class _PaletteEntry {
   const _PaletteEntry({
@@ -317,6 +326,7 @@ final class BeakSearchPalette extends HookWidget {
       return null;
     }, [inputFocus]);
     final source = dataSource ?? beakDependencies(context)<BeakDataSource>();
+    final access = BeakPanelAccess.of(context);
     final revision = useBeakDataRevision(source);
     final term = useState('');
     final retry = useState(0);
@@ -328,7 +338,12 @@ final class BeakSearchPalette extends HookWidget {
       final timer = Timer(const Duration(milliseconds: 200), () async {
         if (!active) return;
         loading.value = term.value.trim().isNotEmpty;
-        final result = await beakSearchResourcePage(config, source, term.value);
+        final result = await beakSearchResourcePage(
+          config,
+          source,
+          term.value,
+          access: access,
+        );
         if (!active) return;
         response.value = result;
         loading.value = false;
@@ -337,11 +352,12 @@ final class BeakSearchPalette extends HookWidget {
         active = false;
         timer.cancel();
       };
-    }, [source, config, term.value, revision, retry.value]);
+    }, [source, config, access.principal, term.value, revision, retry.value]);
 
     final resourceIcons = {
       for (final resource in config.navigationResources)
-        if (resource.isVisible) resource.effectiveLabel: resource.icon.icon,
+        if (resource.isVisibleTo(access))
+          resource.effectiveLabel: resource.icon.icon,
     };
 
     final query = term.value.trim().toLowerCase();
@@ -349,6 +365,7 @@ final class BeakSearchPalette extends HookWidget {
       for (final command in beakNavigationCommands(
         config,
         (_) {},
+        access: access,
         localizations: strings,
       ))
         if (query.isEmpty ||

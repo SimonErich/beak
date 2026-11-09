@@ -25,7 +25,7 @@ void main() {
         final visible = signal(false);
         addTearDown(visible.dispose);
         final block = BeakVisibilityBlock(
-          visibleWhen: () => visible.value,
+          visibleWhen: (_) => visible.value,
           child: const BeakTextBlock('Allowed content'),
         );
         await pumpBlock(tester, block);

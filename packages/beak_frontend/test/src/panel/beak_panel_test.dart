@@ -50,7 +50,7 @@ void main() {
         path: '/live',
         title: 'Live',
         icon: const BeakIconToken(OiIcons.lock),
-        canAccess: () => allowed.value,
+        canAccess: (_) => allowed.value,
         body: const BeakTextBlock('Protected content'),
       );
       await tester.pumpWidget(
@@ -75,7 +75,7 @@ void main() {
           path: '/protected',
           title: 'Protected page',
           icon: const BeakIconToken(OiIcons.lock),
-          canAccess: () => allowed,
+          canAccess: (_) => allowed,
           body: const BeakTextBlock('Protected content'),
         );
         final gated = config.copyWith(pages: [screen]);
@@ -89,6 +89,7 @@ void main() {
           beakNavigationCommands(
             gated,
             (_) {},
+            access: BeakPanelAccess.anonymous,
           ).any((command) => command.id == 'nav:/protected'),
           isFalse,
         );
@@ -104,6 +105,7 @@ void main() {
           beakNavigationCommands(
             gated,
             (_) {},
+            access: BeakPanelAccess.anonymous,
           ).any((command) => command.id == 'nav:/protected'),
           isTrue,
         );

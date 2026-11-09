@@ -1,7 +1,6 @@
 import 'package:beak_core/beak_core.dart';
 import 'package:beak_frontend/beak_frontend.dart';
 import 'package:beak_frontend/src/data/model_beak_data_source.dart';
-import 'package:beak_frontend/src/panel/beak_principal_bridge.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -199,8 +198,7 @@ void main() {
   // --8<-- [start:permissionsGovernTest]
   test('model permissions and supported operations govern every resource', () {
     final account = _Account({'reader'});
-    BeakPrincipalBridge.attach(account, owner: account);
-    addTearDown(() => BeakPrincipalBridge.detach(owner: account));
+    final access = BeakPanelAccess.fromAuth(account);
     const resource = BeakResource(
       model: _BoundModel(
         permissions: BeakPermissions(
@@ -210,10 +208,10 @@ void main() {
       ),
       icon: BeakIconToken(OiIcons.notebook),
     );
-    expect(resource.isVisible, isTrue);
-    expect(resource.allowsCreate, isFalse);
-    expect(resource.allowsEdit, isFalse);
-    expect(resource.allowsDelete, isFalse);
+    expect(resource.isVisibleTo(access), isTrue);
+    expect(resource.allowsCreateTo(access), isFalse);
+    expect(resource.allowsEditTo(access), isFalse);
+    expect(resource.allowsDeleteTo(access), isFalse);
     final custom = resource.copyWith(
       screens: [
         BeakCustomResourceScreen(
@@ -222,14 +220,15 @@ void main() {
         ),
       ],
     );
-    expect(custom.allowsCreate, isTrue);
-    expect(custom.allowsEdit, isFalse);
+    expect(custom.allowsCreateTo(access), isTrue);
+    expect(custom.allowsEditTo(access), isFalse);
     account.setRoles(const {});
-    expect(resource.isVisible, isFalse);
-    expect(custom.allowsCreate, isFalse);
+    expect(resource.isVisibleTo(access), isFalse);
+    expect(custom.allowsCreateTo(access), isFalse);
   });
 
   test('a custom edit screen supplies an edit the transport lacks', () {
+    final access = BeakPanelAccess.anonymous;
     final resource = BeakResource(
       model: const _BoundModel(),
       icon: const BeakIconToken(OiIcons.notebook),
@@ -240,10 +239,10 @@ void main() {
         ),
       ],
     );
-    expect(resource.allowsEdit, isTrue);
-    expect(resource.allowsCreate, isFalse);
+    expect(resource.allowsEditTo(access), isTrue);
+    expect(resource.allowsCreateTo(access), isFalse);
     expect(
-      resource.copyWith(canEdit: false).allowsEdit,
+      resource.copyWith(canEdit: false).allowsEditTo(access),
       isFalse,
       reason: 'canEdit still switches a custom edit screen off',
     );
