@@ -16,15 +16,13 @@ final class BeakNavigationItem {
   // --8<-- [start:BeakNavigationItemResource]
   const BeakNavigationItem.resource(
     this.model, {
-    String? label,
-    IconData? icon,
+    this._label,
+    this._icon,
     this.preset,
     this.showCount = false,
     this.recordLabelMonospace = false,
     this.group,
-  }) : screen = null,
-       _label = label,
-       _icon = icon;
+  }) : screen = null;
   // --8<-- [end:BeakNavigationItemResource]
 
   /// A custom [BeakScreen] registered with the panel.
@@ -33,15 +31,13 @@ final class BeakNavigationItem {
   // --8<-- [start:BeakNavigationItemScreen]
   const BeakNavigationItem.screen(
     this.screen, {
-    String? label,
-    IconData? icon,
+    this._label,
+    this._icon,
     this.group,
   }) : model = null,
        preset = null,
        showCount = false,
-       recordLabelMonospace = false,
-       _label = label,
-       _icon = icon;
+       recordLabelMonospace = false;
   // --8<-- [end:BeakNavigationItemScreen]
 
   /// Model owning a generated route.

@@ -296,7 +296,7 @@ class BeakConfiguredForm extends HookWidget {
       };
     }, [session, router]);
     final strings = BeakLocalizations.of(context);
-    return Watch.builder(
+    return SignalBuilder(
       key: ObjectKey(session),
       builder: (context) {
         session.revision.value;
@@ -384,7 +384,7 @@ class BeakConfiguredForm extends HookWidget {
         Widget region(
           BeakFormNode node, {
           bool compact = false,
-        }) => Watch.builder(
+        }) => SignalBuilder(
           builder: (context) {
             // A compact region may live in an overlay after the page builds.
             // It keeps observing the same draft while that sheet is open.
@@ -2584,7 +2584,7 @@ class _InlineActionInput extends StatelessWidget {
     };
     if (!session.canExecuteAction(effective)) return const SizedBox.shrink();
     final arguments = session.actionInput(input.action);
-    return Watch.builder(
+    return SignalBuilder(
       builder: (context) {
         arguments.revision.value;
         final busy =
@@ -4764,7 +4764,7 @@ Future<bool?> _editModal(
   builder: (context, close) => OiDialog.form(
     label: title,
     title: title,
-    content: Watch.builder(
+    content: SignalBuilder(
       builder: (context) {
         draft.session.revision.value;
         return Column(

@@ -262,7 +262,7 @@ Contributor detail is in [Dev infrastructure](../contributing/dev-infrastructure
 - Only `beak_backend` imports worm on the data path. `beak_cli` and `beak_serverpod_server` name worm for their own reasons, and `beak` re-exports it in `migrations.dart`.
 - `beak_frontend` is the only package that imports obers_ui for widgets. `beak` depends on the three obers_ui packages only to re-export them.
 - Storage drivers are plug-ins. A project that never adds `beak_storage_s3` never resolves it, and adding it next to `beak` needs no `dependency_overrides`.
-- Dart ^3.11.0 everywhere, Flutter `>=3.41.0` for the Flutter packages, Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.4 requires it.
+- Dart ^3.11.0 for the pure-Dart packages, Dart ^3.12.0 and Flutter `>=3.44.0` for the Flutter packages and the examples (go_router 18 requires them), Dart ^3.12.2 for `beak_serverpod_server` because Serverpod 4.0.4 requires it.
 
 ## Source
 

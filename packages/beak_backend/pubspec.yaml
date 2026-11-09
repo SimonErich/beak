@@ -39,6 +39,6 @@ dev_dependencies:
   # The shared BeakDataSource contract, run against WormDataSource.
   beak_test:
     path: ../beak_test
-  image: ^4.9.1
+  image: ^4.9.2
   lints: ^6.0.0
   test: ^1.25.6

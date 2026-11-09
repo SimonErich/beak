@@ -323,7 +323,7 @@ class BeakDataTable extends HookWidget {
     Object? idOf(BeakRecord record) => model.primaryKeyOf(record);
 
     // --8<-- [start:watchPage]
-    return Watch.builder(
+    return SignalBuilder(
       builder: (context) {
         final page = viewModel.page.value;
         final rows = page?.items ?? const <BeakRecord>[];

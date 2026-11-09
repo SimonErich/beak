@@ -9,11 +9,9 @@
 @TestOn('vm')
 library;
 
-import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
-import 'package:source_gen/source_gen.dart';
 import 'package:test/test.dart';
-import 'package:worm_generator/worm_generator.dart';
+
+import '../support/generate_worm.dart';
 
 const String _userSource = '''
 import 'package:worm/annotations.dart';
@@ -63,21 +61,7 @@ void main() {
     test(
       'User\$.posts and User\$.profile appear in generated output',
       () async {
-        final reader = await PackageAssetReader.currentIsolate();
-        final builder = PartBuilder(const <Generator>[
-          WormTableGenerator(),
-        ], '.worm.dart');
-        final writer = InMemoryAssetWriter();
-        await testBuilder(
-          builder,
-          const <String, String>{'_test|lib/user.dart': _userSource},
-          reader: reader,
-          writer: writer,
-          rootPackage: '_test',
-        );
-        final generated = writer.assets[AssetId('_test', 'lib/user.worm.dart')];
-        expect(generated, isNotNull, reason: 'no .worm.dart output written');
-        final source = String.fromCharCodes(generated!);
+        final source = await generateWormPart('user.dart', _userSource);
         expect(
           source,
           contains("static const RelationField<User, Post> posts ="),
@@ -93,21 +77,7 @@ void main() {
     );
 
     test('emits HasMany/HasOne accessor extension on User', () async {
-      final reader = await PackageAssetReader.currentIsolate();
-      final builder = PartBuilder(const <Generator>[
-        WormTableGenerator(),
-      ], '.worm.dart');
-      final writer = InMemoryAssetWriter();
-      await testBuilder(
-        builder,
-        const <String, String>{'_test|lib/user.dart': _userSource},
-        reader: reader,
-        writer: writer,
-        rootPackage: '_test',
-      );
-      final generated = writer.assets[AssetId('_test', 'lib/user.worm.dart')];
-      expect(generated, isNotNull, reason: 'no .worm.dart output written');
-      final source = String.fromCharCodes(generated!);
+      final source = await generateWormPart('user.dart', _userSource);
 
       // Extension header.
       expect(source, contains('extension UserAccessors on User {'));
@@ -145,21 +115,7 @@ void main() {
     test(
       'emits BelongsToMany accessor with alphabetical pivot convention',
       () async {
-        final reader = await PackageAssetReader.currentIsolate();
-        final builder = PartBuilder(const <Generator>[
-          WormTableGenerator(),
-        ], '.worm.dart');
-        final writer = InMemoryAssetWriter();
-        await testBuilder(
-          builder,
-          const <String, String>{'_test|lib/user.dart': _userSource},
-          reader: reader,
-          writer: writer,
-          rootPackage: '_test',
-        );
-        final generated = writer.assets[AssetId('_test', 'lib/user.worm.dart')];
-        expect(generated, isNotNull, reason: 'no .worm.dart output written');
-        final source = String.fromCharCodes(generated!);
+        final source = await generateWormPart('user.dart', _userSource);
 
         // Typed BelongsToManyAccessor getter.
         expect(

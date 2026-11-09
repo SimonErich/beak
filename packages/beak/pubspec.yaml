@@ -10,8 +10,8 @@ issue_tracker: https://github.com/SimonErich/beak/issues
 topics: [admin-panel, flutter, low-code, crud]
 
 environment:
-  sdk: ^3.11.0
-  flutter: '>=3.41.0'
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
 
 dependencies:
   beak_backend:

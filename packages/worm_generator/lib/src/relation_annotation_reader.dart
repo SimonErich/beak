@@ -29,7 +29,10 @@ const Map<String, RelationDescriptorKind> _supportedRelations =
 List<RelationDescriptor> readRelations(ClassElement element) {
   final relations = <RelationDescriptor>[];
   for (final field in element.fields) {
-    final descriptor = _readRelationField(field, parentClassName: element.name);
+    final descriptor = _readRelationField(
+      field,
+      parentClassName: element.displayName,
+    );
     if (descriptor != null) relations.add(descriptor);
   }
   return relations;
@@ -39,7 +42,7 @@ RelationDescriptor? _readRelationField(
   FieldElement field, {
   required String parentClassName,
 }) {
-  for (final meta in field.metadata) {
+  for (final meta in field.metadata.annotations) {
     final entry = _matchRelationAnnotation(meta);
     if (entry == null) continue;
     final relatedClassName = _relatedClassName(entry.reader);
@@ -49,7 +52,7 @@ RelationDescriptor? _readRelationField(
         _defaultForeignKey(parentClassName);
     final localKey = _stringFromReader(entry.reader, 'localKey') ?? 'id';
     return RelationDescriptor(
-      dartName: field.name,
+      dartName: field.displayName,
       relatedClassName: relatedClassName,
       kind: entry.kind,
       foreignKey: foreignKey,
@@ -84,7 +87,7 @@ _RelationAnnotation? _matchRelationAnnotation(ElementAnnotation meta) {
   if (value == null) return null;
   final type = value.type;
   if (type == null) return null;
-  final typeName = type.getDisplayString(withNullability: false);
+  final typeName = type.getDisplayString();
   final kind = _supportedRelations[typeName];
   if (kind == null) return null;
   return _RelationAnnotation(reader: ConstantReader(value), kind: kind);
@@ -93,7 +96,7 @@ _RelationAnnotation? _matchRelationAnnotation(ElementAnnotation meta) {
 String? _relatedClassName(ConstantReader reader) {
   final related = reader.peek('related')?.typeValue;
   if (related == null) return null;
-  return related.getDisplayString(withNullability: false);
+  return related.getDisplayString();
 }
 
 final class _RelationAnnotation {

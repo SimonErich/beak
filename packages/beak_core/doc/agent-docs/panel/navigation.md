@@ -117,29 +117,25 @@ An item is either a resource list or a custom screen:
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
 const BeakNavigationItem.resource(
   this.model, {
-  String? label,
-  IconData? icon,
+  this._label,
+  this._icon,
   this.preset,
   this.showCount = false,
   this.recordLabelMonospace = false,
   this.group,
-}) : screen = null,
-     _label = label,
-     _icon = icon;
+}) : screen = null;
 ```
 
 ```dart title="packages/beak_frontend/lib/src/panel/beak_navigation.dart"
 const BeakNavigationItem.screen(
   this.screen, {
-  String? label,
-  IconData? icon,
+  this._label,
+  this._icon,
   this.group,
 }) : model = null,
      preset = null,
      showCount = false,
-     recordLabelMonospace = false,
-     _label = label,
-     _icon = icon;
+     recordLabelMonospace = false;
 ```
 
 You name a model or a screen object, never a route. `BeakNavigationItem.resource(OrderModel())` points at the list of whatever resource registers that model, and `BeakNavigationItem.screen(kitchenScreen)` at the page's path. Label and icon default to the resource's `navigationTitle` and `icon`, or the screen's.

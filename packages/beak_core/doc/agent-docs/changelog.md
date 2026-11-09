@@ -762,6 +762,27 @@ migration table at the end collects the common ones.
   (3.11). `generateServerpodCompanions` takes the same parameter, where it used
   the installed `dart_style`'s newest version. The examples are regenerated:
   a blank line now separates `package:` imports from relative ones.
+- **Breaking, Dart `^3.12` and Flutter `>=3.44` for the panel packages.**
+  `beak_frontend`, `beak`, `beak_serverpod_flutter`, the `beak create` scaffold and
+  the examples move from `^3.11.0` and `>=3.41.0`, because go_router 18 needs
+  them. The pure-Dart packages stay at `^3.11.0`. Two constructors
+  (`BeakNavigationItem.resource` and `.screen`) and `BeakTableViewModel` take their
+  private fields as private named parameters, which Dart 3.12 allows.
+- **`go_router ^18.1.1` and `signals ^7.1.0`** in `beak_frontend`,
+  `beak_serverpod_flutter` and the examples (were `^17.3.0` and `^6.3.0`). Beak's own
+  use of go_router needed no change. signals 7 deprecates `Watch`, so the panel
+  builds its reactive subtrees with `SignalBuilder`.
+- **`beak_image` takes `image ^4.9.2`**, where it pinned 4.9.1 exactly. image 4.9.1
+  needed `xml ^7`; from 4.9.2 it does not need xml at all, so a project that keeps
+  `xml ^6` for another package no longer needs an override. Tested at 4.9.2 and
+  4.12.0.
+- **The vendored worm tooling leaves the legacy stack.** `worm_lints` is an
+  analyzer plugin on `analysis_server_plugin ^0.3.18`, named under `plugins:` in
+  `analysis_options.yaml`, where it was a `custom_lint` rule whose runner crashed
+  `dart analyze` at the repository root; `custom_lint` is gone from `worm`.
+  `worm_generator` moves to `build ^5`, `source_gen ^4.3.1`, `build_runner ^2.17.1`
+  and `analyzer ^14` (were `^2.4`, `^1.5`, `^2.4` and `^6`), and `worm_mongodb` to
+  `mongo_dart ^0.10.10` (was `^0.9`).
 
 ### Removed
 

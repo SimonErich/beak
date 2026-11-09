@@ -3,7 +3,7 @@
 [![CI](https://github.com/SimonErich/beak/actions/workflows/ci.yaml/badge.svg)](https://github.com/SimonErich/beak/actions/workflows/ci.yaml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Dart](https://img.shields.io/badge/Dart-%5E3.11-0175C2?logo=dart)
-![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.41-02569B?logo=flutter)
+![Flutter](https://img.shields.io/badge/Flutter-%3E%3D3.44-02569B?logo=flutter)
 
 Beak is the toolbox for the admin panel that almost every Dart or Flutter app
 grows eventually. You declare a model once, as an annotated Dart class, and
@@ -119,7 +119,7 @@ detail page from the model. Add `BeakTableScreen`, `BeakFormScreen` or
 
 ## Install and run
 
-You need Dart `^3.11` and Flutter `3.41` or newer. There is no database to
+You need Dart `^3.12` and Flutter `3.44` or newer. There is no database to
 install: a new project uses a SQLite file.
 
 ```console
